@@ -13,9 +13,6 @@ type Surface = {
   id: number;
   code: string;
   coats: number;
-  L: number;
-  W: number;
-  H: number;
   count: number;
   qtyOverride: number | null;
   rateOverride: number | null; // productivity (units/hr) or hours/item
@@ -27,7 +24,18 @@ type Surface = {
   unitPriceOverride: number | null; // $/L
   open: boolean;
 };
-type Area = { id: number; kind: "area"; name: string; type: "Interior" | "Exterior"; surfaces: Surface[] };
+type AreaType = "room" | "surface";
+type Area = {
+  id: number;
+  kind: "area";
+  name: string;
+  type: "Interior" | "Exterior";
+  areaType: AreaType;
+  L: number;
+  W: number;
+  H: number;
+  surfaces: Surface[];
+};
 type LineBlock = {
   id: number;
   kind: "line";
@@ -49,14 +57,23 @@ const fmt = (c: number) => "$" + (c / 100).toLocaleString("en-AU", { minimumFrac
 const fmt0 = (c: number) => "$" + Math.round(c / 100).toLocaleString("en-AU");
 let nextId = 1;
 
-function computeArea(item: RateItem | undefined, s: Surface): number {
+// Quantity for a surface, from the AREA's dimensions and Room/Surface geometry.
+// A surface can still override with a direct m²/lineal/count value.
+function computeQuantity(item: RateItem | undefined, area: Area, s: Surface): number {
   if (!item) return 0;
   if (s.qtyOverride != null) return s.qtyOverride;
   if (item.unit === "Hours Per Item") return s.count;
   const flat = /ceiling|floor|roof|soffit/i.test(item.sub_category ?? "");
-  if (item.unit === "Lineal Metres") return s.L && s.W ? 2 * (s.L + s.W) : 0;
-  if (flat) return s.L && s.W ? s.L * s.W : 0;
-  return s.L && s.W && s.H ? 2 * (s.L + s.W) * s.H : 0;
+  const { L, W, H } = area;
+  if (area.areaType === "surface") {
+    // a single plane: length × height (area), or just length (lineal)
+    if (item.unit === "Lineal Metres") return L || 0;
+    return L && H ? L * H : 0;
+  }
+  // a room: four walls (perimeter × height), ceilings/floors (L × W), lineal = perimeter
+  if (item.unit === "Lineal Metres") return L && W ? 2 * (L + W) : 0;
+  if (flat) return L && W ? L * W : 0;
+  return L && W && H ? 2 * (L + W) * H : 0;
 }
 const unitLabel = (item?: RateItem) =>
   !item ? "" : item.unit === "Hours Per Item" ? "items" : item.unit === "Lineal Metres" ? "m" : "m²";
@@ -141,11 +158,11 @@ export default function QuoteBuilder({
   const [saving, setSaving] = useState(false);
 
   function newArea(): Area {
-    return { id: nextId++, kind: "area", name: `Area ${nextId}`, type: "Interior", surfaces: [newSurface()] };
+    return { id: nextId++, kind: "area", name: `Area ${nextId}`, type: "Interior", areaType: "room", L: 0, W: 0, H: 2.4, surfaces: [newSurface()] };
   }
   function newSurface(): Surface {
     return {
-      id: nextId++, code: "", coats: 2, L: 0, W: 0, H: 2.4, count: 1, qtyOverride: null,
+      id: nextId++, code: "", coats: 2, count: 1, qtyOverride: null,
       rateOverride: null, paintingHrOverride: null, prepHr: 0, productName: null,
       coverageOverride: null, volumeOverride: null, unitPriceOverride: null, open: false,
     };
@@ -180,7 +197,7 @@ export default function QuoteBuilder({
   const surfaceCalc = (area: Area, s: Surface): SCalc => {
     const item = itemByKey.get(`${area.type}::${s.code}`);
     if (!item) return { qty: 0, paintingHr: 0, prepHr: s.prepHr, labourCents: Math.round(s.prepHr * chargeFor(area.type)), volume: 0, matCostCents: 0, matPriceCents: 0, totalCents: 0 };
-    const qty = computeArea(item, s);
+    const qty = computeQuantity(item, area, s);
     const isItem = item.unit === "Hours Per Item";
     const baseHpu = hoursPerUnit(item, s.coats);
     const dispRate = s.rateOverride ?? (isItem ? baseHpu : 1 / baseHpu);
@@ -457,11 +474,44 @@ function AreaCard({
         <select
           className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
           value={area.type}
-          onChange={(e) => onPatch({ type: e.target.value as Area["type"], surfaces: area.surfaces.map((s) => ({ ...s, code: "" })) })}
+          onChange={(e) => {
+            const t = e.target.value as Area["type"];
+            onPatch({ type: t, areaType: t === "Exterior" ? "surface" : "room", surfaces: area.surfaces.map((s) => ({ ...s, code: "" })) });
+          }}
         >
           <option>Interior</option><option>Exterior</option>
         </select>
         <button onClick={onRemove} className="px-1 text-gray-400 hover:text-red-600" aria-label="Remove area">×</button>
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-end gap-2 rounded-lg bg-gray-50 p-2">
+        <F label="Measure as">
+          <select
+            className="rounded-md border border-gray-300 px-1 py-1.5 text-sm"
+            value={area.areaType}
+            onChange={(e) => onPatch({ areaType: e.target.value as AreaType })}
+          >
+            <option value="room">Room (4 walls)</option>
+            <option value="surface">Surface (single plane)</option>
+          </select>
+        </F>
+        <F label="Length m">
+          <input type="number" min={0} step={0.1} className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+            value={area.L || ""} onChange={(e) => onPatch({ L: Number(e.target.value) || 0 })} />
+        </F>
+        {area.areaType === "room" && (
+          <F label="Width m">
+            <input type="number" min={0} step={0.1} className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              value={area.W || ""} onChange={(e) => onPatch({ W: Number(e.target.value) || 0 })} />
+          </F>
+        )}
+        <F label="Height m">
+          <input type="number" min={0} step={0.1} className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+            value={area.H || ""} onChange={(e) => onPatch({ H: Number(e.target.value) || 0 })} />
+        </F>
+        <span className="pb-1.5 text-[11px] text-gray-400">
+          {area.areaType === "room" ? "walls = perimeter × height · ceilings = L × W" : "plane = length × height"}
+        </span>
       </div>
 
       <div className="mt-3 space-y-2">
@@ -523,15 +573,7 @@ function SurfaceEditor({
   return (
     <div className="border-t border-gray-200 bg-gray-50 p-3">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {isItem ? (
-          <F label="Count">{num(s.count, (n) => onPatch({ count: n ?? 0 }))}</F>
-        ) : (
-          <>
-            <F label="Length m">{num(s.L, (n) => onPatch({ L: n ?? 0, qtyOverride: null }))}</F>
-            <F label="Width m">{num(s.W, (n) => onPatch({ W: n ?? 0, qtyOverride: null }))}</F>
-            <F label="Height m">{num(s.H, (n) => onPatch({ H: n ?? 0, qtyOverride: null }))}</F>
-          </>
-        )}
+        {isItem && <F label="Count">{num(s.count, (n) => onPatch({ count: n ?? 0 }))}</F>}
         <F label="Coats">
           <select className="w-full rounded-md border border-gray-300 px-1 py-1.5 text-sm" value={s.coats} onChange={(e) => onPatch({ coats: Number(e.target.value) })}>
             {[1, 2, 3, 4].map((c) => <option key={c} value={c}>{c}</option>)}
