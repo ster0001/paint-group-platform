@@ -182,6 +182,27 @@ export default function QuoteBuilder({
       ),
     );
   const removeBlock = (id: number) => setBlocks((bs) => bs.filter((b) => b.id !== id));
+  const duplicateBlock = (id: number) =>
+    setBlocks((bs) => {
+      const i = bs.findIndex((b) => b.id === id);
+      if (i < 0) return bs;
+      const b = bs[i];
+      const clone: Block =
+        b.kind === "area"
+          ? { ...b, id: nextId++, name: `${b.name} (copy)`, surfaces: b.surfaces.map((s) => ({ ...s, id: nextId++ })) }
+          : { ...b, id: nextId++ };
+      return [...bs.slice(0, i + 1), clone, ...bs.slice(i + 1)];
+    });
+  const duplicateSurface = (areaId: number, sid: number) =>
+    setBlocks((bs) =>
+      bs.map((b) => {
+        if (b.id !== areaId || b.kind !== "area") return b;
+        const i = b.surfaces.findIndex((s) => s.id === sid);
+        if (i < 0) return b;
+        const clone = { ...b.surfaces[i], id: nextId++ };
+        return { ...b, surfaces: [...b.surfaces.slice(0, i + 1), clone, ...b.surfaces.slice(i + 1)] };
+      }),
+    );
 
   const modMult = (group: string) => (modSel[group] ? modifiers.find((m) => m.code === modSel[group])?.multiplier : undefined);
   const finishChosen = !!modSel["Level of Finish"];
@@ -378,6 +399,8 @@ export default function QuoteBuilder({
                 onPatchSurface={(sid, patch) => patchSurface(b.id, sid, patch)}
                 onAddSurface={() => patchBlock(b.id, { surfaces: [...b.surfaces, newSurface()] })}
                 onRemoveSurface={(sid) => patchBlock(b.id, { surfaces: b.surfaces.filter((x) => x.id !== sid) })}
+                onDuplicateSurface={(sid) => duplicateSurface(b.id, sid)}
+                onDuplicate={() => duplicateBlock(b.id)}
                 onRemove={() => removeBlock(b.id)}
               />
             ) : (
@@ -388,6 +411,7 @@ export default function QuoteBuilder({
                 lineItems={lineItems}
                 chargeFor={chargeFor}
                 onPatch={(patch) => patchBlock(b.id, patch)}
+                onDuplicate={() => duplicateBlock(b.id)}
                 onRemove={() => removeBlock(b.id)}
               />
             ),
@@ -448,7 +472,7 @@ export default function QuoteBuilder({
 
 // ---------------- Area ----------------
 function AreaCard({
-  area, subGroups, itemByKey, products, calc, onPatch, onPatchSurface, onAddSurface, onRemoveSurface, onRemove,
+  area, subGroups, itemByKey, products, calc, onPatch, onPatchSurface, onAddSurface, onRemoveSurface, onDuplicateSurface, onDuplicate, onRemove,
 }: {
   area: Area;
   subGroups: Record<string, RateItem[]>;
@@ -459,9 +483,19 @@ function AreaCard({
   onPatchSurface: (sid: number, patch: Partial<Surface>) => void;
   onAddSurface: () => void;
   onRemoveSurface: (sid: number) => void;
+  onDuplicateSurface: (sid: number) => void;
+  onDuplicate: () => void;
   onRemove: () => void;
 }) {
   const subs = Object.keys(subGroups).sort();
+  // per-area totals (matches PaintScout's Area Hours / Area Price + breakdown)
+  const at = area.surfaces.reduce(
+    (a, s) => {
+      const c = calc(s);
+      return { hrs: a.hrs + c.paintingHr + c.prepHr, prep: a.prep + c.prepHr, paint: a.paint + c.paintingHr, mat: a.mat + c.matPriceCents, labour: a.labour + c.labourCents, price: a.price + c.totalCents };
+    },
+    { hrs: 0, prep: 0, paint: 0, mat: 0, labour: 0, price: 0 },
+  );
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4">
       <div className="flex items-center gap-2">
@@ -481,6 +515,7 @@ function AreaCard({
         >
           <option>Interior</option><option>Exterior</option>
         </select>
+        <button onClick={onDuplicate} className="px-1 text-lg text-gray-400 hover:text-gray-700" title="Duplicate area" aria-label="Duplicate area">⧉</button>
         <button onClick={onRemove} className="px-1 text-gray-400 hover:text-red-600" aria-label="Remove area">×</button>
       </div>
 
@@ -539,9 +574,12 @@ function AreaCard({
                 </select>
                 {c.item && c.qty > 0 && (
                   <span className="whitespace-nowrap text-sm tabular-nums text-gray-600">
-                    {c.qty.toFixed(1)} {unitLabel(c.item)} · {(c.paintingHr + c.prepHr).toFixed(1)} hr · {fmt(c.totalCents)}
+                    {c.qty.toFixed(1)} {unitLabel(c.item)} · {s.coats}c ·{" "}
+                    {c.prepHr > 0 ? `${c.paintingHr.toFixed(1)}+${c.prepHr.toFixed(1)}h` : `${c.paintingHr.toFixed(1)}h`} ·{" "}
+                    {fmt(c.totalCents)}
                   </span>
                 )}
+                <button onClick={() => onDuplicateSurface(s.id)} className="px-1 text-gray-400 hover:text-gray-700" title="Duplicate surface" aria-label="Duplicate surface">⧉</button>
                 <button onClick={() => onRemoveSurface(s.id)} className="px-1 text-gray-400 hover:text-red-600" aria-label="Remove surface">×</button>
               </div>
               {s.open && c.item && (
@@ -552,6 +590,18 @@ function AreaCard({
         })}
       </div>
       <button onClick={onAddSurface} className="mt-2 text-sm font-medium text-gray-700 hover:text-gray-900">+ Add surface</button>
+
+      {at.price > 0 && (
+        <div className="mt-3 border-t border-gray-200 pt-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-medium text-gray-600">Area total · {at.hrs.toFixed(1)} hr</span>
+            <span className="font-semibold tabular-nums">{fmt(at.price)}</span>
+          </div>
+          <div className="mt-0.5 text-[11px] tabular-nums text-gray-400">
+            prep {at.prep.toFixed(1)}h · paint {at.paint.toFixed(1)}h · materials {fmt(at.mat)} · labour {fmt(at.labour)}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -613,13 +663,14 @@ function SurfaceEditor({
 
 // ---------------- Line item ----------------
 function LineCard({
-  line: l, calc, lineItems, chargeFor, onPatch, onRemove,
+  line: l, calc, lineItems, chargeFor, onPatch, onDuplicate, onRemove,
 }: {
   line: LineBlock;
   calc: { priceCents: number; hours: number; costCents: number };
   lineItems: LineItemRef[];
   chargeFor: (t: string) => number;
   onPatch: (patch: Partial<LineBlock>) => void;
+  onDuplicate: () => void;
   onRemove: () => void;
 }) {
   const num = (v: number, on: (n: number) => void) => (
@@ -646,6 +697,7 @@ function LineCard({
           {lineItems.map((li) => <option key={li.name} value={li.name}>{li.name} ({li.type})</option>)}
         </select>
         <span className="whitespace-nowrap text-sm font-medium tabular-nums">{fmt(calc.priceCents)}</span>
+        <button onClick={onDuplicate} className="px-1 text-lg text-gray-400 hover:text-gray-700" title="Duplicate line item" aria-label="Duplicate line item">⧉</button>
         <button onClick={onRemove} className="px-1 text-gray-400 hover:text-red-600" aria-label="Remove line item">×</button>
       </div>
 
