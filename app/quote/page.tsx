@@ -7,7 +7,11 @@ export const dynamic = "force-dynamic";
 // Staff-only quote builder. Loads the active rate card + reference data on the
 // server (staff can read it under RLS), then hands it to the interactive client
 // component, which prices live using the pricing engine.
-export default async function QuotePage() {
+export default async function QuotePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ id?: string }>;
+}) {
   const supabase = await createClient();
 
   const {
@@ -51,14 +55,28 @@ export default async function QuotePage() {
     supabase.from("line_items").select("*").order("type").order("name"),
   ]);
 
+  // Load an existing saved quote if ?id= is present (staff can read any).
+  const { id } = await searchParams;
+  let initial: { id: string; title: string | null; builder_state: unknown } | null = null;
+  if (id) {
+    const { data } = await supabase
+      .from("estimates")
+      .select("id, title, builder_state")
+      .eq("id", id)
+      .single();
+    if (data) initial = data;
+  }
+
   return (
     <QuoteBuilder
+      rateCardId={card?.id ?? null}
       rateCardVersion={card?.version ?? null}
       rateItems={rateItems.data ?? []}
       modifiers={modifiers.data ?? []}
       products={products.data ?? []}
       settings={settings.data ?? []}
       lineItems={lineItems.data ?? []}
+      initial={initial}
     />
   );
 }

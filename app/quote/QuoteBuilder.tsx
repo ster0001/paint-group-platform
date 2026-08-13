@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { hoursPerUnit } from "@/lib/pricing/engine";
+import { createClient } from "@/lib/supabase/client";
 import type { Product, RateItem } from "@/lib/pricing/types";
 
 type Modifier = { code: string; group_name: string; label: string; multiplier: number };
@@ -61,19 +62,23 @@ const unitLabel = (item?: RateItem) =>
   !item ? "" : item.unit === "Hours Per Item" ? "items" : item.unit === "Lineal Metres" ? "m" : "m²";
 
 export default function QuoteBuilder({
+  rateCardId,
   rateCardVersion,
   rateItems,
   modifiers,
   products,
   settings,
   lineItems,
+  initial,
 }: {
+  rateCardId: string | null;
   rateCardVersion: number | null;
   rateItems: RateItem[];
   modifiers: Modifier[];
   products: Product[];
   settings: Setting[];
   lineItems: LineItemRef[];
+  initial: { id: string; title: string | null; builder_state: unknown } | null;
 }) {
   const normKey = (k: string) => k.replace(/[^a-z0-9]+/gi, " ").trim().toLowerCase();
   const settingsMap = useMemo(() => {
@@ -119,8 +124,21 @@ export default function QuoteBuilder({
     return g;
   }, [modifiers]);
 
-  const [blocks, setBlocks] = useState<Block[]>([newArea()]);
-  const [modSel, setModSel] = useState<Record<string, string>>({});
+  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string> } | null;
+  const [blocks, setBlocks] = useState<Block[]>(() => {
+    const b = loaded?.blocks;
+    if (b && b.length) {
+      const ids = b.flatMap((x) => [x.id, ...(x.kind === "area" ? x.surfaces.map((s) => s.id) : [])]);
+      nextId = Math.max(nextId, ...ids) + 1;
+      return b;
+    }
+    return [newArea()];
+  });
+  const [modSel, setModSel] = useState<Record<string, string>>(() => loaded?.modSel ?? {});
+  const [title, setTitle] = useState(initial?.title ?? "");
+  const [quoteId, setQuoteId] = useState<string | null>(initial?.id ?? null);
+  const [saveMsg, setSaveMsg] = useState("");
+  const [saving, setSaving] = useState(false);
 
   function newArea(): Area {
     return { id: nextId++, kind: "area", name: `Area ${nextId}`, type: "Interior", surfaces: [newSurface()] };
@@ -236,11 +254,71 @@ export default function QuoteBuilder({
   const marginPct = totals.subtotal > 0 ? (totals.margin / totals.subtotal) * 100 : 0;
   const salesRateCents = totals.contractorHours > 0 ? Math.round(totals.subtotal / totals.contractorHours) : 0;
 
+  async function save() {
+    setSaving(true);
+    setSaveMsg("");
+    const supabase = createClient();
+    const finishCode = modSel["Level of Finish"];
+    const payload = {
+      title: title.trim() || "Untitled quote",
+      status: "draft",
+      rate_card_id: rateCardId,
+      rate_card_version: rateCardVersion,
+      level_of_finish: finishCode ? Number(finishCode.split("-")[1]) : null,
+      size_band: modSel["Job Size"] || null,
+      subtotal_cents: totals.subtotal,
+      total_cents: totals.total,
+      builder_state: { blocks, modSel },
+    };
+    try {
+      if (quoteId) {
+        const { error } = await supabase.from("estimates").update(payload).eq("id", quoteId);
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase.from("estimates").insert(payload).select("id").single();
+        if (error) throw error;
+        setQuoteId(data.id);
+        window.history.replaceState(null, "", `/quote?id=${data.id}`);
+      }
+      setSaveMsg("Saved ✓");
+    } catch (e) {
+      setSaveMsg(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <main className="mx-auto max-w-6xl p-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Quote builder</h1>
-        <p className="text-sm text-gray-500">Rate card v{rateCardVersion ?? "?"} · live pricing</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Quote builder</h1>
+          <p className="text-sm text-gray-500">
+            Rate card v{rateCardVersion ?? "?"} · live pricing
+            {quoteId ? " · saved draft" : ""}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            className="w-48 rounded-md border border-gray-300 px-3 py-2 text-sm"
+            placeholder="Quote name"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <button
+            onClick={save}
+            disabled={saving}
+            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50"
+          >
+            {saving ? "Saving…" : quoteId ? "Save" : "Save draft"}
+          </button>
+          <a href="/quote" className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50">
+            New
+          </a>
+          {saveMsg && (
+            <span className={`text-sm ${saveMsg.startsWith("Saved") ? "text-green-600" : "text-red-600"}`}>{saveMsg}</span>
+          )}
+        </div>
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">

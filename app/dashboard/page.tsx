@@ -27,7 +27,7 @@ export default async function DashboardPage() {
   // staff see all; a customer sees only their own; a contractor sees none here.
   const { data: estimates } = await supabase
     .from("estimates")
-    .select("id, status, total_cents")
+    .select("id, title, status, total_cents")
     .order("created_at", { ascending: false });
 
   const role = profile?.role ?? "unknown";
@@ -64,23 +64,38 @@ export default async function DashboardPage() {
 
       <div className="mt-6 rounded-lg border border-gray-200 p-4">
         <div className="text-sm font-medium">
-          Estimates your account is allowed to see
+          {role === "staff" ? "Quotes & estimates" : "Estimates your account is allowed to see"}
         </div>
         <div className="mt-1 text-sm text-gray-500">
-          This list is filtered by the database itself, based on your role.
+          {role === "staff"
+            ? "Click a quote to reopen it in the builder."
+            : "This list is filtered by the database itself, based on your role."}
         </div>
 
         {estimates && estimates.length > 0 ? (
           <ul className="mt-3 divide-y divide-gray-100">
-            {estimates.map((e) => (
-              <li key={e.id} className="flex justify-between py-2 text-sm">
-                <span className="font-mono text-gray-500">
-                  {e.id.slice(0, 8)}…
-                </span>
-                <span className="capitalize">{e.status}</span>
-                <span>{money(e.total_cents)}</span>
-              </li>
-            ))}
+            {estimates.map((e) => {
+              const row = (
+                <div className="flex items-center justify-between py-2 text-sm">
+                  <span className="min-w-0 flex-1 truncate">
+                    {e.title || <span className="font-mono text-gray-400">{e.id.slice(0, 8)}…</span>}
+                  </span>
+                  <span className="mx-3 capitalize text-gray-500">{e.status}</span>
+                  <span className="tabular-nums">{money(e.total_cents)}</span>
+                </div>
+              );
+              return (
+                <li key={e.id}>
+                  {role === "staff" ? (
+                    <Link href={`/quote?id=${e.id}`} className="block rounded px-1 hover:bg-gray-50">
+                      {row}
+                    </Link>
+                  ) : (
+                    row
+                  )}
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <div className="mt-3 text-sm text-gray-400">
