@@ -31,7 +31,11 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
+# NOTE: .env* also covers .env.local — secrets never get committed.
 .env*
+
+# data exports (rate cards etc. — keep business data out of the repo)
+*.csv
 
 # vercel
 .vercel
