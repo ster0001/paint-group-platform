@@ -38,7 +38,7 @@ export default async function QuotePage() {
     .eq("is_active", true)
     .single();
 
-  const [rateItems, modifiers, products, settings] = await Promise.all([
+  const [rateItems, modifiers, products, settings, lineItems] = await Promise.all([
     supabase
       .from("rate_items")
       .select("*")
@@ -48,6 +48,7 @@ export default async function QuotePage() {
     supabase.from("modifiers").select("*").eq("active", true),
     supabase.from("products").select("*"),
     supabase.from("settings").select("*"),
+    supabase.from("line_items").select("*").order("type").order("name"),
   ]);
 
   return (
@@ -57,6 +58,7 @@ export default async function QuotePage() {
       modifiers={modifiers.data ?? []}
       products={products.data ?? []}
       settings={settings.data ?? []}
+      lineItems={lineItems.data ?? []}
     />
   );
 }
