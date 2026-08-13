@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { signout } from "@/app/auth/actions";
@@ -49,6 +50,16 @@ export default async function DashboardPage() {
         <div className="mt-2 inline-block rounded-full bg-gray-100 px-3 py-1 text-sm font-medium capitalize">
           Role: {role}
         </div>
+        {role === "staff" && (
+          <div className="mt-4">
+            <Link
+              href="/quote"
+              className="inline-block rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
+            >
+              Open quote builder →
+            </Link>
+          </div>
+        )}
       </div>
 
       <div className="mt-6 rounded-lg border border-gray-200 p-4">

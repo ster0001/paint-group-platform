@@ -17,6 +17,12 @@ so **loading a new rate card never changes an old quote**.
 
 Money is stored as integer cents throughout (e.g. $85.00 → `8500`).
 
+> ⚠️ **Encoding gotcha:** pasting this file into the Supabase SQL editor can
+> corrupt special characters (em-dashes `—`, curly apostrophes) into mojibake
+> like `‚Äî`. If labels look garbled after loading, re-load the reference tables
+> over the API instead of the clipboard (a UTF-8-safe path), which is how the
+> data was repaired on 2026-08-13.
+
 ## `generate-ratecard-seed.mjs` — regenerating for a future version
 
 `ratecard_v7.sql` was generated from the spreadsheet, not written by hand. To
