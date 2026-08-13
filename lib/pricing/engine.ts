@@ -18,7 +18,8 @@
 //   11 + sundries (per job)
 //   12 + pass-through lines (cost + markup; cost recorded separately)
 //   13 = quote total
-//   14 contractor offer = production hours × $60 × offer %
+//   14 contractor offer = ALL estimated hours (production + prep + cleaning) × $60 × offer %
+//      (calibrated against real work orders — see step 14 below)
 //   15 margin = total − contractor offer − own staff − materials cost − pass-through cost
 
 import type {
@@ -151,6 +152,8 @@ export function priceEstimate(input: QuoteInput): QuoteResult {
   const productionHoursTotal = sum(lines.map((l) => l.modifiedHours));
   const productionLabourCents = sum(lines.map((l) => l.labourCents));
 
+  const prepHours = sum((input.prep ?? []).map((p) => p.hours));
+  const cleaningHours = sum((input.cleaning ?? []).map((p) => p.hours));
   const prepLabourCents = Math.round(
     sum((input.prep ?? []).map((p) => p.hours * p.chargeOutCents)),
   ); // step 8
@@ -176,9 +179,13 @@ export function priceEstimate(input: QuoteInput): QuoteResult {
     sundriesCents +
     passthroughPriceCents;
 
-  // Step 14: contractor offer is on production hours only.
+  // Step 14: contractor offer.
+  // Calibrated against real work orders (jobs 3140 and 3108): contractors were
+  // paid $60 × ALL estimated hours, prep included — not production hours only.
+  // 69.25 hrs × $60 = $4,155 and 84.5 hrs × $60 = $5,070, both exact.
+  const contractorHours = productionHoursTotal + prepHours + cleaningHours;
   const contractorOfferCents = Math.round(
-    productionHoursTotal *
+    contractorHours *
       (input.contractorHourlyCents ?? 6000) *
       (input.contractorOfferPct ?? 1),
   );
@@ -204,6 +211,7 @@ export function priceEstimate(input: QuoteInput): QuoteResult {
     passthroughPriceCents,
     passthroughCostCents,
     totalCents,
+    contractorHours,
     contractorOfferCents,
     marginCents,
   };

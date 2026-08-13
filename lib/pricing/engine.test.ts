@@ -117,6 +117,17 @@ test("full quote assembles in the plan's order (exact figures)", () => {
   assert.equal(r.marginCents, 160900 - 60000 - 44000); // 56900
 });
 
+test("contractor offer is based on ALL estimated hours, prep included", () => {
+  const r = priceEstimate({
+    production: [{ item: TEST_WALL, quantity: 100, coats: 2 }], // 10 production hrs
+    finishMultiplier: 1.0,
+    prep: [{ hours: 5, chargeOutCents: 8500 }],
+    cleaning: [{ hours: 2, chargeOutCents: 8500 }],
+  });
+  assert.equal(r.contractorHours, 17); // 10 + 5 + 2
+  assert.equal(r.contractorOfferCents, Math.round(17 * 6000)); // 102000 = $1,020
+});
+
 test("pass-through cost is billed AND recorded, and nets out of margin", () => {
   const r = priceEstimate({
     production: [{ item: TEST_WALL, quantity: 100, coats: 2, product: TEST_PAINT }],

@@ -94,6 +94,7 @@ export interface QuoteResult {
   passthroughCostCents: number; // step 12 — real cost, recorded
 
   totalCents: number; // step 13 — the quote total
+  contractorHours: number; // hours the offer is based on (production + prep + cleaning)
   contractorOfferCents: number; // step 14
   marginCents: number; // step 15 — total − contractor − own staff − materials cost − pass-through cost
 }
