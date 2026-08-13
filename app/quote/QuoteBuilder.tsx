@@ -14,6 +14,7 @@ type Surface = {
   code: string;
   coats: number;
   count: number;
+  hidden: boolean; // priced into the total, but omitted from the customer's copy
   qtyOverride: number | null;
   rateOverride: number | null; // productivity (units/hr) or hours/item
   paintingHrOverride: number | null;
@@ -34,6 +35,7 @@ type Area = {
   L: number;
   W: number;
   H: number;
+  isOption: boolean; // sits outside the total until the customer adds it
   surfaces: Surface[];
 };
 type LineBlock = {
@@ -49,7 +51,12 @@ type LineBlock = {
   custom: number; // $
   cost: number; // $ (materials/passthrough cost for margin)
   woHours: number; // hours for work order (contractor) on quantity/custom lines
+  clientNote: string;
+  crewNote: string;
+  hidden: boolean; // priced but omitted from the customer's copy
+  isOption: boolean; // sits outside the total until the customer adds it
   open: boolean;
+  detailsOpen: boolean;
 };
 type Block = Area | LineBlock;
 
@@ -158,17 +165,17 @@ export default function QuoteBuilder({
   const [saving, setSaving] = useState(false);
 
   function newArea(): Area {
-    return { id: nextId++, kind: "area", name: `Area ${nextId}`, type: "Interior", areaType: "room", L: 0, W: 0, H: 2.4, surfaces: [newSurface()] };
+    return { id: nextId++, kind: "area", name: `Area ${nextId}`, type: "Interior", areaType: "room", L: 0, W: 0, H: 2.4, isOption: false, surfaces: [newSurface()] };
   }
   function newSurface(): Surface {
     return {
-      id: nextId++, code: "", coats: 2, count: 1, qtyOverride: null,
+      id: nextId++, code: "", coats: 2, count: 1, hidden: false, qtyOverride: null,
       rateOverride: null, paintingHrOverride: null, prepHr: 0, productName: null,
       coverageOverride: null, volumeOverride: null, unitPriceOverride: null, open: false,
     };
   }
   function newLine(): LineBlock {
-    return { id: nextId++, kind: "line", name: "", type: "Interior", mode: "hourly", hours: 0, rate: 85, qty: 1, unitPrice: 0, custom: 0, cost: 0, woHours: 0, open: true };
+    return { id: nextId++, kind: "line", name: "", type: "Interior", mode: "hourly", hours: 0, rate: 85, qty: 1, unitPrice: 0, custom: 0, cost: 0, woHours: 0, clientNote: "", crewNote: "", hidden: false, isOption: false, open: true, detailsOpen: false };
   }
 
   const patchBlock = (id: number, patch: Partial<Area> | Partial<LineBlock>) =>
@@ -264,6 +271,7 @@ export default function QuoteBuilder({
     let subtotal = 0, contractorHours = 0, materialsCost = 0;
     let anyInt = false, anyExt = false;
     for (const b of blocks) {
+      if (b.isOption) continue; // options are outside the total until added
       if (b.kind === "area") {
         if (b.type === "Interior") anyInt = true; else anyExt = true;
         for (const s of b.surfaces) {
@@ -326,6 +334,38 @@ export default function QuoteBuilder({
     }
   }
 
+  const renderBlock = (b: Block) =>
+    b.kind === "area" ? (
+      <AreaCard
+        key={b.id}
+        area={b}
+        subGroups={subGroups[b.type]}
+        itemByKey={itemByKey}
+        products={products}
+        calc={(s) => surfaceCalc(b, s)}
+        onPatch={(patch) => patchBlock(b.id, patch)}
+        onPatchSurface={(sid, patch) => patchSurface(b.id, sid, patch)}
+        onAddSurface={() => patchBlock(b.id, { surfaces: [...b.surfaces, newSurface()] })}
+        onRemoveSurface={(sid) => patchBlock(b.id, { surfaces: b.surfaces.filter((x) => x.id !== sid) })}
+        onDuplicateSurface={(sid) => duplicateSurface(b.id, sid)}
+        onDuplicate={() => duplicateBlock(b.id)}
+        onRemove={() => removeBlock(b.id)}
+      />
+    ) : (
+      <LineCard
+        key={b.id}
+        line={b}
+        calc={lineCalc(b)}
+        lineItems={lineItems}
+        chargeFor={chargeFor}
+        onPatch={(patch) => patchBlock(b.id, patch)}
+        onDuplicate={() => duplicateBlock(b.id)}
+        onRemove={() => removeBlock(b.id)}
+      />
+    );
+  const mainBlocks = blocks.filter((b) => !b.isOption);
+  const optionBlocks = blocks.filter((b) => b.isOption);
+
   return (
     <main className="mx-auto max-w-6xl p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -386,35 +426,16 @@ export default function QuoteBuilder({
           </section>
 
           {/* blocks */}
-          {blocks.map((b) =>
-            b.kind === "area" ? (
-              <AreaCard
-                key={b.id}
-                area={b}
-                subGroups={subGroups[b.type]}
-                itemByKey={itemByKey}
-                products={products}
-                calc={(s) => surfaceCalc(b, s)}
-                onPatch={(patch) => patchBlock(b.id, patch)}
-                onPatchSurface={(sid, patch) => patchSurface(b.id, sid, patch)}
-                onAddSurface={() => patchBlock(b.id, { surfaces: [...b.surfaces, newSurface()] })}
-                onRemoveSurface={(sid) => patchBlock(b.id, { surfaces: b.surfaces.filter((x) => x.id !== sid) })}
-                onDuplicateSurface={(sid) => duplicateSurface(b.id, sid)}
-                onDuplicate={() => duplicateBlock(b.id)}
-                onRemove={() => removeBlock(b.id)}
-              />
-            ) : (
-              <LineCard
-                key={b.id}
-                line={b}
-                calc={lineCalc(b)}
-                lineItems={lineItems}
-                chargeFor={chargeFor}
-                onPatch={(patch) => patchBlock(b.id, patch)}
-                onDuplicate={() => duplicateBlock(b.id)}
-                onRemove={() => removeBlock(b.id)}
-              />
-            ),
+          {mainBlocks.map(renderBlock)}
+
+          {optionBlocks.length > 0 && (
+            <section className="rounded-xl border border-dashed border-gray-300 bg-white p-4">
+              <h2 className="text-sm font-semibold">
+                Options{" "}
+                <span className="font-normal text-gray-400">— not in the total until the customer adds them</span>
+              </h2>
+              <div className="mt-3 space-y-4">{optionBlocks.map(renderBlock)}</div>
+            </section>
           )}
 
           <div className="flex gap-3">
@@ -515,6 +536,9 @@ function AreaCard({
         >
           <option>Interior</option><option>Exterior</option>
         </select>
+        <label className="flex items-center gap-1 whitespace-nowrap text-xs text-gray-500" title="Show as an optional add-on, outside the total">
+          <input type="checkbox" checked={area.isOption} onChange={(e) => onPatch({ isOption: e.target.checked })} /> Option
+        </label>
         <button onClick={onDuplicate} className="px-1 text-lg text-gray-400 hover:text-gray-700" title="Duplicate area" aria-label="Duplicate area">⧉</button>
         <button onClick={onRemove} className="px-1 text-gray-400 hover:text-red-600" aria-label="Remove area">×</button>
       </div>
@@ -572,6 +596,9 @@ function AreaCard({
                     </optgroup>
                   ))}
                 </select>
+                {s.hidden && (
+                  <span className="whitespace-nowrap rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">Hidden</span>
+                )}
                 {c.item && c.qty > 0 && (
                   <span className="whitespace-nowrap text-sm tabular-nums text-gray-600">
                     {c.qty.toFixed(1)} {unitLabel(c.item)} · {s.coats}c ·{" "}
@@ -657,6 +684,11 @@ function SurfaceEditor({
           <F label="Materials cost"><div className="px-2 py-1.5 text-sm tabular-nums text-gray-600">{fmt(calc.matCostCents)}</div></F>
         </div>
       </div>
+
+      <label className="mt-3 flex items-center gap-2 border-t border-gray-200 pt-3 text-xs text-gray-600">
+        <input type="checkbox" checked={s.hidden} onChange={(e) => onPatch({ hidden: e.target.checked })} />
+        Hidden from customer <span className="text-gray-400">(still priced; shows on the work order)</span>
+      </label>
     </div>
   );
 }
@@ -696,6 +728,7 @@ function LineCard({
           <option value="">— choose line item —</option>
           {lineItems.map((li) => <option key={li.name} value={li.name}>{li.name} ({li.type})</option>)}
         </select>
+        {l.hidden && <span className="whitespace-nowrap rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">Hidden</span>}
         <span className="whitespace-nowrap text-sm font-medium tabular-nums">{fmt(calc.priceCents)}</span>
         <button onClick={onDuplicate} className="px-1 text-lg text-gray-400 hover:text-gray-700" title="Duplicate line item" aria-label="Duplicate line item">⧉</button>
         <button onClick={onRemove} className="px-1 text-gray-400 hover:text-red-600" aria-label="Remove line item">×</button>
@@ -741,6 +774,32 @@ function LineCard({
             </select>
           </F>
         </div>
+      </div>
+
+      <div className="mt-3 border-t border-gray-200 pt-3">
+        <div className="flex flex-wrap items-center gap-4 text-xs">
+          <label className="flex items-center gap-1.5 text-gray-600">
+            <input type="checkbox" checked={l.isOption} onChange={(e) => onPatch({ isOption: e.target.checked })} /> Option (add-on)
+          </label>
+          <label className="flex items-center gap-1.5 text-gray-600">
+            <input type="checkbox" checked={l.hidden} onChange={(e) => onPatch({ hidden: e.target.checked })} /> Hidden from customer
+          </label>
+          <button type="button" onClick={() => onPatch({ detailsOpen: !l.detailsOpen })} className="font-medium text-gray-500 hover:text-gray-800">
+            {l.detailsOpen ? "▾ Notes" : "▸ Notes"}
+          </button>
+        </div>
+        {l.detailsOpen && (
+          <div className="mt-2 grid gap-3 sm:grid-cols-2">
+            <label className="flex flex-col gap-0.5 text-xs">
+              <span className="text-gray-400">Client note (shown on the estimate)</span>
+              <textarea rows={2} className="rounded-md border border-gray-300 px-2 py-1.5 text-sm" value={l.clientNote} onChange={(e) => onPatch({ clientNote: e.target.value })} />
+            </label>
+            <label className="flex flex-col gap-0.5 text-xs">
+              <span className="text-gray-400">Crew note (work order only)</span>
+              <textarea rows={2} className="rounded-md border border-gray-300 px-2 py-1.5 text-sm" value={l.crewNote} onChange={(e) => onPatch({ crewNote: e.target.value })} />
+            </label>
+          </div>
+        )}
       </div>
     </section>
   );
