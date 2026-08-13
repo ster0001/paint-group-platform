@@ -5,6 +5,7 @@ import { hoursPerUnit } from "@/lib/pricing/engine";
 import { createClient } from "@/lib/supabase/client";
 import type { Product, RateItem } from "@/lib/pricing/types";
 
+type MediaItem = { path: string; url: string };
 type Modifier = { code: string; group_name: string; label: string; multiplier: number };
 type Setting = { key: string; value: { value: number } | number | null };
 type LineItemRef = { name: string; type: string; pricing_method: string };
@@ -15,6 +16,7 @@ type Surface = {
   coats: number;
   count: number;
   hidden: boolean; // priced into the total, but omitted from the customer's copy
+  media: MediaItem[];
   qtyOverride: number | null;
   rateOverride: number | null; // productivity (units/hr) or hours/item
   paintingHrOverride: number | null;
@@ -55,6 +57,7 @@ type LineBlock = {
   crewNote: string;
   hidden: boolean; // priced but omitted from the customer's copy
   isOption: boolean; // sits outside the total until the customer adds it
+  media: MediaItem[];
   open: boolean;
   detailsOpen: boolean;
 };
@@ -169,13 +172,13 @@ export default function QuoteBuilder({
   }
   function newSurface(): Surface {
     return {
-      id: nextId++, code: "", coats: 2, count: 1, hidden: false, qtyOverride: null,
+      id: nextId++, code: "", coats: 2, count: 1, hidden: false, media: [], qtyOverride: null,
       rateOverride: null, paintingHrOverride: null, prepHr: 0, productName: null,
       coverageOverride: null, volumeOverride: null, unitPriceOverride: null, open: false,
     };
   }
   function newLine(): LineBlock {
-    return { id: nextId++, kind: "line", name: "", type: "Interior", mode: "hourly", hours: 0, rate: 85, qty: 1, unitPrice: 0, custom: 0, cost: 0, woHours: 0, clientNote: "", crewNote: "", hidden: false, isOption: false, open: true, detailsOpen: false };
+    return { id: nextId++, kind: "line", name: "", type: "Interior", mode: "hourly", hours: 0, rate: 85, qty: 1, unitPrice: 0, custom: 0, cost: 0, woHours: 0, clientNote: "", crewNote: "", hidden: false, isOption: false, media: [], open: true, detailsOpen: false };
   }
 
   const patchBlock = (id: number, patch: Partial<Area> | Partial<LineBlock>) =>
@@ -689,6 +692,11 @@ function SurfaceEditor({
         <input type="checkbox" checked={s.hidden} onChange={(e) => onPatch({ hidden: e.target.checked })} />
         Hidden from customer <span className="text-gray-400">(still priced; shows on the work order)</span>
       </label>
+
+      <div className="mt-3 border-t border-gray-200 pt-3">
+        <div className="mb-1 text-[10px] uppercase tracking-wide text-gray-400">Photos</div>
+        <MediaUploader items={s.media ?? []} onChange={(m) => onPatch({ media: m })} />
+      </div>
     </div>
   );
 }
@@ -798,10 +806,73 @@ function LineCard({
               <span className="text-gray-400">Crew note (work order only)</span>
               <textarea rows={2} className="rounded-md border border-gray-300 px-2 py-1.5 text-sm" value={l.crewNote} onChange={(e) => onPatch({ crewNote: e.target.value })} />
             </label>
+            <div className="sm:col-span-2">
+              <div className="mb-1 text-[10px] uppercase tracking-wide text-gray-400">Photos</div>
+              <MediaUploader items={l.media ?? []} onChange={(m) => onPatch({ media: m })} />
+            </div>
           </div>
         )}
       </div>
     </section>
+  );
+}
+
+function MediaUploader({ items, onChange }: { items: MediaItem[]; onChange: (m: MediaItem[]) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const list = items ?? [];
+
+  async function onFiles(files: FileList | null) {
+    if (!files || !files.length) return;
+    setBusy(true);
+    setErr("");
+    const supabase = createClient();
+    const added: MediaItem[] = [];
+    try {
+      for (const f of Array.from(files)) {
+        const ext = f.name.split(".").pop() || "jpg";
+        const path = `${crypto.randomUUID()}.${ext}`;
+        const { error } = await supabase.storage.from("estimate-media").upload(path, f);
+        if (error) throw error;
+        const { data } = supabase.storage.from("estimate-media").getPublicUrl(path);
+        added.push({ path, url: data.publicUrl });
+      }
+      onChange([...list, ...added]);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function remove(m: MediaItem) {
+    const supabase = createClient();
+    await supabase.storage.from("estimate-media").remove([m.path]);
+    onChange(list.filter((x) => x.path !== m.path));
+  }
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2">
+        {list.map((m) => (
+          <div key={m.path} className="relative">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={m.url} alt="" className="h-16 w-16 rounded border border-gray-200 object-cover" />
+            <button
+              onClick={() => remove(m)}
+              className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 bg-white text-[10px] text-gray-500 hover:text-red-600"
+              aria-label="Remove photo"
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        <label className="flex h-16 w-16 cursor-pointer items-center justify-center rounded border border-dashed border-gray-300 text-center text-[11px] text-gray-400 hover:bg-white">
+          {busy ? "…" : "+ Photo"}
+          <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => onFiles(e.target.files)} />
+        </label>
+      </div>
+      {err && <p className="mt-1 text-xs text-red-600">{err}</p>}
+    </div>
   );
 }
 
