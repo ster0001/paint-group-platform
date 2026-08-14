@@ -1,14 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export type TemplateMeta = { id: string; name: string };
 
 // "New estimate" that first asks: blank, or from a saved template.
 export default function NewEstimateButton({ templates }: { templates: TemplateMeta[] }) {
   const [open, setOpen] = useState(false);
-  const router = useRouter();
 
   return (
     <>
@@ -28,8 +27,9 @@ export default function NewEstimateButton({ templates }: { templates: TemplateMe
             </div>
 
             <div className="px-5 py-4">
-              <button
-                onClick={() => router.push("/quote")}
+              <Link
+                href="/quote"
+                onClick={() => setOpen(false)}
                 className="flex w-full items-center gap-3 rounded-xl border border-gray-200 p-4 text-left hover:border-gray-900 hover:bg-gray-50"
               >
                 <span className="text-2xl">📄</span>
@@ -37,7 +37,7 @@ export default function NewEstimateButton({ templates }: { templates: TemplateMe
                   <span className="block text-sm font-medium">Blank estimate</span>
                   <span className="block text-xs text-gray-500">Start from scratch.</span>
                 </span>
-              </button>
+              </Link>
 
               <div className="mt-4 mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">From a template</div>
               {templates.length === 0 ? (
@@ -47,14 +47,15 @@ export default function NewEstimateButton({ templates }: { templates: TemplateMe
               ) : (
                 <div className="space-y-2">
                   {templates.map((t) => (
-                    <button
+                    <Link
                       key={t.id}
-                      onClick={() => router.push(`/quote?template=${t.id}`)}
+                      href={`/quote?template=${t.id}`}
+                      onClick={() => setOpen(false)}
                       className="flex w-full items-center gap-3 rounded-xl border border-gray-200 p-3 text-left hover:border-gray-900 hover:bg-gray-50"
                     >
                       <span className="text-xl">📁</span>
                       <span className="text-sm font-medium">{t.name || "Untitled template"}</span>
-                    </button>
+                    </Link>
                   ))}
                 </div>
               )}

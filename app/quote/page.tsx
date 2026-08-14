@@ -43,39 +43,36 @@ export default async function QuotePage({
     .eq("is_active", true)
     .single();
 
-  const [rateItems, modifiers, products, settings, lineItems, areaNames] = await Promise.all([
-    supabase
-      .from("rate_items")
-      .select("*")
-      .eq("rate_card_id", card?.id ?? "")
-      .order("category")
-      .order("sub_category"),
+  const { id, template } = await searchParams;
+
+  // Everything below is independent — fetch it all in one round-trip. The single
+  // `settings` fetch also carries the company profile and any saved templates, so
+  // we don't query settings three separate times.
+  const [rateItems, modifiers, products, settings, lineItems, areaNames, contactsRes, estimateRes] = await Promise.all([
+    supabase.from("rate_items").select("*").eq("rate_card_id", card?.id ?? "").order("category").order("sub_category"),
     supabase.from("modifiers").select("*").eq("active", true),
     supabase.from("products").select("*"),
     supabase.from("settings").select("*"),
     supabase.from("line_items").select("*").order("type").order("name"),
     supabase.from("area_names").select("area, type").order("type").order("area"),
+    supabase.from("contacts").select("*").order("last_name"),
+    id ? supabase.from("estimates").select("id, title, builder_state").eq("id", id).single() : Promise.resolve({ data: null }),
   ]);
 
-  const { data: companyRow } = await supabase.from("settings").select("value").eq("key", "company_profile").maybeSingle();
+  const settingsRows = (settings.data as { key: string; value: unknown }[] | null) ?? [];
+  const companyRow = settingsRows.find((s) => s.key === "company_profile");
   const company: CompanyProfile = { ...DEFAULT_COMPANY, ...((companyRow?.value as Partial<CompanyProfile>) ?? {}) };
-  const contactsRes = await supabase.from("contacts").select("*").order("last_name");
   const contacts = (contactsRes.data as Contact[] | null) ?? [];
 
   // Load an existing saved quote (?id=), or start a NEW estimate pre-filled from
   // a saved template (?template=). A template opens with no id, so saving it
   // creates a fresh estimate rather than overwriting the template.
-  const { id, template } = await searchParams;
-  let initial: { id: string | null; title: string | null; builder_state: unknown } | null = null;
+  type Initial = { id: string | null; title: string | null; builder_state: unknown };
+  let initial: Initial | null = null;
   if (id) {
-    const { data } = await supabase
-      .from("estimates")
-      .select("id, title, builder_state")
-      .eq("id", id)
-      .single();
-    if (data) initial = data;
+    if (estimateRes.data) initial = estimateRes.data as Initial;
   } else if (template) {
-    const { data: tRow } = await supabase.from("settings").select("value").eq("key", "estimate_templates").maybeSingle();
+    const tRow = settingsRows.find((s) => s.key === "estimate_templates");
     const list = Array.isArray(tRow?.value) ? (tRow!.value as { id: string; name: string; builder_state: unknown }[]) : [];
     const t = list.find((x) => x.id === template);
     if (t) initial = { id: null, title: "", builder_state: t.builder_state };
