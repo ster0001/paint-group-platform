@@ -24,3 +24,33 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Rich-text content (line-item descriptions). Tailwind's preflight strips list
+   styling, so restore it here for both the editor and any rendered output. */
+.rte {
+  line-height: 1.5;
+}
+.rte ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+  margin: 0.25rem 0;
+}
+.rte ol {
+  list-style: decimal;
+  padding-left: 1.5rem;
+  margin: 0.25rem 0;
+}
+.rte p {
+  margin: 0.25rem 0;
+}
+.rte a {
+  color: #2563eb;
+  text-decoration: underline;
+}
+/* Placeholder for the empty editable area */
+.rte[contenteditable]:empty::before,
+.rte[contenteditable].is-empty::before {
+  content: attr(data-placeholder);
+  color: #9ca3af;
+  pointer-events: none;
+}

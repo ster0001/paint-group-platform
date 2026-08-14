@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { hoursPerUnit } from "@/lib/pricing/engine";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -11,7 +11,8 @@ import type { Product, RateItem } from "@/lib/pricing/types";
 type MediaItem = { path: string; url: string };
 type Modifier = { code: string; group_name: string; label: string; multiplier: number };
 type Setting = { key: string; value: { value: number } | number | null };
-type LineItemRef = { name: string; type: string; pricing_method: string };
+type LineItemRef = { name: string; type: string; pricing_method: string; description?: string | null };
+type AreaNameRef = { area: string; type: "interior" | "exterior" };
 
 type Surface = {
   id: number;
@@ -57,6 +58,7 @@ type LineBlock = {
   custom: number; // $
   cost: number; // $ (materials/passthrough cost for margin)
   woHours: number; // hours for work order (contractor) on quantity/custom lines
+  description: string; // rich-text (HTML) description shown on the estimate; seeded from the line-item template
   clientNote: string;
   crewNote: string;
   hidden: boolean; // priced but omitted from the customer's copy
@@ -100,6 +102,7 @@ export default function QuoteBuilder({
   products,
   settings,
   lineItems,
+  areaNames,
   initial,
   company,
   contacts,
@@ -111,6 +114,7 @@ export default function QuoteBuilder({
   products: Product[];
   settings: Setting[];
   lineItems: LineItemRef[];
+  areaNames: AreaNameRef[];
   initial: { id: string; title: string | null; builder_state: unknown } | null;
   company: CompanyProfile;
   contacts: Contact[];
@@ -175,11 +179,20 @@ export default function QuoteBuilder({
   const [title, setTitle] = useState(initial?.title ?? "");
   const [quoteId, setQuoteId] = useState<string | null>(initial?.id ?? null);
   const [focusAreaId, setFocusAreaId] = useState<number | null>(null);
+  const [areaPickerOpen, setAreaPickerOpen] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
   const [saving, setSaving] = useState(false);
 
-  function newArea(): Area {
-    return { id: nextId++, kind: "area", name: `Area ${nextId}`, type: "Interior", areaType: "room", L: 0, W: 0, H: 2.4, isOption: false, media: [], surfaces: [newSurface()] };
+  function newArea(preset?: { name: string; type: "Interior" | "Exterior" }): Area {
+    const type = preset?.type ?? "Interior";
+    return {
+      id: nextId++,
+      kind: "area",
+      name: preset?.name ?? `Area ${nextId}`,
+      type,
+      areaType: type === "Exterior" ? "surface" : "room",
+      L: 0, W: 0, H: 2.4, isOption: false, media: [], surfaces: [newSurface()],
+    };
   }
   function newSurface(): Surface {
     return {
@@ -189,7 +202,7 @@ export default function QuoteBuilder({
     };
   }
   function newLine(): LineBlock {
-    return { id: nextId++, kind: "line", name: "", type: "Interior", mode: "hourly", hours: 0, rate: 85, qty: 1, unitPrice: 0, custom: 0, cost: 0, woHours: 0, clientNote: "", crewNote: "", hidden: false, isOption: false, media: [], open: true, detailsOpen: false };
+    return { id: nextId++, kind: "line", name: "", type: "Interior", mode: "hourly", hours: 0, rate: 85, qty: 1, unitPrice: 0, custom: 0, cost: 0, woHours: 0, description: "", clientNote: "", crewNote: "", hidden: false, isOption: false, media: [], open: true, detailsOpen: false };
   }
 
   const patchBlock = (id: number, patch: Partial<Area> | Partial<LineBlock>) =>
@@ -494,7 +507,7 @@ export default function QuoteBuilder({
               )}
 
               <div className="flex gap-3">
-                <button onClick={() => setBlocks((bs) => [...bs, newArea()])} className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
+                <button onClick={() => setAreaPickerOpen(true)} className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
                   + Add area
                 </button>
                 <button onClick={() => setBlocks((bs) => [...bs, newLine()])} className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50">
@@ -544,7 +557,109 @@ export default function QuoteBuilder({
           </div>
         </aside>
       </div>
+
+      {areaPickerOpen && (
+        <AreaPicker
+          areaNames={areaNames}
+          onPick={(preset) => {
+            setBlocks((bs) => [...bs, newArea(preset)]);
+          }}
+          onClose={() => setAreaPickerOpen(false)}
+        />
+      )}
     </main>
+  );
+}
+
+// ---------------- Add-area picker ----------------
+function AreaPicker({
+  areaNames, onPick, onClose,
+}: {
+  areaNames: AreaNameRef[];
+  onPick: (preset?: { name: string; type: "Interior" | "Exterior" }) => void;
+  onClose: () => void;
+}) {
+  const [added, setAdded] = useState(0);
+  const [query, setQuery] = useState("");
+  const groups: { label: "Interior" | "Exterior"; names: string[] }[] = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const pick = (t: "interior" | "exterior") =>
+      areaNames.filter((a) => a.type === t && (!q || a.area.toLowerCase().includes(q))).map((a) => a.area);
+    return [
+      { label: "Interior", names: pick("interior") },
+      { label: "Exterior", names: pick("exterior") },
+    ];
+  }, [areaNames, query]);
+
+  const add = (name: string, type: "Interior" | "Exterior") => {
+    onPick({ name, type });
+    setAdded((n) => n + 1);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:p-8" onClick={onClose}>
+      <div
+        className="mt-4 w-full max-w-2xl rounded-2xl bg-white shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+          <div>
+            <h2 className="text-lg font-semibold">Add an area</h2>
+            <p className="text-xs text-gray-500">Pick from your standard areas, or start a blank one. Click as many as you need.</p>
+          </div>
+          <button onClick={onClose} className="rounded-md px-2 py-1 text-2xl leading-none text-gray-400 hover:text-gray-700" aria-label="Close">×</button>
+        </div>
+
+        <div className="px-5 pt-4">
+          <input
+            autoFocus
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            placeholder="Search areas…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+
+        <div className="max-h-[55vh] space-y-5 overflow-y-auto px-5 py-4">
+          {groups.map((g) =>
+            g.names.length === 0 ? null : (
+              <div key={g.label}>
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">{g.label}</div>
+                <div className="flex flex-wrap gap-2">
+                  {g.names.map((name) => (
+                    <button
+                      key={name}
+                      onClick={() => add(name, g.label)}
+                      className="rounded-full border border-gray-300 px-3 py-1.5 text-sm hover:border-gray-900 hover:bg-gray-900 hover:text-white"
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ),
+          )}
+          {groups.every((g) => g.names.length === 0) && (
+            <p className="text-sm text-gray-500">No standard areas match “{query}”. Use “Blank area” below, or add areas in Settings later.</p>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between gap-3 border-t border-gray-200 px-5 py-4">
+          <button
+            onClick={() => add("Area", "Interior")}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50"
+          >
+            + Blank area
+          </button>
+          <div className="flex items-center gap-3">
+            {added > 0 && <span className="text-sm text-green-600">{added} added</span>}
+            <button onClick={onClose} className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -840,6 +955,8 @@ function LineCard({
               name: e.target.value, type,
               mode: li?.pricing_method === "Custom" ? "custom" : "hourly",
               rate: chargeFor(type) / 100,
+              // Attach the template's pre-written description (staff can then edit it).
+              ...(li ? { description: li.description ?? "" } : {}),
             });
           }}
         >
@@ -894,6 +1011,15 @@ function LineCard({
         </div>
       </div>
 
+      <div className="mt-3">
+        <div className="mb-1 text-[10px] uppercase tracking-wide text-gray-400">Description (shown on the estimate)</div>
+        <RichTextEditor
+          value={l.description ?? ""}
+          onChange={(html) => onPatch({ description: html })}
+          placeholder="Describe this line item for the customer…"
+        />
+      </div>
+
       <div className="mt-3 border-t border-gray-200 pt-3">
         <div className="flex flex-wrap items-center gap-4 text-xs">
           <label className="flex items-center gap-1.5 text-gray-600">
@@ -903,15 +1029,11 @@ function LineCard({
             <input type="checkbox" checked={l.hidden} onChange={(e) => onPatch({ hidden: e.target.checked })} /> Hidden from customer
           </label>
           <button type="button" onClick={() => onPatch({ detailsOpen: !l.detailsOpen })} className="font-medium text-gray-500 hover:text-gray-800">
-            {l.detailsOpen ? "▾ Notes" : "▸ Notes"}
+            {l.detailsOpen ? "▾ Crew note & photos" : "▸ Crew note & photos"}
           </button>
         </div>
         {l.detailsOpen && (
           <div className="mt-2 grid gap-3 sm:grid-cols-2">
-            <label className="flex flex-col gap-0.5 text-xs">
-              <span className="text-gray-400">Client note (shown on the estimate)</span>
-              <textarea rows={2} className="rounded-md border border-gray-300 px-2 py-1.5 text-sm" value={l.clientNote} onChange={(e) => onPatch({ clientNote: e.target.value })} />
-            </label>
             <label className="flex flex-col gap-0.5 text-xs">
               <span className="text-gray-400">Crew note (work order only)</span>
               <textarea rows={2} className="rounded-md border border-gray-300 px-2 py-1.5 text-sm" value={l.crewNote} onChange={(e) => onPatch({ crewNote: e.target.value })} />
@@ -982,6 +1104,62 @@ function MediaUploader({ items, onChange }: { items: MediaItem[]; onChange: (m: 
         </label>
       </div>
       {err && <p className="mt-1 text-xs text-red-600">{err}</p>}
+    </div>
+  );
+}
+
+// Lightweight rich-text editor (contentEditable). Stores HTML.
+// Uncontrolled DOM synced from `value` only when it differs, so typing never
+// jumps the caret, but applying a template / loading a saved quote updates it.
+function RichTextEditor({
+  value, onChange, placeholder,
+}: {
+  value: string;
+  onChange: (html: string) => void;
+  placeholder?: string;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (el && el.innerHTML !== (value ?? "")) el.innerHTML = value ?? "";
+  }, [value]);
+
+  const emit = () => {
+    const el = ref.current;
+    if (!el) return;
+    // Treat a lone <br> or whitespace as empty so the placeholder shows.
+    const html = el.innerHTML === "<br>" ? "" : el.innerHTML;
+    el.classList.toggle("is-empty", el.textContent?.trim() === "" && !el.querySelector("li"));
+    onChange(html);
+  };
+  const exec = (cmd: string) => {
+    ref.current?.focus();
+    document.execCommand(cmd, false);
+    emit();
+  };
+  const btn = "rounded px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200";
+
+  return (
+    <div className="rounded-md border border-gray-300 focus-within:border-gray-500">
+      <div className="flex items-center gap-0.5 border-b border-gray-200 bg-gray-50 px-1.5 py-1">
+        <button type="button" className={btn} title="Bold" onMouseDown={(e) => { e.preventDefault(); exec("bold"); }}><b>B</b></button>
+        <button type="button" className={btn} title="Italic" onMouseDown={(e) => { e.preventDefault(); exec("italic"); }}><i>I</i></button>
+        <button type="button" className={btn} title="Underline" onMouseDown={(e) => { e.preventDefault(); exec("underline"); }}><u>U</u></button>
+        <span className="mx-1 h-4 w-px bg-gray-300" />
+        <button type="button" className={btn} title="Bulleted list" onMouseDown={(e) => { e.preventDefault(); exec("insertUnorderedList"); }}>• List</button>
+        <button type="button" className={btn} title="Numbered list" onMouseDown={(e) => { e.preventDefault(); exec("insertOrderedList"); }}>1. List</button>
+      </div>
+      <div
+        ref={ref}
+        contentEditable
+        suppressContentEditableWarning
+        role="textbox"
+        aria-multiline="true"
+        data-placeholder={placeholder}
+        onInput={emit}
+        className="rte min-h-[84px] px-3 py-2 text-sm focus:outline-none"
+      />
     </div>
   );
 }
