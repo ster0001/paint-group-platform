@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { hoursPerUnit } from "@/lib/pricing/engine";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -17,6 +17,8 @@ type AreaNameRef = { area: string; type: "interior" | "exterior" };
 type Surface = {
   id: number;
   code: string;
+  internalLabel: string;  // staff-facing label (defaults to the substrate code)
+  clientLabel: string;    // customer-facing label shown on the estimate
   coats: number;
   count: number;
   hidden: boolean; // priced into the total, but omitted from the customer's copy
@@ -25,10 +27,19 @@ type Surface = {
   rateOverride: number | null; // productivity (units/hr) or hours/item
   paintingHrOverride: number | null;
   prepHr: number;
+  priceOverride: number | null; // $ — overrides the surface total (labour absorbs the difference)
   productName: string | null;
+  color: string;
   coverageOverride: number | null;
   volumeOverride: number | null;
   unitPriceOverride: number | null; // $/L
+  crewNote: string;
+  // advanced (customer-facing display + rate) options
+  hideQty: boolean;
+  showCoats: boolean;
+  showPrice: boolean;
+  useCustomRate: boolean;
+  customRate: number | null; // $/hr
   open: boolean;
 };
 type AreaType = "room" | "surface";
@@ -42,6 +53,7 @@ type Area = {
   W: number;
   H: number;
   isOption: boolean; // sits outside the total until the customer adds it
+  description: string; // rich-text (HTML) — the only body text the customer sees for this area
   media: MediaItem[];
   surfaces: Surface[];
 };
@@ -68,6 +80,11 @@ type LineBlock = {
   detailsOpen: boolean;
 };
 type Block = Area | LineBlock;
+type SurfaceCalc = {
+  qty: number; item?: RateItem; rate: number; isItem: boolean; chargeCents: number;
+  paintingHr: number; prepHr: number; labourCents: number; volume: number;
+  unitPriceCents: number; matCostCents: number; matPriceCents: number; totalCents: number;
+};
 
 const fmt = (c: number) => "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmt0 = (c: number) => "$" + Math.round(c / 100).toLocaleString("en-AU");
@@ -191,14 +208,16 @@ export default function QuoteBuilder({
       name: preset?.name ?? `Area ${nextId}`,
       type,
       areaType: type === "Exterior" ? "surface" : "room",
-      L: 0, W: 0, H: 2.4, isOption: false, media: [], surfaces: [newSurface()],
+      L: 0, W: 0, H: 2.4, isOption: false, description: "", media: [], surfaces: [newSurface()],
     };
   }
   function newSurface(): Surface {
     return {
-      id: nextId++, code: "", coats: 2, count: 1, hidden: false, media: [], qtyOverride: null,
-      rateOverride: null, paintingHrOverride: null, prepHr: 0, productName: null,
-      coverageOverride: null, volumeOverride: null, unitPriceOverride: null, open: false,
+      id: nextId++, code: "", internalLabel: "", clientLabel: "", coats: 2, count: 1, hidden: false, media: [], qtyOverride: null,
+      rateOverride: null, paintingHrOverride: null, prepHr: 0, priceOverride: null, productName: null, color: "",
+      coverageOverride: null, volumeOverride: null, unitPriceOverride: null, crewNote: "",
+      hideQty: false, showCoats: false, showPrice: false, useCustomRate: false, customRate: null,
+      open: false,
     };
   }
   function newLine(): LineBlock {
@@ -214,6 +233,27 @@ export default function QuoteBuilder({
           ? { ...b, surfaces: b.surfaces.map((s) => (s.id === sid ? { ...s, ...patch } : s)) }
           : b,
       ),
+    );
+  // Choose a substrate for a surface. Seeds the internal/client labels and, on the
+  // FIRST selection, appends the substrate's label to the area's client Description.
+  const selectSubstrate = (areaId: number, sid: number, code: string) =>
+    setBlocks((bs) =>
+      bs.map((b) => {
+        if (b.id !== areaId || b.kind !== "area") return b;
+        const prev = b.surfaces.find((s) => s.id === sid);
+        const firstPick = !prev?.code && !!code;
+        const surfaces = b.surfaces.map((s) =>
+          s.id === sid
+            ? { ...s, code, internalLabel: s.internalLabel || code, clientLabel: s.clientLabel || code }
+            : s,
+        );
+        let description = b.description ?? "";
+        if (firstPick) {
+          const line = `<p>${code}</p>`;
+          description = description.trim() ? description + line : line;
+        }
+        return { ...b, surfaces, description };
+      }),
     );
   const removeBlock = (id: number) => setBlocks((bs) => bs.filter((b) => b.id !== id));
   const duplicateBlock = (id: number) =>
@@ -248,17 +288,17 @@ export default function QuoteBuilder({
     (modSel["Staging"] ? modifiers.find((m) => m.code === modSel["Staging"])!.multiplier : 1);
 
   // ---- pricing ----
-  type SCalc = { qty: number; item?: RateItem; paintingHr: number; prepHr: number; labourCents: number; volume: number; matCostCents: number; matPriceCents: number; totalCents: number };
-  const surfaceCalc = (area: Area, s: Surface): SCalc => {
+  const surfaceCalc = (area: Area, s: Surface): SurfaceCalc => {
+    const chargeBase = s.useCustomRate && s.customRate != null ? Math.round(s.customRate * 100) : chargeFor(area.type);
     const item = itemByKey.get(`${area.type}::${s.code}`);
-    if (!item) return { qty: 0, paintingHr: 0, prepHr: s.prepHr, labourCents: Math.round(s.prepHr * chargeFor(area.type)), volume: 0, matCostCents: 0, matPriceCents: 0, totalCents: 0 };
+    if (!item) return { qty: 0, rate: 0, isItem: false, chargeCents: chargeBase, paintingHr: 0, prepHr: s.prepHr, labourCents: Math.round(s.prepHr * chargeBase), volume: 0, unitPriceCents: 0, matCostCents: 0, matPriceCents: 0, totalCents: Math.round(s.prepHr * chargeBase) };
     const qty = computeQuantity(item, area, s);
     const isItem = item.unit === "Hours Per Item";
     const baseHpu = hoursPerUnit(item, s.coats);
     const dispRate = s.rateOverride ?? (isItem ? baseHpu : 1 / baseHpu);
     const baseHours = isItem ? dispRate * qty : dispRate > 0 ? qty / dispRate : 0;
     const paintingHr = s.paintingHrOverride ?? baseHours * jobMod;
-    const charge = chargeFor(area.type);
+    const charge = chargeBase;
     const labourCents = Math.round((paintingHr + s.prepHr) * charge);
 
     const product = s.productName ? productByName.get(s.productName) : item.default_product ? productByName.get(item.default_product) : undefined;
@@ -274,7 +314,12 @@ export default function QuoteBuilder({
     const unitPriceCents = s.unitPriceOverride != null ? Math.round(s.unitPriceOverride * 100) : product?.price_per_litre ?? 0;
     const matCostCents = Math.round(volume * unitPriceCents);
     const matPriceCents = Math.round(matCostCents * (1 + markup));
-    return { qty, item, paintingHr, prepHr: s.prepHr, labourCents, volume, matCostCents, matPriceCents, totalCents: labourCents + matPriceCents };
+    // A manual price override sets the surface total; labour absorbs the difference
+    // so contractor hours and materials cost (and therefore margin) stay honest.
+    const computedTotal = labourCents + matPriceCents;
+    const totalCents = s.priceOverride != null ? Math.round(s.priceOverride * 100) : computedTotal;
+    const finalLabour = s.priceOverride != null ? totalCents - matPriceCents : labourCents;
+    return { qty, item, rate: dispRate, isItem, chargeCents: charge, paintingHr, prepHr: s.prepHr, labourCents: finalLabour, volume, unitPriceCents, matCostCents, matPriceCents, totalCents };
   };
   const lineCalc = (l: LineBlock) => {
     let priceCents = 0;
@@ -367,12 +412,13 @@ export default function QuoteBuilder({
         key={b.id}
         area={b}
         subGroups={subGroups[b.type]}
-        itemByKey={itemByKey}
         products={products}
+        chargeFor={chargeFor}
         calc={(s) => surfaceCalc(b, s)}
         onPatch={(patch) => patchBlock(b.id, patch)}
         onPatchSurface={(sid, patch) => patchSurface(b.id, sid, patch)}
-        onAddSurface={() => patchBlock(b.id, { surfaces: [...b.surfaces, newSurface()] })}
+        onSelectSubstrate={(sid, code) => selectSubstrate(b.id, sid, code)}
+        onAddSurface={() => patchBlock(b.id, { surfaces: [...b.surfaces, { ...newSurface(), open: true }] })}
         onRemoveSurface={(sid) => patchBlock(b.id, { surfaces: b.surfaces.filter((x) => x.id !== sid) })}
         onDuplicateSurface={(sid) => duplicateSurface(b.id, sid)}
         onDuplicate={() => duplicateBlock(b.id)}
@@ -665,15 +711,16 @@ function AreaPicker({
 
 // ---------------- Area ----------------
 function AreaCard({
-  area, subGroups, itemByKey, products, calc, onPatch, onPatchSurface, onAddSurface, onRemoveSurface, onDuplicateSurface, onDuplicate, onRemove,
+  area, subGroups, products, chargeFor, calc, onPatch, onPatchSurface, onSelectSubstrate, onAddSurface, onRemoveSurface, onDuplicateSurface, onDuplicate, onRemove,
 }: {
   area: Area;
   subGroups: Record<string, RateItem[]>;
-  itemByKey: Map<string, RateItem>;
   products: Product[];
-  calc: (s: Surface) => { qty: number; item?: RateItem; paintingHr: number; prepHr: number; labourCents: number; volume: number; matCostCents: number; matPriceCents: number; totalCents: number };
+  chargeFor: (t: string) => number;
+  calc: (s: Surface) => SurfaceCalc;
   onPatch: (patch: Partial<Area>) => void;
   onPatchSurface: (sid: number, patch: Partial<Surface>) => void;
+  onSelectSubstrate: (sid: number, code: string) => void;
   onAddSurface: () => void;
   onRemoveSurface: (sid: number) => void;
   onDuplicateSurface: (sid: number) => void;
@@ -689,15 +736,28 @@ function AreaCard({
     },
     { hrs: 0, prep: 0, paint: 0, mat: 0, labour: 0, price: 0 },
   );
+  const nc = "px-2 py-2 text-right tabular-nums";
+  const money = (cents: number) => (cents / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4">
-      <div className="flex items-center gap-2">
-        <input
-          className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm font-medium"
-          value={area.name}
-          placeholder="Area name (e.g. Ground hallway)"
-          onChange={(e) => onPatch({ name: e.target.value })}
-        />
+      {/* header: title + area price/hours + controls */}
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <input
+            className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm font-medium"
+            value={area.name}
+            placeholder="Area name (e.g. Right Side upper)"
+            onChange={(e) => onPatch({ name: e.target.value })}
+          />
+          <div className="mt-1 truncate text-xs text-gray-500">
+            {area.surfaces.filter((s) => s.code).map((s) => s.clientLabel || s.code).join(", ") || "No surfaces yet"}
+          </div>
+        </div>
+        <div className="rounded-lg bg-gray-50 px-3 py-1.5 text-right">
+          <div className="text-[10px] uppercase tracking-wide text-gray-400">Area price</div>
+          <div className="text-sm font-semibold tabular-nums">{fmt(at.price)}</div>
+          <div className="text-[11px] tabular-nums text-gray-400">{at.hrs.toFixed(2)} hr</div>
+        </div>
         <select
           className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
           value={area.type}
@@ -715,6 +775,7 @@ function AreaCard({
         <button onClick={onRemove} className="px-1 text-gray-400 hover:text-red-600" aria-label="Remove area">×</button>
       </div>
 
+      {/* dimensions */}
       <div className="mt-2 flex flex-wrap items-end gap-2 rounded-lg bg-gray-50 p-2">
         <F label="Measure as">
           <select
@@ -745,70 +806,119 @@ function AreaCard({
         </span>
       </div>
 
-      <div className="mt-3 space-y-2">
-        {area.surfaces.map((s) => {
-          const c = calc(s);
-          return (
-            <div key={s.id} className="rounded-lg border border-gray-200">
-              <div className="flex items-center gap-2 p-2">
-                <button onClick={() => onPatchSurface(s.id, { open: !s.open })} className="text-gray-400 hover:text-gray-700" aria-label="Expand">
-                  {s.open ? "▾" : "▸"}
-                </button>
-                <select
-                  className="flex-1 rounded-md border border-gray-300 px-1 py-1.5 text-sm"
-                  value={s.code}
-                  onChange={(e) => onPatchSurface(s.id, { code: e.target.value })}
-                >
-                  <option value="">— choose substrate —</option>
-                  {subs.map((sub) => (
-                    <optgroup key={sub} label={sub}>
-                      {subGroups[sub].map((r) => (
-                        <option key={r.code} value={r.code}>{r.code} ({r.unit})</option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-                {s.hidden && (
-                  <span className="whitespace-nowrap rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">Hidden</span>
-                )}
-                {(s.media?.length ?? 0) > 0 && (
-                  <span className="whitespace-nowrap text-[11px] text-gray-400">📷 {s.media.length}</span>
-                )}
-                {c.item && c.qty > 0 && (
-                  <span className="whitespace-nowrap text-sm tabular-nums text-gray-600">
-                    {c.qty.toFixed(1)} {unitLabel(c.item)} · {s.coats}c ·{" "}
-                    {c.prepHr > 0 ? `${c.paintingHr.toFixed(1)}+${c.prepHr.toFixed(1)}h` : `${c.paintingHr.toFixed(1)}h`} ·{" "}
-                    {fmt(c.totalCents)}
-                  </span>
-                )}
-                <button onClick={() => onDuplicateSurface(s.id)} className="px-1 text-gray-400 hover:text-gray-700" title="Duplicate surface" aria-label="Duplicate surface">⧉</button>
-                <button onClick={() => onRemoveSurface(s.id)} className="px-1 text-gray-400 hover:text-red-600" aria-label="Remove surface">×</button>
-              </div>
-              {s.open && c.item && (
-                <SurfaceEditor surface={s} item={c.item} calc={c} products={products} onPatch={(patch) => onPatchSurface(s.id, patch)} />
-              )}
-            </div>
-          );
-        })}
+      {/* Description — the only body text the customer sees */}
+      <div className="mt-3">
+        <div className="mb-1 text-[10px] uppercase tracking-wide text-gray-400">
+          Description <span className="normal-case text-gray-400">· shown to the customer</span>
+        </div>
+        <RichTextEditor
+          value={area.description ?? ""}
+          onChange={(html) => onPatch({ description: html })}
+          placeholder="Describe this area for the customer… (substrate labels are added automatically as you pick them)"
+        />
       </div>
-      <button onClick={onAddSurface} className="mt-2 text-sm font-medium text-gray-700 hover:text-gray-900">+ Add surface</button>
 
+      {/* Estimate table */}
+      <div className="mt-4">
+        <div className="mb-1 text-[10px] uppercase tracking-wide text-gray-400">Estimate</div>
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <table className="w-full min-w-[760px] text-sm">
+            <thead>
+              <tr className="bg-blue-600 text-left text-xs font-semibold text-white">
+                <th className="px-2 py-2">Description</th>
+                <th className="px-2 py-2 text-right">Qty</th>
+                <th className="px-2 py-2 text-right">Prep (hr)</th>
+                <th className="px-2 py-2 text-right">Painting (hr)</th>
+                <th className="px-2 py-2 text-right">Total (hr)</th>
+                <th className="px-2 py-2 text-right">Materials ($)</th>
+                <th className="px-2 py-2 text-right">Labor ($)</th>
+                <th className="px-2 py-2 text-right">Total ($)</th>
+                <th className="px-2 py-2" />
+              </tr>
+            </thead>
+            <tbody>
+              {area.surfaces.map((s) => {
+                const c = calc(s);
+                const open = s.open || !s.code;
+                return (
+                  <Fragment key={s.id}>
+                    <tr className={`border-t border-gray-200 ${open ? "bg-blue-50/40" : "hover:bg-gray-50"}`}>
+                      <td className="px-2 py-2">
+                        <button className="flex items-start gap-1 text-left" onClick={() => onPatchSurface(s.id, { open: !open })}>
+                          <span className="mt-0.5 text-gray-400">{open ? "▾" : "▸"}</span>
+                          <span>
+                            <span className="font-medium">{s.clientLabel || s.code || "New surface"}</span>
+                            <span className="block text-[11px] text-gray-400">
+                              {s.code
+                                ? c.isItem
+                                  ? `${s.internalLabel || s.code}${s.count > 1 ? ` · ${s.count}` : ""}`
+                                  : `${c.qty.toFixed(0)} ${unitLabel(c.item)}`
+                                : "choose a substrate"}
+                            </span>
+                          </span>
+                        </button>
+                      </td>
+                      <td className={nc}>{c.isItem ? s.count : c.qty ? c.qty.toFixed(0) : ""}</td>
+                      <td className={nc}>{c.prepHr ? c.prepHr.toFixed(2) : ""}</td>
+                      <td className={nc}>{c.paintingHr ? c.paintingHr.toFixed(2) : ""}</td>
+                      <td className={nc}>{s.code ? (c.prepHr + c.paintingHr).toFixed(2) : ""}</td>
+                      <td className={nc}>{money(c.matPriceCents)}</td>
+                      <td className={nc}>{money(c.labourCents)}</td>
+                      <td className={`${nc} font-semibold`}>{money(c.totalCents)}</td>
+                      <td className="whitespace-nowrap px-1 py-2 text-right">
+                        {s.hidden && <span className="mr-1 rounded bg-amber-100 px-1 py-0.5 text-[9px] font-medium text-amber-700">Hidden</span>}
+                        <button onClick={() => onDuplicateSurface(s.id)} className="px-1 text-gray-400 hover:text-gray-700" title="Duplicate surface">⧉</button>
+                        <button onClick={() => onRemoveSurface(s.id)} className="px-1 text-gray-400 hover:text-red-600" title="Remove surface">×</button>
+                      </td>
+                    </tr>
+                    {open && (
+                      <tr className="border-t border-gray-200 bg-blue-50/40">
+                        <td colSpan={9} className="p-3">
+                          <SurfaceEditor
+                            surface={s}
+                            item={c.item}
+                            calc={c}
+                            subs={subs}
+                            subGroups={subGroups}
+                            products={products}
+                            chargeFor={chargeFor}
+                            areaType={area.type}
+                            onSelectSubstrate={(code) => onSelectSubstrate(s.id, code)}
+                            onPatch={(patch) => onPatchSurface(s.id, patch)}
+                            onClose={() => onPatchSurface(s.id, { open: false })}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+              <tr className="border-t border-dashed border-gray-300">
+                <td colSpan={9} className="px-2 py-2 text-center">
+                  <button onClick={onAddSurface} className="text-sm font-semibold text-blue-600 hover:text-blue-800">+ Add Surface</button>
+                </td>
+              </tr>
+              <tr className="border-t-2 border-gray-300 font-semibold">
+                <td className="px-2 py-2">TOTAL</td>
+                <td className={nc} />
+                <td className={nc}>{at.prep.toFixed(2)}</td>
+                <td className={nc}>{at.paint.toFixed(2)}</td>
+                <td className={nc}>{at.hrs.toFixed(2)}</td>
+                <td className={nc}>{money(at.mat)}</td>
+                <td className={nc}>{money(at.labour)}</td>
+                <td className={nc}>{money(at.price)}</td>
+                <td />
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Room photos */}
       <div className="mt-3 border-t border-gray-200 pt-3">
         <div className="mb-1 text-[10px] uppercase tracking-wide text-gray-400">Room photos</div>
         <MediaUploader items={area.media ?? []} onChange={(m) => onPatch({ media: m })} />
       </div>
-
-      {at.price > 0 && (
-        <div className="mt-3 border-t border-gray-200 pt-2">
-          <div className="flex items-center justify-between text-sm">
-            <span className="font-medium text-gray-600">Area total · {at.hrs.toFixed(1)} hr</span>
-            <span className="font-semibold tabular-nums">{fmt(at.price)}</span>
-          </div>
-          <div className="mt-0.5 text-[11px] tabular-nums text-gray-400">
-            prep {at.prep.toFixed(1)}h · paint {at.paint.toFixed(1)}h · materials {fmt(at.mat)} · labour {fmt(at.labour)}
-          </div>
-        </div>
-      )}
     </section>
   );
 }
@@ -862,67 +972,160 @@ function AreaSummary({
 }
 
 function SurfaceEditor({
-  surface: s, item, calc, products, onPatch,
+  surface: s, item, calc, subs, subGroups, products, chargeFor, areaType, onSelectSubstrate, onPatch, onClose,
 }: {
   surface: Surface;
-  item: RateItem;
-  calc: { qty: number; paintingHr: number; matCostCents: number; volume: number };
+  item?: RateItem;
+  calc: SurfaceCalc;
+  subs: string[];
+  subGroups: Record<string, RateItem[]>;
   products: Product[];
+  chargeFor: (t: string) => number;
+  areaType: "Interior" | "Exterior";
+  onSelectSubstrate: (code: string) => void;
   onPatch: (patch: Partial<Surface>) => void;
+  onClose: () => void;
 }) {
-  const isItem = item.unit === "Hours Per Item";
+  const isItem = calc.isItem;
+  const inp = "w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm";
   const num = (v: number, on: (n: number | null) => void, ph?: string) => (
-    <input type="number" className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm" placeholder={ph}
+    <input type="number" className={inp} placeholder={ph}
       value={Number.isFinite(v) ? v : ""} onChange={(e) => on(e.target.value === "" ? null : Number(e.target.value))} />
   );
   return (
-    <div className="border-t border-gray-200 bg-gray-50 p-3">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {isItem && <F label="Count">{num(s.count, (n) => onPatch({ count: n ?? 0 }))}</F>}
-        <F label="Coats">
-          <select className="w-full rounded-md border border-gray-300 px-1 py-1.5 text-sm" value={s.coats} onChange={(e) => onPatch({ coats: Number(e.target.value) })}>
-            {[1, 2, 3, 4].map((c) => <option key={c} value={c}>{c}</option>)}
+    <div className="rounded-lg border border-gray-200 bg-white p-3">
+      <div className="flex items-center justify-between">
+        <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Edit Surface</div>
+        <button onClick={onClose} className="text-xs font-medium text-gray-500 hover:text-gray-800">Done ▲</button>
+      </div>
+
+      {/* substrate + labels */}
+      <div className="mt-2 grid gap-3 sm:grid-cols-3">
+        <F label="Substrate (change selection)">
+          <select className={inp} value={s.code} onChange={(e) => onSelectSubstrate(e.target.value)}>
+            <option value="">— choose substrate —</option>
+            {subs.map((sub) => (
+              <optgroup key={sub} label={sub}>
+                {subGroups[sub].map((r) => (
+                  <option key={r.code} value={r.code}>{r.code} ({r.unit})</option>
+                ))}
+              </optgroup>
+            ))}
           </select>
         </F>
-        <F label={`Prep hr`}>{num(s.prepHr, (n) => onPatch({ prepHr: n ?? 0 }))}</F>
-        <F label={`Painting hr${s.paintingHrOverride == null ? " (auto)" : ""}`}>
-          <input type="number" className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-            value={s.paintingHrOverride ?? Number(calc.paintingHr.toFixed(2))}
-            onChange={(e) => onPatch({ paintingHrOverride: e.target.value === "" ? null : Number(e.target.value) })} />
+        <F label="Internal Label">
+          <input className={inp} value={s.internalLabel} placeholder={s.code || "Internal"} onChange={(e) => onPatch({ internalLabel: e.target.value })} />
         </F>
-        <F label="Qty override">{num(s.qtyOverride ?? NaN, (n) => onPatch({ qtyOverride: n }), calc.qty.toFixed(1))}</F>
+        <F label="Client Label">
+          <input className={inp} value={s.clientLabel} placeholder={s.code || "Shown to customer"} onChange={(e) => onPatch({ clientLabel: e.target.value })} />
+        </F>
       </div>
 
-      <div className="mt-3 border-t border-gray-200 pt-3">
-        <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Materials</div>
-        <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <F label="Product">
-            <select className="w-full rounded-md border border-gray-300 px-1 py-1.5 text-sm"
-              value={s.productName ?? item.default_product ?? ""}
-              onChange={(e) => onPatch({ productName: e.target.value })}>
-              {products.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
-            </select>
-          </F>
-          <F label="Volume L">
-            <input type="number" className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-              value={s.volumeOverride ?? Number(calc.volume.toFixed(2))}
-              onChange={(e) => onPatch({ volumeOverride: e.target.value === "" ? null : Number(e.target.value) })} />
-          </F>
-          <F label="$ / L">{num(s.unitPriceOverride ?? NaN, (n) => onPatch({ unitPriceOverride: n }), "auto")}</F>
-          <F label="Materials cost"><div className="px-2 py-1.5 text-sm tabular-nums text-gray-600">{fmt(calc.matCostCents)}</div></F>
-        </div>
-      </div>
+      {!item ? (
+        <p className="mt-3 text-xs text-gray-500">Choose a substrate to set rates and materials.</p>
+      ) : (
+        <>
+          {/* Rate — pre-filled from the data set, all manually adjustable */}
+          <div className="mt-3 border-t border-gray-200 pt-3">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Rate</div>
+            <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+              <F label="Quantity">
+                <input type="number" className={inp} value={s.qtyOverride ?? Number(calc.qty.toFixed(isItem ? 0 : 1))}
+                  onChange={(e) => onPatch({ qtyOverride: e.target.value === "" ? null : Number(e.target.value) })} />
+              </F>
+              <F label={isItem ? "Rate (hrs/item)" : "Rate (units/hr)"}>
+                <input type="number" className={inp} value={s.rateOverride ?? Number(calc.rate.toFixed(3))}
+                  onChange={(e) => onPatch({ rateOverride: e.target.value === "" ? null : Number(e.target.value) })} />
+              </F>
+              <F label="Coats">
+                <select className={inp} value={s.coats} onChange={(e) => onPatch({ coats: Number(e.target.value) })}>
+                  {[1, 2, 3, 4].map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </F>
+              <F label="Prep (hr)">{num(s.prepHr, (n) => onPatch({ prepHr: n ?? 0 }))}</F>
+              <F label={`Painting (hr)${s.paintingHrOverride == null ? " · auto" : ""}`}>
+                <input type="number" className={inp} value={s.paintingHrOverride ?? Number(calc.paintingHr.toFixed(2))}
+                  onChange={(e) => onPatch({ paintingHrOverride: e.target.value === "" ? null : Number(e.target.value) })} />
+              </F>
+              <F label={`Calculated Price ($)${s.priceOverride == null ? " · auto" : ""}`}>
+                <input type="number" className={inp} value={s.priceOverride ?? Number((calc.totalCents / 100).toFixed(2))}
+                  onChange={(e) => onPatch({ priceOverride: e.target.value === "" ? null : Number(e.target.value) })} />
+              </F>
+            </div>
+            {isItem && (
+              <div className="mt-2 max-w-[8rem]">
+                <F label="Count (items)">{num(s.count, (n) => onPatch({ count: n ?? 0 }))}</F>
+              </div>
+            )}
+          </div>
 
-      <label className="mt-3 flex items-center gap-2 border-t border-gray-200 pt-3 text-xs text-gray-600">
-        <input type="checkbox" checked={s.hidden} onChange={(e) => onPatch({ hidden: e.target.checked })} />
-        Hidden from customer <span className="text-gray-400">(still priced; shows on the work order)</span>
-      </label>
+          {/* Materials — estimated paint, editable */}
+          <div className="mt-3 border-t border-gray-200 pt-3">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Product · Estimated paint</div>
+            <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+              <F label="Product">
+                <select className={inp} value={s.productName ?? item.default_product ?? ""} onChange={(e) => onPatch({ productName: e.target.value })}>
+                  {products.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+                </select>
+              </F>
+              <F label="Color">
+                <input className={inp} value={s.color} placeholder="Color" onChange={(e) => onPatch({ color: e.target.value })} />
+              </F>
+              <F label="Coverage (per L)">{num(s.coverageOverride ?? NaN, (n) => onPatch({ coverageOverride: n }), "auto")}</F>
+              <F label="Volume (L)">
+                <input type="number" className={inp} value={s.volumeOverride ?? Number(calc.volume.toFixed(2))}
+                  onChange={(e) => onPatch({ volumeOverride: e.target.value === "" ? null : Number(e.target.value) })} />
+              </F>
+              <F label="Unit Price ($/L)">{num(s.unitPriceOverride ?? NaN, (n) => onPatch({ unitPriceOverride: n }), "auto")}</F>
+              <F label="Total ($)"><div className="px-2 py-1.5 text-sm tabular-nums text-gray-600">{fmt(calc.matPriceCents)}</div></F>
+            </div>
+            <div className="mt-1 text-[11px] text-gray-400">Materials cost {fmt(calc.matCostCents)} · charged {fmt(calc.matPriceCents)}</div>
+          </div>
 
-      <div className="mt-3 border-t border-gray-200 pt-3">
-        <div className="mb-1 text-[10px] uppercase tracking-wide text-gray-400">Photos</div>
-        <MediaUploader items={s.media ?? []} onChange={(m) => onPatch({ media: m })} />
-      </div>
+          {/* Notes */}
+          <div className="mt-3 border-t border-gray-200 pt-3">
+            <div className="mb-1 text-[10px] uppercase tracking-wide text-gray-400">Crew note · work order only</div>
+            <RichTextEditor value={s.crewNote ?? ""} onChange={(html) => onPatch({ crewNote: html })} placeholder="Notes for the crew…" />
+          </div>
+
+          {/* Advanced options */}
+          <div className="mt-3 border-t border-gray-200 pt-3">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Advanced Options</div>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              <Check checked={s.hidden} onChange={(v) => onPatch({ hidden: v })} label="Hide From Customer" hint="Still priced; shows on the work order" />
+              <Check checked={s.hideQty} onChange={(v) => onPatch({ hideQty: v })} label="Hide Quantity From Customer" />
+              <Check checked={s.showCoats} onChange={(v) => onPatch({ showCoats: v })} label="Show Coats" />
+              <Check checked={s.showPrice} onChange={(v) => onPatch({ showPrice: v })} label="Show Price" />
+              <Check checked={s.useCustomRate} onChange={(v) => onPatch({ useCustomRate: v })} label="Use Custom Hourly Rate" />
+              {s.useCustomRate && (
+                <F label="Custom rate ($/hr)">
+                  <input type="number" className={inp} value={s.customRate ?? Number((chargeFor(areaType) / 100).toFixed(2))}
+                    onChange={(e) => onPatch({ customRate: e.target.value === "" ? null : Number(e.target.value) })} />
+                </F>
+              )}
+            </div>
+          </div>
+
+          {/* Photos */}
+          <div className="mt-3 border-t border-gray-200 pt-3">
+            <div className="mb-1 text-[10px] uppercase tracking-wide text-gray-400">Photos</div>
+            <MediaUploader items={s.media ?? []} onChange={(m) => onPatch({ media: m })} />
+          </div>
+        </>
+      )}
     </div>
+  );
+}
+
+function Check({ checked, onChange, label, hint }: { checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string }) {
+  return (
+    <label className="flex items-start gap-2 text-sm text-gray-700">
+      <input type="checkbox" className="mt-0.5" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span>
+        {label}
+        {hint && <span className="block text-[11px] text-gray-400">{hint}</span>}
+      </span>
+    </label>
   );
 }
 
