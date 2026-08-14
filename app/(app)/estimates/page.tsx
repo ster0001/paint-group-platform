@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import NewEstimateButton, { type TemplateMeta } from "./NewEstimateButton";
 
 export const dynamic = "force-dynamic";
 
@@ -23,16 +24,15 @@ export default async function EstimatesPage({
   if (status && status !== "all") query = query.eq("status", status);
   const { data: estimates } = await query;
 
+  const { data: tplRow } = await supabase.from("settings").select("value").eq("key", "estimate_templates").maybeSingle();
+  const templates: TemplateMeta[] = (Array.isArray(tplRow?.value) ? (tplRow!.value as { id: string; name: string }[]) : [])
+    .map((t) => ({ id: t.id, name: t.name }));
+
   return (
     <div className="p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold tracking-tight">Estimates</h1>
-        <Link
-          href="/quote"
-          className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
-        >
-          + New estimate
-        </Link>
+        <NewEstimateButton templates={templates} />
       </div>
 
       <div className="mt-4 flex flex-wrap gap-1 border-b border-gray-200">

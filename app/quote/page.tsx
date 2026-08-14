@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function QuotePage({
   searchParams,
 }: {
-  searchParams: Promise<{ id?: string }>;
+  searchParams: Promise<{ id?: string; template?: string }>;
 }) {
   const supabase = await createClient();
 
@@ -62,9 +62,11 @@ export default async function QuotePage({
   const contactsRes = await supabase.from("contacts").select("*").order("last_name");
   const contacts = (contactsRes.data as Contact[] | null) ?? [];
 
-  // Load an existing saved quote if ?id= is present (staff can read any).
-  const { id } = await searchParams;
-  let initial: { id: string; title: string | null; builder_state: unknown } | null = null;
+  // Load an existing saved quote (?id=), or start a NEW estimate pre-filled from
+  // a saved template (?template=). A template opens with no id, so saving it
+  // creates a fresh estimate rather than overwriting the template.
+  const { id, template } = await searchParams;
+  let initial: { id: string | null; title: string | null; builder_state: unknown } | null = null;
   if (id) {
     const { data } = await supabase
       .from("estimates")
@@ -72,6 +74,11 @@ export default async function QuotePage({
       .eq("id", id)
       .single();
     if (data) initial = data;
+  } else if (template) {
+    const { data: tRow } = await supabase.from("settings").select("value").eq("key", "estimate_templates").maybeSingle();
+    const list = Array.isArray(tRow?.value) ? (tRow!.value as { id: string; name: string; builder_state: unknown }[]) : [];
+    const t = list.find((x) => x.id === template);
+    if (t) initial = { id: null, title: "", builder_state: t.builder_state };
   }
 
   return (

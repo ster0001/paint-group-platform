@@ -134,7 +134,7 @@ export default function QuoteBuilder({
   settings: Setting[];
   lineItems: LineItemRef[];
   areaNames: AreaNameRef[];
-  initial: { id: string; title: string | null; builder_state: unknown } | null;
+  initial: { id: string | null; title: string | null; builder_state: unknown } | null;
   company: CompanyProfile;
   contacts: Contact[];
 }) {
@@ -228,6 +228,8 @@ export default function QuoteBuilder({
     });
   const [saveMsg, setSaveMsg] = useState("");
   const [saving, setSaving] = useState(false);
+  const [templateModal, setTemplateModal] = useState(false);
+  const [templateName, setTemplateName] = useState("");
 
   function newArea(preset?: { name: string; type: "Interior" | "Exterior" }): Area {
     const type = preset?.type ?? "Interior";
@@ -449,6 +451,28 @@ export default function QuoteBuilder({
     }
   }
 
+  // Save the current build as a reusable template (stored in settings, not as an
+  // estimate) so a new estimate can be started from it later.
+  async function saveTemplate(name: string) {
+    setSaving(true);
+    setSaveMsg("");
+    const supabase = createClient();
+    try {
+      const { data } = await supabase.from("settings").select("value").eq("key", "estimate_templates").maybeSingle();
+      const list = Array.isArray(data?.value) ? (data!.value as unknown[]) : [];
+      const tpl = { id: crypto.randomUUID(), name: name.trim(), createdAt: new Date().toISOString(), builder_state: { blocks, modSel, contact, jobAddress } };
+      const { error } = await supabase.from("settings").upsert({ key: "estimate_templates", value: [...list, tpl] }, { onConflict: "key" });
+      if (error) throw error;
+      setSaveMsg("Template saved ✓");
+    } catch (e) {
+      setSaveMsg(e instanceof Error ? e.message : "Template save failed");
+    } finally {
+      setSaving(false);
+      setTemplateModal(false);
+      setTemplateName("");
+    }
+  }
+
   const mainBlocks = blocks.filter((b) => !b.isOption);
   const optionBlocks = blocks.filter((b) => b.isOption);
   // In customer view, hidden line items drop out of the document entirely.
@@ -623,7 +647,14 @@ export default function QuoteBuilder({
               >
                 {saving ? "Saving…" : quoteId ? "Save" : "Save draft"}
               </button>
-              <a href="/quote" className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50">
+              <button
+                onClick={() => { setTemplateName(title.trim()); setTemplateModal(true); }}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50"
+                title="Save this build as a reusable template"
+              >
+                Save as template
+              </button>
+              <a href="/estimates" className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50">
                 New
               </a>
             </>
@@ -803,6 +834,29 @@ export default function QuoteBuilder({
           />
         );
       })()}
+
+      {templateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setTemplateModal(false)}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold">Save as template</h2>
+            <p className="mt-1 text-xs text-gray-500">Saves the areas, surfaces, line items and job settings so you can start a future estimate from this.</p>
+            <input
+              autoFocus
+              className="mt-4 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              placeholder="Template name (e.g. Standard 3-bed interior)"
+              value={templateName}
+              onChange={(e) => setTemplateName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && templateName.trim()) saveTemplate(templateName); }}
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setTemplateModal(false)} className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50">Cancel</button>
+              <button onClick={() => saveTemplate(templateName)} disabled={!templateName.trim() || saving} className="rounded-md bg-gray-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50">
+                {saving ? "Saving…" : "Save template"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
