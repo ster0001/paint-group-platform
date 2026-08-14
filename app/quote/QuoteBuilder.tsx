@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { hoursPerUnit } from "@/lib/pricing/engine";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import EstimateHeader from "./EstimateHeader";
+import type { CompanyProfile, Contact, JobAddress } from "./company";
 import type { Product, RateItem } from "@/lib/pricing/types";
 
 type MediaItem = { path: string; url: string };
@@ -99,6 +101,8 @@ export default function QuoteBuilder({
   settings,
   lineItems,
   initial,
+  company,
+  contacts,
 }: {
   rateCardId: string | null;
   rateCardVersion: number | null;
@@ -108,6 +112,8 @@ export default function QuoteBuilder({
   settings: Setting[];
   lineItems: LineItemRef[];
   initial: { id: string; title: string | null; builder_state: unknown } | null;
+  company: CompanyProfile;
+  contacts: Contact[];
 }) {
   const normKey = (k: string) => k.replace(/[^a-z0-9]+/gi, " ").trim().toLowerCase();
   const settingsMap = useMemo(() => {
@@ -153,7 +159,7 @@ export default function QuoteBuilder({
     return g;
   }, [modifiers]);
 
-  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string> } | null;
+  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress } | null;
   const [blocks, setBlocks] = useState<Block[]>(() => {
     const b = loaded?.blocks;
     if (b && b.length) {
@@ -164,6 +170,8 @@ export default function QuoteBuilder({
     return [newArea()];
   });
   const [modSel, setModSel] = useState<Record<string, string>>(() => loaded?.modSel ?? {});
+  const [contact, setContact] = useState<Contact | null>(() => loaded?.contact ?? null);
+  const [jobAddress, setJobAddress] = useState<JobAddress | null>(() => loaded?.jobAddress ?? null);
   const [title, setTitle] = useState(initial?.title ?? "");
   const [quoteId, setQuoteId] = useState<string | null>(initial?.id ?? null);
   const [focusAreaId, setFocusAreaId] = useState<number | null>(null);
@@ -320,7 +328,7 @@ export default function QuoteBuilder({
       size_band: modSel["Job Size"] || null,
       subtotal_cents: totals.subtotal,
       total_cents: totals.total,
-      builder_state: { blocks, modSel },
+      builder_state: { blocks, modSel, contact, jobAddress },
     };
     try {
       if (quoteId) {
@@ -419,6 +427,19 @@ export default function QuoteBuilder({
             <span className={`text-sm ${saveMsg.startsWith("Saved") ? "text-green-600" : "text-red-600"}`}>{saveMsg}</span>
           )}
         </div>
+      </div>
+
+      <div className="mt-6">
+        <EstimateHeader
+          company={company}
+          contacts={contacts}
+          contact={contact}
+          jobAddress={jobAddress}
+          onContact={setContact}
+          onJobAddress={setJobAddress}
+          estimateId={quoteId ? quoteId.slice(0, 8) : "New"}
+          dateStr={new Date().toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
+        />
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">

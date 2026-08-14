@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import QuoteBuilder from "./QuoteBuilder";
+import { DEFAULT_COMPANY, type CompanyProfile, type Contact } from "./company";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,11 @@ export default async function QuotePage({
     supabase.from("line_items").select("*").order("type").order("name"),
   ]);
 
+  const { data: companyRow } = await supabase.from("settings").select("value").eq("key", "company_profile").maybeSingle();
+  const company: CompanyProfile = { ...DEFAULT_COMPANY, ...((companyRow?.value as Partial<CompanyProfile>) ?? {}) };
+  const contactsRes = await supabase.from("contacts").select("*").order("last_name");
+  const contacts = (contactsRes.data as Contact[] | null) ?? [];
+
   // Load an existing saved quote if ?id= is present (staff can read any).
   const { id } = await searchParams;
   let initial: { id: string; title: string | null; builder_state: unknown } | null = null;
@@ -77,6 +83,8 @@ export default async function QuotePage({
       settings={settings.data ?? []}
       lineItems={lineItems.data ?? []}
       initial={initial}
+      company={company}
+      contacts={contacts}
     />
   );
 }
