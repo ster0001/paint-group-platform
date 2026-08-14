@@ -38,6 +38,7 @@ type Area = {
   W: number;
   H: number;
   isOption: boolean; // sits outside the total until the customer adds it
+  media: MediaItem[];
   surfaces: Surface[];
 };
 type LineBlock = {
@@ -164,11 +165,12 @@ export default function QuoteBuilder({
   const [modSel, setModSel] = useState<Record<string, string>>(() => loaded?.modSel ?? {});
   const [title, setTitle] = useState(initial?.title ?? "");
   const [quoteId, setQuoteId] = useState<string | null>(initial?.id ?? null);
+  const [focusAreaId, setFocusAreaId] = useState<number | null>(null);
   const [saveMsg, setSaveMsg] = useState("");
   const [saving, setSaving] = useState(false);
 
   function newArea(): Area {
-    return { id: nextId++, kind: "area", name: `Area ${nextId}`, type: "Interior", areaType: "room", L: 0, W: 0, H: 2.4, isOption: false, surfaces: [newSurface()] };
+    return { id: nextId++, kind: "area", name: `Area ${nextId}`, type: "Interior", areaType: "room", L: 0, W: 0, H: 2.4, isOption: false, media: [], surfaces: [newSurface()] };
   }
   function newSurface(): Surface {
     return {
@@ -368,6 +370,21 @@ export default function QuoteBuilder({
     );
   const mainBlocks = blocks.filter((b) => !b.isOption);
   const optionBlocks = blocks.filter((b) => b.isOption);
+  const focusArea = focusAreaId != null ? (blocks.find((b) => b.id === focusAreaId && b.kind === "area") as Area | undefined) : undefined;
+  const renderSummary = (b: Block) =>
+    b.kind === "area" ? (
+      <AreaSummary
+        key={b.id}
+        area={b}
+        calc={(s) => surfaceCalc(b, s)}
+        onOpen={() => setFocusAreaId(b.id)}
+        onToggleOption={(v) => patchBlock(b.id, { isOption: v })}
+        onDuplicate={() => duplicateBlock(b.id)}
+        onRemove={() => removeBlock(b.id)}
+      />
+    ) : (
+      renderBlock(b)
+    );
 
   return (
     <main className="mx-auto max-w-6xl p-6">
@@ -404,51 +421,65 @@ export default function QuoteBuilder({
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">
         <div className="space-y-4">
-          {/* job modifiers */}
-          <section className="rounded-xl border border-gray-200 bg-white p-4">
-            <h2 className="text-sm font-semibold">Job settings</h2>
-            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {["Condition", "Access", "Level of Finish", "Job Size", "Staging"].map((group) => (
-                <label key={group} className="block text-xs">
-                  <span className={group === "Level of Finish" ? "font-semibold text-gray-900" : "text-gray-500"}>
-                    {group}{group === "Level of Finish" ? " *" : ""}
-                  </span>
-                  <select
-                    className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-                    value={modSel[group] ?? ""}
-                    onChange={(e) => setModSel((s) => ({ ...s, [group]: e.target.value }))}
-                  >
-                    <option value="">{group === "Level of Finish" ? "— required —" : "— none —"}</option>
-                    {(modGroups[group] ?? []).map((m) => (
-                      <option key={m.code} value={m.code}>{m.label} (×{m.multiplier})</option>
-                    ))}
-                  </select>
-                </label>
-              ))}
-            </div>
-          </section>
+          {focusArea ? (
+            /* ---------- focused single-area view ---------- */
+            <>
+              <button
+                onClick={() => setFocusAreaId(null)}
+                className="flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-900"
+              >
+                ← All areas
+              </button>
+              {renderBlock(focusArea)}
+            </>
+          ) : (
+            /* ---------- overview: job settings + area cards ---------- */
+            <>
+              <section className="rounded-xl border border-gray-200 bg-white p-4">
+                <h2 className="text-sm font-semibold">Job settings</h2>
+                <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {["Condition", "Access", "Level of Finish", "Job Size", "Staging"].map((group) => (
+                    <label key={group} className="block text-xs">
+                      <span className={group === "Level of Finish" ? "font-semibold text-gray-900" : "text-gray-500"}>
+                        {group}{group === "Level of Finish" ? " *" : ""}
+                      </span>
+                      <select
+                        className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                        value={modSel[group] ?? ""}
+                        onChange={(e) => setModSel((s) => ({ ...s, [group]: e.target.value }))}
+                      >
+                        <option value="">{group === "Level of Finish" ? "— required —" : "— none —"}</option>
+                        {(modGroups[group] ?? []).map((m) => (
+                          <option key={m.code} value={m.code}>{m.label} (×{m.multiplier})</option>
+                        ))}
+                      </select>
+                    </label>
+                  ))}
+                </div>
+              </section>
 
-          {/* blocks */}
-          {mainBlocks.map(renderBlock)}
+              {mainBlocks.map(renderSummary)}
 
-          {optionBlocks.length > 0 && (
-            <section className="rounded-xl border border-dashed border-gray-300 bg-white p-4">
-              <h2 className="text-sm font-semibold">
-                Options{" "}
-                <span className="font-normal text-gray-400">— not in the total until the customer adds them</span>
-              </h2>
-              <div className="mt-3 space-y-4">{optionBlocks.map(renderBlock)}</div>
-            </section>
+              {optionBlocks.length > 0 && (
+                <section className="rounded-xl border border-dashed border-gray-300 bg-white p-4">
+                  <h2 className="text-sm font-semibold">
+                    Options{" "}
+                    <span className="font-normal text-gray-400">— not in the total until the customer adds them</span>
+                  </h2>
+                  <div className="mt-3 space-y-4">{optionBlocks.map(renderSummary)}</div>
+                </section>
+              )}
+
+              <div className="flex gap-3">
+                <button onClick={() => setBlocks((bs) => [...bs, newArea()])} className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
+                  + Add area
+                </button>
+                <button onClick={() => setBlocks((bs) => [...bs, newLine()])} className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50">
+                  + Add line item
+                </button>
+              </div>
+            </>
           )}
-
-          <div className="flex gap-3">
-            <button onClick={() => setBlocks((bs) => [...bs, newArea()])} className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
-              + Add area
-            </button>
-            <button onClick={() => setBlocks((bs) => [...bs, newLine()])} className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50">
-              + Add line item
-            </button>
-          </div>
         </div>
 
         {/* right panel */}
@@ -602,6 +633,9 @@ function AreaCard({
                 {s.hidden && (
                   <span className="whitespace-nowrap rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">Hidden</span>
                 )}
+                {(s.media?.length ?? 0) > 0 && (
+                  <span className="whitespace-nowrap text-[11px] text-gray-400">📷 {s.media.length}</span>
+                )}
                 {c.item && c.qty > 0 && (
                   <span className="whitespace-nowrap text-sm tabular-nums text-gray-600">
                     {c.qty.toFixed(1)} {unitLabel(c.item)} · {s.coats}c ·{" "}
@@ -621,6 +655,11 @@ function AreaCard({
       </div>
       <button onClick={onAddSurface} className="mt-2 text-sm font-medium text-gray-700 hover:text-gray-900">+ Add surface</button>
 
+      <div className="mt-3 border-t border-gray-200 pt-3">
+        <div className="mb-1 text-[10px] uppercase tracking-wide text-gray-400">Room photos</div>
+        <MediaUploader items={area.media ?? []} onChange={(m) => onPatch({ media: m })} />
+      </div>
+
       {at.price > 0 && (
         <div className="mt-3 border-t border-gray-200 pt-2">
           <div className="flex items-center justify-between text-sm">
@@ -632,6 +671,54 @@ function AreaCard({
           </div>
         </div>
       )}
+    </section>
+  );
+}
+
+function AreaSummary({
+  area, calc, onOpen, onToggleOption, onDuplicate, onRemove,
+}: {
+  area: Area;
+  calc: (s: Surface) => { paintingHr: number; prepHr: number; totalCents: number };
+  onOpen: () => void;
+  onToggleOption: (v: boolean) => void;
+  onDuplicate: () => void;
+  onRemove: () => void;
+}) {
+  const at = area.surfaces.reduce(
+    (a, s) => {
+      const c = calc(s);
+      return { hrs: a.hrs + c.paintingHr + c.prepHr, price: a.price + c.totalCents };
+    },
+    { hrs: 0, price: 0 },
+  );
+  const surfaceCount = area.surfaces.filter((s) => s.code).length;
+  const photoCount = (area.media?.length ?? 0) + area.surfaces.reduce((n, s) => n + (s.media?.length ?? 0), 0);
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-4">
+      <div className="flex items-center gap-3">
+        <button onClick={onOpen} className="min-w-0 flex-1 text-left">
+          <div className="flex items-center gap-2">
+            <span className="truncate font-medium">{area.name || "Untitled area"}</span>
+            {area.isOption && <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-500">Option</span>}
+          </div>
+          <div className="text-xs text-gray-500">
+            {area.type} · {area.areaType === "room" ? "Room" : "Surface"} · {surfaceCount} surface{surfaceCount === 1 ? "" : "s"}
+            {area.L > 0 ? ` · ${area.L}×${area.areaType === "room" ? area.W + "×" : ""}${area.H}m` : ""}
+            {photoCount > 0 ? ` · 📷 ${photoCount}` : ""}
+          </div>
+        </button>
+        <div className="text-right">
+          <div className="text-sm font-semibold tabular-nums">{fmt(at.price)}</div>
+          <div className="text-[11px] text-gray-400">{at.hrs.toFixed(1)} hr</div>
+        </div>
+        <button onClick={onOpen} className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700">Open →</button>
+        <label className="flex items-center gap-1 text-xs text-gray-500" title="Show as an optional add-on">
+          <input type="checkbox" checked={area.isOption} onChange={(e) => onToggleOption(e.target.checked)} /> Opt
+        </label>
+        <button onClick={onDuplicate} className="px-1 text-lg text-gray-400 hover:text-gray-700" title="Duplicate area" aria-label="Duplicate area">⧉</button>
+        <button onClick={onRemove} className="px-1 text-gray-400 hover:text-red-600" title="Remove area" aria-label="Remove area">×</button>
+      </div>
     </section>
   );
 }
