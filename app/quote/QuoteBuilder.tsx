@@ -198,6 +198,13 @@ export default function QuoteBuilder({
   const [title, setTitle] = useState(initial?.title ?? "");
   const [quoteId, setQuoteId] = useState<string | null>(initial?.id ?? null);
   const [customerView, setCustomerView] = useState(false);
+  // Folder navigation: null = the list; otherwise we've drilled into an area,
+  // a surface within an area, or a line item. "Done" pops back up a level.
+  type View =
+    | { type: "area"; id: number }
+    | { type: "line"; id: number }
+    | { type: "surface"; areaId: number; sid: number };
+  const [view, setView] = useState<View | null>(null);
   const [areaPickerOpen, setAreaPickerOpen] = useState(false);
   // Surface (substrate) folder picker: which area, and whether adding new or changing an existing surface.
   const [surfacePicker, setSurfacePicker] = useState<{ areaId: number; sid: number | null } | null>(null);
@@ -276,16 +283,18 @@ export default function QuoteBuilder({
     );
   // Add a brand-new surface with a chosen substrate (from the folder picker) and
   // append its label to the area description.
-  const addSurfaceWithCode = (areaId: number, code: string) =>
+  const addSurfaceWithCode = (areaId: number, code: string): number => {
+    const surf: Surface = { ...newSurface(), code, internalLabel: code, clientLabel: code, open: true };
     setBlocks((bs) =>
       bs.map((b) => {
         if (b.id !== areaId || b.kind !== "area") return b;
-        const surf: Surface = { ...newSurface(), code, internalLabel: code, clientLabel: code, open: true };
         const line = `<p>${code}</p>`;
         const description = (b.description ?? "").trim() ? b.description + line : line;
         return { ...b, surfaces: [...b.surfaces, surf], description };
       }),
     );
+    return surf.id;
+  };
   const removeBlock = (id: number) => setBlocks((bs) => bs.filter((b) => b.id !== id));
   const duplicateBlock = (id: number) =>
     setBlocks((bs) => {
@@ -437,42 +446,71 @@ export default function QuoteBuilder({
     }
   }
 
-  const renderBlock = (b: Block) =>
-    b.kind === "area" ? (
-      <AreaCard
-        key={b.id}
-        area={b}
-        products={products}
-        chargeFor={chargeFor}
-        calc={(s) => surfaceCalc(b, s)}
-        onToggleOpen={() => patchBlock(b.id, { open: !b.open })}
-        onPatch={(patch) => patchBlock(b.id, patch)}
-        onPatchSurface={(sid, patch) => patchSurface(b.id, sid, patch)}
-        onAddSurface={() => setSurfacePicker({ areaId: b.id, sid: null })}
-        onChangeSelection={(sid) => setSurfacePicker({ areaId: b.id, sid })}
-        onRemoveSurface={(sid) => patchBlock(b.id, { surfaces: b.surfaces.filter((x) => x.id !== sid) })}
-        onDuplicateSurface={(sid) => duplicateSurface(b.id, sid)}
-        onDuplicate={() => duplicateBlock(b.id)}
-        onRemove={() => removeBlock(b.id)}
-      />
-    ) : (
-      <LineCard
-        key={b.id}
-        line={b}
-        calc={lineCalc(b)}
-        lineItems={lineItems}
-        chargeFor={chargeFor}
-        onToggleOpen={() => patchBlock(b.id, { open: !b.open })}
-        onPatch={(patch) => patchBlock(b.id, patch)}
-        onDuplicate={() => duplicateBlock(b.id)}
-        onRemove={() => removeBlock(b.id)}
-      />
-    );
   const mainBlocks = blocks.filter((b) => !b.isOption);
   const optionBlocks = blocks.filter((b) => b.isOption);
   // In customer view, hidden line items drop out of the document entirely.
   const visibleToCustomer = (b: Block) => !customerView || !(b.kind === "line" && b.hidden);
   const areaPriceCents = (b: Area) => b.surfaces.reduce((n, s) => n + surfaceCalc(b, s).totalCents, 0);
+
+  // ---- folder screens (drilled-in views) ----
+  const renderAreaFolder = (b: Area) => (
+    <AreaCard
+      area={b}
+      calc={(s) => surfaceCalc(b, s)}
+      onDone={() => setView(null)}
+      onPatch={(patch) => patchBlock(b.id, patch)}
+      onOpenSurface={(sid) => setView({ type: "surface", areaId: b.id, sid })}
+      onAddSurface={() => setSurfacePicker({ areaId: b.id, sid: null })}
+      onRemoveSurface={(sid) => patchBlock(b.id, { surfaces: b.surfaces.filter((x) => x.id !== sid) })}
+      onDuplicateSurface={(sid) => duplicateSurface(b.id, sid)}
+      onDuplicate={() => duplicateBlock(b.id)}
+      onRemove={() => { removeBlock(b.id); setView(null); }}
+    />
+  );
+  const renderLineFolder = (b: LineBlock) => (
+    <LineCard
+      line={b}
+      calc={lineCalc(b)}
+      lineItems={lineItems}
+      chargeFor={chargeFor}
+      onDone={() => setView(null)}
+      onPatch={(patch) => patchBlock(b.id, patch)}
+      onDuplicate={() => duplicateBlock(b.id)}
+      onRemove={() => { removeBlock(b.id); setView(null); }}
+    />
+  );
+
+  // ---- list row (Level 0): a closed folder you click to open ----
+  const renderFolderRow = (b: Block) => {
+    const title = b.kind === "area" ? b.name || "Untitled area" : b.name || "Line item";
+    const price = b.kind === "area" ? areaPriceCents(b) : lineCalc(b).priceCents;
+    const subtitle =
+      b.kind === "area"
+        ? b.surfaces.filter((s) => s.code).map((s) => s.clientLabel || s.code).join(", ") || "No surfaces yet"
+        : "Line item";
+    const open = () => setView(b.kind === "area" ? { type: "area", id: b.id } : { type: "line", id: b.id });
+    return (
+      <section className="rounded-xl border border-gray-200 bg-white">
+        <div className="flex items-center gap-2 p-3">
+          <span className="text-2xl leading-none">📁</span>
+          <button onClick={open} className="min-w-0 flex-1 text-left">
+            <div className="flex items-center gap-2">
+              <span className="truncate font-medium">{title}</span>
+              {b.isOption && <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-500">Optional</span>}
+            </div>
+            <div className="truncate text-xs text-gray-500">{subtitle}</div>
+          </button>
+          <div className="text-sm font-semibold tabular-nums">{fmt(price)}</div>
+          <button onClick={open} className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700">Open →</button>
+          <label className="flex items-center gap-1 text-xs text-gray-500" title="Optional add-on">
+            <input type="checkbox" checked={b.isOption} onChange={(e) => patchBlock(b.id, { isOption: e.target.checked })} /> Opt
+          </label>
+          <button onClick={() => duplicateBlock(b.id)} className="px-1 text-lg text-gray-400 hover:text-gray-700" title="Duplicate">⧉</button>
+          <button onClick={() => removeBlock(b.id)} className="px-1 text-gray-400 hover:text-red-600" title="Remove">×</button>
+        </div>
+      </section>
+    );
+  };
   const renderSummary = (b: Block) => (
     <BlockSummary
       key={b.id}
@@ -505,9 +543,40 @@ export default function QuoteBuilder({
         title="Drag to reorder"
         aria-label="Drag to reorder"
       >⠿</span>
-      <div className="min-w-0 flex-1">{renderBlock(b)}</div>
+      <div className="min-w-0 flex-1">{renderFolderRow(b)}</div>
     </div>
   );
+
+  // The drilled-in folder screen for the current view (null → show the list).
+  let folderEl: React.ReactNode = null;
+  if (!customerView && view) {
+    if (view.type === "surface") {
+      const area = blocks.find((b) => b.id === view.areaId && b.kind === "area") as Area | undefined;
+      const s = area?.surfaces.find((x) => x.id === view.sid);
+      if (area && s) {
+        const c = surfaceCalc(area, s);
+        folderEl = (
+          <SurfaceEditor
+            surface={s}
+            item={c.item}
+            calc={c}
+            products={products}
+            chargeFor={chargeFor}
+            areaType={area.type}
+            areaName={area.name || "area"}
+            onChangeSelection={() => setSurfacePicker({ areaId: area.id, sid: s.id })}
+            onPatch={(patch) => patchSurface(area.id, s.id, patch)}
+            onDone={() => setView({ type: "area", id: area.id })}
+            onRemove={() => { patchBlock(area.id, { surfaces: area.surfaces.filter((x) => x.id !== s.id) }); setView({ type: "area", id: area.id }); }}
+          />
+        );
+      }
+    } else {
+      const b = blocks.find((x) => x.id === view.id);
+      if (b?.kind === "area" && view.type === "area") folderEl = renderAreaFolder(b);
+      else if (b?.kind === "line" && view.type === "line") folderEl = renderLineFolder(b);
+    }
+  }
 
   return (
     <main className="mx-auto max-w-6xl p-6">
@@ -522,7 +591,7 @@ export default function QuoteBuilder({
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setCustomerView((v) => !v)}
+            onClick={() => { setCustomerView((v) => !v); setView(null); }}
             className={`rounded-md px-4 py-2 text-sm font-medium ${customerView ? "bg-blue-600 text-white hover:bg-blue-700" : "border border-gray-300 hover:bg-gray-50"}`}
           >
             {customerView ? "← Back to building" : "👁 Customer view"}
@@ -574,56 +643,64 @@ export default function QuoteBuilder({
         />
       </div>
 
-      <div className={`mt-6 grid grid-cols-1 gap-6 ${customerView ? "" : "lg:grid-cols-[1fr_300px]"}`}>
+      <div className={`mt-6 grid grid-cols-1 gap-6 ${customerView || folderEl ? "" : "lg:grid-cols-[1fr_300px]"}`}>
         <div className="space-y-4">
-          {!customerView && (
-            <section className="rounded-xl border border-gray-200 bg-white p-4">
-              <h2 className="text-sm font-semibold">Job settings <span className="font-normal text-gray-400">· staff only</span></h2>
-              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {["Condition", "Access", "Level of Finish", "Job Size", "Staging"].map((group) => (
-                  <label key={group} className="block text-xs">
-                    <span className={group === "Level of Finish" ? "font-semibold text-gray-900" : "text-gray-500"}>
-                      {group}{group === "Level of Finish" ? " *" : ""}
-                    </span>
-                    <select
-                      className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-                      value={modSel[group] ?? ""}
-                      onChange={(e) => setModSel((s) => ({ ...s, [group]: e.target.value }))}
-                    >
-                      <option value="">{group === "Level of Finish" ? "— required —" : "— none —"}</option>
-                      {(modGroups[group] ?? []).map((m) => (
-                        <option key={m.code} value={m.code}>{m.label} (×{m.multiplier})</option>
-                      ))}
-                    </select>
-                  </label>
-                ))}
-              </div>
-            </section>
-          )}
+          {folderEl ? (
+            /* ---------- drilled-in folder screen (area / surface / line) ---------- */
+            folderEl
+          ) : (
+            /* ---------- the list of folders ---------- */
+            <>
+              {!customerView && (
+                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                  <h2 className="text-sm font-semibold">Job settings <span className="font-normal text-gray-400">· staff only</span></h2>
+                  <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {["Condition", "Access", "Level of Finish", "Job Size", "Staging"].map((group) => (
+                      <label key={group} className="block text-xs">
+                        <span className={group === "Level of Finish" ? "font-semibold text-gray-900" : "text-gray-500"}>
+                          {group}{group === "Level of Finish" ? " *" : ""}
+                        </span>
+                        <select
+                          className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                          value={modSel[group] ?? ""}
+                          onChange={(e) => setModSel((s) => ({ ...s, [group]: e.target.value }))}
+                        >
+                          <option value="">{group === "Level of Finish" ? "— required —" : "— none —"}</option>
+                          {(modGroups[group] ?? []).map((m) => (
+                            <option key={m.code} value={m.code}>{m.label} (×{m.multiplier})</option>
+                          ))}
+                        </select>
+                      </label>
+                    ))}
+                  </div>
+                </section>
+              )}
 
-          {/* Each area/line is a collapsible folder while building (drag the grip to
-              reorder); in customer view it renders as the read-only document card. */}
-          {mainBlocks.filter(visibleToCustomer).map((b) => (customerView ? renderSummary(b) : renderDraggable(b)))}
+              {/* Each area/line is a closed folder — click to open it (drag the grip
+                  to reorder); in customer view it's the read-only document card. */}
+              {mainBlocks.filter(visibleToCustomer).map((b) => (customerView ? renderSummary(b) : renderDraggable(b)))}
 
-          {optionBlocks.filter(visibleToCustomer).length > 0 && (
-            <section className="rounded-xl border border-dashed border-gray-300 bg-white p-4">
-              <h2 className="text-sm font-semibold">
-                Optional extras{" "}
-                <span className="font-normal text-gray-400">— not included in the total unless added</span>
-              </h2>
-              <div className="mt-3 space-y-4">{optionBlocks.filter(visibleToCustomer).map((b) => (customerView ? renderSummary(b) : renderDraggable(b)))}</div>
-            </section>
-          )}
+              {optionBlocks.filter(visibleToCustomer).length > 0 && (
+                <section className="rounded-xl border border-dashed border-gray-300 bg-white p-4">
+                  <h2 className="text-sm font-semibold">
+                    Optional extras{" "}
+                    <span className="font-normal text-gray-400">— not included in the total unless added</span>
+                  </h2>
+                  <div className="mt-3 space-y-4">{optionBlocks.filter(visibleToCustomer).map((b) => (customerView ? renderSummary(b) : renderDraggable(b)))}</div>
+                </section>
+              )}
 
-          {!customerView && (
-            <div className="flex gap-3">
-              <button onClick={() => setAreaPickerOpen(true)} className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
-                + Add area
-              </button>
-              <button onClick={() => setBlocks((bs) => [...bs, newLine()])} className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50">
-                + Add line item
-              </button>
-            </div>
+              {!customerView && (
+                <div className="flex gap-3">
+                  <button onClick={() => setAreaPickerOpen(true)} className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
+                    + Add area
+                  </button>
+                  <button onClick={() => { const l = newLine(); setBlocks((bs) => [...bs, l]); setView({ type: "line", id: l.id }); }} className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50">
+                    + Add line item
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -696,8 +773,13 @@ export default function QuoteBuilder({
           <SurfacePicker
             subGroups={subGroups[area.type]}
             onPick={(code) => {
-              if (surfacePicker.sid == null) addSurfaceWithCode(surfacePicker.areaId, code);
-              else selectSubstrate(surfacePicker.areaId, surfacePicker.sid, code);
+              if (surfacePicker.sid == null) {
+                // adding a new surface → open its editable folder straight away
+                const sid = addSurfaceWithCode(surfacePicker.areaId, code);
+                setView({ type: "surface", areaId: surfacePicker.areaId, sid });
+              } else {
+                selectSubstrate(surfacePicker.areaId, surfacePicker.sid, code);
+              }
               setSurfacePicker(null);
             }}
             onClose={() => setSurfacePicker(null)}
@@ -889,25 +971,21 @@ function SurfacePicker({
   );
 }
 
-// ---------------- Area ----------------
+// ---------------- Area folder screen ----------------
 function AreaCard({
-  area, products, chargeFor, calc, onToggleOpen, onPatch, onPatchSurface, onChangeSelection, onAddSurface, onRemoveSurface, onDuplicateSurface, onDuplicate, onRemove,
+  area, calc, onDone, onPatch, onOpenSurface, onAddSurface, onRemoveSurface, onDuplicateSurface, onDuplicate, onRemove,
 }: {
   area: Area;
-  products: Product[];
-  chargeFor: (t: string) => number;
   calc: (s: Surface) => SurfaceCalc;
-  onToggleOpen: () => void;
+  onDone: () => void;
   onPatch: (patch: Partial<Area>) => void;
-  onPatchSurface: (sid: number, patch: Partial<Surface>) => void;
-  onChangeSelection: (sid: number) => void;
+  onOpenSurface: (sid: number) => void;
   onAddSurface: () => void;
   onRemoveSurface: (sid: number) => void;
   onDuplicateSurface: (sid: number) => void;
   onDuplicate: () => void;
   onRemove: () => void;
 }) {
-  const open = area.open;
   // per-area totals (matches PaintScout's Area Hours / Area Price + breakdown)
   const at = area.surfaces.reduce(
     (a, s) => {
@@ -920,24 +998,27 @@ function AreaCard({
   const money = (cents: number) => (cents / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4">
-      {/* header: collapse toggle + title + area price/hours + controls */}
+      {/* back bar */}
+      <div className="mb-3 flex items-center justify-between">
+        <button onClick={onDone} className="flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-900">← All areas</button>
+        <div className="flex items-center gap-2">
+          <button onClick={onDuplicate} className="px-1 text-lg text-gray-400 hover:text-gray-700" title="Duplicate area" aria-label="Duplicate area">⧉</button>
+          <button onClick={onRemove} className="px-1 text-gray-400 hover:text-red-600" aria-label="Remove area">×</button>
+          <button onClick={onDone} className="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700">Done</button>
+        </div>
+      </div>
+
+      {/* header: title + area price/hours + type + option */}
       <div className="flex items-start gap-2">
-        <button onClick={onToggleOpen} className="mt-1.5 text-gray-400 hover:text-gray-700" aria-label={open ? "Collapse area" : "Open area"} title={open ? "Collapse" : "Open"}>
-          {open ? "▾" : "▸"}
-        </button>
         <div className="min-w-0 flex-1">
-          {open ? (
-            <input
-              className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm font-medium"
-              value={area.name}
-              placeholder="Area name (e.g. Right Side upper)"
-              onChange={(e) => onPatch({ name: e.target.value })}
-            />
-          ) : (
-            <button onClick={onToggleOpen} className="block w-full truncate text-left text-sm font-medium">{area.name || "Untitled area"}</button>
-          )}
+          <input
+            className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm font-medium"
+            value={area.name}
+            placeholder="Area name (e.g. Right Side upper)"
+            onChange={(e) => onPatch({ name: e.target.value })}
+          />
           <div className="mt-1 truncate text-xs text-gray-500">
-            {area.surfaces.filter((s) => s.code).map((s) => s.clientLabel || s.code).join(", ") || "No surfaces yet — open to add"}
+            {area.surfaces.filter((s) => s.code).map((s) => s.clientLabel || s.code).join(", ") || "No surfaces yet"}
           </div>
         </div>
         <div className="rounded-lg bg-gray-50 px-3 py-1.5 text-right">
@@ -958,12 +1039,8 @@ function AreaCard({
         <label className="flex items-center gap-1 whitespace-nowrap text-xs text-gray-500" title="Show as an optional add-on, outside the total">
           <input type="checkbox" checked={area.isOption} onChange={(e) => onPatch({ isOption: e.target.checked })} /> Option
         </label>
-        <button onClick={onDuplicate} className="px-1 text-lg text-gray-400 hover:text-gray-700" title="Duplicate area" aria-label="Duplicate area">⧉</button>
-        <button onClick={onRemove} className="px-1 text-gray-400 hover:text-red-600" aria-label="Remove area">×</button>
       </div>
 
-      {open && (
-      <>
       {/* dimensions */}
       <div className="mt-2 flex flex-wrap items-end gap-2 rounded-lg bg-gray-50 p-2">
         <F label="Measure as">
@@ -1028,56 +1105,37 @@ function AreaCard({
             <tbody>
               {area.surfaces.map((s) => {
                 const c = calc(s);
-                const sOpen = s.open;
                 return (
-                  <Fragment key={s.id}>
-                    <tr className={`border-t border-gray-200 ${sOpen ? "bg-blue-50/40" : "hover:bg-gray-50"}`}>
-                      <td className="px-2 py-2">
-                        <button className="flex items-start gap-1 text-left" onClick={() => onPatchSurface(s.id, { open: !sOpen })}>
-                          <span className="mt-0.5 text-gray-400">{sOpen ? "▾" : "▸"}</span>
-                          <span>
-                            <span className="font-medium">{s.clientLabel || s.code || "New surface"}</span>
-                            <span className="block text-[11px] text-gray-400">
-                              {s.code
-                                ? c.isItem
-                                  ? `${s.internalLabel || s.code}${s.count > 1 ? ` · ${s.count}` : ""}`
-                                  : `${c.qty.toFixed(0)} ${unitLabel(c.item)}`
-                                : "choose a substrate"}
-                            </span>
+                  <tr key={s.id} className="border-t border-gray-200 hover:bg-blue-50/40">
+                    <td className="px-2 py-2">
+                      <button className="flex items-center gap-1 text-left" onClick={() => onOpenSurface(s.id)} title="Open surface">
+                        <span className="text-gray-400">📁</span>
+                        <span>
+                          <span className="font-medium">{s.clientLabel || s.code || "New surface"}</span>
+                          <span className="block text-[11px] text-gray-400">
+                            {s.code
+                              ? c.isItem
+                                ? `${s.internalLabel || s.code}${s.count > 1 ? ` · ${s.count}` : ""}`
+                                : `${c.qty.toFixed(0)} ${unitLabel(c.item)}`
+                              : "choose a substrate"}
                           </span>
-                        </button>
-                      </td>
-                      <td className={nc}>{c.isItem ? s.count : c.qty ? c.qty.toFixed(0) : ""}</td>
-                      <td className={nc}>{c.prepHr ? c.prepHr.toFixed(2) : ""}</td>
-                      <td className={nc}>{c.paintingHr ? c.paintingHr.toFixed(2) : ""}</td>
-                      <td className={nc}>{s.code ? (c.prepHr + c.paintingHr).toFixed(2) : ""}</td>
-                      <td className={nc}>{money(c.matPriceCents)}</td>
-                      <td className={nc}>{money(c.labourCents)}</td>
-                      <td className={`${nc} font-semibold`}>{money(c.totalCents)}</td>
-                      <td className="whitespace-nowrap px-1 py-2 text-right">
-                        {s.hidden && <span className="mr-1 rounded bg-amber-100 px-1 py-0.5 text-[9px] font-medium text-amber-700">Hidden</span>}
-                        <button onClick={() => onDuplicateSurface(s.id)} className="px-1 text-gray-400 hover:text-gray-700" title="Duplicate surface">⧉</button>
-                        <button onClick={() => onRemoveSurface(s.id)} className="px-1 text-gray-400 hover:text-red-600" title="Remove surface">×</button>
-                      </td>
-                    </tr>
-                    {sOpen && (
-                      <tr className="border-t border-gray-200 bg-blue-50/40">
-                        <td colSpan={9} className="p-3">
-                          <SurfaceEditor
-                            surface={s}
-                            item={c.item}
-                            calc={c}
-                            products={products}
-                            chargeFor={chargeFor}
-                            areaType={area.type}
-                            onChangeSelection={() => onChangeSelection(s.id)}
-                            onPatch={(patch) => onPatchSurface(s.id, patch)}
-                            onClose={() => onPatchSurface(s.id, { open: false })}
-                          />
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
+                        </span>
+                      </button>
+                    </td>
+                    <td className={nc}>{c.isItem ? s.count : c.qty ? c.qty.toFixed(0) : ""}</td>
+                    <td className={nc}>{c.prepHr ? c.prepHr.toFixed(2) : ""}</td>
+                    <td className={nc}>{c.paintingHr ? c.paintingHr.toFixed(2) : ""}</td>
+                    <td className={nc}>{s.code ? (c.prepHr + c.paintingHr).toFixed(2) : ""}</td>
+                    <td className={nc}>{money(c.matPriceCents)}</td>
+                    <td className={nc}>{money(c.labourCents)}</td>
+                    <td className={`${nc} font-semibold`}>{money(c.totalCents)}</td>
+                    <td className="whitespace-nowrap px-1 py-2 text-right">
+                      {s.hidden && <span className="mr-1 rounded bg-amber-100 px-1 py-0.5 text-[9px] font-medium text-amber-700">Hidden</span>}
+                      <button onClick={() => onOpenSurface(s.id)} className="px-1 text-xs font-medium text-blue-600 hover:text-blue-800" title="Open surface">Open</button>
+                      <button onClick={() => onDuplicateSurface(s.id)} className="px-1 text-gray-400 hover:text-gray-700" title="Duplicate surface">⧉</button>
+                      <button onClick={() => onRemoveSurface(s.id)} className="px-1 text-gray-400 hover:text-red-600" title="Remove surface">×</button>
+                    </td>
+                  </tr>
                 );
               })}
               <tr className="border-t border-dashed border-gray-300">
@@ -1106,8 +1164,6 @@ function AreaCard({
         <div className="mb-1 text-[10px] uppercase tracking-wide text-gray-400">Room photos</div>
         <MediaUploader items={area.media ?? []} onChange={(m) => onPatch({ media: m })} />
       </div>
-      </>
-      )}
     </section>
   );
 }
@@ -1162,7 +1218,7 @@ function BlockSummary({
 }
 
 function SurfaceEditor({
-  surface: s, item, calc, products, chargeFor, areaType, onChangeSelection, onPatch, onClose,
+  surface: s, item, calc, products, chargeFor, areaType, areaName, onChangeSelection, onPatch, onDone, onRemove,
 }: {
   surface: Surface;
   item?: RateItem;
@@ -1170,9 +1226,11 @@ function SurfaceEditor({
   products: Product[];
   chargeFor: (t: string) => number;
   areaType: "Interior" | "Exterior";
+  areaName: string;
   onChangeSelection: () => void;
   onPatch: (patch: Partial<Surface>) => void;
-  onClose: () => void;
+  onDone: () => void;
+  onRemove: () => void;
 }) {
   const isItem = calc.isItem;
   const inp = "w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm";
@@ -1181,11 +1239,16 @@ function SurfaceEditor({
       value={Number.isFinite(v) ? v : ""} onChange={(e) => on(e.target.value === "" ? null : Number(e.target.value))} />
   );
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-3">
-      <div className="flex items-center justify-between">
-        <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Edit Surface</div>
-        <button onClick={onClose} className="text-xs font-medium text-gray-500 hover:text-gray-800">Done ▲</button>
+    <section className="rounded-xl border border-gray-200 bg-white p-4">
+      {/* back bar */}
+      <div className="mb-3 flex items-center justify-between">
+        <button onClick={onDone} className="flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-900">← {areaName}</button>
+        <div className="flex items-center gap-2">
+          <button onClick={onRemove} className="px-1 text-gray-400 hover:text-red-600" title="Remove surface" aria-label="Remove surface">×</button>
+          <button onClick={onDone} className="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700">Done</button>
+        </div>
       </div>
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Edit Surface — {s.clientLabel || s.code || "new"}</div>
 
       {/* substrate + labels */}
       <div className="mt-2 grid gap-3 sm:grid-cols-3">
@@ -1295,7 +1358,7 @@ function SurfaceEditor({
           </div>
         </>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -1311,15 +1374,15 @@ function Check({ checked, onChange, label, hint }: { checked: boolean; onChange:
   );
 }
 
-// ---------------- Line item ----------------
+// ---------------- Line item folder screen ----------------
 function LineCard({
-  line: l, calc, lineItems, chargeFor, onToggleOpen, onPatch, onDuplicate, onRemove,
+  line: l, calc, lineItems, chargeFor, onDone, onPatch, onDuplicate, onRemove,
 }: {
   line: LineBlock;
   calc: { priceCents: number; hours: number; costCents: number };
   lineItems: LineItemRef[];
   chargeFor: (t: string) => number;
-  onToggleOpen: () => void;
+  onDone: () => void;
   onPatch: (patch: Partial<LineBlock>) => void;
   onDuplicate: () => void;
   onRemove: () => void;
@@ -1327,13 +1390,20 @@ function LineCard({
   const num = (v: number, on: (n: number) => void) => (
     <input type="number" className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm" value={v || ""} onChange={(e) => on(Number(e.target.value) || 0)} />
   );
-  const open = l.open;
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4">
+      {/* back bar */}
+      <div className="mb-3 flex items-center justify-between">
+        <button onClick={onDone} className="flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-900">← All areas</button>
+        <div className="flex items-center gap-2">
+          <button onClick={onDuplicate} className="px-1 text-lg text-gray-400 hover:text-gray-700" title="Duplicate line item" aria-label="Duplicate line item">⧉</button>
+          <button onClick={onRemove} className="px-1 text-gray-400 hover:text-red-600" aria-label="Remove line item">×</button>
+          <button onClick={onDone} className="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700">Done</button>
+        </div>
+      </div>
+
       <div className="flex items-center gap-2">
-        <button onClick={onToggleOpen} className="text-gray-400 hover:text-gray-700" aria-label={open ? "Collapse" : "Open"}>{open ? "▾" : "▸"}</button>
         <span className="rounded bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Line item</span>
-        {open ? (
         <select
           className="flex-1 rounded-md border border-gray-300 px-1 py-1.5 text-sm"
           value={l.name}
@@ -1352,17 +1422,10 @@ function LineCard({
           <option value="">— choose line item —</option>
           {lineItems.map((li) => <option key={li.name} value={li.name}>{li.name} ({li.type})</option>)}
         </select>
-        ) : (
-          <button onClick={onToggleOpen} className="flex-1 truncate text-left text-sm font-medium">{l.name || "Line item"}</button>
-        )}
         {l.hidden && <span className="whitespace-nowrap rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">Hidden</span>}
         <span className="whitespace-nowrap text-sm font-medium tabular-nums">{fmt(calc.priceCents)}</span>
-        <button onClick={onDuplicate} className="px-1 text-lg text-gray-400 hover:text-gray-700" title="Duplicate line item" aria-label="Duplicate line item">⧉</button>
-        <button onClick={onRemove} className="px-1 text-gray-400 hover:text-red-600" aria-label="Remove line item">×</button>
       </div>
 
-      {open && (
-      <>
       <div className="mt-3">
         <div className="flex gap-4 text-sm">
           {(["hourly", "quantity", "custom"] as const).map((m) => (
@@ -1439,8 +1502,6 @@ function LineCard({
           </div>
         )}
       </div>
-      </>
-      )}
     </section>
   );
 }
