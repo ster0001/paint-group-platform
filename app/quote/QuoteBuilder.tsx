@@ -641,19 +641,24 @@ export default function QuoteBuilder({
         </div>
       )}
 
-      <div className="mt-6">
-        <EstimateHeader
-          company={company}
-          contacts={contacts}
-          contact={contact}
-          jobAddress={jobAddress}
-          onContact={setContact}
-          onJobAddress={setJobAddress}
-          estimateId={quoteId ? quoteId.slice(0, 8) : "New"}
-          dateStr={new Date().toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
-          readOnly={customerView}
-        />
-      </div>
+      {/* The estimate header (company / estimator / banking / contact) only
+          belongs on the list and customer views — hide it when drilled into a
+          folder, where it just wastes space. */}
+      {!folderEl && (
+        <div className="mt-6">
+          <EstimateHeader
+            company={company}
+            contacts={contacts}
+            contact={contact}
+            jobAddress={jobAddress}
+            onContact={setContact}
+            onJobAddress={setJobAddress}
+            estimateId={quoteId ? quoteId.slice(0, 8) : "New"}
+            dateStr={new Date().toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
+            readOnly={customerView}
+          />
+        </div>
+      )}
 
       <div className={`mt-6 grid grid-cols-1 gap-6 ${customerView || folderEl ? "" : "lg:grid-cols-[1fr_300px]"}`}>
         <div className="space-y-4">
