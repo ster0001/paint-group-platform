@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { hoursPerUnit } from "@/lib/pricing/engine";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -205,6 +205,9 @@ export default function QuoteBuilder({
     | { type: "line"; id: number }
     | { type: "surface"; areaId: number; sid: number };
   const [view, setView] = useState<View | null>(null);
+  // Whenever you drill into (or out of) a folder, jump to the top so a surface
+  // always opens on its starting view rather than mid-scroll.
+  useEffect(() => { window.scrollTo({ top: 0 }); }, [view]);
   const [areaPickerOpen, setAreaPickerOpen] = useState(false);
   // Surface (substrate) folder picker: which area, and whether adding new or changing an existing surface.
   const [surfacePicker, setSurfacePicker] = useState<{ areaId: number; sid: number | null } | null>(null);
@@ -480,33 +483,42 @@ export default function QuoteBuilder({
     />
   );
 
-  // ---- list row (Level 0): a closed folder you click to open ----
+  // ---- list row (Level 0): a closed folder. Click anywhere on it to open. ----
   const renderFolderRow = (b: Block) => {
     const title = b.kind === "area" ? b.name || "Untitled area" : b.name || "Line item";
     const price = b.kind === "area" ? areaPriceCents(b) : lineCalc(b).priceCents;
-    const subtitle =
-      b.kind === "area"
-        ? b.surfaces.filter((s) => s.code).map((s) => s.clientLabel || s.code).join(", ") || "No surfaces yet"
-        : "Line item";
+    const areaSubtitle =
+      b.kind === "area" ? b.surfaces.filter((s) => s.code).map((s) => s.clientLabel || s.code).join(", ") || "No surfaces yet" : "";
+    const lineDesc = b.kind === "line" ? b.description ?? "" : "";
+    const lineHasDesc = !!lineDesc && lineDesc.replace(/<[^>]*>/g, "").trim() !== "";
     const open = () => setView(b.kind === "area" ? { type: "area", id: b.id } : { type: "line", id: b.id });
+    const stop = (e: React.MouseEvent) => e.stopPropagation();
     return (
-      <section className="rounded-xl border border-gray-200 bg-white">
-        <div className="flex items-center gap-2 p-3">
+      <section
+        onClick={open}
+        className="cursor-pointer rounded-xl border border-gray-200 bg-white hover:border-gray-400 hover:bg-gray-50"
+      >
+        <div className="flex items-start gap-2 p-3">
           <span className="text-2xl leading-none">📁</span>
-          <button onClick={open} className="min-w-0 flex-1 text-left">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span className="truncate font-medium">{title}</span>
               {b.isOption && <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-500">Optional</span>}
             </div>
-            <div className="truncate text-xs text-gray-500">{subtitle}</div>
-          </button>
-          <div className="text-sm font-semibold tabular-nums">{fmt(price)}</div>
-          <button onClick={open} className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700">Open →</button>
-          <label className="flex items-center gap-1 text-xs text-gray-500" title="Optional add-on">
+            {b.kind === "area" ? (
+              <div className="truncate text-xs text-gray-500">{areaSubtitle}</div>
+            ) : lineHasDesc ? (
+              <div className="rte mt-1 text-xs text-gray-600" dangerouslySetInnerHTML={{ __html: lineDesc }} />
+            ) : (
+              <div className="text-xs text-gray-400">Line item — no description yet</div>
+            )}
+          </div>
+          <div className="whitespace-nowrap text-sm font-semibold tabular-nums">{fmt(price)}</div>
+          <label onClick={stop} className="flex items-center gap-1 text-xs text-gray-500" title="Optional add-on">
             <input type="checkbox" checked={b.isOption} onChange={(e) => patchBlock(b.id, { isOption: e.target.checked })} /> Opt
           </label>
-          <button onClick={() => duplicateBlock(b.id)} className="px-1 text-lg text-gray-400 hover:text-gray-700" title="Duplicate">⧉</button>
-          <button onClick={() => removeBlock(b.id)} className="px-1 text-gray-400 hover:text-red-600" title="Remove">×</button>
+          <button onClick={(e) => { stop(e); duplicateBlock(b.id); }} className="px-1 text-lg text-gray-400 hover:text-gray-700" title="Duplicate">⧉</button>
+          <button onClick={(e) => { stop(e); removeBlock(b.id); }} className="px-1 text-gray-400 hover:text-red-600" title="Remove">×</button>
         </div>
       </section>
     );
@@ -1072,18 +1084,6 @@ function AreaCard({
         </span>
       </div>
 
-      {/* Description — the only body text the customer sees */}
-      <div className="mt-3">
-        <div className="mb-1 text-[10px] uppercase tracking-wide text-gray-400">
-          Description <span className="normal-case text-gray-400">· shown to the customer</span>
-        </div>
-        <RichTextEditor
-          value={area.description ?? ""}
-          onChange={(html) => onPatch({ description: html })}
-          placeholder="Describe this area for the customer… (substrate labels are added automatically as you pick them)"
-        />
-      </div>
-
       {/* Estimate table */}
       <div className="mt-4">
         <div className="mb-1 text-[10px] uppercase tracking-wide text-gray-400">Estimate</div>
@@ -1106,9 +1106,9 @@ function AreaCard({
               {area.surfaces.map((s) => {
                 const c = calc(s);
                 return (
-                  <tr key={s.id} className="border-t border-gray-200 hover:bg-blue-50/40">
+                  <tr key={s.id} onClick={() => onOpenSurface(s.id)} className="cursor-pointer border-t border-gray-200 hover:bg-blue-50/40" title="Open surface">
                     <td className="px-2 py-2">
-                      <button className="flex items-center gap-1 text-left" onClick={() => onOpenSurface(s.id)} title="Open surface">
+                      <span className="flex items-center gap-1 text-left">
                         <span className="text-gray-400">📁</span>
                         <span>
                           <span className="font-medium">{s.clientLabel || s.code || "New surface"}</span>
@@ -1120,7 +1120,7 @@ function AreaCard({
                               : "choose a substrate"}
                           </span>
                         </span>
-                      </button>
+                      </span>
                     </td>
                     <td className={nc}>{c.isItem ? s.count : c.qty ? c.qty.toFixed(0) : ""}</td>
                     <td className={nc}>{c.prepHr ? c.prepHr.toFixed(2) : ""}</td>
@@ -1131,9 +1131,8 @@ function AreaCard({
                     <td className={`${nc} font-semibold`}>{money(c.totalCents)}</td>
                     <td className="whitespace-nowrap px-1 py-2 text-right">
                       {s.hidden && <span className="mr-1 rounded bg-amber-100 px-1 py-0.5 text-[9px] font-medium text-amber-700">Hidden</span>}
-                      <button onClick={() => onOpenSurface(s.id)} className="px-1 text-xs font-medium text-blue-600 hover:text-blue-800" title="Open surface">Open</button>
-                      <button onClick={() => onDuplicateSurface(s.id)} className="px-1 text-gray-400 hover:text-gray-700" title="Duplicate surface">⧉</button>
-                      <button onClick={() => onRemoveSurface(s.id)} className="px-1 text-gray-400 hover:text-red-600" title="Remove surface">×</button>
+                      <button onClick={(e) => { e.stopPropagation(); onDuplicateSurface(s.id); }} className="px-1 text-gray-400 hover:text-gray-700" title="Duplicate surface">⧉</button>
+                      <button onClick={(e) => { e.stopPropagation(); onRemoveSurface(s.id); }} className="px-1 text-gray-400 hover:text-red-600" title="Remove surface">×</button>
                     </td>
                   </tr>
                 );
@@ -1157,6 +1156,18 @@ function AreaCard({
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Description — sits below the estimate, above the photos */}
+      <div className="mt-4">
+        <div className="mb-1 text-[10px] uppercase tracking-wide text-gray-400">
+          Description <span className="normal-case text-gray-400">· shown to the customer</span>
+        </div>
+        <RichTextEditor
+          value={area.description ?? ""}
+          onChange={(html) => onPatch({ description: html })}
+          placeholder="Describe this area for the customer… (substrate labels are added automatically as you pick them)"
+        />
       </div>
 
       {/* Room photos */}
