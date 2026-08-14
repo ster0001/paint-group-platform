@@ -6,7 +6,25 @@ import { createClient } from "@/lib/supabase/client";
 export type PBlock =
   | { id: number; type: "heading"; html: string }
   | { id: number; type: "text"; html: string }
-  | { id: number; type: "image"; url: string; path: string; caption: string };
+  | { id: number; type: "image"; url: string; path: string; caption: string }
+  | { id: number; type: "cover"; url: string; path: string; title: string }
+  | { id: number; type: "terms"; html: string }
+  | { id: number; type: "summary" };
+
+export type QuoteSummary = {
+  areas: { name: string; priceCents: number }[];
+  lines: { name: string; priceCents: number }[];
+  otherCents: number;
+  subtotalCents: number;
+  gstCents: number;
+  totalCents: number;
+  gstRate: number;
+};
+
+const DEFAULT_TERMS =
+  "<p><strong>Terms &amp; Conditions</strong></p><p>This quotation is valid for 60 days from the date issued. A 10% deposit is required to confirm your booking. All prices are inclusive of GST. Any work outside the scope described here will be quoted separately before proceeding.</p>";
+
+const money = (c: number) => "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 let pid = 1;
 
@@ -46,9 +64,11 @@ function RichText({
 export default function PresentationBuilder({
   blocks,
   onChange,
+  summary,
 }: {
   blocks: PBlock[];
   onChange: (b: PBlock[]) => void;
+  summary: QuoteSummary;
 }) {
   if (blocks.length) pid = Math.max(pid, ...blocks.map((b) => b.id)) + 1;
   const [dragId, setDragId] = useState<number | null>(null);
@@ -58,11 +78,13 @@ export default function PresentationBuilder({
     onChange(blocks.map((b) => (b.id === id ? ({ ...b, ...patch } as PBlock) : b)));
   const remove = (id: number) => onChange(blocks.filter((b) => b.id !== id));
   const add = (type: PBlock["type"]) => {
-    const base = { id: pid++ };
-    const b: PBlock =
-      type === "image"
-        ? { ...base, type: "image", url: "", path: "", caption: "" }
-        : { ...base, type, html: "" };
+    const id = pid++;
+    let b: PBlock;
+    if (type === "image") b = { id, type: "image", url: "", path: "", caption: "" };
+    else if (type === "cover") b = { id, type: "cover", url: "", path: "", title: "" };
+    else if (type === "terms") b = { id, type: "terms", html: DEFAULT_TERMS };
+    else if (type === "summary") b = { id, type: "summary" };
+    else b = { id, type, html: "" };
     onChange([...blocks, b]);
   };
 
@@ -169,6 +191,48 @@ export default function PresentationBuilder({
                   />
                 </div>
               )}
+              {b.type === "cover" && (
+                <div>
+                  {b.url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={b.url} alt="" className="h-56 w-full rounded-lg object-cover" />
+                  ) : (
+                    <label className="flex h-40 cursor-pointer items-center justify-center rounded-lg border border-dashed border-gray-300 text-sm text-gray-400 hover:bg-gray-50">
+                      + Upload cover image
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => uploadImage(b.id, e.target.files)} />
+                    </label>
+                  )}
+                  <input
+                    className="mt-2 w-full border-none text-center text-xl font-semibold outline-none"
+                    placeholder="Cover title (e.g. 14 Smith St — Interior Repaint)"
+                    value={b.title}
+                    onChange={(e) => update(b.id, { title: e.target.value } as Partial<PBlock>)}
+                  />
+                </div>
+              )}
+              {b.type === "terms" && (
+                <RichText initial={b.html} placeholder="Terms…" onInput={(html) => update(b.id, { html })} className="text-sm leading-relaxed text-gray-700" />
+              )}
+              {b.type === "summary" && (
+                <div className="rounded-lg border border-gray-200">
+                  <div className="border-b border-gray-100 bg-gray-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Quote summary</div>
+                  <div className="divide-y divide-gray-100 text-sm">
+                    {summary.areas.map((a, i) => (
+                      <div key={`a${i}`} className="flex justify-between px-3 py-1.5"><span>{a.name || "Area"}</span><span className="tabular-nums">{money(a.priceCents)}</span></div>
+                    ))}
+                    {summary.lines.map((l, i) => (
+                      <div key={`l${i}`} className="flex justify-between px-3 py-1.5"><span>{l.name || "Line item"}</span><span className="tabular-nums">{money(l.priceCents)}</span></div>
+                    ))}
+                    {summary.otherCents > 0 && (
+                      <div className="flex justify-between px-3 py-1.5 text-gray-500"><span>Preparation &amp; sundries</span><span className="tabular-nums">{money(summary.otherCents)}</span></div>
+                    )}
+                    <div className="flex justify-between px-3 py-1.5"><span className="text-gray-500">Subtotal</span><span className="tabular-nums">{money(summary.subtotalCents)}</span></div>
+                    <div className="flex justify-between px-3 py-1.5 text-gray-500"><span>GST ({Math.round(summary.gstRate * 100)}%)</span><span className="tabular-nums">{money(summary.gstCents)}</span></div>
+                    <div className="flex justify-between px-3 py-2 text-base font-semibold"><span>Total</span><span className="tabular-nums">{money(summary.totalCents)}</span></div>
+                  </div>
+                  <div className="px-3 py-1 text-[11px] text-gray-400">Auto-updates from the Estimate tab.</div>
+                </div>
+              )}
             </div>
 
             <button
@@ -184,9 +248,12 @@ export default function PresentationBuilder({
 
       {/* add-block bar */}
       <div className="mt-3 flex flex-wrap gap-2">
+        <button onClick={() => add("cover")} className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium hover:bg-gray-50">+ Cover image</button>
         <button onClick={() => add("heading")} className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium hover:bg-gray-50">+ Heading</button>
         <button onClick={() => add("text")} className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium hover:bg-gray-50">+ Text</button>
         <button onClick={() => add("image")} className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium hover:bg-gray-50">+ Image</button>
+        <button onClick={() => add("summary")} className="rounded-md border border-gray-900 bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-700">+ Quote summary</button>
+        <button onClick={() => add("terms")} className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium hover:bg-gray-50">+ Terms &amp; conditions</button>
       </div>
     </div>
   );
