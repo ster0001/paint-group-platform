@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { hoursPerUnit } from "@/lib/pricing/engine";
 import { createClient } from "@/lib/supabase/client";
+import PresentationBuilder, { type PBlock } from "./PresentationBuilder";
 import type { Product, RateItem } from "@/lib/pricing/types";
 
 type MediaItem = { path: string; url: string };
@@ -152,7 +153,7 @@ export default function QuoteBuilder({
     return g;
   }, [modifiers]);
 
-  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string> } | null;
+  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; presentation?: PBlock[] } | null;
   const [blocks, setBlocks] = useState<Block[]>(() => {
     const b = loaded?.blocks;
     if (b && b.length) {
@@ -163,6 +164,8 @@ export default function QuoteBuilder({
     return [newArea()];
   });
   const [modSel, setModSel] = useState<Record<string, string>>(() => loaded?.modSel ?? {});
+  const [presentation, setPresentation] = useState<PBlock[]>(() => loaded?.presentation ?? []);
+  const [tab, setTab] = useState<"estimate" | "presentation">("estimate");
   const [title, setTitle] = useState(initial?.title ?? "");
   const [quoteId, setQuoteId] = useState<string | null>(initial?.id ?? null);
   const [focusAreaId, setFocusAreaId] = useState<number | null>(null);
@@ -319,7 +322,7 @@ export default function QuoteBuilder({
       size_band: modSel["Job Size"] || null,
       subtotal_cents: totals.subtotal,
       total_cents: totals.total,
-      builder_state: { blocks, modSel },
+      builder_state: { blocks, modSel, presentation },
     };
     try {
       if (quoteId) {
@@ -419,6 +422,25 @@ export default function QuoteBuilder({
         </div>
       </div>
 
+      <div className="mt-5 flex gap-1 border-b border-gray-200">
+        {(["estimate", "presentation"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium capitalize ${
+              tab === t ? "border-gray-900 text-gray-900" : "border-transparent text-gray-500 hover:text-gray-800"
+            }`}
+          >
+            {t === "estimate" ? "Estimate (pricing)" : "Presentation (client)"}
+          </button>
+        ))}
+      </div>
+
+      {tab === "presentation" ? (
+        <div className="mt-6">
+          <PresentationBuilder blocks={presentation} onChange={setPresentation} />
+        </div>
+      ) : (
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">
         <div className="space-y-4">
           {focusArea ? (
@@ -521,6 +543,7 @@ export default function QuoteBuilder({
           </div>
         </aside>
       </div>
+      )}
     </main>
   );
 }
