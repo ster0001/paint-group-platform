@@ -16,6 +16,7 @@ export default function EstimateHeader({
   onJobAddress,
   estimateId,
   dateStr,
+  readOnly = false,
 }: {
   company: CompanyProfile;
   contacts: Contact[];
@@ -25,6 +26,7 @@ export default function EstimateHeader({
   onJobAddress: (j: JobAddress) => void;
   estimateId: string;
   dateStr: string;
+  readOnly?: boolean;
 }) {
   const [modal, setModal] = useState<null | "contact" | "job">(null);
 
@@ -63,7 +65,7 @@ export default function EstimateHeader({
 
       {/* bottom: contact / job address / id / date */}
       <div className="mt-6 grid grid-cols-2 gap-6 border-t border-gray-100 pt-4 text-sm sm:grid-cols-4">
-        <Card label="Contact" onEdit={() => setModal("contact")}>
+        <Card label="Contact" onEdit={readOnly ? undefined : () => setModal("contact")}>
           {contact && contactName(contact) ? (
             <div className="text-gray-700">
               <div className="font-medium text-gray-900">{contactName(contact)}</div>
@@ -74,6 +76,8 @@ export default function EstimateHeader({
               {contact.email && <div>{contact.email}</div>}
               {contact.phone && <div>{contact.phone}</div>}
             </div>
+          ) : readOnly ? (
+            <span className="text-gray-400">—</span>
           ) : (
             <button onClick={() => setModal("contact")} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium hover:bg-gray-50">
               + Add contact
@@ -81,12 +85,14 @@ export default function EstimateHeader({
           )}
         </Card>
 
-        <Card label="Job Address" onEdit={() => setModal("job")}>
+        <Card label="Job Address" onEdit={readOnly ? undefined : () => setModal("job")}>
           {jobAddress && (jobAddress.address || jobAddress.city) ? (
             <div className="text-gray-700">
               <div>{jobAddress.address}</div>
               <div>{[jobAddress.city, jobAddress.state, jobAddress.postal].filter(Boolean).join(" ")}</div>
             </div>
+          ) : readOnly ? (
+            <span className="text-gray-400">—</span>
           ) : (
             <button onClick={() => setModal("job")} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium hover:bg-gray-50">
               + Add address
@@ -124,12 +130,14 @@ export default function EstimateHeader({
   );
 }
 
-function Card({ label, onEdit, children }: { label: string; onEdit: () => void; children: React.ReactNode }) {
+function Card({ label, onEdit, children }: { label: string; onEdit?: () => void; children: React.ReactNode }) {
   return (
     <div>
       <div className="flex items-center gap-2">
         <span className="text-xs uppercase tracking-wide text-gray-400">{label}</span>
-        <button onClick={onEdit} className="text-xs text-gray-400 hover:text-gray-700" aria-label={`Edit ${label}`}>✎</button>
+        {onEdit && (
+          <button onClick={onEdit} className="text-xs text-gray-400 hover:text-gray-700" aria-label={`Edit ${label}`}>✎</button>
+        )}
       </div>
       <div className="mt-1">{children}</div>
     </div>

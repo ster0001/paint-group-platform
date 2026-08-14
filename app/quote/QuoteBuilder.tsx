@@ -195,7 +195,8 @@ export default function QuoteBuilder({
   const [jobAddress, setJobAddress] = useState<JobAddress | null>(() => loaded?.jobAddress ?? null);
   const [title, setTitle] = useState(initial?.title ?? "");
   const [quoteId, setQuoteId] = useState<string | null>(initial?.id ?? null);
-  const [focusAreaId, setFocusAreaId] = useState<number | null>(null);
+  const [focusId, setFocusId] = useState<number | null>(null);
+  const [customerView, setCustomerView] = useState(false);
   const [areaPickerOpen, setAreaPickerOpen] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
   const [saving, setSaving] = useState(false);
@@ -205,7 +206,7 @@ export default function QuoteBuilder({
     return {
       id: nextId++,
       kind: "area",
-      name: preset?.name ?? `Area ${nextId}`,
+      name: preset?.name ?? "New area",
       type,
       areaType: type === "Exterior" ? "surface" : "room",
       L: 0, W: 0, H: 2.4, isOption: false, description: "", media: [], surfaces: [newSurface()],
@@ -438,21 +439,24 @@ export default function QuoteBuilder({
     );
   const mainBlocks = blocks.filter((b) => !b.isOption);
   const optionBlocks = blocks.filter((b) => b.isOption);
-  const focusArea = focusAreaId != null ? (blocks.find((b) => b.id === focusAreaId && b.kind === "area") as Area | undefined) : undefined;
-  const renderSummary = (b: Block) =>
-    b.kind === "area" ? (
-      <AreaSummary
-        key={b.id}
-        area={b}
-        calc={(s) => surfaceCalc(b, s)}
-        onOpen={() => setFocusAreaId(b.id)}
-        onToggleOption={(v) => patchBlock(b.id, { isOption: v })}
-        onDuplicate={() => duplicateBlock(b.id)}
-        onRemove={() => removeBlock(b.id)}
-      />
-    ) : (
-      renderBlock(b)
-    );
+  const focusBlock = focusId != null ? blocks.find((b) => b.id === focusId) : undefined;
+  // In customer view, hidden line items drop out of the document entirely.
+  const visibleToCustomer = (b: Block) => !customerView || !(b.kind === "line" && b.hidden);
+  const areaPriceCents = (b: Area) => b.surfaces.reduce((n, s) => n + surfaceCalc(b, s).totalCents, 0);
+  const renderSummary = (b: Block) => (
+    <BlockSummary
+      key={b.id}
+      title={b.kind === "area" ? b.name || "Untitled area" : b.name || "Line item"}
+      descriptionHtml={b.description ?? ""}
+      priceCents={b.kind === "area" ? areaPriceCents(b) : lineCalc(b).priceCents}
+      isOption={b.isOption}
+      customerView={customerView}
+      onOpen={() => setFocusId(b.id)}
+      onToggleOption={(v) => patchBlock(b.id, { isOption: v })}
+      onDuplicate={() => duplicateBlock(b.id)}
+      onRemove={() => removeBlock(b.id)}
+    />
+  );
 
   return (
     <main className="mx-auto max-w-6xl p-6">
@@ -466,27 +470,44 @@ export default function QuoteBuilder({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <input
-            className="w-48 rounded-md border border-gray-300 px-3 py-2 text-sm"
-            placeholder="Quote name"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
           <button
-            onClick={save}
-            disabled={saving}
-            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50"
+            onClick={() => { setCustomerView((v) => !v); setFocusId(null); }}
+            className={`rounded-md px-4 py-2 text-sm font-medium ${customerView ? "bg-blue-600 text-white hover:bg-blue-700" : "border border-gray-300 hover:bg-gray-50"}`}
           >
-            {saving ? "Saving…" : quoteId ? "Save" : "Save draft"}
+            {customerView ? "← Back to building" : "👁 Customer view"}
           </button>
-          <a href="/quote" className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50">
-            New
-          </a>
+          {!customerView && (
+            <>
+              <input
+                className="w-40 rounded-md border border-gray-300 px-3 py-2 text-sm"
+                placeholder="Quote name"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+              />
+              <button
+                onClick={save}
+                disabled={saving}
+                className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50"
+              >
+                {saving ? "Saving…" : quoteId ? "Save" : "Save draft"}
+              </button>
+              <a href="/quote" className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50">
+                New
+              </a>
+            </>
+          )}
           {saveMsg && (
             <span className={`text-sm ${saveMsg.startsWith("Saved") ? "text-green-600" : "text-red-600"}`}>{saveMsg}</span>
           )}
         </div>
       </div>
+
+      {customerView && (
+        <div className="mt-4 flex items-center gap-2 rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-700">
+          <span className="font-semibold">Customer view</span>
+          <span>— exactly what the customer sees when this estimate is sent. Nothing here is clickable.</span>
+        </div>
+      )}
 
       <div className="mt-6">
         <EstimateHeader
@@ -498,110 +519,127 @@ export default function QuoteBuilder({
           onJobAddress={setJobAddress}
           estimateId={quoteId ? quoteId.slice(0, 8) : "New"}
           dateStr={new Date().toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
+          readOnly={customerView}
         />
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">
+      <div className={`mt-6 grid grid-cols-1 gap-6 ${customerView ? "" : "lg:grid-cols-[1fr_300px]"}`}>
         <div className="space-y-4">
-          {focusArea ? (
-            /* ---------- focused single-area view ---------- */
+          {focusBlock && !customerView ? (
+            /* ---------- focused single-block detail (staff) ---------- */
             <>
               <button
-                onClick={() => setFocusAreaId(null)}
+                onClick={() => setFocusId(null)}
                 className="flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-900"
               >
                 ← All areas
               </button>
-              {renderBlock(focusArea)}
+              {renderBlock(focusBlock)}
             </>
           ) : (
-            /* ---------- overview: job settings + area cards ---------- */
+            /* ---------- document overview (this IS the customer's view) ---------- */
             <>
-              <section className="rounded-xl border border-gray-200 bg-white p-4">
-                <h2 className="text-sm font-semibold">Job settings</h2>
-                <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {["Condition", "Access", "Level of Finish", "Job Size", "Staging"].map((group) => (
-                    <label key={group} className="block text-xs">
-                      <span className={group === "Level of Finish" ? "font-semibold text-gray-900" : "text-gray-500"}>
-                        {group}{group === "Level of Finish" ? " *" : ""}
-                      </span>
-                      <select
-                        className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-                        value={modSel[group] ?? ""}
-                        onChange={(e) => setModSel((s) => ({ ...s, [group]: e.target.value }))}
-                      >
-                        <option value="">{group === "Level of Finish" ? "— required —" : "— none —"}</option>
-                        {(modGroups[group] ?? []).map((m) => (
-                          <option key={m.code} value={m.code}>{m.label} (×{m.multiplier})</option>
-                        ))}
-                      </select>
-                    </label>
-                  ))}
-                </div>
-              </section>
-
-              {mainBlocks.map(renderSummary)}
-
-              {optionBlocks.length > 0 && (
-                <section className="rounded-xl border border-dashed border-gray-300 bg-white p-4">
-                  <h2 className="text-sm font-semibold">
-                    Options{" "}
-                    <span className="font-normal text-gray-400">— not in the total until the customer adds them</span>
-                  </h2>
-                  <div className="mt-3 space-y-4">{optionBlocks.map(renderSummary)}</div>
+              {!customerView && (
+                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                  <h2 className="text-sm font-semibold">Job settings <span className="font-normal text-gray-400">· staff only</span></h2>
+                  <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {["Condition", "Access", "Level of Finish", "Job Size", "Staging"].map((group) => (
+                      <label key={group} className="block text-xs">
+                        <span className={group === "Level of Finish" ? "font-semibold text-gray-900" : "text-gray-500"}>
+                          {group}{group === "Level of Finish" ? " *" : ""}
+                        </span>
+                        <select
+                          className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                          value={modSel[group] ?? ""}
+                          onChange={(e) => setModSel((s) => ({ ...s, [group]: e.target.value }))}
+                        >
+                          <option value="">{group === "Level of Finish" ? "— required —" : "— none —"}</option>
+                          {(modGroups[group] ?? []).map((m) => (
+                            <option key={m.code} value={m.code}>{m.label} (×{m.multiplier})</option>
+                          ))}
+                        </select>
+                      </label>
+                    ))}
+                  </div>
                 </section>
               )}
 
-              <div className="flex gap-3">
-                <button onClick={() => setAreaPickerOpen(true)} className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
-                  + Add area
-                </button>
-                <button onClick={() => setBlocks((bs) => [...bs, newLine()])} className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50">
-                  + Add line item
-                </button>
-              </div>
+              {mainBlocks.filter(visibleToCustomer).map(renderSummary)}
+
+              {optionBlocks.filter(visibleToCustomer).length > 0 && (
+                <section className="rounded-xl border border-dashed border-gray-300 bg-white p-4">
+                  <h2 className="text-sm font-semibold">
+                    Optional extras{" "}
+                    <span className="font-normal text-gray-400">— not included in the total unless added</span>
+                  </h2>
+                  <div className="mt-3 space-y-4">{optionBlocks.filter(visibleToCustomer).map(renderSummary)}</div>
+                </section>
+              )}
+
+              {!customerView && (
+                <div className="flex gap-3">
+                  <button onClick={() => setAreaPickerOpen(true)} className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700">
+                    + Add area
+                  </button>
+                  <button onClick={() => setBlocks((bs) => [...bs, newLine()])} className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50">
+                    + Add line item
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>
 
-        {/* right panel */}
-        <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-          {!finishChosen && (
-            <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
-              Showing Level 3 pricing. <strong>Choose a level of finish</strong> before sending.
-            </div>
-          )}
-          <div className="rounded-xl border border-gray-200 bg-white p-4">
-            <h2 className="text-sm font-semibold">Quote</h2>
-            <dl className="mt-3 space-y-1.5 text-sm">
+        {/* right panel — in customer view the totals move inline below the document */}
+        {customerView ? (
+          <div className="max-w-sm ml-auto rounded-xl border border-gray-200 bg-white p-4">
+            <dl className="space-y-1.5 text-sm">
               <Row label="Subtotal" value={fmt(totals.subtotal)} />
               <Row label={`GST (${Math.round(gstRate * 100)}%)`} value={fmt(totals.gst)} muted />
-              <div className="flex justify-between border-t border-gray-200 pt-2 text-base font-semibold">
+              <div className="flex justify-between border-t border-gray-200 pt-2 text-lg font-semibold">
                 <span>Total</span><span>{fmt(totals.total)}</span>
               </div>
-              <div className="!mt-3 grid grid-cols-2 gap-2 text-center">
-                <Stat label="Total hours" value={totals.contractorHours.toFixed(2)} />
-                <Stat label="Sales rate" value={`${fmt0(salesRateCents)}/hr`} />
-              </div>
             </dl>
           </div>
-          <div className="rounded-xl border border-gray-900 bg-gray-900 p-4 text-white">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Margin</h2>
-              <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-gray-300">Staff only</span>
+        ) : (
+          <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+            {!finishChosen && (
+              <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                Showing Level 3 pricing. <strong>Choose a level of finish</strong> before sending.
+              </div>
+            )}
+            <div className="rounded-xl border border-gray-200 bg-white p-4">
+              <h2 className="text-sm font-semibold">Quote</h2>
+              <dl className="mt-3 space-y-1.5 text-sm">
+                <Row label="Subtotal" value={fmt(totals.subtotal)} />
+                <Row label={`GST (${Math.round(gstRate * 100)}%)`} value={fmt(totals.gst)} muted />
+                <div className="flex justify-between border-t border-gray-200 pt-2 text-base font-semibold">
+                  <span>Total</span><span>{fmt(totals.total)}</span>
+                </div>
+                <div className="!mt-3 grid grid-cols-2 gap-2 text-center">
+                  <Stat label="Total hours" value={totals.contractorHours.toFixed(2)} />
+                  <Stat label="Sales rate" value={`${fmt0(salesRateCents)}/hr`} />
+                </div>
+              </dl>
             </div>
-            <dl className="mt-3 space-y-1.5 text-sm">
-              <Row label={`Contractor (${totals.contractorHours.toFixed(1)} hr)`} value={"−" + fmt(totals.contractorOffer)} dark />
-              <Row label="Materials cost" value={"−" + fmt(totals.materialsCost)} dark />
-              <div className="flex items-baseline justify-between border-t border-white/15 pt-2">
-                <span className="text-sm font-semibold">Margin</span>
-                <span className={`text-lg font-bold ${totals.margin >= 0 ? "text-green-400" : "text-red-400"}`}>
-                  {fmt(totals.margin)}<span className="ml-1 text-xs font-normal text-gray-400">{marginPct.toFixed(0)}%</span>
-                </span>
+            <div className="rounded-xl border border-gray-900 bg-gray-900 p-4 text-white">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold">Margin</h2>
+                <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-gray-300">Staff only</span>
               </div>
-            </dl>
-          </div>
-        </aside>
+              <dl className="mt-3 space-y-1.5 text-sm">
+                <Row label={`Contractor (${totals.contractorHours.toFixed(1)} hr)`} value={"−" + fmt(totals.contractorOffer)} dark />
+                <Row label="Materials cost" value={"−" + fmt(totals.materialsCost)} dark />
+                <div className="flex items-baseline justify-between border-t border-white/15 pt-2">
+                  <span className="text-sm font-semibold">Margin</span>
+                  <span className={`text-lg font-bold ${totals.margin >= 0 ? "text-green-400" : "text-red-400"}`}>
+                    {fmt(totals.margin)}<span className="ml-1 text-xs font-normal text-gray-400">{marginPct.toFixed(0)}%</span>
+                  </span>
+                </div>
+              </dl>
+            </div>
+          </aside>
+        )}
       </div>
 
       {areaPickerOpen && (
@@ -692,7 +730,7 @@ function AreaPicker({
 
         <div className="flex items-center justify-between gap-3 border-t border-gray-200 px-5 py-4">
           <button
-            onClick={() => add("Area", "Interior")}
+            onClick={() => add("New area", "Interior")}
             className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50"
           >
             + Blank area
@@ -923,50 +961,51 @@ function AreaCard({
   );
 }
 
-function AreaSummary({
-  area, calc, onOpen, onToggleOption, onDuplicate, onRemove,
+// The customer-facing card for an area or line: title + description + price.
+// This is exactly what the customer sees; staff get edit controls below it,
+// which vanish in customer view (and when the estimate is sent).
+function BlockSummary({
+  title, descriptionHtml, priceCents, isOption, customerView, onOpen, onToggleOption, onDuplicate, onRemove,
 }: {
-  area: Area;
-  calc: (s: Surface) => { paintingHr: number; prepHr: number; totalCents: number };
+  title: string;
+  descriptionHtml: string;
+  priceCents: number;
+  isOption: boolean;
+  customerView: boolean;
   onOpen: () => void;
   onToggleOption: (v: boolean) => void;
   onDuplicate: () => void;
   onRemove: () => void;
 }) {
-  const at = area.surfaces.reduce(
-    (a, s) => {
-      const c = calc(s);
-      return { hrs: a.hrs + c.paintingHr + c.prepHr, price: a.price + c.totalCents };
-    },
-    { hrs: 0, price: 0 },
-  );
-  const surfaceCount = area.surfaces.filter((s) => s.code).length;
-  const photoCount = (area.media?.length ?? 0) + area.surfaces.reduce((n, s) => n + (s.media?.length ?? 0), 0);
+  const hasDesc = !!descriptionHtml && descriptionHtml.replace(/<[^>]*>/g, "").trim() !== "";
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4">
-      <div className="flex items-center gap-3">
-        <button onClick={onOpen} className="min-w-0 flex-1 text-left">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate font-medium">{area.name || "Untitled area"}</span>
-            {area.isOption && <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-500">Option</span>}
+            <span className="font-medium">{title}</span>
+            {isOption && <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-500">Optional</span>}
           </div>
-          <div className="text-xs text-gray-500">
-            {area.type} · {area.areaType === "room" ? "Room" : "Surface"} · {surfaceCount} surface{surfaceCount === 1 ? "" : "s"}
-            {area.L > 0 ? ` · ${area.L}×${area.areaType === "room" ? area.W + "×" : ""}${area.H}m` : ""}
-            {photoCount > 0 ? ` · 📷 ${photoCount}` : ""}
-          </div>
-        </button>
-        <div className="text-right">
-          <div className="text-sm font-semibold tabular-nums">{fmt(at.price)}</div>
-          <div className="text-[11px] text-gray-400">{at.hrs.toFixed(1)} hr</div>
+          {hasDesc ? (
+            <div className="rte mt-1 text-sm text-gray-600" dangerouslySetInnerHTML={{ __html: descriptionHtml }} />
+          ) : (
+            !customerView && <div className="mt-1 text-xs text-gray-400">No description yet — click Edit details to add surfaces.</div>
+          )}
         </div>
-        <button onClick={onOpen} className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700">Open →</button>
-        <label className="flex items-center gap-1 text-xs text-gray-500" title="Show as an optional add-on">
-          <input type="checkbox" checked={area.isOption} onChange={(e) => onToggleOption(e.target.checked)} /> Opt
-        </label>
-        <button onClick={onDuplicate} className="px-1 text-lg text-gray-400 hover:text-gray-700" title="Duplicate area" aria-label="Duplicate area">⧉</button>
-        <button onClick={onRemove} className="px-1 text-gray-400 hover:text-red-600" title="Remove area" aria-label="Remove area">×</button>
+        <div className="whitespace-nowrap text-right text-base font-semibold tabular-nums">{fmt(priceCents)}</div>
       </div>
+      {!customerView && (
+        <div className="mt-3 flex items-center gap-2 border-t border-gray-100 pt-2">
+          <button onClick={onOpen} className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700">Edit details →</button>
+          <label className="flex items-center gap-1 text-xs text-gray-500" title="Show as an optional add-on, outside the total">
+            <input type="checkbox" checked={isOption} onChange={(e) => onToggleOption(e.target.checked)} /> Optional
+          </label>
+          <div className="ml-auto flex items-center gap-1">
+            <button onClick={onDuplicate} className="px-1 text-lg text-gray-400 hover:text-gray-700" title="Duplicate" aria-label="Duplicate">⧉</button>
+            <button onClick={onRemove} className="px-1 text-gray-400 hover:text-red-600" title="Remove" aria-label="Remove">×</button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
