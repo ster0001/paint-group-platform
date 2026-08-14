@@ -1,10 +1,11 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { hoursPerUnit } from "@/lib/pricing/engine";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import EstimateHeader from "./EstimateHeader";
+import RichTextEditor from "@/app/components/RichTextEditor";
 import type { CompanyProfile, Contact, JobAddress } from "./company";
 import type { Product, RateItem } from "@/lib/pricing/types";
 
@@ -200,6 +201,21 @@ export default function QuoteBuilder({
   const [areaPickerOpen, setAreaPickerOpen] = useState(false);
   // Surface (substrate) folder picker: which area, and whether adding new or changing an existing surface.
   const [surfacePicker, setSurfacePicker] = useState<{ areaId: number; sid: number | null } | null>(null);
+  // Drag-and-drop reorder of blocks (areas + line items).
+  const [dragId, setDragId] = useState<number | null>(null);
+  const [dragEnabledId, setDragEnabledId] = useState<number | null>(null);
+  const [overId, setOverId] = useState<number | null>(null);
+  const moveBlock = (fromId: number, toId: number) =>
+    setBlocks((bs) => {
+      const from = bs.findIndex((b) => b.id === fromId);
+      const to = bs.findIndex((b) => b.id === toId);
+      if (from < 0 || to < 0 || from === to) return bs;
+      const copy = [...bs];
+      const [moved] = copy.splice(from, 1);
+      const insertAt = copy.findIndex((b) => b.id === toId);
+      copy.splice(from < to ? insertAt + 1 : insertAt, 0, moved);
+      return copy;
+    });
   const [saveMsg, setSaveMsg] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -471,6 +487,27 @@ export default function QuoteBuilder({
       onRemove={() => removeBlock(b.id)}
     />
   );
+  // Build mode: each block is draggable by its grip handle so staff can reorder.
+  const renderDraggable = (b: Block) => (
+    <div
+      key={b.id}
+      draggable={dragEnabledId === b.id}
+      onDragStart={(e) => { setDragId(b.id); e.dataTransfer.effectAllowed = "move"; }}
+      onDragEnd={() => { setDragId(null); setDragEnabledId(null); setOverId(null); }}
+      onDragOver={(e) => { if (dragId != null && dragId !== b.id) { e.preventDefault(); setOverId(b.id); } }}
+      onDrop={(e) => { e.preventDefault(); if (dragId != null) moveBlock(dragId, b.id); setOverId(null); }}
+      className={`flex items-stretch gap-1 rounded-xl transition ${dragId === b.id ? "opacity-40" : ""} ${overId === b.id && dragId !== b.id ? "ring-2 ring-blue-400" : ""}`}
+    >
+      <span
+        onMouseDown={() => setDragEnabledId(b.id)}
+        onMouseUp={() => setDragEnabledId(null)}
+        className="mt-3 flex h-7 w-5 shrink-0 cursor-grab items-center justify-center rounded text-lg leading-none text-gray-300 hover:bg-gray-100 hover:text-gray-600 active:cursor-grabbing"
+        title="Drag to reorder"
+        aria-label="Drag to reorder"
+      >⠿</span>
+      <div className="min-w-0 flex-1">{renderBlock(b)}</div>
+    </div>
+  );
 
   return (
     <main className="mx-auto max-w-6xl p-6">
@@ -564,9 +601,9 @@ export default function QuoteBuilder({
             </section>
           )}
 
-          {/* Each area/line is a collapsible folder while building; in customer view
-              it renders as the read-only document card (title + description + price). */}
-          {mainBlocks.filter(visibleToCustomer).map((b) => (customerView ? renderSummary(b) : renderBlock(b)))}
+          {/* Each area/line is a collapsible folder while building (drag the grip to
+              reorder); in customer view it renders as the read-only document card. */}
+          {mainBlocks.filter(visibleToCustomer).map((b) => (customerView ? renderSummary(b) : renderDraggable(b)))}
 
           {optionBlocks.filter(visibleToCustomer).length > 0 && (
             <section className="rounded-xl border border-dashed border-gray-300 bg-white p-4">
@@ -574,7 +611,7 @@ export default function QuoteBuilder({
                 Optional extras{" "}
                 <span className="font-normal text-gray-400">— not included in the total unless added</span>
               </h2>
-              <div className="mt-3 space-y-4">{optionBlocks.filter(visibleToCustomer).map((b) => (customerView ? renderSummary(b) : renderBlock(b)))}</div>
+              <div className="mt-3 space-y-4">{optionBlocks.filter(visibleToCustomer).map((b) => (customerView ? renderSummary(b) : renderDraggable(b)))}</div>
             </section>
           )}
 
@@ -1463,62 +1500,6 @@ function MediaUploader({ items, onChange }: { items: MediaItem[]; onChange: (m: 
         </label>
       </div>
       {err && <p className="mt-1 text-xs text-red-600">{err}</p>}
-    </div>
-  );
-}
-
-// Lightweight rich-text editor (contentEditable). Stores HTML.
-// Uncontrolled DOM synced from `value` only when it differs, so typing never
-// jumps the caret, but applying a template / loading a saved quote updates it.
-function RichTextEditor({
-  value, onChange, placeholder,
-}: {
-  value: string;
-  onChange: (html: string) => void;
-  placeholder?: string;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (el && el.innerHTML !== (value ?? "")) el.innerHTML = value ?? "";
-  }, [value]);
-
-  const emit = () => {
-    const el = ref.current;
-    if (!el) return;
-    // Treat a lone <br> or whitespace as empty so the placeholder shows.
-    const html = el.innerHTML === "<br>" ? "" : el.innerHTML;
-    el.classList.toggle("is-empty", el.textContent?.trim() === "" && !el.querySelector("li"));
-    onChange(html);
-  };
-  const exec = (cmd: string) => {
-    ref.current?.focus();
-    document.execCommand(cmd, false);
-    emit();
-  };
-  const btn = "rounded px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200";
-
-  return (
-    <div className="rounded-md border border-gray-300 focus-within:border-gray-500">
-      <div className="flex items-center gap-0.5 border-b border-gray-200 bg-gray-50 px-1.5 py-1">
-        <button type="button" className={btn} title="Bold" onMouseDown={(e) => { e.preventDefault(); exec("bold"); }}><b>B</b></button>
-        <button type="button" className={btn} title="Italic" onMouseDown={(e) => { e.preventDefault(); exec("italic"); }}><i>I</i></button>
-        <button type="button" className={btn} title="Underline" onMouseDown={(e) => { e.preventDefault(); exec("underline"); }}><u>U</u></button>
-        <span className="mx-1 h-4 w-px bg-gray-300" />
-        <button type="button" className={btn} title="Bulleted list" onMouseDown={(e) => { e.preventDefault(); exec("insertUnorderedList"); }}>• List</button>
-        <button type="button" className={btn} title="Numbered list" onMouseDown={(e) => { e.preventDefault(); exec("insertOrderedList"); }}>1. List</button>
-      </div>
-      <div
-        ref={ref}
-        contentEditable
-        suppressContentEditableWarning
-        role="textbox"
-        aria-multiline="true"
-        data-placeholder={placeholder}
-        onInput={emit}
-        className="rte min-h-[84px] px-3 py-2 text-sm focus:outline-none"
-      />
     </div>
   );
 }
