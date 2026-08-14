@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { hoursPerUnit } from "@/lib/pricing/engine";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import PresentationBuilder, { type PBlock } from "./PresentationBuilder";
 import type { Product, RateItem } from "@/lib/pricing/types";
 
 type MediaItem = { path: string; url: string };
@@ -153,7 +153,7 @@ export default function QuoteBuilder({
     return g;
   }, [modifiers]);
 
-  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; presentation?: PBlock[] } | null;
+  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string> } | null;
   const [blocks, setBlocks] = useState<Block[]>(() => {
     const b = loaded?.blocks;
     if (b && b.length) {
@@ -164,8 +164,6 @@ export default function QuoteBuilder({
     return [newArea()];
   });
   const [modSel, setModSel] = useState<Record<string, string>>(() => loaded?.modSel ?? {});
-  const [presentation, setPresentation] = useState<PBlock[]>(() => loaded?.presentation ?? []);
-  const [tab, setTab] = useState<"estimate" | "presentation">("estimate");
   const [title, setTitle] = useState(initial?.title ?? "");
   const [quoteId, setQuoteId] = useState<string | null>(initial?.id ?? null);
   const [focusAreaId, setFocusAreaId] = useState<number | null>(null);
@@ -322,7 +320,7 @@ export default function QuoteBuilder({
       size_band: modSel["Job Size"] || null,
       subtotal_cents: totals.subtotal,
       total_cents: totals.total,
-      builder_state: { blocks, modSel, presentation },
+      builder_state: { blocks, modSel },
     };
     try {
       if (quoteId) {
@@ -389,28 +387,12 @@ export default function QuoteBuilder({
       renderBlock(b)
     );
 
-  const areaSummaries = blocks
-    .filter((b): b is Area => b.kind === "area" && !b.isOption)
-    .map((a) => ({ name: a.name, priceCents: a.surfaces.reduce((s, x) => s + surfaceCalc(a, x).totalCents, 0) }));
-  const lineSummaries = blocks
-    .filter((b): b is LineBlock => b.kind === "line" && !b.isOption)
-    .map((l) => ({ name: l.name || "Line item", priceCents: lineCalc(l).priceCents }));
-  const summedCents = [...areaSummaries, ...lineSummaries].reduce((s, x) => s + x.priceCents, 0);
-  const quoteSummary = {
-    areas: areaSummaries,
-    lines: lineSummaries,
-    otherCents: Math.max(0, totals.subtotal - summedCents),
-    subtotalCents: totals.subtotal,
-    gstCents: totals.gst,
-    totalCents: totals.total,
-    gstRate,
-  };
-
   return (
     <main className="mx-auto max-w-6xl p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Quote builder</h1>
+          <Link href="/estimates" className="text-sm font-medium text-gray-500 hover:text-gray-900">← Estimates</Link>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight">{title || "New estimate"}</h1>
           <p className="text-sm text-gray-500">
             Rate card v{rateCardVersion ?? "?"} · live pricing
             {quoteId ? " · saved draft" : ""}
@@ -439,25 +421,6 @@ export default function QuoteBuilder({
         </div>
       </div>
 
-      <div className="mt-5 flex gap-1 border-b border-gray-200">
-        {(["estimate", "presentation"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium capitalize ${
-              tab === t ? "border-gray-900 text-gray-900" : "border-transparent text-gray-500 hover:text-gray-800"
-            }`}
-          >
-            {t === "estimate" ? "Estimate (pricing)" : "Presentation (client)"}
-          </button>
-        ))}
-      </div>
-
-      {tab === "presentation" ? (
-        <div className="mt-6">
-          <PresentationBuilder blocks={presentation} onChange={setPresentation} summary={quoteSummary} />
-        </div>
-      ) : (
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">
         <div className="space-y-4">
           {focusArea ? (
@@ -560,7 +523,6 @@ export default function QuoteBuilder({
           </div>
         </aside>
       </div>
-      )}
     </main>
   );
 }

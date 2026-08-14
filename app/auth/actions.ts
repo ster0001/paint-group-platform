@@ -24,7 +24,7 @@ export async function signup(formData: FormData) {
   }
 
   revalidatePath("/", "layout");
-  redirect("/dashboard");
+  redirect("/estimates");
 }
 
 // Sign in an existing account.
@@ -41,7 +41,7 @@ export async function login(formData: FormData) {
   }
 
   revalidatePath("/", "layout");
-  redirect("/dashboard");
+  redirect("/estimates");
 }
 
 // Sign out.
