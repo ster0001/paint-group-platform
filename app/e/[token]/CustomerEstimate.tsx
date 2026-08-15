@@ -1,0 +1,402 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import type { CustomerSnapshot } from "@/lib/customer/snapshot";
+
+export type EstimateRow = {
+  id: string;
+  status: string;
+  snapshot: CustomerSnapshot;
+  accepted_name: string | null;
+  accepted_at: string | null;
+  declined_reason: string | null;
+  valid_until: string | null;
+  sent_at: string | null;
+  viewed_at: string | null;
+  selected_options: string[] | null;
+};
+
+const money2 = (c: number) => "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money0 = (c: number) => "$" + Math.round(c / 100).toLocaleString("en-AU");
+const dateFmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" }) : "");
+
+const DECLINE_PICKS = ["Went with another quote", "Postponing", "Price", "Other"];
+
+export default function CustomerEstimate({ token, row }: { token: string; row: EstimateRow }) {
+  const snap = row.snapshot;
+  const gstRate = (snap.gstRatePct ?? 10) / 100;
+
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(row.selected_options ?? []));
+  const [done, setDone] = useState<null | "accepted" | "declined">(
+    row.status === "accepted" ? "accepted" : row.status === "declined" ? "declined" : null,
+  );
+  const [panel, setPanel] = useState<null | "accept" | "decline" | "ask">(null);
+  const [name, setName] = useState(snap.contactName || "");
+  const [signed, setSigned] = useState(false);
+  const [declineReason, setDeclineReason] = useState("");
+  const [declinePick, setDeclinePick] = useState("");
+  const [question, setQuestion] = useState("");
+  const [asked, setAsked] = useState(false);
+  const [portalEmail, setPortalEmail] = useState("");
+  const [portalMsg, setPortalMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const optionsSubtotal = useMemo(
+    () => snap.options.filter((o) => selected.has(o.id)).reduce((n, o) => n + o.priceCents, 0),
+    [snap.options, selected],
+  );
+  const subtotal = snap.baseSubtotalCents + optionsSubtotal;
+  const gst = Math.round(subtotal * gstRate);
+  const total = subtotal + gst;
+  const deposit = Math.round(total * 0.1);
+
+  // view + dwell tracking
+  useEffect(() => {
+    const supabase = createClient();
+    const session = crypto.randomUUID();
+    const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+    let ms = 0;
+    const ping = () => supabase.rpc("record_estimate_view", { p_token: token, p_session: session, p_ua: ua, p_ms: ms });
+    ping();
+    const iv = setInterval(() => {
+      if (document.visibilityState === "visible") { ms += 15000; ping(); }
+    }, 15000);
+    return () => clearInterval(iv);
+  }, [token]);
+
+  const toggle = (id: string) =>
+    setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+
+  async function accept() {
+    if (!name.trim() || !signed) { setErr("Please enter your name and tick the confirmation."); return; }
+    setBusy(true); setErr("");
+    const supabase = createClient();
+    const { error } = await supabase.rpc("accept_estimate", {
+      p_token: token, p_name: name.trim(), p_options: [...selected], p_total_cents: total, p_deposit_cents: deposit,
+    });
+    setBusy(false);
+    if (error) { setErr(error.message); return; }
+    setDone("accepted"); setPanel(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function decline() {
+    setBusy(true); setErr("");
+    const reason = [declinePick, declineReason.trim()].filter(Boolean).join(" — ");
+    const supabase = createClient();
+    const { error } = await supabase.rpc("decline_estimate", { p_token: token, p_reason: reason });
+    setBusy(false);
+    if (error) { setErr(error.message); return; }
+    setDone("declined"); setPanel(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function ask() {
+    if (!question.trim()) { setErr("Type your question first."); return; }
+    setBusy(true); setErr("");
+    const supabase = createClient();
+    const { error } = await supabase.rpc("ask_estimate_question", { p_token: token, p_message: question.trim() });
+    setBusy(false);
+    if (error) { setErr(error.message); return; }
+    setAsked(true); setQuestion("");
+  }
+
+  async function openPortal() {
+    setPortalMsg("");
+    const email = portalEmail.trim().toLowerCase();
+    if (!email) return;
+    if (snap.contactEmail && email !== snap.contactEmail.toLowerCase()) {
+      setPortalMsg("That email isn't the one on this estimate — please use the address we sent it to.");
+      return;
+    }
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: true, emailRedirectTo: `${window.location.origin}/e/${token}` },
+    });
+    setPortalMsg(error ? error.message : "Check your email for a secure sign-in link.");
+  }
+
+  const statusChip = done === "accepted"
+    ? <span className="status accepted">Accepted</span>
+    : done === "declined"
+    ? <span className="status declined">Declined</span>
+    : <span className="status">Awaiting your approval</span>;
+
+  const est = `EST-${snap.estRef}`;
+
+  return (
+    <>
+      <header className="topbar">
+        <div className="wordmark">PAINT<span>—</span>GROUP</div>
+        <div className="topmeta">
+          <span className="validity">{est} · valid until {dateFmt(row.valid_until)}</span>
+          {statusChip}
+        </div>
+      </header>
+
+      <main className="wrap">
+        {done === "accepted" && (
+          <div className="resultbanner accepted" style={{ marginTop: 28 }}>
+            <span className="tick">✓</span>
+            <span>Estimate accepted{row.accepted_name ? ` by ${row.accepted_name}` : ""}. We&apos;ll email your deposit invoice and booking shortly.</span>
+          </div>
+        )}
+        {done === "declined" && (
+          <div className="resultbanner declined" style={{ marginTop: 28 }}>
+            <span className="tick">—</span>
+            <span>You&apos;ve declined this estimate. Changed your mind? <a href="tel:0388409414" style={{ color: "inherit", textDecoration: "underline" }}>Call us</a> and we&apos;ll reopen it.</span>
+          </div>
+        )}
+
+        {/* HERO */}
+        <div className="hero cutin">
+          <p className="eyebrow">
+            Estimate <b>{est}</b> · Prepared {dateFmt(row.sent_at)}{snap.company.estimatorName ? ` · Prepared by ${snap.company.estimatorName}` : ""}
+          </p>
+          <h1>{snap.jobTitle}</h1>
+          <p className="address">{snap.jobAddress || snap.company.addressLine1}{snap.contactName ? ` · For ${snap.contactName}` : ""}</p>
+
+          <div className="pricecard">
+            <div>
+              <div className="pricelabel">Your investment · incl. GST</div>
+              <div className="price">{money0(total)} <small>fixed price</small></div>
+            </div>
+            {!done && (
+              <div className="cta-row print-hide">
+                <a className="btn btn-primary" href="#accept">Accept estimate</a>
+                <button className="btn btn-ghost" onClick={() => { setPanel("ask"); document.getElementById("accept")?.scrollIntoView(); }}>Ask a question</button>
+              </div>
+            )}
+          </div>
+          <p className="viewnote">Fixed price — no hourly surprises. Valid 60 days.{row.valid_until ? ` Until ${dateFmt(row.valid_until)}.` : ""}</p>
+
+          <div className="portal print-hide">
+            <input type="email" placeholder="Your email — open in your customer portal" value={portalEmail} onChange={(e) => setPortalEmail(e.target.value)} />
+            <button className="btn btn-ghost" onClick={openPortal}>Open portal</button>
+          </div>
+          {portalMsg && <p className="viewnote">{portalMsg}</p>}
+        </div>
+
+        {/* PHOTOS */}
+        {snap.areas.some((a) => a.photos.length) && (
+          <section>
+            <h2>Your home, as we saw it</h2>
+            <p className="sub">Photos from your enquiry and our site notes. Your estimate is scoped to these exact rooms and surfaces.</p>
+            <div className="photos">
+              {snap.areas.flatMap((a) => a.photos).slice(0, 9).map((src, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={i} className="ph" src={src} alt="" loading="lazy" />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* SCOPE */}
+        {(snap.areas.length > 0 || snap.lineItems.length > 0) && (
+          <section>
+            <h2>Scope of works, room by room</h2>
+            <p className="sub">Every surface, product and coat count — nothing hidden in fine print. Tap a room to see the detail.</p>
+
+            {snap.areas.map((a, i) => (
+              <details className="room" key={a.id} open={i === 0}>
+                <summary>
+                  <span className="room-name">{a.title}</span>
+                  <span className="room-meta"><span className="room-price">{money2(a.priceCents)}</span><span className="chev">▾</span></span>
+                </summary>
+                <div className="room-body">
+                  {a.surfaces.map((s, j) => (
+                    <div className="surface" key={j}>
+                      <div className="s-name">{s.label}</div>
+                      <div className="s-coats">{s.coats} {s.coats === 1 ? "COAT" : "COATS"}</div>
+                      {s.product && <div className="s-spec">{s.product}</div>}
+                    </div>
+                  ))}
+                  {hasHtml(a.descriptionHtml) && (
+                    <div className="prep"><b>Details</b><span dangerouslySetInnerHTML={{ __html: a.descriptionHtml }} /></div>
+                  )}
+                </div>
+              </details>
+            ))}
+
+            {snap.lineItems.map((l) => (
+              <details className="room" key={l.id}>
+                <summary>
+                  <span className="room-name">{l.title}</span>
+                  <span className="room-meta"><span className="room-price">{money2(l.priceCents)}</span><span className="chev">▾</span></span>
+                </summary>
+                <div className="room-body">
+                  {hasHtml(l.descriptionHtml)
+                    ? <div className="prep" style={{ marginTop: 14 }}><span dangerouslySetInnerHTML={{ __html: l.descriptionHtml }} /></div>
+                    : <p className="sub" style={{ marginTop: 14, marginBottom: 0 }}>Included as scoped.</p>}
+                </div>
+              </details>
+            ))}
+          </section>
+        )}
+
+        {/* OPTIONS */}
+        {snap.options.length > 0 && (
+          <section>
+            <h2>Optional extras</h2>
+            <p className="sub">Add any of these to your estimate — your total updates instantly, and your selection is saved when you accept.</p>
+            {snap.options.map((o) => {
+              const on = selected.has(o.id);
+              return (
+                <div className={`option${on ? " selected" : ""}`} key={o.id}>
+                  <button className="option-toggle print-hide" aria-pressed={on} onClick={() => !done && toggle(o.id)}>{on ? "✓" : ""}</button>
+                  <div className="option-main">
+                    <div className="option-title">{o.title}</div>
+                    {hasHtml(o.descriptionHtml) && <div className="option-desc" dangerouslySetInnerHTML={{ __html: o.descriptionHtml }} />}
+                  </div>
+                  <div className="option-price">+ {money2(o.priceCents)}</div>
+                </div>
+              );
+            })}
+          </section>
+        )}
+
+        {/* INCLUSIONS */}
+        {(snap.inclusions.length > 0 || snap.exclusions.length > 0) && (
+          <section>
+            <h2>What&apos;s included</h2>
+            <p className="sub">And, just as importantly, what isn&apos;t — so there are no surprises on either side.</p>
+            <div className="twocol">
+              <div className="inc">
+                <div className="listhead">Included in your price</div>
+                <ul className="checklist">{snap.inclusions.map((t, i) => <li key={i}>{t}</li>)}</ul>
+              </div>
+              {snap.exclusions.length > 0 && (
+                <div className="exc">
+                  <div className="listhead">Not included</div>
+                  <ul className="checklist">{snap.exclusions.map((t, i) => <li key={i}>{t}</li>)}</ul>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* INVESTMENT */}
+        <section>
+          <h2>Your investment</h2>
+          <p className="sub">One fixed price. Pay by card, or bank transfer — whatever suits.</p>
+          <div className="table">
+            <div className="trow"><span className="l">Painting works as scoped</span><span className="v">{money2(snap.baseSubtotalCents)}</span></div>
+            {snap.options.filter((o) => selected.has(o.id)).map((o) => (
+              <div className="trow" key={o.id}><span className="l">{o.title}</span><span className="v">{money2(o.priceCents)}</span></div>
+            ))}
+            <div className="trow"><span className="l">GST</span><span className="v">{money2(gst)}</span></div>
+            <div className="trow total"><span className="l">Total incl. GST</span><span className="v">{money2(total)}</span></div>
+          </div>
+          <div className="deposit">
+            <div className="l"><b>Deposit to secure your dates</b><span>10% on acceptance · balance on completion, after your walkthrough</span></div>
+            <div className="v">{money2(deposit)}</div>
+          </div>
+        </section>
+
+        {/* PROCESS */}
+        <section>
+          <h2>What happens when you accept</h2>
+          <div className="steps">
+            <div className="step"><span className="stepnum" /><div><b>Deposit &amp; booking</b><p>A secure payment link arrives by email. Your dates lock in the moment it&apos;s paid.</p></div></div>
+            <div className="step"><span className="stepnum" /><div><b>Meet your painting team</b><p>You&apos;ll get your lead painter&apos;s name and a confirmed start date within 2 business days.</p></div></div>
+            <div className="step"><span className="stepnum" /><div><b>Colour consultation</b><p>Unlimited samples at your home. Nothing starts until you love the colours.</p></div></div>
+            <div className="step"><span className="stepnum" /><div><b>Live progress in your portal</b><p>Photo updates as each room completes — right here, on this page.</p></div></div>
+            <div className="step"><span className="stepnum" /><div><b>Walkthrough &amp; warranty</b><p>We walk every room with you before final payment. {snap.proof.warranty} workmanship warranty in writing.</p></div></div>
+          </div>
+        </section>
+
+        {/* TRUST */}
+        <section>
+          <h2>Why Melburnians choose us</h2>
+          <div className="trust">
+            <div className="tcard"><div className="tval gold">{snap.proof.rating} ★</div><div className="tlab">from {snap.proof.reviews} Google reviews</div></div>
+            <div className="tcard"><div className="tval cyan">{snap.proof.liability}</div><div className="tlab">public liability insurance</div></div>
+            <div className="tcard"><div className="tval cyan">{snap.proof.warranty}</div><div className="tlab">workmanship warranty, in writing</div></div>
+            <div className="tcard"><div className="tval gold">{snap.proof.accreditations[0] ?? "Accredited"}</div><div className="tlab">{snap.proof.accreditations.slice(1).join(" · ") || "Trade accredited"}</div></div>
+          </div>
+        </section>
+
+        {/* ACCEPT / DECLINE / ASK */}
+        {!done && (
+          <section id="accept">
+            <div className="acceptpanel cutin">
+              <h2>Ready when you are</h2>
+              <p className="sub">Accepting takes under a minute. No payment is taken until you receive your deposit invoice.</p>
+              <div className="finebtns print-hide">
+                <button className="btn btn-primary" onClick={() => setPanel(panel === "accept" ? null : "accept")}>Accept this estimate</button>
+                <button className="btn btn-ghost" onClick={() => setPanel(panel === "ask" ? null : "ask")}>Ask a question first</button>
+              </div>
+
+              {panel === "accept" && (
+                <div className="panelbox">
+                  <h3>Confirm acceptance — {money2(total)} incl. GST</h3>
+                  <label className="field"><span>Full name</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your full name" /></label>
+                  <label className="check"><input type="checkbox" checked={signed} onChange={(e) => setSigned(e.target.checked)} /><span>I confirm I&apos;m authorised to accept this estimate, and this typed name is my signature.</span></label>
+                  <button className="btn btn-primary" onClick={accept} disabled={busy}>{busy ? "Accepting…" : "Accept & continue"}</button>
+                  {err && <p className="errline">{err}</p>}
+                </div>
+              )}
+
+              {panel === "ask" && (
+                <div className="panelbox">
+                  <h3>Ask a question</h3>
+                  {asked ? (
+                    <div className="confirm">✓ Thanks — we&apos;ll come back to you today.</div>
+                  ) : (
+                    <>
+                      <label className="field"><span>Your question</span><textarea rows={4} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Anything you&apos;d like to check before deciding…" /></label>
+                      <button className="btn btn-primary" onClick={ask} disabled={busy}>{busy ? "Sending…" : "Send question"}</button>
+                      {err && <p className="errline">{err}</p>}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {panel === "decline" && (
+                <div className="panelbox">
+                  <h3>No problem — mind telling us why?</h3>
+                  <div className="quickpicks">
+                    {DECLINE_PICKS.map((p) => (
+                      <button key={p} className={`pick${declinePick === p ? " on" : ""}`} onClick={() => setDeclinePick(declinePick === p ? "" : p)}>{p}</button>
+                    ))}
+                  </div>
+                  <label className="field"><span>Anything else (optional)</span><textarea rows={3} value={declineReason} onChange={(e) => setDeclineReason(e.target.value)} /></label>
+                  <button className="btn btn-ghost" onClick={decline} disabled={busy}>{busy ? "Sending…" : "Decline estimate"}</button>
+                  {err && <p className="errline">{err}</p>}
+                </div>
+              )}
+
+              <p className="tinylinks print-hide">
+                Not the right time? <a href="tel:0388409414">Ask us to hold your price</a> · <button onClick={() => setPanel(panel === "decline" ? null : "decline")}>Politely decline</button>
+              </p>
+            </div>
+          </section>
+        )}
+
+        <div style={{ marginTop: 28 }} className="print-hide">
+          <button className="btn btn-ghost" onClick={() => window.print()}>Print or save PDF</button>
+        </div>
+
+        <footer className="doc">
+          {snap.company.name} · Melbourne · ABN {snap.company.abn} · {est} valid for 60 days from {dateFmt(row.sent_at)}.
+          Fixed price subject to the scope above; any variation is quoted and approved by you in writing before work proceeds.
+          Fully insured — {snap.proof.liability} public liability. Member, Master Painters Association.
+        </footer>
+      </main>
+
+      {!done && (
+        <div className="stickybar print-hide">
+          <div className="p"><small>Total incl. GST</small>{money0(total)}</div>
+          <a className="btn btn-primary" href="#accept">Accept estimate</a>
+        </div>
+      )}
+    </>
+  );
+}
+
+function hasHtml(html: string | undefined) {
+  return !!html && html.replace(/<[^>]*>/g, "").trim() !== "";
+}
