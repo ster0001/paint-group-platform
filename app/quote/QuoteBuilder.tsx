@@ -229,7 +229,7 @@ export default function QuoteBuilder({
     return g;
   }, [modifiers]);
 
-  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null } | null;
+  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null; contractorRateOverride?: number | null } | null;
   const [blocks, setBlocks] = useState<Block[]>(() => {
     const b = loaded?.blocks;
     if (b && b.length) {
@@ -261,6 +261,9 @@ export default function QuoteBuilder({
   // Calculations panel — a global $/hr override (blank = use the rate card) and a
   // percentage discount applied to the ex-GST subtotal (shown on the estimate).
   const [hourlyRateOverride, setHourlyRateOverride] = useState<number | null>(() => loaded?.hourlyRateOverride ?? null);
+  // What we pay the contractor per hour (margin only, never shown to the customer).
+  // Blank falls back to the settings default.
+  const [contractorRateOverride, setContractorRateOverride] = useState<number | null>(() => loaded?.contractorRateOverride ?? null);
   const [discountMode, setDiscountMode] = useState<"pct" | "fixed">(() => loaded?.discountMode ?? "pct");
   const [discountPct, setDiscountPct] = useState<number>(() => loaded?.discountPct ?? 0);
   const [discountFixedCents, setDiscountFixedCents] = useState<number>(() => loaded?.discountFixedCents ?? 0);
@@ -498,11 +501,12 @@ export default function QuoteBuilder({
       : Math.round(subtotal * (discountPct || 0) / 100);
     const netSubtotal = subtotal - discountCents;
     const gst = Math.round(netSubtotal * gstRate);
-    const contractorOffer = Math.round(contractorHours * contractorHourlyCents * offerPct);
+    const effContractorHourlyCents = contractorRateOverride != null ? Math.round(contractorRateOverride * 100) : contractorHourlyCents;
+    const contractorOffer = Math.round(contractorHours * effContractorHourlyCents * offerPct);
     const margin = netSubtotal - contractorOffer - materialsCost;
     return { subtotal, sundries, discountCents, netSubtotal, gst, total: netSubtotal + gst, contractorHours, contractorOffer, materialsCost, margin };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [blocks, modSel, materials, discountPct, hourlyRateOverride]);
+  }, [blocks, modSel, materials, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride]);
 
   const marginPct = totals.subtotal > 0 ? (totals.margin / totals.subtotal) * 100 : 0;
   const salesRateCents = totals.contractorHours > 0 ? Math.round(totals.subtotal / totals.contractorHours) : 0;
@@ -524,7 +528,7 @@ export default function QuoteBuilder({
       size_band: modSel["Job Size"] || null,
       subtotal_cents: totals.subtotal,
       total_cents: totals.total,
-      builder_state: { blocks, modSel, contact, jobAddress, materials, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride },
+      builder_state: { blocks, modSel, contact, jobAddress, materials, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride },
       share_token: token,
       sent_snapshot: buildCustomerDoc(token),
     };
@@ -594,7 +598,7 @@ export default function QuoteBuilder({
     try {
       const { data } = await supabase.from("settings").select("value").eq("key", "estimate_templates").maybeSingle();
       const list = Array.isArray(data?.value) ? (data!.value as unknown[]) : [];
-      const tpl = { id: crypto.randomUUID(), name: name.trim(), createdAt: new Date().toISOString(), builder_state: { blocks, modSel, contact, jobAddress, materials, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride } };
+      const tpl = { id: crypto.randomUUID(), name: name.trim(), createdAt: new Date().toISOString(), builder_state: { blocks, modSel, contact, jobAddress, materials, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride } };
       const { error } = await supabase.from("settings").upsert({ key: "estimate_templates", value: [...list, tpl] }, { onConflict: "key" });
       if (error) throw error;
       setSaveMsg("Template saved ✓");
@@ -1224,7 +1228,7 @@ export default function QuoteBuilder({
                     {row.key === "calc" && (
                       <div className="space-y-3">
                         <label className="block text-xs">
-                          <span className="text-gray-500">Hourly rate ($/hr) · blank uses the rate card</span>
+                          <span className="text-gray-500">Charge-out rate ($/hr) · blank uses the rate card</span>
                           <input
                             type="number" min={0} value={hourlyRateOverride ?? ""}
                             placeholder={String((chargeFor("Interior") / 100).toFixed(0))}
@@ -1232,6 +1236,23 @@ export default function QuoteBuilder({
                             className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                           />
                         </label>
+                        <div className="text-xs">
+                          <label className="block">
+                            <span className="text-gray-500">Contractor rate ($/hr) · what you pay the crew (margin only)</span>
+                            <input
+                              type="number" min={0} value={contractorRateOverride ?? ""}
+                              placeholder={String((contractorHourlyCents / 100).toFixed(0))}
+                              onChange={(e) => setContractorRateOverride(e.target.value === "" ? null : Number(e.target.value))}
+                              className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                            />
+                          </label>
+                          <div className="mt-1 flex items-center justify-between text-[11px] text-gray-400">
+                            <span>Contractor offer: {fmt(totals.contractorOffer)}</span>
+                            {contractorRateOverride != null && (
+                              <button onClick={() => setContractorRateOverride(null)} className="font-medium text-blue-600 hover:text-blue-800">↺ reset</button>
+                            )}
+                          </div>
+                        </div>
                         <div className="text-xs">
                           <div className="flex items-center justify-between">
                             <span className="text-gray-500">Discount · shown on the estimate</span>
