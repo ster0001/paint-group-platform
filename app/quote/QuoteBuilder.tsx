@@ -229,7 +229,7 @@ export default function QuoteBuilder({
     return g;
   }, [modifiers]);
 
-  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; hourlyRateOverride?: number | null } | null;
+  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null } | null;
   const [blocks, setBlocks] = useState<Block[]>(() => {
     const b = loaded?.blocks;
     if (b && b.length) {
@@ -261,7 +261,9 @@ export default function QuoteBuilder({
   // Calculations panel — a global $/hr override (blank = use the rate card) and a
   // percentage discount applied to the ex-GST subtotal (shown on the estimate).
   const [hourlyRateOverride, setHourlyRateOverride] = useState<number | null>(() => loaded?.hourlyRateOverride ?? null);
+  const [discountMode, setDiscountMode] = useState<"pct" | "fixed">(() => loaded?.discountMode ?? "pct");
   const [discountPct, setDiscountPct] = useState<number>(() => loaded?.discountPct ?? 0);
+  const [discountFixedCents, setDiscountFixedCents] = useState<number>(() => loaded?.discountFixedCents ?? 0);
   const [title, setTitle] = useState(initial?.title ?? "");
   const [quoteId, setQuoteId] = useState<string | null>(initial?.id ?? null);
   // Customer-view / send state. The share_token is minted on first save so the
@@ -489,8 +491,11 @@ export default function QuoteBuilder({
     }
     const sundries = (anyInt ? sundriesIntCents : 0) + (anyExt ? sundriesExtCents : 0);
     subtotal += sundries;
-    // Discount comes off the ex-GST subtotal (and out of our margin).
-    const discountCents = Math.round(subtotal * (discountPct || 0) / 100);
+    // Discount comes off the ex-GST subtotal (and out of our margin) — either a
+    // percentage or a flat dollar amount, capped so it can't exceed the subtotal.
+    const discountCents = discountMode === "fixed"
+      ? Math.min(discountFixedCents || 0, subtotal)
+      : Math.round(subtotal * (discountPct || 0) / 100);
     const netSubtotal = subtotal - discountCents;
     const gst = Math.round(netSubtotal * gstRate);
     const contractorOffer = Math.round(contractorHours * contractorHourlyCents * offerPct);
@@ -519,7 +524,7 @@ export default function QuoteBuilder({
       size_band: modSel["Job Size"] || null,
       subtotal_cents: totals.subtotal,
       total_cents: totals.total,
-      builder_state: { blocks, modSel, contact, jobAddress, materials, depositPct, inclusions, exclusions, discountPct, hourlyRateOverride },
+      builder_state: { blocks, modSel, contact, jobAddress, materials, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride },
       share_token: token,
       sent_snapshot: buildCustomerDoc(token),
     };
@@ -589,7 +594,7 @@ export default function QuoteBuilder({
     try {
       const { data } = await supabase.from("settings").select("value").eq("key", "estimate_templates").maybeSingle();
       const list = Array.isArray(data?.value) ? (data!.value as unknown[]) : [];
-      const tpl = { id: crypto.randomUUID(), name: name.trim(), createdAt: new Date().toISOString(), builder_state: { blocks, modSel, contact, jobAddress, materials, depositPct, inclusions, exclusions, discountPct, hourlyRateOverride } };
+      const tpl = { id: crypto.randomUUID(), name: name.trim(), createdAt: new Date().toISOString(), builder_state: { blocks, modSel, contact, jobAddress, materials, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride } };
       const { error } = await supabase.from("settings").upsert({ key: "estimate_templates", value: [...list, tpl] }, { onConflict: "key" });
       if (error) throw error;
       setSaveMsg("Template saved ✓");
@@ -682,7 +687,9 @@ export default function QuoteBuilder({
       inclusions: inclusions.map((t) => t.trim()).filter(Boolean),
       exclusions: exclusions.map((t) => t.trim()).filter(Boolean),
       terms,
+      discountMode,
       discountPct: discountPct || 0,
+      discountFixedCents: discountFixedCents || 0,
       proof: DEFAULT_PROOF,
     };
   }
@@ -1225,17 +1232,37 @@ export default function QuoteBuilder({
                             className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                           />
                         </label>
-                        <label className="block text-xs">
-                          <span className="text-gray-500">Discount (%) · shown on the estimate</span>
-                          <input
-                            type="number" min={0} max={100} value={discountPct || ""}
-                            onChange={(e) => setDiscountPct(e.target.value === "" ? 0 : Math.min(100, Math.max(0, Number(e.target.value))))}
-                            className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-                          />
-                        </label>
-                        {discountPct > 0 && (
+                        <div className="text-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-500">Discount · shown on the estimate</span>
+                            <div className="inline-flex overflow-hidden rounded-md border border-gray-300">
+                              <button
+                                onClick={() => setDiscountMode("pct")}
+                                className={`px-2 py-0.5 text-[11px] font-medium ${discountMode === "pct" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}
+                              >%</button>
+                              <button
+                                onClick={() => setDiscountMode("fixed")}
+                                className={`px-2 py-0.5 text-[11px] font-medium ${discountMode === "fixed" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}
+                              >$</button>
+                            </div>
+                          </div>
+                          {discountMode === "pct" ? (
+                            <input
+                              type="number" min={0} max={100} value={discountPct || ""} placeholder="e.g. 10"
+                              onChange={(e) => setDiscountPct(e.target.value === "" ? 0 : Math.min(100, Math.max(0, Number(e.target.value))))}
+                              className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                            />
+                          ) : (
+                            <input
+                              type="number" min={0} value={discountFixedCents ? discountFixedCents / 100 : ""} placeholder="e.g. 500"
+                              onChange={(e) => setDiscountFixedCents(e.target.value === "" ? 0 : Math.max(0, Math.round(Number(e.target.value) * 100)))}
+                              className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                            />
+                          )}
+                        </div>
+                        {totals.discountCents > 0 && (
                           <div className="flex justify-between rounded-md bg-emerald-50 px-2 py-1.5 text-xs text-emerald-700">
-                            <span>Discount ({discountPct}%)</span>
+                            <span>Discount{discountMode === "pct" ? ` (${discountPct}%)` : ""}</span>
                             <span className="font-semibold tabular-nums">−{fmt(totals.discountCents)}</span>
                           </div>
                         )}

@@ -62,9 +62,12 @@ export default function CustomerEstimate({
     () => snap.options.filter((o) => selected.has(o.id)).reduce((n, o) => n + o.priceCents, 0),
     [snap.options, selected],
   );
+  const discountMode = snap.discountMode ?? "pct";
   const discountPct = snap.discountPct ?? 0;
   const grossSubtotal = snap.baseSubtotalCents + optionsSubtotal;
-  const discount = Math.round(grossSubtotal * discountPct / 100);
+  const discount = discountMode === "fixed"
+    ? Math.min(snap.discountFixedCents ?? 0, grossSubtotal)
+    : Math.round(grossSubtotal * discountPct / 100);
   const subtotal = grossSubtotal - discount;
   const gst = Math.round(subtotal * gstRate);
   const total = subtotal + gst;
@@ -326,7 +329,7 @@ export default function CustomerEstimate({
               <div className="trow" key={o.id}><span className="l">{o.title}</span><span className="v">{money2(o.priceCents)}</span></div>
             ))}
             {discount > 0 && (
-              <div className="trow"><span className="l">Discount ({discountPct}%)</span><span className="v">− {money2(discount)}</span></div>
+              <div className="trow"><span className="l">Discount{discountMode === "pct" ? ` (${discountPct}%)` : ""}</span><span className="v">− {money2(discount)}</span></div>
             )}
             <div className="trow"><span className="l">GST</span><span className="v">{money2(gst)}</span></div>
             <div className="trow total"><span className="l">Total incl. GST</span><span className="v">{money2(total)}</span></div>

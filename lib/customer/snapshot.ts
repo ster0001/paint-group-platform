@@ -53,7 +53,9 @@ export type CustomerSnapshot = {
   inclusions: string[];
   exclusions: string[];
   terms: string; // terms & conditions (plain text), shown below the accept panel
-  discountPct: number; // discount applied to the ex-GST subtotal (e.g. 10)
+  discountMode: "pct" | "fixed"; // percentage of subtotal, or a flat dollar amount
+  discountPct: number; // discount % applied to the ex-GST subtotal (when mode = pct)
+  discountFixedCents: number; // flat discount in cents (when mode = fixed)
   proof: {
     rating: string; // "5.0"
     reviews: string; // "85+"
