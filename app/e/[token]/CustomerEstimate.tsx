@@ -3,7 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { CustomerSnapshot } from "@/lib/customer/snapshot";
+import "../customer.css";
 
+// The public token page keeps this row shape; the builder passes a live snapshot
+// with preview=true (no token, no writes).
 export type EstimateRow = {
   id: string;
   status: string;
@@ -23,13 +26,25 @@ const dateFmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(
 
 const DECLINE_PICKS = ["Went with another quote", "Postponing", "Price", "Other"];
 
-export default function CustomerEstimate({ token, row }: { token: string; row: EstimateRow }) {
-  const snap = row.snapshot;
+export default function CustomerEstimate({
+  snapshot: snap, token, status = "sent", acceptedName = null,
+  validUntil = null, sentAt = null, selectedOptionsInit = null, preview = false,
+}: {
+  snapshot: CustomerSnapshot;
+  token?: string;
+  status?: string;
+  acceptedName?: string | null;
+  validUntil?: string | null;
+  sentAt?: string | null;
+  selectedOptionsInit?: string[] | null;
+  preview?: boolean;
+}) {
   const gstRate = (snap.gstRatePct ?? 10) / 100;
+  const interactive = !preview && !!token; // real customer page can write; builder preview cannot
 
-  const [selected, setSelected] = useState<Set<string>>(() => new Set(row.selected_options ?? []));
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(selectedOptionsInit ?? []));
   const [done, setDone] = useState<null | "accepted" | "declined">(
-    row.status === "accepted" ? "accepted" : row.status === "declined" ? "declined" : null,
+    status === "accepted" ? "accepted" : status === "declined" ? "declined" : null,
   );
   const [panel, setPanel] = useState<null | "accept" | "decline" | "ask">(null);
   const [name, setName] = useState(snap.contactName || "");
@@ -52,8 +67,9 @@ export default function CustomerEstimate({ token, row }: { token: string; row: E
   const total = subtotal + gst;
   const deposit = Math.round(total * 0.1);
 
-  // view + dwell tracking
+  // view + dwell tracking (real customer page only, never the builder preview)
   useEffect(() => {
+    if (!interactive) return;
     const supabase = createClient();
     const session = crypto.randomUUID();
     const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
@@ -68,7 +84,7 @@ export default function CustomerEstimate({ token, row }: { token: string; row: E
       if (document.visibilityState === "visible") { ms += 15000; ping(); }
     }, 15000);
     return () => clearInterval(iv);
-  }, [token]);
+  }, [token, interactive]);
 
   const toggle = (id: string) =>
     setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
@@ -136,7 +152,7 @@ export default function CustomerEstimate({ token, row }: { token: string; row: E
       <header className="topbar">
         <div className="wordmark">PAINT<span>—</span>GROUP</div>
         <div className="topmeta">
-          <span className="validity">{est} · valid until {dateFmt(row.valid_until)}</span>
+          <span className="validity">{est} · valid until {dateFmt(validUntil)}</span>
           {statusChip}
         </div>
       </header>
@@ -145,7 +161,7 @@ export default function CustomerEstimate({ token, row }: { token: string; row: E
         {done === "accepted" && (
           <div className="resultbanner accepted" style={{ marginTop: 28 }}>
             <span className="tick">✓</span>
-            <span>Estimate accepted{row.accepted_name ? ` by ${row.accepted_name}` : ""}. We&apos;ll email your deposit invoice and booking shortly.</span>
+            <span>Estimate accepted{acceptedName ? ` by ${acceptedName}` : ""}. We&apos;ll email your deposit invoice and booking shortly.</span>
           </div>
         )}
         {done === "declined" && (
@@ -158,7 +174,7 @@ export default function CustomerEstimate({ token, row }: { token: string; row: E
         {/* HERO */}
         <div className="hero cutin">
           <p className="eyebrow">
-            Estimate <b>{est}</b> · Prepared {dateFmt(row.sent_at)}{snap.company.estimatorName ? ` · Prepared by ${snap.company.estimatorName}` : ""}
+            Estimate <b>{est}</b> · Prepared {dateFmt(sentAt)}{snap.company.estimatorName ? ` · Prepared by ${snap.company.estimatorName}` : ""}
           </p>
           <h1>{snap.jobTitle}</h1>
           <p className="address">{snap.jobAddress || snap.company.addressLine1}{snap.contactName ? ` · For ${snap.contactName}` : ""}</p>
@@ -175,13 +191,17 @@ export default function CustomerEstimate({ token, row }: { token: string; row: E
               </div>
             )}
           </div>
-          <p className="viewnote">Fixed price — no hourly surprises. Valid 60 days.{row.valid_until ? ` Until ${dateFmt(row.valid_until)}.` : ""}</p>
+          <p className="viewnote">Fixed price — no hourly surprises. Valid 60 days.{validUntil ? ` Until ${dateFmt(validUntil)}.` : ""}</p>
 
-          <div className="portal print-hide">
-            <input type="email" placeholder="Your email — open in your customer portal" value={portalEmail} onChange={(e) => setPortalEmail(e.target.value)} />
-            <button className="btn btn-ghost" onClick={openPortal}>Open portal</button>
-          </div>
-          {portalMsg && <p className="viewnote">{portalMsg}</p>}
+          {interactive && (
+            <>
+              <div className="portal print-hide">
+                <input type="email" placeholder="Your email — open in your customer portal" value={portalEmail} onChange={(e) => setPortalEmail(e.target.value)} />
+                <button className="btn btn-ghost" onClick={openPortal}>Open portal</button>
+              </div>
+              {portalMsg && <p className="viewnote">{portalMsg}</p>}
+            </>
+          )}
         </div>
 
         {/* PHOTOS */}
@@ -324,7 +344,19 @@ export default function CustomerEstimate({ token, row }: { token: string; row: E
         </section>
 
         {/* ACCEPT / DECLINE / ASK */}
-        {!done && (
+        {!done && !interactive && (
+          <section id="accept">
+            <div className="acceptpanel cutin">
+              <h2>Ready when you are</h2>
+              <p className="sub">This is the preview — your customer accepts, asks a question or declines from here.</p>
+              <div className="finebtns">
+                <span className="btn btn-primary" style={{ opacity: 0.6, cursor: "default" }}>Accept this estimate</span>
+                <span className="btn btn-ghost" style={{ opacity: 0.6, cursor: "default" }}>Ask a question</span>
+              </div>
+            </div>
+          </section>
+        )}
+        {!done && interactive && (
           <section id="accept">
             <div className="acceptpanel cutin">
               <h2>Ready when you are</h2>
@@ -385,7 +417,7 @@ export default function CustomerEstimate({ token, row }: { token: string; row: E
         </div>
 
         <footer className="doc">
-          {snap.company.name} · Melbourne · ABN {snap.company.abn} · {est} valid for 60 days from {dateFmt(row.sent_at)}.
+          {snap.company.name} · Melbourne · ABN {snap.company.abn} · {est} valid for 60 days from {dateFmt(sentAt)}.
           Fixed price subject to the scope above; any variation is quoted and approved by you in writing before work proceeds.
           Fully insured — {snap.proof.liability} public liability. Member, Master Painters Association.
         </footer>

@@ -20,5 +20,15 @@ export default async function Page({ params }: { params: Promise<{ token: string
   const snap = row.snapshot as Partial<CustomerSnapshot>;
   if (!snap || snap.version !== 1) notFound();
 
-  return <CustomerEstimate token={token} row={row} />;
+  return (
+    <CustomerEstimate
+      snapshot={row.snapshot}
+      token={token}
+      status={row.status}
+      acceptedName={row.accepted_name}
+      validUntil={row.valid_until}
+      sentAt={row.sent_at}
+      selectedOptionsInit={row.selected_options}
+    />
+  );
 }

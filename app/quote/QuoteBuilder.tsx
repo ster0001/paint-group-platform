@@ -6,6 +6,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import EstimateHeader from "./EstimateHeader";
 import RichTextEditor from "@/app/components/RichTextEditor";
+import CustomerEstimate from "@/app/e/[token]/CustomerEstimate";
+import { DEFAULT_PROOF, type CustomerSnapshot, type SnapshotArea, type SnapshotLine } from "@/lib/customer/snapshot";
 import type { CompanyProfile, Contact, JobAddress } from "./company";
 import type { Product, RateItem } from "@/lib/pricing/types";
 
@@ -94,6 +96,9 @@ type SurfaceCalc = {
 
 const fmt = (c: number) => "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmt0 = (c: number) => "$" + Math.round(c / 100).toLocaleString("en-AU");
+// Unguessable base62 token for the customer link, minted once per estimate.
+const genShareToken = () =>
+  Array.from(crypto.getRandomValues(new Uint8Array(28)), (n) => "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"[n % 62]).join("");
 let nextId = 1;
 
 // Quantity for a surface, from the AREA's dimensions and Room/Surface geometry.
@@ -144,7 +149,7 @@ export default function QuoteBuilder({
   settings: Setting[];
   lineItems: LineItemRef[];
   areaNames: AreaNameRef[];
-  initial: { id: string | null; title: string | null; builder_state: unknown } | null;
+  initial: { id: string | null; title: string | null; builder_state: unknown; share_token?: string | null; status?: string | null; sent_at?: string | null; valid_until?: string | null } | null;
   company: CompanyProfile;
   contacts: Contact[];
 }) {
@@ -207,6 +212,14 @@ export default function QuoteBuilder({
   const [jobAddress, setJobAddress] = useState<JobAddress | null>(() => loaded?.jobAddress ?? null);
   const [title, setTitle] = useState(initial?.title ?? "");
   const [quoteId, setQuoteId] = useState<string | null>(initial?.id ?? null);
+  // Customer-view / send state. The share_token is minted on first save so the
+  // link is stable; the estimate stays a draft until Sent, and locks on accept.
+  const [shareToken, setShareToken] = useState<string | null>(initial?.share_token ?? null);
+  const [estStatus, setEstStatus] = useState<string>(initial?.status ?? "draft");
+  const [sentAt, setSentAt] = useState<string | null>(initial?.sent_at ?? null);
+  const [validUntil, setValidUntil] = useState<string | null>(initial?.valid_until ?? null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const locked = estStatus === "accepted";
   const [customerView, setCustomerView] = useState(false);
   // Folder navigation: null = the list; otherwise we've drilled into an area,
   // a surface within an area, or a line item. "Done" pops back up a level.
@@ -427,14 +440,17 @@ export default function QuoteBuilder({
   const marginPct = totals.subtotal > 0 ? (totals.margin / totals.subtotal) * 100 : 0;
   const salesRateCents = totals.contractorHours > 0 ? Math.round(totals.subtotal / totals.contractorHours) : 0;
 
-  async function save() {
+  async function save(): Promise<{ id: string | null; token: string | null }> {
+    if (locked) { setSaveMsg("This estimate is accepted and locked."); return { id: quoteId, token: shareToken }; }
     setSaving(true);
     setSaveMsg("");
     const supabase = createClient();
     const finishCode = modSel["Level of Finish"];
-    const payload = {
+    const token = shareToken ?? genShareToken();
+    // On update we deliberately DON'T touch status — a sent estimate stays sent,
+    // and its refreshed sent_snapshot is what the customer sees live.
+    const base = {
       title: title.trim() || "Untitled quote",
-      status: "draft",
       rate_card_id: rateCardId,
       rate_card_version: rateCardVersion,
       level_of_finish: finishCode ? Number(finishCode.split("-")[1]) : null,
@@ -442,23 +458,45 @@ export default function QuoteBuilder({
       subtotal_cents: totals.subtotal,
       total_cents: totals.total,
       builder_state: { blocks, modSel, contact, jobAddress },
+      share_token: token,
+      sent_snapshot: buildCustomerDoc(token),
     };
     try {
-      if (quoteId) {
-        const { error } = await supabase.from("estimates").update(payload).eq("id", quoteId);
+      let id = quoteId;
+      if (id) {
+        const { error } = await supabase.from("estimates").update(base).eq("id", id);
         if (error) throw error;
       } else {
-        const { data, error } = await supabase.from("estimates").insert(payload).select("id").single();
+        const { data, error } = await supabase.from("estimates").insert({ ...base, status: "draft" }).select("id").single();
         if (error) throw error;
-        setQuoteId(data.id);
-        window.history.replaceState(null, "", `/quote?id=${data.id}`);
+        id = data.id;
+        setQuoteId(id);
+        window.history.replaceState(null, "", `/quote?id=${id}`);
       }
+      setShareToken(token);
       setSaveMsg("Saved ✓");
+      return { id, token };
     } catch (e) {
       setSaveMsg(e instanceof Error ? e.message : "Save failed");
+      return { id: quoteId, token: shareToken };
     } finally {
       setSaving(false);
     }
+  }
+
+  async function sendToCustomer() {
+    if (!finishChosen) { setSaveMsg("Choose a level of finish before sending."); return; }
+    const { id, token } = await save(); // persists token + live doc
+    if (!id || !token) return;
+    const supabase = createClient();
+    const nowIso = new Date().toISOString();
+    const until = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
+    const { error } = await supabase.from("estimates").update({ status: "sent", sent_at: sentAt ?? nowIso, valid_until: until }).eq("id", id);
+    if (error) { setSaveMsg(error.message); return; }
+    setEstStatus("sent");
+    setSentAt(sentAt ?? nowIso);
+    setValidUntil(until);
+    setShareUrl(`${window.location.origin}/e/${token}`);
   }
 
   // Save the current build as a reusable template (stored in settings, not as an
@@ -488,6 +526,52 @@ export default function QuoteBuilder({
   // In customer view, hidden line items drop out of the document entirely.
   const visibleToCustomer = (b: Block) => !customerView || !(b.kind === "line" && b.hidden);
   const areaPriceCents = (b: Area) => b.surfaces.reduce((n, s) => n + surfaceCalc(b, s).totalCents, 0);
+
+  // Build the customer-safe document from the CURRENT state — no margin, costs,
+  // contractor rates, hidden surfaces/items or internal notes. Used both for the
+  // live "Customer view" preview and written to sent_snapshot on every save.
+  function buildCustomerDoc(token: string): CustomerSnapshot {
+    const areas: SnapshotArea[] = [];
+    const lineItemsDoc: SnapshotLine[] = [];
+    const options: SnapshotLine[] = [];
+    for (const b of blocks) {
+      if (b.kind === "area") {
+        const surfaces = b.surfaces
+          .filter((s) => s.code && !s.hidden)
+          .map((s) => ({ label: s.clientLabel || s.code, coats: s.coats, product: s.productName || itemByKey.get(`${b.type}::${s.code}`)?.default_product || "" }));
+        const photos = [
+          ...(b.media ?? []).map((m) => m.url),
+          ...b.surfaces.filter((s) => !s.hidden).flatMap((s) => (s.media ?? []).map((m) => m.url)),
+        ];
+        const entry: SnapshotArea = { id: String(b.id), title: b.name || "Area", descriptionHtml: b.description ?? "", priceCents: areaPriceCents(b), surfaces, photos };
+        if (b.isOption) options.push({ id: entry.id, title: entry.title, descriptionHtml: entry.descriptionHtml, priceCents: entry.priceCents });
+        else areas.push(entry);
+      } else {
+        if (b.hidden) continue;
+        const line: SnapshotLine = { id: String(b.id), title: b.name || "Line item", descriptionHtml: b.description ?? "", priceCents: lineCalc(b).priceCents };
+        if (b.isOption) options.push(line);
+        else lineItemsDoc.push(line);
+      }
+    }
+    return {
+      version: 1,
+      company: {
+        name: company.name, addressLine1: company.addressLine1, addressLine2: company.addressLine2, phone: company.phone,
+        abn: company.abn, email: company.email, estimatorName: company.estimatorName, estimatorTitle: company.estimatorTitle,
+        estimatorPhone: company.estimatorPhone, logoUrl: company.logoUrl,
+      },
+      estRef: token.slice(0, 8).toUpperCase(),
+      contactName: contact ? [contact.first_name, contact.last_name].filter(Boolean).join(" ") || contact.company || "" : "",
+      contactEmail: contact?.email ?? "",
+      jobAddress: jobAddress ? [jobAddress.address, jobAddress.city, jobAddress.state, jobAddress.postal].filter(Boolean).join(", ") : "",
+      jobTitle: title || "Painting estimate",
+      gstRatePct: Math.round(gstRate * 100),
+      baseSubtotalCents: totals.subtotal,
+      areas, lineItems: lineItemsDoc, options,
+      inclusions: [], exclusions: [],
+      proof: DEFAULT_PROOF,
+    };
+  }
 
   // ---- folder screens (drilled-in views) ----
   const renderAreaFolder = (b: Area) => (
@@ -642,7 +726,8 @@ export default function QuoteBuilder({
           >
             {customerView ? "← Back to building" : "👁 Customer view"}
           </button>
-          {!customerView && (
+          {locked && <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">Accepted · locked</span>}
+          {!customerView && !locked && (
             <>
               <input
                 className="w-40 rounded-md border border-gray-300 px-3 py-2 text-sm"
@@ -656,6 +741,14 @@ export default function QuoteBuilder({
                 className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50"
               >
                 {saving ? "Saving…" : quoteId ? "Save" : "Save draft"}
+              </button>
+              <button
+                onClick={sendToCustomer}
+                disabled={saving}
+                className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                title={estStatus === "draft" ? "Save + mark sent, and get the customer link" : "Update the sent estimate"}
+              >
+                {estStatus === "draft" ? "Send to customer" : "Update sent"}
               </button>
               <button
                 onClick={() => { setTemplateName(title.trim()); setTemplateModal(true); }}
@@ -676,16 +769,21 @@ export default function QuoteBuilder({
       </div>
 
       {customerView && (
-        <div className="mt-4 flex items-center gap-2 rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-700">
-          <span className="font-semibold">Customer view</span>
-          <span>— exactly what the customer sees when this estimate is sent. Nothing here is clickable.</span>
+        /* ---- live customer view: the same dark page the customer opens ---- */
+        <div className="mt-4">
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-700">
+            <span className="font-semibold">Customer view — live preview</span>
+            <span>· exactly what the customer sees. Save to publish your latest edits to their link.</span>
+          </div>
+          <div className="cv overflow-hidden rounded-xl border border-gray-200">
+            <CustomerEstimate snapshot={buildCustomerDoc(shareToken ?? "PREVIEW00")} validUntil={validUntil} sentAt={sentAt} preview />
+          </div>
         </div>
       )}
 
-      {/* The estimate header (company / estimator / banking / contact) only
-          belongs on the list and customer views — hide it when drilled into a
-          folder, where it just wastes space. */}
-      {!folderEl && (
+      {/* The estimate header (company / estimator / banking / contact) only shows
+          in build mode, and not when drilled into a folder. */}
+      {!folderEl && !customerView && (
         <div className="mt-6">
           <EstimateHeader
             company={company}
@@ -696,12 +794,12 @@ export default function QuoteBuilder({
             onJobAddress={setJobAddress}
             estimateId={quoteId ? quoteId.slice(0, 8) : "New"}
             dateStr={new Date().toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
-            readOnly={customerView}
           />
         </div>
       )}
 
-      <div className={`mt-6 grid grid-cols-1 gap-6 ${customerView || folderEl ? "" : "lg:grid-cols-[1fr_300px]"}`}>
+      {!customerView && (
+      <div className={`mt-6 grid grid-cols-1 gap-6 ${folderEl ? "" : "lg:grid-cols-[1fr_300px]"}`}>
         <div className="space-y-4">
           {folderEl ? (
             /* ---------- drilled-in folder screen (area / surface / line) ---------- */
@@ -762,57 +860,63 @@ export default function QuoteBuilder({
           )}
         </div>
 
-        {/* right panel — in customer view the totals move inline below the document */}
-        {customerView ? (
-          <div className="max-w-sm ml-auto rounded-xl border border-gray-200 bg-white p-4">
-            <dl className="space-y-1.5 text-sm">
+        {/* right panel — quote + margin (staff only, build mode) */}
+        <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+          {!finishChosen && (
+            <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              Showing Level 3 pricing. <strong>Choose a level of finish</strong> before sending.
+            </div>
+          )}
+          <div className="rounded-xl border border-gray-200 bg-white p-4">
+            <h2 className="text-sm font-semibold">Quote</h2>
+            <dl className="mt-3 space-y-1.5 text-sm">
               <Row label="Subtotal" value={fmt(totals.subtotal)} />
               <Row label={`GST (${Math.round(gstRate * 100)}%)`} value={fmt(totals.gst)} muted />
-              <div className="flex justify-between border-t border-gray-200 pt-2 text-lg font-semibold">
+              <div className="flex justify-between border-t border-gray-200 pt-2 text-base font-semibold">
                 <span>Total</span><span>{fmt(totals.total)}</span>
+              </div>
+              <div className="!mt-3 grid grid-cols-2 gap-2 text-center">
+                <Stat label="Total hours" value={totals.contractorHours.toFixed(2)} />
+                <Stat label="Sales rate" value={`${fmt0(salesRateCents)}/hr`} />
               </div>
             </dl>
           </div>
-        ) : (
-          <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-            {!finishChosen && (
-              <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                Showing Level 3 pricing. <strong>Choose a level of finish</strong> before sending.
-              </div>
-            )}
-            <div className="rounded-xl border border-gray-200 bg-white p-4">
-              <h2 className="text-sm font-semibold">Quote</h2>
-              <dl className="mt-3 space-y-1.5 text-sm">
-                <Row label="Subtotal" value={fmt(totals.subtotal)} />
-                <Row label={`GST (${Math.round(gstRate * 100)}%)`} value={fmt(totals.gst)} muted />
-                <div className="flex justify-between border-t border-gray-200 pt-2 text-base font-semibold">
-                  <span>Total</span><span>{fmt(totals.total)}</span>
-                </div>
-                <div className="!mt-3 grid grid-cols-2 gap-2 text-center">
-                  <Stat label="Total hours" value={totals.contractorHours.toFixed(2)} />
-                  <Stat label="Sales rate" value={`${fmt0(salesRateCents)}/hr`} />
-                </div>
-              </dl>
+          <div className="rounded-xl border border-gray-900 bg-gray-900 p-4 text-white">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold">Margin</h2>
+              <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-gray-300">Staff only</span>
             </div>
-            <div className="rounded-xl border border-gray-900 bg-gray-900 p-4 text-white">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold">Margin</h2>
-                <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-gray-300">Staff only</span>
+            <dl className="mt-3 space-y-1.5 text-sm">
+              <Row label={`Contractor (${totals.contractorHours.toFixed(1)} hr)`} value={"−" + fmt(totals.contractorOffer)} dark />
+              <Row label="Materials cost" value={"−" + fmt(totals.materialsCost)} dark />
+              <div className="flex items-baseline justify-between border-t border-white/15 pt-2">
+                <span className="text-sm font-semibold">Margin</span>
+                <span className={`text-lg font-bold ${totals.margin >= 0 ? "text-green-400" : "text-red-400"}`}>
+                  {fmt(totals.margin)}<span className="ml-1 text-xs font-normal text-gray-400">{marginPct.toFixed(0)}%</span>
+                </span>
               </div>
-              <dl className="mt-3 space-y-1.5 text-sm">
-                <Row label={`Contractor (${totals.contractorHours.toFixed(1)} hr)`} value={"−" + fmt(totals.contractorOffer)} dark />
-                <Row label="Materials cost" value={"−" + fmt(totals.materialsCost)} dark />
-                <div className="flex items-baseline justify-between border-t border-white/15 pt-2">
-                  <span className="text-sm font-semibold">Margin</span>
-                  <span className={`text-lg font-bold ${totals.margin >= 0 ? "text-green-400" : "text-red-400"}`}>
-                    {fmt(totals.margin)}<span className="ml-1 text-xs font-normal text-gray-400">{marginPct.toFixed(0)}%</span>
-                  </span>
-                </div>
-              </dl>
-            </div>
-          </aside>
-        )}
+            </dl>
+          </div>
+        </aside>
       </div>
+      )}
+
+      {shareUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShareUrl(null)}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold">Sent — customer link</h2>
+            <p className="mt-1 text-xs text-gray-500">Text or email this to the customer. Any edits you save later show on the same link.</p>
+            <div className="mt-4 flex items-center gap-2">
+              <input readOnly value={shareUrl} className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm" onFocus={(e) => e.target.select()} />
+              <button onClick={() => navigator.clipboard?.writeText(shareUrl)} className="rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-700">Copy</button>
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <a href={shareUrl} target="_blank" rel="noreferrer" className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50">Open</a>
+              <button onClick={() => setShareUrl(null)} className="rounded-md bg-gray-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-700">Done</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {areaPickerOpen && (
         <AreaPicker
