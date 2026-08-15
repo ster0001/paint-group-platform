@@ -24,6 +24,10 @@ type Surface = {
   count: number;
   hidden: boolean; // priced into the total, but omitted from the customer's copy
   media: MediaItem[];
+  // per-surface measurement override — e.g. one wall that is half render, half
+  // weatherboard: each surface gets its own size instead of the area dimensions.
+  measureL: number | null; // length (m)
+  measureH: number | null; // height / width (m), for area (m²) substrates
   qtyOverride: number | null;
   rateOverride: number | null; // productivity (units/hr) or hours/item
   paintingHrOverride: number | null;
@@ -98,6 +102,12 @@ function computeQuantity(item: RateItem | undefined, area: Area, s: Surface): nu
   if (!item) return 0;
   if (s.qtyOverride != null) return s.qtyOverride;
   if (item.unit === "Hours Per Item") return s.count;
+  // Per-surface measurement override (takes precedence over the area size).
+  if (item.unit === "Lineal Metres") {
+    if (s.measureL != null) return s.measureL;
+  } else if (s.measureL != null && s.measureH != null) {
+    return s.measureL * s.measureH;
+  }
   const flat = /ceiling|floor|roof|soffit/i.test(item.sub_category ?? "");
   const { L, W, H } = area;
   if (area.areaType === "surface") {
@@ -244,7 +254,7 @@ export default function QuoteBuilder({
   }
   function newSurface(): Surface {
     return {
-      id: nextId++, code: "", internalLabel: "", clientLabel: "", coats: 2, count: 1, hidden: false, media: [], qtyOverride: null,
+      id: nextId++, code: "", internalLabel: "", clientLabel: "", coats: 2, count: 1, hidden: false, media: [], measureL: null, measureH: null, qtyOverride: null,
       rateOverride: null, paintingHrOverride: null, prepHr: 0, priceOverride: null, productName: null, color: "",
       coverageOverride: null, volumeOverride: null, unitPriceOverride: null, crewNote: "",
       hideQty: false, showCoats: false, showPrice: false, useCustomRate: false, customRate: null,
@@ -1340,6 +1350,25 @@ function SurfaceEditor({
         <p className="mt-3 text-xs text-gray-500">Choose a surface to set rates and materials.</p>
       ) : (
         <>
+          {/* Measurements — per-surface size override (interior & exterior). */}
+          {!isItem && (
+            <div className="mt-3 border-t border-gray-200 pt-3">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Measurements</div>
+              <p className="mt-0.5 text-[11px] text-gray-400">
+                Set this surface&apos;s size directly — e.g. one wall that is half render, half weatherboard. Leave blank to use the area size.
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <F label="Length (m)">{num(s.measureL ?? NaN, (n) => onPatch({ measureL: n }), "auto")}</F>
+                {item.unit !== "Lineal Metres" && (
+                  <F label="Height / width (m)">{num(s.measureH ?? NaN, (n) => onPatch({ measureH: n }), "auto")}</F>
+                )}
+                <F label={`${item.unit === "Lineal Metres" ? "Length" : "Area"} (${unitLabel(item)})`}>
+                  <div className="px-2 py-1.5 text-sm tabular-nums text-gray-600">{calc.qty.toFixed(2)} {unitLabel(item)}</div>
+                </F>
+              </div>
+            </div>
+          )}
+
           {/* Rate — pre-filled from the data set, all manually adjustable */}
           <div className="mt-3 border-t border-gray-200 pt-3">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Rate</div>
