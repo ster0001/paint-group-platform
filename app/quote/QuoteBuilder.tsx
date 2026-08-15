@@ -8,6 +8,7 @@ import EstimateHeader from "./EstimateHeader";
 import RichTextEditor from "@/app/components/RichTextEditor";
 import CustomerEstimate from "@/app/e/[token]/CustomerEstimate";
 import { DEFAULT_PROOF, type CustomerSnapshot, type SnapshotArea, type SnapshotLine } from "@/lib/customer/snapshot";
+import { type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import type { CompanyProfile, Contact, JobAddress } from "./company";
 import type { Product, RateItem } from "@/lib/pricing/types";
 
@@ -101,14 +102,9 @@ const genShareToken = () =>
   Array.from(crypto.getRandomValues(new Uint8Array(28)), (n) => "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"[n % 62]).join("");
 let nextId = 1;
 
-// Sensible starter inclusions for a new estimate — fully editable per job.
-const DEFAULT_INCLUSIONS = [
-  "All surface preparation — filling, sanding and priming as needed",
-  "Premium paints and materials",
-  "Drop sheets and full protection of your furniture and floors",
-  "Daily clean-up and rubbish removal",
-  "Public liability insurance",
-];
+// New estimates start with no inclusions — staff apply a "What's included"
+// template (managed in Settings) or type their own bullets in the builder.
+const DEFAULT_INCLUSIONS: string[] = [];
 
 // Quantity for a surface, from the AREA's dimensions and Room/Surface geometry.
 // A surface can still override with a direct m²/lineal/count value.
@@ -149,6 +145,7 @@ export default function QuoteBuilder({
   initial,
   company,
   contacts,
+  inclusionTemplates = [],
 }: {
   rateCardId: string | null;
   rateCardVersion: number | null;
@@ -161,6 +158,7 @@ export default function QuoteBuilder({
   initial: { id: string | null; title: string | null; builder_state: unknown; share_token?: string | null; status?: string | null; sent_at?: string | null; valid_until?: string | null } | null;
   company: CompanyProfile;
   contacts: Contact[];
+  inclusionTemplates?: InclusionTemplate[];
 }) {
   const normKey = (k: string) => k.replace(/[^a-z0-9]+/gi, " ").trim().toLowerCase();
   const settingsMap = useMemo(() => {
@@ -976,9 +974,30 @@ export default function QuoteBuilder({
                   "Not included" lists. */}
               {!customerView && (
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
-                  <h2 className="text-sm font-semibold">
-                    What&apos;s included <span className="font-normal text-gray-400">· one bullet per line — shown to the customer</span>
-                  </h2>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h2 className="text-sm font-semibold">
+                      What&apos;s included <span className="font-normal text-gray-400">· one bullet per line — shown to the customer</span>
+                    </h2>
+                    {inclusionTemplates.length > 0 && (
+                      <select
+                        className="rounded-md border border-gray-300 px-2 py-1.5 text-xs"
+                        value=""
+                        onChange={(e) => {
+                          const t = inclusionTemplates.find((x) => x.id === e.target.value);
+                          if (!t) return;
+                          // Append the template's bullets, skipping any already present.
+                          setInclusions((cur) => {
+                            const have = new Set(cur.map((i) => i.trim()));
+                            const base = cur.length === 1 && cur[0].trim() === "" ? [] : cur;
+                            return [...base, ...t.items.filter((i) => !have.has(i.trim()))];
+                          });
+                        }}
+                      >
+                        <option value="">+ Add from template…</option>
+                        {inclusionTemplates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                    )}
+                  </div>
                   <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <label className="block text-xs">
                       <span className="font-medium text-emerald-700">Included in your price</span>
