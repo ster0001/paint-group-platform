@@ -58,7 +58,11 @@ export default function CustomerEstimate({ token, row }: { token: string; row: E
     const session = crypto.randomUUID();
     const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
     let ms = 0;
-    const ping = () => supabase.rpc("record_estimate_view", { p_token: token, p_session: session, p_ua: ua, p_ms: ms });
+    // NB: the supabase query builder is lazy — it only fires when awaited, so
+    // this must await (a bare `supabase.rpc(...)` would never send the request).
+    const ping = async () => {
+      try { await supabase.rpc("record_estimate_view", { p_token: token, p_session: session, p_ua: ua, p_ms: ms }); } catch { /* best-effort */ }
+    };
     ping();
     const iv = setInterval(() => {
       if (document.visibilityState === "visible") { ms += 15000; ping(); }
