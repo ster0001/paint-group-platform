@@ -197,7 +197,7 @@ export default function QuoteBuilder({
     return g;
   }, [modifiers]);
 
-  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress } | null;
+  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string> } | null;
   const [blocks, setBlocks] = useState<Block[]>(() => {
     const b = loaded?.blocks;
     if (b && b.length) {
@@ -208,6 +208,17 @@ export default function QuoteBuilder({
     return [newArea()];
   });
   const [modSel, setModSel] = useState<Record<string, string>>(() => loaded?.modSel ?? {});
+  // Materials — the GLOBAL paint choice per surface type, keyed "${type}::${code}".
+  // A surface with productName === null follows this global default (falling back
+  // to the rate card's default_product); a surface with productName set is PINNED
+  // (a deliberate per-area override) and a global change skips it. Because a new
+  // surface starts null, areas added after a global change inherit the current
+  // default automatically.
+  const [materials, setMaterials] = useState<Record<string, string>>(() => loaded?.materials ?? {});
+  const materialKey = (type: string, code: string) => `${type}::${code}`;
+  // Effective product NAME for a surface: pin → global → rate-card default.
+  const productNameFor = (type: string, s: Surface): string | null =>
+    s.productName ?? materials[materialKey(type, s.code)] ?? itemByKey.get(materialKey(type, s.code))?.default_product ?? null;
   const [contact, setContact] = useState<Contact | null>(() => loaded?.contact ?? null);
   const [jobAddress, setJobAddress] = useState<JobAddress | null>(() => loaded?.jobAddress ?? null);
   const [title, setTitle] = useState(initial?.title ?? "");
@@ -253,6 +264,7 @@ export default function QuoteBuilder({
   const [saving, setSaving] = useState(false);
   const [templateModal, setTemplateModal] = useState(false);
   const [templateName, setTemplateName] = useState("");
+  const [materialsOpen, setMaterialsOpen] = useState(true);
 
   function newArea(preset?: { name: string; type: "Interior" | "Exterior" }): Area {
     const type = preset?.type ?? "Interior";
@@ -369,7 +381,8 @@ export default function QuoteBuilder({
     const charge = chargeBase;
     const labourCents = Math.round((paintingHr + s.prepHr) * charge);
 
-    const product = s.productName ? productByName.get(s.productName) : item.default_product ? productByName.get(item.default_product) : undefined;
+    const prodName = productNameFor(area.type, s);
+    const product = prodName ? productByName.get(prodName) : undefined;
     const wastage = (product?.wastage_pct ?? 0) / 100;
     const coverage = s.coverageOverride ?? product?.coverage ?? null;
     let volume = s.volumeOverride;
@@ -435,7 +448,7 @@ export default function QuoteBuilder({
     const margin = subtotal - contractorOffer - materialsCost;
     return { subtotal, sundries, gst, total: subtotal + gst, contractorHours, contractorOffer, materialsCost, margin };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [blocks, modSel]);
+  }, [blocks, modSel, materials]);
 
   const marginPct = totals.subtotal > 0 ? (totals.margin / totals.subtotal) * 100 : 0;
   const salesRateCents = totals.contractorHours > 0 ? Math.round(totals.subtotal / totals.contractorHours) : 0;
@@ -457,7 +470,7 @@ export default function QuoteBuilder({
       size_band: modSel["Job Size"] || null,
       subtotal_cents: totals.subtotal,
       total_cents: totals.total,
-      builder_state: { blocks, modSel, contact, jobAddress },
+      builder_state: { blocks, modSel, contact, jobAddress, materials },
       share_token: token,
       sent_snapshot: buildCustomerDoc(token),
     };
@@ -508,7 +521,7 @@ export default function QuoteBuilder({
     try {
       const { data } = await supabase.from("settings").select("value").eq("key", "estimate_templates").maybeSingle();
       const list = Array.isArray(data?.value) ? (data!.value as unknown[]) : [];
-      const tpl = { id: crypto.randomUUID(), name: name.trim(), createdAt: new Date().toISOString(), builder_state: { blocks, modSel, contact, jobAddress } };
+      const tpl = { id: crypto.randomUUID(), name: name.trim(), createdAt: new Date().toISOString(), builder_state: { blocks, modSel, contact, jobAddress, materials } };
       const { error } = await supabase.from("settings").upsert({ key: "estimate_templates", value: [...list, tpl] }, { onConflict: "key" });
       if (error) throw error;
       setSaveMsg("Template saved ✓");
@@ -520,6 +533,35 @@ export default function QuoteBuilder({
       setTemplateName("");
     }
   }
+
+  // Materials rows — one per distinct surface type (type::code) used anywhere in
+  // the quote. Auto-builds from the blocks: add a new substrate to any area and a
+  // row appears; the row's product cascades to every un-pinned surface of that type.
+  const materialRows = useMemo(() => {
+    const map = new Map<string, { key: string; type: "Interior" | "Exterior"; code: string; count: number; customCount: number }>();
+    for (const b of blocks) {
+      if (b.kind !== "area") continue;
+      for (const s of b.surfaces) {
+        if (!s.code) continue;
+        const key = `${b.type}::${s.code}`;
+        const row = map.get(key) ?? { key, type: b.type, code: s.code, count: 0, customCount: 0 };
+        row.count += 1;
+        if (s.productName != null) row.customCount += 1;
+        map.set(key, row);
+      }
+    }
+    return [...map.values()].sort((a, z) => a.type.localeCompare(z.type) || a.code.localeCompare(z.code));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blocks]);
+  // Reset every pinned (custom) surface of a given type back to the global default.
+  const clearMaterialPins = (type: string, code: string) =>
+    setBlocks((bs) =>
+      bs.map((b) =>
+        b.kind === "area" && b.type === type
+          ? { ...b, surfaces: b.surfaces.map((s) => (s.code === code ? { ...s, productName: null } : s)) }
+          : b,
+      ),
+    );
 
   const mainBlocks = blocks.filter((b) => !b.isOption);
   const optionBlocks = blocks.filter((b) => b.isOption);
@@ -538,7 +580,7 @@ export default function QuoteBuilder({
       if (b.kind === "area") {
         const surfaces = b.surfaces
           .filter((s) => s.code && !s.hidden)
-          .map((s) => ({ label: s.clientLabel || s.code, coats: s.coats, product: s.productName || itemByKey.get(`${b.type}::${s.code}`)?.default_product || "" }));
+          .map((s) => ({ label: s.clientLabel || s.code, coats: s.coats, product: productNameFor(b.type, s) || "" }));
         const photos = [
           ...(b.media ?? []).map((m) => m.url),
           ...b.surfaces.filter((s) => !s.hidden).flatMap((s) => (s.media ?? []).map((m) => m.url)),
@@ -691,6 +733,7 @@ export default function QuoteBuilder({
             item={c.item}
             calc={c}
             products={products}
+            materialDefault={materials[materialKey(area.type, s.code)] ?? c.item?.default_product ?? null}
             chargeFor={chargeFor}
             areaType={area.type}
             areaName={area.name || "area"}
@@ -829,6 +872,61 @@ export default function QuoteBuilder({
                       </label>
                     ))}
                   </div>
+                </section>
+              )}
+
+              {/* Materials — the global paint control. Change a product here and it
+                  cascades to every area using that surface type; a per-area override
+                  (pinned) is skipped and shown as "custom" with a one-tap reset. */}
+              {!customerView && materialRows.length > 0 && (
+                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                  <button onClick={() => setMaterialsOpen((v) => !v)} className="flex w-full items-center justify-between text-left">
+                    <h2 className="text-sm font-semibold">
+                      Materials <span className="font-normal text-gray-400">· one product per surface type — change once, applies everywhere</span>
+                    </h2>
+                    <span className="text-gray-400">{materialsOpen ? "▾" : "▸"}</span>
+                  </button>
+                  {materialsOpen && (
+                    <div className="mt-3 divide-y divide-gray-100">
+                      {materialRows.map((r) => {
+                        const globalName = materials[r.key] ?? itemByKey.get(r.key)?.default_product ?? "";
+                        // Filter to products for this Int/Ext type, but always keep the
+                        // currently-selected product in the list so it never shows blank.
+                        const opts = products.filter((p) => !p.type || p.type === r.type || p.name === globalName);
+                        return (
+                          <div key={r.key} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2">
+                            <div className="flex w-40 shrink-0 items-center gap-1.5">
+                              <span className="text-sm font-medium text-gray-900">{r.code}</span>
+                              <span className={`rounded px-1 py-0.5 text-[10px] font-medium ${r.type === "Exterior" ? "bg-orange-100 text-orange-700" : "bg-sky-100 text-sky-700"}`}>
+                                {r.type === "Exterior" ? "Ext" : "Int"}
+                              </span>
+                            </div>
+                            <select
+                              className="min-w-[12rem] flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                              value={globalName}
+                              onChange={(e) => setMaterials((m) => ({ ...m, [r.key]: e.target.value }))}
+                            >
+                              {globalName === "" && <option value="">— choose a product —</option>}
+                              {opts.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+                            </select>
+                            {r.customCount > 0 && (
+                              <div className="flex items-center gap-2">
+                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                                  {r.customCount} area{r.customCount > 1 ? "s" : ""} custom
+                                </span>
+                                <button
+                                  onClick={() => clearMaterialPins(r.type, r.code)}
+                                  className="text-[11px] font-medium text-blue-600 hover:text-blue-800"
+                                >
+                                  reset to default
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </section>
               )}
 
@@ -1285,6 +1383,9 @@ function AreaCard({
                         <span className="text-gray-400">📁</span>
                         <span>
                           <span className="font-medium">{s.clientLabel || s.code || "New surface"}</span>
+                          {s.productName != null && (
+                            <span className="ml-1.5 rounded bg-amber-100 px-1 py-0.5 text-[9px] font-medium text-amber-700" title={`Custom product: ${s.productName}`}>custom</span>
+                          )}
                           <span className="block text-[11px] text-gray-400">
                             {s.code
                               ? c.isItem
@@ -1402,12 +1503,13 @@ function BlockSummary({
 }
 
 function SurfaceEditor({
-  surface: s, item, calc, products, chargeFor, areaType, areaName, onChangeSelection, onPatch, onDone, onRemove,
+  surface: s, item, calc, products, materialDefault, chargeFor, areaType, areaName, onChangeSelection, onPatch, onDone, onRemove,
 }: {
   surface: Surface;
   item?: RateItem;
   calc: SurfaceCalc;
   products: Product[];
+  materialDefault: string | null;
   chargeFor: (t: string) => number;
   areaType: "Interior" | "Exterior";
   areaName: string;
@@ -1511,10 +1613,16 @@ function SurfaceEditor({
           <div className="mt-3 border-t border-gray-200 pt-3">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Product · Estimated paint</div>
             <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              <F label="Product">
-                <select className={inp} value={s.productName ?? item.default_product ?? ""} onChange={(e) => onPatch({ productName: e.target.value })}>
+              <F label={`Product${s.productName != null ? " · custom" : ""}`}>
+                <select className={inp} value={s.productName ?? ""} onChange={(e) => onPatch({ productName: e.target.value || null })}>
+                  <option value="">— Default · {materialDefault || "none"} —</option>
                   {products.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
                 </select>
+                {s.productName != null && (
+                  <button onClick={() => onPatch({ productName: null })} className="mt-1 text-[11px] font-medium text-blue-600 hover:text-blue-800">
+                    ↺ reset to default
+                  </button>
+                )}
               </F>
               <F label="Color">
                 <input className={inp} value={s.color} placeholder="Color" onChange={(e) => onPatch({ color: e.target.value })} />

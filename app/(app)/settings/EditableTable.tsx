@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 export type Col = {
   key: string;
   label: string;
-  type?: "text" | "number" | "money" | "select" | "bool";
+  type?: "text" | "number" | "money" | "select" | "bool" | "image";
   options?: string[];
   width?: string;
 };
@@ -32,6 +32,7 @@ export default function EditableTable({
   };
   const [rows, setRows] = useState<Row[]>(() => initialRows.map(moneyToDollars));
   const [busy, setBusy] = useState<string | number | null>(null);
+  const [uploading, setUploading] = useState<string | null>(null);
   const [msg, setMsg] = useState<Record<string | number, string>>({});
 
   const rid = (r: Row) => (r.id ?? r.__localId) as string | number;
@@ -77,6 +78,27 @@ export default function EditableTable({
     }
   }
 
+  // Upload a photo to the shared public `estimate-media` bucket and stash its URL
+  // in the row. The user still clicks Save to persist it, like every other cell.
+  async function uploadImage(r: Row, key: string, file?: File | null) {
+    if (!file) return;
+    setUploading(`${rid(r)}:${key}`);
+    setMsg((m) => ({ ...m, [rid(r)]: "" }));
+    const supabase = createClient();
+    try {
+      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const path = `products/${rid(r)}-${Date.now()}-${safe}`;
+      const { error } = await supabase.storage.from("estimate-media").upload(path, file, { upsert: true });
+      if (error) throw error;
+      const { data } = supabase.storage.from("estimate-media").getPublicUrl(path);
+      setCell(r, key, data.publicUrl);
+    } catch (e) {
+      setMsg((m) => ({ ...m, [rid(r)]: e instanceof Error ? e.message : "Upload failed" }));
+    } finally {
+      setUploading(null);
+    }
+  }
+
   async function del(r: Row) {
     if (r.__new) { setRows((rs) => rs.filter((x) => rid(x) !== rid(r))); return; }
     if (!confirm("Delete this row? This cannot be undone.")) return;
@@ -103,7 +125,23 @@ export default function EditableTable({
               <tr key={rid(r)} className="border-t border-gray-100 align-top">
                 {columns.map((c) => (
                   <td key={c.key} className="px-1 py-1">
-                    {c.type === "select" ? (
+                    {c.type === "image" ? (
+                      <div className="flex items-center gap-2">
+                        {r[c.key] ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={String(r[c.key])} alt="" className="h-10 w-10 shrink-0 rounded border border-gray-200 object-cover" />
+                        ) : (
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-dashed border-gray-300 text-gray-300">🎨</div>
+                        )}
+                        <label className="cursor-pointer text-xs font-medium text-blue-600 hover:text-blue-800">
+                          {uploading === `${rid(r)}:${c.key}` ? "Uploading…" : r[c.key] ? "Change" : "Upload"}
+                          <input type="file" accept="image/*" className="hidden" onChange={(e) => uploadImage(r, c.key, e.target.files?.[0])} />
+                        </label>
+                        {r[c.key] ? (
+                          <button onClick={() => setCell(r, c.key, null)} className="text-xs text-gray-400 hover:text-red-600">remove</button>
+                        ) : null}
+                      </div>
+                    ) : c.type === "select" ? (
                       <select className={inp} value={String(r[c.key] ?? "")} onChange={(e) => setCell(r, c.key, e.target.value)}>
                         <option value="" />
                         {(c.options ?? []).map((o) => <option key={o} value={o}>{o}</option>)}

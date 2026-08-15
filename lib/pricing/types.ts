@@ -23,6 +23,7 @@ export interface Product {
   coverage: number | null; // m² per litre (for area items)
   price_per_litre: number; // cents
   wastage_pct: number | null; // e.g. 10 means 10%
+  image_url?: string | null; // public URL of a product photo (paint tin / swatch)
 }
 
 /** One production (painting) line: what to paint, how much, how many coats. */
