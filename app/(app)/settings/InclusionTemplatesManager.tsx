@@ -4,9 +4,15 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { INCLUSION_TEMPLATES_KEY, type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 
-// Manage the "What's included" templates — named lists of bullet points that can
-// be applied to an estimate's inclusions from the builder. One bullet per line.
-export default function InclusionTemplatesManager({ initial }: { initial: InclusionTemplate[] }) {
+// Manage clause templates — named lists of bullet points that can be applied to
+// an estimate's inclusions or exclusions from the builder. One bullet per line.
+export default function InclusionTemplatesManager({
+  initial, settingsKey = INCLUSION_TEMPLATES_KEY, boxLabel = "What's included",
+}: {
+  initial: InclusionTemplate[];
+  settingsKey?: string;
+  boxLabel?: string;
+}) {
   const [rows, setRows] = useState<InclusionTemplate[]>(initial);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -28,7 +34,7 @@ export default function InclusionTemplatesManager({ initial }: { initial: Inclus
     const supabase = createClient();
     // Persist the whole list, trimming blank bullet lines.
     const clean = rows.map((r) => ({ ...r, name: r.name.trim() || "Untitled", items: r.items.map((i) => i.trim()).filter(Boolean) }));
-    const { error } = await supabase.from("settings").upsert({ key: INCLUSION_TEMPLATES_KEY, value: clean }, { onConflict: "key" });
+    const { error } = await supabase.from("settings").upsert({ key: settingsKey, value: clean }, { onConflict: "key" });
     setBusy(false);
     setMsg(error ? error.message : "Saved ✓");
     if (!error) setRows(clean);
@@ -37,7 +43,7 @@ export default function InclusionTemplatesManager({ initial }: { initial: Inclus
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-500">
-        Each template is a list of bullet points (one per line). Apply them to an estimate from the builder&apos;s <span className="font-medium">What&apos;s included</span> box.
+        Each template is a list of bullet points (one per line). Apply them to an estimate from the builder&apos;s <span className="font-medium">{boxLabel}</span> box.
       </p>
 
       {rows.map((t) => (

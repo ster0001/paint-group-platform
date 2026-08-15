@@ -7,7 +7,7 @@ import LineItemsManager, { type LineItemRow } from "./LineItemsManager";
 import PricingSettings, { type SettingRow } from "./PricingSettings";
 import TemplatesManager, { type TemplateMeta } from "./TemplatesManager";
 import InclusionTemplatesManager from "./InclusionTemplatesManager";
-import { DEFAULT_INCLUSION_TEMPLATES, INCLUSION_TEMPLATES_KEY, type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
+import { DEFAULT_INCLUSION_TEMPLATES, DEFAULT_EXCLUSION_TEMPLATES, INCLUSION_TEMPLATES_KEY, EXCLUSION_TEMPLATES_KEY, type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +43,7 @@ export default async function SettingsPage() {
   const rateItems = rateItemsRes.data ?? [];
 
   const allSettings = (settingsRes.data as SettingRow[] | null) ?? [];
-  const pricingRows = allSettings.filter((r) => r.key !== "company_profile" && r.key !== "estimate_templates" && r.key !== INCLUSION_TEMPLATES_KEY);
+  const pricingRows = allSettings.filter((r) => r.key !== "company_profile" && r.key !== "estimate_templates" && r.key !== INCLUSION_TEMPLATES_KEY && r.key !== EXCLUSION_TEMPLATES_KEY);
   const templatesRow = allSettings.find((r) => r.key === "estimate_templates");
   const templates: TemplateMeta[] = (Array.isArray(templatesRow?.value) ? (templatesRow!.value as TemplateMeta[]) : [])
     .map((t) => ({ id: t.id, name: t.name, createdAt: t.createdAt }));
@@ -52,6 +52,10 @@ export default async function SettingsPage() {
   const inclusionTemplates: InclusionTemplate[] = Array.isArray(inclusionRow?.value) && inclusionRow!.value.length
     ? (inclusionRow!.value as InclusionTemplate[])
     : DEFAULT_INCLUSION_TEMPLATES;
+  const exclusionRow = allSettings.find((r) => r.key === EXCLUSION_TEMPLATES_KEY);
+  const exclusionTemplates: InclusionTemplate[] = Array.isArray(exclusionRow?.value) && exclusionRow!.value.length
+    ? (exclusionRow!.value as InclusionTemplate[])
+    : DEFAULT_EXCLUSION_TEMPLATES;
 
   return (
     <div className="p-6">
@@ -67,7 +71,11 @@ export default async function SettingsPage() {
       </SettingsFolder>
 
       <SettingsFolder title="What's included templates" subtitle="Reusable inclusion lists applied from the estimate builder" count={inclusionTemplates.length}>
-        <InclusionTemplatesManager initial={inclusionTemplates} />
+        <InclusionTemplatesManager initial={inclusionTemplates} settingsKey={INCLUSION_TEMPLATES_KEY} boxLabel="What's included" />
+      </SettingsFolder>
+
+      <SettingsFolder title="What's excluded templates" subtitle="Reusable exclusion lists applied from the estimate builder" count={exclusionTemplates.length}>
+        <InclusionTemplatesManager initial={exclusionTemplates} settingsKey={EXCLUSION_TEMPLATES_KEY} boxLabel="Not included" />
       </SettingsFolder>
 
       <SettingsFolder title="Line items" subtitle="Add, edit or remove line-item templates and their descriptions" count={lineItems.length} defaultOpen>

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import QuoteBuilder from "./QuoteBuilder";
 import { DEFAULT_COMPANY, type CompanyProfile, type Contact } from "./company";
-import { DEFAULT_INCLUSION_TEMPLATES, INCLUSION_TEMPLATES_KEY, type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
+import { DEFAULT_INCLUSION_TEMPLATES, DEFAULT_EXCLUSION_TEMPLATES, INCLUSION_TEMPLATES_KEY, EXCLUSION_TEMPLATES_KEY, type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +69,10 @@ export default async function QuotePage({
   const inclusionTemplates: InclusionTemplate[] = Array.isArray(inclusionRow?.value) && (inclusionRow!.value as unknown[]).length
     ? (inclusionRow!.value as InclusionTemplate[])
     : DEFAULT_INCLUSION_TEMPLATES;
+  const exclusionRow = settingsRows.find((s) => s.key === EXCLUSION_TEMPLATES_KEY);
+  const exclusionTemplates: InclusionTemplate[] = Array.isArray(exclusionRow?.value) && (exclusionRow!.value as unknown[]).length
+    ? (exclusionRow!.value as InclusionTemplate[])
+    : DEFAULT_EXCLUSION_TEMPLATES;
 
   // Load an existing saved quote (?id=), or start a NEW estimate pre-filled from
   // a saved template (?template=). A template opens with no id, so saving it
@@ -98,6 +102,7 @@ export default async function QuotePage({
       company={company}
       contacts={contacts}
       inclusionTemplates={inclusionTemplates}
+      exclusionTemplates={exclusionTemplates}
     />
   );
 }

@@ -146,6 +146,7 @@ export default function QuoteBuilder({
   company,
   contacts,
   inclusionTemplates = [],
+  exclusionTemplates = [],
 }: {
   rateCardId: string | null;
   rateCardVersion: number | null;
@@ -159,6 +160,7 @@ export default function QuoteBuilder({
   company: CompanyProfile;
   contacts: Contact[];
   inclusionTemplates?: InclusionTemplate[];
+  exclusionTemplates?: InclusionTemplate[];
 }) {
   const normKey = (k: string) => k.replace(/[^a-z0-9]+/gi, " ").trim().toLowerCase();
   const settingsMap = useMemo(() => {
@@ -974,33 +976,33 @@ export default function QuoteBuilder({
                   "Not included" lists. */}
               {!customerView && (
                 <section className="rounded-xl border border-gray-200 bg-white p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h2 className="text-sm font-semibold">
-                      What&apos;s included <span className="font-normal text-gray-400">· one bullet per line — shown to the customer</span>
-                    </h2>
-                    {inclusionTemplates.length > 0 && (
-                      <select
-                        className="rounded-md border border-gray-300 px-2 py-1.5 text-xs"
-                        value=""
-                        onChange={(e) => {
-                          const t = inclusionTemplates.find((x) => x.id === e.target.value);
-                          if (!t) return;
-                          // Append the template's bullets, skipping any already present.
-                          setInclusions((cur) => {
-                            const have = new Set(cur.map((i) => i.trim()));
-                            const base = cur.length === 1 && cur[0].trim() === "" ? [] : cur;
-                            return [...base, ...t.items.filter((i) => !have.has(i.trim()))];
-                          });
-                        }}
-                      >
-                        <option value="">+ Add from template…</option>
-                        {inclusionTemplates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                      </select>
-                    )}
-                  </div>
-                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <label className="block text-xs">
-                      <span className="font-medium text-emerald-700">Included in your price</span>
+                  <h2 className="text-sm font-semibold">
+                    What&apos;s included / excluded <span className="font-normal text-gray-400">· one bullet per line — shown to the customer</span>
+                  </h2>
+                  <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {/* Included */}
+                    <div className="text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-emerald-700">Included in your price</span>
+                        {inclusionTemplates.length > 0 && (
+                          <select
+                            className="rounded-md border border-gray-300 px-1.5 py-1 text-[11px]"
+                            value=""
+                            onChange={(e) => {
+                              const t = inclusionTemplates.find((x) => x.id === e.target.value);
+                              if (!t) return;
+                              setInclusions((cur) => {
+                                const have = new Set(cur.map((i) => i.trim()));
+                                const base = cur.length === 1 && cur[0].trim() === "" ? [] : cur;
+                                return [...base, ...t.items.filter((i) => !have.has(i.trim()))];
+                              });
+                            }}
+                          >
+                            <option value="">+ Template…</option>
+                            {inclusionTemplates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                          </select>
+                        )}
+                      </div>
                       <textarea
                         rows={6}
                         className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
@@ -1008,9 +1010,30 @@ export default function QuoteBuilder({
                         value={inclusions.join("\n")}
                         onChange={(e) => setInclusions(e.target.value.split("\n"))}
                       />
-                    </label>
-                    <label className="block text-xs">
-                      <span className="font-medium text-gray-600">Not included</span>
+                    </div>
+                    {/* Excluded */}
+                    <div className="text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-gray-600">Not included</span>
+                        {exclusionTemplates.length > 0 && (
+                          <select
+                            className="rounded-md border border-gray-300 px-1.5 py-1 text-[11px]"
+                            value=""
+                            onChange={(e) => {
+                              const t = exclusionTemplates.find((x) => x.id === e.target.value);
+                              if (!t) return;
+                              setExclusions((cur) => {
+                                const have = new Set(cur.map((i) => i.trim()));
+                                const base = cur.length === 1 && cur[0].trim() === "" ? [] : cur;
+                                return [...base, ...t.items.filter((i) => !have.has(i.trim()))];
+                              });
+                            }}
+                          >
+                            <option value="">+ Template…</option>
+                            {exclusionTemplates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                          </select>
+                        )}
+                      </div>
                       <textarea
                         rows={6}
                         className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
@@ -1018,7 +1041,7 @@ export default function QuoteBuilder({
                         value={exclusions.join("\n")}
                         onChange={(e) => setExclusions(e.target.value.split("\n"))}
                       />
-                    </label>
+                    </div>
                   </div>
                 </section>
               )}
