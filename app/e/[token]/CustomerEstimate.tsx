@@ -207,6 +207,10 @@ export default function CustomerEstimate({
           </div>
           <p className="viewnote">Valid 60 days{validUntil ? `, until ${dateFmt(validUntil)}` : ""}.</p>
 
+          <div className="cta-row print-hide" style={{ marginTop: 14 }}>
+            <button className="btn btn-ghost" onClick={() => window.print()}>⤓ Download estimate (PDF)</button>
+          </div>
+
           {interactive && (
             <>
               <div className="portal print-hide">
@@ -454,7 +458,7 @@ export default function CustomerEstimate({
         )}
 
         <div style={{ marginTop: 28 }} className="print-hide">
-          <button className="btn btn-ghost" onClick={() => window.print()}>Print or save PDF</button>
+          <button className="btn btn-ghost" onClick={() => window.print()}>⤓ Download estimate (PDF)</button>
         </div>
 
         <footer className="doc">
