@@ -14,6 +14,17 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Brand palette — the estimate's locked tokens, exposed as utilities
+   (bg-ink, text-accent, bg-accent, …) for the app's dark chrome. */
+@theme {
+  --color-ink: #0a0b0d;
+  --color-graphite: #12161a;
+  --color-line2: #242b32;
+  --color-accent: #3bd8e9;
+  --color-accentink: #03272d;
+  --color-paint: #2fb9cb;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
@@ -24,7 +35,7 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Switzer", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
 }
 
 /* Rich-text content (line-item descriptions). Tailwind's preflight strips list

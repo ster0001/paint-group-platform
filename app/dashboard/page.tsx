@@ -33,17 +33,21 @@ export default async function DashboardPage() {
   const role = profile?.role ?? "unknown";
 
   return (
-    <main className="mx-auto max-w-2xl p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <form action={signout}>
-          <button className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium hover:bg-gray-50">
-            Sign out
-          </button>
-        </form>
+    <main>
+      {/* dark brand header */}
+      <div className="bg-ink text-white">
+        <div className="mx-auto flex max-w-2xl items-center justify-between px-6 py-5">
+          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <form action={signout}>
+            <button className="rounded-md border border-line2 px-3 py-1.5 text-sm font-medium text-gray-300 hover:bg-white/5">
+              Sign out
+            </button>
+          </form>
+        </div>
       </div>
 
-      <div className="mt-6 rounded-lg border border-gray-200 p-4">
+      <div className="mx-auto max-w-2xl p-6">
+      <div className="rounded-lg border border-gray-200 p-4">
         <div className="text-sm text-gray-500">Signed in as</div>
         <div className="text-lg font-medium">{profile?.name || user.email}</div>
         <div className="text-sm text-gray-500">{user.email}</div>
@@ -54,7 +58,7 @@ export default async function DashboardPage() {
           <div className="mt-4">
             <Link
               href="/quote"
-              className="inline-block rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
+              className="inline-block rounded-md bg-accent px-4 py-2 text-sm font-medium text-accentink hover:bg-paint"
             >
               Open quote builder →
             </Link>
@@ -102,6 +106,7 @@ export default async function DashboardPage() {
             No estimates visible to this account yet.
           </div>
         )}
+      </div>
       </div>
     </main>
   );

@@ -836,11 +836,11 @@ export default function QuoteBuilder({
 
   return (
     <main className="mx-auto max-w-6xl p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3 rounded-xl bg-ink px-5 py-4 text-white">
         <div>
-          <Link href="/estimates" className="text-sm font-medium text-gray-500 hover:text-gray-900">← Estimates</Link>
+          <Link href="/estimates" className="text-sm font-medium text-gray-400 hover:text-white">← Estimates</Link>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">{title || "New estimate"}</h1>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-400">
             Rate card v{rateCardVersion ?? "?"} · live pricing
             {quoteId ? " · saved draft" : ""}
           </p>
@@ -848,7 +848,7 @@ export default function QuoteBuilder({
         <div className="flex items-center gap-2">
           <button
             onClick={() => { setCustomerView((v) => !v); setView(null); }}
-            className={`rounded-md px-4 py-2 text-sm font-medium ${customerView ? "bg-blue-600 text-white hover:bg-blue-700" : "border border-gray-300 hover:bg-gray-50"}`}
+            className={`rounded-md px-4 py-2 text-sm font-medium ${customerView ? "bg-accent text-accentink hover:bg-paint" : "border border-line2 text-gray-200 hover:bg-white/5"}`}
           >
             {customerView ? "← Back to building" : "👁 Customer view"}
           </button>
@@ -856,7 +856,7 @@ export default function QuoteBuilder({
           {!customerView && !locked && (
             <>
               <input
-                className="w-40 rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="w-40 rounded-md border border-line2 bg-graphite px-3 py-2 text-sm text-white placeholder-gray-500"
                 placeholder="Quote name"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -864,7 +864,7 @@ export default function QuoteBuilder({
               <button
                 onClick={save}
                 disabled={saving}
-                className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50"
+                className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accentink hover:bg-paint disabled:opacity-50"
               >
                 {saving ? "Saving…" : quoteId ? "Save" : "Save draft"}
               </button>
@@ -878,12 +878,12 @@ export default function QuoteBuilder({
               </button>
               <button
                 onClick={() => { setTemplateName(title.trim()); setTemplateModal(true); }}
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50"
+                className="rounded-md border border-line2 px-3 py-2 text-sm font-medium text-gray-200 hover:bg-white/5"
                 title="Save this build as a reusable template"
               >
                 Save as template
               </button>
-              <a href="/estimates" className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50">
+              <a href="/estimates" className="rounded-md border border-line2 px-3 py-2 text-sm font-medium text-gray-200 hover:bg-white/5">
                 New
               </a>
             </>
