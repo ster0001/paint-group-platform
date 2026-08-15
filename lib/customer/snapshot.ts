@@ -52,6 +52,8 @@ export type CustomerSnapshot = {
   options: SnapshotLine[]; // optional add-ons the customer can toggle
   inclusions: string[];
   exclusions: string[];
+  terms: string; // terms & conditions (plain text), shown below the accept panel
+  discountPct: number; // discount applied to the ex-GST subtotal (e.g. 10)
   proof: {
     rating: string; // "5.0"
     reviews: string; // "85+"

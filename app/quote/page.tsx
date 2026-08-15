@@ -73,6 +73,8 @@ export default async function QuotePage({
   const exclusionTemplates: InclusionTemplate[] = Array.isArray(exclusionRow?.value) && (exclusionRow!.value as unknown[]).length
     ? (exclusionRow!.value as InclusionTemplate[])
     : DEFAULT_EXCLUSION_TEMPLATES;
+  const termsRow = settingsRows.find((s) => s.key === "terms_conditions");
+  const terms = typeof termsRow?.value === "string" ? termsRow.value : "";
 
   // Load an existing saved quote (?id=), or start a NEW estimate pre-filled from
   // a saved template (?template=). A template opens with no id, so saving it
@@ -103,6 +105,7 @@ export default async function QuotePage({
       contacts={contacts}
       inclusionTemplates={inclusionTemplates}
       exclusionTemplates={exclusionTemplates}
+      terms={terms}
     />
   );
 }

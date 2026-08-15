@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { CustomerSnapshot } from "@/lib/customer/snapshot";
 import "../customer.css";
@@ -48,7 +48,7 @@ export default function CustomerEstimate({
   );
   const [panel, setPanel] = useState<null | "accept" | "decline" | "ask">(null);
   const [name, setName] = useState(snap.contactName || "");
-  const [signed, setSigned] = useState(false);
+  const [signatureData, setSignatureData] = useState<string | null>(null);
   const [declineReason, setDeclineReason] = useState("");
   const [declinePick, setDeclinePick] = useState("");
   const [question, setQuestion] = useState("");
@@ -62,7 +62,10 @@ export default function CustomerEstimate({
     () => snap.options.filter((o) => selected.has(o.id)).reduce((n, o) => n + o.priceCents, 0),
     [snap.options, selected],
   );
-  const subtotal = snap.baseSubtotalCents + optionsSubtotal;
+  const discountPct = snap.discountPct ?? 0;
+  const grossSubtotal = snap.baseSubtotalCents + optionsSubtotal;
+  const discount = Math.round(grossSubtotal * discountPct / 100);
+  const subtotal = grossSubtotal - discount;
   const gst = Math.round(subtotal * gstRate);
   const total = subtotal + gst;
   const depositPct = snap.depositPct ?? 50;
@@ -91,14 +94,18 @@ export default function CustomerEstimate({
     setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   async function accept() {
-    if (!name.trim() || !signed) { setErr("Please enter your name and tick the confirmation."); return; }
+    if (!name.trim()) { setErr("Please enter your full name."); return; }
+    if (!signatureData) { setErr("Please sign in the box to confirm."); return; }
     setBusy(true); setErr("");
     const supabase = createClient();
     const { error } = await supabase.rpc("accept_estimate", {
       p_token: token, p_name: name.trim(), p_options: [...selected], p_total_cents: total, p_deposit_cents: deposit,
     });
+    if (error) { setBusy(false); setErr(error.message); return; }
+    // Save the drawn signature separately (best-effort — needs the signature
+    // migration; acceptance still succeeds if this RPC isn't present yet).
+    try { await supabase.rpc("save_estimate_signature", { p_token: token, p_signature: signatureData }); } catch { /* ignore */ }
     setBusy(false);
-    if (error) { setErr(error.message); return; }
     setDone("accepted"); setPanel(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -318,6 +325,9 @@ export default function CustomerEstimate({
             {snap.options.filter((o) => selected.has(o.id)).map((o) => (
               <div className="trow" key={o.id}><span className="l">{o.title}</span><span className="v">{money2(o.priceCents)}</span></div>
             ))}
+            {discount > 0 && (
+              <div className="trow"><span className="l">Discount ({discountPct}%)</span><span className="v">− {money2(discount)}</span></div>
+            )}
             <div className="trow"><span className="l">GST</span><span className="v">{money2(gst)}</span></div>
             <div className="trow total"><span className="l">Total incl. GST</span><span className="v">{money2(total)}</span></div>
           </div>
@@ -375,7 +385,11 @@ export default function CustomerEstimate({
                 <div className="panelbox">
                   <h3>Confirm acceptance — {money2(total)} incl. GST</h3>
                   <label className="field"><span>Full name</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your full name" /></label>
-                  <label className="check"><input type="checkbox" checked={signed} onChange={(e) => setSigned(e.target.checked)} /><span>I confirm I&apos;m authorised to accept this estimate, and this typed name is my signature.</span></label>
+                  <div className="field">
+                    <span>Sign below</span>
+                    <SignaturePad onChange={setSignatureData} />
+                  </div>
+                  <p className="signnote">By signing, I confirm I&apos;m authorised to accept this estimate and that this signature is legally binding.</p>
                   <button className="btn btn-primary" onClick={accept} disabled={busy}>{busy ? "Accepting…" : "Accept & continue"}</button>
                   {err && <p className="errline">{err}</p>}
                 </div>
@@ -417,6 +431,25 @@ export default function CustomerEstimate({
           </section>
         )}
 
+        {/* TERMS — shown below the accept section, with a second call to action */}
+        {snap.terms && snap.terms.trim() && (
+          <section className="terms">
+            <h2>Terms &amp; conditions</h2>
+            <div className="termsbody">{snap.terms}</div>
+            {!done && (
+              <div className="finebtns print-hide" style={{ marginTop: 20 }}>
+                {interactive ? (
+                  <button className="btn btn-primary" onClick={() => { setPanel("accept"); document.getElementById("accept")?.scrollIntoView({ behavior: "smooth" }); }}>
+                    Accept this estimate
+                  </button>
+                ) : (
+                  <span className="btn btn-primary" style={{ opacity: 0.6, cursor: "default" }}>Accept this estimate</span>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+
         <div style={{ marginTop: 28 }} className="print-hide">
           <button className="btn btn-ghost" onClick={() => window.print()}>Print or save PDF</button>
         </div>
@@ -440,4 +473,64 @@ export default function CustomerEstimate({
 
 function hasHtml(html: string | undefined) {
   return !!html && html.replace(/<[^>]*>/g, "").trim() !== "";
+}
+
+// A simple canvas signature pad. Emits a PNG data URL as the customer draws, or
+// null when cleared/empty. Works with mouse and touch via pointer events.
+function SignaturePad({ onChange }: { onChange: (dataUrl: string | null) => void }) {
+  const ref = useRef<HTMLCanvasElement | null>(null);
+  const drawing = useRef(false);
+  const dirty = useRef(false);
+
+  useEffect(() => {
+    const c = ref.current;
+    if (!c) return;
+    // Size the backing store to the element for crisp lines on all displays.
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    const rect = c.getBoundingClientRect();
+    c.width = Math.round(rect.width * dpr);
+    c.height = Math.round(rect.height * dpr);
+    const ctx = c.getContext("2d");
+    if (ctx) { ctx.scale(dpr, dpr); ctx.lineWidth = 2; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#0a0b0d"; }
+  }, []);
+
+  const pos = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  };
+  const start = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const ctx = e.currentTarget.getContext("2d");
+    if (!ctx) return;
+    drawing.current = true;
+    const p = pos(e);
+    ctx.beginPath(); ctx.moveTo(p.x, p.y);
+  };
+  const move = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!drawing.current) return;
+    const ctx = e.currentTarget.getContext("2d");
+    if (!ctx) return;
+    const p = pos(e);
+    ctx.lineTo(p.x, p.y); ctx.stroke();
+    dirty.current = true;
+  };
+  const end = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!drawing.current) return;
+    drawing.current = false;
+    if (dirty.current && ref.current) onChange(ref.current.toDataURL("image/png"));
+  };
+  const clear = () => {
+    const c = ref.current; if (!c) return;
+    const ctx = c.getContext("2d");
+    if (ctx) ctx.clearRect(0, 0, c.width, c.height);
+    dirty.current = false;
+    onChange(null);
+  };
+
+  return (
+    <div className="sigpad">
+      <canvas ref={ref} className="sigcanvas" onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerLeave={end} />
+      <button type="button" className="sigclear" onClick={clear}>Clear</button>
+    </div>
+  );
 }

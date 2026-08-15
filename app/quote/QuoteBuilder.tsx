@@ -106,6 +106,25 @@ let nextId = 1;
 // template (managed in Settings) or type their own bullets in the builder.
 const DEFAULT_INCLUSIONS: string[] = [];
 
+// Friendly labels + relative times for the Activity feed.
+function eventLabel(type: string): string {
+  switch (type) {
+    case "sent": return "Sent to customer";
+    case "viewed": return "Viewed by customer";
+    case "accepted": return "Accepted";
+    case "declined": return "Declined";
+    case "question": return "Customer message";
+    default: return type;
+  }
+}
+function relTime(iso: string): string {
+  const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+  if (s < 60) return "just now";
+  const m = Math.round(s / 60); if (m < 60) return `${m}m ago`;
+  const h = Math.round(m / 60); if (h < 24) return `${h}h ago`;
+  const d = Math.round(h / 24); return `${d}d ago`;
+}
+
 // Quantity for a surface, from the AREA's dimensions and Room/Surface geometry.
 // A surface can still override with a direct m²/lineal/count value.
 function computeQuantity(item: RateItem | undefined, area: Area, s: Surface): number {
@@ -147,6 +166,7 @@ export default function QuoteBuilder({
   contacts,
   inclusionTemplates = [],
   exclusionTemplates = [],
+  terms = "",
 }: {
   rateCardId: string | null;
   rateCardVersion: number | null;
@@ -161,6 +181,7 @@ export default function QuoteBuilder({
   contacts: Contact[];
   inclusionTemplates?: InclusionTemplate[];
   exclusionTemplates?: InclusionTemplate[];
+  terms?: string;
 }) {
   const normKey = (k: string) => k.replace(/[^a-z0-9]+/gi, " ").trim().toLowerCase();
   const settingsMap = useMemo(() => {
@@ -178,7 +199,9 @@ export default function QuoteBuilder({
   const sundriesExtCents = Math.round((sNum("Sundries per job — exterior") ?? 0) * 100);
   const contractorHourlyCents = Math.round((sNum("Contractor rate") ?? 60) * 100);
   const offerPct = sNum("Contractor offer — % of estimated hours") ?? 1;
-  const chargeFor = (t: string) => rateItems.find((r) => r.category === t)?.charge_out_cents ?? (t === "Interior" ? 8500 : 10000);
+  const chargeFor = (t: string) =>
+    hourlyRateOverride != null ? Math.round(hourlyRateOverride * 100)
+      : rateItems.find((r) => r.category === t)?.charge_out_cents ?? (t === "Interior" ? 8500 : 10000);
 
   const itemByKey = useMemo(() => {
     const m = new Map<string, RateItem>();
@@ -206,7 +229,7 @@ export default function QuoteBuilder({
     return g;
   }, [modifiers]);
 
-  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; depositPct?: number; inclusions?: string[]; exclusions?: string[] } | null;
+  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; hourlyRateOverride?: number | null } | null;
   const [blocks, setBlocks] = useState<Block[]>(() => {
     const b = loaded?.blocks;
     if (b && b.length) {
@@ -235,6 +258,10 @@ export default function QuoteBuilder({
   // What's included / not included — one bullet per line, shown to the customer.
   const [inclusions, setInclusions] = useState<string[]>(() => loaded?.inclusions ?? DEFAULT_INCLUSIONS);
   const [exclusions, setExclusions] = useState<string[]>(() => loaded?.exclusions ?? []);
+  // Calculations panel — a global $/hr override (blank = use the rate card) and a
+  // percentage discount applied to the ex-GST subtotal (shown on the estimate).
+  const [hourlyRateOverride, setHourlyRateOverride] = useState<number | null>(() => loaded?.hourlyRateOverride ?? null);
+  const [discountPct, setDiscountPct] = useState<number>(() => loaded?.discountPct ?? 0);
   const [title, setTitle] = useState(initial?.title ?? "");
   const [quoteId, setQuoteId] = useState<string | null>(initial?.id ?? null);
   // Customer-view / send state. The share_token is minted on first save so the
@@ -279,6 +306,11 @@ export default function QuoteBuilder({
   const [templateModal, setTemplateModal] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [materialsOpen, setMaterialsOpen] = useState(true);
+  // Right-column tools bar: Activity / Chat / Calculations / Follow-ups.
+  const [rightTab, setRightTab] = useState<null | "activity" | "chat" | "calc" | "followups">(null);
+  const [events, setEvents] = useState<{ type: string; payload: unknown; created_at: string }[]>([]);
+  const [questions, setQuestions] = useState<{ message: string; created_at: string }[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
 
   function newArea(preset?: { name: string; type: "Interior" | "Exterior" }): Area {
     const type = preset?.type ?? "Interior";
@@ -457,12 +489,15 @@ export default function QuoteBuilder({
     }
     const sundries = (anyInt ? sundriesIntCents : 0) + (anyExt ? sundriesExtCents : 0);
     subtotal += sundries;
-    const gst = Math.round(subtotal * gstRate);
+    // Discount comes off the ex-GST subtotal (and out of our margin).
+    const discountCents = Math.round(subtotal * (discountPct || 0) / 100);
+    const netSubtotal = subtotal - discountCents;
+    const gst = Math.round(netSubtotal * gstRate);
     const contractorOffer = Math.round(contractorHours * contractorHourlyCents * offerPct);
-    const margin = subtotal - contractorOffer - materialsCost;
-    return { subtotal, sundries, gst, total: subtotal + gst, contractorHours, contractorOffer, materialsCost, margin };
+    const margin = netSubtotal - contractorOffer - materialsCost;
+    return { subtotal, sundries, discountCents, netSubtotal, gst, total: netSubtotal + gst, contractorHours, contractorOffer, materialsCost, margin };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [blocks, modSel, materials]);
+  }, [blocks, modSel, materials, discountPct, hourlyRateOverride]);
 
   const marginPct = totals.subtotal > 0 ? (totals.margin / totals.subtotal) * 100 : 0;
   const salesRateCents = totals.contractorHours > 0 ? Math.round(totals.subtotal / totals.contractorHours) : 0;
@@ -484,7 +519,7 @@ export default function QuoteBuilder({
       size_band: modSel["Job Size"] || null,
       subtotal_cents: totals.subtotal,
       total_cents: totals.total,
-      builder_state: { blocks, modSel, contact, jobAddress, materials, depositPct, inclusions, exclusions },
+      builder_state: { blocks, modSel, contact, jobAddress, materials, depositPct, inclusions, exclusions, discountPct, hourlyRateOverride },
       share_token: token,
       sent_snapshot: buildCustomerDoc(token),
     };
@@ -526,6 +561,25 @@ export default function QuoteBuilder({
     setShareUrl(`${window.location.origin}/e/${token}`);
   }
 
+  // Load the activity feed + customer messages for the Activity / Chat tabs.
+  async function loadActivity() {
+    if (!quoteId) return;
+    setActivityLoading(true);
+    const supabase = createClient();
+    const [{ data: ev }, { data: q }] = await Promise.all([
+      supabase.from("estimate_events").select("type, payload, created_at").eq("estimate_id", quoteId).order("created_at", { ascending: false }).limit(50),
+      supabase.from("estimate_questions").select("message, created_at").eq("estimate_id", quoteId).order("created_at", { ascending: false }).limit(50),
+    ]);
+    setEvents((ev as typeof events) ?? []);
+    setQuestions((q as typeof questions) ?? []);
+    setActivityLoading(false);
+  }
+  const openRightTab = (tab: typeof rightTab) => {
+    const next = rightTab === tab ? null : tab;
+    setRightTab(next);
+    if (next === "activity" || next === "chat") loadActivity();
+  };
+
   // Save the current build as a reusable template (stored in settings, not as an
   // estimate) so a new estimate can be started from it later.
   async function saveTemplate(name: string) {
@@ -535,7 +589,7 @@ export default function QuoteBuilder({
     try {
       const { data } = await supabase.from("settings").select("value").eq("key", "estimate_templates").maybeSingle();
       const list = Array.isArray(data?.value) ? (data!.value as unknown[]) : [];
-      const tpl = { id: crypto.randomUUID(), name: name.trim(), createdAt: new Date().toISOString(), builder_state: { blocks, modSel, contact, jobAddress, materials, depositPct, inclusions, exclusions } };
+      const tpl = { id: crypto.randomUUID(), name: name.trim(), createdAt: new Date().toISOString(), builder_state: { blocks, modSel, contact, jobAddress, materials, depositPct, inclusions, exclusions, discountPct, hourlyRateOverride } };
       const { error } = await supabase.from("settings").upsert({ key: "estimate_templates", value: [...list, tpl] }, { onConflict: "key" });
       if (error) throw error;
       setSaveMsg("Template saved ✓");
@@ -627,6 +681,8 @@ export default function QuoteBuilder({
       areas, lineItems: lineItemsDoc, options,
       inclusions: inclusions.map((t) => t.trim()).filter(Boolean),
       exclusions: exclusions.map((t) => t.trim()).filter(Boolean),
+      terms,
+      discountPct: discountPct || 0,
       proof: DEFAULT_PROOF,
     };
   }
@@ -1097,6 +1153,105 @@ export default function QuoteBuilder({
                 </span>
               </div>
             </dl>
+          </div>
+
+          {/* Tools bar — Activity / Chat / Calculations / Follow-ups */}
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+            {[
+              { key: "activity", icon: "📈", label: "Activity" },
+              { key: "chat", icon: "💬", label: "Chat" },
+              { key: "calc", icon: "🧮", label: "Calculations" },
+              { key: "followups", icon: "🔔", label: "Follow-ups" },
+            ].map((row) => (
+              <div key={row.key} className="border-b border-gray-100 last:border-b-0">
+                <button
+                  onClick={() => openRightTab(row.key as typeof rightTab)}
+                  className="flex w-full items-center justify-between px-3 py-2.5 text-sm font-medium hover:bg-gray-50"
+                >
+                  <span className="flex items-center gap-2"><span aria-hidden>{row.icon}</span>{row.label}</span>
+                  <span className="text-gray-400">{rightTab === row.key ? "▾" : "▸"}</span>
+                </button>
+
+                {rightTab === row.key && (
+                  <div className="border-t border-gray-100 px-3 py-3 text-sm">
+                    {row.key === "activity" && (
+                      !quoteId ? <p className="text-xs text-gray-500">Save the estimate to start tracking activity.</p>
+                      : activityLoading ? <p className="text-xs text-gray-400">Loading…</p>
+                      : events.length === 0 ? <p className="text-xs text-gray-500">No activity yet.</p>
+                      : (
+                        <ul className="space-y-2">
+                          {events.map((e, i) => (
+                            <li key={i} className="flex items-start justify-between gap-2">
+                              <span className="capitalize text-gray-700">{eventLabel(e.type)}</span>
+                              <span className="shrink-0 text-[11px] tabular-nums text-gray-400">{relTime(e.created_at)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )
+                    )}
+
+                    {row.key === "chat" && (
+                      <div>
+                        {!quoteId ? <p className="text-xs text-gray-500">Save and send the estimate to message the customer.</p> : (
+                          <>
+                            {questions.length === 0
+                              ? <p className="text-xs text-gray-500">No messages from the customer yet.</p>
+                              : (
+                                <ul className="space-y-2">
+                                  {questions.map((q, i) => (
+                                    <li key={i} className="rounded-md bg-gray-50 px-2 py-1.5">
+                                      <div className="text-[13px] text-gray-800">{q.message}</div>
+                                      <div className="mt-0.5 text-[11px] text-gray-400">{relTime(q.created_at)}</div>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            <div className="mt-2 flex gap-1.5">
+                              <input disabled placeholder="Reply (two-way chat coming soon)" className="flex-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5 text-xs text-gray-400" />
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {row.key === "calc" && (
+                      <div className="space-y-3">
+                        <label className="block text-xs">
+                          <span className="text-gray-500">Hourly rate ($/hr) · blank uses the rate card</span>
+                          <input
+                            type="number" min={0} value={hourlyRateOverride ?? ""}
+                            placeholder={String((chargeFor("Interior") / 100).toFixed(0))}
+                            onChange={(e) => setHourlyRateOverride(e.target.value === "" ? null : Number(e.target.value))}
+                            className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                          />
+                        </label>
+                        <label className="block text-xs">
+                          <span className="text-gray-500">Discount (%) · shown on the estimate</span>
+                          <input
+                            type="number" min={0} max={100} value={discountPct || ""}
+                            onChange={(e) => setDiscountPct(e.target.value === "" ? 0 : Math.min(100, Math.max(0, Number(e.target.value))))}
+                            className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                          />
+                        </label>
+                        {discountPct > 0 && (
+                          <div className="flex justify-between rounded-md bg-emerald-50 px-2 py-1.5 text-xs text-emerald-700">
+                            <span>Discount ({discountPct}%)</span>
+                            <span className="font-semibold tabular-nums">−{fmt(totals.discountCents)}</span>
+                          </div>
+                        )}
+                        {hourlyRateOverride != null && (
+                          <button onClick={() => setHourlyRateOverride(null)} className="text-[11px] font-medium text-blue-600 hover:text-blue-800">↺ reset hourly rate to rate card</button>
+                        )}
+                      </div>
+                    )}
+
+                    {row.key === "followups" && (
+                      <p className="text-xs text-gray-500">Automated follow-ups are coming soon — reminders sent to the customer while an estimate is awaiting a decision. This is where you&apos;ll set them up.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </aside>
       </div>
