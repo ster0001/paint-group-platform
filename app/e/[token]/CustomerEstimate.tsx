@@ -208,6 +208,12 @@ export default function CustomerEstimate({
           )}
         </div>
 
+        {/* COLOUR CONSULTATION — reassurance callout */}
+        <div className="colourbox">
+          <div className="cb-title">Colour consultation included</div>
+          <p>Colours are confirmed after you accept. We provide unlimited samples, so you can try out for yourself in your own light.</p>
+        </div>
+
         {/* PHOTOS */}
         {snap.areas.some((a) => a.photos.length) && (
           <section>

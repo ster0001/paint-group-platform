@@ -101,6 +101,15 @@ const genShareToken = () =>
   Array.from(crypto.getRandomValues(new Uint8Array(28)), (n) => "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"[n % 62]).join("");
 let nextId = 1;
 
+// Sensible starter inclusions for a new estimate — fully editable per job.
+const DEFAULT_INCLUSIONS = [
+  "All surface preparation — filling, sanding and priming as needed",
+  "Premium paints and materials",
+  "Drop sheets and full protection of your furniture and floors",
+  "Daily clean-up and rubbish removal",
+  "Public liability insurance",
+];
+
 // Quantity for a surface, from the AREA's dimensions and Room/Surface geometry.
 // A surface can still override with a direct m²/lineal/count value.
 function computeQuantity(item: RateItem | undefined, area: Area, s: Surface): number {
@@ -197,7 +206,7 @@ export default function QuoteBuilder({
     return g;
   }, [modifiers]);
 
-  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; depositPct?: number } | null;
+  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; depositPct?: number; inclusions?: string[]; exclusions?: string[] } | null;
   const [blocks, setBlocks] = useState<Block[]>(() => {
     const b = loaded?.blocks;
     if (b && b.length) {
@@ -223,6 +232,9 @@ export default function QuoteBuilder({
   const [jobAddress, setJobAddress] = useState<JobAddress | null>(() => loaded?.jobAddress ?? null);
   // Deposit payable on acceptance, as a % of the GST-inclusive total. Defaults to 50%.
   const [depositPct, setDepositPct] = useState<number>(() => loaded?.depositPct ?? 50);
+  // What's included / not included — one bullet per line, shown to the customer.
+  const [inclusions, setInclusions] = useState<string[]>(() => loaded?.inclusions ?? DEFAULT_INCLUSIONS);
+  const [exclusions, setExclusions] = useState<string[]>(() => loaded?.exclusions ?? []);
   const [title, setTitle] = useState(initial?.title ?? "");
   const [quoteId, setQuoteId] = useState<string | null>(initial?.id ?? null);
   // Customer-view / send state. The share_token is minted on first save so the
@@ -472,7 +484,7 @@ export default function QuoteBuilder({
       size_band: modSel["Job Size"] || null,
       subtotal_cents: totals.subtotal,
       total_cents: totals.total,
-      builder_state: { blocks, modSel, contact, jobAddress, materials, depositPct },
+      builder_state: { blocks, modSel, contact, jobAddress, materials, depositPct, inclusions, exclusions },
       share_token: token,
       sent_snapshot: buildCustomerDoc(token),
     };
@@ -523,7 +535,7 @@ export default function QuoteBuilder({
     try {
       const { data } = await supabase.from("settings").select("value").eq("key", "estimate_templates").maybeSingle();
       const list = Array.isArray(data?.value) ? (data!.value as unknown[]) : [];
-      const tpl = { id: crypto.randomUUID(), name: name.trim(), createdAt: new Date().toISOString(), builder_state: { blocks, modSel, contact, jobAddress, materials, depositPct } };
+      const tpl = { id: crypto.randomUUID(), name: name.trim(), createdAt: new Date().toISOString(), builder_state: { blocks, modSel, contact, jobAddress, materials, depositPct, inclusions, exclusions } };
       const { error } = await supabase.from("settings").upsert({ key: "estimate_templates", value: [...list, tpl] }, { onConflict: "key" });
       if (error) throw error;
       setSaveMsg("Template saved ✓");
@@ -613,7 +625,8 @@ export default function QuoteBuilder({
       depositPct,
       baseSubtotalCents: totals.subtotal,
       areas, lineItems: lineItemsDoc, options,
-      inclusions: [], exclusions: [],
+      inclusions: inclusions.map((t) => t.trim()).filter(Boolean),
+      exclusions: exclusions.map((t) => t.trim()).filter(Boolean),
       proof: DEFAULT_PROOF,
     };
   }
@@ -956,6 +969,39 @@ export default function QuoteBuilder({
                     + Add line item
                   </button>
                 </div>
+              )}
+
+              {/* What's included / Not included — one bullet per line. These flow
+                  straight into the customer's "Included in your price" and
+                  "Not included" lists. */}
+              {!customerView && (
+                <section className="rounded-xl border border-gray-200 bg-white p-4">
+                  <h2 className="text-sm font-semibold">
+                    What&apos;s included <span className="font-normal text-gray-400">· one bullet per line — shown to the customer</span>
+                  </h2>
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <label className="block text-xs">
+                      <span className="font-medium text-emerald-700">Included in your price</span>
+                      <textarea
+                        rows={6}
+                        className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                        placeholder={"All surface preparation\nPremium paints and materials\nDaily clean-up"}
+                        value={inclusions.join("\n")}
+                        onChange={(e) => setInclusions(e.target.value.split("\n"))}
+                      />
+                    </label>
+                    <label className="block text-xs">
+                      <span className="font-medium text-gray-600">Not included</span>
+                      <textarea
+                        rows={6}
+                        className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                        placeholder={"Plaster repairs beyond minor filling\nFurniture removal"}
+                        value={exclusions.join("\n")}
+                        onChange={(e) => setExclusions(e.target.value.split("\n"))}
+                      />
+                    </label>
+                  </div>
+                </section>
               )}
             </>
           )}

@@ -141,6 +141,11 @@
 .cv .deposit .l span { font-size: 13px; color: var(--muted); }
 .cv .deposit .v { font-family: var(--mono); font-weight: 700; font-size: 18px; color: var(--amber); }
 
+/* colour consultation callout */
+.cv .colourbox { margin-top: 22px; padding: 18px 20px; border: 1px solid color-mix(in srgb, var(--amber) 40%, var(--line)); border-left: 3px solid var(--amber); border-radius: 10px; background: color-mix(in srgb, var(--amber) 8%, var(--panel)); }
+.cv .colourbox .cb-title { font-weight: 700; font-size: 15px; color: var(--amber); }
+.cv .colourbox p { margin: 6px 0 0; font-size: 14px; color: var(--text); line-height: 1.5; }
+
 /* process */
 .cv .steps { counter-reset: step; display: grid; gap: 0; }
 .cv .step { display: grid; grid-template-columns: 44px 1fr; gap: 16px; padding: 18px 0; border-bottom: 1px solid rgba(36, 43, 50, 0.5); }
