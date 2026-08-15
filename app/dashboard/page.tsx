@@ -32,12 +32,18 @@ export default async function DashboardPage() {
 
   const role = profile?.role ?? "unknown";
 
+  const { data: companyRow } = await supabase.from("settings").select("value").eq("key", "company_profile").maybeSingle();
+  const logoUrl = (companyRow?.value as { logoUrl?: string } | null)?.logoUrl ?? "";
+
   return (
     <main>
       {/* dark brand header */}
       <div className="bg-ink text-white">
         <div className="mx-auto flex max-w-2xl items-center justify-between px-6 py-5">
-          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          {logoUrl
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={logoUrl} alt="Paint Group" className="h-9 w-auto max-w-[200px] object-contain" />
+            : <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>}
           <form action={signout}>
             <button className="rounded-md border border-line2 px-3 py-1.5 text-sm font-medium text-gray-300 hover:bg-white/5">
               Sign out

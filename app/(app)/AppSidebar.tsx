@@ -11,12 +11,15 @@ const NAV = [
   { href: "/settings", label: "Settings", icon: "⚙️" },
 ];
 
-export default function AppSidebar({ name, email }: { name: string; email: string }) {
+export default function AppSidebar({ name, email, logoUrl = "" }: { name: string; email: string; logoUrl?: string }) {
   const path = usePathname();
   return (
     <aside className="flex w-56 shrink-0 flex-col border-r border-line2 bg-ink p-3 text-gray-300">
-      <div className="px-2 py-3 text-lg font-semibold tracking-tight text-white">
-        Paint<span className="text-paint">·</span>Group
+      <div className="px-2 py-3">
+        {logoUrl
+          // eslint-disable-next-line @next/next/no-img-element
+          ? <img src={logoUrl} alt="Paint Group" className="h-8 w-auto max-w-full object-contain object-left" />
+          : <span className="text-lg font-semibold tracking-tight text-white">Paint<span className="text-paint">·</span>Group</span>}
       </div>
       <nav className="mt-2 flex-1 space-y-1">
         {NAV.map((n) => {

@@ -20,9 +20,12 @@ export default async function QuoteLayout({ children }: { children: React.ReactN
     .single();
   if (profile?.role !== "staff") redirect("/dashboard");
 
+  const { data: companyRow } = await supabase.from("settings").select("value").eq("key", "company_profile").maybeSingle();
+  const logoUrl = (companyRow?.value as { logoUrl?: string } | null)?.logoUrl ?? "";
+
   return (
     <div className="flex min-h-screen">
-      <AppSidebar name={profile?.name || user.email || ""} email={user.email || ""} />
+      <AppSidebar name={profile?.name || user.email || ""} email={user.email || ""} logoUrl={logoUrl} />
       <div className="min-w-0 flex-1 bg-gray-50">{children}</div>
     </div>
   );
