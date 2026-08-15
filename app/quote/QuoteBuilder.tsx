@@ -197,7 +197,7 @@ export default function QuoteBuilder({
     return g;
   }, [modifiers]);
 
-  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string> } | null;
+  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; depositPct?: number } | null;
   const [blocks, setBlocks] = useState<Block[]>(() => {
     const b = loaded?.blocks;
     if (b && b.length) {
@@ -221,6 +221,8 @@ export default function QuoteBuilder({
     s.productName ?? materials[materialKey(type, s.code)] ?? itemByKey.get(materialKey(type, s.code))?.default_product ?? null;
   const [contact, setContact] = useState<Contact | null>(() => loaded?.contact ?? null);
   const [jobAddress, setJobAddress] = useState<JobAddress | null>(() => loaded?.jobAddress ?? null);
+  // Deposit payable on acceptance, as a % of the GST-inclusive total. Defaults to 50%.
+  const [depositPct, setDepositPct] = useState<number>(() => loaded?.depositPct ?? 50);
   const [title, setTitle] = useState(initial?.title ?? "");
   const [quoteId, setQuoteId] = useState<string | null>(initial?.id ?? null);
   // Customer-view / send state. The share_token is minted on first save so the
@@ -470,7 +472,7 @@ export default function QuoteBuilder({
       size_band: modSel["Job Size"] || null,
       subtotal_cents: totals.subtotal,
       total_cents: totals.total,
-      builder_state: { blocks, modSel, contact, jobAddress, materials },
+      builder_state: { blocks, modSel, contact, jobAddress, materials, depositPct },
       share_token: token,
       sent_snapshot: buildCustomerDoc(token),
     };
@@ -521,7 +523,7 @@ export default function QuoteBuilder({
     try {
       const { data } = await supabase.from("settings").select("value").eq("key", "estimate_templates").maybeSingle();
       const list = Array.isArray(data?.value) ? (data!.value as unknown[]) : [];
-      const tpl = { id: crypto.randomUUID(), name: name.trim(), createdAt: new Date().toISOString(), builder_state: { blocks, modSel, contact, jobAddress, materials } };
+      const tpl = { id: crypto.randomUUID(), name: name.trim(), createdAt: new Date().toISOString(), builder_state: { blocks, modSel, contact, jobAddress, materials, depositPct } };
       const { error } = await supabase.from("settings").upsert({ key: "estimate_templates", value: [...list, tpl] }, { onConflict: "key" });
       if (error) throw error;
       setSaveMsg("Template saved ✓");
@@ -608,6 +610,7 @@ export default function QuoteBuilder({
       jobAddress: jobAddress ? [jobAddress.address, jobAddress.city, jobAddress.state, jobAddress.postal].filter(Boolean).join(", ") : "",
       jobTitle: title || "Painting estimate",
       gstRatePct: Math.round(gstRate * 100),
+      depositPct,
       baseSubtotalCents: totals.subtotal,
       areas, lineItems: lineItemsDoc, options,
       inclusions: [], exclusions: [],
@@ -972,6 +975,18 @@ export default function QuoteBuilder({
               <Row label={`GST (${Math.round(gstRate * 100)}%)`} value={fmt(totals.gst)} muted />
               <div className="flex justify-between border-t border-gray-200 pt-2 text-base font-semibold">
                 <span>Total</span><span>{fmt(totals.total)}</span>
+              </div>
+              <div className="!mt-2 flex items-center justify-between gap-2 border-t border-gray-100 pt-2">
+                <span className="flex items-center gap-1 text-gray-500">
+                  Deposit
+                  <input
+                    type="number" min={0} max={100} value={depositPct}
+                    onChange={(e) => setDepositPct(e.target.value === "" ? 0 : Math.min(100, Math.max(0, Number(e.target.value))))}
+                    className="w-14 rounded-md border border-gray-300 px-1.5 py-1 text-right text-sm tabular-nums"
+                  />
+                  %
+                </span>
+                <span className="font-semibold tabular-nums">{fmt(Math.round(totals.total * depositPct / 100))}</span>
               </div>
               <div className="!mt-3 grid grid-cols-2 gap-2 text-center">
                 <Stat label="Total hours" value={totals.contractorHours.toFixed(2)} />

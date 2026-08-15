@@ -65,7 +65,8 @@ export default function CustomerEstimate({
   const subtotal = snap.baseSubtotalCents + optionsSubtotal;
   const gst = Math.round(subtotal * gstRate);
   const total = subtotal + gst;
-  const deposit = Math.round(total * 0.1);
+  const depositPct = snap.depositPct ?? 50;
+  const deposit = Math.round(total * depositPct / 100);
 
   // view + dwell tracking (real customer page only, never the builder preview)
   useEffect(() => {
@@ -150,7 +151,10 @@ export default function CustomerEstimate({
   return (
     <>
       <header className="topbar">
-        <div className="wordmark">PAINT<span>—</span>GROUP</div>
+        {snap.company.logoUrl
+          // eslint-disable-next-line @next/next/no-img-element
+          ? <img className="brandlogo" src={snap.company.logoUrl} alt={snap.company.name} />
+          : <div className="wordmark">PAINT<span>—</span>GROUP</div>}
         <div className="topmeta">
           <span className="validity">{est} · valid until {dateFmt(validUntil)}</span>
           {statusChip}
@@ -181,8 +185,8 @@ export default function CustomerEstimate({
 
           <div className="pricecard">
             <div>
-              <div className="pricelabel">Your investment · incl. GST</div>
-              <div className="price">{money0(total)} <small>fixed price</small></div>
+              <div className="pricelabel">Your painting quote · incl. GST</div>
+              <div className="price">{money0(total)}</div>
             </div>
             {!done && (
               <div className="cta-row print-hide">
@@ -191,7 +195,7 @@ export default function CustomerEstimate({
               </div>
             )}
           </div>
-          <p className="viewnote">Fixed price — no hourly surprises. Valid 60 days.{validUntil ? ` Until ${dateFmt(validUntil)}.` : ""}</p>
+          <p className="viewnote">Valid 60 days{validUntil ? `, until ${dateFmt(validUntil)}` : ""}.</p>
 
           {interactive && (
             <>
@@ -238,9 +242,6 @@ export default function CustomerEstimate({
                       {s.product && <div className="s-spec">{s.product}</div>}
                     </div>
                   ))}
-                  {hasHtml(a.descriptionHtml) && (
-                    <div className="prep"><b>Details</b><span dangerouslySetInnerHTML={{ __html: a.descriptionHtml }} /></div>
-                  )}
                 </div>
               </details>
             ))}
@@ -304,8 +305,8 @@ export default function CustomerEstimate({
 
         {/* INVESTMENT */}
         <section>
-          <h2>Your investment</h2>
-          <p className="sub">One fixed price. Pay by card, or bank transfer — whatever suits.</p>
+          <h2>Your painting quote</h2>
+          <p className="sub">One price. Pay by card, or bank transfer — whatever suits.</p>
           <div className="table">
             <div className="trow"><span className="l">Painting works as scoped</span><span className="v">{money2(snap.baseSubtotalCents)}</span></div>
             {snap.options.filter((o) => selected.has(o.id)).map((o) => (
@@ -315,7 +316,7 @@ export default function CustomerEstimate({
             <div className="trow total"><span className="l">Total incl. GST</span><span className="v">{money2(total)}</span></div>
           </div>
           <div className="deposit">
-            <div className="l"><b>Deposit to secure your dates</b><span>10% on acceptance · balance on completion, after your walkthrough</span></div>
+            <div className="l"><b>Deposit payable ({depositPct}%)</b><span>Payable in full prior to work commencement · balance on completion, after your walkthrough</span></div>
             <div className="v">{money2(deposit)}</div>
           </div>
         </section>
@@ -324,11 +325,11 @@ export default function CustomerEstimate({
         <section>
           <h2>What happens when you accept</h2>
           <div className="steps">
-            <div className="step"><span className="stepnum" /><div><b>Deposit &amp; booking</b><p>A secure payment link arrives by email. Your dates lock in the moment it&apos;s paid.</p></div></div>
-            <div className="step"><span className="stepnum" /><div><b>Meet your painting team</b><p>You&apos;ll get your lead painter&apos;s name and a confirmed start date within 2 business days.</p></div></div>
-            <div className="step"><span className="stepnum" /><div><b>Colour consultation</b><p>Unlimited samples at your home. Nothing starts until you love the colours.</p></div></div>
-            <div className="step"><span className="stepnum" /><div><b>Live progress in your portal</b><p>Photo updates as each room completes — right here, on this page.</p></div></div>
-            <div className="step"><span className="stepnum" /><div><b>Walkthrough &amp; warranty</b><p>We walk every room with you before final payment. {snap.proof.warranty} workmanship warranty in writing.</p></div></div>
+            <div className="step"><span className="stepnum" /><div><b>Booking</b><p>We&apos;ll contact you to lock in your start dates.</p></div></div>
+            <div className="step"><span className="stepnum" /><div><b>Confirmation</b><p>We&apos;ll send you your lead painter&apos;s name, start date and time, and a handy checklist to help you prepare.</p></div></div>
+            <div className="step"><span className="stepnum" /><div><b>Colour consultation</b><p>We provide free, unlimited colour samples. Nothing starts until you&apos;re happy with your colour choices.</p></div></div>
+            <div className="step"><span className="stepnum" /><div><b>Live progress in your portal</b><p>Log in to see updates and track your job&apos;s progress.</p></div></div>
+            <div className="step"><span className="stepnum" /><div><b>Final walkthrough</b><p>We walk through every room with you to confirm you&apos;re 100% satisfied before final payment.</p></div></div>
           </div>
         </section>
 
@@ -338,8 +339,7 @@ export default function CustomerEstimate({
           <div className="trust">
             <div className="tcard"><div className="tval gold">{snap.proof.rating} ★</div><div className="tlab">from {snap.proof.reviews} Google reviews</div></div>
             <div className="tcard"><div className="tval cyan">{snap.proof.liability}</div><div className="tlab">public liability insurance</div></div>
-            <div className="tcard"><div className="tval cyan">{snap.proof.warranty}</div><div className="tlab">workmanship warranty, in writing</div></div>
-            <div className="tcard"><div className="tval gold">{snap.proof.accreditations[0] ?? "Accredited"}</div><div className="tlab">{snap.proof.accreditations.slice(1).join(" · ") || "Trade accredited"}</div></div>
+            <div className="tcard"><div className="tval gold">Master Painters</div><div className="tlab">accredited member</div></div>
           </div>
         </section>
 
@@ -348,7 +348,6 @@ export default function CustomerEstimate({
           <section id="accept">
             <div className="acceptpanel cutin">
               <h2>Ready when you are</h2>
-              <p className="sub">This is the preview — your customer accepts, asks a question or declines from here.</p>
               <div className="finebtns">
                 <span className="btn btn-primary" style={{ opacity: 0.6, cursor: "default" }}>Accept this estimate</span>
                 <span className="btn btn-ghost" style={{ opacity: 0.6, cursor: "default" }}>Ask a question</span>
@@ -418,7 +417,7 @@ export default function CustomerEstimate({
 
         <footer className="doc">
           {snap.company.name} · Melbourne · ABN {snap.company.abn} · {est} valid for 60 days from {dateFmt(sentAt)}.
-          Fixed price subject to the scope above; any variation is quoted and approved by you in writing before work proceeds.
+          This quote covers the scope above; any variation is quoted and approved by you in writing before work proceeds.
           Fully insured — {snap.proof.liability} public liability. Member, Master Painters Association.
         </footer>
       </main>

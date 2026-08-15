@@ -7,8 +7,31 @@ import type { CompanyProfile } from "@/app/quote/company";
 export default function SettingsForm({ initial }: { initial: CompanyProfile }) {
   const [c, setC] = useState<CompanyProfile>(initial);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [msg, setMsg] = useState("");
   const set = (k: keyof CompanyProfile, v: string) => setC((x) => ({ ...x, [k]: v }));
+
+  // Upload a logo to the shared public estimate-media bucket and store its URL.
+  // Remember to click Save to keep it — like every other field here.
+  async function uploadLogo(file?: File | null) {
+    if (!file) return;
+    setUploading(true);
+    setMsg("");
+    const supabase = createClient();
+    try {
+      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const path = `logos/${Date.now()}-${safe}`;
+      const { error } = await supabase.storage.from("estimate-media").upload(path, file, { upsert: true });
+      if (error) throw error;
+      const { data } = supabase.storage.from("estimate-media").getPublicUrl(path);
+      set("logoUrl", data.publicUrl);
+      setMsg("Logo uploaded — click Save to keep it.");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function save() {
     setSaving(true);
@@ -37,7 +60,29 @@ export default function SettingsForm({ initial }: { initial: CompanyProfile }) {
         {field("addressLine1", "Address line 1")}
         {field("addressLine2", "Address line 2")}
         {field("phone", "Phone")}
-        {field("logoUrl", "Logo URL")}
+      </div>
+
+      {/* Logo — shown top-left on every estimate. Upload or replace here. */}
+      <div className="mt-3">
+        <span className="text-xs text-gray-500">Logo</span>
+        <div className="mt-1 flex items-center gap-3 rounded-md border border-gray-200 p-3">
+          <div className="flex h-14 w-40 shrink-0 items-center justify-center overflow-hidden rounded bg-gray-900">
+            {c.logoUrl
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={c.logoUrl} alt="Logo" className="max-h-12 max-w-full object-contain" />
+              : <span className="text-[10px] tracking-widest text-gray-400">NO LOGO</span>}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="inline-flex w-fit cursor-pointer items-center rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium hover:bg-gray-50">
+              {uploading ? "Uploading…" : c.logoUrl ? "Replace logo" : "Upload logo"}
+              <input type="file" accept="image/*" className="hidden" onChange={(e) => uploadLogo(e.target.files?.[0])} />
+            </label>
+            {c.logoUrl && (
+              <button onClick={() => set("logoUrl", "")} className="w-fit text-xs text-gray-400 hover:text-red-600">Remove</button>
+            )}
+            <span className="text-[11px] text-gray-400">PNG with transparent background works best. Shown on a dark header.</span>
+          </div>
+        </div>
       </div>
 
       <h3 className="mt-5 text-sm font-semibold">Estimator</h3>

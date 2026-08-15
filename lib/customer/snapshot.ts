@@ -45,6 +45,7 @@ export type CustomerSnapshot = {
   jobAddress: string;
   jobTitle: string;
   gstRatePct: number; // e.g. 10
+  depositPct: number; // deposit % payable on acceptance (e.g. 50)
   baseSubtotalCents: number; // included items + sundries, ex-GST (excludes options)
   areas: SnapshotArea[];
   lineItems: SnapshotLine[];
@@ -65,5 +66,5 @@ export const DEFAULT_PROOF: CustomerSnapshot["proof"] = {
   reviews: "85+",
   liability: "$20M",
   warranty: "2-year",
-  accreditations: ["Dulux Accredited", "Master Painters"],
+  accreditations: ["Master Painters Accredited"],
 };
