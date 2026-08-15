@@ -20,7 +20,13 @@ export default async function SettingsPage() {
     supabase.from("line_items").select("id, name, type, pricing_method, description").order("type").order("name"),
     supabase.from("area_names").select("id, area, type").order("type").order("area"),
     supabase.from("rate_cards").select("id, version").eq("is_active", true).maybeSingle(),
-    supabase.from("products").select("id, name, type, coverage, price_per_litre, wastage_pct, image_url").order("name"),
+    // Tolerate the image_url column not existing yet (product-photo migration not
+    // run) — fall back to the core columns so the products list never disappears.
+    (async () => {
+      const full = await supabase.from("products").select("id, name, type, coverage, price_per_litre, wastage_pct, image_url").order("name");
+      if (!full.error) return full;
+      return supabase.from("products").select("id, name, type, coverage, price_per_litre, wastage_pct").order("name");
+    })(),
     supabase.from("modifiers").select("id, group_name, code, label, multiplier, active").order("group_name"),
     supabase.from("settings").select("key, value").order("key"),
   ]);
