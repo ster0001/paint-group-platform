@@ -23,7 +23,20 @@ export interface Product {
   coverage: number | null; // m² per litre (for area items)
   price_per_litre: number; // cents
   wastage_pct: number | null; // e.g. 10 means 10%
-  image_url?: string | null; // public URL of a product photo (paint tin / swatch)
+  image_url?: string | null; // legacy photo column (superseded by photo_url)
+  // Customer-facing / catalogue detail (see migration 20260817000000)
+  brand?: string | null;
+  finish?: string | null;
+  category?: string | null;
+  internal_alias?: string | null;
+  blurb?: string | null;
+  properties?: string[] | null;
+  guarantee?: string | null;
+  product_url?: string | null;
+  coverage_m2_per_l?: string | null;
+  recoat?: string | null;
+  customer_visible?: boolean | null;
+  photo_url?: string | null;
 }
 
 /** One production (painting) line: what to paint, how much, how many coats. */

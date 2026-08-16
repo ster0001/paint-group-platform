@@ -151,6 +151,27 @@
 .cv .terms { margin-top: 32px; }
 .cv .termsbody { white-space: pre-line; font-size: 13px; line-height: 1.65; color: var(--muted); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; max-height: 420px; overflow-y: auto; background: var(--panel); }
 
+/* the paint we're supplying */
+.cv .paints { display: grid; gap: 14px; margin-top: 6px; }
+.cv .paintcard { display: grid; grid-template-columns: 118px 1fr; gap: 22px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; transition: transform .2s, border-color .2s; }
+.cv .paintcard:hover { transform: translateY(-2px); border-color: rgba(255,255,255,.14); }
+@media (max-width: 560px) { .cv .paintcard { grid-template-columns: 92px 1fr; gap: 16px; padding: 16px; } }
+.cv .tinwrap { position: relative; display: flex; align-items: center; justify-content: center; aspect-ratio: 1; border-radius: 12px; overflow: hidden; background: radial-gradient(80% 80% at 50% 32%, rgba(255,255,255,.07), transparent 70%), var(--panel-2); }
+.cv .tinwrap svg { width: 72%; height: auto; filter: drop-shadow(0 10px 16px rgba(0,0,0,.45)); }
+.cv .tinphoto { width: 100%; height: 100%; object-fit: cover; }
+.cv .pc-brand { font-family: var(--mono); font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+.cv .pc-name { font-family: var(--sans); font-weight: 600; font-size: 17px; letter-spacing: -.01em; color: var(--text); }
+.cv .pc-name small { font-weight: 400; color: var(--muted); font-size: 13px; margin-left: 8px; }
+.cv .pc-uses { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 8px; }
+.cv .pc-uses span { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--paint); border: 1px solid rgba(47,185,203,.35); border-radius: 100px; padding: 4px 10px; }
+.cv .pc-why { font-size: 13.5px; color: var(--muted); line-height: 1.55; max-width: 52ch; }
+.cv .pc-props { margin-top: 8px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; color: var(--muted); line-height: 1.5; }
+.cv .pc-props b { color: var(--amber); font-weight: 500; }
+.cv .pc-guarantee { margin-top: 6px; font-size: 12px; color: var(--amber); }
+.cv .prepsubhead { margin: 22px 0 4px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.cv .paintfine { margin-top: 12px; font-size: 11px; color: var(--muted); }
+.cv .paintnote { margin-top: 16px; font-size: 12.5px; color: var(--muted); }
+
 /* colour consultation callout */
 .cv .colourbox { margin-top: 22px; padding: 18px 20px; border: 1px solid color-mix(in srgb, var(--amber) 40%, var(--line)); border-left: 3px solid var(--amber); border-radius: 10px; background: color-mix(in srgb, var(--amber) 8%, var(--panel)); }
 .cv .colourbox .cb-title { font-weight: 700; font-size: 15px; color: var(--amber); }
@@ -243,4 +264,12 @@
   .cv footer.doc { color: #444 !important; }
   .cv .prep { background: #f4f4f4 !important; color: #222 !important; }
   .cv .prep b { color: #111 !important; }
+  /* paint cards: white, plain-text chips, small greyscale-safe photos */
+  .cv .paintcard { background: #fff !important; border-color: #ccc !important; }
+  .cv .tinwrap { background: #f2f2f2 !important; }
+  .cv .tinphoto { filter: grayscale(1); }
+  .cv .pc-name, .cv .pc-name small { color: #111 !important; }
+  .cv .pc-uses span { color: #333 !important; border-color: #999 !important; }
+  .cv .pc-why, .cv .pc-props, .cv .pc-brand, .cv .paintnote, .cv .paintfine, .cv .prepsubhead { color: #444 !important; }
+  .cv .pc-props b, .cv .pc-guarantee { color: #6b5a26 !important; }
 }
