@@ -105,7 +105,7 @@ let nextId = 1;
 // New estimates start with no inclusions — staff apply a "What's included"
 // template (managed in Settings) or type their own bullets in the builder.
 const DEFAULT_INCLUSIONS: string[] = [];
-const SHEEN_LEVELS = ["Flat", "Matt", "Satin", "Low Sheen", "Semi Gloss", "Gloss", "High Gloss"];
+const SHEEN_LEVELS = ["Flat", "Matt", "Egg Shell", "Satin", "Low Sheen", "Semi Gloss", "Gloss", "High Gloss"];
 
 // Friendly labels + relative times for the Activity feed.
 function eventLabel(type: string): string {

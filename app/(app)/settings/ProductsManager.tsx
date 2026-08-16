@@ -31,7 +31,7 @@ const CATEGORY_ORDER = [
   "Interior walls", "Ceilings", "Trim & doors", "Exterior walls",
   "Decking", "Texture & membrane", "Prep & primers", "Clear & floors",
 ];
-const SHEEN_LEVELS = ["Flat", "Matt", "Satin", "Low Sheen", "Semi Gloss", "Gloss", "High Gloss"];
+const SHEEN_LEVELS = ["Flat", "Matt", "Egg Shell", "Satin", "Low Sheen", "Semi Gloss", "Gloss", "High Gloss"];
 // Default sheen by product type, applied by "Auto-set by type" (manual edits win).
 function autoSheen(name: string, category: string | null | undefined): string | null {
   const n = (name || "").toLowerCase();
