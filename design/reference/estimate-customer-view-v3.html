@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Estimate EST-2317 · Paint Group</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0B0D0F;          /* dark ground */
+  --panel:#12161A;
+  --panel-2:#171C21;
+  --line:#242B32;
+  --text:#E8ECEF;
+  --muted:#8A949D;
+  --cyan:#35D6E8;         /* Paint Group cyan */
+  --cyan-dim:rgba(53,214,232,.12);
+  --gold:#C9A24B;         /* heritage gold */
+  --serif:"Instrument Serif", Georgia, serif;
+  --sans:"Switzer", -apple-system, "Segoe UI", sans-serif;
+  --mono:"Martian Mono", ui-monospace, monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--ink);color:var(--text);font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+
+/* ---------- top bar ---------- */
+.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:14px 24px;background:rgba(11,13,15,.88);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.wordmark{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:.22em;color:var(--text)}
+.wordmark span{color:var(--cyan)}
+.topmeta{display:flex;align-items:center;gap:16px;font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.04em}
+.status{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border:1px solid var(--gold);border-radius:100px;color:var(--gold);font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase}
+.status::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--gold);animation:pulse 2.2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.validity{display:none}
+@media(min-width:720px){.validity{display:block}}
+
+/* ---------- cut-in signature ---------- */
+/* the painter's cut-in: one crisp edge separating masked dark from finished colour */
+.cutin{position:relative;padding-left:28px}
+.cutin::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:2px;background:var(--cyan);box-shadow:0 0 18px rgba(53,214,232,.55)}
+.cutin::after{content:"";position:absolute;left:2px;top:6px;bottom:6px;width:10px;background:linear-gradient(90deg,var(--cyan-dim),transparent)}
+
+.wrap{max-width:880px;margin:0 auto;padding:0 24px 140px}
+
+/* ---------- hero ---------- */
+.hero{padding:72px 0 48px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:18px}
+.eyebrow b{color:var(--cyan);font-weight:500}
+h1{font-family:var(--sans);font-weight:600;font-size:clamp(32px,5vw,50px);line-height:1.12;letter-spacing:-.03em;margin-bottom:10px}
+h1 em{font-style:normal;color:var(--cyan)}
+.address{color:var(--muted);font-size:17px;margin-bottom:36px}
+.pricecard{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:24px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:28px 30px}
+.pricelabel{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.price{font-family:var(--mono);font-size:clamp(30px,5vw,42px);font-weight:700;letter-spacing:-.02em}
+.price small{font-size:14px;font-weight:400;color:var(--muted);letter-spacing:0}
+.cta-row{display:flex;gap:12px;flex-wrap:wrap}
+.btn{font-family:var(--sans);font-weight:600;font-size:15px;padding:14px 26px;border-radius:10px;border:1px solid transparent;cursor:pointer;transition:transform .15s ease, box-shadow .15s ease}
+.btn:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+.btn-primary{background:var(--cyan);color:#04252B}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 30px rgba(53,214,232,.35)}
+.btn-ghost{background:transparent;color:var(--text);border-color:var(--line)}
+.btn-ghost:hover{border-color:var(--muted)}
+.viewnote{margin-top:14px;font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.05em}
+
+/* ---------- sections ---------- */
+section{padding:44px 0;border-top:1px solid var(--line)}
+h2{font-family:var(--sans);font-weight:600;font-size:24px;letter-spacing:-.02em;margin-bottom:6px}
+.sub{color:var(--muted);font-size:15px;margin-bottom:28px;max-width:56ch}
+
+/* photos */
+.photos{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:6px}
+.ph{aspect-ratio:4/3;border-radius:10px;border:1px solid var(--line);display:flex;align-items:flex-end;padding:12px;font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:rgba(232,236,239,.75);text-transform:uppercase}
+.ph1{background:linear-gradient(160deg,#1B2A31,#0E1418)}
+.ph2{background:linear-gradient(160deg,#2A2318,#14100A)}
+.ph3{background:linear-gradient(160deg,#182430,#0B1116)}
+@media(max-width:640px){.photos{grid-template-columns:1fr 1fr}.ph3{display:none}}
+
+/* rooms */
+.room{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:14px;overflow:hidden}
+.room summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 22px;cursor:pointer}
+.room summary::-webkit-details-marker{display:none}
+.room-name{font-family:var(--sans);font-weight:600;font-size:17.5px;letter-spacing:-.01em}
+.room-meta{display:flex;align-items:center;gap:18px}
+.room-price{font-family:var(--mono);font-size:14px;font-weight:500}
+.chev{color:var(--muted);transition:transform .2s}
+details[open] .chev{transform:rotate(180deg)}
+.room-body{padding:0 22px 22px;border-top:1px solid var(--line)}
+.surface{display:grid;grid-template-columns:1fr auto;gap:6px 18px;padding:14px 0;border-bottom:1px solid rgba(36,43,50,.6)}
+.surface:last-child{border-bottom:none}
+.s-name{font-weight:600;font-size:15px}
+.s-spec{grid-column:1;color:var(--muted);font-size:14px}
+.s-coats{font-family:var(--mono);font-size:11px;color:var(--cyan);letter-spacing:.08em;align-self:start;text-align:right;white-space:nowrap}
+.prep{margin-top:14px;padding:14px 16px;background:var(--cyan-dim);border-radius:8px;font-size:14px;color:#BFEFF6}
+.prep b{font-family:var(--mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;display:block;margin-bottom:4px;color:var(--cyan)}
+
+
+/* paints supplied */
+.paints{display:grid;gap:14px;margin-top:6px}
+.paintcard{display:grid;grid-template-columns:118px 1fr;gap:22px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 22px;transition:transform .2s,border-color .2s}
+.paintcard:hover{transform:translateY(-2px);border-color:rgba(255,255,255,.14)}
+@media(max-width:560px){.paintcard{grid-template-columns:92px 1fr;gap:16px;padding:16px}}
+.tinwrap{position:relative;display:flex;align-items:center;justify-content:center;aspect-ratio:1;border-radius:12px;background:radial-gradient(80% 80% at 50% 32%,rgba(255,255,255,.07),transparent 70%),var(--panel-2)}
+.tinwrap svg{width:72%;height:auto;filter:drop-shadow(0 10px 16px rgba(0,0,0,.45))}
+.pc-brand{font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.pc-name{font-family:var(--sans);font-weight:600;font-size:17px;letter-spacing:-.01em}
+.pc-name small{font-weight:400;color:var(--muted);font-size:13px;margin-left:8px}
+.pc-uses{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 8px}
+.pc-uses span{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--cyan);border:1px solid rgba(53,214,232,.35);border-radius:100px;padding:4px 10px}
+.pc-why{font-size:13.5px;color:var(--muted);line-height:1.55;max-width:52ch}
+.pc-props{margin-top:8px;font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--muted)}
+.pc-props b{color:var(--gold);font-weight:500}
+.paintnote{margin-top:16px;font-size:12.5px;color:var(--muted)}
+
+/* inclusions */
+.twocol{display:grid;grid-template-columns:1fr 1fr;gap:28px}
+@media(max-width:640px){.twocol{grid-template-columns:1fr}}
+.listhead{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:14px}
+.inc .listhead{color:var(--cyan)}
+.exc .listhead{color:var(--muted)}
+.checklist{list-style:none}
+.checklist li{padding:9px 0 9px 26px;position:relative;font-size:15px;border-bottom:1px solid rgba(36,43,50,.5)}
+.inc li::before{content:"—";position:absolute;left:0;color:var(--cyan)}
+.exc li{color:var(--muted)}
+.exc li::before{content:"×";position:absolute;left:0;color:var(--muted)}
+
+/* colour */
+.colour{display:flex;align-items:center;gap:20px;background:var(--panel);border:1px solid var(--gold);border-radius:12px;padding:22px 24px;flex-wrap:wrap}
+.swatches{display:flex}
+.sw{width:38px;height:38px;border-radius:50%;border:2px solid var(--ink);margin-left:-10px}
+.sw:first-child{margin-left:0}
+.colour p{flex:1;min-width:220px;font-size:14px;color:var(--muted)}
+.colour p b{color:var(--gold);display:block;font-family:var(--mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;margin-bottom:4px}
+
+/* investment */
+.table{font-family:var(--mono);font-size:13px}
+.trow{display:flex;justify-content:space-between;gap:20px;padding:13px 0;border-bottom:1px solid var(--line)}
+.trow .l{color:var(--muted);font-family:var(--sans);font-size:15px}
+.trow.total{border-bottom:none;padding-top:18px}
+.trow.total .l{color:var(--text);font-weight:600;font-size:17px}
+.trow.total .v{font-size:22px;font-weight:700;color:var(--cyan)}
+.deposit{margin-top:18px;padding:18px 20px;background:var(--panel);border:1px solid var(--line);border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.deposit .l b{display:block;font-size:15px}
+.deposit .l span{font-size:13px;color:var(--muted)}
+.deposit .v{font-family:var(--mono);font-weight:700;font-size:18px;color:var(--gold)}
+
+/* process */
+.steps{counter-reset:step;display:grid;gap:0}
+.step{display:grid;grid-template-columns:44px 1fr;gap:16px;padding:18px 0;border-bottom:1px solid rgba(36,43,50,.5)}
+.step:last-child{border-bottom:none}
+.stepnum{counter-increment:step;font-family:var(--mono);font-size:12px;color:var(--cyan);border:1px solid var(--line);border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center}
+.stepnum::before{content:counter(step,decimal-leading-zero)}
+.step b{display:block;font-size:15px;margin-bottom:2px}
+.step p{font-size:14px;color:var(--muted)}
+
+/* trust */
+.trust{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+@media(max-width:720px){.trust{grid-template-columns:1fr 1fr}}
+.tcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px}
+.tval{font-family:var(--mono);font-weight:700;font-size:20px;margin-bottom:4px}
+.tval.gold{color:var(--gold)}
+.tval.cyan{color:var(--cyan)}
+.tlab{font-size:12.5px;color:var(--muted);line-height:1.45}
+blockquote{margin-top:24px;padding:24px 26px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+blockquote p{font-family:var(--sans);font-size:17px;line-height:1.6;color:#C4CCD2}
+blockquote footer{margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.06em}
+blockquote footer span{color:var(--gold)}
+
+/* accept */
+.acceptpanel{background:linear-gradient(180deg,var(--panel-2),var(--panel));border:1px solid var(--line);border-radius:16px;padding:40px 34px;text-align:center}
+.acceptpanel h2{margin-bottom:8px}
+.acceptpanel .sub{margin:0 auto 26px}
+.finebtns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.tinylinks{margin-top:20px;font-size:13px;color:var(--muted)}
+.tinylinks a{color:var(--muted)}
+.confirm{display:none;margin-top:22px;padding:18px;border:1px solid var(--cyan);border-radius:10px;background:var(--cyan-dim);font-size:14px;color:#BFEFF6}
+.confirm.show{display:block}
+
+/* sticky bar */
+.stickybar{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 20px;background:rgba(11,13,15,.92);backdrop-filter:blur(14px);border-top:1px solid var(--line)}
+.stickybar .p{font-family:var(--mono);font-weight:700;font-size:17px}
+.stickybar .p small{display:block;font-size:9px;font-weight:400;color:var(--muted);letter-spacing:.14em;text-transform:uppercase}
+
+footer.doc{padding:40px 0 60px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted);line-height:1.7}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wordmark">PAINT<span>—</span>GROUP</div>
+  <div class="topmeta">
+    <span class="validity">EST-2317 · valid until 14 Oct 2026</span>
+    <span class="status">Awaiting your approval</span>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- HERO -->
+  <div class="hero cutin">
+    <p class="eyebrow">Estimate <b>EST-2317</b> · Prepared 15 Aug 2026 · Prepared by Steven, Paint Group</p>
+    <h1>Interior repaint of your <em>Victorian terrace</em></h1>
+    <p class="address">24 Mount Street, Armadale VIC 3143 · For Sarah &amp; James Whitfield</p>
+
+    <div class="pricecard">
+      <div>
+        <div class="pricelabel">Your investment · incl. GST</div>
+        <div class="price">$11,480 <small>fixed price</small></div>
+      </div>
+      <div class="cta-row">
+        <button class="btn btn-primary" onclick="document.getElementById('accept').scrollIntoView()">Accept estimate</button>
+        <button class="btn btn-ghost">Ask a question</button>
+      </div>
+    </div>
+    <p class="viewnote">Fixed price — no hourly surprises. Valid 60 days.</p>
+  </div>
+
+  <!-- PHOTOS -->
+  <section>
+    <h2>Your home, as we saw it</h2>
+    <p class="sub">Photos from your enquiry and our site notes. Your estimate is scoped to these exact rooms and surfaces.</p>
+    <div class="photos">
+      <div class="ph ph1">Entry hall &amp; arch</div>
+      <div class="ph ph2">Living room ceiling rose</div>
+      <div class="ph ph3">Hallway cornice detail</div>
+    </div>
+  </section>
+
+  <!-- SCOPE -->
+  <section>
+    <h2>Scope of works, room by room</h2>
+    <p class="sub">Every surface, product and coat count — nothing hidden in fine print. Tap a room to see the detail.</p>
+
+    <details class="room" open>
+      <summary>
+        <span class="room-name">Entry hall &amp; hallway</span>
+        <span class="room-meta"><span class="room-price">$2,340</span><span class="chev">▾</span></span>
+      </summary>
+      <div class="room-body">
+        <div class="surface">
+          <div class="s-name">Walls</div>
+          <div class="s-coats">2 COATS</div>
+          <div class="s-spec">Haymes Expressions Low Sheen · colour to be confirmed</div>
+        </div>
+        <div class="surface">
+          <div class="s-name">Ceiling &amp; cornice</div>
+          <div class="s-coats">2 COATS</div>
+          <div class="s-spec">Haymes Expressions Ceiling White</div>
+        </div>
+        <div class="surface">
+          <div class="s-name">Skirting, architraves &amp; 4 door frames</div>
+          <div class="s-coats">2 COATS</div>
+          <div class="s-spec">Haymes Trim Plus Semi Gloss</div>
+        </div>
+        <div class="prep"><b>Preparation included</b>Fill and sand hairline cracking above the arch, spot-prime water stain near the entry, gap all trim junctions.</div>
+      </div>
+    </details>
+
+    <details class="room">
+      <summary>
+        <span class="room-name">Living room</span>
+        <span class="room-meta"><span class="room-price">$2,890</span><span class="chev">▾</span></span>
+      </summary>
+      <div class="room-body">
+        <div class="surface">
+          <div class="s-name">Walls</div>
+          <div class="s-coats">2 COATS</div>
+          <div class="s-spec">Haymes Expressions Low Sheen</div>
+        </div>
+        <div class="surface">
+          <div class="s-name">Ceiling, rose &amp; cornice</div>
+          <div class="s-coats">2 COATS</div>
+          <div class="s-spec">Haymes Expressions Ceiling White · rose cut in by brush</div>
+        </div>
+        <div class="surface">
+          <div class="s-name">Trim, window frames &amp; double doors</div>
+          <div class="s-coats">2 COATS</div>
+          <div class="s-spec">Haymes Trim Plus Semi Gloss</div>
+        </div>
+        <div class="prep"><b>Preparation included</b>Repair plaster cracking to the chimney breast, sand and undercoat previously glossed sills.</div>
+      </div>
+    </details>
+
+    <details class="room">
+      <summary>
+        <span class="room-name">Dining &amp; kitchen</span>
+        <span class="room-meta"><span class="room-price">$2,610</span><span class="chev">▾</span></span>
+      </summary>
+      <div class="room-body">
+        <div class="surface">
+          <div class="s-name">Walls</div>
+          <div class="s-coats">2 COATS</div>
+          <div class="s-spec">Haymes Expressions Low Sheen · washable finish for kitchen zone</div>
+        </div>
+        <div class="surface">
+          <div class="s-name">Ceilings</div>
+          <div class="s-coats">2 COATS</div>
+          <div class="s-spec">Haymes Expressions Ceiling White</div>
+        </div>
+        <div class="surface">
+          <div class="s-name">Trim &amp; 3 doors both sides</div>
+          <div class="s-coats">2 COATS</div>
+          <div class="s-spec">Haymes Trim Plus Semi Gloss</div>
+        </div>
+      </div>
+    </details>
+
+    <details class="room">
+      <summary>
+        <span class="room-name">Master bedroom &amp; bedroom 2</span>
+        <span class="room-meta"><span class="room-price">$2,480</span><span class="chev">▾</span></span>
+      </summary>
+      <div class="room-body">
+        <div class="surface">
+          <div class="s-name">Walls</div>
+          <div class="s-coats">2 COATS</div>
+          <div class="s-spec">Haymes Expressions Low Sheen</div>
+        </div>
+        <div class="surface">
+          <div class="s-name">Ceilings &amp; cornices</div>
+          <div class="s-coats">2 COATS</div>
+          <div class="s-spec">Haymes Expressions Ceiling White</div>
+        </div>
+        <div class="surface">
+          <div class="s-name">Trim, robes &amp; sash windows</div>
+          <div class="s-coats">2 COATS</div>
+          <div class="s-spec">Haymes Trim Plus Semi Gloss · sashes eased and left operable</div>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <!-- PAINTS SUPPLIED -->
+  <section>
+    <h2>The paint we're supplying</h2>
+    <p class="sub">Every product on this job, matched to your surfaces — all paint and materials are included in your price.</p>
+    <div class="paints">
+
+      <div class="paintcard">
+        <div class="tinwrap"><svg viewBox="0 0 120 130" fill="none" aria-hidden="true">
+          <ellipse cx="60" cy="16" rx="42" ry="9" fill="#8F969D"/>
+          <ellipse cx="60" cy="14" rx="42" ry="9" fill="#C8CDD2"/>
+          <ellipse cx="60" cy="14" rx="30" ry="6" fill="#D8D4C8"/>
+          <path d="M18 16 L20 112 C20 122 100 122 100 112 L102 16 C102 25 18 25 18 16 Z" fill="#B7BDC3"/>
+          <path d="M18 16 L20 112 C20 117 40 120 60 120 L60 23 C42 23 24 20 18 16 Z" fill="rgba(255,255,255,.28)"/>
+          <rect x="24" y="42" width="72" height="52" rx="4" fill="#F2F0EA"/>
+          <rect x="24" y="42" width="72" height="14" rx="4" fill="#C8412F"/>
+          <rect x="30" y="64" width="60" height="5" rx="2.5" fill="#22262A"/>
+          <rect x="30" y="74" width="42" height="4" rx="2" fill="#9AA0A6"/>
+          <rect x="30" y="83" width="30" height="4" rx="2" fill="#C8412F" opacity=".85"/>
+        </svg></div>
+        <div>
+          <p class="pc-brand">Haymes · Interior</p>
+          <p class="pc-name">Expressions Low Sheen <small>Walls</small></p>
+          <div class="pc-uses"><span>Walls · 4 areas</span></div>
+          <p class="pc-why">A premium washable acrylic with a soft, contemporary low-sheen finish — forgiving on older plaster and easy to keep clean. Australian made.</p>
+          <p class="pc-props">Washable · Low odour · <b>Colour confirmed at your consult</b></p>
+        </div>
+      </div>
+
+      <div class="paintcard">
+        <div class="tinwrap"><svg viewBox="0 0 120 130" fill="none" aria-hidden="true">
+          <ellipse cx="60" cy="16" rx="42" ry="9" fill="#8F969D"/>
+          <ellipse cx="60" cy="14" rx="42" ry="9" fill="#C8CDD2"/>
+          <ellipse cx="60" cy="14" rx="30" ry="6" fill="#F5F3EC"/>
+          <path d="M18 16 L20 112 C20 122 100 122 100 112 L102 16 C102 25 18 25 18 16 Z" fill="#B7BDC3"/>
+          <path d="M18 16 L20 112 C20 117 40 120 60 120 L60 23 C42 23 24 20 18 16 Z" fill="rgba(255,255,255,.28)"/>
+          <rect x="24" y="42" width="72" height="52" rx="4" fill="#F2F0EA"/>
+          <rect x="24" y="42" width="72" height="14" rx="4" fill="#3A4750"/>
+          <rect x="30" y="64" width="60" height="5" rx="2.5" fill="#22262A"/>
+          <rect x="30" y="74" width="42" height="4" rx="2" fill="#9AA0A6"/>
+          <rect x="30" y="83" width="30" height="4" rx="2" fill="#3A4750" opacity=".85"/>
+        </svg></div>
+        <div>
+          <p class="pc-brand">Haymes · Interior</p>
+          <p class="pc-name">Expressions Ceiling White <small>Ceilings</small></p>
+          <div class="pc-uses"><span>Ceilings &amp; cornices · all areas</span></div>
+          <p class="pc-why">High-opacity flat white engineered to kill glare and hide surface imperfections — the right choice under your ceiling roses and cornice detail.</p>
+          <p class="pc-props">Ultra-flat · High opacity · Spatter resistant</p>
+        </div>
+      </div>
+
+      <div class="paintcard">
+        <div class="tinwrap"><svg viewBox="0 0 120 130" fill="none" aria-hidden="true">
+          <ellipse cx="60" cy="16" rx="42" ry="9" fill="#8F969D"/>
+          <ellipse cx="60" cy="14" rx="42" ry="9" fill="#C8CDD2"/>
+          <ellipse cx="60" cy="14" rx="30" ry="6" fill="#E9E4D8"/>
+          <path d="M18 16 L20 112 C20 122 100 122 100 112 L102 16 C102 25 18 25 18 16 Z" fill="#B7BDC3"/>
+          <path d="M18 16 L20 112 C20 117 40 120 60 120 L60 23 C42 23 24 20 18 16 Z" fill="rgba(255,255,255,.28)"/>
+          <rect x="24" y="42" width="72" height="52" rx="4" fill="#F2F0EA"/>
+          <rect x="24" y="42" width="72" height="14" rx="4" fill="#C8A24B"/>
+          <rect x="30" y="64" width="60" height="5" rx="2.5" fill="#22262A"/>
+          <rect x="30" y="74" width="42" height="4" rx="2" fill="#9AA0A6"/>
+          <rect x="30" y="83" width="30" height="4" rx="2" fill="#C8A24B" opacity=".85"/>
+        </svg></div>
+        <div>
+          <p class="pc-brand">Haymes · Trim</p>
+          <p class="pc-name">Trim Plus Semi Gloss <small>Trim &amp; doors</small></p>
+          <div class="pc-uses"><span>Skirting · Architraves</span><span>Doors &amp; windows</span></div>
+          <p class="pc-why">A hard-wearing, enamel-style finish for the surfaces that get touched — stays white over time and wipes clean without burnishing.</p>
+          <p class="pc-props">Hard-wearing · Non-yellowing · Wipeable</p>
+        </div>
+      </div>
+
+    </div>
+    <p class="paintnote">Prefer a different brand or finish? Ask us — we can reprice the same scope with Dulux, Wattyl or another premium range before you accept.</p>
+  </section>
+
+  <!-- INCLUSIONS -->
+  <section>
+    <h2>What's included</h2>
+    <p class="sub">And, just as importantly, what isn't — so there are no surprises on either side.</p>
+    <div class="twocol">
+      <div class="inc">
+        <div class="listhead">Included in your price</div>
+        <ul class="checklist">
+          <li>All paint, materials and sundries</li>
+          <li>Full furniture and floor protection throughout</li>
+          <li>All preparation listed per room</li>
+          <li>Daily tidy and full clean on completion</li>
+          <li>Unlimited colour samples before we start</li>
+          <li>2-year workmanship warranty</li>
+        </ul>
+      </div>
+      <div class="exc">
+        <div class="listhead">Not included</div>
+        <ul class="checklist">
+          <li>Structural plaster repairs beyond listed prep</li>
+          <li>Moving of large furniture (piano, wall units)</li>
+          <li>Painting inside cupboards and robes</li>
+          <li>Electrical fitting removal or reinstallation</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- COLOUR -->
+  <section>
+    <div class="colour">
+      <div class="swatches">
+        <div class="sw" style="background:#E9E4D8"></div>
+        <div class="sw" style="background:#CDC5B4"></div>
+        <div class="sw" style="background:#5B6660"></div>
+        <div class="sw" style="background:#F5F3EC"></div>
+      </div>
+      <p><b>Colour consultation included</b>Colours are confirmed after you accept — we bring unlimited brush-out samples to your home so you can see them in your own light before a drop of paint goes on the wall.</p>
+    </div>
+  </section>
+
+  <!-- INVESTMENT -->
+  <section>
+    <h2>Your investment</h2>
+    <p class="sub">One fixed price. Pay by card, or bank transfer — whatever suits.</p>
+    <div class="table">
+      <div class="trow"><span class="l">Painting works — 4 areas as scoped</span><span class="v">$9,890.91</span></div>
+      <div class="trow"><span class="l">Premium washable finish, kitchen zone</span><span class="v">$545.45</span></div>
+      <div class="trow"><span class="l">GST</span><span class="v">$1,043.64</span></div>
+      <div class="trow total"><span class="l">Total incl. GST</span><span class="v">$11,480.00</span></div>
+    </div>
+    <div class="deposit">
+      <div class="l"><b>Deposit to secure your dates</b><span>10% on acceptance · balance on completion, after your walkthrough</span></div>
+      <div class="v">$1,148.00</div>
+    </div>
+  </section>
+
+  <!-- PROCESS -->
+  <section>
+    <h2>What happens when you accept</h2>
+    <div class="steps">
+      <div class="step"><span class="stepnum"></span><div><b>Deposit &amp; booking</b><p>A secure payment link arrives by email. Your dates lock in the moment it's paid.</p></div></div>
+      <div class="step"><span class="stepnum"></span><div><b>Meet your painting team</b><p>You'll get your lead painter's name and photo, and a confirmed start date, within 2 business days.</p></div></div>
+      <div class="step"><span class="stepnum"></span><div><b>Colour consultation</b><p>Unlimited samples at your home. Nothing starts until you love the colours.</p></div></div>
+      <div class="step"><span class="stepnum"></span><div><b>Live progress in your portal</b><p>Photo updates as each room completes — right here, on this page's dashboard.</p></div></div>
+      <div class="step"><span class="stepnum"></span><div><b>Walkthrough &amp; warranty</b><p>We walk every room with you before final payment. 2-year workmanship warranty in writing.</p></div></div>
+    </div>
+  </section>
+
+  <!-- TRUST -->
+  <section>
+    <h2>Why Melburnians choose us</h2>
+    <div class="trust">
+      <div class="tcard"><div class="tval gold">5.0 ★</div><div class="tlab">from 85+ Google reviews</div></div>
+      <div class="tcard"><div class="tval cyan">$20M</div><div class="tlab">public liability insurance</div></div>
+      <div class="tcard"><div class="tval cyan">2 yrs</div><div class="tlab">workmanship warranty, in writing</div></div>
+      <div class="tcard"><div class="tval gold">10+ yrs</div><div class="tlab">Master Painters &amp; Haymes accredited</div></div>
+    </div>
+    <blockquote>
+      <p>"The quote told us exactly what would happen in every room — and that's exactly what happened. Our 1890s hallway has never looked better."</p>
+      <footer><span>★★★★★</span> &nbsp;M. TREMBATH · MALVERN EAST · HERITAGE INTERIOR</footer>
+    </blockquote>
+  </section>
+
+  <!-- ACCEPT -->
+  <section id="accept">
+    <div class="acceptpanel cutin">
+      <h2>Ready when you are</h2>
+      <p class="sub">Accepting takes under a minute. No payment is taken until you receive your deposit invoice.</p>
+      <div class="finebtns">
+        <button class="btn btn-primary" onclick="document.getElementById('conf').classList.add('show')">Accept this estimate</button>
+        <button class="btn btn-ghost">Ask a question first</button>
+      </div>
+      <div class="confirm" id="conf">✓ In the live platform this opens name + signature confirmation, then instantly creates your deposit invoice and booking.</div>
+      <p class="tinylinks">Not the right time? <a href="#">Ask us to hold your price</a> · <a href="#">Politely decline</a></p>
+    </div>
+  </section>
+
+  <footer class="doc">
+    Paint Group Pty Ltd · Melbourne · ABN 00 000 000 000 · Estimate EST-2317 valid for 60 days from 15 Aug 2026.
+    Fixed price subject to the scope above; any variation is quoted and approved by you in writing before work proceeds.
+    Fully insured — $20M public liability. Member, Master Painters Association.
+  </footer>
+
+</main>
+
+<div class="stickybar">
+  <div class="p"><small>Total incl. GST</small>$11,480</div>
+  <button class="btn btn-primary" onclick="document.getElementById('accept').scrollIntoView()">Accept estimate</button>
+</div>
+
+</body>
+</html>
