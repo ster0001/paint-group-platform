@@ -18,6 +18,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .select("role, name")
     .eq("id", user.id)
     .single();
+  if (profile?.role === "contractor") redirect("/portal");
   if (profile?.role !== "staff") redirect("/dashboard");
 
   const { data: companyRow } = await supabase.from("settings").select("value").eq("key", "company_profile").maybeSingle();

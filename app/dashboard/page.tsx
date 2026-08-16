@@ -23,6 +23,10 @@ export default async function DashboardPage() {
     .eq("id", user.id)
     .single();
 
+  // Contractors have their own app — this page is for customers (and staff who
+  // navigate here directly).
+  if (profile?.role === "contractor") redirect("/portal");
+
   // Read estimates. This list is filtered BY THE DATABASE according to role:
   // staff see all; a customer sees only their own; a contractor sees none here.
   const { data: estimates } = await supabase
