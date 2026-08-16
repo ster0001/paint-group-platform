@@ -18,6 +18,10 @@ export const metadata: Metadata = {
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const { name, contractor } = await requireContractor();
 
+  // A suspended contractor keeps their login but loses the portal. Showing a
+  // plain explanation beats a broken-looking app or a silent redirect loop.
+  const suspended = Boolean(contractor && !contractor.active);
+
   const supabase = await createClient();
   const { data: companyRow } = await supabase
     .from("settings")
@@ -44,9 +48,25 @@ export default async function PortalLayout({ children }: { children: React.React
           </Link>
         </header>
 
-        {children}
+        {suspended ? (
+          <div className="wrap">
+            <div className="card amberish" style={{ marginTop: 24 }}>
+              <span className="chip amb">Access paused</span>
+              <div style={{ marginTop: 10, fontWeight: 600, fontSize: "14.5px" }}>
+                Your portal access is on hold
+              </div>
+              <div style={{ marginTop: 6, fontSize: "12.5px", color: "var(--muted)" }}>
+                Paint Group have paused your account, so jobs and offers aren&rsquo;t
+                available at the moment. Give the office a call and they can switch it
+                back on.
+              </div>
+            </div>
+          </div>
+        ) : (
+          children
+        )}
 
-        <PortalTabs />
+        {!suspended && <PortalTabs />}
       </div>
     </div>
   );

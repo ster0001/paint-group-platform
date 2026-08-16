@@ -411,6 +411,10 @@ export default function ScheduleBoard({
     setBusy(true);
     setErr("");
     try {
+      const lane = lanes.find((l) => l.contractorId === pendingDrop.contractorId);
+      if (lane && !lane.active) {
+        throw new Error(`${lane.name}'s access is suspended — restore it on the Contractors page before offering work.`);
+      }
       const end = addDays(pendingDrop.startDate, pendingDrop.spanDays - 1);
       // Assign first so the work order and the offer agree on who has it.
       await supabase.from("work_orders").update({ contractor_id: pendingDrop.contractorId }).eq("id", pendingDrop.job.workOrderId);
@@ -807,7 +811,11 @@ export default function ScheduleBoard({
                       <div className="nmrow">
                         <div className="nm">{l.name}</div>
                         <div className="bd">
-                          <span className={l.offerable ? "q" : "no"}>{l.offerable ? "READY" : "NOT READY"}</span>
+                          {l.active ? (
+                            <span className={l.offerable ? "q" : "no"}>{l.offerable ? "READY" : "NOT READY"}</span>
+                          ) : (
+                            <span className="no">SUSPENDED</span>
+                          )}
                         </div>
                       </div>
                       <div className="tg">TIER {l.tier}{l.company ? ` · ${l.company.toUpperCase()}` : ""}</div>
