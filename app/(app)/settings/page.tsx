@@ -67,7 +67,7 @@ export default async function SettingsPage() {
       <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
       <p className="mt-1 text-sm text-gray-500">Everything below is editable. Open a folder to manage that data.</p>
 
-      <SettingsFolder title="Company details" subtitle="Shown on the header of every estimate">
+      <SettingsFolder title="Company details" subtitle="Company info + logo — shown on the header of every estimate" defaultOpen>
         <SettingsForm initial={company} />
       </SettingsFolder>
 
