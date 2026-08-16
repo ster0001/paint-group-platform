@@ -13,6 +13,7 @@ import WorkOrderDoc, { type WOEdit } from "@/app/w/WorkOrderDoc";
 import ColourPicker from "@/app/components/ColourPicker";
 import { roundUpLitres, type WorkOrderDoc as WODoc, type WOMaterial, type WOArea } from "@/lib/workorder/snapshot";
 import { finishFromModifier } from "@/lib/workorder/finish";
+import OfferPanel from "./OfferPanel";
 
 type WorkOrderRow = {
   id: string; wo_ref: string; status: string; contractor_id: string | null; start_date: string | null;
@@ -1189,7 +1190,16 @@ export default function QuoteBuilder({
               <button onClick={() => navigator.clipboard?.writeText(woLink)} className="rounded border border-emerald-300 px-2 py-0.5">Copy</button>
             </div>
           )}
-          <div className="overflow-hidden rounded-xl border border-gray-200">
+          <OfferPanel
+            workOrderId={workOrder?.id ?? null}
+            contractorId={woContractorId}
+            contractorName={contractors.find((c) => c.id === woContractorId)?.name ?? ""}
+            defaultStart={woStartDate}
+            defaultHours={totals.contractorHours}
+            defaultPaymentCents={totals.contractorOffer}
+            issued={Boolean(workOrder?.issued_at)}
+          />
+          <div className="mt-4 overflow-hidden rounded-xl border border-gray-200">
             <WorkOrderDoc doc={computeWorkOrderDoc()} edit={woEdit} />
           </div>
         </div>

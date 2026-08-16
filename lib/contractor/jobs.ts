@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
+import { suburbOnly } from "@/lib/scheduling/offers";
 
 // Server-only: reads the signed-in contractor's issued work orders. RLS already
 // restricts this to their own rows (see 20260825000000), but every query filters
@@ -13,6 +14,8 @@ export type ContractorJob = {
   issuedAt: string | null;
   viewedAt: string | null;
   paymentCents: number | null;
+  /** True once the contractor has committed — full address and contact shown. */
+  committed: boolean;
   /** The contractor-safe document frozen at issue. Null if somehow unset. */
   doc: WorkOrderDoc | null;
 };
@@ -31,11 +34,29 @@ type Row = {
   wo_snapshot: unknown;
 };
 
-function toJob(r: Row): ContractorJob {
+function toJob(r: Row, committed: boolean): ContractorJob {
   const snap = r.wo_snapshot as WorkOrderDoc | null;
   // Only trust a v1 snapshot; anything else is treated as missing rather than
   // rendered half-formed.
   const doc = snap && (snap as Partial<WorkOrderDoc>).version === 1 ? snap : null;
+
+  // Live status and start date win over the frozen copy — staff can move a
+  // start date after issuing without re-issuing the whole document.
+  let out = doc ? { ...doc, status: r.status ?? doc.status, startDate: r.start_date ?? doc.startDate } : null;
+
+  // PRIVACY GATE (workflow spec): suburb only while an offer is still open;
+  // full address and customer contact once the contractor has committed.
+  // Redacted HERE, on the server, so the real address is never sent to the
+  // browser at all — not merely hidden in the markup.
+  if (out && !committed) {
+    out = {
+      ...out,
+      jobAddress: suburbOnly(out.jobAddress),
+      contactFirstName: "",
+      contactPhone: "",
+    };
+  }
+
   return {
     id: r.id,
     woRef: r.wo_ref,
@@ -44,10 +65,31 @@ function toJob(r: Row): ContractorJob {
     issuedAt: r.issued_at,
     viewedAt: r.viewed_at,
     paymentCents: r.contractor_payment_cents,
-    // Live status and start date win over the frozen copy — staff can move a
-    // start date after issuing without re-issuing the whole document.
-    doc: doc ? { ...doc, status: r.status ?? doc.status, startDate: r.start_date ?? doc.startDate } : null,
+    committed,
+    doc: out,
   };
+}
+
+/**
+ * Which of these work orders the contractor has actually committed to.
+ *
+ * Committed means an accepted offer exists, OR no offer was ever made — in the
+ * second case staff assigned the job directly, which is itself the commitment,
+ * and there is no open offer for the privacy rule to protect. Anything with a
+ * live, declined or expired offer stays redacted.
+ */
+async function committedSet(workOrderIds: string[]): Promise<Set<string>> {
+  if (workOrderIds.length === 0) return new Set();
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("booking_offers")
+    .select("work_order_id, state")
+    .in("work_order_id", workOrderIds);
+
+  const rows = (data as { work_order_id: string; state: string }[] | null) ?? [];
+  const hasAnyOffer = new Set(rows.map((r) => r.work_order_id));
+  const accepted = new Set(rows.filter((r) => r.state === "accepted").map((r) => r.work_order_id));
+  return new Set(workOrderIds.filter((id) => accepted.has(id) || !hasAnyOffer.has(id)));
 }
 
 export async function listContractorJobs(contractorId: string): Promise<ContractorJob[]> {
@@ -58,7 +100,9 @@ export async function listContractorJobs(contractorId: string): Promise<Contract
     .eq("contractor_id", contractorId)
     .not("issued_at", "is", null)
     .order("start_date", { ascending: true, nullsFirst: false });
-  return ((data as Row[] | null) ?? []).map(toJob);
+  const rows = (data as Row[] | null) ?? [];
+  const committed = await committedSet(rows.map((r) => r.id));
+  return rows.map((r) => toJob(r, committed.has(r.id)));
 }
 
 export async function getContractorJob(contractorId: string, id: string): Promise<ContractorJob | null> {
@@ -70,7 +114,10 @@ export async function getContractorJob(contractorId: string, id: string): Promis
     .eq("id", id)
     .not("issued_at", "is", null)
     .maybeSingle();
-  return data ? toJob(data as Row) : null;
+  if (!data) return null;
+  const row = data as Row;
+  const committed = await committedSet([row.id]);
+  return toJob(row, committed.has(row.id));
 }
 
 /** Current work first, then what's coming, then what's done. */

@@ -31,6 +31,15 @@ export default async function PortalJobPage({ params }: { params: Promise<{ id: 
         <Link href="/portal/jobs" className="backlink">
           ← Jobs
         </Link>
+        {!job.committed && (
+          <div className="card amberish" style={{ marginTop: 4 }}>
+            <span className="chip amb">Suburb only</span>
+            <div style={{ marginTop: 8, fontSize: "12.5px", color: "var(--muted)" }}>
+              The full address and the customer&rsquo;s contact details unlock once you
+              accept the booking.
+            </div>
+          </div>
+        )}
       </div>
       <WorkOrderDoc doc={job.doc} />
     </div>
