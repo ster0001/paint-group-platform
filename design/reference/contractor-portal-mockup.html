@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contractor Portal · Paint Group</title>
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0A0B0D;--graphite:#12161A;--raised:#171C21;--line:#242B32;--text:#EDF0F2;--muted:#8C959D;
+--cyan:#3BD8E9;--on-cyan:#03272D;--paint:#2FB9CB;--amber:#E0A83C;--emerald:#2FA46B;--clay:#B3574A;
+--sans:"Switzer",-apple-system,sans-serif;--mono:"Martian Mono",ui-monospace,monospace}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#050607;color:var(--text);font-family:var(--sans);line-height:1.5;-webkit-font-smoothing:antialiased;display:flex;justify-content:center}
+.phone{width:100%;max-width:430px;min-height:100vh;background:var(--ink);border-left:1px solid var(--line);border-right:1px solid var(--line);padding-bottom:76px}
+.hd{position:sticky;top:0;z-index:40;background:rgba(10,11,13,.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding:14px 18px;display:flex;justify-content:space-between;align-items:center}
+.wm{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.2em}.wm span{color:var(--cyan)}
+.hd .who{font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.08em;text-align:right}
+.wrap{padding:16px 16px 20px}
+h2{font-size:15px;font-weight:600;margin-bottom:3px}
+.slab{font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+.chip{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border-radius:100px;border:1px solid}
+.chip.amb{color:var(--amber);border-color:rgba(224,168,60,.5)}
+.chip.grn{color:var(--emerald);border-color:rgba(47,164,107,.5)}
+.chip.cyn{color:var(--cyan);border-color:rgba(59,216,233,.5)}
+.chip.gry{color:var(--muted);border-color:var(--line)}
+.card{background:var(--graphite);border:1px solid var(--line);border-radius:14px;padding:15px 16px;margin-bottom:12px}
+.btn{width:100%;padding:13px;border-radius:10px;border:none;font-family:var(--sans);font-weight:600;font-size:14px;cursor:pointer;margin-top:10px}
+.btn.cy{background:var(--cyan);color:var(--on-cyan)}
+.btn.gh{background:none;border:1px solid var(--line);color:var(--text)}
+.btn.dim{background:none;border:1px solid var(--line);color:var(--muted)}
+.frow{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid rgba(36,43,50,.55);font-size:13px}
+.frow:last-child{border-bottom:none}
+.frow .l{color:var(--muted)}.frow .v{font-family:var(--mono);font-size:11px;text-align:right}
+.tabs{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:rgba(10,11,13,.96);backdrop-filter:blur(14px);border-top:1px solid var(--line);display:flex;z-index:50}
+.tabs button{flex:1;padding:12px 4px 14px;background:none;border:none;color:var(--muted);font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;cursor:pointer}
+.tabs button.on{color:var(--cyan)}
+.tabs button i{display:block;font-size:16px;font-style:normal;margin-bottom:3px}
+.view{display:none}.view.on{display:block}
+/* dashboard */
+.pending{border-color:rgba(224,168,60,.55);background:linear-gradient(180deg,rgba(224,168,60,.08),var(--graphite))}
+.cd{font-family:var(--mono);font-size:20px;font-weight:700;color:var(--amber);letter-spacing:.02em}
+.qscore{display:flex;align-items:center;gap:14px}
+.ring{width:54px;height:54px;border-radius:50%;background:conic-gradient(var(--emerald) 0 86%,var(--line) 86% 100%);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ring b{width:42px;height:42px;border-radius:50%;background:var(--graphite);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;color:var(--emerald)}
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:8px}
+.wd{border:1px solid var(--line);border-radius:8px;padding:7px 3px;text-align:center;font-family:var(--mono);font-size:8px;color:var(--muted)}
+.wd b{display:block;font-size:11px;color:var(--text);margin:2px 0}
+.wd.job{border-color:rgba(59,216,233,.5);background:rgba(59,216,233,.07)}
+.wd.job small{color:var(--cyan)}
+.act{display:flex;gap:10px;align-items:center;font-size:12.5px;padding:8px 0;border-bottom:1px solid rgba(36,43,50,.5);color:var(--muted)}
+.act:last-child{border-bottom:none}
+.act i{font-style:normal}
+/* request detail */
+.fin{display:inline-flex;align-items:center;gap:8px;background:rgba(59,216,233,.08);border:1px solid rgba(59,216,233,.4);border-radius:10px;padding:8px 12px;font-size:12px;color:#C8F0F6;cursor:pointer;margin:8px 0}
+.fin b{font-family:var(--mono);font-size:10px;color:var(--cyan)}
+.scopes{font-size:12.5px;color:var(--muted)}
+.scopes li{margin-left:16px;padding:2px 0}
+.resp{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.resp .btn{margin-top:0}
+.resp .full{grid-column:1/3}
+/* sheets */
+.sheetwrap{position:fixed;inset:0;z-index:60;display:none}
+.sheetwrap.on{display:block}
+.scrim{position:absolute;inset:0;background:rgba(5,6,7,.6)}
+.sheet{position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:100%;max-width:430px;background:var(--raised);border:1px solid var(--line);border-radius:18px 18px 0 0;padding:20px 18px 26px;max-height:82vh;overflow-y:auto}
+.sheet h3{font-size:15px;font-weight:600;margin-bottom:12px}
+select,input[type=date],textarea{width:100%;background:var(--ink);border:1px solid var(--line);border-radius:9px;color:var(--text);font-family:var(--sans);font-size:14px;padding:11px;margin-bottom:10px}
+/* calendar */
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.cal .dow{font-family:var(--mono);font-size:8px;color:var(--muted);text-align:center;padding:4px 0}
+.cd2{aspect-ratio:1;border:1px solid var(--line);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;color:var(--muted);cursor:pointer}
+.cd2 small{font-size:6.5px;letter-spacing:.05em;margin-top:2px}
+.cd2.job{border-color:rgba(59,216,233,.55);color:var(--cyan);background:rgba(59,216,233,.07);cursor:default}
+.cd2.booked{border-color:rgba(47,164,107,.55);color:var(--emerald);background:rgba(47,164,107,.07);cursor:default}
+.cd2.blocked{background:repeating-linear-gradient(45deg,rgba(140,149,157,.14) 0 5px,transparent 5px 10px);color:var(--muted)}
+.legend{display:flex;gap:12px;font-family:var(--mono);font-size:8px;color:var(--muted);margin:10px 0 0;flex-wrap:wrap}
+.legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px}
+/* invoice */
+.inv{background:var(--ink);border:1px solid var(--line);border-radius:12px;padding:16px}
+.inv .co{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.08em}
+.inv .abn{font-family:var(--mono);font-size:8.5px;color:var(--muted);margin:2px 0 10px}
+.inv .to{font-size:11.5px;color:var(--muted);padding:8px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.toast{position:fixed;left:50%;bottom:86px;transform:translateX(-50%) translateY(14px);width:calc(100% - 36px);max-width:394px;background:var(--raised);border:1px solid rgba(59,216,233,.45);border-radius:12px;padding:12px 15px;font-size:12.5px;opacity:0;transition:all .3s;z-index:70}
+.toast.show{opacity:1;transform:translateX(-50%)}
+.toast b{color:var(--cyan)}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="phone">
+
+<header class="hd">
+  <span class="wm">PAINT<span>—</span>GROUP</span>
+  <span class="who">KOVAC PAINTING PTY LTD<br>CONTRACTOR PORTAL</span>
+</header>
+
+<!-- ============ DASHBOARD ============ -->
+<div class="view on" id="v-home">
+  <div class="wrap">
+    <h2>G'day, Josef</h2>
+    <p class="slab">Sunday 16 August</p>
+
+    <div class="card pending" onclick="go('req')">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="chip amb">1 pending offer</span>
+        <span class="cd" id="cd1">23:41:07</span>
+      </div>
+      <div style="margin-top:10px;font-weight:600;font-size:14.5px">Interior repaint · Hawthorn</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px">MON 24 – THU 27 AUG · $2,280 · PG-3</div>
+      <button class="btn cy">Respond now</button>
+    </div>
+
+    <div class="card qscore">
+      <div class="ring"><b>4.9</b></div>
+      <div>
+        <div style="font-weight:600;font-size:13.5px">Your quality score</div>
+        <div style="font-size:12px;color:var(--muted)">12-month rolling · walkthroughs 4.9 · zero callbacks · photo compliance 96%</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="font-size:13.5px">This week</h2>
+      <div class="week">
+        <div class="wd">MON<b>17</b><small>—</small></div>
+        <div class="wd job">TUE<b>18</b><small>ARMADALE</small></div>
+        <div class="wd job">WED<b>19</b><small>ARMADALE</small></div>
+        <div class="wd job">THU<b>20</b><small>ARMADALE</small></div>
+        <div class="wd">FRI<b>21</b><small>—</small></div>
+        <div class="wd">SAT<b>22</b><small>—</small></div>
+        <div class="wd">SUN<b>23</b><small>—</small></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="font-size:13.5px">Action items</h2>
+      <div class="act"><i>📷</i> After photos due — Armadale bed 2 & hallway</div>
+      <div class="act"><i>🧾</i> Deposit invoice ready to send — WO-2317 <span style="margin-left:auto"><span class="chip amb">$1,785</span></span></div>
+      <div class="act"><i>🛡</i> Public liability expires in 32 days — upload renewal</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ REQUESTS ============ -->
+<div class="view" id="v-req">
+  <div class="wrap">
+    <h2>Pending requests</h2>
+    <p class="slab">Respond within the countdown — offers expire</p>
+
+    <div class="card" id="offercard">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-family:var(--mono);font-size:10px;color:var(--cyan)">OFFER · EST-2318</span>
+        <span class="cd" id="cd2" style="font-size:14px">23:41:07</span>
+      </div>
+      <h2 style="margin-top:8px">Interior repaint · Hawthorn</h2>
+      <p class="slab" style="margin-bottom:6px">Full address shown on acceptance</p>
+
+      <div class="fin" onclick="toast('PG-3 · Premium finish','Full prep per scope, uniform finish, crisp cut lines. No visible defects from 1.5 m in normal light. Tap-through opens the standard with photo examples.')">
+        <b>PG-3</b> Premium finish — what this means ›
+      </div>
+
+      <div class="frow"><span class="l">Dates</span><span class="v">MON 24 – THU 27 AUG · 4 DAYS</span></div>
+      <div class="frow"><span class="l">Hours allowance</span><span class="v">38.0 H</span></div>
+      <div class="frow"><span class="l">Your price</span><span class="v" style="color:var(--cyan);font-size:14px">$2,280</span></div>
+      <div class="frow"><span class="l">Access</span><span class="v">OWNER HOME · PETS: 1 DOG</span></div>
+
+      <p class="slab" style="margin:12px 0 6px">Scope summary</p>
+      <ul class="scopes">
+        <li>Entry, hall, living, dining & kitchen — walls, ceilings, trim</li>
+        <li>2 bedrooms — walls, ceilings, trim, sash windows</li>
+        <li>Prep: plaster cracking ×2, water stain sealing ×1</li>
+      </ul>
+      <button class="btn gh" style="margin-top:12px" onclick="toast('Work order','Opens the full WO-2318 document — every surface, product, colour state and prep note — before you decide.')">View full work order</button>
+
+      <div class="resp">
+        <button class="btn cy full" onclick="acceptOffer()">Accept — lock it in</button>
+        <button class="btn gh" onclick="openSheet('proposesheet')">Propose new date</button>
+        <button class="btn dim" onclick="openSheet('declinesheet')">Decline</button>
+      </div>
+    </div>
+
+    <div class="card hidden" id="acceptedcard">
+      <span class="chip grn">Booked ✓</span>
+      <h2 style="margin-top:8px">Interior repaint · Hawthorn</h2>
+      <div class="frow"><span class="l">Address</span><span class="v">18 DENHAM ST, HAWTHORN</span></div>
+      <div class="frow"><span class="l">Customer</span><span class="v">SARAH W · 0412 ··· ···</span></div>
+      <div class="frow"><span class="l">Start</span><span class="v">MON 24 AUG · 7:30 AM</span></div>
+      <p style="font-size:12.5px;color:var(--emerald);margin-top:10px">✓ The customer has been sent their booking confirmation.</p>
+      <button class="btn cy" onclick="toast('Work order','WO-2318 is now issued to you — scope, finish level, colours and materials list.')">Open work order</button>
+      <button class="btn gh" onclick="toast('Calendar','Added to your portal calendar and downloadable .ics for your phone.')">Add to calendar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ JOBS ============ -->
+<div class="view" id="v-jobs">
+  <div class="wrap">
+    <h2>Jobs</h2>
+    <p class="slab">Current · upcoming · previous</p>
+    <div class="card"><span class="chip cyn">In progress</span><h2 style="margin-top:8px;font-size:14px">Armadale interior · WO-2317</h2>
+      <div class="frow"><span class="l">Progress</span><span class="v">7 OF 12 SURFACES</span></div>
+      <div class="frow"><span class="l">Finish level</span><span class="v">PG-3 · PG-4 LIVING</span></div>
+      <button class="btn gh" onclick="toast('Work order','Opens the live WO — tick surfaces, add photos, flag variations.')">Open work order</button></div>
+    <div class="card"><span class="chip grn">Booked</span><h2 style="margin-top:8px;font-size:14px">Brighton exterior · EST-2311</h2>
+      <div class="frow"><span class="l">Start</span><span class="v">MON 17 AUG</span></div></div>
+    <div class="card"><span class="chip gry">Completed</span><h2 style="margin-top:8px;font-size:14px">Kew townhouse · WO-2301</h2>
+      <div class="frow"><span class="l">Walkthrough</span><span class="v" style="color:var(--emerald)">5/5 · SIGNED OFF</span></div>
+      <div class="frow"><span class="l">Paid</span><span class="v">$4,120 · 4 AUG</span></div></div>
+  </div>
+</div>
+
+<!-- ============ MONEY ============ -->
+<div class="view" id="v-money">
+  <div class="wrap">
+    <h2>Money</h2>
+    <p class="slab">Invoice Paint Group directly from here</p>
+    <div class="card">
+      <div class="frow"><span class="l">WO-2317 deposit — ready</span><span class="v" style="color:var(--amber)">$1,785</span></div>
+      <div class="frow"><span class="l">WO-2301 final</span><span class="v" style="color:var(--emerald)">PAID 4 AUG</span></div>
+      <div class="frow"><span class="l">Approved variation — cornice</span><span class="v" style="color:var(--amber)">$260</span></div>
+      <button class="btn cy" onclick="openSheet('invsheet')">Create invoice</button>
+    </div>
+    <div class="card">
+      <h2 style="font-size:13.5px">Expenses</h2>
+      <div class="frow"><span class="l">Sundries — Armadale (receipt 📎)</span><span class="v">$86 · APPROVED</span></div>
+      <button class="btn gh" onclick="toast('Expense','Photo of receipt + amount + job → staff approve → joins your next invoice.')">+ Submit expense</button>
+    </div>
+    <div class="card"><h2 style="font-size:13.5px">History</h2>
+      <div class="frow"><span class="l">FY26 to date</span><span class="v">$38,940</span></div>
+      <div class="frow"><span class="l">Invoices</span><span class="v">14 · ALL PAID</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ CALENDAR ============ -->
+<div class="view" id="v-cal">
+  <div class="wrap">
+    <h2>Calendar — August</h2>
+    <p class="slab">Tap an empty day to block it out — instantly unbookable for Paint Group</p>
+    <div class="cal" id="cal"></div>
+    <div class="legend">
+      <span><i style="background:rgba(59,216,233,.5)"></i>IN PROGRESS</span>
+      <span><i style="background:rgba(47,164,107,.5)"></i>BOOKED</span>
+      <span><i style="background:repeating-linear-gradient(45deg,#8C959D 0 3px,transparent 3px 5px)"></i>BLOCKED BY YOU</span>
+    </div>
+  </div>
+</div>
+
+<!-- sheets -->
+<div class="sheetwrap" id="proposesheet"><div class="scrim" onclick="closeSheet()"></div>
+  <div class="sheet">
+    <h3>Propose a new start date</h3>
+    <input type="date" value="2026-08-31">
+    <textarea rows="2" placeholder="Optional note — e.g. finishing another job Monday"></textarea>
+    <button class="btn cy" onclick="propose()">Send proposal to Paint Group</button>
+    <button class="btn gh" onclick="closeSheet()">Back</button>
+  </div>
+</div>
+<div class="sheetwrap" id="declinesheet"><div class="scrim" onclick="closeSheet()"></div>
+  <div class="sheet">
+    <h3>Decline this offer</h3>
+    <select><option>On another job</option><option>Too far to travel</option><option>Scope not for me</option><option>Price</option><option>Other</option></select>
+    <textarea rows="2" placeholder="Optional note"></textarea>
+    <button class="btn cy" onclick="decline()">Confirm decline</button>
+    <button class="btn gh" onclick="closeSheet()">Back</button>
+  </div>
+</div>
+<div class="sheetwrap" id="invsheet"><div class="scrim" onclick="closeSheet()"></div>
+  <div class="sheet">
+    <h3>New invoice</h3>
+    <div class="inv">
+      <div class="co">KOVAC PAINTING PTY LTD</div>
+      <div class="abn">ABN 84 ··· ··· 231 · GST REGISTERED · INV-0042</div>
+      <div class="to">To: Paint Group Pty Ltd</div>
+      <div class="frow"><span class="l">WO-2317 deposit (50%)</span><span class="v">$1,785.00</span></div>
+      <div class="frow"><span class="l">Variation — cornice bed 2</span><span class="v">$260.00</span></div>
+      <div class="frow"><span class="l">Expense — sundries</span><span class="v">$86.00</span></div>
+      <div class="frow"><span class="l">GST</span><span class="v">$213.10</span></div>
+      <div class="frow"><span class="l" style="color:var(--text);font-weight:600">Total</span><span class="v" style="color:var(--cyan);font-size:14px">$2,344.10</span></div>
+    </div>
+    <button class="btn cy" onclick="submitInv()">Submit to Paint Group + download PDF</button>
+    <button class="btn gh" onclick="closeSheet()">Back</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<nav class="tabs">
+  <button class="on" data-v="home" onclick="go('home')"><i>⌂</i>HOME</button>
+  <button data-v="req" onclick="go('req')"><i>◔</i>REQUESTS</button>
+  <button data-v="jobs" onclick="go('jobs')"><i>▤</i>JOBS</button>
+  <button data-v="money" onclick="go('money')"><i>$</i>MONEY</button>
+  <button data-v="cal" onclick="go('cal')"><i>▦</i>CALENDAR</button>
+</nav>
+</div>
+
+<script>
+function go(v){document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));
+ document.getElementById('v-'+v).classList.add('on');
+ document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+ scrollTo(0,0)}
+function openSheet(id){document.getElementById(id).classList.add('on')}
+function closeSheet(){document.querySelectorAll('.sheetwrap').forEach(s=>s.classList.remove('on'))}
+let tt;function toast(h,b){const t=document.getElementById('toast');
+ t.innerHTML='<b>'+h+'</b><br>'+b;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),3600)}
+
+/* countdown */
+let cd=23*3600+41*60+7;
+setInterval(()=>{cd--;const s=String(Math.floor(cd/3600)).padStart(2,'0')+':'+String(Math.floor(cd%3600/60)).padStart(2,'0')+':'+String(cd%60).padStart(2,'0');
+ ['cd1','cd2'].forEach(i=>{const e=document.getElementById(i);if(e)e.textContent=s})},1000);
+
+/* offer responses */
+function acceptOffer(){
+ document.getElementById('offercard').classList.add('hidden');
+ document.getElementById('acceptedcard').classList.remove('hidden');
+ toast('Booked ✓','Full address unlocked. Paint Group notified. The customer has been sent their booking confirmation — you\u2019re locked in for Mon 24 Aug.')}
+function propose(){closeSheet();
+ document.getElementById('offercard').querySelector('.resp').innerHTML='<span class="chip amb full" style="grid-column:1/3;text-align:center;padding:10px">Proposal sent — awaiting Paint Group approval · SLA met</span>';
+ toast('Proposal sent','Paint Group will approve or decline your new start date. The 24-hour clock has stopped — you\u2019ve responded.')}
+function decline(){closeSheet();
+ document.getElementById('offercard').innerHTML='<span class="chip gry">Declined</span><p style="margin-top:10px;font-size:13px;color:var(--muted)">No hard feelings — the job returns to Paint Group for reassignment. Your response was inside SLA.</p>';
+ toast('Declined','Reason recorded. Paint Group can now offer the job to another contractor. The customer was never given a date.')}
+function submitInv(){closeSheet();
+ toast('Invoice INV-0042 submitted','PDF with your company details downloaded for your records + sent to Paint Group. You\u2019ll see it move to Approved → Paid here.')}
+
+/* calendar */
+const cal=document.getElementById('cal');
+['M','T','W','T','F','S','S'].forEach(d=>cal.insertAdjacentHTML('beforeend','<div class="dow">'+d+'</div>'));
+const jobs={18:'job',19:'job',20:'job',24:'booked',25:'booked',26:'booked',27:'booked'};
+for(let i=0;i<2;i++)cal.insertAdjacentHTML('beforeend','<div></div>'); // Aug 2026 starts Sat-ish offset for demo
+for(let d=1;d<=31;d++){
+ const cls=jobs[d]||'';
+ cal.insertAdjacentHTML('beforeend',`<div class="cd2 ${cls}" data-d="${d}">${d}${cls==='job'?'<small>WO-2317</small>':cls==='booked'?'<small>EST-2318</small>':''}</div>`)}
+cal.addEventListener('click',e=>{
+ const c=e.target.closest('.cd2');if(!c||c.classList.contains('job')||c.classList.contains('booked'))return;
+ c.classList.toggle('blocked');
+ toast(c.classList.contains('blocked')?'Day blocked':'Day reopened',
+  c.classList.contains('blocked')?'Aug '+c.dataset.d+' is now unbookable on Paint Group\u2019s scheduling timeline — instantly.':'Aug '+c.dataset.d+' is bookable again.')});
+</script>
+</body>
+</html>

@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scheduling · Paint Group Staff</title>
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0A0B0D;--graphite:#12161A;--raised:#171C21;--line:#242B32;--text:#EDF0F2;--muted:#8C959D;
+--cyan:#3BD8E9;--on-cyan:#03272D;--paint:#2FB9CB;--amber:#E0A83C;--emerald:#2FA46B;--clay:#B3574A;
+--sans:"Switzer",-apple-system,sans-serif;--mono:"Martian Mono",ui-monospace,monospace}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--ink);color:var(--text);font-family:var(--sans);font-size:14px;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+.top{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(10,11,13,.95);backdrop-filter:blur(12px);z-index:40}
+.wm{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.2em}.wm span{color:var(--cyan)}
+.crumb{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.1em}
+.legend{display:flex;gap:14px;font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.06em;flex-wrap:wrap}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.layout{display:grid;grid-template-columns:280px 1fr;min-height:calc(100vh - 55px)}
+@media(max-width:900px){.layout{grid-template-columns:1fr}}
+
+/* tray */
+.tray{border-right:1px solid var(--line);padding:16px}
+.tray h2{font-size:14px;font-weight:600;margin-bottom:2px}
+.tray .sub{font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.1em;margin-bottom:14px}
+.jcard{background:var(--graphite);border:1px solid var(--line);border-radius:12px;padding:13px 14px;margin-bottom:10px;cursor:grab;transition:border-color .2s,transform .15s}
+.jcard:hover{border-color:rgba(59,216,233,.4)}
+.jcard.dragging{opacity:.4}
+.jcard .r1{display:flex;justify-content:space-between;align-items:center}
+.jcard .ref{font-family:var(--mono);font-size:10px;color:var(--cyan)}
+.jcard .fin{font-family:var(--mono);font-size:8.5px;padding:3px 8px;border:1px solid var(--line);border-radius:100px;color:var(--muted)}
+.jcard h3{font-size:13.5px;font-weight:600;margin:6px 0 2px}
+.jcard .meta{font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.04em}
+.jcard .pay{font-family:var(--mono);font-size:11px;color:var(--text);margin-top:6px}
+.jcard .flagline{margin-top:7px;font-family:var(--mono);font-size:8.5px;color:var(--clay)}
+.hint{font-size:12px;color:var(--muted);margin-top:14px;line-height:1.6}
+
+/* timeline */
+.tl{overflow-x:auto;padding:16px 16px 40px}
+.grid{min-width:1180px}
+.dh{display:grid;grid-template-columns:220px repeat(14,1fr);border-bottom:1px solid var(--line)}
+.dh .cell{padding:8px 4px;text-align:center;font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.05em}
+.dh .cell.we{color:#5A6268}
+.dh .cell.today{color:var(--cyan)}
+.crow{display:grid;grid-template-columns:220px repeat(14,1fr);border-bottom:1px solid rgba(36,43,50,.6);position:relative;height:66px}
+.cinfo{padding:10px 12px;border-right:1px solid var(--line)}
+.cinfo .nm{font-size:13px;font-weight:600}
+.cinfo .tg{font-family:var(--mono);font-size:8.5px;color:var(--muted);letter-spacing:.05em;margin-top:2px}
+.cinfo .bd{display:flex;gap:6px;margin-top:5px;font-family:var(--mono);font-size:8px}
+.cinfo .bd span{padding:2px 7px;border-radius:100px;border:1px solid var(--line);color:var(--muted)}
+.cinfo .bd .q{color:var(--emerald);border-color:rgba(47,164,107,.4)}
+.cinfo .bd .new{color:var(--amber);border-color:rgba(224,168,60,.4)}
+.lane{position:relative;grid-column:2/16;display:grid;grid-template-columns:repeat(14,1fr)}
+.lane .bgc{border-right:1px solid rgba(36,43,50,.35)}
+.lane .bgc.we{background:rgba(255,255,255,.018)}
+.lane.over .bgc.hover{background:rgba(59,216,233,.08)}
+.todayline{position:absolute;top:0;bottom:0;width:1.5px;background:var(--cyan);opacity:.55;z-index:5;pointer-events:none}
+.blk{position:absolute;top:9px;height:48px;border-radius:9px;padding:6px 10px;font-size:11px;overflow:hidden;cursor:pointer;z-index:4;border:1px solid}
+.blk .t{font-weight:600;white-space:nowrap}
+.blk .m{font-family:var(--mono);font-size:8.5px;opacity:.85;white-space:nowrap}
+.blk.acc{background:rgba(47,164,107,.16);border-color:rgba(47,164,107,.6);color:#BFE9D2}
+.blk.prog{background:rgba(59,216,233,.14);border-color:rgba(59,216,233,.55);color:#C8F0F6}
+.blk.off{background:repeating-linear-gradient(45deg,rgba(224,168,60,.16) 0 8px,rgba(224,168,60,.08) 8px 16px);border-color:rgba(224,168,60,.65);color:#F2DDB0}
+.blk.prop{background:repeating-linear-gradient(45deg,rgba(224,168,60,.16) 0 8px,rgba(224,168,60,.08) 8px 16px);border-color:var(--amber);color:#F2DDB0}
+.blk.unav{background:repeating-linear-gradient(45deg,rgba(140,149,157,.12) 0 7px,transparent 7px 14px);border-color:var(--line);color:var(--muted);cursor:default}
+.cd{font-family:var(--mono);font-size:8.5px;color:var(--amber)}
+
+/* panels */
+.sheet{position:fixed;right:-420px;top:0;bottom:0;width:400px;max-width:92vw;background:var(--raised);border-left:1px solid var(--line);z-index:60;transition:right .3s cubic-bezier(.55,0,.15,1);padding:22px;overflow-y:auto}
+.sheet.open{right:0}
+.sheet h3{font-size:16px;font-weight:600;margin-bottom:4px}
+.sheet .slab{font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.12em;margin-bottom:16px}
+.frow{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid rgba(36,43,50,.6);font-size:13px}
+.frow .l{color:var(--muted)}
+.frow .v{font-family:var(--mono);font-size:11.5px}
+.step{display:flex;align-items:center;gap:10px}
+.step button{width:26px;height:26px;border-radius:7px;border:1px solid var(--line);background:none;color:var(--text);cursor:pointer;font-size:14px}
+.btn{width:100%;padding:13px;border-radius:10px;border:none;font-family:var(--sans);font-weight:600;font-size:14px;cursor:pointer;margin-top:14px}
+.btn.cy{background:var(--cyan);color:var(--on-cyan)}
+.btn.gh{background:none;border:1px solid var(--line);color:var(--text)}
+.simrow{display:flex;gap:8px;margin-top:14px}
+.simrow button{flex:1;padding:10px;border-radius:9px;border:1px solid var(--line);background:none;color:var(--muted);font-family:var(--mono);font-size:9px;letter-spacing:.06em;cursor:pointer}
+.hist{margin-top:16px}
+.hist .h1{font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--muted);margin-bottom:8px}
+.hist .ev{font-size:12px;padding:7px 0;border-bottom:1px solid rgba(36,43,50,.5);color:var(--muted)}
+.hist .ev b{color:var(--text);font-weight:500}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(16px);background:var(--raised);border:1px solid rgba(59,216,233,.45);border-radius:12px;padding:12px 18px;font-size:13px;opacity:0;transition:all .3s;z-index:80;max-width:520px;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%)}
+.toast b{color:var(--cyan)}
+.scrim{position:fixed;inset:0;background:rgba(5,6,7,.5);opacity:0;pointer-events:none;transition:opacity .3s;z-index:55}
+.scrim.on{opacity:1;pointer-events:auto}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div><span class="wm">PAINT<span>—</span>GROUP</span> &nbsp;<span class="crumb">/ SCHEDULING</span></div>
+  <div class="legend">
+    <span><i style="background:var(--emerald)"></i>Accepted</span>
+    <span><i style="background:var(--cyan)"></i>In progress</span>
+    <span><i style="background:repeating-linear-gradient(45deg,var(--amber) 0 3px,transparent 3px 6px)"></i>Offered (24h)</span>
+    <span><i style="background:repeating-linear-gradient(45deg,#8C959D 0 3px,transparent 3px 6px)"></i>Unavailable</span>
+    <span><i style="background:var(--clay)"></i>Declined flag</span>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="tray">
+    <h2>Unscheduled</h2>
+    <p class="sub">ACCEPTED JOBS AWAITING DATES · DRAG ONTO THE TIMELINE</p>
+    <div id="tray"></div>
+    <p class="hint">Drag a job onto a contractor's row. Nothing is sent until you press <b>Send offer</b>. Click any amber block to simulate the contractor's response.</p>
+  </aside>
+
+  <main class="tl">
+    <div class="grid">
+      <div class="dh" id="dh"><div class="cell" style="text-align:left;padding-left:12px">CONTRACTOR</div></div>
+      <div id="rows"></div>
+    </div>
+  </main>
+</div>
+
+<div class="scrim" id="scrim" onclick="closeSheets()"></div>
+
+<!-- send offer sheet -->
+<div class="sheet" id="offersheet">
+  <h3>Send booking offer</h3>
+  <p class="slab">TENTATIVE HOLD · NOTHING SENT YET</p>
+  <div class="frow"><span class="l">Job</span><span class="v" id="os-job"></span></div>
+  <div class="frow"><span class="l">Contractor</span><span class="v" id="os-con"></span></div>
+  <div class="frow"><span class="l">Start</span><span class="v" id="os-start"></span></div>
+  <div class="frow"><span class="l">Duration</span><span class="step"><button onclick="chgDays(-1)">−</button><span class="v" id="os-days"></span><button onclick="chgDays(1)">+</button></span></div>
+  <div class="frow"><span class="l">Contractor price</span><span class="v" id="os-pay"></span></div>
+  <div class="frow"><span class="l">Finish level</span><span class="v" id="os-fin"></span></div>
+  <div class="frow"><span class="l">Response SLA</span><span class="v">24 HOURS</span></div>
+  <button class="btn cy" onclick="sendOffer()">Send offer — SMS + email</button>
+  <button class="btn gh" onclick="closeSheets()">Cancel</button>
+</div>
+
+<!-- block detail sheet -->
+<div class="sheet" id="blocksheet">
+  <h3 id="bs-title"></h3>
+  <p class="slab" id="bs-slab"></p>
+  <div id="bs-rows"></div>
+  <div class="simrow" id="bs-sim">
+    <button onclick="simResp('accept')">SIMULATE: ACCEPT</button>
+    <button onclick="simResp('propose')">PROPOSE</button>
+    <button onclick="simResp('decline')">DECLINE</button>
+  </div>
+  <div id="bs-prop"></div>
+  <div class="hist"><div class="h1">OFFER HISTORY</div><div id="bs-hist"></div></div>
+  <button class="btn gh" onclick="closeSheets()">Close</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- data ---------- */
+const DAY0 = new Date(2026,7,14); // Fri 14 Aug 2026
+const NDAYS = 14, TODAY = 2;      // Sun 16 Aug
+const fmt = i => { const d=new Date(DAY0); d.setDate(d.getDate()+i);
+  return {dow:['SUN','MON','TUE','WED','THU','FRI','SAT'][d.getDay()], dd:d.getDate(), we:[0,6].includes(d.getDay()),
+  label:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]+' '+d.getDate()+' Aug'} };
+
+const CONS=[
+ {id:0,nm:"J. Kovac",tg:"INTERIOR · HERITAGE",bd:['98% RESPONSE','★ 4.9']},
+ {id:1,nm:"M. Tran",tg:"INTERIOR",bd:['95% RESPONSE','★ 4.7']},
+ {id:2,nm:"S. Ricci",tg:"EXTERIOR",bd:['91% RESPONSE','★ 4.6']},
+ {id:3,nm:"D. Whitfield",tg:"INTERIOR · EXTERIOR",bd:['NEW — MENTORED'],newb:true},
+ {id:4,nm:"A. Osei",tg:"EXTERIOR · TEXTURES",bd:['88% RESPONSE','★ 4.5']}
+];
+let BLOCKS=[
+ {con:0,start:3,days:3,cls:'acc',t:"Brighton exterior",m:"EST-2311 · BOOKED"},
+ {con:1,start:0,days:5,cls:'prog',t:"Armadale interior",m:"WO-2317 · DAY 3 OF 5"},
+ {con:2,start:6,days:2,cls:'off',t:"Sandringham ext.",m:"EST-2314",cd:7*3600+42*60+10,hist:["Offered to S. Ricci · today 9:04 am"]},
+ {con:2,start:10,days:2,cls:'unav',t:"Unavailable",m:"BLOCKED BY CONTRACTOR"},
+ {con:4,start:12,days:2,cls:'acc',t:"Kew render",m:"EST-2309 · BOOKED"}
+];
+let TRAY=[
+ {ref:"EST-2318",title:"Interior repaint · Hawthorn",fin:"PG-3",days:4,pay:2280,age:"AGED 2 DAYS",cust:"Sarah W."},
+ {ref:"EST-2320",title:"Weatherboard exterior · Sandringham",fin:"PG-3",days:6,pay:3840,age:"AGED 1 DAY",cust:"R. Calder"},
+ {ref:"EST-2316",title:"Warehouse office · Notting Hill",fin:"PG-2",days:3,pay:1620,age:"AGED 4 DAYS",cust:"FMC Group",flag:"DECLINED ×1 — REOFFER"}
+];
+
+/* ---------- render header ---------- */
+const dh=document.getElementById('dh');
+for(let i=0;i<NDAYS;i++){const f=fmt(i);
+  dh.insertAdjacentHTML('beforeend',`<div class="cell ${f.we?'we':''} ${i===TODAY?'today':''}">${f.dow}<br>${f.dd}${i===TODAY?'<br>TODAY':''}</div>`)}
+
+/* ---------- render rows ---------- */
+const rowsEl=document.getElementById('rows');
+function render(){
+  rowsEl.innerHTML='';
+  CONS.forEach(c=>{
+    const row=document.createElement('div');row.className='crow';
+    row.innerHTML=`<div class="cinfo"><div class="nm">${c.nm}</div><div class="tg">${c.tg}</div>
+      <div class="bd">${c.bd.map(b=>`<span class="${b.startsWith('★')?'q':(c.newb?'new':'')}">${b}</span>`).join('')}</div></div>
+      <div class="lane" data-con="${c.id}">${Array.from({length:NDAYS},(_,i)=>`<div class="bgc ${fmt(i).we?'we':''}" data-d="${i}"></div>`).join('')}
+      <div class="todayline" style="left:${(TODAY+0.15)/NDAYS*100}%"></div></div>`;
+    rowsEl.appendChild(row);
+  });
+  BLOCKS.forEach((b,bi)=>{
+    const lane=rowsEl.querySelector(`.lane[data-con="${b.con}"]`);
+    const el=document.createElement('div');
+    el.className='blk '+b.cls;
+    el.style.left=(b.start/NDAYS*100)+'%';el.style.width=(b.days/NDAYS*100-0.6)+'%';
+    el.innerHTML=`<div class="t">${b.t}</div><div class="m">${b.m}${b.cls==='off'?` · <span class="cd" data-cd="${bi}"></span>`:''}${b.cls==='prop'?' · ⇄ COUNTER-DATES':''}</div>`;
+    if(b.cls!=='unav')el.onclick=()=>openBlock(bi);
+    lane.appendChild(el);
+  });
+  wireDnD();
+}
+
+/* ---------- tray ---------- */
+const trayEl=document.getElementById('tray');
+function renderTray(){
+  trayEl.innerHTML='';
+  TRAY.forEach((j,i)=>{
+    const d=document.createElement('div');d.className='jcard';d.draggable=true;d.dataset.i=i;
+    d.innerHTML=`<div class="r1"><span class="ref">${j.ref}</span><span class="fin">${j.fin}</span></div>
+      <h3>${j.title}</h3><div class="meta">${j.days} CREW-DAYS · ${j.age}</div>
+      <div class="pay">$${j.pay.toLocaleString()} CONTRACTOR</div>
+      ${j.flag?`<div class="flagline">⚑ ${j.flag}</div>`:''}`;
+    d.addEventListener('dragstart',e=>{drag=j;dragIdx=i;d.classList.add('dragging');e.dataTransfer.setData('text','x')});
+    d.addEventListener('dragend',()=>d.classList.remove('dragging'));
+    trayEl.appendChild(d);
+  });
+}
+let drag=null,dragIdx=-1,pending=null;
+
+/* ---------- drag & drop ---------- */
+function wireDnD(){
+  document.querySelectorAll('.lane').forEach(lane=>{
+    lane.addEventListener('dragover',e=>{e.preventDefault();lane.classList.add('over');
+      const r=lane.getBoundingClientRect();const d=Math.min(NDAYS-1,Math.max(0,Math.floor((e.clientX-r.left)/r.width*NDAYS)));
+      lane.querySelectorAll('.bgc').forEach(c=>c.classList.toggle('hover',+c.dataset.d>=d&&+c.dataset.d<d+(drag?drag.days:1)));});
+    lane.addEventListener('dragleave',()=>{lane.classList.remove('over');lane.querySelectorAll('.bgc').forEach(c=>c.classList.remove('hover'))});
+    lane.addEventListener('drop',e=>{
+      e.preventDefault();lane.classList.remove('over');
+      lane.querySelectorAll('.bgc').forEach(c=>c.classList.remove('hover'));
+      if(!drag)return;
+      const r=lane.getBoundingClientRect();
+      const day=Math.min(NDAYS-1,Math.max(0,Math.floor((e.clientX-r.left)/r.width*NDAYS)));
+      const con=+lane.dataset.con;
+      const clash=BLOCKS.some(b=>b.con===con&&b.cls!=='off'&&!(day+drag.days<=b.start||day>=b.start+b.days));
+      if(clash){toast('That space is <b>not free</b> — accepted, in-progress or blocked time.');return}
+      pending={job:drag,idx:dragIdx,con,day,days:drag.days};
+      openOfferSheet();drag=null;
+    });
+  });
+}
+
+/* ---------- offer sheet ---------- */
+function openOfferSheet(){
+  const c=CONS[pending.con],f=fmt(pending.day);
+  os('os-job',pending.job.ref+' · '+pending.job.title.toUpperCase());
+  os('os-con',c.nm.toUpperCase()+(c.newb?' · NEW':''));
+  os('os-start',f.label.toUpperCase());
+  os('os-days',pending.days+' DAYS');
+  os('os-pay','$'+pending.job.pay.toLocaleString());
+  os('os-fin',pending.job.fin);
+  sheet('offersheet',true);
+}
+function os(id,v){document.getElementById(id).textContent=v}
+function chgDays(d){pending.days=Math.max(1,Math.min(10,pending.days+d));os('os-days',pending.days+' DAYS')}
+function sendOffer(){
+  const b={con:pending.con,start:pending.day,days:pending.days,cls:'off',t:pending.job.title.split('·')[0].trim(),
+    m:pending.job.ref,cd:24*3600-13,job:pending.job,
+    hist:[`Offered to ${CONS[pending.con].nm} · just now`]};
+  BLOCKS.push(b);TRAY.splice(pending.idx,1);
+  renderTray();render();closeSheets();
+  toast(`Offer sent — <b>SMS + email</b> to ${CONS[pending.con].nm}. 24-hour countdown started. Customer has <b>not</b> been notified.`);
+}
+
+/* ---------- block sheet ---------- */
+let openIdx=-1;
+function openBlock(bi){
+  openIdx=bi;const b=BLOCKS[bi],c=CONS[b.con];
+  document.getElementById('bs-title').textContent=b.t;
+  document.getElementById('bs-slab').textContent=(b.m||'')+' · '+c.nm.toUpperCase();
+  const rows=[
+    ['Status',{off:'OFFERED — AWAITING RESPONSE',acc:'BOOKED',prog:'IN PROGRESS',prop:'COUNTER-DATES PROPOSED'}[b.cls]],
+    ['Dates',fmt(b.start).label.toUpperCase()+' → '+fmt(b.start+b.days-1).label.toUpperCase()],
+    ['Contractor',c.nm.toUpperCase()]];
+  document.getElementById('bs-rows').innerHTML=rows.map(r=>`<div class="frow"><span class="l">${r[0]}</span><span class="v">${r[1]}</span></div>`).join('');
+  document.getElementById('bs-sim').style.display=b.cls==='off'?'flex':'none';
+  document.getElementById('bs-prop').innerHTML=b.cls==='prop'?
+    `<div class="frow"><span class="l">Proposed</span><span class="v">${fmt(b.propDay).label.toUpperCase()} START</span></div>
+     <button class="btn cy" onclick="acceptProposal()">Approve new dates → confirm booking</button>`:'';
+  document.getElementById('bs-hist').innerHTML=(b.hist||['—']).map(h=>`<div class="ev"><b>${h}</b></div>`).join('');
+  sheet('blocksheet',true);
+}
+function simResp(kind){
+  const b=BLOCKS[openIdx],c=CONS[b.con];
+  if(kind==='accept'){
+    b.cls='acc';b.m+=' · BOOKED';b.hist.push(`Accepted by ${c.nm} · just now`);
+    render();closeSheets();
+    toast(`✔ ${c.nm} accepted. Work order issued. <b>Customer booking confirmation sent</b> (SMS + email): "Your job is booked to start ${fmt(b.start).label}".`);
+  }
+  if(kind==='decline'){
+    b.hist.push(`Declined by ${c.nm} — "on another job"`);
+    TRAY.unshift({...(b.job||{ref:b.m,title:b.t,fin:'PG-3',days:b.days,pay:0,cust:''}),age:'REOFFER NOW',flag:`DECLINED — ${c.nm.toUpperCase()} · "ON ANOTHER JOB"`});
+    BLOCKS.splice(openIdx,1);renderTray();render();closeSheets();
+    toast(`✕ Declined by ${c.nm}. Hold released — job returned to the tray, flagged for <b>reoffer</b>. Customer was never told a date.`);
+  }
+  if(kind==='propose'){
+    b.cls='prop';b.propDay=b.start+3;b.hist.push(`${c.nm} proposed ${fmt(b.propDay).label} start · SLA met`);
+    render();openBlock(openIdx);
+    toast(`⇄ ${c.nm} proposed new dates. SLA clock stopped — approve or decline the counter-dates.`);
+  }
+}
+function acceptProposal(){
+  const b=BLOCKS[openIdx],c=CONS[b.con];
+  b.start=b.propDay;b.cls='acc';b.m+=' · BOOKED';b.hist.push('Counter-dates approved by staff · just now');
+  render();closeSheets();
+  toast(`✔ New dates approved. <b>Customer booking confirmation sent</b>: start ${fmt(b.start).label}.`);
+}
+
+/* ---------- countdowns ---------- */
+setInterval(()=>{
+  document.querySelectorAll('[data-cd]').forEach(el=>{
+    const b=BLOCKS[+el.dataset.cd];if(!b||b.cls!=='off')return;
+    b.cd--;const h=String(Math.floor(b.cd/3600)).padStart(2,'0'),m=String(Math.floor(b.cd%3600/60)).padStart(2,'0'),s=String(b.cd%60).padStart(2,'0');
+    el.textContent=`${h}:${m}:${s} LEFT`;
+  });
+},1000);
+
+/* ---------- chrome ---------- */
+function sheet(id,open){document.getElementById(id).classList.toggle('open',open);document.getElementById('scrim').classList.toggle('on',open)}
+function closeSheets(){['offersheet','blocksheet'].forEach(i=>document.getElementById(i).classList.remove('open'));document.getElementById('scrim').classList.remove('on')}
+let tt;function toast(html){const t=document.getElementById('toast');t.innerHTML=html;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),4200)}
+
+renderTray();render();
+</script>
+</body>
+</html>
