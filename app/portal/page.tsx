@@ -5,6 +5,7 @@ import {
   DOC_COLUMNS,
   missingProfileFields,
   daysUntil,
+  docState,
   type ContractorDoc,
 } from "@/lib/contractor/model";
 
@@ -47,7 +48,7 @@ export default async function PortalHome() {
     .order("created_at", { ascending: false });
   const docs = (docsData as ContractorDoc[] | null) ?? [];
 
-  const insurance = docs.find((d) => d.kind === "insurance" && d.status === "valid");
+  const insurance = docs.find((d) => d.kind === "insurance" && docState(d) === "valid");
   const insuranceDays = daysUntil(insurance?.expires_on ?? null);
   const missing = missingProfileFields(contractor);
 

@@ -57,6 +57,21 @@ export function daysUntil(date: string | null): number | null {
   return Math.round((then.getTime() - now.getTime()) / 86_400_000);
 }
 
+/**
+ * A document's status evaluated NOW, rather than trusting the stored column.
+ *
+ * The database stamps `status` on insert/update, so a certificate that lapses
+ * while sitting untouched in the table keeps reading "valid" until something
+ * writes to the row. Mirrors the same rule as the DB trigger, just evaluated at
+ * read time — always use this for anything a contractor sees.
+ */
+export function docState(d: ContractorDoc): ContractorDoc["status"] {
+  if (!d.file_url) return "pending";
+  const days = daysUntil(d.expires_on);
+  if (days !== null && days < 0) return "expired";
+  return "valid";
+}
+
 export const DOC_LABEL: Record<ContractorDoc["kind"], string> = {
   insurance: "Public liability insurance",
   licence: "Painting licence",

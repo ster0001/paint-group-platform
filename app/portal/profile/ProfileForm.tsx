@@ -8,6 +8,7 @@ import { signout } from "@/app/auth/actions";
 import {
   DOC_LABEL,
   daysUntil,
+  docState,
   missingProfileFields,
   type ContractorDoc,
   type ContractorRow,
@@ -399,12 +400,13 @@ export default function ProfileForm({
           <div style={{ marginTop: 8 }}>
             {docs.map((d) => {
               const days = daysUntil(d.expires_on);
+              const state = docState(d);
               const chip =
-                d.status === "valid"
+                state === "valid"
                   ? days !== null && days <= 45
                     ? { cls: "amb", text: `${days}d left` }
                     : { cls: "grn", text: "Valid" }
-                  : d.status === "expired"
+                  : state === "expired"
                     ? { cls: "cly", text: "Expired" }
                     : { cls: "gry", text: "Pending" };
               return (
