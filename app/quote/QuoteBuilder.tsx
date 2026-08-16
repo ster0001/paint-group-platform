@@ -15,7 +15,7 @@ import { roundUpLitres, type WorkOrderDoc as WODoc, type WOMaterial, type WOArea
 
 type WorkOrderRow = {
   id: string; wo_ref: string; status: string; contractor_id: string | null; start_date: string | null;
-  access_notes: string; share_token: string; contractor_payment_cents: number | null;
+  access_notes: string; crew_notes: string; share_token: string; contractor_payment_cents: number | null;
   colours: Record<string, { name?: string; status?: string }>; hours_overrides: Record<string, number>;
   wo_snapshot: unknown; issued_at: string | null;
 };
@@ -315,6 +315,7 @@ export default function QuoteBuilder({
   const [woContractorId, setWoContractorId] = useState<string | null>(workOrder?.contractor_id ?? null);
   const [woStartDate, setWoStartDate] = useState<string | null>(workOrder?.start_date ?? null);
   const [woAccessNotes, setWoAccessNotes] = useState<string>(workOrder?.access_notes ?? "");
+  const [woCrewNotes, setWoCrewNotes] = useState<string>(workOrder?.crew_notes ?? "");
   const [woColours, setWoColours] = useState<Record<string, { name: string; hex: string; status: "tbc" | "confirmed" }>>(() => {
     const c = (workOrder?.colours ?? {}) as Record<string, { name?: string; hex?: string; status?: string }>;
     const out: Record<string, { name: string; hex: string; status: "tbc" | "confirmed" }> = {};
@@ -836,7 +837,7 @@ export default function QuoteBuilder({
         const key = `${b.id}:${s.id}`;
         surfaces.push({
           key, label: s.clientLabel || s.code, coats: s.coats, product: pname,
-          prep: s.crewNote || (s.prepHr ? `${s.prepHr} hr prep` : ""),
+          prep: s.crewNote || "",
           hours: woHours[key] ?? Number((calc.paintingHr + calc.prepHr).toFixed(2)),
           status: "not_started",
         });
@@ -863,6 +864,8 @@ export default function QuoteBuilder({
       contactPhone: contact?.phone ?? "",
       startDate: woStartDate,
       accessNotes: woAccessNotes,
+      crewNotes: woCrewNotes,
+      levelOfFinish: (modifiers.find((m) => m.code === modSel["Level of Finish"])?.label ?? "").replace(/\s*\(×[^)]*\)\s*$/, "").trim(),
       contractorName: contractors.find((c) => c.id === woContractorId)?.name ?? "",
       contractorPaymentCents: totals.contractorOffer,
       materials, areas: areasDoc,
@@ -877,6 +880,7 @@ export default function QuoteBuilder({
     onContractor: (id) => { setWoContractorId(id); patchWorkOrder({ contractor_id: id }); },
     onStart: (d) => { setWoStartDate(d); patchWorkOrder({ start_date: d }); },
     onAccess: (n) => { setWoAccessNotes(n); patchWorkOrder({ access_notes: n }); },
+    onCrewNotes: (n) => { setWoCrewNotes(n); patchWorkOrder({ crew_notes: n }); },
     onColour: (product, patch) => {
       setWoColours((m) => {
         const cur = m[product] ?? { name: "", hex: "", status: "tbc" as const };

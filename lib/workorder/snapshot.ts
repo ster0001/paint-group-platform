@@ -42,6 +42,8 @@ export type WorkOrderDoc = {
   contactPhone: string;
   startDate: string | null;
   accessNotes: string;
+  crewNotes: string; // work-order-level further instructions for the crew
+  levelOfFinish: string; // e.g. "Level 3 — Good. Full prep, filled, sanded, sealed, caulked"
   contractorName: string;
   contractorPaymentCents: number;
   materials: WOMaterial[];

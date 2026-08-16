@@ -14,6 +14,7 @@ export type WOEdit = {
   onContractor: (id: string | null) => void;
   onStart: (date: string | null) => void;
   onAccess: (notes: string) => void;
+  onCrewNotes: (notes: string) => void;
   onColour: (product: string, patch: { name?: string; hex?: string; status?: "tbc" | "confirmed" }) => void;
   onHours: (surfaceKey: string, hours: number | null) => void;
 };
@@ -63,6 +64,24 @@ export default function WorkOrderDoc({ doc, edit }: { doc: Doc; edit?: WOEdit })
               : <div className="v">{doc.accessNotes || "—"}</div>}
           </div>
         </div>
+
+        {/* LEVEL OF FINISH — front and centre so the crew know the standard */}
+        {doc.levelOfFinish && (
+          <div className="wo-finish">
+            <span className="wo-finish-lab">Level of finish</span>
+            <span className="wo-finish-val">{doc.levelOfFinish}</span>
+          </div>
+        )}
+
+        {/* FURTHER INSTRUCTIONS — work-order-level crew note */}
+        {(edit || doc.crewNotes) && (
+          <div className="wo-crew">
+            <div className="k">Further instructions for the crew</div>
+            {edit
+              ? <textarea rows={2} value={doc.crewNotes} onChange={(e) => edit.onCrewNotes(e.target.value)} placeholder="Anything the crew needs to know for this job…" />
+              : <div className="v">{doc.crewNotes}</div>}
+          </div>
+        )}
 
         {/* MATERIALS FIRST — the trade-counter shopping list */}
         {doc.materials.length > 0 && (
