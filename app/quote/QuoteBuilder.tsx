@@ -184,6 +184,7 @@ export default function QuoteBuilder({
   terms = "",
   workOrder = null,
   contractors = [],
+  initialView,
   presentations = [],
 }: {
   rateCardId: string | null;
@@ -202,6 +203,7 @@ export default function QuoteBuilder({
   terms?: string;
   workOrder?: WorkOrderRow | null;
   contractors?: { id: string; name: string }[];
+  initialView?: "builder" | "customer" | "workorder";
   presentations?: { id: string; name: string; blocks: { kind: string; position: number; enabled: boolean; content: unknown }[] }[];
 }) {
   const normKey = (k: string) => k.replace(/[^a-z0-9]+/gi, " ").trim().toLowerCase();
@@ -320,7 +322,9 @@ export default function QuoteBuilder({
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const locked = estStatus === "accepted";
   // Three views on the same record: Builder | Customer view | Work order.
-  const [viewMode, setViewMode] = useState<"builder" | "customer" | "workorder">("builder");
+  // Deep-linkable: the scheduling board sends staff straight to the work order
+  // tab, which is the only place a job can be issued.
+  const [viewMode, setViewMode] = useState<"builder" | "customer" | "workorder">(initialView ?? "builder");
   const customerView = viewMode === "customer";
   const workOrderView = viewMode === "workorder";
   // Work order editable fields — persisted to the work_orders row once it exists

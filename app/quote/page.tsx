@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function QuotePage({
   searchParams,
 }: {
-  searchParams: Promise<{ id?: string; template?: string }>;
+  searchParams: Promise<{ id?: string; template?: string; view?: string }>;
 }) {
   const supabase = await createClient();
 
@@ -44,7 +44,8 @@ export default async function QuotePage({
     .eq("is_active", true)
     .single();
 
-  const { id, template } = await searchParams;
+  const { id, template, view } = await searchParams;
+  const initialView = view === "workorder" || view === "customer" ? view : undefined;
 
   // Everything below is independent — fetch it all in one round-trip. The single
   // `settings` fetch also carries the company profile and any saved templates, so
@@ -102,6 +103,7 @@ export default async function QuotePage({
 
   return (
     <QuoteBuilder
+      initialView={initialView}
       rateCardId={card?.id ?? null}
       rateCardVersion={card?.version ?? null}
       rateItems={rateItems.data ?? []}
