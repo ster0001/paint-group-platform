@@ -14,10 +14,11 @@ export type ContractorSession = {
 };
 
 /**
- * Gate for every /portal page. Sends anyone who isn't a contractor to the part
- * of the app that belongs to them, so a wrong login never lands on a dead end.
+ * Role gate WITHOUT the suspension check. Used by the portal layout and the
+ * suspended notice itself — both of which have to render for a suspended
+ * contractor, and would otherwise redirect to themselves forever.
  */
-export async function requireContractor(): Promise<ContractorSession> {
+export async function getContractorSession(): Promise<ContractorSession> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -47,4 +48,19 @@ export async function requireContractor(): Promise<ContractorSession> {
     name: profile?.name || user.email || "",
     contractor: (contractor as ContractorRow | null) ?? null,
   };
+}
+
+/**
+ * Gate for every /portal DATA page. Sends anyone who isn't a contractor to the
+ * part of the app that belongs to them, and a suspended contractor to the
+ * notice.
+ *
+ * The redirect matters for more than tidiness: hiding a suspended contractor's
+ * pages in the layout still let those pages run and ship their data to the
+ * browser. Stopping here means the query never happens.
+ */
+export async function requireContractor(): Promise<ContractorSession> {
+  const session = await getContractorSession();
+  if (session.contractor && !session.contractor.active) redirect("/portal/suspended");
+  return session;
 }

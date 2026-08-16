@@ -212,9 +212,15 @@
   color: var(--muted);
   margin: 12px 0 5px;
 }
+/* Every text-like input, listed once. Naming types individually is how the
+   password fields on the join page ended up transparent and invisible. */
 .pt input[type="text"],
 .pt input[type="date"],
 .pt input[type="number"],
+.pt input[type="password"],
+.pt input[type="email"],
+.pt input[type="tel"],
+.pt input:not([type]),
 .pt select,
 .pt textarea {
   width: 100%;
