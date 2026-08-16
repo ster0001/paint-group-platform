@@ -4,17 +4,23 @@ import ScheduleBoard from "./ScheduleBoard";
 
 export const dynamic = "force-dynamic";
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+// Local calendar date — toISOString() would give the UTC day, which is
+// yesterday for most of a Melbourne evening.
+const localIso = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const addDays = (s: string, n: number) => {
+  const d = new Date(s + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
 
 // Staff scheduling timeline. Access is already gated by the (app) layout, which
 // redirects anyone who isn't staff.
 export default async function SchedulePage() {
   // Start a couple of days back so today isn't jammed against the left edge.
-  const start = new Date();
-  start.setDate(start.getDate() - 2);
-  const from = iso(start);
+  const from = addDays(localIso(new Date()), -2);
   const RANGE = 28;
-  const to = iso(new Date(start.getTime() + RANGE * 86_400_000));
+  const to = addDays(from, RANGE);
 
   const board = await loadBoard(from, to);
 

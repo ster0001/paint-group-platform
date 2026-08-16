@@ -6,7 +6,8 @@ import Placeholder from "../Placeholder";
 
 export const dynamic = "force-dynamic";
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+const iso = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 export default async function CalendarPage() {
   const { contractor } = await requireContractor();

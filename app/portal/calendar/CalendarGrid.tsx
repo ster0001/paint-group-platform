@@ -14,7 +14,11 @@ export type PortalBlock = {
 
 export type PortalJobDay = { date: string; label: string; status: string };
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+// Local calendar date. toISOString() would report the UTC day, which is
+// yesterday for most of a Melbourne evening — the calendar would highlight the
+// wrong "today" and block the wrong day.
+const iso = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const monthName = (y: number, m: number) =>
   new Date(y, m, 1).toLocaleDateString("en-AU", { month: "long", year: "numeric" });
 

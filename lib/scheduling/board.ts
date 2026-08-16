@@ -56,9 +56,12 @@ export type BoardData = {
   tray: TrayJob[];
 };
 
+// Plain calendar dates, so the arithmetic stays in UTC end to end. Parsing as
+// local midnight and formatting via toISOString() shifts the result a day for
+// anyone east of Greenwich — which would put a job on the wrong date.
 const addDays = (iso: string, n: number) => {
-  const d = new Date(iso + "T00:00:00");
-  d.setDate(d.getDate() + n);
+  const d = new Date(iso + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 };
 

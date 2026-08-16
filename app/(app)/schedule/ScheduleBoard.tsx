@@ -9,14 +9,30 @@ import "./schedule.css";
 
 const money = (c: number | null) => (c == null ? "—" : "$" + (c / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 }));
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+// Calendar dates are plain YYYY-MM-DD, never instants. Parsing them as local
+// midnight and formatting back through toISOString() silently shifts the result
+// by a day for anyone east of Greenwich — so all arithmetic below stays in UTC,
+// and "today" is read from the local clock explicitly.
 const addDays = (s: string, n: number) => {
-  const d = new Date(s + "T00:00:00");
-  d.setDate(d.getDate() + n);
-  return iso(d);
+  const d = new Date(s + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
 };
 const dayDiff = (a: string, b: string) =>
-  Math.round((new Date(b + "T00:00:00").getTime() - new Date(a + "T00:00:00").getTime()) / 86_400_000);
+  Math.round((Date.parse(b + "T00:00:00Z") - Date.parse(a + "T00:00:00Z")) / 86_400_000);
+const todayIso = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+/** Render a date cell without letting the timezone move it. */
+const dayParts = (s: string) => {
+  const d = new Date(s + "T00:00:00Z");
+  return {
+    num: d.getUTCDate(),
+    dow: d.getUTCDay(),
+    short: d.toLocaleDateString("en-AU", { weekday: "short", timeZone: "UTC" }).toUpperCase(),
+  };
+};
 
 /** "23h 41m" — the board doesn't need second-by-second precision, and not
  *  re-rendering every second keeps dragging smooth. */
@@ -83,7 +99,7 @@ export default function ScheduleBoard({
   }
 
   const days = useMemo(() => Array.from({ length: range }, (_, i) => addDays(start, i)), [start, range]);
-  const today = iso(new Date());
+  const today = todayIso();
 
   // ---- drag (requirement 1) -------------------------------------------------
   // Everything below writes to the DOM directly. React does not re-render during
@@ -138,41 +154,40 @@ export default function ScheduleBoard({
     [blocks],
   );
 
+  // Only the visual follow lives in rAF. Painting the ghost is the one thing
+  // worth coalescing to a frame; correctness must not depend on a frame ever
+  // firing (it doesn't in a background tab), so the hit-test happens below in
+  // the pointer handler instead.
   const frame = useCallback(() => {
     rafId.current = null;
-    const d = drag.current;
-    if (!d) return;
-
+    if (!drag.current || !ghostRef.current) return;
     const { x, y } = pointer.current;
-    if (ghostRef.current) {
-      ghostRef.current.style.transform = `translate3d(${x + 14}px, ${y + 14}px, 0)`;
-    }
+    ghostRef.current.style.transform = `translate3d(${x + 14}px, ${y + 14}px, 0)`;
+  }, []);
 
-    // Which lane and which day is under the pointer?
-    const hit = laneRects.current.find((l) => y >= l.rect.top && y <= l.rect.bottom);
-    if (!hit) {
-      clearHot();
-      target.current = null;
-      return;
-    }
-    const idx = Math.floor((x - hit.rect.left) / dayW);
-    if (idx < 0 || idx >= range) {
-      clearHot();
-      target.current = null;
-      return;
-    }
-
-    const cell = hit.el.children[idx] as HTMLElement | undefined;
-    if (cell && cell !== hotCell.current) {
-      clearHot();
-      cell.classList.add("hot");
-      const blocked = spanBlocked(hit.id, days[idx], d.spanDays);
-      hit.el.classList.toggle("blocked", blocked);
-      setGhostBlocked((prev) => (prev === blocked ? prev : blocked));
-      hotCell.current = cell;
-    }
-    target.current = { contractorId: hit.id, dayIndex: idx };
-  }, [dayW, range, days, spanBlocked]);
+  /** Pure arithmetic against cached rects — no layout reads, safe per-move. */
+  const updateTarget = useCallback(
+    (x: number, y: number, spanDays: number) => {
+      const hit = laneRects.current.find((l) => y >= l.rect.top && y <= l.rect.bottom);
+      const idx = hit ? Math.floor((x - hit.rect.left) / dayW) : -1;
+      if (!hit || idx < 0 || idx >= range) {
+        clearHot();
+        target.current = null;
+        return;
+      }
+      const cell = hit.el.children[idx] as HTMLElement | undefined;
+      if (cell && cell !== hotCell.current) {
+        clearHot();
+        cell.classList.add("hot");
+        const blocked = spanBlocked(hit.id, days[idx], spanDays);
+        hit.el.classList.toggle("blocked", blocked);
+        setGhostBlocked((prev) => (prev === blocked ? prev : blocked));
+        hotCell.current = cell;
+      }
+      target.current = { contractorId: hit.id, dayIndex: idx };
+    },
+    [dayW, range, days, spanBlocked],
+  );
 
   const onPointerMove = useCallback(
     (e: PointerEvent) => {
@@ -186,9 +201,10 @@ export default function ScheduleBoard({
         d.el.classList.add("dragging");
         cacheLaneRects();
       }
+      updateTarget(e.clientX, e.clientY, d.spanDays);
       if (rafId.current == null) rafId.current = requestAnimationFrame(frame);
     },
-    [frame, cacheLaneRects],
+    [frame, cacheLaneRects, updateTarget],
   );
 
   const [pendingDrop, setPendingDrop] = useState<null | {
@@ -397,7 +413,7 @@ export default function ScheduleBoard({
         <div className="ctrls">
           <div className="seg">
             <button onClick={() => setStart(addDays(start, -range))}>‹ Back</button>
-            <button onClick={() => setStart(iso(new Date()))}>Today</button>
+            <button onClick={() => setStart(todayIso())}>Today</button>
             <button onClick={() => setStart(addDays(start, range))}>Next ›</button>
           </div>
 
@@ -519,13 +535,12 @@ export default function ScheduleBoard({
             <div className="dh">
               <div className="cell lanehead">Contractor</div>
               {days.map((d) => {
-                const dt = new Date(d + "T00:00:00");
-                const we = dt.getDay() === 0 || dt.getDay() === 6;
+                const p = dayParts(d);
+                const we = p.dow === 0 || p.dow === 6;
                 return (
                   <div key={d} className={`cell ${we ? "we" : ""} ${d === today ? "today" : ""}`}>
-                    {dayW >= 44 ? dt.toLocaleDateString("en-AU", { weekday: "short" }).toUpperCase() : ""}
-                    {dayW >= 44 ? " " : ""}
-                    {dt.getDate()}
+                    {dayW >= 44 ? `${p.short} ` : ""}
+                    {p.num}
                   </div>
                 );
               })}
@@ -546,9 +561,8 @@ export default function ScheduleBoard({
 
                     <div className="lane" ref={(el) => { if (el) laneRefs.current.set(l.contractorId, el); }}>
                       {days.map((d) => {
-                        const dt = new Date(d + "T00:00:00");
-                        const we = dt.getDay() === 0 || dt.getDay() === 6;
-                        return <div key={d} className={`bgc ${we ? "we" : ""}`} />;
+                        const dow = dayParts(d).dow;
+                        return <div key={d} className={`bgc ${dow === 0 || dow === 6 ? "we" : ""}`} />;
                       })}
 
                       {bs.map((b) => {
