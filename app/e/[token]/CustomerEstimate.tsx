@@ -551,7 +551,7 @@ function PaintCard({ p }: { p: SnapshotPaint }) {
       </div>
       <div>
         {brandLabel && <p className="pc-brand">{brandLabel}</p>}
-        <p className="pc-name">{p.name}{p.role && <small>{p.role}</small>}</p>
+        <p className="pc-name">{p.name}{[p.role, p.finish].filter(Boolean).length > 0 && <small>{[p.role, p.finish].filter(Boolean).join(" · ")}</small>}</p>
         {p.usage.length > 0 && (
           <div className="pc-uses">{p.usage.map((u, i) => <span key={i}>{u}</span>)}</div>
         )}

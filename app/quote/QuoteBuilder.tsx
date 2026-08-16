@@ -105,6 +105,7 @@ let nextId = 1;
 // New estimates start with no inclusions — staff apply a "What's included"
 // template (managed in Settings) or type their own bullets in the builder.
 const DEFAULT_INCLUSIONS: string[] = [];
+const SHEEN_LEVELS = ["Flat", "Matt", "Satin", "Low Sheen", "Semi Gloss", "Gloss", "High Gloss"];
 
 // Friendly labels + relative times for the Activity feed.
 function eventLabel(type: string): string {
@@ -264,6 +265,14 @@ export default function QuoteBuilder({
   // What we pay the contractor per hour (margin only, never shown to the customer).
   // Blank falls back to the settings default.
   const [contractorRateOverride, setContractorRateOverride] = useState<number | null>(() => loaded?.contractorRateOverride ?? null);
+  // In-session cache of sheen edits made from the Materials panel; each edit is
+  // also persisted to the products table, so this just reflects it before reload.
+  const [sheenEdits, setSheenEdits] = useState<Record<string, string>>({});
+  const effectiveSheen = (productName: string): string => sheenEdits[productName] ?? productByName.get(productName)?.finish ?? "";
+  async function updateSheen(productName: string, finish: string) {
+    setSheenEdits((m) => ({ ...m, [productName]: finish }));
+    try { await createClient().from("products").update({ finish }).eq("name", productName); } catch { /* best-effort */ }
+  }
   const [discountMode, setDiscountMode] = useState<"pct" | "fixed">(() => loaded?.discountMode ?? "pct");
   const [discountPct, setDiscountPct] = useState<number>(() => loaded?.discountPct ?? 0);
   const [discountFixedCents, setDiscountFixedCents] = useState<number>(() => loaded?.discountFixedCents ?? 0);
@@ -689,6 +698,7 @@ export default function QuoteBuilder({
         brand,
         category,
         role: roleForCategory(category),
+        finish: effectiveSheen(pname),
         blurb: visible ? (p?.blurb ?? "") : "",
         properties: visible ? (p?.properties ?? []) : [],
         guarantee: visible ? (p?.guarantee ?? "") : "",
@@ -1049,6 +1059,18 @@ export default function QuoteBuilder({
                               {globalName === "" && <option value="">— choose a product —</option>}
                               {opts.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
                             </select>
+                            {globalName && (
+                              <select
+                                className="w-32 shrink-0 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                                value={effectiveSheen(globalName)}
+                                onChange={(e) => updateSheen(globalName, e.target.value)}
+                                title="Finish / sheen"
+                              >
+                                <option value="">— sheen —</option>
+                                {effectiveSheen(globalName) && !SHEEN_LEVELS.includes(effectiveSheen(globalName)) && <option value={effectiveSheen(globalName)}>{effectiveSheen(globalName)}</option>}
+                                {SHEEN_LEVELS.map((s) => <option key={s} value={s}>{s}</option>)}
+                              </select>
+                            )}
                             {r.customCount > 0 && (
                               <div className="flex items-center gap-2">
                                 <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">

@@ -32,6 +32,7 @@ export type SnapshotPaint = {
   brand: string; // e.g. "Haymes"
   category: string; // e.g. "Interior walls" (drives grouping / role)
   role: string; // short role shown next to the name, e.g. "Walls"
+  finish: string; // sheen, e.g. "Matt" ("" when unset)
   blurb: string; // one-liner (omitted for not-yet-verified products)
   properties: string[]; // chips strip
   guarantee: string; // amber phrase; "" when none
