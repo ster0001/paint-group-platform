@@ -9,6 +9,15 @@ import RichTextEditor from "@/app/components/RichTextEditor";
 import CustomerEstimate from "@/app/e/[token]/CustomerEstimate";
 import { DEFAULT_PROOF, type CustomerSnapshot, type SnapshotArea, type SnapshotLine, type SnapshotPaint } from "@/lib/customer/snapshot";
 import { type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
+import WorkOrderDoc, { type WOEdit } from "@/app/w/WorkOrderDoc";
+import { roundUpLitres, type WorkOrderDoc as WODoc, type WOMaterial, type WOArea } from "@/lib/workorder/snapshot";
+
+type WorkOrderRow = {
+  id: string; wo_ref: string; status: string; contractor_id: string | null; start_date: string | null;
+  access_notes: string; share_token: string; contractor_payment_cents: number | null;
+  colours: Record<string, { name?: string; status?: string }>; hours_overrides: Record<string, number>;
+  wo_snapshot: unknown; issued_at: string | null;
+};
 import type { CompanyProfile, Contact, JobAddress } from "./company";
 import type { Product, RateItem } from "@/lib/pricing/types";
 
@@ -168,6 +177,8 @@ export default function QuoteBuilder({
   inclusionTemplates = [],
   exclusionTemplates = [],
   terms = "",
+  workOrder = null,
+  contractors = [],
 }: {
   rateCardId: string | null;
   rateCardVersion: number | null;
@@ -183,6 +194,8 @@ export default function QuoteBuilder({
   inclusionTemplates?: InclusionTemplate[];
   exclusionTemplates?: InclusionTemplate[];
   terms?: string;
+  workOrder?: WorkOrderRow | null;
+  contractors?: { id: string; name: string }[];
 }) {
   const normKey = (k: string) => k.replace(/[^a-z0-9]+/gi, " ").trim().toLowerCase();
   const settingsMap = useMemo(() => {
@@ -286,7 +299,28 @@ export default function QuoteBuilder({
   const [validUntil, setValidUntil] = useState<string | null>(initial?.valid_until ?? null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const locked = estStatus === "accepted";
-  const [customerView, setCustomerView] = useState(false);
+  // Three views on the same record: Builder | Customer view | Work order.
+  const [viewMode, setViewMode] = useState<"builder" | "customer" | "workorder">("builder");
+  const customerView = viewMode === "customer";
+  const workOrderView = viewMode === "workorder";
+  // Work order editable fields — persisted to the work_orders row once it exists
+  // (created on acceptance); before that the Work order tab is a live preview.
+  const [woContractorId, setWoContractorId] = useState<string | null>(workOrder?.contractor_id ?? null);
+  const [woStartDate, setWoStartDate] = useState<string | null>(workOrder?.start_date ?? null);
+  const [woAccessNotes, setWoAccessNotes] = useState<string>(workOrder?.access_notes ?? "");
+  const [woColours, setWoColours] = useState<Record<string, { name: string; status: "tbc" | "confirmed" }>>(() => {
+    const c = workOrder?.colours ?? {}; const out: Record<string, { name: string; status: "tbc" | "confirmed" }> = {};
+    for (const k of Object.keys(c)) out[k] = { name: c[k]?.name ?? "", status: c[k]?.status === "confirmed" ? "confirmed" : "tbc" };
+    return out;
+  });
+  const [woHours, setWoHours] = useState<Record<string, number>>(() => workOrder?.hours_overrides ?? {});
+  const [woIssuing, setWoIssuing] = useState(false);
+  const [woLink, setWoLink] = useState<string | null>(null);
+  // Persist a work-order field change (only when the row exists, i.e. accepted).
+  const patchWorkOrder = async (patch: Record<string, unknown>) => {
+    if (!workOrder) return;
+    try { await createClient().from("work_orders").update(patch).eq("id", workOrder.id); } catch { /* best-effort */ }
+  };
   // Folder navigation: null = the list; otherwise we've drilled into an area,
   // a surface within an area, or a line item. "Done" pops back up a level.
   type View =
@@ -766,6 +800,97 @@ export default function QuoteBuilder({
     };
   }
 
+  // Build the work-order (job sheet) document live from the current estimate.
+  // Contractor-safe: no customer pricing/margin, no surname/email.
+  function computeWorkOrderDoc(): WODoc {
+    const matMap = new Map<string, { vol: number; photo: string }>();
+    const areasDoc: WOArea[] = [];
+    for (const b of blocks) {
+      if (b.kind !== "area" || b.isOption) continue;
+      const surfaces: WOArea["surfaces"] = [];
+      for (const s of b.surfaces) {
+        if (!s.code || s.hidden) continue;
+        const pname = productNameFor(b.type, s) || "";
+        const calc = surfaceCalc(b, s);
+        if (pname) {
+          const cur = matMap.get(pname) ?? { vol: 0, photo: productByName.get(pname)?.photo_url ?? productByName.get(pname)?.image_url ?? "" };
+          cur.vol += calc.volume;
+          matMap.set(pname, cur);
+        }
+        const key = `${b.id}:${s.id}`;
+        surfaces.push({
+          key, label: s.clientLabel || s.code, coats: s.coats, product: pname,
+          prep: s.crewNote || (s.prepHr ? `${s.prepHr} hr prep` : ""),
+          hours: woHours[key] ?? Number((calc.paintingHr + calc.prepHr).toFixed(2)),
+          status: "not_started",
+        });
+      }
+      const photos = [
+        ...(b.media ?? []).map((m) => m.url),
+        ...b.surfaces.filter((s) => !s.hidden).flatMap((s) => (s.media ?? []).map((m) => m.url)),
+      ];
+      areasDoc.push({ id: String(b.id), title: b.name || "Area", surfaces, photos });
+    }
+    const materials: WOMaterial[] = [...matMap.entries()].map(([product, { vol, photo }]) => {
+      const missing = !(vol > 0); // no coverage data → never fabricate a litre figure
+      const col = woColours[product] ?? { name: "", status: "tbc" as const };
+      return { product, photoUrl: photo, litres: missing ? null : roundUpLitres(vol), coverageMissing: missing, colourName: col.name, colourStatus: col.status };
+    });
+    return {
+      version: 1,
+      woRef: workOrder?.wo_ref ?? `WO-${(shareToken ?? "PREVIEW0").slice(0, 8).toUpperCase()}`,
+      status: workOrder?.status ?? "draft",
+      jobTitle: title || "Painting works",
+      jobAddress: jobAddress ? [jobAddress.address, jobAddress.city, jobAddress.state, jobAddress.postal].filter(Boolean).join(", ") : "",
+      contactFirstName: contact?.first_name ?? "",
+      contactPhone: contact?.phone ?? "",
+      startDate: woStartDate,
+      accessNotes: woAccessNotes,
+      contractorName: contractors.find((c) => c.id === woContractorId)?.name ?? "",
+      contractorPaymentCents: totals.contractorOffer,
+      materials, areas: areasDoc,
+      exclusions: exclusions.map((t) => t.trim()).filter(Boolean),
+      company: { name: company.name, phone: company.phone, logoUrl: company.logoUrl },
+    };
+  }
+
+  const woEdit: WOEdit = {
+    contractors,
+    contractorId: woContractorId,
+    onContractor: (id) => { setWoContractorId(id); patchWorkOrder({ contractor_id: id }); },
+    onStart: (d) => { setWoStartDate(d); patchWorkOrder({ start_date: d }); },
+    onAccess: (n) => { setWoAccessNotes(n); patchWorkOrder({ access_notes: n }); },
+    onColour: (product, patch) => {
+      setWoColours((m) => {
+        const next = { ...m, [product]: { name: patch.name ?? m[product]?.name ?? "", status: patch.status ?? m[product]?.status ?? "tbc" } };
+        patchWorkOrder({ colours: next });
+        return next;
+      });
+    },
+    onHours: (key, hours) => {
+      setWoHours((m) => {
+        const next = { ...m };
+        if (hours == null) delete next[key]; else next[key] = hours;
+        patchWorkOrder({ hours_overrides: next });
+        return next;
+      });
+    },
+  };
+
+  async function issueWorkOrder() {
+    if (!workOrder) return;
+    setWoIssuing(true);
+    const doc = { ...computeWorkOrderDoc(), status: "issued" };
+    const supabase = createClient();
+    const { error } = await supabase.from("work_orders").update({
+      wo_snapshot: doc, contractor_payment_cents: totals.contractorOffer,
+      status: workOrder.status === "draft" ? "issued" : workOrder.status,
+      issued_at: new Date().toISOString(),
+    }).eq("id", workOrder.id);
+    setWoIssuing(false);
+    if (!error) setWoLink(`${window.location.origin}/w/${workOrder.share_token}`);
+  }
+
   // ---- folder screens (drilled-in views) ----
   const renderAreaFolder = (b: Area) => (
     <AreaCard
@@ -914,14 +1039,24 @@ export default function QuoteBuilder({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => { setCustomerView((v) => !v); setView(null); }}
-            className={`rounded-md px-4 py-2 text-sm font-medium ${customerView ? "bg-accent text-accentink hover:bg-paint" : "border border-line2 text-gray-200 hover:bg-white/5"}`}
-          >
-            {customerView ? "← Back to building" : "👁 Customer view"}
-          </button>
+          {/* View switcher — Builder | Customer view | Work order (mono labels) */}
+          <div className="inline-flex overflow-hidden rounded-md border border-line2" style={{ fontFamily: "var(--font-mono, monospace)" }}>
+            {([
+              { key: "builder", label: "BUILDER" },
+              { key: "customer", label: "CUSTOMER" },
+              { key: "workorder", label: "WORK ORDER" },
+            ] as const).map((t) => (
+              <button
+                key={t.key}
+                onClick={() => { setViewMode(t.key); setView(null); }}
+                className={`px-3 py-2 text-[11px] font-medium tracking-wider ${viewMode === t.key ? "bg-accent text-accentink" : "text-gray-300 hover:bg-white/5"}`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
           {locked && <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">Accepted · locked</span>}
-          {!customerView && !locked && (
+          {viewMode === "builder" && !locked && (
             <>
               <input
                 className="w-40 rounded-md border border-line2 bg-graphite px-3 py-2 text-sm text-white placeholder-gray-500"
@@ -975,9 +1110,33 @@ export default function QuoteBuilder({
         </div>
       )}
 
+      {workOrderView && (
+        /* ---- work order: live job sheet, editable; issued to a contractor link ---- */
+        <div className="mt-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-700">
+            <span><span className="font-semibold">Work order</span> · {workOrder ? "created on acceptance — edits save automatically" : "live preview — a work order is created when the estimate is accepted"}</span>
+            {workOrder && (
+              <button onClick={issueWorkOrder} disabled={woIssuing} className="rounded-md bg-emerald-600 px-3 py-1.5 font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
+                {woIssuing ? "Issuing…" : workOrder.issued_at ? "Re-issue + copy link" : "Issue to contractor"}
+              </button>
+            )}
+          </div>
+          {woLink && (
+            <div className="mb-3 flex items-center gap-2 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+              <span className="font-semibold">Contractor link:</span>
+              <a href={woLink} target="_blank" rel="noreferrer" className="truncate underline">{woLink}</a>
+              <button onClick={() => navigator.clipboard?.writeText(woLink)} className="rounded border border-emerald-300 px-2 py-0.5">Copy</button>
+            </div>
+          )}
+          <div className="overflow-hidden rounded-xl border border-gray-200">
+            <WorkOrderDoc doc={computeWorkOrderDoc()} edit={woEdit} />
+          </div>
+        </div>
+      )}
+
       {/* The estimate header (company / estimator / banking / contact) only shows
           in build mode, and not when drilled into a folder. */}
-      {!folderEl && !customerView && (
+      {!folderEl && !customerView && !workOrderView && (
         <div className="mt-6">
           <EstimateHeader
             company={company}
@@ -992,7 +1151,7 @@ export default function QuoteBuilder({
         </div>
       )}
 
-      {!customerView && (
+      {viewMode === "builder" && (
       <div className={`mt-6 grid grid-cols-1 gap-6 ${folderEl ? "" : "lg:grid-cols-[1fr_300px]"}`}>
         <div className="space-y-4">
           {folderEl ? (
