@@ -1,14 +1,8 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
 import { requireContractor } from "@/lib/contractor/session";
 import { listContractorJobs, JOB_STATUS_CHIP, shortDate } from "@/lib/contractor/jobs";
-import {
-  DOC_COLUMNS,
-  missingProfileFields,
-  daysUntil,
-  docState,
-  type ContractorDoc,
-} from "@/lib/contractor/model";
+import { missingProfileFields, daysUntil, docState } from "@/lib/contractor/model";
+import { loadContractorDocs, docsErrorMessage } from "@/lib/contractor/docs";
 
 export const dynamic = "force-dynamic";
 
@@ -41,13 +35,7 @@ export default async function PortalHome() {
     );
   }
 
-  const supabase = await createClient();
-  const { data: docsData } = await supabase
-    .from("contractor_documents")
-    .select(DOC_COLUMNS)
-    .eq("contractor_id", contractor.id)
-    .order("created_at", { ascending: false });
-  const docs = (docsData as ContractorDoc[] | null) ?? [];
+  const { docs, error: docsError } = await loadContractorDocs(contractor.id);
   const jobs = await listContractorJobs(contractor.id);
 
   const insurance = docs.find((d) => d.kind === "insurance" && docState(d) === "valid");
@@ -57,7 +45,10 @@ export default async function PortalHome() {
   // Everything the contractor has to act on right now, drawn from real state.
   const actions: { icon: string; text: string; chip?: string }[] = [];
   const awaitingCheck = docs.find((d) => d.kind === "insurance" && d.file_url && !d.verified_at);
-  if (!insurance && awaitingCheck) {
+  if (docsError) {
+    // Say nothing about insurance when we couldn't read the documents at all —
+    // telling someone to upload what they already uploaded is worse than silence.
+  } else if (!insurance && awaitingCheck) {
     actions.push({
       icon: "🛡",
       text: "Paint Group are checking your insurance certificate — nothing more for you to do",
@@ -87,6 +78,8 @@ export default async function PortalHome() {
     <div className="wrap">
       <h1>G&rsquo;day, {firstName(name)}</h1>
       <p className="slab">{melbourneDate()}</p>
+
+      {docsError && <div className="err">{docsErrorMessage(docsError)}</div>}
 
       {/* Can this contractor be offered work? The single most important fact. */}
       <div className={`card ${contractor.offerable ? "greenish" : "amberish"}`}>

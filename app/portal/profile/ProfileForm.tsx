@@ -42,11 +42,14 @@ function friendly(e: unknown): string {
 export default function ProfileForm({
   contractor,
   docs,
+  docsError,
   name,
   email,
 }: {
   contractor: ContractorRow;
   docs: ContractorDoc[];
+  /** Set when the documents couldn't be read — an empty list would be a lie. */
+  docsError: string | null;
   name: string;
   email: string;
 }) {
@@ -426,7 +429,9 @@ export default function ProfileForm({
         {docErr && <div className="err" style={{ marginTop: 12 }}>{docErr}</div>}
         {docMsg && <div className="ok" style={{ marginTop: 12 }}>{docMsg}</div>}
 
-        {docs.length === 0 ? (
+        {docsError ? (
+          <div className="err" style={{ marginTop: 12 }}>{docsError}</div>
+        ) : docs.length === 0 ? (
           <div style={{ fontSize: "12.5px", color: "var(--muted)", margin: "12px 0" }}>
             Nothing uploaded yet.
           </div>
