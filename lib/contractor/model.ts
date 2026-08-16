@@ -18,6 +18,8 @@ export type ContractorRow = {
   invoice_prefix: string | null;
   invoice_next_number: number;
   offerable: boolean;
+  /** Painters they can field at once. Capacity signal, never a booking limit. */
+  crew_size: number;
 };
 
 export type ContractorDoc = {
@@ -32,7 +34,7 @@ export type ContractorDoc = {
 };
 
 export const CONTRACTOR_COLUMNS =
-  "id, profile_id, tier, insurance_expiry, active, company_name, abn, gst_registered, address, bank_bsb, bank_account_last4, logo_url, invoice_prefix, invoice_next_number, offerable";
+  "id, profile_id, tier, insurance_expiry, active, company_name, abn, gst_registered, address, bank_bsb, bank_account_last4, logo_url, invoice_prefix, invoice_next_number, offerable, crew_size";
 
 export const DOC_COLUMNS =
   "id, contractor_id, kind, name, file_url, expires_on, status, created_at";

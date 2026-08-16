@@ -12,6 +12,8 @@ export type Lane = {
   tier: string;
   offerable: boolean;
   active: boolean;
+  /** Painters they can field at once — what makes overlapping jobs readable. */
+  crewSize: number;
 };
 
 export type BlockKind = "accepted" | "in_progress" | "offered" | "proposed" | "unavailable";
@@ -95,7 +97,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     await Promise.all([
       supabase
         .from("contractors")
-        .select("id, tier, active, offerable, company_name, profiles ( name )")
+        .select("id, tier, active, offerable, company_name, crew_size, profiles ( name )")
         .order("company_name"),
       supabase
         .from("work_orders")
@@ -109,7 +111,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
         .gte("end_date", from),
     ]);
 
-  type CRow = { id: string; tier: string | null; active: boolean; offerable: boolean; company_name: string | null; profiles: { name: string | null } | null };
+  type CRow = { id: string; tier: string | null; active: boolean; offerable: boolean; company_name: string | null; crew_size: number | null; profiles: { name: string | null } | null };
   const lanes: Lane[] = ((contractors as CRow[] | null) ?? []).map((c) => ({
     contractorId: c.id,
     name: c.profiles?.name || c.company_name || "Contractor",
@@ -117,6 +119,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     tier: c.tier || "—",
     offerable: c.offerable,
     active: c.active,
+    crewSize: c.crew_size ?? 1,
   }));
 
   type WRow = {

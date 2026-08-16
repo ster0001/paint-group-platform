@@ -60,6 +60,7 @@ export default function ProfileForm({
     gst_registered: contractor.gst_registered,
     address: contractor.address ?? "",
     invoice_prefix: contractor.invoice_prefix ?? "",
+    crew_size: contractor.crew_size ?? 1,
   });
   const [logoUrl, setLogoUrl] = useState(contractor.logo_url ?? "");
   const [companyBusy, setCompanyBusy] = useState(false);
@@ -79,6 +80,7 @@ export default function ProfileForm({
           gst_registered: company.gst_registered,
           address: company.address.trim() || null,
           invoice_prefix: company.invoice_prefix.trim().toUpperCase() || null,
+          crew_size: Math.max(1, Math.min(99, Number(company.crew_size) || 1)),
           logo_url: logoUrl || null,
         })
         .eq("id", contractor.id);
@@ -272,6 +274,37 @@ export default function ProfileForm({
           onChange={(e) => setCompany({ ...company, address: e.target.value })}
           placeholder="Street, suburb, state, postcode"
         />
+
+        <label className="fl" htmlFor="crew_size">Painters on your crew</label>
+        <div className="crewrow">
+          <button
+            type="button"
+            onClick={() => setCompany({ ...company, crew_size: Math.max(1, Number(company.crew_size) - 1) })}
+            aria-label="One fewer painter"
+          >
+            −
+          </button>
+          <input
+            id="crew_size"
+            type="number"
+            min={1}
+            max={99}
+            value={company.crew_size}
+            onChange={(e) => setCompany({ ...company, crew_size: Number(e.target.value) })}
+            inputMode="numeric"
+          />
+          <button
+            type="button"
+            onClick={() => setCompany({ ...company, crew_size: Math.min(99, Number(company.crew_size) + 1) })}
+            aria-label="One more painter"
+          >
+            +
+          </button>
+        </div>
+        <p className="hint">
+          Including yourself. Paint Group use this to see how much you can take on
+          at once — it doesn&rsquo;t stop you accepting jobs that overlap.
+        </p>
 
         <label className="fl" htmlFor="invoice_prefix">Invoice prefix</label>
         <input

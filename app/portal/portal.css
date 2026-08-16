@@ -232,6 +232,14 @@
 .pt input::placeholder,
 .pt textarea::placeholder { color: #5c646b; }
 .pt input[type="date"] { color-scheme: dark; }
+.pt .crewrow { display: flex; align-items: center; gap: 8px; }
+.pt .crewrow input { width: 84px; text-align: center; font-family: var(--mono); }
+.pt .crewrow button {
+  width: 42px; height: 42px; flex-shrink: 0; border-radius: 10px;
+  border: 1px solid var(--line); background: none; color: var(--text);
+  font-size: 20px; line-height: 1; cursor: pointer;
+}
+.pt .crewrow button:hover { border-color: var(--paint); }
 .pt .checkrow {
   display: flex;
   align-items: center;

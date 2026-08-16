@@ -102,7 +102,9 @@
 
 .sb .crow {
   display: grid; grid-template-columns: var(--lane-w) repeat(var(--days), var(--day-w));
-  border-bottom: 1px solid rgba(36, 43, 50, 0.6); position: relative; height: var(--row-h);
+  border-bottom: 1px solid rgba(36, 43, 50, 0.6); position: relative;
+  min-height: var(--row-h);
+  transition: height 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .sb .cinfo {
   padding: 8px 12px; border-right: 1px solid var(--line); overflow: hidden;
@@ -129,10 +131,10 @@
 
 /* ---- blocks -------------------------------------------------------------- */
 .sb .blk {
-  position: absolute; top: 9px; height: 48px; border-radius: 9px; padding: 6px 9px;
+  position: absolute; height: 46px; border-radius: 9px; padding: 6px 9px;
   font-size: 11px; overflow: hidden; cursor: pointer; z-index: 4; border: 1px solid;
   /* Zoom animates left/width; dragging uses transform so it never re-layouts. */
-  transition: left 0.22s cubic-bezier(0.4, 0, 0.2, 1), width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: left 0.22s cubic-bezier(0.4, 0, 0.2, 1), width 0.22s cubic-bezier(0.4, 0, 0.2, 1), top 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   touch-action: none; user-select: none;
 }
 .sb .blk .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

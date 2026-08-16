@@ -534,16 +534,44 @@ export default function ScheduleBoard({
   }
 
   // ---- render ---------------------------------------------------------------
-  const laneBlocks = useMemo(() => {
-    const m = new Map<string, Block[]>();
+  /**
+   * Lay each lane out in sub-rows.
+   *
+   * A contractor can take several jobs starting the same day — that's allowed on
+   * purpose. Drawn naively they'd sit on top of each other and the office would
+   * see one job where there are three, so overlapping blocks are packed into
+   * stacked rows and the lane grows to fit.
+   */
+  const laneLayout = useMemo(() => {
     const last = addDays(start, range - 1);
-    for (const b of blocks) {
-      if (b.end < start || b.start > last) continue; // outside the window
-      if (!m.has(b.contractorId)) m.set(b.contractorId, []);
-      m.get(b.contractorId)!.push(b);
+    const m = new Map<string, { placed: { block: Block; row: number }[]; rows: number; peak: number }>();
+
+    for (const l of lanes) {
+      const mine = blocks
+        .filter((b) => b.contractorId === l.contractorId && b.end >= start && b.start <= last)
+        .sort((a, b) => a.start.localeCompare(b.start) || a.end.localeCompare(b.end));
+
+      // Greedy interval packing: first row whose last block has already finished.
+      const rowEnds: string[] = [];
+      const placed = mine.map((block) => {
+        let row = rowEnds.findIndex((end) => end < block.start);
+        if (row === -1) { row = rowEnds.length; rowEnds.push(block.end); }
+        else rowEnds[row] = block.end;
+        return { block, row };
+      });
+
+      // Busiest single day, counting real work only — a blocked-out day isn't a job.
+      let peak = 0;
+      for (let i = 0; i < range; i++) {
+        const day = days[i];
+        const n = mine.filter((b) => b.kind !== "unavailable" && b.start <= day && b.end >= day).length;
+        if (n > peak) peak = n;
+      }
+
+      m.set(l.contractorId, { placed, rows: Math.max(1, rowEnds.length), peak });
     }
     return m;
-  }, [blocks, start, range]);
+  }, [blocks, lanes, start, range, days]);
 
   const styleVars = { ["--day-w" as string]: `${dayW}px`, ["--days" as string]: String(range) } as React.CSSProperties;
 
@@ -752,9 +780,14 @@ export default function ScheduleBoard({
 
             <div>
               {visibleLanes.map((l) => {
-                const bs = laneBlocks.get(l.contractorId) ?? [];
+                const lay = laneLayout.get(l.contractorId) ?? { placed: [], rows: 1, peak: 0 };
+                const over = lay.peak > l.crewSize;
                 return (
-                  <div className="crow" key={l.contractorId}>
+                  <div
+                    className="crow"
+                    key={l.contractorId}
+                    style={{ height: `${Math.max(1, lay.rows) * 52 + 14}px` }}
+                  >
                     <div className="cinfo">
                       <div className="nmrow">
                         <div className="nm">{l.name}</div>
@@ -763,6 +796,11 @@ export default function ScheduleBoard({
                         </div>
                       </div>
                       <div className="tg">TIER {l.tier}{l.company ? ` · ${l.company.toUpperCase()}` : ""}</div>
+                      <div className="bd">
+                        <span className={over ? "no" : ""} title={`${l.crewSize} painter${l.crewSize === 1 ? "" : "s"}; busiest day has ${lay.peak} job${lay.peak === 1 ? "" : "s"} on`}>
+                          {lay.peak}/{l.crewSize} {over ? "OVER" : "ON"}
+                        </span>
+                      </div>
                     </div>
 
                     <div
@@ -775,7 +813,7 @@ export default function ScheduleBoard({
                         return <div key={d} className={`bgc ${dow === 0 || dow === 6 ? "we" : ""}`} />;
                       })}
 
-                      {bs.map((b) => {
+                      {lay.placed.map(({ block: b, row }) => {
                         const offset = Math.max(0, dayDiff(start, b.start));
                         const endIdx = Math.min(range - 1, dayDiff(start, b.end));
                         const span = Math.max(1, endIdx - offset + 1);
@@ -784,7 +822,11 @@ export default function ScheduleBoard({
                           <div
                             key={b.id}
                             className={`blk ${b.kind}`}
-                            style={{ left: `calc(var(--day-w) * ${offset} + 3px)`, width: `calc(var(--day-w) * ${span} - 6px)` }}
+                            style={{
+                              left: `calc(var(--day-w) * ${offset} + 3px)`,
+                              width: `calc(var(--day-w) * ${span} - 6px)`,
+                              top: `${7 + row * 52}px`,
+                            }}
                             onPointerDown={movable ? (e) => beginDrag(e, { kind: "block", block: b }) : undefined}
                             onClick={() => setDetail(b)}
                             title={b.title}
