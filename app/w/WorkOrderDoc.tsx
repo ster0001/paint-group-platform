@@ -2,6 +2,7 @@
 
 import type { WorkOrderDoc as Doc } from "@/lib/workorder/snapshot";
 import { WO_STATUS_LABEL } from "@/lib/workorder/snapshot";
+import ColourPicker from "@/app/components/ColourPicker";
 import "./workorder.css";
 
 const money = (c: number) => "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -14,7 +15,7 @@ export type WOEdit = {
   onContractor: (id: string | null) => void;
   onStart: (date: string | null) => void;
   onAccess: (notes: string) => void;
-  onColour: (product: string, patch: { name?: string; status?: "tbc" | "confirmed" }) => void;
+  onColour: (product: string, patch: { name?: string; hex?: string; status?: "tbc" | "confirmed" }) => void;
   onHours: (surfaceKey: string, hours: number | null) => void;
 };
 
@@ -81,13 +82,14 @@ export default function WorkOrderDoc({ doc, edit }: { doc: Doc; edit?: WOEdit })
                   <div className="mat-colour">
                     {edit ? (
                       <>
-                        <input value={m.colourName} placeholder="Colour name" onChange={(e) => edit.onColour(m.product, { name: e.target.value })} />
+                        <ColourPicker value={m.colourName ? { name: m.colourName, hex: m.colourHex } : null} onChange={(c) => edit.onColour(m.product, { name: c.name, hex: c.hex })} compact />
                         <button type="button" className={`cchip ${m.colourStatus}`} onClick={() => edit.onColour(m.product, { status: m.colourStatus === "confirmed" ? "tbc" : "confirmed" })}>
                           {m.colourStatus === "confirmed" ? "Confirmed" : "TBC"}
                         </button>
                       </>
                     ) : (
                       <>
+                        {m.colourHex && <span className="swatch" style={{ background: m.colourHex }} />}
                         <span>{m.colourName || "Colour to be confirmed"}</span>
                         <span className={`cchip ${m.colourStatus}`}>{m.colourStatus === "confirmed" ? "Confirmed" : "TBC"}</span>
                       </>
