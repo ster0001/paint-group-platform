@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Estimate EST-2325 · Paint Group</title>
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0A0B0D;--panel:#12161A;--panel-2:#171C21;--line:#242B32;--text:#EDF0F2;--muted:#8C959D;
+--cyan:#3BD8E9;--on-cyan:#03272D;--paint:#2FB9CB;--amber:#E0A83C;--emerald:#2FA46B;
+--sans:"Switzer",-apple-system,"Segoe UI",sans-serif;--mono:"Martian Mono",ui-monospace,monospace}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--ink);color:var(--text);font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:14px 24px;background:rgba(10,11,13,.9);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.wordmark{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:.22em}
+.wordmark span{color:var(--cyan)}
+.status{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border:1px solid var(--amber);border-radius:100px;color:var(--amber);font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase}
+.status::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--amber);animation:pulse 2.2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.wrap{max-width:880px;margin:0 auto;padding:0 24px 140px}
+.hero{padding:64px 0 44px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:16px}
+.eyebrow b{color:var(--cyan);font-weight:500}
+h1{font-family:var(--sans);font-weight:600;font-size:clamp(30px,4.6vw,46px);line-height:1.12;letter-spacing:-.03em;margin-bottom:8px}
+h1 em{font-style:normal;color:var(--cyan)}
+.address{color:var(--muted);font-size:16px;margin-bottom:32px}
+.pricecard{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:22px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:26px 28px}
+.pricelabel{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.price{font-family:var(--mono);font-size:clamp(28px,4.6vw,38px);font-weight:700}
+.price small{font-size:13px;font-weight:400;color:var(--muted)}
+.btn{font-family:var(--sans);font-weight:600;font-size:15px;padding:14px 26px;border-radius:10px;border:1px solid transparent;cursor:pointer}
+.btn-primary{background:var(--cyan);color:var(--on-cyan)}
+.btn-ghost{background:transparent;color:var(--text);border-color:var(--line)}
+section{padding:42px 0;border-top:1px solid var(--line)}
+h2{font-family:var(--sans);font-weight:600;font-size:23px;letter-spacing:-.02em;margin-bottom:6px}
+.sub{color:var(--muted);font-size:15px;margin-bottom:24px;max-width:58ch}
+
+/* presentation block marker */
+.pres{position:relative}
+.pres::before{content:"COMMERCIAL PRESENTATION";position:absolute;top:14px;right:0;font-family:var(--mono);font-size:8px;letter-spacing:.16em;color:rgba(59,216,233,.55);border:1px dashed rgba(59,216,233,.35);border-radius:100px;padding:4px 10px}
+body.nopres .pres{display:none}
+
+/* video */
+.video{position:relative;aspect-ratio:16/9;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:
+ radial-gradient(60% 80% at 70% 30%,rgba(59,216,233,.12),transparent 60%),linear-gradient(150deg,#1B2A33,#0B1216);cursor:pointer}
+.video .play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:74px;height:74px;border-radius:50%;background:rgba(10,11,13,.65);border:1.5px solid var(--cyan);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);transition:transform .2s}
+.video:hover .play{transform:translate(-50%,-50%) scale(1.06)}
+.video .play::after{content:"";border-left:16px solid var(--cyan);border-top:10px solid transparent;border-bottom:10px solid transparent;margin-left:4px}
+.video .cap{position:absolute;left:18px;bottom:16px;right:18px}
+.video .cap b{display:block;font-size:16px;font-weight:600}
+.video .cap span{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.08em}
+.video .dur{position:absolute;top:14px;left:14px;font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--text);background:rgba(10,11,13,.6);border:1px solid var(--line);border-radius:100px;padding:4px 10px}
+
+/* before/after sliders */
+.bagrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:720px){.bagrid{grid-template-columns:1fr}}
+.ba{position:relative;aspect-ratio:4/3;border-radius:14px;overflow:hidden;border:1px solid var(--line);touch-action:none;cursor:col-resize}
+.ba .before,.ba .after{position:absolute;inset:0}
+.ba .facade{position:absolute;inset:0}
+/* stylised warehouse facade */
+.f-wall{position:absolute;inset:0}
+.f-band{position:absolute;left:0;right:0;top:0;height:26%}
+.f-doors{position:absolute;bottom:0;left:8%;width:30%;height:52%;border-radius:4px 4px 0 0}
+.f-door2{position:absolute;bottom:0;left:44%;width:14%;height:44%;border-radius:3px 3px 0 0}
+.f-win{position:absolute;top:34%;right:8%;width:26%;height:20%;border-radius:3px;opacity:.8}
+.ba .after{clip-path:inset(0 calc(100% - var(--x,55%)) 0 0)}
+.ba .edge{position:absolute;top:0;bottom:0;left:var(--x,55%);width:3px;background:var(--paint);z-index:3}
+.ba .knob{position:absolute;top:50%;left:var(--x,55%);transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;background:rgba(10,11,13,.75);border:1.5px solid var(--cyan);z-index:4;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--cyan);pointer-events:none}
+.ba .tag{position:absolute;left:12px;bottom:12px;z-index:5;background:rgba(10,11,13,.72);border:1px solid var(--line);border-radius:10px;padding:8px 12px;backdrop-filter:blur(6px)}
+.ba .tag b{display:block;font-size:13px;font-weight:600}
+.ba .tag span{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;color:var(--muted)}
+.ba .lab{position:absolute;top:10px;font-family:var(--mono);font-size:8px;letter-spacing:.14em;padding:4px 9px;border-radius:100px;background:rgba(10,11,13,.6);z-index:5}
+.ba .lab.b{left:10px;color:var(--muted)}
+.ba .lab.a{right:10px;color:var(--cyan)}
+.banote{margin-top:12px;font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--muted);text-align:center}
+
+/* reviews */
+.revs{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media(max-width:760px){.revs{grid-template-columns:1fr}}
+.rev{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px}
+.rev .stars{color:var(--amber);font-size:13px;letter-spacing:2px;margin-bottom:8px}
+.rev p{font-size:13.5px;color:#C6CDD3;line-height:1.55}
+.rev p mark{background:rgba(59,216,233,.14);color:var(--cyan);border-radius:3px;padding:0 3px}
+.rev footer{margin-top:12px;font-family:var(--mono);font-size:9px;letter-spacing:.08em;color:var(--muted)}
+.gbadge{display:flex;align-items:center;gap:10px;margin-top:16px;font-size:13px;color:var(--muted)}
+.gbadge b{color:var(--amber);font-family:var(--mono)}
+
+/* commercial capability */
+.capgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:720px){.capgrid{grid-template-columns:1fr}}
+.cap{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px}
+.cap h3{font-size:14.5px;font-weight:600;margin-bottom:6px;display:flex;align-items:center;gap:9px}
+.cap h3 i{font-style:normal;font-size:15px}
+.cap p{font-size:13px;color:var(--muted);line-height:1.55}
+.cap .doc{display:inline-block;margin-top:10px;font-family:var(--mono);font-size:9px;letter-spacing:.08em;color:var(--cyan);border:1px solid rgba(59,216,233,.4);border-radius:100px;padding:5px 11px;cursor:pointer}
+
+/* scope */
+.room{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:12px;overflow:hidden}
+.room summary{list-style:none;display:flex;align-items:center;justify-content:space-between;padding:18px 20px;cursor:pointer}
+.room summary::-webkit-details-marker{display:none}
+.room-name{font-weight:600;font-size:16.5px;letter-spacing:-.01em}
+.room-price{font-family:var(--mono);font-size:13px}
+.room-body{padding:0 20px 18px;border-top:1px solid var(--line)}
+.surface{display:grid;grid-template-columns:1fr auto;gap:4px 16px;padding:12px 0;border-bottom:1px solid rgba(36,43,50,.6)}
+.surface:last-child{border-bottom:none}
+.s-name{font-weight:600;font-size:14.5px}
+.s-spec{grid-column:1;color:var(--muted);font-size:13.5px}
+.s-coats{font-family:var(--mono);font-size:10px;color:var(--cyan);text-align:right;white-space:nowrap;padding-top:3px}
+.table{font-family:var(--mono);font-size:13px}
+.trow{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line)}
+.trow .l{color:var(--muted);font-family:var(--sans);font-size:14.5px}
+.trow.total .l{color:var(--text);font-weight:600;font-size:16px}
+.trow.total .v{font-size:20px;font-weight:700;color:var(--cyan)}
+.stickybar{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 20px;background:rgba(10,11,13,.94);backdrop-filter:blur(14px);border-top:1px solid var(--line)}
+.stickybar .p{font-family:var(--mono);font-weight:700;font-size:16px}
+.stickybar .p small{display:block;font-size:8.5px;font-weight:400;color:var(--muted);letter-spacing:.14em}
+
+/* demo toggle */
+.demo{position:fixed;top:70px;right:16px;z-index:70;background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;width:212px;box-shadow:0 16px 50px rgba(0,0,0,.5)}
+.demo .t{font-family:var(--mono);font-size:8.5px;letter-spacing:.14em;color:var(--muted);margin-bottom:8px}
+.demo button{width:100%;text-align:left;padding:9px 11px;border-radius:8px;border:1px solid var(--line);background:none;color:var(--muted);font-family:var(--sans);font-size:12.5px;cursor:pointer;margin-bottom:6px}
+.demo button.on{border-color:var(--cyan);color:var(--text);background:rgba(59,216,233,.07)}
+.toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);background:var(--panel-2);border:1px solid rgba(59,216,233,.45);border-radius:12px;padding:11px 16px;font-size:13px;opacity:0;transition:opacity .3s;z-index:80;max-width:420px;text-align:center}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wordmark">PAINT<span>—</span>GROUP</div>
+  <span class="status">Awaiting your approval</span>
+</header>
+
+<div class="demo">
+  <div class="t">DEMO · PRESENTATION APPLIED</div>
+  <button id="d-com" class="on" onclick="setPres(true)">Commercial presentation ✓</button>
+  <button id="d-off" onclick="setPres(false)">No presentation</button>
+  <div style="font-size:10.5px;color:var(--muted);line-height:1.5">Toggling shows what the ticked presentation adds to the estimate.</div>
+</div>
+
+<main class="wrap">
+
+  <div class="hero">
+    <p class="eyebrow">Estimate <b>EST-2325</b> · Prepared 16 Aug 2026 · Steven, Paint Group · Commercial</p>
+    <h1>Exterior repaint of your <em>warehouse & office</em></h1>
+    <p class="address">14 Commerce Drive, Notting Hill VIC · For FMC Group · Attn: Facilities Manager</p>
+    <div class="pricecard">
+      <div>
+        <div class="pricelabel">Your investment · incl. GST · fixed</div>
+        <div class="price">$48,760 <small>staged program available</small></div>
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <button class="btn btn-primary">Accept estimate</button>
+        <button class="btn btn-ghost">Ask a question</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ PRESENTATION: progress video ============ -->
+  <section class="pres">
+    <h2>Watch us work at this scale</h2>
+    <p class="sub">Time-lapse from a recent exterior program for a national pharmacy retailer — completed after hours, zero trading interruption.</p>
+    <div class="video" onclick="toast('▶ In the live estimate this plays the progress video — hosted, no YouTube ads or recommendations.')">
+      <span class="dur">02:14 · TIME-LAPSE</span>
+      <div class="play"></div>
+      <div class="cap"><b>Chemist Warehouse exterior repaint</b><span>MOORABBIN · COMPLETED OVER 6 NIGHTS · DULUX WEATHERSHIELD SYSTEM</span></div>
+    </div>
+  </section>
+
+  <!-- ============ PRESENTATION: interactive before/after ============ -->
+  <section class="pres">
+    <h2>Warehouse exteriors, before and after</h2>
+    <p class="sub">Drag the line across each project.</p>
+    <div class="bagrid">
+      <div class="ba" data-ba>
+        <div class="before"><div class="facade">
+          <div class="f-wall" style="background:linear-gradient(150deg,#3A3C3E,#28292B)"></div>
+          <div class="f-band" style="background:#454749"></div>
+          <div class="f-doors" style="background:#2E3032"></div><div class="f-door2" style="background:#333537"></div>
+          <div class="f-win" style="background:#1D1F21"></div></div></div>
+        <div class="after"><div class="facade">
+          <div class="f-wall" style="background:linear-gradient(150deg,#2E3F4A,#1B2830)"></div>
+          <div class="f-band" style="background:#E8E5DD"></div>
+          <div class="f-doors" style="background:#22323C"></div><div class="f-door2" style="background:#22323C"></div>
+          <div class="f-win" style="background:#141C21"></div></div></div>
+        <span class="edge"></span><span class="knob">⇄</span>
+        <span class="lab b">BEFORE</span><span class="lab a">AFTER</span>
+        <div class="tag"><b>Distribution warehouse</b><span>DANDENONG SOUTH · MONUMENT + SURFMIST · 4,100 m²</span></div>
+      </div>
+      <div class="ba" data-ba>
+        <div class="before"><div class="facade">
+          <div class="f-wall" style="background:linear-gradient(150deg,#4A4438,#2E2A22)"></div>
+          <div class="f-band" style="background:#57503F"></div>
+          <div class="f-doors" style="background:#3A352A"></div><div class="f-door2" style="background:#403A2E"></div>
+          <div class="f-win" style="background:#241F17"></div></div></div>
+        <div class="after"><div class="facade">
+          <div class="f-wall" style="background:linear-gradient(150deg,#EDEAE2,#D6D2C7)"></div>
+          <div class="f-band" style="background:#22323C"></div>
+          <div class="f-doors" style="background:#2FB9CB"></div><div class="f-door2" style="background:#22323C"></div>
+          <div class="f-win" style="background:#B9C2C9"></div></div></div>
+        <span class="edge"></span><span class="knob">⇄</span>
+        <span class="lab b">BEFORE</span><span class="lab a">AFTER</span>
+        <div class="tag"><b>Manufacturing facility & office</b><span>CLAYTON · BRAND COLOURS TO PARAPET · AFTER-HOURS</span></div>
+      </div>
+    </div>
+    <p class="banote">IN THE LIVE ESTIMATE THESE ARE YOUR REAL PROJECT PHOTOS, CHOSEN BY THE PRESENTATION</p>
+  </section>
+
+  <!-- ============ PRESENTATION: commercial reviews ============ -->
+  <section class="pres">
+    <h2>What commercial clients say</h2>
+    <div class="revs">
+      <div class="rev"><div class="stars">★★★★★</div>
+        <p>"Painted our entire <mark>warehouse exterior</mark> over two weekends. Zero disruption to dispatch, site left spotless every morning."</p>
+        <footer>OPERATIONS MANAGER · LOGISTICS · GOOGLE REVIEW</footer></div>
+      <div class="rev"><div class="stars">★★★★★</div>
+        <p>"Best <mark>commercial painters</mark> we've used across our sites. SWMS and inductions handled before we asked. Program ran to the day."</p>
+        <footer>FACILITIES MANAGER · RETAIL GROUP · GOOGLE REVIEW</footer></div>
+      <div class="rev"><div class="stars">★★★★★</div>
+        <p>"Repainted our factory <mark>out of hours</mark> — arrived 6 pm, gone by 5 am, production never stopped. Invoicing clean and to quote."</p>
+        <footer>PLANT MANAGER · MANUFACTURING · GOOGLE REVIEW</footer></div>
+    </div>
+    <div class="gbadge"><b>5.0 ★</b> from 85+ Google reviews — these three mention commercial exterior work.</div>
+  </section>
+
+  <!-- ============ PRESENTATION: commercial capability ============ -->
+  <section class="pres">
+    <h2>The detail your procurement team will ask for</h2>
+    <div class="capgrid">
+      <div class="cap"><h3><i>🛡</i> $20M public liability</h3>
+        <p>Certificate of currency supplied with this estimate and re-issued annually for your compliance file.</p>
+        <span class="doc" onclick="toast('Downloads the current Certificate of Currency PDF.')">Certificate of currency ↓</span></div>
+      <div class="cap"><h3><i>🌙</i> Out-of-hours & staged programs</h3>
+        <p>Nights, weekends and staged areas programmed around trading and production. This estimate is priced for after-hours access as discussed.</p></div>
+      <div class="cap"><h3><i>📋</i> SWMS & site inductions</h3>
+        <p>Site-specific SWMS issued before start; all crew inducted to your site requirements. Master Painters member, Dulux & Haymes accredited.</p>
+        <span class="doc" onclick="toast('Downloads a sample SWMS for your review.')">Sample SWMS ↓</span></div>
+      <div class="cap"><h3><i>📈</i> One contact, live reporting</h3>
+        <p>A dedicated project coordinator, photo progress updates in your portal, and variations approved in writing before any extra work.</p></div>
+    </div>
+  </section>
+
+  <!-- ============ CORE: scope ============ -->
+  <section>
+    <h2>Scope of works</h2>
+    <p class="sub">Every elevation, surface and coat — fixed price, no hourly surprises.</p>
+    <details class="room" open>
+      <summary><span class="room-name">Warehouse cladding — all elevations</span><span class="room-price">$29,850</span></summary>
+      <div class="room-body">
+        <div class="surface"><div class="s-name">Precoated metal cladding · 3,900 m²</div><div class="s-coats">2 COATS</div>
+          <div class="s-spec">Dulux Weathershield system · airless spray · colour: Monument</div></div>
+        <div class="surface"><div class="s-name">Parapet & brand band</div><div class="s-coats">2 COATS</div>
+          <div class="s-spec">Brand colours to your spec · brush & roll cut to line</div></div>
+      </div>
+    </details>
+    <details class="room">
+      <summary><span class="room-name">Office entry & render walls</span><span class="room-price">$9,420</span></summary>
+      <div class="room-body">
+        <div class="surface"><div class="s-name">Rendered walls & columns</div><div class="s-coats">2 COATS</div>
+          <div class="s-spec">Dulux AcraTex system · crack repair to two columns included</div></div>
+        <div class="surface"><div class="s-name">Entry doors, frames & glazing beads</div><div class="s-coats">2 COATS</div>
+          <div class="s-spec">Hard-wearing enamel finish</div></div>
+      </div>
+    </details>
+    <details class="room">
+      <summary><span class="room-name">Roller doors, steel doors & bollards</span><span class="room-price">$5,610</span></summary>
+      <div class="room-body">
+        <div class="surface"><div class="s-name">4 roller doors · 6 steel doors · 14 bollards</div><div class="s-coats">2 COATS</div>
+          <div class="s-spec">Sprayed roller doors · safety yellow to bollards & line-of-travel</div></div>
+      </div>
+    </details>
+  </section>
+
+  <!-- ============ CORE: investment ============ -->
+  <section>
+    <h2>Your investment</h2>
+    <div class="table">
+      <div class="trow"><span class="l">Painting works — 3 zones as scoped</span><span class="v">$40,800.00</span></div>
+      <div class="trow"><span class="l">Access equipment & after-hours program</span><span class="v">$3,527.27</span></div>
+      <div class="trow"><span class="l">GST</span><span class="v">$4,432.73</span></div>
+      <div class="trow total"><span class="l">Total incl. GST</span><span class="v">$48,760.00</span></div>
+    </div>
+    <p class="sub" style="margin-top:14px">Terms: 10% on acceptance · progress claim at 50% completion · balance on sign-off, 14 days. Staged programs and PO referencing available — tell us your requirements.</p>
+  </section>
+
+</main>
+
+<div class="stickybar">
+  <div class="p"><small>TOTAL INCL. GST</small>$48,760</div>
+  <button class="btn btn-primary">Accept estimate</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* demo toggle */
+function setPres(on){
+  document.body.classList.toggle('nopres',!on);
+  document.getElementById('d-com').classList.toggle('on',on);
+  document.getElementById('d-off').classList.toggle('on',!on);
+}
+let tt;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),3000)}
+
+/* before/after drag */
+document.querySelectorAll('[data-ba]').forEach(ba=>{
+  const set=x=>{const r=ba.getBoundingClientRect();
+    ba.style.setProperty('--x',Math.max(6,Math.min(94,(x-r.left)/r.width*100))+'%')};
+  ba.addEventListener('pointerdown',e=>{set(e.clientX);
+    const mv=e2=>set(e2.clientX), up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up)};
+    addEventListener('pointermove',mv);addEventListener('pointerup',up)});
+});
+</script>
+</body>
+</html>
