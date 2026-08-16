@@ -2,7 +2,6 @@
 
 import type { WorkOrderDoc as Doc } from "@/lib/workorder/snapshot";
 import { WO_STATUS_LABEL } from "@/lib/workorder/snapshot";
-import ColourPicker from "@/app/components/ColourPicker";
 import "./workorder.css";
 
 const money = (c: number) => "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -80,19 +79,14 @@ export default function WorkOrderDoc({ doc, edit }: { doc: Doc; edit?: WOEdit })
                 <div className="mat-main">
                   <div className="mat-name">{m.product}</div>
                   <div className="mat-colour">
+                    {m.colourHex && <span className="swatch" style={{ background: m.colourHex }} />}
+                    <span>{m.colourName || "Colour to be confirmed"}</span>
                     {edit ? (
-                      <>
-                        <ColourPicker value={m.colourName ? { name: m.colourName, hex: m.colourHex } : null} onChange={(c) => edit.onColour(m.product, { name: c.name, hex: c.hex })} compact />
-                        <button type="button" className={`cchip ${m.colourStatus}`} onClick={() => edit.onColour(m.product, { status: m.colourStatus === "confirmed" ? "tbc" : "confirmed" })}>
-                          {m.colourStatus === "confirmed" ? "Confirmed" : "TBC"}
-                        </button>
-                      </>
+                      <button type="button" className={`cchip ${m.colourStatus}`} onClick={() => edit.onColour(m.product, { status: m.colourStatus === "confirmed" ? "tbc" : "confirmed" })}>
+                        {m.colourStatus === "confirmed" ? "Confirmed" : "TBC"}
+                      </button>
                     ) : (
-                      <>
-                        {m.colourHex && <span className="swatch" style={{ background: m.colourHex }} />}
-                        <span>{m.colourName || "Colour to be confirmed"}</span>
-                        <span className={`cchip ${m.colourStatus}`}>{m.colourStatus === "confirmed" ? "Confirmed" : "TBC"}</span>
-                      </>
+                      <span className={`cchip ${m.colourStatus}`}>{m.colourStatus === "confirmed" ? "Confirmed" : "TBC"}</span>
                     )}
                   </div>
                 </div>

@@ -164,6 +164,8 @@
 .cv .pc-name small { font-weight: 400; color: var(--muted); font-size: 13px; margin-left: 8px; }
 .cv .pc-uses { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 8px; }
 .cv .pc-uses span { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--paint); border: 1px solid rgba(47,185,203,.35); border-radius: 100px; padding: 4px 10px; }
+.cv .pc-colour { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; color: var(--text); }
+.cv .pc-swatch { width: 16px; height: 16px; border-radius: 4px; border: 1px solid rgba(255,255,255,.22); flex-shrink: 0; }
 .cv .pc-why { font-size: 13.5px; color: var(--muted); line-height: 1.55; max-width: 52ch; }
 .cv .pc-props { margin-top: 8px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; color: var(--muted); line-height: 1.5; }
 .cv .pc-props b { color: var(--amber); font-weight: 500; }
@@ -309,5 +311,7 @@
   .cv .pc-name, .cv .pc-name small { color: #111 !important; }
   .cv .pc-uses span { color: #333 !important; border-color: #999 !important; }
   .cv .pc-why, .cv .pc-props, .cv .pc-brand, .cv .paintnote, .cv .paintfine, .cv .prepsubhead { color: #444 !important; }
+  .cv .pc-colour { color: #111 !important; }
+  .cv .pc-swatch { border-color: #999 !important; }
   .cv .pc-props b, .cv .pc-guarantee { color: #6b5a26 !important; }
 }

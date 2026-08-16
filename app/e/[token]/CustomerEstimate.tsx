@@ -600,7 +600,7 @@ function PrintQuote({
           <div className="pd-h">Paint &amp; materials supplied</div>
           <ul className="pd-list">
             {snap.paints.map((p, i) => (
-              <li key={i}>{[p.brand, p.name].filter(Boolean).join(" ")}{p.finish ? ` — ${p.finish}` : ""}{p.role ? ` (${p.role})` : ""}</li>
+              <li key={i}>{[p.brand, p.name].filter(Boolean).join(" ")}{p.finish ? ` — ${p.finish}` : ""}{p.colourName ? ` · ${p.colourName}` : ""}{p.role ? ` (${p.role})` : ""}</li>
             ))}
           </ul>
         </div>
@@ -680,7 +680,7 @@ function TinPlaceholder() {
 function PaintCard({ p }: { p: SnapshotPaint }) {
   const group = groupForCategory(p.category);
   const brandLabel = [p.brand, group].filter(Boolean).join(" · ");
-  const colourPending = p.customerVisible && /walls/i.test(p.category);
+  const colourPending = p.customerVisible && /walls/i.test(p.category) && !p.colourName;
   return (
     <div className="paintcard">
       <div className="tinwrap">
@@ -694,6 +694,12 @@ function PaintCard({ p }: { p: SnapshotPaint }) {
         <p className="pc-name">{p.name}{[p.role, p.finish].filter(Boolean).length > 0 && <small>{[p.role, p.finish].filter(Boolean).join(" · ")}</small>}</p>
         {p.usage.length > 0 && (
           <div className="pc-uses">{p.usage.map((u, i) => <span key={i}>{u}</span>)}</div>
+        )}
+        {p.colourName && (
+          <div className="pc-colour">
+            <span className="pc-swatch" style={{ background: p.colourHex || "#cfcfcf" }} />
+            Colour: {p.colourName}
+          </div>
         )}
         {p.customerVisible && p.blurb && <p className="pc-why">{p.blurb}</p>}
         {p.customerVisible && (p.properties.length > 0 || colourPending) && (

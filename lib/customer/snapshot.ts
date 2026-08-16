@@ -33,6 +33,8 @@ export type SnapshotPaint = {
   category: string; // e.g. "Interior walls" (drives grouping / role)
   role: string; // short role shown next to the name, e.g. "Walls"
   finish: string; // sheen, e.g. "Matt" ("" when unset)
+  colourName: string; // chosen colour name ("" when TBC)
+  colourHex: string; // swatch hex ("" when none)
   blurb: string; // one-liner (omitted for not-yet-verified products)
   properties: string[]; // chips strip
   guarantee: string; // amber phrase; "" when none

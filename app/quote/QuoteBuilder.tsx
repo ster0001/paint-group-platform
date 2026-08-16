@@ -10,6 +10,7 @@ import CustomerEstimate from "@/app/e/[token]/CustomerEstimate";
 import { DEFAULT_PROOF, type CustomerSnapshot, type SnapshotArea, type SnapshotLine, type SnapshotPaint } from "@/lib/customer/snapshot";
 import { type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import WorkOrderDoc, { type WOEdit } from "@/app/w/WorkOrderDoc";
+import ColourPicker from "@/app/components/ColourPicker";
 import { roundUpLitres, type WorkOrderDoc as WODoc, type WOMaterial, type WOArea } from "@/lib/workorder/snapshot";
 
 type WorkOrderRow = {
@@ -46,7 +47,8 @@ type Surface = {
   prepHr: number;
   priceOverride: number | null; // $ — overrides the surface total (labour absorbs the difference)
   productName: string | null;
-  color: string;
+  color: string; // per-surface colour NAME override (empty = follow the Materials colour)
+  colorHex: string; // swatch hex for the override
   coverageOverride: number | null;
   volumeOverride: number | null;
   unitPriceOverride: number | null; // $/L
@@ -243,7 +245,7 @@ export default function QuoteBuilder({
     return g;
   }, [modifiers]);
 
-  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null; contractorRateOverride?: number | null } | null;
+  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; materialColours?: Record<string, { name: string; hex: string }>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null; contractorRateOverride?: number | null } | null;
   const [blocks, setBlocks] = useState<Block[]>(() => {
     const b = loaded?.blocks;
     if (b && b.length) {
@@ -261,7 +263,12 @@ export default function QuoteBuilder({
   // surface starts null, areas added after a global change inherit the current
   // default automatically.
   const [materials, setMaterials] = useState<Record<string, string>>(() => loaded?.materials ?? {});
+  // Global colour per surface type (same cascade model as the product): choose the
+  // walls colour once and every un-pinned wall follows it; a per-surface colour wins.
+  const [materialColours, setMaterialColours] = useState<Record<string, { name: string; hex: string }>>(() => loaded?.materialColours ?? {});
   const materialKey = (type: string, code: string) => `${type}::${code}`;
+  const colourFor = (type: string, s: Surface): { name: string; hex: string } =>
+    s.color ? { name: s.color, hex: s.colorHex || "" } : materialColours[materialKey(type, s.code)] ?? { name: "", hex: "" };
   // Effective product NAME for a surface: pin → global → rate-card default.
   const productNameFor = (type: string, s: Surface): string | null =>
     s.productName ?? materials[materialKey(type, s.code)] ?? itemByKey.get(materialKey(type, s.code))?.default_product ?? null;
@@ -375,7 +382,7 @@ export default function QuoteBuilder({
   function newSurface(): Surface {
     return {
       id: nextId++, code: "", internalLabel: "", clientLabel: "", coats: 2, count: 1, hidden: false, media: [], measureL: null, measureH: null, qtyOverride: null,
-      rateOverride: null, paintingHrOverride: null, prepHr: 0, priceOverride: null, productName: null, color: "",
+      rateOverride: null, paintingHrOverride: null, prepHr: 0, priceOverride: null, productName: null, color: "", colorHex: "",
       coverageOverride: null, volumeOverride: null, unitPriceOverride: null, crewNote: "",
       hideQty: false, showCoats: false, showPrice: false, useCustomRate: false, customRate: null,
       open: false,
@@ -572,7 +579,7 @@ export default function QuoteBuilder({
       size_band: modSel["Job Size"] || null,
       subtotal_cents: totals.subtotal,
       total_cents: totals.total,
-      builder_state: { blocks, modSel, contact, jobAddress, materials, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride },
+      builder_state: { blocks, modSel, contact, jobAddress, materials, materialColours, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride },
       share_token: token,
       sent_snapshot: buildCustomerDoc(token),
     };
@@ -642,7 +649,7 @@ export default function QuoteBuilder({
     try {
       const { data } = await supabase.from("settings").select("value").eq("key", "estimate_templates").maybeSingle();
       const list = Array.isArray(data?.value) ? (data!.value as unknown[]) : [];
-      const tpl = { id: crypto.randomUUID(), name: name.trim(), createdAt: new Date().toISOString(), builder_state: { blocks, modSel, contact, jobAddress, materials, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride } };
+      const tpl = { id: crypto.randomUUID(), name: name.trim(), createdAt: new Date().toISOString(), builder_state: { blocks, modSel, contact, jobAddress, materials, materialColours, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride } };
       const { error } = await supabase.from("settings").upsert({ key: "estimate_templates", value: [...list, tpl] }, { onConflict: "key" });
       if (error) throw error;
       setSaveMsg("Template saved ✓");
@@ -702,6 +709,7 @@ export default function QuoteBuilder({
   };
   function computePaints(): SnapshotPaint[] {
     const used = new Map<string, Map<string, Set<string>>>(); // product → surfaceLabel → area titles
+    const colourByProduct = new Map<string, { name: string; hex: string }>(); // first resolved colour per product
     for (const b of blocks) {
       if (b.kind !== "area" || b.isOption) continue; // only included areas
       const areaTitle = b.name || "Area";
@@ -714,6 +722,8 @@ export default function QuoteBuilder({
         const bySurf = used.get(pname)!;
         if (!bySurf.has(label)) bySurf.set(label, new Set());
         bySurf.get(label)!.add(areaTitle);
+        const col = colourFor(b.type, s);
+        if (col.name && !colourByProduct.get(pname)?.name) colourByProduct.set(pname, col);
       }
     }
     const paints: SnapshotPaint[] = [];
@@ -735,6 +745,8 @@ export default function QuoteBuilder({
         category,
         role: roleForCategory(category),
         finish: effectiveSheen(pname),
+        colourName: colourByProduct.get(pname)?.name ?? "",
+        colourHex: colourByProduct.get(pname)?.hex ?? "",
         blurb: visible ? (p?.blurb ?? "") : "",
         properties: visible ? (p?.properties ?? []) : [],
         guarantee: visible ? (p?.guarantee ?? "") : "",
@@ -805,6 +817,7 @@ export default function QuoteBuilder({
   // Contractor-safe: no customer pricing/margin, no surname/email.
   function computeWorkOrderDoc(): WODoc {
     const matMap = new Map<string, { vol: number; photo: string }>();
+    const colourByProduct = new Map<string, { name: string; hex: string }>();
     const areasDoc: WOArea[] = [];
     for (const b of blocks) {
       if (b.kind !== "area" || b.isOption) continue;
@@ -817,6 +830,8 @@ export default function QuoteBuilder({
           const cur = matMap.get(pname) ?? { vol: 0, photo: productByName.get(pname)?.photo_url ?? productByName.get(pname)?.image_url ?? "" };
           cur.vol += calc.volume;
           matMap.set(pname, cur);
+          const col = colourFor(b.type, s);
+          if (col.name && !colourByProduct.get(pname)?.name) colourByProduct.set(pname, col);
         }
         const key = `${b.id}:${s.id}`;
         surfaces.push({
@@ -834,8 +849,9 @@ export default function QuoteBuilder({
     }
     const materials: WOMaterial[] = [...matMap.entries()].map(([product, { vol, photo }]) => {
       const missing = !(vol > 0); // no coverage data → never fabricate a litre figure
-      const col = woColours[product] ?? { name: "", hex: "", status: "tbc" as const };
-      return { product, photoUrl: photo, litres: missing ? null : roundUpLitres(vol), coverageMissing: missing, colourName: col.name, colourHex: col.hex, colourStatus: col.status };
+      const col = colourByProduct.get(product) ?? { name: "", hex: "" }; // colour comes from the estimate
+      const status = woColours[product]?.status ?? "tbc"; // confirmed/TBC stays on the work order
+      return { product, photoUrl: photo, litres: missing ? null : roundUpLitres(vol), coverageMissing: missing, colourName: col.name, colourHex: col.hex, colourStatus: status };
     });
     return {
       version: 1,
@@ -1232,6 +1248,13 @@ export default function QuoteBuilder({
                                 {effectiveSheen(globalName) && !SHEEN_LEVELS.includes(effectiveSheen(globalName)) && <option value={effectiveSheen(globalName)}>{effectiveSheen(globalName)}</option>}
                                 {SHEEN_LEVELS.map((s) => <option key={s} value={s}>{s}</option>)}
                               </select>
+                            )}
+                            {globalName && (
+                              <ColourPicker
+                                value={materialColours[r.key]?.name ? materialColours[r.key] : null}
+                                onChange={(c) => setMaterialColours((m) => ({ ...m, [r.key]: c }))}
+                                compact
+                              />
                             )}
                             {r.customCount > 0 && (
                               <div className="flex items-center gap-2">
@@ -2171,8 +2194,11 @@ function SurfaceEditor({
                   </button>
                 )}
               </F>
-              <F label="Color">
-                <input className={inp} value={s.color} placeholder="Color" onChange={(e) => onPatch({ color: e.target.value })} />
+              <F label={`Colour${s.color ? " · override" : ""}`}>
+                <ColourPicker value={s.color ? { name: s.color, hex: s.colorHex || "" } : null} onChange={(c) => onPatch({ color: c.name, colorHex: c.hex })} />
+                {s.color && (
+                  <button onClick={() => onPatch({ color: "", colorHex: "" })} className="mt-1 text-[11px] font-medium text-blue-600 hover:text-blue-800">↺ follow Materials colour</button>
+                )}
               </F>
               <F label="Coverage (per L)">{num(s.coverageOverride ?? NaN, (n) => onPatch({ coverageOverride: n }), "auto")}</F>
               <F label="Volume (L)">
