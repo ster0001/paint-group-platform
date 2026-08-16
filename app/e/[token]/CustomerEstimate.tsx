@@ -494,6 +494,15 @@ export default function CustomerEstimate({
         </footer>
       </main>
 
+      {/* Print-only: a traditional itemised paper quote (replaces the on-screen
+          document when the customer downloads/prints a PDF). */}
+      <PrintQuote
+        snap={snap} est={est} sentAt={sentAt} validUntil={validUntil}
+        selectedIds={selected} grossSubtotal={grossSubtotal} discount={discount}
+        discountPct={discountPct} discountMode={discountMode} gst={gst} total={total}
+        deposit={deposit} depositPct={depositPct} acceptedName={acceptedName} done={done}
+      />
+
       {!done && (
         <div className="stickybar print-hide">
           <div className="p"><small>Total incl. GST</small>{money0(total)}</div>
@@ -501,6 +510,136 @@ export default function CustomerEstimate({
         </div>
       )}
     </>
+  );
+}
+
+function PrintQuote({
+  snap, est, sentAt, validUntil, selectedIds, grossSubtotal, discount, discountPct,
+  discountMode, gst, total, deposit, depositPct, acceptedName, done,
+}: {
+  snap: CustomerSnapshot; est: string; sentAt: string | null; validUntil: string | null;
+  selectedIds: Set<string>; grossSubtotal: number; discount: number; discountPct: number;
+  discountMode: string; gst: number; total: number; deposit: number; depositPct: number;
+  acceptedName: string | null; done: null | "accepted" | "declined";
+}) {
+  const c = snap.company;
+  const surfaceLine = (a: CustomerSnapshot["areas"][number]) =>
+    a.surfaces.map((s) => `${s.label} (${s.coats} ${s.coats === 1 ? "coat" : "coats"}${s.product ? ` · ${s.product}` : ""})`).join("; ");
+  const opts = snap.options.filter((o) => selectedIds.has(o.id));
+  return (
+    <div className="printdoc">
+      <div className="pd-head">
+        <div className="pd-co">
+          {c.logoUrl
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img className="pd-logo" src={c.logoUrl} alt={c.name} />
+            : <div className="pd-coname">{c.name}</div>}
+          <div className="pd-cometa">
+            {c.addressLine1}{c.addressLine2 ? `, ${c.addressLine2}` : ""}<br />
+            ABN {c.abn} · {c.phone}{c.email ? ` · ${c.email}` : ""}
+          </div>
+        </div>
+        <div className="pd-meta">
+          <div className="pd-title">QUOTE</div>
+          <table><tbody>
+            <tr><td>Reference</td><td>{est}</td></tr>
+            <tr><td>Date</td><td>{dateFmt(sentAt)}</td></tr>
+            {validUntil && <tr><td>Valid until</td><td>{dateFmt(validUntil)}</td></tr>}
+            {c.estimatorName && <tr><td>Prepared by</td><td>{c.estimatorName}</td></tr>}
+            {done === "accepted" && <tr><td>Status</td><td>Accepted{acceptedName ? ` · ${acceptedName}` : ""}</td></tr>}
+          </tbody></table>
+        </div>
+      </div>
+
+      <div className="pd-billto">
+        <div><b>Quote for</b></div>
+        {snap.contactName && <div>{snap.contactName}</div>}
+        <div>{snap.jobAddress || c.addressLine1}</div>
+        <div className="pd-job">{snap.jobTitle}</div>
+      </div>
+
+      <table className="pd-table">
+        <thead><tr><th>Description</th><th className="pd-amt">Amount (ex GST)</th></tr></thead>
+        <tbody>
+          {snap.areas.map((a) => (
+            <tr key={a.id}>
+              <td>
+                <div className="pd-item">{a.title}</div>
+                {surfaceLine(a) && <div className="pd-sub">{surfaceLine(a)}</div>}
+              </td>
+              <td className="pd-amt">{money2(a.priceCents)}</td>
+            </tr>
+          ))}
+          {snap.lineItems.map((l) => (
+            <tr key={l.id}>
+              <td><div className="pd-item">{l.title}</div></td>
+              <td className="pd-amt">{money2(l.priceCents)}</td>
+            </tr>
+          ))}
+          {opts.map((o) => (
+            <tr key={o.id}>
+              <td><div className="pd-item">{o.title} <span className="pd-tag">(optional extra)</span></div></td>
+              <td className="pd-amt">{money2(o.priceCents)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr><td className="pd-tlabel">Subtotal (ex GST)</td><td className="pd-amt">{money2(grossSubtotal)}</td></tr>
+          {discount > 0 && <tr><td className="pd-tlabel">Discount{discountMode === "pct" ? ` (${discountPct}%)` : ""}</td><td className="pd-amt">− {money2(discount)}</td></tr>}
+          <tr><td className="pd-tlabel">GST</td><td className="pd-amt">{money2(gst)}</td></tr>
+          <tr className="pd-total"><td className="pd-tlabel">Total incl. GST</td><td className="pd-amt">{money2(total)}</td></tr>
+        </tfoot>
+      </table>
+
+      <div className="pd-deposit">
+        <b>Deposit payable ({depositPct}%): {money2(deposit)}</b> — payable in full prior to work commencement; balance on completion after your walkthrough.
+      </div>
+
+      {snap.paints?.length > 0 && (
+        <div className="pd-block">
+          <div className="pd-h">Paint &amp; materials supplied</div>
+          <ul className="pd-list">
+            {snap.paints.map((p, i) => (
+              <li key={i}>{[p.brand, p.name].filter(Boolean).join(" ")}{p.finish ? ` — ${p.finish}` : ""}{p.role ? ` (${p.role})` : ""}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {(snap.inclusions.length > 0 || snap.exclusions.length > 0) && (
+        <div className="pd-cols">
+          {snap.inclusions.length > 0 && (
+            <div className="pd-block">
+              <div className="pd-h">Included in your price</div>
+              <ul className="pd-list">{snap.inclusions.map((t, i) => <li key={i}>{t}</li>)}</ul>
+            </div>
+          )}
+          {snap.exclusions.length > 0 && (
+            <div className="pd-block">
+              <div className="pd-h">Not included</div>
+              <ul className="pd-list">{snap.exclusions.map((t, i) => <li key={i}>{t}</li>)}</ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {snap.terms && snap.terms.trim() && (
+        <div className="pd-block">
+          <div className="pd-h">Terms &amp; conditions</div>
+          <div className="pd-terms">{snap.terms}</div>
+        </div>
+      )}
+
+      <div className="pd-sign">
+        <div className="pd-sigcol"><div className="pd-sigline" />Customer signature</div>
+        <div className="pd-sigcol"><div className="pd-sigline" />Name</div>
+        <div className="pd-sigcol"><div className="pd-sigline" />Date</div>
+      </div>
+
+      <div className="pd-foot">
+        {c.name} · ABN {c.abn} · {est} valid for 60 days from {dateFmt(sentAt)}. Fully insured — {snap.proof.liability} public liability.
+      </div>
+    </div>
   );
 }
 

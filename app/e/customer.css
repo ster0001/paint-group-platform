@@ -245,9 +245,47 @@
 /* =========================================================================
    PRINT — turn the dark screen into a conventional white document
    ========================================================================= */
+/* the itemised paper quote is print-only */
+.cv .printdoc { display: none; }
+
 @media print {
-  @page { margin: 18mm 16mm; }
+  @page { margin: 16mm 14mm; }
   .cv { background: #fff !important; color: #111 !important; }
+
+  /* Replace the on-screen marketing document with the paper quote. */
+  .cv .wrap { display: none !important; }
+  .cv .printdoc { display: block !important; color: #111; font-family: var(--sans); font-size: 12px; }
+  .cv .printdoc .pd-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; border-bottom: 2px solid #111; padding-bottom: 12px; margin-bottom: 16px; }
+  .cv .printdoc .pd-logo { height: 42px; width: auto; max-width: 230px; object-fit: contain; }
+  .cv .printdoc .pd-coname { font-size: 20px; font-weight: 700; }
+  .cv .printdoc .pd-cometa { margin-top: 6px; font-size: 10.5px; color: #444; line-height: 1.5; }
+  .cv .printdoc .pd-title { font-size: 22px; font-weight: 700; letter-spacing: .14em; text-align: right; }
+  .cv .printdoc .pd-meta table { margin-top: 8px; margin-left: auto; font-size: 10.5px; }
+  .cv .printdoc .pd-meta td { padding: 1px 0 1px 14px; text-align: right; }
+  .cv .printdoc .pd-meta td:first-child { color: #666; text-align: left; padding-left: 0; }
+  .cv .printdoc .pd-billto { margin-bottom: 14px; font-size: 12px; line-height: 1.55; }
+  .cv .printdoc .pd-job { margin-top: 4px; font-size: 15px; font-weight: 600; }
+  .cv .printdoc .pd-table { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
+  .cv .printdoc .pd-table th { text-align: left; border-bottom: 1.5px solid #111; padding: 6px 8px; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
+  .cv .printdoc .pd-table td { padding: 8px; border-bottom: 1px solid #ddd; vertical-align: top; }
+  .cv .printdoc .pd-amt { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .cv .printdoc .pd-item { font-weight: 600; }
+  .cv .printdoc .pd-sub { color: #555; font-size: 10.5px; margin-top: 2px; }
+  .cv .printdoc .pd-tag { font-weight: 400; color: #777; font-size: 10.5px; }
+  .cv .printdoc .pd-table tfoot td { border-bottom: none; padding: 3px 8px; }
+  .cv .printdoc .pd-tlabel { text-align: right; color: #444; }
+  .cv .printdoc .pd-table tfoot tr.pd-total td { border-top: 1.5px solid #111; font-weight: 700; font-size: 14px; padding-top: 6px; }
+  .cv .printdoc .pd-deposit { border: 1px solid #bbb; border-radius: 6px; padding: 8px 10px; font-size: 11px; margin-bottom: 14px; break-inside: avoid; }
+  .cv .printdoc .pd-cols { display: flex; gap: 24px; }
+  .cv .printdoc .pd-cols .pd-block { flex: 1; }
+  .cv .printdoc .pd-block { margin-bottom: 12px; break-inside: avoid; }
+  .cv .printdoc .pd-h { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; border-bottom: 1px solid #ccc; padding-bottom: 3px; margin-bottom: 5px; }
+  .cv .printdoc .pd-list { margin: 0; padding-left: 16px; font-size: 11px; line-height: 1.5; }
+  .cv .printdoc .pd-terms { white-space: pre-line; font-size: 10px; color: #333; line-height: 1.5; }
+  .cv .printdoc .pd-sign { display: flex; gap: 24px; margin-top: 28px; break-inside: avoid; }
+  .cv .printdoc .pd-sigcol { flex: 1; font-size: 9.5px; color: #666; text-transform: uppercase; letter-spacing: .05em; }
+  .cv .printdoc .pd-sigline { border-bottom: 1px solid #111; height: 36px; margin-bottom: 4px; }
+  .cv .printdoc .pd-foot { margin-top: 20px; padding-top: 8px; border-top: 1px solid #ccc; font-size: 9.5px; color: #666; }
   .cv .topbar, .cv .stickybar, .cv .cta-row, .cv .finebtns, .cv .tinylinks,
   .cv .portal, .cv .print-hide, .cv .status::before { display: none !important; }
   .cv .cutin::before, .cv .cutin::after { display: none !important; }
