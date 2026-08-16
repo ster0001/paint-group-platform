@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -30,9 +30,16 @@ const monthName = (y: number, m: number) =>
 export default function CalendarGrid({
   blocks,
   jobDays,
+  mode = "block",
+  onPickDate,
+  selectedDate,
 }: {
   blocks: PortalBlock[];
   jobDays: PortalJobDay[];
+  /** "block" = tap/drag to mark unavailable. "pick" = choose one start date. */
+  mode?: "block" | "pick";
+  onPickDate?: (date: string) => void;
+  selectedDate?: string | null;
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -103,6 +110,54 @@ export default function CalendarGrid({
     }
   }
 
+  // Drag across days to block a whole run at once — tapping one day at a time
+  // is painful when you're away for a fortnight.
+  const dragRef = useRef<null | { anchor: string; last: string }>(null);
+  const [marquee, setMarquee] = useState<{ from: string; to: string } | null>(null);
+
+  const inMarquee = useCallback(
+    (d: string) => Boolean(marquee && d >= (marquee.from < marquee.to ? marquee.from : marquee.to) && d <= (marquee.from < marquee.to ? marquee.to : marquee.from)),
+    [marquee],
+  );
+
+  function dayDown(date: string) {
+    if (mode === "pick" || jobByDate.has(date)) return;
+    dragRef.current = { anchor: date, last: date };
+    setMarquee({ from: date, to: date });
+  }
+  function dayEnter(date: string) {
+    if (!dragRef.current) return;
+    dragRef.current.last = date;
+    setMarquee({ from: dragRef.current.anchor, to: date });
+  }
+  async function dayUp() {
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (!d) return;
+    const lo = d.anchor < d.last ? d.anchor : d.last;
+    const hi = d.anchor < d.last ? d.last : d.anchor;
+    setMarquee(null);
+    if (lo === hi) await toggle(lo);
+    else await blockRange(lo, hi);
+  }
+
+  async function blockRange(lo: string, hi: string) {
+    setBusy(lo);
+    setErr("");
+    try {
+      const { data: me } = await supabase.from("contractors").select("id").maybeSingle();
+      const { error } = await supabase.from("contractor_unavailability").insert({
+        contractor_id: me?.id, start_date: lo, end_date: hi, source: "contractor",
+      });
+      if (error) throw error;
+      router.refresh();
+    } catch (e) {
+      setErr(typeof e === "object" && e !== null && "message" in e ? String((e as { message: string }).message) : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const today = iso(new Date());
 
   return (
@@ -136,10 +191,13 @@ export default function CalendarGrid({
           return (
             <button
               key={date}
-              className={`cd2 ${cls} ${date === today ? "istoday" : ""}`}
-              onClick={() => toggle(date)}
-              disabled={busy === date || Boolean(job)}
-              title={job ? job.label : blk ? (blk.source === "staff" ? "Blocked by Paint Group" : "You marked this unavailable") : "Tap to block out"}
+              className={`cd2 ${cls} ${date === today ? "istoday" : ""} ${inMarquee(date) ? "marq" : ""} ${selectedDate === date ? "picked" : ""}`}
+              onPointerDown={() => dayDown(date)}
+              onPointerEnter={() => dayEnter(date)}
+              onPointerUp={dayUp}
+              onClick={() => { if (mode === "pick") { if (!job) onPickDate?.(date); } }}
+              disabled={busy === date || (mode === "block" && Boolean(job))}
+              title={job ? job.label : blk ? (blk.source === "staff" ? "Blocked by Paint Group" : "You marked this unavailable") : mode === "pick" ? "Tap to start here" : "Tap, or drag across several days"}
             >
               {day}
               {job && <small>{job.label.slice(0, 8).toUpperCase()}</small>}

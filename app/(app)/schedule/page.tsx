@@ -42,6 +42,7 @@ export default async function SchedulePage() {
       from={from}
       rangeDays={RANGE}
       savedViews={savedViews}
+      approvals={board.approvals}
     />
   );
 }

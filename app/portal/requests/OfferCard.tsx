@@ -12,8 +12,10 @@ import {
   OFFER_CHIP,
   type BookingOffer,
 } from "@/lib/scheduling/offers";
+import Link from "next/link";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
 import FinishChip from "@/app/components/FinishChip";
+import CalendarGrid, { type PortalBlock, type PortalJobDay } from "@/app/portal/calendar/CalendarGrid";
 
 const money = (c: number | null) =>
   c == null ? "—" : "$" + (c / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 });
@@ -30,10 +32,16 @@ export default function OfferCard({
   offer,
   woRef,
   doc,
+  workOrderId,
+  myBlocks,
+  myJobDays,
 }: {
   offer: BookingOffer;
   woRef: string;
   doc: WorkOrderDoc | null;
+  workOrderId: string;
+  myBlocks: PortalBlock[];
+  myJobDays: PortalJobDay[];
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -157,6 +165,11 @@ export default function OfferCard({
         </>
       )}
 
+      {/* The full job sheet, still suburb-only until they accept. */}
+      <Link href={`/portal/jobs/${workOrderId}`} className="btn gh">
+        View full work order
+      </Link>
+
       {err && <div className="err" style={{ marginTop: 12 }}>{err}</div>}
 
       {state === "proposed" && (
@@ -203,7 +216,14 @@ export default function OfferCard({
           <div className="scrim" onClick={() => setSheet(null)} />
           <div className="sheet">
             <h3>Propose a new start date</h3>
-            <input type="date" value={proposedDate} onChange={(e) => setProposedDate(e.target.value)} />
+            <p className="slab">Pick against your own calendar — your blocked days are marked</p>
+            <CalendarGrid
+              blocks={myBlocks}
+              jobDays={myJobDays}
+              mode="pick"
+              selectedDate={proposedDate || null}
+              onPickDate={(d) => setProposedDate(d)}
+            />
             <textarea
               rows={2}
               placeholder="Optional note — e.g. finishing another job Monday"

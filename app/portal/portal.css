@@ -332,7 +332,7 @@
 .pt .sheet textarea { margin-bottom: 10px; }
 
 /* ---- calendar ------------------------------------------------------------ */
-.pt .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.pt .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; touch-action: none; user-select: none; }
 .pt .cal .dow { font-family: var(--mono); font-size: 8px; color: var(--muted); text-align: center; padding: 4px 0; }
 .pt .cd2 {
   aspect-ratio: 1; border: 1px solid var(--line); border-radius: 8px;
@@ -348,6 +348,8 @@
 .pt .cd2.job { border-color: rgba(59, 216, 233, 0.55); color: var(--cyan); background: rgba(59, 216, 233, 0.07); }
 .pt .cd2.booked { border-color: rgba(47, 164, 107, 0.55); color: var(--emerald); background: rgba(47, 164, 107, 0.07); }
 .pt .cd2.blocked { background: repeating-linear-gradient(45deg, rgba(140, 149, 157, 0.14) 0 5px, transparent 5px 10px); color: var(--muted); }
+.pt .cd2.marq { background: rgba(59,216,233,.14); border-color: rgba(59,216,233,.5); color: var(--cyan); }
+.pt .cd2.picked { background: var(--cyan); border-color: var(--cyan); color: var(--on-cyan); font-weight: 700; }
 .pt .cd2.blocked.office { background: repeating-linear-gradient(45deg, rgba(179, 87, 74, 0.16) 0 5px, transparent 5px 10px); border-color: rgba(179, 87, 74, 0.4); color: #d9a79e; }
 .pt .legend { display: flex; gap: 12px; font-family: var(--mono); font-size: 8px; color: var(--muted); margin-top: 12px; flex-wrap: wrap; }
 .pt .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; }

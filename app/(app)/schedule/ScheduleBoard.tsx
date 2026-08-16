@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { expiryFromNow, msRemaining } from "@/lib/scheduling/offers";
+import { expiryFromNow, msRemaining, isReschedule, type BookingOffer } from "@/lib/scheduling/offers";
 import type { Block, Lane, TrayJob } from "@/lib/scheduling/board";
 import "./schedule.css";
 
@@ -24,6 +24,18 @@ const todayIso = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
+/** Contiguous month runs across the visible days, for the month band. */
+function monthRuns(days: string[]) {
+  const out: { label: string; span: number }[] = [];
+  for (const d of days) {
+    const label = new Date(d + "T00:00:00Z").toLocaleDateString("en-AU", { month: "long", year: "numeric", timeZone: "UTC" });
+    const last = out[out.length - 1];
+    if (last && last.label === label) last.span += 1;
+    else out.push({ label, span: 1 });
+  }
+  return out;
+}
+
 /** Render a date cell without letting the timezone move it. */
 const dayParts = (s: string) => {
   const d = new Date(s + "T00:00:00Z");
@@ -55,6 +67,7 @@ export default function ScheduleBoard({
   from,
   rangeDays,
   savedViews,
+  approvals,
 }: {
   lanes: Lane[];
   blocks: Block[];
@@ -62,6 +75,7 @@ export default function ScheduleBoard({
   from: string;
   rangeDays: number;
   savedViews: SavedView[];
+  approvals: { offer: BookingOffer; woRef: string; title: string; contractorName: string }[];
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -69,6 +83,18 @@ export default function ScheduleBoard({
   const [dayW, setDayW] = useState(64);
   const [range, setRange] = useState(rangeDays);
   const [start, setStart] = useState(from);
+  const tlRef = useRef<HTMLElement | null>(null);
+
+  /**
+   * Picking 2W/4W/8W should CHANGE THE SIZE of the view, not just stretch the
+   * board off the right-hand edge — so the day width is recomputed to fit the
+   * whole range in the space available. The zoom slider still overrides it.
+   */
+  const fitRange = useCallback((n: number) => {
+    setRange(n);
+    const avail = (tlRef.current?.clientWidth ?? 0) - 32; // padding
+    if (avail > 0) setDayW(Math.max(14, Math.min(140, Math.floor(avail / n))));
+  }, []);
 
   // ---- filters + saved views (requirement 4) --------------------------------
   const [tiers, setTiers] = useState<string[]>([]);
@@ -128,6 +154,12 @@ export default function ScheduleBoard({
 
   const [ghost, setGhost] = useState<null | { title: string; sub: string }>(null);
   const [ghostBlocked, setGhostBlocked] = useState(false);
+
+  // Dragging across EMPTY lane space marks a contractor unavailable for that
+  // run of days — far quicker than a form, and it reads the same as the drag
+  // used to place a job.
+  const marquee = useRef<null | { contractorId: string; anchor: number; laneEl: HTMLElement; pointerId: number; moved: boolean }>(null);
+  const [pendingBlock, setPendingBlock] = useState<null | { contractorId: string; start: string; end: string }>(null);
 
   const cacheLaneRects = useCallback(() => {
     laneRects.current = [...laneRefs.current.entries()]
@@ -255,6 +287,53 @@ export default function ScheduleBoard({
     [days, spanBlocked],
   );
 
+  const paintMarquee = useCallback((laneEl: HTMLElement, a: number, b: number) => {
+    const lo = Math.min(a, b), hi = Math.max(a, b);
+    for (let i = 0; i < range; i++) {
+      (laneEl.children[i] as HTMLElement | undefined)?.classList.toggle("marq", i >= lo && i <= hi);
+    }
+  }, [range]);
+
+  const clearMarquee = useCallback((laneEl: HTMLElement) => {
+    for (let i = 0; i < range; i++) (laneEl.children[i] as HTMLElement | undefined)?.classList.remove("marq");
+  }, [range]);
+
+  function beginBlockOut(e: React.PointerEvent, contractorId: string) {
+    // Only on bare background cells — never steal a drag from a job block.
+    const el = e.target as HTMLElement;
+    if (!el.classList.contains("bgc") || e.button !== 0) return;
+    const laneEl = e.currentTarget as HTMLElement;
+    const idx = Array.prototype.indexOf.call(laneEl.children, el);
+    if (idx < 0 || idx >= range) return;
+
+    marquee.current = { contractorId, anchor: idx, laneEl, pointerId: e.pointerId, moved: false };
+    paintMarquee(laneEl, idx, idx);
+
+    const ac = new AbortController();
+    const move = (ev: PointerEvent) => {
+      const m = marquee.current;
+      if (!m || ev.pointerId !== m.pointerId) return;
+      const r = m.laneEl.getBoundingClientRect();
+      const i = Math.max(0, Math.min(range - 1, Math.floor((ev.clientX - r.left) / dayW)));
+      m.moved = true;
+      paintMarquee(m.laneEl, m.anchor, i);
+    };
+    const up = (ev: PointerEvent) => {
+      const m = marquee.current;
+      ac.abort();
+      if (!m || ev.pointerId !== m.pointerId) return;
+      const r = m.laneEl.getBoundingClientRect();
+      const i = Math.max(0, Math.min(range - 1, Math.floor((ev.clientX - r.left) / dayW)));
+      clearMarquee(m.laneEl);
+      marquee.current = null;
+      const lo = Math.min(m.anchor, i), hi = Math.max(m.anchor, i);
+      setPendingBlock({ contractorId: m.contractorId, start: days[lo], end: days[hi] });
+    };
+    window.addEventListener("pointermove", move, { signal: ac.signal });
+    window.addEventListener("pointerup", up, { signal: ac.signal });
+    window.addEventListener("pointercancel", up, { signal: ac.signal });
+  }
+
   function beginDrag(
     e: React.PointerEvent,
     payload: { kind: "tray"; job: TrayJob } | { kind: "block"; block: Block },
@@ -304,6 +383,8 @@ export default function ScheduleBoard({
   const [err, setErr] = useState("");
   const [toast, setToast] = useState("");
   const [detail, setDetail] = useState<Block | null>(null);
+  const [blockReason, setBlockReason] = useState("");
+  const [cancelReason, setCancelReason] = useState("");
 
   function flash(msg: string) {
     setToast(msg);
@@ -347,6 +428,30 @@ export default function ScheduleBoard({
     setErr("");
     try {
       const b = pendingDrop.block;
+
+      // Dropped on a DIFFERENT contractor: that's a reassignment, not a nudge of
+      // the dates. Cancel the existing offer first so the one-live-offer rule
+      // holds, then send a fresh one to the new contractor.
+      if (b.contractorId !== pendingDrop.contractorId) {
+        if (b.offerId) {
+          const { data } = await supabase.rpc("cancel_booking", { p_offer_id: b.offerId, p_reason: "Reassigned to another contractor" });
+          if (String(data).startsWith("error:")) throw new Error(String(data).replace("error:", ""));
+        }
+        await supabase.from("work_orders").update({ contractor_id: pendingDrop.contractorId }).eq("id", b.workOrderId!);
+        const { error: insErr } = await supabase.from("booking_offers").insert({
+          work_order_id: b.workOrderId,
+          contractor_id: pendingDrop.contractorId,
+          start_date: pendingDrop.startDate,
+          end_date: addDays(pendingDrop.startDate, pendingDrop.spanDays - 1),
+          payment_cents: b.paymentCents,
+          expires_at: expiryFromNow(),
+        });
+        if (insErr) throw insErr;
+        setPendingDrop(null);
+        flash("Reassigned — a fresh 24-hour offer has gone to the new contractor.");
+        router.refresh();
+        return;
+      }
       if (b.workOrderId) {
         await supabase.from("work_orders").update({ start_date: pendingDrop.startDate, contractor_id: pendingDrop.contractorId }).eq("id", b.workOrderId);
       }
@@ -377,6 +482,46 @@ export default function ScheduleBoard({
       router.refresh();
     }
     setBusy(false);
+  }
+
+  /** Approve or refuse a proposed / reschedule date. */
+  async function resolve(offerId: string, approve: boolean) {
+    setBusy(true);
+    setErr("");
+    const { data, error } = await supabase.rpc("resolve_proposed_offer", { p_offer_id: offerId, p_approve: approve });
+    if (error) setErr(error.message);
+    else if (String(data).startsWith("error:")) setErr(String(data).replace("error:", ""));
+    else {
+      const msg: Record<string, string> = {
+        accepted: "Approved — the new date is locked in.",
+        kept_original: "Refused — the job stays on its original date.",
+        declined: "Refused — the job is back in the unscheduled tray.",
+      };
+      flash(msg[String(data)] ?? "Done.");
+      router.refresh();
+    }
+    setBusy(false);
+  }
+
+  async function cancelBooking(offerId: string, reason: string) {
+    setBusy(true);
+    setErr("");
+    const { data, error } = await supabase.rpc("cancel_booking", { p_offer_id: offerId, p_reason: reason });
+    if (error) setErr(error.message);
+    else if (String(data).startsWith("error:")) setErr(String(data).replace("error:", ""));
+    else {
+      setDetail(null);
+      flash("Cancelled — the job is back in the unscheduled tray.");
+      router.refresh();
+    }
+    setBusy(false);
+  }
+
+  async function saveBlockOut() {
+    if (!pendingBlock) return;
+    await blockOut(pendingBlock.contractorId, pendingBlock.start, pendingBlock.end, blockReason);
+    setPendingBlock(null);
+    setBlockReason("");
   }
 
   async function removeBlock(id: string) {
@@ -417,9 +562,15 @@ export default function ScheduleBoard({
             <button onClick={() => setStart(addDays(start, range))}>Next ›</button>
           </div>
 
+          {/* Jump anywhere — Back/Next alone can't reach a job three months out. */}
+          <label className="ctrl-lab" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            Jump to
+            <input type="date" value={start} onChange={(e) => e.target.value && setStart(e.target.value)} />
+          </label>
+
           <div className="seg">
             {[14, 28, 56].map((n) => (
-              <button key={n} className={range === n ? "on" : ""} onClick={() => setRange(n)}>
+              <button key={n} className={range === n ? "on" : ""} onClick={() => fitRange(n)}>
                 {n / 7}w
               </button>
             ))}
@@ -502,6 +653,49 @@ export default function ScheduleBoard({
 
       <div className="layout">
         <aside className="tray">
+          {/* Anything waiting on a staff decision comes FIRST — these have a
+              customer on the other end of them. */}
+          {approvals.length > 0 && (
+            <div style={{ marginBottom: 22 }}>
+              <h2>Needs your decision</h2>
+              <p className="sub">Ring the customer, then approve or reject</p>
+              {approvals.map((a) => {
+                const resched = isReschedule(a.offer);
+                const due = a.offer.approval_due_at;
+                const late = due ? msRemaining(due) <= 0 : false;
+                return (
+                  <div className="jcard" key={a.offer.id} style={{ cursor: "default", borderColor: late ? "rgba(179,87,74,.6)" : "rgba(224,168,60,.55)" }}>
+                    <div className="r1">
+                      <span className="ref">{a.woRef}</span>
+                      <span className="fin" style={{ color: late ? "var(--clay)" : "var(--amber)", borderColor: "currentColor" }}>
+                        {due ? (late ? "OVERDUE" : coarseCountdown(due)) : "WAITING"}
+                      </span>
+                    </div>
+                    <h3>{a.title}</h3>
+                    <div className="meta">
+                      {a.contractorName.toUpperCase()} · {resched ? "WANTS TO MOVE THE JOB" : "PROPOSED A NEW DATE"}
+                    </div>
+                    <div className="pay">
+                      {resched && a.offer.prior_start_date ? `${a.offer.prior_start_date} → ` : ""}
+                      {a.offer.proposed_start_date}
+                    </div>
+                    {a.offer.response_note && (
+                      <div className="meta" style={{ marginTop: 6, color: "var(--text)" }}>&ldquo;{a.offer.response_note}&rdquo;</div>
+                    )}
+                    <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                      <button className="btn cy" style={{ marginTop: 0, padding: 8, fontSize: 12 }} disabled={busy} onClick={() => resolve(a.offer.id, true)}>
+                        Approve
+                      </button>
+                      <button className="btn gh" style={{ marginTop: 0, padding: 8, fontSize: 12 }} disabled={busy} onClick={() => resolve(a.offer.id, false)}>
+                        {resched ? "Keep original" : "Reject"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           <h2>Unscheduled</h2>
           <p className="sub">Issued jobs awaiting dates · drag onto the timeline</p>
           {tray.length === 0 ? (
@@ -525,13 +719,23 @@ export default function ScheduleBoard({
             ))
           )}
           <p className="hint">
-            Drag a job onto a contractor&rsquo;s row. Nothing is sent until you confirm —
-            and a row shows red if they&rsquo;ve blocked those days out.
+            Drag a job onto a contractor&rsquo;s row — nothing is sent until you confirm,
+            and the row turns red if they&rsquo;ve blocked those days out. Drag across
+            empty space on a row to block that contractor out. Drag an existing
+            booking to another row to reassign it.
           </p>
         </aside>
 
-        <main className="tl">
+        <main className="tl" ref={tlRef}>
           <div className="grid">
+            <div className="mb">
+              <div className="mcell spacer" />
+              {monthRuns(days).map((m, i) => (
+                <div key={i} className="mcell" style={{ gridColumn: `span ${m.span}` }}>
+                  {m.label}
+                </div>
+              ))}
+            </div>
             <div className="dh">
               <div className="cell lanehead">Contractor</div>
               {days.map((d) => {
@@ -552,14 +756,20 @@ export default function ScheduleBoard({
                 return (
                   <div className="crow" key={l.contractorId}>
                     <div className="cinfo">
-                      <div className="nm">{l.name}</div>
-                      <div className="tg">TIER {l.tier}{l.company ? ` · ${l.company.toUpperCase()}` : ""}</div>
-                      <div className="bd">
-                        <span className={l.offerable ? "q" : "no"}>{l.offerable ? "READY" : "NOT OFFERABLE"}</span>
+                      <div className="nmrow">
+                        <div className="nm">{l.name}</div>
+                        <div className="bd">
+                          <span className={l.offerable ? "q" : "no"}>{l.offerable ? "READY" : "NOT READY"}</span>
+                        </div>
                       </div>
+                      <div className="tg">TIER {l.tier}{l.company ? ` · ${l.company.toUpperCase()}` : ""}</div>
                     </div>
 
-                    <div className="lane" ref={(el) => { if (el) laneRefs.current.set(l.contractorId, el); }}>
+                    <div
+                      className="lane"
+                      ref={(el) => { if (el) laneRefs.current.set(l.contractorId, el); }}
+                      onPointerDown={(e) => beginBlockOut(e, l.contractorId)}
+                    >
                       {days.map((d) => {
                         const dow = dayParts(d).dow;
                         return <div key={d} className={`bgc ${dow === 0 || dow === 6 ? "we" : ""}`} />;
@@ -610,7 +820,10 @@ export default function ScheduleBoard({
       )}
 
       {/* confirm a drop */}
-      <div className={`scrim ${pendingDrop || detail ? "on" : ""}`} onClick={() => { setPendingDrop(null); setDetail(null); setErr(""); }} />
+      <div
+        className={`scrim ${pendingDrop || detail || pendingBlock ? "on" : ""}`}
+        onClick={() => { setPendingDrop(null); setDetail(null); setPendingBlock(null); setErr(""); }}
+      />
 
       <div className={`sheet ${pendingDrop ? "open" : ""}`}>
         {pendingDrop && (
@@ -663,7 +876,7 @@ export default function ScheduleBoard({
       </div>
 
       {/* block detail */}
-      <div className={`sheet ${detail && !pendingDrop ? "open" : ""}`}>
+      <div className={`sheet ${detail && !pendingDrop && !pendingBlock ? "open" : ""}`}>
         {detail && (
           <>
             <h3>{detail.title}</h3>
@@ -685,12 +898,58 @@ export default function ScheduleBoard({
                 )}
               </>
             )}
+            {/* Cancelling: works on a pending offer OR an already-booked job. */}
+            {detail.offerId && detail.kind !== "unavailable" && (
+              <>
+                <label className="ctrl-lab" style={{ display: "block", marginTop: 16, marginBottom: 6 }}>
+                  Reason (goes on the record)
+                </label>
+                <input
+                  type="text"
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder={detail.kind === "accepted" ? "e.g. customer postponed" : "e.g. offering someone closer"}
+                  style={{ width: "100%" }}
+                />
+                <button className="btn dim" disabled={busy} onClick={() => cancelBooking(detail.offerId!, cancelReason)}>
+                  {detail.kind === "accepted" ? "Cancel this booking" : "Cancel this offer"}
+                </button>
+                <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>
+                  The job goes back to the unscheduled tray, ready to send to someone else.
+                  {detail.kind === "accepted" ? " The contractor loses the booking, so give them a call too." : ""}
+                </p>
+              </>
+            )}
+
             {detail.workOrderId && (
               <a className="btn gh" href={`/quote?wo=${detail.workOrderId}`} style={{ display: "block", textAlign: "center", textDecoration: "none" }}>
                 Open the work order
               </a>
             )}
             <button className="btn gh" onClick={() => setDetail(null)}>Close</button>
+          </>
+        )}
+      </div>
+
+      {/* dragged-out block range */}
+      <div className={`sheet ${pendingBlock ? "open" : ""}`}>
+        {pendingBlock && (
+          <>
+            <h3>Block these days out?</h3>
+            <p className="slab">The contractor sees this in their calendar</p>
+            <div className="frow">
+              <span className="l">Contractor</span>
+              <span className="v">{lanes.find((l) => l.contractorId === pendingBlock.contractorId)?.name.toUpperCase()}</span>
+            </div>
+            <div className="frow">
+              <span className="l">Days</span>
+              <span className="v">{pendingBlock.start}{pendingBlock.end !== pendingBlock.start ? ` → ${pendingBlock.end}` : ""}</span>
+            </div>
+            <label className="ctrl-lab" style={{ display: "block", marginTop: 14, marginBottom: 6 }}>Reason (optional)</label>
+            <input type="text" value={blockReason} onChange={(e) => setBlockReason(e.target.value)} placeholder="e.g. training, annual leave" style={{ width: "100%" }} />
+            {err && <div className="err">{err}</div>}
+            <button className="btn cy" disabled={busy} onClick={saveBlockOut}>Block them out</button>
+            <button className="btn gh" onClick={() => { setPendingBlock(null); setBlockReason(""); }}>Cancel</button>
           </>
         )}
       </div>

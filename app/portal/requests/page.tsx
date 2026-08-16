@@ -1,5 +1,8 @@
+import { createClient } from "@/lib/supabase/server";
 import { requireContractor } from "@/lib/contractor/session";
 import { listContractorOffers } from "@/lib/contractor/offers";
+import { listContractorJobs } from "@/lib/contractor/jobs";
+import type { PortalBlock, PortalJobDay } from "../calendar/CalendarGrid";
 import { effectiveState, isLive } from "@/lib/scheduling/offers";
 import Placeholder from "../Placeholder";
 import OfferCard from "./OfferCard";
@@ -9,6 +12,24 @@ export const dynamic = "force-dynamic";
 export default async function RequestsPage() {
   const { contractor } = await requireContractor();
   const offers = contractor ? await listContractorOffers(contractor.id) : [];
+
+  // The contractor's own availability, so "propose a new date" is picked against
+  // what they actually have free rather than typed blind.
+  let myBlocks: PortalBlock[] = [];
+  const myJobDays: PortalJobDay[] = [];
+  if (contractor) {
+    const supabase = await createClient();
+    const { data: u } = await supabase
+      .from("contractor_unavailability")
+      .select("id, start_date, end_date, reason, source")
+      .eq("contractor_id", contractor.id);
+    myBlocks = ((u as { id: string; start_date: string; end_date: string; reason: string; source: "contractor" | "staff" }[] | null) ?? [])
+      .map((b) => ({ id: b.id, start: b.start_date, end: b.end_date, reason: b.reason, source: b.source }));
+
+    for (const j of await listContractorJobs(contractor.id)) {
+      if (j.startDate) myJobDays.push({ date: j.startDate, label: j.doc?.jobTitle || j.woRef, status: j.status });
+    }
+  }
 
   const live = offers.filter((o) => isLive(effectiveState(o.offer)));
   const settled = offers.filter((o) => !isLive(effectiveState(o.offer)));
@@ -32,7 +53,7 @@ export default async function RequestsPage() {
       <p className="slab">Respond within the countdown — offers expire</p>
 
       {live.map((o) => (
-        <OfferCard key={o.offer.id} offer={o.offer} woRef={o.woRef} doc={o.doc} />
+        <OfferCard key={o.offer.id} offer={o.offer} woRef={o.woRef} doc={o.doc} workOrderId={o.offer.work_order_id} myBlocks={myBlocks} myJobDays={myJobDays} />
       ))}
 
       {live.length === 0 && (
@@ -47,7 +68,7 @@ export default async function RequestsPage() {
         <>
           <p className="slab" style={{ marginTop: 18 }}>Earlier offers</p>
           {settled.map((o) => (
-            <OfferCard key={o.offer.id} offer={o.offer} woRef={o.woRef} doc={o.doc} />
+            <OfferCard key={o.offer.id} offer={o.offer} woRef={o.woRef} doc={o.doc} workOrderId={o.offer.work_order_id} myBlocks={myBlocks} myJobDays={myJobDays} />
           ))}
         </>
       )}

@@ -86,6 +86,14 @@
 /* ---- timeline ------------------------------------------------------------ */
 .sb .tl { overflow-x: auto; padding: 16px 16px 60px; }
 .sb .grid { min-width: min-content; }
+.sb .mb { display: grid; grid-template-columns: var(--lane-w) repeat(var(--days), var(--day-w)); }
+.sb .mb .mcell {
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--text); padding: 6px 8px; border-left: 1px solid var(--line);
+  white-space: nowrap; overflow: hidden;
+}
+.sb .mb .mcell.spacer { border-left: none; }
+
 .sb .dh { display: grid; grid-template-columns: var(--lane-w) repeat(var(--days), var(--day-w)); border-bottom: 1px solid var(--line); }
 .sb .dh .cell { padding: 8px 2px; text-align: center; font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 0.04em; overflow: hidden; white-space: nowrap; }
 .sb .dh .cell.we { color: #5a6268; }
@@ -96,10 +104,14 @@
   display: grid; grid-template-columns: var(--lane-w) repeat(var(--days), var(--day-w));
   border-bottom: 1px solid rgba(36, 43, 50, 0.6); position: relative; height: var(--row-h);
 }
-.sb .cinfo { padding: 10px 12px; border-right: 1px solid var(--line); overflow: hidden; }
+.sb .cinfo {
+  padding: 8px 12px; border-right: 1px solid var(--line); overflow: hidden;
+  display: flex; flex-direction: column; justify-content: center; gap: 2px; min-width: 0;
+}
+.sb .cinfo .nmrow { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .sb .cinfo .nm { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sb .cinfo .tg { font-family: var(--mono); font-size: 8.5px; color: var(--muted); letter-spacing: 0.05em; margin-top: 2px; }
-.sb .cinfo .bd { display: flex; gap: 6px; margin-top: 5px; font-family: var(--mono); font-size: 8px; }
+.sb .cinfo .tg { font-family: var(--mono); font-size: 8.5px; color: var(--muted); letter-spacing: 0.05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb .cinfo .bd { display: flex; gap: 6px; font-family: var(--mono); font-size: 8px; flex-shrink: 0; }
 .sb .cinfo .bd span { padding: 2px 7px; border-radius: 100px; border: 1px solid var(--line); color: var(--muted); }
 .sb .cinfo .bd .q { color: var(--emerald); border-color: rgba(47, 164, 107, 0.4); }
 .sb .cinfo .bd .no { color: var(--clay); border-color: rgba(179, 87, 74, 0.4); }
@@ -109,6 +121,8 @@
 .sb .lane .bgc.we { background: rgba(255, 255, 255, 0.018); }
 /* Drop target — a single class toggle, no per-cell restyling during a drag. */
 .sb .lane .bgc.hot { background: rgba(59, 216, 233, 0.1); box-shadow: inset 0 0 0 1px rgba(59, 216, 233, 0.35); }
+/* marquee while dragging out a block-out range on empty lane space */
+.sb .lane .bgc.marq { background: repeating-linear-gradient(45deg, rgba(140,149,157,.22) 0 6px, transparent 6px 12px); box-shadow: inset 0 0 0 1px rgba(140,149,157,.5); }
 .sb .lane.blocked .bgc.hot { background: rgba(179, 87, 74, 0.12); box-shadow: inset 0 0 0 1px rgba(179, 87, 74, 0.4); }
 
 .sb .todayline { position: absolute; top: 0; bottom: 0; width: 1.5px; background: var(--cyan); opacity: 0.55; z-index: 5; pointer-events: none; }

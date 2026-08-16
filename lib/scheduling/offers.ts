@@ -7,7 +7,8 @@ export type OfferState =
   | "accepted"
   | "declined"
   | "expired"
-  | "withdrawn";
+  | "withdrawn"
+  | "cancelled";
 
 export type BookingOffer = {
   id: string;
@@ -25,10 +26,17 @@ export type BookingOffer = {
   proposed_start_date: string | null;
   response_note: string;
   decline_reason: string;
+  accepted_at: string | null;
+  cancelled_reason: string;
+  cancelled_at: string | null;
+  /** The date the job WAS booked for while a reschedule awaits staff. */
+  prior_start_date: string | null;
+  /** Staff's clock on a proposal — distinct from the contractor's expires_at. */
+  approval_due_at: string | null;
 };
 
 export const OFFER_COLUMNS =
-  "id, work_order_id, contractor_id, state, start_date, end_date, hours_allowance, payment_cents, staff_note, offered_at, expires_at, responded_at, proposed_start_date, response_note, decline_reason";
+  "id, work_order_id, contractor_id, state, start_date, end_date, hours_allowance, payment_cents, staff_note, offered_at, expires_at, responded_at, proposed_start_date, response_note, decline_reason, accepted_at, cancelled_reason, cancelled_at, prior_start_date, approval_due_at";
 
 /** States where the job is spoken for and no new offer may be made. */
 export const LIVE_STATES: OfferState[] = ["offered", "proposed"];
@@ -45,9 +53,14 @@ export const isLive = (s: OfferState) => LIVE_STATES.includes(s);
  * same rule.
  */
 export function effectiveState(offer: Pick<BookingOffer, "state" | "expires_at">): OfferState {
-  if (isLive(offer.state) && new Date(offer.expires_at).getTime() < Date.now()) return "expired";
+  // Only an UNANSWERED offer lapses. A proposal is waiting on staff, and
+  // expiring it silently would drop a job on the floor.
+  if (offer.state === "offered" && new Date(offer.expires_at).getTime() < Date.now()) return "expired";
   return offer.state;
 }
+
+/** True when this proposal is a request to move an ALREADY-BOOKED job. */
+export const isReschedule = (o: Pick<BookingOffer, "prior_start_date">) => Boolean(o.prior_start_date);
 
 /** Chip styling vocabulary from the approved spec. */
 export const OFFER_CHIP: Record<OfferState, { cls: string; label: string }> = {
@@ -57,6 +70,7 @@ export const OFFER_CHIP: Record<OfferState, { cls: string; label: string }> = {
   declined: { cls: "cly", label: "Declined" },
   expired: { cls: "cly", label: "Expired" },
   withdrawn: { cls: "gry", label: "Withdrawn" },
+  cancelled: { cls: "cly", label: "Cancelled" },
 };
 
 /** Staff-side wording for the same states. */
@@ -67,6 +81,7 @@ export const OFFER_CHIP_STAFF: Record<OfferState, string> = {
   declined: "Declined",
   expired: "Expired — no response",
   withdrawn: "Withdrawn",
+  cancelled: "Cancelled",
 };
 
 export const DECLINE_REASONS = [

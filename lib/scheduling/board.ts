@@ -50,10 +50,19 @@ export type TrayJob = {
   lastDeclineReason: string;
 };
 
+/** A proposal or reschedule sitting with staff for a decision. */
+export type Approval = {
+  offer: BookingOffer;
+  woRef: string;
+  title: string;
+  contractorName: string;
+};
+
 export type BoardData = {
   lanes: Lane[];
   blocks: Block[];
   tray: TrayJob[];
+  approvals: Approval[];
 };
 
 // Plain calendar dates, so the arithmetic stays in UTC end to end. Parsing as
@@ -229,5 +238,23 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
       };
     });
 
-  return { lanes, blocks, tray };
+  // Anything waiting on a staff decision, newest first. These need chasing even
+  // when their dates sit outside the visible window, so they are NOT filtered
+  // by the date range.
+  const laneName = new Map(lanes.map((l) => [l.contractorId, l.name]));
+  const approvals: Approval[] = allOffers
+    .filter((o) => o.state === "proposed")
+    .sort((a, b) => (a.responded_at ?? "").localeCompare(b.responded_at ?? ""))
+    .map((o) => {
+      const w = woById.get(o.work_order_id);
+      const doc = snapshotOf(w?.wo_snapshot);
+      return {
+        offer: o,
+        woRef: w?.wo_ref ?? "",
+        title: doc?.jobTitle || w?.wo_ref || "Job",
+        contractorName: laneName.get(o.contractor_id) ?? "Contractor",
+      };
+    });
+
+  return { lanes, blocks, tray, approvals };
 }
