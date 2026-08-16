@@ -35,9 +35,9 @@ export default function PresentationBlocks({ blocks }: { blocks: { kind: string;
 }
 
 function VideoBlock({ c }: { c: { title: string; description: string; videos: { url: string; storage_path: string; poster_path: string; caption_title: string; caption_sub: string; duration_label: string }[] } }) {
+  const [playing, setPlaying] = useState(false);
   const v = c.videos.find((x) => x.url || x.storage_path || x.poster_path);
   if (!v) return null;
-  const [playing, setPlaying] = useState(false);
   const yid = v.url ? youTubeId(v.url) : null;
   const poster = mediaUrl(v.poster_path) || (yid ? `https://img.youtube.com/vi/${yid}/hqdefault.jpg` : "");
   return (
@@ -48,7 +48,6 @@ function VideoBlock({ c }: { c: { title: string; description: string; videos: { 
         {playing ? (
           yid
             ? <iframe className="pvideo-frame" src={`https://www.youtube.com/embed/${yid}?autoplay=1&rel=0`} title={v.caption_title} allow="autoplay; encrypted-media; fullscreen" allowFullScreen />
-            // eslint-disable-next-line jsx-a11y/media-has-caption
             : <video className="pvideo-frame" src={mediaUrl(v.storage_path)} controls autoPlay />
         ) : (
           <button className="pvideo-poster" onClick={() => setPlaying(true)} style={poster ? { backgroundImage: `url(${poster})` } : undefined} aria-label="Play video">
