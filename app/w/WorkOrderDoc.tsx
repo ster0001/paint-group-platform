@@ -32,6 +32,11 @@ export default function WorkOrderDoc({ doc, edit }: { doc: Doc; edit?: WOEdit })
 
         <h1>{doc.jobTitle}</h1>
         <div className="wo-addr">{doc.jobAddress}</div>
+        <div className="print-hide" style={{ marginTop: 10 }}>
+          <button onClick={() => window.print()} style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--muted)", border: "1px solid var(--line)", borderRadius: 8, padding: "6px 12px", background: "transparent", cursor: "pointer" }}>
+            ⤓ Download PDF
+          </button>
+        </div>
 
         <div className="facts">
           <div className="fact">

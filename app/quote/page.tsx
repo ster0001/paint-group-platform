@@ -49,7 +49,7 @@ export default async function QuotePage({
   // Everything below is independent — fetch it all in one round-trip. The single
   // `settings` fetch also carries the company profile and any saved templates, so
   // we don't query settings three separate times.
-  const [rateItems, modifiers, products, settings, lineItems, areaNames, contactsRes, estimateRes] = await Promise.all([
+  const [rateItems, modifiers, products, settings, lineItems, areaNames, contactsRes, estimateRes, workOrderRes, contractorsRes] = await Promise.all([
     supabase.from("rate_items").select("*").eq("rate_card_id", card?.id ?? "").order("category").order("sub_category"),
     supabase.from("modifiers").select("*").eq("active", true),
     supabase.from("products").select("*"),
@@ -58,7 +58,11 @@ export default async function QuotePage({
     supabase.from("area_names").select("area, type").order("type").order("area"),
     supabase.from("contacts").select("*").order("last_name"),
     id ? supabase.from("estimates").select("id, title, builder_state, share_token, status, sent_at, valid_until").eq("id", id).single() : Promise.resolve({ data: null }),
+    id ? supabase.from("work_orders").select("*").eq("estimate_id", id).maybeSingle() : Promise.resolve({ data: null }),
+    supabase.from("contractors").select("id, profiles(name)").eq("active", true),
   ]);
+  type ContractorRow = { id: string; profiles: { name: string | null } | null };
+  const contractors = ((contractorsRes.data as ContractorRow[] | null) ?? []).map((c) => ({ id: c.id, name: c.profiles?.name || "Contractor" }));
 
   const settingsRows = (settings.data as { key: string; value: unknown }[] | null) ?? [];
   const companyRow = settingsRows.find((s) => s.key === "company_profile");
@@ -106,6 +110,8 @@ export default async function QuotePage({
       inclusionTemplates={inclusionTemplates}
       exclusionTemplates={exclusionTemplates}
       terms={terms}
+      workOrder={workOrderRes.data ?? null}
+      contractors={contractors}
     />
   );
 }
