@@ -119,11 +119,14 @@ export default function WorkOrderDoc({ doc, edit }: { doc: Doc; edit?: WOEdit })
                     </div>
                     <div className="surf-right">
                       <span className="pill">{s.status === "in_progress" ? "In progress" : s.status === "complete" ? "Complete" : "Not started"}</span>
-                      {edit ? (
-                        <span className="surf-hours">
-                          <input type="number" step="0.25" value={s.hours ?? ""} onChange={(e) => edit.onHours(s.key, e.target.value === "" ? null : Number(e.target.value))} /> hr
-                        </span>
-                      ) : s.hours != null ? <span className="surf-hours">{s.hours} hr</span> : null}
+                      {(edit || s.hours != null) && (
+                        <div className="surf-hours">
+                          <span className="hlab">Hours</span>
+                          {edit
+                            ? <input type="number" step="0.25" value={s.hours ?? ""} onChange={(e) => edit.onHours(s.key, e.target.value === "" ? null : Number(e.target.value))} />
+                            : <span className="hval">{s.hours}</span>}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
