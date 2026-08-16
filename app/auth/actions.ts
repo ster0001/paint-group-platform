@@ -27,6 +27,14 @@ export async function signup(formData: FormData) {
   redirect("/estimates");
 }
 
+// Where a signed-in user belongs, by role. Staff get the estimating app,
+// contractors get the portal, everyone else the customer dashboard.
+export async function homeForRole(role: string | null | undefined) {
+  if (role === "staff") return "/estimates";
+  if (role === "contractor") return "/portal";
+  return "/dashboard";
+}
+
 // Sign in an existing account.
 export async function login(formData: FormData) {
   const supabase = await createClient();
@@ -34,14 +42,20 @@ export async function login(formData: FormData) {
   const email = String(formData.get("email") ?? "");
   const password = String(formData.get("password") ?? "");
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
     redirect(`/login?error=${encodeURIComponent(error.message)}`);
   }
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", data.user!.id)
+    .single();
+
   revalidatePath("/", "layout");
-  redirect("/estimates");
+  redirect(await homeForRole(profile?.role));
 }
 
 // Sign out.
