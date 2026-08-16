@@ -36,9 +36,18 @@ click-by-click steps, and verify things actually work.
 5. **Estimate builder** (`app/quote/`): areas with **Room/Surface geometry** (area-level dims flow to surfaces), substrate picker grouped into folders, per-surface editor (override rate/prep hr/painting hr/qty/paint volume/$), **line items** (Hourly/Quantity/Custom), per-area totals, **duplicate**, **Options** (excluded from total), **hidden-from-customer**, notes, **photos** (Supabase Storage bucket `estimate-media`), **drill-in area view**, **save/load** (`estimates.builder_state` jsonb + `title`), live **Quote + Margin** panel.
 6. **App shell** — left sidebar (Estimates / Invoices / Contacts / Settings), staff-only, under route group `app/(app)/`. `/estimates` list with status filters. Login lands on `/estimates`.
 7. **Estimate document header** — company block (top-left) + “Estimate”/estimator/ID/date (top-right), from `settings.company_profile` (editable at **/settings**). **Contact** + **Job Address** cards with edit modals. Contacts list page.
+8. **Contractor portal — Phase A** (`app/portal/`, 2026-08-16). Mobile-first dark shell built to `design/reference/contractor-portal-mockup.html`: sticky header + tab bar (Home / Requests / Jobs / Money / Calendar), scoped theme in `app/portal/portal.css` (`.pt`). `requireContractor()` gates every page; login, the staff shell and `/dashboard` now all route by role, so staff → `/estimates`, contractors → `/portal`, customers → `/dashboard`. **My profile** is the real content: company details, logo upload, bank details (encrypted via RPC), and insurance/licence documents with expiry. `offerable` is computed by the database from a valid insurance certificate — contractors can't set it themselves (verified live). Requests / Jobs / Calendar are honest empty states, no sample data.
 
-## PENDING MANUAL STEP
-- **Run `supabase/migrations/20260814010000_contacts.sql`** in the Supabase SQL editor (creates the `contacts` table). Until then, the estimate’s **Save to Contacts** and the **Contacts page** are inert (the header and “Use on estimate” already work). All earlier migrations are applied.
+## PENDING MANUAL STEPS (run in the Supabase SQL editor)
+- **`20260814010000_contacts.sql`** (creates the `contacts` table). Until then the estimate’s **Save to Contacts** and the **Contacts page** are inert.
+- **`20260823000000_contractor_bank_pgcrypto_fix.sql`** — fixes a bug in the Phase A migration: the bank RPCs couldn’t find pgcrypto (it lives in Supabase’s `extensions` schema, which their `search_path` left out). Until it runs, **saving bank details in the portal fails** (with a plain-English message, not a crash).
+- **`20260823010000_contractor_docs_bucket.sql`** — creates the private `contractor-docs` bucket. Phase A added the documents table but no bucket, so **uploading insurance fails and no contractor can become offerable** until this runs. Also tightens `contractor-logos` writes to each contractor’s own folder.
+
+## TEST CONTRACTOR LOGINS (password `painttest123`)
+- `pg.josef.contractor@gmail.com` — Josef Kovac, Kovac Painting Pty Ltd (details pre-filled)
+- `pg.mira.contractor@gmail.com` — Mira Delaney (profile deliberately blank)
+
+Created by `npx tsx scripts/create-test-contractors.ts` (idempotent, safe to re-run). Staff have no screen for creating contractors yet — that script is the only path.
 
 ## KEY GOTCHAS (important for the next session)
 - **DDL (schema changes) must be run by the user in the Supabase SQL editor** — the AI can’t run DDL (no DB password; the publishable key can’t). Data writes (DML) the AI CAN do via the Supabase API.
