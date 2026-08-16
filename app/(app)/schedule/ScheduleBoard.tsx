@@ -760,13 +760,13 @@ export default function ScheduleBoard({
                     </span>
                   </div>
                   <h3>{j.title}</h3>
-                  <div className="meta">ACCEPTED — WORK ORDER NOT ISSUED YET</div>
+                  <div className="meta">ACCEPTED BEFORE WORK ORDERS WERE AUTOMATIC</div>
                   <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6, lineHeight: 1.5 }}>
-                    Press <b style={{ color: "var(--text)" }}>Issue to contractor</b> there and it
-                    becomes draggable. This still works on an accepted, locked estimate.
+                    Open it once and it fixes itself — no need to press anything. Jobs
+                    accepted from now on arrive here ready to drag.
                   </div>
                   <a className="btn gh" style={{ marginTop: 10, padding: 9, fontSize: 12.5 }} href={`/quote?id=${j.estimateId}&view=workorder`}>
-                    Open the work order and issue it
+                    Open it once
                   </a>
                 </div>
               ) : (

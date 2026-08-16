@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { hoursPerUnit } from "@/lib/pricing/engine";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -946,6 +946,35 @@ export default function QuoteBuilder({
       });
     },
   };
+
+  /**
+   * Self-heal for work orders created before the builder started saving its
+   * document (or accepted from an estimate last saved before that change).
+   *
+   * Writes straight to work_orders, so the accepted-estimate lock doesn't apply
+   * — the lock protects the CUSTOMER's quote, and this is the crew's document.
+   * Runs once, silently: nobody should have to know this step exists.
+   */
+  const healedRef = useRef(false);
+  useEffect(() => {
+    if (healedRef.current) return;
+    if (!workOrder || workOrder.wo_snapshot) return;
+    healedRef.current = true;
+    (async () => {
+      const doc = { ...computeWorkOrderDoc(), status: "issued" };
+      await createClient()
+        .from("work_orders")
+        .update({
+          wo_snapshot: doc,
+          contractor_payment_cents: totals.contractorOffer,
+          status: workOrder.status === "draft" ? "issued" : workOrder.status,
+          issued_at: workOrder.issued_at ?? new Date().toISOString(),
+        })
+        .eq("id", workOrder.id)
+        .then(() => {}, () => {});
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workOrder]);
 
   async function issueWorkOrder() {
     if (!workOrder) return;
