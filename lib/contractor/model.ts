@@ -31,13 +31,16 @@ export type ContractorDoc = {
   expires_on: string | null;
   status: "valid" | "expired" | "pending";
   created_at: string;
+  /** Set once staff have read the certificate. Insurance only counts when set. */
+  verified_at: string | null;
+  verify_note: string;
 };
 
 export const CONTRACTOR_COLUMNS =
   "id, profile_id, tier, insurance_expiry, active, company_name, abn, gst_registered, address, bank_bsb, bank_account_last4, logo_url, invoice_prefix, invoice_next_number, offerable, crew_size";
 
 export const DOC_COLUMNS =
-  "id, contractor_id, kind, name, file_url, expires_on, status, created_at";
+  "id, contractor_id, kind, name, file_url, expires_on, status, created_at, verified_at, verify_note";
 
 /** The fields a contractor must fill in before they can invoice Paint Group. */
 export function missingProfileFields(c: Partial<ContractorRow> | null): string[] {
@@ -71,6 +74,8 @@ export function docState(d: ContractorDoc): ContractorDoc["status"] {
   if (!d.file_url) return "pending";
   const days = daysUntil(d.expires_on);
   if (days !== null && days < 0) return "expired";
+  // Unverified paperwork is not yet compliance — a human has to read it.
+  if (!d.verified_at) return "pending";
   return "valid";
 }
 

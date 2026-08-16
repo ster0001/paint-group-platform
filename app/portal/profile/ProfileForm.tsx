@@ -418,8 +418,9 @@ export default function ProfileForm({
       <div className="card">
         <h3>Insurance &amp; licences</h3>
         <p className="hint">
-          A current public liability certificate is what unlocks job offers. Set the
-          expiry date and the portal will remind you before it lapses.
+          A current public liability certificate is what unlocks job offers. Upload it
+          with its expiry date — Paint Group check it, and once they&rsquo;ve confirmed
+          it you&rsquo;re available for work. The portal warns you before it lapses.
         </p>
 
         {docErr && <div className="err" style={{ marginTop: 12 }}>{docErr}</div>}
@@ -434,6 +435,8 @@ export default function ProfileForm({
             {docs.map((d) => {
               const days = daysUntil(d.expires_on);
               const state = docState(d);
+              // "Pending" covers two different situations for the contractor —
+              // nothing uploaded, versus uploaded and waiting on Paint Group.
               const chip =
                 state === "valid"
                   ? days !== null && days <= 45
@@ -441,7 +444,9 @@ export default function ProfileForm({
                     : { cls: "grn", text: "Valid" }
                   : state === "expired"
                     ? { cls: "cly", text: "Expired" }
-                    : { cls: "gry", text: "Pending" };
+                    : d.file_url && !d.verified_at
+                      ? { cls: "amb", text: "Being checked" }
+                      : { cls: "gry", text: "Pending" };
               return (
                 <div key={d.id} className="doc">
                   <div className="dn">

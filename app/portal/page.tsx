@@ -56,7 +56,14 @@ export default async function PortalHome() {
 
   // Everything the contractor has to act on right now, drawn from real state.
   const actions: { icon: string; text: string; chip?: string }[] = [];
-  if (!insurance) {
+  const awaitingCheck = docs.find((d) => d.kind === "insurance" && d.file_url && !d.verified_at);
+  if (!insurance && awaitingCheck) {
+    actions.push({
+      icon: "🛡",
+      text: "Paint Group are checking your insurance certificate — nothing more for you to do",
+      chip: "With them",
+    });
+  } else if (!insurance) {
     actions.push({
       icon: "🛡",
       text: "Upload your public liability certificate — you can't be offered work without it",
@@ -89,12 +96,16 @@ export default async function PortalHome() {
         <div style={{ marginTop: 10, fontWeight: 600, fontSize: "14.5px" }}>
           {contractor.offerable
             ? "You're compliant — Paint Group can offer you jobs"
-            : "Compliance incomplete"}
+            : awaitingCheck
+              ? "Waiting on Paint Group"
+              : "Compliance incomplete"}
         </div>
         <div style={{ fontSize: "12.5px", color: "var(--muted)", marginTop: 4 }}>
           {contractor.offerable
             ? "Offers will land in Requests with a 24-hour clock to respond."
-            : "Paint Group can't send you an offer until a current public liability certificate is on file."}
+            : awaitingCheck
+              ? "Your certificate is uploaded and Paint Group are checking it. You'll be available for work as soon as they confirm."
+              : "Paint Group can't send you an offer until a current public liability certificate is on file."}
         </div>
         {!contractor.offerable && (
           <Link href="/portal/profile" className="btn cy">

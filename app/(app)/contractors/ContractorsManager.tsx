@@ -119,6 +119,31 @@ export default function ContractorsManager({
     setBusy(null);
   }
 
+  /** Compliance documents live in a private bucket — open via a short-lived link. */
+  async function openDoc(path: string) {
+    setErr("");
+    const { data, error } = await supabase.storage.from("contractor-docs").createSignedUrl(path, 60);
+    if (error || !data) setErr("Couldn't open that file.");
+    else window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  }
+
+  async function verifyDoc(docId: string, verified: boolean) {
+    setBusy(docId);
+    setErr("");
+    const { data, error } = await supabase.rpc("verify_contractor_document", {
+      p_document_id: docId,
+      p_verified: verified,
+      p_note: "",
+    });
+    if (error) setErr(error.message);
+    else if (String(data).startsWith("error:")) setErr(String(data).replace("error:", ""));
+    else {
+      setMsg(verified ? "Verified — they can now be offered work." : "Verification withdrawn.");
+      router.refresh();
+    }
+    setBusy(null);
+  }
+
   async function setTier(id: string, tier: string) {
     setBusy(id);
     setErr("");
@@ -131,7 +156,11 @@ export default function ContractorsManager({
   /** Plain-English compliance line, derived live rather than trusting stored status. */
   function compliance(c: ContractorSummary) {
     const ins = c.docs.find((d) => d.kind === "insurance" && docState(d) === "valid");
-    if (!ins) return { tone: "bad", text: "No current insurance" };
+    if (!ins) {
+      const awaiting = c.docs.find((d) => d.kind === "insurance" && d.file_url && !d.verified_at);
+      if (awaiting) return { tone: "warn", text: "Insurance uploaded — waiting for you to check it" };
+      return { tone: "bad", text: "No current insurance" };
+    }
     const days = daysUntil(ins.expires_on);
     if (days !== null && days <= 45) return { tone: "warn", text: `Insurance expires in ${days} days` };
     return { tone: "ok", text: ins.expires_on ? `Insured to ${formatDMY(ins.expires_on)}` : "Insured" };
@@ -337,12 +366,47 @@ export default function ContractorsManager({
                   </div>
                 </div>
 
+                {c.docs.length > 0 && (
+                  <div className="mt-3 border-t border-gray-100 pt-2">
+                    <div className="text-xs font-medium text-gray-500">Documents</div>
+                    <ul className="mt-1 space-y-1">
+                      {c.docs.map((d) => (
+                        <li key={d.id} className="flex flex-wrap items-center gap-2 text-xs">
+                          <span className="font-medium capitalize">{d.kind}</span>
+                          <span className="min-w-0 flex-1 truncate text-gray-500">
+                            {d.name}
+                            {d.expires_on ? ` · expires ${formatDMY(d.expires_on)}` : " · no expiry"}
+                          </span>
+                          {d.verified_at ? (
+                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-medium text-emerald-800">Verified</span>
+                          ) : (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800">Needs checking</span>
+                          )}
+                          {d.file_url && (
+                            <button onClick={() => openDoc(d.file_url)} className="rounded border border-gray-300 px-2 py-0.5 hover:bg-gray-50">
+                              Open
+                            </button>
+                          )}
+                          <button
+                            onClick={() => verifyDoc(d.id, !d.verified_at)}
+                            disabled={busy === d.id}
+                            className={`rounded px-2 py-0.5 font-medium disabled:opacity-50 ${
+                              d.verified_at
+                                ? "border border-gray-300 text-gray-600 hover:bg-gray-50"
+                                : "bg-emerald-600 text-white hover:bg-emerald-700"
+                            }`}
+                          >
+                            {busy === d.id ? "…" : d.verified_at ? "Un-verify" : "Verify"}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 <div className="mt-3 flex flex-wrap gap-4 border-t border-gray-100 pt-2 text-xs text-gray-500">
                   <span>{c.bookedJobs} booked</span>
                   <span>{c.liveOffers} awaiting a response</span>
-                  <span>
-                    {c.docs.length} document{c.docs.length === 1 ? "" : "s"} on file
-                  </span>
                 </div>
               </div>
             );
