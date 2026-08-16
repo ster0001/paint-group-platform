@@ -12,10 +12,12 @@ import { type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import WorkOrderDoc, { type WOEdit } from "@/app/w/WorkOrderDoc";
 import ColourPicker from "@/app/components/ColourPicker";
 import { roundUpLitres, type WorkOrderDoc as WODoc, type WOMaterial, type WOArea } from "@/lib/workorder/snapshot";
+import { finishFromModifier } from "@/lib/workorder/finish";
 
 type WorkOrderRow = {
   id: string; wo_ref: string; status: string; contractor_id: string | null; start_date: string | null;
   access_notes: string; crew_notes: string; share_token: string; contractor_payment_cents: number | null;
+  area_finish?: Record<string, string> | null;
   colours: Record<string, { name?: string; status?: string }>; hours_overrides: Record<string, number>;
   wo_snapshot: unknown; issued_at: string | null;
 };
@@ -333,6 +335,9 @@ export default function QuoteBuilder({
     return out;
   });
   const [woHours, setWoHours] = useState<Record<string, number>>(() => workOrder?.hours_overrides ?? {});
+  // Per-area finish exceptions: { areaId: "PG-4" }. Anything absent inherits the
+  // job's level, so the common case stays empty.
+  const [woAreaFinish, setWoAreaFinish] = useState<Record<string, string>>(() => (workOrder?.area_finish ?? {}) as Record<string, string>);
   const [woIssuing, setWoIssuing] = useState(false);
   const [woLink, setWoLink] = useState<string | null>(null);
   // Persist a work-order field change (only when the row exists, i.e. accepted).
@@ -832,6 +837,9 @@ export default function QuoteBuilder({
     const matMap = new Map<string, { vol: number; photo: string }>();
     const colourByProduct = new Map<string, { name: string; hex: string }>();
     const areasDoc: WOArea[] = [];
+    // The job's contractor-facing standard, derived from the priced level of
+    // finish. Null when the estimate's level has no PG equivalent.
+    const jobFinishCode = finishFromModifier(modSel["Level of Finish"]);
     for (const b of blocks) {
       if (b.kind !== "area" || b.isOption) continue;
       const surfaces: WOArea["surfaces"] = [];
@@ -858,7 +866,15 @@ export default function QuoteBuilder({
         ...(b.media ?? []).map((m) => m.url),
         ...b.surfaces.filter((s) => !s.hidden).flatMap((s) => (s.media ?? []).map((m) => m.url)),
       ];
-      areasDoc.push({ id: String(b.id), title: b.name || "Area", surfaces, photos });
+      const areaOverride = woAreaFinish[String(b.id)] || null;
+      areasDoc.push({
+        id: String(b.id),
+        title: b.name || "Area",
+        surfaces,
+        photos,
+        finishCode: areaOverride ?? jobFinishCode,
+        finishOverridden: Boolean(areaOverride && areaOverride !== jobFinishCode),
+      });
     }
     const materials: WOMaterial[] = [...matMap.entries()].map(([product, { vol, photo }]) => {
       const missing = !(vol > 0); // no coverage data → never fabricate a litre figure
@@ -878,6 +894,7 @@ export default function QuoteBuilder({
       accessNotes: woAccessNotes,
       crewNotes: woCrewNotes,
       levelOfFinish: (modifiers.find((m) => m.code === modSel["Level of Finish"])?.label ?? "").replace(/\s*\(×[^)]*\)\s*$/, "").trim(),
+      finishCode: jobFinishCode,
       contractorName: contractors.find((c) => c.id === woContractorId)?.name ?? "",
       contractorPaymentCents: totals.contractorOffer,
       materials, areas: areasDoc,
@@ -906,6 +923,16 @@ export default function QuoteBuilder({
         const next = { ...m };
         if (hours == null) delete next[key]; else next[key] = hours;
         patchWorkOrder({ hours_overrides: next });
+        return next;
+      });
+    },
+    onAreaFinish: (areaId, code) => {
+      setWoAreaFinish((m) => {
+        const next = { ...m };
+        // Null means "back to the job's level" — store nothing rather than a
+        // duplicate of the default, so changing the job level still cascades.
+        if (!code) delete next[areaId]; else next[areaId] = code;
+        patchWorkOrder({ area_finish: next });
         return next;
       });
     },

@@ -2,6 +2,8 @@
 
 import type { WorkOrderDoc as Doc } from "@/lib/workorder/snapshot";
 import { WO_STATUS_LABEL } from "@/lib/workorder/snapshot";
+import { FINISH_LEVELS, FINISH_ORDER } from "@/lib/workorder/finish";
+import FinishChip from "@/app/components/FinishChip";
 import "./workorder.css";
 
 const money = (c: number) => "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -17,6 +19,8 @@ export type WOEdit = {
   onCrewNotes: (notes: string) => void;
   onColour: (product: string, patch: { name?: string; hex?: string; status?: "tbc" | "confirmed" }) => void;
   onHours: (surfaceKey: string, hours: number | null) => void;
+  /** null = this area follows the job's level. */
+  onAreaFinish: (areaId: string, code: string | null) => void;
 };
 
 export default function WorkOrderDoc({ doc, edit }: { doc: Doc; edit?: WOEdit }) {
@@ -65,11 +69,16 @@ export default function WorkOrderDoc({ doc, edit }: { doc: Doc; edit?: WOEdit })
           </div>
         </div>
 
-        {/* LEVEL OF FINISH — front and centre so the crew know the standard */}
-        {doc.levelOfFinish && (
+        {/* LEVEL OF FINISH — front and centre so the crew know the standard.
+            The PG chip opens the standard itself; the rate-card label stays
+            underneath so staff can still see which level was priced. */}
+        {(doc.finishCode || doc.levelOfFinish) && (
           <div className="wo-finish">
             <span className="wo-finish-lab">Level of finish</span>
-            <span className="wo-finish-val">{doc.levelOfFinish}</span>
+            <FinishChip code={doc.finishCode} fallbackLabel={doc.levelOfFinish} />
+            {doc.finishCode && doc.levelOfFinish && (
+              <span className="wo-finish-val">{doc.levelOfFinish}</span>
+            )}
           </div>
         )}
 
@@ -124,7 +133,29 @@ export default function WorkOrderDoc({ doc, edit }: { doc: Doc; edit?: WOEdit })
             <h2>Scope of works</h2>
             {doc.areas.map((a) => (
               <div className="area" key={a.id}>
-                <div className="area-title">{a.title}</div>
+                <div className="area-title">
+                  <span>{a.title}</span>
+                  {/* Only shown where the area differs from the job's level, or
+                      when staff are editing and need the control. */}
+                  {a.finishOverridden && (
+                    <FinishChip code={a.finishCode} variant="mini" differs />
+                  )}
+                  {edit && (
+                    <select
+                      className="area-fin"
+                      value={a.finishOverridden ? (a.finishCode ?? "") : ""}
+                      onChange={(e) => edit.onAreaFinish(a.id, e.target.value || null)}
+                      title="Finish level for this area"
+                    >
+                      <option value="">Job level{doc.finishCode ? ` (${doc.finishCode})` : ""}</option>
+                      {FINISH_ORDER.map((c) => (
+                        <option key={c} value={c}>
+                          {c} {FINISH_LEVELS[c].name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
                 {a.surfaces.map((s) => (
                   <div className="surf" key={s.key}>
                     <div className="surf-main">

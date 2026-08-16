@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireContractor } from "@/lib/contractor/session";
+import { listContractorJobs, JOB_STATUS_CHIP, shortDate } from "@/lib/contractor/jobs";
 import {
   DOC_COLUMNS,
   missingProfileFields,
@@ -47,6 +48,7 @@ export default async function PortalHome() {
     .eq("contractor_id", contractor.id)
     .order("created_at", { ascending: false });
   const docs = (docsData as ContractorDoc[] | null) ?? [];
+  const jobs = await listContractorJobs(contractor.id);
 
   const insurance = docs.find((d) => d.kind === "insurance" && docState(d) === "valid");
   const insuranceDays = daysUntil(insurance?.expires_on ?? null);
@@ -118,13 +120,39 @@ export default async function PortalHome() {
         </div>
       )}
 
-      {/* Scheduling lands in a later phase — say so rather than show a fake week. */}
+      {/* Real jobs once any have been issued; otherwise say so plainly. */}
       <div className="card">
-        <h3>This week</h3>
-        <div style={{ fontSize: "12.5px", color: "var(--muted)", marginTop: 6 }}>
-          Nothing booked. Your week fills in here once Paint Group starts sending
-          offers through the portal.
-        </div>
+        <h3>Your work</h3>
+        {jobs.length === 0 ? (
+          <div style={{ fontSize: "12.5px", color: "var(--muted)", marginTop: 6 }}>
+            Nothing booked. Jobs appear here as soon as Paint Group issues one to you.
+          </div>
+        ) : (
+          <>
+            {jobs.slice(0, 3).map((j) => {
+              const chip = JOB_STATUS_CHIP[j.status] ?? { cls: "gry", label: j.status };
+              return (
+                <Link key={j.id} href={`/portal/jobs/${j.id}`} className="act">
+                  <i aria-hidden>▤</i>
+                  <span>
+                    {j.doc?.jobTitle || j.woRef}
+                    <br />
+                    <span style={{ fontFamily: "var(--mono)", fontSize: 9, letterSpacing: ".06em" }}>
+                      {shortDate(j.startDate)}
+                      {j.doc?.finishCode ? ` · ${j.doc.finishCode}` : ""}
+                    </span>
+                  </span>
+                  <span className="push">
+                    <span className={`chip ${chip.cls}`}>{chip.label}</span>
+                  </span>
+                </Link>
+              );
+            })}
+            <Link href="/portal/jobs" className="btn gh">
+              All jobs
+            </Link>
+          </>
+        )}
       </div>
 
       <div className="card">

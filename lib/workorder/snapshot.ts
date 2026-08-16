@@ -30,6 +30,10 @@ export type WOArea = {
   title: string;
   surfaces: WOSurface[];
   photos: string[];
+  /** Resolved PG level for this area — the job's level unless staff overrode it. */
+  finishCode: string | null;
+  /** True when this area differs from the job level, so the UI can call it out. */
+  finishOverridden: boolean;
 };
 
 export type WorkOrderDoc = {
@@ -43,7 +47,13 @@ export type WorkOrderDoc = {
   startDate: string | null;
   accessNotes: string;
   crewNotes: string; // work-order-level further instructions for the crew
-  levelOfFinish: string; // e.g. "Level 3 — Good. Full prep, filled, sanded, sealed, caulked"
+  levelOfFinish: string; // internal rate-card label, e.g. "Level 3 — Good. Full prep, filled…"
+  /**
+   * The contractor-facing PG standard for the job — "PG-3" etc, or null when the
+   * estimate's level has no PG equivalent (see lib/workorder/finish.ts). Areas
+   * may override it individually.
+   */
+  finishCode: string | null;
   contractorName: string;
   contractorPaymentCents: number;
   materials: WOMaterial[];
