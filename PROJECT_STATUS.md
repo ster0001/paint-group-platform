@@ -40,8 +40,10 @@ click-by-click steps, and verify things actually work.
 
 ## PENDING MANUAL STEPS (run in the Supabase SQL editor)
 - **`20260814010000_contacts.sql`** (creates the `contacts` table). Until then the estimate’s **Save to Contacts** and the **Contacts page** are inert.
-- **`20260823000000_contractor_bank_pgcrypto_fix.sql`** — fixes a bug in the Phase A migration: the bank RPCs couldn’t find pgcrypto (it lives in Supabase’s `extensions` schema, which their `search_path` left out). Until it runs, **saving bank details in the portal fails** (with a plain-English message, not a crash).
-- **`20260823010000_contractor_docs_bucket.sql`** — creates the private `contractor-docs` bucket. Phase A added the documents table but no bucket, so **uploading insurance fails and no contractor can become offerable** until this runs. Also tightens `contractor-logos` writes to each contractor’s own folder.
+
+All four contractor-portal migrations (`20260823000000`, `20260823010000`, `20260824000000`, `20260824010000`) are **APPLIED and verified against the live database** — bank details round-trip, insurance upload flips `offerable`, and a contractor attempting to grant themselves `offerable` is refused. The compliance gate is enforced by **column privileges**, not a trigger: `offerable` and the bank columns are withheld from every signed-in user and written only by SECURITY DEFINER functions. See the AI memory note `contractor-portal` for the three lock designs that failed first — don’t repeat them.
+
+**Known gap for the scheduling phase:** `offerable` is recomputed only when a document row changes, so a certificate that lapses untouched leaves it stale-true. The UI derives status live (`docState()`), but *sending an offer must re-check expiry server-side*.
 
 ## TEST CONTRACTOR LOGINS (password `painttest123`)
 - `pg.josef.contractor@gmail.com` — Josef Kovac, Kovac Painting Pty Ltd (details pre-filled)
