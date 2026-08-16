@@ -29,7 +29,7 @@ export type ProductRow = {
 
 const CATEGORY_ORDER = [
   "Interior walls", "Ceilings", "Trim & doors", "Exterior walls",
-  "Texture & membrane", "Prep & primers", "Clear & floors",
+  "Decking", "Texture & membrane", "Prep & primers", "Clear & floors",
 ];
 const SHEEN_LEVELS = ["Flat", "Matt", "Satin", "Low Sheen", "Semi Gloss", "Gloss", "High Gloss"];
 // Default sheen by product type, applied by "Auto-set by type" (manual edits win).

@@ -509,6 +509,7 @@ function hasHtml(html: string | undefined) {
 }
 
 function groupForCategory(cat: string): string {
+  if (/deck/i.test(cat)) return "Decking";
   if (/interior walls/i.test(cat)) return "Interior";
   if (/exterior walls/i.test(cat)) return "Exterior";
   if (/ceiling/i.test(cat)) return "Ceilings";

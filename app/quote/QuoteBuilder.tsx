@@ -656,6 +656,7 @@ export default function QuoteBuilder({
 
   // Distinct products actually used in the included areas → customer paint cards.
   const roleForCategory = (cat: string): string => {
+    if (/deck/i.test(cat)) return "Decking";
     if (/walls/i.test(cat)) return "Walls";
     if (/ceiling/i.test(cat)) return "Ceilings";
     if (/trim|door/i.test(cat)) return "Trim & doors";
