@@ -54,19 +54,29 @@ export default function CalendarGrid({
     return m;
   }, [jobDays]);
 
-  // Expand each block range into the individual days it covers.
-  const blockByDate = useMemo(() => {
-    const m = new Map<string, PortalBlock>();
+  // Expand each range into the days it covers. A day can be covered by MORE
+  // THAN ONE block (overlapping ranges, or a repeated tap), so keep them all —
+  // clearing a day has to remove every one of them or it stays stubbornly off.
+  const blocksByDate = useMemo(() => {
+    const m = new Map<string, PortalBlock[]>();
     for (const b of blocks) {
       const d = new Date(b.start + "T00:00:00");
       const end = new Date(b.end + "T00:00:00");
       while (d <= end) {
-        m.set(iso(d), b);
+        const k = iso(d);
+        if (!m.has(k)) m.set(k, []);
+        m.get(k)!.push(b);
         d.setDate(d.getDate() + 1);
       }
     }
     return m;
   }, [blocks]);
+  const blockByDate = useMemo(() => {
+    const m = new Map<string, PortalBlock>();
+    // Office blocks win for display, so the contractor sees who set the day off.
+    for (const [k, list] of blocksByDate) m.set(k, list.find((b) => b.source === "staff") ?? list[0]);
+    return m;
+  }, [blocksByDate]);
 
   const cells = useMemo(() => {
     const first = new Date(ym.y, ym.m, 1);
@@ -90,8 +100,10 @@ export default function CalendarGrid({
     setErr("");
     try {
       if (existing) {
-        // Ranges are stored whole, so reopening one day means removing the range.
-        const { error } = await supabase.from("contractor_unavailability").delete().eq("id", existing.id);
+        // Remove EVERY block of theirs covering this day. Deleting just one
+        // leaves the day stubbornly blocked when ranges overlap.
+        const ids = (blocksByDate.get(date) ?? []).filter((b) => b.source === "contractor").map((b) => b.id);
+        const { error } = await supabase.from("contractor_unavailability").delete().in("id", ids);
         if (error) throw error;
       } else {
         const { error } = await supabase.from("contractor_unavailability").insert({
@@ -146,6 +158,12 @@ export default function CalendarGrid({
     setErr("");
     try {
       const { data: me } = await supabase.from("contractors").select("id").maybeSingle();
+      // Drop any of their own blocks the new range covers, so dragging over an
+      // existing block replaces it instead of piling a second one on top.
+      const overlapping = blocks
+        .filter((b) => b.source === "contractor" && b.start <= hi && b.end >= lo)
+        .map((b) => b.id);
+      if (overlapping.length) await supabase.from("contractor_unavailability").delete().in("id", overlapping);
       const { error } = await supabase.from("contractor_unavailability").insert({
         contractor_id: me?.id, start_date: lo, end_date: hi, source: "contractor",
       });
