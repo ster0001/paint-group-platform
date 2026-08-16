@@ -44,6 +44,8 @@ click-by-click steps, and verify things actually work.
 
 11. **Contractor portal — Phase D: scheduling timeline** (2026-08-16). **/schedule** in the staff sidebar: contractor lanes × days, with blocks for accepted / in-progress / offered (hatched amber + countdown) / unavailable, an unscheduled job tray, and a today line. **Drag** is pointer-based rather than HTML5 drag-and-drop, so it's smooth and works on touch; dropping opens a confirmation rather than firing an offer. **Blocked-out days work from both sides** — contractors block their own in the portal Calendar tab, staff block anyone's from the board, and neither can clear the other's. Dropping onto blocked days turns the row red and warns, but still allows it. **Zoom** animates the blocks (day width is a CSS variable) with a 2/4/8-week range. **Views** filter lanes by tier, readiness or hand-picked contractors and can be saved by name. *Tiers are just the `contractors.tier` field and still have no admin screen.*
 
+12. **Contractor onboarding + access control** (2026-08-16). **/contractors** in the staff sidebar: invite a painter and copy a private join link (single-use, 7-day expiry, tied to the invited email so a forwarded link can't be claimed), revoke pending invites, set tier, and suspend or restore access. Suspending withdraws any live offer and locks the portal. **You no longer need a developer to create a contractor account.**
+
 ## PENDING MANUAL STEPS (run in the Supabase SQL editor)
 - **`20260814010000_contacts.sql`** (creates the `contacts` table). Until then the estimate’s **Save to Contacts** and the **Contacts page** are inert.
 
