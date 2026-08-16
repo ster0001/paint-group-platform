@@ -6,6 +6,11 @@ import { createClient } from "@/lib/supabase/client";
 import CalendarGrid, { type PortalBlock, type PortalJobDay } from "@/app/portal/calendar/CalendarGrid";
 import { formatDMY } from "@/lib/scheduling/offers";
 
+const todayIso = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 /**
  * "I'm running behind — can we start later?" on a job the contractor has
  * already accepted. It doesn't move anything on its own: the job goes to
@@ -98,6 +103,9 @@ export default function RescheduleRequest({
               mode="pick"
               selectedDate={date || null}
               onPickDate={setDate}
+              initialMonth={date || currentStart}
+              minDate={todayIso()}
+              highlight={currentStart ? { from: currentStart, to: currentStart } : null}
             />
             <textarea
               rows={2}

@@ -20,6 +20,11 @@ import CalendarGrid, { type PortalBlock, type PortalJobDay } from "@/app/portal/
 const money = (c: number | null) =>
   c == null ? "—" : "$" + (c / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 });
 
+const todayIso = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 const dateRange = (start: string, end: string | null) => {
   const f = (d: string) =>
     new Intl.DateTimeFormat("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: "Australia/Melbourne" })
@@ -216,13 +221,18 @@ export default function OfferCard({
           <div className="scrim" onClick={() => setSheet(null)} />
           <div className="sheet">
             <h3>Propose a new start date</h3>
-            <p className="slab">Pick against your own calendar — your blocked days are marked</p>
+            <p className="slab">
+              Offered {dateRange(offer.start_date, offer.end_date)} — pick when you could start instead
+            </p>
             <CalendarGrid
               blocks={myBlocks}
               jobDays={myJobDays}
               mode="pick"
               selectedDate={proposedDate || null}
               onPickDate={(d) => setProposedDate(d)}
+              initialMonth={proposedDate || offer.start_date}
+              minDate={todayIso()}
+              highlight={{ from: offer.start_date, to: offer.end_date || offer.start_date }}
             />
             <textarea
               rows={2}

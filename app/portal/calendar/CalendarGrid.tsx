@@ -19,6 +19,8 @@ export type PortalJobDay = { date: string; label: string; status: string };
 // wrong "today" and block the wrong day.
 const iso = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const formatShort = (d: string) =>
+  new Date(d + "T00:00:00").toLocaleDateString("en-AU", { day: "numeric", month: "short" });
 const monthName = (y: number, m: number) =>
   new Date(y, m, 1).toLocaleDateString("en-AU", { month: "long", year: "numeric" });
 
@@ -33,6 +35,9 @@ export default function CalendarGrid({
   mode = "block",
   onPickDate,
   selectedDate,
+  initialMonth,
+  minDate,
+  highlight,
 }: {
   blocks: PortalBlock[];
   jobDays: PortalJobDay[];
@@ -40,11 +45,19 @@ export default function CalendarGrid({
   mode?: "block" | "pick";
   onPickDate?: (date: string) => void;
   selectedDate?: string | null;
+  /** Open on this date's month — otherwise picking a date months out means
+   *  paging forward from today, which is what made this feel broken. */
+  initialMonth?: string | null;
+  /** Days before this can't be picked. A start date in the past is meaningless. */
+  minDate?: string | null;
+  /** The dates currently on the table, drawn as a reference band. */
+  highlight?: { from: string; to: string } | null;
 }) {
   const router = useRouter();
   const supabase = createClient();
   const now = new Date();
-  const [ym, setYm] = useState({ y: now.getFullYear(), m: now.getMonth() });
+  const opening = initialMonth ? new Date(initialMonth + "T00:00:00") : now;
+  const [ym, setYm] = useState({ y: opening.getFullYear(), m: opening.getMonth() });
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState("");
 
@@ -177,6 +190,8 @@ export default function CalendarGrid({
   }
 
   const today = iso(new Date());
+  const floor = minDate ?? null;
+  const inHighlight = (d: string) => Boolean(highlight && d >= highlight.from && d <= highlight.to);
 
   return (
     <>
@@ -201,11 +216,13 @@ export default function CalendarGrid({
           const day = Number(date.slice(8));
           const job = jobByDate.get(date);
           const blk = blockByDate.get(date);
-          const cls = job
-            ? job.status === "in_progress" ? "job" : "booked"
-            : blk
-              ? blk.source === "staff" ? "blocked office" : "blocked"
-              : "";
+          const tooEarly = Boolean(floor && date < floor);
+          const cls = [
+            job ? (job.status === "in_progress" ? "job" : "booked") : "",
+            blk ? (blk.source === "staff" ? "blocked office" : "blocked") : "",
+            inHighlight(date) ? "offered" : "",
+            tooEarly ? "past" : "",
+          ].filter(Boolean).join(" ");
           return (
             <button
               key={date}
@@ -213,9 +230,15 @@ export default function CalendarGrid({
               onPointerDown={() => dayDown(date)}
               onPointerEnter={() => dayEnter(date)}
               onPointerUp={dayUp}
-              onClick={() => { if (mode === "pick") { if (!job) onPickDate?.(date); } }}
-              disabled={busy === date || (mode === "block" && Boolean(job))}
-              title={job ? job.label : blk ? (blk.source === "staff" ? "Blocked by Paint Group" : "You marked this unavailable") : mode === "pick" ? "Tap to start here" : "Tap, or drag across several days"}
+              onClick={() => { if (mode === "pick" && !tooEarly) onPickDate?.(date); }}
+              disabled={busy === date || (mode === "block" && Boolean(job)) || (mode === "pick" && tooEarly)}
+              title={
+                tooEarly ? "That date has passed"
+                : job ? job.label
+                : blk ? (blk.source === "staff" ? "Blocked by Paint Group" : "You marked this unavailable")
+                : mode === "pick" ? "Tap to start here"
+                : "Tap, or drag across several days"
+              }
             >
               {day}
               {job && <small>{job.label.slice(0, 8).toUpperCase()}</small>}
@@ -226,11 +249,29 @@ export default function CalendarGrid({
       </div>
 
       <div className="legend">
-        <span><i style={{ background: "rgba(59,216,233,.5)" }} />ON THE TOOLS</span>
+        {mode === "pick" && highlight && (
+          <span><i style={{ background: "rgba(224,168,60,.45)" }} />DATES OFFERED</span>
+        )}
         <span><i style={{ background: "rgba(47,164,107,.5)" }} />BOOKED</span>
         <span><i style={{ background: "repeating-linear-gradient(45deg,#8C959D 0 3px,transparent 3px 5px)" }} />BLOCKED BY YOU</span>
         <span><i style={{ background: "repeating-linear-gradient(45deg,#B3574A 0 3px,transparent 3px 5px)" }} />BLOCKED BY OFFICE</span>
       </div>
+
+      {/* Picking a day you're not free on is allowed — you may have sorted it out
+          since — but you shouldn't be able to do it without noticing. */}
+      {mode === "pick" && selectedDate && blockByDate.get(selectedDate) && (
+        <div className="err" style={{ marginTop: 10 }}>
+          You&rsquo;ve marked {formatShort(selectedDate)} as unavailable
+          {blockByDate.get(selectedDate)!.source === "staff" ? " (Paint Group blocked it)" : ""}.
+          You can still propose it, but clear the day in your calendar if you can work it.
+        </div>
+      )}
+      {mode === "pick" && selectedDate && jobByDate.get(selectedDate) && (
+        <div style={{ marginTop: 10, fontSize: "12.5px", color: "var(--muted)" }}>
+          You already have {jobByDate.get(selectedDate)!.label} starting that day. That&rsquo;s
+          fine if your crew can cover both.
+        </div>
+      )}
     </>
   );
 }
