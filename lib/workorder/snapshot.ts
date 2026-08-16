@@ -11,6 +11,7 @@ export type WOMaterial = {
   litres: number | null; // purchasable litres; null when coverage unknown
   coverageMissing: boolean; // true → show staff warning, never a fabricated figure
   colourName: string;
+  colourHex: string; // "" when none — for the swatch
   colourStatus: WOColourStatus;
 };
 

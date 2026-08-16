@@ -308,9 +308,10 @@ export default function QuoteBuilder({
   const [woContractorId, setWoContractorId] = useState<string | null>(workOrder?.contractor_id ?? null);
   const [woStartDate, setWoStartDate] = useState<string | null>(workOrder?.start_date ?? null);
   const [woAccessNotes, setWoAccessNotes] = useState<string>(workOrder?.access_notes ?? "");
-  const [woColours, setWoColours] = useState<Record<string, { name: string; status: "tbc" | "confirmed" }>>(() => {
-    const c = workOrder?.colours ?? {}; const out: Record<string, { name: string; status: "tbc" | "confirmed" }> = {};
-    for (const k of Object.keys(c)) out[k] = { name: c[k]?.name ?? "", status: c[k]?.status === "confirmed" ? "confirmed" : "tbc" };
+  const [woColours, setWoColours] = useState<Record<string, { name: string; hex: string; status: "tbc" | "confirmed" }>>(() => {
+    const c = (workOrder?.colours ?? {}) as Record<string, { name?: string; hex?: string; status?: string }>;
+    const out: Record<string, { name: string; hex: string; status: "tbc" | "confirmed" }> = {};
+    for (const k of Object.keys(c)) out[k] = { name: c[k]?.name ?? "", hex: c[k]?.hex ?? "", status: c[k]?.status === "confirmed" ? "confirmed" : "tbc" };
     return out;
   });
   const [woHours, setWoHours] = useState<Record<string, number>>(() => workOrder?.hours_overrides ?? {});
@@ -833,8 +834,8 @@ export default function QuoteBuilder({
     }
     const materials: WOMaterial[] = [...matMap.entries()].map(([product, { vol, photo }]) => {
       const missing = !(vol > 0); // no coverage data → never fabricate a litre figure
-      const col = woColours[product] ?? { name: "", status: "tbc" as const };
-      return { product, photoUrl: photo, litres: missing ? null : roundUpLitres(vol), coverageMissing: missing, colourName: col.name, colourStatus: col.status };
+      const col = woColours[product] ?? { name: "", hex: "", status: "tbc" as const };
+      return { product, photoUrl: photo, litres: missing ? null : roundUpLitres(vol), coverageMissing: missing, colourName: col.name, colourHex: col.hex, colourStatus: col.status };
     });
     return {
       version: 1,
@@ -862,7 +863,8 @@ export default function QuoteBuilder({
     onAccess: (n) => { setWoAccessNotes(n); patchWorkOrder({ access_notes: n }); },
     onColour: (product, patch) => {
       setWoColours((m) => {
-        const next = { ...m, [product]: { name: patch.name ?? m[product]?.name ?? "", status: patch.status ?? m[product]?.status ?? "tbc" } };
+        const cur = m[product] ?? { name: "", hex: "", status: "tbc" as const };
+        const next = { ...m, [product]: { name: patch.name ?? cur.name, hex: patch.hex ?? cur.hex, status: patch.status ?? cur.status } };
         patchWorkOrder({ colours: next });
         return next;
       });

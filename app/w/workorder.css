@@ -43,6 +43,7 @@
 .wo .mat-name { font-weight: 600; font-size: 15px; }
 .wo .mat-colour { margin-top: 3px; font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .wo .mat-colour input { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; color: var(--text); font: inherit; font-size: 13px; padding: 3px 6px; }
+.wo .mat-colour .swatch { width: 16px; height: 16px; border-radius: 4px; border: 1px solid rgba(255,255,255,.2); flex-shrink: 0; display: inline-block; }
 .wo .cchip { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; padding: 2px 7px; border-radius: 100px; border: 1px solid; }
 .wo .cchip.tbc { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 45%, var(--line)); }
 .wo .cchip.confirmed { color: var(--emerald); border-color: color-mix(in srgb, var(--emerald) 45%, var(--line)); }

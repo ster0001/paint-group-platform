@@ -9,6 +9,7 @@ import TemplatesManager, { type TemplateMeta } from "./TemplatesManager";
 import InclusionTemplatesManager from "./InclusionTemplatesManager";
 import TermsEditor, { TERMS_KEY } from "./TermsEditor";
 import ProductsManager, { type ProductRow } from "./ProductsManager";
+import ColoursManager, { type ColourRow } from "./ColoursManager";
 import { DEFAULT_INCLUSION_TEMPLATES, DEFAULT_EXCLUSION_TEMPLATES, INCLUSION_TEMPLATES_KEY, EXCLUSION_TEMPLATES_KEY, type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   const supabase = await createClient();
 
-  const [companyRes, lineItemsRes, areasRes, cardRes, productsRes, modifiersRes, settingsRes] = await Promise.all([
+  const [companyRes, lineItemsRes, areasRes, cardRes, productsRes, modifiersRes, settingsRes, coloursRes] = await Promise.all([
     supabase.from("settings").select("value").eq("key", "company_profile").maybeSingle(),
     supabase.from("line_items").select("id, name, type, pricing_method, description").order("type").order("name"),
     supabase.from("area_names").select("id, area, type").order("type").order("area"),
@@ -26,12 +27,14 @@ export default async function SettingsPage() {
     supabase.from("products").select("*").order("category").order("name"),
     supabase.from("modifiers").select("id, group_name, code, label, multiplier, active").order("group_name"),
     supabase.from("settings").select("key, value").order("key"),
+    supabase.from("colours").select("id, brand, name, hex, collection").order("brand").order("name"),
   ]);
 
   const company: CompanyProfile = { ...DEFAULT_COMPANY, ...((companyRes.data?.value as Partial<CompanyProfile>) ?? {}) };
   const lineItems = (lineItemsRes.data as LineItemRow[] | null) ?? [];
   const areas = areasRes.data ?? [];
   const products = productsRes.data ?? [];
+  const colours = (coloursRes.data as ColourRow[] | null) ?? [];
   const modifiers = modifiersRes.data ?? [];
   const cardId = cardRes.data?.id ?? "";
 
@@ -131,6 +134,10 @@ export default async function SettingsPage() {
 
       <SettingsFolder title="Products" subtitle="Paint catalogue, photos, blurbs and customer visibility" count={products.length}>
         <ProductsManager initial={products as ProductRow[]} />
+      </SettingsFolder>
+
+      <SettingsFolder title="Colours" subtitle="Visual colour library for the colour picker — brand swatches + add your own" count={colours.length}>
+        <ColoursManager initial={colours} />
       </SettingsFolder>
 
       <SettingsFolder title="Modifiers" subtitle="Condition / access / finish / size multipliers" count={modifiers.length}>
