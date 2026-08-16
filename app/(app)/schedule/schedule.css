@@ -74,6 +74,9 @@
 .sb .jcard:hover { border-color: rgba(59, 216, 233, 0.4); }
 .sb .jcard:active { cursor: grabbing; }
 .sb .jcard.dragging { opacity: 0.35; }
+/* Accepted but not yet issued — present, but not draggable yet. */
+.sb .jcard.needsissue { cursor: default; border-color: rgba(224, 168, 60, 0.5); background: linear-gradient(180deg, rgba(224,168,60,.07), var(--graphite)); }
+.sb .jcard.needsissue:hover { border-color: rgba(224, 168, 60, 0.7); }
 .sb .jcard .r1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .sb .jcard .ref { font-family: var(--mono); font-size: 10px; color: var(--cyan); }
 .sb .jcard .fin { font-family: var(--mono); font-size: 8.5px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 100px; color: var(--muted); }

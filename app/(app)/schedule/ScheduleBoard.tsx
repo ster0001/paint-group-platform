@@ -744,26 +744,44 @@ export default function ScheduleBoard({
           )}
 
           <h2>Unscheduled</h2>
-          <p className="sub">Issued jobs awaiting dates · drag onto the timeline</p>
+          <p className="sub">Accepted jobs awaiting dates · drag onto the timeline</p>
           {tray.length === 0 ? (
             <div className="empty">Nothing waiting. Issue a work order and it appears here.</div>
           ) : (
-            tray.map((j) => (
-              <div key={j.workOrderId} className="jcard" onPointerDown={(e) => beginDrag(e, { kind: "tray", job: j })}>
-                <div className="r1">
-                  <span className="ref">{j.woRef}</span>
-                  {j.finishCode && <span className="fin">{j.finishCode}</span>}
+            tray.map((j) =>
+              j.needsIssuing ? (
+                // Accepted but not issued: visible here so it can't be forgotten,
+                // but it can't be dragged until the work order exists to send.
+                <div key={j.workOrderId} className="jcard needsissue">
+                  <div className="r1">
+                    <span className="ref">{j.woRef}</span>
+                    <span className="fin" style={{ color: "var(--amber)", borderColor: "currentColor" }}>
+                      NEEDS ISSUING
+                    </span>
+                  </div>
+                  <h3>{j.title}</h3>
+                  <div className="meta">ACCEPTED — WORK ORDER NOT ISSUED YET</div>
+                  <a className="btn gh" style={{ marginTop: 10, padding: 9, fontSize: 12.5 }} href={`/quote?id=${j.estimateId}`}>
+                    Open and issue it
+                  </a>
                 </div>
-                <h3>{j.title}</h3>
-                <div className="meta">
-                  {j.suburb ? `${j.suburb.toUpperCase()} · ` : ""}
-                  {j.estimatedDays} DAY{j.estimatedDays === 1 ? "" : "S"}
-                  {j.hours ? ` · ${j.hours.toFixed(1)} H` : ""}
+              ) : (
+                <div key={j.workOrderId} className="jcard" onPointerDown={(e) => beginDrag(e, { kind: "tray", job: j })}>
+                  <div className="r1">
+                    <span className="ref">{j.woRef}</span>
+                    {j.finishCode && <span className="fin">{j.finishCode}</span>}
+                  </div>
+                  <h3>{j.title}</h3>
+                  <div className="meta">
+                    {j.suburb ? `${j.suburb.toUpperCase()} · ` : ""}
+                    {j.estimatedDays} DAY{j.estimatedDays === 1 ? "" : "S"}
+                    {j.hours ? ` · ${j.hours.toFixed(1)} H` : ""}
+                  </div>
+                  <div className="pay">{money(j.paymentCents)}</div>
+                  {j.lastDeclineReason && <div className="flagline">DECLINED — {j.lastDeclineReason.toUpperCase()}</div>}
                 </div>
-                <div className="pay">{money(j.paymentCents)}</div>
-                {j.lastDeclineReason && <div className="flagline">DECLINED — {j.lastDeclineReason.toUpperCase()}</div>}
-              </div>
-            ))
+              ),
+            )
           )}
           <p className="hint">
             Drag a job onto a contractor&rsquo;s row — nothing is sent until you confirm,
@@ -994,8 +1012,12 @@ export default function ScheduleBoard({
               </>
             )}
 
-            {detail.workOrderId && (
-              <a className="btn gh" href={`/quote?wo=${detail.workOrderId}`} style={{ display: "block", textAlign: "center", textDecoration: "none" }}>
+            {detail.estimateId && (
+              <a
+                className="btn gh"
+                href={detail.estimateId ? `/quote?id=${detail.estimateId}` : "#"}
+                style={{ display: "block", textAlign: "center", textDecoration: "none" }}
+              >
                 Open the work order
               </a>
             )}

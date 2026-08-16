@@ -21,6 +21,8 @@ export type BlockKind = "accepted" | "in_progress" | "offered" | "proposed" | "u
 export type Block = {
   id: string;
   kind: BlockKind;
+  /** For linking back to the builder, which is addressed by ESTIMATE id. */
+  estimateId: string | null;
   contractorId: string;
   /** Inclusive ISO dates. */
   start: string;
@@ -41,6 +43,7 @@ export type Block = {
 /** An issued job with no live or accepted booking — the drag tray. */
 export type TrayJob = {
   workOrderId: string;
+  estimateId: string;
   woRef: string;
   title: string;
   suburb: string;
@@ -50,6 +53,13 @@ export type TrayJob = {
   hours: number | null;
   /** Set when a previous contractor declined — worth flagging to staff. */
   lastDeclineReason: string;
+  /**
+   * Accepted but not yet issued. It can't be offered until the work order is
+   * issued (that's what freezes the document the contractor reads), but it MUST
+   * still be visible here — otherwise accepted jobs quietly pile up somewhere
+   * the scheduler never looks.
+   */
+  needsIssuing: boolean;
 };
 
 /** A proposal or reschedule sitting with staff for a decision. */
@@ -105,10 +115,10 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
         .from("contractors")
         .select("id, tier, active, offerable, company_name, crew_size, profiles ( name )")
         .order("company_name"),
+      // Drafts included on purpose — see TrayJob.needsIssuing.
       supabase
         .from("work_orders")
-        .select("id, wo_ref, status, contractor_id, start_date, contractor_payment_cents, wo_snapshot, issued_at")
-        .not("issued_at", "is", null),
+        .select("id, estimate_id, wo_ref, status, contractor_id, start_date, contractor_payment_cents, wo_snapshot, issued_at, estimates ( title )"),
       supabase.from("booking_offers").select(OFFER_COLUMNS),
       supabase
         .from("contractor_unavailability")
@@ -138,8 +148,9 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
   }));
 
   type WRow = {
-    id: string; wo_ref: string; status: string; contractor_id: string | null;
+    id: string; estimate_id: string; wo_ref: string; status: string; contractor_id: string | null;
     start_date: string | null; contractor_payment_cents: number | null; wo_snapshot: unknown;
+    issued_at: string | null; estimates: { title: string | null } | null;
   };
   const wos = (workOrders as WRow[] | null) ?? [];
   const woById = new Map(wos.map((w) => [w.id, w]));
@@ -160,6 +171,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     blocks.push({
       id: `offer-${o.id}`,
       kind: state === "proposed" ? "proposed" : "offered",
+      estimateId: w?.estimate_id ?? null,
       contractorId: o.contractor_id,
       start,
       end: span,
@@ -180,6 +192,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
   for (const o of allOffers) if (o.state === "accepted") acceptedByWo.set(o.work_order_id, o);
 
   for (const w of wos) {
+    if (!w.issued_at) continue; // a draft has no contractor-facing document yet
     const acc = acceptedByWo.get(w.id);
     // Also covers jobs staff assigned directly and dated without an offer.
     const hasDirect = !acc && w.contractor_id && w.start_date;
@@ -193,6 +206,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     blocks.push({
       id: `wo-${w.id}`,
       kind: w.status === "in_progress" ? "in_progress" : "accepted",
+      estimateId: w.estimate_id,
       contractorId,
       start,
       end,
@@ -214,6 +228,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     blocks.push({
       id: `unav-${u.id}`,
       kind: "unavailable",
+      estimateId: null,
       contractorId: u.contractor_id,
       start: u.start_date,
       end: u.end_date,
@@ -243,8 +258,10 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
       const hours = doc ? doc.areas.flatMap((a) => a.surfaces).reduce((n, s) => n + (s.hours ?? 0), 0) : 0;
       return {
         workOrderId: w.id,
+        estimateId: w.estimate_id,
         woRef: w.wo_ref,
-        title: doc?.jobTitle || w.wo_ref,
+        // A draft has no snapshot, so fall back to the estimate's own title.
+        title: doc?.jobTitle || w.estimates?.title || w.wo_ref,
         // The tray is a staff surface, so the full address is fine — but the
         // suburb reads better at this size.
         suburb: (doc?.jobAddress || "").split(",").slice(-3, -2)[0]?.trim() || doc?.jobAddress || "",
@@ -253,6 +270,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
         hours: hours || null,
         estimatedDays: daysFromHours(hours),
         lastDeclineReason: declineByWo.get(w.id) ?? "",
+        needsIssuing: !w.issued_at,
       };
     });
 
@@ -273,6 +291,9 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
         contractorName: laneName.get(o.contractor_id) ?? "Contractor",
       };
     });
+
+  // Not-yet-issued jobs first — they're the ones needing a decision.
+  tray.sort((a, b) => Number(b.needsIssuing) - Number(a.needsIssuing));
 
   return { lanes, blocks, tray, approvals, errors };
 }

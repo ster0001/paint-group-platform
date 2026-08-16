@@ -596,7 +596,11 @@ export default function QuoteBuilder({
       size_band: modSel["Job Size"] || null,
       subtotal_cents: totals.subtotal,
       total_cents: totals.total,
-      builder_state: { blocks, modSel, contact, jobAddress, materials, materialColours, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride },
+      // woDoc: the contractor-safe work-order document, recomputed on every save.
+      // accept_estimate copies it straight onto the new work order, so an accepted
+      // job is bookable on the scheduling board immediately instead of waiting for
+      // someone to remember to press Issue.
+      builder_state: { blocks, modSel, contact, jobAddress, materials, materialColours, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, woDoc: computeWorkOrderDoc() },
       share_token: token,
       presentation_id: presentationId,
       sent_snapshot: buildCustomerDoc(token),
