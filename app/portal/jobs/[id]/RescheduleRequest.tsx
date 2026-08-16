@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import CalendarGrid, { type PortalBlock, type PortalJobDay } from "@/app/portal/calendar/CalendarGrid";
+import { formatDMY } from "@/lib/scheduling/offers";
 
 /**
  * "I'm running behind — can we start later?" on a job the contractor has
@@ -40,7 +41,7 @@ export default function RescheduleRequest({
       <div className="card amberish" style={{ margin: "0 16px 12px" }}>
         <span className="chip amb">Waiting on Paint Group</span>
         <div style={{ marginTop: 8, fontSize: "12.5px", color: "var(--muted)" }}>
-          You&rsquo;ve asked to move this job to <b style={{ color: "var(--text)" }}>{proposedDate}</b>.
+          You&rsquo;ve asked to move this job to <b style={{ color: "var(--text)" }}>{formatDMY(proposedDate)}</b>.
           Paint Group have to check with the customer before it&rsquo;s confirmed — until
           they do, the original date still stands.
         </div>
@@ -89,7 +90,7 @@ export default function RescheduleRequest({
           <div className="sheet">
             <h3>Request a new start date</h3>
             <p className="slab">
-              Currently starting {currentStart ?? "—"} · Paint Group have to agree it with the customer
+              Currently starting {formatDMY(currentStart)} · Paint Group have to agree it with the customer
             </p>
             <CalendarGrid
               blocks={blocks}

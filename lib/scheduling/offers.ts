@@ -99,6 +99,19 @@ export function expiryFromNow(hours = OFFER_WINDOW_HOURS): string {
   return new Date(Date.now() + hours * 3600_000).toISOString();
 }
 
+/**
+ * dd-mm-yy — the format Tom asked for on date-change requests, and the one an
+ * Australian tradesperson reads without pausing. Parsed as UTC so the day can't
+ * shift; a raw ISO date is never shown to a user.
+ */
+export function formatDMY(date: string | null | undefined): string {
+  if (!date) return "—";
+  const d = new Date(date + "T00:00:00Z");
+  if (Number.isNaN(d.getTime())) return String(date);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getUTCDate())}-${p(d.getUTCMonth() + 1)}-${String(d.getUTCFullYear()).slice(2)}`;
+}
+
 /** Milliseconds left, floored at zero. */
 export function msRemaining(expiresAt: string): number {
   return Math.max(0, new Date(expiresAt).getTime() - Date.now());

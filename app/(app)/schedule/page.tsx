@@ -13,13 +13,24 @@ const addDays = (s: string, n: number) => {
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 };
+const isDate = (s: string | undefined): s is string => Boolean(s && /^\d{4}-\d{2}-\d{2}$/.test(s));
 
 // Staff scheduling timeline. Access is already gated by the (app) layout, which
 // redirects anyone who isn't staff.
-export default async function SchedulePage() {
+//
+// The visible window lives in the URL so the DATA follows it. Without that,
+// paging forward moved the columns but kept the originally-fetched blocks, and
+// anything booked months out simply didn't appear.
+export default async function SchedulePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; days?: string }>;
+}) {
+  const sp = await searchParams;
+
   // Start a couple of days back so today isn't jammed against the left edge.
-  const from = addDays(localIso(new Date()), -2);
-  const RANGE = 28;
+  const from = isDate(sp.from) ? sp.from : addDays(localIso(new Date()), -2);
+  const RANGE = Math.min(112, Math.max(7, Number(sp.days) || 28));
   const to = addDays(from, RANGE);
 
   const board = await loadBoard(from, to);
@@ -43,6 +54,7 @@ export default async function SchedulePage() {
       rangeDays={RANGE}
       savedViews={savedViews}
       approvals={board.approvals}
+      errors={board.errors}
     />
   );
 }

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { expiryFromNow, msRemaining, isReschedule, type BookingOffer } from "@/lib/scheduling/offers";
+import { expiryFromNow, msRemaining, isReschedule, formatDMY, type BookingOffer } from "@/lib/scheduling/offers";
 import type { Block, Lane, TrayJob } from "@/lib/scheduling/board";
 import "./schedule.css";
 
@@ -68,6 +68,7 @@ export default function ScheduleBoard({
   rangeDays,
   savedViews,
   approvals,
+  errors,
 }: {
   lanes: Lane[];
   blocks: Block[];
@@ -76,6 +77,7 @@ export default function ScheduleBoard({
   rangeDays: number;
   savedViews: SavedView[];
   approvals: { offer: BookingOffer; woRef: string; title: string; contractorName: string }[];
+  errors: string[];
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -126,6 +128,19 @@ export default function ScheduleBoard({
 
   const days = useMemo(() => Array.from({ length: range }, (_, i) => addDays(start, i)), [start, range]);
   const today = todayIso();
+
+  /**
+   * Push the window into the URL so the SERVER refetches for it. Paging or
+   * jumping used to move the columns while the blocks stayed behind, so a job
+   * booked months out was invisible.
+   */
+  useEffect(() => {
+    if (start === from && range === rangeDays) return;
+    const t = setTimeout(() => {
+      router.replace(`/schedule?from=${start}&days=${range}`, { scroll: false });
+    }, 250); // debounce: dragging the range buttons shouldn't fire a fetch each time
+    return () => clearTimeout(t);
+  }, [start, range, from, rangeDays, router]);
 
   // ---- drag (requirement 1) -------------------------------------------------
   // Everything below writes to the DOM directly. React does not re-render during
@@ -704,8 +719,8 @@ export default function ScheduleBoard({
                       {a.contractorName.toUpperCase()} · {resched ? "WANTS TO MOVE THE JOB" : "PROPOSED A NEW DATE"}
                     </div>
                     <div className="pay">
-                      {resched && a.offer.prior_start_date ? `${a.offer.prior_start_date} → ` : ""}
-                      {a.offer.proposed_start_date}
+                      {resched && a.offer.prior_start_date ? `${formatDMY(a.offer.prior_start_date)} → ` : ""}
+                      {formatDMY(a.offer.proposed_start_date)}
                     </div>
                     {a.offer.response_note && (
                       <div className="meta" style={{ marginTop: 6, color: "var(--text)" }}>&ldquo;{a.offer.response_note}&rdquo;</div>
@@ -846,7 +861,15 @@ export default function ScheduleBoard({
                 );
               })}
               {visibleLanes.length === 0 && (
-                <div className="empty" style={{ margin: 20 }}>No contractors match this view.</div>
+                <div className="empty" style={{ margin: 20 }}>
+                  {/* An empty board because a query failed looks identical to an
+                      empty board because there's no work — so distinguish them. */}
+                  {errors.length > 0
+                    ? `Couldn't load the board — ${errors.join("; ")}`
+                    : lanes.length === 0
+                      ? "No contractors set up yet."
+                      : "No contractors match this view."}
+                </div>
               )}
             </div>
           </div>
@@ -883,7 +906,7 @@ export default function ScheduleBoard({
             <div className="frow">
               <span className="l">Dates</span>
               <span className="v">
-                {pendingDrop.startDate} → {addDays(pendingDrop.startDate, pendingDrop.spanDays - 1)}
+                {formatDMY(pendingDrop.startDate)} → {formatDMY(addDays(pendingDrop.startDate, pendingDrop.spanDays - 1))}
               </span>
             </div>
             <div className="frow">
@@ -923,7 +946,7 @@ export default function ScheduleBoard({
           <>
             <h3>{detail.title}</h3>
             <p className="slab">{detail.kind.replace("_", " ")}</p>
-            <div className="frow"><span className="l">Dates</span><span className="v">{detail.start} → {detail.end}</span></div>
+            <div className="frow"><span className="l">Dates</span><span className="v">{formatDMY(detail.start)} → {formatDMY(detail.end)}</span></div>
             {detail.woRef && <div className="frow"><span className="l">Reference</span><span className="v">{detail.woRef}</span></div>}
             {detail.paymentCents != null && <div className="frow"><span className="l">Their price</span><span className="v">{money(detail.paymentCents)}</span></div>}
             {detail.finishCode && <div className="frow"><span className="l">Finish</span><span className="v">{detail.finishCode}</span></div>}
@@ -985,7 +1008,7 @@ export default function ScheduleBoard({
             </div>
             <div className="frow">
               <span className="l">Days</span>
-              <span className="v">{pendingBlock.start}{pendingBlock.end !== pendingBlock.start ? ` → ${pendingBlock.end}` : ""}</span>
+              <span className="v">{formatDMY(pendingBlock.start)}{pendingBlock.end !== pendingBlock.start ? ` → ${formatDMY(pendingBlock.end)}` : ""}</span>
             </div>
             <label className="ctrl-lab" style={{ display: "block", marginTop: 14, marginBottom: 6 }}>Reason (optional)</label>
             <input type="text" value={blockReason} onChange={(e) => setBlockReason(e.target.value)} placeholder="e.g. training, annual leave" style={{ width: "100%" }} />

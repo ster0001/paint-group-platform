@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   OFFER_COLUMNS,
+  formatDMY,
   OFFER_CHIP_STAFF,
   effectiveState,
   expiryFromNow,
@@ -16,8 +17,7 @@ import {
 const money = (c: number | null) =>
   c == null ? "—" : "$" + (c / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 });
 
-const fmt = (d: string | null) =>
-  d ? new Date(d + "T00:00:00").toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" }) : "—";
+const fmt = (d: string | null) => formatDMY(d);
 
 /**
  * Staff control for offering an issued work order to a contractor.

@@ -65,6 +65,8 @@ export type BoardData = {
   blocks: Block[];
   tray: TrayJob[];
   approvals: Approval[];
+  /** Query failures, surfaced rather than silently rendering an empty board. */
+  errors: string[];
 };
 
 // Plain calendar dates, so the arithmetic stays in UTC end to end. Parsing as
@@ -93,8 +95,12 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
   // Sweep lapsed offers so the board never shows a dead one as live.
   await supabase.rpc("expire_booking_offers").then(() => {}, () => {});
 
-  const [{ data: contractors }, { data: workOrders }, { data: offers }, { data: unavail }] =
-    await Promise.all([
+  const [
+    { data: contractors, error: cErr },
+    { data: workOrders, error: wErr },
+    { data: offers, error: oErr },
+    { data: unavail, error: uErr },
+  ] = await Promise.all([
       supabase
         .from("contractors")
         .select("id, tier, active, offerable, company_name, crew_size, profiles ( name )")
@@ -110,6 +116,15 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
         .lte("start_date", to)
         .gte("end_date", from),
     ]);
+
+  // An empty board because a query failed looks exactly like an empty board
+  // because there is no work — so say which it is.
+  const errors = [
+    cErr && `contractors: ${cErr.message}`,
+    wErr && `work orders: ${wErr.message}`,
+    oErr && `offers: ${oErr.message}`,
+    uErr && `unavailability: ${uErr.message}`,
+  ].filter(Boolean) as string[];
 
   type CRow = { id: string; tier: string | null; active: boolean; offerable: boolean; company_name: string | null; crew_size: number | null; profiles: { name: string | null } | null };
   const lanes: Lane[] = ((contractors as CRow[] | null) ?? []).map((c) => ({
@@ -259,5 +274,5 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
       };
     });
 
-  return { lanes, blocks, tray, approvals };
+  return { lanes, blocks, tray, approvals, errors };
 }
