@@ -49,7 +49,7 @@ export default async function QuotePage({
   // Everything below is independent — fetch it all in one round-trip. The single
   // `settings` fetch also carries the company profile and any saved templates, so
   // we don't query settings three separate times.
-  const [rateItems, modifiers, products, settings, lineItems, areaNames, contactsRes, estimateRes, workOrderRes, contractorsRes] = await Promise.all([
+  const [rateItems, modifiers, products, settings, lineItems, areaNames, contactsRes, estimateRes, workOrderRes, contractorsRes, presentationsRes] = await Promise.all([
     supabase.from("rate_items").select("*").eq("rate_card_id", card?.id ?? "").order("category").order("sub_category"),
     supabase.from("modifiers").select("*").eq("active", true),
     supabase.from("products").select("*"),
@@ -57,10 +57,16 @@ export default async function QuotePage({
     supabase.from("line_items").select("*").order("type").order("name"),
     supabase.from("area_names").select("area, type").order("type").order("area"),
     supabase.from("contacts").select("*").order("last_name"),
-    id ? supabase.from("estimates").select("id, title, builder_state, share_token, status, sent_at, valid_until").eq("id", id).single() : Promise.resolve({ data: null }),
+    id ? supabase.from("estimates").select("id, title, builder_state, share_token, status, sent_at, valid_until, presentation_id").eq("id", id).single() : Promise.resolve({ data: null }),
     id ? supabase.from("work_orders").select("*").eq("estimate_id", id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("contractors").select("id, profiles(name)").eq("active", true),
+    supabase.from("presentations").select("id, name, is_default, presentation_blocks(kind, position, enabled, content)").order("name"),
   ]);
+  type PresRow = { id: string; name: string; is_default: boolean; presentation_blocks: { kind: string; position: number; enabled: boolean; content: unknown }[] };
+  const presentations = ((presentationsRes.data as PresRow[] | null) ?? []).map((p) => ({
+    id: p.id, name: p.name,
+    blocks: (p.presentation_blocks ?? []).slice().sort((a, b) => a.position - b.position).map((b) => ({ kind: b.kind, position: b.position, enabled: b.enabled, content: b.content })),
+  }));
   type ContractorRow = { id: string; profiles: { name: string | null } | null };
   const contractors = ((contractorsRes.data as ContractorRow[] | null) ?? []).map((c) => ({ id: c.id, name: c.profiles?.name || "Contractor" }));
 
@@ -83,7 +89,7 @@ export default async function QuotePage({
   // Load an existing saved quote (?id=), or start a NEW estimate pre-filled from
   // a saved template (?template=). A template opens with no id, so saving it
   // creates a fresh estimate rather than overwriting the template.
-  type Initial = { id: string | null; title: string | null; builder_state: unknown; share_token?: string | null; status?: string | null; sent_at?: string | null; valid_until?: string | null };
+  type Initial = { id: string | null; title: string | null; builder_state: unknown; share_token?: string | null; status?: string | null; sent_at?: string | null; valid_until?: string | null; presentation_id?: string | null };
   let initial: Initial | null = null;
   if (id) {
     if (estimateRes.data) initial = estimateRes.data as Initial;
@@ -112,6 +118,7 @@ export default async function QuotePage({
       terms={terms}
       workOrder={workOrderRes.data ?? null}
       contractors={contractors}
+      presentations={presentations}
     />
   );
 }
