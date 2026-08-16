@@ -72,6 +72,9 @@ export type CustomerSnapshot = {
   paints: SnapshotPaint[]; // distinct products used in the job (topcoats + prep)
   inclusions: string[];
   exclusions: string[];
+  // Presentation blocks (view-only, injected between hero and scope). Snapshotted
+  // at send time so later presentation edits never change a sent document.
+  presentation?: { blocks: { kind: string; content: unknown }[] } | null;
   terms: string; // terms & conditions (plain text), shown below the accept panel
   discountMode: "pct" | "fixed"; // percentage of subtotal, or a flat dollar amount
   discountPct: number; // discount % applied to the ex-GST subtotal (when mode = pct)

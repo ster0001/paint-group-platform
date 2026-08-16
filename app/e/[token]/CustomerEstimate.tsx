@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { CustomerSnapshot, SnapshotPaint } from "@/lib/customer/snapshot";
+import PresentationBlocks from "./PresentationBlocks";
 import "../customer.css";
 
 // The public token page keeps this row shape; the builder passes a live snapshot
@@ -227,6 +228,9 @@ export default function CustomerEstimate({
           <div className="cb-title">Colour consultation included</div>
           <p>Colours are confirmed after you accept. We provide unlimited samples, so you can try out for yourself in your own light.</p>
         </div>
+
+        {/* PRESENTATION BLOCKS — view-only, between hero and scope */}
+        {snap.presentation?.blocks?.length ? <PresentationBlocks blocks={snap.presentation.blocks} /> : null}
 
         {/* PHOTOS */}
         {snap.areas.some((a) => a.photos.length) && (

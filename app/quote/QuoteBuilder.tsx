@@ -181,6 +181,7 @@ export default function QuoteBuilder({
   terms = "",
   workOrder = null,
   contractors = [],
+  presentations = [],
 }: {
   rateCardId: string | null;
   rateCardVersion: number | null;
@@ -190,7 +191,7 @@ export default function QuoteBuilder({
   settings: Setting[];
   lineItems: LineItemRef[];
   areaNames: AreaNameRef[];
-  initial: { id: string | null; title: string | null; builder_state: unknown; share_token?: string | null; status?: string | null; sent_at?: string | null; valid_until?: string | null } | null;
+  initial: { id: string | null; title: string | null; builder_state: unknown; share_token?: string | null; status?: string | null; sent_at?: string | null; valid_until?: string | null; presentation_id?: string | null } | null;
   company: CompanyProfile;
   contacts: Contact[];
   inclusionTemplates?: InclusionTemplate[];
@@ -198,6 +199,7 @@ export default function QuoteBuilder({
   terms?: string;
   workOrder?: WorkOrderRow | null;
   contractors?: { id: string; name: string }[];
+  presentations?: { id: string; name: string; blocks: { kind: string; position: number; enabled: boolean; content: unknown }[] }[];
 }) {
   const normKey = (k: string) => k.replace(/[^a-z0-9]+/gi, " ").trim().toLowerCase();
   const settingsMap = useMemo(() => {
@@ -276,6 +278,14 @@ export default function QuoteBuilder({
   const [jobAddress, setJobAddress] = useState<JobAddress | null>(() => loaded?.jobAddress ?? null);
   // Deposit payable on acceptance, as a % of the GST-inclusive total. Defaults to 50%.
   const [depositPct, setDepositPct] = useState<number>(() => loaded?.depositPct ?? 50);
+  // Presentation tick — which presentation (if any) injects into the customer view.
+  const [presentationId, setPresentationId] = useState<string | null>(initial?.presentation_id ?? null);
+  const presentationDoc = () => {
+    const p = presentations.find((x) => x.id === presentationId);
+    if (!p) return null;
+    const blocks = p.blocks.filter((b) => b.enabled).sort((a, z) => a.position - z.position).map((b) => ({ kind: b.kind, content: b.content }));
+    return blocks.length ? { blocks } : null;
+  };
   // What's included / not included — one bullet per line, shown to the customer.
   const [inclusions, setInclusions] = useState<string[]>(() => loaded?.inclusions ?? DEFAULT_INCLUSIONS);
   const [exclusions, setExclusions] = useState<string[]>(() => loaded?.exclusions ?? []);
@@ -582,6 +592,7 @@ export default function QuoteBuilder({
       total_cents: totals.total,
       builder_state: { blocks, modSel, contact, jobAddress, materials, materialColours, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride },
       share_token: token,
+      presentation_id: presentationId,
       sent_snapshot: buildCustomerDoc(token),
     };
     try {
@@ -806,6 +817,7 @@ export default function QuoteBuilder({
       paints: computePaints(),
       inclusions: inclusions.map((t) => t.trim()).filter(Boolean),
       exclusions: exclusions.map((t) => t.trim()).filter(Boolean),
+      presentation: presentationDoc(),
       terms,
       discountMode,
       discountPct: discountPct || 0,
@@ -1204,6 +1216,19 @@ export default function QuoteBuilder({
                       </label>
                     ))}
                   </div>
+                  {presentations.length > 0 && (
+                    <label className="mt-3 block text-xs">
+                      <span className="text-gray-500">Presentation <span className="text-gray-400">· injects capability/proof blocks into the customer view</span></span>
+                      <select
+                        className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm sm:max-w-xs"
+                        value={presentationId ?? ""}
+                        onChange={(e) => setPresentationId(e.target.value || null)}
+                      >
+                        <option value="">— none —</option>
+                        {presentations.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                    </label>
+                  )}
                 </section>
               )}
 
