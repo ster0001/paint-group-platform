@@ -31,6 +31,18 @@ const CATEGORY_ORDER = [
   "Interior walls", "Ceilings", "Trim & doors", "Exterior walls",
   "Texture & membrane", "Prep & primers", "Clear & floors",
 ];
+const SHEEN_LEVELS = ["Flat", "Matt", "Satin", "Low Sheen", "Semi Gloss", "Gloss", "High Gloss"];
+// Default sheen by product type, applied by "Auto-set by type" (manual edits win).
+function autoSheen(name: string, category: string | null | undefined): string | null {
+  const n = (name || "").toLowerCase();
+  const c = category || "";
+  if (/undercoat/.test(n)) return "Flat";
+  if (/cabothane/.test(n)) return "Semi Gloss";
+  if (/ceiling/i.test(c) || /ceiling/i.test(n)) return "Flat";
+  if (/walls/i.test(c)) return "Matt";
+  if (/trim|door/i.test(c)) return "Semi Gloss";
+  return null;
+}
 const inp = "w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm";
 let tmp = -1;
 
@@ -104,6 +116,26 @@ export default function ProductsManager({ initial }: { initial: ProductRow[] }) 
     }
   }
 
+  // Persist a single column immediately (used by the inline sheen dropdown).
+  async function saveField(r: ProductRow, field: keyof ProductRow, value: unknown) {
+    patch(r, { [field]: value } as Partial<ProductRow>);
+    if (r.__new) return; // new rows persist on the full Save
+    const supabase = createClient();
+    const { error } = await supabase.from("products").update({ [field]: value }).eq("id", r.id!);
+    setMsg((m) => ({ ...m, [rid(r)]: error ? error.message : "Saved ✓" }));
+  }
+
+  // Apply the default sheen by type to every product that has a rule.
+  const [autoBusy, setAutoBusy] = useState(false);
+  async function autoSetSheens() {
+    setAutoBusy(true);
+    const supabase = createClient();
+    const updates = rows.map((r) => ({ r, s: autoSheen(r.name, r.category) })).filter((u) => u.s) as { r: ProductRow; s: string }[];
+    setRows((rs) => rs.map((x) => { const u = updates.find((u) => rid(u.r) === rid(x)); return u ? { ...x, finish: u.s } : x; }));
+    for (const u of updates) if (u.r.id) await supabase.from("products").update({ finish: u.s }).eq("id", u.r.id);
+    setAutoBusy(false);
+  }
+
   async function del(r: ProductRow) {
     if (r.__new) { setRows((rs) => rs.filter((x) => rid(x) !== rid(r))); return; }
     if (!confirm(`Delete "${r.name}"? This cannot be undone.`)) return;
@@ -121,6 +153,12 @@ export default function ProductsManager({ initial }: { initial: ProductRow[] }) 
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-gray-500">Set each product&apos;s sheen from the dropdown on its row (saves instantly), or auto-fill by type.</p>
+        <button onClick={autoSetSheens} disabled={autoBusy} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium hover:bg-gray-50 disabled:opacity-50">
+          {autoBusy ? "Setting…" : "Auto-set sheens by type"}
+        </button>
+      </div>
       {groups.map(([cat, list]) => (
         <div key={cat}>
           <div className="mb-1 flex items-baseline gap-2">
@@ -148,9 +186,19 @@ export default function ProductsManager({ initial }: { initial: ProductRow[] }) 
                           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700" title={r.source_notes || "Confirm details before showing to customers"}>needs verification</span>
                         )}
                       </div>
-                      <div className="truncate text-[11px] text-gray-400">{[r.brand, r.finish].filter(Boolean).join(" · ")}</div>
+                      <div className="truncate text-[11px] text-gray-400">{r.brand || ""}</div>
                     </div>
-                    <button onClick={() => setOpen(expanded ? null : id)} className="rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium hover:bg-gray-50">
+                    <select
+                      className="w-28 shrink-0 rounded-md border border-gray-300 px-2 py-1 text-xs"
+                      value={r.finish ?? ""}
+                      onChange={(e) => saveField(r, "finish", e.target.value)}
+                      title="Finish / sheen"
+                    >
+                      <option value="">— sheen —</option>
+                      {r.finish && !SHEEN_LEVELS.includes(r.finish) && <option value={r.finish}>{r.finish}</option>}
+                      {SHEEN_LEVELS.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                    <button onClick={() => setOpen(expanded ? null : id)} className="shrink-0 rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium hover:bg-gray-50">
                       {expanded ? "Close" : "Edit"}
                     </button>
                   </div>
@@ -162,7 +210,13 @@ export default function ProductsManager({ initial }: { initial: ProductRow[] }) 
                       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                         <Field label="Name">{<input className={inp} value={r.name ?? ""} onChange={(e) => patch(r, { name: e.target.value })} />}</Field>
                         <Field label="Brand">{<input className={inp} value={r.brand ?? ""} onChange={(e) => patch(r, { brand: e.target.value })} />}</Field>
-                        <Field label="Finish / sheen">{<input className={inp} value={r.finish ?? ""} onChange={(e) => patch(r, { finish: e.target.value })} />}</Field>
+                        <Field label="Finish / sheen">
+                          <select className={inp} value={r.finish ?? ""} onChange={(e) => patch(r, { finish: e.target.value })}>
+                            <option value="">— sheen —</option>
+                            {r.finish && !SHEEN_LEVELS.includes(r.finish) && <option value={r.finish}>{r.finish}</option>}
+                            {SHEEN_LEVELS.map((s) => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                        </Field>
                         <Field label="Category">
                           <select className={inp} value={r.category ?? ""} onChange={(e) => patch(r, { category: e.target.value })}>
                             <option value="" />
