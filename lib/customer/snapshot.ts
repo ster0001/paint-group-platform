@@ -25,6 +25,22 @@ export type SnapshotLine = {
   priceCents: number; // ex-GST
 };
 
+// A paint product actually used in this estimate, for "The paint we're supplying".
+// No cost/margin/alias — customer-safe only.
+export type SnapshotPaint = {
+  name: string; // display name (brand stripped where it prefixes)
+  brand: string; // e.g. "Haymes"
+  category: string; // e.g. "Interior walls" (drives grouping / role)
+  role: string; // short role shown next to the name, e.g. "Walls"
+  blurb: string; // one-liner (omitted for not-yet-verified products)
+  properties: string[]; // chips strip
+  guarantee: string; // amber phrase; "" when none
+  photoUrl: string; // "" -> tin placeholder
+  customerVisible: boolean; // false -> name + usage chips only
+  isPrep: boolean; // Prep & primers -> grouped under a subheading
+  usage: string[]; // usage chips e.g. ["Walls · 4 areas"]
+};
+
 export type CustomerSnapshot = {
   version: 1;
   company: {
@@ -50,6 +66,7 @@ export type CustomerSnapshot = {
   areas: SnapshotArea[];
   lineItems: SnapshotLine[];
   options: SnapshotLine[]; // optional add-ons the customer can toggle
+  paints: SnapshotPaint[]; // distinct products used in the job (topcoats + prep)
   inclusions: string[];
   exclusions: string[];
   terms: string; // terms & conditions (plain text), shown below the accept panel

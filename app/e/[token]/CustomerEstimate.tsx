@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { CustomerSnapshot } from "@/lib/customer/snapshot";
+import type { CustomerSnapshot, SnapshotPaint } from "@/lib/customer/snapshot";
 import "../customer.css";
 
 // The public token page keeps this row shape; the builder passes a live snapshot
@@ -282,6 +282,32 @@ export default function CustomerEstimate({
           </section>
         )}
 
+        {/* THE PAINT WE'RE SUPPLYING */}
+        {(snap.paints?.length ?? 0) > 0 && (() => {
+          const topcoats = snap.paints.filter((p) => !p.isPrep);
+          const preps = snap.paints.filter((p) => p.isPrep);
+          const anyStarred = snap.paints.some((p) => p.customerVisible && p.guarantee.includes("*"));
+          return (
+            <section>
+              <h2>The paint we&apos;re supplying</h2>
+              <p className="sub">Every product on this job, matched to your surfaces — all paint and materials are included in your price.</p>
+              <div className="paints">
+                {topcoats.map((p, i) => <PaintCard key={`t${i}`} p={p} />)}
+              </div>
+              {preps.length > 0 && (
+                <>
+                  <h3 className="prepsubhead">Preparation products</h3>
+                  <div className="paints">
+                    {preps.map((p, i) => <PaintCard key={`p${i}`} p={p} />)}
+                  </div>
+                </>
+              )}
+              {anyStarred && <p className="paintfine">* Subject to manufacturer&apos;s label conditions.</p>}
+              <p className="paintnote">Prefer a different brand or finish? Ask us — we can reprice the same scope with Dulux, Wattyl or another premium range before you accept.</p>
+            </section>
+          );
+        })()}
+
         {/* OPTIONS */}
         {snap.options.length > 0 && (
           <section>
@@ -480,6 +506,66 @@ export default function CustomerEstimate({
 
 function hasHtml(html: string | undefined) {
   return !!html && html.replace(/<[^>]*>/g, "").trim() !== "";
+}
+
+function groupForCategory(cat: string): string {
+  if (/interior walls/i.test(cat)) return "Interior";
+  if (/exterior walls/i.test(cat)) return "Exterior";
+  if (/ceiling/i.test(cat)) return "Ceilings";
+  if (/trim|door/i.test(cat)) return "Trim";
+  if (/texture|membrane/i.test(cat)) return "Texture";
+  if (/prep|primer/i.test(cat)) return "Prep";
+  if (/clear|floor/i.test(cat)) return "Clear";
+  return cat || "";
+}
+
+// A neutral paint-tin placeholder (from the v3 reference) for products with no photo.
+function TinPlaceholder() {
+  return (
+    <svg viewBox="0 0 120 130" fill="none" aria-hidden="true">
+      <ellipse cx="60" cy="16" rx="42" ry="9" fill="#8F969D" />
+      <ellipse cx="60" cy="14" rx="42" ry="9" fill="#C8CDD2" />
+      <ellipse cx="60" cy="14" rx="30" ry="6" fill="#D8D4C8" />
+      <path d="M18 16 L20 112 C20 122 100 122 100 112 L102 16 C102 25 18 25 18 16 Z" fill="#B7BDC3" />
+      <path d="M18 16 L20 112 C20 117 40 120 60 120 L60 23 C42 23 24 20 18 16 Z" fill="rgba(255,255,255,.28)" />
+      <rect x="24" y="42" width="72" height="52" rx="4" fill="#F2F0EA" />
+      <rect x="24" y="42" width="72" height="14" rx="4" fill="#2fb9cb" />
+      <rect x="30" y="64" width="60" height="5" rx="2.5" fill="#22262A" />
+      <rect x="30" y="74" width="42" height="4" rx="2" fill="#9AA0A6" />
+      <rect x="30" y="83" width="30" height="4" rx="2" fill="#2fb9cb" opacity=".85" />
+    </svg>
+  );
+}
+
+function PaintCard({ p }: { p: SnapshotPaint }) {
+  const group = groupForCategory(p.category);
+  const brandLabel = [p.brand, group].filter(Boolean).join(" · ");
+  const colourPending = p.customerVisible && /walls/i.test(p.category);
+  return (
+    <div className="paintcard">
+      <div className="tinwrap">
+        {p.photoUrl
+          // eslint-disable-next-line @next/next/no-img-element
+          ? <img className="tinphoto" src={p.photoUrl} alt="" loading="lazy" />
+          : <TinPlaceholder />}
+      </div>
+      <div>
+        {brandLabel && <p className="pc-brand">{brandLabel}</p>}
+        <p className="pc-name">{p.name}{p.role && <small>{p.role}</small>}</p>
+        {p.usage.length > 0 && (
+          <div className="pc-uses">{p.usage.map((u, i) => <span key={i}>{u}</span>)}</div>
+        )}
+        {p.customerVisible && p.blurb && <p className="pc-why">{p.blurb}</p>}
+        {p.customerVisible && (p.properties.length > 0 || colourPending) && (
+          <p className="pc-props">
+            {p.properties.join(" · ")}
+            {colourPending && <>{p.properties.length > 0 ? " · " : ""}<b>Colour confirmed at your consult</b></>}
+          </p>
+        )}
+        {p.customerVisible && p.guarantee && <p className="pc-guarantee">{p.guarantee}</p>}
+      </div>
+    </div>
+  );
 }
 
 // A simple canvas signature pad. Emits a PNG data URL as the customer draws, or

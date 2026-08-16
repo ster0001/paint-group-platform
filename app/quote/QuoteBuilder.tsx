@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import EstimateHeader from "./EstimateHeader";
 import RichTextEditor from "@/app/components/RichTextEditor";
 import CustomerEstimate from "@/app/e/[token]/CustomerEstimate";
-import { DEFAULT_PROOF, type CustomerSnapshot, type SnapshotArea, type SnapshotLine } from "@/lib/customer/snapshot";
+import { DEFAULT_PROOF, type CustomerSnapshot, type SnapshotArea, type SnapshotLine, type SnapshotPaint } from "@/lib/customer/snapshot";
 import { type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import type { CompanyProfile, Contact, JobAddress } from "./company";
 import type { Product, RateItem } from "@/lib/pricing/types";
@@ -646,6 +646,63 @@ export default function QuoteBuilder({
   const visibleToCustomer = (b: Block) => !customerView || !(b.kind === "line" && b.hidden);
   const areaPriceCents = (b: Area) => b.surfaces.reduce((n, s) => n + surfaceCalc(b, s).totalCents, 0);
 
+  // Distinct products actually used in the included areas → customer paint cards.
+  const roleForCategory = (cat: string): string => {
+    if (/walls/i.test(cat)) return "Walls";
+    if (/ceiling/i.test(cat)) return "Ceilings";
+    if (/trim|door/i.test(cat)) return "Trim & doors";
+    if (/texture|membrane/i.test(cat)) return "Texture";
+    if (/prep|primer/i.test(cat)) return "Preparation";
+    if (/clear|floor/i.test(cat)) return "Clear & floors";
+    return "";
+  };
+  function computePaints(): SnapshotPaint[] {
+    const used = new Map<string, Map<string, Set<string>>>(); // product → surfaceLabel → area titles
+    for (const b of blocks) {
+      if (b.kind !== "area" || b.isOption) continue; // only included areas
+      const areaTitle = b.name || "Area";
+      for (const s of b.surfaces) {
+        if (!s.code || s.hidden) continue;
+        const pname = productNameFor(b.type, s);
+        if (!pname) continue;
+        const label = s.clientLabel || s.code;
+        if (!used.has(pname)) used.set(pname, new Map());
+        const bySurf = used.get(pname)!;
+        if (!bySurf.has(label)) bySurf.set(label, new Set());
+        bySurf.get(label)!.add(areaTitle);
+      }
+    }
+    const paints: SnapshotPaint[] = [];
+    for (const [pname, bySurf] of used) {
+      const p = productByName.get(pname);
+      const usage: string[] = [];
+      for (const [label, areas] of bySurf) {
+        usage.push(areas.size > 1 ? `${label} · ${areas.size} areas` : `${label} · ${[...areas][0]}`);
+      }
+      const brand = p?.brand ?? "";
+      const category = p?.category ?? "";
+      const visible = p?.customer_visible ?? false;
+      // display name — strip a leading brand prefix (brand is shown separately)
+      let display = pname;
+      if (brand && display.toLowerCase().startsWith(brand.toLowerCase() + " ")) display = display.slice(brand.length + 1);
+      paints.push({
+        name: display,
+        brand,
+        category,
+        role: roleForCategory(category),
+        blurb: visible ? (p?.blurb ?? "") : "",
+        properties: visible ? (p?.properties ?? []) : [],
+        guarantee: visible ? (p?.guarantee ?? "") : "",
+        photoUrl: p?.photo_url ?? p?.image_url ?? "",
+        customerVisible: visible,
+        isPrep: /prep|primer/i.test(category),
+        usage: usage.slice(0, 3),
+      });
+    }
+    paints.sort((a, z) => (a.isPrep ? 1 : 0) - (z.isPrep ? 1 : 0));
+    return paints;
+  }
+
   // Build the customer-safe document from the CURRENT state — no margin, costs,
   // contractor rates, hidden surfaces/items or internal notes. Used both for the
   // live "Customer view" preview and written to sent_snapshot on every save.
@@ -688,6 +745,7 @@ export default function QuoteBuilder({
       depositPct,
       baseSubtotalCents: totals.subtotal,
       areas, lineItems: lineItemsDoc, options,
+      paints: computePaints(),
       inclusions: inclusions.map((t) => t.trim()).filter(Boolean),
       exclusions: exclusions.map((t) => t.trim()).filter(Boolean),
       terms,
