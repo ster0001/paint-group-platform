@@ -607,7 +607,7 @@ function SignaturePad({ onChange }: { onChange: (dataUrl: string | null) => void
     ctx.lineTo(p.x, p.y); ctx.stroke();
     dirty.current = true;
   };
-  const end = (e: React.PointerEvent<HTMLCanvasElement>) => {
+  const end = () => {
     if (!drawing.current) return;
     drawing.current = false;
     if (dirty.current && ref.current) onChange(ref.current.toDataURL("image/png"));

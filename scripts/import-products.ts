@@ -103,6 +103,7 @@ async function main() {
       coverage_m2_per_l: nullify(r.coverage_m2_per_L),
       recoat: nullify(r.recoat),
       customer_visible: customerVisible,
+      source_notes: nullify(r.source_notes),
     };
 
     const existingId = byName.get(targetName);

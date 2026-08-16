@@ -628,7 +628,6 @@ export default function QuoteBuilder({
       }
     }
     return [...map.values()].sort((a, z) => a.type.localeCompare(z.type) || a.code.localeCompare(z.code));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [blocks]);
   // Reset every pinned (custom) surface of a given type back to the global default.
   const clearMaterialPins = (type: string, code: string) =>

@@ -8,6 +8,7 @@ import PricingSettings, { type SettingRow } from "./PricingSettings";
 import TemplatesManager, { type TemplateMeta } from "./TemplatesManager";
 import InclusionTemplatesManager from "./InclusionTemplatesManager";
 import TermsEditor, { TERMS_KEY } from "./TermsEditor";
+import ProductsManager, { type ProductRow } from "./ProductsManager";
 import { DEFAULT_INCLUSION_TEMPLATES, DEFAULT_EXCLUSION_TEMPLATES, INCLUSION_TEMPLATES_KEY, EXCLUSION_TEMPLATES_KEY, type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 
 export const dynamic = "force-dynamic";
@@ -20,13 +21,9 @@ export default async function SettingsPage() {
     supabase.from("line_items").select("id, name, type, pricing_method, description").order("type").order("name"),
     supabase.from("area_names").select("id, area, type").order("type").order("area"),
     supabase.from("rate_cards").select("id, version").eq("is_active", true).maybeSingle(),
-    // Tolerate the image_url column not existing yet (product-photo migration not
-    // run) — fall back to the core columns so the products list never disappears.
-    (async () => {
-      const full = await supabase.from("products").select("id, name, type, coverage, price_per_litre, wastage_pct, image_url").order("name");
-      if (!full.error) return full;
-      return supabase.from("products").select("id, name, type, coverage, price_per_litre, wastage_pct").order("name");
-    })(),
+    // select("*") returns whatever columns exist, so the list never breaks even
+    // if the product-details migration hasn't been applied yet.
+    supabase.from("products").select("*").order("category").order("name"),
     supabase.from("modifiers").select("id, group_name, code, label, multiplier, active").order("group_name"),
     supabase.from("settings").select("key, value").order("key"),
   ]);
@@ -132,21 +129,8 @@ export default async function SettingsPage() {
         )}
       </SettingsFolder>
 
-      <SettingsFolder title="Products" subtitle="Paint products, coverage and price" count={products.length}>
-        <EditableTable
-          table="products"
-          rows={products}
-          blank={{ name: "", type: "Interior" }}
-          columns={[
-            { key: "image_url", label: "Photo", type: "image", width: "9rem" },
-            { key: "name", label: "Product name" },
-            { key: "type", label: "Type", type: "select", options: ["Interior", "Exterior"], width: "9rem" },
-            { key: "coverage", label: "Coverage (m²/L)", type: "number", width: "8rem" },
-            { key: "price_per_litre", label: "Price $/L", type: "money", width: "7rem" },
-            { key: "wastage_pct", label: "Wastage %", type: "number", width: "7rem" },
-          ]}
-          addLabel="+ Add product"
-        />
+      <SettingsFolder title="Products" subtitle="Paint catalogue, photos, blurbs and customer visibility" count={products.length}>
+        <ProductsManager initial={products as ProductRow[]} />
       </SettingsFolder>
 
       <SettingsFolder title="Modifiers" subtitle="Condition / access / finish / size multipliers" count={modifiers.length}>

@@ -17,6 +17,7 @@ alter table public.products
   add column if not exists coverage_m2_per_l  text,
   add column if not exists recoat             text,
   add column if not exists customer_visible   boolean not null default false,
+  add column if not exists source_notes       text,
   add column if not exists photo_url          text;
 
 -- Carry over any photo URLs from the earlier image_url column, if present.
