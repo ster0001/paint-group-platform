@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { reportIfError } from "@/lib/monitoring/report";
 import type { WorkOrderDoc as WODoc } from "@/lib/workorder/snapshot";
 import WorkOrderDoc from "../WorkOrderDoc";
 
@@ -17,7 +18,12 @@ export default async function Page({ params }: { params: Promise<{ token: string
   if (error || !row || !row.snapshot || (row.snapshot as Partial<WODoc>).version !== 1) notFound();
 
   // best-effort view logging
-  await supabase.rpc("record_work_order_view", { p_token: token }).then(() => {}, () => {});
+  // Best-effort view stamp: a contractor must still get their job sheet if it
+  // fails. Reported so a silent failure isn't invisible.
+  reportIfError(await supabase.rpc("record_work_order_view", { p_token: token }), {
+    where: "workorder.viewStamp",
+    bestEffort: true,
+  });
 
   const doc: WODoc = { ...row.snapshot, status: row.status ?? row.snapshot.status, startDate: row.start_date ?? row.snapshot.startDate };
   return <WorkOrderDoc doc={doc} />;

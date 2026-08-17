@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { reportIfError } from "@/lib/monitoring/report";
 import type { CustomerSnapshot, SnapshotPaint } from "@/lib/customer/snapshot";
 import PresentationBlocks from "./PresentationBlocks";
 import "../customer.css";
@@ -44,6 +45,10 @@ export default function CustomerEstimate({
   const interactive = !preview && !!token; // real customer page can write; builder preview cannot
 
   const [selected, setSelected] = useState<Set<string>>(() => new Set(selectedOptionsInit ?? []));
+  // Null until an acceptance happens in this session. False means the drawn
+  // signature did not store — acceptance still counts, but we say so rather
+  // than letting the customer believe we hold something we don't.
+  const [signatureSaved, setSignatureSaved] = useState<boolean | null>(null);
   const [done, setDone] = useState<null | "accepted" | "declined">(
     status === "accepted" ? "accepted" : status === "declined" ? "declined" : null,
   );
@@ -85,7 +90,12 @@ export default function CustomerEstimate({
     // NB: the supabase query builder is lazy — it only fires when awaited, so
     // this must await (a bare `supabase.rpc(...)` would never send the request).
     const ping = async () => {
-      try { await supabase.rpc("record_estimate_view", { p_token: token, p_session: session, p_ua: ua, p_ms: ms }); } catch { /* best-effort */ }
+      // Genuinely best-effort — a customer must never see a failure to record
+      // that they looked at their own estimate. It still leaves a trace.
+      reportIfError(
+        await supabase.rpc("record_estimate_view", { p_token: token, p_session: session, p_ua: ua, p_ms: ms }),
+        { where: "estimate.viewPing", bestEffort: true },
+      );
     };
     ping();
     const iv = setInterval(() => {
@@ -106,9 +116,17 @@ export default function CustomerEstimate({
       p_token: token, p_name: name.trim(), p_options: [...selected], p_total_cents: total, p_deposit_cents: deposit,
     });
     if (error) { setBusy(false); setErr(error.message); return; }
-    // Save the drawn signature separately (best-effort — needs the signature
-    // migration; acceptance still succeeds if this RPC isn't present yet).
-    try { await supabase.rpc("save_estimate_signature", { p_token: token, p_signature: signatureData }); } catch { /* ignore */ }
+
+    // The signature is saved separately, and acceptance stands whether or not
+    // this succeeds — but it must not fail SILENTLY, which is what it used to
+    // do. (Doubly so: the rpc returns { error } rather than throwing, so the
+    // old try/catch never fired and the error was dropped unread.)
+    const sig = await supabase.rpc("save_estimate_signature", {
+      p_token: token,
+      p_signature: signatureData,
+    });
+    setSignatureSaved(reportIfError(sig, { where: "estimate.signature", extra: { token } }));
+
     setBusy(false);
     setDone("accepted"); setPanel(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -176,7 +194,12 @@ export default function CustomerEstimate({
         {done === "accepted" && (
           <div className="resultbanner accepted" style={{ marginTop: 28 }}>
             <span className="tick">✓</span>
-            <span>Estimate accepted{acceptedName ? ` by ${acceptedName}` : ""}. We&apos;ll email your deposit invoice and booking shortly.</span>
+            <span>
+              Estimate accepted{acceptedName ? ` by ${acceptedName}` : ""}. We&apos;ll email your deposit invoice and booking shortly.
+              {signatureSaved === false && (
+                <> Your acceptance is recorded, though we couldn&apos;t store the signature image &mdash; we may ask you to sign again.</>
+              )}
+            </span>
           </div>
         )}
         {done === "declined" && (

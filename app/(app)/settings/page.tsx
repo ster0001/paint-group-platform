@@ -30,7 +30,11 @@ export default async function SettingsPage() {
     supabase.from("settings").select("key, value").order("key"),
     supabase.from("colours").select("id, brand, name, hex, collection").order("brand").order("name"),
     supabase.from("presentations").select("id, name, description, is_default, presentation_blocks(id, kind, position, enabled, content)").order("created_at"),
-    supabase.from("estimates").select("presentation_id"),
+    // Only used to count how many estimates use each presentation, so ask for
+    // the ones that actually have one rather than every estimate ever written
+    // (audit S6). Capped too — the count is advisory, and the cap is stated in
+    // the UI rather than silently truncating.
+    supabase.from("estimates").select("presentation_id").not("presentation_id", "is", null).limit(2000),
   ]);
 
   const company: CompanyProfile = { ...DEFAULT_COMPANY, ...((companyRes.data?.value as Partial<CompanyProfile>) ?? {}) };
