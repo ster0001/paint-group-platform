@@ -1,0 +1,15 @@
+{
+  "note": "Cases where the STORED total is no longer a valid expectation, with the value the ORIGINAL in-component code produces today and how that was established. Never add an entry here to make a test pass — only to record a divergence that has been explained.",
+  "overrides": {
+    "est-bf3b058f": {
+      "subtotalCents": 294077,
+      "totalCents": 323485,
+      "storedSubtotalCents": 303530,
+      "storedTotalCents": 333883,
+      "verifiedOn": "2026-08-17",
+      "source": "Read directly from the running app's builder panel (the original in-component pricing), which showed Subtotal $2,940.77 / GST $294.08 / Total $3,234.85 for this estimate.",
+      "why": "The estimate was last saved against different reference data — reference prices have changed since. The stored figure is a historical record of what it cost then, not what the same inputs cost now, so it cannot be used to check a refactor. The extracted lib/pricing agrees with the original code to the cent on today's data.",
+      "businessNote": "This estimate's customer snapshot still shows $3,338.83 while a fresh calculation gives $3,234.85. That is the snapshot design working as intended — a sent quote does not move under the customer — but it is worth knowing the two differ."
+    }
+  }
+}

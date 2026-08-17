@@ -1,0 +1,1840 @@
+{
+  "capturedAt": "2026-08-17T08:40:22.283Z",
+  "note": "Golden fixtures for the pricing extraction. Inputs + the totals the ORIGINAL in-component code stored. No customer data.",
+  "activeRateCardVersion": 7,
+  "reference": {
+    "rateItems": [
+      {
+        "category": "Exterior",
+        "code": "Stucco",
+        "unit": "M2 Per Hour",
+        "sub_category": "Cladding",
+        "rate_1_coat": 12.09,
+        "rate_2_coat": 6.91,
+        "rate_3_coat": 4.84,
+        "charge_out_cents": 10000,
+        "default_product": "Dulux AcraTex",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": null,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Colorbond Cladding",
+        "unit": "M2 Per Hour",
+        "sub_category": "Cladding",
+        "rate_1_coat": 12.09,
+        "rate_2_coat": 6.91,
+        "rate_3_coat": 4.84,
+        "charge_out_cents": 10000,
+        "default_product": "Dulux Weathershield",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": null,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Render",
+        "unit": "M2 Per Hour",
+        "sub_category": "Cladding",
+        "rate_1_coat": 10.49,
+        "rate_2_coat": 5.99,
+        "rate_3_coat": 4.19,
+        "charge_out_cents": 10000,
+        "default_product": "Dulux AcraTex",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": null,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Weatherboards",
+        "unit": "M2 Per Hour",
+        "sub_category": "Cladding",
+        "rate_1_coat": 8.06,
+        "rate_2_coat": 4.61,
+        "rate_3_coat": 3.23,
+        "charge_out_cents": 10000,
+        "default_product": "Dulux Weathershield",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": null,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Front Door",
+        "unit": "Hours Per Item",
+        "sub_category": "Exterior Doors",
+        "rate_1_coat": 1.24,
+        "rate_2_coat": 2.17,
+        "rate_3_coat": 3.1,
+        "charge_out_cents": 10000,
+        "default_product": "Dulux Weathershield",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": 0.5,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Garage Door (2 Car)",
+        "unit": "Hours Per Item",
+        "sub_category": "Exterior Doors",
+        "rate_1_coat": 3.72,
+        "rate_2_coat": 6.51,
+        "rate_3_coat": 9.3,
+        "charge_out_cents": 10000,
+        "default_product": "Dulux Weathershield",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": 10,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Garage Door (1 Car)",
+        "unit": "Hours Per Item",
+        "sub_category": "Exterior Doors",
+        "rate_1_coat": 2.48,
+        "rate_2_coat": 4.34,
+        "rate_3_coat": 6.2,
+        "charge_out_cents": 10000,
+        "default_product": "Dulux Weathershield",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": 10,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Standard Door (1 Side)",
+        "unit": "Hours Per Item",
+        "sub_category": "Exterior Doors",
+        "rate_1_coat": 0.62,
+        "rate_2_coat": 1.08,
+        "rate_3_coat": 1.55,
+        "charge_out_cents": 10000,
+        "default_product": "Dulux Weathershield",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": 0.2,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Posts",
+        "unit": "Hours Per Item",
+        "sub_category": "Exterior Trim",
+        "rate_1_coat": 0.37,
+        "rate_2_coat": 0.65,
+        "rate_3_coat": 0.93,
+        "charge_out_cents": 10000,
+        "default_product": "Dulux Weathershield",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": 0.06,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Gutters",
+        "unit": "Lineal Metres",
+        "sub_category": "Exterior Trim",
+        "rate_1_coat": 12.09,
+        "rate_2_coat": 6.91,
+        "rate_3_coat": 4.84,
+        "charge_out_cents": 10000,
+        "default_product": "Dulux Weathershield",
+        "metres_per_litre": 123,
+        "litres_per_item_per_coat": null,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Strapping",
+        "unit": "Hours Per Item",
+        "sub_category": "Exterior Trim",
+        "rate_1_coat": 2.17,
+        "rate_2_coat": 3.8,
+        "rate_3_coat": 5.42,
+        "charge_out_cents": 10000,
+        "default_product": "Dulux Weathershield",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": 0.15,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Wood Shutters",
+        "unit": "Hours Per Item",
+        "sub_category": "Exterior Trim",
+        "rate_1_coat": 1.86,
+        "rate_2_coat": 3.25,
+        "rate_3_coat": 4.65,
+        "charge_out_cents": 10000,
+        "default_product": "Dulux Weathershield",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": 0.3,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Eaves",
+        "unit": "Lineal Metres",
+        "sub_category": "Exterior Trim",
+        "rate_1_coat": 8.06,
+        "rate_2_coat": 4.61,
+        "rate_3_coat": 3.23,
+        "charge_out_cents": 10000,
+        "default_product": "Dulux Weathershield",
+        "metres_per_litre": 36,
+        "litres_per_item_per_coat": null,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Soffits / Exterior Ceilings",
+        "unit": "M2",
+        "sub_category": "Exterior Trim",
+        "rate_1_coat": 17.74,
+        "rate_2_coat": 10.14,
+        "rate_3_coat": 7.1,
+        "charge_out_cents": 10000,
+        "default_product": "Dulux Weathershield",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": null,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Fascias",
+        "unit": "Lineal Metres",
+        "sub_category": "Exterior Trim",
+        "rate_1_coat": 12.09,
+        "rate_2_coat": 6.91,
+        "rate_3_coat": 4.84,
+        "charge_out_cents": 10000,
+        "default_product": "Dulux Weathershield",
+        "metres_per_litre": 76,
+        "litres_per_item_per_coat": null,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Columns",
+        "unit": "Hours Per Item",
+        "sub_category": "Exterior Trim",
+        "rate_1_coat": 0.62,
+        "rate_2_coat": 1.08,
+        "rate_3_coat": 1.55,
+        "charge_out_cents": 10000,
+        "default_product": "Dulux Weathershield",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": 0.23,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Downpipes",
+        "unit": "Hours Per Item",
+        "sub_category": "Exterior Trim",
+        "rate_1_coat": 0.62,
+        "rate_2_coat": 1.08,
+        "rate_3_coat": 1.55,
+        "charge_out_cents": 10000,
+        "default_product": "Dulux Weathershield",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": 0.07,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Hand Rails",
+        "unit": "Lineal Metres",
+        "sub_category": "Exterior Trim",
+        "rate_1_coat": 16.13,
+        "rate_2_coat": 9.22,
+        "rate_3_coat": 6.45,
+        "charge_out_cents": 10000,
+        "default_product": "Dulux Weathershield",
+        "metres_per_litre": 64,
+        "litres_per_item_per_coat": null,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Pergola",
+        "unit": "Hours Per Item",
+        "sub_category": "Exterior Trim",
+        "rate_1_coat": 4.96,
+        "rate_2_coat": 8.68,
+        "rate_3_coat": 12.4,
+        "charge_out_cents": 10000,
+        "default_product": "Dulux Weathershield",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": 2,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Colonial / Bay Window",
+        "unit": "Hours Per Item",
+        "sub_category": "Exterior Windows",
+        "rate_1_coat": 2.14,
+        "rate_2_coat": 3.74,
+        "rate_3_coat": 5.35,
+        "charge_out_cents": 10000,
+        "default_product": "Dulux Weathershield",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": 0.25,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Double Hung Sash",
+        "unit": "Hours Per Item",
+        "sub_category": "Exterior Windows",
+        "rate_1_coat": 1.42,
+        "rate_2_coat": 2.5,
+        "rate_3_coat": 3.57,
+        "charge_out_cents": 10000,
+        "default_product": "Dulux Weathershield",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": 0.25,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Awning / Casement Window",
+        "unit": "Hours Per Item",
+        "sub_category": "Exterior Windows",
+        "rate_1_coat": 1.07,
+        "rate_2_coat": 1.88,
+        "rate_3_coat": 3.12,
+        "charge_out_cents": 10000,
+        "default_product": "Dulux Weathershield",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": 0.2,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Fixed / Picture Window",
+        "unit": "Hours Per Item",
+        "sub_category": "Exterior Windows",
+        "rate_1_coat": 0.89,
+        "rate_2_coat": 1.56,
+        "rate_3_coat": 2.24,
+        "charge_out_cents": 10000,
+        "default_product": "Dulux Weathershield",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": 0.2,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Paling Fence",
+        "unit": "Lineal Metres",
+        "sub_category": "Fences",
+        "rate_1_coat": 24.19,
+        "rate_2_coat": 13.82,
+        "rate_3_coat": 9.68,
+        "charge_out_cents": 10000,
+        "default_product": "Dulux Weathershield",
+        "metres_per_litre": 7,
+        "litres_per_item_per_coat": null,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Picket Fence (Hand Paint)",
+        "unit": "Lineal Metres",
+        "sub_category": "Fences",
+        "rate_1_coat": 2.41,
+        "rate_2_coat": 1.38,
+        "rate_3_coat": 0.97,
+        "charge_out_cents": 10000,
+        "default_product": "Dulux Weathershield",
+        "metres_per_litre": 4.5,
+        "litres_per_item_per_coat": null,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Picket Fence (Spray)",
+        "unit": "Lineal Metres",
+        "sub_category": "Fences",
+        "rate_1_coat": 12.09,
+        "rate_2_coat": 6.91,
+        "rate_3_coat": 4.84,
+        "charge_out_cents": 10000,
+        "default_product": "Dulux Weathershield",
+        "metres_per_litre": 4.5,
+        "litres_per_item_per_coat": null,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Deck Painting",
+        "unit": "M2 Per Hour",
+        "sub_category": "Floor Coatings",
+        "rate_1_coat": 16.13,
+        "rate_2_coat": 9.22,
+        "rate_3_coat": 6.45,
+        "charge_out_cents": 10000,
+        "default_product": "Integrain UltraDeck",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": null,
+        "default_coats": 2
+      },
+      {
+        "category": "Exterior",
+        "code": "Pressure Washing",
+        "unit": "M2 Per Hour",
+        "sub_category": "Pressure Washing",
+        "rate_1_coat": 23.04,
+        "rate_2_coat": null,
+        "rate_3_coat": null,
+        "charge_out_cents": 10000,
+        "default_product": "Fuel / Consumables",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": null,
+        "default_coats": 1
+      },
+      {
+        "category": "Exterior",
+        "code": "Roof",
+        "unit": "M2 Per Hour",
+        "sub_category": "Roof",
+        "rate_1_coat": 13.82,
+        "rate_2_coat": 6.91,
+        "rate_3_coat": 3,
+        "charge_out_cents": 10000,
+        "default_product": "Premier Roof Coatings",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": null,
+        "default_coats": 3
+      },
+      {
+        "category": "Exterior",
+        "code": "Cutek",
+        "unit": "M2 Per Hour",
+        "sub_category": "Staining",
+        "rate_1_coat": 10.08,
+        "rate_2_coat": 5.76,
+        "rate_3_coat": null,
+        "charge_out_cents": 10000,
+        "default_product": "Cutek Extreme CD 50",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": null,
+        "default_coats": 2
+      },
+      {
+        "category": "Interior",
+        "code": "Patterned Cornices",
+        "unit": "Lineal Metres",
+        "sub_category": "Ceilings",
+        "rate_1_coat": 16.37,
+        "rate_2_coat": 9.35,
+        "rate_3_coat": 6.55,
+        "charge_out_cents": 8500,
+        "default_product": "Haymes Expressions Ceiling",
+        "metres_per_litre": 80,
+        "litres_per_item_per_coat": null,
+        "default_coats": 2
+      },
+      {
+        "category": "Interior",
+        "code": "Ceilings",
+        "unit": "M2",
+        "sub_category": "Ceilings",
+        "rate_1_coat": 18.01,
+        "rate_2_coat": 10.29,
+        "rate_3_coat": 7.2,
+        "charge_out_cents": 8500,
+        "default_product": "Haymes Expressions Ceiling",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": null,
+        "default_coats": 2
+      },
+      {
+        "category": "Interior",
+        "code": "Standard Cornices",
+        "unit": "Lineal Metres",
+        "sub_category": "Ceilings",
+        "rate_1_coat": 24.56,
+        "rate_2_coat": 14.03,
+        "rate_3_coat": 9.82,
+        "charge_out_cents": 8500,
+        "default_product": "Haymes Expressions Ceiling",
+        "metres_per_litre": 123,
+        "litres_per_item_per_coat": null,
+        "default_coats": 2
+      },
+      {
+        "category": "Interior",
+        "code": "4-6 Panel Door and Frame (1 Side)",
+        "unit": "Hours Per Item",
+        "sub_category": "Interior Doors",
+        "rate_1_coat": 0.92,
+        "rate_2_coat": 1.6,
+        "rate_3_coat": 2.29,
+        "charge_out_cents": 8500,
+        "default_product": "Haymes Trim Plus Semi Gloss",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": 0.19,
+        "default_coats": 2
+      },
+      {
+        "category": "Interior",
+        "code": "Flat Door and Frame (1 Side)",
+        "unit": "Hours Per Item",
+        "sub_category": "Interior Doors",
+        "rate_1_coat": 0.61,
+        "rate_2_coat": 1.07,
+        "rate_3_coat": 1.53,
+        "charge_out_cents": 8500,
+        "default_product": "Haymes Trim Plus Semi Gloss",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": 0.16,
+        "default_coats": 2
+      },
+      {
+        "category": "Interior",
+        "code": "Flat Door (1 Side)",
+        "unit": "Hours Per Item",
+        "sub_category": "Interior Doors",
+        "rate_1_coat": 0.31,
+        "rate_2_coat": 0.53,
+        "rate_3_coat": 0.76,
+        "charge_out_cents": 8500,
+        "default_product": "Haymes Trim Plus Semi Gloss",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": 0.1,
+        "default_coats": 2
+      },
+      {
+        "category": "Interior",
+        "code": "Architrave (1 Side)",
+        "unit": "Hours Per Item",
+        "sub_category": "Interior Doors",
+        "rate_1_coat": 0.31,
+        "rate_2_coat": 0.53,
+        "rate_3_coat": 0.76,
+        "charge_out_cents": 8500,
+        "default_product": "Haymes Trim Plus Semi Gloss",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": 0.06,
+        "default_coats": 2
+      },
+      {
+        "category": "Interior",
+        "code": "4-6 Panel Door (1 Side)",
+        "unit": "Hours Per Item",
+        "sub_category": "Interior Doors",
+        "rate_1_coat": 0.46,
+        "rate_2_coat": 0.8,
+        "rate_3_coat": 1.14,
+        "charge_out_cents": 8500,
+        "default_product": "Haymes Trim Plus Semi Gloss",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": 0.13,
+        "default_coats": 2
+      },
+      {
+        "category": "Interior",
+        "code": "Balustrades",
+        "unit": "Lineal Metres",
+        "sub_category": "Interior Trim",
+        "rate_1_coat": 6.55,
+        "rate_2_coat": 3.74,
+        "rate_3_coat": 2.62,
+        "charge_out_cents": 8500,
+        "default_product": "Haymes Trim Plus Semi Gloss",
+        "metres_per_litre": 32,
+        "litres_per_item_per_coat": null,
+        "default_coats": 2
+      },
+      {
+        "category": "Interior",
+        "code": "Picture Rails",
+        "unit": "Lineal Metres",
+        "sub_category": "Interior Trim",
+        "rate_1_coat": 20.47,
+        "rate_2_coat": 11.69,
+        "rate_3_coat": 8.19,
+        "charge_out_cents": 8500,
+        "default_product": "Haymes Trim Plus Semi Gloss",
+        "metres_per_litre": 200,
+        "litres_per_item_per_coat": null,
+        "default_coats": 2
+      },
+      {
+        "category": "Interior",
+        "code": "Skirting Boards MDF",
+        "unit": "Lineal Metres",
+        "sub_category": "Interior Trim",
+        "rate_1_coat": 20.47,
+        "rate_2_coat": 11.69,
+        "rate_3_coat": 8.19,
+        "charge_out_cents": 8500,
+        "default_product": "Haymes Trim Plus Semi Gloss",
+        "metres_per_litre": 103,
+        "litres_per_item_per_coat": null,
+        "default_coats": 3
+      },
+      {
+        "category": "Interior",
+        "code": "Skirting Boards",
+        "unit": "Lineal Metres",
+        "sub_category": "Interior Trim",
+        "rate_1_coat": 20.47,
+        "rate_2_coat": 11.69,
+        "rate_3_coat": 8.19,
+        "charge_out_cents": 8500,
+        "default_product": "Haymes Trim Plus Semi Gloss",
+        "metres_per_litre": 103,
+        "litres_per_item_per_coat": null,
+        "default_coats": 2
+      },
+      {
+        "category": "Interior",
+        "code": "Colonial / Bay Window",
+        "unit": "Hours Per Item",
+        "sub_category": "Interior Windows",
+        "rate_1_coat": 1.83,
+        "rate_2_coat": 3.21,
+        "rate_3_coat": 4.59,
+        "charge_out_cents": 8500,
+        "default_product": "Haymes Trim Plus Semi Gloss",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": 0.25,
+        "default_coats": 2
+      },
+      {
+        "category": "Interior",
+        "code": "Awning / Casement Window",
+        "unit": "Hours Per Item",
+        "sub_category": "Interior Windows",
+        "rate_1_coat": 0.92,
+        "rate_2_coat": 1.6,
+        "rate_3_coat": 2.67,
+        "charge_out_cents": 8500,
+        "default_product": "Haymes Trim Plus Semi Gloss",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": 0.2,
+        "default_coats": 2
+      },
+      {
+        "category": "Interior",
+        "code": "Fixed / Picture / Window Reveal",
+        "unit": "Hours Per Item",
+        "sub_category": "Interior Windows",
+        "rate_1_coat": 0.76,
+        "rate_2_coat": 1.34,
+        "rate_3_coat": 1.91,
+        "charge_out_cents": 8500,
+        "default_product": "Haymes Trim Plus Semi Gloss",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": 0.2,
+        "default_coats": 2
+      },
+      {
+        "category": "Interior",
+        "code": "Double Hung Sash",
+        "unit": "Hours Per Item",
+        "sub_category": "Interior Windows",
+        "rate_1_coat": 1.22,
+        "rate_2_coat": 2.14,
+        "rate_3_coat": 3.06,
+        "charge_out_cents": 8500,
+        "default_product": "Haymes Trim Plus Semi Gloss",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": 0.25,
+        "default_coats": 2
+      },
+      {
+        "category": "Interior",
+        "code": "Walls",
+        "unit": "M2",
+        "sub_category": "Walls",
+        "rate_1_coat": 18.01,
+        "rate_2_coat": 10.29,
+        "rate_3_coat": 7.2,
+        "charge_out_cents": 8500,
+        "default_product": "Haymes Expressions Wall",
+        "metres_per_litre": null,
+        "litres_per_item_per_coat": null,
+        "default_coats": 2
+      }
+    ],
+    "modifiers": [
+      {
+        "code": "COND-SOUND",
+        "group_name": "Condition",
+        "multiplier": 0.9
+      },
+      {
+        "code": "COND-FAIR",
+        "group_name": "Condition",
+        "multiplier": 1
+      },
+      {
+        "code": "COND-POOR",
+        "group_name": "Condition",
+        "multiplier": 1.35
+      },
+      {
+        "code": "COND-HERIT",
+        "group_name": "Condition",
+        "multiplier": 1.7
+      },
+      {
+        "code": "ACC-GROUND",
+        "group_name": "Access",
+        "multiplier": 1
+      },
+      {
+        "code": "ACC-2STOREY",
+        "group_name": "Access",
+        "multiplier": 1.15
+      },
+      {
+        "code": "ACC-EWP",
+        "group_name": "Access",
+        "multiplier": 1.1
+      },
+      {
+        "code": "ACC-SCAFF",
+        "group_name": "Access",
+        "multiplier": 1.2
+      },
+      {
+        "code": "STG-OCCUPIED",
+        "group_name": "Staging",
+        "multiplier": 1.1
+      },
+      {
+        "code": "STG-AFTERHRS",
+        "group_name": "Staging",
+        "multiplier": 1.35
+      },
+      {
+        "code": "STG-STAGED",
+        "group_name": "Staging",
+        "multiplier": 1.15
+      },
+      {
+        "code": "FIN-1",
+        "group_name": "Level of Finish",
+        "multiplier": 0.8
+      },
+      {
+        "code": "FIN-2",
+        "group_name": "Level of Finish",
+        "multiplier": 0.89
+      },
+      {
+        "code": "FIN-3",
+        "group_name": "Level of Finish",
+        "multiplier": 1
+      },
+      {
+        "code": "FIN-4",
+        "group_name": "Level of Finish",
+        "multiplier": 1.06
+      },
+      {
+        "code": "SIZE-S",
+        "group_name": "Job Size",
+        "multiplier": 1
+      },
+      {
+        "code": "SIZE-M",
+        "group_name": "Job Size",
+        "multiplier": 1.05
+      },
+      {
+        "code": "SIZE-L",
+        "group_name": "Job Size",
+        "multiplier": 1.17
+      }
+    ],
+    "products": [
+      {
+        "name": "Cutek Restore",
+        "coverage": 5,
+        "price_per_litre": 1500,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Berger Solarscreen",
+        "coverage": 16,
+        "price_per_litre": 1600,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Dulux Wash and Wear",
+        "coverage": 16,
+        "price_per_litre": 2200,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Dulux Professional Ceiling",
+        "coverage": 16,
+        "price_per_litre": 2000,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Dulux Professional Gloss Enamel",
+        "coverage": 16,
+        "price_per_litre": 2000,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Dulux Total Prep",
+        "coverage": 16,
+        "price_per_litre": 1700,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Dulux Wash and Wear Super Hide",
+        "coverage": 16,
+        "price_per_litre": 2500,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Premier Roof Coatings",
+        "coverage": 12,
+        "price_per_litre": 1300,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Cutek Extreme CD 50",
+        "coverage": 7.5,
+        "price_per_litre": 7500,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Haymes Expressions Ceiling",
+        "coverage": 16,
+        "price_per_litre": 1700,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Fuel / Consumables",
+        "coverage": null,
+        "price_per_litre": 600,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Taubmans Pure Performance",
+        "coverage": 16,
+        "price_per_litre": 1500,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Haymes Elite Ceiling Flat",
+        "coverage": 16,
+        "price_per_litre": 1200,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Taubmans All Weather Exterior",
+        "coverage": 16,
+        "price_per_litre": 1500,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Taubmans Sunproof Exterior",
+        "coverage": 16,
+        "price_per_litre": 1000,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Dulux Super Enamel",
+        "coverage": 16,
+        "price_per_litre": 2000,
+        "wastage_pct": 0
+      },
+      {
+        "name": "Dulux Weathershield",
+        "coverage": 16,
+        "price_per_litre": 2300,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Berger Everlast Interior",
+        "coverage": 16,
+        "price_per_litre": 1200,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Berger Gold Label Acrylic",
+        "coverage": 16,
+        "price_per_litre": 1000,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Haymes Prepcoat Ultralock",
+        "coverage": 16,
+        "price_per_litre": 1200,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Zinsser B-I-N Shellac-Based Primer Sealer",
+        "coverage": 16,
+        "price_per_litre": 2800,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Zinsser Cover Stain Oil-Base Primer",
+        "coverage": 16,
+        "price_per_litre": 2800,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Zinsser Watertite Waterproofing Paint",
+        "coverage": 16,
+        "price_per_litre": 3000,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Cabot's Cabothane Clear — Interior",
+        "coverage": 16,
+        "price_per_litre": 3000,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Dulux 1 Step Prep Water Based",
+        "coverage": 14,
+        "price_per_litre": 1500,
+        "wastage_pct": null
+      },
+      {
+        "name": "Haymes Rendertex",
+        "coverage": 6,
+        "price_per_litre": 2000,
+        "wastage_pct": null
+      },
+      {
+        "name": "Dulux Precision Advanced Stain & Odour Blocker",
+        "coverage": 14,
+        "price_per_litre": 2500,
+        "wastage_pct": null
+      },
+      {
+        "name": "Haymes Ultimate Two-Pack Polyurethane",
+        "coverage": 16,
+        "price_per_litre": 2800,
+        "wastage_pct": 30
+      },
+      {
+        "name": "Haymes Expressions Wall",
+        "coverage": 16,
+        "price_per_litre": 1700,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Integrain UltraDeck",
+        "coverage": 10,
+        "price_per_litre": 3500,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Cabots Timbercolour",
+        "coverage": 16,
+        "price_per_litre": 1700,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Dulux AcraTex",
+        "coverage": 6,
+        "price_per_litre": 2000,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Dulux Professional Wall",
+        "coverage": 16,
+        "price_per_litre": 2000,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Porters Egg Shell",
+        "coverage": 16,
+        "price_per_litre": 2500,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Taubmans Endure Interior",
+        "coverage": 16,
+        "price_per_litre": 1800,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Dulux Professional Enamel",
+        "coverage": 16,
+        "price_per_litre": 1500,
+        "wastage_pct": 0
+      },
+      {
+        "name": "Haymes Trim Plus",
+        "coverage": 16,
+        "price_per_litre": 2000,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Haymes Solashield",
+        "coverage": 16,
+        "price_per_litre": 1200,
+        "wastage_pct": null
+      },
+      {
+        "name": "Haymes Rendertex Armourguard Membrane",
+        "coverage": 16,
+        "price_per_litre": 1600,
+        "wastage_pct": 10
+      },
+      {
+        "name": "Cabot's Cabothane Clear — Exterior grade",
+        "coverage": 16,
+        "price_per_litre": 3000,
+        "wastage_pct": null
+      }
+    ],
+    "settings": [
+      {
+        "key": "Contractor rate",
+        "value": {
+          "unit": "$ / hour",
+          "notes": "Your figure — flat, both interior and exterior",
+          "value": 60
+        }
+      },
+      {
+        "key": "Contractor offer — % of estimated hours",
+        "value": {
+          "unit": "%",
+          "notes": "Separate lever. Drop below 100% only if efficiency gains prove real and contractors still accept",
+          "value": 1
+        }
+      },
+      {
+        "key": "Materials markup",
+        "value": {
+          "unit": "%",
+          "notes": "Your figure",
+          "value": 0.1
+        }
+      },
+      {
+        "key": "GST",
+        "value": {
+          "unit": "%",
+          "notes": "Displayed prices are GST inclusive",
+          "value": 0.1
+        }
+      },
+      {
+        "key": "Sundries per job — interior",
+        "value": {
+          "unit": "$",
+          "notes": "Sum of the itemised Sundries tab",
+          "value": 275
+        }
+      },
+      {
+        "key": "Sundries per job — exterior",
+        "value": {
+          "unit": "$",
+          "notes": "PROPOSED — itemised total less drop sheets. Confirm against your supplier dockets",
+          "value": 175
+        }
+      }
+    ]
+  },
+  "cases": [
+    {
+      "ref": "est-2ba147ef",
+      "rateCardVersion": 7,
+      "stored": {
+        "subtotalCents": 63894,
+        "totalCents": 70283
+      },
+      "input": {
+        "blocks": [
+          {
+            "kind": "area",
+            "type": "Interior",
+            "areaType": "room",
+            "L": 4,
+            "W": 3,
+            "H": 2.4,
+            "isOption": false,
+            "surfaces": [
+              {
+                "code": "Walls",
+                "coats": 2,
+                "count": 1,
+                "prepHr": 0,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": null,
+                "coverageOverride": null,
+                "volumeOverride": null,
+                "unitPriceOverride": null,
+                "productName": null
+              }
+            ]
+          }
+        ],
+        "modSel": {
+          "Level of Finish": "FIN-3"
+        },
+        "materials": {},
+        "discountPct": 0,
+        "discountMode": "pct",
+        "discountFixedCents": 0,
+        "hourlyRateOverride": null,
+        "contractorRateOverride": null
+      }
+    },
+    {
+      "ref": "est-53c6b411",
+      "rateCardVersion": 7,
+      "stored": {
+        "subtotalCents": 27500,
+        "totalCents": 30250
+      },
+      "input": {
+        "blocks": [
+          {
+            "kind": "area",
+            "type": "Interior",
+            "areaType": "room",
+            "L": 0,
+            "W": 0,
+            "H": 2.4,
+            "isOption": false,
+            "surfaces": [
+              {
+                "code": "",
+                "coats": 2,
+                "count": 1,
+                "prepHr": 0,
+                "hidden": false,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": null,
+                "coverageOverride": null,
+                "volumeOverride": null,
+                "unitPriceOverride": null,
+                "productName": null
+              }
+            ]
+          }
+        ],
+        "modSel": {},
+        "materials": {},
+        "discountPct": 0,
+        "discountMode": "pct",
+        "discountFixedCents": 0,
+        "hourlyRateOverride": null,
+        "contractorRateOverride": null
+      }
+    },
+    {
+      "ref": "est-0dbd7187",
+      "rateCardVersion": 7,
+      "stored": {
+        "subtotalCents": 27500,
+        "totalCents": 30250
+      },
+      "input": {
+        "blocks": [
+          {
+            "kind": "area",
+            "type": "Interior",
+            "areaType": "room",
+            "L": 0,
+            "W": 0,
+            "H": 2.4,
+            "isOption": false,
+            "surfaces": [
+              {
+                "code": "",
+                "coats": 2,
+                "count": 1,
+                "prepHr": 0,
+                "hidden": false,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": null,
+                "coverageOverride": null,
+                "volumeOverride": null,
+                "unitPriceOverride": null,
+                "productName": null
+              }
+            ]
+          }
+        ],
+        "modSel": {},
+        "materials": {},
+        "discountPct": 0,
+        "discountMode": "pct",
+        "discountFixedCents": 0,
+        "hourlyRateOverride": null,
+        "contractorRateOverride": null
+      }
+    },
+    {
+      "ref": "est-428a2af4",
+      "rateCardVersion": 7,
+      "stored": {
+        "subtotalCents": 109948,
+        "totalCents": 120943
+      },
+      "input": {
+        "blocks": [
+          {
+            "kind": "area",
+            "type": "Exterior",
+            "areaType": "surface",
+            "L": 8,
+            "W": 0,
+            "H": 5,
+            "isOption": false,
+            "surfaces": [
+              {
+                "code": "Deck Painting",
+                "coats": 2,
+                "count": 1,
+                "prepHr": 0,
+                "hidden": false,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": null,
+                "useCustomRate": false,
+                "customRate": null,
+                "coverageOverride": null,
+                "volumeOverride": null,
+                "unitPriceOverride": null,
+                "priceOverride": null,
+                "productName": null
+              }
+            ]
+          }
+        ],
+        "modSel": {
+          "Job Size": "SIZE-S",
+          "Condition": "COND-POOR",
+          "Level of Finish": "FIN-3"
+        },
+        "materials": {},
+        "discountPct": 0,
+        "discountMode": "pct",
+        "discountFixedCents": 0,
+        "hourlyRateOverride": null,
+        "contractorRateOverride": null
+      }
+    },
+    {
+      "ref": "est-bf3b058f",
+      "rateCardVersion": 7,
+      "stored": {
+        "subtotalCents": 303530,
+        "totalCents": 333883
+      },
+      "input": {
+        "blocks": [
+          {
+            "kind": "area",
+            "type": "Interior",
+            "areaType": "room",
+            "L": 3,
+            "W": 2,
+            "H": 2.4,
+            "isOption": false,
+            "surfaces": [
+              {
+                "code": "Ceilings",
+                "coats": 2,
+                "count": 1,
+                "prepHr": 0,
+                "hidden": false,
+                "measureL": null,
+                "measureH": null,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": null,
+                "useCustomRate": false,
+                "customRate": null,
+                "coverageOverride": null,
+                "volumeOverride": null,
+                "unitPriceOverride": null,
+                "priceOverride": null,
+                "productName": null
+              },
+              {
+                "code": "4-6 Panel Door and Frame (1 Side)",
+                "coats": 2,
+                "count": 8,
+                "prepHr": 0,
+                "hidden": false,
+                "measureL": null,
+                "measureH": null,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": null,
+                "useCustomRate": false,
+                "customRate": null,
+                "coverageOverride": null,
+                "volumeOverride": null,
+                "unitPriceOverride": null,
+                "priceOverride": null,
+                "productName": null
+              }
+            ]
+          },
+          {
+            "kind": "area",
+            "type": "Interior",
+            "areaType": "room",
+            "L": 3,
+            "W": 3,
+            "H": 2.4,
+            "isOption": false,
+            "surfaces": [
+              {
+                "code": "Walls",
+                "coats": 2,
+                "count": 1,
+                "prepHr": 0,
+                "hidden": false,
+                "measureL": null,
+                "measureH": null,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": null,
+                "useCustomRate": false,
+                "customRate": null,
+                "coverageOverride": null,
+                "volumeOverride": null,
+                "unitPriceOverride": null,
+                "priceOverride": null,
+                "productName": null
+              },
+              {
+                "code": "Patterned Cornices",
+                "coats": 2,
+                "count": 1,
+                "prepHr": 0,
+                "hidden": false,
+                "measureL": null,
+                "measureH": null,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": null,
+                "useCustomRate": false,
+                "customRate": null,
+                "coverageOverride": null,
+                "volumeOverride": null,
+                "unitPriceOverride": null,
+                "priceOverride": null,
+                "productName": null
+              },
+              {
+                "code": "Ceilings",
+                "coats": 2,
+                "count": 1,
+                "prepHr": 0,
+                "hidden": false,
+                "measureL": null,
+                "measureH": null,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": null,
+                "useCustomRate": false,
+                "customRate": null,
+                "coverageOverride": null,
+                "volumeOverride": null,
+                "unitPriceOverride": null,
+                "priceOverride": null,
+                "productName": null
+              },
+              {
+                "code": "Skirting Boards",
+                "coats": 2,
+                "count": 1,
+                "prepHr": 0,
+                "hidden": false,
+                "measureL": null,
+                "measureH": null,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": null,
+                "useCustomRate": false,
+                "customRate": null,
+                "coverageOverride": null,
+                "volumeOverride": null,
+                "unitPriceOverride": null,
+                "priceOverride": null,
+                "productName": null
+              }
+            ]
+          },
+          {
+            "kind": "area",
+            "type": "Interior",
+            "areaType": "room",
+            "L": 3,
+            "W": 3,
+            "H": 2.4,
+            "isOption": false,
+            "surfaces": [
+              {
+                "code": "Walls",
+                "coats": 2,
+                "count": 1,
+                "prepHr": 0,
+                "hidden": false,
+                "measureL": null,
+                "measureH": null,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": null,
+                "useCustomRate": false,
+                "customRate": null,
+                "coverageOverride": null,
+                "volumeOverride": null,
+                "unitPriceOverride": null,
+                "priceOverride": null,
+                "productName": null
+              },
+              {
+                "code": "Patterned Cornices",
+                "coats": 2,
+                "count": 1,
+                "prepHr": 0,
+                "hidden": false,
+                "measureL": null,
+                "measureH": null,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": null,
+                "useCustomRate": false,
+                "customRate": null,
+                "coverageOverride": null,
+                "volumeOverride": null,
+                "unitPriceOverride": null,
+                "priceOverride": null,
+                "productName": null
+              },
+              {
+                "code": "Ceilings",
+                "coats": 2,
+                "count": 1,
+                "prepHr": 0,
+                "hidden": false,
+                "measureL": null,
+                "measureH": null,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": null,
+                "useCustomRate": false,
+                "customRate": null,
+                "coverageOverride": null,
+                "volumeOverride": null,
+                "unitPriceOverride": null,
+                "priceOverride": null,
+                "productName": null
+              },
+              {
+                "code": "Skirting Boards",
+                "coats": 2,
+                "count": 1,
+                "prepHr": 0,
+                "hidden": false,
+                "measureL": null,
+                "measureH": null,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": null,
+                "useCustomRate": false,
+                "customRate": null,
+                "coverageOverride": null,
+                "volumeOverride": null,
+                "unitPriceOverride": null,
+                "priceOverride": null,
+                "productName": null
+              },
+              {
+                "code": "Fixed / Picture / Window Reveal",
+                "coats": 2,
+                "count": 1,
+                "prepHr": 0,
+                "hidden": false,
+                "measureL": null,
+                "measureH": null,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": null,
+                "useCustomRate": false,
+                "customRate": null,
+                "coverageOverride": null,
+                "volumeOverride": null,
+                "unitPriceOverride": null,
+                "priceOverride": null,
+                "productName": null
+              }
+            ]
+          },
+          {
+            "kind": "line",
+            "type": "Exterior",
+            "mode": "custom",
+            "hours": 0,
+            "rate": 100,
+            "qty": 1,
+            "unitPrice": 0,
+            "custom": 0,
+            "cost": 0,
+            "woHours": 0,
+            "isOption": false
+          }
+        ],
+        "modSel": {
+          "Level of Finish": "FIN-3"
+        },
+        "materials": {},
+        "discountPct": 0,
+        "discountMode": "pct",
+        "discountFixedCents": 0,
+        "hourlyRateOverride": null,
+        "contractorRateOverride": null
+      }
+    },
+    {
+      "ref": "est-7354be3d",
+      "rateCardVersion": 7,
+      "stored": {
+        "subtotalCents": 953392,
+        "totalCents": 1048731
+      },
+      "input": {
+        "blocks": [
+          {
+            "kind": "area",
+            "type": "Exterior",
+            "areaType": "surface",
+            "L": 10,
+            "W": 0,
+            "H": 3,
+            "isOption": false,
+            "surfaces": [
+              {
+                "code": "Render",
+                "coats": 2,
+                "count": 1,
+                "prepHr": 2.5,
+                "hidden": false,
+                "measureL": null,
+                "measureH": null,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": 8,
+                "useCustomRate": false,
+                "customRate": null,
+                "coverageOverride": null,
+                "volumeOverride": null,
+                "unitPriceOverride": null,
+                "priceOverride": null,
+                "productName": null
+              },
+              {
+                "code": "Render",
+                "coats": 2,
+                "count": 1,
+                "prepHr": 2.5,
+                "hidden": false,
+                "measureL": null,
+                "measureH": null,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": 2,
+                "useCustomRate": false,
+                "customRate": null,
+                "coverageOverride": null,
+                "volumeOverride": null,
+                "unitPriceOverride": 8,
+                "priceOverride": null,
+                "productName": null
+              },
+              {
+                "code": "Soffits / Exterior Ceilings",
+                "coats": 2,
+                "count": 1,
+                "prepHr": 2,
+                "hidden": false,
+                "measureL": 10,
+                "measureH": 5,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": 3,
+                "useCustomRate": false,
+                "customRate": null,
+                "coverageOverride": null,
+                "volumeOverride": 3,
+                "unitPriceOverride": null,
+                "priceOverride": null,
+                "productName": null
+              },
+              {
+                "code": "Garage Door (2 Car)",
+                "coats": 2,
+                "count": 1,
+                "prepHr": 0,
+                "hidden": false,
+                "measureL": null,
+                "measureH": null,
+                "qtyOverride": null,
+                "rateOverride": 4,
+                "paintingHrOverride": null,
+                "useCustomRate": false,
+                "customRate": null,
+                "coverageOverride": null,
+                "volumeOverride": 10,
+                "unitPriceOverride": null,
+                "priceOverride": null,
+                "productName": null
+              },
+              {
+                "code": "Render",
+                "coats": 2,
+                "count": 1,
+                "prepHr": 0,
+                "hidden": false,
+                "measureL": 10,
+                "measureH": 3,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": null,
+                "useCustomRate": false,
+                "customRate": null,
+                "coverageOverride": null,
+                "volumeOverride": null,
+                "unitPriceOverride": null,
+                "priceOverride": null,
+                "productName": "Dulux Weathershield"
+              }
+            ]
+          },
+          {
+            "kind": "area",
+            "type": "Exterior",
+            "areaType": "surface",
+            "L": 15,
+            "W": 0,
+            "H": 3,
+            "isOption": false,
+            "surfaces": [
+              {
+                "code": "Weatherboards",
+                "coats": 3,
+                "count": 1,
+                "prepHr": 0,
+                "hidden": false,
+                "measureL": null,
+                "measureH": null,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": null,
+                "useCustomRate": false,
+                "customRate": null,
+                "coverageOverride": null,
+                "volumeOverride": null,
+                "unitPriceOverride": null,
+                "priceOverride": null,
+                "productName": null
+              },
+              {
+                "code": "Render",
+                "coats": 2,
+                "count": 1,
+                "prepHr": 0,
+                "hidden": false,
+                "measureL": 15,
+                "measureH": 1,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": null,
+                "useCustomRate": false,
+                "customRate": null,
+                "coverageOverride": null,
+                "volumeOverride": null,
+                "unitPriceOverride": null,
+                "priceOverride": null,
+                "productName": null
+              },
+              {
+                "code": "Eaves",
+                "coats": 2,
+                "count": 1,
+                "prepHr": 0,
+                "hidden": false,
+                "measureL": null,
+                "measureH": null,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": null,
+                "useCustomRate": false,
+                "customRate": null,
+                "coverageOverride": null,
+                "volumeOverride": null,
+                "unitPriceOverride": null,
+                "priceOverride": null,
+                "productName": null
+              }
+            ]
+          },
+          {
+            "kind": "area",
+            "type": "Exterior",
+            "areaType": "surface",
+            "L": 13,
+            "W": 0,
+            "H": 3,
+            "isOption": false,
+            "surfaces": [
+              {
+                "code": "Stucco",
+                "coats": 2,
+                "count": 1,
+                "prepHr": 0,
+                "hidden": false,
+                "measureL": null,
+                "measureH": null,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": 2.93,
+                "useCustomRate": false,
+                "customRate": null,
+                "coverageOverride": null,
+                "volumeOverride": 9.3,
+                "unitPriceOverride": null,
+                "priceOverride": null,
+                "productName": null
+              },
+              {
+                "code": "Eaves",
+                "coats": 2,
+                "count": 1,
+                "prepHr": 0,
+                "hidden": false,
+                "measureL": null,
+                "measureH": null,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": null,
+                "useCustomRate": false,
+                "customRate": null,
+                "coverageOverride": null,
+                "volumeOverride": null,
+                "unitPriceOverride": null,
+                "priceOverride": null,
+                "productName": null
+              }
+            ]
+          },
+          {
+            "kind": "area",
+            "type": "Exterior",
+            "areaType": "surface",
+            "L": 12,
+            "W": 0,
+            "H": 3,
+            "isOption": false,
+            "surfaces": [
+              {
+                "code": "Render",
+                "coats": 2,
+                "count": 1,
+                "prepHr": 0,
+                "hidden": false,
+                "measureL": null,
+                "measureH": null,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": null,
+                "useCustomRate": false,
+                "customRate": null,
+                "coverageOverride": null,
+                "volumeOverride": 4.2,
+                "unitPriceOverride": null,
+                "priceOverride": null,
+                "productName": null
+              },
+              {
+                "code": "Render",
+                "coats": 2,
+                "count": 1,
+                "prepHr": 0,
+                "hidden": false,
+                "measureL": null,
+                "measureH": null,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": null,
+                "useCustomRate": false,
+                "customRate": null,
+                "coverageOverride": null,
+                "volumeOverride": 4.2,
+                "unitPriceOverride": null,
+                "priceOverride": null,
+                "productName": null
+              }
+            ]
+          },
+          {
+            "kind": "area",
+            "type": "Exterior",
+            "areaType": "surface",
+            "L": 5,
+            "W": 0,
+            "H": 3,
+            "isOption": false,
+            "surfaces": [
+              {
+                "code": "Deck Painting",
+                "coats": 2,
+                "count": 1,
+                "prepHr": 4,
+                "hidden": false,
+                "measureL": null,
+                "measureH": null,
+                "qtyOverride": null,
+                "rateOverride": null,
+                "paintingHrOverride": null,
+                "useCustomRate": false,
+                "customRate": null,
+                "coverageOverride": null,
+                "volumeOverride": null,
+                "unitPriceOverride": null,
+                "priceOverride": null,
+                "productName": "Cutek Extreme CD 50"
+              }
+            ]
+          }
+        ],
+        "modSel": {
+          "Job Size": "SIZE-M",
+          "Level of Finish": "FIN-3"
+        },
+        "materials": {
+          "Exterior::Render": "Dulux AcraTex",
+          "Exterior::Stucco": "Dulux AcraTex"
+        },
+        "discountPct": 0,
+        "discountMode": "pct",
+        "discountFixedCents": 0,
+        "hourlyRateOverride": 100,
+        "contractorRateOverride": 60
+      }
+    }
+  ]
+}
