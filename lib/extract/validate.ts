@@ -104,6 +104,14 @@ export function validateExtraction(x: Extraction): ValidationReport {
           message: `L × W is ${area.toFixed(1)} m² but the plan prints ${r.area_m2_printed} m² (${(delta * 100).toFixed(0)}% out).` });
       }
     }
+    for (const d of r.doors) {
+      // Wide is possible (stackers, garage doors) but worth a look, because a
+      // misread door width is a misread wall opening.
+      if (d.width_m != null && d.width_m > 3.5 && r.normalised_type !== "garage") {
+        add({ level: "room", code: "wide_door", room: name, blocking: false,
+          message: `A ${d.width_m} m door was read here. That is possible for a stacker or bifold, but check it.` });
+      }
+    }
     if (r.doors.length === 0 && r.normalised_type !== "storage") {
       add({ level: "room", code: "no_door", room: name, blocking: false,
         message: "No door was found for this room. Doors are priced per item, so a miss costs money." });

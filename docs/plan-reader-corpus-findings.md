@@ -110,3 +110,63 @@ pricing; the eleven priced jobs have no plans. Five of the eleven are interiors
 (28 Pyingerra, 10 Scotland, 120 Murrumbeena, 1 Hawthorn, 4 Mclauchlin) — those
 five plans, if they can be found on the listing sites, would make the first real
 accuracy measurement possible.
+
+
+---
+
+# The first live read — nine plans, 2026-08-17
+
+Every one of the nine was read by the model through the real pipeline.
+**77c for all nine**, about 8.5c a plan.
+
+| Plan | Storeys | Rooms | Dimensioned | Areas drafted | Usable |
+|---|---|---|---|---|---|
+| floorplan1.jpg | 1 | 10 | 4 | 8 | yes |
+| Floorplan 2.png | 1 | 12 | 5 | 10 | yes |
+| Floorplan 4.jpg | 2 | 31 | **0** | 29 | **no — refused** |
+| Floorplan 5.png | 2 | 29 | 9 | 24 | yes |
+| Floorplan 6.png | 1 | 16 | 3 | 9 | yes |
+| Floorplan 7.png | 2 | 30 | 12 | 25 | yes |
+| Floorplan 8.jpg | 1 | 11 | 5 | 10 | yes |
+| Fllorplan 9.jpg | 2 | 14 | 5 | 11 | yes |
+| Floorplan 10.jpg | 4 | 24 | 4 | 18 | yes |
+
+## Dimensions: 15 of 15 exact
+
+Every printed dimension checked by hand against the plan came back exactly
+right, including on the four-storey townhouse where the dimensions are wall runs
+rather than room labels. Not one was invented, and not one was misread.
+
+## The refusal worked on a real plan
+
+26 Cromwell Street (Floorplan 4) read 31 rooms and **zero** dimensions, which is
+correct — that plan carries no dimensions, no scale bar and no stated area. The
+pipeline marked it unusable and refused to draft from it, exactly as section 10
+requires. That is the behaviour that keeps a guessed estimate out of a quote.
+
+## Multi-storey and the disclaimer both work
+
+Four levels off one image on the townhouse; two storeys on four other plans.
+Seven of nine correctly reported the "not to scale" disclaimer.
+
+## Two bugs the live run found
+
+1. **Every JPEG failed.** The API call hardcoded `image/png` while the uploaded
+   plans were JPEGs, and the API rejects a mismatched media type outright. Five
+   of the nine died on it. The media type now comes from the file's bytes.
+
+2. **One plan was thrown away over a single door.** A door wider than 6 m failed
+   the schema, and because the schema is all-or-nothing the entire read was
+   lost. Stackers, bifolds and double garage doors genuinely exceed 6 m. Bounds
+   are now for nonsense only (12 m), and merely surprising values are flagged by
+   the validator instead of being fatal.
+
+## Still to improve
+
+- **Site-plan labels leak in as rooms** ("Residence"). They are skipped as
+  exterior, so nothing is priced, but they are noise in the review queue.
+- **Alias gaps**: "Multi-Purpose Room" resolved to bedroom, "Gym" to living,
+  "Butler\'s Pantry" to storage on one plan and kitchen on another. All
+  arguable; all cheap to fix in `room_name_aliases`.
+- **Half-dimensioned rooms**: wall-run plans give a length and no width. They
+  are treated as undimensioned, which is safe but discards a real number.

@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { EXTRACTION_TOOL, PROMPT_VERSION, extractionSchema, type Extraction } from "./schema";
+import { sniffKind } from "./normalise";
 
 // SERVER ONLY. Holds the API key.
 
@@ -103,7 +104,7 @@ export function hasApiKey(): boolean {
  * response that does not fit is an error, not something to paper over.
  */
 export async function readFloorplanPage(
-  pngBytes: Uint8Array,
+  imageBytes: Uint8Array,
   opts: { pageContext?: string } = {},
 ): Promise<ReadResult> {
   if (!hasApiKey()) {
@@ -114,8 +115,25 @@ export async function readFloorplanPage(
     };
   }
 
+  // The media type comes from the BYTES, not from an assumption. Rendered PDF
+  // pages are PNG, but a plan uploaded straight off a listing site is usually a
+  // JPEG — and declaring the wrong one is rejected outright by the API. Every
+  // JPEG plan failed this way on the first live run.
+  const kind = sniffKind(imageBytes);
+  const mediaType =
+    kind === "jpeg" ? "image/jpeg" :
+    kind === "png" ? "image/png" :
+    kind === "webp" ? "image/webp" : null;
+  if (!mediaType) {
+    return {
+      ok: false,
+      code: "api_error",
+      message: "That page isn't an image the model can read (JPEG, PNG or WEBP).",
+    };
+  }
+
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const base64 = Buffer.from(pngBytes).toString("base64");
+  const base64 = Buffer.from(imageBytes).toString("base64");
 
   let response;
   try {
@@ -129,7 +147,7 @@ export async function readFloorplanPage(
         {
           role: "user",
           content: [
-            { type: "image", source: { type: "base64", media_type: "image/png", data: base64 } },
+            { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
             {
               type: "text",
               text: opts.pageContext

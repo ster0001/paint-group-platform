@@ -35,7 +35,11 @@ export const roomTypes = [
 
 export const doorSchema = z.object({
   type: z.enum(["internal_hinged", "sliding", "cased_opening", "external", "garage", "unknown"]),
-  width_m: z.number().positive().max(6).nullable(),
+  // 12 m, not the 6 m this first had. A stacker, a bifold or a double garage
+  // door genuinely runs past 6 m, and a whole plan was thrown away over one
+  // door on a real read. Bounds here are for NONSENSE; anything merely
+  // surprising is validate.ts's job, where it can be flagged instead of fatal.
+  width_m: z.number().positive().max(12).nullable(),
   confidence,
 });
 
