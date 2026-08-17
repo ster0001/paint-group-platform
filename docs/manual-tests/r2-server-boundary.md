@@ -64,6 +64,29 @@ yourself if you'd like to.)*
 14. Approvals queue on the board still shows reschedule requests, and
     Approve / Keep original still work.
 
+## Verified against the live database (2026-08-17)
+
+Run before you start, so you know what should happen:
+
+| Check | Result |
+|---|---|
+| Inserting a booking offer directly from the browser | permission denied |
+| Forging `payment_cents = 1` | permission denied |
+| Forging the work order's payment | permission denied |
+| Hand-editing crew notes | still works |
+| `send_offer` payment vs the server's own figure | identical (160139) |
+| Hours allowance derived from the snapshot | 26.7 h |
+| Withdrawing with the wrong expected state | `conflict:offered`, row untouched |
+| Reassign | atomic — exactly one live offer, new contractor, payment intact |
+| Move a booking | dates change |
+| Offering a suspended contractor | refused |
+| A contractor sending themselves an offer | refused |
+| A second live offer on one job | refused |
+
+One detail worth knowing: the verification script's own cleanup used a direct
+delete and **was refused by the new lockdown**. It had to go through
+`cancel_booking` instead. That is the protection working on its author.
+
 ## What to report
 
 If any step behaves differently from before, note the step number and what
