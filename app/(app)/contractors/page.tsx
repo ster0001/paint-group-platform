@@ -34,7 +34,9 @@ export default async function ContractorsPage() {
       .is("accepted_at", null)
       .is("revoked_at", null)
       .order("created_at", { ascending: false }),
-    supabase.from("booking_offers").select("contractor_id, state"),
+    // Only the states this page counts — it was reading every offer ever made
+    // to work out two numbers per contractor (audit S6).
+    supabase.from("booking_offers").select("contractor_id, state").in("state", ["offered", "proposed", "accepted"]),
     // Bank changes staff haven't looked at yet. Degrades to null (no banner)
     // until migration 20260906000000 adds acknowledged_at.
     supabase

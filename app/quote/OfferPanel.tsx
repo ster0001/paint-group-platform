@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { reportIfError } from "@/lib/monitoring/report";
 import { withdrawOfferAction, sendOfferAction } from "@/app/(app)/schedule/actions";
 import {
   OFFER_COLUMNS,
@@ -65,7 +66,10 @@ export default function OfferPanel({
   async function fetchOffers(): Promise<BookingOffer[]> {
     if (!workOrderId) return [];
     // Sweep lapsed offers first so a stale one is never shown as live.
-    await supabase.rpc("expire_booking_offers").then(() => {}, () => {});
+    reportIfError(await supabase.rpc("expire_booking_offers"), {
+      where: "offerPanel.expireSweep",
+      bestEffort: true,
+    });
     const { data } = await supabase
       .from("booking_offers")
       .select(OFFER_COLUMNS)

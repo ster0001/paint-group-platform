@@ -34,6 +34,7 @@ import OfferPanel from "./OfferPanel";
 import { sendEstimateAction } from "./actions";
 import { issueWorkOrderAction, setWorkOrderScheduleAction } from "./workOrderActions";
 import { acceptAttr, checkUpload } from "@/lib/uploads/validate";
+import { reportIfError, errorMessage } from "@/lib/monitoring/report";
 
 type WorkOrderRow = {
   id: string; wo_ref: string; status: string; contractor_id: string | null; start_date: string | null;
@@ -287,7 +288,15 @@ export default function QuoteBuilder({
   const effectiveSheen = (productName: string): string => sheenEdits[productName] ?? productByName.get(productName)?.finish ?? "";
   async function updateSheen(productName: string, finish: string) {
     setSheenEdits((m) => ({ ...m, [productName]: finish }));
-    try { await createClient().from("products").update({ finish }).eq("name", productName); } catch { /* best-effort */ }
+    // Not best-effort: the sheen shown on the customer's estimate comes from
+    // this row, so a write that fails leaves the screen disagreeing with what
+    // is actually stored. (The old try/catch caught nothing — supabase returns
+    // { error } instead of throwing.)
+    const r = await createClient().from("products").update({ finish }).eq("name", productName);
+    if (!reportIfError(r, { where: "products.sheen", extra: { productName } })) {
+      setSaveMsg(`Couldn't save that sheen — ${errorMessage(r.error)}`);
+      setSheenEdits((m) => { const n = { ...m }; delete n[productName]; return n; });
+    }
   }
   const [discountMode, setDiscountMode] = useState<"pct" | "fixed">(() => loaded?.discountMode ?? "pct");
   const [discountPct, setDiscountPct] = useState<number>(() => loaded?.discountPct ?? 0);
@@ -364,7 +373,13 @@ export default function QuoteBuilder({
       if (!r.ok) setSaveMsg(r.message);
     }
     if (Object.keys(rest).length > 0) {
-      try { await createClient().from("work_orders").update(rest).eq("id", workOrder.id); } catch { /* best-effort */ }
+      // Colours, crew notes and hours overrides. These are what the contractor
+      // works to, so a dropped write is a real problem — and R2's column
+      // lockdown means a permission error here is exactly how it would show up.
+      const r = await createClient().from("work_orders").update(rest).eq("id", workOrder.id);
+      if (!reportIfError(r, { where: "workorder.patch", extra: { fields: Object.keys(rest) } })) {
+        setSaveMsg(`Couldn't save the work order — ${errorMessage(r.error)}`);
+      }
     }
   };
   // Folder navigation: null = the list; otherwise we've drilled into an area,

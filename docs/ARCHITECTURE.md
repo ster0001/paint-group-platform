@@ -4,6 +4,55 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## R6 — error reporting, query counts, and the last of the input validation
+
+**2026-08-17 · `lib/monitoring/report.ts`, `lib/contractor/session.ts`,
+`supabase/migrations/20260908000000`**
+
+**The silent catches were worse than silent (S9).** Nine `catch {}` blocks
+swallowed failures — but Supabase's client returns `{ error }` and does not
+throw, so most of those handlers never ran at all and the error was simply
+never read. Three of them dropped real work: the customer's **signature** on
+acceptance, and two staff writes (product sheen, and the work-order colours and
+crew notes a contractor works to).
+
+`lib/monitoring/report.ts` is now the single seam every failure goes through.
+`reportIfError(result, { where })` takes the `{ error }` shape directly, which
+is what makes the dropped-error class of bug hard to write again. Best-effort
+calls (view pings, expiry sweeps) still continue on failure, but they warn
+rather than vanish. There is no Sentry account yet, so rather than half-install
+one behind a missing DSN, the file marks the one place `captureException` goes.
+The three that lose data now surface: the customer is told plainly if their
+signature didn't store, and staff see why a save failed.
+
+**The portal ran its session guard twice per request (S5).** The layout called
+`getContractorSession` and the page called `requireContractor`, each doing
+getUser + profiles + contractors. The three queries are now behind React's
+`cache`, which is per-request and therefore safe for an auth check. Measured by
+counting executions against a running server: **4 runs for two page loads
+before, 2 after** — one per render, three queries saved per portal view.
+
+**Unbounded selects (S6).** The scheduling board fetched *every offer ever
+made* on each load; it now takes a window, deliberately wider than the visible
+range because settled offers supply the tray's decline note and proposals must
+appear in the approvals queue whatever their dates. The contractors page asked
+for every offer to compute two counts, and settings read every estimate row to
+count presentation usage. Both now ask only for what they use. The builder's
+product and contact lists are deliberately NOT capped — silently truncating a
+picker is worse than the query it saves.
+
+**Input validation, the C4 remainder.** Money and state already went through
+validated functions; ordinary editable data had nothing checking *what* was
+written, only which rows. Constraints now live in the database rather than a
+route, because a CHECK cannot be gone around with the anon key and curl: crew
+size 1–99, sane text lengths on the contractor and document tables, a trigger
+refusing a certificate that expires more than ten years out (a trigger, not a
+CHECK — "ten years from now" is not immutable), and invite lifetimes clamped to
+30 days inside `create_contractor_invite`, which previously took whatever day
+count it was handed.
+
+---
+
 ## R5 — tests (Vitest + Playwright)
 
 **2026-08-17 · `vitest.config.mts`, `playwright.config.ts`, `lib/**/*.test.ts`,

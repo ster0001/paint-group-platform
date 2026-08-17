@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { addDays } from "./dates";
+import { reportIfError } from "@/lib/monitoring/report";
 import { OFFER_COLUMNS, effectiveState, isLive, type BookingOffer } from "./offers";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
 
@@ -95,7 +96,12 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
   const supabase = await createClient();
 
   // Sweep lapsed offers so the board never shows a dead one as live.
-  await supabase.rpc("expire_booking_offers").then(() => {}, () => {});
+  // Best-effort: a board that shows a stale offer is better than no board.
+  // Reported, though — if this starts failing, offers stop lapsing on screen.
+  reportIfError(await supabase.rpc("expire_booking_offers"), {
+    where: "board.expireSweep",
+    bestEffort: true,
+  });
 
   const [
     { data: contractors, error: cErr },
@@ -111,7 +117,15 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
       supabase
         .from("work_orders")
         .select("id, estimate_id, wo_ref, status, contractor_id, start_date, contractor_payment_cents, wo_snapshot, issued_at, estimates ( title )"),
-      supabase.from("booking_offers").select(OFFER_COLUMNS),
+      // Windowed rather than "every offer ever made" (audit S6). The window is
+      // widened past the visible range on purpose: a settled offer still
+      // supplies the tray's "last declined because…" note, and a proposal
+      // awaiting staff must appear in the approvals queue even when its dates
+      // sit outside the columns on screen.
+      supabase
+        .from("booking_offers")
+        .select(OFFER_COLUMNS)
+        .or(`state.in.(offered,proposed),and(start_date.lte.${addDays(to, 30)},start_date.gte.${addDays(from, -180)})`),
       supabase
         .from("contractor_unavailability")
         .select("id, contractor_id, start_date, end_date, reason, source")
