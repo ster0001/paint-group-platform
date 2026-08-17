@@ -8,13 +8,11 @@ and everything stored — **with no AI involved yet**. The model call goes in ne
 That order is deliberate: the model call is the easy part, and the accuracy
 lives in the geometry and the plumbing around it.
 
-## Run this first, in the Supabase SQL editor
+## The SQL — run 2026-08-17 ✅
 
-`20260910000000_ai_extraction.sql`
-
-It creates eight tables, a private `estimate-sources` bucket, and RLS on all of
-them. Until it runs, uploading a plan will fail at the storage step — the checks
-before that (staff only, real-file validation) already work.
+`20260910000000_ai_extraction.sql` is applied: eight tables, a private
+`estimate-sources` bucket, RLS on all of it. The whole pipeline was then run
+against the live database — results at the bottom.
 
 ## 1. What it refuses
 
@@ -85,10 +83,24 @@ to `other` and get skipped.
 | 200 DPI render of A4 | 1653 × 2339 px |
 | `npm run build` | passes — mupdf (WASM) bundles into the route fine |
 
-**Not verified, because it needs the SQL:** storage of the pages, the
-`estimate_sources` / `extraction_runs` rows, and the debug page end to end.
-That's the fourth API test — it un-skips with `E2E_EXTRACT_READY=1` once you've
-run the migration:
+### Against the live database, after the SQL was run
+
+| Check | Result |
+|---|---|
+| Two-page PDF uploaded end to end | both pages stored, one run row each |
+| Page 1 | `floorplan_interior`, text layer kept `3.60 x 4.20` exactly |
+| Page 2 | `elevation` |
+| Run rows | `queued`, each recording why the page was classified that way |
+| Contractor reading `extraction_runs` | **0 rows** (model cost and confidence) |
+| Contractor reading `estimate_sources` | **0 rows** (the customer's floorplan) |
+| Contractor inserting a source row | refused by RLS |
+| Contractor downloading a stored page | refused |
+| Public URL for a stored page | HTTP 400 — the bucket is private |
+
+10/10, plus 4/4 on the API tests. The test's uploads and rows were deleted
+afterwards; nothing was left behind.
+
+To re-run it yourself:
 
 ```bash
 E2E_EXTRACT_READY=1 E2E_STAFF_EMAIL=pg.sam.staff@gmail.com E2E_STAFF_PASSWORD=painttest123 npm run test:e2e -- extract-api.spec.ts
