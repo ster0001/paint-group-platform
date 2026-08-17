@@ -4,27 +4,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { msRemaining, isReschedule, formatDMY, type BookingOffer } from "@/lib/scheduling/offers";
+import { addDays, dayDiff, todayIso } from "@/lib/scheduling/dates";
 import { sendOfferAction, reassignOfferAction, moveBookingAction, blockOutAction, type ActionResult } from "./actions";
 import type { Block, Lane, TrayJob } from "@/lib/scheduling/board";
 import "./schedule.css";
 
 const money = (c: number | null) => (c == null ? "—" : "$" + (c / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 }));
 
-// Calendar dates are plain YYYY-MM-DD, never instants. Parsing them as local
-// midnight and formatting back through toISOString() silently shifts the result
-// by a day for anyone east of Greenwich — so all arithmetic below stays in UTC,
-// and "today" is read from the local clock explicitly.
-const addDays = (s: string, n: number) => {
-  const d = new Date(s + "T00:00:00Z");
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-};
-const dayDiff = (a: string, b: string) =>
-  Math.round((Date.parse(b + "T00:00:00Z") - Date.parse(a + "T00:00:00Z")) / 86_400_000);
-const todayIso = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
+// Calendar-date arithmetic lives in lib/scheduling/dates.ts — see the note there
+// about the timezone bug these helpers exist to prevent.
 /** Contiguous month runs across the visible days, for the month band. */
 function monthRuns(days: string[]) {
   const out: { label: string; span: number }[] = [];
@@ -738,7 +726,15 @@ export default function ScheduleBoard({
                   </a>
                 </div>
               ) : (
-                <div key={j.workOrderId} className="jcard" onPointerDown={(e) => beginDrag(e, { kind: "tray", job: j })}>
+                // data-testid so the e2e smoke test isn't pinned to styling
+                // classes, which change for cosmetic reasons.
+                <div
+                  key={j.workOrderId}
+                  className="jcard"
+                  data-testid="tray-job"
+                  data-wo-ref={j.woRef}
+                  onPointerDown={(e) => beginDrag(e, { kind: "tray", job: j })}
+                >
                   <div className="r1">
                     <span className="ref">{j.woRef}</span>
                     {j.finishCode && <span className="fin">{j.finishCode}</span>}
@@ -818,6 +814,8 @@ export default function ScheduleBoard({
 
                     <div
                       className="lane"
+                      data-testid="lane"
+                      data-contractor-id={l.contractorId}
                       ref={(el) => { if (el) laneRefs.current.set(l.contractorId, el); }}
                       onPointerDown={(e) => beginBlockOut(e, l.contractorId)}
                     >

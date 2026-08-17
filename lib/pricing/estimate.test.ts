@@ -6,7 +6,7 @@
  * so rather than asserting what we wish it did. Changing one of these is a
  * deliberate pricing decision, not a refactor.
  */
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import {
   priceSurface,

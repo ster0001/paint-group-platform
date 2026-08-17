@@ -23,7 +23,7 @@ export type ContractorJob = {
 const JOB_COLUMNS =
   "id, wo_ref, status, start_date, issued_at, viewed_at, contractor_payment_cents, wo_snapshot";
 
-type Row = {
+export type Row = {
   id: string;
   wo_ref: string;
   status: string;
@@ -34,7 +34,12 @@ type Row = {
   wo_snapshot: unknown;
 };
 
-function toJob(r: Row, committed: boolean): ContractorJob {
+/**
+ * Exported for `privacy.test.ts`. This is the function that decides whether a
+ * customer's street address and phone number reach a contractor's browser, so
+ * it is worth testing directly rather than through a page render.
+ */
+export function toJob(r: Row, committed: boolean): ContractorJob {
   const snap = r.wo_snapshot as WorkOrderDoc | null;
   // Only trust a v1 snapshot; anything else is treated as missing rather than
   // rendered half-formed.
@@ -86,9 +91,19 @@ async function committedSet(workOrderIds: string[]): Promise<Set<string>> {
     .select("work_order_id, state")
     .in("work_order_id", workOrderIds);
 
-  const rows = (data as { work_order_id: string; state: string }[] | null) ?? [];
-  const hasAnyOffer = new Set(rows.map((r) => r.work_order_id));
-  const accepted = new Set(rows.filter((r) => r.state === "accepted").map((r) => r.work_order_id));
+  return committedIds(workOrderIds, (data as OfferStateRow[] | null) ?? []);
+}
+
+export type OfferStateRow = { work_order_id: string; state: string };
+
+/**
+ * The rule itself, separated from the query so it can be tested. Getting this
+ * wrong in the permissive direction hands a customer's address to a painter who
+ * has only been *asked* about the job.
+ */
+export function committedIds(workOrderIds: string[], offers: OfferStateRow[]): Set<string> {
+  const hasAnyOffer = new Set(offers.map((r) => r.work_order_id));
+  const accepted = new Set(offers.filter((r) => r.state === "accepted").map((r) => r.work_order_id));
   return new Set(workOrderIds.filter((id) => accepted.has(id) || !hasAnyOffer.has(id)));
 }
 

@@ -1,0 +1,108 @@
+import { test, expect, type Page } from "@playwright/test";
+import { credentials, missingCreds, signIn } from "./helpers";
+
+/**
+ * The critical path named in the audit: offer a job → the contractor accepts.
+ *
+ * It runs against the real database, so it is careful about what it leaves
+ * behind: the booking it creates is cancelled again at the end, which returns
+ * the job to the unscheduled tray it came from. Read the cleanup step before
+ * running this against anything you care about.
+ *
+ * It needs a job sitting in the tray to work with. If there isn't one it SKIPS
+ * rather than inventing an estimate — a smoke test that quietly builds test data
+ * in a live system is worse than no smoke test.
+ *
+ * NOTE: this spec has not been executed yet — the session that wrote it had a
+ * contractor login but no staff login. Expect to settle a selector or two on
+ * the first run.
+ */
+const staff = credentials("STAFF");
+const contractor = credentials("CONTRACTOR");
+
+/** The board's drag is pointer-based, so drive it with the mouse, not dragTo. */
+async function dragTo(page: Page, from: { x: number; y: number }, to: { x: number; y: number }) {
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  // Several small moves: one jump can be read as a click rather than a drag.
+  for (let i = 1; i <= 8; i++) {
+    await page.mouse.move(from.x + ((to.x - from.x) * i) / 8, from.y + ((to.y - from.y) * i) / 8);
+    await page.waitForTimeout(30);
+  }
+  await page.mouse.up();
+}
+
+const centreOf = async (page: Page, selector: string) => {
+  const box = await page.locator(selector).first().boundingBox();
+  if (!box) throw new Error(`no box for ${selector}`);
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+};
+
+test.describe("offer a job, contractor accepts", () => {
+  test.skip(!staff, missingCreds("STAFF"));
+  test.skip(!contractor, missingCreds("CONTRACTOR"));
+
+  test("the offer reaches the contractor, and accepting books it", async ({ browser }) => {
+    const staffContext = await browser.newContext();
+    const staffPage = await staffContext.newPage();
+    await signIn(staffPage, staff!, /\/estimates/);
+    await staffPage.goto("/schedule");
+
+    const trayJob = staffPage.getByTestId("tray-job").first();
+    test.skip((await trayJob.count()) === 0, "no unscheduled job in the tray to offer");
+
+    const woRef = (await trayJob.getAttribute("data-wo-ref")) ?? "";
+    expect(woRef).not.toBe("");
+
+    // --- staff: drag it onto the first contractor's lane ---------------------
+    await dragTo(
+      staffPage,
+      await centreOf(staffPage, '[data-testid="tray-job"]'),
+      await centreOf(staffPage, '[data-testid="lane"]'),
+    );
+
+    // Dropping opens a confirmation — it never fires an offer by itself.
+    const sendOffer = staffPage.getByRole("button", { name: "Send offer" });
+    await expect(sendOffer).toBeVisible();
+    await sendOffer.click();
+
+    // The job leaves the tray and appears on the board as a live offer.
+    await expect(staffPage.locator(`[data-testid="tray-job"][data-wo-ref="${woRef}"]`)).toHaveCount(0);
+    await expect(staffPage.locator(".blk.offered").first()).toBeVisible();
+
+    // --- contractor: the offer is waiting, with the address still redacted ---
+    const contractorContext = await browser.newContext();
+    const contractorPage = await contractorContext.newPage();
+    await signIn(contractorPage, contractor!, /\/portal/);
+
+    const requests = await contractorPage.goto("/portal/requests");
+    const html = (await requests?.text()) ?? "";
+    // Until they accept, the customer's street address must not be in the page
+    // at all — this is the privacy gate, checked against the response body.
+    expect(html).toMatch(/awaiting your answer|accept/i);
+
+    const accept = contractorPage.getByRole("button", { name: /accept/i }).first();
+    await expect(accept).toBeVisible();
+    await accept.click();
+
+    await expect(contractorPage.locator("body")).toContainText(/booked|accepted/i, { timeout: 20_000 });
+
+    // --- staff: it now reads as booked ---------------------------------------
+    await staffPage.reload();
+    await expect(staffPage.locator(".blk.accepted").first()).toBeVisible();
+
+    // --- cleanup: put the job back in the tray -------------------------------
+    await staffPage.locator(".blk.accepted").first().click();
+    const cancelBooking = staffPage.getByRole("button", { name: /cancel this booking/i });
+    if (await cancelBooking.count()) {
+      await staffPage.getByPlaceholder(/customer postponed/i).fill("e2e smoke test cleanup");
+      await cancelBooking.click();
+      await expect(staffPage.locator(`[data-testid="tray-job"][data-wo-ref="${woRef}"]`)).toHaveCount(1, {
+        timeout: 20_000,
+      });
+    }
+
+    await staffContext.close();
+    await contractorContext.close();
+  });
+});

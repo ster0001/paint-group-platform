@@ -3,11 +3,11 @@ import { requireContractor } from "@/lib/contractor/session";
 import { listContractorJobs } from "@/lib/contractor/jobs";
 import CalendarGrid, { type PortalBlock, type PortalJobDay } from "./CalendarGrid";
 import Placeholder from "../Placeholder";
+import { localIso } from "@/lib/scheduling/dates";
 
 export const dynamic = "force-dynamic";
 
-const iso = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const iso = localIso;
 
 export default async function CalendarPage() {
   const { contractor } = await requireContractor();

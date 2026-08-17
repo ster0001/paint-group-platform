@@ -13,7 +13,7 @@
  * a bug or a deliberate decision — never a reason to re-record the fixture
  * without saying so out loud.
  */
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { priceEstimateTotals, type BlockInput, type PricingContext, type Adjustments } from "./estimate.ts";

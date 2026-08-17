@@ -4,6 +4,53 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## R5 — tests (Vitest + Playwright)
+
+**2026-08-17 · `vitest.config.mts`, `playwright.config.ts`, `lib/**/*.test.ts`,
+`e2e/`, `lib/scheduling/dates.ts`**
+
+Audit finding S8: nothing built in the last five phases had a test. The offer
+state machine, the privacy gate, compliance state and the date arithmetic were
+all verified by hand against the live database — which found real bugs, but none
+of it was repeatable.
+
+`npm test` is now **Vitest**, and runs under `TZ=Australia/Melbourne`. The
+timezone is not decoration: the worst bug this project has shipped was calendar
+dates parsed as local midnight and formatted back through `toISOString()`,
+which moved every computed date a day earlier east of Greenwich — a job dropped
+on 1 September was saved as 31 August. A suite running in UTC cannot see that
+class of bug at all. The first test in `dates.test.ts` asserts the suite really
+is east of Greenwich, so the rest can't pass vacuously.
+
+**`lib/scheduling/dates.ts` is new** and is the enabling change: `addDays`,
+`dayDiff` and the local-`today` helper existed in three hand-copied versions
+(board loader, schedule page, board component) which is how the versions
+disagreed in the first place. One module, imported by all of them, tested once.
+
+The 42 pricing tests moved across unchanged — only the `node:test` import line
+differs — and 63 new ones cover the offer state machine (expiry lapses an
+unanswered offer but never a proposal), the **privacy gate** (`toJob` and
+`committedIds`, which decide whether a customer's address reaches a contractor's
+browser), compliance state (`docState`, including the stale-`status` case), and
+the FIN→PG finish mapping. 105 in total.
+
+Each of those was checked by breaking the code and watching the test fail:
+removing the redaction fails 2 privacy tests, and reintroducing the date bug
+fails 6.
+
+**Playwright** (`npm run test:e2e`, never part of `npm test`) drives a real
+browser against the real database, so it is deliberately opt-in and takes its
+logins from the environment — the config carries no credentials.
+`contractor-portal.spec.ts` passes today and includes the standard that
+contractor HTML never carries customer money, asserted against the raw response
+body including the RSC payload. It matches this codebase's own field names
+(`marginCents`, `subtotalCents`) rather than the bare word "margin", which
+appears in framework CSS — the same false positive the audit itself hit.
+`offer-accept.spec.ts` covers the critical path end to end but **has not been
+run**: it needs a staff login, which the session that wrote it did not have.
+
+---
+
 ## R4 — upload limits, the bank-change alert, and two small things
 
 **2026-08-17 · `lib/uploads/validate.ts`, `supabase/migrations/20260905000000`
