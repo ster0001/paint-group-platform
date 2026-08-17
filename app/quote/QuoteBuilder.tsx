@@ -32,6 +32,7 @@ import { roundUpLitres, type WorkOrderDoc as WODoc, type WOMaterial, type WOArea
 import { finishFromModifier } from "@/lib/workorder/finish";
 import OfferPanel from "./OfferPanel";
 import { sendEstimateAction } from "./actions";
+import { issueWorkOrderAction, setWorkOrderScheduleAction } from "./workOrderActions";
 
 type WorkOrderRow = {
   id: string; wo_ref: string; status: string; contractor_id: string | null; start_date: string | null;
@@ -346,7 +347,24 @@ export default function QuoteBuilder({
   // Persist a work-order field change (only when the row exists, i.e. accepted).
   const patchWorkOrder = async (patch: Record<string, unknown>) => {
     if (!workOrder) return;
-    try { await createClient().from("work_orders").update(patch).eq("id", workOrder.id); } catch { /* best-effort */ }
+    // contractor_id and start_date are server-owned since R2 — they move through
+    // a validated action. Everything else here is hand-edited content (colours,
+    // crew notes, hours overrides) and still writes directly under RLS.
+    const { contractor_id, start_date, ...rest } = patch as {
+      contractor_id?: string | null; start_date?: string | null;
+    } & Record<string, unknown>;
+
+    if (contractor_id !== undefined || start_date !== undefined) {
+      const r = await setWorkOrderScheduleAction({
+        workOrderId: workOrder.id,
+        contractorId: contractor_id ?? null,
+        startDate: start_date ?? null,
+      });
+      if (!r.ok) setSaveMsg(r.message);
+    }
+    if (Object.keys(rest).length > 0) {
+      try { await createClient().from("work_orders").update(rest).eq("id", workOrder.id); } catch { /* best-effort */ }
+    }
   };
   // Folder navigation: null = the list; otherwise we've drilled into an area,
   // a surface within an area, or a line item. "Done" pops back up a level.
@@ -917,35 +935,21 @@ export default function QuoteBuilder({
     if (healedRef.current) return;
     if (!workOrder || workOrder.wo_snapshot) return;
     healedRef.current = true;
-    (async () => {
-      const doc = { ...computeWorkOrderDoc(), status: "issued" };
-      await createClient()
-        .from("work_orders")
-        .update({
-          wo_snapshot: doc,
-          contractor_payment_cents: totals.contractorOffer,
-          status: workOrder.status === "draft" ? "issued" : workOrder.status,
-          issued_at: workOrder.issued_at ?? new Date().toISOString(),
-        })
-        .eq("id", workOrder.id)
-        .then(() => {}, () => {});
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Same server path as the Issue button — no document or money from here.
+    void issueWorkOrderAction({ workOrderId: workOrder.id });
   }, [workOrder]);
 
   async function issueWorkOrder() {
     if (!workOrder) return;
     setWoIssuing(true);
-    const doc = { ...computeWorkOrderDoc(), status: "issued" };
-    const supabase = createClient();
-    const { error } = await supabase.from("work_orders").update({
-      wo_snapshot: doc, contractor_payment_cents: totals.contractorOffer,
-      status: workOrder.status === "draft" ? "issued" : workOrder.status,
-      issued_at: new Date().toISOString(),
-    }).eq("id", workOrder.id);
+    // The server builds the snapshot and the payment from the estimate's saved
+    // document — this button sends neither.
+    const r = await issueWorkOrderAction({ workOrderId: workOrder.id });
     setWoIssuing(false);
-    if (!error) setWoLink(`${window.location.origin}/w/${workOrder.share_token}`);
+    if (r.ok) setWoLink(`${window.location.origin}/w/${workOrder.share_token}`);
+    else setSaveMsg(r.message);
   }
+
 
   // ---- folder screens (drilled-in views) ----
   const renderAreaFolder = (b: Area) => (
