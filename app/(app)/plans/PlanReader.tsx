@@ -18,6 +18,8 @@ type ReadResult = {
   usable: boolean; rooms: number; dimensioned: number; undimensioned: number;
   areas: number; assumedValues: number; flags: Flag[]; costCents: number;
   skipped: Array<{ name: string; reason: string }>;
+  deferred: Array<{ room: string; what: string; count: number; needs: string }>;
+  ceilingHeightM: number | null;
 };
 
 export default function PlanReader() {
@@ -27,6 +29,12 @@ export default function PlanReader() {
   const [pages, setPages] = useState<Page[]>([]);
   const [runIds, setRunIds] = useState<string[]>([]);
   const [reading, setReading] = useState<Record<string, ReadResult>>({});
+  // Tom's rule: the height is asked for before publishing and applies to every
+  // room. It is never assumed silently — the field starts EMPTY on purpose.
+  const [height, setHeight] = useState<Record<string, string>>({});
+  const [photoNote, setPhotoNote] = useState<Record<string, string>>({});
+  const [listingUrl, setListingUrl] = useState("");
+  const [listingNotes, setListingNotes] = useState<string[]>([]);
 
   async function upload(file: File) {
     const bad = checkUpload(file, file.type === "application/pdf" ? "document" : "image");
@@ -64,13 +72,70 @@ export default function PlanReader() {
     }
   }
 
+  async function addPhotos(runId: string, files: FileList) {
+    setBusy(runId); setErr(""); setPhotoNote((p) => ({ ...p, [runId]: "" }));
+    try {
+      const body = new FormData();
+      for (const f of Array.from(files).slice(0, 12)) {
+        const bad = checkUpload(f, "image");
+        if (bad) throw new Error(bad);
+        body.append("file", f);
+      }
+      const res = await fetch(`/api/extract/${runId}/photos`, { method: "POST", body });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "The photos couldn't be read.");
+      const got = [
+        json.applied.doorStyle !== "unknown" ? `doors: ${json.applied.doorStyle}` : null,
+        json.applied.windowStyle !== "unknown" ? `windows: ${json.applied.windowStyle.replace(/_/g, " ")}` : null,
+        json.applied.cornice !== "unknown" ? `cornice: ${json.applied.cornice}` : null,
+        json.applied.ceilingHeightM ? `ceiling about ${json.applied.ceilingHeightM} m` : null,
+      ].filter(Boolean);
+      setPhotoNote((p) => ({
+        ...p,
+        [runId]: `${json.photosRead} photo(s) read. ${got.length ? `Settled — ${got.join(", ")}.` : "Nothing could be settled confidently."}` +
+          (json.stillUnknown.length ? ` Still unknown: ${json.stillUnknown.join(", ")}.` : ""),
+      }));
+      if (json.applied.ceilingHeightM && !height[runId]) {
+        setHeight((h) => ({ ...h, [runId]: String(json.applied.ceilingHeightM) }));
+      }
+      await read(runId); // re-read the draft now the unknowns are settled
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function checkListing(runId: string) {
+    if (!listingUrl.trim()) return;
+    setBusy(runId); setErr("");
+    try {
+      const res = await fetch(`/api/extract/${runId}/listing`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ url: listingUrl.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Couldn't read that listing.");
+      setListingNotes(json.notes.length ? json.notes : ["Nothing on the listing disagrees with the plan."]);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function apply(runId: string) {
+    const h = Number(height[runId]);
+    if (!Number.isFinite(h) || h < 2 || h > 6) {
+      setErr("Enter the ceiling height first — it applies to every room and it multiplies every wall in the job.");
+      return;
+    }
     setBusy(runId); setErr("");
     try {
       const res = await fetch(`/api/extract/${runId}/apply`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ ceilingHeightM: h }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Couldn't apply the draft.");
@@ -103,6 +168,35 @@ export default function PlanReader() {
           onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); }}
         />
       </label>
+
+      {pages.length > 0 && (
+        <div className="mb-4 rounded-lg border border-gray-200 bg-white p-4">
+          <label className="text-sm font-medium" htmlFor="listing">Listing link (optional)</label>
+          <p className="mt-0.5 text-xs text-gray-500">
+            Cross-checks the bedroom and bathroom count, and flags anything the agent says about
+            ceilings or cornices. It never sets a number — it is copy written to sell a house.
+          </p>
+          <div className="mt-2 flex gap-2">
+            <input
+              id="listing" type="url" placeholder="https://www.realestate.com.au/property-..."
+              value={listingUrl} onChange={(e) => setListingUrl(e.target.value)}
+              className="flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+            />
+            <button
+              onClick={() => runIds[0] && checkListing(runIds[0])}
+              disabled={!listingUrl.trim() || !runIds[0]}
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+            >
+              Check
+            </button>
+          </div>
+          {listingNotes.length > 0 && (
+            <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-gray-700">
+              {listingNotes.map((n, k) => <li key={k}>{n}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
 
       {pages.map((p, i) => {
         const runId = runIds[i];
@@ -170,9 +264,49 @@ export default function PlanReader() {
                   </p>
                 )}
 
+                {r.deferred?.length > 0 && (
+                  <div className="mt-3 rounded-md border border-sky-200 bg-sky-50 p-3">
+                    <div className="text-xs font-medium text-sky-900">
+                      Seen, but not priced — add photos and these settle themselves
+                    </div>
+                    <ul className="mt-1 space-y-0.5 text-xs text-sky-900">
+                      {r.deferred.slice(0, 8).map((d, k) => (
+                        <li key={k}>{d.room} — {d.what}: {d.needs}</li>
+                      ))}
+                      {r.deferred.length > 8 && <li>…and {r.deferred.length - 8} more</li>}
+                    </ul>
+                    <label className="mt-2 inline-flex cursor-pointer items-center rounded-md border border-sky-300 bg-white px-2.5 py-1 text-xs font-medium">
+                      Add property photos
+                      <input
+                        type="file" multiple accept={acceptAttr("image")} className="hidden"
+                        onChange={(e) => { const f = e.target.files; if (f?.length) addPhotos(runId, f); }}
+                      />
+                    </label>
+                    {photoNote[runId] && <p className="mt-2 text-xs text-sky-900">{photoNote[runId]}</p>}
+                  </div>
+                )}
+
+                <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3">
+                  <label className="text-xs font-medium text-amber-900" htmlFor={`h-${runId}`}>
+                    Ceiling height (metres) — applies to every room
+                  </label>
+                  <p className="mt-0.5 text-xs text-amber-800">
+                    {r.ceilingHeightM
+                      ? `The plan prints ${r.ceilingHeightM} m. Confirm it.`
+                      : "Not printed on the plan. This multiplies every wall in the job, so it has to come from you."}
+                  </p>
+                  <input
+                    id={`h-${runId}`}
+                    type="number" step="0.05" min="2" max="6" placeholder="e.g. 2.7"
+                    value={height[runId] ?? ""}
+                    onChange={(e) => setHeight((x) => ({ ...x, [runId]: e.target.value }))}
+                    className="mt-1 w-32 rounded-md border border-amber-300 px-2 py-1 text-sm"
+                  />
+                </div>
+
                 <button
                   onClick={() => apply(runId)}
-                  disabled={busy === runId || !r.usable || r.areas === 0}
+                  disabled={busy === runId || !r.usable || r.areas === 0 || !height[runId]}
                   className="mt-3 rounded-md bg-accent px-4 py-2 text-sm font-medium text-accentink hover:bg-paint disabled:opacity-50"
                 >
                   {busy === runId ? "Building…" : `Draft an estimate from ${r.areas} rooms`}

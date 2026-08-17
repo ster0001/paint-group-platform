@@ -1,5 +1,5 @@
 import type { Extraction, ExtractedRoom } from "./schema";
-import { planSurfaces, resolveRoomType, type Alias, type ScopeRule } from "./scope";
+import { planSurfaces, resolveRoomType, type Alias, type Deferred, type ScopeRule } from "./scope";
 
 /**
  * Stage 5: turn a validated reading into the builder's own area/surface tree.
@@ -82,6 +82,12 @@ export type DraftResult = {
   /** Rooms that produced nothing, and why — never silently dropped. */
   skipped: Array<{ name: string; reason: string }>;
   assumedCount: number;
+  /**
+   * Seen but deliberately not priced, because the type is unknown: doors whose
+   * style nobody has confirmed, windows, cornices. These are decisions waiting
+   * for the estimator, not omissions.
+   */
+  deferred: Array<{ room: string; what: string; count: number; needs: string }>;
 };
 
 function surface(
@@ -114,6 +120,7 @@ export function buildDraft(
   let nextId = opts.startId ?? 1;
   const areas: DraftArea[] = [];
   const skipped: DraftResult["skipped"] = [];
+  const deferred: DraftResult["deferred"] = [];
   let assumedCount = 0;
 
   const ceilingHeight = x.ceiling_height_m ?? ASSUMED_CEILING_HEIGHT;
@@ -134,11 +141,19 @@ export function buildDraft(
       continue;
     }
 
-    const planned = planSurfaces(
+    const plan = planSurfaces(
       roomType,
-      { doors: room.doors.length, windows: room.windows.length, openings: room.openings_no_door },
+      {
+        doors: room.doors.map((d) => ({ style: d.style })),
+        windows: room.windows.map((w) => ({ style: w.style })),
+        openings: room.openings_no_door,
+        cornice: room.cornice,
+      },
       rules,
     );
+    const planned = plan.surfaces;
+    for (const d of plan.deferred) deferred.push({ room: name, ...d });
+
     if (planned.length === 0) {
       skipped.push({ name, reason: `no surfaces are configured for a ${roomType}` });
       continue;
@@ -178,7 +193,7 @@ export function buildDraft(
     for (const p of planned) {
       // A surface is only as certain as the room it sits in: an unmeasured room
       // makes every area-based surface on it an assumption too.
-      const isCounted = p.count > 0 && (p.surfaceType === "Door & Frame" || p.surfaceType === "Windows" || p.surfaceType === "Architrave");
+      const isCounted = p.count > 0 && /door|window|architrave/i.test(p.surfaceType);
       const origin: Origin = p.requiresConfirm || (!dimsRead && !isCounted) ? "ai_assumed" : "ai_derived";
       const assumed: string[] = [];
       if (p.requiresConfirm) assumed.push("included");
@@ -194,7 +209,7 @@ export function buildDraft(
     areas.push(area);
   }
 
-  return { areas, skipped, assumedCount };
+  return { areas, skipped, assumedCount, deferred };
 }
 
 /** Rooms the estimator must deal with before the estimate can be sent. */

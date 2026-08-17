@@ -44,87 +44,96 @@ const env = Object.fromEntries(
     .map((l) => [l.slice(0, l.indexOf("=")).trim(), l.slice(l.indexOf("=") + 1).trim()]),
 );
 
-const VERSION = 1;
+const VERSION = 2;
 
 /** surface_type, is_option, requires_confirm, notes (with the evidence count) */
 type Rule = [string, boolean, boolean, string];
 
 const SCOPE: Record<string, Rule[]> = {
+  // TOM'S RULES (v2, 17 Aug 2026) — these OVERRIDE what the 11 jobs show,
+  // because they are the standard he wants quoted, not a description of the
+  // past. Two deliberate changes from v1:
+  //
+  //   - CORNICES ARE NEVER STANDARD anywhere. They are still listed for each
+  //     room type, but scope.ts only generates one when a PHOTO shows a
+  //     cornice; otherwise it becomes a question in the review queue. Plenty of
+  //     these houses are square-set.
+  //
+  //   - BATHROOMS, ENSUITES AND WCs GET CEILING AND DOOR ONLY. Not walls.
+  //     (The 11 jobs did quote bathroom walls, so this narrows the default —
+  //     tiled walls are the norm and an unwanted wall line pads every wet area.
+  //     The estimator adds walls when the room actually needs them.)
   bedroom: [
     ["Walls", false, false, "25 lines / 14 rooms"],
     ["Ceiling", false, false, "17 lines"],
     ["Skirting Boards", false, false, "14 lines"],
-    ["Door & Frame", false, false, "18 lines incl. panel-door variants"],
-    ["Windows", false, false, "11 lines"],
-    ["Cornices", false, true, "9 lines / 14 rooms - NOT universal, confirm"],
-    ["Architrave", false, true, "3 lines only - usually inside the door line"],
+    ["Door & Frame", false, false, "only when a photo gives the door style"],
+    ["Windows", false, false, "only when a photo gives the window style"],
+    ["Cornices", false, false, "never standard - photo only"],
   ],
   living: [
     ["Walls", false, false, "8 lines / 7 rooms"],
     ["Ceiling", false, false, "9 lines"],
     ["Skirting Boards", false, false, "6 lines"],
-    ["Door & Frame", false, false, "8 lines incl. variants"],
-    ["Windows", false, false, "7 lines"],
-    ["Cornices", false, true, "4 lines / 7 rooms - confirm"],
+    ["Door & Frame", false, false, "photo only"],
+    ["Windows", false, false, "photo only"],
+    ["Cornices", false, false, "never standard - photo only"],
   ],
   dining: [
     ["Walls", false, false, "seen"],
     ["Ceiling", false, false, "seen"],
     ["Skirting Boards", false, false, "seen"],
-    ["Windows", false, false, "seen"],
-    ["Cornices", false, true, "confirm"],
+    ["Door & Frame", false, false, "photo only"],
+    ["Windows", false, false, "photo only"],
+    ["Cornices", false, false, "never standard - photo only"],
   ],
   study: [
     ["Walls", false, false, "3 lines / 2 rooms"],
     ["Ceiling", false, false, "3 lines"],
     ["Skirting Boards", false, false, "2 lines"],
-    ["Door & Frame", false, false, "4 lines"],
-    ["Windows", false, false, "2 lines"],
-    ["Cornices", false, true, "1 line - confirm"],
+    ["Door & Frame", false, false, "photo only"],
+    ["Windows", false, false, "photo only"],
+    ["Cornices", false, false, "never standard - photo only"],
   ],
   hallway: [
     ["Walls", false, false, "13 lines / 8 rooms - the most consistent surface anywhere"],
     ["Ceiling", false, true, "5 lines / 8 rooms - hallway ceilings are often left, confirm"],
     ["Skirting Boards", false, false, "5 lines"],
-    ["Door & Frame", false, false, "10 lines incl. variants - hallways carry the most doors"],
-    ["Cornices", false, true, "2 lines - confirm"],
+    ["Door & Frame", false, false, "photo only - hallways carry the most doors"],
+    ["Cornices", false, false, "never standard - photo only"],
   ],
+  // Wet areas: CEILING AND DOOR ONLY.
   bathroom: [
-    ["Walls", false, false, "7 lines / 5 rooms"],
-    ["Ceiling", false, false, "6 lines"],
-    ["Door & Frame", false, false, "8 lines incl. variants"],
-    ["Cornices", false, true, "3 lines - confirm"],
-    // Deliberately NO skirting: not one of 5 bathrooms had it.
+    ["Ceiling", false, false, "Tom's rule: ceiling and door only"],
+    ["Door & Frame", false, false, "photo only"],
+    ["Cornices", false, false, "never standard - photo only"],
   ],
   wc: [
-    ["Walls", false, false, "7 lines"],
-    ["Ceiling", false, false, "3 lines"],
-    ["Door & Frame", false, false, "7 lines incl. variants"],
-    ["Cornices", false, true, "3 lines - confirm"],
-    ["Skirting Boards", false, true, "2 lines only - confirm"],
+    ["Ceiling", false, false, "Tom's rule: ceiling and door only"],
+    ["Door & Frame", false, false, "photo only"],
+    ["Cornices", false, false, "never standard - photo only"],
   ],
   kitchen: [
     ["Walls", false, false, "5 lines / 4 rooms"],
     ["Ceiling", false, false, "3 lines"],
-    ["Door & Frame", false, false, "5 lines incl. variants"],
-    ["Architrave", false, true, "2 lines - confirm"],
-    ["Cabinets", true, true, "OPTION - never generated silently, priced only if asked for"],
-    // Deliberately NO skirting and NO splashback.
+    ["Door & Frame", false, false, "photo only"],
+    ["Cornices", false, false, "never standard - photo only"],
+    ["Cabinets", true, true, "OPTION - never generated silently"],
+    // No skirting and no splashback: not one of 4 real kitchens had them.
   ],
   laundry: [
     ["Walls", false, false, "4 lines / 2 rooms"],
     ["Ceiling", false, false, "2 lines"],
-    ["Door & Frame", false, false, "3 lines incl. variants"],
-    ["Cornices", false, true, "1 line - confirm"],
+    ["Door & Frame", false, false, "photo only"],
+    ["Cornices", false, false, "never standard - photo only"],
   ],
   storage: [
     ["Walls", false, false, "4 lines / 3 rooms (robe, pantry, store, linen)"],
     ["Ceiling", false, false, "5 lines"],
-    ["Architrave", false, true, "2 lines - confirm"],
     ["Shelving", true, true, "OPTION"],
   ],
   garage: [
-    ["Walls", false, true, "no garage in the 11 jobs - confirm whether it is lined"],
+    ["Walls", false, true, "confirm whether it is lined"],
     ["Ceiling", false, true, "confirm whether it is lined"],
   ],
   // 'unknown' deliberately generates nothing: it goes to the review queue.
@@ -150,7 +159,22 @@ const ALIASES: Array<[string, string]> = [
   ["study", "study"], ["office", "study"], ["far left office", "study"], ["upper board room", "study"],
   ["robe", "storage"], ["walk in robe", "storage"], ["pantry", "storage"], ["linen", "storage"],
   ["cupboard", "storage"], ["left store 1", "storage"], ["store", "storage"],
-  ["garage", "garage"],
+  ["garage", "garage"], ["double garage", "garage"], ["carpark", "garage"], ["carpark/storage", "garage"],
+  // Abbreviations the real plans actually print, found in the first live read.
+  ["ens", "bathroom"], ["bath", "bathroom"], ["pdr", "wc"], ["pwdr", "wc"],
+  ["ldry", "laundry"], ["l'dry", "laundry"], ["wm", "laundry"],
+  ["wir", "storage"], ["bir", "storage"], ["lin", "storage"], ["ptry", "storage"],
+  ["wip", "storage"], ["butler's pantry", "storage"], ["dressing room", "storage"],
+  ["store", "storage"], ["cupboard", "storage"],
+  ["sunroom", "living"], ["gym", "living"], ["multi-purpose room", "living"],
+  ["lounge/rumpus", "living"], ["meals living", "living"],
+  ["office", "study"], ["library / office", "study"],
+  // Not painted / not a room: skipped rather than guessed at.
+  ["lift", "excluded"], ["sauna", "excluded"], ["residence", "excluded"],
+  ["deck", "exterior_excluded"], ["balcony", "exterior_excluded"], ["terrace", "exterior_excluded"],
+  ["porch", "exterior_excluded"], ["verandah", "exterior_excluded"], ["patio", "exterior_excluded"],
+  ["undercover alfresco", "exterior_excluded"], ["covered alfresco", "exterior_excluded"],
+  ["rooftop balcony", "exterior_excluded"],
   ["alfresco", "exterior_excluded"], ["void", "excluded"], ["front door", "excluded"],
 ];
 
@@ -197,7 +221,10 @@ async function main() {
       version: VERSION, room_type, surface_type, is_option, requires_confirm, notes,
     })),
   );
-  const aliasRows = ALIASES.map(([alias, room_type]) => ({ version: VERSION, alias, room_type }));
+  // Dedupe: the list is edited by hand and a repeated alias makes Postgres
+  // refuse the whole upsert ("cannot affect row a second time"). Last wins.
+  const aliasMap = new Map(ALIASES.map(([alias, room_type]) => [alias.toLowerCase(), room_type]));
+  const aliasRows = [...aliasMap].map(([alias, room_type]) => ({ version: VERSION, alias, room_type }));
   const defectRows = DEFECTS.map(([defect_type, unit, h1, h2, h3]) => ({
     version: VERSION, defect_type, unit, hours_sev1: h1, hours_sev2: h2, hours_sev3: h3,
   }));

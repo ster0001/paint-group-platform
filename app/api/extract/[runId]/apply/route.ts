@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { buildDraft } from "@/lib/extract/draft";
 import { extractionSchema } from "@/lib/extract/schema";
-import type { ScopeRule, Alias } from "@/lib/extract/scope";
+import { SCOPE_VERSION, type ScopeRule, type Alias } from "@/lib/extract/scope";
 import { reportError } from "@/lib/monitoring/report";
 
 /**
@@ -28,6 +28,13 @@ const bodySchema = z.object({
   title: z.string().min(1).max(200).optional(),
   /** Attach to an estimate that already exists instead of making one. */
   estimateId: z.string().uuid().optional(),
+  /**
+   * REQUIRED (Tom's rule): the ceiling height, confirmed by the estimator, and
+   * applied to every room in the draft. It multiplies every wall in the job, so
+   * it is asked for once and never assumed silently. A photo may propose it;
+   * a human still confirms it.
+   */
+  ceilingHeightM: z.number().min(2).max(6),
 });
 
 export async function POST(request: Request, { params }: { params: Promise<{ runId: string }> }) {
@@ -68,13 +75,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ run
   }
 
   const [{ data: rules }, { data: aliases }] = await Promise.all([
-    supabase.from("room_type_scope_rules").select("room_type, surface_type, is_option, requires_confirm, notes").eq("version", 1),
-    supabase.from("room_name_aliases").select("alias, room_type").eq("version", 1),
+    supabase.from("room_type_scope_rules").select("room_type, surface_type, is_option, requires_confirm, notes").eq("version", SCOPE_VERSION),
+    supabase.from("room_name_aliases").select("alias, room_type").eq("version", SCOPE_VERSION),
   ]);
 
   const source = (run as unknown as { estimate_sources: { id: string; estimate_id: string | null } | null }).estimate_sources;
+  // The confirmed height replaces whatever the reading assumed, for every room.
+  const readingWithHeight = { ...reading.data, ceiling_height_m: parsedBody.data.ceilingHeightM };
+
   const draft = buildDraft(
-    reading.data,
+    readingWithHeight,
     (rules as ScopeRule[] | null) ?? [],
     (aliases as Alias[] | null) ?? [],
     { sourceId: source?.id ?? null },
@@ -134,6 +144,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ run
     surfaces: draft.areas.reduce((n, a) => n + a.surfaces.length, 0),
     assumedValues: draft.assumedCount,
     skipped: draft.skipped,
+    deferred: draft.deferred,
+    ceilingHeightM: parsedBody.data.ceilingHeightM,
     openAt: `/quote?id=${targetId}`,
   });
 }

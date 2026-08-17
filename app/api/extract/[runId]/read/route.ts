@@ -5,7 +5,7 @@ import { readFloorplanPage, hasApiKey } from "@/lib/extract/model";
 import { validateExtraction } from "@/lib/extract/validate";
 import { buildDraft } from "@/lib/extract/draft";
 import { PROMPT_VERSION } from "@/lib/extract/schema";
-import type { ScopeRule, Alias } from "@/lib/extract/scope";
+import { SCOPE_VERSION, type ScopeRule, type Alias } from "@/lib/extract/scope";
 import { reportError } from "@/lib/monitoring/report";
 
 /**
@@ -76,8 +76,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ru
 
   // ---- stage 4: scope mapping (no AI, rules from Settings) ------------------
   const [{ data: rules }, { data: aliases }] = await Promise.all([
-    supabase.from("room_type_scope_rules").select("room_type, surface_type, is_option, requires_confirm, notes").eq("version", 1),
-    supabase.from("room_name_aliases").select("alias, room_type").eq("version", 1),
+    supabase.from("room_type_scope_rules").select("room_type, surface_type, is_option, requires_confirm, notes").eq("version", SCOPE_VERSION),
+    supabase.from("room_name_aliases").select("alias, room_type").eq("version", SCOPE_VERSION),
   ]);
 
   const draft = buildDraft(
@@ -113,8 +113,11 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ru
     undimensioned: report.undimensionedRooms,
     areas: draft.areas.length,
     skipped: draft.skipped,
+    deferred: draft.deferred,
     assumedValues: draft.assumedCount,
     flags: report.flags,
     costCents: result.costCents,
+    /** null unless the plan itself printed one — the estimator confirms it. */
+    ceilingHeightM: result.extraction.ceiling_height_m,
   });
 }

@@ -21,7 +21,7 @@ import { z } from "zod";
  *      get painted.
  */
 
-export const PROMPT_VERSION = "floorplan-2026-08-17-a";
+export const PROMPT_VERSION = "floorplan-2026-08-17-b";
 
 const confidence = z.number().min(0).max(1);
 
@@ -33,8 +33,23 @@ export const roomTypes = [
   "hallway", "study", "storage", "garage", "exterior", "unknown",
 ] as const;
 
+/**
+ * The LEAF STYLE, which is what the rate card prices by. Flat and panel doors
+ * are different rates, so "unsure" has to be a real answer rather than a
+ * default — a door of unknown style is not generated at all (Tom's rule).
+ */
+export const doorStyles = ["flat", "panel", "unknown"] as const;
+
+/** Window styles, matching the rate card's own Interior Windows sub-category. */
+export const windowStyles = [
+  "fixed_picture", "awning_casement", "double_hung_sash", "colonial_bay", "unknown",
+] as const;
+
 export const doorSchema = z.object({
   type: z.enum(["internal_hinged", "sliding", "cased_opening", "external", "garage", "unknown"]),
+  /** Never guess: "unknown" means no door line is generated. */
+  style: z.enum(doorStyles),
+  style_confidence: confidence,
   // 12 m, not the 6 m this first had. A stacker, a bifold or a double garage
   // door genuinely runs past 6 m, and a whole plan was thrown away over one
   // door on a real read. Bounds here are for NONSENSE; anything merely
@@ -45,6 +60,9 @@ export const doorSchema = z.object({
 
 export const windowSchema = z.object({
   size_class: z.enum(["small", "medium", "large", "unknown"]),
+  /** Never guess: "unknown" means no window line is generated. */
+  style: z.enum(windowStyles),
+  style_confidence: confidence,
   confidence,
 });
 
@@ -59,6 +77,13 @@ export const roomSchema = z.object({
   /** Only when printed on the plan. Never estimated — that is the code's job. */
   area_m2_printed: z.number().positive().max(1000).nullable(),
   irregular: z.boolean(),
+  /**
+   * Whether this room HAS a cornice. A floorplan cannot show this, so it is
+   * "unknown" on a plan-only read and only a photo can settle it. Cornices are
+   * never added as standard (Tom's rule) - plenty of these houses are
+   * square-set.
+   */
+  cornice: z.enum(["present", "absent", "unknown"]),
   doors: z.array(doorSchema).max(20),
   windows: z.array(windowSchema).max(20),
   openings_no_door: z.number().int().min(0).max(10),
@@ -150,16 +175,27 @@ export const EXTRACTION_TOOL = {
             dimension_confidence: { type: "number" },
             area_m2_printed: { type: ["number", "null"] },
             irregular: { type: "boolean", description: "True for L-shaped or angled rooms" },
+            cornice: {
+              type: "string",
+              enum: ["present", "absent", "unknown"],
+              description: "Whether the room has a cornice. A FLOORPLAN CANNOT SHOW THIS - answer 'unknown' unless a photograph shows the wall/ceiling junction.",
+            },
             doors: {
               type: "array",
               items: {
                 type: "object",
                 properties: {
                   type: { type: "string", enum: ["internal_hinged", "sliding", "cased_opening", "external", "garage", "unknown"] },
+                  style: {
+                    type: "string",
+                    enum: ["flat", "panel", "unknown"],
+                    description: "Flat (smooth face) or panel (4-6 raised panels). A FLOORPLAN CANNOT SHOW THIS - answer 'unknown' unless you are looking at a photograph of the actual door.",
+                  },
+                  style_confidence: { type: "number" },
                   width_m: { type: ["number", "null"] },
                   confidence: { type: "number" },
                 },
-                required: ["type", "width_m", "confidence"],
+                required: ["type", "style", "style_confidence", "width_m", "confidence"],
               },
             },
             windows: {
@@ -168,9 +204,15 @@ export const EXTRACTION_TOOL = {
                 type: "object",
                 properties: {
                   size_class: { type: "string", enum: ["small", "medium", "large", "unknown"] },
+                  style: {
+                    type: "string",
+                    enum: ["fixed_picture", "awning_casement", "double_hung_sash", "colonial_bay", "unknown"],
+                    description: "A FLOORPLAN CANNOT SHOW THIS - answer 'unknown' unless you are looking at a photograph.",
+                  },
+                  style_confidence: { type: "number" },
                   confidence: { type: "number" },
                 },
-                required: ["size_class", "confidence"],
+                required: ["size_class", "style", "style_confidence", "confidence"],
               },
             },
             openings_no_door: { type: "integer", description: "Cased openings with no door leaf" },
@@ -180,7 +222,7 @@ export const EXTRACTION_TOOL = {
           required: [
             "name_on_plan", "normalised_type", "storey", "length_m", "width_m",
             "dimension_source", "dimension_confidence", "area_m2_printed", "irregular",
-            "doors", "windows", "openings_no_door", "wet_area", "notes_read_from_plan",
+            "cornice", "doors", "windows", "openings_no_door", "wet_area", "notes_read_from_plan",
           ],
         },
       },

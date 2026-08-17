@@ -35,16 +35,18 @@ const READING = {
       name_on_plan: "Main Bedroom", normalised_type: "bedroom", storey: "Ground",
       length_m: 4.1, width_m: 3.7, dimension_source: "read", dimension_confidence: 0.93,
       area_m2_printed: null, irregular: false,
-      doors: [{ type: "internal_hinged", width_m: 0.82, confidence: 0.9 }],
-      windows: [{ size_class: "medium", confidence: 0.85 }],
+      cornice: "present",
+      doors: [{ type: "internal_hinged", style: "flat", style_confidence: 0.9, width_m: 0.82, confidence: 0.9 }],
+      windows: [{ size_class: "medium", style: "awning_casement", style_confidence: 0.9, confidence: 0.85 }],
       openings_no_door: 0, wet_area: false, notes_read_from_plan: "",
     },
     {
       name_on_plan: "Bedroom 2", normalised_type: "bedroom", storey: "Ground",
       length_m: 3.2, width_m: 4.1, dimension_source: "read", dimension_confidence: 0.9,
       area_m2_printed: null, irregular: false,
-      doors: [{ type: "internal_hinged", width_m: 0.82, confidence: 0.88 }],
-      windows: [{ size_class: "medium", confidence: 0.8 }],
+      cornice: "unknown",
+      doors: [{ type: "internal_hinged", style: "flat", style_confidence: 0.9, width_m: 0.82, confidence: 0.88 }],
+      windows: [{ size_class: "medium", style: "awning_casement", style_confidence: 0.9, confidence: 0.8 }],
       openings_no_door: 0, wet_area: false, notes_read_from_plan: "",
     },
     {
@@ -53,7 +55,8 @@ const READING = {
       name_on_plan: "Bath", normalised_type: "bathroom", storey: "Ground",
       length_m: null, width_m: null, dimension_source: "not_dimensioned", dimension_confidence: 0.2,
       area_m2_printed: null, irregular: false,
-      doors: [{ type: "internal_hinged", width_m: 0.72, confidence: 0.8 }],
+      cornice: "unknown",
+      doors: [{ type: "internal_hinged", style: "flat", style_confidence: 0.9, width_m: 0.72, confidence: 0.8 }],
       windows: [], openings_no_door: 0, wet_area: true, notes_read_from_plan: "",
     },
   ],
@@ -88,7 +91,8 @@ test.describe("plan reader pipeline", () => {
 
     // ---- 3. apply: scope mapping + draft + write into the builder ----------
     const applied = await page.request.post(`/api/extract/${runId}/apply`, {
-      data: { title: "E2E — drafted from a floorplan" },
+      // The height is compulsory (Tom's rule) and applies to every room.
+      data: { title: "E2E — drafted from a floorplan", ceilingHeightM: 2.55 },
     });
     expect(applied.status()).toBe(200);
     const result = await applied.json();
@@ -113,7 +117,7 @@ test.describe("plan reader pipeline", () => {
     // The geometry the pricing engine will derive quantities from.
     expect(bed.L).toBe(4.1);
     expect(bed.W).toBe(3.7);
-    expect(bed.H).toBe(2.4);
+    expect(bed.H).toBe(2.55); // the confirmed height, not the 2.40 default
     expect(bed.kind).toBe("area");
     expect(bed.areaType).toBe("room");
 
@@ -140,7 +144,7 @@ test.describe("plan reader pipeline", () => {
     await expect(page.locator("body")).toContainText("Bath");
 
     // ---- 6. applying twice is refused --------------------------------------
-    const again = await page.request.post(`/api/extract/${runId}/apply`, { data: {} });
+    const again = await page.request.post(`/api/extract/${runId}/apply`, { data: { ceilingHeightM: 2.55 } });
     expect(again.status()).toBe(409);
 
     // ---- cleanup ------------------------------------------------------------

@@ -12,10 +12,11 @@ const RULES: ScopeRule[] = [
   { room_type: "bedroom", surface_type: "Skirting Boards", is_option: false, requires_confirm: false, notes: null },
   { room_type: "bedroom", surface_type: "Door & Frame", is_option: false, requires_confirm: false, notes: null },
   { room_type: "bedroom", surface_type: "Windows", is_option: false, requires_confirm: false, notes: null },
-  { room_type: "bedroom", surface_type: "Cornices", is_option: false, requires_confirm: true, notes: "not universal" },
-  { room_type: "bathroom", surface_type: "Walls", is_option: false, requires_confirm: false, notes: null },
+  { room_type: "bedroom", surface_type: "Cornices", is_option: false, requires_confirm: false, notes: "never standard" },
+  // Tom's rule: wet areas are ceiling and door only.
   { room_type: "bathroom", surface_type: "Ceiling", is_option: false, requires_confirm: false, notes: null },
   { room_type: "bathroom", surface_type: "Door & Frame", is_option: false, requires_confirm: false, notes: null },
+  { room_type: "bathroom", surface_type: "Cornices", is_option: false, requires_confirm: false, notes: "never standard" },
   { room_type: "kitchen", surface_type: "Walls", is_option: false, requires_confirm: false, notes: null },
   { room_type: "kitchen", surface_type: "Ceiling", is_option: false, requires_confirm: false, notes: null },
 ];
@@ -30,10 +31,13 @@ const room = (over: Partial<Extraction["rooms"][0]> = {}) => ({
   name_on_plan: "Bedroom 1", normalised_type: "bedroom" as const, storey: "Ground",
   length_m: 4.1, width_m: 3.7, dimension_source: "read" as const, dimension_confidence: 0.9,
   area_m2_printed: null, irregular: false,
-  doors: [{ type: "internal_hinged" as const, width_m: 0.82, confidence: 0.9 }],
-  windows: [{ size_class: "medium" as const, confidence: 0.8 }],
+  cornice: "unknown" as const,
+  doors: [{ type: "internal_hinged" as const, style: "unknown" as const, style_confidence: 0.1, width_m: 0.82, confidence: 0.9 }],
+  windows: [{ size_class: "medium" as const, style: "unknown" as const, style_confidence: 0.1, confidence: 0.8 }],
   openings_no_door: 0, wet_area: false, notes_read_from_plan: "", ...over,
 });
+const flatDoor = { type: "internal_hinged" as const, style: "flat" as const, style_confidence: 0.9, width_m: 0.82, confidence: 0.9 };
+const awningWindow = { size_class: "medium" as const, style: "awning_casement" as const, style_confidence: 0.9, confidence: 0.9 };
 
 const extraction = (rooms: Extraction["rooms"], over: Partial<Extraction> = {}): Extraction =>
   extractionSchema.parse({
@@ -65,30 +69,65 @@ test("an unrecognised name is 'unknown', never a guess", () => {
 
 // ---- scope ------------------------------------------------------------------
 
-test("a bedroom generates the surfaces the real jobs show", () => {
-  const planned = planSurfaces("bedroom", { doors: 1, windows: 2, openings: 0 }, RULES);
-  expect(planned.map((p) => p.surfaceType).sort()).toEqual(
-    ["Ceiling", "Cornices", "Door & Frame", "Skirting Boards", "Walls", "Windows"],
-  );
-  expect(planned.find((p) => p.surfaceType === "Windows")!.count).toBe(2);
+test("a door of UNKNOWN style is not priced — it becomes a question", () => {
+  const { surfaces, deferred } = planSurfaces("bedroom", {
+    doors: [{ style: "unknown" }, { style: "unknown" }],
+    windows: [], openings: 0, cornice: "unknown",
+  }, RULES);
+  expect(surfaces.map((s) => s.surfaceType)).not.toContain("Flat door & frame");
+  expect(deferred.find((d) => d.what.includes("door"))?.count).toBe(2);
+  expect(deferred.find((d) => d.what.includes("door"))?.needs).toMatch(/flat or panel/i);
 });
 
-test("no door drawn means no door line — a per-item rate is real money", () => {
-  const planned = planSurfaces("bedroom", { doors: 0, windows: 0, openings: 0 }, RULES);
-  expect(planned.map((p) => p.surfaceType)).not.toContain("Door & Frame");
-  expect(planned.map((p) => p.surfaceType)).not.toContain("Windows");
-  expect(planned.map((p) => p.surfaceType)).toContain("Walls");
+test("once a photo gives the style, the right rate code is used", () => {
+  const { surfaces } = planSurfaces("bedroom", {
+    doors: [{ style: "flat" }, { style: "panel" }],
+    windows: [{ style: "awning_casement" }], openings: 0, cornice: "unknown",
+  }, RULES);
+  const codes = surfaces.map((s) => s.rateCode);
+  expect(codes).toContain("Flat Door and Frame (1 Side)");
+  expect(codes).toContain("4-6 Panel Door and Frame (1 Side)");
+  expect(codes).toContain("Awning / Casement Window");
 });
 
-test("bathrooms and kitchens get no skirting, per the 11 real jobs", () => {
-  for (const type of ["bathroom", "kitchen"]) {
-    const planned = planSurfaces(type, { doors: 1, windows: 0, openings: 0 }, RULES);
-    expect(planned.map((p) => p.surfaceType)).not.toContain("Skirting Boards");
-  }
+test("mixed door styles in one room become separate lines with their own counts", () => {
+  const { surfaces } = planSurfaces("bedroom", {
+    doors: [{ style: "flat" }, { style: "flat" }, { style: "panel" }],
+    windows: [], openings: 0, cornice: "unknown",
+  }, RULES);
+  expect(surfaces.find((s) => s.rateCode === "Flat Door and Frame (1 Side)")!.count).toBe(2);
+  expect(surfaces.find((s) => s.rateCode === "4-6 Panel Door and Frame (1 Side)")!.count).toBe(1);
+});
+
+test("CORNICES ARE NEVER STANDARD — only a photo adds one", () => {
+  const unknown = planSurfaces("bedroom", { doors: [], windows: [], openings: 0, cornice: "unknown" }, RULES);
+  expect(unknown.surfaces.map((s) => s.surfaceType)).not.toContain("Cornices");
+  expect(unknown.deferred.some((d) => d.what === "cornice")).toBe(true);
+
+  const absent = planSurfaces("bedroom", { doors: [], windows: [], openings: 0, cornice: "absent" }, RULES);
+  expect(absent.surfaces.map((s) => s.surfaceType)).not.toContain("Cornices");
+  expect(absent.deferred.some((d) => d.what === "cornice")).toBe(false); // settled: there isn't one
+
+  const present = planSurfaces("bedroom", { doors: [], windows: [], openings: 0, cornice: "present" }, RULES);
+  expect(present.surfaces.find((s) => s.surfaceType === "Cornices")?.rateCode).toBe("Standard Cornices");
+});
+
+test("BATHROOMS GET CEILING AND DOOR ONLY — no walls, no skirting", () => {
+  const { surfaces } = planSurfaces("bathroom", {
+    doors: [{ style: "flat" }], windows: [], openings: 0, cornice: "unknown",
+  }, RULES);
+  const types = surfaces.map((s) => s.surfaceType);
+  expect(types).toContain("Ceiling");
+  expect(types).toContain("Flat door & frame");
+  expect(types).not.toContain("Walls");
+  expect(types).not.toContain("Skirting Boards");
 });
 
 test("an unknown room type generates nothing at all", () => {
-  expect(planSurfaces("unknown", { doors: 2, windows: 2, openings: 1 }, RULES)).toEqual([]);
+  const { surfaces } = planSurfaces("unknown", {
+    doors: [{ style: "flat" }], windows: [{ style: "awning_casement" }], openings: 1, cornice: "present",
+  }, RULES);
+  expect(surfaces).toEqual([]);
 });
 
 // ---- the draft tree ---------------------------------------------------------
@@ -112,7 +151,7 @@ test("a read room becomes an area the builder can price as-is", () => {
 });
 
 test("surfaces carry real rate-card codes, or are not generated", () => {
-  const { areas } = buildDraft(extraction([room()]), RULES, ALIASES);
+  const { areas } = buildDraft(extraction([room({ doors: [flatDoor], windows: [awningWindow] })]), RULES, ALIASES);
   const codes = areas[0].surfaces.map((s) => s.code);
   expect(codes).toContain("Walls");
   expect(codes).toContain("Ceilings");
@@ -134,13 +173,17 @@ test("an undimensioned wet area is generated at zero, not at an invented size", 
   expect(a.surfaces.length).toBeGreaterThan(0);
 });
 
-test("provenance is on every node, and a confirmed cornice is flagged", () => {
+test("provenance is on every node", () => {
   const { areas } = buildDraft(extraction([room()]), RULES, ALIASES);
-  const cornice = areas[0].surfaces.find((s) => s.internalLabel === "Cornices")!;
-  expect(cornice.origin).toBe("ai_assumed");
-  expect(cornice.assumedFields).toContain("included");
   const walls = areas[0].surfaces.find((s) => s.internalLabel === "Walls")!;
   expect(walls.origin).toBe("ai_derived");
+  expect(walls.confidence).toBeGreaterThan(0);
+});
+
+test("what was seen but not priced is reported as a decision, not lost", () => {
+  const { deferred } = buildDraft(extraction([room()]), RULES, ALIASES);
+  expect(deferred.some((d) => d.room === "Bedroom 1" && d.what.includes("door"))).toBe(true);
+  expect(deferred.some((d) => d.what === "cornice")).toBe(true);
 });
 
 test("skipped rooms are reported, never dropped", () => {
