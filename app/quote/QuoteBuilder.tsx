@@ -195,7 +195,7 @@ export default function QuoteBuilder({
   settings: Setting[];
   lineItems: LineItemRef[];
   areaNames: AreaNameRef[];
-  initial: { id: string | null; title: string | null; builder_state: unknown; share_token?: string | null; status?: string | null; sent_at?: string | null; valid_until?: string | null; presentation_id?: string | null } | null;
+  initial: { id: string | null; title: string | null; builder_state: unknown; share_token?: string | null; status?: string | null; sent_at?: string | null; valid_until?: string | null; presentation_id?: string | null; sent_snapshot?: unknown } | null;
   company: CompanyProfile;
   contacts: Contact[];
   inclusionTemplates?: InclusionTemplate[];
@@ -324,7 +324,26 @@ export default function QuoteBuilder({
   // Three views on the same record: Builder | Customer view | Work order.
   // Deep-linkable: the scheduling board sends staff straight to the work order
   // tab, which is the only place a job can be issued.
-  const [viewMode, setViewMode] = useState<"builder" | "customer" | "workorder">(initialView ?? "builder");
+  /**
+   * A saved estimate opens on the ESTIMATE view — the snapshot the customer is
+   * looking at — and editing is a deliberate act via "Edit estimate". A brand
+   * new estimate has nothing to show yet, so it opens in the builder.
+   */
+  const [viewMode, setViewMode] = useState<"builder" | "customer" | "workorder">(
+    initialView ?? (initial?.id ? "customer" : "builder"),
+  );
+  // Editing is off until asked for, so nobody changes a live quote by accident.
+  const [editing, setEditing] = useState(!initial?.id);
+
+  /**
+   * The published customer document. This — not a live rebuild of the current
+   * form state — is what both the customer and staff look at, so the two can
+   * never disagree. Saving republishes it, so it's held in state and refreshed
+   * there rather than needing a page reload.
+   */
+  const [sentSnapshot, setSentSnapshot] = useState<CustomerSnapshot | null>(
+    (initial?.sent_snapshot as CustomerSnapshot | null) ?? null,
+  );
   const customerView = viewMode === "customer";
   const workOrderView = viewMode === "workorder";
   // Work order editable fields — persisted to the work_orders row once it exists
@@ -622,6 +641,8 @@ export default function QuoteBuilder({
         window.history.replaceState(null, "", `/quote?id=${id}`);
       }
       setShareToken(token);
+      // Republished — keep the on-screen estimate in step without a reload.
+      setSentSnapshot(base.sent_snapshot);
       setSaveMsg("Saved ✓");
       return { id, token };
     } catch (e) {
@@ -1142,12 +1163,12 @@ export default function QuoteBuilder({
           <div className="inline-flex overflow-hidden rounded-md border border-line2" style={{ fontFamily: "var(--font-mono, monospace)" }}>
             {([
               { key: "builder", label: "BUILDER" },
-              { key: "customer", label: "CUSTOMER" },
+              { key: "customer", label: "ESTIMATE" },
               { key: "workorder", label: "WORK ORDER" },
             ] as const).map((t) => (
               <button
                 key={t.key}
-                onClick={() => { setViewMode(t.key); setView(null); }}
+                onClick={() => { if (t.key === "builder") setEditing(true); setViewMode(t.key); setView(null); }}
                 className={`px-3 py-2 text-[11px] font-medium tracking-wider ${viewMode === t.key ? "bg-accent text-accentink" : "text-gray-300 hover:bg-white/5"}`}
               >
                 {t.label}
@@ -1199,12 +1220,34 @@ export default function QuoteBuilder({
       {customerView && (
         /* ---- live customer view: the same dark page the customer opens ---- */
         <div className="mt-4">
-          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-700">
-            <span className="font-semibold">Customer view — live preview</span>
-            <span>· exactly what the customer sees. Save to publish your latest edits to their link.</span>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-700">
+            <span>
+              <span className="font-semibold">{sentSnapshot ? "The customer's copy" : "Not published yet"}</span>
+              <span>
+                {sentSnapshot
+                  ? " · exactly what they see at their link. Editing republishes it."
+                  : " · a preview. Sending publishes this to the customer."}
+              </span>
+            </span>
+            {!locked && (
+              <button
+                onClick={() => { setEditing(true); setViewMode("builder"); }}
+                className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+              >
+                Edit estimate
+              </button>
+            )}
           </div>
           <div className="cv overflow-hidden rounded-xl border border-gray-200">
-            <CustomerEstimate snapshot={buildCustomerDoc(shareToken ?? "PREVIEW00")} validUntil={validUntil} sentAt={sentAt} preview />
+            {/* Published snapshot when there is one — this is literally the
+                customer's copy. Only an unsent estimate falls back to a live
+                build, because there is nothing published yet. */}
+            <CustomerEstimate
+              snapshot={(sentSnapshot as ReturnType<typeof buildCustomerDoc> | null) ?? buildCustomerDoc(shareToken ?? "PREVIEW00")}
+              validUntil={validUntil}
+              sentAt={sentAt}
+              preview
+            />
           </div>
         </div>
       )}
@@ -1239,6 +1282,23 @@ export default function QuoteBuilder({
           <div className="mt-4 overflow-hidden rounded-xl border border-gray-200">
             <WorkOrderDoc doc={computeWorkOrderDoc()} edit={woEdit} />
           </div>
+        </div>
+      )}
+
+      {/* Editing something the customer is already looking at is worth saying out
+          loud — saving republishes their copy underneath them. */}
+      {editing && sentSnapshot && !customerView && !workOrderView && !locked && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <span>
+            <span className="font-semibold">Editing a published estimate</span>
+            <span> · the customer can already see this quote. Saving republishes it to their link.</span>
+          </span>
+          <button
+            onClick={() => setViewMode("customer")}
+            className="rounded-md border border-amber-300 bg-white px-2.5 py-1 font-medium hover:bg-amber-100"
+          >
+            Back to the estimate
+          </button>
         </div>
       )}
 
