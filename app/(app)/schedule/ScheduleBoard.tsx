@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { expiryFromNow, msRemaining, isReschedule, formatDMY, type BookingOffer } from "@/lib/scheduling/offers";
+import { msRemaining, isReschedule, formatDMY, type BookingOffer } from "@/lib/scheduling/offers";
+import { sendOfferAction, reassignOfferAction, moveBookingAction, blockOutAction, type ActionResult } from "./actions";
 import type { Block, Lane, TrayJob } from "@/lib/scheduling/board";
 import "./schedule.css";
 
@@ -406,100 +407,67 @@ export default function ScheduleBoard({
     setTimeout(() => setToast(""), 3600);
   }
 
+  /** Surface a typed action result; a conflict is a refresh prompt, not a crash. */
+  function handle(r: ActionResult, successMsg: string): boolean {
+    if (r.ok) { flash(successMsg); router.refresh(); return true; }
+    setErr(r.message);
+    if (r.kind === "conflict") router.refresh(); // pull the real state back in
+    return false;
+  }
+
   async function sendOffer() {
     if (!pendingDrop?.job) return;
     setBusy(true);
     setErr("");
-    try {
-      const lane = lanes.find((l) => l.contractorId === pendingDrop.contractorId);
-      if (lane && !lane.active) {
-        throw new Error(`${lane.name}'s access is suspended — restore it on the Contractors page before offering work.`);
-      }
-      const end = addDays(pendingDrop.startDate, pendingDrop.spanDays - 1);
-      // Assign first so the work order and the offer agree on who has it.
-      await supabase.from("work_orders").update({ contractor_id: pendingDrop.contractorId }).eq("id", pendingDrop.job.workOrderId);
-      const { error } = await supabase.from("booking_offers").insert({
-        work_order_id: pendingDrop.job.workOrderId,
-        contractor_id: pendingDrop.contractorId,
-        start_date: pendingDrop.startDate,
-        end_date: end,
-        hours_allowance: pendingDrop.job.hours,
-        payment_cents: pendingDrop.job.paymentCents,
-        expires_at: expiryFromNow(),
-      });
-      if (error) {
-        if (/booking_offers_one_live/.test(error.message)) throw new Error("That job already has a live offer out.");
-        throw error;
-      }
-      setPendingDrop(null);
-      flash("Offer sent — the contractor has 24 hours to respond.");
-      router.refresh();
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e));
-    } finally {
-      setBusy(false);
-    }
+    // No amount crosses the wire. The server derives the contractor's payment
+    // from the work order's stored pricing — the client couldn't forge it.
+    const r = await sendOfferAction({
+      workOrderId: pendingDrop.job.workOrderId,
+      contractorId: pendingDrop.contractorId,
+      startDate: pendingDrop.startDate,
+      endDate: addDays(pendingDrop.startDate, pendingDrop.spanDays - 1),
+      note: "",
+    });
+    if (handle(r, "Offer sent — the contractor has 24 hours to respond.")) setPendingDrop(null);
+    setBusy(false);
   }
 
   async function moveBooking() {
     if (!pendingDrop?.block) return;
+    const b = pendingDrop.block;
     setBusy(true);
     setErr("");
-    try {
-      const b = pendingDrop.block;
+    const endDate = addDays(pendingDrop.startDate, pendingDrop.spanDays - 1);
+    const expectedState = b.kind === "accepted" ? "accepted" : b.kind === "proposed" ? "proposed" : "offered";
+    const reassigning = b.contractorId !== pendingDrop.contractorId;
 
-      // Dropped on a DIFFERENT contractor: that's a reassignment, not a nudge of
-      // the dates. Cancel the existing offer first so the one-live-offer rule
-      // holds, then send a fresh one to the new contractor.
-      if (b.contractorId !== pendingDrop.contractorId) {
-        if (b.offerId) {
-          const { data } = await supabase.rpc("cancel_booking", { p_offer_id: b.offerId, p_reason: "Reassigned to another contractor" });
-          if (String(data).startsWith("error:")) throw new Error(String(data).replace("error:", ""));
-        }
-        await supabase.from("work_orders").update({ contractor_id: pendingDrop.contractorId }).eq("id", b.workOrderId!);
-        const { error: insErr } = await supabase.from("booking_offers").insert({
-          work_order_id: b.workOrderId,
-          contractor_id: pendingDrop.contractorId,
-          start_date: pendingDrop.startDate,
-          end_date: addDays(pendingDrop.startDate, pendingDrop.spanDays - 1),
-          payment_cents: b.paymentCents,
-          expires_at: expiryFromNow(),
+    // Reassigning is cancel-then-re-offer, which must be ONE transaction — a
+    // half-done reassignment leaves a job belonging to nobody.
+    const r = reassigning
+      ? await reassignOfferAction({
+          offerId: b.offerId!,
+          newContractorId: pendingDrop.contractorId,
+          startDate: pendingDrop.startDate,
+          endDate,
+          expectedState,
+        })
+      : await moveBookingAction({
+          offerId: b.offerId!,
+          startDate: pendingDrop.startDate,
+          endDate,
+          expectedState,
         });
-        if (insErr) throw insErr;
-        setPendingDrop(null);
-        flash("Reassigned — a fresh 24-hour offer has gone to the new contractor.");
-        router.refresh();
-        return;
-      }
-      if (b.workOrderId) {
-        await supabase.from("work_orders").update({ start_date: pendingDrop.startDate, contractor_id: pendingDrop.contractorId }).eq("id", b.workOrderId);
-      }
-      if (b.offerId) {
-        await supabase
-          .from("booking_offers")
-          .update({ start_date: pendingDrop.startDate, end_date: addDays(pendingDrop.startDate, pendingDrop.spanDays - 1) })
-          .eq("id", b.offerId);
-      }
-      setPendingDrop(null);
-      flash("Booking moved.");
-      router.refresh();
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e));
-    } finally {
-      setBusy(false);
-    }
+
+    if (handle(r, reassigning
+      ? "Reassigned — a fresh 24-hour offer has gone to the new contractor."
+      : "Booking moved.")) setPendingDrop(null);
+    setBusy(false);
   }
 
-  async function blockOut(contractorId: string, s: string, e: string, reason: string) {
+  async function blockOut(contractorId: string, from: string, to: string, reason: string) {
     setBusy(true);
-    const { error } = await supabase.from("contractor_unavailability").insert({
-      contractor_id: contractorId, start_date: s, end_date: e, reason, source: "staff",
-    });
-    if (error) setErr(error.message);
-    else {
-      flash("Days blocked out.");
-      router.refresh();
-    }
+    setErr("");
+    handle(await blockOutAction({ contractorId, startDate: from, endDate: to, reason }), "Days blocked out.");
     setBusy(false);
   }
 

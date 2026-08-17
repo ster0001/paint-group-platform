@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { withdrawOfferAction, sendOfferAction } from "@/app/(app)/schedule/actions";
 import {
   OFFER_COLUMNS,
   formatDMY,
   OFFER_CHIP_STAFF,
   effectiveState,
-  expiryFromNow,
   formatCountdown,
   isLive,
   msRemaining,
@@ -32,16 +32,13 @@ export default function OfferPanel({
   contractorId,
   contractorName,
   defaultStart,
-  defaultHours,
-  defaultPaymentCents,
   issued,
 }: {
   workOrderId: string | null;
   contractorId: string | null;
   contractorName: string;
   defaultStart: string | null;
-  defaultHours: number;
-  defaultPaymentCents: number;
+  /** No hours or payment props: the server derives both. Deliberately absent. */
   issued: boolean;
 }) {
   const supabase = createClient();
@@ -109,23 +106,16 @@ export default function OfferPanel({
       if (!issued) throw new Error("Issue the work order before offering it.");
       if (!start) throw new Error("Pick a start date.");
 
-      const { error } = await supabase.from("booking_offers").insert({
-        work_order_id: workOrderId,
-        contractor_id: contractorId,
-        start_date: start,
-        end_date: end || null,
-        hours_allowance: defaultHours || null,
-        payment_cents: defaultPaymentCents || null,
-        staff_note: note,
-        expires_at: expiryFromNow(),
+      // The server derives the payment from the work order — this screen no
+      // longer sends an amount at all.
+      const r = await sendOfferAction({
+        workOrderId,
+        contractorId,
+        startDate: start,
+        endDate: end || null,
+        note,
       });
-      if (error) {
-        // The partial unique index is the real guard against double-sending.
-        if (/booking_offers_one_live/.test(error.message)) {
-          throw new Error("This job already has a live offer out. Withdraw it before sending another.");
-        }
-        throw error;
-      }
+      if (!r.ok) throw new Error(r.message);
       setMsg("Offer sent. The contractor has 24 hours to respond.");
       setNote("");
       await load();
@@ -136,13 +126,15 @@ export default function OfferPanel({
     }
   }
 
-  async function withdraw(id: string) {
+  async function withdraw(id: string, expectedState: string) {
     setBusy(true);
     setErr("");
     setMsg("");
-    const { error } = await supabase.from("booking_offers").update({ state: "withdrawn", responded_at: new Date().toISOString() }).eq("id", id);
-    if (error) setErr(error.message);
-    else setMsg("Offer withdrawn.");
+    // Goes through the server boundary: one transaction, and the expected state
+    // guards against a stale tab withdrawing something already answered.
+    const r = await withdrawOfferAction({ offerId: id, expectedState });
+    if (r.ok) setMsg("Offer withdrawn.");
+    else setErr(r.message);
     await load();
     setBusy(false);
   }
@@ -208,7 +200,7 @@ export default function OfferPanel({
               </div>
             </div>
           )}
-          <button onClick={() => withdraw(liveOffer.id)} disabled={busy} className="mt-2 text-xs font-medium text-amber-900 underline hover:no-underline disabled:opacity-50">
+          <button onClick={() => withdraw(liveOffer.id, effectiveState(liveOffer))} disabled={busy} className="mt-2 text-xs font-medium text-amber-900 underline hover:no-underline disabled:opacity-50">
             Withdraw offer
           </button>
         </div>

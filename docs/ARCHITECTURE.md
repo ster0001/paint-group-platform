@@ -4,6 +4,69 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## R2b — the server boundary for estimate send and accept
+
+**2026-08-17 · `supabase/migrations/20260903000000`, `app/quote/actions.ts`,
+`lib/validation/estimate.ts`**
+
+Two holes closed.
+
+**Accepting a quote no longer trusts the browser's total.** `accept_estimate`
+took `p_total_cents` from its caller, and that caller is the customer's browser
+on a public token page — anyone with the link could accept a $9,800 quote for
+$1, and the deposit invoice is raised from that figure. It now derives the total
+from the estimate's own stored snapshot and ignores what it is handed. The
+parameters stay for compatibility; `estimate_events` records the figure the
+client claimed alongside the one actually used, so an attempt is visible.
+
+**Sending is a guarded transition.** `send_estimate` refuses to send an accepted
+(locked) quote and returns `conflict:<status>` if the screen's idea of the state
+is stale. `estimates.status`, `sent_at`, `accepted_at`, `accepted_name` and
+`accepted_signature` are revoked from client roles; everything the builder
+legitimately saves stays writable.
+
+**Still open, and it needs a decision:** `estimates.subtotal_cents` and
+`total_cents` are still written by the builder on save. Recomputing them
+server-side needs `SUPABASE_SERVICE_ROLE_KEY` in the server environment —
+permitted by CLAUDE.md, but the app has no such key today. Until then those two
+columns remain client-written. Flagged rather than half-done.
+
+---
+
+## R2 — the server boundary for booking money and state
+
+**2026-08-17 · `supabase/migrations/20260902000000`, `lib/validation/booking.ts`,
+`app/(app)/schedule/actions.ts`**
+
+Booking writes no longer come from the browser. Each transition is one
+SECURITY DEFINER function = one transaction (`send_offer`, `withdraw_offer`,
+`reassign_offer`, `move_booking`), fronted by a server action that zod-validates
+its input and checks the caller is staff.
+
+Three properties worth stating plainly:
+
+1. **No amount crosses the wire.** `send_offer` reads the payment from
+   `work_orders.contractor_payment_cents`, which the server wrote from
+   `lib/pricing` — the reason R1 came first. The zod schemas have no field for
+   an amount, deliberately.
+2. **Every transition takes the expected current state** and returns
+   `conflict:<actual>` if the row has moved on. A stale tab can no longer
+   withdraw an offer the contractor already accepted; it gets "refresh".
+3. **The back door is shut.** `revoke insert, update, delete on booking_offers
+   from authenticated`, and `work_orders` keeps write access only to the
+   hand-editable columns (crew notes, colours, access notes). Calling
+   supabase-js directly with the anon key is refused by the database, not just
+   discouraged by the UI.
+
+Contractor-side responses (`respond_to_offer`, `resolve_proposed_offer`,
+`cancel_booking`) already had this shape and were left alone.
+
+**Deferred to R2b:** estimate send/accept still write status directly, and
+`accept_estimate` still takes a total from the caller. Invoices and variations
+don't exist yet, so their RPCs wait for the features.
+
+---
+
 ## R1 — estimate pricing extracted to `lib/pricing/`
 
 **2026-08-17 · `lib/pricing/estimate.ts`, `app/quote/QuoteBuilder.tsx`**
