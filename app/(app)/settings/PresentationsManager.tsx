@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { acceptAttr, checkUpload, type UploadKind } from "@/lib/uploads/validate";
 import PresentationBlocks from "@/app/e/[token]/PresentationBlocks";
 
 type Block = { id: string; kind: string; position: number; enabled: boolean; content: Record<string, unknown> };
@@ -154,12 +155,32 @@ function T({ label, value, onChange, area }: { label: string; value: string; onC
     </label>
   );
 }
-function Up({ label, bucket, path, onDone }: { label: string; bucket: string; path: string; onDone: (p: string) => void }) {
+function Up({ label, bucket, kind, path, onDone }: { label: string; bucket: string; kind: UploadKind; path: string; onDone: (p: string) => void }) {
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
   return (
-    <label className="inline-flex cursor-pointer items-center gap-2 text-xs">
+    <label className="inline-flex cursor-pointer flex-wrap items-center gap-2 text-xs">
       <span className="rounded-md border border-gray-300 px-2 py-1 font-medium hover:bg-gray-50">{busy ? "Uploading…" : path ? `${label} ✓` : label}</span>
-      <input type="file" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; setBusy(true); try { onDone(await upload(bucket, f)); } catch { /* */ } setBusy(false); }} />
+      <input
+        type="file"
+        accept={acceptAttr(kind)}
+        className="hidden"
+        onChange={async (e) => {
+          const f = e.target.files?.[0];
+          if (!f) return;
+          const bad = checkUpload(f, kind);
+          if (bad) { setErr(bad); return; }
+          setBusy(true);
+          setErr("");
+          // This used to swallow the error and simply stop looking busy, which
+          // reads as "uploaded" — the file was silently missing from the
+          // presentation the customer then saw.
+          try { onDone(await upload(bucket, f)); }
+          catch (x) { setErr(x instanceof Error ? x.message : String((x as { message?: string })?.message ?? "Upload failed")); }
+          setBusy(false);
+        }}
+      />
+      {err && <span className="text-red-600">{err}</span>}
     </label>
   );
 }
@@ -180,8 +201,8 @@ function BlockEditor({ block, onChange }: { block: Block; onChange: (c: Record<s
         <T label="Caption subtitle" value={String(v.caption_sub ?? "")} onChange={(x) => setV({ caption_sub: x })} />
         <T label="Duration label" value={String(v.duration_label ?? "")} onChange={(x) => setV({ duration_label: x })} />
         <div className="flex gap-3">
-          <Up label="Poster image" bucket="presentation-media" path={String(v.poster_path ?? "")} onDone={(p) => setV({ poster_path: p })} />
-          <Up label="Video file (fallback)" bucket="presentation-media" path={String(v.storage_path ?? "")} onDone={(p) => setV({ storage_path: p })} />
+          <Up label="Poster image" bucket="presentation-media" kind="image" path={String(v.poster_path ?? "")} onDone={(p) => setV({ poster_path: p })} />
+          <Up label="Video file (fallback)" bucket="presentation-media" kind="video" path={String(v.storage_path ?? "")} onDone={(p) => setV({ storage_path: p })} />
         </div>
       </div>
     );
@@ -198,8 +219,8 @@ function BlockEditor({ block, onChange }: { block: Block; onChange: (c: Record<s
             <div className="flex items-center justify-between"><span className="text-[11px] font-medium text-gray-500">Pair {i + 1}</span>
               <button onClick={() => set({ pairs: pairs.filter((_, j) => j !== i) })} className="text-xs text-gray-400 hover:text-red-600">remove</button></div>
             <div className="mt-1 flex gap-3">
-              <Up label="Before" bucket="presentation-media" path={String(p.before_path ?? "")} onDone={(x) => setPair(i, { before_path: x })} />
-              <Up label="After" bucket="presentation-media" path={String(p.after_path ?? "")} onDone={(x) => setPair(i, { after_path: x })} />
+              <Up label="Before" bucket="presentation-media" kind="image" path={String(p.before_path ?? "")} onDone={(x) => setPair(i, { before_path: x })} />
+              <Up label="After" bucket="presentation-media" kind="image" path={String(p.after_path ?? "")} onDone={(x) => setPair(i, { after_path: x })} />
             </div>
             <T label="Info title" value={String(p.info_title ?? "")} onChange={(x) => setPair(i, { info_title: x })} />
             <T label="Info subtitle" value={String(p.info_subtitle ?? "")} onChange={(x) => setPair(i, { info_subtitle: x })} />
@@ -247,7 +268,7 @@ function BlockEditor({ block, onChange }: { block: Block; onChange: (c: Record<s
             <T label="Body" value={String(cc.body ?? "")} onChange={(x) => setCard(i, { body: x })} area />
             <div className="flex items-center gap-3">
               <T label="Attachment button label (optional)" value={String(att.label ?? "")} onChange={(x) => setCard(i, { attachment: { ...att, label: x } })} />
-              <Up label="PDF" bucket="presentation-docs" path={String(att.doc_path ?? "")} onDone={(x) => setCard(i, { attachment: { ...att, doc_path: x } })} />
+              <Up label="PDF" bucket="presentation-docs" kind="document" path={String(att.doc_path ?? "")} onDone={(x) => setCard(i, { attachment: { ...att, doc_path: x } })} />
             </div>
           </div>
         );

@@ -33,6 +33,7 @@ import { finishFromModifier } from "@/lib/workorder/finish";
 import OfferPanel from "./OfferPanel";
 import { sendEstimateAction } from "./actions";
 import { issueWorkOrderAction, setWorkOrderScheduleAction } from "./workOrderActions";
+import { acceptAttr, checkUpload } from "@/lib/uploads/validate";
 
 type WorkOrderRow = {
   id: string; wo_ref: string; status: string; contractor_id: string | null; start_date: string | null;
@@ -2498,6 +2499,12 @@ function MediaUploader({ items, onChange }: { items: MediaItem[]; onChange: (m: 
 
   async function onFiles(files: FileList | null) {
     if (!files || !files.length) return;
+    // Check the whole selection first: uploading half a batch and then failing
+    // leaves the user guessing which photos made it.
+    for (const f of Array.from(files)) {
+      const bad = checkUpload(f, "image");
+      if (bad) { setErr(`${f.name}: ${bad}`); return; }
+    }
     setBusy(true);
     setErr("");
     const supabase = createClient();
@@ -2542,7 +2549,7 @@ function MediaUploader({ items, onChange }: { items: MediaItem[]; onChange: (m: 
         ))}
         <label className="flex h-16 w-16 cursor-pointer items-center justify-center rounded border border-dashed border-gray-300 text-center text-[11px] text-gray-400 hover:bg-white">
           {busy ? "…" : "+ Photo"}
-          <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => onFiles(e.target.files)} />
+          <input type="file" accept={acceptAttr("image")} multiple className="hidden" onChange={(e) => onFiles(e.target.files)} />
         </label>
       </div>
       {err && <p className="mt-1 text-xs text-red-600">{err}</p>}

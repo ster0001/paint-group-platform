@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { acceptAttr, checkUpload } from "@/lib/uploads/validate";
 
 export type Col = {
   key: string;
@@ -82,6 +83,8 @@ export default function EditableTable({
   // in the row. The user still clicks Save to persist it, like every other cell.
   async function uploadImage(r: Row, key: string, file?: File | null) {
     if (!file) return;
+    const bad = checkUpload(file, "image");
+    if (bad) { setMsg((m) => ({ ...m, [rid(r)]: bad })); return; }
     setUploading(`${rid(r)}:${key}`);
     setMsg((m) => ({ ...m, [rid(r)]: "" }));
     const supabase = createClient();
@@ -135,7 +138,7 @@ export default function EditableTable({
                         )}
                         <label className="cursor-pointer text-xs font-medium text-blue-600 hover:text-blue-800">
                           {uploading === `${rid(r)}:${c.key}` ? "Uploading…" : r[c.key] ? "Change" : "Upload"}
-                          <input type="file" accept="image/*" className="hidden" onChange={(e) => uploadImage(r, c.key, e.target.files?.[0])} />
+                          <input type="file" accept={acceptAttr("image")} className="hidden" onChange={(e) => uploadImage(r, c.key, e.target.files?.[0])} />
                         </label>
                         {r[c.key] ? (
                           <button onClick={() => setCell(r, c.key, null)} className="text-xs text-gray-400 hover:text-red-600">remove</button>

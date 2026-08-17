@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { acceptAttr, checkUpload } from "@/lib/uploads/validate";
 import type { CompanyProfile } from "@/app/quote/company";
 
 export default function SettingsForm({ initial }: { initial: CompanyProfile }) {
@@ -15,6 +16,8 @@ export default function SettingsForm({ initial }: { initial: CompanyProfile }) {
   // Remember to click Save to keep it — like every other field here.
   async function uploadLogo(file?: File | null) {
     if (!file) return;
+    const bad = checkUpload(file, "image");
+    if (bad) { setMsg(bad); return; }
     setUploading(true);
     setMsg("");
     const supabase = createClient();
@@ -75,7 +78,7 @@ export default function SettingsForm({ initial }: { initial: CompanyProfile }) {
           <div className="flex flex-col gap-1.5">
             <label className="inline-flex w-fit cursor-pointer items-center rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium hover:bg-gray-50">
               {uploading ? "Uploading…" : c.logoUrl ? "Replace logo" : "Upload logo"}
-              <input type="file" accept="image/*" className="hidden" onChange={(e) => uploadLogo(e.target.files?.[0])} />
+              <input type="file" accept={acceptAttr("image")} className="hidden" onChange={(e) => uploadLogo(e.target.files?.[0])} />
             </label>
             {c.logoUrl && (
               <button onClick={() => set("logoUrl", "")} className="w-fit text-xs text-gray-400 hover:text-red-600">Remove</button>
