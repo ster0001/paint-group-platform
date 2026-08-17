@@ -55,7 +55,37 @@ clearly is 0.9+; one you are inferring from a smudge is 0.3.`;
 
 export type ReadResult =
   | { ok: true; extraction: Extraction; model: string; promptVersion: string; inputTokens: number; outputTokens: number; costCents: number }
-  | { ok: false; message: string; code: "no_api_key" | "refused" | "invalid_output" | "api_error" };
+  | { ok: false; message: string; code: "no_api_key" | "no_credit" | "rate_limited" | "bad_key" | "overloaded" | "refused" | "invalid_output" | "api_error" };
+
+/**
+ * Turn the API's own error into something an estimator can act on.
+ *
+ * Without this the raw failure reaches the screen as a JSON blob — which is
+ * exactly what happened the first time a plan was read against an account with
+ * no credit on it. "Your credit balance is too low" buried in a request-id dump
+ * tells a painter nothing about what to do.
+ */
+type FailCode = "no_api_key" | "no_credit" | "rate_limited" | "bad_key" | "overloaded" | "refused" | "invalid_output" | "api_error";
+
+function interpretApiError(raw: string): { code: FailCode; message: string } {
+  const t = raw.toLowerCase();
+  if (t.includes("credit balance")) {
+    return {
+      code: "no_credit",
+      message: "The Anthropic account has no credit left, so plans can't be read. Top it up under Plans & Billing and try again.",
+    };
+  }
+  if (t.includes("authentication") || t.includes("invalid x-api-key") || t.includes("invalid_api_key")) {
+    return { code: "bad_key", message: "The Anthropic API key was rejected. Check ANTHROPIC_API_KEY on the server." };
+  }
+  if (t.includes("rate limit") || t.includes("rate_limit")) {
+    return { code: "rate_limited", message: "Too many plans at once — wait a moment and read this page again." };
+  }
+  if (t.includes("overloaded")) {
+    return { code: "overloaded", message: "The model is busy. Try this page again in a minute." };
+  }
+  return { code: "api_error", message: `The plan couldn't be read: ${raw.slice(0, 300)}` };
+}
 
 /** Opus 4.5 list pricing, in cents per million tokens. */
 const COST_IN_PER_MTOK = 500;
@@ -111,7 +141,9 @@ export async function readFloorplanPage(
       ],
     });
   } catch (e) {
-    return { ok: false, code: "api_error", message: e instanceof Error ? e.message : String(e) };
+    const raw = e instanceof Error ? e.message : String(e);
+    const { code, message } = interpretApiError(raw);
+    return { ok: false, code, message };
   }
 
   const toolUse = response.content.find((c) => c.type === "tool_use");

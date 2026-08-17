@@ -61,6 +61,19 @@ function fail(status: number, message: string, extra: Record<string, unknown> = 
   return NextResponse.json({ error: message, ...extra }, { status });
 }
 
+/**
+ * Supabase Storage sometimes returns an error whose `message` is empty, which
+ * reached the screen as "Couldn't store that file: " and told nobody anything.
+ * A transient blip during a batch upload is exactly when a diagnosable message
+ * matters most.
+ */
+function describeStorageError(e: unknown): string {
+  const err = e as { message?: string; name?: string; statusCode?: string | number; status?: number } | null;
+  const parts = [err?.message, err?.name, err?.statusCode != null ? `status ${err.statusCode}` : null,
+                 err?.status != null ? `status ${err.status}` : null].filter(Boolean);
+  return parts.length ? parts.join(" · ") : "the storage service refused it without saying why — try again";
+}
+
 export async function POST(request: Request) {
   const supabase = await createClient();
 
@@ -116,7 +129,7 @@ export async function POST(request: Request) {
     });
     if (up.error) {
       reportError(up.error, { where: "extract.upload", extra: { path: originalPath } });
-      return fail(502, `Couldn't store that file: ${up.error.message}`);
+      return fail(502, `Couldn't store that file: ${describeStorageError(up.error)}`);
     }
 
     const pages: PageRow[] = [];
@@ -139,7 +152,7 @@ export async function POST(request: Request) {
         if (full.error || thumb.error) {
           const e = full.error ?? thumb.error;
           reportError(e, { where: "extract.uploadPage", extra: { pagePath } });
-          return fail(502, `Couldn't store page ${page.pageNo}: ${e?.message}`);
+          return fail(502, `Couldn't store page ${page.pageNo}: ${describeStorageError(e)}`);
         }
 
         pages.push({
