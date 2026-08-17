@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { acceptAttr, checkUpload } from "@/lib/uploads/validate";
 
 export type ProductRow = {
   id?: string;
@@ -69,6 +70,8 @@ export default function ProductsManager({ initial }: { initial: ProductRow[] }) 
 
   async function uploadPhoto(r: ProductRow, file?: File | null) {
     if (!file) return;
+    const bad = checkUpload(file, "image");
+    if (bad) { setMsg((m) => ({ ...m, [rid(r)]: bad })); return; }
     setUploading(rid(r));
     const supabase = createClient();
     try {
@@ -260,7 +263,7 @@ export default function ProductsManager({ initial }: { initial: ProductRow[] }) 
                         </label>
                         <label className="inline-flex cursor-pointer items-center rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium hover:bg-gray-50">
                           {uploading === id ? "Uploading…" : r.photo_url ? "Change photo" : "Upload photo"}
-                          <input type="file" accept="image/*" className="hidden" onChange={(e) => uploadPhoto(r, e.target.files?.[0])} />
+                          <input type="file" accept={acceptAttr("image")} className="hidden" onChange={(e) => uploadPhoto(r, e.target.files?.[0])} />
                         </label>
                         {r.photo_url && <button onClick={() => patch(r, { photo_url: null })} className="text-xs text-gray-400 hover:text-red-600">remove photo</button>}
                         <div className="ml-auto flex items-center gap-2">

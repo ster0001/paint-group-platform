@@ -21,6 +21,20 @@ export type ContractorSummary = {
   bookedJobs: number;
 };
 
+/** An unacknowledged change to where a contractor gets paid. */
+export type BankAlert = {
+  id: string;
+  contractorId: string;
+  name: string;
+  /** Already formatted for Melbourne on the server — render as-is. */
+  when: string;
+  bsb: string;
+  last4: string;
+  prevBsb: string;
+  prevLast4: string;
+  firstTime: boolean;
+};
+
 export type InviteRow = {
   id: string;
   email: string;
@@ -37,9 +51,11 @@ const TIERS = ["A", "B", "C"];
 export default function ContractorsManager({
   contractors,
   invites,
+  bankAlerts,
 }: {
   contractors: ContractorSummary[];
   invites: InviteRow[];
+  bankAlerts: BankAlert[];
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -144,6 +160,25 @@ export default function ContractorsManager({
     setBusy(null);
   }
 
+  /**
+   * Clear one bank-change alert. Deliberately worded as "I've checked this"
+   * rather than "dismiss": the point of the queue is that a human confirmed the
+   * new account with the contractor before the next payment run, which is the
+   * control that stops invoice-redirection fraud.
+   */
+  async function acknowledgeBank(eventId: string) {
+    setBusy(eventId);
+    setErr("");
+    const { data, error } = await supabase.rpc("acknowledge_contractor_event", { p_event_id: eventId });
+    if (error) setErr(error.message);
+    else if (String(data).startsWith("error:")) setErr(String(data).replace("error:", ""));
+    else {
+      setMsg("Marked as checked.");
+      router.refresh();
+    }
+    setBusy(null);
+  }
+
   async function setTier(id: string, tier: string) {
     setBusy(id);
     setErr("");
@@ -183,6 +218,48 @@ export default function ContractorsManager({
 
       {err && <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{err}</div>}
       {msg && <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{msg}</div>}
+
+      {/* ---- bank changes waiting to be checked ---- */}
+      {bankAlerts.length > 0 && (
+        <div className="mb-6 rounded-lg border border-red-300 bg-red-50 p-4">
+          <div className="text-sm font-semibold text-red-900">
+            Bank details changed — check before you pay
+            {bankAlerts.length > 1 ? ` (${bankAlerts.length})` : ""}
+          </div>
+          <p className="mt-1 text-xs text-red-800">
+            Ring the contractor on a number you already had — not one from the message that
+            told you about the change — and confirm the account before the next payment run.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {bankAlerts.map((a) => (
+              <li key={a.id} className="flex flex-wrap items-center gap-3 rounded-md bg-white px-3 py-2 text-sm">
+                <div className="min-w-0 flex-1">
+                  <span className="font-medium">{a.name}</span>
+                  <span className="text-gray-500"> · {a.when}</span>
+                  <div className="mt-0.5 font-mono text-xs text-gray-700">
+                    {a.firstTime ? (
+                      <>first account added — {a.bsb} · ···· {a.last4}</>
+                    ) : (
+                      <>
+                        {a.prevBsb || "—"} · ···· {a.prevLast4 || "—"}
+                        <span className="mx-1.5 font-sans text-red-700" aria-label="changed to">→</span>
+                        <b>{a.bsb} · ···· {a.last4}</b>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => acknowledgeBank(a.id)}
+                  disabled={busy === a.id}
+                  className="rounded-md border border-red-300 bg-white px-2.5 py-1 text-xs font-medium text-red-800 hover:bg-red-100 disabled:opacity-50"
+                >
+                  {busy === a.id ? "…" : "I've checked this"}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* ---- invite form ---- */}
       {showInvite && (

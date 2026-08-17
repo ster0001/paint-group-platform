@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { signout } from "@/app/auth/actions";
+import { acceptAttr, checkUpload } from "@/lib/uploads/validate";
 import {
   DOC_LABEL,
   daysUntil,
@@ -35,6 +36,12 @@ function friendly(e: unknown): string {
   }
   if (/row-level security/i.test(msg)) {
     return "You don't have permission to change that.";
+  }
+  // The bucket's own limits (migration 20260905000000). The browser check below
+  // catches these first, but a phone that reports no MIME type can still get
+  // here, and "mime type application/octet-stream is not supported" helps nobody.
+  if (/mime type|exceeded the maximum allowed size|payload too large/i.test(msg)) {
+    return "That file isn't one we can accept here — try a PDF or a photo, and keep it small.";
   }
   return msg;
 }
@@ -105,6 +112,10 @@ export default function ProfileForm({
     setCompanyErr("");
     setCompanyMsg("");
     try {
+      // Checked here so the painter is told before the file goes up; the bucket
+      // enforces the same rule server-side either way.
+      const bad = checkUpload(file, "image");
+      if (bad) throw new Error(bad);
       // Path must start with the contractor id — that's what the storage policy checks.
       const ext = file.name.split(".").pop()?.toLowerCase() || "png";
       const path = `${contractor.id}/logo.${ext}`;
@@ -165,6 +176,8 @@ export default function ProfileForm({
     setDocErr("");
     setDocMsg("");
     try {
+      const bad = checkUpload(file, "document");
+      if (bad) throw new Error(bad);
       const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
       const path = `${contractor.id}/${docKind}-${crypto.randomUUID().slice(0, 8)}-${safe}`;
       const { error: upErr } = await supabase.storage.from(DOCS_BUCKET).upload(path, file);
@@ -356,7 +369,7 @@ export default function ProfileForm({
             <input
               ref={logoInput}
               type="file"
-              accept="image/*"
+              accept={acceptAttr("image")}
               style={{ display: "none" }}
               onChange={(e) => {
                 const f = e.target.files?.[0];
@@ -508,7 +521,7 @@ export default function ProfileForm({
         <input
           ref={docInput}
           type="file"
-          accept="application/pdf,image/*"
+          accept={acceptAttr("document")}
           style={{ display: "none" }}
           onChange={(e) => {
             const f = e.target.files?.[0];

@@ -4,6 +4,62 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## R4 — upload limits, the bank-change alert, and two small things
+
+**2026-08-17 · `lib/uploads/validate.ts`, `supabase/migrations/20260905000000`
+–`20260907000000`, `app/(app)/contractors/`, `app/join/[token]/page.tsx`**
+
+Four independent audit findings, none of which needed the others.
+
+**Uploads are constrained by the bucket, not the file input (C5).** All six
+upload paths went browser → Storage with only `accept=` between them and the
+bucket, which is a UI hint. Each bucket now declares `file_size_limit` and
+`allowed_mime_types`, so Storage refuses an oversized or wrong-typed file
+whether or not a browser was involved. `lib/uploads/validate.ts` holds the same
+rules for the pre-flight message, so a painter is told *before* pushing 200 MB
+up a phone connection. SVG is on no list anywhere: it can carry script.
+
+**Bank changes raise an alert (S10).** `contractor_set_bank` has always written
+a `bank_changed` event; nothing read it. The event now records what the details
+changed *from*, and only fires when they actually moved. `/contractors` opens
+with a queue of unacknowledged changes — old account → new — that staff clear
+with "I've checked this" (`acknowledge_contractor_event`). This is the
+invoice-redirection control; encryption and masking were already in place.
+`contractor_events` lost all client write access in the process: every event is
+written by a SECURITY DEFINER function, and an audit trail its subject can edit
+is not one.
+
+**`/join/<unknown>` 404s (S2).** It rendered a friendly 200, which told a
+guesser the difference between "no such invite" and "one that was revoked".
+Real-but-dead invites (revoked, used, expired) keep their friendly page — the
+painter holding one deserves to know which it is.
+
+**`work_orders.contractor_id` is indexed (S4)** — it sits in the portal's RLS
+policy, so it was evaluated on every contractor read of the table.
+
+---
+
+## R3 batch 1 — work orders through the server (recorded late)
+
+**2026-08-17 · `supabase/migrations/20260904000000`, `app/quote/workOrderActions.ts`**
+
+R2 revoked `wo_snapshot`, `contractor_payment_cents`, `status`, `issued_at`,
+`contractor_id` and `start_date` on `work_orders` from client roles — correctly,
+since they are money and state — but the builder still wrote them directly, so
+"Issue to contractor", the contractor dropdown and the start-date field had been
+broken on the live database since that migration ran.
+
+`issue_work_order` takes no document and no amount: the server reads both from
+the estimate's saved work-order document, the same source `accept_estimate`
+uses, so restoring the button cannot reopen the hole R2 closed.
+`set_work_order_schedule` handles the contractor and start-date controls and
+refuses to reassign underneath a live offer (`conflict:live_offer`) rather than
+silently desyncing the work order from the offer. Hand-edited content — colours,
+crew notes, hours overrides — still writes directly under RLS; it is neither
+money nor state.
+
+---
+
 ## R2b — the server boundary for estimate send and accept
 
 **2026-08-17 · `supabase/migrations/20260903000000`, `app/quote/actions.ts`,
@@ -119,9 +175,10 @@ This replaces the previous "staff see a live rebuild of current form state"
 behaviour, which could disagree with what the customer was looking at and
 breached the standard that token surfaces render snapshots, never live drafts.
 
-**Still non-compliant here:** `save()` writes `estimates.status` directly
-instead of going through a state-transition function (tracked as C3 in the
-audit). The pricing-in-component problem was fixed in R1, above.
+**Since fixed:** `save()` used to write `estimates.status` directly instead of
+going through a state-transition function (C3 in the audit) — R2b replaced that
+with `send_estimate` and revoked the column. The pricing-in-component problem
+was fixed in R1.
 
 ---
 
@@ -145,7 +202,8 @@ insurance document that exists in storage **and** has been verified by staff.
 `offerable`, `tier`, `active` and the bank columns are withheld from client
 writes by column privileges.
 
-**Still non-compliant here:** the staff scheduling board writes
-`work_orders`/`booking_offers` directly from the browser rather than through
-transactional RPCs, and offer amounts are supplied by the client instead of
-being recomputed server-side. Tracked in the standards audit.
+**Since fixed:** the staff scheduling board used to write
+`work_orders`/`booking_offers` directly from the browser, with the offer amount
+supplied by the client. R2 moved every booking transition into a transactional
+RPC and R3 did the same for the work order; the client no longer sends an
+amount at all.

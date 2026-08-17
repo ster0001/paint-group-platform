@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import JoinForm from "./JoinForm";
 import "@/app/portal/portal.css";
@@ -12,11 +13,12 @@ export const metadata: Metadata = {
 
 type Preview = { email: string; name: string; company_name: string; status: string };
 
+// A token that has never existed 404s, the same as /e/ and /w/. The friendly
+// pages below are for links that WERE real — telling those apart is helpful to
+// the painter holding one. Doing the same for an unknown string would answer a
+// question only someone guessing tokens is asking: it confirms the difference
+// between "no such invite" and "an invite that was revoked".
 const MESSAGES: Record<string, { heading: string; body: string }> = {
-  not_found: {
-    heading: "This link isn't valid",
-    body: "Check you copied the whole thing. If it still doesn't work, ask Paint Group to send you a new one.",
-  },
   revoked: {
     heading: "This link has been cancelled",
     body: "Paint Group withdrew this invitation. Give them a call if you think that's a mistake.",
@@ -42,7 +44,8 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
   const status = preview?.status ?? "not_found";
 
   if (status !== "valid") {
-    const m = MESSAGES[status] ?? MESSAGES.not_found;
+    const m = MESSAGES[status];
+    if (!m) notFound(); // unknown token — and anything unrecognised is treated as one
     return (
       <div className="pt">
         <div className="phone" style={{ paddingBottom: 24 }}>
