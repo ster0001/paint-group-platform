@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test lib/pricing/engine.test.ts"
+    "test": "node --test lib/pricing/*.test.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

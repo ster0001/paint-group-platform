@@ -1,7 +1,24 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { hoursPerUnit } from "@/lib/pricing/engine";
+import {
+  priceSurface,
+  priceLine,
+  priceEstimateTotals,
+  chargeOutCents,
+  jobModifier,
+  productNameFor as pricingProductNameFor,
+  itemIndex,
+  productIndex,
+  resolveRates,
+  depositCents as pricingDepositCents,
+  type PricingContext,
+  type Adjustments,
+  type AreaInput,
+  type SurfaceInput,
+  type LineInput,
+  type BlockInput,
+} from "@/lib/pricing/estimate";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import EstimateHeader from "./EstimateHeader";
@@ -142,28 +159,6 @@ function relTime(iso: string): string {
 
 // Quantity for a surface, from the AREA's dimensions and Room/Surface geometry.
 // A surface can still override with a direct m²/lineal/count value.
-function computeQuantity(item: RateItem | undefined, area: Area, s: Surface): number {
-  if (!item) return 0;
-  if (s.qtyOverride != null) return s.qtyOverride;
-  if (item.unit === "Hours Per Item") return s.count;
-  // Per-surface measurement override (takes precedence over the area size).
-  if (item.unit === "Lineal Metres") {
-    if (s.measureL != null) return s.measureL;
-  } else if (s.measureL != null && s.measureH != null) {
-    return s.measureL * s.measureH;
-  }
-  const flat = /ceiling|floor|roof|soffit/i.test(item.sub_category ?? "");
-  const { L, W, H } = area;
-  if (area.areaType === "surface") {
-    // a single plane: length × height (area), or just length (lineal)
-    if (item.unit === "Lineal Metres") return L || 0;
-    return L && H ? L * H : 0;
-  }
-  // a room: four walls (perimeter × height), ceilings/floors (L × W), lineal = perimeter
-  if (item.unit === "Lineal Metres") return L && W ? 2 * (L + W) : 0;
-  if (flat) return L && W ? L * W : 0;
-  return L && W && H ? 2 * (L + W) * H : 0;
-}
 const unitLabel = (item?: RateItem) =>
   !item ? "" : item.unit === "Hours Per Item" ? "items" : item.unit === "Lineal Metres" ? "m" : "m²";
 
@@ -206,25 +201,7 @@ export default function QuoteBuilder({
   initialView?: "builder" | "customer" | "workorder";
   presentations?: { id: string; name: string; blocks: { kind: string; position: number; enabled: boolean; content: unknown }[] }[];
 }) {
-  const normKey = (k: string) => k.replace(/[^a-z0-9]+/gi, " ").trim().toLowerCase();
-  const settingsMap = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const s of settings) {
-      const v = s.value == null ? undefined : typeof s.value === "number" ? s.value : s.value.value;
-      if (v != null) m.set(normKey(s.key), v);
-    }
-    return m;
-  }, [settings]);
-  const sNum = (k: string) => settingsMap.get(normKey(k));
-  const markup = sNum("Materials markup") ?? 0.1;
-  const gstRate = sNum("GST") ?? 0.1;
-  const sundriesIntCents = Math.round((sNum("Sundries per job — interior") ?? 0) * 100);
-  const sundriesExtCents = Math.round((sNum("Sundries per job — exterior") ?? 0) * 100);
-  const contractorHourlyCents = Math.round((sNum("Contractor rate") ?? 60) * 100);
-  const offerPct = sNum("Contractor offer — % of estimated hours") ?? 1;
-  const chargeFor = (t: string) =>
-    hourlyRateOverride != null ? Math.round(hourlyRateOverride * 100)
-      : rateItems.find((r) => r.category === t)?.charge_out_cents ?? (t === "Interior" ? 8500 : 10000);
+  const chargeFor = (t: string) => chargeOutCents(t, rateItems, hourlyRateOverride);
 
   const itemByKey = useMemo(() => {
     const m = new Map<string, RateItem>();
@@ -277,8 +254,9 @@ export default function QuoteBuilder({
   const colourFor = (type: string, s: Surface): { name: string; hex: string } =>
     s.color ? { name: s.color, hex: s.colorHex || "" } : materialColours[materialKey(type, s.code)] ?? { name: "", hex: "" };
   // Effective product NAME for a surface: pin → global → rate-card default.
+  // Delegates to lib/pricing so product resolution has one definition, not two.
   const productNameFor = (type: string, s: Surface): string | null =>
-    s.productName ?? materials[materialKey(type, s.code)] ?? itemByKey.get(materialKey(type, s.code))?.default_product ?? null;
+    pricingProductNameFor(type, s as unknown as SurfaceInput, materials, itemByKey);
   const [contact, setContact] = useState<Contact | null>(() => loaded?.contact ?? null);
   const [jobAddress, setJobAddress] = useState<JobAddress | null>(() => loaded?.jobAddress ?? null);
   // Deposit payable on acceptance, as a % of the GST-inclusive total. Defaults to 50%.
@@ -500,104 +478,60 @@ export default function QuoteBuilder({
       }),
     );
 
-  const modMult = (group: string) => (modSel[group] ? modifiers.find((m) => m.code === modSel[group])?.multiplier : undefined);
   const finishChosen = !!modSel["Level of Finish"];
-  const jobMod =
-    (modMult("Condition") ?? 1) *
-    (modMult("Access") ?? 1) *
-    (modMult("Level of Finish") ?? 1) *
-    (modMult("Job Size") ?? 1) *
-    (modSel["Staging"] ? modifiers.find((m) => m.code === modSel["Staging"])!.multiplier : 1);
 
   // ---- pricing ----
-  const surfaceCalc = (area: Area, s: Surface): SurfaceCalc => {
-    const chargeBase = s.useCustomRate && s.customRate != null ? Math.round(s.customRate * 100) : chargeFor(area.type);
-    const item = itemByKey.get(`${area.type}::${s.code}`);
-    if (!item) return { qty: 0, rate: 0, isItem: false, chargeCents: chargeBase, paintingHr: 0, prepHr: s.prepHr, labourCents: Math.round(s.prepHr * chargeBase), volume: 0, unitPriceCents: 0, matCostCents: 0, matPriceCents: 0, totalCents: Math.round(s.prepHr * chargeBase) };
-    const qty = computeQuantity(item, area, s);
-    const isItem = item.unit === "Hours Per Item";
-    const baseHpu = hoursPerUnit(item, s.coats);
-    const dispRate = s.rateOverride ?? (isItem ? baseHpu : 1 / baseHpu);
-    const baseHours = isItem ? dispRate * qty : dispRate > 0 ? qty / dispRate : 0;
-    const paintingHr = s.paintingHrOverride ?? baseHours * jobMod;
-    const charge = chargeBase;
-    const labourCents = Math.round((paintingHr + s.prepHr) * charge);
+  // All arithmetic lives in lib/pricing. This component only assembles the
+  // inputs and renders what comes back — it must never compute a cent itself,
+  // because the server has to be able to reproduce the same numbers.
+  const pricingCtx: PricingContext = useMemo(
+    () => ({ rateItems, products, modifiers, settings }),
+    [rateItems, products, modifiers, settings],
+  );
+  const adjustments: Adjustments = useMemo(
+    () => ({ modSel, materials, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride }),
+    [modSel, materials, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride],
+  );
+  const rates = useMemo(() => resolveRates(pricingCtx, adjustments), [pricingCtx, adjustments]);
+  const gstRate = rates.gstRate;
+  const contractorHourlyCents = rates.contractorHourlyCents;
 
-    const prodName = productNameFor(area.type, s);
-    const product = prodName ? productByName.get(prodName) : undefined;
-    const wastage = (product?.wastage_pct ?? 0) / 100;
-    const coverage = s.coverageOverride ?? product?.coverage ?? null;
-    let volume = s.volumeOverride;
-    if (volume == null) {
-      if (isItem) volume = item.litres_per_item_per_coat != null ? qty * s.coats * item.litres_per_item_per_coat * (1 + wastage) : 0;
-      else if (item.metres_per_litre != null) volume = (qty * s.coats) / item.metres_per_litre * (1 + wastage);
-      else if (coverage) volume = (qty * s.coats) / coverage * (1 + wastage);
-      else volume = 0;
-    }
-    const unitPriceCents = s.unitPriceOverride != null ? Math.round(s.unitPriceOverride * 100) : product?.price_per_litre ?? 0;
-    const matCostCents = Math.round(volume * unitPriceCents);
-    const matPriceCents = Math.round(matCostCents * (1 + markup));
-    // A manual price override sets the surface total; labour absorbs the difference
-    // so contractor hours and materials cost (and therefore margin) stay honest.
-    const computedTotal = labourCents + matPriceCents;
-    const totalCents = s.priceOverride != null ? Math.round(s.priceOverride * 100) : computedTotal;
-    const finalLabour = s.priceOverride != null ? totalCents - matPriceCents : labourCents;
-    return { qty, item, rate: dispRate, isItem, chargeCents: charge, paintingHr, prepHr: s.prepHr, labourCents: finalLabour, volume, unitPriceCents, matCostCents, matPriceCents, totalCents };
+  const itemsIdx = useMemo(() => itemIndex(rateItems), [rateItems]);
+  const productsIdx = useMemo(() => productIndex(products), [products]);
+  const jobMod = useMemo(() => jobModifier(modifiers, modSel), [modifiers, modSel]);
+
+  /** Thin adapter: the module's result plus the rate item the UI labels with. */
+  const surfaceCalc = (area: Area, s: Surface): SurfaceCalc => {
+    const r = priceSurface(
+      area as unknown as AreaInput,
+      s as unknown as SurfaceInput,
+      pricingCtx,
+      adjustments,
+      rates,
+      itemsIdx,
+      productsIdx,
+      jobMod,
+    );
+    return { ...r, item: itemsIdx.get(`${area.type}::${s.code}`) };
   };
-  const lineCalc = (l: LineBlock) => {
-    let priceCents = 0;
-    let hours = 0;
-    let costCents = Math.round(l.cost * 100);
-    if (l.mode === "hourly") {
-      hours = l.hours;
-      priceCents = Math.round(l.hours * l.rate * 100);
-      costCents = 0; // labour paid via contractor offer
-    } else if (l.mode === "quantity") {
-      priceCents = Math.round(l.qty * l.unitPrice * 100);
-      hours = l.woHours;
-    } else {
-      priceCents = Math.round(l.custom * 100);
-      hours = l.woHours;
-    }
-    return { priceCents, hours, costCents };
-  };
+  const lineCalc = (l: LineBlock) => priceLine(l as unknown as LineInput);
 
   const totals = useMemo(() => {
-    let subtotal = 0, contractorHours = 0, materialsCost = 0;
-    let anyInt = false, anyExt = false;
-    for (const b of blocks) {
-      if (b.isOption) continue; // options are outside the total until added
-      if (b.kind === "area") {
-        if (b.type === "Interior") anyInt = true; else anyExt = true;
-        for (const s of b.surfaces) {
-          const c = surfaceCalc(b, s);
-          subtotal += c.totalCents;
-          contractorHours += c.paintingHr + c.prepHr;
-          materialsCost += c.matCostCents;
-        }
-      } else {
-        if (b.type === "Interior") anyInt = true; else anyExt = true;
-        const c = lineCalc(b);
-        subtotal += c.priceCents;
-        contractorHours += c.hours;
-        materialsCost += c.costCents;
-      }
-    }
-    const sundries = (anyInt ? sundriesIntCents : 0) + (anyExt ? sundriesExtCents : 0);
-    subtotal += sundries;
-    // Discount comes off the ex-GST subtotal (and out of our margin) — either a
-    // percentage or a flat dollar amount, capped so it can't exceed the subtotal.
-    const discountCents = discountMode === "fixed"
-      ? Math.min(discountFixedCents || 0, subtotal)
-      : Math.round(subtotal * (discountPct || 0) / 100);
-    const netSubtotal = subtotal - discountCents;
-    const gst = Math.round(netSubtotal * gstRate);
-    const effContractorHourlyCents = contractorRateOverride != null ? Math.round(contractorRateOverride * 100) : contractorHourlyCents;
-    const contractorOffer = Math.round(contractorHours * effContractorHourlyCents * offerPct);
-    const margin = netSubtotal - contractorOffer - materialsCost;
-    return { subtotal, sundries, discountCents, netSubtotal, gst, total: netSubtotal + gst, contractorHours, contractorOffer, materialsCost, margin };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [blocks, modSel, materials, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride]);
+    const t = priceEstimateTotals(blocks as unknown as BlockInput[], pricingCtx, adjustments);
+    // Same field names the component has always used, so nothing below changes.
+    return {
+      subtotal: t.subtotalCents,
+      sundries: t.sundriesCents,
+      discountCents: t.discountCents,
+      netSubtotal: t.netSubtotalCents,
+      gst: t.gstCents,
+      total: t.totalCents,
+      contractorHours: t.contractorHours,
+      contractorOffer: t.contractorOfferCents,
+      materialsCost: t.materialsCostCents,
+      margin: t.marginCents,
+    };
+  }, [blocks, pricingCtx, adjustments]);
 
   const marginPct = totals.subtotal > 0 ? (totals.margin / totals.subtotal) * 100 : 0;
   const salesRateCents = totals.contractorHours > 0 ? Math.round(totals.subtotal / totals.contractorHours) : 0;
@@ -1568,7 +1502,7 @@ export default function QuoteBuilder({
                   />
                   %
                 </span>
-                <span className="font-semibold tabular-nums">{fmt(Math.round(totals.total * depositPct / 100))}</span>
+                <span className="font-semibold tabular-nums">{fmt(pricingDepositCents(totals.total, depositPct))}</span>
               </div>
               <div className="!mt-3 grid grid-cols-2 gap-2 text-center">
                 <Stat label="Total hours" value={totals.contractorHours.toFixed(2)} />
