@@ -25,7 +25,15 @@ async function staffDb(): Promise<SupabaseClient> {
 const makeEstimate = async (sb: SupabaseClient, status: string) => {
   const { data, error } = await sb
     .from("estimates")
-    .insert({ title: `E2E delete test (${status})`, status, builder_state: { blocks: [] } })
+    .insert({
+      title: `E2E delete test (${status})`,
+      status,
+      builder_state: { blocks: [] },
+      // The schema refuses a non-draft estimate without a level of finish
+      // (estimates_finish_required_when_sent) — which this test tripped over,
+      // proving that constraint live in passing.
+      level_of_finish: status === "draft" ? null : 3,
+    })
     .select("id")
     .single();
   if (error) throw new Error(error.message);

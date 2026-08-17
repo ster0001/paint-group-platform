@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Build your estimate · Paint Group</title>
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0A0B0D;--panel:#12161A;--panel2:#171C21;--line:#242B32;--text:#EDF0F2;--muted:#8C959D;
+--cyan:#3BD8E9;--oncyan:#03272D;--amber:#E0A83C;--emerald:#2FA46B;--clay:#B3574A;
+--sans:"Switzer",-apple-system,sans-serif;--mono:"Martian Mono",ui-monospace,monospace}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--ink);color:var(--text);font-family:var(--sans);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.top{position:sticky;top:0;z-index:40;display:flex;align-items:center;justify-content:space-between;padding:13px 20px;background:rgba(10,11,13,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.wm{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.22em}.wm span{color:var(--cyan)}
+.dots{display:flex;gap:7px;align-items:center}
+.dots i{width:7px;height:7px;border-radius:50%;background:var(--line);font-style:normal;transition:all .25s}
+.dots i.on{background:var(--cyan);width:20px;border-radius:100px}
+.dots i.done{background:var(--emerald)}
+.wrap{max-width:640px;margin:0 auto;padding:34px 20px 130px}
+.step{display:none}.step.show{display:block;animation:in .3s}
+@keyframes in{from{opacity:0;transform:translateY(8px)}to{opacity:1}}
+.kick{font-family:var(--mono);font-size:10px;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;margin-bottom:10px}
+h1{font-weight:600;font-size:clamp(24px,5vw,32px);letter-spacing:-.03em;line-height:1.15;margin-bottom:8px}
+.sub{color:var(--muted);font-size:15px;margin-bottom:24px}
+.field{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:12px;color:var(--text);font-family:var(--sans);font-size:15px;padding:15px 16px;outline:none;margin-bottom:12px}
+.field:focus{border-color:var(--cyan)}
+.or{display:flex;align-items:center;gap:12px;color:var(--muted);font-family:var(--mono);font-size:9px;letter-spacing:.16em;margin:14px 0}
+.or::before,.or::after{content:"";flex:1;height:1px;background:var(--line)}
+.upload{border:1.5px dashed var(--line);border-radius:12px;padding:22px;text-align:center;color:var(--muted);cursor:pointer;font-size:14.5px}
+.upload:hover{border-color:var(--cyan);color:var(--text)}
+.linkish{background:none;border:none;color:var(--cyan);font-family:var(--sans);font-size:14px;cursor:pointer;text-decoration:underline;text-underline-offset:3px;margin-top:14px}
+.seg{display:flex;gap:8px;margin-top:20px}
+.seg button{flex:1;padding:13px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--muted);font-family:var(--sans);font-size:14.5px;font-weight:500;cursor:pointer}
+.seg button.on{border-color:var(--cyan);color:var(--text);background:rgba(59,216,233,.07)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:9px}
+.tile{position:relative;padding:14px 12px;border-radius:11px;border:1px solid var(--line);background:var(--panel);color:var(--muted);font-size:14px;font-weight:500;cursor:pointer;text-align:left}
+.tile.on{border-color:var(--cyan);color:var(--text);background:rgba(59,216,233,.07)}
+.tile.on::after{content:"✓";position:absolute;top:9px;right:11px;color:var(--cyan);font-size:12px}
+.cards{display:flex;flex-direction:column;gap:10px}
+.card{border:1px solid var(--line);background:var(--panel);border-radius:13px;padding:17px;cursor:pointer}
+.card.on{border-color:var(--cyan);background:rgba(59,216,233,.06)}
+.card b{display:block;font-size:15.5px;font-weight:600;margin-bottom:3px}
+.card span{font-size:13.5px;color:var(--muted)}
+.card .coats{float:right;font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--cyan);border:1px solid rgba(59,216,233,.35);border-radius:100px;padding:3px 9px}
+.follow{margin-top:16px;padding:16px;border:1px solid var(--line);border-left:2px solid var(--cyan);border-radius:0 12px 12px 0;background:var(--panel2);display:none}
+.follow.show{display:block;animation:in .25s}
+.follow .q{font-size:14.5px;font-weight:600;margin-bottom:10px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:8px 14px;border-radius:100px;border:1px solid var(--line);background:none;color:var(--muted);font-family:var(--sans);font-size:13px;cursor:pointer}
+.chip.on{border-color:var(--cyan);color:var(--cyan)}
+.qhead{font-size:15.5px;font-weight:600;margin:24px 0 10px}
+.pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:9px}
+.pk{border:1px solid var(--line);border-radius:11px;background:var(--panel);padding:10px;cursor:pointer;text-align:center}
+.pk.on{border-color:var(--cyan);background:rgba(59,216,233,.06)}
+.pk svg{width:100%;height:64px;display:block;margin-bottom:7px}
+.pk small{font-size:12.5px;color:var(--text);font-weight:500}
+.photo-stub{margin-top:12px;border:1.5px dashed var(--amber);border-radius:11px;padding:14px;color:var(--amber);font-size:13.5px;text-align:center;cursor:pointer;display:none}
+.photo-stub.show{display:block}
+.nav{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;gap:10px;padding:13px 20px;background:rgba(10,11,13,.94);backdrop-filter:blur(14px);border-top:1px solid var(--line)}
+.btn{font-family:var(--sans);font-weight:600;font-size:15px;padding:14px 22px;border-radius:10px;border:1px solid transparent;cursor:pointer}
+.b-p{flex:1;background:var(--cyan);color:var(--oncyan)}
+.b-g{background:none;color:var(--muted);border-color:var(--line)}
+/* processing */
+.proc{text-align:center;padding-top:60px}
+.ring{width:74px;height:74px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--cyan);margin:0 auto 26px;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.proc .ln{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--muted);margin-bottom:9px;opacity:.25;transition:opacity .3s}
+.proc .ln.on{opacity:1;color:var(--text)}
+/* editor */
+.ed-wrap{max-width:1060px;margin:0 auto;padding:22px 20px 150px;display:grid;grid-template-columns:400px 1fr;gap:20px}
+@media(max-width:860px){.ed-wrap{grid-template-columns:1fr}}
+.planbox{position:sticky;top:74px;align-self:start;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+@media(max-width:860px){.planbox{position:static}}
+.planbox .t{font-family:var(--mono);font-size:9px;letter-spacing:.16em;color:var(--muted);margin-bottom:10px;display:flex;justify-content:space-between}
+svg.plan{width:100%;height:auto;display:block}
+.rm{fill:#171C21;stroke:#39424B;stroke-width:1.2;cursor:pointer;transition:fill .2s}
+.rm.active{stroke:var(--cyan);stroke-width:2;fill:rgba(59,216,233,.10)}
+.rm.confirmed{fill:rgba(47,164,107,.12);stroke:#2FA46B}
+.rm.lowconf{fill:rgba(224,168,60,.10);stroke:#E0A83C}
+.plan text{font-family:var(--mono);font-size:7.5px;fill:#8C959D;pointer-events:none}
+.legend{display:flex;gap:14px;margin-top:10px;font-family:var(--mono);font-size:8px;letter-spacing:.08em;color:var(--muted)}
+.legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;font-style:normal}
+.scorebar{display:flex;align-items:center;justify-content:space-between;gap:16px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:14px;grid-column:1/-1}
+.score{display:flex;align-items:center;gap:13px}
+.sc-ring{position:relative;width:52px;height:52px}
+.sc-ring svg{transform:rotate(-90deg)}
+.sc-ring .num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;font-weight:700}
+.score .lbl b{display:block;font-size:14.5px;font-weight:600}
+.score .lbl span{font-size:12.5px;color:var(--muted)}
+.range{text-align:right}
+.range .r{font-family:var(--mono);font-size:clamp(17px,3vw,22px);font-weight:700}
+.range small{display:block;font-family:var(--mono);font-size:8.5px;letter-spacing:.14em;color:var(--muted)}
+.confirmrow{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap;margin:-4px 0 6px}
+.cf{display:flex;align-items:center;gap:10px;border:1px solid var(--amber);background:rgba(224,168,60,.06);border-radius:100px;padding:8px 9px 8px 16px;font-size:13.5px}
+.cf button{background:var(--amber);color:#1F1607;border:none;border-radius:100px;padding:6px 13px;font-family:var(--sans);font-weight:600;font-size:12.5px;cursor:pointer}
+.cf.done{border-color:var(--emerald);background:rgba(47,164,107,.07)}
+.cf.done button{display:none}
+.cf.done::after{content:"✓ confirmed";color:var(--emerald);font-family:var(--mono);font-size:9px;letter-spacing:.1em;padding-right:8px}
+.rooms{display:flex;flex-direction:column;gap:11px}
+.rc{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:16px;cursor:pointer}
+.rc.active{border-color:var(--cyan)}
+.rc .hd{display:flex;justify-content:space-between;align-items:baseline}
+.rc .hd b{font-size:16px;font-weight:600}
+.rc .hd .m{font-family:var(--mono);font-size:12px}
+.prov{display:inline-block;font-family:var(--mono);font-size:8px;letter-spacing:.1em;border-radius:100px;padding:2.5px 8px;margin-top:6px}
+.prov.ai{color:var(--amber);border:1px solid rgba(224,168,60,.4)}
+.prov.ok{color:var(--emerald);border:1px solid rgba(47,164,107,.4)}
+.rc .surf{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}
+.rc .surf i{font-style:normal;font-size:12.5px;color:var(--muted);border:1px solid var(--line);border-radius:100px;padding:5px 11px}
+.rc .surf i.inc{color:var(--text);border-color:#39424B}
+.addrooms{margin-top:6px;border:1.5px dashed var(--line);border-radius:13px;padding:16px}
+.addrooms .q{font-size:15px;font-weight:600;margin-bottom:4px}
+.addrooms .s{font-size:13px;color:var(--muted);margin-bottom:12px}
+.addrooms .chips .chip:hover{border-color:var(--cyan);color:var(--cyan)}
+.ed-wrap.noplan{grid-template-columns:1fr;max-width:680px}
+.starter{background:var(--panel2);border:1px solid var(--line);border-radius:13px;padding:14px 16px;font-size:13.5px;color:var(--muted);margin-bottom:11px}
+.starter b{color:var(--text)}
+.prov.tap{cursor:pointer}
+.rc .hd .rm-x{background:none;border:1px solid var(--line);color:var(--muted);border-radius:8px;font-size:12px;padding:3px 9px;cursor:pointer;margin-left:10px;font-family:var(--sans)}
+.rc .hd .rm-x:hover{border-color:var(--clay);color:var(--clay)}
+.stick{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;align-items:center;gap:12px;padding:12px 20px;background:rgba(10,11,13,.95);backdrop-filter:blur(14px);border-top:1px solid var(--line)}
+.stick .pr{font-family:var(--mono);font-weight:700;font-size:15px;line-height:1.25}
+.stick .pr small{display:block;font-size:8px;font-weight:400;color:var(--muted);letter-spacing:.14em}
+.stick .sp{flex:1}
+.note{grid-column:1/-1;font-family:var(--mono);font-size:9px;letter-spacing:.08em;color:var(--muted);border:1px dashed var(--line);border-radius:10px;padding:10px 14px;margin-top:8px}
+.toast{position:fixed;left:50%;bottom:88px;transform:translateX(-50%);background:var(--panel2);border:1px solid rgba(59,216,233,.45);border-radius:12px;padding:11px 16px;font-size:13.5px;opacity:0;transition:opacity .3s;z-index:60;max-width:430px;text-align:center}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wm">PAINT<span>—</span>GROUP</div>
+  <div class="dots" id="dots"><i class="on"></i><i></i><i></i><i></i><i></i></div>
+</header>
+
+<!-- ============ WIZARD ============ -->
+<div class="wrap" id="wiz">
+
+  <div class="step show" data-s="1">
+    <p class="kick">Step 1 of 5 · The property</p>
+    <h1>Let's look at your place</h1>
+    <p class="sub">Paste the real-estate listing if you have one — we'll read the floorplan, photos and address. Or upload a floorplan photo.</p>
+    <input class="field" placeholder="Paste listing URL — realestate.com.au or Domain" value="https://www.realestate.com.au/property-house-vic-murrumbeena-14…">
+    <div class="or">OR</div>
+    <div class="upload" onclick="toast('Opens the camera / file picker for a floorplan photo or PDF.')">📐 Upload a floorplan — photo or PDF</div>
+    <button class="linkish" id="noplanBtn" onclick="toggleNoPlan()">I don't have a floorplan</button>
+    <div class="follow" id="noplanForm">
+      <p class="q">No worries — 30 seconds of basics instead.</p>
+      <p class="qhead" style="margin-top:4px">Bedrooms</p>
+      <div class="seg" id="np-beds"><button>1</button><button>2</button><button class="on">3</button><button>4</button><button>5+</button></div>
+      <p class="qhead">Storeys</p>
+      <div class="seg" id="np-storeys"><button class="on">Single</button><button>Double</button></div>
+      <p class="qhead">Roughly how big?</p>
+      <div class="seg" id="np-size"><button>&lt;120 m²</button><button class="on">120–200</button><button>200+</button><button>Not sure</button></div>
+    </div>
+    <p class="qhead">What are you painting?</p>
+    <div class="seg" id="jobtype">
+      <button class="on">Interior</button><button>Exterior</button><button>Both</button>
+    </div>
+  </div>
+
+  <div class="step" data-s="2">
+    <p class="kick">Step 2 of 5 · Surfaces</p>
+    <h1>What's being painted?</h1>
+    <p class="sub">We've pre-ticked the usual full repaint — untick anything you're not doing.</p>
+    <div class="tiles" id="surfaces"></div>
+  </div>
+
+  <div class="step" data-s="3">
+    <p class="kick">Step 3 of 5 · Condition</p>
+    <h1>Describe what suits you best</h1>
+    <p class="sub">This sets how many coats we allow for.</p>
+    <div class="cards" id="tiers">
+      <div class="card" data-t="fresh"><span class="coats">1 COAT</span><b>Freshen up</b><span>Same colours, colour-matched — one coat brings it back to life.</span></div>
+      <div class="card on" data-t="change"><span class="coats">2 COATS</span><b>Change of colour</b><span>New colours throughout — generally two coats to all surfaces.</span></div>
+      <div class="card" data-t="d2l"><span class="coats">3 COATS</span><b>Dark to light</b><span>Covering dark colours or stains — usually three coats to cover properly.</span></div>
+    </div>
+    <div class="follow" id="d2l-follow">
+      <p class="q">Which areas are going dark to light?</p>
+      <div class="chips" id="d2l-chips"></div>
+    </div>
+  </div>
+
+  <div class="step" data-s="4">
+    <p class="kick">Step 4 of 5 · Details</p>
+    <h1>A few quick details</h1>
+    <p class="sub">Pick what's closest — "mostly" is fine.</p>
+
+    <p class="qhead">What type of doors do you have, mostly?</p>
+    <div class="pick" id="doors">
+      <div class="pk on" data-v="panel"><svg viewBox="0 0 60 64"><rect x="14" y="4" width="32" height="56" rx="2" fill="#1F262C" stroke="#39424B"/><rect x="19" y="9" width="10" height="16" fill="#12161A" stroke="#39424B"/><rect x="31" y="9" width="10" height="16" fill="#12161A" stroke="#39424B"/><rect x="19" y="29" width="10" height="26" fill="#12161A" stroke="#39424B"/><rect x="31" y="29" width="10" height="26" fill="#12161A" stroke="#39424B"/></svg><small>Panel</small></div>
+      <div class="pk" data-v="flat"><svg viewBox="0 0 60 64"><rect x="14" y="4" width="32" height="56" rx="2" fill="#1F262C" stroke="#39424B"/><circle cx="41" cy="33" r="1.8" fill="#8C959D"/></svg><small>Flat</small></div>
+    </div>
+
+    <p class="qhead">Ceiling height <span style="color:var(--muted);font-weight:400;font-size:13px">— approx is fine</span></p>
+    <div class="seg" id="heights">
+      <button data-v="2.4">2.4 m</button><button class="on" data-v="2.7">2.7 m</button><button data-v="3.0">3 m+</button><button data-v="ns">Not sure</button>
+    </div>
+
+    <p class="qhead">What type of windows, mostly?</p>
+    <div class="pick" id="wins">
+      <div class="pk" data-v="casement"><svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#12161A" stroke="#39424B"/><line x1="30" y1="8" x2="30" y2="56" stroke="#39424B"/><path d="M30 12 L46 32 L30 52" fill="none" stroke="#2F3941" stroke-dasharray="3 2"/></svg><small>Casement</small></div>
+      <div class="pk on" data-v="sash"><svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#12161A" stroke="#39424B"/><rect x="13" y="11" width="34" height="20" fill="none" stroke="#39424B"/><rect x="13" y="33" width="34" height="20" fill="none" stroke="#39424B"/><line x1="10" y1="32" x2="50" y2="32" stroke="#4A555F" stroke-width="2"/></svg><small>Sash</small></div>
+      <div class="pk" data-v="colonial"><svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#12161A" stroke="#39424B"/><line x1="30" y1="8" x2="30" y2="56" stroke="#39424B"/><line x1="10" y1="24" x2="50" y2="24" stroke="#39424B"/><line x1="10" y1="40" x2="50" y2="40" stroke="#39424B"/></svg><small>Colonial</small></div>
+      <div class="pk" data-v="winder"><svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#12161A" stroke="#39424B"/><rect x="10" y="40" width="40" height="16" fill="#1A2027" stroke="#39424B"/><path d="M14 52 L30 43 L46 52" fill="none" stroke="#2F3941" stroke-dasharray="3 2"/></svg><small>Winder</small></div>
+    </div>
+
+    <p class="qhead">Do you have any damage we should know about?</p>
+    <div class="cards" id="damage">
+      <div class="card" data-d="0"><b>No damage</b><span>Overall good condition.</span></div>
+      <div class="card on" data-d="1"><b>Only minor cracks or defects</b><span>The usual hairline cracks and dings.</span></div>
+      <div class="card" data-d="2"><b>Mostly minor, a few areas of concern</b><span>Please attach photos of the worst areas.</span></div>
+      <div class="card" data-d="3"><b>In desperate need of repair</b><span>Please add photos and a short description.</span></div>
+    </div>
+    <div class="photo-stub" id="dmg-photos" onclick="toast('Opens the camera — photos feed our defect reader, which prices the prep work properly.')">📷 Attach photos of the worst areas</div>
+  </div>
+
+  <div class="step" data-s="5">
+    <p class="kick">Step 5 of 5 · Paint & colours</p>
+    <h1>Paint and colours</h1>
+    <p class="sub">Tick all that apply — totally fine to leave blank.</p>
+    <div class="tiles" id="paints">
+      <div class="tile" data-v="dulux">Dulux</div>
+      <div class="tile on" data-v="haymes">Haymes</div>
+      <div class="tile" data-v="taubmans">Taubmans</div>
+      <div class="tile" data-v="colours">I know the colours</div>
+      <div class="tile" data-v="water">Water-based only</div>
+    </div>
+    <div class="follow" id="water-follow">
+      <p class="q">Do you know whether your trims are currently painted in oil-based enamel?</p>
+      <div class="chips">
+        <button class="chip" data-w="yes">Yes — oil-based</button>
+        <button class="chip" data-w="no">No — water-based</button>
+        <button class="chip on" data-w="ns">Not sure</button>
+      </div>
+      <p style="font-size:12.5px;color:var(--muted);margin-top:10px">If they're oil, switching to water-based needs extra prep — we'll allow for it so there are no surprises.</p>
+    </div>
+  </div>
+
+  <!-- email gate -->
+  <div class="step" data-s="6">
+    <p class="kick">One last thing</p>
+    <h1>Where should we send your estimate?</h1>
+    <p class="sub">You'll see it on screen right now — this just saves it so you can come back, tweak it, and share it.</p>
+    <input class="field" type="email" placeholder="you@email.com">
+    <p style="font-size:12.5px;color:var(--muted)">No spam, no obligation. Marketing opt-out any time.</p>
+  </div>
+
+  <!-- processing -->
+  <div class="step proc" data-s="7">
+    <div class="ring"></div>
+    <p class="ln" id="p1">READING YOUR FLOORPLAN…</p>
+    <p class="ln" id="p2">MEASURING 7 ROOMS…</p>
+    <p class="ln" id="p3">PRICING EVERY SURFACE…</p>
+  </div>
+</div>
+
+<nav class="nav" id="wizNav">
+  <button class="btn b-g" id="back" onclick="go(-1)" style="visibility:hidden">Back</button>
+  <button class="btn b-p" id="next" onclick="go(1)">Continue</button>
+</nav>
+
+<!-- ============ EDITOR ============ -->
+<div class="ed-wrap" id="editor" style="display:none">
+
+  <div class="scorebar">
+    <div class="score">
+      <div class="sc-ring">
+        <svg width="52" height="52"><circle cx="26" cy="26" r="22" fill="none" stroke="#242B32" stroke-width="4"/>
+        <circle id="scArc" cx="26" cy="26" r="22" fill="none" stroke="#E0A83C" stroke-width="4" stroke-linecap="round" stroke-dasharray="138.2" stroke-dashoffset="30.4"/></svg>
+        <div class="num" id="scNum">78%</div>
+      </div>
+      <div class="lbl"><b>Estimate accuracy</b><span id="scHint">Confirm 2 things below to tighten your price</span></div>
+    </div>
+    <div class="range"><small>YOUR ESTIMATE · INCL. GST</small><div class="r" id="rangeTxt">$11,480 – $13,480</div></div>
+  </div>
+
+  <div class="confirmrow">
+    <div class="cf" id="cf1"><span>Ceiling height read as <b style="font-family:var(--mono);font-size:12px">2.7 m</b> — correct?</span><button onclick="confirmItem(1)">Confirm</button></div>
+    <div class="cf" id="cf2"><span>Bed 3 label was hard to read — <b style="font-family:var(--mono);font-size:12px">3.2 × 3.0 m</b>?</span><button onclick="confirmItem(2)">Confirm</button></div>
+  </div>
+
+  <div class="planbox">
+    <div class="t"><span>YOUR FLOORPLAN</span><span>TAP A ROOM</span></div>
+    <svg class="plan" viewBox="0 0 300 220">
+      <g id="R1" class="rm-g"><rect class="rm active" x="10" y="10" width="130" height="95"/><text x="20" y="26">LIVING · 24.7 m²</text></g>
+      <g id="R2" class="rm-g"><rect class="rm" x="145" y="10" width="145" height="60"/><text x="155" y="26">KITCHEN / MEALS · 18.2</text></g>
+      <g id="R3" class="rm-g"><rect class="rm" x="145" y="75" width="70" height="70"/><text x="152" y="91">BED 1 · 12.1</text></g>
+      <g id="R4" class="rm-g"><rect class="rm" x="220" y="75" width="70" height="70"/><text x="227" y="91">BED 2 · 10.4</text></g>
+      <g id="R5" class="rm-g"><rect class="rm lowconf" x="205" y="150" width="85" height="60"/><text x="212" y="166">BED 3 · 9.6?</text></g>
+      <g id="R6" class="rm-g"><rect class="rm" x="145" y="150" width="55" height="60"/><text x="150" y="166">BATH</text></g>
+      <g id="R7" class="rm-g"><rect class="rm" x="10" y="110" width="130" height="100"/><text x="20" y="126">HALL &amp; ENTRY · 14.8</text></g>
+    </svg>
+    <div class="legend"><span><i style="background:var(--cyan)"></i>SELECTED</span><span><i style="background:var(--emerald)"></i>CONFIRMED</span><span><i style="background:var(--amber)"></i>CHECK ME</span></div>
+  </div>
+
+  <div class="rooms" id="rooms"></div>
+
+  <div class="addrooms">
+    <p class="q">Are any rooms missing?</p>
+    <p class="s">Floorplans don't always show everything — tap to add a room and we'll price it in.</p>
+    <div class="chips">
+      <button class="chip" onclick="addRoom('Bedroom')">+ Bedroom</button>
+      <button class="chip" onclick="addRoom('Living area')">+ Living area</button>
+      <button class="chip" onclick="addRoom('Kitchen')">+ Kitchen</button>
+      <button class="chip" onclick="addRoom('Bathroom')">+ Bathroom</button>
+      <button class="chip" onclick="addRoom('Laundry')">+ Laundry</button>
+      <button class="chip" onclick="addRoom('Hallway')">+ Hallway</button>
+      <button class="chip" onclick="addRoom('Study')">+ Study</button>
+      <button class="chip" onclick="addRoom('Other')">+ Other</button>
+    </div>
+  </div>
+
+  <p class="note">DEMO NOTES — every edit reprices on the server; the range tightens as accuracy rises; "Bath" auto-flagged wet-area product; rooms you add are priced from room-type defaults with size to confirm. In the live build the plan is the customer's actual attached floorplan.</p>
+</div>
+
+<div class="stick" id="edStick" style="display:none">
+  <div class="pr"><small>ESTIMATE · INCL. GST</small><span id="stickRange">$11,480 – $13,480</span></div>
+  <div class="sp"></div>
+  <button class="btn b-g" onclick="toast('Books the walkthrough — required over $15k or under 80% accuracy before acceptance.')">Book a walkthrough</button>
+  <button class="btn b-p" onclick="toast('Saves the estimate and creates your account — it\'s waiting in your portal.')">Save my estimate</button>
+</div>
+
+<div class="toast" id="toastEl"></div>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+let step=1;
+const SURF=["Walls","Ceilings","Cornices","Doors","Architraves","Skirting boards","Windows","Staircase"];
+const PRE=new Set(["Walls","Ceilings","Cornices","Doors","Architraves","Skirting boards"]);
+/* build surface tiles */
+$("#surfaces").innerHTML=SURF.map(s=>`<div class="tile ${PRE.has(s)?'on':''}" data-v="${s}">${s}</div>`).join("");
+function wireTiles(sel,multi=true){$$(sel+" .tile, "+sel+" .pk, "+sel+" button").forEach(el=>{
+  el.onclick=()=>{ if(multi){el.classList.toggle("on")} else {el.parentElement.querySelectorAll(".on").forEach(o=>o.classList.remove("on"));el.classList.add("on")}
+    if(sel==="#surfaces")buildD2L();
+    if(sel==="#paints")$("#water-follow").classList.toggle("show",!!$('#paints [data-v="water"].on'));
+  };});}
+wireTiles("#surfaces");wireTiles("#paints");wireTiles("#jobtype",false);wireTiles("#doors",false);wireTiles("#wins",false);wireTiles("#heights",false);
+wireTiles("#np-beds",false);wireTiles("#np-storeys",false);wireTiles("#np-size",false);
+let noplan=false;
+function toggleNoPlan(){noplan=!noplan;$("#noplanForm").classList.toggle("show",noplan);
+ $("#noplanBtn").textContent=noplan?"✓ Using quick basics instead — tap to undo":"I don't have a floorplan";}
+/* tier cards */
+$$("#tiers .card").forEach(c=>c.onclick=()=>{$$("#tiers .card").forEach(o=>o.classList.remove("on"));c.classList.add("on");
+  $("#d2l-follow").classList.toggle("show",c.dataset.t==="d2l");if(c.dataset.t==="d2l")buildD2L();});
+function buildD2L(){$("#d2l-chips").innerHTML=$$("#surfaces .tile.on").map(t=>`<button class="chip" onclick="this.classList.toggle('on')">${t.dataset.v}</button>`).join("");}
+/* damage */
+$$("#damage .card").forEach(c=>c.onclick=()=>{$$("#damage .card").forEach(o=>o.classList.remove("on"));c.classList.add("on");
+  $("#dmg-photos").classList.toggle("show",+c.dataset.d>=2);});
+$$("#water-follow .chip").forEach(ch=>ch.onclick=()=>{$$("#water-follow .chip").forEach(o=>o.classList.remove("on"));ch.classList.add("on");});
+/* nav */
+function go(d){
+  step+=d;
+  if(step<1)step=1;
+  if(step===7){runProc();}
+  $$(".step").forEach(s=>s.classList.toggle("show",+s.dataset.s===step));
+  $("#back").style.visibility=step>1&&step<7?"visible":"hidden";
+  $("#next").textContent=step===5?"See my estimate":step===6?"Show me →":"Continue";
+  $("#wizNav").style.display=step>=7?"none":"flex";
+  $$("#dots i").forEach((i,ix)=>{i.className=ix+1<Math.min(step,6)?"done":ix+1===step?"on":""});
+  window.scrollTo({top:0});
+}
+function runProc(){
+  if(noplan){$("#p1").textContent="BUILDING YOUR ROOM LIST…";$("#p2").textContent="SIZING ROOMS FROM TYPICAL DIMENSIONS…";$("#p3").textContent="PRICING EVERY SURFACE…";}
+  ["p1","p2","p3"].forEach((id,ix)=>setTimeout(()=>$("#"+id).classList.add("on"),400+ix*650));
+  setTimeout(()=>{ $("#wiz").style.display="none";$("#wizNav").style.display="none";
+    $("#dots").style.display="none";$("#editor").style.display="grid";$("#edStick").style.display="flex";noplan?buildNoPlan():buildRooms();},2500);
+}
+/* ===== editor ===== */
+let MID=12480, score=78, addedCount={};
+const ROOMS=[
+ {id:"R1",n:"Living",m:"24.7 m²",p:"ai",surf:["Walls","Ceilings","Cornices","Doors ×2","Skirting","Windows ×2"]},
+ {id:"R2",n:"Kitchen / Meals",m:"18.2 m²",p:"ai",surf:["Walls","Ceilings","Skirting","Windows ×1"]},
+ {id:"R3",n:"Bed 1",m:"12.1 m²",p:"ai",surf:["Walls","Ceilings","Cornices","Door","Robe doors","Skirting"]},
+ {id:"R4",n:"Bed 2",m:"10.4 m²",p:"ai",surf:["Walls","Ceilings","Cornices","Door","Skirting"]},
+ {id:"R5",n:"Bed 3",m:"9.6 m² · check",p:"low",surf:["Walls","Ceilings","Door","Skirting"]},
+ {id:"R6",n:"Bathroom",m:"5.1 m²",p:"ai",surf:["Ceilings · wet-area","Door"]},
+ {id:"R7",n:"Hall & Entry",m:"14.8 m²",p:"ai",surf:["Walls","Ceilings","Cornices","Doors ×3","Skirting"]}
+];
+function buildRooms(){
+ $("#rooms").innerHTML=ROOMS.map((r,i)=>`<div class="rc ${i===0?'active':''}" id="C${r.id}" onclick="pick('${r.id}')">
+   <div class="hd"><b>${r.n}</b><span class="m">${r.m}</span></div>
+   <span class="prov ${r.p==='low'?'ai':'ai'}" id="P${r.id}">${r.p==='low'?'⚠ CHECK — READ FROM PLAN':'READ FROM PLAN'}</span>
+   <div class="surf">${r.surf.map(s=>`<i class="inc">${s}</i>`).join("")}<i>2 coats</i></div></div>`).join("");
+}
+function buildNoPlan(){
+ score=58;MID=11900;
+ $(".ed-wrap").classList.add("noplan");
+ $(".planbox").style.display="none";
+ $(".confirmrow").style.display="none";
+ const beds=+($("#np-beds .on")?.textContent||"3").replace("+","");
+ const storey=($("#np-storeys .on")?.textContent||"Single").toLowerCase();
+ const list=[];
+ for(let i=1;i<=beds;i++)list.push({n:"Bed "+i,m:"≈ 11 m²",add:1150,surf:["Walls","Ceilings","Door","Skirting"]});
+ list.push({n:"Living area",m:"≈ 22 m²",add:1650,surf:["Walls","Ceilings","Cornices","Skirting"]});
+ list.push({n:"Kitchen / Meals",m:"≈ 16 m²",add:980,surf:["Walls","Ceilings","Skirting"]});
+ list.push({n:"Bathroom",m:"≈ 5 m²",add:420,surf:["Ceilings · wet-area","Door"]});
+ list.push({n:"Hall & Entry",m:"≈ 12 m²",add:890,surf:["Walls","Ceilings","Doors","Skirting"]});
+ $("#rooms").innerHTML=`<div class="starter"><b>Starter list from your answers</b> — ${beds} bedrooms, ${storey} storey. Remove what you don't have, add what's missing below, and tap a size chip to confirm it.</div>`+
+  list.map((r,i)=>`<div class="rc" id="CNP${i}" onclick="pick('NP${i}')">
+   <div class="hd"><b>${r.n}</b><span class="m">${r.m} · typical<button class="rm-x" onclick="event.stopPropagation();removeRoom('CNP${i}',${r.add},'${r.n}')">×</button></span></div>
+   <span class="prov ai tap" onclick="event.stopPropagation();confSize(this)">TYPICAL SIZE — TAP TO CONFIRM</span>
+   <div class="surf">${r.surf.map(s=>`<i class="inc">${s}</i>`).join("")}<i>2 coats</i></div></div>`).join("");
+ redraw();
+}
+function confSize(el){el.outerHTML='<span class="prov ok">✓ SIZE CONFIRMED</span>';score=Math.min(score+4,92);redraw();toast("Confirmed — accuracy up, range tighter.");}
+function removeRoom(cid,add,name){$("#"+cid).remove();MID-=add;redraw();toast(name+" removed — price updated.");}
+function pick(id){$$(".rc").forEach(c=>c.classList.remove("active"));$("#C"+id)?.classList.add("active");
+ $$(".rm").forEach(r=>r.classList.remove("active"));const pr=$("#"+id+" .rm");if(pr)pr.classList.add("active");
+ $("#C"+id)?.scrollIntoView({behavior:"smooth",block:"nearest"});}
+$$(".rm-g").forEach(g=>g.onclick=()=>pick(g.id));
+function bands(s){return s>=90?4:s>=70?8:15}
+function money(v){return "$"+Math.round(v).toLocaleString("en-AU")}
+function redraw(){
+ const p=bands(score),lo=MID*(1-p/100),hi=MID*(1+p/100),txt=money(lo)+" – "+money(hi);
+ $("#rangeTxt").textContent=txt;$("#stickRange").textContent=txt;
+ $("#scNum").textContent=score+"%";
+ $("#scArc").setAttribute("stroke-dashoffset",(138.2*(1-score/100)).toFixed(1));
+ $("#scArc").setAttribute("stroke",score>=90?"#2FA46B":"#E0A83C");
+ $("#scHint").textContent=score>=90?"Nice — tight range unlocked":"Confirm the items below to tighten your price";
+}
+function confirmItem(n){
+ const cf=$("#cf"+n);if(cf.classList.contains("done"))return;
+ cf.classList.add("done");
+ if(n===1){score+=6;toast("Ceiling height confirmed — accuracy up, range tighter.");}
+ if(n===2){score+=7;$("#R5 .rm").classList.remove("lowconf");$("#R5 .rm").classList.add("confirmed");
+   $("#PR5").outerHTML='<span class="prov ok">✓ CONFIRMED BY YOU</span>';toast("Bed 3 confirmed — accuracy up, range tighter.");}
+ redraw();
+}
+const ROOMDEFS={
+ "Bedroom":{surf:["Walls","Ceilings","Door","Skirting"],add:1150},
+ "Living area":{surf:["Walls","Ceilings","Cornices","Skirting"],add:1650},
+ "Kitchen":{surf:["Walls","Ceilings","Skirting"],add:980},
+ "Bathroom":{surf:["Ceilings · wet-area","Door"],add:420},
+ "Laundry":{surf:["Walls","Ceilings","Door"],add:540},
+ "Hallway":{surf:["Walls","Ceilings","Doors","Skirting"],add:890},
+ "Study":{surf:["Walls","Ceilings","Door","Skirting"],add:1050},
+ "Other":{surf:["Walls","Ceilings"],add:850}};
+function addRoom(type){
+ const d=ROOMDEFS[type];addedCount[type]=(addedCount[type]||0)+1;
+ const label=addedCount[type]>1?type+" "+addedCount[type]:type;
+ const id="ADD"+Object.values(addedCount).reduce((a,b)=>a+b,0);
+ $("#rooms").insertAdjacentHTML("beforeend",
+  `<div class="rc" id="C${id}" onclick="pick('${id}')">
+    <div class="hd"><b>${label}</b><span class="m">size to confirm</span></div>
+    <span class="prov ok">✓ ADDED BY YOU</span>
+    <div class="surf">${d.surf.map(s=>`<i class="inc">${s}</i>`).join("")}<i>2 coats</i></div></div>`);
+ MID+=d.add;redraw();pick(id);
+ toast(label+" added and priced in — tap it to adjust surfaces or size.");
+}
+let tt;function toast(m){const t=$("#toastEl");t.textContent=m;t.classList.add("show");clearTimeout(tt);tt=setTimeout(()=>t.classList.remove("show"),3200)}
+</script>
+</body>
+</html>
