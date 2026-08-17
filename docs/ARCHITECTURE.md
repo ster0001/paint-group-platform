@@ -4,6 +4,33 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## An offer may only go to a compliant contractor
+
+**2026-08-17 · `supabase/migrations/20260909000000`, `app/(app)/schedule/actions.ts`**
+
+**Found by the end-to-end test on its first real run**, which is the entire
+argument for having one. The test dropped a job on the first lane of the board;
+lanes sort by company name and a contractor who hasn't filled hers in sorts to
+the top, so the offer went to someone with **no verified insurance certificate**.
+It was accepted by the system without complaint. Had she accepted it, an
+uninsured painter would have been booked into a customer's home.
+
+`send_offer` checked `active` (not suspended) but never `offerable`. Everything
+upstream of that flag was correct — the trigger that computes it, the staff
+verification step, the column privileges stopping a contractor setting it
+themselves. Nothing consulted it at the moment it decided anything.
+
+The fix also closes the stale-flag gap carried since Phase A: `offerable` is
+recomputed only when a `contractor_documents` row changes, so a certificate that
+lapses untouched leaves it reading true. `send_offer` now recomputes at the
+point of use, so an offer can't ride on a certificate that expired last month.
+
+Non-offerable lanes still appear on the board on purpose — staff need to see who
+is nearly ready, and those lanes are already marked. The send is refused, not
+the visibility.
+
+---
+
 ## R6 — error reporting, query counts, and the last of the input validation
 
 **2026-08-17 · `lib/monitoring/report.ts`, `lib/contractor/session.ts`,

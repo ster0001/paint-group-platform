@@ -816,6 +816,7 @@ export default function ScheduleBoard({
                       className="lane"
                       data-testid="lane"
                       data-contractor-id={l.contractorId}
+                      data-contractor-company={l.company}
                       ref={(el) => { if (el) laneRefs.current.set(l.contractorId, el); }}
                       onPointerDown={(e) => beginBlockOut(e, l.contractorId)}
                     >

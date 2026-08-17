@@ -43,22 +43,47 @@ test.describe("offer a job, contractor accepts", () => {
   test.skip(!contractor, missingCreds("CONTRACTOR"));
 
   test("the offer reaches the contractor, and accepting books it", async ({ browser }) => {
+    // Sign the contractor in FIRST, to learn which lane on the board is theirs.
+    // The first lane is not it: lanes sort by company name, and a contractor who
+    // hasn't filled theirs in sorts to the top. An earlier version of this test
+    // dropped the job on whoever happened to be first and then waited for an
+    // offer that had gone to someone else.
+    const contractorContext = await browser.newContext();
+    const contractorPage = await contractorContext.newPage();
+    await signIn(contractorPage, contractor!, /\/portal/);
+    const company = (await contractorPage.locator("header a.who").innerText())
+      .split("\n")[0]
+      .trim();
+    test.skip(!company, "the test contractor has no company name to match a lane by");
+
     const staffContext = await browser.newContext();
     const staffPage = await staffContext.newPage();
     await signIn(staffPage, staff!, /\/estimates/);
     await staffPage.goto("/schedule");
 
+    // The board streams: goto() resolves while the loading skeleton is still on
+    // screen, and elements inside a suspense boundary exist in the DOM without
+    // being laid out — so they have a count but no bounding box. Wait for a lane
+    // to be genuinely visible before measuring anything.
+    await expect(staffPage.getByTestId("lane").first()).toBeVisible({ timeout: 30_000 });
+
     const trayJob = staffPage.getByTestId("tray-job").first();
     test.skip((await trayJob.count()) === 0, "no unscheduled job in the tray to offer");
+    await expect(trayJob).toBeVisible();
 
     const woRef = (await trayJob.getAttribute("data-wo-ref")) ?? "";
     expect(woRef).not.toBe("");
 
-    // --- staff: drag it onto the first contractor's lane ---------------------
+    // --- staff: drag it onto OUR contractor's lane ---------------------------
+    // Case-insensitive on purpose: the portal header is uppercased in CSS, and
+    // innerText returns the RENDERED text ("KOVAC PAINTING PTY LTD") while the
+    // board's attribute holds what's in the database ("Kovac Painting Pty Ltd").
+    const laneSelector = `[data-testid="lane"][data-contractor-company="${company}" i]`;
+    await expect(staffPage.locator(laneSelector)).toHaveCount(1);
     await dragTo(
       staffPage,
       await centreOf(staffPage, '[data-testid="tray-job"]'),
-      await centreOf(staffPage, '[data-testid="lane"]'),
+      await centreOf(staffPage, laneSelector),
     );
 
     // Dropping opens a confirmation — it never fires an offer by itself.
@@ -71,10 +96,6 @@ test.describe("offer a job, contractor accepts", () => {
     await expect(staffPage.locator(".blk.offered").first()).toBeVisible();
 
     // --- contractor: the offer is waiting, with the address still redacted ---
-    const contractorContext = await browser.newContext();
-    const contractorPage = await contractorContext.newPage();
-    await signIn(contractorPage, contractor!, /\/portal/);
-
     const requests = await contractorPage.goto("/portal/requests");
     const html = (await requests?.text()) ?? "";
     // Until they accept, the customer's street address must not be in the page

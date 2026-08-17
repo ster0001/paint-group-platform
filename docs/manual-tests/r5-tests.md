@@ -47,22 +47,33 @@ E2E_CONTRACTOR_EMAIL=pg.josef.contractor@gmail.com E2E_CONTRACTOR_PASSWORD=paint
 ✅ 4 contractor tests pass; the offer→accept test skips, because it needs a
 staff login too.
 
-## 3. What I need from you
+## 3. The offer → accept test — now passing ✅
 
-The **offer → accept** test is written but has never run — I had Josef's login
-but no staff login, so I couldn't drive the staff half.
+Run 2026-08-17 with the `pg.sam.staff@gmail.com` login. It drags a real job onto
+Josef's lane, sends the offer, accepts it as Josef, checks it reads as booked,
+then cancels the booking to put the job back where it found it. Verified
+afterwards that nothing was left outstanding.
 
-Make a throwaway staff account (or use yours), then:
+It found a real bug on its first run — see
+`r6-observability-and-performance.md` section 5.
+
+Two things it taught us, both now fixed in the test:
+
+- the board's first lane is **not** the contractor you're logged in as (lanes
+  sort by company name, and a blank one sorts first), so it now finds the lane
+  by company;
+- the board streams, so `goto()` returns while the loading skeleton is still up
+  and elements exist without being laid out. It waits for a lane to be visible.
+
+To run it yourself:
 
 ```bash
 E2E_STAFF_EMAIL=you@paintgroup.com.au E2E_STAFF_PASSWORD=... E2E_CONTRACTOR_EMAIL=pg.josef.contractor@gmail.com E2E_CONTRACTOR_PASSWORD=painttest123 npm run test:e2e
 ```
 
-**Read this before you run it.** The test drags a real job from the tray onto a
-contractor, sends a real offer, accepts it as Josef, and then cancels the
-booking to put the job back where it found it. If there's no job in the tray it
-skips rather than inventing one. Expect to have to fix a selector or two on the
-first run — tell me what it says and I'll sort it.
+**Read this before you run it.** It sends a real offer and accepts it against
+the live database, then cancels the booking to restore things. If there's no job
+in the tray it skips rather than inventing one.
 
 ## 4. Nothing else broke
 

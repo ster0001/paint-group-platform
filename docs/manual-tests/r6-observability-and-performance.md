@@ -6,11 +6,14 @@ used to accept.
 
 Most of this you can't see, which is rather the point. About 10 minutes.
 
-## Run this first, in the Supabase SQL editor
+## The SQL
 
-`20260908000000_input_constraints.sql` — one file, pasted below in the chat too.
+`20260908000000_input_constraints.sql` — **run 2026-08-17 ✅**, and all four
+limits were then tested against the live database (see the table at the bottom).
 
-Nothing breaks if you don't run it; the limits just aren't enforced.
+**One more to run: `20260909000000_offer_requires_compliance.sql`** — see the
+section at the end. That one came out of the end-to-end test and matters more
+than anything else on this page.
 
 ## 1. Nothing looks different
 
@@ -74,5 +77,39 @@ ran it **4 times before the change and 2 after**.
 | `npm run build` | passes |
 | Session guard executions, 2 page loads | 4 → 2 |
 
-**Not verified, because it needs the SQL run:** the four constraints. That's
-section 3 above.
+### The constraints, checked against the live database after you ran the SQL
+
+| Check | Result |
+|---|---|
+| `crew_size = 99000` as a contractor | refused (check constraint) |
+| An ordinary crew size | still saves |
+| A 500-character company name | refused |
+| A certificate expiring 2099 | refused — *expiry date is too far in the future* |
+| Its real expiry | still saves |
+| An invite asked to last 3650 days | comes back lasting **30** |
+
+6/6.
+
+---
+
+## 5. The one still to run — and why it matters
+
+`20260909000000_offer_requires_compliance.sql`
+
+The offer→accept browser test found something on its first real run: it dropped
+a job on the first lane of the board, which was **Mira — who has no verified
+insurance certificate** — and the offer went out perfectly happily. Had she
+accepted, an uninsured painter would have been booked into a customer's home.
+
+`send_offer` checked that a contractor wasn't suspended, but never checked the
+"Ready for work" flag that the whole insurance-verification process exists to
+set. The migration adds that check, and re-derives the flag from the actual
+certificate at the moment of sending — so an offer can't go out on the strength
+of one that quietly expired last month either.
+
+After running it, try to offer a job to a contractor who isn't "Ready for work":
+
+✅ You get *"That contractor has no current, verified insurance certificate —
+check their paperwork on the Contractors page before offering them work."*
+
+(I cancelled the offer my test accidentally sent Mira. Nothing is outstanding.)
