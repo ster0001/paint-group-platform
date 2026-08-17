@@ -80,7 +80,9 @@ test.describe("plan reader pipeline", () => {
       multipart: { file: { name: "plan.pdf", mimeType: "application/pdf", buffer: fixture } },
     });
     expect(up.status()).toBe(200);
-    const runId = (await up.json()).primaryRunId as string;
+    const upJson = await up.json();
+    const runId = upJson.primaryRunId as string;
+    const secondRunId = upJson.runIds[1] as string;
 
     // ---- 2. plant the reading the model would have produced ----------------
     const sb = await staffDb();
@@ -146,6 +148,32 @@ test.describe("plan reader pipeline", () => {
     // ---- 6. applying twice is refused --------------------------------------
     const again = await page.request.post(`/api/extract/${runId}/apply`, { data: { ceilingHeightM: 2.55 } });
     expect(again.status()).toBe(409);
+
+    // ---- 7. a second plan file APPENDS to the same estimate -----------------
+    // Listings often ship one image per storey; the storeys must land in ONE
+    // job, and appending must never collide with the ids already in the tree.
+    await sb.from("extraction_runs").update({
+      raw_output: {
+        ...READING,
+        rooms: [{ ...READING.rooms[0], name_on_plan: "Upstairs Study", normalised_type: "study", storey: "First" }],
+      },
+      status: "needs_review",
+    }).eq("id", secondRunId);
+
+    const appended = await page.request.post(`/api/extract/${secondRunId}/apply`, {
+      data: { ceilingHeightM: 2.55, estimateId },
+    });
+    expect(appended.status()).toBe(200);
+    const appendResult = await appended.json();
+    expect(appendResult.appended).toBe(true);
+    expect(appendResult.estimateId).toBe(estimateId); // same estimate, not a new one
+
+    const { data: merged } = await sb.from("estimates").select("builder_state").eq("id", estimateId).single();
+    const mergedBlocks = (merged!.builder_state as { blocks: Array<{ id: number; name: string; surfaces: Array<{ id: number }> }> }).blocks;
+    expect(mergedBlocks).toHaveLength(4); // 3 original + 1 appended
+    expect(mergedBlocks.map((b) => b.name)).toContain("Upstairs Study");
+    const allIds = mergedBlocks.flatMap((b) => [b.id, ...b.surfaces.map((x) => x.id)]);
+    expect(new Set(allIds).size).toBe(allIds.length); // no id collisions across files
 
     // ---- cleanup ------------------------------------------------------------
     await sb.from("estimates").delete().eq("id", estimateId);

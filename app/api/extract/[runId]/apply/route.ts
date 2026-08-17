@@ -83,11 +83,28 @@ export async function POST(request: Request, { params }: { params: Promise<{ run
   // The confirmed height replaces whatever the reading assumed, for every room.
   const readingWithHeight = { ...reading.data, ceiling_height_m: parsedBody.data.ceilingHeightM };
 
+  // A plan often arrives as SEPARATE files — one image per storey — and each
+  // file is its own run. Applying into an estimate that already has areas
+  // APPENDS rather than replaces, so ground floor + first floor become one
+  // job, and a plan applied into a hand-started estimate cannot wipe the hand
+  // work. New node ids start above every id already in the tree.
+  const targetForAppend = parsedBody.data.estimateId ?? source?.estimate_id ?? null;
+  let existingBlocks: Array<{ id: number; surfaces?: Array<{ id: number }> }> = [];
+  if (targetForAppend) {
+    const { data: existing } = await supabase
+      .from("estimates").select("builder_state").eq("id", targetForAppend).maybeSingle();
+    const bs = existing?.builder_state as { blocks?: typeof existingBlocks } | null;
+    existingBlocks = Array.isArray(bs?.blocks) ? bs.blocks : [];
+  }
+  const startId = existingBlocks.length
+    ? Math.max(...existingBlocks.flatMap((b) => [b.id, ...(b.surfaces ?? []).map((x) => x.id)])) + 1
+    : 1;
+
   const draft = buildDraft(
     readingWithHeight,
     (rules as ScopeRule[] | null) ?? [],
     (aliases as Alias[] | null) ?? [],
-    { sourceId: source?.id ?? null },
+    { sourceId: source?.id ?? null, startId },
   );
 
   if (draft.areas.length === 0) {
@@ -104,7 +121,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ run
   // finds (QuoteBuilder line 241), and `source` lives on the estimates row, not
   // in here. Every other key is left absent so the builder applies its own
   // defaults, exactly as it does for a hand-started estimate.
-  const builderState = { blocks: draft.areas };
+  const builderState = { blocks: [...existingBlocks, ...draft.areas] };
 
   const estimateId = parsedBody.data.estimateId ?? source?.estimate_id ?? null;
 
@@ -140,7 +157,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ run
 
   return NextResponse.json({
     estimateId: targetId,
+    appended: existingBlocks.length > 0,
     areas: draft.areas.length,
+    totalAreas: existingBlocks.length + draft.areas.length,
     surfaces: draft.areas.reduce((n, a) => n + a.surfaces.length, 0),
     assumedValues: draft.assumedCount,
     skipped: draft.skipped,
