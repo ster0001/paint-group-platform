@@ -8,7 +8,7 @@
  */
 
 /** The Settings version the app reads. Bumped with the seed script. */
-export const SCOPE_VERSION = 2;
+export const SCOPE_VERSION = 3;
 
 export type ScopeRule = {
   room_type: string;

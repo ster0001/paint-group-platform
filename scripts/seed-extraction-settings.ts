@@ -44,7 +44,7 @@ const env = Object.fromEntries(
     .map((l) => [l.slice(0, l.indexOf("=")).trim(), l.slice(l.indexOf("=") + 1).trim()]),
 );
 
-const VERSION = 2;
+const VERSION = 3;
 
 /** surface_type, is_option, requires_confirm, notes (with the evidence count) */
 type Rule = [string, boolean, boolean, string];
@@ -194,6 +194,42 @@ const DEFECTS: Array<[string, string, number, number, number]> = [
   ["efflorescence", "m2", 0.18, 0.30, 0.50],
 ];
 
+/**
+ * Tom's typical room sizes (docs/briefs/wizard-business-inputs.md section 1).
+ * Powers the no-plan starter lists and wizard defaults; wall areas derive from
+ * these plus the storey ceiling height. "Ensuite" shares the bathroom row (the
+ * alias map already sends ensuite -> bathroom, and the sizes are identical).
+ * open_plan_kitchen_living is its own archetype: the no-plan basics form asks
+ * "Open-plan kitchen/living?" to choose between it and living + kitchen.
+ */
+const ROOM_DEFAULTS: Array<[string, number, number, string]> = [
+  ["wc", 1.25, 1.0, "Toilet 1.3 m2"],
+  ["bedroom", 3.5, 3.25, "11.4 m2"],
+  ["living", 4.0, 4.0, "16 m2 - separate living room"],
+  ["open_plan_kitchen_living", 6.0, 6.0, "36 m2 - chosen by the open-plan toggle"],
+  ["bathroom", 2.0, 1.5, "3 m2 - ensuite uses this row via the alias map"],
+  ["laundry", 2.0, 1.5, "3 m2"],
+  ["garage", 6.0, 4.0, "24 m2"],
+];
+
+/**
+ * Acceptance / walkthrough policy and visitor limits (business inputs 2 and 5).
+ * Settings values, not constants: all of these are Tom's to change without a
+ * deploy. Money in integer cents, as everywhere.
+ */
+const WIZARD_SETTINGS: Array<[string, unknown]> = [
+  ["wizard_policy", {
+    minAccuracyPctToAccept: 80,
+    smallJobMinAccuracyPct: 90,
+    smallJobThresholdCents: 700_000,     // under $7,000 needs 90%
+    walkthroughAlwaysAboveCents: 1_500_000, // $15,000+ always walks through
+  }],
+  ["wizard_limits", {
+    maxEstimatesPerVisitor: 2,           // per email/IP; trade accounts unlimited
+    holdMessage: "Looks like you're busy - talk to us and we'll set you up properly.",
+  }],
+];
+
 /** The repeating units the exterior height methods count (brief section 5.2). */
 const UNITS: Array<[string, string, number, number, string[]]> = [
   ["brick_course", "Brick course (76 mm brick + 10 mm joint)", 86, 4, ["brick"]],
@@ -232,18 +268,32 @@ async function main() {
     version: VERSION, unit_key, label, size_mm, tolerance_pct, applies_to_substrate,
   }));
 
+  const defaultRows = ROOM_DEFAULTS.map(([room_type, typical_length_m, typical_width_m, notes]) => ({
+    version: VERSION, room_type, typical_length_m, typical_width_m, notes,
+  }));
+
   const jobs: Array<[string, unknown[], string]> = [
     ["room_type_scope_rules", scopeRows, "version,room_type,surface_type"],
     ["room_name_aliases", aliasRows, "version,alias"],
     ["defect_prep_rates", defectRows, "version,defect_type"],
     ["measurement_units", unitRows, "version,unit_key"],
+    ["room_type_defaults", defaultRows, "version,room_type"],
   ];
 
   for (const [table, rows, onConflict] of jobs) {
     const { error } = await sb.from(table).upsert(rows, { onConflict });
+    if (error && table === "room_type_defaults" && /find the table|does not exist/i.test(error.message)) {
+      console.warn(`${table}: table missing - run migration 20260912000000, then re-run this seed.`);
+      continue;
+    }
     if (error) { console.error(`${table}: ${error.message}`); process.exit(1); }
     const { count } = await sb.from(table).select("*", { count: "exact", head: true }).eq("version", VERSION);
     console.log(`${table.padEnd(22)} ${String(rows.length).padStart(3)} sent, ${count} rows at version ${VERSION}`);
+  }
+
+  for (const [key, value] of WIZARD_SETTINGS) {
+    const { error } = await sb.from("settings").upsert({ key, value }, { onConflict: "key" });
+    console.log(`settings.${String(key).padEnd(14)} ${error ? error.message : "seeded"}`);
   }
 
   console.log("\nRoom types with rules:", Object.keys(SCOPE).join(", "));
