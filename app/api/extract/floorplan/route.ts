@@ -157,7 +157,7 @@ export async function POST(request: Request) {
       }
     } else {
       // A photo or a plan supplied as an image: one "page", no text layer.
-      const c = classifyPage(null, { isImageFile: true });
+      const c = classifyPage(null, { isImageFile: true, declaredKind: kind });
       pages.push({
         pageNo: 1,
         text: "",

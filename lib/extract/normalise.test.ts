@@ -79,10 +79,26 @@ test("a scanned plan with no text layer is not guessed at", () => {
   expect(c.reasons.join(" ")).toMatch(/needs the model/);
 });
 
-test("an uploaded photo is a photo without reading anything", () => {
-  const c = classifyPage(null, { isImageFile: true });
-  expect(c.pageClass).toBe("photo");
+test("a floorplan supplied as a JPG is NOT a photo", () => {
+  // Found on nine real listing floorplans: they are images, and calling them
+  // "photo" at high confidence routed them to the exterior pipeline.
+  const c = classifyPage(null, { isImageFile: true, declaredKind: "floorplan" });
+  expect(c.pageClass).toBe("floorplan_interior");
+  expect(c.confidence).toBeLessThan(0.5); // weak - only the model can confirm
   expect(c.fromTextLayer).toBe(false);
+  expect(c.reasons.join(" ")).toMatch(/model confirms/);
+});
+
+test("an actual photo still reads as one", () => {
+  for (const kind of ["exterior_photo", "defect_photo"]) {
+    expect(classifyPage(null, { isImageFile: true, declaredKind: kind }).pageClass).toBe("photo");
+  }
+});
+
+test("an image with nothing declared is not guessed at", () => {
+  const c = classifyPage(null, { isImageFile: true });
+  expect(c.pageClass).toBe("other");
+  expect(c.confidence).toBeLessThanOrEqual(0.2);
 });
 
 test("a vendor's statement bound into the same PDF is NOT an elevation", () => {

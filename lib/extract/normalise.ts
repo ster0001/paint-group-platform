@@ -146,12 +146,37 @@ export type PageClassification = {
  * `hasTextLayer: false` (a scan, or a photo) always returns low confidence —
  * the caller should send it to the model rather than trusting this.
  */
-export function classifyPage(text: string | null, opts: { isImageFile?: boolean } = {}): PageClassification {
+export function classifyPage(
+  text: string | null,
+  opts: { isImageFile?: boolean; declaredKind?: string } = {},
+): PageClassification {
   if (opts.isImageFile) {
+    // An image tells us NOTHING without looking at it, and the first version of
+    // this returned "photo" at 0.95 — which was wrong on every one of the nine
+    // real listing floorplans it was tried on. They are floorplans that happen
+    // to be JPGs, and `photo` would have routed them to the exterior pipeline.
+    //
+    // So: take the uploader's word as a weak prior (they chose the kind when
+    // they uploaded it) and score it LOW, because only the model can confirm
+    // what an image actually shows.
+    const fromKind: Record<string, PageClass> = {
+      floorplan: "floorplan_interior",
+      site_plan: "site_plan",
+      elevation: "elevation",
+      exterior_photo: "photo",
+      defect_photo: "photo",
+      listing: "photo",
+    };
+    const declared = opts.declaredKind ? fromKind[opts.declaredKind] : undefined;
     return {
-      pageClass: "photo",
-      confidence: 0.95,
-      reasons: ["uploaded as an image file, not a PDF page"],
+      pageClass: declared ?? "other",
+      confidence: declared ? 0.4 : 0.2,
+      reasons: [
+        "an image, so there is no text layer to read",
+        declared
+          ? `provisionally "${declared}" because that is what it was uploaded as — the model confirms it`
+          : "nothing to go on until the model looks at it",
+      ],
       fromTextLayer: false,
     };
   }
