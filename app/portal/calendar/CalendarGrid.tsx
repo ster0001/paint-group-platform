@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { localIso } from "@/lib/scheduling/dates";
 
 export type PortalBlock = {
   id: string;
@@ -14,11 +15,10 @@ export type PortalBlock = {
 
 export type PortalJobDay = { date: string; label: string; status: string };
 
-// Local calendar date. toISOString() would report the UTC day, which is
-// yesterday for most of a Melbourne evening — the calendar would highlight the
-// wrong "today" and block the wrong day.
-const iso = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+// Local calendar date (lib/scheduling/dates.ts explains why this can never go
+// through toISOString): the calendar would otherwise highlight the wrong
+// "today" and block the wrong day.
+const iso = localIso;
 const formatShort = (d: string) =>
   new Date(d + "T00:00:00").toLocaleDateString("en-AU", { day: "numeric", month: "short" });
 const monthName = (y: number, m: number) =>

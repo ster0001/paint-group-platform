@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { addDays } from "./dates";
 import { OFFER_COLUMNS, effectiveState, isLive, type BookingOffer } from "./offers";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
 
@@ -77,15 +78,6 @@ export type BoardData = {
   approvals: Approval[];
   /** Query failures, surfaced rather than silently rendering an empty board. */
   errors: string[];
-};
-
-// Plain calendar dates, so the arithmetic stays in UTC end to end. Parsing as
-// local midnight and formatting via toISOString() shifts the result a day for
-// anyone east of Greenwich — which would put a job on the wrong date.
-const addDays = (iso: string, n: number) => {
-  const d = new Date(iso + "T00:00:00Z");
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
 };
 
 /** A job's duration in days, from its hours allowance. 8h days, minimum one. */

@@ -1,19 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { loadBoard } from "@/lib/scheduling/board";
+import { addDays, isDateString as isDate, localIso } from "@/lib/scheduling/dates";
 import ScheduleBoard from "./ScheduleBoard";
 
 export const dynamic = "force-dynamic";
-
-// Local calendar date — toISOString() would give the UTC day, which is
-// yesterday for most of a Melbourne evening.
-const localIso = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-const addDays = (s: string, n: number) => {
-  const d = new Date(s + "T00:00:00Z");
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-};
-const isDate = (s: string | undefined): s is string => Boolean(s && /^\d{4}-\d{2}-\d{2}$/.test(s));
 
 // Staff scheduling timeline. Access is already gated by the (app) layout, which
 // redirects anyone who isn't staff.
