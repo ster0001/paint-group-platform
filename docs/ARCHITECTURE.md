@@ -4,6 +4,35 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## R2b — the server boundary for estimate send and accept
+
+**2026-08-17 · `supabase/migrations/20260903000000`, `app/quote/actions.ts`,
+`lib/validation/estimate.ts`**
+
+Two holes closed.
+
+**Accepting a quote no longer trusts the browser's total.** `accept_estimate`
+took `p_total_cents` from its caller, and that caller is the customer's browser
+on a public token page — anyone with the link could accept a $9,800 quote for
+$1, and the deposit invoice is raised from that figure. It now derives the total
+from the estimate's own stored snapshot and ignores what it is handed. The
+parameters stay for compatibility; `estimate_events` records the figure the
+client claimed alongside the one actually used, so an attempt is visible.
+
+**Sending is a guarded transition.** `send_estimate` refuses to send an accepted
+(locked) quote and returns `conflict:<status>` if the screen's idea of the state
+is stale. `estimates.status`, `sent_at`, `accepted_at`, `accepted_name` and
+`accepted_signature` are revoked from client roles; everything the builder
+legitimately saves stays writable.
+
+**Still open, and it needs a decision:** `estimates.subtotal_cents` and
+`total_cents` are still written by the builder on save. Recomputing them
+server-side needs `SUPABASE_SERVICE_ROLE_KEY` in the server environment —
+permitted by CLAUDE.md, but the app has no such key today. Until then those two
+columns remain client-written. Flagged rather than half-done.
+
+---
+
 ## R2 — the server boundary for booking money and state
 
 **2026-08-17 · `supabase/migrations/20260902000000`, `lib/validation/booking.ts`,

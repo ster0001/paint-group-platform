@@ -31,6 +31,7 @@ import ColourPicker from "@/app/components/ColourPicker";
 import { roundUpLitres, type WorkOrderDoc as WODoc, type WOMaterial, type WOArea } from "@/lib/workorder/snapshot";
 import { finishFromModifier } from "@/lib/workorder/finish";
 import OfferPanel from "./OfferPanel";
+import { sendEstimateAction } from "./actions";
 
 type WorkOrderRow = {
   id: string; wo_ref: string; status: string; contractor_id: string | null; start_date: string | null;
@@ -591,11 +592,12 @@ export default function QuoteBuilder({
     if (!finishChosen) { setSaveMsg("Choose a level of finish before sending."); return; }
     const { id, token } = await save(); // persists token + live doc
     if (!id || !token) return;
-    const supabase = createClient();
     const nowIso = new Date().toISOString();
     const until = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
-    const { error } = await supabase.from("estimates").update({ status: "sent", sent_at: sentAt ?? nowIso, valid_until: until }).eq("id", id);
-    if (error) { setSaveMsg(error.message); return; }
+    // Guarded transition through the server: an accepted quote is locked, and a
+    // stale tab can't re-send something that has moved on.
+    const r = await sendEstimateAction({ estimateId: id, expectedStatus: estStatus, validUntil: until });
+    if (!r.ok) { setSaveMsg(r.message); return; }
     setEstStatus("sent");
     setSentAt(sentAt ?? nowIso);
     setValidUntil(until);
