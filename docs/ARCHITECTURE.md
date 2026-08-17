@@ -4,6 +4,51 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## AI plan reader — P0: the boundary, the schema and the file pipeline
+
+**2026-08-17 · `lib/extract/`, `app/api/extract/floorplan/route.ts`,
+`app/dev/extract/[runId]/`, `supabase/migrations/20260910000000`**
+
+The first piece of the plan reader, and the app's **first API route**. It takes
+a plan, works out what it is from its bytes, rasterises each page at 200 DPI,
+lifts the text layer, classifies each page, stores everything in a private
+bucket and writes one run row per page. **No model call** — that is P1. The
+brief's own reasoning: the model call is the easy part; the accuracy lives in
+the geometry and the plumbing.
+
+**Two departures from the brief, both forced by the actual schema.** There are
+no `areas` / `surfaces` tables to add provenance columns to — the builder tree
+lives in `estimates.builder_state` jsonb with integer node ids, and
+`estimate_areas` / `estimate_lines` are vestigial (nothing reads them). So
+per-node provenance goes inside the jsonb node as additive fields, which suits
+the brief's first rule better than a side table: the AI adds fields to the tree
+rather than changing its shape, provenance survives duplicating an area, and no
+backfill is needed because an absent `origin` reads as `human_confirmed`.
+`defect_observations` therefore keys by `estimate_id` + the builder's own node
+ids rather than by foreign key.
+
+**mupdf (WASM) over poppler or a native canvas**, because it needs no system
+binary and runs unchanged on Vercel. It also extracts the text layer, and that
+turns out to matter more than the rendering: on a vector plan the dimension
+strings come back exactly — `3.60 x 4.20` as characters. The brief names small
+dimension text as the single biggest source of read errors; for digital plans
+that is largely solved before the model is asked anything. A scan has no text
+layer, says so, and carries low confidence.
+
+**Page classification is deterministic**, from the text layer, and explains
+itself in words that surface on the debug page. It found a real trap while being
+tested: a Victorian **Section 32** vendor's statement is routinely bound into
+the same PDF as the plan, and "section" is also a drawing term — it was reading
+as an elevation sheet. Only a drawing-shaped label (`SECTION A-A`,
+`SECTION 1:100`) counts now.
+
+**No service-role key.** The brief specifies one; this app has never had one and
+runs on the anon key plus RLS. The route uses the caller's own session, so RLS
+and the storage policies do the enforcing — strictly safer than introducing a
+key that bypasses them.
+
+---
+
 ## An offer may only go to a compliant contractor
 
 **2026-08-17 · `supabase/migrations/20260909000000`, `app/(app)/schedule/actions.ts`**
