@@ -6,15 +6,15 @@ Contractors page; and an invite link that never existed returns a proper 404.
 
 Nothing should look different in normal use. About 10 minutes.
 
-## Run these first, in the Supabase SQL editor, in this order
+## The SQL — run 2026-08-17 ✅
 
-1. `20260905000000_upload_limits.sql`
-2. `20260906000000_bank_change_alert.sql`
-3. `20260907000000_work_order_contractor_index.sql`
+`20260905000000_upload_limits.sql`, `20260906000000_bank_change_alert.sql`,
+`20260907000000_work_order_contractor_index.sql` are applied to the live
+database, and the results below were tested against it afterwards.
 
-You can paste all three in one go. Nothing breaks if you don't run them — the
-alert simply never appears and uploads keep their old (unlimited) behaviour —
-but the whole point of this batch is in the SQL.
+**There are two bank alerts waiting for you on the Contractors page** — I made
+them while testing, by changing Josef's account number and then changing it
+back. His details are exactly as they were. Clearing those two is step 9.
 
 ---
 
@@ -76,18 +76,31 @@ the next payment run.
 
 ---
 
-## Verified before handing this over (2026-08-17)
+## Verified against the live database (2026-08-17, after the SQL was run)
+
+Signed in as Josef with the anon key — exactly what a browser gets, no
+special access.
 
 | Check | Result |
 |---|---|
-| `npm test` | 51/51 pass (9 new, on the upload rules) |
-| Typecheck | clean |
-| Lint | 0 errors (2 pre-existing warnings) |
-| `npm run build` | passes |
-| `/join/<made-up token>` | **404** (was 200) |
-| `/join/<short garbage>` | **404** |
-| `/e/<unknown>` unchanged | 404 |
+| Re-saving identical bank details | no alert raised |
+| Changing the account number | exactly one alert |
+| The alert records the previous account | `prev_last4` = the old number ✓ |
+| `first_time` on a change to an existing account | false |
+| Contractor acknowledging their own alert directly | permission denied |
+| Contractor forging an event row | permission denied |
+| `acknowledge_contractor_event` called by a contractor | `error:not_staff` |
+| HTML uploaded as a `.pdf` certificate | refused — *mime type text/html is not supported* |
+| A 20 MB certificate (limit 15 MB) | refused — *object exceeded the maximum allowed size* |
+| A genuine small PDF | still uploads ✓ |
 
-**Not verified by me, because it needs the SQL to be run:** the bucket limits,
-the bank alert, and the index. Those are steps 2, 3 and 5 above — the reason the
-test script exists.
+11/11. Josef's original bank details were put back afterwards and the test file
+deleted from storage.
+
+Also checked before the SQL: `npm test` 51/51 (9 new, on the upload rules),
+typecheck clean, lint 0 errors, `npm run build` passes, and `/join/<made-up>`
+returns **404** where it used to return 200.
+
+**Still worth your eyes**, because they need a staff login or the SQL editor:
+the alert panel itself (steps 8–9), and the index —
+`explain analyze select * from work_orders where contractor_id = '<a real id>';`
