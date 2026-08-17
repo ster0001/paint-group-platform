@@ -1209,8 +1209,6 @@ export default function QuoteBuilder({
             contractorId={woContractorId}
             contractorName={contractors.find((c) => c.id === woContractorId)?.name ?? ""}
             defaultStart={woStartDate}
-            defaultHours={totals.contractorHours}
-            defaultPaymentCents={totals.contractorOffer}
             issued={Boolean(workOrder?.issued_at)}
           />
           <div className="mt-4 overflow-hidden rounded-xl border border-gray-200">
