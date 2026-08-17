@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import NewEstimateButton, { type TemplateMeta } from "./NewEstimateButton";
+import DeleteEstimateButton from "./DeleteEstimateButton";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +62,7 @@ export default async function EstimatesPage({
                 <th className="px-4 py-2 font-medium">Status</th>
                 <th className="px-4 py-2 font-medium">Date</th>
                 <th className="px-4 py-2 text-right font-medium">Value</th>
+                <th className="px-4 py-2 text-right font-medium"><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -76,6 +78,13 @@ export default async function EstimatesPage({
                     {new Date(e.created_at).toLocaleDateString("en-AU")}
                   </td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{money(e.total_cents)}</td>
+                  <td className="px-4 py-2.5 text-right">
+                    <DeleteEstimateButton
+                      estimateId={e.id}
+                      title={e.title || "Untitled estimate"}
+                      status={e.status}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>
