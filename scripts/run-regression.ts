@@ -65,7 +65,10 @@ async function main() {
 
   const results: Array<Record<string, unknown>> = [];
 
+  const only = process.env.JOB_IDS ? new Set(process.env.JOB_IDS.split(",")) : null;
   for (const job of manifest.jobs) {
+    if ((job as { ignored?: boolean }).ignored) { results.push({ id: job.id, skipped: "ignored per manifest" }); continue; }
+    if (only && !only.has(job.id)) continue;
     if (!job.plan) { results.push({ id: job.id, address: job.address, skipped: "no plan supplied" }); continue; }
     const planPath = path.join(SET, job.plan);
     if (!existsSync(planPath)) { results.push({ id: job.id, skipped: `plan file missing: ${job.plan}` }); continue; }
