@@ -375,3 +375,36 @@ writes by column privileges.
 supplied by the client. R2 moved every booking transition into a transactional
 RPC and R3 did the same for the work order; the client no longer sends an
 amount at all.
+
+---
+
+## Internal wizard (Step 7, W1–W3)
+
+**2026-08-18 · `app/wizard/`, `lib/wizard/`, `app/api/wizard/submit/`,
+`app/api/estimates/[id]/wizard-edit/`, `lib/pricing/context.ts`**
+
+The five-page wizard (`/wizard`, staff-gated, dark scoped `wizard.css` per the
+approved mockup) collects ANSWERS into one zod-validated state object — never
+a room, a quantity or a price. Page-1 uploads start the existing plan-reader
+pipeline in the background (one read per page at upload time); the submit
+route rebuilds the tree from the STORED readings (or, no-plan, from a starter
+list synthesised through the same `buildDraft` stage 5 and downgraded to
+`ai_assumed`), then `lib/wizard/merge.ts` applies the answers: page-2 ticks
+filter surfaces, the condition tier sets coats, and the "mostly" door/window
+styles resolve the reader's deferred openings ("not sure" stays deferred —
+never guessed). The estimate lands as `source='wizard'` (migration 20260915;
+graceful fallback with a staff-visible warning until it runs) with the full
+wizard state snapshotted in `builder_state.wizard` for the editor's add-room
+re-merge and the Step 8 customer layer.
+
+The editor reprices EVERY edit server-side via `wizard-edit` (confirm height /
+confirm room / add / remove) and shows the dollar-weighted accuracy score
+(`lib/wizard/accuracy.ts`) over the provenance model. The shared `RoomCard`
+is consumed, not forked. `lib/pricing/context.ts` now owns the
+PricingContext/Adjustments assembly that previously lived inline in the
+capture page and rooms route.
+
+**Known gaps, recorded not faked:** plan↔card region-highlight sync needs room
+outlines the extraction schema doesn't report; listing scrape still returns no
+address/photos/m² (Step 8); exterior-only jobs create an empty estimate
+carrying the site-check deferral until E2 wires the envelope drafting.

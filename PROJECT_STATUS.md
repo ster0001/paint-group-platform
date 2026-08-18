@@ -46,7 +46,27 @@ click-by-click steps, and verify things actually work.
 
 12. **Contractor onboarding + access control** (2026-08-16). **/contractors** in the staff sidebar: invite a painter and copy a private join link (single-use, 7-day expiry, tied to the invited email so a forwarded link can't be claimed), revoke pending invites, set tier, and suspend or restore access. Suspending withdraws any live offer and locks the portal. **You no longer need a developer to create a contractor account.**
 
+13. **Internal wizard — Step 7, W1–W3** (2026-08-18). `/wizard` from the estimates
+    list ("Start with the wizard"): five dark mockup-styled pages (listing URL /
+    floorplan upload / no-plan basics with the open-plan toggle; surfaces;
+    condition tier; door-window-height-damage details; paint), all conditional
+    logic, English copy tone. Uploads read in the background; submit rebuilds the
+    tree server-side from stored readings or the typical-size starter list,
+    merges the answers (unticked surfaces filtered, coats set by tier, "mostly"
+    door/window styles resolve the reader's deferred openings — "not sure" stays
+    deferred), and lands a draft with provenance + the wizard snapshot in
+    `builder_state`. Editor: accuracy ring, point price + margin, pinned plan,
+    one-tap confirm height / confirm size / add / remove — every edit repriced
+    server-side. Verified live on the no-plan path end to end. **Needs migration
+    `20260915000000_wizard_source.sql` + a re-run of
+    `npx tsx scripts/seed-extraction-settings.ts`** (kitchen/hallway typicals).
+    Manual test: `docs/manual-tests/step7-wizard.md`.
+
 ## PENDING MANUAL STEPS (run in the Supabase SQL editor)
+- **`20260915000000_wizard_source.sql`** — lets wizard estimates carry
+  `source='wizard'` (and reserves `trade_wizard`). Until run, the wizard saves
+  with the old tag and shows a staff-visible note. Also re-run
+  `npx tsx scripts/seed-extraction-settings.ts` for the two new typical sizes.
 - **`20260909000000_offer_requires_compliance.sql` — NOT YET RUN, and it's the important one.** `send_offer` checks that a contractor isn’t suspended but never checked `offerable`, so a painter with **no verified insurance certificate** could be offered — and accept — a job in a customer’s home. Found by the offer→accept browser test on its first real run, 2026-08-17. The fix also re-derives `offerable` from the certificate at send time, closing the long-standing “a certificate that lapses untouched leaves the flag stale-true” gap.
 - ~~R6 `20260908000000_input_constraints.sql`~~ **APPLIED + verified live 2026-08-17** (6/6: crew_size 99000 refused, 500-char company name refused, 2099 expiry refused, invite clamped 3650→30 days, ordinary values still save).
 - ~~R4 migrations~~ **APPLIED and verified live 2026-08-17** (`20260905000000_upload_limits.sql`, `20260906000000_bank_change_alert.sql`, `20260907000000_work_order_contractor_index.sql`): uploads now have a server-enforced size and type limit on every bucket, a change to a contractor’s bank details raises an alert on the Contractors page, and `work_orders.contractor_id` is indexed. 11/11 checks — see `docs/manual-tests/r4-uploads-and-alerts.md`.

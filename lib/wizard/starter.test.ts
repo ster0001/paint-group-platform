@@ -34,6 +34,10 @@ describe("starterRoomList", () => {
       "Bed 1", "Bed 2", "Bed 3", "Kitchen / Living", "Bathroom", "Laundry", "Hall & Entry",
     ]);
     expect(rooms.every((r) => r.storey === "Ground")).toBe(true);
+    // Scoped as a living room (real scope rules), sized from the 36 m² archetype.
+    const op = rooms.find((r) => r.name === "Kitchen / Living");
+    expect(op?.roomType).toBe("living");
+    expect(op?.sizeType).toBe("open_plan_kitchen_living");
   });
 
   it("separate kitchen swaps the archetype", () => {
@@ -72,6 +76,9 @@ describe("starterExtraction → buildDraft", () => {
     markStarterProvenance(draft.areas);
 
     expect(draft.areas).toHaveLength(rooms.length);
+    const openPlan = draft.areas.find((a) => a.name === "Kitchen / Living");
+    expect(openPlan?.L).toBe(FALLBACK_TYPICALS.open_plan_kitchen_living.L);
+    expect(openPlan?.roomType).toBe("living");
     const bed = draft.areas.find((a) => a.name === "Bed 1");
     expect(bed?.L).toBe(FALLBACK_TYPICALS.bedroom.L);
     expect(bed?.W).toBe(FALLBACK_TYPICALS.bedroom.W);

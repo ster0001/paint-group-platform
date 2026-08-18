@@ -46,7 +46,18 @@ export function typicalSize(roomType: string, rows: TypicalSizeRow[]): { L: numb
   return FALLBACK_TYPICALS[roomType] ?? FALLBACK_TYPICALS.bedroom;
 }
 
-export type StarterRoom = { name: string; roomType: string; storey: "Ground" | "First" };
+export type StarterRoom = {
+  name: string;
+  roomType: string;
+  storey: "Ground" | "First";
+  /**
+   * Where the typical size comes from when it isn't the room type's own row.
+   * The open-plan kitchen/living is SCOPED as a living room (that room type
+   * owns real scope rules; open_plan_kitchen_living is not an extraction
+   * room type) but SIZED from its own 36 m² archetype.
+   */
+  sizeType?: string;
+};
 
 /**
  * Composition per the mockup's no-plan build, plus the open-plan archetype
@@ -62,7 +73,7 @@ export function starterRoomList(basics: WizardBasics): StarterRoom[] {
     rooms.push({ name: `Bed ${i}`, roomType: "bedroom", storey: up });
   }
   if (basics.openPlanKitchenLiving) {
-    rooms.push({ name: "Kitchen / Living", roomType: "open_plan_kitchen_living", storey: "Ground" });
+    rooms.push({ name: "Kitchen / Living", roomType: "living", sizeType: "open_plan_kitchen_living", storey: "Ground" });
   } else {
     rooms.push({ name: "Living room", roomType: "living", storey: "Ground" });
     rooms.push({ name: "Kitchen / Meals", roomType: "kitchen", storey: "Ground" });
@@ -132,8 +143,8 @@ export function starterExtraction(
     scale: { method: "none", stated_total_area_m2: null, not_to_scale_disclaimer: false, confidence: 0 },
     ceiling_height_m: opts.heightM,
     rooms: rooms.map((r) => {
-      const size = typicalSize(r.roomType, typicals);
-      const openings = typicalOpenings(r.roomType, opts.bedrooms);
+      const size = typicalSize(r.sizeType ?? r.roomType, typicals);
+      const openings = typicalOpenings(r.sizeType ?? r.roomType, opts.bedrooms);
       return {
         name_on_plan: r.name,
         normalised_type: r.roomType as Extraction["rooms"][number]["normalised_type"],
