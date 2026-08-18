@@ -50,7 +50,7 @@ export default async function QuotePage({
   // Everything below is independent — fetch it all in one round-trip. The single
   // `settings` fetch also carries the company profile and any saved templates, so
   // we don't query settings three separate times.
-  const [rateItems, modifiers, products, settings, lineItems, areaNames, contactsRes, estimateRes, workOrderRes, contractorsRes, presentationsRes] = await Promise.all([
+  const [rateItems, modifiers, products, settings, lineItems, areaNames, contactsRes, estimateRes, workOrderRes, contractorsRes, presentationsRes, typicalRes] = await Promise.all([
     supabase.from("rate_items").select("*").eq("rate_card_id", card?.id ?? "").order("category").order("sub_category"),
     supabase.from("modifiers").select("*").eq("active", true),
     supabase.from("products").select("*"),
@@ -62,7 +62,14 @@ export default async function QuotePage({
     id ? supabase.from("work_orders").select("*").eq("estimate_id", id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("contractors").select("id, profiles(name)").eq("active", true),
     supabase.from("presentations").select("id, name, is_default, presentation_blocks(kind, position, enabled, content)").order("name"),
+    // Typical room sizes power the review gate's "what would this unmeasured
+    // room cost" estimate. Degrades to {} before the 20260912 migration.
+    supabase.from("room_type_defaults").select("room_type, typical_length_m, typical_width_m").eq("version", 3),
   ]);
+  const typicalSizes = Object.fromEntries(
+    ((typicalRes.data as Array<{ room_type: string; typical_length_m: number; typical_width_m: number }> | null) ?? [])
+      .map((r) => [r.room_type, { L: r.typical_length_m, W: r.typical_width_m }]),
+  );
   type PresRow = { id: string; name: string; is_default: boolean; presentation_blocks: { kind: string; position: number; enabled: boolean; content: unknown }[] };
   const presentations = ((presentationsRes.data as PresRow[] | null) ?? []).map((p) => ({
     id: p.id, name: p.name,
@@ -117,6 +124,7 @@ export default async function QuotePage({
       contacts={contacts}
       inclusionTemplates={inclusionTemplates}
       exclusionTemplates={exclusionTemplates}
+      typicalSizes={typicalSizes}
       terms={terms}
       workOrder={workOrderRes.data ?? null}
       contractors={contractors}

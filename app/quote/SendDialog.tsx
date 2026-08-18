@@ -23,6 +23,9 @@ export default function SendDialog({
   totalCents,
   isResend,
   sending,
+  reviewItems = [],
+  reviewTotalCents = 0,
+  reviewGateCents = 15000,
   onSend,
   onClose,
 }: {
@@ -33,9 +36,15 @@ export default function SendDialog({
   totalCents: number;
   isResend: boolean;
   sending: boolean;
+  /** Unresolved assumptions, ordered by dollar impact - the Step 6 gate. */
+  reviewItems?: Array<{ label: string; needs: string; impactCents: number; basis: string }>;
+  reviewTotalCents?: number;
+  reviewGateCents?: number;
   onSend: (delivery: SendDelivery) => void;
   onClose: () => void;
 }) {
+  const [reviewAcknowledged, setReviewAcknowledged] = useState(false);
+  const gateBlocks = reviewTotalCents > reviewGateCents && !reviewAcknowledged;
   const vars: TemplateVars = useMemo(() => ({
     first_name: contact?.first_name || "there",
     name: [contact?.first_name, contact?.last_name].filter(Boolean).join(" ") || contact?.company || "there",
@@ -134,13 +143,35 @@ export default function SendDialog({
           <p className="mt-1 text-[11px] text-amber-600">Text messaging is switched off in Settings → Messaging — this one will still send, but turn it on there to have it ticked by default.</p>
         )}
 
+        {reviewItems.length > 0 && (
+          <div className={`mt-4 rounded-lg border p-3 ${reviewTotalCents > reviewGateCents ? "border-amber-400 bg-amber-50" : "border-gray-200 bg-gray-50"}`}>
+            <p className="text-xs font-semibold text-gray-800">
+              Still assumed on this estimate — about ${Math.round(reviewTotalCents / 100).toLocaleString("en-AU")} unresolved
+            </p>
+            <ul className="mt-1.5 max-h-32 space-y-1 overflow-y-auto text-[11px] text-gray-600">
+              {reviewItems.map((r, i) => (
+                <li key={i} className="flex justify-between gap-2">
+                  <span>{r.label}: {r.needs}</span>
+                  <span className="whitespace-nowrap tabular-nums">~${Math.round(r.impactCents / 100).toLocaleString("en-AU")}</span>
+                </li>
+              ))}
+            </ul>
+            {reviewTotalCents > reviewGateCents && (
+              <label className="mt-2 flex items-start gap-2 text-xs font-medium text-amber-900">
+                <input type="checkbox" checked={reviewAcknowledged} onChange={(e) => setReviewAcknowledged(e.target.checked)} className="mt-0.5" />
+                I&rsquo;ve reviewed these — send anyway (over the ${Math.round(reviewGateCents / 100)} review threshold)
+              </label>
+            )}
+          </div>
+        )}
+
         <div className="mt-5 flex items-center justify-between">
           <p className="text-[11px] text-gray-400">{!emailOn && !smsOn ? (isResend ? "The estimate updates without notifying the customer." : "The estimate is marked sent — share the link yourself.") : ""}</p>
           <div className="flex gap-2">
             <button onClick={onClose} className="rounded-md border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">Cancel</button>
             <button
               onClick={submit}
-              disabled={sending || !canSend}
+              disabled={sending || !canSend || gateBlocks}
               className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
             >
               {sending ? "Sending…" : isResend ? "Update" : "Send"}

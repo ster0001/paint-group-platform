@@ -114,6 +114,12 @@ async function main() {
     modifiers: (modifiersRes.data ?? []) as PricingContext["modifiers"],
     settings: (settingsRes.data ?? []) as PricingContext["settings"],
   };
+  // An empty rate card silently prices every job at 0 hours, which once
+  // masqueraded as a real result. Refuse to score instead.
+  if (ctx.rateItems.length === 0) {
+    console.error(`FATAL: no active rate-card items came back (${rateItemsRes.error?.message ?? "empty result"}) - hours would all be 0. Not scoring.`);
+    process.exit(1);
+  }
   const adj: Adjustments = { modSel: {}, materials: {} };
 
   const rows: Array<Record<string, unknown>> = [];

@@ -33,6 +33,7 @@ import { finishFromModifier } from "@/lib/workorder/finish";
 import OfferPanel from "./OfferPanel";
 import { sendEstimateAction, type DeliveryOutcome } from "./actions";
 import SendDialog, { type SendDelivery } from "./SendDialog";
+import { reviewGate, REVIEW_GATE_CENTS, type AiDeferred } from "@/lib/estimate/reviewGate";
 import { DEFAULT_MESSAGING, MESSAGING_KEY, type MessagingSettings } from "@/lib/messaging/config";
 import { issueWorkOrderAction, setWorkOrderScheduleAction } from "./workOrderActions";
 import { acceptAttr, checkUpload } from "@/lib/uploads/validate";
@@ -202,6 +203,7 @@ export default function QuoteBuilder({
   contractors = [],
   initialView,
   presentations = [],
+  typicalSizes = {},
 }: {
   rateCardId: string | null;
   rateCardVersion: number | null;
@@ -221,6 +223,7 @@ export default function QuoteBuilder({
   contractors?: { id: string; name: string }[];
   initialView?: "builder" | "customer" | "workorder";
   presentations?: { id: string; name: string; blocks: { kind: string; position: number; enabled: boolean; content: unknown }[] }[];
+  typicalSizes?: Record<string, { L: number; W: number }>;
 }) {
   const chargeFor = (t: string) => chargeOutCents(t, rateItems, hourlyRateOverride);
 
@@ -250,7 +253,10 @@ export default function QuoteBuilder({
     return g;
   }, [modifiers]);
 
-  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; materialColours?: Record<string, { name: string; hex: string }>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null; contractorRateOverride?: number | null } | null;
+  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; materialColours?: Record<string, { name: string; hex: string }>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null; contractorRateOverride?: number | null; aiDeferred?: AiDeferred[] } | null;
+  // Deferred plan-reader decisions ride builder_state so the review gate can
+  // price them; the builder itself only carries them through saves.
+  const aiDeferred = useMemo(() => loaded?.aiDeferred ?? [], [loaded]);
   const [blocks, setBlocks] = useState<Block[]>(() => {
     const b = loaded?.blocks;
     if (b && b.length) {
@@ -559,6 +565,11 @@ export default function QuoteBuilder({
     [modSel, materials, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride],
   );
   const rates = useMemo(() => resolveRates(pricingCtx, adjustments), [pricingCtx, adjustments]);
+  // What is still assumed on this estimate, priced and ordered - the $150 gate.
+  const review = useMemo(
+    () => reviewGate(blocks as unknown as Parameters<typeof reviewGate>[0], pricingCtx, adjustments, typicalSizes, aiDeferred),
+    [blocks, pricingCtx, adjustments, typicalSizes, aiDeferred],
+  );
   const gstRate = rates.gstRate;
   const contractorHourlyCents = rates.contractorHourlyCents;
 
@@ -623,7 +634,7 @@ export default function QuoteBuilder({
       // accept_estimate copies it straight onto the new work order, so an accepted
       // job is bookable on the scheduling board immediately instead of waiting for
       // someone to remember to press Issue.
-      builder_state: { blocks, modSel, contact, jobAddress, materials, materialColours, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, woDoc: computeWorkOrderDoc() },
+      builder_state: { blocks, modSel, contact, jobAddress, materials, materialColours, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, aiDeferred, woDoc: computeWorkOrderDoc() },
       share_token: token,
       presentation_id: presentationId,
       sent_snapshot: buildCustomerDoc(token),
@@ -1760,6 +1771,9 @@ export default function QuoteBuilder({
           totalCents={totals.total}
           isResend={estStatus !== "draft"}
           sending={sendingNow || saving}
+          reviewItems={review.items}
+          reviewTotalCents={review.totalImpactCents}
+          reviewGateCents={REVIEW_GATE_CENTS}
           onSend={sendToCustomer}
           onClose={() => setSendDialogOpen(false)}
         />

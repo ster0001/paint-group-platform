@@ -122,7 +122,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ run
   // finds (QuoteBuilder line 241), and `source` lives on the estimates row, not
   // in here. Every other key is left absent so the builder applies its own
   // defaults, exactly as it does for a hand-started estimate.
-  const builderState = { blocks: [...existingBlocks, ...draft.areas] };
+  // Deferred decisions (doors/windows/cornices with unknown types) used to
+  // live only in this response and vanish - now they ride builder_state so
+  // the pre-send review gate can price what is still unresolved.
+  let priorState: Record<string, unknown> = {};
+  if (targetForAppend) {
+    const { data: prior } = await supabase.from("estimates").select("builder_state").eq("id", targetForAppend).maybeSingle();
+    priorState = (prior?.builder_state as Record<string, unknown>) ?? {};
+  }
+  const priorDeferred = Array.isArray(priorState.aiDeferred) ? (priorState.aiDeferred as unknown[]) : [];
+  const builderState = {
+    ...priorState,
+    blocks: [...existingBlocks, ...draft.areas],
+    aiDeferred: [...priorDeferred, ...draft.deferred],
+  };
 
   const estimateId = parsedBody.data.estimateId ?? source?.estimate_id ?? null;
 
