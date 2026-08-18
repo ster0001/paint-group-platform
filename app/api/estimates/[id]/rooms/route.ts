@@ -44,6 +44,7 @@ const roomSchema = z.object({
   prepHours: z.record(z.string(), z.number().min(0).max(100)).default({}),
   coats: z.record(z.string(), z.number().int().min(1).max(4)).default({}),
   crewNotes: z.record(z.string(), z.string().max(2000)).default({}),
+  hoursOverride: z.record(z.string(), z.number().min(0).max(500)).default({}),
   labels: z.record(z.string(), z.string().max(80)).default({}),
   extraTiles: z.array(z.object({ id: z.string().max(80), from: z.string().max(80) })).max(30).default([]),
   // Observations only - severity and affected quantity. The HOURS come from

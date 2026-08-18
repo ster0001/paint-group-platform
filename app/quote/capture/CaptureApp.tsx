@@ -583,9 +583,19 @@ function RoomReview({
                 />
                 {t.countable && !t.fractional ? `× ${draft.selections[t.id]}` : ""}
                 {t.fractional && (draft.selections[t.id] ?? 0) < 4 ? `${(draft.selections[t.id] ?? 0) * 25}%` : ""}
-                {hoursFor(t, draft.selections[t.id] ?? 0) != null && (
-                  <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-normal text-gray-600">{hoursFor(t, draft.selections[t.id] ?? 0)}h</span>
-                )}
+                <span className="flex items-center gap-1 rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-normal text-gray-600">
+                  <input type="number" inputMode="decimal" step="0.25" min="0"
+                    placeholder={String(hoursFor(t, draft.selections[t.id] ?? 0) ?? "")}
+                    value={draft.hoursOverride?.[t.id] ?? ""}
+                    onChange={(e) => {
+                      const v = e.target.value === "" ? undefined : Number(e.target.value);
+                      const next = { ...(draft.hoursOverride ?? {}) };
+                      if (v == null || Number.isNaN(v)) delete next[t.id]; else next[t.id] = v;
+                      set({ hoursOverride: next });
+                    }}
+                    className="w-12 bg-transparent text-right" />
+                  h{draft.hoursOverride?.[t.id] != null ? " (manual)" : ""}
+                </span>
                 <button type="button" title="Duplicate this substrate (e.g. cupboard doors vs normal doors)"
                   onClick={() => {
                     const id = `${t.id}#${crypto.randomUUID().slice(0, 4)}`;

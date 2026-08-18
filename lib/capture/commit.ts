@@ -45,6 +45,8 @@ export type RoomDraft = {
    * prep arithmetic. qty is in the rate's own unit (m2 / lineal m / each).
    */
   defects: Record<string, DefectObservation[]>;
+  /** tileId -> manual painting-hours override (RoomReview). Bounded by the route. */
+  hoursOverride?: Record<string, number>;
   /** tileId -> user label override ("Cupboard door"). */
   labels?: Record<string, string>;
   /** Duplicated substrate instances: unique id cloning a base tile. */
@@ -102,7 +104,7 @@ export function emptyDraft(localId: string, name: string, roomType: string, stor
     lengthM: 0, widthM: 0, heightM, heightInherited: true,
     extraWallSegmentsM: [], perimeterOverrideM: null,
     selections: {}, exclusions: [], prepHours: {}, coats: {}, crewNotes: {},
-    defects: {}, labels: {}, extraTiles: [],
+    defects: {}, labels: {}, extraTiles: [], hoursOverride: {},
     status: "capturing",
   };
 }
@@ -207,7 +209,8 @@ export function draftToAreaNode(
       count: tile.countable && !tile.fractional ? count : 1,
       hidden: false, media: [],
       measureL, measureH: null,
-      qtyOverride, rateOverride: null, paintingHrOverride: null,
+      qtyOverride, rateOverride: null,
+      paintingHrOverride: draft.hoursOverride?.[tile.id] ?? null,
       prepHr: Math.round(((draft.prepHours[tile.id] ?? 0) + defectPrep) * 100) / 100,
       priceOverride: null, productName: null, color: "", colorHex: "",
       coverageOverride: null, volumeOverride: null, unitPriceOverride: null,

@@ -119,6 +119,9 @@ export function expandCaptureTiles(tiles: SurfaceTile[]): SurfaceTile[] {
       out.push(
         { ...t, id: `${t.id}:flat`, label: "Flat Door + Frame", tileLabel: "Flat Door + Frame", rateCode: doorRateCode("flat")!, sortOrder: t.sortOrder },
         { ...t, id: `${t.id}:panel`, label: "Panel Door + Frame", tileLabel: "Panel Door + Frame", rateCode: doorRateCode("panel")!, sortOrder: t.sortOrder + 1 },
+        // Door-only rates (no frame) - robe/cupboard leaves, re-hangs.
+        { ...t, id: `${t.id}:flat-nf`, label: "Flat Door (no frame)", tileLabel: "Flat Door (no frame)", rateCode: "Flat Door (1 Side)", sortOrder: t.sortOrder + 2 },
+        { ...t, id: `${t.id}:panel-nf`, label: "Panel Door (no frame)", tileLabel: "Panel Door (no frame)", rateCode: "4-6 Panel Door (1 Side)", sortOrder: t.sortOrder + 3 },
       );
     } else if (t.surfaceType === "Windows") {
       out.push(
