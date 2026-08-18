@@ -28,9 +28,21 @@ export default function NewEstimateButton({ templates }: { templates: TemplateMe
 
             <div className="px-5 py-4">
               <Link
-                href="/quote"
+                href="/wizard"
                 onClick={() => setOpen(false)}
                 className="flex w-full items-center gap-3 rounded-xl border border-gray-200 p-4 text-left hover:border-gray-900 hover:bg-gray-50"
+              >
+                <span className="text-2xl">🪄</span>
+                <span>
+                  <span className="block text-sm font-medium">Start with the wizard</span>
+                  <span className="block text-xs text-gray-500">Floorplan, listing URL or quick basics → a priced draft.</span>
+                </span>
+              </Link>
+
+              <Link
+                href="/quote"
+                onClick={() => setOpen(false)}
+                className="mt-2 flex w-full items-center gap-3 rounded-xl border border-gray-200 p-4 text-left hover:border-gray-900 hover:bg-gray-50"
               >
                 <span className="text-2xl">📄</span>
                 <span>
