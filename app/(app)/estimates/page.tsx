@@ -79,6 +79,15 @@ export default async function EstimatesPage({
                   </td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{money(e.total_cents)}</td>
                   <td className="px-4 py-2.5 text-right">
+                    {e.status !== "accepted" && (
+                      <Link
+                        href={`/quote/capture?id=${e.id}`}
+                        className="mr-3 text-xs text-gray-500 hover:text-gray-900 hover:underline"
+                        title="On-site room-loop capture"
+                      >
+                        Capture
+                      </Link>
+                    )}
                     <DeleteEstimateButton
                       estimateId={e.id}
                       title={e.title || "Untitled estimate"}

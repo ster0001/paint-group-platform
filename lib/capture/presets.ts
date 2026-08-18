@@ -7,6 +7,7 @@
  * are pre-selected, how they group and order, and how each is measured.
  */
 import type { MeasureBasis } from "./quantities";
+import { SURFACE_TO_RATE_CODE, doorRateCode, windowRateCode } from "@/lib/extract/scope";
 
 /** The rules row as it comes from the table (post Step 3 migration). */
 export type TileRule = {
@@ -26,6 +27,13 @@ export type SurfaceTile = {
   label: string;
   /** Short label for the tile box. */
   tileLabel: string;
+  /**
+   * The active rate card's item code this tile prices as. Falls back to the
+   * surface type for tiles with no rate item (Cabinets, Shelving) - those
+   * commit as prep-only rows, which is how lib/pricing already treats an
+   * unknown code.
+   */
+  rateCode: string;
   measureBasis: MeasureBasis;
   group: "core" | "openings" | "joinery" | "extras";
   /** Pre-selected when the room opens (the biggest tap saving). */
@@ -74,6 +82,7 @@ export function tilesForRoomType(roomType: string, rules: TileRule[]): SurfaceTi
       surfaceType: r.surface_type,
       label: r.surface_type,
       tileLabel: TILE_LABELS[r.surface_type] ?? r.surface_type,
+      rateCode: SURFACE_TO_RATE_CODE[r.surface_type] ?? r.surface_type,
       measureBasis: BASIS_BY_SURFACE[r.surface_type] ?? "manual_m2",
       group: (GROUPS.has(r.tile_group) ? r.tile_group : "extras") as SurfaceTile["group"],
       defaultOn: !r.is_option && !r.countable,
@@ -87,6 +96,35 @@ export function tilesForRoomType(roomType: string, rules: TileRule[]): SurfaceTi
         a.sortOrder - b.sortOrder ||
         a.label.localeCompare(b.label),
     );
+}
+
+/**
+ * Capture-mode tile expansion: on site the estimator KNOWS the door and window
+ * styles, so the generic "Door & Frame" and "Windows" rules become one tile
+ * per style, each carrying its own rate code. Same no-guessing rule as the
+ * plan reader (doorRateCode/windowRateCode), exercised from the other side:
+ * here a human picks the style by tapping the right tile.
+ */
+export function expandCaptureTiles(tiles: SurfaceTile[]): SurfaceTile[] {
+  const out: SurfaceTile[] = [];
+  for (const t of tiles) {
+    if (t.surfaceType === "Door & Frame") {
+      out.push(
+        { ...t, id: `${t.id}:flat`, label: "Flat Door + Frame", tileLabel: "Flat Door + Frame", rateCode: doorRateCode("flat")!, sortOrder: t.sortOrder },
+        { ...t, id: `${t.id}:panel`, label: "Panel Door + Frame", tileLabel: "Panel Door + Frame", rateCode: doorRateCode("panel")!, sortOrder: t.sortOrder + 1 },
+      );
+    } else if (t.surfaceType === "Windows") {
+      out.push(
+        { ...t, id: `${t.id}:sash`, label: "Sash Window", tileLabel: "Sash Window", rateCode: windowRateCode("double_hung_sash")!, sortOrder: t.sortOrder },
+        { ...t, id: `${t.id}:awning`, label: "Awning / Casement", tileLabel: "Awning / Casement", rateCode: windowRateCode("awning_casement")!, sortOrder: t.sortOrder + 1 },
+        { ...t, id: `${t.id}:fixed`, label: "Fixed / Picture", tileLabel: "Fixed / Picture", rateCode: windowRateCode("fixed_picture")!, sortOrder: t.sortOrder + 2 },
+        { ...t, id: `${t.id}:bay`, label: "Colonial / Bay", tileLabel: "Colonial / Bay", rateCode: windowRateCode("colonial_bay")!, sortOrder: t.sortOrder + 3 },
+      );
+    } else {
+      out.push(t);
+    }
+  }
+  return out;
 }
 
 /** Storey heights model: the estimate's map, with the brief's 2.4 m default. */
