@@ -135,7 +135,7 @@ Much of this plan was built before the plan arrived. The honest mapping:
 | 3 (shared components) | **DONE, merged (18 Aug 2026)** | tile metadata on `room_type_scope_rules` (migration 20260913) so one table drives reader + tiles; `estimates.storey_heights`; `area_name_presets` + seed; `lib/capture/quantities.ts` + `presets.ts` (pure, 29 tests); mode-aware SurfaceTileBox + RoomCard rendering both modes on `/dev/scope-components`; Settings folders for scope rules / typical sizes / area presets. Awaiting Tom running migrations 20260912 + 20260913 (app degrades gracefully until then) |
 | 4 (room-loop capture) | **CORE DONE, merged (18 Aug 2026)** | `/quote/capture`: AreaPicker hub (presets + progress cards + auto-increment names), capture screen (storey-inherited H, derived visible perimeter, wall segments, grouped tile grid with badge/increment model), RoomReview (prep steppers, coats, crew notes), IndexedDB draft store + offline queue + restore prompt, live total bar; `POST /api/estimates/[id]/rooms` (zod, staff-only, geometry-in/never-prices, server repricing); parity test green (capture room == hand-built room, per-surface). Verified end-to-end on live dev. REMAINING for full Step 4: per-tile long-press detail sheet, exclusion-tile UX, §13 instrumentation (tap/time counters), offline/crash e2e specs, tap-count targets measured on a real 12-room job. Needs migration 20260914 (storey_heights column grant) |
 | 5 (plan reader P0–P3) | **DONE, merged** | five-stage pipeline; provenance on every node; 9 real plans read live, 15/15 dimensions exact; Tom's scanner rules (no guessed types, no assumed cornices, compulsory ceiling height); photos + listing inputs; multi-file plans -> one estimate |
-| 6 (P4–P7) | **PART-DONE** | ACCURACY GATE MACHINERY BUILT + FIRST RUN 18 Aug 2026 (`scripts/score-regression.ts` vs scraped work-order truth, 32 interior jobs): where plans are dimensioned and scope is whole-interior, m2 is close (walls within ±10% on 7, ceilings ±7% on 3); hours structurally low everywhere because photo-less baselines DEFER all doors/windows (by design) and prep isn't drafted. Known coverage gaps: undimensioned plans score -100%, partial-repaint work orders need per-room matching not whole-job totals. Still to build: per-room matched scoring, defect photos -> prep lines, exterior envelope, dollar-ordered review queue in builder, $150 pre-send gate |
+| 6 (P4–P7) | **PART-DONE** | Gate machinery built and run twice (18 Aug): v1 whole-job, v2 PER-ROOM matched vs scraped work-order truth (which carries per-room L/W/H incl. true ceiling heights). Per-room: ceilings median 5.0% (42/75 in ±7%); walls median 17.6% under assumed 2.4 m but **3.9% with true heights (50/83 in ±10%)** — height assumption, not plan-reading, is the walls error, and production always confirms height. Photo-detected defects -> server-priced prep lines SHIPPED (same rates + code as capture chips; review-queue confirmation; unmatched rooms deferred). Still to build: production-conditions gate run (plan+photos+confirmed heights), exterior envelope, dollar-ordered review queue in builder, $150 pre-send gate |
 | 7–8, 10 (wizard) | **NOT STARTED** | `floorplan-engine-phase-plan.md` + mockup not on disk; business inputs committed beside this file |
 | 9 (proving window) | Tom's, after 7 |
 | 11–12 (chat) | **NOT STARTED** | guide not on disk |
@@ -154,6 +154,44 @@ Much of this plan was built before the plan arrived. The honest mapping:
   the rules table is one row per room-type x surface, so a per-room-type
   value would be duplicated across every surface row. Same versioning, same
   Settings ownership, same seed script.
+
+---
+
+## Path check — 18 Aug 2026, late
+
+Audited against this plan's own rules. **Verdict: on path.**
+
+**Sequence.** R1 ✓ R2 ✓ 3 ✓ 4-core ✓ 5 ✓ 6-in-progress. Step 4's remainder
+(field test, instrumentation, long-press sheet) waits on Tom using capture on
+a real job — the plan's parallel-track rule covers working Step 6 meanwhile.
+The Step 6 gate stays the hard stop before any Step 7+ work ships to
+customers; building the internal wizard (Step 7) is permitted in parallel but
+launching it is not.
+
+**Shared foundations, verified in code (the "stop and flag" list):**
+1. Single pricing authority — no money arithmetic outside `lib/pricing/`;
+   capture displays only server-computed totals. HOLDS.
+2. One rules table — `room_type_scope_rules` consumed by reader scope, capture
+   tiles, and the rooms route (3 consumers, same rows). HOLDS.
+3. One ceiling-height model — `estimates.storey_heights` written by both the
+   apply route and capture; per-node H remains the pricing input. HOLDS.
+4. Mode-aware components — one SurfaceTileBox/RoomCard used by the workbench
+   and capture; Step 7's customer editor must consume these, not fork. HOLDS.
+5. Provenance — capture emits human_confirmed; reader emits ai_*; the review
+   queue reads both (incl. the new photo-prep confirmations). HOLDS.
+
+**One watched mirror (flagged per the plan's rule, not a fork):**
+`lib/capture/quantities.ts` restates the geometry that
+`lib/pricing/estimate.ts#computeQuantity` owns (walls = perimeter x H etc.)
+so tiles can show live numbers without mounting the pricing context. The
+parity test in `lib/capture/commit.test.ts` pins them together per-surface.
+RULE: any change to computeQuantity must run and, if needed, extend that
+parity test in the same commit.
+
+**Order of upcoming work:** finish Step 6 (production-conditions gate run,
+exterior envelope, dollar-ordered review queue, $150 pre-send gate) -> Step 7
+internal wizard -> Step 8 customer layer. Tom-side: field-test capture, plans
+for 28 Bute / 10 Scotland / 56 Main, Northcote photos.
 
 **Files needed from Tom to proceed:**
 `claude-code-brief-room-loop-capture.md` (blocks Steps 3-remainder and 4),
