@@ -131,7 +131,17 @@ async function main() {
     const truth = truthByKey.get(job.id);
     const runId = runIds.get(job.id);
     if (!truth || !runId) continue;
-    if (job.jobType === "exterior") continue; // interior reader only - envelope is later Step 6 work
+    if (job.jobType === "exterior") continue; // interior reader only - the envelope has its own scorer
+    // Some "mixed"-labelled jobs carry an EXTERIOR-ONLY work order (3000,
+    // 3087: cladding items, no Ceiling in the dimensions). Scoring those
+    // against the interior reader polluted the gate aggregate (+136%/-100%
+    // rows in the 18 Aug runs) - route on the truth's own shape, not the
+    // manifest label.
+    const CLADDING = /weatherboard|render|stucco|cement sheet|colorbond|fascia|soffit|eave/i;
+    if (truth.totalDimensions["Ceiling"] == null && truth.items.some((i) => CLADDING.test(i.name))) {
+      console.log(`${job.id.padEnd(16)} SKIPPED - exterior-shaped work order (cladding items, no Ceiling); belongs to the envelope scorer`);
+      continue;
+    }
 
     const { data: run } = await sb.from("extraction_runs").select("raw_output").eq("id", runId).single();
     const reading = run?.raw_output as Extraction | null;

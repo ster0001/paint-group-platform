@@ -408,3 +408,31 @@ capture page and rooms route.
 outlines the extraction schema doesn't report; listing scrape still returns no
 address/photos/m² (Step 8); exterior-only jobs create an empty estimate
 carrying the site-check deferral until E2 wires the envelope drafting.
+
+---
+
+## Exterior envelope E2 (Step 6)
+
+**2026-08-19 · `lib/extract/elevation.ts`, read-route fork, wizard submit,
+`scripts/score-envelope.ts`**
+
+The envelope now has eyes. `readElevationPhoto` reports cladding bands with
+REFERENCE-BASED measurements only — door heads, counted brick/board courses,
+storey lines, unit sizes injected from the `measurement_units` Settings table
+— and `readSitePlan` reports footprint edges from printed dimensions or a
+scale bar only. `mergeSitePlanWidths` fills photo-unmeasured widths from the
+matching side's edge (the photo's own reference wins). `/api/extract/:runId/
+read` forks on `page_class`, so elevation and site-plan runs get their own
+readers instead of failing through the floorplan prompt. The wizard's submit
+assembles the envelope, appends priced `Exterior` nodes via
+`envelopeToAreaNodes` (now typed `DraftArea[]`), writes the reconciled
+`exterior_envelopes` row and `requires_site_check` (best-effort), and defers
+per segment. Proportion is never a basis: the rae276 smoke run correctly
+priced NOTHING on a parapeted rendered terrace with no countable reference —
+that job defers to a site check by design.
+
+`scripts/score-envelope.ts` scores predicted wall m²/lineal m against the
+exterior work-order truth (walls ±10% band); it lists jobs awaiting facade
+photos. `score-regression.ts` now routes exterior-SHAPED work orders (cladding
+items, no Ceiling — jobs 3000/3087 wore a "mixed" label) out of the interior
+gate, which they had been polluting.

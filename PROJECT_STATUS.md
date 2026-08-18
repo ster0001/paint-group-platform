@@ -62,6 +62,18 @@ click-by-click steps, and verify things actually work.
     `npx tsx scripts/seed-extraction-settings.ts`** (kitchen/hallway typicals).
     Manual test: `docs/manual-tests/step7-wizard.md`.
 
+14. **Exterior envelope E2 — Step 6** (2026-08-19). The envelope pipeline is
+    fully wired: elevation-photo + site-plan vision readers (reference-based
+    measurements only — no reference, no number), the read route forks by page
+    class, and the wizard's exterior path now assembles the envelope into
+    priced Exterior areas with `requires_site_check` and an
+    `exterior_envelopes` record. Scorer: `npx tsx scripts/score-envelope.ts`.
+    **Blocked on Tom for accuracy scoring: facade photos** (front + each
+    visible side) for jobs 2494, 3109, hutton48 and lombardy46-ext — add the
+    file paths to each job's `"photos"` array in `regression-set/manifest.json`.
+    The interior gate scorer also now excludes exterior-shaped work orders
+    that were polluting it (3000, 3087).
+
 ## PENDING MANUAL STEPS (run in the Supabase SQL editor)
 - **`20260915000000_wizard_source.sql`** — lets wizard estimates carry
   `source='wizard'` (and reserves `trade_wizard`). Until run, the wizard saves
