@@ -18,10 +18,16 @@ import { reportError } from "@/lib/monitoring/report";
  *
  * One call per room (brief section 7: one batched upsert, not one per
  * surface). THE BOUNDARY RULE, same as the plan reader's apply route: the
- * body carries geometry, tile selections and counts - never a price, an hour
- * rate or a quantity computed client-side. The area node is built HERE from
- * the same rules table the tile grid rendered from, and repriced HERE so the
+ * body carries geometry, tile selections and counts - never a price, a rate
+ * or a quantity computed client-side. The area node is built HERE from the
+ * same rules table the tile grid rendered from, and repriced HERE so the
  * response's totals are the server's own arithmetic.
+ *
+ * Two sanctioned, BOUNDED hour inputs are the exception, both deliberate
+ * staff decisions rather than client arithmetic: the manual prep stepper
+ * (0-100 h) and the per-tile hours override (0-200 h, the review screen's
+ * "the rate is wrong for this one" escape hatch). Everything else about an
+ * hour or a dollar is derived server-side.
  */
 
 export const runtime = "nodejs";
@@ -44,7 +50,10 @@ const roomSchema = z.object({
   prepHours: z.record(z.string(), z.number().min(0).max(100)).default({}),
   coats: z.record(z.string(), z.number().int().min(1).max(4)).default({}),
   crewNotes: z.record(z.string(), z.string().max(2000)).default({}),
-  hoursOverride: z.record(z.string(), z.number().min(0).max(500)).default({}),
+  // The tile's TOTAL hours as shown on the review screen; the commit
+  // subtracts the manual prep back out (see lib/capture/commit.ts). 200 h
+  // comfortably exceeds any real single surface.
+  hoursOverride: z.record(z.string(), z.number().min(0).max(200)).default({}),
   labels: z.record(z.string(), z.string().max(80)).default({}),
   extraTiles: z.array(z.object({ id: z.string().max(80), from: z.string().max(80) })).max(30).default([]),
   // Observations only - severity and affected quantity. The HOURS come from
@@ -109,6 +118,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const tiles = expandCaptureTiles(tilesForRoomType(room.roomType, rules));
   if (tiles.length === 0) {
     return NextResponse.json({ error: `No scope rules exist for a "${room.roomType}".` }, { status: 422 });
+  }
+
+  // Duplicated substrates may only CLONE a real tile, and every id must be
+  // unique — a clone id colliding with a base tile (or another clone) would
+  // emit the same priced surface twice and double-charge the room.
+  const baseIds = new Set(tiles.map((t) => t.id));
+  const cloneIds = new Set<string>();
+  for (const x of room.extraTiles ?? []) {
+    if (!baseIds.has(x.from)) {
+      return NextResponse.json({ error: `Unknown base tile "${x.from}" for a duplicated substrate.` }, { status: 422 });
+    }
+    if (baseIds.has(x.id) || cloneIds.has(x.id)) {
+      return NextResponse.json({ error: "Duplicated substrates must have unique ids." }, { status: 400 });
+    }
+    cloneIds.add(x.id);
   }
 
   const state = (estimate.builder_state ?? {}) as { blocks?: Array<Record<string, unknown>> } & Record<string, unknown>;

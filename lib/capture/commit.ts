@@ -212,7 +212,13 @@ export function draftToAreaNode(
       hidden: false, media: [],
       measureL, measureH: null,
       qtyOverride, rateOverride: null,
-      paintingHrOverride: draft.hoursOverride?.[tile.id] ?? null,
+      // The typed override is the TOTAL the review screen showed (painting +
+      // the manual prep stepper). Pricing adds prepHr back on top, so the
+      // manual prep is subtracted here — otherwise typing the displayed
+      // number inflates the line by its prep hours.
+      paintingHrOverride: draft.hoursOverride?.[tile.id] != null
+        ? Math.max(0, Math.round((draft.hoursOverride[tile.id] - (draft.prepHours[tile.id] ?? 0)) * 100) / 100)
+        : null,
       prepHr: Math.round(((draft.prepHours[tile.id] ?? 0) + defectPrep) * 100) / 100,
       priceOverride: null, productName: null, color: "", colorHex: "",
       coverageOverride: null, volumeOverride: null, unitPriceOverride: null,

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SCOPE_VERSION } from "@/lib/extract/scope";
 import type { TileRule } from "@/lib/capture/presets";
-import { priceArea, type AreaInput } from "@/lib/pricing/estimate";
+import { jobModifier, priceArea, type AreaInput } from "@/lib/pricing/estimate";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import CaptureApp, { type ExistingRoom, type NamePreset } from "./CaptureApp";
 
@@ -94,6 +94,7 @@ export default async function CapturePage({
       presets={presets}
       defectRates={(defectRatesRes.data ?? []) as import("@/lib/capture/commit").DefectRate[]}
       rateItems={ctx.rateItems}
+      jobMod={jobModifier(ctx.modifiers, adj.modSel)}
       initialStoreyHeights={estimate.storey_heights ?? null}
       initialRooms={existingRooms}
     />

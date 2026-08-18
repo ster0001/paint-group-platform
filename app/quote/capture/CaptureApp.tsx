@@ -42,7 +42,7 @@ type Totals = { subtotalCents: number; totalCents: number; contractorHours: numb
 const money = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
 export default function CaptureApp({
-  estimateId, estimateTitle, rules, presets, defectRates, rateItems = [], initialStoreyHeights, initialRooms,
+  estimateId, estimateTitle, rules, presets, defectRates, rateItems = [], jobMod = 1, initialStoreyHeights, initialRooms,
 }: {
   estimateId: string;
   estimateTitle: string;
@@ -50,6 +50,9 @@ export default function CaptureApp({
   presets: NamePreset[];
   defectRates: DefectRate[];
   rateItems?: RateItem[];
+  /** The estimate's job modifier — hour placeholders must show what pricing
+   * will actually charge, or a typed "confirmation" writes a wrong override. */
+  jobMod?: number;
   initialStoreyHeights: Record<string, number> | null;
   initialRooms: ExistingRoom[];
 }) {
@@ -153,7 +156,9 @@ export default function CaptureApp({
     const draft = emptyDraft(crypto.randomUUID(), nextName(name), roomType, currentStorey, heightForStorey(storeyHeights, currentStorey));
     // presets: core measured tiles arrive pre-selected
     const tiles = expandCaptureTiles(tilesForRoomType(roomType, rules));
-    for (const t of tiles) if (t.defaultOn) draft.selections[t.id] = 1;
+    // Fractional tiles (wet-area walls) encode 1..4 as 25..100% — a
+    // pre-ticked tile must arrive at the FULL surface, not a quarter of it.
+    for (const t of tiles) if (t.defaultOn) draft.selections[t.id] = t.fractional ? 4 : 1;
     updateDrafts([...drafts, draft]);
     setScreen({ kind: "capture", localId: draft.localId });
   };
@@ -269,6 +274,8 @@ export default function CaptureApp({
           rules={rules}
           defectRates={defectRates}
           rateItems={rateItems}
+          category={vocab === "exterior" ? "Exterior" : "Interior"}
+          jobMod={jobMod}
           onChange={(d) => updateDrafts(drafts.map((x) => (x.localId === d.localId ? d : x)))}
           onBack={() => setScreen({ kind: "capture", localId: active.localId })}
           onNextRoom={async () => { void commitRoom(active); setScreen({ kind: "picker" }); }}
@@ -533,12 +540,14 @@ function CaptureScreen({
 const CHIP_TYPES = ["peeling", "water_damage", "plaster_cracks", "holes_dents", "previous_poor_finish"];
 
 function RoomReview({
-  draft, rules, defectRates, rateItems = [], onChange, onBack, onNextRoom,
+  draft, rules, defectRates, rateItems = [], category = "Interior", jobMod = 1, onChange, onBack, onNextRoom,
 }: {
   draft: RoomDraft;
   rules: TileRule[];
   defectRates: DefectRate[];
   rateItems?: RateItem[];
+  category?: "Interior" | "Exterior";
+  jobMod?: number;
   onChange: (d: RoomDraft) => void;
   onBack: () => void;
   onNextRoom: () => void;
@@ -550,7 +559,12 @@ function RoomReview({
   ], [baseTiles, draft.extraTiles]);
   const selected = tiles.filter((t) => (draft.selections[t.id] ?? 0) > 0 && !draft.exclusions.includes(t.id));
   const set = (patch: Partial<RoomDraft>) => onChange({ ...draft, ...patch });
-  const itemFor = (code: string) => rateItems.find((r) => (r as { code: string; category?: string }).code === code && (r as { category?: string }).category === "Interior");
+  const itemFor = (code: string) => rateItems.find((r) => (r as { code: string; category?: string }).code === code && (r as { category?: string }).category === category);
+  // The placeholder must equal what pricing will charge for the tile
+  // (painting × job modifier + manual prep) — an estimator who types the
+  // number they can see is CONFIRMING it, and the override must not shift
+  // the price. Parity partner: priceSurface in lib/pricing/estimate.ts;
+  // commit.ts subtracts the same manual prep back out of the typed total.
   const hoursFor = (t: SurfaceTile, count: number): number | null => {
     const item = itemFor(t.rateCode);
     if (!item) return null;
@@ -562,7 +576,7 @@ function RoomReview({
     else if (t.measureBasis === "ceiling_area") qty = resolveQuantity({ basis: "ceiling_area", geo });
     else if (t.measureBasis === "perimeter") qty = resolveQuantity({ basis: "perimeter", geo });
     else if (t.measureBasis === "wall_area") qty = resolveQuantity({ basis: "wall_area", geo }) * (t.fractional ? Math.min(count, 4) / 4 : 1);
-    const painting = (item as { unit?: string }).unit === "Hours Per Item" ? hpu * qty : hpu * qty;
+    const painting = hpu * qty * jobMod;
     return Math.round((painting + (draft.prepHours[t.id] ?? 0)) * 100) / 100;
   };
   const defectsFor = (tileId: string): DefectObservation[] => (draft.defects ?? {})[tileId] ?? [];

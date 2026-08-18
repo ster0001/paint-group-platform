@@ -193,6 +193,26 @@ describe("capture -> builder parity", () => {
     expect(node.id).toBe(42);
   });
 
+  it("the typed hours override is the TOTAL shown — manual prep is subtracted, never double-counted", () => {
+    const draft = emptyDraft("r9", "Laundry", "bedroom", "ground", 2.4);
+    draft.lengthM = 2; draft.widthM = 1.5;
+    draft.selections = { [tileId("Walls")]: 4 };
+    draft.prepHours = { [tileId("Walls")]: 2 };
+    // The review screen showed painting+prep; the estimator typed that total.
+    draft.hoursOverride = { [tileId("Walls")]: 6.5 };
+    let id = 1;
+    const node = draftToAreaNode(draft, bedroomTiles, () => id++);
+    const walls = node.surfaces.find((s) => s.code === "Walls")!;
+    // Pricing computes paintingHrOverride + prepHr, which must equal the total typed.
+    expect(walls.paintingHrOverride).toBe(4.5);
+    expect(walls.prepHr).toBe(2);
+    // A total below the prep floor never goes negative.
+    draft.hoursOverride = { [tileId("Walls")]: 1 };
+    let id2 = 50;
+    const node2 = draftToAreaNode(draft, bedroomTiles, () => id2++);
+    expect(node2.surfaces.find((s) => s.code === "Walls")!.paintingHrOverride).toBe(0);
+  });
+
   it("the committed node carries its exact draft for lossless re-entry", () => {
     const draft = emptyDraft("r8", "Bath", "bedroom", "ground", 2.4);
     draft.lengthM = 2; draft.widthM = 1.5;
