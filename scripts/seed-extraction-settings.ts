@@ -210,6 +210,11 @@ const ROOM_DEFAULTS: Array<[string, number, number, string]> = [
   ["bathroom", 2.0, 1.5, "3 m2 - ensuite uses this row via the alias map"],
   ["laundry", 2.0, 1.5, "3 m2"],
   ["garage", 6.0, 4.0, "24 m2"],
+  // Not in Tom's table - the starter list needs them. Placeholder sizes from
+  // the wizard mockup (16 m2 kitchen/meals, 12 m2 hall & entry); edit in
+  // Settings once real numbers exist.
+  ["kitchen", 4.0, 4.0, "16 m2 - separate kitchen/meals (placeholder, edit to taste)"],
+  ["hallway", 6.0, 2.0, "12 m2 - hall & entry (placeholder, edit to taste)"],
 ];
 
 /**

@@ -45,6 +45,10 @@ export type RoomDraft = {
    * prep arithmetic. qty is in the rate's own unit (m2 / lineal m / each).
    */
   defects: Record<string, DefectObservation[]>;
+  /** tileId -> user label override ("Cupboard door"). */
+  labels?: Record<string, string>;
+  /** Duplicated substrate instances: unique id cloning a base tile. */
+  extraTiles?: Array<{ id: string; from: string }>;
   status: "capturing" | "complete";
 };
 
@@ -98,7 +102,7 @@ export function emptyDraft(localId: string, name: string, roomType: string, stor
     lengthM: 0, widthM: 0, heightM, heightInherited: true,
     extraWallSegmentsM: [], perimeterOverrideM: null,
     selections: {}, exclusions: [], prepHours: {}, coats: {}, crewNotes: {},
-    defects: {},
+    defects: {}, labels: {}, extraTiles: [],
     status: "capturing",
   };
 }
@@ -157,8 +161,16 @@ export function draftToAreaNode(
   const overridden = perimeterDiffers(geo);
   const excluded = new Set(draft.exclusions);
 
+  // Duplicated substrates become real tiles cloning their base's pricing.
+  const allTiles = [
+    ...tiles,
+    ...(draft.extraTiles ?? []).flatMap((x) => {
+      const base = tiles.find((t) => t.id === x.from);
+      return base ? [{ ...base, id: x.id }] : [];
+    }),
+  ];
   const surfaces: BuilderSurface[] = [];
-  for (const tile of tiles) {
+  for (const tile of allTiles) {
     const count = draft.selections[tile.id] ?? 0;
     if (count <= 0 || excluded.has(tile.id) || !tile.rateCode) continue;
 
@@ -166,9 +178,14 @@ export function draftToAreaNode(
     // rectangle the builder would assume - rule 2.
     let qtyOverride: number | null = null;
     let measureL: number | null = null;
+    // Wet-area walls: the tap count IS the fraction (1..4 = 25..100%).
+    const fraction = tile.fractional ? Math.min(count, 4) / 4 : 1;
+    if (tile.fractional && fraction < 1) {
+      qtyOverride = Math.round(resolveQuantity({ basis: "wall_area", geo }) * fraction * 100) / 100;
+    }
     if (overridden) {
       if (tile.measureBasis === "wall_area") {
-        qtyOverride = resolveQuantity({ basis: "wall_area", geo });
+        qtyOverride = Math.round(resolveQuantity({ basis: "wall_area", geo }) * fraction * 100) / 100;
       } else if (tile.measureBasis === "perimeter") {
         measureL = perim;
       }
@@ -184,10 +201,10 @@ export function draftToAreaNode(
     surfaces.push({
       id: nextId(),
       code: tile.rateCode,
-      internalLabel: tile.label,
-      clientLabel: tile.label,
+      internalLabel: (draft.labels?.[tile.id] ?? tile.label) + (tile.fractional && fraction < 1 ? ` (${fraction * 100}%)` : ""),
+      clientLabel: (draft.labels?.[tile.id] ?? tile.label) + (tile.fractional && fraction < 1 ? ` (${fraction * 100}%)` : ""),
       coats: draft.coats[tile.id] ?? 2,
-      count: tile.countable ? count : 1,
+      count: tile.countable && !tile.fractional ? count : 1,
       hidden: false, media: [],
       measureL, measureH: null,
       qtyOverride, rateOverride: null, paintingHrOverride: null,

@@ -14,6 +14,8 @@ import RoomCard from "@/app/components/scope/RoomCard";
 import { emptyDraft, defectHours, DEFECT_LABELS, type DefectObservation, type DefectRate, type RoomDraft } from "@/lib/capture/commit";
 import { expandCaptureTiles, heightForStorey, tilesForRoomType, DEFAULT_STOREY_HEIGHTS, type SurfaceTile, type TileRule } from "@/lib/capture/presets";
 import { perimeterM, perimeterPlausibility, resolveQuantity } from "@/lib/capture/quantities";
+import { hoursPerUnit } from "@/lib/pricing/engine";
+import type { RateItem } from "@/lib/pricing/types";
 import { loadCaptureState, saveCaptureState, type CaptureState } from "@/lib/capture/draft-store";
 
 export type NamePreset = { estimate_type: string; name: string; room_type: string; sort_order: number };
@@ -39,13 +41,14 @@ type Totals = { subtotalCents: number; totalCents: number; contractorHours: numb
 const money = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
 export default function CaptureApp({
-  estimateId, estimateTitle, rules, presets, defectRates, initialStoreyHeights, initialRooms,
+  estimateId, estimateTitle, rules, presets, defectRates, rateItems = [], initialStoreyHeights, initialRooms,
 }: {
   estimateId: string;
   estimateTitle: string;
   rules: TileRule[];
   presets: NamePreset[];
   defectRates: DefectRate[];
+  rateItems?: RateItem[];
   initialStoreyHeights: Record<string, number> | null;
   initialRooms: ExistingRoom[];
 }) {
@@ -254,6 +257,7 @@ export default function CaptureApp({
           draft={active}
           rules={rules}
           defectRates={defectRates}
+          rateItems={rateItems}
           onChange={(d) => updateDrafts(drafts.map((x) => (x.localId === d.localId ? d : x)))}
           onBack={() => setScreen({ kind: "capture", localId: active.localId })}
           onNextRoom={async () => { void commitRoom(active); setScreen({ kind: "picker" }); }}
@@ -405,14 +409,20 @@ function CaptureScreen({
   const set = (patch: Partial<RoomDraft>) => onChange({ ...draft, ...patch });
   const tap = (t: SurfaceTile) => {
     const cur = draft.selections[t.id] ?? 0;
-    set({ selections: { ...draft.selections, [t.id]: t.countable ? cur + 1 : cur > 0 ? 0 : 1 } });
+    // Wet-area walls cycle 25% -> 50% -> 75% -> 100% -> off.
+    const next = t.fractional ? (cur >= 4 ? 0 : cur + 1) : t.countable ? cur + 1 : cur > 0 ? 0 : 1;
+    set({ selections: { ...draft.selections, [t.id]: next } });
   };
   const dec = (t: SurfaceTile) => set({ selections: { ...draft.selections, [t.id]: Math.max(0, (draft.selections[t.id] ?? 0) - 1) } });
 
   const qty = (t: SurfaceTile, count: number): string | null => {
     if (draft.lengthM <= 0 || draft.widthM <= 0) return null;
     switch (t.measureBasis) {
-      case "wall_area": return `${resolveQuantity({ basis: "wall_area", geo })} m²`;
+      case "wall_area": {
+        const full = resolveQuantity({ basis: "wall_area", geo });
+        if (t.fractional && count > 0 && count < 4) return `${count * 25}% · ${Math.round(full * count / 4 * 10) / 10} m²`;
+        return `${full} m²`;
+      }
       case "ceiling_area": return `${resolveQuantity({ basis: "ceiling_area", geo })} m²`;
       case "perimeter": return `${perim.toFixed(1)} m`;
       case "per_item": return count > 0 ? `× ${count}` : null;
@@ -512,18 +522,38 @@ function CaptureScreen({
 const CHIP_TYPES = ["peeling", "water_damage", "plaster_cracks", "holes_dents", "previous_poor_finish"];
 
 function RoomReview({
-  draft, rules, defectRates, onChange, onBack, onNextRoom,
+  draft, rules, defectRates, rateItems = [], onChange, onBack, onNextRoom,
 }: {
   draft: RoomDraft;
   rules: TileRule[];
   defectRates: DefectRate[];
+  rateItems?: RateItem[];
   onChange: (d: RoomDraft) => void;
   onBack: () => void;
   onNextRoom: () => void;
 }) {
-  const tiles = useMemo(() => expandCaptureTiles(tilesForRoomType(draft.roomType, rules)), [draft.roomType, rules]);
+  const baseTiles = useMemo(() => expandCaptureTiles(tilesForRoomType(draft.roomType, rules)), [draft.roomType, rules]);
+  const tiles = useMemo(() => [
+    ...baseTiles,
+    ...(draft.extraTiles ?? []).flatMap((x) => { const b = baseTiles.find((t) => t.id === x.from); return b ? [{ ...b, id: x.id }] : []; }),
+  ], [baseTiles, draft.extraTiles]);
   const selected = tiles.filter((t) => (draft.selections[t.id] ?? 0) > 0 && !draft.exclusions.includes(t.id));
   const set = (patch: Partial<RoomDraft>) => onChange({ ...draft, ...patch });
+  const itemFor = (code: string) => rateItems.find((r) => (r as { code: string; category?: string }).code === code && (r as { category?: string }).category === "Interior");
+  const hoursFor = (t: SurfaceTile, count: number): number | null => {
+    const item = itemFor(t.rateCode);
+    if (!item) return null;
+    const coats = draft.coats[t.id] ?? 2;
+    const hpu = hoursPerUnit(item, coats);
+    const geo = { lengthM: draft.lengthM, widthM: draft.widthM, heightM: draft.heightM, extraWallSegmentsM: draft.extraWallSegmentsM, perimeterOverrideM: draft.perimeterOverrideM };
+    let qty = 0;
+    if (t.measureBasis === "per_item") qty = count;
+    else if (t.measureBasis === "ceiling_area") qty = resolveQuantity({ basis: "ceiling_area", geo });
+    else if (t.measureBasis === "perimeter") qty = resolveQuantity({ basis: "perimeter", geo });
+    else if (t.measureBasis === "wall_area") qty = resolveQuantity({ basis: "wall_area", geo }) * (t.fractional ? Math.min(count, 4) / 4 : 1);
+    const painting = (item as { unit?: string }).unit === "Hours Per Item" ? hpu * qty : hpu * qty;
+    return Math.round((painting + (draft.prepHours[t.id] ?? 0)) * 100) / 100;
+  };
   const defectsFor = (tileId: string): DefectObservation[] => (draft.defects ?? {})[tileId] ?? [];
   const setDefects = (tileId: string, obs: DefectObservation[]) =>
     set({ defects: { ...(draft.defects ?? {}), [tileId]: obs } });
@@ -545,7 +575,24 @@ function RoomReview({
         return (
           <div key={t.id} className="rounded-lg border border-gray-200 p-3 text-sm">
             <div className="flex items-center justify-between">
-              <span className="font-medium">{t.label}{t.countable ? ` × ${draft.selections[t.id]}` : ""}</span>
+              <span className="flex items-center gap-2 font-medium">
+                <input
+                  value={draft.labels?.[t.id] ?? t.label}
+                  onChange={(e) => set({ labels: { ...(draft.labels ?? {}), [t.id]: e.target.value } })}
+                  className="w-40 rounded border border-transparent px-1 hover:border-gray-300"
+                />
+                {t.countable && !t.fractional ? `× ${draft.selections[t.id]}` : ""}
+                {t.fractional && (draft.selections[t.id] ?? 0) < 4 ? `${(draft.selections[t.id] ?? 0) * 25}%` : ""}
+                {hoursFor(t, draft.selections[t.id] ?? 0) != null && (
+                  <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-normal text-gray-600">{hoursFor(t, draft.selections[t.id] ?? 0)}h</span>
+                )}
+                <button type="button" title="Duplicate this substrate (e.g. cupboard doors vs normal doors)"
+                  onClick={() => {
+                    const id = `${t.id}#${crypto.randomUUID().slice(0, 4)}`;
+                    set({ extraTiles: [...(draft.extraTiles ?? []), { id, from: t.id.split("#")[0] }], selections: { ...draft.selections, [id]: 1 }, labels: { ...(draft.labels ?? {}), [id]: `${draft.labels?.[t.id] ?? t.label} (copy)` } });
+                  }}
+                  className="rounded border border-gray-300 px-1.5 text-[11px] text-gray-500 hover:bg-gray-50">⧉</button>
+              </span>
               <div className="flex items-center gap-3 text-xs">
                 <span className="flex items-center gap-1">
                   prep

@@ -21,6 +21,8 @@ export type TileRule = {
   notes: string | null;
 };
 
+export const WET_ROOM_TYPES = new Set(["bathroom", "wc", "laundry"]);
+
 export type SurfaceTile = {
   id: string;
   surfaceType: string;
@@ -42,6 +44,8 @@ export type SurfaceTile = {
   /** Stairwell-style tiles that demand an explicit confirm before pricing. */
   requiresConfirm: boolean;
   sortOrder: number;
+  /** Wet-area walls: taps cycle 25/50/75/100% instead of on/off. */
+  fractional?: boolean;
 };
 
 /**
@@ -55,6 +59,8 @@ const BASIS_BY_SURFACE: Record<string, MeasureBasis> = {
   "Cornices": "perimeter",
   "Skirting Boards": "perimeter",
   "Architrave": "per_item",
+  "Picture Rails": "perimeter",
+  "Mantle": "per_item",
   "Door & Frame": "per_item",
   "Windows": "per_item",
   "Cabinets": "per_item",
@@ -89,6 +95,7 @@ export function tilesForRoomType(roomType: string, rules: TileRule[]): SurfaceTi
       countable: r.countable,
       requiresConfirm: r.requires_confirm,
       sortOrder: r.sort_order,
+      fractional: r.surface_type === "Walls" && WET_ROOM_TYPES.has(r.room_type),
     }))
     .sort(
       (a, b) =>

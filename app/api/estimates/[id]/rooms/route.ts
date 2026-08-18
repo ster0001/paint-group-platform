@@ -7,11 +7,10 @@ import { SCOPE_VERSION } from "@/lib/extract/scope";
 import {
   priceArea,
   priceEstimateTotals,
-  type Adjustments,
   type AreaInput,
   type BlockInput,
-  type PricingContext,
 } from "@/lib/pricing/estimate";
+import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { reportError } from "@/lib/monitoring/report";
 
 /**
@@ -45,6 +44,8 @@ const roomSchema = z.object({
   prepHours: z.record(z.string(), z.number().min(0).max(100)).default({}),
   coats: z.record(z.string(), z.number().int().min(1).max(4)).default({}),
   crewNotes: z.record(z.string(), z.string().max(2000)).default({}),
+  labels: z.record(z.string(), z.string().max(80)).default({}),
+  extraTiles: z.array(z.object({ id: z.string().max(80), from: z.string().max(80) })).max(30).default([]),
   // Observations only - severity and affected quantity. The HOURS come from
   // defect_prep_rates server-side; a client cannot post its own prep time
   // beyond the bounded manual stepper above.
@@ -149,27 +150,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   // ---- reprice server-side so the live total bar shows OUR arithmetic -------
-  const [rateItemsRes, productsRes, modifiersRes, settingsRes] = await Promise.all([
-    supabase.from("rate_items").select("*, rate_cards!inner(is_active)").eq("rate_cards.is_active", true),
-    supabase.from("products").select("*"),
-    supabase.from("modifiers").select("code, group_name, multiplier").eq("active", true),
-    supabase.from("settings").select("key, value"),
-  ]);
-  const ctx: PricingContext = {
-    rateItems: (rateItemsRes.data ?? []) as PricingContext["rateItems"],
-    products: (productsRes.data ?? []) as PricingContext["products"],
-    modifiers: (modifiersRes.data ?? []) as PricingContext["modifiers"],
-    settings: (settingsRes.data ?? []) as PricingContext["settings"],
-  };
-  const adj: Adjustments = {
-    modSel: (state.modSel as Record<string, string>) ?? {},
-    materials: (state.materials as Record<string, string>) ?? {},
-    discountPct: (state.discountPct as number) ?? 0,
-    discountMode: (state.discountMode as "pct" | "fixed") ?? "pct",
-    discountFixedCents: (state.discountFixedCents as number) ?? 0,
-    hourlyRateOverride: (state.hourlyRateOverride as number | null) ?? null,
-    contractorRateOverride: (state.contractorRateOverride as number | null) ?? null,
-  };
+  const ctx = await loadPricingContext(supabase);
+  const adj = adjustmentsFrom(state);
 
   const areaPriceCents = priceArea(node as unknown as AreaInput, ctx, adj);
   const totals = priceEstimateTotals(newBlocks as unknown as BlockInput[], ctx, adj);

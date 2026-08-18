@@ -2,12 +2,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SCOPE_VERSION } from "@/lib/extract/scope";
 import type { TileRule } from "@/lib/capture/presets";
-import {
-  priceArea,
-  type Adjustments,
-  type AreaInput,
-  type PricingContext,
-} from "@/lib/pricing/estimate";
+import { priceArea, type AreaInput } from "@/lib/pricing/estimate";
+import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import CaptureApp, { type ExistingRoom, type NamePreset } from "./CaptureApp";
 
 /**
@@ -36,16 +32,13 @@ export default async function CapturePage({
   const { id } = await searchParams;
   if (!id) redirect("/estimates");
 
-  const [estimateRes, rulesRes, presetsRes, defectRatesRes, rateItemsRes, productsRes, modifiersRes, settingsRes] = await Promise.all([
+  const [estimateRes, rulesRes, presetsRes, defectRatesRes, ctx] = await Promise.all([
     // NOTE: destructure order must match this array exactly.
     supabase.from("estimates").select("id, title, status, builder_state, storey_heights").eq("id", id).maybeSingle(),
     supabase.from("room_type_scope_rules").select("*").eq("version", SCOPE_VERSION),
     supabase.from("area_name_presets").select("estimate_type, name, room_type, sort_order").eq("version", 1).order("sort_order"),
     supabase.from("defect_prep_rates").select("defect_type, unit, hours_sev1, hours_sev2, hours_sev3").eq("version", SCOPE_VERSION),
-    supabase.from("rate_items").select("*, rate_cards!inner(is_active)").eq("rate_cards.is_active", true),
-    supabase.from("products").select("*"),
-    supabase.from("modifiers").select("code, group_name, multiplier").eq("active", true),
-    supabase.from("settings").select("key, value"),
+    loadPricingContext(supabase),
   ]);
 
   const estimate = estimateRes.data as
@@ -61,21 +54,7 @@ export default async function CapturePage({
   // show real dollars from the first render.
   const state = (estimate.builder_state ?? {}) as { blocks?: Array<Record<string, unknown>> } & Record<string, unknown>;
   const blocks = Array.isArray(state.blocks) ? state.blocks : [];
-  const ctx: PricingContext = {
-    rateItems: (rateItemsRes.data ?? []) as PricingContext["rateItems"],
-    products: (productsRes.data ?? []) as PricingContext["products"],
-    modifiers: (modifiersRes.data ?? []) as PricingContext["modifiers"],
-    settings: (settingsRes.data ?? []) as PricingContext["settings"],
-  };
-  const adj: Adjustments = {
-    modSel: (state.modSel as Record<string, string>) ?? {},
-    materials: (state.materials as Record<string, string>) ?? {},
-    discountPct: (state.discountPct as number) ?? 0,
-    discountMode: (state.discountMode as "pct" | "fixed") ?? "pct",
-    discountFixedCents: (state.discountFixedCents as number) ?? 0,
-    hourlyRateOverride: (state.hourlyRateOverride as number | null) ?? null,
-    contractorRateOverride: (state.contractorRateOverride as number | null) ?? null,
-  };
+  const adj = adjustmentsFrom(state);
 
   const existingRooms: ExistingRoom[] = blocks
     .filter((b) => b.kind === "area")
@@ -113,6 +92,7 @@ export default async function CapturePage({
       rules={rules}
       presets={presets}
       defectRates={(defectRatesRes.data ?? []) as import("@/lib/capture/commit").DefectRate[]}
+      rateItems={ctx.rateItems}
       initialStoreyHeights={estimate.storey_heights ?? null}
       initialRooms={existingRooms}
     />
