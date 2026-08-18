@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { readFloorplanPage, hasApiKey } from "@/lib/extract/model";
+import { readFloorplanPage, hasApiKey, MODEL } from "@/lib/extract/model";
+import { ELEVATION_PROMPT_VERSION, readElevationPhoto, readSitePlan, type UnitRow } from "@/lib/extract/elevation";
 import { validateExtraction } from "@/lib/extract/validate";
 import { buildDraft } from "@/lib/extract/draft";
 import { PROMPT_VERSION } from "@/lib/extract/schema";
@@ -58,6 +59,74 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ru
     return NextResponse.json({ error: "The stored page couldn't be read back." }, { status: 502 });
   }
   const bytes = new Uint8Array(await file.data.arrayBuffer());
+
+  // ---- E2 fork: elevations and site plans get their own readers ------------
+  // (previously an elevation photo fell through to the floorplan prompt,
+  // found no rooms, and failed as "nothing to measure from").
+  if (source.page_class === "elevation") {
+    const { data: unitRows } = await supabase
+      .from("measurement_units")
+      .select("unit_key, label, size_mm, tolerance_pct")
+      .order("version", { ascending: false });
+    const result = await readElevationPhoto(bytes, { units: (unitRows ?? []) as UnitRow[] });
+    if (!result.ok) {
+      reportError(result.message, { where: "extract.read.elevation", extra: { runId } });
+      await supabase.from("extraction_runs")
+        .update({ status: "failed", error: result.message, completed_at: new Date().toISOString() })
+        .eq("id", runId);
+      return NextResponse.json({ error: result.message }, { status: 502 });
+    }
+    const measured = result.read.cladding.filter((c) => c.heightM != null && c.heightBasis !== "none").length;
+    await supabase.from("extraction_runs").update({
+      status: "needs_review",
+      model: MODEL,
+      prompt_version: ELEVATION_PROMPT_VERSION,
+      raw_output: result.read,
+      confidence_summary: { elevation: result.read.elevation, segments: result.read.cladding.length, measured },
+      input_tokens: result.inputTokens,
+      output_tokens: result.outputTokens,
+      cost_cents: result.costCents,
+      error: null,
+      completed_at: new Date().toISOString(),
+    }).eq("id", runId);
+    return NextResponse.json({
+      runId, kind: "elevation",
+      elevation: result.read.elevation,
+      segments: result.read.cladding.length,
+      measured,
+      costCents: result.costCents,
+    });
+  }
+
+  if (source.page_class === "site_plan") {
+    const result = await readSitePlan(bytes);
+    if (!result.ok) {
+      reportError(result.message, { where: "extract.read.siteplan", extra: { runId } });
+      await supabase.from("extraction_runs")
+        .update({ status: "failed", error: result.message, completed_at: new Date().toISOString() })
+        .eq("id", runId);
+      return NextResponse.json({ error: result.message }, { status: 502 });
+    }
+    const measuredEdges = result.read.edges.filter((e) => e.lengthM != null && e.basis !== "none").length;
+    await supabase.from("extraction_runs").update({
+      status: "needs_review",
+      model: MODEL,
+      prompt_version: ELEVATION_PROMPT_VERSION,
+      raw_output: result.read,
+      confidence_summary: { edges: result.read.edges.length, measured: measuredEdges },
+      input_tokens: result.inputTokens,
+      output_tokens: result.outputTokens,
+      cost_cents: result.costCents,
+      error: null,
+      completed_at: new Date().toISOString(),
+    }).eq("id", runId);
+    return NextResponse.json({
+      runId, kind: "site_plan",
+      edges: result.read.edges.length,
+      measured: measuredEdges,
+      costCents: result.costCents,
+    });
+  }
 
   const result = await readFloorplanPage(bytes, {
     pageContext: source.page_class ? `classified as ${source.page_class}` : undefined,

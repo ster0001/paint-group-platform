@@ -11,10 +11,15 @@
  * Height references a photo can honestly use (same discipline as ceilings):
  *   door_head      an Australian door head is 2.04 m
  *   brick_course   86 mm per course
- *   board_count    a weatherboard is ~180 mm cover - count the boards
+ *   board_count    weatherboard course cover - counted boards x the course
+ *                  size in the measurement_units Settings table (seed: 142 mm)
  *   storey_line    floor lines on a two-storey render/brick facade
  * "proportion_only" is NOT a basis. It prices nothing.
+ * Reference sizes live in measurement_units (versioned, Tom-editable); the
+ * E2 readers in lib/extract/elevation.ts inject them into the prompt.
  */
+
+import type { DraftArea } from "./draft";
 
 /** Cladding material -> the ACTIVE rate card's exterior code. */
 export const CLADDING_TO_RATE: Record<string, string | null> = {
@@ -129,8 +134,9 @@ export function computeEnvelope(reads: ElevationRead[], minConfidence = 0.6): En
   return out;
 }
 
-/** Envelope -> builder Exterior nodes: one "surface"-type area per elevation. */
-export function envelopeToAreaNodes(env: Envelope, nextId: () => number) {
+/** Envelope -> builder Exterior nodes: one "surface"-type area per elevation.
+ * Typed as DraftArea so envelope nodes ride the same blocks[] as buildDraft's. */
+export function envelopeToAreaNodes(env: Envelope, nextId: () => number, sourceId: string | null = null): DraftArea[] {
   return env.elevations
     .filter((e) => e.surfaces.length > 0)
     .map((e) => ({
@@ -139,10 +145,13 @@ export function envelopeToAreaNodes(env: Envelope, nextId: () => number) {
       name: `Exterior - ${e.name}`,
       type: "Exterior" as const,
       areaType: "surface" as const,
+      roomType: "exterior",
+      storey: "ground",
       L: e.widthM ?? 0, W: 0, H: e.heightM ?? 0,
       isOption: false, description: "", open: false, media: [],
-      origin: "ai_derived", confidence: 0.7,
+      origin: "ai_derived" as const, confidence: 0.7,
       assumedFields: ["exterior_envelope"],
+      extractionSourceId: sourceId,
       surfaces: e.surfaces.map((s) => ({
         id: nextId(), code: s.rateCode, internalLabel: s.label, clientLabel: s.label,
         coats: 2, count: 1, hidden: false, media: [],
@@ -154,7 +163,7 @@ export function envelopeToAreaNodes(env: Envelope, nextId: () => number) {
         volumeOverride: null, unitPriceOverride: null, crewNote: "",
         hideQty: false, showCoats: false, showPrice: false, useCustomRate: false,
         customRate: null, open: false,
-        origin: "ai_derived", confidence: 0.7, assumedFields: ["exterior_envelope"],
+        origin: "ai_derived" as const, confidence: 0.7, assumedFields: ["exterior_envelope"],
       })),
     }));
 }

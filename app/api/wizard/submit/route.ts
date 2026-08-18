@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { buildDraft, type DraftArea, type DraftResult } from "@/lib/extract/draft";
+import { elevationReadSchema, mergeSitePlanWidths, sitePlanReadSchema, type SitePlanRead } from "@/lib/extract/elevation";
+import { computeEnvelope, envelopeToAreaNodes, type ElevationRead } from "@/lib/extract/exterior";
 import { extractionSchema } from "@/lib/extract/schema";
 import { SCOPE_VERSION, type Alias, type ScopeRule } from "@/lib/extract/scope";
 import type { DefectRate } from "@/lib/capture/commit";
@@ -77,6 +79,12 @@ export async function POST(request: Request) {
   /** Defect observations that actually reached the stored readings — the
    * server's own evidence, never the client's photo count. */
   let observedDefects = 0;
+  /** E2: elevation/site-plan readings gathered from facade runs and from
+   * plan pages the classifier routed to the exterior readers. */
+  const elevationReads: ElevationRead[] = [];
+  let sitePlanRead: SitePlanRead | null = null;
+  let facadeSourceId: string | null = null;
+  let facadeSourcePath: string | null = null;
 
   const wantsInterior = state.jobType !== "exterior";
 
@@ -124,7 +132,26 @@ export async function POST(request: Request) {
 
       if (!run.raw_output) { warnings.push("One page had not finished reading and was skipped."); continue; }
       const reading = extractionSchema.safeParse(run.raw_output);
-      if (!reading.success) { warnings.push("One page's reading was unusable and was skipped."); continue; }
+      if (!reading.success) {
+        // Not a floorplan reading — the classifier may have routed this page
+        // to the E2 exterior readers instead. Their output feeds the envelope.
+        const sp = sitePlanReadSchema.safeParse(run.raw_output);
+        if (sp.success) {
+          if (!sitePlanRead || sp.data.confidence > sitePlanRead.confidence) sitePlanRead = sp.data;
+          if (source) sourceIds.push(source.id);
+          appliedRunIds.push(run.id);
+          continue;
+        }
+        const el = elevationReadSchema.safeParse(run.raw_output);
+        if (el.success) {
+          elevationReads.push(el.data);
+          if (source) sourceIds.push(source.id);
+          appliedRunIds.push(run.id);
+          continue;
+        }
+        warnings.push("One page's reading was unusable and was skipped.");
+        continue;
+      }
 
       if (source) {
         sourceIds.push(source.id);
@@ -159,6 +186,32 @@ export async function POST(request: Request) {
     }
   }
 
+  // ---- facade photos: elevation readings for the envelope (E2) -------------
+  const facadeSourceIds: string[] = [];
+  if (state.facadeRunIds.length) {
+    const { data: facadeRuns } = await supabase
+      .from("extraction_runs")
+      .select("id, status, raw_output, estimate_sources ( id, storage_path, estimate_id )")
+      .in("id", state.facadeRunIds);
+    for (const run of facadeRuns ?? []) {
+      const source = (run as unknown as {
+        estimate_sources: { id: string; storage_path: string; estimate_id: string | null } | null;
+      }).estimate_sources;
+      if (source?.estimate_id) { warnings.push("One facade photo belongs to another estimate and was skipped."); continue; }
+      if (source) {
+        facadeSourceIds.push(source.id);
+        if (!facadeSourceId) { facadeSourceId = source.id; facadeSourcePath = source.storage_path; }
+      }
+      const parsedEl = run.raw_output ? elevationReadSchema.safeParse(run.raw_output) : { success: false as const };
+      if (parsedEl.success) {
+        elevationReads.push(parsedEl.data);
+        appliedRunIds.push(run.id as string);
+      } else if (state.jobType !== "interior") {
+        warnings.push("One facade photo hasn't been read yet — its wall stays a site measurement.");
+      }
+    }
+  }
+
   nextId = areas.length
     ? Math.max(...areas.flatMap((a) => [a.id, ...a.surfaces.map((s) => s.id)])) + 1
     : 1;
@@ -182,6 +235,34 @@ export async function POST(request: Request) {
       { error: "Every room was skipped — nothing is left to price.", skipped: merged.skipped, warnings },
       { status: 422 },
     );
+  }
+
+  // ---- E2: the exterior envelope, measured from its own sources ------------
+  // Elevation photos (+ site-plan edge widths) -> computeEnvelope. What
+  // measures becomes priced Exterior nodes; what doesn't stays deferred and
+  // the job carries requires_site_check — never derived from interior rooms.
+  const wantsExterior = state.jobType !== "interior";
+  let envelope: ReturnType<typeof computeEnvelope> | null = null;
+  if (wantsExterior && (elevationReads.length > 0 || sitePlanRead)) {
+    envelope = computeEnvelope(mergeSitePlanWidths(elevationReads, sitePlanRead));
+    const envNodes = envelopeToAreaNodes(envelope, () => nextId++, facadeSourceId);
+    if (envNodes.length) {
+      merged.areas.push(...envNodes);
+      // Specific deferrals replace the blanket "exterior envelope" one.
+      merged.deferred = merged.deferred.filter((d) => d.what !== "exterior envelope");
+    }
+    for (const el of envelope.elevations) {
+      for (const d of el.deferred) {
+        merged.deferred.push({ room: `Exterior - ${el.name}`, areaId: null, what: d.what, count: 1, needs: d.needs });
+      }
+    }
+    for (const s of envelope.requiresSiteCheck) {
+      // Segment-level entries are already covered above; keep the
+      // whole-house ones ("only N elevation(s) measured…").
+      if (s.startsWith("only ")) {
+        merged.deferred.push({ room: "Exterior", areaId: null, what: "site check", count: 1, needs: s });
+      }
+    }
   }
 
   const builderState: Record<string, unknown> = {
@@ -215,20 +296,6 @@ export async function POST(request: Request) {
   }
   const estimateId = insert.data.id as string;
 
-  // Facade photo sources (kind=elevation) link to the estimate for E2 —
-  // only ones not already pinned to another estimate.
-  let facadeSourceIds: string[] = [];
-  if (state.facadeRunIds.length) {
-    const { data: facadeRuns } = await supabase
-      .from("extraction_runs")
-      .select("id, estimate_sources ( id, estimate_id )")
-      .in("id", state.facadeRunIds);
-    facadeSourceIds = (facadeRuns ?? [])
-      .map((r) => (r as unknown as { estimate_sources: { id: string; estimate_id: string | null } | null }).estimate_sources)
-      .filter((s): s is { id: string; estimate_id: string | null } => Boolean(s) && !s!.estimate_id)
-      .map((s) => s.id);
-  }
-
   // One key per storey the draft actually has, so capture's storey switcher
   // can reach every floor. One height across them (Tom's one-height rule) —
   // and only when the height was STATED; an assumed 2.4 stays an assumption
@@ -253,6 +320,33 @@ export async function POST(request: Request) {
       ? supabase.from("estimates").update({ storey_heights: storeyHeights }).eq("id", estimateId)
           .then(() => undefined, () => undefined)
       : Promise.resolve(),
+    // Every AI-drafted exterior carries requires_site_check until a human
+    // clears it deliberately (migration 20260910's rule). Best-effort.
+    wantsExterior
+      ? supabase.from("estimates").update({ requires_site_check: true }).eq("id", estimateId)
+          .then(() => undefined, () => undefined)
+      : Promise.resolve(),
+    // The reconciled envelope row — what was measured, from what, at what
+    // confidence — for the cross-check UI and the E2 scorer. Best-effort.
+    envelope
+      ? supabase.from("exterior_envelopes").upsert({
+          estimate_id: estimateId,
+          footprint_source: "floorplan",
+          perimeter_m: sitePlanRead?.perimeterM ?? null,
+          perimeter_origin: sitePlanRead ? "site_plan" : null,
+          perimeter_confidence: sitePlanRead?.confidence ?? null,
+          storeys: sitePlanRead?.storeys ?? null,
+          wall_height_m: envelope.elevations.reduce<number | null>(
+            (max, e) => (e.heightM != null && (max == null || e.heightM > max) ? e.heightM : max), null),
+          wall_height_methods: {
+            elevations: envelope.elevations.map((e) => ({
+              name: e.name, widthM: e.widthM, heightM: e.heightM,
+              surfaces: e.surfaces.length, deferred: e.deferred.length,
+            })),
+            requiresSiteCheck: envelope.requiresSiteCheck,
+          },
+        }, { onConflict: "estimate_id" }).then(() => undefined, () => undefined)
+      : Promise.resolve(),
   ]);
 
   // ---- price it, score it, hand the editor its whole view ------------------
@@ -260,9 +354,11 @@ export async function POST(request: Request) {
   const payload = editorPayload(merged.areas, ctx, adjustmentsFrom(builderState), merged.deferred);
 
   // The pinned plan, through a short-lived signed URL (private bucket).
+  // Exterior-only jobs pin the first facade photo instead.
   let planUrl: string | null = null;
-  if (planSourcePath) {
-    const { data: signed } = await supabase.storage.from("estimate-sources").createSignedUrl(planSourcePath, 3600);
+  const pinPath = planSourcePath ?? facadeSourcePath;
+  if (pinPath) {
+    const { data: signed } = await supabase.storage.from("estimate-sources").createSignedUrl(pinPath, 3600);
     planUrl = signed?.signedUrl ?? null;
   }
 

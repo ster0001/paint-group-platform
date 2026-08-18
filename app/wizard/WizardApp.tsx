@@ -101,7 +101,15 @@ export default function WizardApp({ roomTypes }: { roomTypes: string[] }) {
       const res = await fetch("/api/extract/floorplan?kind=elevation", { method: "POST", body: fd });
       const j = await res.json();
       if (!res.ok) { setError(j.error ?? "The photos didn't upload — try again."); return; }
-      setState((s) => ({ ...s, facadeRunIds: [...s.facadeRunIds, ...(j.runIds ?? [])] }));
+      const ids: string[] = j.runIds ?? [];
+      // E2: each facade starts its elevation read in the background, same as
+      // plan pages — the envelope assembles from whatever has finished.
+      for (const runId of ids) {
+        readsRef.current.push(
+          fetch(`/api/extract/${runId}/read`, { method: "POST" }).catch(() => null),
+        );
+      }
+      setState((s) => ({ ...s, facadeRunIds: [...s.facadeRunIds, ...ids] }));
       setFacadeFileCount((n) => n + files.length);
     } finally {
       setUploading(false);
