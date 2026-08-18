@@ -39,8 +39,58 @@ export type RoomDraft = {
   coats: Record<string, number>;
   /** tileId -> crew note. */
   crewNotes: Record<string, string>;
+  /**
+   * tileId -> observed defects. Hours are NEVER carried here - the commit
+   * computes them from defect_prep_rates so a client cannot post its own
+   * prep arithmetic. qty is in the rate's own unit (m2 / lineal m / each).
+   */
+  defects: Record<string, DefectObservation[]>;
   status: "capturing" | "complete";
 };
+
+export type DefectObservation = { type: string; severity: 1 | 2 | 3; qty: number };
+
+/** One row of defect_prep_rates as the commit needs it. */
+export type DefectRate = {
+  defect_type: string;
+  unit: string; // m2 | lin_m | each
+  hours_sev1: number;
+  hours_sev2: number;
+  hours_sev3: number;
+};
+
+export const DEFECT_LABELS: Record<string, string> = {
+  peeling: "Peeling",
+  flaking: "Flaking",
+  water_damage: "Water damage",
+  plaster_cracks: "Plaster cracks",
+  holes_dents: "Holes / dents",
+  previous_poor_finish: "Previous poor finish",
+  mould: "Mould",
+  nicotine_staining: "Nicotine staining",
+};
+
+const DEFECT_UNIT_LABEL: Record<string, string> = { m2: "m2", lin_m: "lin m", each: "x" };
+
+/** Hours for one observation, from the rates table. Unknown types cost nothing. */
+export function defectHours(obs: DefectObservation, rates: DefectRate[]): number {
+  const rate = rates.find((r) => r.defect_type === obs.type);
+  if (!rate || obs.qty <= 0) return 0;
+  const perUnit = obs.severity === 1 ? rate.hours_sev1 : obs.severity === 2 ? rate.hours_sev2 : rate.hours_sev3;
+  return Math.round(perUnit * obs.qty * 100) / 100;
+}
+
+/** "Peeling sev2 3 m2 (0.54h)" - the reason, recorded on the work order. */
+export function defectSummary(obs: DefectObservation[], rates: DefectRate[]): string {
+  return obs
+    .filter((o) => o.qty > 0)
+    .map((o) => {
+      const rate = rates.find((r) => r.defect_type === o.type);
+      const unit = DEFECT_UNIT_LABEL[rate?.unit ?? ""] ?? "";
+      return `${DEFECT_LABELS[o.type] ?? o.type} sev${o.severity} ${o.qty}${unit === "x" ? "" : " "}${unit} (${defectHours(o, rates)}h)`;
+    })
+    .join("; ");
+}
 
 export function emptyDraft(localId: string, name: string, roomType: string, storey: string, heightM: number): RoomDraft {
   return {
@@ -48,6 +98,7 @@ export function emptyDraft(localId: string, name: string, roomType: string, stor
     lengthM: 0, widthM: 0, heightM, heightInherited: true,
     extraWallSegmentsM: [], perimeterOverrideM: null,
     selections: {}, exclusions: [], prepHours: {}, coats: {}, crewNotes: {},
+    defects: {},
     status: "capturing",
   };
 }
@@ -93,8 +144,9 @@ export function draftToAreaNode(
   draft: RoomDraft,
   tiles: SurfaceTile[],
   nextId: () => number,
-  opts: { exterior?: boolean } = {},
+  opts: { exterior?: boolean; defectRates?: DefectRate[] } = {},
 ): BuilderAreaNode {
+  const defectRates = opts.defectRates ?? [];
   const geo: RoomGeometry = {
     lengthM: draft.lengthM, widthM: draft.widthM, heightM: draft.heightM,
     extraWallSegmentsM: draft.extraWallSegmentsM,
@@ -122,6 +174,13 @@ export function draftToAreaNode(
       }
     }
 
+    // Prep = the manual stepper + every recorded defect priced from the rates
+    // table. The defect NAMES ride the crew note so the reason reaches site.
+    const observations = draft.defects[tile.id] ?? [];
+    const defectPrep = observations.reduce((n, o) => n + defectHours(o, defectRates), 0);
+    const note = [draft.crewNotes[tile.id] ?? "", defectSummary(observations, defectRates)]
+      .filter(Boolean).join(" | ");
+
     surfaces.push({
       id: nextId(),
       code: tile.rateCode,
@@ -132,10 +191,10 @@ export function draftToAreaNode(
       hidden: false, media: [],
       measureL, measureH: null,
       qtyOverride, rateOverride: null, paintingHrOverride: null,
-      prepHr: draft.prepHours[tile.id] ?? 0,
+      prepHr: Math.round(((draft.prepHours[tile.id] ?? 0) + defectPrep) * 100) / 100,
       priceOverride: null, productName: null, color: "", colorHex: "",
       coverageOverride: null, volumeOverride: null, unitPriceOverride: null,
-      crewNote: draft.crewNotes[tile.id] ?? "",
+      crewNote: note,
       hideQty: false, showCoats: false, showPrice: false,
       useCustomRate: false, customRate: null, open: false,
       origin: "human_confirmed", confidence: 1, assumedFields: [],

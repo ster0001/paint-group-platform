@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import SurfaceTileBox, { type TileState } from "@/app/components/scope/SurfaceTileBox";
 import RoomCard from "@/app/components/scope/RoomCard";
-import { emptyDraft, type RoomDraft } from "@/lib/capture/commit";
+import { emptyDraft, defectHours, DEFECT_LABELS, type DefectObservation, type DefectRate, type RoomDraft } from "@/lib/capture/commit";
 import { expandCaptureTiles, heightForStorey, tilesForRoomType, DEFAULT_STOREY_HEIGHTS, type SurfaceTile, type TileRule } from "@/lib/capture/presets";
 import { perimeterM, perimeterPlausibility, resolveQuantity } from "@/lib/capture/quantities";
 import { loadCaptureState, saveCaptureState, type CaptureState } from "@/lib/capture/draft-store";
@@ -39,12 +39,13 @@ type Totals = { subtotalCents: number; totalCents: number; contractorHours: numb
 const money = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
 export default function CaptureApp({
-  estimateId, estimateTitle, rules, presets, initialStoreyHeights, initialRooms,
+  estimateId, estimateTitle, rules, presets, defectRates, initialStoreyHeights, initialRooms,
 }: {
   estimateId: string;
   estimateTitle: string;
   rules: TileRule[];
   presets: NamePreset[];
+  defectRates: DefectRate[];
   initialStoreyHeights: Record<string, number> | null;
   initialRooms: ExistingRoom[];
 }) {
@@ -252,6 +253,7 @@ export default function CaptureApp({
         <RoomReview
           draft={active}
           rules={rules}
+          defectRates={defectRates}
           onChange={(d) => updateDrafts(drafts.map((x) => (x.localId === d.localId ? d : x)))}
           onBack={() => setScreen({ kind: "capture", localId: active.localId })}
           onNextRoom={async () => { void commitRoom(active); setScreen({ kind: "picker" }); }}
@@ -506,11 +508,15 @@ function CaptureScreen({
   );
 }
 
+/** The chips offered per surface - the brief's interior set, in rate-table keys. */
+const CHIP_TYPES = ["peeling", "water_damage", "plaster_cracks", "holes_dents", "previous_poor_finish"];
+
 function RoomReview({
-  draft, rules, onChange, onBack, onNextRoom,
+  draft, rules, defectRates, onChange, onBack, onNextRoom,
 }: {
   draft: RoomDraft;
   rules: TileRule[];
+  defectRates: DefectRate[];
   onChange: (d: RoomDraft) => void;
   onBack: () => void;
   onNextRoom: () => void;
@@ -518,6 +524,15 @@ function RoomReview({
   const tiles = useMemo(() => expandCaptureTiles(tilesForRoomType(draft.roomType, rules)), [draft.roomType, rules]);
   const selected = tiles.filter((t) => (draft.selections[t.id] ?? 0) > 0 && !draft.exclusions.includes(t.id));
   const set = (patch: Partial<RoomDraft>) => onChange({ ...draft, ...patch });
+  const defectsFor = (tileId: string): DefectObservation[] => (draft.defects ?? {})[tileId] ?? [];
+  const setDefects = (tileId: string, obs: DefectObservation[]) =>
+    set({ defects: { ...(draft.defects ?? {}), [tileId]: obs } });
+
+  // Drafts saved before the chips feature lack the map - normalise once.
+  const unitLabel = (type: string) => {
+    const u = defectRates.find((r) => r.defect_type === type)?.unit;
+    return u === "lin_m" ? "lin m" : u === "each" ? "spots" : "m²";
+  };
 
   return (
     <div className="space-y-3">
@@ -525,6 +540,8 @@ function RoomReview({
       {selected.map((t) => {
         const prep = draft.prepHours[t.id] ?? 0;
         const coats = draft.coats[t.id] ?? 2;
+        const obs = defectsFor(t.id);
+        const defectPrep = obs.reduce((n, o) => n + defectHours(o, defectRates), 0);
         return (
           <div key={t.id} className="rounded-lg border border-gray-200 p-3 text-sm">
             <div className="flex items-center justify-between">
@@ -533,7 +550,7 @@ function RoomReview({
                 <span className="flex items-center gap-1">
                   prep
                   <button className="rounded border px-1.5" onClick={() => set({ prepHours: { ...draft.prepHours, [t.id]: Math.max(0, prep - 0.25) } })}>−</button>
-                  <span className="w-10 text-center">{prep.toFixed(2)}h</span>
+                  <span className="w-16 text-center">{prep.toFixed(2)}h{defectPrep > 0 ? ` +${defectPrep.toFixed(2)}` : ""}</span>
                   <button className="rounded border px-1.5" onClick={() => set({ prepHours: { ...draft.prepHours, [t.id]: prep + 0.25 } })}>+</button>
                 </span>
                 <span className="flex items-center gap-1">
@@ -545,6 +562,38 @@ function RoomReview({
                 </span>
               </div>
             </div>
+
+            {/* defect chips: tap cycles severity 1 -> 2 -> 3 -> off */}
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {CHIP_TYPES.map((type) => {
+                const cur = obs.find((o) => o.type === type);
+                return (
+                  <button key={type} type="button"
+                    onClick={() => {
+                      if (!cur) setDefects(t.id, [...obs, { type, severity: 1, qty: 1 }]);
+                      else if (cur.severity < 3) setDefects(t.id, obs.map((o) => (o.type === type ? { ...o, severity: (o.severity + 1) as 1 | 2 | 3 } : o)));
+                      else setDefects(t.id, obs.filter((o) => o.type !== type));
+                    }}
+                    className={`rounded-full px-2 py-0.5 text-[11px] ${cur ? "bg-gray-900 text-white" : "border border-gray-300 text-gray-600"}`}>
+                    {DEFECT_LABELS[type]}{cur ? ` s${cur.severity}` : ""}
+                  </button>
+                );
+              })}
+            </div>
+            {obs.length > 0 && (
+              <div className="mt-1.5 space-y-1">
+                {obs.map((o) => (
+                  <div key={o.type} className="flex items-center gap-2 text-[11px] text-gray-600">
+                    <span className="w-36">{DEFECT_LABELS[o.type] ?? o.type} — affected</span>
+                    <input type="number" inputMode="decimal" step="0.5" min="0" value={o.qty}
+                      onChange={(e) => setDefects(t.id, obs.map((x) => (x.type === o.type ? { ...x, qty: Number(e.target.value) } : x)))}
+                      className="w-16 rounded border border-gray-200 px-1 py-0.5" />
+                    <span>{unitLabel(o.type)} → {defectHours(o, defectRates).toFixed(2)}h prep</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <input value={draft.crewNotes[t.id] ?? ""} placeholder="Note to crew…"
               onChange={(e) => set({ crewNotes: { ...draft.crewNotes, [t.id]: e.target.value } })}
               className="mt-2 w-full rounded border border-gray-200 px-2 py-1 text-xs" />

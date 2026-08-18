@@ -4,7 +4,7 @@
  * builder. Plus the badge model: four taps = one row at qty 4, never four rows.
  */
 import { describe, expect, it } from "vitest";
-import { draftToAreaNode, emptyDraft } from "./commit";
+import { defectHours, defectSummary, draftToAreaNode, emptyDraft, type DefectRate } from "./commit";
 import { expandCaptureTiles, tilesForRoomType, type TileRule } from "./presets";
 import {
   priceArea,
@@ -145,6 +145,43 @@ describe("capture -> builder parity", () => {
     const node = draftToAreaNode(draft, bedroomTiles, () => id++);
     expect(node.surfaces).toHaveLength(1);
     expect(node.surfaces[0]).toMatchObject({ code: "Walls", prepHr: 1.5, coats: 3, crewNote: "water stain above window" });
+  });
+
+  it("defect observations become server-priced prep hours + a named crew note", () => {
+    const rates: DefectRate[] = [
+      { defect_type: "peeling", unit: "m2", hours_sev1: 0.1, hours_sev2: 0.18, hours_sev3: 0.3 },
+      { defect_type: "holes_dents", unit: "each", hours_sev1: 0.15, hours_sev2: 0.25, hours_sev3: 0.45 },
+    ];
+    expect(defectHours({ type: "peeling", severity: 2, qty: 3 }, rates)).toBeCloseTo(0.54);
+    expect(defectHours({ type: "holes_dents", severity: 3, qty: 4 }, rates)).toBeCloseTo(1.8);
+    expect(defectHours({ type: "unknown_thing", severity: 1, qty: 9 }, rates)).toBe(0);
+    expect(defectHours({ type: "peeling", severity: 1, qty: 0 }, rates)).toBe(0);
+
+    const draft = emptyDraft("r6", "Lounge", "bedroom", "ground", 2.4);
+    draft.lengthM = 4; draft.widthM = 3;
+    draft.selections = { [tileId("Walls")]: 1 };
+    draft.prepHours = { [tileId("Walls")]: 0.5 };
+    draft.crewNotes = { [tileId("Walls")]: "south wall" };
+    draft.defects = { [tileId("Walls")]: [{ type: "peeling", severity: 2, qty: 3 }, { type: "holes_dents", severity: 1, qty: 2 }] };
+    let id = 1;
+    const node = draftToAreaNode(draft, bedroomTiles, () => id++, { defectRates: rates });
+    const walls = node.surfaces[0];
+    expect(walls.prepHr).toBeCloseTo(0.5 + 0.54 + 0.3); // manual + defects
+    expect(walls.crewNote).toContain("south wall");
+    expect(walls.crewNote).toContain("Peeling sev2 3 m2 (0.54h)");
+    expect(walls.crewNote).toMatch(/Holes \/ dents sev1 2x? \(0\.3h\)/); // each-unit renders "2x"
+    // summary helper is what the note embeds
+    expect(defectSummary(draft.defects[tileId("Walls")], rates)).toContain("Peeling sev2");
+  });
+
+  it("without a rates table defects cost nothing and parity is untouched", () => {
+    const draft = emptyDraft("r7", "Bed", "bedroom", "ground", 2.4);
+    draft.lengthM = 4; draft.widthM = 3;
+    draft.selections = { [tileId("Walls")]: 1 };
+    draft.defects = { [tileId("Walls")]: [{ type: "peeling", severity: 3, qty: 10 }] };
+    let id = 1;
+    const node = draftToAreaNode(draft, bedroomTiles, () => id++);
+    expect(node.surfaces[0].prepHr).toBe(0);
   });
 
   it("re-committing a room keeps its area id so the builder edits in place", () => {

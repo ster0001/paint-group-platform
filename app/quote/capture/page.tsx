@@ -36,10 +36,12 @@ export default async function CapturePage({
   const { id } = await searchParams;
   if (!id) redirect("/estimates");
 
-  const [estimateRes, rulesRes, presetsRes, rateItemsRes, productsRes, modifiersRes, settingsRes] = await Promise.all([
+  const [estimateRes, rulesRes, presetsRes, defectRatesRes, rateItemsRes, productsRes, modifiersRes, settingsRes] = await Promise.all([
+    // NOTE: destructure order must match this array exactly.
     supabase.from("estimates").select("id, title, status, builder_state, storey_heights").eq("id", id).maybeSingle(),
     supabase.from("room_type_scope_rules").select("*").eq("version", SCOPE_VERSION),
     supabase.from("area_name_presets").select("estimate_type, name, room_type, sort_order").eq("version", 1).order("sort_order"),
+    supabase.from("defect_prep_rates").select("defect_type, unit, hours_sev1, hours_sev2, hours_sev3").eq("version", SCOPE_VERSION),
     supabase.from("rate_items").select("*, rate_cards!inner(is_active)").eq("rate_cards.is_active", true),
     supabase.from("products").select("*"),
     supabase.from("modifiers").select("code, group_name, multiplier").eq("active", true),
@@ -110,6 +112,7 @@ export default async function CapturePage({
       estimateTitle={estimate.title ?? "Untitled estimate"}
       rules={rules}
       presets={presets}
+      defectRates={(defectRatesRes.data ?? []) as import("@/lib/capture/commit").DefectRate[]}
       initialStoreyHeights={estimate.storey_heights ?? null}
       initialRooms={existingRooms}
     />

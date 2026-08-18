@@ -45,6 +45,17 @@ const roomSchema = z.object({
   prepHours: z.record(z.string(), z.number().min(0).max(100)).default({}),
   coats: z.record(z.string(), z.number().int().min(1).max(4)).default({}),
   crewNotes: z.record(z.string(), z.string().max(2000)).default({}),
+  // Observations only - severity and affected quantity. The HOURS come from
+  // defect_prep_rates server-side; a client cannot post its own prep time
+  // beyond the bounded manual stepper above.
+  defects: z.record(
+    z.string(),
+    z.array(z.object({
+      type: z.string().min(1).max(60),
+      severity: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+      qty: z.number().min(0).max(500),
+    })).max(12),
+  ).default({}),
 });
 
 const bodySchema = z.object({
@@ -87,10 +98,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   // The tile list is rebuilt server-side from the rules table - a client
   // cannot invent a tile that maps to a rate code the rules don't offer.
-  const { data: rulesRows } = await supabase
-    .from("room_type_scope_rules")
-    .select("*")
-    .eq("version", SCOPE_VERSION);
+  const [{ data: rulesRows }, { data: defectRatesRows }] = await Promise.all([
+    supabase.from("room_type_scope_rules").select("*").eq("version", SCOPE_VERSION),
+    supabase.from("defect_prep_rates").select("defect_type, unit, hours_sev1, hours_sev2, hours_sev3").eq("version", SCOPE_VERSION),
+  ]);
   const rules = (rulesRows ?? []) as TileRule[];
   const room = parsed.data.room as RoomDraft & { status?: "capturing" | "complete" };
   const tiles = expandCaptureTiles(tilesForRoomType(room.roomType, rules));
@@ -110,7 +121,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   let next = Math.max(0, ...usedIds) + 1;
 
   const draft: RoomDraft = { ...room, status: "complete", areaId: room.areaId ?? null };
-  const node = draftToAreaNode(draft, tiles, () => next++, { exterior: parsed.data.exterior });
+  const node = draftToAreaNode(draft, tiles, () => next++, {
+    exterior: parsed.data.exterior,
+    defectRates: (defectRatesRows ?? []) as import("@/lib/capture/commit").DefectRate[],
+  });
 
   const existingIdx = draft.areaId != null ? blocks.findIndex((b) => Number(b.id) === draft.areaId) : -1;
   const newBlocks = existingIdx >= 0
