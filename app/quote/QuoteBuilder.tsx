@@ -1189,6 +1189,17 @@ export default function QuoteBuilder({
               </button>
             ))}
           </div>
+          {/* On-site room-loop capture - a different way IN to this same estimate. */}
+          {initial?.id && !locked && (
+            <a
+              href={`/quote/capture?id=${initial.id}`}
+              className="rounded-md border border-line2 px-3 py-2 text-[11px] font-medium tracking-wider text-gray-300 hover:bg-white/5"
+              style={{ fontFamily: "var(--font-mono, monospace)" }}
+              title="On-site room-loop capture"
+            >
+              CAPTURE
+            </a>
+          )}
           {locked && <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">Accepted · locked</span>}
           {viewMode === "builder" && !locked && (
             <>
