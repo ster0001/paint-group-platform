@@ -70,10 +70,14 @@ export default function Editor({ initial, roomTypes }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const j = await res.json();
+      const j: { error?: string } & WizardEditorPayload = await res.json();
       if (!res.ok) { flash(j.error ?? "That didn't save — try again."); return; }
-      setPayload(j as WizardEditorPayload);
+      setPayload(j);
       flash(done);
+    } catch {
+      // Network drop or a non-JSON error page: say so, never fail silently —
+      // a quiet failure invites a second tap and a duplicate room.
+      flash("That didn't save — check the connection and try again.");
     } finally {
       setBusy(false);
     }

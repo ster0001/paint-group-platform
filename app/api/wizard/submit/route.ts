@@ -74,6 +74,9 @@ export async function POST(request: Request) {
   const sourceIds: string[] = [];
   const appliedRunIds: string[] = [];
   let planSourcePath: string | null = null;
+  /** Defect observations that actually reached the stored readings — the
+   * server's own evidence, never the client's photo count. */
+  let observedDefects = 0;
 
   const wantsInterior = state.jobType !== "exterior";
 
@@ -101,18 +104,28 @@ export async function POST(request: Request) {
     // ---- plan path: rebuild from the stored readings, one run per page -----
     const { data: runs } = await supabase
       .from("extraction_runs")
-      .select("id, status, raw_output, estimate_sources ( id, storage_path )")
+      .select("id, status, raw_output, estimate_sources ( id, storage_path, estimate_id )")
       .in("id", state.planRunIds);
 
     for (const runId of state.planRunIds) {
       const run = (runs ?? []).find((r) => r.id === runId);
       if (!run) { warnings.push("One uploaded page could not be found and was skipped."); continue; }
       if (run.status === "applied") { warnings.push("One page was already applied to another estimate and was skipped."); continue; }
+
+      const source = (run as unknown as {
+        estimate_sources: { id: string; storage_path: string; estimate_id: string | null } | null;
+      }).estimate_sources;
+      // A source already pinned to another estimate is never claimed — its
+      // file belongs to that estimate (and is deleted with it).
+      if (source?.estimate_id) {
+        warnings.push("One page belongs to another estimate and was skipped.");
+        continue;
+      }
+
       if (!run.raw_output) { warnings.push("One page had not finished reading and was skipped."); continue; }
       const reading = extractionSchema.safeParse(run.raw_output);
       if (!reading.success) { warnings.push("One page's reading was unusable and was skipped."); continue; }
 
-      const source = (run as unknown as { estimate_sources: { id: string; storage_path: string } | null }).estimate_sources;
       if (source) {
         sourceIds.push(source.id);
         if (!planSourcePath) planSourcePath = source.storage_path;
@@ -124,6 +137,8 @@ export async function POST(request: Request) {
       const withHeight = height.assumed
         ? reading.data
         : { ...reading.data, ceiling_height_m: height.heightM };
+
+      observedDefects += reading.data.defect_observations?.length ?? 0;
 
       const draft = buildDraft(withHeight, rules, aliases, {
         startId: nextId, sourceId: source?.id ?? null, defectRates,
@@ -148,8 +163,19 @@ export async function POST(request: Request) {
     ? Math.max(...areas.flatMap((a) => [a.id, ...a.surfaces.map((s) => s.id)])) + 1
     : 1;
 
+  // The damage-photo count is a client claim; the readings are the evidence.
+  // If the photos never made it into the defect reader (upload failed, or the
+  // no-plan path had no run to attach them to), the merge must raise the
+  // "damage to price" deferral rather than trust the count.
+  const effectiveState = state.details.damageTier >= 2 && state.details.damagePhotoCount > 0 && observedDefects === 0
+    ? { ...state, details: { ...state.details, damagePhotoCount: 0 } }
+    : state;
+  if (effectiveState !== state) {
+    warnings.push("The damage photos didn't reach the defect reader — the damage is flagged for review instead.");
+  }
+
   // ---- the wizard's answers, applied over the drafted tree -----------------
-  const merged = applyWizardAnswers({ areas, skipped, assumedCount, deferred }, state, () => nextId++);
+  const merged = applyWizardAnswers({ areas, skipped, assumedCount, deferred }, effectiveState, () => nextId++);
 
   if (merged.areas.length === 0 && wantsInterior) {
     return NextResponse.json(
@@ -189,28 +215,44 @@ export async function POST(request: Request) {
   }
   const estimateId = insert.data.id as string;
 
-  // Facade photo sources (kind=elevation) link to the estimate for E2.
+  // Facade photo sources (kind=elevation) link to the estimate for E2 —
+  // only ones not already pinned to another estimate.
   let facadeSourceIds: string[] = [];
   if (state.facadeRunIds.length) {
     const { data: facadeRuns } = await supabase
       .from("extraction_runs")
-      .select("id, estimate_sources ( id )")
+      .select("id, estimate_sources ( id, estimate_id )")
       .in("id", state.facadeRunIds);
     facadeSourceIds = (facadeRuns ?? [])
-      .map((r) => (r as unknown as { estimate_sources: { id: string } | null }).estimate_sources?.id)
-      .filter((x): x is string => Boolean(x));
+      .map((r) => (r as unknown as { estimate_sources: { id: string; estimate_id: string | null } | null }).estimate_sources)
+      .filter((s): s is { id: string; estimate_id: string | null } => Boolean(s) && !s!.estimate_id)
+      .map((s) => s.id);
   }
+
+  // One key per storey the draft actually has, so capture's storey switcher
+  // can reach every floor. One height across them (Tom's one-height rule) —
+  // and only when the height was STATED; an assumed 2.4 stays an assumption
+  // on the nodes, settled by the editor's confirm chip.
+  const storeyKeys = [...new Set(merged.areas.map((a) => a.storey || "ground"))];
+  const storeyHeights = height.assumed || storeyKeys.length === 0
+    ? null
+    : Object.fromEntries(storeyKeys.map((s) => [s, height.heightM]));
 
   await Promise.all([
     appliedRunIds.length
       ? supabase.from("extraction_runs").update({ status: "applied" }).in("id", appliedRunIds)
       : Promise.resolve(),
     sourceIds.length || facadeSourceIds.length
-      ? supabase.from("estimate_sources").update({ estimate_id: estimateId }).in("id", [...sourceIds, ...facadeSourceIds])
+      // Belt and braces: the ownership check above plus is-null here, so a
+      // concurrent claim can't repoint another estimate's plan.
+      ? supabase.from("estimate_sources").update({ estimate_id: estimateId })
+          .in("id", [...sourceIds, ...facadeSourceIds]).is("estimate_id", null)
       : Promise.resolve(),
     // Best-effort until migration 20260913/14 has run everywhere.
-    supabase.from("estimates").update({ storey_heights: { ground: height.heightM } }).eq("id", estimateId)
-      .then(() => undefined, () => undefined),
+    storeyHeights
+      ? supabase.from("estimates").update({ storey_heights: storeyHeights }).eq("id", estimateId)
+          .then(() => undefined, () => undefined)
+      : Promise.resolve(),
   ]);
 
   // ---- price it, score it, hand the editor its whole view ------------------

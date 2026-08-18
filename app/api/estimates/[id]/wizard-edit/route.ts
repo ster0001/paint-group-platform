@@ -96,7 +96,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const assumed = (Array.isArray(b.assumedFields) ? (b.assumedFields as string[]) : []).filter((f) => f !== "H");
       return { ...b, H: act.heightM, assumedFields: assumed };
     });
-    storeyHeights = { ground: act.heightM };
+    // One confirmed height across every storey the tree has (Tom's rule);
+    // per-floor differences are capture's job, and it needs every key to
+    // exist to offer the floor at all.
+    const storeys = [...new Set(
+      blocks.filter((b) => b.kind === "area").map((b) => (typeof b.storey === "string" && b.storey ? b.storey : "ground")),
+    )];
+    storeyHeights = Object.fromEntries((storeys.length ? storeys : ["ground"]).map((s) => [s, act.heightM]));
   }
 
   if (act.action === "confirm_room") {
@@ -131,9 +137,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: `No scope rules exist for a "${act.roomType}".` }, { status: 422 });
     }
 
-    const existingNames = new Set(blocks.map((b) => String(b.name ?? "")));
+    // Case-insensitive, like capture's own nextName() — "bedroom" typed on
+    // site must collide with "Bedroom".
+    const existingNames = new Set(blocks.map((b) => String(b.name ?? "").trim().toLowerCase()));
     let name = act.name?.trim() || act.roomType.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
-    for (let n = 2; existingNames.has(name); n++) name = `${act.name?.trim() || name.replace(/ \d+$/, "")} ${n}`;
+    for (let n = 2; existingNames.has(name.trim().toLowerCase()); n++) {
+      name = `${(act.name?.trim() || name).replace(/ \d+$/, "")} ${n}`;
+    }
 
     // New rooms inherit the job's height from the tree itself.
     const groundH = blocks.find((b) => b.kind === "area" && Number(b.H) > 0)?.H;
@@ -167,16 +177,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     blocks = [...blocks, ...(mergedRoom.areas as unknown as LooseBlock[])];
-    deferred.push(...mergedRoom.deferred.filter((d) => d.room === name));
+    // Only the questions raised by the rooms just added — matched by id, so
+    // a name shared with an existing room can't cross-attach.
+    const addedIds = new Set(mergedRoom.areas.map((a) => a.id));
+    deferred.push(...mergedRoom.deferred.filter((d) => d.areaId != null && addedIds.has(d.areaId)));
   }
 
+  let newDeferred = deferred;
   if (act.action === "remove_room") {
     const before = blocks.length;
     blocks = blocks.filter((b) => !(b.kind === "area" && Number(b.id) === act.areaId));
     if (blocks.length === before) return NextResponse.json({ error: "No such room." }, { status: 404 });
+    // The room's open questions leave with it — otherwise they haunt the
+    // review list and dock the accuracy score for a room that no longer
+    // exists. Whole-job entries (areaId null) stay.
+    newDeferred = deferred.filter((d) => d.areaId == null || d.areaId !== act.areaId);
   }
 
-  const newState = { ...state, blocks, aiDeferred: deferred };
+  const newState = { ...state, blocks, aiDeferred: newDeferred };
   const { error: writeError } = await supabase
     .from("estimates")
     .update({ builder_state: newState })
@@ -191,6 +209,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const ctx = await loadPricingContext(supabase);
-  const payload = editorPayload(blocks, ctx, adjustmentsFrom(newState), deferred);
+  const payload = editorPayload(blocks, ctx, adjustmentsFrom(newState), newDeferred);
   return NextResponse.json(payload);
 }

@@ -75,7 +75,9 @@ export function applyWizardAnswers(
     // Resolve this room's deferred openings with the "mostly" answers. The
     // style is a whole-house statement, so the new line carries
     // assumedFields: ["style"] — stated, not confirmed per door.
-    const mine = deferred.filter((d) => d.room === area.name);
+    // Matched by areaId, never by name: two rooms called "Hall" must each
+    // keep their own doors.
+    const mine = deferred.filter((d) => d.areaId != null && d.areaId === area.id);
     for (const d of mine) {
       const kind = deferredKind(d.what);
       if (kind == null) continue;
@@ -127,24 +129,24 @@ export function applyWizardAnswers(
 
   if (ticked.has("staircase")) {
     deferred.push({
-      room: "Whole job", what: "staircase", count: 1,
+      room: "Whole job", areaId: null, what: "staircase", count: 1,
       needs: "no per-room rate for stairs — price it in the builder",
     });
   }
   if (state.paint.waterBasedOnly && state.paint.trimsOilBased === "yes") {
     deferred.push({
-      room: "Whole job", what: "oil-to-water trim conversion", count: 1,
+      room: "Whole job", areaId: null, what: "oil-to-water trim conversion", count: 1,
       needs: "trims are oil-based enamel — allow adhesion prep before the water-based topcoats",
     });
   } else if (state.paint.waterBasedOnly && state.paint.trimsOilBased === "unsure") {
     deferred.push({
-      room: "Whole job", what: "trim enamel check", count: 1,
+      room: "Whole job", areaId: null, what: "trim enamel check", count: 1,
       needs: "water-based only requested — check whether the trims are currently oil enamel",
     });
   }
   if (state.details.damageTier >= 2 && state.details.damagePhotoCount === 0) {
     deferred.push({
-      room: "Whole job", what: "damage to price", count: 1,
+      room: "Whole job", areaId: null, what: "damage to price", count: 1,
       needs: state.details.damageNote.trim() !== ""
         ? `stated: "${state.details.damageNote.trim().slice(0, 160)}" — price the prep before send`
         : "significant damage stated with no photos — photos or a site visit before send",
@@ -152,7 +154,7 @@ export function applyWizardAnswers(
   }
   if (state.jobType !== "interior") {
     deferred.push({
-      room: "Exterior", what: "exterior envelope", count: 1,
+      room: "Exterior", areaId: null, what: "exterior envelope", count: 1,
       needs: "measured from the site plan and facade photos, confirmed on site — never derived from the interior rooms",
     });
   }

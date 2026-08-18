@@ -30,7 +30,14 @@ export type WizardRoomView = {
   surfaces: Array<{ label: string; count: number; coats: number }>;
 };
 
-export type WizardDeferred = { room: string; what: string; count: number; needs: string };
+export type WizardDeferred = {
+  room: string;
+  what: string;
+  count: number;
+  needs: string;
+  /** The room node that raised the question; null = whole-job. */
+  areaId?: number | null;
+};
 
 export type WizardEditorPayload = {
   rooms: WizardRoomView[];

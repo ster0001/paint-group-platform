@@ -18,7 +18,7 @@ const draft = (): DraftResult => ({
   areas: [
     {
       id: 1, kind: "area", name: "Living", type: "Interior", areaType: "room", roomType: "living",
-      L: 4, W: 4, H: 2.4, isOption: false, description: "", open: false, media: [],
+      L: 4, W: 4, H: 2.4, storey: "ground", isOption: false, description: "", open: false, media: [],
       surfaces: [
         makeDraftSurface(2, "Walls", "Walls", 1, "ai_derived", 0.9, []),
         makeDraftSurface(3, "Ceilings", "Ceiling", 1, "ai_derived", 0.9, []),
@@ -28,7 +28,7 @@ const draft = (): DraftResult => ({
     },
     {
       id: 5, kind: "area", name: "Bed 1", type: "Interior", areaType: "room", roomType: "bedroom",
-      L: 3.5, W: 3.25, H: 2.4, isOption: false, description: "", open: false, media: [],
+      L: 3.5, W: 3.25, H: 2.4, storey: "ground", isOption: false, description: "", open: false, media: [],
       surfaces: [makeDraftSurface(6, "Walls", "Walls", 1, "ai_derived", 0.9, [])],
       origin: "ai_extracted", confidence: 0.9, assumedFields: [], extractionSourceId: null,
     },
@@ -36,9 +36,9 @@ const draft = (): DraftResult => ({
   skipped: [],
   assumedCount: 0,
   deferred: [
-    { room: "Bed 1", what: "1 door", count: 1, needs: "flat or panel?" },
-    { room: "Bed 1", what: "1 window", count: 1, needs: "what type?" },
-    { room: "Living", what: "cornice", count: 1, needs: "does this room have one?" },
+    { room: "Bed 1", areaId: 5, what: "1 door", count: 1, needs: "flat or panel?" },
+    { room: "Bed 1", areaId: 5, what: "1 window", count: 1, needs: "what type?" },
+    { room: "Living", areaId: 1, what: "cornice", count: 1, needs: "does this room have one?" },
   ],
 });
 
@@ -81,6 +81,26 @@ describe("applyWizardAnswers", () => {
   it("an unsure style leaves the deferral alone — never guessed", () => {
     const out = applyWizardAnswers(draft(), state(), nextId);
     expect(out.deferred.some((d) => /door/.test(d.what))).toBe(true);
+  });
+
+  it("two rooms sharing a name each keep their own deferred doors", () => {
+    const d = draft();
+    d.areas[1].name = "Living"; // both areas now called "Living"
+    d.deferred = [
+      { room: "Living", areaId: 1, what: "1 door", count: 1, needs: "flat or panel?" },
+      { room: "Living", areaId: 5, what: "2 doors", count: 2, needs: "flat or panel?" },
+    ];
+    const s = state({ details: { ...state().details, doorStyle: "panel" } });
+    const out = applyWizardAnswers(d, s, nextId);
+    const first = out.areas.find((a) => a.id === 1);
+    const second = out.areas.find((a) => a.id === 5);
+    const doorsIn = (a?: typeof first) =>
+      a?.surfaces.filter((x) => x.code === "4-6 Panel Door and Frame (1 Side)") ?? [];
+    expect(doorsIn(first)).toHaveLength(1);
+    expect(doorsIn(first)[0]?.count).toBe(1);
+    expect(doorsIn(second)).toHaveLength(1);
+    expect(doorsIn(second)[0]?.count).toBe(2);
+    expect(out.deferred.some((x) => /door/.test(x.what))).toBe(false);
   });
 
   it("ticking cornices settles the cornice question; unticking closes it", () => {

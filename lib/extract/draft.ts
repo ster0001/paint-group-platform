@@ -72,6 +72,13 @@ export type DraftArea = {
   L: number;
   W: number;
   H: number;
+  /**
+   * Canonical storey key ("ground" / "first" / …), lowercased to match
+   * capture's storey_heights keys (heightForStorey). Without it, a
+   * double-storey draft flattens to one floor and capture's storey switcher
+   * can't reach the upstairs rooms.
+   */
+  storey: string;
   isOption: boolean;
   description: string;
   open: boolean;
@@ -93,8 +100,13 @@ export type DraftResult = {
    * Seen but deliberately not priced, because the type is unknown: doors whose
    * style nobody has confirmed, windows, cornices. These are decisions waiting
    * for the estimator, not omissions.
+   *
+   * `areaId` ties the question to the room node that raised it — names alone
+   * misattach when two rooms share one ("Hall" on both storeys, two "Unnamed
+   * room"s). Null = the question belongs to no single room (a skipped room,
+   * an unmatched photo defect, a whole-job note).
    */
-  deferred: Array<{ room: string; what: string; count: number; needs: string }>;
+  deferred: Array<{ room: string; areaId: number | null } & Deferred>;
 };
 
 /** Exported for lib/wizard/merge.ts, which resolves deferred openings into
@@ -135,6 +147,12 @@ export function buildDraft(
   const ceilingHeight = x.ceiling_height_m ?? ASSUMED_CEILING_HEIGHT;
   const heightAssumed = x.ceiling_height_m == null;
 
+  // Storey labels as printed ("Ground Floor") to the canonical lowercase kind
+  // capture keys its heights by. Unknown kinds file under ground.
+  const storeyKindByLabel = new Map(
+    x.storeys.map((s) => [s.label.trim().toLowerCase(), s.kind === "unknown" ? "ground" : s.kind]),
+  );
+
   for (const room of x.rooms) {
     const name = room.name_on_plan?.trim() || "Unnamed room";
     const roomType = room.normalised_type !== "unknown"
@@ -161,9 +179,10 @@ export function buildDraft(
       rules,
     );
     const planned = plan.surfaces;
-    for (const d of plan.deferred) deferred.push({ room: name, ...d });
 
     if (planned.length === 0) {
+      // The room drafts nothing, but its open questions survive — unowned.
+      for (const d of plan.deferred) deferred.push({ room: name, areaId: null, ...d });
       skipped.push({ name, reason: `no surfaces are configured for a ${roomType}` });
       continue;
     }
@@ -189,6 +208,7 @@ export function buildDraft(
       L: room.length_m ?? 0,
       W: room.width_m ?? 0,
       H: ceilingHeight,
+      storey: storeyKindByLabel.get(room.storey.trim().toLowerCase()) ?? "ground",
       isOption: false,
       description: "",
       open: false,
@@ -217,6 +237,10 @@ export function buildDraft(
 
     area.isOption = planned.every((p) => p.isOption);
     areas.push(area);
+    // Deferred questions carry the id of the room that raised them, so the
+    // wizard's answer-merge and the editor's remove-room act on the right
+    // node even when two rooms share a name.
+    for (const d of plan.deferred) deferred.push({ room: name, areaId: area.id, ...d });
   }
 
   // ---- photo-observed defects -> prep on the matched room's walls ----------
@@ -236,6 +260,7 @@ export function buildDraft(
     if (!target) {
       deferred.push({
         room: obs.room_hint ?? "unmatched photo",
+        areaId: null,
         what: `${obs.type} sev${obs.severity} (~${hours}h prep)`,
         count: 1,
         needs: "which room is this defect in? Assign it and the prep is added.",

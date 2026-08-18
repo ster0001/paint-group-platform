@@ -92,6 +92,14 @@ describe("starterExtraction → buildDraft", () => {
     }
   });
 
+  it("a double storey drafts canonical lowercase storey keys on every node", () => {
+    const rooms = starterRoomList(basics({ storeys: "double" }));
+    const x = starterExtraction(rooms, [], { heightM: 2.7, bedrooms: 3 });
+    const draft = buildDraft(x, RULES, []);
+    expect(draft.areas.find((a) => a.name === "Bed 1")?.storey).toBe("first");
+    expect(draft.areas.find((a) => a.name === "Laundry")?.storey).toBe("ground");
+  });
+
   it("doors stay deferred until the wizard's style answer resolves them", () => {
     const rooms = starterRoomList(basics());
     const x = starterExtraction(rooms, [], { heightM: null, bedrooms: 3 });

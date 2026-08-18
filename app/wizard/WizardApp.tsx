@@ -132,11 +132,17 @@ export default function WizardApp({ roomTypes }: { roomTypes: string[] }) {
       }).catch(() => null);
     }
     setProcLine(3);
-    // 4. The submit rebuilds, merges, prices and scores server-side.
+    // 4. The submit rebuilds, merges, prices and scores server-side. With no
+    // plan run there is nowhere for damage photos to have gone — say so
+    // rather than letting the count suppress the review deferral (the server
+    // independently checks the readings for real defect observations).
+    const submitState = primaryRunRef.current
+      ? state
+      : { ...state, details: { ...state.details, damagePhotoCount: 0 } };
     const res = await fetch("/api/wizard/submit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ state }),
+      body: JSON.stringify({ state: submitState }),
     });
     const j = await res.json();
     if (!res.ok) {
@@ -231,6 +237,7 @@ export default function WizardApp({ roomTypes }: { roomTypes: string[] }) {
             {page === 4 && (
               <PageDetails
                 state={state} set={set} damageInputRef={damageInputRef}
+                hasPlanRuns={state.planRunIds.length > 0}
                 onDamageFiles={(files) => {
                   damageFilesRef.current = [...damageFilesRef.current, ...files];
                   set({ details: { ...state.details, damagePhotoCount: state.details.damagePhotoCount + files.length } });
@@ -493,10 +500,11 @@ function PageCondition({ state, set }: { state: WizardState; set: (p: Partial<Wi
 
 // ---- page 4: details --------------------------------------------------------
 
-function PageDetails({ state, set, damageInputRef, onDamageFiles }: {
+function PageDetails({ state, set, damageInputRef, hasPlanRuns, onDamageFiles }: {
   state: WizardState;
   set: (p: Partial<WizardState>) => void;
   damageInputRef: React.RefObject<HTMLInputElement | null>;
+  hasPlanRuns: boolean;
   onDamageFiles: (files: File[]) => void;
 }) {
   const d = state.details;
@@ -579,18 +587,27 @@ function PageDetails({ state, set, damageInputRef, onDamageFiles }: {
       </div>
       {d.damageTier >= 2 && (
         <>
-          <input
-            ref={damageInputRef} type="file" hidden multiple accept="image/*"
-            onChange={(e) => { onDamageFiles([...(e.target.files ?? [])]); e.target.value = ""; }}
-          />
-          <button
-            className={`wz-photo-stub ${d.damagePhotoCount ? "done" : ""}`}
-            onClick={() => damageInputRef.current?.click()}
-          >
-            {d.damagePhotoCount
-              ? `✓ ${d.damagePhotoCount} photo${d.damagePhotoCount === 1 ? "" : "s"} attached — they feed the defect reader, which prices the prep properly`
-              : "📷 Attach photos of the worst areas — they feed our defect reader, which prices the prep properly"}
-          </button>
+          {hasPlanRuns ? (
+            <>
+              <input
+                ref={damageInputRef} type="file" hidden multiple accept="image/*"
+                onChange={(e) => { onDamageFiles([...(e.target.files ?? [])]); e.target.value = ""; }}
+              />
+              <button
+                className={`wz-photo-stub ${d.damagePhotoCount ? "done" : ""}`}
+                onClick={() => damageInputRef.current?.click()}
+              >
+                {d.damagePhotoCount
+                  ? `✓ ${d.damagePhotoCount} photo${d.damagePhotoCount === 1 ? "" : "s"} attached — they feed the defect reader, which prices the prep properly`
+                  : "📷 Attach photos of the worst areas — they feed our defect reader, which prices the prep properly"}
+              </button>
+            </>
+          ) : (
+            <p className="wz-photo-stub" style={{ cursor: "default" }}>
+              Without a floorplan the photo reader has nothing to attach to — describe the damage below and
+              it goes to the review queue; photos can be added in the builder afterwards.
+            </p>
+          )}
           <textarea
             className="wz-field"
             style={{ marginTop: 12, minHeight: 74 }}
