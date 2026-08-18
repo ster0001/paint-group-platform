@@ -8,6 +8,8 @@ import PricingSettings, { type SettingRow } from "./PricingSettings";
 import TemplatesManager, { type TemplateMeta } from "./TemplatesManager";
 import InclusionTemplatesManager from "./InclusionTemplatesManager";
 import TermsEditor, { TERMS_KEY } from "./TermsEditor";
+import MessagingSettings from "./MessagingSettings";
+import { MESSAGING_KEY, type MessagingSettings as MessagingValues } from "@/lib/messaging/config";
 import ProductsManager, { type ProductRow } from "./ProductsManager";
 import ColoursManager, { type ColourRow } from "./ColoursManager";
 import PresentationsManager, { type PresentationRow } from "./PresentationsManager";
@@ -60,7 +62,8 @@ export default async function SettingsPage() {
   const rateItems = rateItemsRes.data ?? [];
 
   const allSettings = (settingsRes.data as SettingRow[] | null) ?? [];
-  const pricingRows = allSettings.filter((r) => r.key !== "company_profile" && r.key !== "estimate_templates" && r.key !== INCLUSION_TEMPLATES_KEY && r.key !== EXCLUSION_TEMPLATES_KEY && r.key !== TERMS_KEY);
+  const pricingRows = allSettings.filter((r) => r.key !== "company_profile" && r.key !== "estimate_templates" && r.key !== INCLUSION_TEMPLATES_KEY && r.key !== EXCLUSION_TEMPLATES_KEY && r.key !== TERMS_KEY && r.key !== MESSAGING_KEY);
+  const messaging = (allSettings.find((r) => r.key === MESSAGING_KEY)?.value as Partial<MessagingValues> | undefined) ?? null;
   const terms = typeof allSettings.find((r) => r.key === TERMS_KEY)?.value === "string" ? (allSettings.find((r) => r.key === TERMS_KEY)!.value as string) : "";
   const templatesRow = allSettings.find((r) => r.key === "estimate_templates");
   const templates: TemplateMeta[] = (Array.isArray(templatesRow?.value) ? (templatesRow!.value as TemplateMeta[]) : [])
@@ -98,6 +101,10 @@ export default async function SettingsPage() {
 
       <SettingsFolder title="Terms & conditions" subtitle="Shown on every estimate, below the accept section">
         <TermsEditor initial={terms} />
+      </SettingsFolder>
+
+      <SettingsFolder title="Messaging" subtitle="Email + text wording used when sending an estimate, and the text-messaging switch">
+        <MessagingSettings initial={messaging} />
       </SettingsFolder>
 
       <SettingsFolder title="Line items" subtitle="Add, edit or remove line-item templates and their descriptions" count={lineItems.length} defaultOpen>

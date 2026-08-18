@@ -31,7 +31,9 @@ import ColourPicker from "@/app/components/ColourPicker";
 import { roundUpLitres, type WorkOrderDoc as WODoc, type WOMaterial, type WOArea } from "@/lib/workorder/snapshot";
 import { finishFromModifier } from "@/lib/workorder/finish";
 import OfferPanel from "./OfferPanel";
-import { sendEstimateAction } from "./actions";
+import { sendEstimateAction, type DeliveryOutcome } from "./actions";
+import SendDialog, { type SendDelivery } from "./SendDialog";
+import { DEFAULT_MESSAGING, MESSAGING_KEY, type MessagingSettings } from "@/lib/messaging/config";
 import { issueWorkOrderAction, setWorkOrderScheduleAction } from "./workOrderActions";
 import { acceptAttr, checkUpload } from "@/lib/uploads/validate";
 import { reportIfError, errorMessage } from "@/lib/monitoring/report";
@@ -150,6 +152,10 @@ function eventLabel(type: string): string {
     case "accepted": return "Accepted";
     case "declined": return "Declined";
     case "question": return "Customer message";
+    case "email_sent": return "Emailed to customer";
+    case "email_failed": return "Email failed";
+    case "sms_sent": return "Texted to customer";
+    case "sms_failed": return "Text failed";
     default: return type;
   }
 }
@@ -310,7 +316,20 @@ export default function QuoteBuilder({
   const [sentAt, setSentAt] = useState<string | null>(initial?.sent_at ?? null);
   const [validUntil, setValidUntil] = useState<string | null>(initial?.valid_until ?? null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  // Pre-send dialog + the per-channel outcome shown in the share modal after.
+  const [sendDialogOpen, setSendDialogOpen] = useState(false);
+  const [sendingNow, setSendingNow] = useState(false);
+  const [deliveryOutcome, setDeliveryOutcome] = useState<DeliveryOutcome | null>(null);
   const locked = estStatus === "accepted";
+  // Email/SMS wording templates, managed in Settings → Messaging. The settings
+  // prop is typed for numeric pricing rows, so widen it to read this jsonb row.
+  const messaging: MessagingSettings = useMemo(
+    () => ({
+      ...DEFAULT_MESSAGING,
+      ...(((settings as { key: string; value: unknown }[]).find((s) => s.key === MESSAGING_KEY)?.value as Partial<MessagingSettings>) ?? {}),
+    }),
+    [settings],
+  );
   // Three views on the same record: Builder | Customer view | Work order.
   // Deep-linkable: the scheduling board sends staff straight to the work order
   // tab, which is the only place a job can be issued.
@@ -622,20 +641,32 @@ export default function QuoteBuilder({
     }
   }
 
-  async function sendToCustomer() {
+  function openSendDialog() {
     if (!finishChosen) { setSaveMsg("Choose a level of finish before sending."); return; }
-    const { id, token } = await save(); // persists token + live doc
-    if (!id || !token) return;
-    const nowIso = new Date().toISOString();
-    const until = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
-    // Guarded transition through the server: an accepted quote is locked, and a
-    // stale tab can't re-send something that has moved on.
-    const r = await sendEstimateAction({ estimateId: id, expectedStatus: estStatus, validUntil: until });
-    if (!r.ok) { setSaveMsg(r.message); return; }
-    setEstStatus("sent");
-    setSentAt(sentAt ?? nowIso);
-    setValidUntil(until);
-    setShareUrl(`${window.location.origin}/e/${token}`);
+    setSendDialogOpen(true);
+  }
+
+  async function sendToCustomer(delivery: SendDelivery) {
+    setSendingNow(true);
+    try {
+      const { id, token } = await save(); // persists token + live doc
+      if (!id || !token) return;
+      const nowIso = new Date().toISOString();
+      const until = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
+      // Guarded transition through the server: an accepted quote is locked, and a
+      // stale tab can't re-send something that has moved on. Email/SMS delivery
+      // rides along and comes back as a per-channel outcome.
+      const r = await sendEstimateAction({ estimateId: id, expectedStatus: estStatus, validUntil: until, ...delivery });
+      if (!r.ok) { setSaveMsg(r.message); return; }
+      setEstStatus("sent");
+      setSentAt(sentAt ?? nowIso);
+      setValidUntil(until);
+      setSendDialogOpen(false);
+      setDeliveryOutcome(r.delivery ?? null);
+      setShareUrl(`${window.location.origin}/e/${token}`);
+    } finally {
+      setSendingNow(false);
+    }
   }
 
   // Load the activity feed + customer messages for the Activity / Chat tabs.
@@ -1148,7 +1179,7 @@ export default function QuoteBuilder({
                 {saving ? "Saving…" : quoteId ? "Save" : "Save draft"}
               </button>
               <button
-                onClick={sendToCustomer}
+                onClick={openSendDialog}
                 disabled={saving}
                 className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
                 title={estStatus === "draft" ? "Save + mark sent, and get the customer link" : "Update the sent estimate"}
@@ -1686,11 +1717,41 @@ export default function QuoteBuilder({
       </div>
       )}
 
+      {sendDialogOpen && (
+        <SendDialog
+          contact={contact}
+          company={company}
+          messaging={messaging}
+          estimateTitle={title}
+          totalCents={totals.total}
+          isResend={estStatus !== "draft"}
+          sending={sendingNow || saving}
+          onSend={sendToCustomer}
+          onClose={() => setSendDialogOpen(false)}
+        />
+      )}
+
       {shareUrl && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShareUrl(null)}>
           <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-semibold">Sent — customer link</h2>
             <p className="mt-1 text-xs text-gray-500">Text or email this to the customer. Any edits you save later show on the same link.</p>
+            {deliveryOutcome && (
+              <div className="mt-3 space-y-1">
+                {(["email", "sms"] as const).map((ch) => {
+                  const o = deliveryOutcome[ch];
+                  if (!o) return null;
+                  const label = ch === "email" ? "Email" : "Text message";
+                  return (
+                    <p key={ch} className={`text-sm ${o.status === "sent" ? "text-emerald-700" : "text-amber-700"}`}>
+                      {o.status === "sent" && `✓ ${label} sent`}
+                      {o.status === "not_configured" && `${label} not sent — ${ch === "email" ? "email" : "SMS"} isn't set up yet (needs the ${ch === "email" ? "Resend" : "Twilio"} keys).`}
+                      {o.status === "error" && `${label} failed — ${o.message ?? "unknown error"}`}
+                    </p>
+                  );
+                })}
+              </div>
+            )}
             <div className="mt-4 flex items-center gap-2">
               <input readOnly value={shareUrl} className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm" onFocus={(e) => e.target.select()} />
               <button onClick={() => navigator.clipboard?.writeText(shareUrl)} className="rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-700">Copy</button>
