@@ -192,4 +192,18 @@ describe("capture -> builder parity", () => {
     const node = draftToAreaNode(draft, bedroomTiles, () => id++);
     expect(node.id).toBe(42);
   });
+
+  it("the committed node carries its exact draft for lossless re-entry", () => {
+    const draft = emptyDraft("r8", "Bath", "bedroom", "ground", 2.4);
+    draft.lengthM = 2; draft.widthM = 1.5;
+    draft.selections = { [tileId("Walls")]: 2 }; // fractional state and all maps must survive
+    draft.labels = { [tileId("Walls")]: "Half walls" };
+    draft.hoursOverride = { [tileId("Walls")]: 3.5 };
+    let id = 1;
+    const node = draftToAreaNode(draft, bedroomTiles, () => id++);
+    expect(node.captureDraft.selections).toEqual(draft.selections);
+    expect(node.captureDraft.labels).toEqual(draft.labels);
+    expect(node.captureDraft.hoursOverride).toEqual(draft.hoursOverride);
+    expect(node.captureDraft.status).toBe("complete");
+  });
 });

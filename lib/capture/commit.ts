@@ -134,6 +134,8 @@ export type BuilderAreaNode = {
   capturedVia: "room_loop"; roomType: string; storey: string;
   perimeterM: number; perimeterOverridden: boolean; irregular: boolean;
   extraWallSegmentsM: number[]; perimeterOverrideM: number | null;
+  /** The exact draft this node was committed from - re-entry restores it losslessly. */
+  captureDraft: RoomDraft;
 };
 
 /** Whether the room's perimeter differs from plain 2(L+W). */
@@ -239,5 +241,6 @@ export function draftToAreaNode(
     irregular,
     extraWallSegmentsM: draft.extraWallSegmentsM,
     perimeterOverrideM: draft.perimeterOverrideM,
+    captureDraft: { ...draft, status: "complete" },
   };
 }

@@ -81,6 +81,7 @@ export default async function CapturePage({
           }))
         : [],
       extraWallSegmentsM: Array.isArray(b.extraWallSegmentsM) ? (b.extraWallSegmentsM as number[]) : [],
+      captureDraft: (b.captureDraft as import("@/lib/capture/commit").RoomDraft | undefined) ?? null,
       perimeterOverridden: b.perimeterOverridden === true,
       perimeterM: Number(b.perimeterM) || null,
     }));

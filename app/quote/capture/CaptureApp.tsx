@@ -32,6 +32,7 @@ export type ExistingRoom = {
   extraWallSegmentsM: number[];
   perimeterOverridden: boolean;
   perimeterM: number | null;
+  captureDraft?: RoomDraft | null;
 };
 
 type Screen = { kind: "picker" } | { kind: "capture"; localId: string } | { kind: "review"; localId: string };
@@ -160,13 +161,23 @@ export default function CaptureApp({
   const reenterRoom = (room: ExistingRoom) => {
     const local = drafts.find((d) => d.areaId === room.areaId);
     if (local) { setScreen({ kind: "capture", localId: local.localId }); return; }
-    // rebuild a draft from the committed node (room_loop rooms only)
+    // Nodes committed since the captureDraft field carry their exact draft -
+    // restore it losslessly (duplicates, fractions, overrides, labels intact).
+    if (room.captureDraft) {
+      const restored = { ...room.captureDraft, localId: crypto.randomUUID(), areaId: room.areaId };
+      updateDrafts([...drafts, restored]);
+      setScreen({ kind: "capture", localId: restored.localId });
+      return;
+    }
+    // Older nodes: lossy rebuild from priced surfaces (duplicates collapse,
+    // fractions/labels/hour-overrides are not recoverable - flagged in review).
     const roomType = room.roomType ?? "bedroom";
     const tiles = expandCaptureTiles(tilesForRoomType(roomType, rules));
     const draft = emptyDraft(crypto.randomUUID(), room.name, roomType, room.storey, room.H);
     draft.areaId = room.areaId;
     draft.lengthM = room.L; draft.widthM = room.W;
     draft.extraWallSegmentsM = room.extraWallSegmentsM;
+    if (room.perimeterOverridden && room.perimeterM != null && room.extraWallSegmentsM.length === 0) draft.perimeterOverrideM = room.perimeterM;
     for (const s of room.surfaces) {
       const tile = tiles.find((t) => t.rateCode === s.code);
       if (!tile) continue;
@@ -596,12 +607,14 @@ function RoomReview({
                     className="w-12 bg-transparent text-right" />
                   h{draft.hoursOverride?.[t.id] != null ? " (manual)" : ""}
                 </span>
+                {t.countable && (
                 <button type="button" title="Duplicate this substrate (e.g. cupboard doors vs normal doors)"
                   onClick={() => {
                     const id = `${t.id}#${crypto.randomUUID().slice(0, 4)}`;
                     set({ extraTiles: [...(draft.extraTiles ?? []), { id, from: t.id.split("#")[0] }], selections: { ...draft.selections, [id]: 1 }, labels: { ...(draft.labels ?? {}), [id]: `${draft.labels?.[t.id] ?? t.label} (copy)` } });
                   }}
                   className="rounded border border-gray-300 px-1.5 text-[11px] text-gray-500 hover:bg-gray-50">⧉</button>
+                )}
               </span>
               <div className="flex items-center gap-3 text-xs">
                 <span className="flex items-center gap-1">
