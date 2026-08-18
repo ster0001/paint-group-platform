@@ -26,7 +26,7 @@ import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { buildDraft } from "../lib/extract/draft.ts";
-import { SCOPE_VERSION, type Alias, type ScopeRule } from "../lib/extract/scope.ts";
+import { SCOPE_VERSION, resolveRoomType, type Alias, type ScopeRule } from "../lib/extract/scope.ts";
 import type { Extraction } from "../lib/extract/schema.ts";
 import {
   priceEstimateTotals,
@@ -43,11 +43,34 @@ type WoTruth = {
   key: string;
   totalHours: number | null;
   totalDimensions: Record<string, number>;
-  items: Array<{ name: string; qty: number; unit: string }>;
+  items: Array<{ area: string | null; name: string; qty: number; unit: string; hours: number | null }>;
+  areaTotals: Array<{ area: string; total: number }>;
+  /** Per-room L/W/H printed on the work order - metres, H is the TRUE ceiling height. */
+  areaDimensions?: Record<string, { L: number; W: number; H: number }>;
 };
 
 const pct = (pred: number, truth: number) => (truth > 0 ? ((pred - truth) / truth) * 100 : null);
 const fmt = (p: number | null) => (p == null ? "   n/a" : `${p >= 0 ? "+" : ""}${p.toFixed(0).padStart(4)}%`);
+
+/**
+ * Room-name signature for matching a work-order area to a plan room: both
+ * sides resolve through the SAME alias table the pipeline uses, keeping any
+ * trailing number ("Bed 2" and "Bedroom 2" -> bedroom#2). Whole-job totals
+ * punish partial repaints unfairly; matched rooms are the honest comparison.
+ */
+function roomSignature(name: string, aliases: Alias[], resolve: typeof import("../lib/extract/scope.ts").resolveRoomType): string {
+  const trimmed = name.trim().replace(/\s*\([^)]*\)\s*$/, ""); // drop "(4'x6'x2.7')"
+  const num = trimmed.match(/(\d+)\s*$/)?.[1] ?? "";
+  const type = resolve(trimmed, aliases);
+  return type === "unknown" ? `raw:${trimmed.toLowerCase()}` : `${type}#${num}`;
+}
+
+type RoomScore = {
+  job: string; room: string;
+  ceilPct: number | null; wallsPct: number | null; hoursPct: number | null;
+  /** Walls re-predicted with the work order's own printed ceiling height - isolates "bad height assumption" from "bad plan read". */
+  wallsTrueHPct?: number | null;
+};
 
 async function main() {
   const email = process.env.E2E_STAFF_EMAIL;
@@ -94,7 +117,8 @@ async function main() {
   const adj: Adjustments = { modSel: {}, materials: {} };
 
   const rows: Array<Record<string, unknown>> = [];
-  console.log("job              rooms(read/dim)  ceiling m2 pred/truth   walls m2 pred/truth     hours pred/truth   gates(C/W/H)");
+  const roomScores: RoomScore[] = [];
+  console.log("job              rooms(read/dim)  ceiling m2 pred/truth   walls m2 pred/truth     hours pred/truth   gates(C/W/H)  matched rooms");
 
   for (const job of manifest.jobs) {
     if (job.ignored || !job.plan) continue;
@@ -126,6 +150,71 @@ async function main() {
     const gate = (d: number | null, lim: number) => (d == null ? "-" : Math.abs(d) <= lim ? "PASS" : "fail");
     const gates = `${gate(dCeil, 7)}/${gate(dWalls, 10)}/${gate(dHours, 12)}`;
 
+    // ---- per-room matched scoring -----------------------------------------
+    // The work order's per-area walls/ceiling m2 vs the SAME room on the plan.
+    const woWalls = new Map<string, number>();
+    const woCeil = new Map<string, number>();
+    const woHours = new Map<string, number>();
+    for (const it of truth.items) {
+      if (!it.area || it.unit !== "m2") continue;
+      const sig = roomSignature(it.area, aliases, resolveRoomType);
+      if (/wall/i.test(it.name)) woWalls.set(sig, (woWalls.get(sig) ?? 0) + it.qty);
+      if (/ceiling/i.test(it.name)) woCeil.set(sig, (woCeil.get(sig) ?? 0) + it.qty);
+    }
+    for (const at of truth.areaTotals ?? []) {
+      const sig = roomSignature(at.area, aliases, resolveRoomType);
+      woHours.set(sig, (woHours.get(sig) ?? 0) + at.total);
+    }
+
+    // Signature -> WO area name(s), for the dims fallback below.
+    const woSigToArea = new Map<string, string>();
+    for (const areaName of new Set(truth.items.map((it) => it.area).filter((x): x is string => !!x))) {
+      woSigToArea.set(roomSignature(areaName, aliases, resolveRoomType), areaName);
+    }
+    const woDims = truth.areaDimensions ?? {};
+    const dimsMatch = (a: { L: number; W: number }, d: { L: number; W: number }) =>
+      (Math.abs(a.L - d.L) <= 0.2 && Math.abs(a.W - d.W) <= 0.2) ||
+      (Math.abs(a.L - d.W) <= 0.2 && Math.abs(a.W - d.L) <= 0.2);
+
+    let matched = 0;
+    const usedSigs = new Set<string>();
+    const usedAreas = new Set<string>();
+    for (const a of dimmed) {
+      const sig = roomSignature(a.name, aliases, resolveRoomType);
+      let tW = woWalls.get(sig);
+      let tC = woCeil.get(sig);
+      let via = "name";
+      if ((tW == null && tC == null) || usedSigs.has(sig)) {
+        // Names disagree ("Meals" vs "Kitchen living") - fall back to the
+        // work order's own printed room dimensions.
+        const areaName = Object.keys(woDims).find((n) => !usedAreas.has(n) && dimsMatch(a, woDims[n]));
+        if (!areaName) continue;
+        const areaSig = roomSignature(areaName, aliases, resolveRoomType);
+        tW = woWalls.get(areaSig); tC = woCeil.get(areaSig);
+        if (tW == null && tC == null) continue;
+        usedAreas.add(areaName);
+        usedSigs.add(areaSig);
+        via = "dims";
+      } else {
+        usedSigs.add(sig);
+        const areaName = woSigToArea.get(sig);
+        if (areaName) usedAreas.add(areaName);
+      }
+      matched++;
+      const matchedAreaName = via === "dims"
+        ? [...usedAreas].pop()
+        : woSigToArea.get(sig);
+      const trueH = matchedAreaName ? woDims[matchedAreaName]?.H : undefined;
+      roomScores.push({
+        job: job.id,
+        room: `${a.name}${via === "dims" ? "*" : ""}`,
+        ceilPct: tC != null ? pct(a.L * a.W, tC) : null,
+        wallsPct: tW != null ? pct(2 * (a.L + a.W) * a.H, tW) : null,
+        wallsTrueHPct: tW != null && trueH ? pct(2 * (a.L + a.W) * trueH, tW) : null,
+        hoursPct: null, // room hours include prep + deferred openings; scored at job level only
+      });
+    }
+
     rows.push({
       id: job.id, address: job.address, jobType: job.jobType, runId,
       roomsRead: draft.areas.length, roomsDimensioned: dimmed.length,
@@ -133,18 +222,35 @@ async function main() {
       predWallsM2: Math.round(predWalls * 10) / 10, truthWallsM2: tWalls, wallsPct: dWalls,
       predHours: Math.round(predHours * 10) / 10, truthHours: tHours, hoursPct: dHours,
       gates,
+      matchedRooms: matched,
     });
 
     console.log(
       `${job.id.padEnd(16)} ${String(draft.areas.length).padStart(2)}/${String(dimmed.length).padEnd(12)} ` +
       `${predCeil.toFixed(0).padStart(5)}/${String(tCeil ?? "?").padEnd(7)} ${fmt(dCeil)}   ` +
       `${predWalls.toFixed(0).padStart(5)}/${String(tWalls ?? "?").padEnd(7)} ${fmt(dWalls)}   ` +
-      `${predHours.toFixed(0).padStart(4)}/${String(tHours ?? "?").padEnd(7)} ${fmt(dHours)}   ${gates}`,
+      `${predHours.toFixed(0).padStart(4)}/${String(tHours ?? "?").padEnd(7)} ${fmt(dHours)}   ${gates}  ${matched}`,
     );
   }
 
   const stamp = process.env.RUN_STAMP ?? "latest";
-  writeFileSync(path.join(SET, `scores-${stamp}.json`), JSON.stringify(rows, null, 2));
+  writeFileSync(path.join(SET, `scores-${stamp}.json`), JSON.stringify({ jobs: rows, rooms: roomScores }, null, 2));
+
+  // ---- the per-room aggregate: the honest measurement question -------------
+  const ceilRooms = roomScores.filter((r) => r.ceilPct != null);
+  const wallRooms = roomScores.filter((r) => r.wallsPct != null);
+  const within = (xs: Array<number | null>, lim: number) => xs.filter((x) => x != null && Math.abs(x) <= lim).length;
+  const median = (xs: number[]) => {
+    const s = [...xs].sort((a, b) => a - b);
+    return s.length ? s[Math.floor(s.length / 2)] : null;
+  };
+  console.log(`\nPER-ROOM (matched by name through the alias table):`);
+  console.log(`  ceilings: ${within(ceilRooms.map((r) => r.ceilPct), 7)}/${ceilRooms.length} within ±7% · median error ${median(ceilRooms.map((r) => Math.abs(r.ceilPct!)))?.toFixed(1)}%`);
+  console.log(`  walls:    ${within(wallRooms.map((r) => r.wallsPct), 10)}/${wallRooms.length} within ±10% · median error ${median(wallRooms.map((r) => Math.abs(r.wallsPct!)))?.toFixed(1)}%`);
+  const trueH = roomScores.filter((r) => r.wallsTrueHPct != null);
+  console.log(`  walls with the WO's TRUE height: ${within(trueH.map((r) => r.wallsTrueHPct!), 10)}/${trueH.length} within ±10% · median error ${median(trueH.map((r) => Math.abs(r.wallsTrueHPct!)))?.toFixed(1)}% (isolates the 2.4 m assumption)`);
+  const worst = [...wallRooms].sort((a, b) => Math.abs(b.wallsPct!) - Math.abs(a.wallsPct!)).slice(0, 8);
+  console.log(`  worst wall rooms: ${worst.map((r) => `${r.job}/${r.room} ${fmt(r.wallsPct)}`).join(" · ")}`);
 
   // The aggregate that matters: jobs whose plan was fully dimensioned AND
   // whose work order looks like a whole-interior repaint (ceiling truth

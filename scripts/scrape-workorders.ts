@@ -34,6 +34,12 @@ type Parsed = {
   totalHoursDerived?: boolean;
   /** the "Total Dimensions (m²)" block, e.g. { Walls: 435, Ceilings: 210, m: 65 } - "m" is lineal metres */
   totalDimensions: Record<string, number>;
+  /**
+   * PaintScout prints each area's own L x W x H under its heading, e.g.
+   * "(4'x3.7'x3')" - metres despite the foot marks. Real per-room dimensions
+   * INCLUDING true ceiling heights: the strongest per-room truth in the data.
+   */
+  areaDimensions: Record<string, { L: number; W: number; H: number }>;
   areaTotals: AreaTotal[];
   items: Item[];
   optionAreas: string[];
@@ -83,11 +89,13 @@ function parseText(key: string, url: string, text: string): Parsed {
   // per-area Total blocks. Stop counting at Options/Media.
   const items: Item[] = [];
   const areaTotals: AreaTotal[] = [];
+  const areaDimensions: Record<string, { L: number; W: number; H: number }> = {};
   const optionAreas: string[] = [];
   const areasIdx = lines.findIndex((l) => /^Areas$/i.test(l));
   let currentArea: string | null = null;
   let inOptions = false;
   const itemRe = /^(.{2,50}?)\s*\((\d+(?:\.\d+)?)\s*(m²|m2|m)?\)$/;
+  const dimsRe = /^\(([\d.]+)'?\s*x\s*([\d.]+)'?\s*x\s*([\d.]+)'?\)$/i;
 
   for (let i = Math.max(areasIdx, 0); i < lines.length; i++) {
     const l = lines[i];
@@ -97,8 +105,17 @@ function parseText(key: string, url: string, text: string): Parsed {
       if (/^Add Option$/i.test(l) && lines[i - 2]) optionAreas.push(`${lines[i - 2]}`);
       continue;
     }
+    // The room's own dims line sits between its heading and "hr" - record it
+    // against the heading, and never treat it as a heading itself.
+    const dm = l.match(dimsRe);
+    if (dm) {
+      if (currentArea && lines[i - 1] === currentArea) {
+        areaDimensions[currentArea] = { L: Number(dm[1]), W: Number(dm[2]), H: Number(dm[3]) };
+      }
+      continue;
+    }
     if (lines[i + 1] === "hr" || (lines[i + 2] === "hr" && /^\(.+\)$/.test(lines[i + 1] ?? ""))) {
-      if (!/^Total$/i.test(l) && !itemRe.test(l)) { currentArea = l; continue; }
+      if (!/^Total$/i.test(l) && !itemRe.test(l) && !/^\(/.test(l)) { currentArea = l; continue; }
     }
     if (/^Total$/i.test(l) && currentArea) {
       // "Prep: X" "+" "Painting: Y" "=" "Z"  (prep block absent when zero)
@@ -130,7 +147,7 @@ function parseText(key: string, url: string, text: string): Parsed {
     derived = Math.round(items.reduce((n, it) => n + (it.hours ?? 0), 0) * 100) / 100;
   }
 
-  return { key, url, scrapedAt: new Date().toISOString(), estimateId, jobAddress, totalHours: totalHours ?? derived, totalHoursDerived: derived != null, totalDimensions, areaTotals, items, optionAreas };
+  return { key, url, scrapedAt: new Date().toISOString(), estimateId, jobAddress, totalHours: totalHours ?? derived, totalHoursDerived: derived != null, totalDimensions, areaDimensions, areaTotals, items, optionAreas };
 }
 
 async function main() {
@@ -171,7 +188,7 @@ async function main() {
         writeFileSync(rawPath, text);
       } catch (e) {
         console.log(`FAILED: ${(e as Error).message.split("\n")[0]}`);
-        byKey.set(key, { key, url, scrapedAt: new Date().toISOString(), estimateId: null, jobAddress: null, totalHours: null, totalDimensions: {}, areaTotals: [], items: [], optionAreas: [], error: (e as Error).message.split("\n")[0] });
+        byKey.set(key, { key, url, scrapedAt: new Date().toISOString(), estimateId: null, jobAddress: null, totalHours: null, totalDimensions: {}, areaDimensions: {}, areaTotals: [], items: [], optionAreas: [], error: (e as Error).message.split("\n")[0] });
         continue;
       }
     }
