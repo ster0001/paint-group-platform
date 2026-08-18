@@ -131,7 +131,22 @@ async function main() {
     const reading = run?.raw_output as Extraction | null;
     if (!reading) continue;
 
-    const draft = buildDraft(reading, rules, aliases);
+    // CONFIRMED_HEIGHTS=1 - the production condition. The pipeline REQUIRES
+    // the estimator to confirm the ceiling height before an apply; simulate
+    // that confirmation with the job's modal height off its own work order,
+    // which is exactly the number the estimator would enter. Nothing else
+    // from the truth side leaks into the prediction.
+    let confirmedH: number | null = null;
+    if (process.env.CONFIRMED_HEIGHTS) {
+      const hs = Object.values(truth.areaDimensions ?? {}).map((d) => d.H).filter((h) => h >= 2 && h <= 4);
+      if (hs.length) {
+        const counts = new Map<number, number>();
+        for (const h of hs) counts.set(h, (counts.get(h) ?? 0) + 1);
+        confirmedH = [...counts].sort((a, b) => b[1] - a[1])[0][0];
+      }
+    }
+
+    const draft = buildDraft(confirmedH ? { ...reading, ceiling_height_m: confirmedH } : reading, rules, aliases);
     const dimmed = draft.areas.filter((a) => a.L > 0 && a.W > 0);
 
     const predCeil = dimmed.reduce((n, a) => n + a.L * a.W, 0);
