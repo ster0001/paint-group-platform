@@ -63,6 +63,12 @@ export type DraftArea = {
   name: string;
   type: "Interior" | "Exterior";
   areaType: "room" | "surface";
+  /**
+   * The normalised room type. Additive (capture's draftToAreaNode already
+   * writes it): lets the review gate and the wizard editor use the room's OWN
+   * typical size instead of falling back to a bedroom's.
+   */
+  roomType: string;
   L: number;
   W: number;
   H: number;
@@ -91,7 +97,9 @@ export type DraftResult = {
   deferred: Array<{ room: string; what: string; count: number; needs: string }>;
 };
 
-function surface(
+/** Exported for lib/wizard/merge.ts, which resolves deferred openings into
+ * real lines once the wizard's "mostly" answers settle the style. */
+export function makeDraftSurface(
   id: number,
   code: string,
   label: string,
@@ -177,6 +185,7 @@ export function buildDraft(
       name,
       type: "Interior",
       areaType: "room",
+      roomType,
       L: room.length_m ?? 0,
       W: room.width_m ?? 0,
       H: ceilingHeight,
@@ -202,7 +211,7 @@ export function buildDraft(
       if (assumed.length) assumedCount++;
 
       area.surfaces.push(
-        surface(nextId++, p.rateCode, p.surfaceType, p.count, origin, room.dimension_confidence, assumed),
+        makeDraftSurface(nextId++, p.rateCode, p.surfaceType, p.count, origin, room.dimension_confidence, assumed),
       );
     }
 

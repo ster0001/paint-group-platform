@@ -1,0 +1,109 @@
+import { describe, expect, it } from "vitest";
+import {
+  ceilingHeightFrom,
+  coatsFor,
+  defaultWizardState,
+  pageForPath,
+  wizardStateSchema,
+  type WizardState,
+} from "./state";
+
+const valid = (): WizardState => ({
+  ...defaultWizardState(),
+  noPlan: true,
+  basics: { bedrooms: 3, storeys: "single", sizeBand: "s120_200", openPlanKitchenLiving: true },
+});
+
+describe("wizardStateSchema", () => {
+  it("accepts a complete no-plan internal state", () => {
+    expect(wizardStateSchema.safeParse(valid()).success).toBe(true);
+  });
+
+  it("rejects the default state until a plan or the basics exist", () => {
+    const r = wizardStateSchema.safeParse(defaultWizardState());
+    expect(r.success).toBe(false);
+  });
+
+  it("no-plan requires the basics", () => {
+    const r = wizardStateSchema.safeParse({ ...valid(), basics: null });
+    expect(r.success).toBe(false);
+  });
+
+  it("an interior job with a plan run needs no basics", () => {
+    const s = { ...valid(), noPlan: false, basics: null, planRunIds: ["6b8f9e7c-1111-4222-8333-444455556666"] };
+    expect(wizardStateSchema.safeParse(s).success).toBe(true);
+  });
+
+  it("dark to light needs at least one surface, and only ticked ones", () => {
+    const none = { ...valid(), condition: { tier: "dark_to_light" as const, darkToLightSurfaces: [] } };
+    expect(wizardStateSchema.safeParse(none).success).toBe(false);
+
+    const unticked = {
+      ...valid(),
+      surfaces: ["walls" as const],
+      condition: { tier: "dark_to_light" as const, darkToLightSurfaces: ["ceilings" as const] },
+    };
+    expect(wizardStateSchema.safeParse(unticked).success).toBe(false);
+
+    const ok = {
+      ...valid(),
+      condition: { tier: "dark_to_light" as const, darkToLightSurfaces: ["walls" as const] },
+    };
+    expect(wizardStateSchema.safeParse(ok).success).toBe(true);
+  });
+
+  it("damage tier 2+ needs photos or a note (internal mode)", () => {
+    const bare = { ...valid(), details: { ...valid().details, damageTier: 2 } };
+    expect(wizardStateSchema.safeParse(bare).success).toBe(false);
+
+    const noted = { ...valid(), details: { ...valid().details, damageTier: 2, damageNote: "cracked hall ceiling" } };
+    expect(wizardStateSchema.safeParse(noted).success).toBe(true);
+
+    const photographed = { ...valid(), details: { ...valid().details, damageTier: 3, damagePhotoCount: 2 } };
+    expect(wizardStateSchema.safeParse(photographed).success).toBe(true);
+  });
+
+  it("exterior without a listing needs two facade photos", () => {
+    const bare = { ...valid(), jobType: "both" as const };
+    expect(wizardStateSchema.safeParse(bare).success).toBe(false);
+
+    const listed = { ...valid(), jobType: "both" as const, listingUrl: "https://www.realestate.com.au/x" };
+    expect(wizardStateSchema.safeParse(listed).success).toBe(true);
+
+    const photographed = {
+      ...valid(),
+      jobType: "both" as const,
+      facadeRunIds: ["6b8f9e7c-1111-4222-8333-444455556666", "6b8f9e7c-1111-4222-8333-444455556667"],
+    };
+    expect(wizardStateSchema.safeParse(photographed).success).toBe(true);
+  });
+
+  it("water-based only demands the oil-trims answer", () => {
+    const s = { ...valid(), paint: { ...valid().paint, waterBasedOnly: true, trimsOilBased: null } };
+    expect(wizardStateSchema.safeParse(s).success).toBe(false);
+    const answered = { ...valid(), paint: { ...valid().paint, waterBasedOnly: true, trimsOilBased: "unsure" as const } };
+    expect(wizardStateSchema.safeParse(answered).success).toBe(true);
+  });
+});
+
+describe("helpers", () => {
+  it("coats follow the tier", () => {
+    expect(coatsFor("fresh", false)).toBe(1);
+    expect(coatsFor("change", false)).toBe(2);
+    expect(coatsFor("dark_to_light", true)).toBe(3);
+    expect(coatsFor("dark_to_light", false)).toBe(2);
+  });
+
+  it("unsure ceiling height assumes 2.4 and says so", () => {
+    expect(ceilingHeightFrom("2.7")).toEqual({ heightM: 2.7, assumed: false });
+    expect(ceilingHeightFrom("unsure")).toEqual({ heightM: 2.4, assumed: true });
+  });
+
+  it("errors route back to their page", () => {
+    expect(pageForPath(["basics"])).toBe(1);
+    expect(pageForPath(["surfaces"])).toBe(2);
+    expect(pageForPath(["condition", "darkToLightSurfaces"])).toBe(3);
+    expect(pageForPath(["details", "damageTier"])).toBe(4);
+    expect(pageForPath(["paint", "trimsOilBased"])).toBe(5);
+  });
+});
