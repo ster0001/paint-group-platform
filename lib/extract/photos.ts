@@ -5,7 +5,13 @@ import { doorStyles, windowStyles } from "./schema";
 
 // SERVER ONLY.
 
-export const PHOTO_PROMPT_VERSION = "photos-2026-08-17-a";
+export const PHOTO_PROMPT_VERSION = "photos-2026-08-18-b";
+
+/** Must match defect_prep_rates.defect_type — the CODE prices these, never the model. */
+export const defectTypes = [
+  "peeling", "flaking", "water_damage", "plaster_cracks", "render_cracks",
+  "holes_dents", "mould", "nicotine_staining", "efflorescence", "rust", "timber_rot",
+] as const;
 
 /**
  * What property photos are for: the three things a floorplan physically cannot
@@ -30,26 +36,35 @@ export const photoReadSchema = z.object({
     visible: z.number().int().min(0).max(20),
     style: z.enum(doorStyles),
     confidence: z.number().min(0).max(1),
-    reasoning: z.string().max(200),
+    reasoning: z.string().transform((s) => s.slice(0, 200)),
   }),
   windows: z.object({
     visible: z.number().int().min(0).max(20),
     style: z.enum(windowStyles),
     confidence: z.number().min(0).max(1),
-    reasoning: z.string().max(200),
+    reasoning: z.string().transform((s) => s.slice(0, 200)),
   }),
   cornice: z.object({
     state: z.enum(["present", "absent", "unknown"]),
     profile: z.enum(["standard_cove", "patterned_ornate", "square_set", "unknown"]),
     confidence: z.number().min(0).max(1),
-    reasoning: z.string().max(200),
+    reasoning: z.string().transform((s) => s.slice(0, 200)),
   }),
   ceiling_height: z.object({
     estimate_m: z.number().min(2).max(6).nullable(),
     basis: z.enum(["door_head_reference", "brick_or_board_courses", "proportion_only", "not_visible"]),
     confidence: z.number().min(0).max(1),
   }),
-  notes: z.string().max(300),
+  /** Only defects CLEARLY visible in this photo - an empty list is the normal answer. */
+  defects: z.array(z.object({
+    type: z.enum(defectTypes),
+    severity: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+    qty: z.number().min(0).max(500),
+    confidence: z.number().min(0).max(1),
+    // A long-winded justification is not a reason to throw the reading away.
+    reasoning: z.string().transform((s) => s.slice(0, 200)),
+  })).max(8).default([]),
+  notes: z.string().transform((s) => s.slice(0, 300)),
 });
 
 export type PhotoRead = z.infer<typeof photoReadSchema>;
@@ -101,9 +116,28 @@ const PHOTO_TOOL = {
         },
         required: ["estimate_m", "basis", "confidence"],
       },
+      defects: {
+        type: "array",
+        maxItems: 8,
+        description: "Paint/surface defects CLEARLY visible in this photo. An empty list is the normal answer for a sound surface. Report only what you can point to.",
+        items: {
+          type: "object",
+          properties: {
+            type: { type: "string", enum: [...defectTypes] },
+            severity: { type: "integer", enum: [1, 2, 3], description: "1 = light/localised, 2 = moderate, 3 = heavy/widespread" },
+            qty: {
+              type: "number",
+              description: "Approximate affected extent, in the defect's own unit: m2 for peeling/flaking/water damage/mould/nicotine/efflorescence/rust, LINEAL METRES for plaster or render cracks and timber rot, a COUNT for holes/dents. Estimate conservatively from what is visible.",
+            },
+            confidence: { type: "number" },
+            reasoning: { type: "string", description: "What in the photo shows this defect" },
+          },
+          required: ["type", "severity", "qty", "confidence", "reasoning"],
+        },
+      },
       notes: { type: "string" },
     },
-    required: ["shows", "room_guess", "doors", "windows", "cornice", "ceiling_height", "notes"],
+    required: ["shows", "room_guess", "doors", "windows", "cornice", "ceiling_height", "defects", "notes"],
   },
 };
 
@@ -128,6 +162,14 @@ changes the price:
 Also estimate ceiling height ONLY if you can see a reference: a door head is
 2.04 m in Australia, a brick course is 86 mm. Judging by proportion alone is not
 good enough - answer null with basis "proportion_only" instead.
+
+4. DEFECTS. Report paint/surface defects you can clearly SEE and point to:
+   peeling, flaking, water damage, plaster or render cracks, holes/dents,
+   mould, nicotine staining, efflorescence, rust, timber rot. Each defect adds
+   preparation hours to the quote, so a defect you invent costs the customer
+   real money: an EMPTY LIST is the normal answer for a sound surface. Severity
+   1 = light, 2 = moderate, 3 = heavy. Estimate the affected extent
+   conservatively from what is visible in frame.
 
 Say what in the photograph led you to each answer. "Unknown" is a perfectly good
 answer and is always better than a plausible guess.`;
@@ -201,6 +243,25 @@ export function mergePhotoFindings(reads: PhotoRead[], minConfidence = 0.7) {
     .map((r) => r.ceiling_height)
     .filter((h) => h.estimate_m != null && h.basis !== "proportion_only" && h.basis !== "not_visible" && h.confidence >= minConfidence);
 
+  // Defects: keep confident observations, and when two photos show the same
+  // defect type in the same room, keep the WORST one rather than summing -
+  // two photos of one peeling wall are one problem, not two.
+  const defects: Array<{ type: string; severity: 1 | 2 | 3; qty: number; room_hint: string | null; confidence: number; reasoning: string }> = [];
+  for (const r of reads) {
+    for (const d of r.defects ?? []) {
+      if (d.confidence < minConfidence || d.qty <= 0) continue;
+      const key = `${d.type}::${(r.room_guess ?? "").toLowerCase()}`;
+      const existing = defects.find((x) => `${x.type}::${(x.room_hint ?? "").toLowerCase()}` === key);
+      if (existing) {
+        if (d.severity > existing.severity || (d.severity === existing.severity && d.qty > existing.qty)) {
+          Object.assign(existing, { severity: d.severity, qty: d.qty, confidence: d.confidence, reasoning: d.reasoning });
+        }
+      } else {
+        defects.push({ type: d.type, severity: d.severity, qty: d.qty, room_hint: r.room_guess, confidence: d.confidence, reasoning: d.reasoning });
+      }
+    }
+  }
+
   return {
     doorStyle: pick(reads.map((r) => ({ v: r.doors.style, c: r.doors.confidence })), "unknown" as const),
     windowStyle: pick(reads.map((r) => ({ v: r.windows.style, c: r.windows.confidence })), "unknown" as const),
@@ -208,6 +269,7 @@ export function mergePhotoFindings(reads: PhotoRead[], minConfidence = 0.7) {
     ceilingHeightM: heights.length
       ? Math.round((heights.reduce((n, h) => n + (h.estimate_m ?? 0), 0) / heights.length) * 20) / 20
       : null,
+    defects,
     photosRead: reads.length,
   };
 }

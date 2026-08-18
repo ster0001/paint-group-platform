@@ -110,6 +110,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ run
 
   const updated = {
     ...reading.data,
+    // Defects accumulate across photo batches; re-running the same batch
+    // replaces rather than doubles because merge already dedupes by
+    // type+room within a batch and we key existing ones the same way.
+    defect_observations: [
+      ...(reading.data.defect_observations ?? []).filter(
+        (e) => !merged.defects.some((d) => d.type === e.type && (d.room_hint ?? "") === (e.room_hint ?? "")),
+      ),
+      ...merged.defects,
+    ],
     ceiling_height_m: reading.data.ceiling_height_m ?? merged.ceilingHeightM,
     rooms: reading.data.rooms.map((r) => ({
       ...r,
@@ -138,6 +147,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ run
       windowStyle: merged.windowStyle,
       cornice: merged.cornice,
       ceilingHeightM: merged.ceilingHeightM,
+      defects: merged.defects.map((d) => `${d.type} sev${d.severity}${d.room_hint ? ` (${d.room_hint})` : ""}`),
     },
     /** Anything still unknown stays a question for the estimator. */
     stillUnknown: [

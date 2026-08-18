@@ -1,5 +1,6 @@
 import type { Extraction, ExtractedRoom } from "./schema";
 import { planSurfaces, resolveRoomType, type Alias, type Deferred, type ScopeRule } from "./scope";
+import { defectHours, defectSummary, type DefectRate } from "@/lib/capture/commit";
 
 /**
  * Stage 5: turn a validated reading into the builder's own area/surface tree.
@@ -115,7 +116,7 @@ export function buildDraft(
   x: Extraction,
   rules: ScopeRule[],
   aliases: Alias[],
-  opts: { startId?: number; sourceId?: string | null } = {},
+  opts: { startId?: number; sourceId?: string | null; defectRates?: DefectRate[] } = {},
 ): DraftResult {
   let nextId = opts.startId ?? 1;
   const areas: DraftArea[] = [];
@@ -209,6 +210,39 @@ export function buildDraft(
     areas.push(area);
   }
 
+  // ---- photo-observed defects -> prep on the matched room's walls ----------
+  // The model IDENTIFIED (type, severity, extent); the rates table prices it
+  // here. Prep lands on the room the photo named, marked assumed so the
+  // review queue asks the estimator to confirm before send. A defect whose
+  // room can't be matched is DEFERRED, never silently spread across the job.
+  const rates = opts.defectRates ?? [];
+  for (const obs of x.defect_observations ?? []) {
+    const hours = defectHours({ type: obs.type, severity: obs.severity, qty: obs.qty }, rates);
+    if (hours <= 0) continue;
+    const hintType = obs.room_hint ? resolveRoomType(obs.room_hint, aliases) : "unknown";
+    const target = areas.find(
+      (a) => obs.room_hint && (a.name.toLowerCase() === obs.room_hint.toLowerCase()
+        || (hintType !== "unknown" && resolveRoomType(a.name, aliases) === hintType)),
+    );
+    if (!target) {
+      deferred.push({
+        room: obs.room_hint ?? "unmatched photo",
+        what: `${obs.type} sev${obs.severity} (~${hours}h prep)`,
+        count: 1,
+        needs: "which room is this defect in? Assign it and the prep is added.",
+      });
+      continue;
+    }
+    const walls = target.surfaces.find((s) => s.code === "Walls") ?? target.surfaces[0];
+    if (!walls) continue;
+    walls.prepHr = Math.round((walls.prepHr + hours) * 100) / 100;
+    const note = defectSummary([{ type: obs.type, severity: obs.severity, qty: obs.qty }], rates);
+    walls.crewNote = [walls.crewNote, `photo: ${note}`].filter(Boolean).join(" | ");
+    if (!walls.assumedFields.includes("prep")) walls.assumedFields.push("prep");
+    if (walls.origin === "ai_derived") walls.origin = "ai_assumed" as Origin;
+    assumedCount++;
+  }
+
   return { areas, skipped, assumedCount, deferred };
 }
 
@@ -224,6 +258,9 @@ export function reviewQueue(areas: DraftArea[]): Array<{ areaId: number; name: s
     for (const s of a.surfaces) {
       if (s.assumedFields.includes("included")) {
         out.push({ areaId: a.id, name: `${a.name} — ${s.internalLabel}`, needs: "confirm this belongs on the job" });
+      }
+      if (s.assumedFields.includes("prep")) {
+        out.push({ areaId: a.id, name: `${a.name} — ${s.internalLabel}`, needs: `confirm photo-detected prep (${s.prepHr}h): ${s.crewNote.slice(0, 80)}` });
       }
     }
   }

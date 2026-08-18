@@ -113,6 +113,20 @@ export const extractionSchema = z.object({
     description: z.string().max(200),
     impact: z.enum(["low", "medium", "high"]),
   })).max(20),
+  /**
+   * Surface defects seen in property PHOTOS (never on the plan itself), folded
+   * in by the photos route. Optional so every stored reading from before this
+   * field validates unchanged. Types match defect_prep_rates.defect_type; qty
+   * is in that rate's own unit (m2 / lin_m / each) and the CODE prices it.
+   */
+  defect_observations: z.array(z.object({
+    type: z.string().max(60),
+    severity: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+    qty: z.number().min(0).max(500),
+    room_hint: z.string().max(60).nullable(),
+    confidence: z.number().min(0).max(1),
+    reasoning: z.string().max(200),
+  })).max(40).optional(),
 });
 
 export type Extraction = z.infer<typeof extractionSchema>;

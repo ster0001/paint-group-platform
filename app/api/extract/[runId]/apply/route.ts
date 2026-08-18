@@ -74,9 +74,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ run
     return NextResponse.json({ error: "The stored reading is not in a usable shape." }, { status: 422 });
   }
 
-  const [{ data: rules }, { data: aliases }] = await Promise.all([
+  const [{ data: rules }, { data: aliases }, { data: defectRates }] = await Promise.all([
     supabase.from("room_type_scope_rules").select("room_type, surface_type, is_option, requires_confirm, notes").eq("version", SCOPE_VERSION),
     supabase.from("room_name_aliases").select("alias, room_type").eq("version", SCOPE_VERSION),
+    supabase.from("defect_prep_rates").select("defect_type, unit, hours_sev1, hours_sev2, hours_sev3").eq("version", SCOPE_VERSION),
   ]);
 
   const source = (run as unknown as { estimate_sources: { id: string; estimate_id: string | null } | null }).estimate_sources;
@@ -104,7 +105,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ run
     readingWithHeight,
     (rules as ScopeRule[] | null) ?? [],
     (aliases as Alias[] | null) ?? [],
-    { sourceId: source?.id ?? null, startId },
+    { sourceId: source?.id ?? null, startId, defectRates: (defectRates as import("@/lib/capture/commit").DefectRate[] | null) ?? [] },
   );
 
   if (draft.areas.length === 0) {

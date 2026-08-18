@@ -261,3 +261,40 @@ test("an assumed ceiling height is always said out loud", () => {
   const r = validateExtraction(extraction([room()]));
   expect(r.flags.some((f) => f.code === "assumed_ceiling_height")).toBe(true);
 });
+
+// ---- photo-detected defects -> prep -----------------------------------------
+
+const DEFECT_RATES = [
+  { defect_type: "peeling", unit: "m2", hours_sev1: 0.1, hours_sev2: 0.18, hours_sev3: 0.3 },
+  { defect_type: "plaster_cracks", unit: "lin_m", hours_sev1: 0.12, hours_sev2: 0.22, hours_sev3: 0.4 },
+];
+
+test("a room-matched defect becomes priced prep on that room's walls, flagged for review", () => {
+  const x = extraction([room()], {
+    defect_observations: [{ type: "peeling", severity: 2, qty: 3, room_hint: "Bedroom 1", confidence: 0.9, reasoning: "visible on south wall" }],
+  });
+  const { areas } = buildDraft(x, RULES, ALIASES, { defectRates: DEFECT_RATES });
+  const walls = areas[0].surfaces.find((s) => s.code === "Walls")!;
+  expect(walls.prepHr).toBeCloseTo(0.54);
+  expect(walls.crewNote).toContain("photo: Peeling sev2 3 m2 (0.54h)");
+  expect(walls.assumedFields).toContain("prep");
+  const queue = reviewQueue(areas);
+  expect(queue.some((q) => /photo-detected prep/.test(q.needs))).toBe(true);
+});
+
+test("a defect whose room can't be matched is deferred, never spread across the job", () => {
+  const x = extraction([room()], {
+    defect_observations: [{ type: "plaster_cracks", severity: 1, qty: 2, room_hint: "Rumpus", confidence: 0.9, reasoning: "crack above door" }],
+  });
+  const { areas, deferred } = buildDraft(x, RULES, ALIASES, { defectRates: DEFECT_RATES });
+  expect(areas[0].surfaces.every((s) => s.prepHr === 0)).toBe(true);
+  expect(deferred.some((d) => /plaster_cracks/.test(d.what) && /which room/.test(d.needs))).toBe(true);
+});
+
+test("without a rates table photo defects price nothing (no silent invented hours)", () => {
+  const x = extraction([room()], {
+    defect_observations: [{ type: "peeling", severity: 3, qty: 10, room_hint: "Bedroom 1", confidence: 0.9, reasoning: "" }],
+  });
+  const { areas } = buildDraft(x, RULES, ALIASES);
+  expect(areas[0].surfaces.every((s) => s.prepHr === 0)).toBe(true);
+});
