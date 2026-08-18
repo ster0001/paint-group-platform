@@ -47,6 +47,10 @@ const actionSchema = z.discriminatedUnion("action", [
     name: z.string().min(1).max(120).optional(),
   }),
   z.object({ action: z.literal("remove_room"), areaId: z.number().int().positive() }),
+  /** "I've checked the plan-derived exterior widths" — clears the rule-2
+   * flag on every Exterior node (Tom's ruling: derived widths are always
+   * flagged until a human confirms them). */
+  z.object({ action: z.literal("confirm_exterior_widths") }),
 ]);
 
 type LooseBlock = Record<string, unknown> & {
@@ -181,6 +185,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // a name shared with an existing room can't cross-attach.
     const addedIds = new Set(mergedRoom.areas.map((a) => a.id));
     deferred.push(...mergedRoom.deferred.filter((d) => d.areaId != null && addedIds.has(d.areaId)));
+  }
+
+  if (act.action === "confirm_exterior_widths") {
+    blocks = blocks.map((b) => {
+      const assumed = Array.isArray(b.assumedFields) ? (b.assumedFields as string[]) : [];
+      if (b.kind !== "area" || !assumed.includes("width_from_plan")) return b;
+      return {
+        ...b,
+        origin: "human_confirmed",
+        confidence: 1,
+        assumedFields: assumed.filter((f) => f !== "width_from_plan"),
+      };
+    });
   }
 
   let newDeferred = deferred;

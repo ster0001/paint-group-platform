@@ -64,6 +64,9 @@ export type EnvelopeElevation = {
   name: string;
   widthM: number | null;
   heightM: number | null;
+  /** True when any priced width came from the plan (rule 2) rather than a
+   * photo reference — always flagged for a human check. */
+  widthFromPlan: boolean;
   surfaces: EnvelopeSurface[];
   deferred: Array<{ what: string; needs: string }>;
 };
@@ -88,7 +91,7 @@ export function computeEnvelope(reads: ElevationRead[], minConfidence = 0.6): En
   const out: Envelope = { elevations: [], requiresSiteCheck: [] };
 
   for (const [name, read] of byElevation) {
-    const el: EnvelopeElevation = { name, widthM: null, heightM: null, surfaces: [], deferred: [] };
+    const el: EnvelopeElevation = { name, widthM: null, heightM: null, widthFromPlan: false, surfaces: [], deferred: [] };
 
     for (const seg of read.cladding) {
       const rateCode = CLADDING_TO_RATE[seg.material] ?? null;
@@ -103,12 +106,13 @@ export function computeEnvelope(reads: ElevationRead[], minConfidence = 0.6): En
         continue;
       }
       if (!measured) {
-        el.deferred.push({ what: `${seg.material} cladding`, needs: "no measurable reference in the photo - measure on site" });
+        el.deferred.push({ what: `${seg.material} cladding`, needs: "width measurement required - add the width in the builder or measure on site" });
         out.requiresSiteCheck.push(`${name}: ${seg.material} unmeasured`);
         continue;
       }
       el.widthM = Math.max(el.widthM ?? 0, seg.widthM!);
       el.heightM = Math.max(el.heightM ?? 0, seg.heightM!);
+      if (seg.widthBasis === "site_plan_edge") el.widthFromPlan = true;
       el.surfaces.push({ rateCode, label: `${seg.material} - ${name}`, m2: round1(seg.widthM! * seg.heightM!) });
     }
 
@@ -150,7 +154,9 @@ export function envelopeToAreaNodes(env: Envelope, nextId: () => number, sourceI
       L: e.widthM ?? 0, W: 0, H: e.heightM ?? 0,
       isOption: false, description: "", open: false, media: [],
       origin: "ai_derived" as const, confidence: 0.7,
-      assumedFields: ["exterior_envelope"],
+      // width_from_plan = rule 2 was used: the width is summed room
+      // dimensions, not a photo reference — the editor flags it for a check.
+      assumedFields: e.widthFromPlan ? ["exterior_envelope", "width_from_plan"] : ["exterior_envelope"],
       extractionSourceId: sourceId,
       surfaces: e.surfaces.map((s) => ({
         id: nextId(), code: s.rateCode, internalLabel: s.label, clientLabel: s.label,

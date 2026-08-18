@@ -73,6 +73,21 @@ describe("mergeSitePlanWidths", () => {
     // three measured elevations — no whole-house site-check flag for count
     expect(env.requiresSiteCheck.some((s) => /only \d elevation/.test(s))).toBe(false);
   });
+
+  it("rule 2: room_sum edges fill widths and the elevation is flagged width-from-plan", () => {
+    const footprint = sitePlan({
+      edges: [{ side: "front", lengthM: 9.2, basis: "room_sum", confidence: 0.75, reasoning: "living 4.0 + bed 3.2 + bath 1.5 (standard) + walls" }],
+    });
+    const merged = mergeSitePlanWidths([read("front", [seg()])], footprint);
+    expect(merged[0].cladding[0].widthBasis).toBe("site_plan_edge");
+    const env = computeEnvelope(merged);
+    const front = env.elevations.find((e) => e.name === "front");
+    expect(front?.widthFromPlan).toBe(true);
+    expect(front?.surfaces[0]?.m2).toBeCloseTo(22.1, 1); // 9.2 × 2.4
+    // A photo-referenced width does NOT flag.
+    const photoOnly = computeEnvelope([read("rear", [seg({ widthM: 8, widthBasis: "reference_in_photo" })])]);
+    expect(photoOnly.elevations.find((e) => e.name === "rear")?.widthFromPlan).toBe(false);
+  });
 });
 
 describe("schemas", () => {

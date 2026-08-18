@@ -140,13 +140,27 @@ export default function WizardApp({ roomTypes }: { roomTypes: string[] }) {
       }).catch(() => null);
     }
     setProcLine(3);
+    // 3.5 Exterior rule 2 (Tom's ruling): when the job has an exterior and a
+    // floorplan, derive the building's edge widths from the plan's room
+    // dimensions. The reading rides as its own run id; the server flags
+    // everything priced from it for a human check.
+    let footprintRunId: string | null = null;
+    if (state.jobType !== "interior" && primaryRunRef.current) {
+      const res = await fetch(`/api/extract/${primaryRunRef.current}/footprint`, { method: "POST" }).catch(() => null);
+      if (res?.ok) {
+        const j = await res.json().catch(() => null);
+        if (j?.footprintRunId) footprintRunId = j.footprintRunId as string;
+      }
+    }
     // 4. The submit rebuilds, merges, prices and scores server-side. With no
     // plan run there is nowhere for damage photos to have gone — say so
     // rather than letting the count suppress the review deferral (the server
     // independently checks the readings for real defect observations).
-    const submitState = primaryRunRef.current
-      ? state
-      : { ...state, details: { ...state.details, damagePhotoCount: 0 } };
+    const submitState = {
+      ...state,
+      planRunIds: footprintRunId ? [...state.planRunIds, footprintRunId] : state.planRunIds,
+      details: primaryRunRef.current ? state.details : { ...state.details, damagePhotoCount: 0 },
+    };
     const res = await fetch("/api/wizard/submit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

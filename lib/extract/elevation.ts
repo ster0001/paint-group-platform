@@ -22,7 +22,7 @@ import { elevations, heightBases, type ElevationRead } from "./exterior";
  * FALLBACK_UNITS mirror the seed for databases that haven't run it.
  */
 
-export const ELEVATION_PROMPT_VERSION = "elevation-2026-08-19-a";
+export const ELEVATION_PROMPT_VERSION = "elevation-2026-08-19-b";
 
 export type UnitRow = { unit_key: string; label: string; size_mm: number; tolerance_pct: number };
 
@@ -62,13 +62,21 @@ export const elevationReadSchema = z.object({
 
 export type StoredElevationRead = z.infer<typeof elevationReadSchema>;
 
-/** The stored reading for a site-plan run: footprint edges, reference-based only. */
+/**
+ * The stored reading for a site-plan or footprint run: building edges.
+ * Bases, in order of trust (Tom's ruling, 19 Aug 2026):
+ *   printed_dimension  a dimension printed for the edge itself
+ *   scale_bar          measured against a drawn scale bar
+ *   room_sum           RULE 2 — the floorplan's printed room widths summed
+ *                      along that side, standard widths for unlisted rooms.
+ *                      Always flagged for a human check downstream.
+ */
 export const sitePlanReadSchema = z.object({
   kind: z.literal("site_plan_read"),
   edges: z.array(z.object({
     side: z.enum(elevations),
     lengthM: z.number().positive().max(100).nullable(),
-    basis: z.enum(["printed_dimension", "scale_bar", "none"]),
+    basis: z.enum(["printed_dimension", "scale_bar", "room_sum", "none"]),
     confidence,
     reasoning: reason,
   })).max(8),
@@ -105,8 +113,8 @@ const ELEVATION_TOOL = (units: UnitRow[]) => ({
             material: { type: "string", enum: ["weatherboard", "render", "stucco", "colorbond", "brick", "unknown"], description: "IF YOU CANNOT TELL, ANSWER 'unknown' — a guessed material is a wrong rate on the whole wall." },
             widthM: { type: ["number", "null"], description: "Metres across this band, ONLY from a countable reference (bricks are 230 mm long, a single garage door is 2.4 m, a door leaf 0.82 m) or null." },
             widthBasis: { type: "string", enum: ["site_plan_edge", "reference_in_photo", "none"], description: "'none' whenever widthM is null. You cannot use site_plan_edge — that is filled in later from the site plan." },
-            heightM: { type: ["number", "null"], description: "Metres of painted height for this band, ONLY by counting the reference units listed in the system prompt (courses, boards, door heads, storey lines). Null without one." },
-            heightBasis: { type: "string", enum: [...heightBases], description: "'none' whenever heightM is null. NEVER estimate by proportion — that is not a basis and prices nothing." },
+            heightM: { type: ["number", "null"], description: "The FULL painted height of this band in metres — counted courses, a door-head chain, or a standard storey height per the system prompt. An approximate count is a measurement. Null only when the band's extent is genuinely not visible." },
+            heightBasis: { type: "string", enum: [...heightBases], description: "'none' only when heightM is null. Counted courses = brick_course/board_count; door chain = door_head; standard storey = storey_line." },
             confidence: { type: "number" },
             reasoning: { type: "string", description: "The reference you counted, e.g. '14 weatherboard courses above the brick base'." },
           },
@@ -135,20 +143,23 @@ const ELEVATION_TOOL = (units: UnitRow[]) => ({
 
 const ELEVATION_SYSTEM = (units: UnitRow[]) => `You are looking at a photograph of one side of an Australian house for a painting estimator.
 
-Your job: identify each CLADDING band (weatherboard, render, stucco, colorbond, brick) and measure it — but a measurement without a reference is worth less than no measurement, because it gets priced. THE RULE: no reference, no number.
+Your job: identify each CLADDING band (weatherboard, render, stucco, colorbond, brick) and measure its painted HEIGHT. Every number you give is flagged for a human check before it is priced, so the estimator's rule is: give your best photo-based measurement with honest confidence, and reserve null for what the photo genuinely does not show.
 
-Height references you may count (sizes from the estimator's own settings):
+Height references, best first (sizes from the estimator's own settings):
 ${unitLines(units)}
 
-Count them and multiply: "23 brick courses ≈ 2.0 m", "14 weatherboard courses ≈ 2.0 m", "door head 2.04 m plus 4 courses above". A storey line on a two-storey facade may anchor a storey height. Judging height by proportion alone is NOT a basis — answer null with heightBasis "none" instead, and the segment is measured on site.
+1. COUNT when you can: "23 brick courses ≈ 2.0 m", "14 weatherboard courses ≈ 2.0 m". An approximate count is fine — "about 18 courses (±2)" is a measurement, not a guess. Basis "board_count" / "brick_course".
+2. CHAIN from a door: a door head is 2.04 m — add the counted or estimated bands above it ("door head 2.04 + ~0.5 m to the eave ≈ 2.5 m"). Basis "door_head". Report the FULL painted height of the band, never just the reference's own height.
+3. STANDARD STOREY when nothing is countable but the band clearly runs floor-to-eave: a single storey is ~2.4 m (older) or ~2.55 m (modern); a two-storey facade is two of them plus ~0.3 m floor structure. Basis "storey_line", confidence 0.6–0.7.
+Give null with basis "none" only when the band's extent is genuinely not visible (obstructions, severe crop). Gable triangles: report about half the gable's peak rise as the band height and say so in reasoning.
 
-Width references: bricks are 230 mm long, a single garage door 2.4 m, a double 4.8 m, a door leaf 0.82 m, a standard window 1.2–1.8 m. Only widths counted from such references carry widthBasis "reference_in_photo". Otherwise null — the site plan or the site visit supplies it.
+Widths: only from a countable reference IN THE PHOTO — bricks are 230 mm long, a single garage door 2.4 m, a double 4.8 m, a door leaf 0.82 m. Basis "reference_in_photo". Otherwise null: the floorplan's room sums supply widths separately, so a null width here is normal and expected.
 
 Brick that is ALREADY PAINTED still reports material "brick". Unpainted face brick that is staying unpainted is not a cladding band at all — mention it in notes instead.
 
-Trims: fascia, gutters and eaves in lineal metres, only when you have a real width to anchor the run; otherwise null.
+Trims: fascia, gutters and eaves in lineal metres when the run's extent is visible; otherwise null.
 
-"Unknown" and null are good answers. A deferred wall costs a site visit; an invented wall costs the painter real money.`;
+Confidence is your honesty channel: counted 0.75–0.9, chained 0.7–0.8, standard-storey 0.6–0.7. Below 0.6 the segment is measured on site instead.`;
 
 export type ElevationResult =
   | { ok: true; read: StoredElevationRead; inputTokens: number; outputTokens: number; costCents: number }
@@ -267,6 +278,86 @@ export async function readSitePlan(bytes: Uint8Array): Promise<SitePlanResult> {
     if (!toolUse || toolUse.type !== "tool_use") return { ok: false, message: "The model didn't answer in the expected shape." };
     const parsed = sitePlanReadSchema.safeParse({ kind: "site_plan_read", ...(toolUse.input as Record<string, unknown>) });
     if (!parsed.success) return { ok: false, message: `Unusable site-plan reading: ${parsed.error.issues[0]?.message}` };
+
+    return { ok: true, read: parsed.data, inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens, costCents: cost(response.usage) };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/** Typical widths for rooms the plan doesn't dimension (rule 2's standard
+ * measurements — same numbers as the room_type_defaults Settings table). */
+export type TypicalWidthRow = { room_type: string; typical_width_m: number };
+
+const FOOTPRINT_TOOL = {
+  name: "report_footprint",
+  description: "Derive the building's overall edge lengths from the floorplan's printed room dimensions. State your working per edge.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      kind: { type: "string", enum: ["site_plan_read"] },
+      edges: {
+        type: "array", maxItems: 8,
+        description: "One entry per external side of the building. 'front' faces the entry/street side of the plan.",
+        items: {
+          type: "object",
+          properties: {
+            side: { type: "string", enum: [...elevations] },
+            lengthM: { type: ["number", "null"], description: "The side's overall length: a printed overall dimension if one exists, else the SUM of the printed widths of the rooms lying along that side (plus ~0.25 m per internal wall crossed). Standard widths for unlisted rooms are in the system prompt. Null only when the layout along that side cannot be followed at all." },
+            basis: { type: "string", enum: ["printed_dimension", "scale_bar", "room_sum", "none"], description: "'printed_dimension' only for an overall dimension printed for the whole side. Summed room widths are 'room_sum'." },
+            confidence: { type: "number" },
+            reasoning: { type: "string", description: "The rooms you summed, e.g. 'living 4.0 + bed2 3.2 + bath 1.5 (standard) + 2 walls 0.5 = 9.2 m'." },
+          },
+          required: ["side", "lengthM", "basis", "confidence", "reasoning"],
+        },
+      },
+      perimeterM: { type: ["number", "null"] },
+      storeys: { type: ["integer", "null"], description: "How many storeys the plan shows." },
+      confidence: { type: "number" },
+      notes: { type: "string" },
+    },
+    required: ["kind", "edges", "perimeterM", "storeys", "confidence", "notes"],
+  },
+};
+
+const FOOTPRINT_SYSTEM = (typicals: TypicalWidthRow[]) => `You are reading a residential FLOORPLAN for a painting estimator who needs the building's OUTSIDE wall lengths (they become the widths of the exterior walls to be painted).
+
+The plan prints each room's dimensions. For each external side of the building, follow the rooms that sit along that side and SUM their printed dimensions in that direction, adding roughly 0.25 m for each internal wall you cross. If an overall dimension for the whole side is printed, use it directly (basis "printed_dimension"); a summed answer is basis "room_sum".
+
+Rooms the plan labels but does not dimension use these standard widths (metres):
+${(typicals.length ? typicals : [{ room_type: "wc", typical_width_m: 1.0 }, { room_type: "laundry", typical_width_m: 1.5 }, { room_type: "bathroom", typical_width_m: 1.5 }]).map((t) => `  ${t.room_type.padEnd(28)} ${t.typical_width_m}`).join("\n")}
+
+Show your working in each edge's reasoning — the estimator checks these sums before they are used. Answer null only when you genuinely cannot follow the layout along a side.`;
+
+export async function readFloorplanFootprint(
+  bytes: Uint8Array,
+  opts: { typicals?: TypicalWidthRow[] } = {},
+): Promise<SitePlanResult> {
+  if (!process.env.ANTHROPIC_API_KEY) return { ok: false, message: "ANTHROPIC_API_KEY is not set." };
+  const mediaType = mediaTypeOf(bytes);
+  if (!mediaType) return { ok: false, message: "That file isn't an image the model can read." };
+
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  try {
+    const response = await client.messages.create({
+      model: "claude-opus-4-5",
+      max_tokens: 2500,
+      system: FOOTPRINT_SYSTEM(opts.typicals ?? []),
+      tools: [FOOTPRINT_TOOL],
+      tool_choice: { type: "tool", name: FOOTPRINT_TOOL.name },
+      messages: [{
+        role: "user",
+        content: [
+          { type: "image", source: { type: "base64", media_type: mediaType, data: Buffer.from(bytes).toString("base64") } },
+          { type: "text", text: "What are the building's overall edge lengths, summed from the printed room dimensions?" },
+        ],
+      }],
+    });
+
+    const toolUse = response.content.find((c) => c.type === "tool_use");
+    if (!toolUse || toolUse.type !== "tool_use") return { ok: false, message: "The model didn't answer in the expected shape." };
+    const parsed = sitePlanReadSchema.safeParse({ ...(toolUse.input as Record<string, unknown>), kind: "site_plan_read" });
+    if (!parsed.success) return { ok: false, message: `Unusable footprint reading: ${parsed.error.issues[0]?.message}` };
 
     return { ok: true, read: parsed.data, inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens, costCents: cost(response.usage) };
   } catch (e) {

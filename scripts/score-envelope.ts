@@ -25,7 +25,7 @@
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { mergeSitePlanWidths, readElevationPhoto, readSitePlan, type SitePlanRead } from "../lib/extract/elevation.ts";
+import { mergeSitePlanWidths, readElevationPhoto, readFloorplanFootprint, readSitePlan, type SitePlanRead } from "../lib/extract/elevation.ts";
 import { computeEnvelope, type ElevationRead } from "../lib/extract/exterior.ts";
 
 const ROOT = path.join(import.meta.dirname ?? __dirname, "..");
@@ -106,6 +106,15 @@ async function main() {
       const r = await readSitePlan(new Uint8Array(readFileSync(sitePlanPath)));
       if (r.ok) { sitePlan = r.read; readCost += r.costCents; }
     }
+    // Rule 2 (Tom's ruling 19 Aug): no dedicated site plan → derive the edge
+    // widths from the floorplan's printed room dimensions. Flagged for a
+    // human check in production; scored here to learn how accurate it is.
+    const planPath = job.plan ? path.join(SET, job.plan) : null;
+    if (!sitePlan && planPath && existsSync(planPath) && !planPath.endsWith(".avif")) {
+      const r = await readFloorplanFootprint(new Uint8Array(readFileSync(planPath)));
+      if (r.ok) { sitePlan = r.read; readCost += r.costCents; }
+      else console.log(`  ${job.id}: footprint read failed — ${r.message}`);
+    }
     totalCostCents += readCost;
 
     const env = computeEnvelope(mergeSitePlanWidths(reads, sitePlan));
@@ -120,6 +129,28 @@ async function main() {
     const wallsPct = pct(predWalls, truthWalls);
     const gate = wallsPct == null ? "-" : Math.abs(wallsPct) <= 10 ? "PASS" : "fail";
 
+    // Per-elevation comparison — the honest metric when only some sides are
+    // photographed: the work order records each side's cladding separately.
+    const SIDE_OF: Array<[RegExp, string]> = [
+      [/front/i, "front"], [/left/i, "left"], [/right/i, "right"], [/back|rear/i, "rear"],
+    ];
+    const truthBySide = new Map<string, number>();
+    for (const item of truth.items) {
+      if (item.unit !== "m2" || !CLADDING.test(item.name) || !item.area) continue;
+      const side = SIDE_OF.find(([re]) => re.test(item.area!))?.[1];
+      if (side) truthBySide.set(side, (truthBySide.get(side) ?? 0) + item.qty);
+    }
+    const perElevation: Array<{ side: string; predM2: number; truthM2: number; pctErr: number | null }> = [];
+    for (const e of env.elevations) {
+      const predM2 = e.surfaces.reduce((m, s) => m + (s.m2 ?? 0), 0);
+      const truthM2 = truthBySide.get(e.name);
+      if (predM2 > 0 && truthM2 != null) {
+        const err = pct(predM2, truthM2);
+        perElevation.push({ side: e.name, predM2: Math.round(predM2 * 10) / 10, truthM2, pctErr: err });
+        console.log(`                   side ${e.name.padEnd(6)} pred ${predM2.toFixed(0).padStart(4)} / truth ${String(truthM2).padStart(4)} m²  ${fmt(err)}`);
+      }
+    }
+
     console.log(
       `${job.id.padEnd(16)} ${String(photoPaths.length).padStart(4)}    ${reads.length}/${measured}`.padEnd(45)
       + ` ${predWalls.toFixed(0).padStart(5)}/${String(truthWalls).padStart(5)} ${fmt(wallsPct)}`
@@ -133,6 +164,7 @@ async function main() {
       elevationsRead: reads.length, elevationsMeasured: measured,
       predWallsM2: Math.round(predWalls * 10) / 10, truthWallsM2: truthWalls, wallsPct,
       predLinealM: Math.round(predLineal * 10) / 10, truthLinealM: truthLineal,
+      perElevation,
       requiresSiteCheck: env.requiresSiteCheck, costCents: readCost,
       reads, sitePlan,
     });
@@ -146,7 +178,11 @@ async function main() {
 
   const scored = results.filter((r) => typeof r.wallsPct === "number");
   const passed = scored.filter((r) => Math.abs(r.wallsPct as number) <= 10).length;
-  console.log(`\n${scored.length} scored, ${passed} within ±10% walls · ${missingPhotos.length} awaiting photos · model cost ${totalCostCents}c`);
+  const sides = results.flatMap((r) => (r.perElevation as Array<{ pctErr: number | null }>) ?? []);
+  const sidesIn = sides.filter((s) => s.pctErr != null && Math.abs(s.pctErr) <= 10).length;
+  console.log(`\n${scored.length} scored whole-job, ${passed} within ±10% walls`);
+  console.log(`per photographed side: ${sidesIn}/${sides.length} within ±10%`);
+  console.log(`${missingPhotos.length} awaiting photos · model cost ${totalCostCents}c`);
 
   const out = path.join(SET, `envelope-scores-${stamp}.json`);
   writeFileSync(out, JSON.stringify({ stamp, results, missingPhotos }, null, 2));

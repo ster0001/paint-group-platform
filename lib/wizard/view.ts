@@ -46,6 +46,11 @@ export type WizardEditorPayload = {
   deferred: WizardDeferred[];
   /** True while any area still has an assumed ceiling height. */
   heightUnconfirmed: boolean;
+  /** Rule 2 was used: exterior widths came from the floorplan's room sums —
+   * flagged at the top of the editor until a human confirms them. */
+  exteriorWidthFromPlan: boolean;
+  /** An exterior wall has no width at all — staff add it in the builder. */
+  exteriorWidthMissing: boolean;
 };
 
 type LooseBlock = Record<string, unknown> & {
@@ -69,6 +74,7 @@ export function editorPayload(
   const rooms: WizardRoomView[] = [];
   const scored: ScoredArea[] = [];
   let heightUnconfirmed = false;
+  let exteriorWidthFromPlan = false;
 
   for (const b of loose) {
     if (b.kind !== "area") continue;
@@ -77,6 +83,7 @@ export function editorPayload(
     const confidence = typeof b.confidence === "number" ? b.confidence : 1;
     const priceCents = priceArea(b as unknown as AreaInput, ctx, adj);
     if (assumed.includes("H")) heightUnconfirmed = true;
+    if (assumed.includes("width_from_plan")) exteriorWidthFromPlan = true;
 
     scored.push({ priceCents, origin: origin || "human_confirmed", confidence, assumedFields: assumed });
     rooms.push({
@@ -109,5 +116,7 @@ export function editorPayload(
     accuracyPct: accuracyScore(scored, deferred.length),
     deferred,
     heightUnconfirmed,
+    exteriorWidthFromPlan,
+    exteriorWidthMissing: deferred.some((d) => /width measurement required/i.test(d.needs)),
   };
 }

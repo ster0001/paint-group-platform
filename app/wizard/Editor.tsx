@@ -129,8 +129,27 @@ export default function Editor({ initial, roomTypes }: Props) {
           </div>
         </div>
 
-        {payload.heightUnconfirmed && (
+        {(payload.heightUnconfirmed || payload.exteriorWidthFromPlan || payload.exteriorWidthMissing) && (
           <div className="wz-confirmrow">
+            {payload.exteriorWidthMissing && (
+              <div className="wz-cf">
+                <span><b>Width measurement required</b> — an exterior wall has no width; add it in the builder or measure on site.</span>
+                <a className="wz-mini" href={initial.openAt} style={{ textDecoration: "none" }}>Open the builder</a>
+              </div>
+            )}
+            {payload.exteriorWidthFromPlan && (
+              <div className="wz-cf">
+                <span>Exterior widths came from the <b>floorplan&rsquo;s room sums</b> — check them against the plan.</span>
+                <button disabled={busy} onClick={() => act(
+                  { action: "confirm_exterior_widths" },
+                  "Exterior widths confirmed — accuracy up.",
+                )}>
+                  They&rsquo;re right
+                </button>
+                <a className="wz-mini" href={initial.openAt} style={{ textDecoration: "none" }}>Adjust in the builder</a>
+              </div>
+            )}
+            {payload.heightUnconfirmed && (
             <div className="wz-cf">
               <span>Ceiling height is assumed at <b style={{ fontFamily: "var(--wz-mono)", fontSize: 12 }}>2.4 m</b> — confirm it:</span>
               <select value={heightPick} onChange={(e) => setHeightPick(e.target.value)}>
@@ -147,6 +166,7 @@ export default function Editor({ initial, roomTypes }: Props) {
                 Confirm
               </button>
             </div>
+            )}
           </div>
         )}
 
