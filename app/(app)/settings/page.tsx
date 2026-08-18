@@ -14,6 +14,7 @@ import ProductsManager, { type ProductRow } from "./ProductsManager";
 import ColoursManager, { type ColourRow } from "./ColoursManager";
 import PresentationsManager, { type PresentationRow } from "./PresentationsManager";
 import { DEFAULT_INCLUSION_TEMPLATES, DEFAULT_EXCLUSION_TEMPLATES, INCLUSION_TEMPLATES_KEY, EXCLUSION_TEMPLATES_KEY, type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
+import { SCOPE_VERSION } from "@/lib/extract/scope";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,18 @@ export default async function SettingsPage() {
     // the UI rather than silently truncating.
     supabase.from("estimates").select("presentation_id").not("presentation_id", "is", null).limit(2000),
   ]);
+
+  // Step 3 scope tables - fetched separately and tolerantly: each degrades to
+  // an empty list (with the folder explaining itself) until its migration runs.
+  const [scopeRulesRes, roomDefaultsRes, areaPresetsRes] = await Promise.all([
+    supabase.from("room_type_scope_rules").select("*").eq("version", SCOPE_VERSION).order("room_type").order("sort_order"),
+    supabase.from("room_type_defaults").select("*").eq("version", SCOPE_VERSION).order("room_type"),
+    supabase.from("area_name_presets").select("*").eq("version", 1).order("estimate_type").order("sort_order"),
+  ]);
+  const scopeRules = scopeRulesRes.data ?? [];
+  const scopeRulesMigrated = scopeRules.length === 0 || (scopeRules[0] as Record<string, unknown>).countable !== undefined;
+  const roomDefaults = roomDefaultsRes.data ?? [];
+  const areaPresets = areaPresetsRes.data ?? [];
 
   const company: CompanyProfile = { ...DEFAULT_COMPANY, ...((companyRes.data?.value as Partial<CompanyProfile>) ?? {}) };
   const lineItems = (lineItemsRes.data as LineItemRow[] | null) ?? [];
@@ -159,6 +172,74 @@ export default async function SettingsPage() {
 
       <SettingsFolder title="Presentations" subtitle="Capability/proof blocks injected into the estimate when ticked — video, before/after, reviews, capability" count={presentations.length}>
         <PresentationsManager initial={presentations} usage={usage} />
+      </SettingsFolder>
+
+      <SettingsFolder title="Room scope rules" subtitle="Which surfaces each room type gets - drives the AI plan reader AND the capture tile grid" count={scopeRules.length}>
+        {!scopeRulesMigrated && (
+          <p className="mb-3 rounded bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            Tile grouping columns are missing - run migration 20260913000000_step3_shared_scope.sql to edit grouping and order here.
+          </p>
+        )}
+        <EditableTable
+          table="room_type_scope_rules"
+          rows={scopeRules}
+          blank={{ version: SCOPE_VERSION, room_type: "", surface_type: "", is_option: false, requires_confirm: false, countable: false, tile_group: "core", sort_order: 0 }}
+          columns={[
+            { key: "room_type", label: "Room type" },
+            { key: "surface_type", label: "Surface" },
+            ...(scopeRulesMigrated
+              ? [
+                  { key: "tile_group", label: "Group", type: "select" as const, options: ["core", "openings", "joinery", "extras"], width: "8rem" },
+                  { key: "sort_order", label: "Order", type: "number" as const, width: "5rem" },
+                  { key: "countable", label: "Countable", type: "bool" as const, width: "6rem" },
+                ]
+              : []),
+            { key: "is_option", label: "Optional", type: "bool", width: "6rem" },
+            { key: "requires_confirm", label: "Confirm", type: "bool", width: "6rem" },
+            { key: "notes", label: "Notes" },
+          ]}
+          addLabel="+ Add rule"
+        />
+      </SettingsFolder>
+
+      <SettingsFolder title="Typical room sizes" subtitle="Owner-supplied typical dimensions per room type - powers no-plan starter lists and wizard defaults" count={roomDefaults.length}>
+        {roomDefaults.length === 0 && (
+          <p className="mb-3 rounded bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            No rows found - run migration 20260912000000_room_type_defaults.sql, then scripts/seed-extraction-settings.ts.
+          </p>
+        )}
+        <EditableTable
+          table="room_type_defaults"
+          rows={roomDefaults}
+          blank={{ version: SCOPE_VERSION, room_type: "", typical_length_m: 3.5, typical_width_m: 3.25 }}
+          columns={[
+            { key: "room_type", label: "Room type" },
+            { key: "typical_length_m", label: "Length (m)", type: "number", width: "7rem" },
+            { key: "typical_width_m", label: "Width (m)", type: "number", width: "7rem" },
+            { key: "notes", label: "Notes" },
+          ]}
+          addLabel="+ Add room type"
+        />
+      </SettingsFolder>
+
+      <SettingsFolder title="Area name presets" subtitle="The room/area names offered by capture mode's AreaPicker, per estimate type" count={areaPresets.length}>
+        {areaPresets.length === 0 && (
+          <p className="mb-3 rounded bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            No rows found - run migration 20260913000000_step3_shared_scope.sql (creates and seeds this table).
+          </p>
+        )}
+        <EditableTable
+          table="area_name_presets"
+          rows={areaPresets}
+          blank={{ version: 1, estimate_type: "interior", name: "", room_type: "", sort_order: 0 }}
+          columns={[
+            { key: "estimate_type", label: "Type", type: "select", options: ["interior", "exterior", "commercial"], width: "8rem" },
+            { key: "name", label: "Name" },
+            { key: "room_type", label: "Room type" },
+            { key: "sort_order", label: "Order", type: "number", width: "5rem" },
+          ]}
+          addLabel="+ Add name"
+        />
       </SettingsFolder>
 
       <SettingsFolder title="Modifiers" subtitle="Condition / access / finish / size multipliers" count={modifiers.length}>

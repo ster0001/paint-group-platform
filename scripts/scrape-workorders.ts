@@ -171,7 +171,7 @@ async function main() {
         writeFileSync(rawPath, text);
       } catch (e) {
         console.log(`FAILED: ${(e as Error).message.split("\n")[0]}`);
-        byKey.set(key, { key, url, scrapedAt: new Date().toISOString(), headerLines: [], totalHours: null, dimensions: [], areas: [], error: (e as Error).message.split("\n")[0] });
+        byKey.set(key, { key, url, scrapedAt: new Date().toISOString(), estimateId: null, jobAddress: null, totalHours: null, totalDimensions: {}, areaTotals: [], items: [], optionAreas: [], error: (e as Error).message.split("\n")[0] });
         continue;
       }
     }

@@ -153,6 +153,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ run
   await Promise.all([
     supabase.from("extraction_runs").update({ status: "applied" }).eq("id", runId),
     source ? supabase.from("estimate_sources").update({ estimate_id: targetId }).eq("id", source.id) : Promise.resolve(),
+    // Step 3's one-height model: the single confirmed ceiling height becomes
+    // the "ground" storey entry. Best-effort - before migration 20260913 the
+    // column doesn't exist and this update fails quietly, which is fine.
+    supabase.from("estimates").update({ storey_heights: { ground: parsedBody.data.ceilingHeightM } }).eq("id", targetId).then(() => undefined, () => undefined),
   ]);
 
   return NextResponse.json({
