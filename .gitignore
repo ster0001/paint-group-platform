@@ -48,3 +48,6 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 /blob-report/
+
+# regression corpus (customer plans + PaintScout estimates — never committed)
+/regression-set/
