@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { getWizardActor } from "@/lib/supabase/guards";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { checkListingUrl, parseListing, crossCheck } from "@/lib/extract/listing";
 import { extractionSchema } from "@/lib/extract/schema";
 import { reportError } from "@/lib/monitoring/report";
@@ -29,10 +32,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ run
   }
 
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  if (profile?.role !== "staff") return NextResponse.json({ error: "Staff only." }, { status: 403 });
+  const actor = await getWizardActor(supabase);
+  if (actor.kind === "none") return NextResponse.json({ error: "Staff only." }, { status: 403 });
+  let db: SupabaseClient = supabase;
+  if (actor.kind === "customer") {
+    const svc = createServiceClient();
+    if (!svc) return NextResponse.json({ error: "The estimate wizard isn't available just now." }, { status: 503 });
+    db = svc;
+  }
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Send a listing URL." }, { status: 400 });
@@ -40,8 +47,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ run
   const check = checkListingUrl(parsed.data.url);
   if (!check.ok) return NextResponse.json({ error: check.message }, { status: 400 });
 
-  const { data: run } = await supabase.from("extraction_runs").select("id, raw_output").eq("id", runId).maybeSingle();
+  const { data: run } = await db.from("extraction_runs").select("id, raw_output, created_by").eq("id", runId).maybeSingle();
   if (!run) return NextResponse.json({ error: "No such run." }, { status: 404 });
+  if (actor.kind === "customer" && (run as { created_by?: string | null }).created_by !== actor.user.id) {
+    return NextResponse.json({ error: "No such run." }, { status: 404 });
+  }
 
   let html: string;
   try {

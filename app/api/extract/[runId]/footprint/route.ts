@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { getWizardActor } from "@/lib/supabase/guards";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { hasApiKey, MODEL } from "@/lib/extract/model";
 import { ELEVATION_PROMPT_VERSION, readFloorplanFootprint, type TypicalWidthRow } from "@/lib/extract/elevation";
 import { reportError } from "@/lib/monitoring/report";
@@ -26,30 +29,38 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ru
   const { runId } = parsed.data;
 
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  if (profile?.role !== "staff") return NextResponse.json({ error: "Staff only." }, { status: 403 });
+  const actor = await getWizardActor(supabase);
+  if (actor.kind === "none") return NextResponse.json({ error: "Staff only." }, { status: 403 });
+  const user = actor.user;
+  let db: SupabaseClient = supabase;
+  if (actor.kind === "customer") {
+    const svc = createServiceClient();
+    if (!svc) return NextResponse.json({ error: "The estimate wizard isn't available just now." }, { status: 503 });
+    db = svc;
+  }
 
   if (!hasApiKey()) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY is not set on the server.", code: "no_api_key" }, { status: 503 });
   }
 
-  const { data: run } = await supabase
+  const { data: run } = await db
     .from("extraction_runs")
-    .select("id, estimate_sources ( id, storage_path, page_class )")
+    .select("id, created_by, estimate_sources ( id, storage_path, page_class )")
     .eq("id", runId)
     .maybeSingle();
   if (!run) return NextResponse.json({ error: "No such run." }, { status: 404 });
+  if (actor.kind === "customer" && (run as { created_by?: string | null }).created_by !== user.id) {
+    return NextResponse.json({ error: "No such run." }, { status: 404 });
+  }
   const source = (run as unknown as { estimate_sources: { id: string; storage_path: string; page_class: string | null } | null }).estimate_sources;
   if (!source) return NextResponse.json({ error: "That run has no page attached." }, { status: 422 });
 
-  const file = await supabase.storage.from("estimate-sources").download(source.storage_path);
+  const file = await db.storage.from("estimate-sources").download(source.storage_path);
   if (file.error || !file.data) {
     return NextResponse.json({ error: "The stored page couldn't be read back." }, { status: 502 });
   }
 
-  const { data: typicalRows } = await supabase
+  const { data: typicalRows } = await db
     .from("room_type_defaults")
     .select("room_type, typical_width_m")
     .eq("version", 3);
@@ -66,10 +77,11 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ru
 
   // Its own run on the same page: the reading is a different product of the
   // same source, and the submit route routes stored readings by their shape.
-  const { data: created, error } = await supabase
+  const { data: created, error } = await db
     .from("extraction_runs")
     .insert({
       estimate_source_id: source.id,
+      created_by: user.id,
       status: "needs_review",
       model: MODEL,
       prompt_version: ELEVATION_PROMPT_VERSION,

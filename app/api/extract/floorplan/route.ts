@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { getWizardActor } from "@/lib/supabase/guards";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { normaliseUpload, classifyPage } from "@/lib/extract/normalise";
 import { readPdf, MAX_PAGES } from "@/lib/extract/pdf";
 import { reportError } from "@/lib/monitoring/report";
@@ -77,11 +80,26 @@ function describeStorageError(e: unknown): string {
 export async function POST(request: Request) {
   const supabase = await createClient();
 
-  // ---- 1. staff only --------------------------------------------------------
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return fail(401, "Sign in first.");
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  if (profile?.role !== "staff") return fail(403, "Only Paint Group staff can upload plans.");
+  // ---- 1. who is calling ----------------------------------------------------
+  // Staff, or a Step 8 customer-wizard visitor (anonymous auth). Customers get
+  // no direct table access; their writes go through the service client with
+  // this route's own checks. Anyone else is refused.
+  const actor = await getWizardActor(supabase);
+  if (actor.kind === "none") return fail(403, "Only Paint Group staff can upload plans.");
+  const user = actor.user;
+  let db: SupabaseClient = supabase;
+  if (actor.kind === "customer") {
+    const svc = createServiceClient();
+    if (!svc) return fail(503, "The estimate wizard isn't available just now — please try again later.");
+    db = svc;
+    // A visitor gets a generous but finite page budget.
+    const { count } = await db.from("estimate_sources")
+      .select("id", { count: "exact", head: true })
+      .eq("created_by", user.id);
+    if ((count ?? 0) >= 30) {
+      return fail(429, "That's plenty of pages for one estimate — talk to us and we'll take it from here.");
+    }
+  }
 
   // ---- 2. validate the request ---------------------------------------------
   const url = new URL(request.url);
@@ -93,6 +111,11 @@ export async function POST(request: Request) {
     return fail(400, parsedQuery.error.issues[0]?.message ?? "Invalid request.");
   }
   const { estimateId, kind } = parsedQuery.data;
+  // A customer never attaches uploads to an existing estimate directly — the
+  // submit route owns that binding, with ownership checks.
+  if (actor.kind === "customer" && estimateId) {
+    return fail(403, "Uploads can't be attached to an estimate from here.");
+  }
 
   let form: FormData;
   try {
@@ -123,7 +146,7 @@ export async function POST(request: Request) {
     // Keep the original exactly as uploaded — every re-read and every accuracy
     // comparison later works from this, not from a rendition.
     const originalPath = `${base}/original.${check.kind === "pdf" ? "pdf" : check.kind}`;
-    const up = await supabase.storage.from("estimate-sources").upload(originalPath, bytes, {
+    const up = await db.storage.from("estimate-sources").upload(originalPath, bytes, {
       contentType: check.mime,
       upsert: false,
     });
@@ -146,8 +169,8 @@ export async function POST(request: Request) {
         const thumbPath = `${base}/page-${String(page.pageNo).padStart(3, "0")}.thumb.png`;
 
         const [full, thumb] = await Promise.all([
-          supabase.storage.from("estimate-sources").upload(pagePath, page.png, { contentType: "image/png", upsert: true }),
-          supabase.storage.from("estimate-sources").upload(thumbPath, page.thumbPng, { contentType: "image/png", upsert: true }),
+          db.storage.from("estimate-sources").upload(pagePath, page.png, { contentType: "image/png", upsert: true }),
+          db.storage.from("estimate-sources").upload(thumbPath, page.thumbPng, { contentType: "image/png", upsert: true }),
         ]);
         if (full.error || thumb.error) {
           const e = full.error ?? thumb.error;
@@ -187,7 +210,7 @@ export async function POST(request: Request) {
 
     // ---- 6. rows -------------------------------------------------------------
     for (const page of pages) {
-      const { data: source, error: srcErr } = await supabase
+      const { data: source, error: srcErr } = await db
         .from("estimate_sources")
         .insert({
           estimate_id: estimateId ?? null,
@@ -213,7 +236,7 @@ export async function POST(request: Request) {
       }
 
       // One run per page — never one call for a whole document, per the brief.
-      const { data: run, error: runErr } = await supabase
+      const { data: run, error: runErr } = await db
         .from("extraction_runs")
         .insert({
           estimate_source_id: source.id,

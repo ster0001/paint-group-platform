@@ -29,6 +29,9 @@ function credit(a: ScoredArea): number {
     case "human_confirmed": c = 1.0; break;
     case "ai_extracted": c = a.confidence >= 0.7 ? 0.92 : 0.7; break;
     case "ai_derived": c = 0.85; break;
+    // The customer typed it: better than an assumption, never as good as a
+    // staff confirmation — and always cross-checked in the review queue.
+    case "customer_stated": c = 0.75; break;
     case "ai_assumed": c = 0.45; break;
     default: c = 1.0; // absent origin reads as human work (pre-AI estimates)
   }

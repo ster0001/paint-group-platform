@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { getWizardActor } from "@/lib/supabase/guards";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { readFloorplanPage, hasApiKey, MODEL } from "@/lib/extract/model";
 import { ELEVATION_PROMPT_VERSION, readElevationPhoto, readSitePlan, type UnitRow } from "@/lib/extract/elevation";
 import { validateExtraction } from "@/lib/extract/validate";
@@ -29,10 +32,15 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ru
   const { runId } = parsed.data;
 
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  if (profile?.role !== "staff") return NextResponse.json({ error: "Staff only." }, { status: 403 });
+  // Staff, or a Step 8 customer-wizard visitor reading THEIR OWN page.
+  const actor = await getWizardActor(supabase);
+  if (actor.kind === "none") return NextResponse.json({ error: "Staff only." }, { status: 403 });
+  let db: SupabaseClient = supabase;
+  if (actor.kind === "customer") {
+    const svc = createServiceClient();
+    if (!svc) return NextResponse.json({ error: "The estimate wizard isn't available just now." }, { status: 503 });
+    db = svc;
+  }
 
   if (!hasApiKey()) {
     return NextResponse.json(
@@ -41,21 +49,25 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ru
     );
   }
 
-  const { data: run } = await supabase
+  const { data: run } = await db
     .from("extraction_runs")
-    .select("id, status, estimate_sources ( id, storage_path, page_class )")
+    .select("id, status, created_by, estimate_sources ( id, storage_path, page_class )")
     .eq("id", runId)
     .maybeSingle();
   if (!run) return NextResponse.json({ error: "No such run." }, { status: 404 });
+  if (actor.kind === "customer" && (run as { created_by?: string | null }).created_by !== actor.user.id) {
+    // Not theirs. 404, not 403 - existence is not confirmed to guessers.
+    return NextResponse.json({ error: "No such run." }, { status: 404 });
+  }
 
   const source = (run as unknown as { estimate_sources: { id: string; storage_path: string; page_class: string | null } | null }).estimate_sources;
   if (!source) return NextResponse.json({ error: "That run has no page attached." }, { status: 422 });
 
-  await supabase.from("extraction_runs").update({ status: "running" }).eq("id", runId);
+  await db.from("extraction_runs").update({ status: "running" }).eq("id", runId);
 
-  const file = await supabase.storage.from("estimate-sources").download(source.storage_path);
+  const file = await db.storage.from("estimate-sources").download(source.storage_path);
   if (file.error || !file.data) {
-    await supabase.from("extraction_runs").update({ status: "failed", error: "page image missing" }).eq("id", runId);
+    await db.from("extraction_runs").update({ status: "failed", error: "page image missing" }).eq("id", runId);
     return NextResponse.json({ error: "The stored page couldn't be read back." }, { status: 502 });
   }
   const bytes = new Uint8Array(await file.data.arrayBuffer());
@@ -64,20 +76,20 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ru
   // (previously an elevation photo fell through to the floorplan prompt,
   // found no rooms, and failed as "nothing to measure from").
   if (source.page_class === "elevation") {
-    const { data: unitRows } = await supabase
+    const { data: unitRows } = await db
       .from("measurement_units")
       .select("unit_key, label, size_mm, tolerance_pct")
       .order("version", { ascending: false });
     const result = await readElevationPhoto(bytes, { units: (unitRows ?? []) as UnitRow[] });
     if (!result.ok) {
       reportError(result.message, { where: "extract.read.elevation", extra: { runId } });
-      await supabase.from("extraction_runs")
+      await db.from("extraction_runs")
         .update({ status: "failed", error: result.message, completed_at: new Date().toISOString() })
         .eq("id", runId);
       return NextResponse.json({ error: result.message }, { status: 502 });
     }
     const measured = result.read.cladding.filter((c) => c.heightM != null && c.heightBasis !== "none").length;
-    await supabase.from("extraction_runs").update({
+    await db.from("extraction_runs").update({
       status: "needs_review",
       model: MODEL,
       prompt_version: ELEVATION_PROMPT_VERSION,
@@ -102,13 +114,13 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ru
     const result = await readSitePlan(bytes);
     if (!result.ok) {
       reportError(result.message, { where: "extract.read.siteplan", extra: { runId } });
-      await supabase.from("extraction_runs")
+      await db.from("extraction_runs")
         .update({ status: "failed", error: result.message, completed_at: new Date().toISOString() })
         .eq("id", runId);
       return NextResponse.json({ error: result.message }, { status: 502 });
     }
     const measuredEdges = result.read.edges.filter((e) => e.lengthM != null && e.basis !== "none").length;
-    await supabase.from("extraction_runs").update({
+    await db.from("extraction_runs").update({
       status: "needs_review",
       model: MODEL,
       prompt_version: ELEVATION_PROMPT_VERSION,
@@ -134,7 +146,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ru
 
   if (!result.ok) {
     reportError(result.message, { where: "extract.read", extra: { runId, code: result.code } });
-    await supabase.from("extraction_runs")
+    await db.from("extraction_runs")
       .update({ status: "failed", error: result.message, completed_at: new Date().toISOString() })
       .eq("id", runId);
     return NextResponse.json({ error: result.message, code: result.code }, { status: 502 });
@@ -145,8 +157,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ru
 
   // ---- stage 4: scope mapping (no AI, rules from Settings) ------------------
   const [{ data: rules }, { data: aliases }] = await Promise.all([
-    supabase.from("room_type_scope_rules").select("room_type, surface_type, is_option, requires_confirm, notes").eq("version", SCOPE_VERSION),
-    supabase.from("room_name_aliases").select("alias, room_type").eq("version", SCOPE_VERSION),
+    db.from("room_type_scope_rules").select("room_type, surface_type, is_option, requires_confirm, notes").eq("version", SCOPE_VERSION),
+    db.from("room_name_aliases").select("alias, room_type").eq("version", SCOPE_VERSION),
   ]);
 
   const draft = buildDraft(
@@ -156,7 +168,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ru
     { sourceId: source.id },
   );
 
-  await supabase.from("extraction_runs").update({
+  await db.from("extraction_runs").update({
     status: report.usable ? "needs_review" : "failed",
     model: result.model,
     prompt_version: PROMPT_VERSION,

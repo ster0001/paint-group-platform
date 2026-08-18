@@ -34,9 +34,23 @@ const basicsSchema = z.object({
   openPlanKitchenLiving: z.boolean(),
 });
 
+/** Step 8: the customer's property answers — the guardrails' raw material. */
+const customerSchema = z.object({
+  email: z.string().email().max(200).or(z.literal("")).default(""),
+  suburb: z.string().max(80).default(""),
+  postcode: z.string().max(10).default(""),
+  propertyKind: z.enum(["house", "townhouse", "unit_apartment", "commercial"]),
+  heritageListed: z.enum(["yes", "no", "unsure"]),
+  bodyCorporate: z.enum(["yes", "no", "unsure"]),
+  builtPre1970: z.enum(["yes", "no", "unsure"]),
+  asbestosSuspected: z.enum(["yes", "no", "unsure"]),
+});
+
 export const wizardStateSchema = z.object({
-  /** internal = staff from the estimates list. Customer mode is Step 8. */
-  mode: z.literal("internal"),
+  /** internal = staff from the estimates list · customer = Step 8's public
+   * wizard (guardrails + range bands + email gate apply). */
+  mode: z.enum(["internal", "customer"]),
+  customer: customerSchema.nullable().default(null),
   jobType: z.enum(["interior", "exterior", "both"]),
   /** Internal mode: the job's name/address for the estimates list. */
   title: z.string().max(200).default(""),
@@ -110,14 +124,34 @@ export const wizardStateSchema = z.object({
   if (s.paint.waterBasedOnly && s.paint.trimsOilBased == null) {
     ctx.addIssue({ code: "custom", path: ["paint", "trimsOilBased"], message: "Are the trims currently oil-based enamel?" });
   }
+  // Step 8: customer mode demands the property answers (the guardrails run on
+  // them) and the email gate before anything is revealed.
+  if (s.mode === "customer") {
+    if (!s.customer) {
+      ctx.addIssue({ code: "custom", path: ["customer"], message: "A few details about the property first, please." });
+    } else if (s.customer.email.trim() === "") {
+      ctx.addIssue({ code: "custom", path: ["customer", "email"], message: "Where should the estimate go?" });
+    }
+  }
 });
 
 export type WizardState = z.infer<typeof wizardStateSchema>;
 export type WizardBasics = z.infer<typeof basicsSchema>;
 
+export type WizardCustomer = z.infer<typeof customerSchema>;
+
+export function defaultCustomer(): WizardCustomer {
+  return {
+    email: "", suburb: "", postcode: "",
+    propertyKind: "house", heritageListed: "unsure", bodyCorporate: "no",
+    builtPre1970: "unsure", asbestosSuspected: "no",
+  };
+}
+
 export function defaultWizardState(): WizardState {
   return {
     mode: "internal",
+    customer: null,
     jobType: "interior",
     title: "",
     listingUrl: "",

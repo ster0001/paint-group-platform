@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { getWizardActor } from "@/lib/supabase/guards";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { normaliseUpload } from "@/lib/extract/normalise";
 import { readPropertyPhoto, mergePhotoFindings, PHOTO_PROMPT_VERSION, type PhotoRead } from "@/lib/extract/photos";
 import { extractionSchema } from "@/lib/extract/schema";
@@ -33,17 +36,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ run
   const { runId } = parsed.data;
 
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  if (profile?.role !== "staff") return NextResponse.json({ error: "Staff only." }, { status: 403 });
+  const actor = await getWizardActor(supabase);
+  if (actor.kind === "none") return NextResponse.json({ error: "Staff only." }, { status: 403 });
+  let db: SupabaseClient = supabase;
+  if (actor.kind === "customer") {
+    const svc = createServiceClient();
+    if (!svc) return NextResponse.json({ error: "The estimate wizard isn't available just now." }, { status: 503 });
+    db = svc;
+  }
 
-  const { data: run } = await supabase
+  const { data: run } = await db
     .from("extraction_runs")
-    .select("id, raw_output, estimate_source_id")
+    .select("id, raw_output, estimate_source_id, created_by")
     .eq("id", runId)
     .maybeSingle();
   if (!run) return NextResponse.json({ error: "No such run." }, { status: 404 });
+  if (actor.kind === "customer" && (run as { created_by?: string | null }).created_by !== actor.user.id) {
+    return NextResponse.json({ error: "No such run." }, { status: 404 });
+  }
   if (!run.raw_output) {
     return NextResponse.json({ error: "Read the plan first, then add photos.", code: "not_read" }, { status: 409 });
   }
@@ -69,7 +79,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ run
 
     // Keep the photo: it is evidence for a decision that changes the price.
     const path = `runs/${runId}/photos/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${check.kind}`;
-    const up = await supabase.storage.from("estimate-sources").upload(path, bytes, { contentType: check.mime });
+    const up = await db.storage.from("estimate-sources").upload(path, bytes, { contentType: check.mime });
     if (up.error) reportError(up.error, { where: "extract.photoUpload", bestEffort: true });
 
     const result = await readPropertyPhoto(bytes);
@@ -90,14 +100,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ run
       ceilingHeight: result.read.ceiling_height,
     });
 
-    await supabase.from("estimate_sources").insert({
+    await db.from("estimate_sources").insert({
       kind: "exterior_photo",
       storage_path: path,
       mime_type: check.mime,
       byte_size: check.bytes,
       page_class: "photo",
       page_class_confidence: 0.95,
-      created_by: user.id,
+      created_by: actor.user.id,
     });
   }
 
@@ -134,7 +144,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ run
   const revalidated = extractionSchema.safeParse(updated);
   if (!revalidated.success) return NextResponse.json({ error: "Merging the photos produced an unusable reading." }, { status: 500 });
 
-  await supabase.from("extraction_runs").update({
+  await db.from("extraction_runs").update({
     raw_output: revalidated.data,
     prompt_version: PHOTO_PROMPT_VERSION,
     cost_cents: costCents,

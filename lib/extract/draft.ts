@@ -19,7 +19,7 @@ import { defectHours, defectSummary, type DefectRate } from "@/lib/capture/commi
 
 export const ASSUMED_CEILING_HEIGHT = 2.4;
 
-export type Origin = "ai_extracted" | "ai_derived" | "ai_assumed" | "human_confirmed";
+export type Origin = "ai_extracted" | "ai_derived" | "ai_assumed" | "human_confirmed" | "customer_stated";
 
 /** The builder's Surface, plus provenance. Matches QuoteBuilder's newSurface(). */
 export type DraftSurface = {
