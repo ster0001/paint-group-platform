@@ -103,7 +103,6 @@ export function buildEstimateEmailHtml(opts: {
   estimatorTitle?: string;
   estimatorPhone?: string;
   companyPhone?: string;
-  totalLabel?: string; // e.g. "$12,340.50 inc GST" — omitted when unknown
 }): string {
   const introHtml = opts.intro
     .split(/\n{2,}/)
@@ -112,9 +111,6 @@ export function buildEstimateEmailHtml(opts: {
   const logo = opts.logoUrl
     ? `<img src="${esc(opts.logoUrl)}" alt="${esc(opts.companyName)}" height="44" style="height:44px;max-width:220px;object-fit:contain;" />`
     : `<span style="font-size:20px;font-weight:700;color:#111827;">${esc(opts.companyName)}</span>`;
-  const totalRow = opts.totalLabel
-    ? `<p style="margin:0 0 20px;font-size:15px;color:#1f2937;">Estimate total: <strong>${esc(opts.totalLabel)}</strong></p>`
-    : "";
   const signoff = opts.estimatorName
     ? `<p style="margin:24px 0 0;font-size:15px;line-height:1.6;color:#1f2937;">
          ${esc(opts.estimatorName)}${opts.estimatorTitle ? `<br/><span style="color:#6b7280;">${esc(opts.estimatorTitle)}, ${esc(opts.companyName)}</span>` : ""}
@@ -129,7 +125,6 @@ export function buildEstimateEmailHtml(opts: {
       <tr><td style="padding:28px 32px 20px;border-bottom:1px solid #e5e7eb;">${logo}</td></tr>
       <tr><td style="padding:28px 32px 8px;">
         ${introHtml}
-        ${totalRow}
         <table role="presentation" cellpadding="0" cellspacing="0" style="margin:4px 0 8px;">
           <tr><td style="border-radius:8px;background:#059669;">
             <a href="${esc(opts.link)}" target="_blank"

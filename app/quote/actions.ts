@@ -145,7 +145,6 @@ async function deliver(
           estimatorTitle: company.estimatorTitle || undefined,
           estimatorPhone: company.estimatorPhone || undefined,
           companyPhone: company.phone || undefined,
-          totalLabel,
         }),
       });
     }

@@ -159,6 +159,17 @@ function eventLabel(type: string): string {
     default: return type;
   }
 }
+// Exact date + time for view entries, in the reader's local time.
+function fmtDateTime(iso: string): string {
+  return new Date(iso).toLocaleString("en-AU", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+}
+// Dwell is heartbeat-based (15s ticks), so a short open records 0ms.
+function fmtDwell(ms: number): string {
+  if (ms < 15000) return "under 15 sec";
+  const s = Math.round(ms / 1000);
+  const m = Math.floor(s / 60);
+  return m === 0 ? `${s} sec` : `${m} min${s % 60 ? ` ${s % 60} sec` : ""}`;
+}
 function relTime(iso: string): string {
   const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
   if (s < 60) return "just now";
@@ -437,6 +448,7 @@ export default function QuoteBuilder({
   // Right-column tools bar: Activity / Chat / Calculations / Follow-ups.
   const [rightTab, setRightTab] = useState<null | "activity" | "chat" | "calc" | "followups">(null);
   const [events, setEvents] = useState<{ type: string; payload: unknown; created_at: string }[]>([]);
+  const [views, setViews] = useState<{ created_at: string; updated_at: string; dwell_ms: number }[]>([]);
   const [questions, setQuestions] = useState<{ message: string; created_at: string }[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
 
@@ -674,12 +686,16 @@ export default function QuoteBuilder({
     if (!quoteId) return;
     setActivityLoading(true);
     const supabase = createClient();
-    const [{ data: ev }, { data: q }] = await Promise.all([
+    const [{ data: ev }, { data: q }, { data: vw }] = await Promise.all([
       supabase.from("estimate_events").select("type, payload, created_at").eq("estimate_id", quoteId).order("created_at", { ascending: false }).limit(50),
       supabase.from("estimate_questions").select("message, created_at").eq("estimate_id", quoteId).order("created_at", { ascending: false }).limit(50),
+      // One row per open session — created_at is when they opened it, dwell_ms
+      // how long the page stayed in front of them (15s heartbeats).
+      supabase.from("estimate_views").select("created_at, updated_at, dwell_ms").eq("estimate_id", quoteId).order("created_at", { ascending: false }).limit(50),
     ]);
     setEvents((ev as typeof events) ?? []);
     setQuestions((q as typeof questions) ?? []);
+    setViews((vw as typeof views) ?? []);
     setActivityLoading(false);
   }
   const openRightTab = (tab: typeof rightTab) => {
@@ -1600,15 +1616,33 @@ export default function QuoteBuilder({
                     {row.key === "activity" && (
                       !quoteId ? <p className="text-xs text-gray-500">Save the estimate to start tracking activity.</p>
                       : activityLoading ? <p className="text-xs text-gray-400">Loading…</p>
-                      : events.length === 0 ? <p className="text-xs text-gray-500">No activity yet.</p>
+                      : events.length === 0 && views.length === 0 ? <p className="text-xs text-gray-500">No activity yet.</p>
                       : (
                         <ul className="space-y-2">
-                          {events.map((e, i) => (
-                            <li key={i} className="flex items-start justify-between gap-2">
-                              <span className="capitalize text-gray-700">{eventLabel(e.type)}</span>
-                              <span className="shrink-0 text-[11px] tabular-nums text-gray-400">{relTime(e.created_at)}</span>
-                            </li>
-                          ))}
+                          {[
+                            // The bare "viewed" flag is superseded by the per-session
+                            // entries below, which carry the open time + duration.
+                            ...events.filter((e) => !(e.type === "viewed" && views.length > 0)).map((e) => ({
+                              at: e.created_at,
+                              label: eventLabel(e.type),
+                              detail: null as string | null,
+                            })),
+                            ...views.map((v) => ({
+                              at: v.created_at,
+                              label: "Opened by customer",
+                              detail: `${fmtDateTime(v.created_at)} · viewed for ${fmtDwell(v.dwell_ms)}`,
+                            })),
+                          ]
+                            .sort((a, b) => b.at.localeCompare(a.at))
+                            .map((e, i) => (
+                              <li key={i} className="flex items-start justify-between gap-2">
+                                <span className="text-gray-700">
+                                  {e.label}
+                                  {e.detail && <span className="block text-[11px] text-gray-400">{e.detail}</span>}
+                                </span>
+                                <span className="shrink-0 text-[11px] tabular-nums text-gray-400">{relTime(e.at)}</span>
+                              </li>
+                            ))}
                         </ul>
                       )
                     )}
