@@ -170,7 +170,9 @@ export function editorPayload(
     if (assumed.includes("width_from_plan")) exteriorWidthFromPlan = true;
 
     const scoredArea: ScoredArea = { priceCents, origin: origin || "human_confirmed", confidence, assumedFields: assumed };
-    scored.push(scoredArea);
+    // R2b: an excluded side (isOption — "not painting") sits outside the
+    // total, so it must sit outside the accuracy weighting too.
+    if (b.isOption !== true) scored.push(scoredArea);
     const ownDeferred = deferred.filter((d) => d.areaId != null && d.areaId === Number(b.id)).length;
     rooms.push({
       areaId: Number(b.id) || 0,

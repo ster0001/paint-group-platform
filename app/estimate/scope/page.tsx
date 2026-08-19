@@ -11,6 +11,8 @@ import {
 } from "@/lib/wizard/policy";
 import { wizardStateSchema } from "@/lib/wizard/state";
 import ScopeEditor from "./ScopeEditor";
+import SidesEditor from "./SidesEditor";
+import { defaultSidesLoop, sidesView, type SidesLoopMeta } from "@/lib/wizard/sides";
 import "../../wizard/wizard.css";
 
 /**
@@ -113,12 +115,31 @@ export default async function ScopeEditorPage({
   const selfServe = decision.canAccept && !decision.walkthroughRequired
     && payload.accuracyPct >= (editorFlags.selfServeMinAccuracy ?? 90) && mid <= cap;
 
+  // R2b: a job with exterior sides and no interior rooms gets the confirm-
+  // loop sides editor (reference: customer-review-confirm-exterior-v2-sides).
+  const interiorRooms = customerScopeRooms(blocks, rules);
+  const sidesMeta = ((state.sidesLoop as SidesLoopMeta | undefined) ?? defaultSidesLoop());
+  const sides = sidesView(blocks, sidesMeta);
+  if (sides && interiorRooms.length === 0) {
+    return (
+      <div className="wz">
+        <SidesEditor
+          estimateId={estimate.id as string}
+          initial={customer}
+          initialSides={sides}
+          initialExterior={customerExteriorView(blocks)}
+          initialLadder={{ tier: selfServe ? "self_serve" : "visit", visitSlots: offeredVisitSlots(editorFlags) }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="wz">
       <ScopeEditor
         estimateId={estimate.id as string}
         initial={customer}
-        initialRooms={customerScopeRooms(blocks, rules)}
+        initialRooms={interiorRooms}
         initialExterior={customerExteriorView(blocks)}
         initialLadder={{ tier: selfServe ? "self_serve" : "visit", visitSlots: offeredVisitSlots(editorFlags) }}
         roomTypes={roomTypes}

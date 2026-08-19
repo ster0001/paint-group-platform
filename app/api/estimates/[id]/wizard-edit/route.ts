@@ -14,6 +14,11 @@ import {
   applyCount, applyExtent, applyExteriorToggle, applyFenceLength, applyRename, applyToggle,
   customerExteriorView, customerScopeRooms, offeredVisitSlots,
 } from "@/lib/wizard/scope-editor";
+import {
+  addSideCustom, addWallSurface, addWindowGroup, applySideCount, applySideDims, applySideInclude,
+  applySideSizeOk, applyWallShare, applyWindowSize, confirmSide, defaultSidesLoop, sidesView,
+  type SidesLoopMeta,
+} from "@/lib/wizard/sides";
 import { customerPayload, editorPayload, type WizardDeferred } from "@/lib/wizard/view";
 import {
   GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails,
@@ -82,6 +87,27 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("accept_intent") }),
   /** Book the confirming visit; slot must be one the server offered. */
   z.object({ action: z.literal("book_visit"), slot: z.string().min(4).max(60) }),
+  // ---- R2b: the exterior confirm loop, BY SIDES ---------------------------
+  z.object({ action: z.literal("side_include"), side: z.enum(["front", "left", "right", "back"]), include: z.boolean() }),
+  z.object({ action: z.literal("side_size_ok"), side: z.enum(["front", "left", "right", "back"]) }),
+  z.object({
+    action: z.literal("side_dims"), side: z.enum(["front", "left", "right", "back"]),
+    lengthM: z.number().min(3).max(40).nullable().default(null),
+    heightM: z.number().min(2).max(8).nullable().default(null),
+    notSure: z.boolean().default(false),
+  }),
+  z.object({ action: z.literal("wall_share"), side: z.enum(["front", "left", "right", "back"]), surfaceId: z.number().int().positive(), pct: z.union([z.literal(25), z.literal(50), z.literal(75), z.literal(100)]) }),
+  z.object({ action: z.literal("add_wall"), side: z.enum(["front", "left", "right", "back"]), code: z.string().min(1).max(40) }),
+  z.object({ action: z.literal("win_size"), side: z.enum(["front", "left", "right", "back"]), surfaceId: z.number().int().positive(), size: z.enum(["S", "M", "L"]) }),
+  z.object({ action: z.literal("side_count"), side: z.enum(["front", "left", "right", "back"]), surfaceId: z.number().int().positive(), count: z.number().int().min(1).max(20) }),
+  z.object({ action: z.literal("add_window_group"), side: z.enum(["front", "left", "right", "back"]) }),
+  z.object({ action: z.literal("side_custom"), side: z.enum(["front", "left", "right", "back"]), name: z.string().min(1).max(120) }),
+  z.object({ action: z.literal("confirm_side"), side: z.enum(["front", "left", "right", "back"]) }),
+  z.object({ action: z.literal("loop_cond"), cond: z.enum(["good", "weathered", "peeling"]).optional(), rot: z.enum(["no", "little", "lots"]).optional(), acc: z.enum(["steep", "tight", "high", "none"]).optional() }),
+  z.object({ action: z.literal("loop_extras_none") }),
+  z.object({ action: z.literal("loop_dw"), ok: z.boolean() }),
+  z.object({ action: z.literal("loop_sweep"), ans: z.enum(["none"]).optional(), add: z.string().min(1).max(60).optional() }),
+  z.object({ action: z.literal("confirm_loop_item"), item: z.enum(["extras", "cond", "dw", "sweep"]) }),
 ]);
 
 
@@ -378,6 +404,105 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }).then((r) => { if (r.error) reportError(r.error, { where: "wizard.edit.ladder", bestEffort: true }); });
   }
 
+  // ---- R2b: the sides confirm loop ----------------------------------------
+  let sidesMeta: SidesLoopMeta = ((state.sidesLoop as SidesLoopMeta | undefined) ?? defaultSidesLoop());
+  let siteCheck = (estimate as { requires_site_check?: boolean | null }).requires_site_check === true;
+  const flagSiteCheck = async () => {
+    if (siteCheck) return;
+    siteCheck = true;
+    await db.from("estimates").update({ requires_site_check: true }).eq("id", id)
+      .then((r) => { if (r.error) reportError(r.error, { where: "wizard.edit.sides.siteCheck", bestEffort: true, extra: { id } }); });
+  };
+  if (act.action === "side_include" || act.action === "side_size_ok" || act.action === "side_dims"
+    || act.action === "wall_share" || act.action === "add_wall" || act.action === "win_size"
+    || act.action === "side_count" || act.action === "add_window_group" || act.action === "side_custom"
+    || act.action === "confirm_side") {
+    let next = Math.max(0, ...blocks.flatMap((b) => [
+      Number(b.id) || 0, ...(b.surfaces ?? []).map((s) => Number(s.id) || 0),
+    ])) + 1;
+    const result =
+      act.action === "side_include" ? applySideInclude(blocks, act.side, act.include)
+      : act.action === "side_size_ok" ? applySideSizeOk(blocks, act.side)
+      : act.action === "side_dims" ? applySideDims(blocks, act.side, { lengthM: act.lengthM, heightM: act.heightM, notSure: act.notSure })
+      : act.action === "wall_share" ? applyWallShare(blocks, act.side, act.surfaceId, act.pct)
+      : act.action === "add_wall" ? addWallSurface(blocks, act.side, act.code, () => next++)
+      : act.action === "win_size" ? applyWindowSize(blocks, act.side, act.surfaceId, act.size)
+      : act.action === "side_count" ? applySideCount(blocks, act.side, act.surfaceId, act.count)
+      : act.action === "add_window_group" ? addWindowGroup(blocks, act.side, () => next++)
+      : act.action === "side_custom" ? addSideCustom(blocks, act.side, act.name)
+      : confirmSide(blocks, act.side);
+    if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
+    blocks = result.blocks as LooseBlock[];
+    if (act.action === "side_dims" && act.notSure) {
+      deferred.push({
+        room: `Exterior - ${act.side}`, areaId: null, what: "side measurements", count: 1,
+        needs: "customer isn't sure of this side's size — we'll measure on the day",
+      });
+    }
+    if (act.action === "side_custom") {
+      // Custom = never auto-priced; the estimate carries the amber item and
+      // routes to the visit tier — an unpriced area can't be accepted fixed.
+      deferred.push({
+        room: `Exterior - ${act.side}`, areaId: null, what: `custom surface: "${act.name.trim().slice(0, 80)}"`,
+        count: 1, needs: "price this WITH the customer on the visit — never silently", kind: "custom_surface",
+      });
+      await flagSiteCheck();
+    }
+    if (act.action === "side_include" && !act.include) {
+      // The exclusion is explicit on the quote; its open questions leave.
+      deferred.push({
+        room: `Exterior - ${act.side}`, areaId: null, what: "side excluded", count: 1,
+        needs: `customer chose not to paint the ${act.side} — show it as an exclusion on the quote`,
+      });
+    }
+  }
+  if (act.action === "loop_cond") {
+    sidesMeta = { ...sidesMeta, cond: { ...sidesMeta.cond, ...(act.cond ? { cond: act.cond } : {}), ...(act.rot ? { rot: act.rot } : {}), ...(act.acc ? { acc: act.acc } : {}) } };
+    if (act.cond === "weathered") {
+      deferred.push({ room: "Exterior", areaId: null, what: "weathered paintwork", count: 1, needs: "extra preparation allowed for — confirm the prep scope at review" });
+    }
+    if (act.cond === "peeling") {
+      deferred.push({ room: "Exterior", areaId: null, what: "peeling & flaking paint", count: 1, needs: "needs eyes on it — lead-safe check on the visit if pre-1970" });
+      await flagSiteCheck();
+    }
+    if (act.rot === "little") {
+      deferred.push({ room: "Exterior", areaId: null, what: "minor fascia rot", count: 1, needs: "allow minor fascia prep — confirm extent at review" });
+    }
+    if (act.rot === "lots") {
+      deferred.push({ room: "Exterior", areaId: null, what: "fascia rot", count: 1, needs: "rot repair needs eyes on it — confirm the roofline scope on the visit" });
+      await flagSiteCheck();
+    }
+    if (act.acc && act.acc !== "none") {
+      deferred.push({ room: "Exterior", areaId: null, what: `access: ${act.acc}`, count: 1, needs: "access affects setup time — allow for it at review" });
+    }
+  }
+  if (act.action === "loop_extras_none") sidesMeta = { ...sidesMeta, extrasAns: "none" };
+  if (act.action === "loop_dw") sidesMeta = { ...sidesMeta, dwOk: act.ok ? true : null };
+  if (act.action === "loop_sweep") {
+    if (act.add) {
+      sidesMeta = { ...sidesMeta, sweepAns: "added" };
+      deferred.push({
+        room: "Exterior", areaId: null, what: `sweep: "${act.add.trim().slice(0, 50)}"`, count: 1,
+        needs: "named in the final sweep — price it with the customer before send", kind: "custom_surface",
+      });
+      await flagSiteCheck();
+    } else if (act.ans === "none") {
+      sidesMeta = { ...sidesMeta, sweepAns: "none" };
+    }
+  }
+  if (act.action === "confirm_loop_item") {
+    const m = sidesMeta;
+    const missing =
+      act.item === "extras" ? m.extrasAns == null && !blocks.some((b) => /Exterior - Extras/i.test(String(b.name ?? "")) && (b.surfaces ?? []).length > 0)
+      : act.item === "cond" ? m.cond.cond == null || m.cond.rot == null || m.cond.acc == null
+      : act.item === "dw" ? m.dwOk !== true
+      : m.sweepAns == null;
+    if (missing) {
+      return NextResponse.json({ error: "One question above still needs an answer — it's marked REQUIRED." }, { status: 400 });
+    }
+    sidesMeta = { ...sidesMeta, done: { ...m.done, [act.item]: true } };
+  }
+
   let newDeferred = deferred;
   if (act.action === "remove_room") {
     const before = blocks.length;
@@ -394,7 +519,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     newDeferred = deferred.filter((d) => d.areaId == null || d.areaId !== act.areaId);
   }
 
-  const newState = { ...state, blocks, aiDeferred: newDeferred };
+  const newState = { ...state, blocks, aiDeferred: newDeferred, sidesLoop: sidesMeta };
   const { error: writeError } = await db
     .from("estimates")
     .update({ builder_state: newState })
@@ -424,7 +549,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       answers,
       payload.totals.totalCents,
       payload.accuracyPct,
-      (estimate as { requires_site_check?: boolean | null }).requires_site_check === true,
+      siteCheck, // live — this very action may have flagged the visit tier
       policyFromSettings(settingValue(ctx.settings, "wizard_policy")),
       serviceAreaFromSettings(settingValue(ctx.settings, "service_area")),
     );
@@ -470,6 +595,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ...cp,
       scopeRooms: customerScopeRooms(blocks, (rulesRows ?? []) as ScopeRule[]),
       exterior: customerExteriorView(blocks),
+      // R2b: the sides confirm loop's full view (null when no sides exist).
+      sides: sidesView(blocks, sidesMeta),
       ladder: { tier: selfServe ? "self_serve" : "visit", visitSlots: offeredVisitSlots(flags) },
     });
   }

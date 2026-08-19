@@ -1,0 +1,354 @@
+import { makeDraftSurface } from "@/lib/extract/draft";
+import { substrateKeyForRateCode } from "@/lib/estimate/substrates";
+
+/**
+ * R2b: the exterior confirm-loop, BY SIDES (rebuild addendum §0; reference
+ * mockup customer-review-confirm-exterior-v2-sides.html).
+ *
+ * Pure functions over the SAME area tree everything else reads: the four
+ * "Exterior - Front/Left/Right/Rear" elevation nodes the wizard scaffolds.
+ * The wizard-edit route applies these and reprices via lib/pricing — the
+ * editor computes nothing.
+ *
+ * State model:
+ *  - per side, customer answers ride ON the block: `customer.include`
+ *    (are we painting this side), `customer.size` (yes/adjusted/ns),
+ *    `customer.confirmed`. A skipped side sets `isOption: true` — pricing
+ *    already leaves options out of the total, and the quote renders it as an
+ *    explicit exclusion.
+ *  - wall lines carry `sharePct`; their measureL/measureH derive from the
+ *    side's L×H × share, so the engine prices share × the line's own rate
+ *    (substrate factors are just different rate items — no factor math).
+ *  - window lines carry `sizeBand` (S/M/L); qtyOverride = count × factor.
+ *  - the non-side loop items (extras / condition / totals check / sweep)
+ *    keep their answers in builder_state.sidesLoop.
+ */
+
+export type SideKey = "front" | "left" | "right" | "back";
+export const SIDE_KEYS: SideKey[] = ["front", "left", "right", "back"];
+
+const SIDE_MATCH: Record<SideKey, RegExp> = {
+  front: /front/i, left: /left/i, right: /right/i, back: /rear|back/i,
+};
+
+export const SIDE_LABEL: Record<SideKey, string> = {
+  front: "Front — street side", left: "Left side", right: "Right side", back: "Back",
+};
+
+/** Wall substrates a side can carry — data-driven from the rate card at the
+ * route (these are the codes the scaffold and the registry use). */
+export const WALL_CODES: ReadonlyArray<{ code: string; label: string }> = [
+  { code: "Weatherboards", label: "Weatherboard cladding" },
+  { code: "Render", label: "Render" },
+  { code: "Stucco", label: "Stucco" },
+  { code: "Brick", label: "Painted brick" },
+];
+
+/** S/M/L window factors — mirror of the interior multipliers (Settings own
+ * the numbers; these are the locked defaults). */
+export const WINDOW_FACTOR: Record<"S" | "M" | "L", number> = { S: 0.8, M: 1, L: 1.2 };
+
+type LooseSurface = Record<string, unknown> & { id?: number; code?: string };
+export type LooseBlock = Record<string, unknown> & {
+  id?: number; kind?: string; name?: string; type?: string; areaType?: string;
+  L?: number; H?: number; isOption?: boolean;
+  surfaces?: LooseSurface[];
+  customer?: { include: boolean | null; size: "yes" | "adjusted" | "ns" | null; confirmed: boolean };
+  customerCustom?: string[];
+};
+
+export type SidesLoopMeta = {
+  extrasAns: "none" | "some" | null;
+  cond: { cond: "good" | "weathered" | "peeling" | null; rot: "no" | "little" | "lots" | null; acc: "steep" | "tight" | "high" | "none" | null };
+  dwOk: boolean | null;
+  sweepAns: "none" | "added" | null;
+  done: { extras: boolean; cond: boolean; dw: boolean; sweep: boolean };
+};
+
+export function defaultSidesLoop(): SidesLoopMeta {
+  return {
+    extrasAns: null,
+    cond: { cond: null, rot: null, acc: null },
+    dwOk: null,
+    sweepAns: null,
+    done: { extras: false, cond: false, dw: false, sweep: false },
+  };
+}
+
+export function isSideBlock(b: LooseBlock): boolean {
+  return b.kind === "area" && b.type === "Exterior" && b.areaType === "surface"
+    && SIDE_KEYS.some((k) => SIDE_MATCH[k].test(String(b.name ?? "")));
+}
+
+export function findSide(blocks: LooseBlock[], key: SideKey): LooseBlock | null {
+  return blocks.find((b) => b.kind === "area" && b.type === "Exterior" && b.areaType === "surface"
+    && SIDE_MATCH[key].test(String(b.name ?? ""))) ?? null;
+}
+
+function customerOf(b: LooseBlock) {
+  return b.customer ?? { include: null as boolean | null, size: null, confirmed: false };
+}
+
+export function isWallLine(s: LooseSurface): boolean {
+  return WALL_CODES.some((w) => w.code === String(s.code ?? ""));
+}
+const isWindowLine = (s: LooseSurface) => substrateKeyForRateCode(String(s.code ?? "")) === "exterior_windows";
+const isDoorLine = (s: LooseSurface) => substrateKeyForRateCode(String(s.code ?? "")) === "exterior_doors"
+  || substrateKeyForRateCode(String(s.code ?? "")) === "garage_doors";
+
+export function wallSumPct(b: LooseBlock): number {
+  return (b.surfaces ?? []).filter(isWallLine).reduce((n, s) => n + (Number(s.sharePct) || 0), 0);
+}
+
+/** Re-derive every wall line's measures from the side's L×H and its share —
+ * called after any dims or share change so pricing always reads the truth. */
+function syncWallMeasures(b: LooseBlock): void {
+  const L = Number(b.L) || 0;
+  const H = Number(b.H) || 0;
+  for (const s of b.surfaces ?? []) {
+    if (!isWallLine(s)) continue;
+    const pct = Number(s.sharePct) || 0;
+    s.measureL = L > 0 ? Math.round(L * pct) / 100 : null; // L × pct/100
+    s.measureH = H > 0 ? H : null;
+  }
+}
+
+/** First-touch normalisation: a scaffolded side has one wall line with no
+ * share — it means 100%. */
+function normaliseShares(b: LooseBlock): void {
+  const walls = (b.surfaces ?? []).filter(isWallLine);
+  if (walls.length && walls.every((s) => s.sharePct == null)) {
+    walls.forEach((s, i) => { s.sharePct = i === 0 ? 100 : 0; });
+  }
+  syncWallMeasures(b);
+}
+
+export type SidesResult = { ok: true; blocks: LooseBlock[] } | { ok: false; error: string };
+
+function withSide(blocks: LooseBlock[], key: SideKey, fn: (b: LooseBlock) => string | void): SidesResult {
+  const side = findSide(blocks, key);
+  if (!side) return { ok: false, error: "No such side on this estimate." };
+  const copy: LooseBlock = { ...side, surfaces: (side.surfaces ?? []).map((s) => ({ ...s })), customer: { ...customerOf(side) } };
+  const err = fn(copy);
+  if (err) return { ok: false, error: err };
+  return { ok: true, blocks: blocks.map((b) => (b === side ? copy : b)) };
+}
+
+/** "Are we painting this side?" — No marks NOT PAINTING: an option area
+ * (outside the total, an explicit exclusion on the quote) and immediately
+ * confirmed in the loop. */
+export function applySideInclude(blocks: LooseBlock[], key: SideKey, include: boolean): SidesResult {
+  return withSide(blocks, key, (b) => {
+    normaliseShares(b);
+    b.customer = { ...customerOf(b), include, confirmed: !include };
+    b.isOption = !include;
+  });
+}
+
+/** The L×H answer. notSure widens the range (the deferral is the route's
+ * job); real metres reprice walls and run items through the engine. */
+export function applySideDims(
+  blocks: LooseBlock[], key: SideKey,
+  dims: { lengthM?: number | null; heightM?: number | null; notSure?: boolean },
+): SidesResult {
+  return withSide(blocks, key, (b) => {
+    const c = customerOf(b);
+    if (c.include !== true) return "Answer “Are we painting this side?” first.";
+    if (dims.notSure) {
+      b.customer = { ...c, size: "ns" };
+      return;
+    }
+    const L = dims.lengthM ?? (Number(b.L) || 0);
+    const H = dims.heightM ?? (Number(b.H) || 0);
+    if (!(L >= 3 && L <= 40) || !(H >= 2 && H <= 8)) return "Length 3–40 m and height 2–8 m, please — or “not sure”.";
+    b.L = L; b.H = H;
+    b.origin = "customer_stated"; b.confidence = 0.85;
+    b.assumedFields = (Array.isArray(b.assumedFields) ? (b.assumedFields as string[]) : []).filter((f) => f !== "L" && f !== "H");
+    b.customer = { ...c, size: "adjusted" };
+    syncWallMeasures(b);
+  });
+}
+
+export function applySideSizeOk(blocks: LooseBlock[], key: SideKey): SidesResult {
+  return withSide(blocks, key, (b) => {
+    const c = customerOf(b);
+    if (c.include !== true) return "Answer “Are we painting this side?” first.";
+    normaliseShares(b);
+    b.customer = { ...c, size: "yes" };
+  });
+}
+
+export function applyWallShare(blocks: LooseBlock[], key: SideKey, surfaceId: number, pct: number): SidesResult {
+  if (![25, 50, 75, 100].includes(pct)) return { ok: false, error: "Shares are 25 / 50 / 75 / 100%." };
+  return withSide(blocks, key, (b) => {
+    normaliseShares(b);
+    const line = (b.surfaces ?? []).find((s) => isWallLine(s) && Number(s.id) === surfaceId);
+    if (!line) return "That wall surface isn't on this side.";
+    line.sharePct = pct;
+    syncWallMeasures(b);
+  });
+}
+
+/** "+ Render — wall surface": arrives at 25% and AUTO-BALANCES — the largest
+ * existing wall gives up the share so the side stays at 100%. */
+export function addWallSurface(blocks: LooseBlock[], key: SideKey, code: string, nextId: () => number): SidesResult {
+  const def = WALL_CODES.find((w) => w.code === code);
+  if (!def) return { ok: false, error: "That isn't a wall surface we price." };
+  return withSide(blocks, key, (b) => {
+    normaliseShares(b);
+    const walls = (b.surfaces ?? []).filter(isWallLine);
+    if (walls.some((s) => String(s.code) === code)) return "That wall surface is already on this side.";
+    const line = makeDraftSurface(nextId(), def.code, def.label, 1, "customer_stated", 0.75, []) as unknown as LooseSurface;
+    line.sharePct = 25;
+    const biggest = walls.sort((a, x) => (Number(x.sharePct) || 0) - (Number(a.sharePct) || 0))[0];
+    if (biggest) biggest.sharePct = Math.max(0, (Number(biggest.sharePct) || 0) - 25);
+    b.surfaces = [...(b.surfaces ?? []), line];
+    syncWallMeasures(b);
+  });
+}
+
+export function applyWindowSize(blocks: LooseBlock[], key: SideKey, surfaceId: number, size: "S" | "M" | "L"): SidesResult {
+  return withSide(blocks, key, (b) => {
+    const line = (b.surfaces ?? []).find((s) => isWindowLine(s) && Number(s.id) === surfaceId);
+    if (!line) return "That window group isn't on this side.";
+    line.sizeBand = size;
+    const count = Number(line.count) || 1;
+    line.qtyOverride = size === "M" ? null : Math.round(count * WINDOW_FACTOR[size] * 100) / 100;
+  });
+}
+
+export function applySideCount(blocks: LooseBlock[], key: SideKey, surfaceId: number, count: number): SidesResult {
+  if (!(count >= 1 && count <= 20)) return { ok: false, error: "Counts run 1–20." };
+  return withSide(blocks, key, (b) => {
+    const line = (b.surfaces ?? []).find((s) => Number(s.id) === surfaceId);
+    if (!line) return "That item isn't on this side.";
+    line.count = count;
+    const size = (line.sizeBand as "S" | "M" | "L" | undefined) ?? "M";
+    if (isWindowLine(line) && size !== "M") line.qtyOverride = Math.round(count * WINDOW_FACTOR[size] * 100) / 100;
+  });
+}
+
+/** "+ More windows — a different size": window GROUPS are first-class; a side
+ * can hold 2 medium + 1 large as separate lines. */
+export function addWindowGroup(blocks: LooseBlock[], key: SideKey, nextId: () => number): SidesResult {
+  return withSide(blocks, key, (b) => {
+    const line = makeDraftSurface(nextId(), "Fixed / Picture Window", "More windows", 1, "customer_stated", 0.75, []) as unknown as LooseSurface;
+    line.sizeBand = "M";
+    b.surfaces = [...(b.surfaces ?? []), line];
+  });
+}
+
+/** A named custom surface: recorded and flagged — NEVER auto-priced. The
+ * route adds the amber deferral; the estimate routes to the visit tier. */
+export function addSideCustom(blocks: LooseBlock[], key: SideKey, name: string): SidesResult {
+  return withSide(blocks, key, (b) => {
+    b.customerCustom = [...(b.customerCustom ?? []), name.trim().slice(0, 120)];
+  });
+}
+
+/** Doors/windows totals across the sides being painted — the check card. */
+export function dwTotals(blocks: LooseBlock[]): { windows: number; doors: number } {
+  let windows = 0; let doors = 0;
+  for (const key of SIDE_KEYS) {
+    const b = findSide(blocks, key);
+    if (!b || b.customer?.include === false) continue;
+    for (const s of b.surfaces ?? []) {
+      if (isWindowLine(s)) windows += Number(s.count) || 1;
+      if (isDoorLine(s)) doors += Number(s.count) || 1;
+    }
+  }
+  return { windows, doors };
+}
+
+/** Confirm one side — the loop's gate. Unanswered required questions and a
+ * wall mix that isn't 100% both refuse, by name. */
+export function confirmSide(blocks: LooseBlock[], key: SideKey): SidesResult {
+  return withSide(blocks, key, (b) => {
+    const c = customerOf(b);
+    if (c.include == null) return "“Are we painting this side?” still needs an answer.";
+    if (c.include) {
+      if (c.size == null) return "The side's size still needs an answer — “not sure” is fine.";
+      const sum = wallSumPct(b);
+      if ((b.surfaces ?? []).some(isWallLine) && sum !== 100) {
+        return `The wall surfaces need to add up to 100% — they're at ${sum}% right now.`;
+      }
+    }
+    b.customer = { ...c, confirmed: true };
+  });
+}
+
+export function sidesDoneCount(blocks: LooseBlock[], meta: SidesLoopMeta): { done: number; total: number; allDone: boolean } {
+  let done = 0;
+  for (const key of SIDE_KEYS) {
+    const b = findSide(blocks, key);
+    if (b?.customer?.confirmed) done++;
+  }
+  done += Number(meta.done.extras) + Number(meta.done.cond) + Number(meta.done.dw) + Number(meta.done.sweep);
+  return { done, total: 8, allDone: done === 8 };
+}
+
+// ---- the view ---------------------------------------------------------------
+
+export type SideView = {
+  key: SideKey;
+  label: string;
+  include: boolean | null;
+  size: "yes" | "adjusted" | "ns" | null;
+  confirmed: boolean;
+  L: number; H: number;
+  walls: Array<{ id: number; code: string; label: string; pct: number }>;
+  wallSum: number;
+  tiles: Array<{ id: number; label: string; count: number; countable: boolean; window: boolean; sizeBand: "S" | "M" | "L" | null }>;
+  customs: string[];
+};
+
+export type SidesView = {
+  sides: SideView[];
+  dw: { windows: number; doors: number; ok: boolean | null };
+  meta: SidesLoopMeta;
+  progress: { done: number; total: number; allDone: boolean };
+};
+
+export function sidesView(blocks: LooseBlock[], meta: SidesLoopMeta): SidesView | null {
+  if (!SIDE_KEYS.some((k) => findSide(blocks, k))) return null;
+  const sides: SideView[] = [];
+  for (const key of SIDE_KEYS) {
+    const b = findSide(blocks, key);
+    if (!b) continue;
+    const c = customerOf(b);
+    const surfaces = b.surfaces ?? [];
+    const wallsRaw = surfaces.filter(isWallLine);
+    const defaulted = wallsRaw.length > 0 && wallsRaw.every((s) => s.sharePct == null);
+    sides.push({
+      key,
+      label: SIDE_LABEL[key],
+      include: c.include,
+      size: c.size,
+      confirmed: c.confirmed,
+      L: Number(b.L) || 0,
+      H: Number(b.H) || 0,
+      walls: wallsRaw.map((s, i) => ({
+        id: Number(s.id) || 0,
+        code: String(s.code ?? ""),
+        label: WALL_CODES.find((w) => w.code === String(s.code))?.label ?? String(s.code),
+        pct: s.sharePct == null ? (defaulted && i === 0 ? 100 : 0) : Number(s.sharePct),
+      })),
+      wallSum: defaulted ? 100 : wallSumPct(b),
+      tiles: surfaces.filter((s) => !isWallLine(s)).map((s) => ({
+        id: Number(s.id) || 0,
+        label: String(s.internalLabel ?? s.code ?? ""),
+        count: Number(s.count) || 1,
+        countable: isWindowLine(s) || isDoorLine(s) || substrateKeyForRateCode(String(s.code ?? "")) === "downpipes",
+        window: isWindowLine(s),
+        sizeBand: (s.sizeBand as "S" | "M" | "L" | undefined) ?? (isWindowLine(s) ? "M" : null),
+      })),
+      customs: b.customerCustom ?? [],
+    });
+  }
+  return {
+    sides,
+    dw: { ...dwTotals(blocks), ok: meta.dwOk },
+    meta,
+    progress: sidesDoneCount(blocks, meta),
+  };
+}
