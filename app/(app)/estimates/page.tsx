@@ -1,12 +1,9 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import NewEstimateButton, { type TemplateMeta } from "./NewEstimateButton";
-import DeleteEstimateButton from "./DeleteEstimateButton";
+import EstimatesTable, { type EstimateRow } from "./EstimatesTable";
 
 export const dynamic = "force-dynamic";
-
-const money = (c: number | null) =>
-  c == null ? "—" : "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2 });
 
 const FILTERS = ["all", "draft", "sent", "accepted", "declined", "expired"] as const;
 
@@ -53,60 +50,16 @@ export default async function EstimatesPage({
         })}
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-lg border border-gray-200 bg-white">
-        {estimates && estimates.length > 0 ? (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
-              <tr>
-                <th className="px-4 py-2 font-medium">Title</th>
-                <th className="px-4 py-2 font-medium">Status</th>
-                <th className="px-4 py-2 font-medium">Date</th>
-                <th className="px-4 py-2 text-right font-medium">Value</th>
-                <th className="px-4 py-2 text-right font-medium"><span className="sr-only">Actions</span></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {estimates.map((e) => (
-                <tr key={e.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2.5">
-                    <Link href={`/quote?id=${e.id}`} className="font-medium hover:underline">
-                      {e.title || "Untitled estimate"}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-2.5 capitalize text-gray-500">{e.status}</td>
-                  <td className="px-4 py-2.5 text-gray-500">
-                    {new Date(e.created_at).toLocaleDateString("en-AU")}
-                  </td>
-                  <td className="px-4 py-2.5 text-right tabular-nums">{money(e.total_cents)}</td>
-                  <td className="px-4 py-2.5 text-right">
-                    {e.status !== "accepted" && (
-                      <Link
-                        href={`/quote/capture?id=${e.id}`}
-                        className="mr-3 text-xs text-gray-500 hover:text-gray-900 hover:underline"
-                        title="On-site room-loop capture"
-                      >
-                        Capture
-                      </Link>
-                    )}
-                    <DeleteEstimateButton
-                      estimateId={e.id}
-                      title={e.title || "Untitled estimate"}
-                      status={e.status}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <div className="p-10 text-center text-sm text-gray-400">
-            No estimates{status && status !== "all" ? ` marked “${status}”` : ""} yet.{" "}
-            <Link href="/quote" className="font-medium text-gray-700 hover:underline">
-              Create one →
-            </Link>
-          </div>
-        )}
-      </div>
+      {estimates && estimates.length > 0 ? (
+        <EstimatesTable estimates={estimates as EstimateRow[]} />
+      ) : (
+        <div className="mt-4 rounded-lg border border-gray-200 bg-white p-10 text-center text-sm text-gray-400">
+          No estimates{status && status !== "all" ? ` marked “${status}”` : ""} yet.{" "}
+          <Link href="/quote" className="font-medium text-gray-700 hover:underline">
+            Create one →
+          </Link>
+        </div>
+      )}
     </div>
   );
 }
