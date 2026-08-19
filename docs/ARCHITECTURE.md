@@ -580,3 +580,14 @@ hours apply the same multiplier for parity); the rooms route accepts a
 bounded `sizes` map. The wizard always writes medium. The model is ONE
 window rate × size — legacy separate small/large window rate items keep
 pricing as-is and are flagged superseded in Settings.
+**Address autofill (A1)**: wizard page 1's first field autocompletes AU
+addresses via server-proxied Places (New) routes — `/api/places/autocomplete`
++ `/api/places/details`, key in server-only `GOOGLE_MAPS_API_KEY`, Melbourne
+location bias, session-token billing. Picking a suggestion names the estimate
+("street, suburb"), stores the structured address in wizard state
+(`state.address`) → `builder_state.jobAddress` at submit, and for customers
+fills suburb/postcode and runs the service-area check immediately (the
+details route evaluates the same `service_area` setting as the policy
+engine; out-of-area shows the polite message before any other question).
+`AddressField` degrades to a plain input on the first failed lookup — no
+key, no problem.

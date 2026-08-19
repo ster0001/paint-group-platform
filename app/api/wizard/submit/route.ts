@@ -359,6 +359,16 @@ export async function POST(request: Request) {
   const builderState: Record<string, unknown> = {
     blocks: merged.areas,
     aiDeferred: merged.deferred,
+    // A1: a picked Places address flows straight onto the estimate document
+    // (the builder's Job Address card), in the builder's own shape.
+    ...(state.address ? {
+      jobAddress: {
+        address: state.address.street,
+        city: state.address.suburb,
+        state: state.address.state,
+        postal: state.address.postcode,
+      },
+    } : {}),
     // The full answers ride along: the editor's add-room re-applies them, and
     // the customer layer's range bands recompute from them. The EFFECTIVE
     // state is stored - if the server neutralised the damage-photo claim, the

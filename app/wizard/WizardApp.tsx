@@ -12,6 +12,7 @@ import {
 } from "@/lib/wizard/state";
 import { defaultSurfacesFor, type SubstrateGroups } from "@/lib/estimate/substrates";
 import type { CustomerPayload, WizardEditorPayload } from "@/lib/wizard/view";
+import AddressField from "./AddressField";
 import Editor from "./Editor";
 import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
 
@@ -514,6 +515,10 @@ function PageProperty({
 }) {
   const basics = state.basics;
   const needsFacades = state.jobType !== "interior" && !state.listingUrl.trim();
+  // A1: the customer's address line as typed (structured only once picked),
+  // and the immediate service-area answer for the polite early message.
+  const [addressText, setAddressText] = useState("");
+  const [outOfArea, setOutOfArea] = useState(false);
   return (
     <>
       <p className="wz-kick">Step 1 of 5 · The property</p>
@@ -524,14 +529,40 @@ function PageProperty({
       </p>
 
       {!isCustomer && (
-        <input
-          className="wz-field"
+        // A1: the name field autocompletes the address (server-proxied Places,
+        // AU + Melbourne bias). Picking one names the estimate from it and
+        // stores the structured address; plain typing still just works.
+        <AddressField
           placeholder="Job name or address (shows on the estimates list)"
           value={state.title}
-          onChange={(e) => set({ title: e.target.value })}
+          onText={(text) => set({ title: text, address: null })}
+          onPick={(a) => set({
+            title: [a.street, a.suburb].filter(Boolean).join(", ") || a.formatted,
+            address: a,
+          })}
         />
       )}
       {isCustomer && state.customer && (
+        <>
+          <AddressField
+            placeholder="Your address — start typing and pick it"
+            value={state.address ? state.address.formatted : addressText}
+            onText={(text) => { setAddressText(text); set({ address: null }); }}
+            onPick={(a, inArea) => {
+              setAddressText(a.formatted);
+              setOutOfArea(inArea === false);
+              set({
+                address: a,
+                customer: { ...state.customer!, suburb: a.suburb || state.customer!.suburb, postcode: a.postcode || state.customer!.postcode },
+              });
+            }}
+          />
+          {outOfArea && (
+            <div className="wz-err">
+              It looks like you&rsquo;re outside the area we currently service — we&rsquo;ll keep your
+              details and let you know if that changes. You&rsquo;re welcome to continue anyway.
+            </div>
+          )}
         <div style={{ display: "flex", gap: 10 }}>
           <input
             className="wz-field" placeholder="Suburb"
@@ -544,6 +575,7 @@ function PageProperty({
             onChange={(e) => set({ customer: { ...state.customer!, postcode: e.target.value } })}
           />
         </div>
+        </>
       )}
       <input
         className="wz-field"
