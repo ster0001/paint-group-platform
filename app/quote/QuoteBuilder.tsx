@@ -457,6 +457,10 @@ export default function QuoteBuilder({
   const [saving, setSaving] = useState(false);
   const [templateModal, setTemplateModal] = useState(false);
   const [templateName, setTemplateName] = useState("");
+  const [statusMenu, setStatusMenu] = useState(false);
+  const [declineModal, setDeclineModal] = useState(false);
+  const [declineReason, setDeclineReason] = useState("");
+  const [statusBusy, setStatusBusy] = useState(false);
   const [materialsOpen, setMaterialsOpen] = useState(true);
   // Right-column tools bar: Activity / Chat / Calculations / Follow-ups.
   const [rightTab, setRightTab] = useState<null | "activity" | "chat" | "calc" | "followups">(null);
@@ -724,6 +728,37 @@ export default function QuoteBuilder({
 
   // Save the current build as a reusable template (stored in settings, not as an
   // estimate) so a new estimate can be started from it later.
+  // Manual status change (feature #6). Goes through the server-owned RPC —
+  // staff never write the status column directly. A move to 'declined'
+  // carries the reason. The estimate must be saved first (needs an id).
+  async function changeStatus(next: string, reason?: string) {
+    if (!quoteId) { setSaveMsg("Save the estimate first."); return; }
+    setStatusBusy(true);
+    setSaveMsg("");
+    try {
+      const { data, error } = await createClient().rpc("set_estimate_status", {
+        p_estimate_id: quoteId, p_status: next, p_reason: reason ?? null,
+      });
+      if (error) throw error;
+      const res = String(data ?? "");
+      if (res.startsWith("ok:")) {
+        setEstStatus(next);
+        setSaveMsg(`Marked ${next} ✓`);
+      } else if (res === "conflict:accepted") {
+        setSaveMsg("This estimate is accepted and signed — its status is locked.");
+      } else {
+        setSaveMsg(`Couldn't change status (${res}).`);
+      }
+    } catch (e) {
+      setSaveMsg(e instanceof Error ? e.message : "Status change failed");
+    } finally {
+      setStatusBusy(false);
+      setStatusMenu(false);
+      setDeclineModal(false);
+      setDeclineReason("");
+    }
+  }
+
   async function saveTemplate(name: string) {
     setSaving(true);
     setSaveMsg("");
@@ -1208,6 +1243,36 @@ export default function QuoteBuilder({
             </a>
           )}
           {locked && <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">Accepted · locked</span>}
+          {!locked && quoteId && (
+            <div className="relative">
+              <button
+                onClick={() => setStatusMenu((v) => !v)}
+                disabled={statusBusy}
+                className={`rounded-full px-3 py-1 text-xs font-medium capitalize disabled:opacity-50 ${
+                  estStatus === "sent" ? "bg-sky-100 text-sky-700"
+                  : estStatus === "declined" ? "bg-rose-100 text-rose-700"
+                  : estStatus === "expired" ? "bg-amber-100 text-amber-700"
+                  : "bg-gray-200 text-gray-700"
+                }`}
+                title="Click to change the status"
+              >
+                {statusBusy ? "…" : estStatus} ▾
+              </button>
+              {statusMenu && (
+                <div className="absolute left-0 top-8 z-50 w-40 rounded-lg border border-gray-200 bg-white py-1 text-sm shadow-lg">
+                  {(["draft", "sent", "declined", "expired"] as const).map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => (s === "declined" ? (setStatusMenu(false), setDeclineModal(true)) : changeStatus(s))}
+                      className={`block w-full px-3 py-1.5 text-left capitalize text-gray-700 hover:bg-gray-50 ${s === estStatus ? "font-semibold" : ""}`}
+                    >
+                      {s}{s === estStatus ? " ·" : ""}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           {viewMode === "builder" && !locked && (
             <>
               <input
@@ -1866,6 +1931,33 @@ export default function QuoteBuilder({
           />
         );
       })()}
+
+      {declineModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setDeclineModal(false)}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold">Mark this estimate declined</h2>
+            <p className="mt-1 text-sm text-gray-500">Why did they decide not to go ahead? This helps us learn what to change.</p>
+            <textarea
+              className="mt-3 w-full rounded-md border border-gray-300 p-2 text-sm"
+              rows={3}
+              placeholder="e.g. Went with a cheaper quote · timing didn't suit · scope changed"
+              value={declineReason}
+              onChange={(e) => setDeclineReason(e.target.value)}
+              autoFocus
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setDeclineModal(false)} className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:border-gray-500">Cancel</button>
+              <button
+                onClick={() => changeStatus("declined", declineReason.trim() || undefined)}
+                disabled={statusBusy}
+                className="rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50"
+              >
+                {statusBusy ? "Saving…" : "Mark declined"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {templateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setTemplateModal(false)}>
