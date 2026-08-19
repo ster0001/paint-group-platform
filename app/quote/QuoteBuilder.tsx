@@ -31,7 +31,7 @@ import ColourPicker from "@/app/components/ColourPicker";
 import { roundUpLitres, type WorkOrderDoc as WODoc, type WOMaterial, type WOArea } from "@/lib/workorder/snapshot";
 import { finishFromModifier } from "@/lib/workorder/finish";
 import OfferPanel from "./OfferPanel";
-import { sendEstimateAction, type DeliveryOutcome } from "./actions";
+import { replyToEstimateChatAction, sendEstimateAction, type DeliveryOutcome } from "./actions";
 import SendDialog, { type SendDelivery } from "./SendDialog";
 import { reviewGate, REVIEW_GATE_CENTS, type AiDeferred } from "@/lib/estimate/reviewGate";
 import { DEFAULT_MESSAGING, MESSAGING_KEY, type MessagingSettings } from "@/lib/messaging/config";
@@ -467,6 +467,10 @@ export default function QuoteBuilder({
   const [events, setEvents] = useState<{ type: string; payload: unknown; created_at: string }[]>([]);
   const [views, setViews] = useState<{ created_at: string; updated_at: string; dwell_ms: number }[]>([]);
   const [questions, setQuestions] = useState<{ message: string; created_at: string }[]>([]);
+  const [messages, setMessages] = useState<{ id: string; direction: "staff" | "customer"; body: string; author_name: string | null; created_at: string }[]>([]);
+  const [chatDraft, setChatDraft] = useState("");
+  const [chatSending, setChatSending] = useState(false);
+  const [chatMsg, setChatMsg] = useState("");
   const [activityLoading, setActivityLoading] = useState(false);
 
   function newArea(preset?: { name: string; type: "Interior" | "Exterior" }): Area {
@@ -708,16 +712,18 @@ export default function QuoteBuilder({
     if (!quoteId) return;
     setActivityLoading(true);
     const supabase = createClient();
-    const [{ data: ev }, { data: q }, { data: vw }] = await Promise.all([
+    const [{ data: ev }, { data: q }, { data: vw }, { data: msgs }] = await Promise.all([
       supabase.from("estimate_events").select("type, payload, created_at").eq("estimate_id", quoteId).order("created_at", { ascending: false }).limit(50),
       supabase.from("estimate_questions").select("message, created_at").eq("estimate_id", quoteId).order("created_at", { ascending: false }).limit(50),
       // One row per open session — created_at is when they opened it, dwell_ms
       // how long the page stayed in front of them (15s heartbeats).
       supabase.from("estimate_views").select("created_at, updated_at, dwell_ms").eq("estimate_id", quoteId).order("created_at", { ascending: false }).limit(50),
+      supabase.from("estimate_messages").select("id, direction, body, author_name, created_at").eq("estimate_id", quoteId).order("created_at").limit(200),
     ]);
     setEvents((ev as typeof events) ?? []);
     setQuestions((q as typeof questions) ?? []);
     setViews((vw as typeof views) ?? []);
+    setMessages((msgs as typeof messages) ?? []);
     setActivityLoading(false);
   }
   const openRightTab = (tab: typeof rightTab) => {
@@ -725,6 +731,37 @@ export default function QuoteBuilder({
     setRightTab(next);
     if (next === "activity" || next === "chat") loadActivity();
   };
+
+  // Poll the chat while it's open, so a customer reply appears without a manual
+  // refresh (the customer page polls the same way).
+  useEffect(() => {
+    if (rightTab !== "chat" || !quoteId) return;
+    const t = setInterval(loadActivity, 15000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rightTab, quoteId]);
+
+  async function sendChatReply() {
+    const body = chatDraft.trim();
+    if (!body || !quoteId) return;
+    setChatSending(true);
+    setChatMsg("");
+    try {
+      const res = await replyToEstimateChatAction({ estimateId: quoteId, body });
+      if (!res.ok) { setChatMsg(res.message ?? "Couldn't send."); return; }
+      setChatDraft("");
+      // Note delivery — a customer with no phone/email, or missing keys, is not
+      // a failure of the message itself.
+      const d = res.delivery;
+      const bits: string[] = [];
+      if (d?.email) bits.push(d.email.status === "sent" ? "emailed" : d.email.status === "not_configured" ? "email off" : "email failed");
+      if (d?.sms) bits.push(d.sms.status === "sent" ? "texted" : d.sms.status === "not_configured" ? "SMS off" : "SMS failed");
+      setChatMsg(bits.length ? `Sent · ${bits.join(" · ")}` : "Sent");
+      await loadActivity();
+    } finally {
+      setChatSending(false);
+    }
+  }
 
   // Save the current build as a reusable template (stored in settings, not as an
   // estimate) so a new estimate can be started from it later.
@@ -1749,25 +1786,55 @@ export default function QuoteBuilder({
 
                     {row.key === "chat" && (
                       <div>
-                        {!quoteId ? <p className="text-xs text-gray-500">Save and send the estimate to message the customer.</p> : (
-                          <>
-                            {questions.length === 0
-                              ? <p className="text-xs text-gray-500">No messages from the customer yet.</p>
-                              : (
-                                <ul className="space-y-2">
-                                  {questions.map((q, i) => (
-                                    <li key={i} className="rounded-md bg-gray-50 px-2 py-1.5">
-                                      <div className="text-[13px] text-gray-800">{q.message}</div>
-                                      <div className="mt-0.5 text-[11px] text-gray-400">{relTime(q.created_at)}</div>
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                            <div className="mt-2 flex gap-1.5">
-                              <input disabled placeholder="Reply (two-way chat coming soon)" className="flex-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5 text-xs text-gray-400" />
-                            </div>
-                          </>
-                        )}
+                        {!quoteId ? <p className="text-xs text-gray-500">Save and send the estimate to message the customer.</p> : (() => {
+                          // The two-way thread plus any legacy one-way questions,
+                          // in one timeline.
+                          const thread = [
+                            ...messages.map((m) => ({ side: m.direction, body: m.body, at: m.created_at, who: m.direction === "staff" ? (m.author_name || "You") : "Customer" })),
+                            ...questions.map((q) => ({ side: "customer" as const, body: q.message, at: q.created_at, who: "Customer" })),
+                          ].sort((a, b) => a.at.localeCompare(b.at));
+                          return (
+                            <>
+                              {thread.length === 0
+                                ? <p className="text-xs text-gray-500">No messages yet. Say hello — the customer gets a text and an email that link straight back here.</p>
+                                : (
+                                  <div className="max-h-72 space-y-2 overflow-y-auto pr-0.5">
+                                    {thread.map((m, i) => {
+                                      const mine = m.side === "staff";
+                                      return (
+                                        <div key={i} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+                                          <div className={`max-w-[85%] rounded-2xl px-3 py-1.5 ${mine ? "rounded-br-sm bg-emerald-600 text-white" : "rounded-bl-sm bg-gray-100 text-gray-800"}`}>
+                                            <div className="whitespace-pre-wrap break-words text-[13px] leading-snug">{m.body}</div>
+                                            <div className={`mt-0.5 text-[10px] ${mine ? "text-emerald-100" : "text-gray-400"}`}>{m.who} · {relTime(m.at)}</div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              <div className="mt-2 flex items-end gap-1.5">
+                                <textarea
+                                  rows={2}
+                                  value={chatDraft}
+                                  onChange={(e) => setChatDraft(e.target.value)}
+                                  onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); sendChatReply(); } }}
+                                  placeholder="Message the customer…"
+                                  className="flex-1 resize-none rounded-md border border-gray-300 px-2 py-1.5 text-[13px]"
+                                />
+                                <button
+                                  onClick={sendChatReply}
+                                  disabled={chatSending || chatDraft.trim() === ""}
+                                  className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                                >
+                                  {chatSending ? "…" : "Send"}
+                                </button>
+                              </div>
+                              <p className="mt-1 text-[11px] text-gray-400">
+                                {chatMsg || "They'll get a text + email linking back to this chat. ⌘/Ctrl+Enter to send."}
+                              </p>
+                            </>
+                          );
+                        })()}
                       </div>
                     )}
 

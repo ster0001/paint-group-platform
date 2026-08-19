@@ -5,9 +5,15 @@ import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { sendEstimateInput } from "@/lib/validation/estimate";
 import { DEFAULT_MESSAGING, MESSAGING_KEY, normalisePhoneAU, renderTemplate, type MessagingSettings } from "@/lib/messaging/config";
-import { buildEstimateEmailHtml, emailConfigured, sendEmail, sendSms, smsConfigured, type DeliveryResult } from "@/lib/messaging/send";
+import { buildChatEmailHtml, buildEstimateEmailHtml, emailConfigured, sendEmail, sendSms, smsConfigured, type DeliveryResult } from "@/lib/messaging/send";
 import { DEFAULT_COMPANY, type CompanyProfile, type Contact } from "./company";
 import type { ActionResult } from "@/app/(app)/schedule/actions";
+import { z } from "zod";
+
+const replyInput = z.object({
+  estimateId: z.string().uuid(),
+  body: z.string().trim().min(1, "Type a message.").max(4000),
+});
 
 /** Per-channel outcome shown back in the send dialog. */
 export type DeliveryOutcome = {
@@ -183,4 +189,80 @@ async function logDelivery(
     type: result.status === "sent" ? `${channel}_sent` : `${channel}_failed`,
     payload: { to, ...(result.status === "error" ? { error: result.message } : {}) },
   });
+}
+
+/**
+ * A staff reply on the estimate chat (feature #3). Inserts the message, then
+ * best-effort notifies the customer on BOTH channels: an SMS whose link opens
+ * their estimate at the chat box, and an email that shows the message with a
+ * Respond button. Delivery failures never lose the message — they're reported
+ * back and logged on the activity feed, same as sending.
+ */
+export type ChatReplyResult = ActionResult & { delivery?: DeliveryOutcome };
+
+export async function replyToEstimateChatAction(raw: unknown): Promise<ChatReplyResult> {
+  const parsed = replyInput.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, kind: "invalid", message: parsed.error.issues[0]?.message ?? "That message isn't valid." };
+  }
+  const { estimateId, body } = parsed.data;
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, kind: "error", message: "You don't have permission to do that." };
+  const { data: profile } = await supabase.from("profiles").select("role, full_name").eq("id", user.id).single();
+  if (profile?.role !== "staff") return { ok: false, kind: "error", message: "You don't have permission to do that." };
+
+  const authorName = (profile as { full_name?: string | null }).full_name || null;
+
+  // 1. the message itself — staff write directly through RLS.
+  const { error: insErr } = await supabase.from("estimate_messages").insert({
+    estimate_id: estimateId, direction: "staff", body, author_name: authorName,
+  });
+  if (insErr) return { ok: false, kind: "error", message: `Couldn't post the message: ${insErr.message}` };
+
+  // 2. notify the customer, best-effort.
+  const [{ data: est }, { data: settingsRows }] = await Promise.all([
+    supabase.from("estimates").select("share_token, builder_state").eq("id", estimateId).single(),
+    supabase.from("settings").select("key, value").in("key", ["company_profile", MESSAGING_KEY]),
+  ]);
+  const rows = (settingsRows as { key: string; value: unknown }[] | null) ?? [];
+  const company: CompanyProfile = { ...DEFAULT_COMPANY, ...((rows.find((r) => r.key === "company_profile")?.value as Partial<CompanyProfile>) ?? {}) };
+  const contact = ((est?.builder_state as { contact?: Contact } | null)?.contact ?? null);
+  const outcome: DeliveryOutcome = {};
+
+  if (est?.share_token) {
+    const link = `${await baseUrl()}/e/${est.share_token}#chat`;
+
+    if (contact?.email) {
+      let result: DeliveryResult;
+      if (!emailConfigured()) result = { status: "not_configured" };
+      else result = await sendEmail({
+        to: contact.email,
+        subject: `New message about your estimate`,
+        replyTo: company.email || undefined,
+        html: buildChatEmailHtml({
+          message: body, link,
+          companyName: company.name,
+          logoUrl: company.logoUrlLight || company.logoUrl || undefined,
+          estimatorName: company.estimatorName || undefined,
+          companyPhone: company.phone || undefined,
+        }),
+      });
+      outcome.email = { status: result.status, ...("message" in result ? { message: result.message } : {}) };
+      await logDelivery(supabase, estimateId, "email", contact.email, result);
+    }
+
+    if (contact?.phone) {
+      let result: DeliveryResult;
+      const to = normalisePhoneAU(contact.phone);
+      if (!smsConfigured()) result = { status: "not_configured" };
+      else if (!to) result = { status: "error", message: "That mobile number doesn't look Australian." };
+      else result = await sendSms({ to, body: `${company.name}: you have a new message about your estimate. Open the chat: ${link}` });
+      outcome.sms = { status: result.status, ...("message" in result ? { message: result.message } : {}) };
+      await logDelivery(supabase, estimateId, "sms", contact.phone, result);
+    }
+  }
+
+  return { ok: true, state: "sent", delivery: outcome };
 }

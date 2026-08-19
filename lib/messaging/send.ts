@@ -149,3 +149,42 @@ export function buildEstimateEmailHtml(opts: {
 </table>
 </body></html>`;
 }
+
+/** The email for a new chat message from staff: shows the message and a
+ * Respond button that deep-links straight to the estimate's chat box. */
+export function buildChatEmailHtml(opts: {
+  message: string;
+  link: string;          // already ends with #chat
+  companyName: string;
+  logoUrl?: string;
+  estimatorName?: string;
+  companyPhone?: string;
+}): string {
+  const logo = opts.logoUrl
+    ? `<img src="${esc(opts.logoUrl)}" alt="${esc(opts.companyName)}" height="40" style="height:40px;max-width:200px;object-fit:contain;" />`
+    : `<span style="font-size:19px;font-weight:700;color:#111827;">${esc(opts.companyName)}</span>`;
+  const bodyHtml = esc(opts.message).replace(/\n/g, "<br/>");
+  return `<!doctype html>
+<html><body style="margin:0;padding:0;background:#f3f4f6;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:24px 0;">
+  <tr><td align="center">
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:94%;background:#ffffff;border-radius:12px;overflow:hidden;">
+      <tr><td style="padding:24px 32px 16px;border-bottom:1px solid #e5e7eb;">${logo}</td></tr>
+      <tr><td style="padding:24px 32px 8px;">
+        <p style="margin:0 0 6px;font-size:13px;color:#6b7280;">New message about your estimate${opts.estimatorName ? ` from ${esc(opts.estimatorName)}` : ""}:</p>
+        <div style="margin:0 0 20px;padding:14px 16px;background:#f9fafb;border-left:3px solid #059669;border-radius:0 8px 8px 0;font-size:15px;line-height:1.6;color:#1f2937;">${bodyHtml}</div>
+        <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 8px;">
+          <tr><td style="border-radius:8px;background:#059669;">
+            <a href="${esc(opts.link)}" target="_blank" style="display:inline-block;padding:13px 28px;font-size:16px;font-weight:600;color:#ffffff;text-decoration:none;">Respond</a>
+          </td></tr>
+        </table>
+        <p style="margin:8px 0 8px;font-size:12px;color:#6b7280;">Or open: <a href="${esc(opts.link)}" style="color:#059669;word-break:break-all;">${esc(opts.link)}</a></p>
+      </td></tr>
+      <tr><td style="padding:18px 32px;border-top:1px solid #e5e7eb;">
+        <p style="margin:0;font-size:12px;color:#9ca3af;">${esc(opts.companyName)}${opts.companyPhone ? ` · ${esc(opts.companyPhone)}` : ""}</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body></html>`;
+}

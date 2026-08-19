@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { reportIfError } from "@/lib/monitoring/report";
 import type { CustomerSnapshot, SnapshotPaint } from "@/lib/customer/snapshot";
@@ -23,6 +23,14 @@ export type EstimateRow = {
 };
 
 const money2 = (c: number) => "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const relTime = (iso: string): string => {
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+};
 const money0 = (c: number) => "$" + Math.round(c / 100).toLocaleString("en-AU");
 const dateFmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" }) : "");
 
@@ -52,7 +60,13 @@ export default function CustomerEstimate({
   const [done, setDone] = useState<null | "accepted" | "declined">(
     status === "accepted" ? "accepted" : status === "declined" ? "declined" : null,
   );
-  const [panel, setPanel] = useState<null | "accept" | "decline" | "ask">(null);
+  // A staff reply links the customer to #chat — open the chat straight away.
+  const [panel, setPanel] = useState<null | "accept" | "decline" | "ask" | "chat">(
+    () => (typeof window !== "undefined" && window.location.hash === "#chat" ? "chat" : null),
+  );
+  const [thread, setThread] = useState<{ id: string; direction: "staff" | "customer"; body: string; author_name: string | null; created_at: string }[]>([]);
+  const [chatDraft, setChatDraft] = useState("");
+  const [chatBusy, setChatBusy] = useState(false);
   const [name, setName] = useState(snap.contactName || "");
   const [signatureData, setSignatureData] = useState<string | null>(null);
   const [declineReason, setDeclineReason] = useState("");
@@ -151,6 +165,39 @@ export default function CustomerEstimate({
     setBusy(false);
     if (error) { setErr(error.message); return; }
     setAsked(true); setQuestion("");
+  }
+
+  // ---- live chat (two-way) --------------------------------------------------
+  const loadThread = useCallback(async () => {
+    if (!interactive) return;
+    const supabase = createClient();
+    const { data } = await supabase.rpc("get_estimate_thread_by_token", { p_token: token });
+    setThread((data as typeof thread) ?? []);
+  }, [interactive, token]);
+
+  useEffect(() => {
+    if (!interactive) return;
+    // loadThread awaits the RPC before any setState — it's a subscribe-style
+    // fetch, not a synchronous render loop.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadThread();
+    if (typeof window !== "undefined" && window.location.hash === "#chat") {
+      setTimeout(() => document.getElementById("chatbox")?.scrollIntoView({ behavior: "smooth" }), 200);
+    }
+    const iv = setInterval(loadThread, 15000); // keep the conversation live
+    return () => clearInterval(iv);
+  }, [interactive, loadThread]);
+
+  async function sendMessage() {
+    const body = chatDraft.trim();
+    if (!body) return;
+    setChatBusy(true); setErr("");
+    const supabase = createClient();
+    const { error } = await supabase.rpc("post_estimate_message_by_token", { p_token: token, p_body: body });
+    setChatBusy(false);
+    if (error) { setErr(error.message); return; }
+    setChatDraft("");
+    await loadThread();
   }
 
   async function openPortal() {
@@ -438,8 +485,39 @@ export default function CustomerEstimate({
               <p className="sub">Accepting takes under a minute. No payment is taken until you receive your deposit invoice.</p>
               <div className="finebtns print-hide">
                 <button className="btn btn-primary" onClick={() => setPanel(panel === "accept" ? null : "accept")}>Accept this estimate</button>
-                <button className="btn btn-ghost" onClick={() => setPanel(panel === "ask" ? null : "ask")}>Ask a question first</button>
+                <button className="btn btn-ghost" onClick={() => setPanel(panel === "chat" ? null : "chat")}>
+                  {thread.length ? "Open chat" : "Message us"}
+                  {thread.some((m) => m.direction === "staff") && panel !== "chat" ? " ●" : ""}
+                </button>
               </div>
+
+              {panel === "chat" && (
+                <div className="panelbox" id="chatbox">
+                  <h3>Chat with us</h3>
+                  <div className="chatthread">
+                    {thread.length === 0
+                      ? <p className="sub" style={{ margin: "4px 0 10px" }}>Ask us anything about your estimate — we&apos;ll reply here and let you know by text and email.</p>
+                      : thread.map((m) => (
+                          <div key={m.id} className={`chatrow ${m.direction === "customer" ? "mine" : "theirs"}`}>
+                            <div className="chatbubble">
+                              <div className="chatbody">{m.body}</div>
+                              <div className="chatmeta">{m.direction === "staff" ? (m.author_name || "Paint Group") : "You"} · {relTime(m.created_at)}</div>
+                            </div>
+                          </div>
+                        ))}
+                  </div>
+                  <label className="field">
+                    <textarea
+                      rows={3} value={chatDraft}
+                      onChange={(e) => setChatDraft(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); sendMessage(); } }}
+                      placeholder="Type your message…"
+                    />
+                  </label>
+                  <button className="btn btn-primary" onClick={sendMessage} disabled={chatBusy || chatDraft.trim() === ""}>{chatBusy ? "Sending…" : "Send message"}</button>
+                  {err && <p className="errline">{err}</p>}
+                </div>
+              )}
 
               {panel === "accept" && (
                 <div className="panelbox">
