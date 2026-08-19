@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import type { CustomerPayload } from "@/lib/wizard/view";
 import type { CustomerExteriorView } from "@/lib/wizard/scope-editor";
 import type { SidesView, SideView, SideKey } from "@/lib/wizard/sides";
@@ -26,6 +26,16 @@ type Payload = CustomerPayload & {
 };
 
 const fmt = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
+
+const emptySubscribe = () => () => {};
+const snapshotTrue = () => true;
+const snapshotFalse = () => false;
+
+/** A selectable chip — a real component so its onClick is a handler in the
+ * linter's eyes (the old render-time chip() helper tripped react-hooks/refs). */
+function Chip({ on, label, onClick }: { on: boolean; label: string; onClick: () => void }) {
+  return <button className={`sd-chip ${on ? "on" : ""}`} onClick={onClick}>{label}</button>;
+}
 
 const WALL_ADDABLE = [
   { code: "Render", label: "Render" },
@@ -56,6 +66,17 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
   const [accepted, setAccepted] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [shake, setShake] = useState<string | null>(null);
+  // P1: production feel. `ready` gates interaction until React has hydrated
+  // (pre-hydration clicks were silently lost on production); `pendingCount`
+  // drives the SAVING… indicator while the action queue drains; `optimistic`
+  // paints a tapped control selected IMMEDIATELY, replaced by server truth
+  // when its response lands — a 1–3s production round-trip no longer reads
+  // as a dead button.
+  // (useSyncExternalStore is the canonical hydration detector: server
+  // snapshot false, client snapshot true, no effect-driven re-render.)
+  const ready = useSyncExternalStore(emptySubscribe, snapshotTrue, snapshotFalse);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [optimistic, setOptimistic] = useState<Record<string, string>>({});
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chainRef = useRef<Promise<void>>(Promise.resolve());
 
@@ -65,7 +86,19 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
     toastTimer.current = setTimeout(() => setToast(null), 3200);
   }
 
-  function act(body: Record<string, unknown>, opts: { done?: string; onFail?: (msg: string) => void; onOk?: (j: Payload) => void } = {}) {
+  /** Is `val` the selected state for control `key`? Optimistic overlay wins
+   * until its action's response replaces it with server truth. */
+  function sel(key: string, serverOn: boolean, val = "1"): boolean {
+    const o = optimistic[key];
+    return o != null ? o === val : serverOn;
+  }
+
+  function act(
+    body: Record<string, unknown>,
+    opts: { done?: string; onFail?: (msg: string) => void; onOk?: (j: Payload) => void; opt?: [string, string] } = {},
+  ) {
+    if (opts.opt) setOptimistic((o) => ({ ...o, [opts.opt![0]]: opts.opt![1] }));
+    setPendingCount((n) => n + 1);
     chainRef.current = chainRef.current.then(async () => {
       try {
         const res = await fetch(`/api/estimates/${estimateId}/wizard-edit`, {
@@ -87,6 +120,9 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
         opts.onOk?.(j);
       } catch {
         say("That didn't save — check the connection and try again.");
+      } finally {
+        setPendingCount((n) => n - 1);
+        if (opts.opt) setOptimistic((o) => { const n = { ...o }; delete n[opts.opt![0]]; return n; });
       }
     });
   }
@@ -129,12 +165,13 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
             <div className={`sd-q ${s.include != null ? "ok" : ""}`}>
               <p className="sd-ql">Are we painting this side? <span className="sd-req">REQUIRED</span><span className="sd-okc">✓</span></p>
               <div className="sd-chips">
-                <button className={`sd-chip ${s.include === true ? "on" : ""}`} onClick={() => act({ action: "side_include", side: s.key, include: true }, { onOk: () => undefined })}>Yes</button>
+                <button className={`sd-chip ${sel(`inc:${s.key}`, s.include === true, "yes") ? "on" : ""}`} onClick={() => act({ action: "side_include", side: s.key, include: true }, { opt: [`inc:${s.key}`, "yes"] })}>Yes</button>
                 <button
-                  className={`sd-chip ${s.include === false ? "on" : ""}`}
+                  className={`sd-chip ${sel(`inc:${s.key}`, s.include === false, "no") ? "on" : ""}`}
                   onClick={() => act({ action: "side_include", side: s.key, include: false }, {
                     done: `${s.label} skipped — it'll show as excluded on your quote.`,
                     onOk: openNext,
+                    opt: [`inc:${s.key}`, "no"],
                   })}
                 >
                   No — skip this side
@@ -154,7 +191,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                     — sound right? <span className="sd-req">REQUIRED</span><span className="sd-okc">✓</span>
                   </p>
                   <div className="sd-chips">
-                    <button className={`sd-chip ${s.size === "yes" ? "on" : ""}`} onClick={() => act({ action: "side_size_ok", side: s.key })}>Looks right</button>
+                    <button className={`sd-chip ${sel(`size:${s.key}`, s.size === "yes", "yes") ? "on" : ""}`} onClick={() => act({ action: "side_size_ok", side: s.key }, { opt: [`size:${s.key}`, "yes"] })}>Looks right</button>
                     <button className={`sd-chip ${s.size === "adjusted" || adjusting === s.key ? "on" : ""}`} onClick={() => { setAdjusting(s.key); setDims({ L: "", H: "" }); }}>Adjust it</button>
                   </div>
                   {adjusting === s.key && (
@@ -200,8 +237,8 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                           {[25, 50, 75, 100].map((p) => (
                             <button
                               key={p}
-                              className={`sd-pc ${w.pct === p ? "on" : ""}`}
-                              onClick={() => act({ action: "wall_share", side: s.key, surfaceId: w.id, pct: p }, { done: `${w.label} set to ${p}% of this side — repriced.` })}
+                              className={`sd-pc ${sel(`pct:${s.key}:${w.id}`, w.pct === p, String(p)) ? "on" : ""}`}
+                              onClick={() => act({ action: "wall_share", side: s.key, surfaceId: w.id, pct: p }, { done: `${w.label} set to ${p}% of this side — repriced.`, opt: [`pct:${s.key}:${w.id}`, String(p)] })}
                             >
                               {p}
                             </button>
@@ -223,16 +260,16 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                         {t.label}
                         {t.countable && (
                           <span className="sd-st" onClick={(e) => e.stopPropagation()}>
-                            <button aria-label="fewer" onClick={() => t.count > 1 && act({ action: "side_count", side: s.key, surfaceId: t.id, count: t.count - 1 }, { done: `${t.label} ×${t.count - 1}` })}>−</button>
-                            <b>{t.count}</b>
-                            <button aria-label="more" onClick={() => act({ action: "side_count", side: s.key, surfaceId: t.id, count: t.count + 1 }, { done: `${t.label} ×${t.count + 1}` })}>+</button>
+                            <button aria-label="fewer" onClick={() => shownCount(s.key, t) > 1 && stepCount(s.key, t, -1)}>−</button>
+                            <b>{shownCount(s.key, t)}</b>
+                            <button aria-label="more" onClick={() => stepCount(s.key, t, 1)}>+</button>
                           </span>
                         )}
                         {t.window && (
                           <span className="sd-wseg" onClick={(e) => e.stopPropagation()}>
                             <i>Size</i>
                             {(["S", "M", "L"] as const).map((z) => (
-                              <button key={z} className={t.sizeBand === z ? "on" : ""} onClick={() => act({ action: "win_size", side: s.key, surfaceId: t.id, size: z }, { done: `Windows set to ${z === "S" ? "small" : z === "M" ? "medium" : "large"} — repriced.` })}>{z}</button>
+                              <button key={z} className={sel(`ws:${s.key}:${t.id}`, t.sizeBand === z, z) ? "on" : ""} onClick={() => act({ action: "win_size", side: s.key, surfaceId: t.id, size: z }, { done: `Windows set to ${z === "S" ? "small" : z === "M" ? "medium" : "large"} — repriced.`, opt: [`ws:${s.key}:${t.id}`, z] })}>{z}</button>
                             ))}
                           </span>
                         )}
@@ -286,13 +323,16 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
             {s.include !== false && (
               <button
                 className="sd-confirm"
+                disabled={optimistic[`confirm:${s.key}`] != null}
                 onClick={() => act({ action: "confirm_side", side: s.key }, {
                   done: `${s.label} confirmed ✓`,
                   onFail: (m) => refuse(s.key, m),
                   onOk: openNext,
+                  opt: [`confirm:${s.key}`, "1"],
                 })}
               >
-                {s.confirmed ? "Confirmed ✓" : `Confirm ${s.label.split(" — ")[0].toLowerCase()} ✓`}
+                {optimistic[`confirm:${s.key}`] != null ? "Confirming…"
+                  : s.confirmed ? "Confirmed ✓" : `Confirm ${s.label.split(" — ")[0].toLowerCase()} ✓`}
               </button>
             )}
           </div>
@@ -315,23 +355,21 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
             {body}
             <button
               className="sd-confirm"
+              disabled={optimistic[`confirm:${key}`] != null}
               onClick={() => act({ action: "confirm_loop_item", item: key }, {
                 done: "Confirmed ✓",
                 onFail: (m) => refuse(key, m),
                 onOk: openNext,
+                opt: [`confirm:${key}`, "1"],
               })}
             >
-              {done ? "Confirmed ✓" : confirmLabel}
+              {optimistic[`confirm:${key}`] != null ? "Confirming…" : done ? "Confirmed ✓" : confirmLabel}
             </button>
           </div>
         )}
       </section>
     );
   }
-
-  const chip = (on: boolean, label: string, onClick: () => void, key?: string) => (
-    <button key={key ?? label} className={`sd-chip ${on ? "on" : ""}`} onClick={onClick}>{label}</button>
-  );
 
   const m = sides.meta;
   const edgeClass = (k: SideKey) => {
@@ -341,8 +379,22 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
     return s.confirmed ? "sd-edge done" : "sd-edge";
   };
 
+  /** Stepper display honours the optimistic target while the queue drains. */
+  function shownCount(sideKey: string, t: { id: number; count: number }): number {
+    const o = optimistic[`cnt:${sideKey}:${t.id}`];
+    return o != null ? parseInt(o, 10) : t.count;
+  }
+  function stepCount(sideKey: SideKey, t: { id: number; count: number; label: string }, dir: 1 | -1) {
+    const next = Math.max(1, Math.min(20, shownCount(sideKey, t) + dir));
+    if (next === shownCount(sideKey, t)) return;
+    act({ action: "side_count", side: sideKey, surfaceId: t.id, count: next },
+      { done: `${t.label} ×${next}`, opt: [`cnt:${sideKey}:${t.id}`, String(next)] });
+  }
+
   return (
-    <div className="sd">
+    <div className={`sd ${ready ? "" : "wz-waking"}`} data-ready={ready ? "1" : undefined}>
+      {!ready && <div className="sd-saving">ONE MOMENT…</div>}
+      {ready && pendingCount > 0 && <div className="sd-saving">SAVING…</div>}
       <header className="sd-top">
         <div className="sd-row">
           <div className="sd-wm">PAINT<span>—</span>GROUP</div>
@@ -389,10 +441,11 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
               <div className={`sd-q ${extrasAnswered ? "ok" : ""}`}>
                 <p className="sd-ql">Not on a wall — fences, pergolas and the like. <span className="sd-req">REQUIRED</span><span className="sd-okc">✓</span></p>
                 <div className="sd-chips">
-                  {extrasTiles.map((t) => chip(t.on, `${t.on ? "✓ " : "+ "}${t.label}`, () => {
-                    act({ action: "toggle_exterior", key: t.key, on: !t.on }, { done: `${t.on ? "Removed" : "Added"} ${t.label.toLowerCase()}.` });
-                  }, t.key))}
-                  {chip(m.extrasAns === "none", "Nothing else ✓", () => act({ action: "loop_extras_none" }))}
+                  {extrasTiles.map((t) => (
+                    <Chip key={String(t.key)} on={t.on} label={`${t.on ? "✓ " : "+ "}${t.label}`}
+                      onClick={() => act({ action: "toggle_exterior", key: String(t.key), on: !t.on }, { done: `${t.on ? "Removed" : "Added"} ${t.label.toLowerCase()}.` })} />
+                  ))}
+                  <Chip on={sel("extras:none", m.extrasAns === "none")} label={"Nothing else ✓"} onClick={() => act({ action: "loop_extras_none" }, { opt: ["extras:none", "1"] })} />
                 </div>
                 {extrasTiles.some((t) => t.key === "fence" && t.on) && (
                   <div className="sd-mrow" style={{ display: "flex", marginTop: 9 }}>
@@ -420,26 +473,26 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                 <div className={`sd-q ${m.cond.cond ? "ok" : ""}`}>
                   <p className="sd-ql">How&rsquo;s the paintwork holding up? <span className="sd-req">REQUIRED</span><span className="sd-okc">✓</span></p>
                   <div className="sd-chips">
-                    {chip(m.cond.cond === "good", "Good overall", () => act({ action: "loop_cond", cond: "good" }))}
-                    {chip(m.cond.cond === "weathered", "Weathered", () => act({ action: "loop_cond", cond: "weathered" }, { done: "Extra prep allowed for weathered paintwork." }))}
-                    {chip(m.cond.cond === "peeling", "Peeling & flaking", () => act({ action: "loop_cond", cond: "peeling" }, { done: "Peeling paint needs a proper look — a lead-safe check is part of our visit." }))}
+                    <Chip on={sel("cond:c", m.cond.cond === "good", "good")} label={"Good overall"} onClick={() => act({ action: "loop_cond", cond: "good" }, { opt: ["cond:c", "good"] })} />
+                    <Chip on={sel("cond:c", m.cond.cond === "weathered", "weathered")} label={"Weathered"} onClick={() => act({ action: "loop_cond", cond: "weathered" }, { done: "Extra prep allowed for weathered paintwork.", opt: ["cond:c", "weathered"] })} />
+                    <Chip on={sel("cond:c", m.cond.cond === "peeling", "peeling")} label={"Peeling & flaking"} onClick={() => act({ action: "loop_cond", cond: "peeling" }, { done: "Peeling paint needs a proper look — a lead-safe check is part of our visit.", opt: ["cond:c", "peeling"] })} />
                   </div>
                 </div>
                 <div className={`sd-q ${m.cond.rot ? "ok" : ""}`}>
                   <p className="sd-ql">Any timber rot up on the fascias? <span className="sd-req">REQUIRED</span><span className="sd-okc">✓</span></p>
                   <div className="sd-chips">
-                    {chip(m.cond.rot === "no", "No, looks solid", () => act({ action: "loop_cond", rot: "no" }))}
-                    {chip(m.cond.rot === "little", "A little", () => act({ action: "loop_cond", rot: "little" }, { done: "We've allowed for minor fascia prep." }))}
-                    {chip(m.cond.rot === "lots", "Quite a bit", () => act({ action: "loop_cond", rot: "lots" }, { done: "Thanks for the honesty — rot repair needs eyes on it, so we'll confirm the roofline on the site visit." }))}
+                    <Chip on={sel("cond:r", m.cond.rot === "no", "no")} label={"No, looks solid"} onClick={() => act({ action: "loop_cond", rot: "no" }, { opt: ["cond:r", "no"] })} />
+                    <Chip on={sel("cond:r", m.cond.rot === "little", "little")} label={"A little"} onClick={() => act({ action: "loop_cond", rot: "little" }, { done: "We've allowed for minor fascia prep.", opt: ["cond:r", "little"] })} />
+                    <Chip on={sel("cond:r", m.cond.rot === "lots", "lots")} label={"Quite a bit"} onClick={() => act({ action: "loop_cond", rot: "lots" }, { done: "Thanks for the honesty — rot repair needs eyes on it, so we'll confirm the roofline on the site visit.", opt: ["cond:r", "lots"] })} />
                   </div>
                 </div>
                 <div className={`sd-q ${m.cond.acc ? "ok" : ""}`}>
                   <p className="sd-ql">Anything tricky about access? <span className="sd-req">REQUIRED</span><span className="sd-okc">✓</span></p>
                   <div className="sd-chips">
-                    {chip(m.cond.acc === "steep", "Steep block", () => act({ action: "loop_cond", acc: "steep" }, { done: "Access allowance noted." }))}
-                    {chip(m.cond.acc === "tight", "Tight side access", () => act({ action: "loop_cond", acc: "tight" }, { done: "Access allowance noted." }))}
-                    {chip(m.cond.acc === "high", "Double-height entry", () => act({ action: "loop_cond", acc: "high" }, { done: "Access allowance noted." }))}
-                    {chip(m.cond.acc === "none", "None of these ✓", () => act({ action: "loop_cond", acc: "none" }))}
+                    <Chip on={sel("cond:a", m.cond.acc === "steep", "steep")} label={"Steep block"} onClick={() => act({ action: "loop_cond", acc: "steep" }, { done: "Access allowance noted.", opt: ["cond:a", "steep"] })} />
+                    <Chip on={sel("cond:a", m.cond.acc === "tight", "tight")} label={"Tight side access"} onClick={() => act({ action: "loop_cond", acc: "tight" }, { done: "Access allowance noted.", opt: ["cond:a", "tight"] })} />
+                    <Chip on={sel("cond:a", m.cond.acc === "high", "high")} label={"Double-height entry"} onClick={() => act({ action: "loop_cond", acc: "high" }, { done: "Access allowance noted.", opt: ["cond:a", "high"] })} />
+                    <Chip on={sel("cond:a", m.cond.acc === "none", "none")} label={"None of these ✓"} onClick={() => act({ action: "loop_cond", acc: "none" }, { opt: ["cond:a", "none"] })} />
                   </div>
                 </div>
               </>
@@ -452,8 +505,8 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                   <span className="sd-req">REQUIRED</span><span className="sd-okc">✓</span>
                 </p>
                 <div className="sd-chips">
-                  {chip(m.dwOk === true, "That's right ✓", () => act({ action: "loop_dw", ok: true }))}
-                  {chip(false, "Something's off — I'll adjust", () => { act({ action: "loop_dw", ok: false }); say("Adjust the − / + on the side cards above, then tap “That's right”."); })}
+                  <Chip on={sel("dw:ok", m.dwOk === true)} label={"That's right ✓"} onClick={() => act({ action: "loop_dw", ok: true }, { opt: ["dw:ok", "1"] })} />
+                  <Chip on={false} label={"Something's off — I'll adjust"} onClick={() => { act({ action: "loop_dw", ok: false }); say("Adjust the − / + on the side cards above, then tap “That's right”."); }} />
                 </div>
                 <p className="sd-help">Counts sit on each side above — use the − / + there, then come back.</p>
               </div>
@@ -463,11 +516,13 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
               <div className={`sd-q ${m.sweepAns ? "ok" : ""}`}>
                 <p className="sd-ql">Sheds, side gates and the fence behind the house are the usual missing ones. <span className="sd-req">REQUIRED</span><span className="sd-okc">✓</span></p>
                 <div className="sd-chips">
-                  {["Shed", "Side gate", "Rear fence", "Carport", "Something else"].map((n) =>
-                    chip(false, `+ ${n}`, () => act({ action: "loop_sweep", add: n }, {
-                      done: `Thanks — we've added ${n.toLowerCase()}, and we'll confirm it on the site visit.`,
-                    }), n))}
-                  {chip(m.sweepAns === "none", "No — that's everything ✓", () => act({ action: "loop_sweep", ans: "none" }))}
+                  {["Shed", "Side gate", "Rear fence", "Carport", "Something else"].map((n) => (
+                    <Chip key={n} on={false} label={`+ ${n}`}
+                      onClick={() => act({ action: "loop_sweep", add: n }, {
+                        done: `Thanks — we've added ${n.toLowerCase()}, and we'll confirm it on the site visit.`,
+                      })} />
+                  ))}
+                  <Chip on={sel("sweep:none", m.sweepAns === "none")} label={"No — that's everything ✓"} onClick={() => act({ action: "loop_sweep", ans: "none" }, { opt: ["sweep:none", "1"] })} />
                 </div>
               </div>
             ), "Confirm — nothing missing ✓")}

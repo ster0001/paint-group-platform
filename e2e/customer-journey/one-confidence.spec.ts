@@ -1,5 +1,4 @@
 import { test, expect, type Page } from "@playwright/test";
-import { credentials, missingCreds, signIn } from "../helpers";
 import { driveNoPlanWizard } from "./drive";
 
 /**
@@ -22,10 +21,7 @@ async function cardPcts(page: Page): Promise<number[]> {
 }
 
 test("R1.4 header and room cards agree; confirming moves both; no-plan is capped", async ({ page }) => {
-  const staff = credentials("STAFF");
-  test.skip(!staff, missingCreds("STAFF"));
   test.setTimeout(180_000);
-  await signIn(page, staff!, /estimates/);
   await driveNoPlanWizard(page);
 
   // Honesty cap: a starter-list estimate (nothing extracted, nothing

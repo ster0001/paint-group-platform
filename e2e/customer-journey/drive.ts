@@ -52,8 +52,11 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
   await expect(page.locator(".wz-r")).toBeVisible({ timeout: 90_000 });
 }
 
-/** From the result screen into the scope editor. */
+/** From the result screen into the scope editor — and WAIT for hydration
+ * (P1: pre-hydration clicks are inert by design; the gate makes that a
+ * visible state and gives tests an honest go-signal). */
 export async function openScopeEditor(page: Page) {
   await page.getByRole("link", { name: /Open the editor/i }).click();
   await expect(page.locator(".sc-r")).toHaveText(MONEY_RANGE, { timeout: 20_000 });
+  await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import type { CustomerPayload } from "@/lib/wizard/view";
 import { assertCustomerShape } from "@/lib/wizard/contract";
 import type { CustomerExteriorView, CustomerScopeRoom, ExteriorExtent } from "@/lib/wizard/scope-editor";
@@ -40,6 +40,10 @@ type Payload = CustomerPayload & {
 
 const fmt = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
+const emptySubscribe = () => () => {};
+const snapshotTrue = () => true;
+const snapshotFalse = () => false;
+
 export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialLadder, initialInteriorLoop = null, roomTypes, liveRange }: {
   estimateId: string;
   initial: CustomerPayload;
@@ -55,6 +59,14 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   const [iloop, setIloop] = useState<InteriorLoopView | null>(initialInteriorLoop);
   const [sizeDrafts, setSizeDrafts] = useState<Record<number, { L: string; W: string; open: boolean }>>({});
   const [shakeCard, setShakeCard] = useState<string | null>(null);
+  // P1: production feel — hydration gate, queue indicator, optimistic taps.
+  const ready = useSyncExternalStore(emptySubscribe, snapshotTrue, snapshotFalse);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [optimistic, setOptimistic] = useState<Record<string, string>>({});
+  const sel = (key: string, serverOn: boolean, val = "1") => {
+    const o = optimistic[key];
+    return o != null ? o === val : serverOn;
+  };
   const [exterior, setExterior] = useState<CustomerExteriorView | null>(initialExterior);
   const [ladder, setLadder] = useState<Ladder>(initialLadder ?? { tier: "visit", visitSlots: [] });
   const [slotsOpen, setSlotsOpen] = useState(false);
@@ -80,8 +92,10 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   }
 
   /** POST a whitelisted action; reconcile range + tiles from the server. */
-  function act(body: Record<string, unknown>, busyKey: string, describe?: (deltaCents: number) => string) {
+  function act(body: Record<string, unknown>, busyKey: string, describe?: (deltaCents: number) => string, opt?: [string, string]) {
     setBusyKeys((s) => new Set(s).add(busyKey));
+    if (opt) setOptimistic((o) => ({ ...o, [opt[0]]: opt[1] }));
+    setPendingCount((n) => n + 1);
     const before = mid;
     chainRef.current = chainRef.current.then(async () => {
       try {
@@ -111,6 +125,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         say("That didn't save — check the connection and try again.");
       } finally {
         setBusyKeys((s) => { const n = new Set(s); n.delete(busyKey); return n; });
+        setPendingCount((n) => n - 1);
+        if (opt) setOptimistic((o) => { const n = { ...o }; delete n[opt[0]]; return n; });
       }
     });
   }
@@ -130,6 +146,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   }
   /** Confirm posts get their own path so a 400 shakes the card by name. */
   function confirmAct(body: Record<string, unknown>, cardKey: string, done: string) {
+    setOptimistic((o) => ({ ...o, [`confirm:${cardKey}`]: "1" }));
+    setPendingCount((n) => n + 1);
     chainRef.current = chainRef.current.then(async () => {
       try {
         const res = await fetch(`/api/estimates/${estimateId}/wizard-edit`, {
@@ -147,6 +165,9 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         say(done);
       } catch {
         say("That didn't save — check the connection and try again.");
+      } finally {
+        setPendingCount((n) => n - 1);
+        setOptimistic((o) => { const n = { ...o }; delete n[`confirm:${cardKey}`]; return n; });
       }
     });
   }
@@ -204,7 +225,9 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         : "The final step is a short visit so we can stand behind every number.";
 
   return (
-    <>
+    <div className={ready ? undefined : "wz-waking"} data-ready={ready ? "1" : undefined}>
+      {!ready && <div className="sd-saving">ONE MOMENT…</div>}
+      {ready && pendingCount > 0 && <div className="sd-saving">SAVING…</div>}
       <header className="wz-top">
         <div className="wz-wm">PAINT<span>—</span>GROUP</div>
         {iloop && (
@@ -286,8 +309,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                       the size of this room? <span className="il-req">REQUIRED</span><span className="il-okc">✓</span>
                     </p>
                     <div className="sc-chips">
-                      <button className={`sd-chip ${loop.size === "yes" ? "on" : ""}`}
-                        onClick={() => act({ action: "room_size_ok", areaId: room.areaId }, `sz:${room.areaId}`)}>
+                      <button className={`sd-chip ${sel(`sz:${room.areaId}`, loop.size === "yes", "yes") ? "on" : ""}`}
+                        onClick={() => act({ action: "room_size_ok", areaId: room.areaId }, `sz:${room.areaId}`, undefined, [`sz:${room.areaId}`, "yes"])}>
                         Looks right
                       </button>
                       <button className={`sd-chip ${loop.size === "adjusted" || sizeDrafts[room.areaId]?.open ? "on" : ""}`}
@@ -387,14 +410,14 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                   <div className={`il-q il-cup ${loop.cupboard.on != null ? "ok" : ""}`}>
                     <p className="il-ql">{loop.cupboard.question} <span className="il-req">REQUIRED</span><span className="il-okc">✓</span></p>
                     <div className="sc-chips">
-                      <button className={`sd-chip ${loop.cupboard.on === true ? "on" : ""}`}
+                      <button className={`sd-chip ${sel(`cup:${room.areaId}`, loop.cupboard.on === true, "yes") ? "on" : ""}`}
                         onClick={() => act({ action: "room_cupboard", areaId: room.areaId, on: true, count: loop.cupboard!.count }, `cup:${room.areaId}`,
-                          deltaText(loop.cupboard!.unit, true))}>
+                          deltaText(loop.cupboard!.unit, true), [`cup:${room.areaId}`, "yes"])}>
                         Yes
                       </button>
-                      <button className={`sd-chip ${loop.cupboard.on === false ? "on" : ""}`}
+                      <button className={`sd-chip ${sel(`cup:${room.areaId}`, loop.cupboard.on === false, "no") ? "on" : ""}`}
                         onClick={() => act({ action: "room_cupboard", areaId: room.areaId, on: false, count: null }, `cup:${room.areaId}`,
-                          () => "Noted — cupboards stay as they are.")}>
+                          () => "Noted — cupboards stay as they are.", [`cup:${room.areaId}`, "no"])}>
                         No
                       </button>
                     </div>
@@ -427,9 +450,10 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                 {loop && (
                   <button
                     className={`sd-confirm il-confirm ${loop.confirmed ? "done" : ""}`}
+                    disabled={optimistic[`confirm:room:${room.areaId}`] != null}
                     onClick={() => confirmAct({ action: "confirm_room_loop", areaId: room.areaId }, `room:${room.areaId}`, `${room.name} confirmed ✓`)}
                   >
-                    {loop.confirmed ? "Confirmed ✓" : `Confirm ${room.name} ✓`}
+                    {optimistic[`confirm:room:${room.areaId}`] != null ? "Confirming…" : loop.confirmed ? "Confirmed ✓" : `Confirm ${room.name} ✓`}
                   </button>
                 )}
               </section>
@@ -521,15 +545,16 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     <span className="il-req">REQUIRED</span><span className="il-okc">✓</span>
                   </p>
                   <div className="sc-chips">
-                    <button className={`sd-chip ${iloop.dw.ok === true ? "on" : ""}`} onClick={() => act({ action: "iloop_dw", ok: true }, "dwok")}>That&rsquo;s right ✓</button>
+                    <button className={`sd-chip ${sel("dw:ok", iloop.dw.ok === true) ? "on" : ""}`} onClick={() => act({ action: "iloop_dw", ok: true }, "dwok", undefined, ["dw:ok", "1"])}>That&rsquo;s right ✓</button>
                     <button className="sd-chip" onClick={() => { act({ action: "iloop_dw", ok: false }, "dwno"); say("Use the − / + on any room's door or window tile, then come back and tap “That's right”."); }}>
                       Something&rsquo;s off — I&rsquo;ll adjust
                     </button>
                   </div>
                 </div>
                 <button className={`sd-confirm il-confirm ${iloop.meta.done.dw ? "done" : ""}`}
+                  disabled={optimistic["confirm:dw"] != null}
                   onClick={() => confirmAct({ action: "confirm_iloop_item", item: "dw" }, "dw", "Counts confirmed ✓")}>
-                  {iloop.meta.done.dw ? "Confirmed ✓" : "Confirm counts ✓"}
+                  {optimistic["confirm:dw"] != null ? "Confirming…" : iloop.meta.done.dw ? "Confirmed ✓" : "Confirm counts ✓"}
                 </button>
               </section>
 
@@ -551,15 +576,16 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                         + {t.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase())}
                       </button>
                     ))}
-                    <button className={`sd-chip ${iloop.meta.sweepAns === "none" ? "on" : ""}`}
-                      onClick={() => act({ action: "iloop_sweep", ans: "none" }, "sweepnone")}>
+                    <button className={`sd-chip ${sel("sweep:none", iloop.meta.sweepAns === "none") ? "on" : ""}`}
+                      onClick={() => act({ action: "iloop_sweep", ans: "none" }, "sweepnone", undefined, ["sweep:none", "1"])}>
                       No — that&rsquo;s everything ✓
                     </button>
                   </div>
                 </div>
                 <button className={`sd-confirm il-confirm ${iloop.meta.done.sweep ? "done" : ""}`}
+                  disabled={optimistic["confirm:sweep"] != null}
                   onClick={() => confirmAct({ action: "confirm_iloop_item", item: "sweep" }, "sweep", "Everything's blue — your estimate is confirmed. Nice work.")}>
-                  {iloop.meta.done.sweep ? "Confirmed ✓" : "Confirm — nothing missing ✓"}
+                  {optimistic["confirm:sweep"] != null ? "Confirming…" : iloop.meta.done.sweep ? "Confirmed ✓" : "Confirm — nothing missing ✓"}
                 </button>
               </section>
             </>
@@ -608,6 +634,6 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
       </div>
 
       {toast && <div className="sc-toast">{toast}</div>}
-    </>
+    </div>
   );
 }

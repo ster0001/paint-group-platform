@@ -336,3 +336,8 @@
 .wz .il-wingroup button { width: 28px; height: 24px; border-radius: 6px; border: 1px solid var(--line); background: none; color: var(--muted); font-family: var(--wz-mono); font-size: 10px; cursor: pointer; }
 .wz .il-wingroup button.on { border-color: var(--cyan); color: var(--cyan); }
 .wz .sc-rc.shake { animation: sd-shake .3s; }
+
+/* ---- P1: production feel — hydration gate + queue indicator --------------- */
+.wz .wz-waking { pointer-events: none; }
+.wz .sd-saving { position: fixed; left: 18px; bottom: 18px; z-index: 80; font-family: var(--wz-mono); font-size: 9px; letter-spacing: .14em; color: var(--muted); border: 1px solid var(--line); background: var(--panel2); border-radius: 100px; padding: 7px 13px; }
+.wz .sd-confirm:disabled { opacity: .65; cursor: wait; }

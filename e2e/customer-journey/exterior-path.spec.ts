@@ -1,5 +1,4 @@
 import { test, expect } from "@playwright/test";
-import { credentials, missingCreds, signIn } from "../helpers";
 import { MONEY_RANGE } from "./drive";
 
 /**
@@ -18,10 +17,7 @@ import { MONEY_RANGE } from "./drive";
  */
 
 test("R2 exterior journey: five exterior pages, no interior questions, priced by sides", async ({ page }) => {
-  const staff = credentials("STAFF");
-  test.skip(!staff, missingCreds("STAFF"));
   test.setTimeout(180_000);
-  await signIn(page, staff!, /estimates/);
   await page.goto("/estimate");
 
   // Page 1 — exterior with a listing as the visual evidence.

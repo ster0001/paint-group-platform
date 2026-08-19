@@ -1,5 +1,4 @@
 import { test, expect, type Page } from "@playwright/test";
-import { credentials, missingCreds, signIn } from "../helpers";
 import { MONEY_RANGE } from "./drive";
 
 /**
@@ -46,18 +45,16 @@ async function driveExteriorWizard(page: Page) {
   await expect(page.locator(".wz-r")).toBeVisible({ timeout: 90_000 });
   await page.getByRole("link", { name: /Open the editor/i }).click();
   await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
 }
 
 test("R2b sides loop: amber to cyan, walls must total 100%, skip reads NOT PAINTING, CTA gates on all eight", async ({ page }) => {
-  const staff = credentials("STAFF");
-  test.skip(!staff, missingCreds("STAFF"));
   test.setTimeout(240_000);
   page.on("response", async (r) => {
     if (r.url().includes("wizard-edit") && r.status() >= 400) {
       console.log("EDIT-FAIL", r.status(), (await r.text().catch(() => "")).slice(0, 160));
     }
   });
-  await signIn(page, staff!, /estimates/);
   await driveExteriorWizard(page);
 
   // Eight amber items, progress 0 of 8, CTA disabled.
@@ -138,7 +135,7 @@ test("R2b sides loop: amber to cyan, walls must total 100%, skip reads NOT PAINT
   await sweep.getByRole("button", { name: /Confirm — nothing missing/i }).click();
 
   // Everything blue: 8 of 8, CTA enabled, range still a range.
-  await expect(page.locator(".sd-prog")).toContainText("8 OF 8");
+  await expect(page.locator(".sd-prog")).toContainText("8 OF 8", { timeout: 45_000 }); // production queue drain
   await expect(page.locator(".sd-cta")).toBeEnabled();
   await expect(page.locator(".sc-r, .sd-range").first()).toHaveText(MONEY_RANGE);
 });

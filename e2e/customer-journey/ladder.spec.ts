@@ -1,5 +1,4 @@
 import { test, expect } from "@playwright/test";
-import { credentials, missingCreds, signIn } from "../helpers";
 import { driveNoPlanWizard, openScopeEditor } from "./drive";
 
 /**
@@ -11,10 +10,7 @@ import { driveNoPlanWizard, openScopeEditor } from "./drive";
  */
 
 test("R4 ladder: below the accuracy bar lands the visit tier — slots offered, booking sticks", async ({ page }) => {
-  const staff = credentials("STAFF");
-  test.skip(!staff, missingCreds("STAFF"));
   test.setTimeout(240_000);
-  await signIn(page, staff!, /estimates/);
   await driveNoPlanWizard(page);
   await openScopeEditor(page);
 
@@ -40,7 +36,7 @@ test("R4 ladder: below the accuracy bar lands the visit tier — slots offered, 
   // The loop is complete; the honesty cap keeps a no-plan estimate below the
   // 90% bar, so the CTA is the visit offer, enabled — never blocked.
   const cta = page.locator(".il-cta");
-  await expect(cta).toBeEnabled({ timeout: 15_000 });
+  await expect(cta).toBeEnabled({ timeout: 45_000 }); // production queue drain
   await expect(cta).toContainText(/book the visit/i);
 
   // Slots are the server's own offer; booking sticks.
