@@ -12,24 +12,29 @@
  *                   the wizard prices none of these.
  *   4. BELOW FLOOR  under the minimum job — polite minimum message.
  *   5. REVEAL       a range (never a point price), whose width follows the
- *                   accuracy score; acceptance only inside the walkthrough
- *                   policy, and NEVER for a job carrying requires_site_check
- *                   (Tom's rule: exteriors are signed off by a human).
+ *                   accuracy score; acceptance only inside the sign-off
+ *                   ladder (v2 ruling, wizard-rebuild-plan-v2 §0): interior
+ *                   <= $6k at >= 90%, straightforward exterior <= $12k at
+ *                   >= 85%, everything else "Confirm my price — book the
+ *                   visit". Never for a job carrying requires_site_check.
  */
 
+/** v2 (19 Aug 2026): supersedes v1's $7k/$15k/80–90 ladder. The $15k
+ * always-walkthrough rule is DELETED — the per-jobtype caps replace it.
+ * All four numbers are Settings values (wizard_policy). */
 export type WizardPolicySettings = {
-  minAccuracyPctToAccept: number;
-  smallJobMinAccuracyPct: number;
-  smallJobThresholdCents: number;
-  walkthroughAlwaysAboveCents: number;
+  interiorSelfServeCapCents: number;
+  interiorSelfServeMinAccuracyPct: number;
+  exteriorSelfServeCapCents: number;
+  exteriorSelfServeMinAccuracyPct: number;
   minJobCents: number;
 };
 
 export const DEFAULT_POLICY: WizardPolicySettings = {
-  minAccuracyPctToAccept: 80,
-  smallJobMinAccuracyPct: 90,
-  smallJobThresholdCents: 700_000,
-  walkthroughAlwaysAboveCents: 1_500_000,
+  interiorSelfServeCapCents: 600_000,
+  interiorSelfServeMinAccuracyPct: 90,
+  exteriorSelfServeCapCents: 1_200_000,
+  exteriorSelfServeMinAccuracyPct: 85,
   minJobCents: 200_000,
 };
 
@@ -48,10 +53,10 @@ const num = (v: unknown, fallback: number): number =>
 export function policyFromSettings(value: unknown): WizardPolicySettings {
   const v = (value ?? {}) as Record<string, unknown>;
   return {
-    minAccuracyPctToAccept: num(v.minAccuracyPctToAccept, DEFAULT_POLICY.minAccuracyPctToAccept),
-    smallJobMinAccuracyPct: num(v.smallJobMinAccuracyPct, DEFAULT_POLICY.smallJobMinAccuracyPct),
-    smallJobThresholdCents: num(v.smallJobThresholdCents, DEFAULT_POLICY.smallJobThresholdCents),
-    walkthroughAlwaysAboveCents: num(v.walkthroughAlwaysAboveCents, DEFAULT_POLICY.walkthroughAlwaysAboveCents),
+    interiorSelfServeCapCents: num(v.interiorSelfServeCapCents, DEFAULT_POLICY.interiorSelfServeCapCents),
+    interiorSelfServeMinAccuracyPct: num(v.interiorSelfServeMinAccuracyPct, DEFAULT_POLICY.interiorSelfServeMinAccuracyPct),
+    exteriorSelfServeCapCents: num(v.exteriorSelfServeCapCents, DEFAULT_POLICY.exteriorSelfServeCapCents),
+    exteriorSelfServeMinAccuracyPct: num(v.exteriorSelfServeMinAccuracyPct, DEFAULT_POLICY.exteriorSelfServeMinAccuracyPct),
     minJobCents: num(v.minJobCents, DEFAULT_POLICY.minJobCents),
   };
 }
@@ -223,18 +228,26 @@ export function evaluateGuardrails(
     return { outcome: "below_floor", reasons: ["below_minimum"], walkthroughRequired: false, canAccept: false };
   }
 
-  // ---- 5. reveal, inside the walkthrough policy -----------------------------
+  // ---- 5. reveal, inside the v2 sign-off ladder -----------------------------
+  // Self-serve = interior <= cap at >= 90%, OR straightforward exterior
+  // <= cap at >= 85% (straightforwardness itself rides requiresSiteCheck:
+  // double storey, peeling, rot, custom surfaces and flags all set it).
+  // A mixed interior+exterior job is always the visit tier. Never a blocked
+  // state — the visit tier is an offer with the calendar right there.
   const softReasons = reasons; // e.g. heritage_unsure — noted for staff, not blocking
   let walkthrough = requiresSiteCheck;
   if (requiresSiteCheck) softReasons.push("site_check_required");
-  if (totalCents != null && totalCents >= policy.walkthroughAlwaysAboveCents) {
-    walkthrough = true; softReasons.push("large_job");
+  const isExteriorish = a.jobType !== "interior";
+  if (a.jobType === "both") {
+    walkthrough = true; softReasons.push("mixed_scope");
   }
-  if (accuracyPct < policy.minAccuracyPctToAccept) {
-    walkthrough = true; softReasons.push("accuracy_below_floor");
+  const cap = isExteriorish ? policy.exteriorSelfServeCapCents : policy.interiorSelfServeCapCents;
+  const minAcc = isExteriorish ? policy.exteriorSelfServeMinAccuracyPct : policy.interiorSelfServeMinAccuracyPct;
+  if (totalCents != null && totalCents > cap) {
+    walkthrough = true; softReasons.push("over_self_serve_cap");
   }
-  if (totalCents != null && totalCents < policy.smallJobThresholdCents && accuracyPct < policy.smallJobMinAccuracyPct) {
-    walkthrough = true; softReasons.push("small_job_needs_tight_accuracy");
+  if (accuracyPct < minAcc) {
+    walkthrough = true; softReasons.push("accuracy_below_bar");
   }
 
   return {

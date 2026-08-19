@@ -652,7 +652,11 @@ export default function QuoteBuilder({
       // accept_estimate copies it straight onto the new work order, so an accepted
       // job is bookable on the scheduling board immediately instead of waiting for
       // someone to remember to press Issue.
-      builder_state: { blocks, modSel, contact, jobAddress, materials, materialColours, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, aiDeferred, woDoc: computeWorkOrderDoc() },
+      // R4 (diagnostic §2a): SPREAD what was loaded before writing the builder's
+      // keys — the old fixed key list silently dropped builder_state.wizard
+      // (the answers + proving snapshot), prepPack, sidesLoop and interiorLoop
+      // on every staff save. Keys the builder owns still overwrite.
+      builder_state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, aiDeferred, woDoc: computeWorkOrderDoc() },
       share_token: token,
       presentation_id: presentationId,
       sent_snapshot: buildCustomerDoc(token),

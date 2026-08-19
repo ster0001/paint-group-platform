@@ -536,11 +536,21 @@ export async function POST(request: Request) {
       ? db.from("estimates").update({ storey_heights: storeyHeights }).eq("id", estimateId)
           .then(() => undefined, () => undefined)
       : Promise.resolve(),
-    // Every AI-drafted exterior carries requires_site_check until a human
-    // clears it deliberately (migration 20260910's rule). Needs the column
-    // grant from migration 20260917 on the staff path - report a refusal
-    // loudly rather than letting the safety flag silently stay false.
-    wantsExterior
+    // v2 ladder ruling: a STRAIGHTFORWARD exterior (single storey, condition
+    // good/weathered, the exterior question set answered) may self-serve
+    // under its cap — so only a NON-straightforward exterior carries
+    // requires_site_check from birth. Double storey, peeling, a missing
+    // question set (the staff path), or a mixed interior+exterior job all
+    // still flag it; editor actions (custom surfaces, rot, geometry flags)
+    // add it later. Needs the column grant from migration 20260917 on the
+    // staff path — report a refusal loudly rather than letting the safety
+    // flag silently stay false.
+    wantsExterior && (
+      !state.exterior
+      || state.jobType === "both"
+      || state.exterior.storeys === "double"
+      || state.exterior.condition === "peeling"
+    )
       ? db.from("estimates").update({ requires_site_check: true }).eq("id", estimateId)
           .then((r) => { if (r.error) reportError(r.error, { where: "wizard.submit.requiresSiteCheck", bestEffort: true, extra: { estimateId } }); })
       : Promise.resolve(),

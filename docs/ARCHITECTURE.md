@@ -627,3 +627,32 @@ the PREP PACK into builder_state (kind, slot, customer-removed substrates
 from telemetry, flags/not-sures) and capture shows it as the verify-mode
 banner — rooms pre-filled (A5), confirm-as-you-walk flips provenance to
 human_confirmed (capture's commit semantics).
+
+## Wizard rebuild R0–R4 (19–20 Aug 2026)
+
+The customer estimate flow was rebuilt to the four reference mockups
+(`design/reference/`: floorplan-wizard, customer-review-confirm interior,
+customer-review-confirm-exterior-v2-SIDES, scope-editor workflow), per
+`docs/briefs/wizard-rebuild-plan-v2.md` + the confirm-loop addendum.
+R1.1: wizard-edit's payload follows an explicit `view=customer|staff`
+(never the caller's role) — `lib/wizard/contract.ts` throws in dev on a
+wrong shape. R1.2: unsure door/window styles price at default rates
+(ai_assumed, amber "style to confirm"), never a silent $0. R1.3: one
+floorplan (replace-not-add), condition photos never require a plan
+(run-less `/api/extract/photos` keeps them), exterior has no floorplan
+field. R1.4: ONE confidence function (`accuracy.ts:roomConfidencePct`)
+feeds header, cards and bands; unverified trees cap at 65%. R2: pure
+exterior branches at job type into its own five pages (state.exterior →
+`exteriorSurfaceKeys`). R2b: the exterior editor is a BY-SIDES confirm
+loop (`lib/wizard/sides.ts`, meta in builder_state.sidesLoop) — wall
+%-mix with a served 100% rule, window groups with S/M/L bands, skipped
+sides = isOption (outside totals AND accuracy). R3: the interior editor is
+a room-by-room confirm loop (`lib/wizard/rooms-loop.ts`, meta in
+builder_state.interiorLoop) — L×W size questions, cupboard questions by
+room type (cabinetry rate items, migration 20260920), custom surfaces as
+unpriced amber flags that route to the visit tier. R4: the v2 sign-off
+ladder in `policy.ts` (interior ≤$6k @≥90 / straightforward exterior
+≤$12k @≥85, $15k rule deleted, all Settings values); QuoteBuilder saves
+now SPREAD loaded builder_state (the fixed key list silently dropped
+wizard/prepPack/loop state). The journey suite `e2e/customer-journey/`
+drives all of it as the definition of done.
