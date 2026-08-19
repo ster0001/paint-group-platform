@@ -12,9 +12,9 @@ import { extractionSchema } from "@/lib/extract/schema";
 import { SCOPE_VERSION, type Alias, type ScopeRule } from "@/lib/extract/scope";
 import type { DefectRate } from "@/lib/capture/commit";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
-import { applyWizardAnswers } from "@/lib/wizard/merge";
-import { ceilingHeightFrom, wizardStateSchema } from "@/lib/wizard/state";
-import { backfillTypicalSizes, markStarterProvenance, starterExteriorNodes, starterExtraction, starterRoomList, type TypicalSizeRow } from "@/lib/wizard/starter";
+import { applyWizardAnswers, filterSurfacesByTicks } from "@/lib/wizard/merge";
+import { ceilingHeightFrom, wizardStateSchema, type WizardSurfaceKey } from "@/lib/wizard/state";
+import { backfillTypicalSizes, exteriorExtrasNodes, markStarterProvenance, starterExteriorNodes, starterExtraction, starterRoomList, type TypicalSizeRow } from "@/lib/wizard/starter";
 import { customerPayload, editorPayload } from "@/lib/wizard/view";
 import {
   GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails,
@@ -306,10 +306,16 @@ export async function POST(request: Request) {
   // measures becomes priced Exterior nodes; what doesn't stays deferred and
   // the job carries requires_site_check — never derived from interior rooms.
   const wantsExterior = state.jobType !== "interior";
+  const tickedSurfaces = new Set<WizardSurfaceKey>(effectiveState.surfaces);
   let envelope: ReturnType<typeof computeEnvelope> | null = null;
   if (wantsExterior && (elevationReads.length > 0 || sitePlanRead)) {
     envelope = computeEnvelope(mergeSitePlanWidths(elevationReads, sitePlanRead));
-    const envNodes = envelopeToAreaNodes(envelope, () => nextId++, facadeSourceId);
+    // A2: the page-2 ticks govern the envelope's lines too — an unticked
+    // substrate (gutters not being done) never becomes a priced line.
+    const envNodes = filterSurfacesByTicks(
+      envelopeToAreaNodes(envelope, () => nextId++, facadeSourceId),
+      tickedSurfaces,
+    );
     if (envNodes.length) {
       merged.areas.push(...envNodes);
       // Specific deferrals replace the blanket "exterior envelope" one.
@@ -336,13 +342,18 @@ export async function POST(request: Request) {
   // the four elevations, unmeasured and flagged, to fill in.
   const hasExteriorNodes = merged.areas.some((a) => a.type === "Exterior");
   if (wantsExterior && !hasExteriorNodes) {
-    const scaffold = starterExteriorNodes(() => nextId++, {
-      wantsWindows: state.surfaces.includes("windows"),
-      wantsDoors: state.surfaces.includes("doors"),
-    });
+    const scaffold = starterExteriorNodes(() => nextId++, tickedSurfaces);
     merged.areas.push(...scaffold.areas);
     merged.deferred = merged.deferred.filter((d) => d.what !== "exterior envelope");
     merged.deferred.push(...scaffold.deferred);
+  }
+
+  // A2: ticked whole-job extras (deck, fence, pergola…) are never measured by
+  // an elevation read — they always arrive as $0 placeholders to measure.
+  if (wantsExterior) {
+    const extras = exteriorExtrasNodes(() => nextId++, tickedSurfaces);
+    merged.areas.push(...extras.areas);
+    merged.deferred.push(...extras.deferred);
   }
 
   const builderState: Record<string, unknown> = {

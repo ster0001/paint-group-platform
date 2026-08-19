@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SUBSTRATE_KEYS, type SubstrateKey } from "@/lib/estimate/substrates";
 
 /**
  * W1: the wizard's state — ONE typed object, shared by the client pages and
@@ -10,13 +11,14 @@ import { z } from "zod";
  * boundary rule as the plan reader's apply route and capture's rooms route.
  */
 
-/** Page-2 surface ticks. Keys, not labels — labels live with the UI. */
-export const WIZARD_SURFACE_KEYS = [
-  "walls", "ceilings", "cornices", "doors", "architraves", "skirting", "windows", "staircase",
-] as const;
-export type WizardSurfaceKey = (typeof WIZARD_SURFACE_KEYS)[number];
+/** Page-2 surface ticks — the substrate registry's keys (A2: one source of
+ * truth; interior AND exterior, the offered subset depends on the job type
+ * and the loaded rate card). Keys, not labels — labels live in the registry. */
+export const WIZARD_SURFACE_KEYS = SUBSTRATE_KEYS;
+export type WizardSurfaceKey = SubstrateKey;
 
-/** The usual full repaint, pre-ticked (mockup PRE set). */
+/** The usual interior full repaint — the pre-ticked set before the rate card
+ * loads. Pages with rate data use defaultSurfacesFor() instead. */
 export const DEFAULT_SURFACES: WizardSurfaceKey[] = [
   "walls", "ceilings", "cornices", "doors", "architraves", "skirting",
 ];

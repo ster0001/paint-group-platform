@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SCOPE_VERSION } from "@/lib/extract/scope";
+import { substrateOptionsFromRates } from "@/lib/estimate/substrates";
 import WizardApp from "./WizardApp";
 
 /**
@@ -25,13 +26,16 @@ export default async function WizardPage() {
   if (profile?.role !== "staff") redirect("/dashboard");
 
   // Room types that actually have scope rules — the editor's add-room chips.
-  const { data: rules } = await supabase
-    .from("room_type_scope_rules")
-    .select("room_type")
-    .eq("version", SCOPE_VERSION);
+  // Rate items drive page 2's substrate lists (A2): names only reach the
+  // client, never the rates themselves.
+  const [{ data: rules }, { data: rateItems }] = await Promise.all([
+    supabase.from("room_type_scope_rules").select("room_type").eq("version", SCOPE_VERSION),
+    supabase.from("rate_items").select("code, category"),
+  ]);
   const roomTypes = [...new Set((rules ?? []).map((r) => r.room_type as string))]
     .filter((t) => !["exterior", "unknown", "excluded", "exterior_excluded"].includes(t))
     .sort();
+  const substrates = substrateOptionsFromRates(rateItems ?? []);
 
-  return <WizardApp roomTypes={roomTypes} />;
+  return <WizardApp roomTypes={roomTypes} substrates={substrates} />;
 }

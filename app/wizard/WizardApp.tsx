@@ -6,10 +6,10 @@ import {
   defaultCustomer,
   defaultWizardState,
   pageForPath,
-  WIZARD_SURFACE_KEYS,
   type WizardState,
   type WizardSurfaceKey,
 } from "@/lib/wizard/state";
+import { defaultSurfacesFor, type SubstrateGroups } from "@/lib/estimate/substrates";
 import type { CustomerPayload, WizardEditorPayload } from "@/lib/wizard/view";
 import Editor from "./Editor";
 import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
@@ -26,17 +26,6 @@ import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
  * most of the model work is already done.
  */
 
-const SURFACE_LABELS: Record<WizardSurfaceKey, string> = {
-  walls: "Walls",
-  ceilings: "Ceilings",
-  cornices: "Cornices",
-  doors: "Doors",
-  architraves: "Architraves",
-  skirting: "Skirting boards",
-  windows: "Windows",
-  staircase: "Staircase",
-};
-
 type Screen = "pages" | "processing" | "editor";
 
 type SubmitResult = WizardEditorPayload & {
@@ -47,12 +36,18 @@ type SubmitResult = WizardEditorPayload & {
   warnings: string[];
 };
 
-export default function WizardApp({ roomTypes, mode = "internal" }: { roomTypes: string[]; mode?: "internal" | "customer" }) {
-  const [state, setState] = useState<WizardState>(() =>
-    mode === "customer"
-      ? { ...defaultWizardState(), mode: "customer", customer: defaultCustomer() }
-      : defaultWizardState(),
-  );
+export default function WizardApp({ roomTypes, substrates, mode = "internal" }: {
+  roomTypes: string[];
+  /** A2: the offered surface lists, derived server-side from the rate card. */
+  substrates: SubstrateGroups;
+  mode?: "internal" | "customer";
+}) {
+  const [state, setState] = useState<WizardState>(() => {
+    const base = mode === "customer"
+      ? { ...defaultWizardState(), mode: "customer" as const, customer: defaultCustomer() }
+      : defaultWizardState();
+    return { ...base, surfaces: defaultSurfacesFor(base.jobType, substrates) };
+  });
   const [page, setPage] = useState(1);
   const [screen, setScreen] = useState<Screen>("pages");
   const isCustomer = mode === "customer";
@@ -309,14 +304,14 @@ export default function WizardApp({ roomTypes, mode = "internal" }: { roomTypes:
           <div className="wz-step" key={page}>
             {page === 1 && (
               <PageProperty
-                state={state} set={set} isCustomer={isCustomer}
+                state={state} set={set} isCustomer={isCustomer} substrates={substrates}
                 planFileCount={planFileCount} facadeFileCount={facadeFileCount} uploading={uploading}
                 planInputRef={planInputRef} facadeInputRef={facadeInputRef}
                 onPlanFiles={uploadPlans} onFacadeFiles={uploadFacades}
               />
             )}
-            {page === 2 && <PageSurfaces state={state} set={set} />}
-            {page === 3 && <PageCondition state={state} set={set} />}
+            {page === 2 && <PageSurfaces state={state} set={set} substrates={substrates} />}
+            {page === 3 && <PageCondition state={state} set={set} substrates={substrates} />}
             {page === 4 && (
               <PageDetails
                 state={state} set={set} damageInputRef={damageInputRef} isCustomer={isCustomer}
@@ -379,11 +374,12 @@ function Seg<T extends string>({ options, value, onPick }: {
 // ---- page 1: the property ---------------------------------------------------
 
 function PageProperty({
-  state, set, isCustomer = false, planFileCount, facadeFileCount, uploading, planInputRef, facadeInputRef, onPlanFiles, onFacadeFiles,
+  state, set, isCustomer = false, substrates, planFileCount, facadeFileCount, uploading, planInputRef, facadeInputRef, onPlanFiles, onFacadeFiles,
 }: {
   state: WizardState;
   set: (p: Partial<WizardState>) => void;
   isCustomer?: boolean;
+  substrates: SubstrateGroups;
   planFileCount: number;
   facadeFileCount: number;
   uploading: boolean;
@@ -504,7 +500,17 @@ function PageProperty({
           { v: "both" as const, label: "Both" },
         ]}
         value={state.jobType}
-        onPick={(v) => set({ jobType: v })}
+        onPick={(v) => {
+          if (v === state.jobType) return;
+          // A2: the job type decides which substrate lists page 2 offers —
+          // re-tick the defaults for the new type so an exterior job never
+          // carries interior ticks (and vice versa).
+          set({
+            jobType: v,
+            surfaces: defaultSurfacesFor(v, substrates),
+            condition: { ...state.condition, darkToLightSurfaces: [] },
+          });
+        }}
       />
 
       {isCustomer && state.customer && (
@@ -563,7 +569,11 @@ function PageProperty({
 
 // ---- page 2: surfaces -------------------------------------------------------
 
-function PageSurfaces({ state, set }: { state: WizardState; set: (p: Partial<WizardState>) => void }) {
+function PageSurfaces({ state, set, substrates }: {
+  state: WizardState;
+  set: (p: Partial<WizardState>) => void;
+  substrates: SubstrateGroups;
+}) {
   const toggle = (k: WizardSurfaceKey) => {
     const on = state.surfaces.includes(k);
     const surfaces = on ? state.surfaces.filter((x) => x !== k) : [...state.surfaces, k];
@@ -571,25 +581,45 @@ function PageSurfaces({ state, set }: { state: WizardState; set: (p: Partial<Wiz
     const darkToLightSurfaces = state.condition.darkToLightSurfaces.filter((x) => surfaces.includes(x));
     set({ surfaces, condition: { ...state.condition, darkToLightSurfaces } });
   };
+  // A2: the offered lists follow the job type — data from the rate card,
+  // never a list written into a component. "Both" shows the two as sections.
+  const groups: Array<{ heading: string | null; options: SubstrateGroups["interior"] }> =
+    state.jobType === "interior" ? [{ heading: null, options: substrates.interior }]
+    : state.jobType === "exterior" ? [{ heading: null, options: substrates.exterior }]
+    : [
+        { heading: "Inside", options: substrates.interior },
+        { heading: "Outside", options: substrates.exterior },
+      ];
   return (
     <>
       <p className="wz-kick">Step 2 of 5 · Surfaces</p>
       <h1>What&rsquo;s being painted?</h1>
       <p className="wz-sub">We&rsquo;ve pre-ticked the usual full repaint — untick anything that isn&rsquo;t being done.</p>
-      <div className="wz-tiles">
-        {WIZARD_SURFACE_KEYS.map((k) => (
-          <button key={k} className={`wz-tile ${state.surfaces.includes(k) ? "on" : ""}`} onClick={() => toggle(k)}>
-            {SURFACE_LABELS[k]}
-          </button>
-        ))}
-      </div>
+      {groups.map((g) => (
+        <div key={g.heading ?? "all"}>
+          {g.heading && <p className="wz-qhead">{g.heading}</p>}
+          <div className="wz-tiles">
+            {g.options.map((o) => (
+              <button key={o.key} className={`wz-tile ${state.surfaces.includes(o.key) ? "on" : ""}`} onClick={() => toggle(o.key)}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
     </>
   );
 }
 
 // ---- page 3: condition ------------------------------------------------------
 
-function PageCondition({ state, set }: { state: WizardState; set: (p: Partial<WizardState>) => void }) {
+function PageCondition({ state, set, substrates }: {
+  state: WizardState;
+  set: (p: Partial<WizardState>) => void;
+  substrates: SubstrateGroups;
+}) {
+  const labelFor = (k: WizardSurfaceKey) =>
+    [...substrates.interior, ...substrates.exterior].find((o) => o.key === k)?.label ?? k;
   const tiers = [
     { v: "fresh" as const, coats: "1 COAT", b: "Freshen up", s: "Same colours, colour-matched — one coat brings it back to life." },
     { v: "change" as const, coats: "2 COATS", b: "Change of colour", s: "New colours throughout — generally two coats to all surfaces." },
@@ -632,7 +662,7 @@ function PageCondition({ state, set }: { state: WizardState; set: (p: Partial<Wi
                     },
                   })}
                 >
-                  {SURFACE_LABELS[k]}
+                  {labelFor(k)}
                 </button>
               );
             })}
