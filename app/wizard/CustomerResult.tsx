@@ -5,6 +5,7 @@ import RoomCard from "@/app/components/scope/RoomCard";
 import PlanViewer from "./PlanViewer";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import type { CustomerPayload } from "@/lib/wizard/view";
+import { assertCustomerShape } from "@/lib/wizard/contract";
 
 /**
  * Step 8: what the customer sees after submitting — either a guardrail
@@ -68,10 +69,12 @@ export default function CustomerResult({ outcome, reveal, roomTypes }: {
       const res = await fetch(`/api/estimates/${reveal!.estimateId}/wizard-edit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        // R1.1: the result screen renders the CUSTOMER payload — declared.
+        body: JSON.stringify({ ...body, view: "customer" }),
       });
       const j: { error?: string } & CustomerPayload = await res.json();
       if (!res.ok) { flash(j.error ?? "That didn't save — try again."); return; }
+      assertCustomerShape(j, "CustomerResult");
       setPayload(j);
       flash(done);
     } catch {

@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import RoomCard from "@/app/components/scope/RoomCard";
 import PlanViewer from "./PlanViewer";
 import type { WizardEditorPayload, WizardRoomView } from "@/lib/wizard/view";
+import { assertStaffShape } from "@/lib/wizard/contract";
 
 /**
  * W3: the editor. Internal mode — point price and margin visible, no email
@@ -94,10 +95,12 @@ export default function Editor({ initial, roomTypes }: Props) {
         const res = await fetch(`/api/estimates/${initial.estimateId}/wizard-edit`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
+          // R1.1: the internal editor renders the STAFF payload — declared.
+          body: JSON.stringify({ ...body, view: "staff" }),
         });
         const j: { error?: string } & WizardEditorPayload = await res.json();
         if (!res.ok) { flash(j.error ?? "That didn't save — try again."); return; }
+        assertStaffShape(j, "wizard/Editor");
         setServerPayload(j);
         flash(done);
       } catch {

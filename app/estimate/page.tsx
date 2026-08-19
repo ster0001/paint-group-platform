@@ -29,17 +29,20 @@ export default async function CustomerWizardPage() {
     isStaff = profile?.role === "staff";
   }
 
-  // The public flag + reference data are read with the service client — an
-  // anonymous visitor has no table access, deliberately.
+  // Reference data: an anonymous visitor has no table access, deliberately —
+  // their reads go through the service client. Staff preview uses the
+  // session client + RLS like every other staff flow (service.ts's own rule),
+  // so a dev machine without the service key can still preview the wizard.
   const svc = createServiceClient();
+  const ref = svc ?? (isStaff ? supabase : null);
   let enabled = false;
   let roomTypes: string[] = [];
   let substrates: SubstrateGroups = { interior: [], exterior: [] };
-  if (svc) {
+  if (ref) {
     const [{ data: flagRow }, { data: rules }, { data: rateItems }] = await Promise.all([
-      svc.from("settings").select("value").eq("key", "wizard_public").maybeSingle(),
-      svc.from("room_type_scope_rules").select("room_type").eq("version", SCOPE_VERSION),
-      svc.from("rate_items").select("code, category"),
+      ref.from("settings").select("value").eq("key", "wizard_public").maybeSingle(),
+      ref.from("room_type_scope_rules").select("room_type").eq("version", SCOPE_VERSION),
+      ref.from("rate_items").select("code, category"),
     ]);
     enabled = (flagRow?.value as { enabled?: boolean } | null)?.enabled === true;
     roomTypes = [...new Set((rules ?? []).map((r) => r.room_type as string))]
