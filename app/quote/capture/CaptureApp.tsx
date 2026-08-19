@@ -45,11 +45,7 @@ type Totals = { subtotalCents: number; totalCents: number; contractorHours: numb
 const money = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
 export default function CaptureApp({
-<<<<<<< HEAD
-  estimateId, estimateTitle, rules, presets, defectRates, rateItems = [], jobMod = 1, initialStoreyHeights, derivedStoreyHeights = null, initialRooms,
-=======
-  estimateId, estimateTitle, rules, presets, defectRates, rateItems = [], jobMod = 1, windowSizes = { small: 0.8, large: 1.2 }, initialStoreyHeights, initialRooms,
->>>>>>> feat/a6-window-sizes
+  estimateId, estimateTitle, rules, presets, defectRates, rateItems = [], jobMod = 1, windowSizes = { small: 0.8, large: 1.2 }, initialStoreyHeights, derivedStoreyHeights = null, initialRooms,
 }: {
   estimateId: string;
   estimateTitle: string;
@@ -202,14 +198,10 @@ export default function CaptureApp({
     for (const s of room.surfaces) {
       const tile = tiles.find((t) => t.rateCode === s.code);
       if (!tile) continue;
-<<<<<<< HEAD
       // Fractional tiles (wet-area walls) count taps as quarters: 4 = the
       // whole surface. A rebuilt full surface must arrive at 4, not 1 (25%).
       draft.selections[tile.id] = tile.fractional ? 4 : tile.countable ? s.count : 1;
-=======
-      draft.selections[tile.id] = tile.countable ? s.count : 1;
       if (s.size) draft.sizes = { ...(draft.sizes ?? {}), [tile.id]: s.size };
->>>>>>> feat/a6-window-sizes
       if (s.prepHr) draft.prepHours[tile.id] = s.prepHr;
       if (s.coats !== 2) draft.coats[tile.id] = s.coats;
       if (s.crewNote) draft.crewNotes[tile.id] = s.crewNote;
