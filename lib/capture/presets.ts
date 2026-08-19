@@ -46,6 +46,8 @@ export type SurfaceTile = {
   sortOrder: number;
   /** Wet-area walls: taps cycle 25/50/75/100% instead of on/off. */
   fractional?: boolean;
+  /** Exterior cladding: taps cycle DOWN — 100/75/50/25% then off. */
+  descending?: boolean;
 };
 
 /**
@@ -80,7 +82,45 @@ const GROUP_ORDER: Record<string, number> = { core: 0, openings: 1, joinery: 2, 
  * joinery -> extras, then sort_order, then name - so the grid reads the same
  * way in every room and nobody hunts for Walls.
  */
+/**
+ * Exterior elevations: capture is one PLANE (width x height), not a room.
+ * Built-in tile set so exterior capture works on every database — a
+ * room_type_scope_rules row for exterior_elevation still wins when present.
+ * Cladding taps cycle DOWN (100/75/50/25%) because an elevation is usually
+ * all one cladding and partly another, not the other way around.
+ */
+const EXTERIOR_ELEVATION_TILES: SurfaceTile[] = [
+  ...([["Weatherboards", 10], ["Render", 11], ["Stucco", 12], ["Brick", 13]] as Array<[string, number]>)
+    .map(([code, sort]): SurfaceTile => ({
+      id: `exterior_elevation:${code}`, surfaceType: code, label: code, tileLabel: code,
+      rateCode: code, measureBasis: "plane_area", group: "core", defaultOn: false,
+      countable: false, requiresConfirm: false, sortOrder: sort, fractional: true, descending: true,
+    })),
+  ...([["Fascias", 20], ["Gutters", 21], ["Eaves", 22], ["Downpipes", 23], ["Soffits / Exterior Ceilings", 24]] as Array<[string, number]>)
+    .map(([code, sort]): SurfaceTile => ({
+      id: `exterior_elevation:${code}`, surfaceType: code, label: code, tileLabel: code,
+      rateCode: code, measureBasis: "elevation_length", group: "core", defaultOn: false,
+      countable: false, requiresConfirm: false, sortOrder: sort,
+    })),
+  ...([["Fixed / Picture Window", "Windows", 30], ["Front Door", "Entry door", 31], ["Standard Door (1 Side)", "Standard door", 32], ["Garage Door (1 Car)", "Garage door (1 car)", 33], ["Garage Door (2 Car)", "Garage door (2 car)", 34]] as Array<[string, string, number]>)
+    .map(([code, label, sort]): SurfaceTile => ({
+      id: `exterior_elevation:${code}`, surfaceType: code, label, tileLabel: label,
+      rateCode: code, measureBasis: "per_item", group: "openings", defaultOn: false,
+      countable: true, requiresConfirm: false, sortOrder: sort,
+    })),
+  ...([["Deck Painting", "Deck", "manual_m2", 40], ["Paling Fence", "Fence", "manual_lin", 41], ["Pergola", "Pergola", "manual_lin", 42], ["Hand Rails", "Hand rails", "manual_lin", 43], ["Pressure Washing", "Pressure washing", "manual_m2", 44]] as Array<[string, string, MeasureBasis, number]>)
+    .map(([code, label, basis, sort]): SurfaceTile => ({
+      id: `exterior_elevation:${code}`, surfaceType: code, label, tileLabel: label,
+      rateCode: code, measureBasis: basis, group: "extras", defaultOn: false,
+      countable: basis === "manual_m2" || basis === "manual_lin" ? false : true, requiresConfirm: false, sortOrder: sort,
+    })),
+];
+
 export function tilesForRoomType(roomType: string, rules: TileRule[]): SurfaceTile[] {
+  if ((roomType === "exterior_elevation" || roomType === "exterior")
+      && !rules.some((r) => r.room_type === roomType)) {
+    return EXTERIOR_ELEVATION_TILES;
+  }
   return rules
     .filter((r) => r.room_type === roomType)
     .map((r): SurfaceTile => ({

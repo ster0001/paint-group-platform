@@ -476,13 +476,24 @@ function CaptureScreen({
   const set = (patch: Partial<RoomDraft>) => onChange({ ...draft, ...patch });
   const tap = (t: SurfaceTile) => {
     const cur = draft.selections[t.id] ?? 0;
-    // Wet-area walls cycle 25% -> 50% -> 75% -> 100% -> off.
-    const next = t.fractional ? (cur >= 4 ? 0 : cur + 1) : t.countable ? cur + 1 : cur > 0 ? 0 : 1;
+    // Wet-area walls cycle UP 25 -> 100% -> off; exterior cladding cycles
+    // DOWN 100 -> 75 -> 50 -> 25% -> off (first tap = the whole elevation).
+    const next = t.descending ? (cur === 0 ? 4 : cur - 1)
+      : t.fractional ? (cur >= 4 ? 0 : cur + 1)
+      : t.countable ? cur + 1 : cur > 0 ? 0 : 1;
     set({ selections: { ...draft.selections, [t.id]: next } });
   };
   const dec = (t: SurfaceTile) => set({ selections: { ...draft.selections, [t.id]: Math.max(0, (draft.selections[t.id] ?? 0) - 1) } });
 
+  const isElevation = draft.roomType.startsWith("exterior");
   const qty = (t: SurfaceTile, count: number): string | null => {
+    if (t.measureBasis === "plane_area" || t.measureBasis === "elevation_length") {
+      if (draft.lengthM <= 0) return null;
+      if (t.measureBasis === "elevation_length") return `${draft.lengthM.toFixed(1)} m`;
+      const full = resolveQuantity({ basis: "plane_area", geo });
+      if (t.fractional && count > 0 && count < 4) return `${count * 25}% · ${Math.round(full * count / 4 * 10) / 10} m²`;
+      return `${full} m²`;
+    }
     if (draft.lengthM <= 0 || draft.widthM <= 0) return null;
     switch (t.measureBasis) {
       case "wall_area": {
@@ -499,8 +510,11 @@ function CaptureScreen({
 
   const groups: Array<SurfaceTile["group"]> = ["core", "openings", "joinery", "extras"];
   const warnings: string[] = [];
-  if (draft.lengthM <= 0 || draft.widthM <= 0) warnings.push("L and W needed");
-  if (plaus === "suspicious") warnings.push("perimeter looks implausible for L×W");
+  if (isElevation) {
+    if (draft.lengthM <= 0) warnings.push("width needed");
+    if (draft.heightM <= 0) warnings.push("height needed");
+  } else if (draft.lengthM <= 0 || draft.widthM <= 0) warnings.push("L and W needed");
+  if (!isElevation && plaus === "suspicious") warnings.push("perimeter looks implausible for L×W");
   if (Object.values(draft.selections).every((n) => n <= 0)) warnings.push("no surfaces selected");
 
   return (
@@ -509,12 +523,12 @@ function CaptureScreen({
         <div className="flex items-center justify-between">
           <input value={draft.name} onChange={(e) => set({ name: e.target.value })}
             className="w-40 rounded border border-transparent px-1 text-base font-semibold hover:border-gray-300" />
-          <span className="text-xs text-gray-500">{draft.roomType} · {draft.storey}</span>
+          <span className="text-xs text-gray-500">{isElevation ? "elevation · one plane, width × height" : `${draft.roomType} · ${draft.storey}`}</span>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
-          {(["lengthM", "widthM"] as const).map((k) => (
+          {(isElevation ? (["lengthM"] as const) : (["lengthM", "widthM"] as const)).map((k) => (
             <label key={k} className="flex items-center gap-1">
-              <span className="text-xs text-gray-500">{k === "lengthM" ? "L" : "W"}</span>
+              <span className="text-xs text-gray-500">{isElevation ? "Width" : k === "lengthM" ? "L" : "W"}</span>
               <input type="number" inputMode="decimal" step="0.05" min="0" value={draft[k] || ""}
                 onChange={(e) => set({ [k]: Number(e.target.value) } as Partial<RoomDraft>)}
                 className="w-20 rounded border border-gray-300 px-2 py-1" />
@@ -586,7 +600,7 @@ function CaptureScreen({
 }
 
 /** The chips offered per surface - the brief's interior set, in rate-table keys. */
-const CHIP_TYPES = ["peeling", "water_damage", "plaster_cracks", "holes_dents", "previous_poor_finish"];
+const CHIP_TYPES = ["peeling", "water_damage", "plaster_cracks", "holes_dents", "previous_poor_finish", "needs_bogging", "needs_stripping", "scraping_filling", "caulking"];
 
 function RoomReview({
   draft, rules, defectRates, rateItems = [], category = "Interior", jobMod = 1, windowSizes = { small: 0.8, large: 1.2 }, onChange, onBack, onNextRoom,
@@ -627,6 +641,8 @@ function RoomReview({
     else if (t.measureBasis === "ceiling_area") qty = resolveQuantity({ basis: "ceiling_area", geo });
     else if (t.measureBasis === "perimeter") qty = resolveQuantity({ basis: "perimeter", geo });
     else if (t.measureBasis === "wall_area") qty = resolveQuantity({ basis: "wall_area", geo }) * (t.fractional ? Math.min(count, 4) / 4 : 1);
+    else if (t.measureBasis === "plane_area") qty = resolveQuantity({ basis: "plane_area", geo }) * (t.fractional ? Math.min(count, 4) / 4 : 1);
+    else if (t.measureBasis === "elevation_length") qty = resolveQuantity({ basis: "elevation_length", geo });
     // A6: parity with priceSurface — the size multiplier scales window hours.
     const size = draft.sizes?.[t.id];
     const sizeMul = !/window/i.test(item.sub_category ?? "") ? 1

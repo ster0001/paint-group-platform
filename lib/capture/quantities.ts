@@ -19,7 +19,10 @@ export type MeasureBasis =
   | "perimeter_less_doors"
   | "per_item"
   | "manual_m2"
-  | "manual_lin";
+  | "manual_lin"
+  /* exterior elevations: one plane, width x height / lineal width */
+  | "plane_area"
+  | "elevation_length";
 
 export type RoomGeometry = {
   lengthM: number;
@@ -81,6 +84,10 @@ export function resolveQuantity(input: QuantityInput): number {
     case "manual_m2":
     case "manual_lin":
       return round2(Math.max(0, input.manualValue ?? 0));
+    case "plane_area":
+      return round2(geo.lengthM * geo.heightM);
+    case "elevation_length":
+      return round2(geo.lengthM);
   }
 }
 

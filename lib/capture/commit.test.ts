@@ -227,3 +227,34 @@ describe("capture -> builder parity", () => {
     expect(node.captureDraft.status).toBe("complete");
   });
 });
+
+// ---- exterior elevations: one plane, fractional cladding -------------------
+import { tilesForRoomType as tilesFor, expandCaptureTiles as expandTiles } from "./presets";
+
+it("exterior_elevation gets the built-in tile set when no rules exist", () => {
+  const tiles = expandTiles(tilesFor("exterior_elevation", []));
+  const codes = tiles.map((t) => t.rateCode);
+  expect(codes).toEqual(expect.arrayContaining(["Weatherboards", "Render", "Stucco", "Brick", "Fascias", "Gutters", "Eaves", "Downpipes", "Fixed / Picture Window", "Front Door"]));
+  const wb = tiles.find((t) => t.rateCode === "Weatherboards")!;
+  expect(wb).toMatchObject({ fractional: true, descending: true, measureBasis: "plane_area" });
+  expect(tiles.find((t) => t.rateCode === "Fixed / Picture Window")!.countable).toBe(true);
+});
+
+it("an elevation commits as a SURFACE plane: m2 = W×H, lineal = W, fractions scale", () => {
+  const tiles = expandTiles(tilesFor("exterior_elevation", []));
+  const d = emptyDraft("e1", "Exterior - Front", "exterior_elevation", "ground", 2.6);
+  d.lengthM = 12; d.heightM = 2.6; d.widthM = 0;
+  d.selections = {
+    "exterior_elevation:Weatherboards": 3, // 75%
+    "exterior_elevation:Gutters": 1,
+    "exterior_elevation:Fixed / Picture Window": 4,
+  };
+  let id = 500;
+  const node = draftToAreaNode(d, tiles, () => id++, { exterior: true });
+  expect(node.type).toBe("Exterior");
+  expect(node.areaType).toBe("surface");
+  const wb = node.surfaces.find((s) => s.code === "Weatherboards")!;
+  expect(wb.qtyOverride).toBeCloseTo(12 * 2.6 * 0.75, 2); // 75% of the plane
+  expect(node.surfaces.find((s) => s.code === "Gutters")!.qtyOverride).toBeNull(); // full lineal = L, derived
+  expect(node.surfaces.find((s) => s.code === "Fixed / Picture Window")!.count).toBe(4);
+});
