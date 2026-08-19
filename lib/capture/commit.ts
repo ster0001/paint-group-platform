@@ -80,6 +80,11 @@ export const DEFECT_LABELS: Record<string, string> = {
   needs_stripping: "Needs stripping",
   scraping_filling: "Scraping & filling",
   caulking: "Caulking",
+  // R1.3: four types the reader emits that previously rendered as raw enums.
+  render_cracks: "Render cracks",
+  efflorescence: "Efflorescence",
+  rust: "Rust",
+  timber_rot: "Timber rot",
 };
 
 const DEFECT_UNIT_LABEL: Record<string, string> = { m2: "m2", lin_m: "lin m", each: "x" };
