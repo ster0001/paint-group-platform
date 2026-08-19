@@ -14,7 +14,7 @@ import type { DefectRate } from "@/lib/capture/commit";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { applyWizardAnswers } from "@/lib/wizard/merge";
 import { ceilingHeightFrom, wizardStateSchema } from "@/lib/wizard/state";
-import { markStarterProvenance, starterExtraction, starterRoomList, type TypicalSizeRow } from "@/lib/wizard/starter";
+import { backfillTypicalSizes, markStarterProvenance, starterExteriorNodes, starterExtraction, starterRoomList, type TypicalSizeRow } from "@/lib/wizard/starter";
 import { customerPayload, editorPayload } from "@/lib/wizard/view";
 import {
   GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails,
@@ -240,6 +240,9 @@ export async function POST(request: Request) {
         { status: 422 },
       );
     }
+    // Plan-read rooms are often undimensioned (WC, bathroom, laundry): pre-size
+    // them from their typicals, flagged to confirm (features #4 + #5).
+    backfillTypicalSizes(areas, typicals);
   }
 
   // ---- facade photos: elevation readings for the envelope (E2) -------------
@@ -325,6 +328,21 @@ export async function POST(request: Request) {
     if (envelope.wholeHouseCheck) {
       merged.deferred.push({ room: "Exterior", areaId: null, what: "site check", count: 1, needs: envelope.wholeHouseCheck });
     }
+  }
+
+  // Feature #2: an exterior/both job that measured NO exterior surfaces (no
+  // facade photos, or a floorplan with no cladding read) still needs the
+  // exterior scaffold — otherwise the estimator sees interior only. Lay out
+  // the four elevations, unmeasured and flagged, to fill in.
+  const hasExteriorNodes = merged.areas.some((a) => a.type === "Exterior");
+  if (wantsExterior && !hasExteriorNodes) {
+    const scaffold = starterExteriorNodes(() => nextId++, {
+      wantsWindows: state.surfaces.includes("windows"),
+      wantsDoors: state.surfaces.includes("doors"),
+    });
+    merged.areas.push(...scaffold.areas);
+    merged.deferred = merged.deferred.filter((d) => d.what !== "exterior envelope");
+    merged.deferred.push(...scaffold.deferred);
   }
 
   const builderState: Record<string, unknown> = {

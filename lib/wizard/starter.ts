@@ -46,6 +46,28 @@ export function typicalSize(roomType: string, rows: TypicalSizeRow[]): { L: numb
   return FALLBACK_TYPICALS[roomType] ?? FALLBACK_TYPICALS.bedroom;
 }
 
+/**
+ * Plan-read rooms are often UNDIMENSIONED (a WC, bathroom, laundry rarely
+ * carries printed dimensions on a marketing plan), so they arrive at L/W = 0
+ * and price at $0 with no size to confirm. Fill any such interior room from
+ * its room-type typical, flagged ai_assumed + assumedFields L/W, so it shows
+ * "typical size — confirm" and the estimator adjusts rather than starts from
+ * nothing. Mutates in place. (Feature #5, and the fix behind #4: a WC that
+ * had no size to save now arrives pre-sized at 1.25 × 1.0.)
+ */
+export function backfillTypicalSizes(areas: DraftArea[], typicals: TypicalSizeRow[]): void {
+  for (const a of areas) {
+    if (a.type !== "Interior") continue;
+    if (Number(a.L) > 0 && Number(a.W) > 0) continue;
+    const size = typicalSize(a.roomType, typicals);
+    a.L = size.L;
+    a.W = size.W;
+    a.origin = "ai_assumed";
+    a.confidence = Math.min(a.confidence, 0.5);
+    for (const f of ["L", "W"]) if (!a.assumedFields.includes(f)) a.assumedFields.push(f);
+  }
+}
+
 export type StarterRoom = {
   name: string;
   roomType: string;
@@ -185,4 +207,68 @@ export function markStarterProvenance(areas: DraftArea[]): void {
       if (!a.assumedFields.includes(f)) a.assumedFields.push(f);
     }
   }
+}
+
+/**
+ * Feature #2: a STARTER EXTERIOR scaffold. An exterior/both job whose envelope
+ * measured nothing (no facade photos, or a floorplan with no cladding read)
+ * used to produce ZERO exterior surfaces — the estimator saw only interior.
+ * This lays out the four elevations with the usual exterior substrates,
+ * UNMEASURED (priced $0, flagged for site check), so the estimator has the
+ * scaffold to enter real measurements in the builder. No numbers are invented:
+ * every line is a placeholder awaiting a measurement, consistent with the E1
+ * rule that the envelope is measured, never derived.
+ */
+function extSurface(id: number, code: string): DraftSurfaceLike {
+  return {
+    id, code, internalLabel: code, clientLabel: code,
+    coats: 2, count: 1, hidden: false, media: [],
+    measureL: null, measureH: null, qtyOverride: null,
+    rateOverride: null, paintingHrOverride: null, prepHr: 0, priceOverride: null,
+    productName: null, color: "", colorHex: "", coverageOverride: null,
+    volumeOverride: null, unitPriceOverride: null, crewNote: "",
+    hideQty: false, showCoats: false, showPrice: false, useCustomRate: false,
+    customRate: null, open: false,
+    origin: "ai_assumed", confidence: 0.4, assumedFields: ["exterior_envelope"],
+  };
+}
+
+type DraftSurfaceLike = DraftArea["surfaces"][number];
+
+export function starterExteriorNodes(
+  nextId: () => number,
+  opts: { wantsWindows?: boolean; wantsDoors?: boolean } = {},
+): { areas: DraftArea[]; deferred: Array<{ room: string; areaId: number | null; what: string; count: number; needs: string; kind?: string }> } {
+  const elevations = ["Front", "Left", "Right", "Rear"] as const;
+  const areas: DraftArea[] = [];
+  const deferred: Array<{ room: string; areaId: number | null; what: string; count: number; needs: string; kind?: string }> = [];
+
+  for (const name of elevations) {
+    const id = nextId();
+    const surfaces: DraftSurfaceLike[] = [
+      extSurface(nextId(), "Weatherboards"), // the default wall cladding; swap in the builder
+      extSurface(nextId(), "Fascias"),
+      extSurface(nextId(), "Gutters"),
+      extSurface(nextId(), "Eaves"),
+    ];
+    if (opts.wantsWindows) surfaces.push(extSurface(nextId(), "Awning / Casement Window"));
+    if (opts.wantsDoors) surfaces.push(extSurface(nextId(), "Front Door"));
+
+    areas.push({
+      id, kind: "area", name: `Exterior - ${name}`, type: "Exterior", areaType: "surface",
+      roomType: "exterior", storey: "ground",
+      L: 0, W: 0, H: 0,
+      isOption: false, description: "", open: false, media: [],
+      origin: "ai_assumed", confidence: 0.4,
+      assumedFields: ["exterior_envelope", "width_from_plan"],
+      extractionSourceId: null,
+      surfaces,
+    });
+    deferred.push({
+      room: `Exterior - ${name}`, areaId: id, what: "wall + trim measurements", count: 1,
+      needs: "width measurement required - measure this elevation on site and enter it in the builder",
+      kind: "exterior_width",
+    });
+  }
+  return { areas, deferred };
 }

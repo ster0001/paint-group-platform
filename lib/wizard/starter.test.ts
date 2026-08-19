@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 import { buildDraft } from "@/lib/extract/draft";
 import type { ScopeRule } from "@/lib/extract/scope";
 import {
+  backfillTypicalSizes,
   FALLBACK_TYPICALS,
   markStarterProvenance,
+  starterExteriorNodes,
   starterExtraction,
   starterRoomList,
   typicalSize,
 } from "./starter";
+import type { DraftArea } from "@/lib/extract/draft";
 import type { WizardBasics } from "./state";
 
 const basics = (over: Partial<WizardBasics> = {}): WizardBasics => ({
@@ -116,5 +119,61 @@ describe("starterExtraction → buildDraft", () => {
     expect(x.ceiling_height_m).toBeNull();
     expect(x.rooms.find((r) => r.name_on_plan === "Bathroom")?.wet_area).toBe(true);
     expect(x.rooms.find((r) => r.name_on_plan === "Bed 1")?.wet_area).toBe(false);
+  });
+});
+
+describe("backfillTypicalSizes (#4/#5)", () => {
+  const area = (over: Partial<DraftArea>): DraftArea => ({
+    id: 1, kind: "area", name: "WC", type: "Interior", areaType: "room", roomType: "wc",
+    L: 0, W: 0, H: 2.4, storey: "ground", isOption: false, description: "", open: false, media: [],
+    surfaces: [], origin: "ai_extracted", confidence: 0.9, assumedFields: [], extractionSourceId: null,
+    ...over,
+  });
+
+  it("pre-sizes an undimensioned WC from its typical, flagged to confirm", () => {
+    const wc = area({});
+    backfillTypicalSizes([wc], []);
+    expect(wc.L).toBe(FALLBACK_TYPICALS.wc.L); // 1.25
+    expect(wc.W).toBe(FALLBACK_TYPICALS.wc.W); // 1.0
+    expect(wc.origin).toBe("ai_assumed");
+    expect(wc.assumedFields).toContain("L");
+    expect(wc.assumedFields).toContain("W");
+  });
+
+  it("leaves a dimensioned room untouched", () => {
+    const bed = area({ roomType: "bedroom", L: 3.5, W: 3.2, origin: "ai_extracted", assumedFields: [] });
+    backfillTypicalSizes([bed], []);
+    expect(bed.L).toBe(3.5);
+    expect(bed.origin).toBe("ai_extracted");
+  });
+
+  it("ignores exterior areas (they measure from their own sources)", () => {
+    const ext = area({ type: "Exterior", roomType: "exterior" });
+    backfillTypicalSizes([ext], []);
+    expect(ext.L).toBe(0);
+  });
+});
+
+describe("starterExteriorNodes (#2)", () => {
+  it("lays out four elevations with exterior substrates, unmeasured + flagged", () => {
+    let id = 100;
+    const { areas, deferred } = starterExteriorNodes(() => id++, { wantsWindows: true, wantsDoors: true });
+    expect(areas.map((a) => a.name)).toEqual([
+      "Exterior - Front", "Exterior - Left", "Exterior - Right", "Exterior - Rear",
+    ]);
+    expect(areas.every((a) => a.type === "Exterior")).toBe(true);
+    // Unmeasured: L/W/H all zero, priced at $0 until the estimator fills them.
+    expect(areas.every((a) => a.L === 0 && a.H === 0)).toBe(true);
+    const front = areas[0];
+    expect(front.surfaces.map((s) => s.code)).toContain("Weatherboards");
+    expect(front.surfaces.map((s) => s.code)).toContain("Fascias");
+    expect(front.surfaces.some((s) => /Window/.test(s.code))).toBe(true);
+    expect(front.assumedFields).toContain("exterior_envelope");
+    // Every elevation raises a "measure on site" deferral.
+    expect(deferred).toHaveLength(4);
+    expect(deferred.every((d) => d.kind === "exterior_width")).toBe(true);
+    // Ids are unique across areas and surfaces.
+    const ids = areas.flatMap((a) => [a.id, ...a.surfaces.map((s) => s.id)]);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });
