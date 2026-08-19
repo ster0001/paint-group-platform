@@ -19,6 +19,11 @@ import {
   applySideSizeOk, applyWallShare, applyWindowSize, confirmSide, defaultSidesLoop, sidesView,
   type SidesLoopMeta,
 } from "@/lib/wizard/sides";
+import {
+  CUPBOARD_BY_ROOM_TYPE, addRoomCustom, addRoomWindowGroup, applyCupboard, applyRoomDims,
+  applyRoomSizeOk, applyRoomWindowSize, confirmRoom, defaultInteriorLoop, interiorDwTotals,
+  interiorProgress, roomLoopViews, type InteriorLoopMeta,
+} from "@/lib/wizard/rooms-loop";
 import { customerPayload, editorPayload, type WizardDeferred } from "@/lib/wizard/view";
 import {
   GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails,
@@ -108,6 +113,17 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("loop_dw"), ok: z.boolean() }),
   z.object({ action: z.literal("loop_sweep"), ans: z.enum(["none"]).optional(), add: z.string().min(1).max(60).optional() }),
   z.object({ action: z.literal("confirm_loop_item"), item: z.enum(["extras", "cond", "dw", "sweep"]) }),
+  // ---- R3: the interior confirm loop --------------------------------------
+  z.object({ action: z.literal("room_size_ok"), areaId: z.number().int().positive() }),
+  z.object({ action: z.literal("room_dims"), areaId: z.number().int().positive(), lengthM: z.number().min(1).max(15), widthM: z.number().min(1).max(15) }),
+  z.object({ action: z.literal("room_cupboard"), areaId: z.number().int().positive(), on: z.boolean(), count: z.number().int().min(1).max(40).nullable().default(null) }),
+  z.object({ action: z.literal("room_win_size"), areaId: z.number().int().positive(), surfaceId: z.number().int().positive(), size: z.enum(["S", "M", "L"]) }),
+  z.object({ action: z.literal("room_add_window_group"), areaId: z.number().int().positive() }),
+  z.object({ action: z.literal("room_custom"), areaId: z.number().int().positive(), name: z.string().min(1).max(120) }),
+  z.object({ action: z.literal("confirm_room_loop"), areaId: z.number().int().positive() }),
+  z.object({ action: z.literal("iloop_dw"), ok: z.boolean() }),
+  z.object({ action: z.literal("iloop_sweep"), ans: z.enum(["none"]) }),
+  z.object({ action: z.literal("confirm_iloop_item"), item: z.enum(["dw", "sweep"]) }),
 ]);
 
 
@@ -503,6 +519,63 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     sidesMeta = { ...sidesMeta, done: { ...m.done, [act.item]: true } };
   }
 
+  // ---- R3: the interior confirm loop ---------------------------------------
+  let interiorMeta: InteriorLoopMeta = ((state.interiorLoop as InteriorLoopMeta | undefined) ?? defaultInteriorLoop());
+  if (act.action === "room_size_ok" || act.action === "room_dims" || act.action === "room_cupboard"
+    || act.action === "room_win_size" || act.action === "room_add_window_group" || act.action === "room_custom"
+    || act.action === "confirm_room_loop") {
+    let next = Math.max(0, ...blocks.flatMap((b) => [
+      Number(b.id) || 0, ...(b.surfaces ?? []).map((s) => Number(s.id) || 0),
+    ])) + 1;
+    const snapForWin = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
+    let cupboardApplies = false;
+    if (act.action === "confirm_room_loop") {
+      const room = blocks.find((b) => b.kind === "area" && Number(b.id) === act.areaId);
+      const cfg = CUPBOARD_BY_ROOM_TYPE[String(room?.roomType ?? "")];
+      cupboardApplies = !!cfg && (await ctxPromise).rateItems.some((r) => r.code === cfg.code);
+    }
+    const result =
+      act.action === "room_size_ok" ? applyRoomSizeOk(blocks, act.areaId)
+      : act.action === "room_dims" ? applyRoomDims(blocks, act.areaId, act.lengthM, act.widthM)
+      : act.action === "room_cupboard" ? applyCupboard(blocks, act.areaId, act.on, act.count, () => next++)
+      : act.action === "room_win_size" ? applyRoomWindowSize(blocks, act.areaId, act.surfaceId, act.size)
+      : act.action === "room_add_window_group" ? addRoomWindowGroup(blocks, act.areaId, snapForWin.success ? snapForWin.data : null, () => next++)
+      : act.action === "room_custom" ? addRoomCustom(blocks, act.areaId, act.name)
+      : confirmRoom(blocks, act.areaId, cupboardApplies);
+    if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
+    blocks = result.blocks as LooseBlock[];
+    if (act.action === "room_dims") {
+      // A wildly changed size gets human eyes at review — quiet flag, never
+      // a block: the customer knows their house better than the plan does.
+      deferred.push({
+        room: String(blocks.find((b) => Number(b.id) === act.areaId)?.name ?? "Room"),
+        areaId: act.areaId, what: "size corrected by customer", count: 1,
+        needs: `customer set this room to ${act.lengthM} × ${act.widthM} m — sanity-check at review`,
+      });
+    }
+    if (act.action === "room_custom") {
+      deferred.push({
+        room: String(blocks.find((b) => Number(b.id) === act.areaId)?.name ?? "Room"),
+        areaId: act.areaId, what: `custom surface: "${act.name.trim().slice(0, 80)}"`, count: 1,
+        needs: "price this WITH the customer — never silently", kind: "custom_surface",
+      });
+      await flagSiteCheck();
+    }
+  }
+  if (act.action === "iloop_dw") interiorMeta = { ...interiorMeta, dwOk: act.ok ? true : null };
+  if (act.action === "iloop_sweep") interiorMeta = { ...interiorMeta, sweepAns: "none" };
+  if (act.action === "add_room") {
+    // Adding a room IS the sweep's answer — it appears as a new amber card.
+    interiorMeta = { ...interiorMeta, sweepAns: "added" };
+  }
+  if (act.action === "confirm_iloop_item") {
+    const missing = act.item === "dw" ? interiorMeta.dwOk !== true : interiorMeta.sweepAns == null;
+    if (missing) {
+      return NextResponse.json({ error: "One question above still needs an answer — it's marked REQUIRED." }, { status: 400 });
+    }
+    interiorMeta = { ...interiorMeta, done: { ...interiorMeta.done, [act.item]: true } };
+  }
+
   let newDeferred = deferred;
   if (act.action === "remove_room") {
     const before = blocks.length;
@@ -519,7 +592,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     newDeferred = deferred.filter((d) => d.areaId == null || d.areaId !== act.areaId);
   }
 
-  const newState = { ...state, blocks, aiDeferred: newDeferred, sidesLoop: sidesMeta };
+  const newState = { ...state, blocks, aiDeferred: newDeferred, sidesLoop: sidesMeta, interiorLoop: interiorMeta };
   const { error: writeError } = await db
     .from("estimates")
     .update({ builder_state: newState })
@@ -597,6 +670,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       exterior: customerExteriorView(blocks),
       // R2b: the sides confirm loop's full view (null when no sides exist).
       sides: sidesView(blocks, sidesMeta),
+      // R3: the interior confirm loop — rooms joined by areaId, plus the
+      // totals check and sweep state. Cupboard questions are data-driven off
+      // the live rate card.
+      interiorLoop: {
+        rooms: roomLoopViews(blocks, new Set(ctx.rateItems.map((r) => r.code))),
+        dw: { ...interiorDwTotals(blocks), ok: interiorMeta.dwOk },
+        meta: interiorMeta,
+        progress: interiorProgress(blocks, interiorMeta),
+      },
       ladder: { tier: selfServe ? "self_serve" : "visit", visitSlots: offeredVisitSlots(flags) },
     });
   }

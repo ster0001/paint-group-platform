@@ -1,0 +1,234 @@
+import { makeDraftSurface } from "@/lib/extract/draft";
+import { doorRateCode, windowRateCode } from "@/lib/extract/scope";
+import { substrateKeyForRateCode } from "@/lib/estimate/substrates";
+import { windowStyleToSchema, type WizardState } from "./state";
+
+/**
+ * R3: the interior confirm loop (reference:
+ * customer-review-confirm-mockup.html; rebuild addendum §1–2).
+ *
+ * Pure helpers over the same interior room blocks everything else reads.
+ * Room answers ride ON the block (`customer.size`, `customer.cup`,
+ * `customer.confirmed`); the non-room loop items (doors & windows totals
+ * check, missed-rooms sweep) keep their answers in
+ * builder_state.interiorLoop.
+ */
+
+export type InteriorLoopMeta = {
+  dwOk: boolean | null;
+  sweepAns: "none" | "added" | null;
+  done: { dw: boolean; sweep: boolean };
+};
+
+export function defaultInteriorLoop(): InteriorLoopMeta {
+  return { dwOk: null, sweepAns: null, done: { dw: false, sweep: false } };
+}
+
+type LooseSurface = Record<string, unknown> & { id?: number; code?: string; count?: number };
+export type LooseBlock = Record<string, unknown> & {
+  id?: number; kind?: string; name?: string; type?: string; roomType?: string;
+  L?: number; W?: number; H?: number;
+  surfaces?: LooseSurface[];
+  customer?: { size: "yes" | "adjusted" | null; cup: boolean | null; confirmed: boolean };
+  customerCustom?: string[];
+  assumedFields?: unknown;
+  origin?: unknown; confidence?: unknown;
+};
+
+/** Cupboard questions by room type (rebuild addendum §2). The question only
+ * renders when its rate item exists on the active card — data-driven, so an
+ * un-migrated card simply asks nothing. */
+export const CUPBOARD_BY_ROOM_TYPE: Record<string, {
+  code: string; question: string; unit: string; defaultCount: number; note: string;
+}> = {
+  kitchen: {
+    code: "Kitchen Cupboard Front",
+    question: "Are we painting the kitchen cupboards?",
+    unit: "doors & drawer fronts", defaultCount: 14,
+    note: "Cupboards are spray-finished for a smooth, factory-style result — doors, drawer fronts and frames.",
+  },
+  bedroom: {
+    code: "Robe Door",
+    question: "Paint the built-in robe doors?",
+    unit: "robe doors", defaultCount: 2, note: "",
+  },
+  bathroom: {
+    code: "Vanity Door",
+    question: "Paint the vanity cupboard?",
+    unit: "vanity doors", defaultCount: 2, note: "",
+  },
+  laundry: {
+    code: "Vanity Door",
+    question: "Paint the laundry cupboard?",
+    unit: "cupboard doors", defaultCount: 2, note: "",
+  },
+};
+
+const isInteriorRoom = (b: LooseBlock) =>
+  b.kind === "area" && b.type !== "Exterior" && b.areaType !== "surface";
+
+const customerOf = (b: LooseBlock) =>
+  b.customer ?? { size: null as "yes" | "adjusted" | null, cup: null as boolean | null, confirmed: false };
+
+export type RoomsLoopResult = { ok: true; blocks: LooseBlock[] } | { ok: false; error: string };
+
+function withRoom(blocks: LooseBlock[], areaId: number, fn: (b: LooseBlock) => string | void): RoomsLoopResult {
+  const room = blocks.find((b) => isInteriorRoom(b) && Number(b.id) === areaId);
+  if (!room) return { ok: false, error: "No such room." };
+  const copy: LooseBlock = { ...room, surfaces: (room.surfaces ?? []).map((s) => ({ ...s })), customer: { ...customerOf(room) } };
+  const err = fn(copy);
+  if (err) return { ok: false, error: err };
+  return { ok: true, blocks: blocks.map((b) => (b === room ? copy : b)) };
+}
+
+export function applyRoomSizeOk(blocks: LooseBlock[], areaId: number): RoomsLoopResult {
+  return withRoom(blocks, areaId, (b) => {
+    b.customer = { ...customerOf(b), size: "yes" };
+  });
+}
+
+/** The L × W adjust — metres, clamped 1–15 per side (a toast's job to say
+ * so, never a block); reprices via the engine, provenance customer_stated.
+ * m² stays internal: everything customer-facing displays L × W. */
+export function applyRoomDims(blocks: LooseBlock[], areaId: number, lengthM: number, widthM: number): RoomsLoopResult {
+  return withRoom(blocks, areaId, (b) => {
+    if (!(lengthM >= 1 && lengthM <= 15) || !(widthM >= 1 && widthM <= 15)) {
+      return "Sides run 1–15 m — pace it out, near enough is fine.";
+    }
+    b.L = lengthM; b.W = widthM;
+    b.origin = "customer_stated"; b.confidence = 0.85;
+    b.assumedFields = (Array.isArray(b.assumedFields) ? (b.assumedFields as string[]) : []).filter((f) => f !== "L" && f !== "W");
+    b.customer = { ...customerOf(b), size: "adjusted" };
+  });
+}
+
+/** The cupboard answer. Yes adds the priced cabinetry line (count defaults
+ * by room type); No records the answer and removes any line — a recorded
+ * answer, never an omission. */
+export function applyCupboard(
+  blocks: LooseBlock[], areaId: number, on: boolean, count: number | null, nextId: () => number,
+): RoomsLoopResult {
+  return withRoom(blocks, areaId, (b) => {
+    const cfg = CUPBOARD_BY_ROOM_TYPE[String(b.roomType ?? "")];
+    if (!cfg) return "This room has no cupboard question.";
+    const surfaces = (b.surfaces ?? []).filter((s) => String(s.code) !== cfg.code);
+    if (on) {
+      const n = Math.min(40, Math.max(1, count ?? cfg.defaultCount));
+      const line = makeDraftSurface(nextId(), cfg.code, cfg.unit, n, "customer_stated", 0.85, []) as unknown as LooseSurface;
+      surfaces.push(line);
+    }
+    b.surfaces = surfaces;
+    b.customer = { ...customerOf(b), cup: on };
+  });
+}
+
+const WINDOW_FACTOR: Record<"S" | "M" | "L", number> = { S: 0.8, M: 1, L: 1.2 };
+
+export function applyRoomWindowSize(blocks: LooseBlock[], areaId: number, surfaceId: number, size: "S" | "M" | "L"): RoomsLoopResult {
+  return withRoom(blocks, areaId, (b) => {
+    const line = (b.surfaces ?? []).find((s) => Number(s.id) === surfaceId
+      && substrateKeyForRateCode(String(s.code ?? "")) === "windows");
+    if (!line) return "That window group isn't in this room.";
+    line.sizeBand = size;
+    const count = Number(line.count) || 1;
+    line.qtyOverride = size === "M" ? null : Math.round(count * WINDOW_FACTOR[size] * 100) / 100;
+  });
+}
+
+/** "+ More windows — a different size": interior window GROUPS, at the
+ * wizard-answered style (default rate when unsure — R1.2's rule). */
+export function addRoomWindowGroup(blocks: LooseBlock[], areaId: number, snapshot: WizardState | null, nextId: () => number): RoomsLoopResult {
+  return withRoom(blocks, areaId, (b) => {
+    const code = windowRateCode(windowStyleToSchema(snapshot?.details.windowStyle ?? "unsure")) ?? "Awning / Casement Window";
+    const line = makeDraftSurface(nextId(), code, "More windows", 1, "customer_stated", 0.75, ["style"]) as unknown as LooseSurface;
+    line.sizeBand = "M";
+    b.surfaces = [...(b.surfaces ?? []), line];
+  });
+}
+
+/** A named custom surface: an amber flag tile, recorded — NEVER priced. */
+export function addRoomCustom(blocks: LooseBlock[], areaId: number, name: string): RoomsLoopResult {
+  return withRoom(blocks, areaId, (b) => {
+    b.customerCustom = [...(b.customerCustom ?? []), name.trim().slice(0, 120)];
+  });
+}
+
+/** Confirm one room — refuses by name while a required question is open. */
+export function confirmRoom(blocks: LooseBlock[], areaId: number, cupboardApplies: boolean): RoomsLoopResult {
+  return withRoom(blocks, areaId, (b) => {
+    const c = customerOf(b);
+    if (c.size == null) return "The size question still needs an answer — “Looks right” or adjust it.";
+    if (cupboardApplies && c.cup == null) return "The cupboard question still needs an answer — yes or no is all it takes.";
+    b.customer = { ...c, confirmed: true };
+  });
+}
+
+export function interiorDwTotals(blocks: LooseBlock[]): { doors: number; windows: number } {
+  let doors = 0; let windows = 0;
+  for (const b of blocks) {
+    if (!isInteriorRoom(b)) continue;
+    for (const s of b.surfaces ?? []) {
+      const k = substrateKeyForRateCode(String(s.code ?? ""));
+      if (k === "doors") doors += Number(s.count) || 1;
+      if (k === "windows") windows += Number(s.count) || 1;
+    }
+  }
+  return { doors, windows };
+}
+
+export function interiorProgress(blocks: LooseBlock[], meta: InteriorLoopMeta): { done: number; total: number; allDone: boolean } {
+  const rooms = blocks.filter(isInteriorRoom);
+  const done = rooms.filter((b) => b.customer?.confirmed).length
+    + Number(meta.done.dw) + Number(meta.done.sweep);
+  const total = rooms.length + 2;
+  return { done, total, allDone: rooms.length > 0 && done === total };
+}
+
+/** Per-room loop view, joined by areaId onto the tile view the editor
+ * already renders. Cupboard applicability is decided by the ROUTE against
+ * the live rate card (data-driven; no card row, no question). */
+export type RoomLoopView = {
+  areaId: number;
+  sizeLabel: string; // "3.5 × 3.25 m" — L × W, never m²
+  size: "yes" | "adjusted" | null;
+  confirmed: boolean;
+  cupboard: null | { question: string; unit: string; on: boolean | null; count: number; note: string };
+  windows: Array<{ id: number; label: string; count: number; sizeBand: "S" | "M" | "L" }>;
+  customs: string[];
+};
+
+export function roomLoopViews(blocks: LooseBlock[], cupboardCodes: ReadonlySet<string>): RoomLoopView[] {
+  const out: RoomLoopView[] = [];
+  for (const b of blocks) {
+    if (!isInteriorRoom(b)) continue;
+    const c = customerOf(b);
+    const cfg = CUPBOARD_BY_ROOM_TYPE[String(b.roomType ?? "")];
+    const applicable = cfg && cupboardCodes.has(cfg.code) ? cfg : null;
+    const cupLine = applicable
+      ? (b.surfaces ?? []).find((s) => String(s.code) === applicable.code)
+      : undefined;
+    out.push({
+      areaId: Number(b.id) || 0,
+      sizeLabel: `${Number(b.L) || 0} × ${Number(b.W) || 0} m`,
+      size: c.size,
+      confirmed: c.confirmed,
+      cupboard: applicable ? {
+        question: applicable.question,
+        unit: applicable.unit,
+        on: c.cup,
+        count: Number(cupLine?.count) || applicable.defaultCount,
+        note: applicable.note,
+      } : null,
+      windows: (b.surfaces ?? [])
+        .filter((s) => substrateKeyForRateCode(String(s.code ?? "")) === "windows")
+        .map((s) => ({
+          id: Number(s.id) || 0,
+          label: String(s.internalLabel ?? "Windows"),
+          count: Number(s.count) || 1,
+          sizeBand: ((s.sizeBand as "S" | "M" | "L" | undefined) ?? "M"),
+        })),
+      customs: b.customerCustom ?? [],
+    });
+  }
+  return out;
+}
