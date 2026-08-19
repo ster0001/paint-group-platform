@@ -24,7 +24,10 @@ export type ExistingRoom = {
   name: string;
   roomType: string | null;
   storey: string;
-  capturedVia: "room_loop" | "builder";
+  /** room_loop = capture-born (lossless re-entry) · assisted = AI-drafted or
+   * customer-stated (wizard, plan reader — rebuilt onto tiles to confirm) ·
+   * builder = hand-built (opens too; builder-only lines survive recommit). */
+  capturedVia: "room_loop" | "assisted" | "builder";
   surfaceCount: number;
   priceCents: number;
   L: number; W: number; H: number;
@@ -42,7 +45,7 @@ type Totals = { subtotalCents: number; totalCents: number; contractorHours: numb
 const money = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
 export default function CaptureApp({
-  estimateId, estimateTitle, rules, presets, defectRates, rateItems = [], jobMod = 1, initialStoreyHeights, initialRooms,
+  estimateId, estimateTitle, rules, presets, defectRates, rateItems = [], jobMod = 1, initialStoreyHeights, derivedStoreyHeights = null, initialRooms,
 }: {
   estimateId: string;
   estimateTitle: string;
@@ -54,11 +57,15 @@ export default function CaptureApp({
    * will actually charge, or a typed "confirmation" writes a wrong override. */
   jobMod?: number;
   initialStoreyHeights: Record<string, number> | null;
+  /** A5: heights derived from the area nodes when none are stored — a wizard
+   * estimate pre-fills the confirm prompt (both storeys) instead of wedging
+   * it on an empty ground-only default. */
+  derivedStoreyHeights?: Record<string, number> | null;
   initialRooms: ExistingRoom[];
 }) {
   const [screen, setScreen] = useState<Screen>({ kind: "picker" });
   const [vocab, setVocab] = useState<"interior" | "exterior">("interior");
-  const [storeyHeights, setStoreyHeights] = useState<Record<string, number>>(initialStoreyHeights ?? DEFAULT_STOREY_HEIGHTS);
+  const [storeyHeights, setStoreyHeights] = useState<Record<string, number>>(initialStoreyHeights ?? derivedStoreyHeights ?? DEFAULT_STOREY_HEIGHTS);
   const [heightsConfirmed, setHeightsConfirmed] = useState(initialStoreyHeights != null);
   const [currentStorey, setCurrentStorey] = useState("ground");
   const [drafts, setDrafts] = useState<RoomDraft[]>([]);
@@ -164,6 +171,9 @@ export default function CaptureApp({
   };
 
   const reenterRoom = (room: ExistingRoom) => {
+    // Keep the vocabulary in step with the room being opened — committing an
+    // exterior elevation under the interior vocab would flip its type.
+    if ((room.roomType ?? "").startsWith("exterior")) setVocab("exterior");
     const local = drafts.find((d) => d.areaId === room.areaId);
     if (local) { setScreen({ kind: "capture", localId: local.localId }); return; }
     // Nodes committed since the captureDraft field carry their exact draft -
@@ -186,7 +196,9 @@ export default function CaptureApp({
     for (const s of room.surfaces) {
       const tile = tiles.find((t) => t.rateCode === s.code);
       if (!tile) continue;
-      draft.selections[tile.id] = tile.countable ? s.count : 1;
+      // Fractional tiles (wet-area walls) count taps as quarters: 4 = the
+      // whole surface. A rebuilt full surface must arrive at 4, not 1 (25%).
+      draft.selections[tile.id] = tile.fractional ? 4 : tile.countable ? s.count : 1;
       if (s.prepHr) draft.prepHours[tile.id] = s.prepHr;
       if (s.coats !== 2) draft.coats[tile.id] = s.coats;
       if (s.crewNote) draft.crewNotes[tile.id] = s.crewNote;
@@ -358,9 +370,14 @@ function AreaPicker({
               <RoomCard key={r.areaId} mode="staff"
                 room={{
                   name: r.name, surfaceCount: r.surfaceCount, totalCents: r.priceCents,
-                  warnings: r.capturedVia === "builder" ? ["built in builder — edit there"] : [],
+                  // A5: every room opens, whoever wrote it. The note says what
+                  // opening means, not that the door is locked.
+                  warnings:
+                    r.capturedVia === "builder" ? ["built in builder — custom lines are kept on save"]
+                    : r.capturedVia === "assisted" ? ["AI-drafted — confirm as you walk"]
+                    : [],
                 }}
-                onOpen={r.capturedVia === "room_loop" ? () => onReenter(r) : undefined} />
+                onOpen={() => onReenter(r)} />
             ))}
           </div>
         </section>

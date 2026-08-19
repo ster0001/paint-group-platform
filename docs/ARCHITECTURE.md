@@ -508,3 +508,17 @@ two-way thread on an estimate. A staff reply (`replyToEstimateChatAction`)
 notifies the customer by SMS and email, both linking to `/e/{token}#chat`,
 which auto-opens the customer chat. Redesigned bubble UI both sides;
 best-effort delivery logged to `estimate_events`, never blocking the message.
+
+**Capture opens any estimate (A5)**: capture is a view over the area tree
+regardless of author. Provenance is derived (`room_loop` / `assisted` for
+AI-drafted or customer-stated / `builder`), every room card opens, and a
+recommit merges instead of replaces (`lib/capture/recommit.ts`): builder-only
+detail (products, colours, photos, rate overrides) carries onto matched
+surfaces, absolute overrides survive only when the surface was untouched, and
+lines no tile can express are preserved verbatim. Wizard exterior nodes'
+`roomType "exterior"` aliases to capture's `exterior_elevation`; the server
+derives Interior/Exterior from the node, not the client's vocab toggle. Null
+`storey_heights` pre-fills the confirm prompt from the blocks themselves
+(`storeyHeightsFromBlocks`) so a double-storey wizard job keeps both storeys;
+recommitted rooms prune their own aiDeferred entries. Parity is tested:
+an untouched wizard room prices identically after a capture round-trip.
