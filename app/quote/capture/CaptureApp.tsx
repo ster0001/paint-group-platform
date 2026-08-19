@@ -19,6 +19,15 @@ import type { RateItem } from "@/lib/pricing/types";
 import { loadCaptureState, saveCaptureState, type CaptureState } from "@/lib/capture/draft-store";
 
 export type NamePreset = { estimate_type: string; name: string; room_type: string; sort_order: number };
+
+/** B2: the customer's build, riding builder_state for the confirming visit. */
+export type PrepPack = {
+  kind: "visit" | "desk_check";
+  slot: string | null;
+  at: string;
+  removedSubstrates: string[];
+  flags: string[];
+};
 export type ExistingRoom = {
   areaId: number;
   name: string;
@@ -45,7 +54,7 @@ type Totals = { subtotalCents: number; totalCents: number; contractorHours: numb
 const money = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
 export default function CaptureApp({
-  estimateId, estimateTitle, rules, presets, defectRates, rateItems = [], jobMod = 1, windowSizes = { small: 0.8, large: 1.2 }, initialStoreyHeights, derivedStoreyHeights = null, initialRooms,
+  estimateId, estimateTitle, rules, presets, defectRates, rateItems = [], jobMod = 1, windowSizes = { small: 0.8, large: 1.2 }, initialStoreyHeights, derivedStoreyHeights = null, initialRooms, prepPack = null,
 }: {
   estimateId: string;
   estimateTitle: string;
@@ -64,6 +73,10 @@ export default function CaptureApp({
    * it on an empty ground-only default. */
   derivedStoreyHeights?: Record<string, number> | null;
   initialRooms: ExistingRoom[];
+  /** B2: present when the customer booked the confirming visit — capture IS
+   * the verify mode: rooms pre-filled, confirm-as-you-walk flips provenance,
+   * the customer's flags and removals ride this banner. */
+  prepPack?: PrepPack | null;
 }) {
   const [screen, setScreen] = useState<Screen>({ kind: "picker" });
   const [vocab, setVocab] = useState<"interior" | "exterior">("interior");
@@ -228,6 +241,21 @@ export default function CaptureApp({
           Exit to builder
         </a>
       </header>
+
+      {prepPack && (
+        <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">
+          <b>{prepPack.kind === "visit" ? `Confirming visit${prepPack.slot ? ` · ${prepPack.slot}` : ""}` : "Customer accepted online — desk check"}</b>
+          <span className="block text-xs text-gray-600">
+            Verify mode: rooms are pre-filled from the customer&apos;s build — confirm as you walk.
+            {prepPack.removedSubstrates.length > 0 && ` Customer removed: ${prepPack.removedSubstrates.join(", ")}.`}
+          </span>
+          {prepPack.flags.length > 0 && (
+            <ul className="mt-1 list-inside list-disc text-xs text-amber-800">
+              {prepPack.flags.map((f) => <li key={f}>{f}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
 
       {restoreOffer && (
         <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">

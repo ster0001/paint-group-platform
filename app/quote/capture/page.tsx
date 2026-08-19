@@ -102,6 +102,7 @@ export default async function CapturePage({
     <CaptureApp
       estimateId={estimate.id}
       estimateTitle={estimate.title ?? "Untitled estimate"}
+      prepPack={(state.prepPack as import("./CaptureApp").PrepPack | undefined) ?? null}
       rules={rules}
       presets={presets}
       defectRates={(defectRatesRes.data ?? []) as import("@/lib/capture/commit").DefectRate[]}

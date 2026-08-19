@@ -2,7 +2,9 @@
 
 import { useMemo, useRef, useState } from "react";
 import type { CustomerPayload } from "@/lib/wizard/view";
-import type { CustomerScopeRoom } from "@/lib/wizard/scope-editor";
+import type { CustomerExteriorView, CustomerScopeRoom, ExteriorExtent } from "@/lib/wizard/scope-editor";
+
+type Ladder = { tier: "self_serve" | "visit"; visitSlots: string[] };
 
 /**
  * Part B (interior + shared): the customer scope editor, matching
@@ -17,19 +19,31 @@ import type { CustomerScopeRoom } from "@/lib/wizard/scope-editor";
  * price exists anywhere in its props.
  */
 
-type Payload = CustomerPayload & { scopeRooms?: CustomerScopeRoom[]; error?: string };
+type Payload = CustomerPayload & {
+  scopeRooms?: CustomerScopeRoom[];
+  exterior?: CustomerExteriorView | null;
+  ladder?: Ladder;
+  error?: string;
+};
 
 const fmt = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
-export default function ScopeEditor({ estimateId, initial, initialRooms, roomTypes, liveRange }: {
+export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialLadder, roomTypes, liveRange }: {
   estimateId: string;
   initial: CustomerPayload;
   initialRooms: CustomerScopeRoom[];
+  initialExterior?: CustomerExteriorView | null;
+  initialLadder?: Ladder;
   roomTypes: string[];
   liveRange: boolean;
 }) {
   const [payload, setPayload] = useState<CustomerPayload>(initial);
   const [rooms, setRooms] = useState<CustomerScopeRoom[]>(initialRooms);
+  const [exterior, setExterior] = useState<CustomerExteriorView | null>(initialExterior);
+  const [ladder, setLadder] = useState<Ladder>(initialLadder ?? { tier: "visit", visitSlots: [] });
+  const [slotsOpen, setSlotsOpen] = useState(false);
+  const [booked, setBooked] = useState<string | null>(null);
+  const [fenceText, setFenceText] = useState("");
   const [busyKeys, setBusyKeys] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<string | null>(null);
   const [flash, setFlash] = useState(0);
@@ -64,6 +78,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, roomTyp
         if (!res.ok) { say(j.error ?? "That didn't save — try again."); return; }
         setPayload(j);
         if (j.scopeRooms) setRooms(j.scopeRooms);
+        if (j.exterior !== undefined) setExterior(j.exterior);
+        if (j.ladder) setLadder(j.ladder);
         if (liveRange) { setFlash((n) => n + 1); }
         if (describe && liveRange) {
           const delta = (j.rangeLoCents + j.rangeHiCents) / 2 - before;
@@ -121,12 +137,15 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, roomTyp
   }
 
   const rangeText = `${fmt(payload.rangeLoCents)} – ${fmt(payload.rangeHiCents)}`;
-  const selfServe = payload.canAccept && !payload.walkthroughRequired;
-  const tierLine = accepted
-    ? "Accepted — our team gives it a final desk check, then your fixed price and booking confirmation follow."
-    : selfServe
-      ? `At ${payload.accuracyPct}% accuracy you can accept online. We confirm details before we start.`
-      : "The final step is a short visit so we can stand behind every number.";
+  const selfServe = ladder.tier === "self_serve";
+  // The visit tier is an offer, never a block (mockup copy verbatim).
+  const tierLine = booked
+    ? "Visit booked — your price is confirmed on the day, then fixed in writing."
+    : accepted
+      ? "Accepted — our team gives it a final desk check, then your fixed price and booking confirmation follow."
+      : selfServe
+        ? `At ${payload.accuracyPct}% accuracy you can accept online. We confirm details before we start.`
+        : "The final step is a short visit so we can stand behind every number.";
 
   return (
     <>
@@ -228,6 +247,64 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, roomTyp
             );
           })}
 
+          {exterior && (
+            <>
+              <div className="sc-geo">
+                <span className="g">{exterior.storeys > 1 ? "DOUBLE" : "SINGLE"} STOREY · <i>FROM YOUR PHOTOS</i></span>
+                <button onClick={() => {
+                  act({ action: "flag_geometry" }, "geo", () => "Flagged — geometry is ours to verify, so your estimator will confirm this on site.");
+                }}>Not right? Tell us</button>
+              </div>
+              {exterior.groups.map((g) => (
+                <div key={g.group}>
+                  <p className="sc-grouplbl">{g.label}</p>
+                  <section className="sc-rc">
+                    <div className="sc-tgrid">
+                      {g.tiles.map((t) => (
+                        <div key={String(t.key)} className={`sc-tl ${t.on ? "on" : ""}`}
+                          role="checkbox" aria-checked={t.on} tabIndex={0}
+                          onClick={() => act({ action: "toggle_exterior", key: String(t.key), on: !t.on }, `ext:${t.key}`, deltaText(t.label, !t.on))}>
+                          {t.label}
+                        </div>
+                      ))}
+                    </div>
+                    {g.group === "body" && (
+                      <div className="sc-seg">
+                        {([["whole", "Whole house"], ["front", "Front only"], ["front_sides", "Front + sides"]] as Array<[ExteriorExtent, string]>).map(([v, l]) => (
+                          <button key={v} className={exterior.extent === v ? "on" : ""}
+                            onClick={() => act({ action: "set_extent", extent: v }, "extent", (d) => `${l}${liveRange && Math.abs(d) >= 100 ? ` — about ${d > 0 ? "+" : "−"}${fmt(Math.abs(d))}` : ""}`)}>
+                            {l}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {g.group === "roofline" && (
+                      <div className="sc-inc">Pre-selected — most exterior quotes include the roofline. Untick anything you don&rsquo;t want.</div>
+                    )}
+                    {g.group === "extras" && (
+                      <div className="sc-else">
+                        <input placeholder="Fence length in metres — or type 'not sure'"
+                          value={fenceText} onChange={(e) => setFenceText(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                          onBlur={() => {
+                            const v = fenceText.trim().toLowerCase();
+                            if (!v) return;
+                            setFenceText("");
+                            if (v.includes("not")) act({ action: "set_fence", metres: null }, "fence", () => "Not a problem — we'll measure it on the day.");
+                            else {
+                              const m = Number(v.replace(/[^0-9.]/g, ""));
+                              if (m > 0) act({ action: "set_fence", metres: m }, "fence", () => `Fence set to ${m} m — range repriced.`);
+                            }
+                          }} />
+                      </div>
+                    )}
+                  </section>
+                </div>
+              ))}
+              <section className="sc-rc"><div className="sc-inc">Prep, access equipment and sundries are allowed for by us and included in your range</div></section>
+            </>
+          )}
+
           <div className="sc-addrooms">
             <p className="q">Are any rooms missing?</p>
             <div className="sc-chips">
@@ -243,24 +320,36 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, roomTyp
       </main>
 
       <div className="sc-stick">
-        <div className={`sc-tier ${selfServe && !accepted ? "" : "visit"}`}><i />{tierLine}</div>
+        <div className={`sc-tier ${selfServe && !accepted && !booked ? "" : "visit"}`}><i />{tierLine}</div>
         <div className="sc-row">
           <div className="sc-pr"><small>ESTIMATE · INCL. GST</small><span>{rangeText}</span></div>
           <div className="sc-sp" />
-          {!accepted && (
+          {!accepted && !booked && (
             <button className="sc-btn" onClick={() => {
               if (selfServe) {
                 setAccepted(true);
-                act({ action: "add_note", areaId: null, note: "CUSTOMER TAPPED ACCEPT in the scope editor — desk check and confirm." }, "accept");
+                act({ action: "accept_intent" }, "accept");
                 say("Accepted — our team gives it a final desk check today, then your fixed price and booking confirmation follow.");
               } else {
-                say("We'll confirm your price with a short visit — booking opens with the exterior update.");
+                setSlotsOpen((v) => !v);
               }
             }}>
               {selfServe ? "Accept estimate" : "Confirm my price — book the visit"}
             </button>
           )}
         </div>
+        {slotsOpen && !booked && (
+          <div className="sc-slots">
+            {ladder.visitSlots.map((slot) => (
+              <button key={slot} onClick={() => {
+                setSlotsOpen(false);
+                setBooked(slot);
+                act({ action: "book_visit", slot }, "book");
+                say("Booked — your estimator arrives with everything you've built here.");
+              }}>{slot.toUpperCase()}</button>
+            ))}
+          </div>
+        )}
       </div>
 
       {toast && <div className="sc-toast">{toast}</div>}
