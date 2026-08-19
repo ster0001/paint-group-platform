@@ -55,7 +55,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
   const isCustomer = mode === "customer";
   const lastPage = isCustomer ? 6 : 5; // customers get the email gate
   const [outcome, setOutcome] = useState<CustomerOutcome | null>(null);
-  const [customerResult, setCustomerResult] = useState<(CustomerPayload & { estimateId: string; planUrl: string | null }) | null>(null);
+  const [customerResult, setCustomerResult] = useState<(CustomerPayload & { estimateId: string; planUrl: string | null; photoWarnings?: string[] }) | null>(null);
 
   // A customer needs an identity before they can upload or submit —
   // an anonymous Supabase session, promoted to an account if they save.
@@ -164,14 +164,17 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
     setUploading(true);
     setError(null);
     try {
-      const out = await stageAndProcess(files, "floorplan");
+      // R1.3: a floorplan is EXACTLY ONE document — a new upload REPLACES the
+      // old one, and the primary run moves with it (it used to pin to the
+      // first-ever upload, so damage photos and the listing cross-check could
+      // only ever attach to the first file).
+      const out = await stageAndProcess(files.slice(0, 1), "floorplan");
       if (!out) return;
       const ids = out.runIds;
-      if (!primaryRunRef.current) primaryRunRef.current = out.primaryRunId ?? ids[0] ?? null;
-      // Kick every page's read off now, in the background.
+      primaryRunRef.current = out.primaryRunId ?? ids[0] ?? null;
       for (const runId of ids) kickRead(runId);
-      setState((s) => ({ ...s, planRunIds: [...s.planRunIds, ...ids], noPlan: false }));
-      setPlanFileCount((n) => n + files.length);
+      setState((s) => ({ ...s, planRunIds: ids, noPlan: false }));
+      setPlanFileCount(1);
     } catch {
       setError("The upload didn't finish — check your connection and try again.");
     } finally {
@@ -220,7 +223,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
    * instead of vanishing. */
   async function analyseDamagePhotos(): Promise<string[]> {
     const files = damageFilesRef.current.slice(0, 12);
-    if (!files.length || !primaryRunRef.current) return [];
+    if (!files.length) return [];
     const issues: string[] = [];
     const supabase = createBrowserClient();
     const staged: Array<{ path: string; name: string }> = [];
@@ -244,7 +247,13 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
         }
       }
       if (!staged.length) return issues.length ? issues : ["The damage photos couldn't be uploaded — add them again in the editor."];
-      const res = await fetch(`/api/extract/${primaryRunRef.current}/photos?purpose=damage`, {
+      // R1.3: condition photos never require a floorplan. With a plan run
+      // they feed the defect reader; without one they are KEPT for the
+      // estimator via the run-less record route — visibly, never silently.
+      const endpoint = primaryRunRef.current
+        ? `/api/extract/${primaryRunRef.current}/photos?purpose=damage`
+        : "/api/extract/photos";
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ uploads: staged }),
@@ -255,6 +264,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
       } else {
         for (const p of (j.perPhoto ?? []) as Array<{ file?: string; error?: string }>) {
           if (p.error) issues.push(`Damage photo "${p.file ?? "photo"}": ${p.error}`);
+        }
+        if (!primaryRunRef.current && Number(j.kept) > 0) {
+          issues.push("Your damage photos are saved with the estimate — your estimator reviews them rather than the automatic reader (no floorplan to attach them to).");
         }
       }
     } catch {
@@ -291,14 +303,15 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
         if (j?.footprintRunId) footprintRunId = j.footprintRunId as string;
       }
     }
-    // 4. The submit rebuilds, merges, prices and scores server-side. With no
-    // plan run there is nowhere for damage photos to have gone — say so
-    // rather than letting the count suppress the review deferral (the server
-    // independently checks the readings for real defect observations).
+    // 4. The submit rebuilds, merges, prices and scores server-side. The
+    // photo count rides as stated: the server treats it as a claim and checks
+    // the READINGS for real defect observations — no observations means it
+    // neutralises the count itself and raises the "damage to price" deferral.
+    // (R1.3: photos without a plan run are now kept via /api/extract/photos,
+    // so the old client-side zeroing both lied and broke the customer gate.)
     const submitState = {
       ...state,
       planRunIds: footprintRunId ? [...state.planRunIds, footprintRunId] : state.planRunIds,
-      details: primaryRunRef.current ? state.details : { ...state.details, damagePhotoCount: 0 },
     };
     const res = await fetch("/api/wizard/submit", {
       method: "POST",
@@ -320,7 +333,13 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
       return;
     }
     if (isCustomer) {
-      setCustomerResult(j as CustomerPayload & { estimateId: string; planUrl: string | null });
+      // R1.3: photo-analysis failures reach the CUSTOMER too — they used to
+      // be attached on the staff branch only, so a customer whose photos
+      // failed was told nothing at all.
+      setCustomerResult({
+        ...(j as CustomerPayload & { estimateId: string; planUrl: string | null }),
+        photoWarnings: photoIssues,
+      });
       setScreen("editor");
       return;
     }
@@ -402,10 +421,12 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
         <div className="wz-wrap wz-proc">
           <div className="wz-ring" />
           <p className={`wz-ln ${procLine >= 1 ? "on" : ""}`}>
-            {state.noPlan || state.planRunIds.length === 0 ? "BUILDING THE ROOM LIST…" : "READING THE FLOORPLAN…"}
+            {state.jobType === "exterior" ? "LOOKING OVER THE OUTSIDE…"
+              : state.noPlan || state.planRunIds.length === 0 ? "BUILDING THE ROOM LIST…" : "READING YOUR FLOORPLAN…"}
           </p>
           <p className={`wz-ln ${procLine >= 2 ? "on" : ""}`}>
-            {state.noPlan || state.planRunIds.length === 0 ? "SIZING ROOMS FROM TYPICAL DIMENSIONS…" : "MEASURING THE ROOMS…"}
+            {state.jobType === "exterior" ? "SETTING OUT THE ELEVATIONS…"
+              : state.noPlan || state.planRunIds.length === 0 ? "SIZING ROOMS FROM TYPICAL DIMENSIONS…" : "MEASURING THE ROOMS…"}
           </p>
           {state.details.damagePhotoCount > 0 && (
             <p className={`wz-ln ${procLine >= 2 ? "on" : ""}`}>ANALYSING THE DAMAGE PHOTOS…</p>
@@ -524,8 +545,9 @@ function PageProperty({
       <p className="wz-kick">Step 1 of 5 · The property</p>
       <h1>Let&rsquo;s look at the place</h1>
       <p className="wz-sub">
-        Paste the real-estate listing if there is one — we&rsquo;ll read the floorplan, photos and address.
-        Or upload a floorplan photo.
+        {state.jobType === "exterior"
+          ? <>Paste the real-estate listing if there is one — we&rsquo;ll read the photos and address. Or add two or three photos of the outside.</>
+          : <>Paste the real-estate listing if there is one — we&rsquo;ll read the floorplan, photos and address. Or upload a floorplan photo.</>}
       </p>
 
       {!isCustomer && (
@@ -583,32 +605,38 @@ function PageProperty({
         value={state.listingUrl}
         onChange={(e) => set({ listingUrl: e.target.value })}
       />
-      <div className="wz-or">OR</div>
-      <input
-        ref={planInputRef} type="file" hidden multiple
-        accept="image/*,application/pdf"
-        onChange={(e) => { onPlanFiles([...(e.target.files ?? [])]); e.target.value = ""; }}
-      />
-      <button
-        className={`wz-upload ${planFileCount ? "done" : ""}`}
-        onClick={() => planInputRef.current?.click()}
-        disabled={uploading}
-      >
-        {planFileCount
-          ? `✓ ${planFileCount} file${planFileCount === 1 ? "" : "s"} uploaded — reading in the background. Add another?`
-          : uploading ? "Uploading…" : "📐 Upload a floorplan — photo or PDF"}
-      </button>
-      <button
-        className="wz-linkish"
-        onClick={() => set({
-          noPlan: !state.noPlan,
-          basics: !state.noPlan && !basics
-            ? { bedrooms: 3, storeys: "single", sizeBand: "s120_200", openPlanKitchenLiving: false }
-            : state.basics,
-        })}
-      >
-        {state.noPlan ? "✓ Using the quick basics instead — tap to undo" : "There isn't a floorplan to hand"}
-      </button>
+      {/* R1.3: floorplans are an INTERIOR document — the exterior path has no
+          floorplan field anywhere (a floorplan is a picture of the inside). */}
+      {state.jobType !== "exterior" && (
+        <>
+          <div className="wz-or">OR</div>
+          <input
+            ref={planInputRef} type="file" hidden
+            accept="image/*,application/pdf"
+            onChange={(e) => { onPlanFiles([...(e.target.files ?? [])]); e.target.value = ""; }}
+          />
+          <button
+            className={`wz-upload ${planFileCount ? "done" : ""}`}
+            onClick={() => planInputRef.current?.click()}
+            disabled={uploading}
+          >
+            {planFileCount
+              ? "✓ Floorplan uploaded — reading in the background. Replace it?"
+              : uploading ? "Uploading…" : "📐 Upload a floorplan — photo or PDF"}
+          </button>
+          <button
+            className="wz-linkish"
+            onClick={() => set({
+              noPlan: !state.noPlan,
+              basics: !state.noPlan && !basics
+                ? { bedrooms: 3, storeys: "single", sizeBand: "s120_200", openPlanKitchenLiving: false }
+                : state.basics,
+            })}
+          >
+            {state.noPlan ? "✓ Using the quick basics instead — tap to undo" : "There isn't a floorplan to hand"}
+          </button>
+        </>
+      )}
 
       {state.noPlan && basics && (
         <div className="wz-follow">
@@ -936,27 +964,23 @@ function PageDetails({ state, set, damageInputRef, hasPlanRuns, isCustomer = fal
       </div>
       {d.damageTier >= 2 && (
         <>
-          {hasPlanRuns ? (
-            <>
-              <input
-                ref={damageInputRef} type="file" hidden multiple accept="image/*"
-                onChange={(e) => { onDamageFiles([...(e.target.files ?? [])]); e.target.value = ""; }}
-              />
-              <button
-                className={`wz-photo-stub ${d.damagePhotoCount ? "done" : ""}`}
-                onClick={() => damageInputRef.current?.click()}
-              >
-                {d.damagePhotoCount
-                  ? `✓ ${d.damagePhotoCount} photo${d.damagePhotoCount === 1 ? "" : "s"} attached — they feed the defect reader, which prices the prep properly`
-                  : "📷 Attach photos of the worst areas — they feed our defect reader, which prices the prep properly"}
-              </button>
-            </>
-          ) : (
-            <p className="wz-photo-stub" style={{ cursor: "default" }}>
-              Without a floorplan the photo reader has nothing to attach to — describe the damage below and
-              it goes to the review queue; photos can be added in the builder afterwards.
-            </p>
-          )}
+          {/* R1.3: condition photos are their own document type and NEVER
+              require a floorplan — without a plan run they skip the defect
+              reader and land with the estimator instead (said out loud, not
+              silently). The old no-plan branch hid the input entirely while
+              the customer gate still demanded photos: a dead end. */}
+          <input
+            ref={damageInputRef} type="file" hidden multiple accept="image/*"
+            onChange={(e) => { onDamageFiles([...(e.target.files ?? [])]); e.target.value = ""; }}
+          />
+          <button
+            className={`wz-photo-stub ${d.damagePhotoCount ? "done" : ""}`}
+            onClick={() => damageInputRef.current?.click()}
+          >
+            {d.damagePhotoCount
+              ? `✓ ${d.damagePhotoCount} photo${d.damagePhotoCount === 1 ? "" : "s"} attached — ${hasPlanRuns ? "they feed the defect reader, which prices the prep properly" : "your estimator reviews them with the estimate"}`
+              : `📷 Attach photos of the worst areas — ${hasPlanRuns ? "they feed our defect reader, which prices the prep properly" : "your estimator reviews them with the estimate"}`}
+          </button>
           <textarea
             className="wz-field"
             style={{ marginTop: 12, minHeight: 74 }}

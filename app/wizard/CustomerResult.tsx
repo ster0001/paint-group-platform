@@ -21,7 +21,12 @@ export type CustomerOutcome = {
   message: string;
 };
 
-type Reveal = CustomerPayload & { estimateId: string; planUrl: string | null };
+type Reveal = CustomerPayload & {
+  estimateId: string;
+  planUrl: string | null;
+  /** R1.3: what happened to the customer's photos — shown, never swallowed. */
+  photoWarnings?: string[];
+};
 
 const money = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
@@ -259,8 +264,15 @@ export default function CustomerResult({ outcome, reveal, roomTypes }: {
           </div>
         </div>
 
+        {(reveal.photoWarnings ?? []).length > 0 && (
+          // R1.3: photo-analysis outcomes are visible to the customer — an
+          // amber trace, never silence.
+          <p className="wz-photonote">
+            {reveal.photoWarnings!.map((n, i) => <span key={i}>⚑ {n}<br /></span>)}
+          </p>
+        )}
         {payload.confirmOnSite.length > 0 && (
-          <p className="wz-note">
+          <p className="wz-note wz-confirmonsite">
             {payload.confirmOnSite.map((n, i) => <span key={i}>{n}<br /></span>)}
           </p>
         )}
