@@ -74,7 +74,28 @@ click-by-click steps, and verify things actually work.
     The interior gate scorer also now excludes exterior-shaped work orders
     that were polluting it (3000, 3087).
 
+15. **Customer wizard — Step 8 (W4)** (2026-08-19). The public estimate
+    wizard (`/estimate`) is built: same flow + property questions (heritage,
+    body-corp, pre-1970 lead, asbestos) + email gate, an anonymous session
+    per visitor, and a customer result screen that shows a **guide range**
+    (never a firm price), room confidence, one-tap confirmations that tighten
+    the range, and a **walkthrough CTA on every exterior** (human sign-off).
+    All guardrails run server-side before any price is shown: asbestos +
+    lead-paint hard stops, commercial/heritage/body-corp handoffs, service-
+    area check, $2k floor, rate limiting. Nothing customer-facing is live —
+    the route is OFF behind the `wizard_public` setting until the accuracy
+    gate passes and Step 10 flips it. **Needs, before staff can even preview
+    it:** run migration `20260916`, and in the Supabase dashboard enable
+    **Authentication → Allow anonymous sign-ins**, and add
+    **`SUPABASE_SERVICE_ROLE_KEY`** to the server env (`.env.local` + Vercel).
+    Adversarial check: `npx tsx scripts/adversarial-wizard.ts`.
+
 ## PENDING MANUAL STEPS (run in the Supabase SQL editor)
+- **`20260916000000_customer_wizard.sql`** — the customer layer (created_by,
+  wizard_leads, customer_stated origin). Then two dashboard steps: enable
+  **anonymous sign-ins**, and set **`SUPABASE_SERVICE_ROLE_KEY`** in the
+  server env. The `/estimate` route 503s for customers until the key is set,
+  and stays behind `wizard_public` (off) regardless.
 - **`20260915000000_wizard_source.sql`** — lets wizard estimates carry
   `source='wizard'` (and reserves `trade_wizard`). Until run, the wizard saves
   with the old tag and shows a staff-visible note. Also re-run

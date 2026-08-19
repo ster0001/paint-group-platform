@@ -436,3 +436,35 @@ exterior work-order truth (walls ±10% band); it lists jobs awaiting facade
 photos. `score-regression.ts` now routes exterior-SHAPED work orders (cladding
 items, no Ceiling — jobs 3000/3087 wore a "mixed" label) out of the interior
 gate, which they had been polluting.
+
+---
+
+## Customer wizard — Step 8 (W4)
+
+**2026-08-19 · `app/estimate/`, `app/wizard/CustomerResult.tsx`,
+`lib/wizard/policy.ts`, `lib/supabase/service.ts` + `guards.ts`, all wizard
+routes, migration 20260916**
+
+The public wizard (`/estimate`) runs the same five-page flow plus an email
+gate, in CUSTOMER mode. The architecture is deliberately narrow: a visitor
+gets a Supabase ANONYMOUS auth identity but ZERO direct table access — every
+read and write goes through the existing server routes, which switch to the
+service-role client (`createServiceClient`, server-only) with explicit
+ownership checks (`getWizardActor`; a customer touches only their own
+`customer_intake` draft, 404 otherwise). The rate card is therefore never
+readable from a customer's browser; RLS is unchanged.
+
+`lib/wizard/policy.ts` (pure, Settings-driven) is the safety core, evaluated
+server-side BEFORE any price is revealed, most severe first: asbestos +
+lead-paint HARD STOPS (no price, ever), service-area postcode check,
+commercial/heritage/body-corp HANDOFFS, the $2k floor, then a REVEAL as a
+range whose width follows the accuracy band (≥90 ±4 / 70–89 ±8 / <70 ±15).
+Acceptance is gated by the walkthrough policy and is impossible for any
+`requires_site_check` job — every exterior signs off with a human (Tom's
+rule). `customerPayload` strips margin, point price and internal labels;
+adversarial tests (`lib/wizard/adversarial.test.ts` +
+`scripts/adversarial-wizard.ts`) assert the leaks and bypasses fail safely.
+Customer confirmations stamp `customer_stated` (accuracy credit 0.75) —
+better than an assumption, always cross-checked in the staff review queue.
+The route is OFF behind the `wizard_public` setting until Step 10's launch;
+staff preview anytime.

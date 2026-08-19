@@ -43,6 +43,11 @@ export const maxDuration = 60;
 const bodySchema = z.object({ state: wizardStateSchema });
 
 export async function POST(request: Request) {
+  // Identity FIRST — never parse or process a body for a caller we'd refuse.
+  const supabase = await createClient();
+  const actor = await getWizardActor(supabase);
+  if (actor.kind === "none") return NextResponse.json({ error: "Staff only." }, { status: 403 });
+
   let raw: unknown;
   try { raw = await request.json(); } catch {
     return NextResponse.json({ error: "Bad JSON." }, { status: 400 });
@@ -57,12 +62,9 @@ export async function POST(request: Request) {
   }
   const state = parsed.data.state;
 
-  const supabase = await createClient();
-  // Staff submit either mode (internal, or a customer-mode preview).
-  // An anonymous customer submits ONLY customer mode, through the service
+  // Staff submit either mode (internal, or a customer-mode preview). An
+  // anonymous customer submits ONLY customer mode, through the service
   // client — they hold no table access of their own.
-  const actor = await getWizardActor(supabase);
-  if (actor.kind === "none") return NextResponse.json({ error: "Staff only." }, { status: 403 });
   if (actor.kind === "customer" && state.mode !== "customer") {
     return NextResponse.json({ error: "Staff only." }, { status: 403 });
   }

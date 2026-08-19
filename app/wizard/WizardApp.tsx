@@ -63,16 +63,6 @@ export default function WizardApp({ roomTypes, mode = "internal" }: { roomTypes:
   // A customer needs an identity before they can upload or submit —
   // an anonymous Supabase session, promoted to an account if they save.
   const [sessionReady, setSessionReady] = useState(!isCustomer);
-  useEffect(() => {
-    if (!isCustomer) return;
-    const supabase = createBrowserClient();
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (data.session) { setSessionReady(true); return; }
-      const { error } = await supabase.auth.signInAnonymously();
-      if (!error) setSessionReady(true);
-      else setError("The estimate wizard isn't available just now — please try again shortly, or give us a call.");
-    });
-  }, [isCustomer]);
   const [error, setError] = useState<string | null>(null);
   const [procLine, setProcLine] = useState(0);
   const [result, setResult] = useState<SubmitResult | null>(null);
@@ -89,6 +79,17 @@ export default function WizardApp({ roomTypes, mode = "internal" }: { roomTypes:
   const damageInputRef = useRef<HTMLInputElement>(null);
 
   const set = (patch: Partial<WizardState>) => setState((s) => ({ ...s, ...patch }));
+
+  useEffect(() => {
+    if (!isCustomer) return;
+    const supabase = createBrowserClient();
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (data.session) { setSessionReady(true); return; }
+      const { error: signInError } = await supabase.auth.signInAnonymously();
+      if (!signInError) setSessionReady(true);
+      else setError("The estimate wizard isn't available just now — please try again shortly, or give us a call.");
+    });
+  }, [isCustomer]);
 
   // ---- page-1 uploads -------------------------------------------------------
 
