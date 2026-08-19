@@ -100,6 +100,16 @@ test("R2b sides loop: amber to cyan, walls must total 100%, skip reads NOT PAINT
   await right.getByRole("button", { name: /No — skip this side/ }).click();
   await expect(right.locator(".sd-pill")).toContainText(/NOT PAINTING/);
 
+  // Batch 5 (C2): the exclusion is REVERSIBLE — "Yes" restores the side to
+  // an open amber card (confirm required again), then re-skip for the rest
+  // of the loop.
+  await right.locator(".sd-hd").click();
+  await right.getByRole("button", { name: "Yes", exact: true }).click();
+  await expect(right.locator(".sd-pill")).not.toContainText(/NOT PAINTING/, { timeout: 15_000 });
+  await expect(right.locator(".sd-pill")).toContainText(/CONFIRM THIS SIDE/);
+  await right.getByRole("button", { name: /No — skip this side/ }).click();
+  await expect(right.locator(".sd-pill")).toContainText(/NOT PAINTING/, { timeout: 15_000 });
+
   // BACK: not-sure length is accepted — "we'll measure" widens the range.
   const back = page.locator(".sd-card", { hasText: "Back" }).first();
   await back.locator(".sd-hd").click();
