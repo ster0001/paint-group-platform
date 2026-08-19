@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { accuracyScore, type ScoredArea } from "./accuracy";
+import { accuracyScore, roomConfidencePct, type ScoredArea } from "./accuracy";
 
 const area = (over: Partial<ScoredArea> = {}): ScoredArea => ({
   priceCents: 100_000,
@@ -55,5 +55,38 @@ describe("accuracyScore", () => {
 
   it("low reader confidence drops the credit", () => {
     expect(accuracyScore([area({ confidence: 0.4 })])).toBeLessThan(accuracyScore([area({ confidence: 0.9 })]));
+  });
+
+  // ---- R1.4: one confidence function -------------------------------------
+
+  it("REGRESSION (90-vs-41): the room card % is the header's own function", () => {
+    // An extracted room with an assumed ceiling height and two open
+    // questions. The old card lookup said 90; the ring said far less.
+    const a = area({ assumedFields: ["H"] });
+    const card = roomConfidencePct(a, 2);
+    const header = accuracyScore([a], 2);
+    expect(card).toBe(header); // one room: identical by construction
+    expect(card).toBeLessThan(80); // and nowhere near the old lookup's 90
+  });
+
+  it("no-plan/no-photo honesty cap: never above 65 until something is verified", () => {
+    // ai_derived rooms would score 85 by weight — the cap holds it to 65.
+    const derived = [area({ origin: "ai_derived" }), area({ origin: "ai_derived" })];
+    expect(accuracyScore(derived)).toBe(65);
+    // One human confirmation lifts the cap; the weights take over honestly.
+    expect(accuracyScore([...derived, area({ origin: "human_confirmed" })])).toBeGreaterThan(65);
+    // A customer statement counts as verification too (cross-checked later).
+    expect(accuracyScore([area({ origin: "customer_stated" }), ...derived])).toBeGreaterThan(0);
+  });
+
+  it("pre-AI builder estimates (absent origin) are not capped", () => {
+    expect(accuracyScore([area({ origin: "" })])).toBe(100);
+  });
+
+  it("roomConfidencePct docks 2 points per open question, capped at 12", () => {
+    const a = area({ origin: "human_confirmed" });
+    expect(roomConfidencePct(a, 0)).toBe(100);
+    expect(roomConfidencePct(a, 3)).toBe(94);
+    expect(roomConfidencePct(a, 40)).toBe(88);
   });
 });

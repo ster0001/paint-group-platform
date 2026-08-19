@@ -40,6 +40,26 @@ function credit(a: ScoredArea): number {
   return Math.max(0.2, c);
 }
 
+/**
+ * R1.4: the ONE per-room confidence — the same credit() the header uses,
+ * as a percentage, docked 2 points per open question the room itself raised
+ * (capped at 12, mirroring the header's deferred penalty). There is no other
+ * per-room confidence anywhere: header, room cards and the range band all
+ * read this module. (The diagnostic's 90%-vs-41% split came from a second
+ * fixed lookup that ignored the height penalty and deferred items.)
+ */
+export function roomConfidencePct(a: ScoredArea, roomDeferredCount = 0): number {
+  const penalty = Math.min(roomDeferredCount * 2, 12);
+  return Math.max(0, Math.min(100, Math.round(credit(a) * 100 - penalty)));
+}
+
+/** R1.4 honesty cap: nothing extracted and nothing human/customer-settled
+ * means the estimate is assumptions all the way down — it may not report
+ * above 65% no matter how the weights fall. Absent origin (pre-AI builder
+ * estimates) counts as human work, as everywhere else in this module. */
+const UNVERIFIED_CAP = 65;
+const VERIFIED_ORIGINS = new Set(["human_confirmed", "customer_stated", "ai_extracted", ""]);
+
 export function accuracyScore(areas: ScoredArea[], deferredCount = 0): number {
   if (areas.length === 0) return 0;
 
@@ -58,5 +78,7 @@ export function accuracyScore(areas: ScoredArea[], deferredCount = 0): number {
 
   const base = (creditSum / weightSum) * 100;
   const deferredPenalty = Math.min(deferredCount * 2, 12);
-  return Math.max(0, Math.min(100, Math.round(base - deferredPenalty)));
+  const score = Math.max(0, Math.min(100, Math.round(base - deferredPenalty)));
+  const verified = areas.some((a) => VERIFIED_ORIGINS.has(a.origin));
+  return verified ? score : Math.min(score, UNVERIFIED_CAP);
 }
