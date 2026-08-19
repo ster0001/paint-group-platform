@@ -90,12 +90,24 @@ click-by-click steps, and verify things actually work.
     **`SUPABASE_SERVICE_ROLE_KEY`** to the server env (`.env.local` + Vercel).
     Adversarial check: `npx tsx scripts/adversarial-wizard.ts`.
 
+16. **Builder/settings/chat batch** (2026-08-19, Tom's 8-point list). Wizard
+    paint colours-vs-advice; line-item subcontractor-expense flag; builder
+    opens on the builder view; quote name auto-fills from the address;
+    clickable status pill (`set_estimate_status` RPC) with a declined-reason
+    box; Settings save-by-section + substrate folders + paint dropdown +
+    secondary light-background logo; and a **two-way estimate chat** — a staff
+    reply texts and emails the customer a link straight to the chat, redesigned
+    bubble UI both sides. See `docs/ARCHITECTURE.md`.
+
 ## PENDING MANUAL STEPS (run in the Supabase SQL editor)
-- **`20260916000000_customer_wizard.sql`** — the customer layer (created_by,
-  wizard_leads, customer_stated origin). Then two dashboard steps: enable
-  **anonymous sign-ins**, and set **`SUPABASE_SERVICE_ROLE_KEY`** in the
-  server env. The `/estimate` route 503s for customers until the key is set,
-  and stays behind `wizard_public` (off) regardless.
+- **`20260916` + `20260917` + `20260918`** — the customer wizard, manual
+  status changes, and estimate chat. Until run: the customer wizard 503s, the
+  status pill and chat are inert. Chat SMS/email need `RESEND_API_KEY` +
+  `TWILIO_*` in the server env (already the case if estimate send works);
+  without them the chat still posts, it just doesn't notify.
+- **`20260916` pair of dashboard steps**: enable **anonymous sign-ins** and set
+  **`SUPABASE_SERVICE_ROLE_KEY`** in the server env. `/estimate` stays behind
+  `wizard_public` (off) until launch regardless.
 - **`20260915000000_wizard_source.sql`** — lets wizard estimates carry
   `source='wizard'` (and reserves `trade_wizard`). Until run, the wizard saves
   with the old tag and shows a staff-visible note. Also re-run

@@ -484,3 +484,27 @@ correction against that baseline; `/proving` (staff nav) shows it per
 estimate and in aggregate with the gate verdict. "Is the wizard accurate
 enough to switch on?" is now a number, not a feeling — and it's the same
 `wizard_public` flag Step 10 flips once the gate holds.
+
+---
+
+## Builder/settings/chat batch (Aug 2026 — Tom's 8-point list)
+
+**Wizard paint page** asks colours-vs-advice after a brand is picked
+(`paint.colourHelp`). **Line items** carry a `subcontractorExpense` flag
+(carpentry/scaffolding via a 3rd party) — admin invoiced-vs-paid
+reconciliation is still to build. **The builder** opens on the builder view,
+not the customer view; the **quote name auto-fills** from the first line of
+the job address. **Status** is a clickable pill → `set_estimate_status` RPC
+(migration 20260917, server-owned column, accepted stays locked); declining
+prompts for and stores `declined_reason`.
+
+**Settings**: EditableTable + LineItemsManager save by SECTION (dirty-tracked,
+one button); substrates group under their Folder (`sub_category`); the
+substrate paint field is a dropdown of products; a secondary
+`company_profile.logoUrlLight` is used on the email + quote PDF.
+
+**Estimate chat** (migration 20260918, `estimate_messages` + anon token RPCs):
+two-way thread on an estimate. A staff reply (`replyToEstimateChatAction`)
+notifies the customer by SMS and email, both linking to `/e/{token}#chat`,
+which auto-opens the customer chat. Redesigned bubble UI both sides;
+best-effort delivery logged to `estimate_events`, never blocking the message.
