@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import RoomCard from "@/app/components/scope/RoomCard";
 import PlanViewer from "./PlanViewer";
 import type { WizardEditorPayload, WizardRoomView } from "@/lib/wizard/view";
@@ -51,37 +51,64 @@ function provChip(r: WizardRoomView): { cls: string; text: string } {
 }
 
 export default function Editor({ initial, roomTypes }: Props) {
-  const [payload, setPayload] = useState<WizardEditorPayload>(initial);
+  /**
+   * A4: what renders is DERIVED — the last authoritative server payload with
+   * every still-pending optimistic transform re-applied on top. A removal
+   * disappears the instant it's tapped (even mid-flight of the previous
+   * one); each server response replaces the base and the remaining pending
+   * transforms re-apply, so responses can never resurrect a row that a
+   * queued action already removed. A failed action simply drops its
+   * transform (the row comes back) and says so.
+   */
+  const [serverPayload, setServerPayload] = useState<WizardEditorPayload>(initial);
+  const [pending, setPending] = useState<Array<{ id: number; fn: (p: WizardEditorPayload) => WizardEditorPayload }>>([]);
+  const payload = useMemo(
+    () => pending.reduce((p, e) => e.fn(p), serverPayload),
+    [serverPayload, pending],
+  );
   const [openRoom, setOpenRoom] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [heightPick, setHeightPick] = useState("2.4");
   const [sizeDraft, setSizeDraft] = useState<{ L: string; W: string }>({ L: "", W: "" });
+  /** Requests run strictly one at a time — the server must never race itself
+   * on builder_state — but the QUEUE is what waits, not the user. */
+  const chainRef = useRef<Promise<void>>(Promise.resolve());
+  const actIdRef = useRef(1);
 
   function flash(message: string) {
     setToast(message);
     setTimeout(() => setToast(null), 3200);
   }
 
-  async function act(body: Record<string, unknown>, done: string) {
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/estimates/${initial.estimateId}/wizard-edit`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const j: { error?: string } & WizardEditorPayload = await res.json();
-      if (!res.ok) { flash(j.error ?? "That didn't save — try again."); return; }
-      setPayload(j);
-      flash(done);
-    } catch {
-      // Network drop or a non-JSON error page: say so, never fail silently —
-      // a quiet failure invites a second tap and a duplicate room.
-      flash("That didn't save — check the connection and try again.");
-    } finally {
-      setBusy(false);
-    }
+  function act(
+    body: Record<string, unknown>,
+    done: string,
+    optimistic?: (p: WizardEditorPayload) => WizardEditorPayload,
+  ) {
+    const id = actIdRef.current++;
+    if (optimistic) setPending((xs) => [...xs, { id, fn: optimistic }]);
+    else setBusy(true); // non-optimistic actions still hold the UI briefly
+    chainRef.current = chainRef.current.then(async () => {
+      try {
+        const res = await fetch(`/api/estimates/${initial.estimateId}/wizard-edit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const j: { error?: string } & WizardEditorPayload = await res.json();
+        if (!res.ok) { flash(j.error ?? "That didn't save — try again."); return; }
+        setServerPayload(j);
+        flash(done);
+      } catch {
+        // Network drop or a non-JSON error page: say so, never fail silently —
+        // a quiet failure invites a second tap and a duplicate room.
+        flash("That didn't save — check the connection and try again.");
+      } finally {
+        if (optimistic) setPending((xs) => xs.filter((e) => e.id !== id));
+        else setBusy(false);
+      }
+    });
   }
 
   const accuracy = payload.accuracyPct;
@@ -232,7 +259,14 @@ export default function Editor({ initial, roomTypes }: Props) {
                       )}
                       <button
                         className="wz-mini danger" disabled={busy}
-                        onClick={() => act({ action: "remove_room", areaId: r.areaId }, `${r.name} removed — price updated.`)}
+                        onClick={() => {
+                          setOpenRoom(null);
+                          act(
+                            { action: "remove_room", areaId: r.areaId },
+                            `${r.name} removed — price updated.`,
+                            (p) => ({ ...p, rooms: p.rooms.filter((x) => x.areaId !== r.areaId) }),
+                          );
+                        }}
                       >
                         Remove
                       </button>
