@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { checkUpload } from "@/lib/uploads/validate";
 import {
@@ -41,6 +41,10 @@ type SubmitResult = WizardEditorPayload & {
   warnings: string[];
 };
 
+const emptySubscribe = () => () => {};
+const snapshotTrue = () => true;
+const snapshotFalse = () => false;
+
 export default function WizardApp({ roomTypes, substrates, mode = "internal" }: {
   roomTypes: string[];
   /** A2: the offered surface lists, derived server-side from the rate card. */
@@ -68,6 +72,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [planFileCount, setPlanFileCount] = useState(0);
   const [facadeFileCount, setFacadeFileCount] = useState(0);
+  // The canonical hydration detector (same as the editors): server snapshot
+  // false, client snapshot true, no effect-driven re-render.
+  const ready = useSyncExternalStore(emptySubscribe, snapshotTrue, snapshotFalse);
   const [uploading, setUploading] = useState(false);
   /** "Uploading 2 of 3…" — the visible progress the old flow never had. */
   const [uploadNote, setUploadNote] = useState<string | null>(null);
@@ -417,7 +424,12 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
   }
 
   return (
-    <>
+    // P1 (completed): the hydration gate the editors already had. Until React
+    // hydrates, every chip and button is a live-looking dead control — a tap
+    // in the first moments after load was silently lost. wz-waking turns off
+    // pointer events so an early tap waits (and Playwright's actionability
+    // check queues on it) instead of vanishing; data-ready is the spec hook.
+    <div className={ready ? undefined : "wz-waking"} data-ready={ready ? "1" : undefined}>
       <header className="wz-top">
         <div className="wz-wm">PAINT<span>—</span>GROUP</div>
         <div className="wz-dots">
@@ -521,7 +533,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
           </button>
         </nav>
       )}
-    </>
+    </div>
   );
 }
 
