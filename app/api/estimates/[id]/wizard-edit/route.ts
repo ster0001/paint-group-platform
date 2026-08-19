@@ -10,7 +10,10 @@ import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { applyWizardAnswers } from "@/lib/wizard/merge";
 import { wizardStateSchema } from "@/lib/wizard/state";
 import { markStarterProvenance, starterExtraction, type TypicalSizeRow } from "@/lib/wizard/starter";
-import { applyCount, applyRename, applyToggle, customerScopeRooms } from "@/lib/wizard/scope-editor";
+import {
+  applyCount, applyExtent, applyExteriorToggle, applyFenceLength, applyRename, applyToggle,
+  customerExteriorView, customerScopeRooms, offeredVisitSlots,
+} from "@/lib/wizard/scope-editor";
 import { customerPayload, editorPayload, type WizardDeferred } from "@/lib/wizard/view";
 import {
   GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails,
@@ -70,7 +73,17 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("add_note"), areaId: z.number().int().positive().nullable().default(null), note: z.string().min(1).max(500) }),
   /** "Not right? Tell us" — flags the job non-straightforward. */
   z.object({ action: z.literal("flag_geometry"), note: z.string().max(300).optional() }),
+  // ---- Part B2: exterior + the sign-off ladder ----------------------------
+  z.object({ action: z.literal("toggle_exterior"), key: z.string().min(1).max(40), on: z.boolean() }),
+  z.object({ action: z.literal("set_extent"), extent: z.enum(["whole", "front", "front_sides"]) }),
+  /** metres sets the fence length; null = "not sure" → amber note. */
+  z.object({ action: z.literal("set_fence"), metres: z.number().min(1).max(500).nullable() }),
+  /** Customer accepted online (self-serve tier) — desk check follows. */
+  z.object({ action: z.literal("accept_intent") }),
+  /** Book the confirming visit; slot must be one the server offered. */
+  z.object({ action: z.literal("book_visit"), slot: z.string().min(4).max(60) }),
 ]);
+
 
 type LooseBlock = Record<string, unknown> & {
   id?: number; kind?: string; surfaces?: Array<Record<string, unknown>>;
@@ -294,6 +307,62 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .then((r) => { if (r.error) reportError(r.error, { where: "wizard.edit.flagGeometry", bestEffort: true, extra: { id } }); });
   }
 
+  if (act.action === "toggle_exterior" || act.action === "set_extent" || act.action === "set_fence") {
+    let next = Math.max(0, ...blocks.flatMap((b) => [
+      Number(b.id) || 0, ...(b.surfaces ?? []).map((s) => Number(s.id) || 0),
+    ])) + 1;
+    if (act.action === "set_fence" && act.metres == null) {
+      // "Not sure" is a first-class answer: amber, measured on the day.
+      deferred.push({
+        room: "Exterior", areaId: null, what: "fence length", count: 1,
+        needs: "customer isn't sure of the fence length — measure it on site",
+      });
+    } else {
+      const result =
+        act.action === "toggle_exterior" ? applyExteriorToggle(blocks, act.key, act.on, () => next++)
+        : act.action === "set_extent" ? applyExtent(blocks, act.extent)
+        : applyFenceLength(blocks, act.metres as number);
+      if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
+      blocks = result.blocks as LooseBlock[];
+    }
+  }
+
+  if (act.action === "accept_intent" || act.action === "book_visit") {
+    if (act.action === "book_visit") {
+      const flags = (settingValue((await ctxPromise).settings, "scope_editor") ?? {}) as { visitSlots?: string[] };
+      if (!offeredVisitSlots(flags).includes(act.slot)) {
+        return NextResponse.json({ error: "Pick one of the offered times." }, { status: 400 });
+      }
+    }
+    // The estimator's prep pack: scope summary, flags, not-sures and removed
+    // substrates ride builder_state for the visit's capture verify mode.
+    const { data: events } = await db.from("estimate_events")
+      .select("type, payload").eq("estimate_id", id).eq("type", "scope_edit").limit(200);
+    const removed = (events ?? [])
+      .map((e) => (e.payload ?? {}) as { action?: string; key?: string; on?: boolean })
+      .filter((p) => p.action === "toggle_surface" && p.on === false)
+      .map((p) => p.key);
+    (state as Record<string, unknown>).prepPack = {
+      kind: act.action === "book_visit" ? "visit" : "desk_check",
+      slot: act.action === "book_visit" ? act.slot : null,
+      at: new Date().toISOString(),
+      removedSubstrates: [...new Set(removed)],
+      flags: deferred.filter((d) => /customer|not sure|flagged/i.test(`${d.what} ${d.needs}`)).map((d) => `${d.room}: ${d.what}`),
+    };
+    deferred.push({
+      room: "Whole job", areaId: null,
+      what: act.action === "book_visit" ? `visit booked — ${act.slot}` : "customer accepted online",
+      count: 1,
+      needs: act.action === "book_visit"
+        ? "confirm the scope on site (capture verify mode) — the customer's build rides in the prep pack"
+        : "desk check, then send the fixed price and booking confirmation",
+    });
+    await db.from("estimate_events").insert({
+      estimate_id: id, type: act.action === "book_visit" ? "visit_booked" : "customer_accept_intent",
+      payload: act.action === "book_visit" ? { slot: act.slot } : {},
+    }).then((r) => { if (r.error) reportError(r.error, { where: "wizard.edit.ladder", bestEffort: true }); });
+  }
+
   let newDeferred = deferred;
   if (act.action === "remove_room") {
     const before = blocks.length;
@@ -367,9 +436,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .from("room_type_scope_rules")
       .select("room_type, surface_type, is_option, requires_confirm, notes")
       .eq("version", SCOPE_VERSION);
+    // B2: the sign-off ladder — thresholds are Settings values (defaults
+    // $6k interior / $12k exterior at ≥90%), and the visit tier is an offer,
+    // never a block. Slots recompute server-side so booking can validate.
+    const cp = customerPayload(payload, blocks, decision, bandsFromSettings(settingValue(ctx.settings, "wizard_bands")));
+    const flags = (settingValue(ctx.settings, "scope_editor") ?? {}) as {
+      visitSlots?: string[]; selfServeInteriorCapCents?: number; selfServeExteriorCapCents?: number; selfServeMinAccuracy?: number;
+    };
+    const hasExterior = blocks.some((b) => b.kind === "area" && b.type === "Exterior");
+    const cap = hasExterior ? (flags.selfServeExteriorCapCents ?? 1_200_000) : (flags.selfServeInteriorCapCents ?? 600_000);
+    const mid = (cp.rangeLoCents + cp.rangeHiCents) / 2;
+    const selfServe = decision.canAccept && !decision.walkthroughRequired
+      && payload.accuracyPct >= (flags.selfServeMinAccuracy ?? 90) && mid <= cap;
     return NextResponse.json({
-      ...customerPayload(payload, blocks, decision, bandsFromSettings(settingValue(ctx.settings, "wizard_bands"))),
+      ...cp,
       scopeRooms: customerScopeRooms(blocks, (rulesRows ?? []) as ScopeRule[]),
+      exterior: customerExteriorView(blocks),
+      ladder: { tier: selfServe ? "self_serve" : "visit", visitSlots: offeredVisitSlots(flags) },
     });
   }
 

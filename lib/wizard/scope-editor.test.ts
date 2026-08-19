@@ -104,3 +104,68 @@ describe("applyRename", () => {
     expect(applyRename([room()], 5, "   ").ok).toBe(false);
   });
 });
+
+// ---- B2: exterior ----------------------------------------------------------
+import { applyExtent, applyExteriorToggle, applyFenceLength, customerExteriorView } from "./scope-editor";
+
+const extArea = (id: number, name: string, codes: string[], isOption = false) => ({
+  id, kind: "area", name: `Exterior - ${name}`, type: "Exterior", areaType: "surface",
+  roomType: "exterior", storey: "ground", L: 0, W: 0, H: 0, isOption,
+  surfaces: codes.map((code, i) => surface(id * 100 + i, code)),
+});
+
+const extBlocks = () => [
+  room(),
+  extArea(20, "Front", ["Weatherboards", "Fascias", "Gutters", "Eaves", "Front Door"]),
+  extArea(21, "Left", ["Weatherboards", "Fascias", "Gutters", "Eaves"]),
+  extArea(22, "Right", ["Weatherboards", "Fascias", "Gutters", "Eaves"]),
+  extArea(23, "Rear", ["Weatherboards", "Fascias", "Gutters", "Eaves"]),
+];
+
+describe("customerExteriorView (B2)", () => {
+  it("groups element-first with extent read from options", () => {
+    const v = customerExteriorView(extBlocks())!;
+    expect(v.extent).toBe("whole");
+    const body = v.groups.find((g) => g.group === "body")!;
+    expect(body.tiles.map((t) => t.key)).toEqual(["weatherboards"]);
+    const roof = v.groups.find((g) => g.group === "roofline")!;
+    expect(roof.tiles.find((t) => t.key === "gutters")?.on).toBe(true);
+    expect(roof.tiles.find((t) => t.key === "downpipes")?.on).toBe(false);
+    expect(v.groups.find((g) => g.group === "extras")!.tiles.every((t) => !t.on)).toBe(true);
+  });
+  it("returns null when the job has no exterior", () => {
+    expect(customerExteriorView([room()])).toBeNull();
+  });
+});
+
+describe("applyExteriorToggle / applyExtent / applyFenceLength (B2)", () => {
+  it("gutters off means off on every elevation", () => {
+    let id = 900;
+    const r = applyExteriorToggle(extBlocks(), "gutters", false, () => id++);
+    expect(r.ok).toBe(true);
+    if (r.ok) for (const b of r.blocks.filter((b) => b.type === "Exterior")) {
+      expect((b.surfaces as Array<{ code: string }>).some((s) => s.code === "Gutters")).toBe(false);
+    }
+  });
+  it("front-only parks the other elevations as options, reversibly", () => {
+    const r = applyExtent(extBlocks(), "front");
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const opts = r.blocks.filter((b) => b.type === "Exterior" && b.isOption === true).map((b) => String(b.name));
+      expect(opts.sort()).toEqual(["Exterior - Left", "Exterior - Rear", "Exterior - Right"]);
+      const back = applyExtent(r.blocks, "whole");
+      if (back.ok) expect(back.blocks.every((b) => b.isOption !== true)).toBe(true);
+    }
+  });
+  it("fence takes metres once it's on, bounded", () => {
+    let id = 900;
+    const withFence = applyExteriorToggle(extBlocks(), "fence", true, () => id++);
+    expect(withFence.ok).toBe(true);
+    if (withFence.ok) {
+      const set = applyFenceLength(withFence.blocks, 24);
+      expect(set.ok).toBe(true);
+      expect(applyFenceLength(withFence.blocks, 0).ok).toBe(false);
+    }
+    expect(applyFenceLength(extBlocks(), 24).ok).toBe(false); // not on yet
+  });
+});

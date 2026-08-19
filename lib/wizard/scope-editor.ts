@@ -214,3 +214,194 @@ export function applyRename(blocks: LooseBlock[], areaId: number, name: string):
   out[idx] = { ...blocks[idx], name: clean };
   return { ok: true, blocks: out };
 }
+
+// ---------------------------------------------------------------------------
+// Part B2: the exterior — element-first, against the whole envelope
+// ---------------------------------------------------------------------------
+
+export type ExteriorExtent = "whole" | "front" | "front_sides";
+
+export type ExteriorGroup = {
+  group: "body" | "trims" | "roofline" | "extras";
+  label: string;
+  tiles: CustomerTile[];
+};
+
+export type CustomerExteriorView = {
+  groups: ExteriorGroup[];
+  extent: ExteriorExtent;
+  /** Read-only geometry chips ("Not right? Tell us" flags the job). */
+  storeys: number;
+  fenceLengthM: number | null;
+};
+
+const EXT_GROUPS: Array<{ group: ExteriorGroup["group"]; label: string; keys: string[] }> = [
+  { group: "body", label: "THE BODY", keys: ["weatherboards", "render", "brick"] },
+  { group: "trims", label: "TRIMS & OPENINGS", keys: ["exterior_windows", "exterior_doors", "garage_doors"] },
+  { group: "roofline", label: "THE ROOFLINE", keys: ["fascias", "gutters", "eaves", "downpipes"] },
+  { group: "extras", label: "EXTRAS", keys: ["deck", "fence", "pergola", "balustrade"] },
+];
+
+const EXT_COUNTABLE = new Set(["exterior_windows", "exterior_doors", "garage_doors"]);
+
+const isExtArea = (b: LooseBlock) => b.kind === "area" && b.type === "Exterior";
+const elevationNameOf = (b: LooseBlock) => String(b.name ?? "").replace(/^Exterior\s*[-–]\s*/i, "").toLowerCase();
+
+/** Which elevations an extent keeps IN the total (others park as options). */
+export function elevationsKeptBy(extent: ExteriorExtent): (name: string) => boolean {
+  if (extent === "whole") return () => true;
+  if (extent === "front") return (n) => n === "front" || n === "extras";
+  return (n) => n !== "rear"; // front + sides
+}
+
+export function customerExteriorView(blocks: LooseBlock[]): CustomerExteriorView | null {
+  const ext = blocks.filter(isExtArea);
+  if (ext.length === 0) return null;
+
+  const stateFor = (key: string) => {
+    let on = false;
+    let count = 0;
+    let fenceLen: number | null = null;
+    for (const b of ext) {
+      for (const s of (b.surfaces ?? [])) {
+        if (substrateKeyForRateCode(String(s.code ?? "")) !== key) continue;
+        on = true;
+        count += Number(s.count) || 1;
+        if (key === "fence" && s.measureL != null) fenceLen = Number(s.measureL);
+      }
+    }
+    return { on, count: Math.max(1, count), fenceLen };
+  };
+
+  // Extent reads off which elevations are parked as options.
+  const optioned = new Set(ext.filter((b) => b.isOption === true).map(elevationNameOf));
+  const extent: ExteriorExtent =
+    optioned.size === 0 ? "whole"
+    : optioned.has("left") || optioned.has("right") ? "front"
+    : "front_sides";
+
+  let fenceLengthM: number | null = null;
+  const groups: ExteriorGroup[] = EXT_GROUPS.map((g) => ({
+    group: g.group,
+    label: g.label,
+    tiles: g.keys.flatMap((key) => {
+      const st = stateFor(key);
+      if (key === "fence") fenceLengthM = st.fenceLen;
+      // Body claddings the job doesn't have are noise, not choices.
+      if (g.group === "body" && !st.on) return [];
+      const countable = EXT_COUNTABLE.has(key);
+      return [{
+        key,
+        label: substrateLabel(key as SubstrateKey),
+        on: st.on,
+        ...(countable ? { count: st.count } : {}),
+        countable,
+        longTail: false,
+      }];
+    }),
+  })).filter((g) => g.tiles.length > 0 || g.group === "extras");
+
+  const storeys = new Set(blocks.filter((b) => b.kind === "area" && b.type !== "Exterior")
+    .map((b) => String(b.storey ?? "ground"))).size;
+
+  return { groups, extent, storeys: Math.max(1, storeys), fenceLengthM };
+}
+
+/** Exterior on/off applies across EVERY elevation at once — gutters off means
+ * gutters off, not gutters-off-on-the-front. ON restores via the substrate's
+ * first rate code as a $0 measure-on-site line when nothing existed. */
+export function applyExteriorToggle(
+  blocks: LooseBlock[],
+  key: string,
+  on: boolean,
+  nextId: () => number,
+): ScopeToggleResult {
+  const extIdx = blocks.map((b, i) => ({ b, i })).filter(({ b }) => isExtArea(b));
+  if (extIdx.length === 0) return { ok: false, error: "This estimate has no exterior." };
+  const out = [...blocks];
+
+  if (!on) {
+    let removed = 0;
+    for (const { b, i } of extIdx) {
+      const surfaces = (b.surfaces ?? []).filter((s) => {
+        const match = substrateKeyForRateCode(String(s.code ?? "")) === key;
+        if (match) removed++;
+        return !match;
+      });
+      out[i] = { ...b, surfaces };
+    }
+    if (removed === 0) return { ok: false, error: "That surface isn't on this job." };
+    return { ok: true, blocks: out };
+  }
+
+  const already = extIdx.some(({ b }) => (b.surfaces ?? []).some((s) => substrateKeyForRateCode(String(s.code ?? "")) === key));
+  if (already) return { ok: false, error: "That surface is already on." };
+  const CODE: Record<string, string> = {
+    weatherboards: "Weatherboards", render: "Render", brick: "Brick",
+    fascias: "Fascias", gutters: "Gutters", eaves: "Eaves", downpipes: "Downpipes",
+    exterior_windows: "Fixed / Picture Window", exterior_doors: "Front Door",
+    garage_doors: "Garage Door (1 Car)", deck: "Deck Painting", fence: "Paling Fence",
+    pergola: "Pergola", balustrade: "Hand Rails",
+  };
+  const code = CODE[key];
+  if (!code) return { ok: false, error: "That surface can't be added here." };
+  // Extras land once (measured on site); per-elevation trims land on each
+  // in-scope elevation so the estimator fills real numbers per side.
+  const isExtra = ["deck", "fence", "pergola", "balustrade", "garage_doors"].includes(key);
+  const targets = isExtra ? [extIdx[0]] : extIdx.filter(({ b }) => b.isOption !== true);
+  for (const { b, i } of targets) {
+    const line = makeDraftSurface(nextId(), code, substrateLabel(key as SubstrateKey), 1, "customer_stated", 0.75, ["exterior_envelope"]);
+    out[i] = { ...out[i], surfaces: [...(out[i].surfaces ?? []), line as unknown as Record<string, unknown>] };
+  }
+  return { ok: true, blocks: out };
+}
+
+/** Whole house / Front only / Front + sides — parks out-of-scope elevations
+ * as options (outside the total, nothing deleted, fully reversible). */
+export function applyExtent(blocks: LooseBlock[], extent: ExteriorExtent): ScopeToggleResult {
+  const keep = elevationsKeptBy(extent);
+  let touched = false;
+  const out = blocks.map((b) => {
+    if (!isExtArea(b)) return b;
+    touched = true;
+    return { ...b, isOption: !keep(elevationNameOf(b)) };
+  });
+  if (!touched) return { ok: false, error: "This estimate has no exterior." };
+  return { ok: true, blocks: out };
+}
+
+/** The fence takes metres (a scope quantity the brief explicitly grants) —
+ * or "not sure", which the route records as an amber note instead. */
+export function applyFenceLength(blocks: LooseBlock[], metres: number): ScopeToggleResult {
+  if (!(metres > 0 && metres <= 500)) return { ok: false, error: "Fence length must be 1–500 m." };
+  const out = [...blocks];
+  for (let i = 0; i < out.length; i++) {
+    const b = out[i];
+    if (!isExtArea(b)) continue;
+    const surfaces = [...(b.surfaces ?? [])];
+    for (let j = 0; j < surfaces.length; j++) {
+      if (substrateKeyForRateCode(String(surfaces[j].code ?? "")) === "fence") {
+        surfaces[j] = { ...surfaces[j], measureL: metres };
+        out[i] = { ...b, surfaces };
+        return { ok: true, blocks: out };
+      }
+    }
+  }
+  return { ok: false, error: "Turn the fence on first." };
+}
+
+/** The visit slots offered — next three weekdays 9:00/14:00 unless Settings
+ * scope_editor.visitSlots overrides. Server recomputes per request so
+ * book_visit validates the slot came from us, never from the client. */
+export function offeredVisitSlots(flags: { visitSlots?: string[] }): string[] {
+  if (Array.isArray(flags.visitSlots) && flags.visitSlots.length) return flags.visitSlots.slice(0, 8);
+  const out: string[] = [];
+  const d = new Date();
+  while (out.length < 6) {
+    d.setDate(d.getDate() + 1);
+    if (d.getDay() === 0 || d.getDay() === 6) continue;
+    const day = d.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
+    out.push(`${day} · 9:00 am`, `${day} · 2:00 pm`);
+  }
+  return out.slice(0, 6);
+}

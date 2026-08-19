@@ -611,3 +611,19 @@ sign-off ladder framing from the policy decision. Telemetry:
 `estimate_events` type `scope_edit`. Entry: "Open the editor" on the
 customer result screen. STILL TO COME (B2): exterior element-first view,
 real accept + visit booking with prep pack, capture verify-mode handoff.
+
+**Customer scope editor — B2, exterior + ladder**: exterior renders
+element-first (Body with Whole house / Front only / Front + sides — extent
+parks out-of-scope elevations as `isOption`, outside the total, reversible;
+Trims & openings; Roofline pre-ticked with the note; Extras off by default,
+fence takes metres via `measureL` or "not sure" → amber). Exterior toggles
+apply across every elevation (`applyExteriorToggle`); geometry chips are
+read-only with "Not right? Tell us" → flag. The sign-off ladder is
+Settings-driven (`scope_editor`: selfServeInteriorCapCents $6k ⚑,
+selfServeExteriorCapCents $12k ⚑, selfServeMinAccuracy 90, visitSlots):
+self-serve → `accept_intent` (event + desk-check deferral); visit tier →
+`book_visit` with server-validated slots (`offeredVisitSlots`), which writes
+the PREP PACK into builder_state (kind, slot, customer-removed substrates
+from telemetry, flags/not-sures) and capture shows it as the verify-mode
+banner — rooms pre-filled (A5), confirm-as-you-walk flips provenance to
+human_confirmed (capture's commit semantics).

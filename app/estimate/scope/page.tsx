@@ -3,7 +3,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { getWizardActor } from "@/lib/supabase/guards";
 import { SCOPE_VERSION, type ScopeRule } from "@/lib/extract/scope";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
-import { customerScopeRooms } from "@/lib/wizard/scope-editor";
+import { customerExteriorView, customerScopeRooms, offeredVisitSlots } from "@/lib/wizard/scope-editor";
 import { customerPayload, editorPayload, type WizardDeferred } from "@/lib/wizard/view";
 import {
   answersFromState, bandsFromSettings, evaluateGuardrails,
@@ -102,7 +102,16 @@ export default async function ScopeEditorPage({
     .filter((t) => !["exterior", "exterior_elevation", "unknown", "excluded", "exterior_excluded"].includes(t))
     .sort();
   // ⚑ pending Tom's final call: live range updates default ON, Settings-off.
-  const editorFlags = (settingValue(ctx.settings, "scope_editor") ?? {}) as { liveRange?: boolean };
+  const editorFlags = (settingValue(ctx.settings, "scope_editor") ?? {}) as {
+    liveRange?: boolean; visitSlots?: string[];
+    selfServeInteriorCapCents?: number; selfServeExteriorCapCents?: number; selfServeMinAccuracy?: number;
+  };
+  // B2 ladder: Settings-driven thresholds; the visit tier is an offer.
+  const hasExterior = blocks.some((b) => b.kind === "area" && b.type === "Exterior");
+  const cap = hasExterior ? (editorFlags.selfServeExteriorCapCents ?? 1_200_000) : (editorFlags.selfServeInteriorCapCents ?? 600_000);
+  const mid = (customer.rangeLoCents + customer.rangeHiCents) / 2;
+  const selfServe = decision.canAccept && !decision.walkthroughRequired
+    && payload.accuracyPct >= (editorFlags.selfServeMinAccuracy ?? 90) && mid <= cap;
 
   return (
     <div className="wz">
@@ -110,6 +119,8 @@ export default async function ScopeEditorPage({
         estimateId={estimate.id as string}
         initial={customer}
         initialRooms={customerScopeRooms(blocks, rules)}
+        initialExterior={customerExteriorView(blocks)}
+        initialLadder={{ tier: selfServe ? "self_serve" : "visit", visitSlots: offeredVisitSlots(editorFlags) }}
         roomTypes={roomTypes}
         liveRange={editorFlags.liveRange !== false}
       />
