@@ -103,6 +103,37 @@ export const wizardStateSchema = z.object({
     /** Follow-up only when waterBasedOnly is ticked. */
     trimsOilBased: z.enum(["yes", "no", "unsure"]).nullable().default(null),
   }),
+
+  /**
+   * R2: the exterior question set (recovery plan §2 / one-page instruction).
+   * Only meaningful when jobType includes exterior; null on interior jobs.
+   * There is deliberately NO "how far around" — side selection in the
+   * confirm-loop editor replaces extent (rebuild addendum §0).
+   */
+  exterior: z.object({
+    storeys: z.enum(["single", "double"]).default("single"),
+    /** "What's the house made of?" — multi; a mix = several ticked. SEEDS
+     * the editor's wall tiles (only these substrates render per side). */
+    substrates: z.array(z.enum(["weatherboards", "render", "brick"])).min(1).default(["weatherboards"]),
+    /** What are we painting — roofline pre-ticked per the standard scope. */
+    painting: z.object({
+      body: z.boolean().default(true),
+      windowsDoors: z.boolean().default(true),
+      roofline: z.boolean().default(true),
+      garage: z.boolean().default(false),
+    }).default({ body: true, windowsDoors: true, roofline: true, garage: false }),
+    /** peeling + pre-1970 = the lead hard stop (policy.ts). */
+    condition: z.enum(["good", "weathered", "peeling"]).nullable().default(null),
+    access: z.array(z.enum(["steep", "tight", "high"])).default([]),
+    extras: z.object({
+      deck: z.boolean().default(false),
+      fence: z.boolean().default(false),
+      /** metres; null with fence=true = "not sure" → measured on the day. */
+      fenceMetres: z.number().min(1).max(500).nullable().default(null),
+      pergola: z.boolean().default(false),
+      balustrade: z.boolean().default(false),
+    }).default({ deck: false, fence: false, fenceMetres: null, pergola: false, balustrade: false }),
+  }).nullable().default(null),
 }).superRefine((s, ctx) => {
   const wantsInterior = s.jobType === "interior" || s.jobType === "both";
   const wantsExterior = s.jobType === "exterior" || s.jobType === "both";
@@ -123,10 +154,21 @@ export const wizardStateSchema = z.object({
       }
     }
   }
+  // R2: a pure-exterior job answers the exterior question set instead of the
+  // interior pages — condition is required, and the facade photos already
+  // required on page 1 are its visual evidence (the interior damage-photo
+  // rule below does not apply).
+  if (s.jobType === "exterior") {
+    if (!s.exterior) {
+      ctx.addIssue({ code: "custom", path: ["exterior"], message: "The exterior questions first, please." });
+    } else if (s.exterior.condition == null) {
+      ctx.addIssue({ code: "custom", path: ["exterior", "condition"], message: "How's the paintwork holding up?" });
+    }
+  }
   // Damage tiers 2–3 need evidence: photos, or (internal mode only) a written
   // note so the estimator can price the prep honestly. Customer mode (Step 8)
   // is photos only, per the brief — a note from a customer cannot be priced.
-  if (s.details.damageTier >= 2 && s.details.damagePhotoCount === 0) {
+  if (s.jobType !== "exterior" && s.details.damageTier >= 2 && s.details.damagePhotoCount === 0) {
     if (s.mode === "customer") {
       ctx.addIssue({ code: "custom", path: ["details", "damageTier"], message: "Damage at this level needs photos — a quick phone shot of each area is perfect." });
     } else if (s.details.damageNote.trim() === "") {
@@ -193,7 +235,39 @@ export function defaultWizardState(): WizardState {
       damagePhotoCount: 0,
     },
     paint: { brands: [], colourHelp: null, waterBasedOnly: false, trimsOilBased: null },
+    exterior: null,
   };
+}
+
+export type WizardExterior = NonNullable<WizardState["exterior"]>;
+
+export function defaultExterior(): WizardExterior {
+  return {
+    storeys: "single",
+    substrates: ["weatherboards"],
+    painting: { body: true, windowsDoors: true, roofline: true, garage: false },
+    condition: null,
+    access: [],
+    extras: { deck: false, fence: false, fenceMetres: null, pergola: false, balustrade: false },
+  };
+}
+
+/**
+ * R2: the exterior answers expressed as page-2 surface keys — the ONE
+ * mapping the wizard pages, the merge and the starter scaffold all share.
+ * (state.surfaces stays the single source the tick-filter reads.)
+ */
+export function exteriorSurfaceKeys(ext: WizardExterior): WizardSurfaceKey[] {
+  const keys: WizardSurfaceKey[] = [];
+  if (ext.painting.body) keys.push(...ext.substrates);
+  if (ext.painting.windowsDoors) keys.push("exterior_windows", "exterior_doors");
+  if (ext.painting.roofline) keys.push("fascias", "gutters", "eaves", "downpipes");
+  if (ext.painting.garage) keys.push("garage_doors");
+  if (ext.extras.deck) keys.push("deck");
+  if (ext.extras.fence) keys.push("fence");
+  if (ext.extras.pergola) keys.push("pergola");
+  if (ext.extras.balustrade) keys.push("balustrade");
+  return keys;
 }
 
 /** Coats for the condition tier; dark-to-light surfaces get 3, the rest 2. */

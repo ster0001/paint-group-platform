@@ -5,8 +5,11 @@ import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { checkUpload } from "@/lib/uploads/validate";
 import {
   defaultCustomer,
+  defaultExterior,
   defaultWizardState,
+  exteriorSurfaceKeys,
   pageForPath,
+  type WizardExterior,
   type WizardState,
   type WizardSurfaceKey,
 } from "@/lib/wizard/state";
@@ -371,6 +374,14 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
       const email = state.customer?.email.trim() ?? "";
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "A valid email, so your estimate has somewhere to live.";
     }
+    // R2: the exterior pages' own gates.
+    if (state.jobType === "exterior") {
+      const ext = state.exterior;
+      if (page === 2 && (ext?.substrates.length ?? 0) === 0) return "What's the house made of? Tick at least one.";
+      if (page === 3 && ext && !Object.values(ext.painting).some(Boolean)) return "Tick at least one thing we're painting.";
+      if (page === 4 && ext?.condition == null) return "How's the paintwork holding up?";
+      return null;
+    }
     if (page === 2 && state.surfaces.length === 0) return "Tick at least one surface.";
     if (page === 3 && state.condition.tier === "dark_to_light" && state.condition.darkToLightSurfaces.length === 0) {
       return "Which surfaces are going dark to light?";
@@ -444,9 +455,19 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
                 onPlanFiles={uploadPlans} onFacadeFiles={uploadFacades}
               />
             )}
-            {page === 2 && <PageSurfaces state={state} set={set} substrates={substrates} />}
-            {page === 3 && <PageCondition state={state} set={set} substrates={substrates} />}
-            {page === 4 && (
+            {/* R2: the wizard BRANCHES at job type — a pure-exterior customer
+                gets the exterior question set and never sees ceiling heights,
+                interior door styles or the interior damage intake. */}
+            {page === 2 && (state.jobType === "exterior"
+              ? <PageExteriorHouse state={state} set={set} />
+              : <PageSurfaces state={state} set={set} substrates={substrates} />)}
+            {page === 3 && (state.jobType === "exterior"
+              ? <PageExteriorScope state={state} set={set} />
+              : <PageCondition state={state} set={set} substrates={substrates} />)}
+            {page === 4 && state.jobType === "exterior" && (
+              <PageExteriorCondition state={state} set={set} isCustomer={isCustomer} />
+            )}
+            {page === 4 && state.jobType !== "exterior" && (
               <PageDetails
                 state={state} set={set} damageInputRef={damageInputRef} isCustomer={isCustomer}
                 hasPlanRuns={state.planRunIds.length > 0}
@@ -461,7 +482,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
                 }}
               />
             )}
-            {page === 5 && <PagePaint state={state} set={set} />}
+            {page === 5 && (state.jobType === "exterior"
+              ? <PageExteriorExtras state={state} set={set} />
+              : <PagePaint state={state} set={set} />)}
             {page === 6 && isCustomer && state.customer && (
               <>
                 <p className="wz-kick">One last thing</p>
@@ -688,10 +711,13 @@ function PageProperty({
           if (v === state.jobType) return;
           // A2: the job type decides which substrate lists page 2 offers —
           // re-tick the defaults for the new type so an exterior job never
-          // carries interior ticks (and vice versa).
+          // carries interior ticks (and vice versa). R2: pure exterior gets
+          // the exterior question set; its answers drive the tick list.
+          const ext = v === "exterior" ? (state.exterior ?? defaultExterior()) : state.exterior;
           set({
             jobType: v,
-            surfaces: defaultSurfacesFor(v, substrates),
+            exterior: v === "exterior" ? ext : v === "interior" ? null : state.exterior,
+            surfaces: v === "exterior" && ext ? exteriorSurfaceKeys(ext) : defaultSurfacesFor(v, substrates),
             condition: { ...state.condition, darkToLightSurfaces: [] },
           });
         }}
@@ -996,7 +1022,7 @@ function PageDetails({ state, set, damageInputRef, hasPlanRuns, isCustomer = fal
 
 // ---- page 5: paint ----------------------------------------------------------
 
-function PagePaint({ state, set }: { state: WizardState; set: (p: Partial<WizardState>) => void }) {
+function PagePaint({ state, set, embedded = false }: { state: WizardState; set: (p: Partial<WizardState>) => void; embedded?: boolean }) {
   const p = state.paint;
   const brand = (b: "dulux" | "haymes" | "taubmans") => (
     <button
@@ -1011,9 +1037,14 @@ function PagePaint({ state, set }: { state: WizardState; set: (p: Partial<Wizard
   );
   return (
     <>
-      <p className="wz-kick">Step 5 of 5 · Paint &amp; colours</p>
-      <h1>Paint and colours</h1>
-      <p className="wz-sub">Tick anything that applies — perfectly fine to leave blank.</p>
+      {!embedded && (
+        <>
+          <p className="wz-kick">Step 5 of 5 · Paint &amp; colours</p>
+          <h1>Paint and colours</h1>
+          <p className="wz-sub">Tick anything that applies — perfectly fine to leave blank.</p>
+        </>
+      )}
+      {embedded && <p className="wz-qhead" style={{ marginTop: 24 }}>Paint preferences <small style={{ color: "var(--muted)", fontWeight: 400 }}>— fine to leave blank</small></p>}
       <div className="wz-tiles">
         {(["dulux", "haymes", "taubmans"] as const).map(brand)}
         <button
@@ -1066,6 +1097,200 @@ function PagePaint({ state, set }: { state: WizardState; set: (p: Partial<Wizard
           </p>
         </div>
       )}
+    </>
+  );
+}
+
+// ---- R2: the exterior question set (recovery plan §2, one-page instruction) --
+// Pure-exterior jobs replace pages 2–5 with these. Every answer syncs
+// state.surfaces through exteriorSurfaceKeys, so the merge, the scaffold and
+// the editor all read the ONE tick list they always have.
+
+function useExt(state: WizardState, set: (p: Partial<WizardState>) => void) {
+  const ext = state.exterior ?? defaultExterior();
+  const setExt = (p: Partial<WizardExterior>) => {
+    const next = { ...ext, ...p };
+    set({ exterior: next, surfaces: exteriorSurfaceKeys(next) });
+  };
+  return { ext, setExt };
+}
+
+function PageExteriorHouse({ state, set }: { state: WizardState; set: (p: Partial<WizardState>) => void }) {
+  const { ext, setExt } = useExt(state, set);
+  const sub = (k: "weatherboards" | "render" | "brick", label: string) => (
+    <button
+      key={k}
+      className={`wz-tile ${ext.substrates.includes(k) ? "on" : ""}`}
+      onClick={() => {
+        const has = ext.substrates.includes(k);
+        const substrates = has ? ext.substrates.filter((x) => x !== k) : [...ext.substrates, k];
+        setExt({ substrates });
+      }}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <>
+      <p className="wz-kick">Step 2 of 5 · The house</p>
+      <h1>Let&rsquo;s size up the outside</h1>
+      <p className="wz-sub">Two quick looks — how tall, and what it&rsquo;s made of.</p>
+
+      <p className="wz-qhead">Single or double storey?</p>
+      <div className="wz-pick">
+        <button className={`wz-pk ${ext.storeys === "single" ? "on" : ""}`} onClick={() => setExt({ storeys: "single" })}>
+          <svg viewBox="0 0 60 64"><polygon points="8,28 30,12 52,28" fill="#1F262C" stroke="#39424B" /><rect x="12" y="28" width="36" height="24" fill="#12161A" stroke="#39424B" /><rect x="26" y="38" width="8" height="14" fill="#152A31" stroke="#2FB9CB" /></svg>
+          <small>Single storey</small>
+        </button>
+        <button className={`wz-pk ${ext.storeys === "double" ? "on" : ""}`} onClick={() => setExt({ storeys: "double" })}>
+          <svg viewBox="0 0 60 64"><polygon points="8,20 30,6 52,20" fill="#1F262C" stroke="#39424B" /><rect x="12" y="20" width="36" height="36" fill="#12161A" stroke="#39424B" /><line x1="12" y1="38" x2="48" y2="38" stroke="#39424B" /><rect x="26" y="44" width="8" height="12" fill="#152A31" stroke="#2FB9CB" /></svg>
+          <small>Double storey</small>
+        </button>
+      </div>
+
+      <p className="wz-qhead">What&rsquo;s the house made of? <small style={{ color: "var(--muted)", fontWeight: 400 }}>— a mix? Tick everything that&rsquo;s there</small></p>
+      <div className="wz-tiles">
+        {sub("weatherboards", "Weatherboard")}
+        {sub("render", "Render")}
+        {sub("brick", "Painted brick")}
+      </div>
+      <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 10 }}>
+        This seeds the wall list you&rsquo;ll confirm side by side in a moment — near enough is fine.
+      </p>
+    </>
+  );
+}
+
+function PageExteriorScope({ state, set }: { state: WizardState; set: (p: Partial<WizardState>) => void }) {
+  const { ext, setExt } = useExt(state, set);
+  const tile = (k: keyof WizardExterior["painting"], label: string, sub?: string) => (
+    <button
+      key={k}
+      className={`wz-tile ${ext.painting[k] ? "on" : ""}`}
+      onClick={() => setExt({ painting: { ...ext.painting, [k]: !ext.painting[k] } })}
+      style={{ textAlign: "left" }}
+    >
+      {label}
+      {sub && <span style={{ display: "block", fontSize: 12, color: "var(--muted)", fontWeight: 400 }}>{sub}</span>}
+    </button>
+  );
+  return (
+    <>
+      <p className="wz-kick">Step 3 of 5 · The scope</p>
+      <h1>What are we painting?</h1>
+      <p className="wz-sub">The usual full exterior is pre-ticked — untick anything that isn&rsquo;t being done. You&rsquo;ll choose the sides in a moment.</p>
+      <div className="wz-tiles">
+        {tile("body", "The body — the walls")}
+        {tile("windowsDoors", "Windows & doors")}
+        {tile("roofline", "The roofline", "fascias, gutters, eaves & downpipes")}
+        {tile("garage", "Garage door")}
+      </div>
+    </>
+  );
+}
+
+function PageExteriorCondition({ state, set, isCustomer }: {
+  state: WizardState; set: (p: Partial<WizardState>) => void; isCustomer: boolean;
+}) {
+  const { ext, setExt } = useExt(state, set);
+  const cond = (v: NonNullable<WizardExterior["condition"]>, b: string, s: string) => (
+    <button key={v} className={`wz-card ${ext.condition === v ? "on" : ""}`} onClick={() => setExt({ condition: v })}>
+      <b>{b}</b><span>{s}</span>
+    </button>
+  );
+  const acc = (v: WizardExterior["access"][number], label: string) => (
+    <button
+      key={v}
+      className={`wz-chip ${ext.access.includes(v) ? "on" : ""}`}
+      onClick={() => setExt({ access: ext.access.includes(v) ? ext.access.filter((x) => x !== v) : [...ext.access, v] })}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <>
+      <p className="wz-kick">Step 4 of 5 · Condition</p>
+      <h1>How&rsquo;s it holding up?</h1>
+      <p className="wz-sub">Honest is best — it sets the preparation we allow for.</p>
+
+      <p className="wz-qhead">How&rsquo;s the paintwork holding up?</p>
+      <div className="wz-cards">
+        {cond("good", "Good overall", "Sound paint, the odd mark — a repaint, not a rescue.")}
+        {cond("weathered", "Weathered", "Chalky or faded in places — extra preparation allowed for.")}
+        {cond("peeling", "Peeling & flaking", "Coming away in places — needs a proper look before a fixed price.")}
+      </div>
+
+      {isCustomer && state.customer && (
+        <>
+          <p className="wz-qhead">Was the home built before 1970? <small>— older paint can contain lead, and we handle it properly</small></p>
+          <Seg
+            options={[
+              { v: "yes" as const, label: "Yes" },
+              { v: "no" as const, label: "No" },
+              { v: "unsure" as const, label: "Not sure" },
+            ]}
+            value={state.customer.builtPre1970}
+            onPick={(v) => set({ customer: { ...state.customer!, builtPre1970: v } })}
+          />
+        </>
+      )}
+
+      <p className="wz-qhead">Anything tricky about access? <small style={{ color: "var(--muted)", fontWeight: 400 }}>— tick any that apply</small></p>
+      <div className="wz-chips">
+        {acc("steep", "Steep block")}
+        {acc("tight", "Tight side access")}
+        {acc("high", "Double-height entry")}
+        <button
+          className={`wz-chip ${ext.access.length === 0 ? "on" : ""}`}
+          onClick={() => setExt({ access: [] })}
+        >
+          None of these ✓
+        </button>
+      </div>
+    </>
+  );
+}
+
+function PageExteriorExtras({ state, set }: { state: WizardState; set: (p: Partial<WizardState>) => void }) {
+  const { ext, setExt } = useExt(state, set);
+  const extra = (k: "deck" | "fence" | "pergola" | "balustrade", label: string) => (
+    <button
+      key={k}
+      className={`wz-tile ${ext.extras[k] ? "on" : ""}`}
+      onClick={() => setExt({ extras: { ...ext.extras, [k]: !ext.extras[k], ...(k === "fence" && ext.extras.fence ? { fenceMetres: null } : {}) } })}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <>
+      <p className="wz-kick">Step 5 of 5 · Extras &amp; paint</p>
+      <h1>Anything else out there?</h1>
+      <p className="wz-sub">The freestanding things — not on a wall, easy to forget.</p>
+      <div className="wz-tiles">
+        {extra("deck", "Deck (oil)")}
+        {extra("fence", "Fence")}
+        {extra("pergola", "Pergola")}
+        {extra("balustrade", "Balustrade & hand rails")}
+      </div>
+      {ext.extras.fence && (
+        <div className="wz-follow">
+          <p className="wz-q">Roughly how many metres of fence? &ldquo;Not sure&rdquo; is fine — we&rsquo;ll measure on the day.</p>
+          <input
+            className="wz-field"
+            style={{ maxWidth: 240 }}
+            placeholder="metres — or 'not sure'"
+            inputMode="decimal"
+            defaultValue={ext.extras.fenceMetres ?? ""}
+            onBlur={(e) => {
+              const v = e.target.value.trim().toLowerCase();
+              const m = parseFloat(v.replace(/[^0-9.]/g, ""));
+              setExt({ extras: { ...ext.extras, fenceMetres: v && !v.includes("not") && !isNaN(m) ? Math.min(500, Math.max(1, m)) : null } });
+            }}
+          />
+        </div>
+      )}
+      <PagePaint state={state} set={set} embedded />
     </>
   );
 }
