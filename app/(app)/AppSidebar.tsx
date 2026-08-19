@@ -7,6 +7,7 @@ import { signout } from "@/app/auth/actions";
 const NAV = [
   { href: "/estimates", label: "Estimates", icon: "📄" },
   { href: "/plans", label: "Read a plan", icon: "📐" },
+  { href: "/proving", label: "Proving", icon: "🎯" },
   { href: "/schedule", label: "Schedule", icon: "🗓" },
   { href: "/invoices", label: "Invoices", icon: "🧾" },
   { href: "/contacts", label: "Contacts", icon: "👤" },

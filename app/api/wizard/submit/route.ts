@@ -339,6 +339,23 @@ export async function POST(request: Request) {
     serviceArea,
   );
 
+  // The proving-window baseline (Step 9): the wizard's ORIGINAL numbers,
+  // frozen at submit. The /proving dashboard reprices the live estimate
+  // later and measures how far staff corrected it — the gate's exit metric
+  // (median staff correction < $150) can only exist if the starting point
+  // is recorded now.
+  (builderState.wizard as Record<string, unknown>).snapshot = {
+    totalCents: payload.totals.totalCents,
+    accuracyPct: payload.accuracyPct,
+    marginCents: payload.totals.marginCents,
+    contractorHours: payload.totals.contractorHours,
+    areaCount: payload.rooms.length,
+    deferredCount: payload.deferred.length,
+    outcome: decision.outcome,
+    walkthroughRequired: decision.walkthroughRequired,
+    reasons: decision.reasons,
+  };
+
   // Customer mode with a blocking outcome: the estimate is STILL created
   // (staff follow the lead up with the data in hand) but no price crosses
   // the wire — the guardrail response carries only the outcome.

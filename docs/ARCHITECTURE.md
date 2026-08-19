@@ -468,3 +468,19 @@ Customer confirmations stamp `customer_stated` (accuracy credit 0.75) —
 better than an assumption, always cross-checked in the staff review queue.
 The route is OFF behind the `wizard_public` setting until Step 10's launch;
 staff preview anytime.
+
+---
+
+## Proving window — Step 9 enablement
+
+**2026-08-19 · `app/(app)/proving/`, `lib/wizard/proving.ts`, submit snapshot**
+
+The proving window (Step 9) is Tom's calendar work — real enquiries through
+the wizard — but its exit condition (median staff correction < $150, on a
+real sample) needs measuring. Each wizard submit now freezes its first-guess
+numbers into `builder_state.wizard.snapshot` (total, accuracy, outcome).
+`lib/wizard/proving.ts` (pure) reprices the live estimate and measures the
+correction against that baseline; `/proving` (staff nav) shows it per
+estimate and in aggregate with the gate verdict. "Is the wizard accurate
+enough to switch on?" is now a number, not a feeling — and it's the same
+`wizard_public` flag Step 10 flips once the gate holds.
