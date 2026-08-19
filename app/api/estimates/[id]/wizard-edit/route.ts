@@ -10,6 +10,7 @@ import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { applyWizardAnswers } from "@/lib/wizard/merge";
 import { wizardStateSchema } from "@/lib/wizard/state";
 import { markStarterProvenance, starterExtraction, type TypicalSizeRow } from "@/lib/wizard/starter";
+import { applyCount, applyRename, applyToggle, customerScopeRooms } from "@/lib/wizard/scope-editor";
 import { customerPayload, editorPayload, type WizardDeferred } from "@/lib/wizard/view";
 import {
   GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails,
@@ -58,6 +59,17 @@ const actionSchema = z.discriminatedUnion("action", [
    * flag on every Exterior node (Tom's ruling: derived widths are always
    * flagged until a human confirms them). */
   z.object({ action: z.literal("confirm_exterior_widths") }),
+  // ---- Part B: the customer scope editor's whitelist ----------------------
+  // These five shapes are the ONLY customer-reachable mutations beyond
+  // add/remove room: WHAT is painted, never hours, rates or allowances.
+  // Anything else fails schema validation right here.
+  z.object({ action: z.literal("toggle_surface"), areaId: z.number().int().positive(), key: z.string().min(1).max(40), on: z.boolean() }),
+  z.object({ action: z.literal("set_count"), areaId: z.number().int().positive(), key: z.string().min(1).max(40), count: z.number().int().min(1).max(12) }),
+  z.object({ action: z.literal("rename_room"), areaId: z.number().int().positive(), name: z.string().min(1).max(60) }),
+  /** Free text → an amber estimator note. NEVER silently priced. */
+  z.object({ action: z.literal("add_note"), areaId: z.number().int().positive().nullable().default(null), note: z.string().min(1).max(500) }),
+  /** "Not right? Tell us" — flags the job non-straightforward. */
+  z.object({ action: z.literal("flag_geometry"), note: z.string().max(300).optional() }),
 ]);
 
 type LooseBlock = Record<string, unknown> & {
@@ -243,6 +255,45 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     });
   }
 
+  // ---- Part B: customer scope actions — pure helpers, then reprice --------
+  if (act.action === "toggle_surface" || act.action === "set_count" || act.action === "rename_room") {
+    const snap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
+    const snapshot = snap.success ? snap.data : null;
+    let next = Math.max(0, ...blocks.flatMap((b) => [
+      Number(b.id) || 0,
+      ...(b.surfaces ?? []).map((s) => Number(s.id) || 0),
+    ])) + 1;
+    const result =
+      act.action === "toggle_surface" ? applyToggle(blocks, act.areaId, act.key, act.on, snapshot, () => next++)
+      : act.action === "set_count" ? applyCount(blocks, act.areaId, act.key, act.count)
+      : applyRename(blocks, act.areaId, act.name);
+    if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
+    blocks = result.blocks as LooseBlock[];
+  }
+
+  if (act.action === "add_note") {
+    const room = act.areaId != null ? blocks.find((b) => b.kind === "area" && Number(b.id) === act.areaId) : null;
+    if (act.areaId != null && !room) return NextResponse.json({ error: "No such room." }, { status: 404 });
+    deferred.push({
+      room: room ? String(room.name ?? "Room") : "Whole job",
+      areaId: act.areaId ?? null,
+      what: "customer note",
+      count: 1,
+      needs: `"${act.note.trim().slice(0, 300)}" — price this WITH the customer, never silently`,
+    });
+  }
+
+  if (act.action === "flag_geometry") {
+    deferred.push({
+      room: "Whole job", areaId: null, what: "geometry flagged by customer", count: 1,
+      needs: act.note?.trim()
+        ? `customer says the storeys/heights look wrong: "${act.note.trim().slice(0, 200)}" — verify on site`
+        : "customer says the storeys/heights look wrong — verify on site",
+    });
+    await db.from("estimates").update({ requires_site_check: true }).eq("id", id)
+      .then((r) => { if (r.error) reportError(r.error, { where: "wizard.edit.flagGeometry", bestEffort: true, extra: { id } }); });
+  }
+
   let newDeferred = deferred;
   if (act.action === "remove_room") {
     const before = blocks.length;
@@ -300,9 +351,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         message: GUARDRAIL_MESSAGES[decision.outcome] ?? GUARDRAIL_MESSAGES.handoff,
       });
     }
-    return NextResponse.json(
-      customerPayload(payload, blocks, decision, bandsFromSettings(settingValue(ctx.settings, "wizard_bands"))),
-    );
+    // Part B telemetry: which substrates customers remove and where they say
+    // "not sure" feeds preset tuning. Best-effort, never blocks the edit.
+    if (act.action === "toggle_surface" || act.action === "add_note" || act.action === "flag_geometry") {
+      await db.from("estimate_events").insert({
+        estimate_id: id,
+        type: "scope_edit",
+        payload: { action: act.action, ...(act.action === "toggle_surface" ? { key: act.key, on: act.on } : {}) },
+      }).then((r) => { if (r.error) reportError(r.error, { where: "wizard.edit.telemetry", bestEffort: true }); });
+    }
+
+    // The editor's tile grids re-derive from the tree + the same scope rules
+    // that drive capture — one source of truth, mode="customer".
+    const { data: rulesRows } = await db
+      .from("room_type_scope_rules")
+      .select("room_type, surface_type, is_option, requires_confirm, notes")
+      .eq("version", SCOPE_VERSION);
+    return NextResponse.json({
+      ...customerPayload(payload, blocks, decision, bandsFromSettings(settingValue(ctx.settings, "wizard_bands"))),
+      scopeRooms: customerScopeRooms(blocks, (rulesRows ?? []) as ScopeRule[]),
+    });
   }
 
   return NextResponse.json(payload);

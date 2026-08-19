@@ -139,6 +139,16 @@ export default function CustomerResult({ outcome, reveal, roomTypes }: {
           </div>
         </div>
 
+        {/* Part B: the scope editor — full control of WHAT is painted. */}
+        <div className="wz-confirmrow">
+          <div className="wz-cf">
+            <span><b>Shape your estimate</b> — add or remove rooms and surfaces, and watch the range follow.</span>
+            <a className="wz-mini" href={`/estimate/scope?id=${reveal.estimateId}`} style={{ textDecoration: "none" }}>
+              Open the editor
+            </a>
+          </div>
+        </div>
+
         {(payload.heightUnconfirmed || payload.exteriorWidthFromPlan || payload.exteriorWidthMissing) && (
           <div className="wz-confirmrow">
             {payload.exteriorWidthMissing && (

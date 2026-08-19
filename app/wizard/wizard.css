@@ -142,3 +142,56 @@
 .wz .wz-suggest-row:last-child { border-bottom: 0; }
 .wz .wz-suggest-row:hover { background: #1A2027; }
 .wz .wz-suggest-row span { color: var(--muted); font-size: 12.5px; }
+
+/* ---- Part B: customer scope editor (.sc-, per customer-scope-editor-mockup) */
+.wz .sc-wrap { max-width: 1020px; margin: 0 auto; padding: 20px 20px 170px; }
+.wz .sc-scorebar { display: flex; align-items: center; justify-content: space-between; gap: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 15px 18px; margin-bottom: 14px; }
+.wz .sc-score { display: flex; align-items: center; gap: 12px; }
+.wz .sc-ring { position: relative; width: 48px; height: 48px; }
+.wz .sc-num { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--wz-mono); font-size: 10px; font-weight: 700; }
+.wz .sc-lbl b { display: block; font-size: 14px; font-weight: 600; }
+.wz .sc-lbl span { font-size: 12px; color: var(--muted); }
+.wz .sc-range { text-align: right; }
+.wz .sc-range .sc-r { font-family: var(--wz-mono); font-size: clamp(16px, 3vw, 21px); font-weight: 700; animation: scpf .6s; }
+.wz .sc-range small { display: block; font-family: var(--wz-mono); font-size: 8px; letter-spacing: .14em; color: var(--muted); }
+@keyframes scpf { 0% { color: var(--cyan); } 100% { color: var(--text); } }
+.wz .sc-cards { display: flex; flex-direction: column; gap: 12px; }
+.wz .sc-rc { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+.wz .sc-hd { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.wz .sc-hd b { font-size: 16.5px; font-weight: 600; }
+.wz .sc-m { font-family: var(--wz-mono); font-size: 11px; color: var(--muted); display: inline-flex; gap: 8px; align-items: center; }
+.wz .sc-x { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; font-size: 12px; padding: 3px 9px; cursor: pointer; font-family: var(--wz-sans); }
+.wz .sc-x:hover { border-color: var(--clay); color: var(--clay); }
+.wz .sc-tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 8px; margin-top: 13px; }
+.wz .sc-tl { position: relative; border: 1px solid var(--line); background: var(--panel2); border-radius: 10px; padding: 11px 12px; cursor: pointer; font-size: 13.5px; color: var(--muted); user-select: none; }
+.wz .sc-tl.on { border-color: var(--cyan); color: var(--text); background: rgba(59,216,233,.07); }
+.wz .sc-tl.on::after { content: "✓"; position: absolute; top: 8px; right: 10px; color: var(--cyan); font-size: 11px; }
+.wz .sc-tl.busy { opacity: .6; }
+.wz .sc-st { display: flex; align-items: center; gap: 9px; margin-top: 7px; }
+.wz .sc-st button { width: 24px; height: 24px; border-radius: 7px; border: 1px solid var(--line); background: none; color: var(--text); font-size: 13px; cursor: pointer; line-height: 1; }
+.wz .sc-st b { font-family: var(--wz-mono); font-size: 12px; min-width: 16px; text-align: center; }
+.wz .sc-more { margin-top: 10px; background: none; border: none; color: var(--cyan); font-family: var(--wz-sans); font-size: 13px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.wz .sc-advice { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 11px; border: 1px solid rgba(224,168,60,.5); border-left-width: 2.5px; background: rgba(224,168,60,.05); border-radius: 0 10px 10px 0; padding: 11px 13px; font-size: 13px; }
+.wz .sc-advice button { font-family: var(--wz-sans); font-size: 12.5px; padding: 6px 12px; border-radius: 100px; border: 1px solid var(--line); background: none; color: var(--text); cursor: pointer; }
+.wz .sc-advice .keep { border-color: var(--amber); color: var(--amber); }
+.wz .sc-else { display: flex; gap: 8px; margin-top: 12px; }
+.wz .sc-else input { flex: 1; background: var(--ink); border: 1px solid var(--line); border-radius: 9px; color: var(--text); font-size: 13px; padding: 10px 12px; outline: none; }
+.wz .sc-else button { border: 1px solid var(--line); background: none; color: var(--muted); border-radius: 9px; padding: 0 13px; cursor: pointer; font-size: 13px; font-family: var(--wz-sans); }
+.wz .sc-notechip { margin-top: 9px; font-size: 12px; color: var(--amber); border: 1px dashed rgba(224,168,60,.5); border-radius: 100px; padding: 5px 12px; width: fit-content; }
+.wz .sc-inc { margin-top: 12px; font-size: 12px; color: var(--muted); display: flex; gap: 7px; align-items: center; }
+.wz .sc-inc::before { content: "🔒"; font-size: 11px; }
+.wz .sc-addrooms { border: 1.5px dashed var(--line); border-radius: 14px; padding: 15px; }
+.wz .sc-addrooms .q { font-size: 14.5px; font-weight: 600; margin-bottom: 9px; }
+.wz .sc-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.wz .sc-chip { padding: 8px 14px; border-radius: 100px; border: 1px solid var(--line); background: none; color: var(--muted); font-size: 13px; cursor: pointer; font-family: var(--wz-sans); text-transform: capitalize; }
+.wz .sc-chip:hover { border-color: var(--cyan); color: var(--cyan); }
+.wz .sc-stick { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; padding: 11px 18px; background: rgba(10,11,13,.95); backdrop-filter: blur(14px); border-top: 1px solid var(--line); }
+.wz .sc-row { display: flex; align-items: center; gap: 12px; max-width: 1020px; margin: 0 auto; }
+.wz .sc-pr { font-family: var(--wz-mono); font-weight: 700; font-size: 15px; line-height: 1.25; }
+.wz .sc-pr small { display: block; font-size: 8px; font-weight: 400; color: var(--muted); letter-spacing: .14em; }
+.wz .sc-sp { flex: 1; }
+.wz .sc-tier { font-size: 11.5px; color: var(--muted); max-width: 1020px; margin: 0 auto 8px; display: flex; gap: 7px; align-items: center; }
+.wz .sc-tier i { font-style: normal; width: 7px; height: 7px; border-radius: 50%; background: var(--emerald); flex-shrink: 0; }
+.wz .sc-tier.visit i { background: var(--amber); }
+.wz .sc-btn { font-family: var(--wz-sans); font-weight: 600; font-size: 15px; padding: 13px 20px; border-radius: 10px; border: 1px solid transparent; cursor: pointer; background: var(--cyan); color: var(--oncyan); }
+.wz .sc-toast { position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%); background: var(--panel2); border: 1px solid rgba(59,216,233,.45); border-radius: 12px; padding: 10px 16px; font-size: 13.5px; z-index: 70; max-width: 460px; text-align: center; }
