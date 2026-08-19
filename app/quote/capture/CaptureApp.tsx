@@ -28,7 +28,7 @@ export type ExistingRoom = {
   surfaceCount: number;
   priceCents: number;
   L: number; W: number; H: number;
-  surfaces: Array<{ code: string; count: number; prepHr: number; coats: number; crewNote: string }>;
+  surfaces: Array<{ code: string; count: number; prepHr: number; coats: number; crewNote: string; size?: "small" | "large" | null }>;
   extraWallSegmentsM: number[];
   perimeterOverridden: boolean;
   perimeterM: number | null;
@@ -42,7 +42,7 @@ type Totals = { subtotalCents: number; totalCents: number; contractorHours: numb
 const money = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
 export default function CaptureApp({
-  estimateId, estimateTitle, rules, presets, defectRates, rateItems = [], jobMod = 1, initialStoreyHeights, initialRooms,
+  estimateId, estimateTitle, rules, presets, defectRates, rateItems = [], jobMod = 1, windowSizes = { small: 0.8, large: 1.2 }, initialStoreyHeights, initialRooms,
 }: {
   estimateId: string;
   estimateTitle: string;
@@ -53,6 +53,8 @@ export default function CaptureApp({
   /** The estimate's job modifier — hour placeholders must show what pricing
    * will actually charge, or a typed "confirmation" writes a wrong override. */
   jobMod?: number;
+  /** A6: Settings-tuned window size multipliers, for placeholder parity. */
+  windowSizes?: { small: number; large: number };
   initialStoreyHeights: Record<string, number> | null;
   initialRooms: ExistingRoom[];
 }) {
@@ -187,6 +189,7 @@ export default function CaptureApp({
       const tile = tiles.find((t) => t.rateCode === s.code);
       if (!tile) continue;
       draft.selections[tile.id] = tile.countable ? s.count : 1;
+      if (s.size) draft.sizes = { ...(draft.sizes ?? {}), [tile.id]: s.size };
       if (s.prepHr) draft.prepHours[tile.id] = s.prepHr;
       if (s.coats !== 2) draft.coats[tile.id] = s.coats;
       if (s.crewNote) draft.crewNotes[tile.id] = s.crewNote;
@@ -276,6 +279,7 @@ export default function CaptureApp({
           rateItems={rateItems}
           category={vocab === "exterior" ? "Exterior" : "Interior"}
           jobMod={jobMod}
+          windowSizes={windowSizes}
           onChange={(d) => updateDrafts(drafts.map((x) => (x.localId === d.localId ? d : x)))}
           onBack={() => setScreen({ kind: "capture", localId: active.localId })}
           onNextRoom={async () => { void commitRoom(active); setScreen({ kind: "picker" }); }}
@@ -540,7 +544,7 @@ function CaptureScreen({
 const CHIP_TYPES = ["peeling", "water_damage", "plaster_cracks", "holes_dents", "previous_poor_finish"];
 
 function RoomReview({
-  draft, rules, defectRates, rateItems = [], category = "Interior", jobMod = 1, onChange, onBack, onNextRoom,
+  draft, rules, defectRates, rateItems = [], category = "Interior", jobMod = 1, windowSizes = { small: 0.8, large: 1.2 }, onChange, onBack, onNextRoom,
 }: {
   draft: RoomDraft;
   rules: TileRule[];
@@ -548,6 +552,8 @@ function RoomReview({
   rateItems?: RateItem[];
   category?: "Interior" | "Exterior";
   jobMod?: number;
+  /** A6: the Settings-tuned window size multipliers, for placeholder parity. */
+  windowSizes?: { small: number; large: number };
   onChange: (d: RoomDraft) => void;
   onBack: () => void;
   onNextRoom: () => void;
@@ -576,9 +582,14 @@ function RoomReview({
     else if (t.measureBasis === "ceiling_area") qty = resolveQuantity({ basis: "ceiling_area", geo });
     else if (t.measureBasis === "perimeter") qty = resolveQuantity({ basis: "perimeter", geo });
     else if (t.measureBasis === "wall_area") qty = resolveQuantity({ basis: "wall_area", geo }) * (t.fractional ? Math.min(count, 4) / 4 : 1);
-    const painting = hpu * qty * jobMod;
+    // A6: parity with priceSurface — the size multiplier scales window hours.
+    const size = draft.sizes?.[t.id];
+    const sizeMul = !/window/i.test(item.sub_category ?? "") ? 1
+      : size === "small" ? windowSizes.small : size === "large" ? windowSizes.large : 1;
+    const painting = hpu * qty * jobMod * sizeMul;
     return Math.round((painting + (draft.prepHours[t.id] ?? 0)) * 100) / 100;
   };
+  const isWindowTile = (t: SurfaceTile) => /window/i.test(itemFor(t.rateCode)?.sub_category ?? "");
   const defectsFor = (tileId: string): DefectObservation[] => (draft.defects ?? {})[tileId] ?? [];
   const setDefects = (tileId: string, obs: DefectObservation[]) =>
     set({ defects: { ...(draft.defects ?? {}), [tileId]: obs } });
@@ -608,6 +619,28 @@ function RoomReview({
                 />
                 {t.countable && !t.fractional ? `× ${draft.selections[t.id]}` : ""}
                 {t.fractional && (draft.selections[t.id] ?? 0) < 4 ? `${(draft.selections[t.id] ?? 0) * 25}%` : ""}
+                {/* A6: compact S/M/L on window rows — a rate multiplier. */}
+                {isWindowTile(t) && (
+                  <span className="inline-flex overflow-hidden rounded border border-gray-300">
+                    {(["small", "medium", "large"] as const).map((sz) => (
+                      <button
+                        key={sz}
+                        type="button"
+                        onClick={() => {
+                          const next = { ...(draft.sizes ?? {}) };
+                          if (sz === "medium") delete next[t.id]; else next[t.id] = sz;
+                          set({ sizes: next });
+                        }}
+                        className={`px-1.5 py-0.5 text-[10px] font-semibold ${
+                          (draft.sizes?.[t.id] ?? "medium") === sz ? "bg-gray-900 text-white" : "text-gray-500"
+                        }`}
+                        title={sz === "small" ? `Small · ×${windowSizes.small}` : sz === "large" ? `Large · ×${windowSizes.large}` : "Medium · standard rate"}
+                      >
+                        {sz[0].toUpperCase()}
+                      </button>
+                    ))}
+                  </span>
+                )}
                 <span className="flex items-center gap-1 rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-normal text-gray-600">
                   <input type="number" inputMode="decimal" step="0.25" min="0"
                     placeholder={String(hoursFor(t, draft.selections[t.id] ?? 0) ?? "")}

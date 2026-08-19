@@ -508,3 +508,14 @@ two-way thread on an estimate. A staff reply (`replyToEstimateChatAction`)
 notifies the customer by SMS and email, both linking to `/e/{token}#chat`,
 which auto-opens the customer chat. Redesigned bubble UI both sides;
 best-effort delivery logged to `estimate_events`, never blocking the message.
+
+**Window sizes (A6)**: window surface rows carry `size` (small/medium/large,
+absent = medium = unchanged pricing — goldens hold). `lib/pricing`
+(`windowSizeMultiplier`) applies it as a multiplier on the window rate's
+hours, tunable via settings "Window size — small" (0.8) / "Window size —
+large" (1.2), surfaced in Settings → Pricing & job numbers. Builder rows and
+the capture review screen get compact S/M/L controls (capture's placeholder
+hours apply the same multiplier for parity); the rooms route accepts a
+bounded `sizes` map. The wizard always writes medium. The model is ONE
+window rate × size — legacy separate small/large window rate items keep
+pricing as-is and are flagged superseded in Settings.
