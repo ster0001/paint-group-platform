@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { createHash } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { getWizardActor } from "@/lib/supabase/guards";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildDraft, type DraftArea, type DraftResult } from "@/lib/extract/draft";
 import { elevationReadSchema, mergeSitePlanWidths, sitePlanReadSchema, type SitePlanRead } from "@/lib/extract/elevation";
 import { computeEnvelope, envelopeToAreaNodes, type ElevationRead } from "@/lib/extract/exterior";
@@ -11,7 +15,11 @@ import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { applyWizardAnswers } from "@/lib/wizard/merge";
 import { ceilingHeightFrom, wizardStateSchema } from "@/lib/wizard/state";
 import { markStarterProvenance, starterExtraction, starterRoomList, type TypicalSizeRow } from "@/lib/wizard/starter";
-import { editorPayload } from "@/lib/wizard/view";
+import { customerPayload, editorPayload } from "@/lib/wizard/view";
+import {
+  answersFromState, bandsFromSettings, evaluateGuardrails,
+  policyFromSettings, serviceAreaFromSettings, settingValue,
+} from "@/lib/wizard/policy";
 import { reportError } from "@/lib/monitoring/report";
 
 /**
@@ -50,16 +58,55 @@ export async function POST(request: Request) {
   const state = parsed.data.state;
 
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  if (profile?.role !== "staff") return NextResponse.json({ error: "Staff only." }, { status: 403 });
+  // Staff submit either mode (internal, or a customer-mode preview).
+  // An anonymous customer submits ONLY customer mode, through the service
+  // client — they hold no table access of their own.
+  const actor = await getWizardActor(supabase);
+  if (actor.kind === "none") return NextResponse.json({ error: "Staff only." }, { status: 403 });
+  if (actor.kind === "customer" && state.mode !== "customer") {
+    return NextResponse.json({ error: "Staff only." }, { status: 403 });
+  }
+  const user = actor.user;
+  let db: SupabaseClient = supabase;
+  if (actor.kind === "customer") {
+    const svc = createServiceClient();
+    if (!svc) return NextResponse.json({ error: "The estimate wizard isn't available just now." }, { status: 503 });
+    db = svc;
+  }
+
+  // ---- rate limiting (real customers only, before any expensive work) ------
+  const ipHash = createHash("sha256")
+    .update(`${request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"}::${process.env.WIZARD_IP_SALT ?? "pg-wizard"}`)
+    .digest("hex").slice(0, 32);
+  const email = state.customer?.email.trim().toLowerCase() ?? "";
+  if (actor.kind === "customer") {
+    const { data: limitRow } = await db.from("settings").select("value").eq("key", "wizard_limits").maybeSingle();
+    const limits = (limitRow?.value ?? {}) as { maxEstimatesPerVisitor?: number; holdMessage?: string };
+    const max = typeof limits.maxEstimatesPerVisitor === "number" ? limits.maxEstimatesPerVisitor : 2;
+    const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+    const { count } = await db.from("wizard_leads")
+      .select("id", { count: "exact", head: true })
+      .or(`email.eq.${email},ip_hash.eq.${ipHash}`)
+      .neq("outcome", "rate_limited")
+      .gte("created_at", since);
+    if ((count ?? 0) >= max) {
+      await db.from("wizard_leads").insert({
+        user_id: user.id, email, ip_hash: ipHash,
+        suburb: state.customer?.suburb ?? null, postcode: state.customer?.postcode ?? null,
+        job_type: state.jobType, outcome: "rate_limited", reasons: ["rate_limited"],
+      }).then(() => undefined, () => undefined);
+      return NextResponse.json({
+        outcome: "rate_limited",
+        message: limits.holdMessage ?? "Looks like you're busy — talk to us and we'll set you up properly.",
+      }, { status: 429 });
+    }
+  }
 
   const [{ data: rulesRows }, { data: aliasRows }, { data: defectRows }, { data: typicalRows }] = await Promise.all([
-    supabase.from("room_type_scope_rules").select("room_type, surface_type, is_option, requires_confirm, notes").eq("version", SCOPE_VERSION),
-    supabase.from("room_name_aliases").select("alias, room_type").eq("version", SCOPE_VERSION),
-    supabase.from("defect_prep_rates").select("defect_type, unit, hours_sev1, hours_sev2, hours_sev3").eq("version", SCOPE_VERSION),
-    supabase.from("room_type_defaults").select("room_type, typical_length_m, typical_width_m").eq("version", 3),
+    db.from("room_type_scope_rules").select("room_type, surface_type, is_option, requires_confirm, notes").eq("version", SCOPE_VERSION),
+    db.from("room_name_aliases").select("alias, room_type").eq("version", SCOPE_VERSION),
+    db.from("defect_prep_rates").select("defect_type, unit, hours_sev1, hours_sev2, hours_sev3").eq("version", SCOPE_VERSION),
+    db.from("room_type_defaults").select("room_type, typical_length_m, typical_width_m").eq("version", 3),
   ]);
   const rules = (rulesRows ?? []) as ScopeRule[];
   const aliases = (aliasRows ?? []) as Alias[];
@@ -110,7 +157,7 @@ export async function POST(request: Request) {
     assumedCount += draft.assumedCount;
   } else {
     // ---- plan path: rebuild from the stored readings, one run per page -----
-    const { data: runs } = await supabase
+    const { data: runs } = await db
       .from("extraction_runs")
       .select("id, status, raw_output, estimate_sources ( id, storage_path, estimate_id )")
       .in("id", state.planRunIds);
@@ -189,7 +236,7 @@ export async function POST(request: Request) {
   // ---- facade photos: elevation readings for the envelope (E2) -------------
   const facadeSourceIds: string[] = [];
   if (state.facadeRunIds.length) {
-    const { data: facadeRuns } = await supabase
+    const { data: facadeRuns } = await db
       .from("extraction_runs")
       .select("id, status, raw_output, estimate_sources ( id, storage_path, estimate_id )")
       .in("id", state.facadeRunIds);
@@ -269,32 +316,64 @@ export async function POST(request: Request) {
     blocks: merged.areas,
     aiDeferred: merged.deferred,
     // The full answers ride along: the editor's add-room re-applies them, and
-    // the Step 8 customer layer will need them for the range bands.
+    // the customer layer's range bands recompute from them.
     wizard: { version: 1, state, submittedAt: new Date().toISOString() },
   };
 
-  const title = state.title.trim() || "Wizard estimate";
-  let sourceTag = "wizard";
-  let insert = await supabase
-    .from("estimates")
-    .insert({ title, status: "draft", builder_state: builderState, source: sourceTag })
-    .select("id")
-    .single();
-  if (insert.error && /source/.test(insert.error.message)) {
+  // ---- price and judge BEFORE anything is revealed -------------------------
+  const ctx = await loadPricingContext(db);
+  const payload = editorPayload(merged.areas, ctx, adjustmentsFrom(builderState), merged.deferred);
+
+  const isCustomerMode = state.mode === "customer";
+  const policy = policyFromSettings(settingValue(ctx.settings, "wizard_policy"));
+  const bands = bandsFromSettings(settingValue(ctx.settings, "wizard_bands"));
+  const serviceArea = serviceAreaFromSettings(settingValue(ctx.settings, "service_area"));
+  const decision = evaluateGuardrails(
+    answersFromState(state),
+    payload.totals.totalCents,
+    payload.accuracyPct,
+    wantsExterior,
+    policy,
+    serviceArea,
+  );
+
+  // Customer mode with a blocking outcome: the estimate is STILL created
+  // (staff follow the lead up with the data in hand) but no price crosses
+  // the wire — the guardrail response carries only the outcome.
+  const title = isCustomerMode
+    ? [state.customer?.suburb, state.customer?.postcode].filter(Boolean).join(" ") || "Customer enquiry"
+    : state.title.trim() || "Wizard estimate";
+  let sourceTag = isCustomerMode ? "customer_intake" : "wizard";
+  const baseRow: Record<string, unknown> = {
+    title, status: "draft", builder_state: builderState, source: sourceTag,
+    ...(actor.kind === "customer" ? { created_by: user.id } : {}),
+  };
+  let insert = await db.from("estimates").insert(baseRow).select("id").single();
+  if (insert.error && !isCustomerMode && /source/.test(insert.error.message)) {
     // Migration 20260915 (source check) hasn't run yet — degrade gracefully.
     sourceTag = state.noPlan ? "manual" : "ai_floorplan";
     warnings.push("Saved with the old source tag — run migration 20260915000000_wizard_source.sql to enable source=wizard.");
-    insert = await supabase
-      .from("estimates")
-      .insert({ title, status: "draft", builder_state: builderState, source: sourceTag })
-      .select("id")
-      .single();
+    insert = await db.from("estimates").insert({ ...baseRow, source: sourceTag }).select("id").single();
   }
   if (insert.error || !insert.data) {
     reportError(insert.error, { where: "wizard.submit.insert" });
     return NextResponse.json({ error: `Couldn't create the estimate: ${insert.error?.message}` }, { status: 500 });
   }
   const estimateId = insert.data.id as string;
+
+  // The lead row — every real customer attempt, whatever the outcome.
+  if (actor.kind === "customer") {
+    const leadOutcome = decision.outcome === "reveal"
+      ? (decision.walkthroughRequired ? "walkthrough_only" : "revealed")
+      : decision.outcome === "outside_area" ? "outside_area"
+      : decision.outcome === "below_floor" ? "below_floor"
+      : decision.outcome; // handoff | hard_stop
+    await db.from("wizard_leads").insert({
+      user_id: user.id, estimate_id: estimateId, email, ip_hash: ipHash,
+      suburb: state.customer?.suburb ?? null, postcode: state.customer?.postcode ?? null,
+      job_type: state.jobType, outcome: leadOutcome, reasons: decision.reasons,
+    }).then(() => undefined, () => undefined);
+  }
 
   // One key per storey the draft actually has, so capture's storey switcher
   // can reach every floor. One height across them (Tom's one-height rule) —
@@ -307,29 +386,29 @@ export async function POST(request: Request) {
 
   await Promise.all([
     appliedRunIds.length
-      ? supabase.from("extraction_runs").update({ status: "applied" }).in("id", appliedRunIds)
+      ? db.from("extraction_runs").update({ status: "applied" }).in("id", appliedRunIds)
       : Promise.resolve(),
     sourceIds.length || facadeSourceIds.length
       // Belt and braces: the ownership check above plus is-null here, so a
       // concurrent claim can't repoint another estimate's plan.
-      ? supabase.from("estimate_sources").update({ estimate_id: estimateId })
+      ? db.from("estimate_sources").update({ estimate_id: estimateId })
           .in("id", [...sourceIds, ...facadeSourceIds]).is("estimate_id", null)
       : Promise.resolve(),
     // Best-effort until migration 20260913/14 has run everywhere.
     storeyHeights
-      ? supabase.from("estimates").update({ storey_heights: storeyHeights }).eq("id", estimateId)
+      ? db.from("estimates").update({ storey_heights: storeyHeights }).eq("id", estimateId)
           .then(() => undefined, () => undefined)
       : Promise.resolve(),
     // Every AI-drafted exterior carries requires_site_check until a human
     // clears it deliberately (migration 20260910's rule). Best-effort.
     wantsExterior
-      ? supabase.from("estimates").update({ requires_site_check: true }).eq("id", estimateId)
+      ? db.from("estimates").update({ requires_site_check: true }).eq("id", estimateId)
           .then(() => undefined, () => undefined)
       : Promise.resolve(),
     // The reconciled envelope row — what was measured, from what, at what
     // confidence — for the cross-check UI and the E2 scorer. Best-effort.
     envelope
-      ? supabase.from("exterior_envelopes").upsert({
+      ? db.from("exterior_envelopes").upsert({
           estimate_id: estimateId,
           footprint_source: "floorplan",
           perimeter_m: sitePlanRead?.perimeterM ?? null,
@@ -349,17 +428,36 @@ export async function POST(request: Request) {
       : Promise.resolve(),
   ]);
 
-  // ---- price it, score it, hand the editor its whole view ------------------
-  const ctx = await loadPricingContext(supabase);
-  const payload = editorPayload(merged.areas, ctx, adjustmentsFrom(builderState), merged.deferred);
+  // ---- guardrail outcomes: no price crosses the wire -----------------------
+  if (isCustomerMode && decision.outcome !== "reveal") {
+    const MESSAGES: Record<string, string> = {
+      hard_stop: "Homes of this age and condition need a lead-safe or asbestos assessment before any painting is priced. We'll be in touch to arrange it — there's no obligation.",
+      handoff: "This one needs a person rather than a calculator — we'll look at what you've sent and come back to you within one business day.",
+      outside_area: "It looks like you're outside the area we currently service — we've kept your details and will let you know if that changes.",
+      below_floor: `Smaller jobs are quoted from our minimum call-out. We'll confirm the exact price with you directly.`,
+    };
+    return NextResponse.json({
+      outcome: decision.outcome,
+      message: MESSAGES[decision.outcome] ?? MESSAGES.handoff,
+    });
+  }
 
   // The pinned plan, through a short-lived signed URL (private bucket).
   // Exterior-only jobs pin the first facade photo instead.
   let planUrl: string | null = null;
   const pinPath = planSourcePath ?? facadeSourcePath;
   if (pinPath) {
-    const { data: signed } = await supabase.storage.from("estimate-sources").createSignedUrl(pinPath, 3600);
+    const { data: signed } = await db.storage.from("estimate-sources").createSignedUrl(pinPath, 3600);
     planUrl = signed?.signedUrl ?? null;
+  }
+
+  if (isCustomerMode) {
+    // The customer's view: a range, inclusions, confidence — and nothing else.
+    return NextResponse.json({
+      estimateId,
+      planUrl,
+      ...customerPayload(payload, merged.areas, decision, bands),
+    });
   }
 
   return NextResponse.json({

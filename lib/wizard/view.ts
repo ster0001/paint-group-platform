@@ -7,6 +7,7 @@ import {
   type PricingContext,
 } from "@/lib/pricing/estimate";
 import { accuracyScore, type ScoredArea } from "./accuracy";
+import { rangeBandPct, rangeFromTotal, type BandSettings, type GuardrailDecision } from "./policy";
 
 /**
  * The editor's view of the estimate: every room with its provenance and its
@@ -56,6 +57,83 @@ export type WizardEditorPayload = {
 type LooseBlock = Record<string, unknown> & {
   id?: number; kind?: string; surfaces?: Array<Record<string, unknown>>;
 };
+
+/**
+ * Step 8: what the CUSTOMER sees. Never a point price, never a margin, never
+ * an internal label — a range whose width follows the accuracy score, room
+ * cards with inclusions and confidence, and the guardrail verdict.
+ */
+export type CustomerRoomView = {
+  areaId: number;
+  name: string;
+  summary: string;
+  confidencePct: number;
+  status: WizardRoomView["status"] | "stated";
+};
+
+export type CustomerPayload = {
+  outcome: "reveal";
+  rooms: CustomerRoomView[];
+  rangeLoCents: number;
+  rangeHiCents: number;
+  bandPct: number;
+  accuracyPct: number;
+  canAccept: boolean;
+  walkthroughRequired: boolean;
+  heightUnconfirmed: boolean;
+  exteriorWidthFromPlan: boolean;
+  exteriorWidthMissing: boolean;
+  /** Customer-worded "we confirm on site" notes — never internal reasons. */
+  confirmOnSite: string[];
+};
+
+const CONFIDENCE_OF: Record<string, number> = {
+  confirmed: 100, stated: 85, extracted: 90, check: 65, typical: 50,
+};
+
+export function customerPayload(
+  payload: WizardEditorPayload,
+  blocks: unknown[],
+  decision: GuardrailDecision,
+  bands: BandSettings,
+): CustomerPayload {
+  const loose = blocks as LooseBlock[];
+  const rooms: CustomerRoomView[] = payload.rooms.map((r) => {
+    const block = loose.find((b) => Number(b.id) === r.areaId);
+    const origin = typeof block?.origin === "string" ? block.origin : "";
+    const status = origin === "customer_stated" ? "stated" : r.status;
+    const parts = r.surfaces.map((s) => (s.count > 1 ? `${s.count} × ${s.label.toLowerCase()}` : s.label.toLowerCase()));
+    return {
+      areaId: r.areaId,
+      name: r.name,
+      summary: parts.slice(0, 6).join(", ") + (parts.length > 6 ? "…" : ""),
+      confidencePct: CONFIDENCE_OF[status] ?? 70,
+      status,
+    };
+  });
+
+  const bandPct = rangeBandPct(payload.accuracyPct, bands);
+  const { loCents, hiCents } = rangeFromTotal(payload.totals.totalCents, bandPct);
+
+  return {
+    outcome: "reveal",
+    rooms,
+    rangeLoCents: loCents,
+    rangeHiCents: hiCents,
+    bandPct,
+    accuracyPct: payload.accuracyPct,
+    canAccept: decision.canAccept,
+    walkthroughRequired: decision.walkthroughRequired,
+    heightUnconfirmed: payload.heightUnconfirmed,
+    exteriorWidthFromPlan: payload.exteriorWidthFromPlan,
+    exteriorWidthMissing: payload.exteriorWidthMissing,
+    confirmOnSite: payload.deferred.map((d) =>
+      d.room === "Whole job" || d.room === "Exterior"
+        ? `${d.what} — confirmed before your final quote`
+        : `${d.room}: ${d.what} — confirmed before your final quote`,
+    ),
+  };
+}
 
 function roomStatus(origin: string, confidence: number, assumed: string[]): WizardRoomView["status"] {
   if (origin === "human_confirmed" || origin === "") return "confirmed";

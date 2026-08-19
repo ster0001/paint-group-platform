@@ -85,6 +85,43 @@ export function rangeFromTotal(totalCents: number, pct: number): { loCents: numb
   };
 }
 
+/** Pull a settings row's value out of the already-loaded settings list. */
+export function settingValue(settings: Array<{ key: string; value: unknown }>, key: string): unknown {
+  return settings.find((s) => s.key === key)?.value ?? null;
+}
+
+/** Service-area postcodes from the settings row; empty = not configured. */
+export function serviceAreaFromSettings(value: unknown): string[] {
+  const v = (value ?? {}) as { postcodes?: unknown };
+  return Array.isArray(v.postcodes) ? v.postcodes.filter((p): p is string => typeof p === "string") : [];
+}
+
+/** GuardrailAnswers from a wizard state. A missing customer block (internal
+ * mode previews) evaluates as a clean residential house. */
+export function answersFromState(s: {
+  jobType: "interior" | "exterior" | "both";
+  details: { damageTier: number };
+  customer: {
+    postcode: string;
+    propertyKind: "house" | "townhouse" | "unit_apartment" | "commercial";
+    heritageListed: "yes" | "no" | "unsure";
+    bodyCorporate: "yes" | "no" | "unsure";
+    builtPre1970: "yes" | "no" | "unsure";
+    asbestosSuspected: "yes" | "no" | "unsure";
+  } | null;
+}): GuardrailAnswers {
+  return {
+    jobType: s.jobType,
+    propertyKind: s.customer?.propertyKind ?? "house",
+    heritageListed: s.customer?.heritageListed ?? "no",
+    bodyCorporate: s.customer?.bodyCorporate ?? "no",
+    builtPre1970: s.customer?.builtPre1970 ?? "no",
+    asbestosSuspected: s.customer?.asbestosSuspected ?? "no",
+    damageTier: s.details.damageTier,
+    postcode: s.customer?.postcode ?? "",
+  };
+}
+
 export type GuardrailAnswers = {
   jobType: "interior" | "exterior" | "both";
   propertyKind: "house" | "townhouse" | "unit_apartment" | "commercial";

@@ -233,6 +233,12 @@ const WIZARD_SETTINGS: Array<[string, unknown]> = [
     maxEstimatesPerVisitor: 2,           // per email/IP; trade accounts unlimited
     holdMessage: "Looks like you're busy - talk to us and we'll set you up properly.",
   }],
+  // Step 8: the customer range bands (phase plan W4) and the service area.
+  // An empty postcode list means the area check is not configured - allowed.
+  ["wizard_bands", { tightMin: 90, tightPct: 4, midMin: 70, midPct: 8, widePct: 15 }],
+  ["service_area", { postcodes: [] }],
+  // The public customer route stays OFF until Step 10's launch flips it.
+  ["wizard_public", { enabled: false }],
 ];
 
 /** The repeating units the exterior height methods count (brief section 5.2). */

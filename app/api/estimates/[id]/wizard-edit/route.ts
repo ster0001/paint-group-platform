@@ -1,13 +1,20 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { getWizardActor } from "@/lib/supabase/guards";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildDraft } from "@/lib/extract/draft";
 import { SCOPE_VERSION, type Alias, type ScopeRule } from "@/lib/extract/scope";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { applyWizardAnswers } from "@/lib/wizard/merge";
 import { wizardStateSchema } from "@/lib/wizard/state";
 import { markStarterProvenance, starterExtraction, type TypicalSizeRow } from "@/lib/wizard/starter";
-import { editorPayload, type WizardDeferred } from "@/lib/wizard/view";
+import { customerPayload, editorPayload, type WizardDeferred } from "@/lib/wizard/view";
+import {
+  answersFromState, bandsFromSettings, evaluateGuardrails,
+  policyFromSettings, serviceAreaFromSettings, settingValue,
+} from "@/lib/wizard/policy";
 import { reportError } from "@/lib/monitoring/report";
 
 /**
@@ -74,20 +81,38 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const act = parsed.data;
 
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  if (profile?.role !== "staff") return NextResponse.json({ error: "Staff only." }, { status: 403 });
+  // Staff edit anything; a customer edits ONLY the draft they created
+  // through the wizard, via the service client with an ownership check.
+  const actor = await getWizardActor(supabase);
+  if (actor.kind === "none") return NextResponse.json({ error: "Staff only." }, { status: 403 });
+  let db: SupabaseClient = supabase;
+  if (actor.kind === "customer") {
+    const svc = createServiceClient();
+    if (!svc) return NextResponse.json({ error: "The estimate wizard isn't available just now." }, { status: 503 });
+    db = svc;
+  }
 
-  const { data: estimate } = await supabase
+  const { data: estimate } = await db
     .from("estimates")
-    .select("id, status, builder_state")
+    .select("id, status, source, created_by, requires_site_check, builder_state")
     .eq("id", id)
     .maybeSingle();
   if (!estimate) return NextResponse.json({ error: "No such estimate." }, { status: 404 });
+  if (actor.kind === "customer") {
+    const own = (estimate as { created_by?: string | null }).created_by === actor.user.id
+      && (estimate as { source?: string }).source === "customer_intake"
+      && estimate.status === "draft";
+    // 404, not 403 - existence is never confirmed to guessers.
+    if (!own) return NextResponse.json({ error: "No such estimate." }, { status: 404 });
+  }
   if (estimate.status === "accepted") {
     return NextResponse.json({ error: "This estimate is accepted and locked." }, { status: 409 });
   }
+
+  /** What a confirmation by THIS actor means: staff settle a value; a
+   * customer states it - always cross-checked before send. */
+  const stampOrigin = actor.kind === "customer" ? "customer_stated" : "human_confirmed";
+  const stampConfidence = actor.kind === "customer" ? 0.85 : 1;
 
   const state = (estimate.builder_state ?? {}) as Record<string, unknown>;
   let blocks: LooseBlock[] = Array.isArray(state.blocks) ? (state.blocks as LooseBlock[]) : [];
@@ -118,8 +143,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!Number(b.L) || !Number(b.W)) {
       return NextResponse.json({ error: "This room has no size yet — enter its length and width to confirm it." }, { status: 400 });
     }
-    b.origin = "human_confirmed";
-    b.confidence = 1;
+    b.origin = stampOrigin;
+    b.confidence = stampConfidence;
     b.assumedFields = (Array.isArray(b.assumedFields) ? (b.assumedFields as string[]) : [])
       .filter((f) => f !== "L" && f !== "W");
     b.surfaces = (b.surfaces ?? []).map((s) => ({
@@ -131,9 +156,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (act.action === "add_room") {
     const [{ data: rulesRows }, { data: aliasRows }, { data: typicalRows }] = await Promise.all([
-      supabase.from("room_type_scope_rules").select("room_type, surface_type, is_option, requires_confirm, notes").eq("version", SCOPE_VERSION),
-      supabase.from("room_name_aliases").select("alias, room_type").eq("version", SCOPE_VERSION),
-      supabase.from("room_type_defaults").select("room_type, typical_length_m, typical_width_m").eq("version", 3),
+      db.from("room_type_scope_rules").select("room_type, surface_type, is_option, requires_confirm, notes").eq("version", SCOPE_VERSION),
+      db.from("room_name_aliases").select("alias, room_type").eq("version", SCOPE_VERSION),
+      db.from("room_type_defaults").select("room_type, typical_length_m, typical_width_m").eq("version", 3),
     ]);
     const rules = (rulesRows ?? []) as ScopeRule[];
     const typicals = (typicalRows ?? []) as TypicalSizeRow[];
@@ -193,9 +218,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (b.kind !== "area" || !assumed.includes("width_from_plan")) return b;
       return {
         ...b,
-        origin: "human_confirmed",
-        confidence: 1,
-        assumedFields: assumed.filter((f) => f !== "width_from_plan"),
+        origin: stampOrigin,
+        confidence: stampConfidence,
+        // A customer's check softens the flag; staff still see it in review.
+        assumedFields: actor.kind === "customer"
+          ? [...assumed.filter((f) => f !== "width_from_plan"), "width_customer_checked"]
+          : assumed.filter((f) => f !== "width_from_plan"),
       };
     });
   }
@@ -212,7 +240,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const newState = { ...state, blocks, aiDeferred: newDeferred };
-  const { error: writeError } = await supabase
+  const { error: writeError } = await db
     .from("estimates")
     .update({ builder_state: newState })
     .eq("id", id);
@@ -221,11 +249,32 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: `Couldn't save the change: ${writeError.message}` }, { status: 500 });
   }
   if (storeyHeights) {
-    await supabase.from("estimates").update({ storey_heights: storeyHeights }).eq("id", id)
+    await db.from("estimates").update({ storey_heights: storeyHeights }).eq("id", id)
       .then(() => undefined, () => undefined);
   }
 
-  const ctx = await loadPricingContext(supabase);
+  const ctx = await loadPricingContext(db);
   const payload = editorPayload(blocks, ctx, adjustmentsFrom(newState), newDeferred);
+
+  if (actor.kind === "customer") {
+    // The customer's view recomputes the range and the acceptance verdict —
+    // their confirmations tighten the band but never bypass the guardrails.
+    const snap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
+    const answers = snap.success
+      ? answersFromState(snap.data)
+      : answersFromState({ jobType: "interior", details: { damageTier: 1 }, customer: null });
+    const decision = evaluateGuardrails(
+      answers,
+      payload.totals.totalCents,
+      payload.accuracyPct,
+      (estimate as { requires_site_check?: boolean | null }).requires_site_check === true,
+      policyFromSettings(settingValue(ctx.settings, "wizard_policy")),
+      serviceAreaFromSettings(settingValue(ctx.settings, "service_area")),
+    );
+    return NextResponse.json(
+      customerPayload(payload, blocks, decision, bandsFromSettings(settingValue(ctx.settings, "wizard_bands"))),
+    );
+  }
+
   return NextResponse.json(payload);
 }
