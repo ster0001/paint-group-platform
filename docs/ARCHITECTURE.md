@@ -531,3 +531,17 @@ ingest (`lib/extract/heic.ts`, heic-convert WASM) with the original kept;
 the wizard pre-validates client-side (`checkUpload`), shows per-file
 progress, and background read failures surface as a visible note instead of
 being swallowed.
+
+**Damage photos → prep lines (A7)**: the pipeline was broken in three places
+that were each silent. The defect reader now gets a damage-purpose prompt
+(`readPropertyPhoto(bytes, "damage")` — the generic doors/windows ask framed
+"no defects" as the expected answer); each matched defect becomes ITS OWN
+"Prep — …" surface line with hours (`lib/extract/draft.ts`, previously folded
+invisibly into walls.prepHr); a defect with no `defect_prep_rates` row raises
+an amber "needs pricing" deferral instead of being dropped. The photos route
+accepts staged signed-URL uploads (same A3 staging), skips bad files per-file
+instead of aborting the batch, converts HEIC, tags damage evidence
+`kind: "defect_photo"`, and the submit route claims photo sources onto the
+estimate. The wizard shows "ANALYSING THE DAMAGE PHOTOS…" during the read and
+surfaces per-photo failures as warnings. `npm run seed:extraction` seeds the
+rates table.

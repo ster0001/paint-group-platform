@@ -214,17 +214,61 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
     }
   }
 
+  /** A7: stage the damage photos to storage (signed URLs, 5 per call) and
+   * run the defect reader on them; failures come back as readable warnings
+   * instead of vanishing. */
+  async function analyseDamagePhotos(): Promise<string[]> {
+    const files = damageFilesRef.current.slice(0, 12);
+    if (!files.length || !primaryRunRef.current) return [];
+    const issues: string[] = [];
+    const supabase = createBrowserClient();
+    const staged: Array<{ path: string; name: string }> = [];
+    try {
+      for (let at = 0; at < files.length; at += 5) {
+        const batch = files.slice(at, at + 5);
+        const prep = await fetch("/api/extract/upload-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ files: batch.map((f) => ({ name: f.name, size: f.size })) }),
+        });
+        const prepJson = await prep.json().catch(() => ({}));
+        if (!prep.ok) { issues.push(prepJson.error ?? "The damage photos couldn't be uploaded."); break; }
+        const slots: Array<{ path: string; token: string }> = prepJson.uploads ?? [];
+        for (let i = 0; i < batch.length && i < slots.length; i++) {
+          const { error: upErr } = await supabase.storage
+            .from("estimate-sources")
+            .uploadToSignedUrl(slots[i].path, slots[i].token, batch[i]);
+          if (upErr) issues.push(`Damage photo "${batch[i].name}" didn't upload — add it again in the editor.`);
+          else staged.push({ path: slots[i].path, name: batch[i].name });
+        }
+      }
+      if (!staged.length) return issues.length ? issues : ["The damage photos couldn't be uploaded — add them again in the editor."];
+      const res = await fetch(`/api/extract/${primaryRunRef.current}/photos?purpose=damage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uploads: staged }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        issues.push(j.error ?? "The damage photos couldn't be analysed — the damage is flagged for review instead.");
+      } else {
+        for (const p of (j.perPhoto ?? []) as Array<{ file?: string; error?: string }>) {
+          if (p.error) issues.push(`Damage photo "${p.file ?? "photo"}": ${p.error}`);
+        }
+      }
+    } catch {
+      issues.push("The damage photos couldn't be analysed — the damage is flagged for review instead.");
+    }
+    return issues;
+  }
+
   async function runSubmitInner() {
     setProcLine(1);
     // 1. Let every background read finish.
     await Promise.all(readsRef.current);
     setProcLine(2);
     // 2. Damage photos feed the defect reader on the primary run.
-    if (damageFilesRef.current.length && primaryRunRef.current) {
-      const fd = new FormData();
-      for (const f of damageFilesRef.current.slice(0, 12)) fd.append("file", f);
-      await fetch(`/api/extract/${primaryRunRef.current}/photos`, { method: "POST", body: fd }).catch(() => null);
-    }
+    const photoIssues = await analyseDamagePhotos();
     // 3. The listing cross-check rides the primary run too.
     if (state.listingUrl.trim() && primaryRunRef.current) {
       await fetch(`/api/extract/${primaryRunRef.current}/listing`, {
@@ -279,7 +323,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
       setScreen("editor");
       return;
     }
-    setResult(j as SubmitResult);
+    const withPhotoIssues = j as SubmitResult;
+    if (photoIssues.length) {
+      withPhotoIssues.warnings = [...(withPhotoIssues.warnings ?? []), ...photoIssues];
+    }
+    setResult(withPhotoIssues);
     setScreen("editor");
   }
 
@@ -358,6 +406,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
           <p className={`wz-ln ${procLine >= 2 ? "on" : ""}`}>
             {state.noPlan || state.planRunIds.length === 0 ? "SIZING ROOMS FROM TYPICAL DIMENSIONS…" : "MEASURING THE ROOMS…"}
           </p>
+          {state.details.damagePhotoCount > 0 && (
+            <p className={`wz-ln ${procLine >= 2 ? "on" : ""}`}>ANALYSING THE DAMAGE PHOTOS…</p>
+          )}
           <p className={`wz-ln ${procLine >= 3 ? "on" : ""}`}>PRICING EVERY SURFACE…</p>
         </div>
       ) : (

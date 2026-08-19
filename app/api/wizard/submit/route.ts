@@ -459,6 +459,13 @@ export async function POST(request: Request) {
       ? db.from("estimate_sources").update({ estimate_id: estimateId })
           .in("id", [...sourceIds, ...facadeSourceIds]).is("estimate_id", null)
       : Promise.resolve(),
+    // A7: damage/property photos ride under runs/{runId}/photos/ — claim them
+    // too, so the evidence cascades with the estimate instead of orphaning.
+    ...appliedRunIds.map((rid) =>
+      db.from("estimate_sources").update({ estimate_id: estimateId })
+        .like("storage_path", `runs/${rid}/photos/%`).is("estimate_id", null)
+        .then(() => undefined, () => undefined),
+    ),
     // Best-effort until migration 20260913/14 has run everywhere.
     storeyHeights
       ? db.from("estimates").update({ storey_heights: storeyHeights }).eq("id", estimateId)

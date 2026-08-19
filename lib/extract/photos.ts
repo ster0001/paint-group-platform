@@ -178,7 +178,30 @@ export type PhotoResult =
   | { ok: true; read: PhotoRead; inputTokens: number; outputTokens: number; costCents: number }
   | { ok: false; message: string };
 
-export async function readPropertyPhoto(bytes: Uint8Array): Promise<PhotoResult> {
+/**
+ * A7: the question the photo was sent to answer. The wizard's damage-photo
+ * path used to run through the generic ask ("what about doors, windows,
+ * cornices?") whose framing tells the model an empty defect list is the
+ * normal answer — so customer damage photos produced no defects and no prep.
+ * A "damage" purpose puts the defects question first and says why the photo
+ * exists; the same conservative rules (only what is clearly visible) hold.
+ */
+export type PhotoPurpose = "property" | "damage";
+
+const USER_TURN: Record<PhotoPurpose, string> = {
+  property: "What does this photo tell you about doors, windows, cornices and ceiling height?",
+  damage: [
+    "This photo was submitted by the customer SPECIFICALLY to show damage that",
+    "needs repairing before painting — question 4 (defects) is the primary",
+    "question. Identify each defect you can clearly see: its type, severity and",
+    "conservative visible extent. The same rule holds: only what the photograph",
+    "actually shows, but expect this one to show something — the customer took",
+    "it to show us a problem. Answer the door/window/cornice questions too if",
+    "the photo happens to show them.",
+  ].join(" "),
+};
+
+export async function readPropertyPhoto(bytes: Uint8Array, purpose: PhotoPurpose = "property"): Promise<PhotoResult> {
   if (!process.env.ANTHROPIC_API_KEY) return { ok: false, message: "ANTHROPIC_API_KEY is not set." };
 
   const kind = sniffKind(bytes);
@@ -197,7 +220,7 @@ export async function readPropertyPhoto(bytes: Uint8Array): Promise<PhotoResult>
         role: "user",
         content: [
           { type: "image", source: { type: "base64", media_type: mediaType, data: Buffer.from(bytes).toString("base64") } },
-          { type: "text", text: "What does this photo tell you about doors, windows, cornices and ceiling height?" },
+          { type: "text", text: USER_TURN[purpose] },
         ],
       }],
     });

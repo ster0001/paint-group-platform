@@ -1,6 +1,6 @@
 import type { Extraction, ExtractedRoom } from "./schema";
 import { planSurfaces, resolveRoomType, type Alias, type Deferred, type ScopeRule } from "./scope";
-import { defectHours, defectSummary, type DefectRate } from "@/lib/capture/commit";
+import { DEFECT_LABELS, defectHours, defectSummary, type DefectRate } from "@/lib/capture/commit";
 
 /**
  * Stage 5: turn a validated reading into the builder's own area/surface tree.
@@ -243,20 +243,34 @@ export function buildDraft(
     for (const d of plan.deferred) deferred.push({ room: name, areaId: area.id, ...d });
   }
 
-  // ---- photo-observed defects -> prep on the matched room's walls ----------
+  // ---- photo-observed defects -> their own prep lines (A7) -----------------
   // The model IDENTIFIED (type, severity, extent); the rates table prices it
-  // here. Prep lands on the room the photo named, marked assumed so the
-  // review queue asks the estimator to confirm before send. A defect whose
-  // room can't be matched is DEFERRED, never silently spread across the job.
+  // here. Each matched defect becomes ITS OWN prep line on the room the photo
+  // named — hours visible, individually removable, flagged for confirm before
+  // send — per the plan-reader brief (previously it folded invisibly into the
+  // walls' prep hours). Two amber paths, because a defect must never vanish
+  // silently: no matching rate → "needs pricing"; no matching room → "assign
+  // the room".
   const rates = opts.defectRates ?? [];
   for (const obs of x.defect_observations ?? []) {
     const hours = defectHours({ type: obs.type, severity: obs.severity, qty: obs.qty }, rates);
-    if (hours <= 0) continue;
     const hintType = obs.room_hint ? resolveRoomType(obs.room_hint, aliases) : "unknown";
     const target = areas.find(
       (a) => obs.room_hint && (a.name.toLowerCase() === obs.room_hint.toLowerCase()
         || (hintType !== "unknown" && resolveRoomType(a.name, aliases) === hintType)),
     );
+    if (hours <= 0) {
+      // Observed, but defect_prep_rates has no row for it (unseeded table, or
+      // a new defect type). Amber "needs pricing" — never nothing.
+      deferred.push({
+        room: obs.room_hint ?? "damage photo",
+        areaId: target?.id ?? null,
+        what: `${obs.type} sev${obs.severity} — needs pricing`,
+        count: 1,
+        needs: "photo shows this defect but no prep rate matches it — price the prep by hand (or seed defect_prep_rates)",
+      });
+      continue;
+    }
     if (!target) {
       deferred.push({
         room: obs.room_hint ?? "unmatched photo",
@@ -267,13 +281,12 @@ export function buildDraft(
       });
       continue;
     }
-    const walls = target.surfaces.find((s) => s.code === "Walls") ?? target.surfaces[0];
-    if (!walls) continue;
-    walls.prepHr = Math.round((walls.prepHr + hours) * 100) / 100;
     const note = defectSummary([{ type: obs.type, severity: obs.severity, qty: obs.qty }], rates);
-    walls.crewNote = [walls.crewNote, `photo: ${note}`].filter(Boolean).join(" | ");
-    if (!walls.assumedFields.includes("prep")) walls.assumedFields.push("prep");
-    if (walls.origin === "ai_derived") walls.origin = "ai_assumed" as Origin;
+    const label = `Prep — ${DEFECT_LABELS[obs.type] ?? obs.type} (sev ${obs.severity})`;
+    const line = makeDraftSurface(nextId++, obs.type, label, 1, "ai_assumed", 0.6, ["prep"]);
+    line.prepHr = hours;
+    line.crewNote = `photo: ${note}`;
+    target.surfaces.push(line);
     assumedCount++;
   }
 

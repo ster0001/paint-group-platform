@@ -5,8 +5,10 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { getWizardActor } from "@/lib/supabase/guards";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normaliseUpload } from "@/lib/extract/normalise";
-import { readPropertyPhoto, mergePhotoFindings, PHOTO_PROMPT_VERSION, type PhotoRead } from "@/lib/extract/photos";
+import { convertHeicToJpeg } from "@/lib/extract/heic";
+import { readPropertyPhoto, mergePhotoFindings, PHOTO_PROMPT_VERSION, type PhotoPurpose, type PhotoRead } from "@/lib/extract/photos";
 import { extractionSchema } from "@/lib/extract/schema";
+import { isOwnIncomingPath } from "@/lib/uploads/incoming";
 import { reportError } from "@/lib/monitoring/report";
 
 /**
@@ -61,28 +63,68 @@ export async function POST(request: Request, { params }: { params: Promise<{ run
   const reading = extractionSchema.safeParse(run.raw_output);
   if (!reading.success) return NextResponse.json({ error: "The stored reading is unusable." }, { status: 422 });
 
-  let form: FormData;
-  try { form = await request.formData(); } catch { return NextResponse.json({ error: "Send photos as multipart/form-data." }, { status: 400 }); }
-  const files = form.getAll("file").filter((f): f is File => f instanceof File);
-  if (files.length === 0) return NextResponse.json({ error: "No photo was attached." }, { status: 400 });
-  if (files.length > MAX_PHOTOS) return NextResponse.json({ error: `Up to ${MAX_PHOTOS} photos at a time.` }, { status: 400 });
+  // A7: which question this batch answers. "damage" puts defects first —
+  // the generic ask was returning empty defect lists for photos customers
+  // took precisely to show us damage.
+  const purpose: PhotoPurpose =
+    new URL(request.url).searchParams.get("purpose") === "damage" ? "damage" : "property";
+
+  // A3/A7: photos arrive either as multipart (small batches) or as staged
+  // storage paths (the wizard stages via signed URLs — a batch of iPhone
+  // photos blows the serverless body cap as multipart).
+  const inputs: Array<{ bytes: Uint8Array; declaredMime?: string; name: string; stagedPath?: string }> = [];
+  if ((request.headers.get("content-type") ?? "").includes("application/json")) {
+    const staged = z.object({
+      uploads: z.array(z.object({
+        path: z.string().min(1).max(400),
+        name: z.string().max(200).default("photo"),
+      })).min(1).max(MAX_PHOTOS),
+    }).safeParse(await request.json().catch(() => null));
+    if (!staged.success) return NextResponse.json({ error: "Send the staged photo paths." }, { status: 400 });
+    for (const u of staged.data.uploads) {
+      if (!isOwnIncomingPath(u.path, actor.user.id)) return NextResponse.json({ error: "That upload isn't yours to attach." }, { status: 403 });
+      const { data, error } = await db.storage.from("estimate-sources").download(u.path);
+      if (error || !data) {
+        return NextResponse.json({ error: `"${u.name}" didn't finish uploading — please try that photo again.` }, { status: 400 });
+      }
+      inputs.push({ bytes: new Uint8Array(await data.arrayBuffer()), name: u.name, stagedPath: u.path });
+    }
+  } else {
+    let form: FormData;
+    try { form = await request.formData(); } catch { return NextResponse.json({ error: "Send photos as multipart/form-data." }, { status: 400 }); }
+    const files = form.getAll("file").filter((f): f is File => f instanceof File);
+    if (files.length === 0) return NextResponse.json({ error: "No photo was attached." }, { status: 400 });
+    if (files.length > MAX_PHOTOS) return NextResponse.json({ error: `Up to ${MAX_PHOTOS} photos at a time.` }, { status: 400 });
+    for (const f of files) inputs.push({ bytes: new Uint8Array(await f.arrayBuffer()), declaredMime: f.type, name: f.name });
+  }
 
   const reads: PhotoRead[] = [];
   const perPhoto: Array<Record<string, unknown>> = [];
+  const stagedToClean: string[] = [];
   let costCents = 0;
 
-  for (const file of files) {
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const check = normaliseUpload(bytes, file.type, file.name);
-    if (!check.ok) return NextResponse.json({ error: check.message }, { status: 400 });
-    if (check.kind === "pdf") return NextResponse.json({ error: "Photos only here — a PDF plan goes through the plan upload." }, { status: 400 });
+  for (const file of inputs) {
+    if (file.stagedPath) stagedToClean.push(file.stagedPath);
+    // A7: one bad photo skips, it no longer aborts the whole batch.
+    const check = normaliseUpload(file.bytes, file.declaredMime, file.name);
+    if (!check.ok) { perPhoto.push({ file: file.name, error: check.message }); continue; }
+    if (check.kind === "pdf") { perPhoto.push({ file: file.name, error: "Photos only here — a PDF plan goes through the plan upload." }); continue; }
+
+    // iPhone HEIC: the reader only takes JPEG/PNG/WEBP — convert first (A3's
+    // converter), keep the original bytes as the stored evidence.
+    let readBytes = file.bytes;
+    if (check.kind === "heic") {
+      const converted = await convertHeicToJpeg(file.bytes);
+      if (!converted.ok) { perPhoto.push({ file: file.name, error: converted.message }); continue; }
+      readBytes = converted.jpeg;
+    }
 
     // Keep the photo: it is evidence for a decision that changes the price.
     const path = `runs/${runId}/photos/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${check.kind}`;
-    const up = await db.storage.from("estimate-sources").upload(path, bytes, { contentType: check.mime });
+    const up = await db.storage.from("estimate-sources").upload(path, file.bytes, { contentType: check.mime });
     if (up.error) reportError(up.error, { where: "extract.photoUpload", bestEffort: true });
 
-    const result = await readPropertyPhoto(bytes);
+    const result = await readPropertyPhoto(readBytes, purpose);
     if (!result.ok) {
       reportError(result.message, { where: "extract.photoRead", extra: { runId } });
       perPhoto.push({ file: file.name, error: result.message });
@@ -98,10 +140,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ run
       windows: result.read.windows,
       cornice: result.read.cornice,
       ceilingHeight: result.read.ceiling_height,
+      defects: result.read.defects.length,
     });
 
     await db.from("estimate_sources").insert({
-      kind: "exterior_photo",
+      // Damage photos are defect evidence, not exterior shots (A7).
+      kind: purpose === "damage" ? "defect_photo" : "exterior_photo",
       storage_path: path,
       mime_type: check.mime,
       byte_size: check.bytes,
@@ -109,6 +153,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ run
       page_class_confidence: 0.95,
       created_by: actor.user.id,
     });
+  }
+
+  if (stagedToClean.length) {
+    await db.storage.from("estimate-sources").remove(stagedToClean).then(() => null, () => null);
   }
 
   if (reads.length === 0) {

@@ -269,15 +269,20 @@ const DEFECT_RATES = [
   { defect_type: "plaster_cracks", unit: "lin_m", hours_sev1: 0.12, hours_sev2: 0.22, hours_sev3: 0.4 },
 ];
 
-test("a room-matched defect becomes priced prep on that room's walls, flagged for review", () => {
+test("a room-matched defect becomes ITS OWN prep line on that room, flagged for review (A7)", () => {
   const x = extraction([room()], {
     defect_observations: [{ type: "peeling", severity: 2, qty: 3, room_hint: "Bedroom 1", confidence: 0.9, reasoning: "visible on south wall" }],
   });
   const { areas } = buildDraft(x, RULES, ALIASES, { defectRates: DEFECT_RATES });
+  const line = areas[0].surfaces.find((s) => s.code === "peeling")!;
+  expect(line).toBeTruthy();
+  expect(line.internalLabel).toBe("Prep — Peeling (sev 2)");
+  expect(line.prepHr).toBeCloseTo(0.54);
+  expect(line.crewNote).toContain("photo: Peeling sev2 3 m2 (0.54h)");
+  expect(line.assumedFields).toContain("prep");
+  // The walls stay clean — the prep is its own removable line now.
   const walls = areas[0].surfaces.find((s) => s.code === "Walls")!;
-  expect(walls.prepHr).toBeCloseTo(0.54);
-  expect(walls.crewNote).toContain("photo: Peeling sev2 3 m2 (0.54h)");
-  expect(walls.assumedFields).toContain("prep");
+  expect(walls.prepHr).toBe(0);
   const queue = reviewQueue(areas);
   expect(queue.some((q) => /photo-detected prep/.test(q.needs))).toBe(true);
 });
@@ -291,10 +296,12 @@ test("a defect whose room can't be matched is deferred, never spread across the 
   expect(deferred.some((d) => /plaster_cracks/.test(d.what) && /which room/.test(d.needs))).toBe(true);
 });
 
-test("without a rates table photo defects price nothing (no silent invented hours)", () => {
+test("without a rates table a defect prices nothing but raises an amber needs-pricing item (A7)", () => {
   const x = extraction([room()], {
     defect_observations: [{ type: "peeling", severity: 3, qty: 10, room_hint: "Bedroom 1", confidence: 0.9, reasoning: "" }],
   });
-  const { areas } = buildDraft(x, RULES, ALIASES);
+  const { areas, deferred } = buildDraft(x, RULES, ALIASES);
   expect(areas[0].surfaces.every((s) => s.prepHr === 0)).toBe(true);
+  // A defect must never vanish silently: no rate → "needs pricing", amber.
+  expect(deferred.some((d) => /needs pricing/.test(d.what) && /no prep rate matches/.test(d.needs))).toBe(true);
 });
