@@ -12,7 +12,7 @@ import {
 import { wizardStateSchema } from "@/lib/wizard/state";
 import ScopeEditor from "./ScopeEditor";
 import SidesEditor from "./SidesEditor";
-import { defaultSidesLoop, extrasPrices, sidesView, type SidesLoopMeta } from "@/lib/wizard/sides";
+import { defaultSidesLoop, extrasPrices, sidesView, visitReason, type SidesLoopMeta } from "@/lib/wizard/sides";
 import { defaultInteriorLoop, interiorDwTotals, interiorProgress, roomLoopViews, type InteriorLoopMeta } from "@/lib/wizard/rooms-loop";
 import "../../wizard/wizard.css";
 
@@ -129,7 +129,11 @@ export default async function ScopeEditorPage({
           initial={customer}
           initialSides={sides}
           initialExterior={customerExteriorView(blocks)}
-          initialLadder={{ tier: selfServe ? "self_serve" : "visit", visitSlots: offeredVisitSlots(editorFlags) }}
+          initialLadder={{
+            tier: selfServe ? "self_serve" : "visit",
+            reason: selfServe ? null : visitReason(sidesMeta, deferred),
+            visitSlots: offeredVisitSlots(editorFlags),
+          }}
         />
       </div>
     );

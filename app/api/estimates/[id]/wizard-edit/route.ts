@@ -18,7 +18,7 @@ import {
   ALLOWANCE_CODES, SWEEP_PRICED_CODES, WEATHERED_MODIFIER_CODE,
   addCatalogItem, addSideCustom, addWallSurface, addWindowGroup, applySideCount, applySideDims,
   applySideInclude, applySideSizeOk, applyWallShare, applyWindowSize, confirmSide, defaultSidesLoop,
-  extrasPrices, hasExtrasItem, rateFor, sidesView, toggleExtrasItem,
+  extrasPrices, hasExtrasItem, rateFor, sidesView, toggleExtrasItem, visitReason,
   type SidesLoopMeta,
 } from "@/lib/wizard/sides";
 import {
@@ -100,8 +100,10 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("side_size_ok"), side: z.enum(["front", "left", "right", "back"]) }),
   z.object({
     action: z.literal("side_dims"), side: z.enum(["front", "left", "right", "back"]),
-    lengthM: z.number().min(3).max(40).nullable().default(null),
-    heightM: z.number().min(2).max(8).nullable().default(null),
+    // Wide at the schema; applySideDims clamps to 3–40 / 2–8 (mockup's
+    // gentle clamp — proceed at the nearest bound, never refuse).
+    lengthM: z.number().min(0.1).max(500).nullable().default(null),
+    heightM: z.number().min(0.1).max(500).nullable().default(null),
     notSure: z.boolean().default(false),
   }),
   z.object({ action: z.literal("wall_share"), side: z.enum(["front", "left", "right", "back"]), surfaceId: z.number().int().positive(), pct: z.union([z.literal(25), z.literal(50), z.literal(75), z.literal(100)]) }),
@@ -123,7 +125,7 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("confirm_loop_item"), item: z.enum(["extras", "cond", "dw", "sweep"]) }),
   // ---- R3: the interior confirm loop --------------------------------------
   z.object({ action: z.literal("room_size_ok"), areaId: z.number().int().positive() }),
-  z.object({ action: z.literal("room_dims"), areaId: z.number().int().positive(), lengthM: z.number().min(1).max(15), widthM: z.number().min(1).max(15) }),
+  z.object({ action: z.literal("room_dims"), areaId: z.number().int().positive(), lengthM: z.number().min(0.1).max(500), widthM: z.number().min(0.1).max(500) }),
   z.object({ action: z.literal("room_cupboard"), areaId: z.number().int().positive(), on: z.boolean(), count: z.number().int().min(1).max(40).nullable().default(null) }),
   z.object({ action: z.literal("room_win_size"), areaId: z.number().int().positive(), surfaceId: z.number().int().positive(), size: z.enum(["S", "M", "L"]) }),
   z.object({ action: z.literal("room_add_window_group"), areaId: z.number().int().positive() }),
@@ -608,6 +610,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const cfg = CUPBOARD_BY_ROOM_TYPE[String(room?.roomType ?? "")];
       cupboardApplies = !!cfg && (await ctxPromise).rateItems.some((r) => r.code === cfg.code);
     }
+    // Pre-apply dims, for the "wildly changed" test below.
+    const dimsBefore = act.action === "room_dims"
+      ? (({ L, W }) => ({ L: Number(L) || 0, W: Number(W) || 0 }))(blocks.find((b) => Number(b.id) === act.areaId) ?? {})
+      : null;
     let catalogueLabel = "";
     let catalogueChargeOut: number | null = null;
     if (act.action === "room_add_catalogue") {
@@ -634,13 +640,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
     blocks = result.blocks as LooseBlock[];
     if (act.action === "room_dims") {
-      // A wildly changed size gets human eyes at review — quiet flag, never
-      // a block: the customer knows their house better than the plan does.
-      deferred.push({
-        room: String(blocks.find((b) => Number(b.id) === act.areaId)?.name ?? "Room"),
-        areaId: act.areaId, what: "size corrected by customer", count: 1,
-        needs: `customer set this room to ${act.lengthM} × ${act.widthM} m — sanity-check at review`,
-      });
+      // Only a WILDLY changed size gets human eyes at review (>25% on either
+      // side) — quiet flag, never a block: the customer knows their house
+      // better than the plan does, and routine nudges aren't suspicious.
+      const after = blocks.find((b) => Number(b.id) === act.areaId) ?? {};
+      const newL = Number(after.L) || 0;
+      const newW = Number(after.W) || 0;
+      const big = (oldV: number, newV: number) => oldV > 0 && Math.abs(newV - oldV) / oldV > 0.25;
+      if (dimsBefore && (big(dimsBefore.L, newL) || big(dimsBefore.W, newW))) {
+        deferred.push({
+          room: String((after as { name?: unknown }).name ?? "Room"),
+          areaId: act.areaId, what: "size corrected by customer", count: 1,
+          needs: `customer set this room to ${newL} × ${newW} m (was ${dimsBefore.L} × ${dimsBefore.W}) — sanity-check at review`,
+        });
+      }
     }
     if (act.action === "room_custom") {
       deferred.push({
@@ -773,7 +786,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           .filter((r) => r.category === "Interior" && r.sub_category === "Extras")
           .map((r) => ({ code: r.code, label: r.code })),
       },
-      ladder: { tier: selfServe ? "self_serve" : "visit", visitSlots: offeredVisitSlots(flags) },
+      // C11: the visit tier names its reason (custom > peeling > rot >
+      // flagged > big) — the sticky line renders the mockup's wording.
+      ladder: {
+        tier: selfServe ? "self_serve" : "visit",
+        reason: selfServe ? null : visitReason(sidesMeta, newDeferred),
+        visitSlots: offeredVisitSlots(flags),
+      },
     });
   }
 

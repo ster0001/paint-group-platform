@@ -336,11 +336,18 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                         <input placeholder="width m" inputMode="decimal" value={sizeDrafts[room.areaId].W}
                           onChange={(e) => setSizeDrafts((d) => ({ ...d, [room.areaId]: { ...d[room.areaId], W: e.target.value } }))} />
                         <button onClick={() => {
-                          const L = parseFloat(sizeDrafts[room.areaId].L);
-                          const W = parseFloat(sizeDrafts[room.areaId].W);
-                          if (isNaN(L) || isNaN(W)) { say("Just the two numbers — length and width in metres."); return; }
+                          const rawL = parseFloat(sizeDrafts[room.areaId].L);
+                          const rawW = parseFloat(sizeDrafts[room.areaId].W);
+                          if (isNaN(rawL) || isNaN(rawW)) { say("Just the two numbers — length and width in metres."); return; }
+                          // The gentle clamp (1–15 m a side) — mirrors the
+                          // server so the toast reports what was recorded.
+                          const L = Math.min(15, Math.max(1, rawL));
+                          const W = Math.min(15, Math.max(1, rawW));
+                          const clamped = L !== rawL || W !== rawW;
                           act({ action: "room_dims", areaId: room.areaId, lengthM: L, widthM: W }, `dims:${room.areaId}`,
-                            () => `${room.name} updated to ${L} × ${W} m — repriced for the new size.`);
+                            () => clamped
+                              ? `${room.name} set to ${L} × ${W} m (rooms run 1–15 m a side) — repriced.`
+                              : `${room.name} updated to ${L} × ${W} m — repriced for the new size.`);
                           setSizeDrafts((d) => ({ ...d, [room.areaId]: { ...d[room.areaId], open: false } }));
                         }}>Update size</button>
                         <span className="il-unit">metres — pace it out, near enough is fine</span>

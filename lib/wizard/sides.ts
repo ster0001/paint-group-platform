@@ -223,8 +223,11 @@ export function applySideDims(
     }
     const L = dims.lengthM ?? (Number(b.L) || 0);
     const H = dims.heightM ?? (Number(b.H) || 0);
-    if (!(L >= 3 && L <= 40) || !(H >= 2 && H <= 8)) return "Length 3–40 m and height 2–8 m, please — or “not sure”.";
-    b.L = L; b.H = H;
+    if (!(L > 0) || !(H > 0)) return "Length and height in metres, please — or “not sure”.";
+    // Mockup behaviour: the gentle clamp (3–40 m long, 2–8 m high) — out of
+    // range proceeds at the nearest bound, never a refusal.
+    b.L = Math.min(40, Math.max(3, L));
+    b.H = Math.min(8, Math.max(2, H));
     b.origin = "customer_stated"; b.confidence = 0.85;
     b.assumedFields = (Array.isArray(b.assumedFields) ? (b.assumedFields as string[]) : []).filter((f) => f !== "L" && f !== "H");
     b.customer = { ...c, size: "adjusted" };
@@ -408,6 +411,22 @@ export function confirmSide(blocks: LooseBlock[], key: SideKey): SidesResult {
     }
     b.customer = { ...c, confirmed: true };
   });
+}
+
+/** Why this job is on the visit tier — the mockup names the reason on the
+ * sticky tier line, in this priority order. "big" is the residual: nothing
+ * specific flagged it, the exterior is just past the self-serve bar. */
+export type VisitReason = "custom" | "peeling" | "rot" | "flagged" | "big";
+
+export function visitReason(
+  meta: SidesLoopMeta,
+  deferred: ReadonlyArray<{ what: string; needs: string; kind?: string }>,
+): VisitReason {
+  if (deferred.some((d) => d.kind === "custom_surface")) return "custom";
+  if (meta.cond.cond === "peeling") return "peeling";
+  if (meta.cond.rot === "lots") return "rot";
+  if (deferred.some((d) => /flagged/i.test(`${d.what} ${d.needs}`))) return "flagged";
+  return "big";
 }
 
 export function sidesDoneCount(blocks: LooseBlock[], meta: SidesLoopMeta): { done: number; total: number; allDone: boolean } {

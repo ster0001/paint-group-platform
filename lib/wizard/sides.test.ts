@@ -18,8 +18,8 @@ import {
 } from "../pricing/estimate.ts";
 import type { RateItem } from "../pricing/types.ts";
 import {
-  ALLOWANCE_CODES, addCatalogItem, extrasPrices, findSide,
-  hasExtrasItem, rateFor, toggleExtrasItem, type LooseBlock,
+  ALLOWANCE_CODES, addCatalogItem, applySideDims, defaultSidesLoop, extrasPrices, findSide,
+  hasExtrasItem, rateFor, toggleExtrasItem, visitReason, type LooseBlock, type SidesLoopMeta,
 } from "./sides.ts";
 
 // ---- live-card mirrors ------------------------------------------------------
@@ -149,6 +149,35 @@ test("the weathered modifier scales wall labour ×1.8 through modSel.Condition",
   const rough = priceSurface(b as unknown as AreaInput, wall, ctx, weathered, resolveRates(ctx, weathered));
   assert.ok(plain.labourCents > 0);
   assert.equal(rough.labourCents, Math.round(plain.paintingHr * 1.8 * 10000));
+});
+
+// ---- batch 2: the gentle clamp + named visit reasons --------------------------
+
+test("side dims clamp to 3–40 × 2–8 and proceed — never a refusal", () => {
+  const blocks: LooseBlock[] = [sideBlock()];
+  const big = applySideDims(blocks, "front", { lengthM: 50, heightM: 9 });
+  assert.ok(big.ok);
+  const bigSide = findSide(big.blocks, "front")!;
+  assert.equal(bigSide.L, 40);
+  assert.equal(bigSide.H, 8);
+  const small = applySideDims(blocks, "front", { lengthM: 1, heightM: 0.5 });
+  assert.ok(small.ok);
+  const smallSide = findSide(small.blocks, "front")!;
+  assert.equal(smallSide.L, 3);
+  assert.equal(smallSide.H, 2);
+});
+
+test("visitReason names the cause in the mockup's priority order", () => {
+  const meta = (over: Partial<SidesLoopMeta["cond"]> = {}): SidesLoopMeta => ({
+    ...defaultSidesLoop(), cond: { cond: null, rot: null, acc: null, ...over },
+  });
+  const custom = [{ what: 'custom surface: "x"', needs: "", kind: "custom_surface" }];
+  const flagged = [{ what: "geometry", needs: "customer flagged the photos" }];
+  assert.equal(visitReason(meta({ cond: "peeling", rot: "lots" }), custom), "custom", "custom beats everything");
+  assert.equal(visitReason(meta({ cond: "peeling", rot: "lots" }), []), "peeling");
+  assert.equal(visitReason(meta({ rot: "lots" }), flagged), "rot", "rot beats flagged");
+  assert.equal(visitReason(meta(), flagged), "flagged");
+  assert.equal(visitReason(meta(), []), "big", "the residual reason");
 });
 
 // ---- the charge-out lookup hardening -----------------------------------------

@@ -87,15 +87,15 @@ export function applyRoomSizeOk(blocks: LooseBlock[], areaId: number): RoomsLoop
   });
 }
 
-/** The L × W adjust — metres, clamped 1–15 per side (a toast's job to say
- * so, never a block); reprices via the engine, provenance customer_stated.
- * m² stays internal: everything customer-facing displays L × W. */
+/** The L × W adjust — metres, clamped 1–15 per side; reprices via the
+ * engine, provenance customer_stated. m² stays internal: everything
+ * customer-facing displays L × W. */
 export function applyRoomDims(blocks: LooseBlock[], areaId: number, lengthM: number, widthM: number): RoomsLoopResult {
   return withRoom(blocks, areaId, (b) => {
-    if (!(lengthM >= 1 && lengthM <= 15) || !(widthM >= 1 && widthM <= 15)) {
-      return "Sides run 1–15 m — pace it out, near enough is fine.";
-    }
-    b.L = lengthM; b.W = widthM;
+    // Mockup behaviour: the gentle clamp — out-of-range proceeds at the
+    // nearest bound (a toast's job to say so), never a refusal.
+    b.L = Math.min(15, Math.max(1, lengthM));
+    b.W = Math.min(15, Math.max(1, widthM));
     b.origin = "customer_stated"; b.confidence = 0.85;
     b.assumedFields = (Array.isArray(b.assumedFields) ? (b.assumedFields as string[]) : []).filter((f) => f !== "L" && f !== "W");
     b.customer = { ...customerOf(b), size: "adjusted" };
