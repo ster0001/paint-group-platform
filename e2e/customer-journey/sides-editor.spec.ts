@@ -139,3 +139,83 @@ test("R2b sides loop: amber to cyan, walls must total 100%, skip reads NOT PAINT
   await expect(page.locator(".sd-cta")).toBeEnabled();
   await expect(page.locator(".sc-r, .sd-range").first()).toHaveText(MONEY_RANGE);
 });
+
+/** Parity STOP-item 1 — the priced wiring (Tom's price list, 20 Aug 2026).
+ * Weathered, minor rot and access PRICE (modifier + allowance lines); the
+ * add-panel offers the priced catalogue (shutters/side gate/security door/
+ * meter box); the sweep prices Shed and Side gate, while Carport stays an
+ * amber visit flag and Rear fence left the sweep. */
+test("priced extras: condition/access, catalogue chips and sweep items move the range", async ({ page }) => {
+  test.setTimeout(240_000);
+  await driveExteriorWizard(page);
+
+  const rangeMid = async () => {
+    const txt = await page.locator("span[data-role='range']").innerText();
+    const [lo, hi] = [...txt.matchAll(/\$([\d,]+)/g)].map((m) => Number(m[1].replace(/,/g, "")));
+    return (lo + hi) / 2;
+  };
+  const settled = async () => expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
+
+  // Weathered = the ×1.8 condition modifier — the range moves UP, and the
+  // toast names the delta. "Good overall" takes it back off.
+  const cond = page.locator(".sd-card", { hasText: "Condition & access" });
+  await cond.locator(".sd-hd").click();
+  const beforeWeathered = await rangeMid();
+  await cond.getByRole("button", { name: "Weathered", exact: true }).click();
+  await expect(page.locator(".sd-toast")).toContainText(/weathered paintwork.*\+\$[\d,]+/i, { timeout: 30_000 });
+  await settled();
+  const afterWeathered = await rangeMid();
+  expect(afterWeathered).toBeGreaterThan(beforeWeathered);
+  await cond.getByRole("button", { name: /Good overall/ }).click();
+  await settled();
+  expect(await rangeMid()).toBeLessThan(afterWeathered);
+
+  // Minor rot and access price as allowance lines, both ways.
+  const beforeRot = await rangeMid();
+  await cond.getByRole("button", { name: "A little", exact: true }).click();
+  await settled();
+  expect(await rangeMid()).toBeGreaterThan(beforeRot);
+  await cond.getByRole("button", { name: /No, looks solid/ }).click();
+  await settled();
+  expect(await rangeMid()).toBeLessThanOrEqual(beforeRot);
+  await cond.getByRole("button", { name: /Steep block/ }).click();
+  await settled();
+  expect(await rangeMid()).toBeGreaterThan(beforeRot);
+
+  // The add-panel offers the priced catalogue; adding puts a steppable tile
+  // on THIS side and moves the range.
+  const front = page.locator(".sd-card", { hasText: "Front" }).first();
+  await front.locator(".sd-hd").click();
+  await front.getByRole("button", { name: "Yes", exact: true }).click();
+  await front.getByRole("button", { name: /Looks right/ }).click();
+  await front.getByRole("button", { name: /Add a surface/ }).click();
+  const doorChip = front.getByRole("button", { name: /Security door — \$[\d,]+/ });
+  await expect(doorChip).toBeVisible();
+  const beforeDoor = await rangeMid();
+  await doorChip.click();
+  await settled();
+  expect(await rangeMid()).toBeGreaterThan(beforeDoor);
+  await expect(front.locator(".sd-tl", { hasText: "Security door" })).toBeVisible();
+  // Added once — the chip leaves the panel; the tile's stepper owns count.
+  await front.getByRole("button", { name: /Add a surface/ }).click();
+  await expect(front.getByRole("button", { name: /Security door — \$/ })).toHaveCount(0);
+
+  // The sweep: Shed prices on (✓) and off again; Rear fence is gone;
+  // Carport stays the amber visit flag.
+  const sweep = page.locator(".sd-card", { hasText: /anything we haven't listed/i });
+  await sweep.locator(".sd-hd").click();
+  await expect(sweep.getByRole("button", { name: /Rear fence/ })).toHaveCount(0);
+  const shedChip = sweep.getByRole("button", { name: /Shed — \$[\d,]+/ });
+  const beforeShed = await rangeMid();
+  await shedChip.click();
+  await settled();
+  expect(await rangeMid()).toBeGreaterThan(beforeShed);
+  await expect(sweep.getByRole("button", { name: /✓ Shed/ })).toBeVisible();
+  await sweep.getByRole("button", { name: /✓ Shed/ }).click();
+  await settled();
+  await expect(sweep.getByRole("button", { name: /\+ Shed/ })).toBeVisible();
+  await sweep.getByRole("button", { name: "+ Carport", exact: true }).click();
+  await expect(page.locator(".sd-toast")).toContainText(/carport.*site visit/i, { timeout: 30_000 });
+  await settled();
+  await expect(page.locator(".sd-tier")).toContainText(/visit/i);
+});

@@ -15,14 +15,17 @@ import {
   customerExteriorView, customerScopeRooms, offeredVisitSlots,
 } from "@/lib/wizard/scope-editor";
 import {
-  addSideCustom, addWallSurface, addWindowGroup, applySideCount, applySideDims, applySideInclude,
-  applySideSizeOk, applyWallShare, applyWindowSize, confirmSide, defaultSidesLoop, sidesView,
+  ALLOWANCE_CODES, SWEEP_PRICED_CODES, WEATHERED_MODIFIER_CODE,
+  addCatalogItem, addSideCustom, addWallSurface, addWindowGroup, applySideCount, applySideDims,
+  applySideInclude, applySideSizeOk, applyWallShare, applyWindowSize, confirmSide, defaultSidesLoop,
+  extrasPrices, hasExtrasItem, rateFor, sidesView, toggleExtrasItem,
   type SidesLoopMeta,
 } from "@/lib/wizard/sides";
 import {
-  CUPBOARD_BY_ROOM_TYPE, addRoomCustom, addRoomWindowGroup, applyCupboard, applyRoomDims,
-  applyRoomSizeOk, applyRoomWindowSize, confirmRoom, defaultInteriorLoop, interiorDwTotals,
-  interiorProgress, roomLoopViews, type InteriorLoopMeta,
+  CUPBOARD_BY_ROOM_TYPE, addCatalogueLine, addRoomCustom, addRoomWindowGroup, applyCupboard,
+  applyLineCount, applyRoomDims, applyRoomSizeOk, applyRoomWindowSize, confirmRoom,
+  defaultInteriorLoop, interiorDwTotals, interiorProgress, removeLine, roomLoopViews,
+  type InteriorLoopMeta,
 } from "@/lib/wizard/rooms-loop";
 import { customerPayload, editorPayload, type WizardDeferred } from "@/lib/wizard/view";
 import {
@@ -107,11 +110,16 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("side_count"), side: z.enum(["front", "left", "right", "back"]), surfaceId: z.number().int().positive(), count: z.number().int().min(1).max(20) }),
   z.object({ action: z.literal("add_window_group"), side: z.enum(["front", "left", "right", "back"]) }),
   z.object({ action: z.literal("side_custom"), side: z.enum(["front", "left", "right", "back"]), name: z.string().min(1).max(120) }),
+  /** Parity STOP-item 1: a priced catalogue item onto one side's tile grid. */
+  z.object({ action: z.literal("add_catalog"), side: z.enum(["front", "left", "right", "back"]), code: z.enum(["Window Shutters", "Side Gate", "Security Door", "Meter Box"]) }),
   z.object({ action: z.literal("confirm_side"), side: z.enum(["front", "left", "right", "back"]) }),
   z.object({ action: z.literal("loop_cond"), cond: z.enum(["good", "weathered", "peeling"]).optional(), rot: z.enum(["no", "little", "lots"]).optional(), acc: z.enum(["steep", "tight", "high", "none"]).optional() }),
   z.object({ action: z.literal("loop_extras_none") }),
   z.object({ action: z.literal("loop_dw"), ok: z.boolean() }),
   z.object({ action: z.literal("loop_sweep"), ans: z.enum(["none"]).optional(), add: z.string().min(1).max(60).optional() }),
+  /** Priced sweep chips — Shed / Side gate toggle a real line on the extras
+   * block; Carport and free text stay on the amber loop_sweep path. */
+  z.object({ action: z.literal("sweep_item"), code: z.enum(["Shed", "Side Gate"]), on: z.boolean() }),
   z.object({ action: z.literal("confirm_loop_item"), item: z.enum(["extras", "cond", "dw", "sweep"]) }),
   // ---- R3: the interior confirm loop --------------------------------------
   z.object({ action: z.literal("room_size_ok"), areaId: z.number().int().positive() }),
@@ -123,6 +131,9 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("confirm_room_loop"), areaId: z.number().int().positive() }),
   z.object({ action: z.literal("iloop_dw"), ok: z.boolean() }),
   z.object({ action: z.literal("iloop_sweep"), ans: z.enum(["none"]) }),
+  z.object({ action: z.literal("room_add_catalogue"), areaId: z.number().int().positive(), code: z.string().min(1).max(60) }),
+  z.object({ action: z.literal("room_line_count"), areaId: z.number().int().positive(), surfaceId: z.number().int().positive(), count: z.number().int().min(1).max(20) }),
+  z.object({ action: z.literal("room_remove_line"), areaId: z.number().int().positive(), surfaceId: z.number().int().positive() }),
   z.object({ action: z.literal("confirm_iloop_item"), item: z.enum(["dw", "sweep"]) }),
 ]);
 
@@ -432,10 +443,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (act.action === "side_include" || act.action === "side_size_ok" || act.action === "side_dims"
     || act.action === "wall_share" || act.action === "add_wall" || act.action === "win_size"
     || act.action === "side_count" || act.action === "add_window_group" || act.action === "side_custom"
-    || act.action === "confirm_side") {
+    || act.action === "add_catalog" || act.action === "confirm_side") {
     let next = Math.max(0, ...blocks.flatMap((b) => [
       Number(b.id) || 0, ...(b.surfaces ?? []).map((s) => Number(s.id) || 0),
     ])) + 1;
+    // Catalogue items price off the live card's per-item charge-out; a code
+    // the card can't price refuses loudly — never a silent $0 line.
+    const catalogRate = act.action === "add_catalog" ? rateFor((await ctxPromise).rateItems, act.code) : null;
+    if (act.action === "add_catalog" && !catalogRate) {
+      return NextResponse.json({ error: "We can't price that item right now — name it in “Something else” instead." }, { status: 400 });
+    }
     const result =
       act.action === "side_include" ? applySideInclude(blocks, act.side, act.include)
       : act.action === "side_size_ok" ? applySideSizeOk(blocks, act.side)
@@ -446,6 +463,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       : act.action === "side_count" ? applySideCount(blocks, act.side, act.surfaceId, act.count)
       : act.action === "add_window_group" ? addWindowGroup(blocks, act.side, () => next++)
       : act.action === "side_custom" ? addSideCustom(blocks, act.side, act.name)
+      : act.action === "add_catalog" ? addCatalogItem(blocks, act.side, act.code, () => next++, catalogRate!.chargeOutDollars)
       : confirmSide(blocks, act.side);
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
     blocks = result.blocks as LooseBlock[];
@@ -474,22 +492,50 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
   if (act.action === "loop_cond") {
     sidesMeta = { ...sidesMeta, cond: { ...sidesMeta.cond, ...(act.cond ? { cond: act.cond } : {}), ...(act.rot ? { rot: act.rot } : {}), ...(act.acc ? { acc: act.acc } : {}) } };
-    if (act.cond === "weathered") {
-      deferred.push({ room: "Exterior", areaId: null, what: "weathered paintwork", count: 1, needs: "extra preparation allowed for — confirm the prep scope at review" });
+    // Parity STOP-item 1 (Tom's ruling, 20 Aug): weathered / minor rot /
+    // access PRICE — the modifier and allowance rows live on the live card
+    // (migrations 20260921–22). If a row is missing, each falls back to the
+    // old amber deferral rather than a silent $0. Answers toggle both ways.
+    const ctxCond = await ctxPromise;
+    let nextExtra = Math.max(0, ...blocks.flatMap((b) => [
+      Number(b.id) || 0, ...(b.surfaces ?? []).map((s) => Number(s.id) || 0),
+    ])) + 1;
+    const setAllowance = (def: { code: string; label: string }, on: boolean): boolean => {
+      const r = rateFor(ctxCond.rateItems, def.code);
+      if (!r) return false;
+      const res = toggleExtrasItem(blocks, def.code, def.label, on, () => nextExtra++, r.chargeOutDollars);
+      if (res.ok) blocks = res.blocks as LooseBlock[];
+      return res.ok;
+    };
+    if (act.cond) {
+      const modSel = { ...((state.modSel as Record<string, string>) ?? {}) };
+      const hasWeathered = ctxCond.modifiers.some((m) => m.code === WEATHERED_MODIFIER_CODE);
+      if (act.cond === "weathered" && hasWeathered) modSel.Condition = WEATHERED_MODIFIER_CODE;
+      else if (modSel.Condition === WEATHERED_MODIFIER_CODE) delete modSel.Condition;
+      (state as Record<string, unknown>).modSel = modSel;
+      if (act.cond === "weathered" && !hasWeathered) {
+        deferred.push({ room: "Exterior", areaId: null, what: "weathered paintwork", count: 1, needs: "extra preparation allowed for — confirm the prep scope at review" });
+      }
+      if (act.cond === "peeling") {
+        deferred.push({ room: "Exterior", areaId: null, what: "peeling & flaking paint", count: 1, needs: "needs eyes on it — lead-safe check on the visit if pre-1970" });
+        await flagSiteCheck();
+      }
     }
-    if (act.cond === "peeling") {
-      deferred.push({ room: "Exterior", areaId: null, what: "peeling & flaking paint", count: 1, needs: "needs eyes on it — lead-safe check on the visit if pre-1970" });
-      await flagSiteCheck();
+    if (act.rot) {
+      const priced = setAllowance(ALLOWANCE_CODES.rot, act.rot === "little");
+      if (act.rot === "little" && !priced) {
+        deferred.push({ room: "Exterior", areaId: null, what: "minor fascia rot", count: 1, needs: "allow minor fascia prep — confirm extent at review" });
+      }
+      if (act.rot === "lots") {
+        deferred.push({ room: "Exterior", areaId: null, what: "fascia rot", count: 1, needs: "rot repair needs eyes on it — confirm the roofline scope on the visit" });
+        await flagSiteCheck();
+      }
     }
-    if (act.rot === "little") {
-      deferred.push({ room: "Exterior", areaId: null, what: "minor fascia rot", count: 1, needs: "allow minor fascia prep — confirm extent at review" });
-    }
-    if (act.rot === "lots") {
-      deferred.push({ room: "Exterior", areaId: null, what: "fascia rot", count: 1, needs: "rot repair needs eyes on it — confirm the roofline scope on the visit" });
-      await flagSiteCheck();
-    }
-    if (act.acc && act.acc !== "none") {
-      deferred.push({ room: "Exterior", areaId: null, what: `access: ${act.acc}`, count: 1, needs: "access affects setup time — allow for it at review" });
+    if (act.acc) {
+      const priced = setAllowance(ALLOWANCE_CODES.access, act.acc !== "none");
+      if (act.acc !== "none" && !priced) {
+        deferred.push({ room: "Exterior", areaId: null, what: `access: ${act.acc}`, count: 1, needs: "access affects setup time — allow for it at review" });
+      }
     }
   }
   if (act.action === "loop_extras_none") sidesMeta = { ...sidesMeta, extrasAns: "none" };
@@ -504,6 +550,33 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       await flagSiteCheck();
     } else if (act.ans === "none") {
       sidesMeta = { ...sidesMeta, sweepAns: "none" };
+    }
+  }
+  if (act.action === "sweep_item") {
+    // Shed / Side gate price straight onto the extras block (STOP-item 1);
+    // tapping again takes the line off. A card that can't price the code
+    // falls back to the amber sweep flag — never a silent $0.
+    const def = SWEEP_PRICED_CODES.find((c) => c.code === act.code)!;
+    const r = rateFor((await ctxPromise).rateItems, act.code);
+    if (!r && act.on) {
+      sidesMeta = { ...sidesMeta, sweepAns: "added" };
+      deferred.push({
+        room: "Exterior", areaId: null, what: `sweep: "${def.label}"`, count: 1,
+        needs: "named in the final sweep — price it with the customer before send", kind: "custom_surface",
+      });
+      await flagSiteCheck();
+    } else if (r) {
+      let nextSweep = Math.max(0, ...blocks.flatMap((b) => [
+        Number(b.id) || 0, ...(b.surfaces ?? []).map((s) => Number(s.id) || 0),
+      ])) + 1;
+      const res = toggleExtrasItem(blocks, def.code, def.label, act.on, () => nextSweep++, r.chargeOutDollars);
+      if (res.ok) blocks = res.blocks as LooseBlock[];
+      // The answer tracks the truth: something priced or flagged = "added";
+      // taking the last priced item off re-opens the question (unless a
+      // custom sweep flag already answered it).
+      const anyPriced = SWEEP_PRICED_CODES.some((c) => hasExtrasItem(blocks, c.code));
+      const anyFlagged = deferred.some((d) => d.what.startsWith("sweep:"));
+      sidesMeta = { ...sidesMeta, sweepAns: anyPriced || anyFlagged ? "added" : sidesMeta.sweepAns === "added" ? null : sidesMeta.sweepAns };
     }
   }
   if (act.action === "confirm_loop_item") {
@@ -523,6 +596,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   let interiorMeta: InteriorLoopMeta = ((state.interiorLoop as InteriorLoopMeta | undefined) ?? defaultInteriorLoop());
   if (act.action === "room_size_ok" || act.action === "room_dims" || act.action === "room_cupboard"
     || act.action === "room_win_size" || act.action === "room_add_window_group" || act.action === "room_custom"
+    || act.action === "room_add_catalogue" || act.action === "room_line_count" || act.action === "room_remove_line"
     || act.action === "confirm_room_loop") {
     let next = Math.max(0, ...blocks.flatMap((b) => [
       Number(b.id) || 0, ...(b.surfaces ?? []).map((s) => Number(s.id) || 0),
@@ -534,8 +608,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const cfg = CUPBOARD_BY_ROOM_TYPE[String(room?.roomType ?? "")];
       cupboardApplies = !!cfg && (await ctxPromise).rateItems.some((r) => r.code === cfg.code);
     }
+    let catalogueLabel = "";
+    let catalogueChargeOut: number | null = null;
+    if (act.action === "room_add_catalogue") {
+      // Only real Interior rate-card codes — the card, never the client,
+      // decides what is priceable.
+      const item = (await ctxPromise).rateItems.find((r) => r.code === act.code && r.category === "Interior");
+      if (!item) return NextResponse.json({ error: "That surface isn't on our rate card." }, { status: 422 });
+      catalogueLabel = item.code;
+      // Per-item charge-out (Air Vent $180/h × 0.25 h = $45) — without it
+      // the engine bills the category rate and the price lands wrong.
+      catalogueChargeOut = item.charge_out_cents != null ? item.charge_out_cents / 100 : null;
+    }
     const result =
-      act.action === "room_size_ok" ? applyRoomSizeOk(blocks, act.areaId)
+      act.action === "room_add_catalogue" ? addCatalogueLine(blocks, act.areaId, act.code, catalogueLabel, () => next++, catalogueChargeOut)
+      : act.action === "room_line_count" ? applyLineCount(blocks, act.areaId, act.surfaceId, act.count)
+      : act.action === "room_remove_line" ? removeLine(blocks, act.areaId, act.surfaceId)
+      : act.action === "room_size_ok" ? applyRoomSizeOk(blocks, act.areaId)
       : act.action === "room_dims" ? applyRoomDims(blocks, act.areaId, act.lengthM, act.widthM)
       : act.action === "room_cupboard" ? applyCupboard(blocks, act.areaId, act.on, act.count, () => next++)
       : act.action === "room_win_size" ? applyRoomWindowSize(blocks, act.areaId, act.surfaceId, act.size)
@@ -669,7 +758,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       scopeRooms: customerScopeRooms(blocks, (rulesRows ?? []) as ScopeRule[]),
       exterior: customerExteriorView(blocks),
       // R2b: the sides confirm loop's full view (null when no sides exist).
-      sides: sidesView(blocks, sidesMeta),
+      sides: sidesView(blocks, sidesMeta, extrasPrices(ctx.rateItems)),
       // R3: the interior confirm loop — rooms joined by areaId, plus the
       // totals check and sweep state. Cupboard questions are data-driven off
       // the live rate card.
@@ -678,6 +767,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         dw: { ...interiorDwTotals(blocks), ok: interiorMeta.dwOk },
         meta: interiorMeta,
         progress: interiorProgress(blocks, interiorMeta),
+        // The add-surface panel's priced catalogue: the card's Interior
+        // extras (Air Vent and friends) — data-driven, never hardcoded.
+        catalogue: ctx.rateItems
+          .filter((r) => r.category === "Interior" && r.sub_category === "Extras")
+          .map((r) => ({ code: r.code, label: r.code })),
       },
       ladder: { tier: selfServe ? "self_serve" : "visit", visitSlots: offeredVisitSlots(flags) },
     });

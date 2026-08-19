@@ -28,6 +28,8 @@ export type InteriorLoopView = {
   dw: { doors: number; windows: number; ok: boolean | null };
   meta: InteriorLoopMeta;
   progress: { done: number; total: number; allDone: boolean };
+  /** The add-surface panel's priced catalogue (rate-card Interior extras). */
+  catalogue?: Array<{ code: string; label: string }>;
 };
 
 type Payload = CustomerPayload & {
@@ -75,7 +77,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   const [busyKeys, setBusyKeys] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<string | null>(null);
   const [flash, setFlash] = useState(0);
-  const [openMore, setOpenMore] = useState<Set<number>>(new Set());
+  const [openPanel, setOpenPanel] = useState<Set<number>>(new Set());
   const [advice, setAdvice] = useState<{ areaId: number; key: string } | null>(null);
   const [notes, setNotes] = useState<Record<number | string, string>>({});
   const [noteChips, setNoteChips] = useState<Record<number | string, string>>({});
@@ -177,6 +179,12 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
     : roomTypes;
 
   function toggle(room: CustomerScopeRoom, tile: CustomerScopeRoom["tiles"][number]) {
+    if (tile.surfaceId != null) {
+      // Catalogue line — turning it off removes that line.
+      act({ action: "room_remove_line", areaId: room.areaId, surfaceId: tile.surfaceId },
+        `${room.areaId}:${tile.key}`, deltaText(tile.label, false));
+      return;
+    }
     const turningOff = tile.on;
     // Pairing advice (mockup): skirting off while walls stay on → advisory.
     if (turningOff && tile.key === "skirting" && room.tiles.some((t) => t.key === "walls" && t.on)) {
@@ -190,10 +198,12 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   }
 
   function step(room: CustomerScopeRoom, tile: CustomerScopeRoom["tiles"][number], dir: 1 | -1) {
-    const next = Math.max(1, Math.min(12, (tile.count ?? 1) + dir));
+    const next = Math.max(1, Math.min(tile.surfaceId != null ? 20 : 12, (tile.count ?? 1) + dir));
     if (next === tile.count) return;
     act(
-      { action: "set_count", areaId: room.areaId, key: tile.key, count: next },
+      tile.surfaceId != null
+        ? { action: "room_line_count", areaId: room.areaId, surfaceId: tile.surfaceId, count: next }
+        : { action: "set_count", areaId: room.areaId, key: tile.key, count: next },
       `${room.areaId}:${tile.key}:n`,
       (d) => `${tile.label} ×${next}${liveRange && Math.abs(d) >= 100 ? ` — about ${d > 0 ? "+" : "−"}${fmt(Math.abs(d))}` : ""}`,
     );
@@ -275,7 +285,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
           {rooms.map((room) => {
             const main = room.tiles.filter((t) => !t.longTail);
             const tail = room.tiles.filter((t) => t.longTail);
-            const showTail = openMore.has(room.areaId);
+            
             const loop = loopOf(room.areaId);
             return (
               <section
@@ -339,7 +349,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                   </div>
                 )}
                 <div className="sc-tgrid">
-                  {[...main, ...(showTail ? tail : [])].map((t) => (
+                  {[...main, ...tail.filter((t) => t.on)].map((t) => (
                     <div
                       key={String(t.key)}
                       className={`sc-tl ${t.on ? "on" : ""} ${busyKeys.has(`${room.areaId}:${t.key}`) ? "busy" : ""}`}
@@ -362,12 +372,47 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     </div>
                   ))}
                 </div>
-                {tail.length > 0 && (
-                  <button className="sc-more" onClick={() => setOpenMore((s) => {
-                    const n = new Set(s); if (n.has(room.areaId)) n.delete(room.areaId); else n.add(room.areaId); return n;
-                  })}>
-                    {showTail ? "Fewer surfaces" : "More surfaces…"}
-                  </button>
+                <button className="sd-addsurf" onClick={() => setOpenPanel((s) => {
+                  const n = new Set(s); if (n.has(room.areaId)) n.delete(room.areaId); else n.add(room.areaId); return n;
+                })}>
+                  + Add a surface
+                </button>
+                {openPanel.has(room.areaId) && (
+                  <div className="sd-addpanel">
+                    <p className="sd-pl">EVERYTHING WE PAINT — TAP TO ADD</p>
+                    <div className="sd-chips">
+                      {tail.filter((t) => !t.on).map((t) => (
+                        <button key={String(t.key)} className="sd-chip"
+                          onClick={() => act({ action: "toggle_surface", areaId: room.areaId, key: String(t.key), on: true }, `${room.areaId}:${t.key}`, deltaText(t.label, true))}>
+                          + {t.label}
+                        </button>
+                      ))}
+                      {(iloop?.catalogue ?? [])
+                        .filter((c) => !room.tiles.some((t) => t.label.toLowerCase() === c.label.toLowerCase() && t.on))
+                        .map((c) => (
+                          <button key={c.code} className="sd-chip"
+                            onClick={() => act({ action: "room_add_catalogue", areaId: room.areaId, code: c.code }, `${room.areaId}:cat:${c.code}`, deltaText(c.label, true))}>
+                            + {c.label}
+                          </button>
+                        ))}
+                      {loop && (
+                        <button className="sd-chip"
+                          onClick={() => act({ action: "room_add_window_group", areaId: room.areaId }, `wg:${room.areaId}`,
+                            () => "Added another window group — set its count and size. Mix as many sizes as the room has.")}>
+                          + More windows — a different size
+                        </button>
+                      )}
+                    </div>
+                    <div className="sd-custom">
+                      <input
+                        placeholder="Something else? Name it — e.g. wall panelling"
+                        value={notes[room.areaId] ?? ""}
+                        onChange={(e) => setNotes((n) => ({ ...n, [room.areaId]: e.target.value }))}
+                        onKeyDown={(e) => { if (e.key === "Enter") addCustom(room.areaId); }}
+                      />
+                      <button onClick={() => addCustom(room.areaId)}>Add</button>
+                    </div>
+                  </div>
                 )}
                 {advice?.areaId === room.areaId && (
                   <div className="sc-advice">
@@ -434,15 +479,6 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     )}
                   </div>
                 )}
-                <div className="sc-else">
-                  <input
-                    placeholder="Something else in this room? Name it — e.g. wall panelling"
-                    value={notes[room.areaId] ?? ""}
-                    onChange={(e) => setNotes((n) => ({ ...n, [room.areaId]: e.target.value }))}
-                    onKeyDown={(e) => { if (e.key === "Enter") addCustom(room.areaId); }}
-                  />
-                  <button onClick={() => addCustom(room.areaId)}>Add</button>
-                </div>
                 {noteChips[room.areaId] && (
                   <div className="sc-notechip">⚑ &ldquo;{noteChips[room.areaId]}&rdquo; — we&rsquo;ll confirm this area on the site visit</div>
                 )}

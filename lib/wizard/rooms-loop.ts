@@ -146,6 +146,49 @@ export function addRoomWindowGroup(blocks: LooseBlock[], areaId: number, snapsho
   });
 }
 
+/** A catalogue add: any Interior rate-card code the route has validated —
+ * a priced per-item line (Air Vent and friends), customer_stated. Catalogue
+ * rows carry PER-ITEM charge-outs (price ÷ hours, e.g. Air Vent $180/h so
+ * 0.25 h lands $45) — the line must ride the item's own rate via
+ * useCustomRate, or the engine bills it at the category charge-out. */
+export function addCatalogueLine(
+  blocks: LooseBlock[], areaId: number, code: string, label: string,
+  nextId: () => number, chargeOutDollars?: number | null,
+): RoomsLoopResult {
+  return withRoom(blocks, areaId, (b) => {
+    if ((b.surfaces ?? []).some((s) => String(s.code) === code)) return "That surface is already in this room.";
+    const line = makeDraftSurface(nextId(), code, label, 1, "customer_stated", 0.85, []) as unknown as LooseSurface;
+    if (chargeOutDollars != null) {
+      line.useCustomRate = true;
+      line.customRate = chargeOutDollars;
+    }
+    b.surfaces = [...(b.surfaces ?? []), line];
+  });
+}
+
+/** Count on a specific line (catalogue items, window groups) — 1–20. */
+export function applyLineCount(blocks: LooseBlock[], areaId: number, surfaceId: number, count: number): RoomsLoopResult {
+  if (!(count >= 1 && count <= 20)) return { ok: false, error: "Counts run 1–20." };
+  return withRoom(blocks, areaId, (b) => {
+    const line = (b.surfaces ?? []).find((s) => Number(s.id) === surfaceId);
+    if (!line) return "That item isn't in this room.";
+    line.count = count;
+    if (line.qtyOverride != null && line.sizeBand) {
+      const f = { S: 0.8, M: 1, L: 1.2 }[line.sizeBand as "S" | "M" | "L"] ?? 1;
+      line.qtyOverride = Math.round(count * f * 100) / 100;
+    }
+  });
+}
+
+/** Remove a specific line (turning a catalogue tile off). */
+export function removeLine(blocks: LooseBlock[], areaId: number, surfaceId: number): RoomsLoopResult {
+  return withRoom(blocks, areaId, (b) => {
+    const kept = (b.surfaces ?? []).filter((s) => Number(s.id) !== surfaceId);
+    if (kept.length === (b.surfaces ?? []).length) return "That item isn't in this room.";
+    b.surfaces = kept;
+  });
+}
+
 /** A named custom surface: an amber flag tile, recorded — NEVER priced. */
 export function addRoomCustom(blocks: LooseBlock[], areaId: number, name: string): RoomsLoopResult {
   return withRoom(blocks, areaId, (b) => {
