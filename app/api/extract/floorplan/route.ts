@@ -5,7 +5,9 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { getWizardActor } from "@/lib/supabase/guards";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normaliseUpload, classifyPage } from "@/lib/extract/normalise";
+import { convertHeicToJpeg } from "@/lib/extract/heic";
 import { readPdf, MAX_PAGES } from "@/lib/extract/pdf";
+import { isOwnIncomingPath } from "@/lib/uploads/incoming";
 import { reportError } from "@/lib/monitoring/report";
 
 /**
@@ -117,26 +119,56 @@ export async function POST(request: Request) {
     return fail(403, "Uploads can't be attached to an estimate from here.");
   }
 
-  let form: FormData;
-  try {
-    form = await request.formData();
-  } catch {
-    return fail(400, "Send the file as multipart/form-data.");
-  }
+  // A3: two ways in. Small requests may still arrive as multipart; the wizard
+  // now stages big files in storage via a signed URL and posts JSON paths —
+  // the serverless body cap (~4.5 MB) silently killed real plan uploads.
+  type Incoming = { bytes: Uint8Array; declaredMime?: string; name: string; stagedPath?: string };
+  const incoming: Incoming[] = [];
 
-  const files = form.getAll("file").filter((f): f is File => f instanceof File);
-  if (files.length === 0) return fail(400, "No file was attached.");
-  if (files.length > MAX_FILES) return fail(400, `Upload up to ${MAX_FILES} files at a time.`);
+  if ((request.headers.get("content-type") ?? "").includes("application/json")) {
+    const staged = z.object({
+      uploads: z.array(z.object({
+        path: z.string().min(1).max(400),
+        name: z.string().max(200).default("upload"),
+      })).min(1).max(MAX_FILES),
+    }).safeParse(await request.json().catch(() => null));
+    if (!staged.success) return fail(400, "Send the staged upload paths.");
+
+    for (const u of staged.data.uploads) {
+      // The path IS the ownership check — only this caller's staging prefix,
+      // no traversal, before any storage call sees it.
+      if (!isOwnIncomingPath(u.path, user.id)) return fail(403, "That upload isn't yours to attach.");
+      const { data, error } = await db.storage.from("estimate-sources").download(u.path);
+      if (error || !data) {
+        return fail(400, `"${u.name}" didn't finish uploading — please try that file again.`);
+      }
+      incoming.push({ bytes: new Uint8Array(await data.arrayBuffer()), name: u.name, stagedPath: u.path });
+    }
+  } else {
+    let form: FormData;
+    try {
+      form = await request.formData();
+    } catch {
+      return fail(400, "Send the file as multipart/form-data.");
+    }
+    const files = form.getAll("file").filter((f): f is File => f instanceof File);
+    if (files.length === 0) return fail(400, "No file was attached.");
+    if (files.length > MAX_FILES) return fail(400, `Upload up to ${MAX_FILES} files at a time.`);
+    for (const file of files) {
+      incoming.push({ bytes: new Uint8Array(await file.arrayBuffer()), declaredMime: file.type, name: file.name });
+    }
+  }
 
   const runIds: string[] = [];
   const allPages: PageRow[] = [];
   const warnings: string[] = [];
+  const stagedToClean: string[] = [];
 
-  for (const file of files) {
-    const bytes = new Uint8Array(await file.arrayBuffer());
+  for (const file of incoming) {
+    const bytes = file.bytes;
 
     // ---- 3. what IS this, per its bytes -------------------------------------
-    const check = normaliseUpload(bytes, file.type, file.name);
+    const check = normaliseUpload(bytes, file.declaredMime, file.name);
     if (!check.ok) return fail(400, check.message);
 
     const stamp = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
@@ -153,6 +185,26 @@ export async function POST(request: Request) {
     if (up.error) {
       reportError(up.error, { where: "extract.upload", extra: { path: originalPath } });
       return fail(502, `Couldn't store that file: ${describeStorageError(up.error)}`);
+    }
+
+    // A3: iPhone HEIC — the models only read JPEG/PNG/WEBP, so a HEIC used to
+    // upload "fine" and then silently never read. Convert at ingest; the
+    // original .heic stays stored above, the pipeline works from the JPEG.
+    let pageBytesPath = originalPath;
+    let pageMime = check.mime;
+    if (check.kind === "heic") {
+      const converted = await convertHeicToJpeg(bytes);
+      if (!converted.ok) return fail(422, converted.message);
+      pageBytesPath = `${base}/original.jpg`;
+      pageMime = "image/jpeg";
+      const jp = await db.storage.from("estimate-sources").upload(pageBytesPath, converted.jpeg, {
+        contentType: "image/jpeg",
+        upsert: true,
+      });
+      if (jp.error) {
+        reportError(jp.error, { where: "extract.uploadHeicJpeg", extra: { path: pageBytesPath } });
+        return fail(502, `Couldn't store that photo: ${describeStorageError(jp.error)}`);
+      }
     }
 
     const pages: PageRow[] = [];
@@ -193,6 +245,7 @@ export async function POST(request: Request) {
       }
     } else {
       // A photo or a plan supplied as an image: one "page", no text layer.
+      // (For HEIC this is the converted JPEG — the readable rendition.)
       const c = classifyPage(null, { isImageFile: true, declaredKind: kind });
       pages.push({
         pageNo: 1,
@@ -201,8 +254,8 @@ export async function POST(request: Request) {
         confidence: c.confidence,
         reasons: c.reasons,
         hasTextLayer: false,
-        storagePath: originalPath,
-        thumbPath: originalPath,
+        storagePath: pageBytesPath,
+        thumbPath: pageBytesPath,
         widthPx: 0,
         heightPx: 0,
       });
@@ -217,7 +270,7 @@ export async function POST(request: Request) {
           kind,
           storage_path: page.storagePath,
           page_no: page.pageNo,
-          mime_type: check.kind === "pdf" ? "image/png" : check.mime,
+          mime_type: check.kind === "pdf" ? "image/png" : pageMime,
           byte_size: check.bytes,
           page_class: page.pageClass,
           page_class_confidence: page.confidence,
@@ -263,6 +316,13 @@ export async function POST(request: Request) {
       runIds.push(run.id);
       allPages.push(page);
     }
+
+    if (file.stagedPath) stagedToClean.push(file.stagedPath);
+  }
+
+  // The staged copies have served their purpose; best-effort cleanup.
+  if (stagedToClean.length) {
+    await db.storage.from("estimate-sources").remove(stagedToClean).then(() => null, () => null);
   }
 
   // Interior geometry comes off floorplan pages only; say so plainly rather

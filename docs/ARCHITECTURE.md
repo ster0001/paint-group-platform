@@ -521,3 +521,13 @@ scaffold + envelope lines are filtered by the same ticks
 (`filterSurfacesByTicks`), and ticked extras (deck/fence/pergola/garage
 doors/balustrade) always arrive as $0 measure-on-site placeholders
 (`exteriorExtrasNodes`).
+**Plan uploads (A3)**: files stage straight to storage via signed URLs
+(`POST /api/extract/upload-url` → `incoming/{userId}/…`, ownership-checked by
+`lib/uploads/incoming.ts`), then `/api/extract/floorplan` ingests the staged
+paths as JSON — the serverless multipart path (still supported for small
+files) hit the platform's ~4.5 MB body cap and failed silently. Magic-byte
+validation runs on the staged bytes as before. HEIC converts to JPEG at
+ingest (`lib/extract/heic.ts`, heic-convert WASM) with the original kept;
+the wizard pre-validates client-side (`checkUpload`), shows per-file
+progress, and background read failures surface as a visible note instead of
+being swallowed.

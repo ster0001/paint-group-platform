@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
+import { checkUpload } from "@/lib/uploads/validate";
 import {
   defaultCustomer,
   defaultWizardState,
@@ -64,6 +65,10 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
   const [planFileCount, setPlanFileCount] = useState(0);
   const [facadeFileCount, setFacadeFileCount] = useState(0);
   const [uploading, setUploading] = useState(false);
+  /** "Uploading 2 of 3…" — the visible progress the old flow never had. */
+  const [uploadNote, setUploadNote] = useState<string | null>(null);
+  /** Pages whose background read failed — flagged, not silently skipped. */
+  const [readIssueCount, setReadIssueCount] = useState(0);
 
   /** Reads fired in the background; the processing screen awaits them. */
   const readsRef = useRef<Array<Promise<unknown>>>([]);
@@ -88,28 +93,89 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
 
   // ---- page-1 uploads -------------------------------------------------------
 
+  /** Kick a page's read off in the background; a failure is NOTED, never
+   * swallowed — the old silent .catch() meant a page could sit unread and
+   * nobody found out until submit skipped it. */
+  const kickRead = (runId: string) => {
+    readsRef.current.push(
+      fetch(`/api/extract/${runId}/read`, { method: "POST" })
+        .then((r) => {
+          if (!r.ok) setReadIssueCount((n) => n + 1);
+          return r;
+        })
+        .catch(() => { setReadIssueCount((n) => n + 1); return null; }),
+    );
+  };
+
+  /**
+   * A3: uploads no longer ride a multipart POST through the serverless
+   * function (its ~4.5 MB body cap silently killed real plans). Each file is
+   * checked client-side first, staged straight to storage via a signed URL,
+   * then the process route validates the bytes and returns the run ids.
+   */
+  async function stageAndProcess(rawFiles: File[], kind: "floorplan" | "elevation"): Promise<{ runIds: string[]; primaryRunId: string | null } | null> {
+    const files = rawFiles.slice(0, 5);
+    for (const f of files) {
+      const problem = checkUpload({ name: f.name, size: f.size, type: f.type }, "document");
+      if (problem) { setError(problem); return null; }
+    }
+
+    // 1. signed upload URLs for the batch
+    const prep = await fetch("/api/extract/upload-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ files: files.map((f) => ({ name: f.name, size: f.size })) }),
+    });
+    const prepJson = await prep.json().catch(() => ({}));
+    if (!prep.ok) { setError(prepJson.error ?? "The upload couldn't start — try again."); return null; }
+    const slots: Array<{ path: string; token: string }> = prepJson.uploads ?? [];
+    if (slots.length !== files.length) { setError("The upload couldn't start — try again."); return null; }
+
+    // 2. the bytes go straight to storage, one file at a time, with progress
+    const supabase = createBrowserClient();
+    const staged: Array<{ path: string; name: string }> = [];
+    for (let i = 0; i < files.length; i++) {
+      setUploadNote(files.length > 1 ? `Uploading ${i + 1} of ${files.length}…` : "Uploading…");
+      const { error: upErr } = await supabase.storage
+        .from("estimate-sources")
+        .uploadToSignedUrl(slots[i].path, slots[i].token, files[i]);
+      if (upErr) {
+        setError(`"${files[i].name}" didn't upload — check your connection and try that one again.`);
+        return null;
+      }
+      staged.push({ path: slots[i].path, name: files[i].name });
+    }
+
+    // 3. server-side validation + ingest of the staged bytes
+    setUploadNote("Checking the files…");
+    const res = await fetch(`/api/extract/floorplan?kind=${kind}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uploads: staged }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) { setError(j.error ?? "The upload didn't work — try again."); return null; }
+    return { runIds: j.runIds ?? [], primaryRunId: j.primaryRunId ?? null };
+  }
+
   async function uploadPlans(files: File[]) {
     if (!files.length) return;
     setUploading(true);
     setError(null);
     try {
-      const fd = new FormData();
-      for (const f of files.slice(0, 5)) fd.append("file", f);
-      const res = await fetch("/api/extract/floorplan?kind=floorplan", { method: "POST", body: fd });
-      const j = await res.json();
-      if (!res.ok) { setError(j.error ?? "The upload didn't work — try again."); return; }
-      const ids: string[] = j.runIds ?? [];
-      if (!primaryRunRef.current) primaryRunRef.current = j.primaryRunId ?? ids[0] ?? null;
+      const out = await stageAndProcess(files, "floorplan");
+      if (!out) return;
+      const ids = out.runIds;
+      if (!primaryRunRef.current) primaryRunRef.current = out.primaryRunId ?? ids[0] ?? null;
       // Kick every page's read off now, in the background.
-      for (const runId of ids) {
-        readsRef.current.push(
-          fetch(`/api/extract/${runId}/read`, { method: "POST" }).catch(() => null),
-        );
-      }
+      for (const runId of ids) kickRead(runId);
       setState((s) => ({ ...s, planRunIds: [...s.planRunIds, ...ids], noPlan: false }));
       setPlanFileCount((n) => n + files.length);
+    } catch {
+      setError("The upload didn't finish — check your connection and try again.");
     } finally {
       setUploading(false);
+      setUploadNote(null);
     }
   }
 
@@ -118,23 +184,18 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
     setError(null);
     setUploading(true);
     try {
-      const fd = new FormData();
-      for (const f of files.slice(0, 5)) fd.append("file", f);
-      const res = await fetch("/api/extract/floorplan?kind=elevation", { method: "POST", body: fd });
-      const j = await res.json();
-      if (!res.ok) { setError(j.error ?? "The photos didn't upload — try again."); return; }
-      const ids: string[] = j.runIds ?? [];
+      const out = await stageAndProcess(files, "elevation");
+      if (!out) return;
       // E2: each facade starts its elevation read in the background, same as
       // plan pages — the envelope assembles from whatever has finished.
-      for (const runId of ids) {
-        readsRef.current.push(
-          fetch(`/api/extract/${runId}/read`, { method: "POST" }).catch(() => null),
-        );
-      }
-      setState((s) => ({ ...s, facadeRunIds: [...s.facadeRunIds, ...ids] }));
+      for (const runId of out.runIds) kickRead(runId);
+      setState((s) => ({ ...s, facadeRunIds: [...s.facadeRunIds, ...out.runIds] }));
       setFacadeFileCount((n) => n + files.length);
+    } catch {
+      setError("The upload didn't finish — check your connection and try again.");
     } finally {
       setUploading(false);
+      setUploadNote(null);
     }
   }
 
@@ -317,6 +378,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
                 state={state} set={set} damageInputRef={damageInputRef} isCustomer={isCustomer}
                 hasPlanRuns={state.planRunIds.length > 0}
                 onDamageFiles={(files) => {
+                  for (const f of files) {
+                    const problem = checkUpload({ name: f.name, size: f.size, type: f.type }, "image");
+                    if (problem) { setError(problem); return; }
+                  }
+                  setError(null);
                   damageFilesRef.current = [...damageFilesRef.current, ...files];
                   set({ details: { ...state.details, damagePhotoCount: state.details.damagePhotoCount + files.length } });
                 }}
@@ -335,6 +401,13 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
                 />
                 <p style={{ fontSize: 12.5, color: "var(--muted)" }}>No spam, no obligation. Opt out any time.</p>
               </>
+            )}
+            {uploadNote && <div className="wz-note">{uploadNote}</div>}
+            {readIssueCount > 0 && (
+              <div className="wz-note">
+                {readIssueCount === 1 ? "One page" : `${readIssueCount} pages`} couldn&rsquo;t be read —
+                we&rsquo;ll price what we can and flag the rest for a person to check.
+              </div>
             )}
             {error && <div className="wz-err">{error}</div>}
           </div>
