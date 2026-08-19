@@ -46,7 +46,7 @@ const customerState = (email: string, over: Record<string, unknown> = {}) => ({
   surfaces: ["walls", "ceilings", "cornices", "doors", "architraves", "skirting"],
   condition: { tier: "change", darkToLightSurfaces: [] },
   details: { doorStyle: "panel", windowStyle: "sash", ceilingHeight: "2.4", damageTier: 1, damageNote: "", damagePhotoCount: 0 },
-  paint: { brands: [], knowsColours: false, waterBasedOnly: false, trimsOilBased: null },
+  paint: { brands: [], colourHelp: null, waterBasedOnly: false, trimsOilBased: null },
   customer: {
     email, suburb: "Northcote", postcode: "3070",
     propertyKind: "house", heritageListed: "no", bodyCorporate: "no",

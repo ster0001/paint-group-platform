@@ -85,7 +85,9 @@ export const wizardStateSchema = z.object({
 
   paint: z.object({
     brands: z.array(z.enum(["dulux", "haymes", "taubmans"])).default([]),
-    knowsColours: z.boolean().default(false),
+    /** After a brand is picked: do they know the colours, or want advice?
+     * null = not answered (the follow-up hasn't been shown / touched). */
+    colourHelp: z.enum(["known", "advice"]).nullable().default(null),
     waterBasedOnly: z.boolean().default(false),
     /** Follow-up only when waterBasedOnly is ticked. */
     trimsOilBased: z.enum(["yes", "no", "unsure"]).nullable().default(null),
@@ -169,7 +171,7 @@ export function defaultWizardState(): WizardState {
       damageNote: "",
       damagePhotoCount: 0,
     },
-    paint: { brands: [], knowsColours: false, waterBasedOnly: false, trimsOilBased: null },
+    paint: { brands: [], colourHelp: null, waterBasedOnly: false, trimsOilBased: null },
   };
 }
 

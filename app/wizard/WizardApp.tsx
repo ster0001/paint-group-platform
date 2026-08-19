@@ -794,12 +794,6 @@ function PagePaint({ state, set }: { state: WizardState; set: (p: Partial<Wizard
       <div className="wz-tiles">
         {(["dulux", "haymes", "taubmans"] as const).map(brand)}
         <button
-          className={`wz-tile ${p.knowsColours ? "on" : ""}`}
-          onClick={() => set({ paint: { ...p, knowsColours: !p.knowsColours } })}
-        >
-          The colours are chosen
-        </button>
-        <button
           className={`wz-tile ${p.waterBasedOnly ? "on" : ""}`}
           onClick={() => set({
             paint: { ...p, waterBasedOnly: !p.waterBasedOnly, trimsOilBased: !p.waterBasedOnly ? (p.trimsOilBased ?? "unsure") : null },
@@ -808,6 +802,28 @@ function PagePaint({ state, set }: { state: WizardState; set: (p: Partial<Wizard
           Water-based only
         </button>
       </div>
+
+      {p.brands.length > 0 && (
+        <div className="wz-follow">
+          <p className="wz-q">Do you know which colours, or would you like some advice?</p>
+          <div className="wz-chips">
+            {([["known", "I know the colours"], ["advice", "Looking for advice"]] as const).map(([v, label]) => (
+              <button
+                key={v}
+                className={`wz-chip ${p.colourHelp === v ? "on" : ""}`}
+                onClick={() => set({ paint: { ...p, colourHelp: v } })}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {p.colourHelp === "advice" && (
+            <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 10 }}>
+              Perfect — we&rsquo;ll bring the fan decks. Our colour consultant can walk the home with you.
+            </p>
+          )}
+        </div>
+      )}
       {p.waterBasedOnly && (
         <div className="wz-follow">
           <p className="wz-q">Are the trims currently painted in oil-based enamel?</p>

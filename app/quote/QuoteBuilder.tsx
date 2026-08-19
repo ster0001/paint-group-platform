@@ -122,6 +122,10 @@ type LineBlock = {
   crewNote: string;
   hidden: boolean; // priced but omitted from the customer's copy
   isOption: boolean; // sits outside the total until the customer adds it
+  // A 3rd-party cost (carpentry, scaffolding): flagged so the books can be
+  // reconciled — we must be invoiced by the subcontractor and paid by the
+  // customer for it. NB: admin tracking of invoiced-vs-paid is still to build.
+  subcontractorExpense: boolean;
   media: MediaItem[];
   open: boolean;
   detailsOpen: boolean;
@@ -355,8 +359,11 @@ export default function QuoteBuilder({
    * looking at — and editing is a deliberate act via "Edit estimate". A brand
    * new estimate has nothing to show yet, so it opens in the builder.
    */
+  // Always open on the builder itself — a saved estimate used to open in the
+  // customer view, which meant an extra click before any editing. A
+  // ?view=customer / ?view=workorder deep-link still wins.
   const [viewMode, setViewMode] = useState<"builder" | "customer" | "workorder">(
-    initialView ?? (initial?.id ? "customer" : "builder"),
+    initialView ?? "builder",
   );
   // Editing is off until asked for, so nobody changes a live quote by accident.
   const [editing, setEditing] = useState(!initial?.id);
@@ -479,7 +486,7 @@ export default function QuoteBuilder({
     };
   }
   function newLine(): LineBlock {
-    return { id: nextId++, kind: "line", name: "", type: "Interior", mode: "hourly", hours: 0, rate: 85, qty: 1, unitPrice: 0, custom: 0, cost: 0, woHours: 0, description: "", clientNote: "", crewNote: "", hidden: false, isOption: false, media: [], open: true, detailsOpen: false };
+    return { id: nextId++, kind: "line", name: "", type: "Interior", mode: "hourly", hours: 0, rate: 85, qty: 1, unitPrice: 0, custom: 0, cost: 0, woHours: 0, description: "", clientNote: "", crewNote: "", hidden: false, isOption: false, subcontractorExpense: false, media: [], open: true, detailsOpen: false };
   }
 
   const patchBlock = (id: number, patch: Partial<Area> | Partial<LineBlock>) =>
@@ -1335,7 +1342,13 @@ export default function QuoteBuilder({
             contact={contact}
             jobAddress={jobAddress}
             onContact={setContact}
-            onJobAddress={setJobAddress}
+            onJobAddress={(a) => {
+              setJobAddress(a);
+              // Auto-name the quote from the first line of the address, unless
+              // the estimator has already typed a name of their own.
+              const firstLine = a?.address?.trim() ?? "";
+              if (firstLine && title.trim() === "") setTitle(firstLine);
+            }}
             estimateId={quoteId ? quoteId.slice(0, 8) : "New"}
             dateStr={new Date().toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
           />
@@ -2605,6 +2618,9 @@ function LineCard({
           </label>
           <label className="flex items-center gap-1.5 text-gray-600">
             <input type="checkbox" checked={l.hidden} onChange={(e) => onPatch({ hidden: e.target.checked })} /> Hidden from customer
+          </label>
+          <label className="flex items-center gap-1.5 text-gray-600" title="Carpentry, scaffolding etc. supplied by a 3rd party — tracked so we're invoiced and paid to balance the books.">
+            <input type="checkbox" checked={l.subcontractorExpense} onChange={(e) => onPatch({ subcontractorExpense: e.target.checked })} /> Subcontractor expense
           </label>
           <button type="button" onClick={() => onPatch({ detailsOpen: !l.detailsOpen })} className="font-medium text-gray-500 hover:text-gray-800">
             {l.detailsOpen ? "▾ Crew note & photos" : "▸ Crew note & photos"}
