@@ -204,10 +204,15 @@ export function productIndex(products: Product[]) {
   return m;
 }
 
-/** Charge-out rate in cents for a category, honouring a per-estimate override. */
+/** Charge-out rate in cents for a category, honouring a per-estimate override.
+ * Extras/Allowances rows carry PER-ITEM charge-outs (price ÷ hours, since
+ * 20260922) and must never define the category's rate — without this filter
+ * the "first row wins" lookup is at the mercy of DB row order. */
 export function chargeOutCents(type: string, rateItems: RateItem[], hourlyRateOverride: number | null) {
   if (hourlyRateOverride != null) return Math.round(hourlyRateOverride * 100);
-  return rateItems.find((r) => r.category === type)?.charge_out_cents ?? (type === "Interior" ? 8500 : 10000);
+  const rows = rateItems.filter((r) => r.category === type);
+  const base = rows.find((r) => !/extras|allowances/i.test(r.sub_category ?? "")) ?? rows[0];
+  return base?.charge_out_cents ?? (type === "Interior" ? 8500 : 10000);
 }
 
 /** Combined labour multiplier from the selected modifiers. Materials are untouched. */

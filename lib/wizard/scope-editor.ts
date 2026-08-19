@@ -27,6 +27,8 @@ export type CustomerTile = {
   /** R1.2: priced at the default rate because the style is unanswered —
    * renders as an amber "style to confirm" trace, never a silent $0. */
   styleToConfirm?: boolean;
+  /** Catalogue lines (no scope-rule key): mutations go by surface id. */
+  surfaceId?: number;
 };
 
 export type CustomerScopeRoom = {
@@ -101,6 +103,27 @@ export function customerRoomView(block: LooseBlock, rules: ScopeRule[]): Custome
       // A rule marked optional (is_option) — or currently off — is long-tail
       // only when the wizard didn't put it on the job.
       longTail: (rule as { is_option?: boolean }).is_option === true && !st.on,
+    });
+  }
+  // Catalogue lines (Air Vent and friends): surfaces whose code no rule key
+  // covers render as their own countable tiles, mutated by surface id.
+  const ruleKeys = new Set(tiles.map((t) => String(t.key)));
+  const cupboardCodes = new Set(["Kitchen Cupboard Front", "Robe Door", "Vanity Door"]);
+  for (const s of surfaces) {
+    const code = String(s.code ?? "");
+    if (cupboardCodes.has(code)) continue; // the cupboard question owns these
+    const key = substrateKeyForRateCode(code);
+    if (key != null && ruleKeys.has(String(key))) continue;
+    if (key === "doors" || key === "windows") continue; // style lines ride their family tiles
+    if (key != null) continue;
+    tiles.push({
+      key: `line:${Number(s.id)}`,
+      label: String(s.internalLabel ?? code),
+      on: true,
+      count: Number(s.count) || 1,
+      countable: true,
+      longTail: false,
+      surfaceId: Number(s.id),
     });
   }
   return {

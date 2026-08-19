@@ -12,7 +12,7 @@ import {
 import { wizardStateSchema } from "@/lib/wizard/state";
 import ScopeEditor from "./ScopeEditor";
 import SidesEditor from "./SidesEditor";
-import { defaultSidesLoop, sidesView, type SidesLoopMeta } from "@/lib/wizard/sides";
+import { defaultSidesLoop, extrasPrices, sidesView, type SidesLoopMeta } from "@/lib/wizard/sides";
 import { defaultInteriorLoop, interiorDwTotals, interiorProgress, roomLoopViews, type InteriorLoopMeta } from "@/lib/wizard/rooms-loop";
 import "../../wizard/wizard.css";
 
@@ -120,7 +120,7 @@ export default async function ScopeEditorPage({
   // loop sides editor (reference: customer-review-confirm-exterior-v2-sides).
   const interiorRooms = customerScopeRooms(blocks, rules);
   const sidesMeta = ((state.sidesLoop as SidesLoopMeta | undefined) ?? defaultSidesLoop());
-  const sides = sidesView(blocks, sidesMeta);
+  const sides = sidesView(blocks, sidesMeta, extrasPrices(ctx.rateItems));
   if (sides && interiorRooms.length === 0) {
     return (
       <div className="wz">
@@ -142,6 +142,9 @@ export default async function ScopeEditorPage({
     dw: { ...interiorDwTotals(blocks), ok: interiorMeta.dwOk },
     meta: interiorMeta,
     progress: interiorProgress(blocks, interiorMeta),
+    catalogue: ctx.rateItems
+      .filter((r) => r.category === "Interior" && r.sub_category === "Extras")
+      .map((r) => ({ code: r.code, label: r.code })),
   } : null;
 
   return (

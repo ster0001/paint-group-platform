@@ -95,10 +95,11 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
 
   function act(
     body: Record<string, unknown>,
-    opts: { done?: string; onFail?: (msg: string) => void; onOk?: (j: Payload) => void; opt?: [string, string] } = {},
+    opts: { done?: string; describe?: (deltaCents: number) => string; onFail?: (msg: string) => void; onOk?: (j: Payload) => void; opt?: [string, string] } = {},
   ) {
     if (opts.opt) setOptimistic((o) => ({ ...o, [opts.opt![0]]: opts.opt![1] }));
     setPendingCount((n) => n + 1);
+    const before = (payload.rangeLoCents + payload.rangeHiCents) / 2;
     chainRef.current = chainRef.current.then(async () => {
       try {
         const res = await fetch(`/api/estimates/${estimateId}/wizard-edit`, {
@@ -116,7 +117,10 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
         if (j.sides) setSides(j.sides);
         if (j.exterior !== undefined) setExterior(j.exterior ?? null);
         if (j.ladder) setLadder(j.ladder);
-        if (opts.done) say(opts.done);
+        // The interior editor's $-delta toasts, same recipe: the range
+        // midpoint before vs after IS the honest customer-visible delta.
+        if (opts.describe) say(opts.describe((j.rangeLoCents + j.rangeHiCents) / 2 - before));
+        else if (opts.done) say(opts.done);
         opts.onOk?.(j);
       } catch {
         say("That didn't save — check the connection and try again.");
@@ -132,6 +136,14 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
     setTimeout(() => setShake(null), 400);
     say(msg);
   }
+
+  /** "…— about +$X on your range" when the reprice moved the range; the
+   * plain message when it didn't (e.g. the answer was already priced in). */
+  const withDelta = (msg: string) => (delta: number) => {
+    const abs = Math.abs(Math.round(delta));
+    if (abs < 100) return msg;
+    return `${msg.replace(/\.$/, "")} — about ${delta > 0 ? "+" : "−"}${fmt(abs)} on your range.`;
+  };
 
   const range = `${fmt(payload.rangeLoCents)} – ${fmt(payload.rangeHiCents)}`;
   const prog = sides.progress;
@@ -298,6 +310,17 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                         <button className="sd-chip" onClick={() => act({ action: "add_window_group", side: s.key }, { done: "Added another window group — set how many, and its size. Mix as many sizes as the side has." })}>
                           + More windows — a different size
                         </button>
+                        {sides.catalog.filter((c) => !s.tiles.some((t) => t.code === c.code)).map((c) => (
+                          <button
+                            key={c.code}
+                            className="sd-chip"
+                            onClick={() => act({ action: "add_catalog", side: s.key, code: c.code }, {
+                              describe: withDelta(`${c.label} added`),
+                            })}
+                          >
+                            + {c.label} — {fmt(c.priceCents)}
+                          </button>
+                        ))}
                       </div>
                       <div className="sd-custom">
                         <input placeholder="Something else on this side? Name it" value={customText} onChange={(e) => setCustomText(e.target.value)} />
@@ -473,26 +496,26 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                 <div className={`sd-q ${m.cond.cond ? "ok" : ""}`}>
                   <p className="sd-ql">How&rsquo;s the paintwork holding up? <span className="sd-req">REQUIRED</span><span className="sd-okc">✓</span></p>
                   <div className="sd-chips">
-                    <Chip on={sel("cond:c", m.cond.cond === "good", "good")} label={"Good overall"} onClick={() => act({ action: "loop_cond", cond: "good" }, { opt: ["cond:c", "good"] })} />
-                    <Chip on={sel("cond:c", m.cond.cond === "weathered", "weathered")} label={"Weathered"} onClick={() => act({ action: "loop_cond", cond: "weathered" }, { done: "Extra prep allowed for weathered paintwork.", opt: ["cond:c", "weathered"] })} />
+                    <Chip on={sel("cond:c", m.cond.cond === "good", "good")} label={"Good overall"} onClick={() => act({ action: "loop_cond", cond: "good" }, { describe: withDelta("Good to hear — noted"), opt: ["cond:c", "good"] })} />
+                    <Chip on={sel("cond:c", m.cond.cond === "weathered", "weathered")} label={"Weathered"} onClick={() => act({ action: "loop_cond", cond: "weathered" }, { describe: withDelta("Extra prep allowed for weathered paintwork"), opt: ["cond:c", "weathered"] })} />
                     <Chip on={sel("cond:c", m.cond.cond === "peeling", "peeling")} label={"Peeling & flaking"} onClick={() => act({ action: "loop_cond", cond: "peeling" }, { done: "Peeling paint needs a proper look — a lead-safe check is part of our visit.", opt: ["cond:c", "peeling"] })} />
                   </div>
                 </div>
                 <div className={`sd-q ${m.cond.rot ? "ok" : ""}`}>
                   <p className="sd-ql">Any timber rot up on the fascias? <span className="sd-req">REQUIRED</span><span className="sd-okc">✓</span></p>
                   <div className="sd-chips">
-                    <Chip on={sel("cond:r", m.cond.rot === "no", "no")} label={"No, looks solid"} onClick={() => act({ action: "loop_cond", rot: "no" }, { opt: ["cond:r", "no"] })} />
-                    <Chip on={sel("cond:r", m.cond.rot === "little", "little")} label={"A little"} onClick={() => act({ action: "loop_cond", rot: "little" }, { done: "We've allowed for minor fascia prep.", opt: ["cond:r", "little"] })} />
+                    <Chip on={sel("cond:r", m.cond.rot === "no", "no")} label={"No, looks solid"} onClick={() => act({ action: "loop_cond", rot: "no" }, { describe: withDelta("Noted — no rot allowance needed"), opt: ["cond:r", "no"] })} />
+                    <Chip on={sel("cond:r", m.cond.rot === "little", "little")} label={"A little"} onClick={() => act({ action: "loop_cond", rot: "little" }, { describe: withDelta("We've allowed for minor fascia prep"), opt: ["cond:r", "little"] })} />
                     <Chip on={sel("cond:r", m.cond.rot === "lots", "lots")} label={"Quite a bit"} onClick={() => act({ action: "loop_cond", rot: "lots" }, { done: "Thanks for the honesty — rot repair needs eyes on it, so we'll confirm the roofline on the site visit.", opt: ["cond:r", "lots"] })} />
                   </div>
                 </div>
                 <div className={`sd-q ${m.cond.acc ? "ok" : ""}`}>
                   <p className="sd-ql">Anything tricky about access? <span className="sd-req">REQUIRED</span><span className="sd-okc">✓</span></p>
                   <div className="sd-chips">
-                    <Chip on={sel("cond:a", m.cond.acc === "steep", "steep")} label={"Steep block"} onClick={() => act({ action: "loop_cond", acc: "steep" }, { done: "Access allowance noted.", opt: ["cond:a", "steep"] })} />
-                    <Chip on={sel("cond:a", m.cond.acc === "tight", "tight")} label={"Tight side access"} onClick={() => act({ action: "loop_cond", acc: "tight" }, { done: "Access allowance noted.", opt: ["cond:a", "tight"] })} />
-                    <Chip on={sel("cond:a", m.cond.acc === "high", "high")} label={"Double-height entry"} onClick={() => act({ action: "loop_cond", acc: "high" }, { done: "Access allowance noted.", opt: ["cond:a", "high"] })} />
-                    <Chip on={sel("cond:a", m.cond.acc === "none", "none")} label={"None of these ✓"} onClick={() => act({ action: "loop_cond", acc: "none" }, { opt: ["cond:a", "none"] })} />
+                    <Chip on={sel("cond:a", m.cond.acc === "steep", "steep")} label={"Steep block"} onClick={() => act({ action: "loop_cond", acc: "steep" }, { describe: withDelta("Access allowance added"), opt: ["cond:a", "steep"] })} />
+                    <Chip on={sel("cond:a", m.cond.acc === "tight", "tight")} label={"Tight side access"} onClick={() => act({ action: "loop_cond", acc: "tight" }, { describe: withDelta("Access allowance added"), opt: ["cond:a", "tight"] })} />
+                    <Chip on={sel("cond:a", m.cond.acc === "high", "high")} label={"Double-height entry"} onClick={() => act({ action: "loop_cond", acc: "high" }, { describe: withDelta("Access allowance added"), opt: ["cond:a", "high"] })} />
+                    <Chip on={sel("cond:a", m.cond.acc === "none", "none")} label={"None of these ✓"} onClick={() => act({ action: "loop_cond", acc: "none" }, { describe: withDelta("No access allowance needed"), opt: ["cond:a", "none"] })} />
                   </div>
                 </div>
               </>
@@ -516,7 +539,15 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
               <div className={`sd-q ${m.sweepAns ? "ok" : ""}`}>
                 <p className="sd-ql">Sheds, side gates and the fence behind the house are the usual missing ones. <span className="sd-req">REQUIRED</span><span className="sd-okc">✓</span></p>
                 <div className="sd-chips">
-                  {["Shed", "Side gate", "Rear fence", "Carport", "Something else"].map((n) => (
+                  {sides.sweepItems.map((it) => (
+                    <Chip key={it.code} on={sel(`sw:${it.code}`, it.on)}
+                      label={`${it.on ? "✓" : "+"} ${it.label} — ${fmt(it.priceCents)}`}
+                      onClick={() => act({ action: "sweep_item", code: it.code, on: !it.on }, {
+                        describe: withDelta(it.on ? `${it.label} taken off` : `${it.label} added`),
+                        opt: [`sw:${it.code}`, it.on ? "0" : "1"],
+                      })} />
+                  ))}
+                  {["Carport", "Something else"].map((n) => (
                     <Chip key={n} on={false} label={`+ ${n}`}
                       onClick={() => act({ action: "loop_sweep", add: n }, {
                         done: `Thanks — we've added ${n.toLowerCase()}, and we'll confirm it on the site visit.`,

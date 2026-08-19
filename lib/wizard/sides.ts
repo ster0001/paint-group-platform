@@ -48,6 +48,69 @@ export const WALL_CODES: ReadonlyArray<{ code: string; label: string }> = [
  * the numbers; these are the locked defaults). */
 export const WINDOW_FACTOR: Record<"S" | "M" | "L", number> = { S: 0.8, M: 1, L: 1.2 };
 
+/**
+ * Parity STOP-item 1 (Tom's price list, 20 Aug 2026): catalogue items the
+ * add-panel offers PRICED, per side. The rate card rows (migrations
+ * 20260921–22) carry per-item charge-outs and a "Lineal Metres" unit, so a
+ * customer-added line must ride qtyOverride (count, not metres) and the
+ * item's own charge-out — otherwise the engine reads the side's length, or
+ * $0 on the measureless extras block. `rateFor` below does that translation;
+ * a code missing from the live card is OFFERED NOWHERE (never a silent $0).
+ */
+export const CATALOG_CODES: ReadonlyArray<{ code: string; label: string }> = [
+  { code: "Window Shutters", label: "Window shutters" },
+  { code: "Side Gate", label: "Side gate" },
+  { code: "Security Door", label: "Security door" },
+  { code: "Meter Box", label: "Meter box" },
+];
+
+/** Sweep chips that price directly (Shed $640, Side gate $300 on the live
+ * card). Carport stays an amber visit flag and Rear fence left the sweep —
+ * both by Tom's ruling. */
+export const SWEEP_PRICED_CODES: ReadonlyArray<{ code: string; label: string }> = [
+  { code: "Shed", label: "Shed" },
+  { code: "Side Gate", label: "Side gate" },
+];
+
+/** Condition & access allowances — flat one-off lines on the extras block. */
+export const ALLOWANCE_CODES = {
+  rot: { code: "Minor Fascia Rot Allowance", label: "Minor fascia rot allowance" },
+  access: { code: "Access Allowance", label: "Access allowance" },
+} as const;
+
+/** The condition modifier Tom ruled for "Weathered" — ×1.8 on labour hours. */
+export const WEATHERED_MODIFIER_CODE = "EXT-WEATHERED";
+
+type LooseRateItem = {
+  code: string; category: string;
+  rate_1_coat?: number | null; rate_2_coat?: number | null; rate_3_coat?: number | null;
+  charge_out_cents?: number | null;
+};
+
+/** The live card's price for one of OUR per-item codes: 2-coat hours × the
+ * item's own charge-out. Null when the card can't price it. */
+export function rateFor(
+  rateItems: ReadonlyArray<LooseRateItem>,
+  code: string,
+): { chargeOutDollars: number; priceCents: number } | null {
+  const r = rateItems.find((x) => x.category === "Exterior" && x.code === code);
+  if (!r || !r.rate_2_coat || !r.charge_out_cents) return null;
+  return {
+    chargeOutDollars: r.charge_out_cents / 100,
+    priceCents: Math.round(r.rate_2_coat * r.charge_out_cents),
+  };
+}
+
+/** Display prices for the add-panel + sweep chips, straight off the card. */
+export function extrasPrices(rateItems: ReadonlyArray<LooseRateItem>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const { code } of [...CATALOG_CODES, ...SWEEP_PRICED_CODES]) {
+    const r = rateFor(rateItems, code);
+    if (r) out[code] = r.priceCents;
+  }
+  return out;
+}
+
 type LooseSurface = Record<string, unknown> & { id?: number; code?: string };
 export type LooseBlock = Record<string, unknown> & {
   id?: number; kind?: string; name?: string; type?: string; areaType?: string;
@@ -225,6 +288,9 @@ export function applySideCount(blocks: LooseBlock[], key: SideKey, surfaceId: nu
     line.count = count;
     const size = (line.sizeBand as "S" | "M" | "L" | undefined) ?? "M";
     if (isWindowLine(line) && size !== "M") line.qtyOverride = Math.round(count * WINDOW_FACTOR[size] * 100) / 100;
+    // Catalogue items are per-item priced on a lineal-unit card row —
+    // qtyOverride IS the count (see pricedItemLine).
+    if (isCatalogLine(line)) line.qtyOverride = count;
   });
 }
 
@@ -236,6 +302,73 @@ export function addWindowGroup(blocks: LooseBlock[], key: SideKey, nextId: () =>
     line.sizeBand = "M";
     b.surfaces = [...(b.surfaces ?? []), line];
   });
+}
+
+/** A per-item priced line for our catalogue/sweep/allowance codes: count
+ * rides qtyOverride (the card's unit is lineal) and the item's own
+ * charge-out rides customRate, so the price lands exactly as ruled. */
+function pricedItemLine(id: number, code: string, label: string, chargeOutDollars: number): LooseSurface {
+  const line = makeDraftSurface(id, code, label, 1, "customer_stated", 0.9, []) as unknown as LooseSurface;
+  line.qtyOverride = 1;
+  line.useCustomRate = true;
+  line.customRate = chargeOutDollars;
+  return line;
+}
+
+export const isCatalogLine = (s: LooseSurface) => CATALOG_CODES.some((c) => c.code === String(s.code ?? ""));
+
+/** "+ Security door — $345": a priced catalogue item onto THIS side's tile
+ * grid, steppable like any counted item. */
+export function addCatalogItem(
+  blocks: LooseBlock[], key: SideKey, code: string,
+  nextId: () => number, chargeOutDollars: number,
+): SidesResult {
+  const def = CATALOG_CODES.find((c) => c.code === code);
+  if (!def) return { ok: false, error: "That isn't a catalogue item we price." };
+  return withSide(blocks, key, (b) => {
+    if ((b.surfaces ?? []).some((s) => String(s.code) === code)) {
+      return "That's already on this side — use its − / + to change how many.";
+    }
+    b.surfaces = [...(b.surfaces ?? []), pricedItemLine(nextId(), def.code, def.label, chargeOutDollars)];
+  });
+}
+
+const EXTRAS_BLOCK = /Exterior - Extras/i;
+
+export function hasExtrasItem(blocks: LooseBlock[], code: string): boolean {
+  const b = blocks.find((x) => x.kind === "area" && EXTRAS_BLOCK.test(String(x.name ?? "")));
+  return (b?.surfaces ?? []).some((s) => String(s.code) === code);
+}
+
+/** Put a priced whole-job item on (or take it off) the "Exterior - Extras"
+ * block — sweep sheds/gates and the condition/access allowances live here.
+ * Creates the block on first use; idempotent both ways. */
+export function toggleExtrasItem(
+  blocks: LooseBlock[], code: string, label: string, on: boolean,
+  nextId: () => number, chargeOutDollars: number,
+): SidesResult {
+  const existing = blocks.find((x) => x.kind === "area" && EXTRAS_BLOCK.test(String(x.name ?? "")));
+  if (!on) {
+    if (!existing || !(existing.surfaces ?? []).some((s) => String(s.code) === code)) return { ok: true, blocks };
+    const copy = { ...existing, surfaces: (existing.surfaces ?? []).filter((s) => String(s.code) !== code) };
+    return { ok: true, blocks: blocks.map((b) => (b === existing ? copy : b)) };
+  }
+  if (existing && (existing.surfaces ?? []).some((s) => String(s.code) === code)) return { ok: true, blocks };
+  const line = pricedItemLine(nextId(), code, label, chargeOutDollars);
+  if (existing) {
+    const copy = { ...existing, surfaces: [...(existing.surfaces ?? []), line] };
+    return { ok: true, blocks: blocks.map((b) => (b === existing ? copy : b)) };
+  }
+  const area: LooseBlock = {
+    id: nextId(), kind: "area", name: "Exterior - Extras", type: "Exterior", areaType: "surface",
+    roomType: "exterior", storey: "ground",
+    L: 0, W: 0, H: 0,
+    isOption: false, description: "", open: false, media: [],
+    origin: "customer_stated", confidence: 0.9,
+    assumedFields: [], extractionSourceId: null,
+    surfaces: [line],
+  } as LooseBlock;
+  return { ok: true, blocks: [...blocks, area] };
 }
 
 /** A named custom surface: recorded and flagged — NEVER auto-priced. The
@@ -298,7 +431,7 @@ export type SideView = {
   L: number; H: number;
   walls: Array<{ id: number; code: string; label: string; pct: number }>;
   wallSum: number;
-  tiles: Array<{ id: number; label: string; count: number; countable: boolean; window: boolean; sizeBand: "S" | "M" | "L" | null }>;
+  tiles: Array<{ id: number; code: string; label: string; count: number; countable: boolean; window: boolean; sizeBand: "S" | "M" | "L" | null }>;
   customs: string[];
 };
 
@@ -307,9 +440,16 @@ export type SidesView = {
   dw: { windows: number; doors: number; ok: boolean | null };
   meta: SidesLoopMeta;
   progress: { done: number; total: number; allDone: boolean };
+  /** Priced add-panel chips — only codes the live card can price. */
+  catalog: Array<{ code: string; label: string; priceCents: number }>;
+  /** Priced sweep chips with their on-state (Shed / Side gate). */
+  sweepItems: Array<{ code: string; label: string; priceCents: number; on: boolean }>;
 };
 
-export function sidesView(blocks: LooseBlock[], meta: SidesLoopMeta): SidesView | null {
+export function sidesView(
+  blocks: LooseBlock[], meta: SidesLoopMeta,
+  prices: Record<string, number> = {},
+): SidesView | null {
   if (!SIDE_KEYS.some((k) => findSide(blocks, k))) return null;
   const sides: SideView[] = [];
   for (const key of SIDE_KEYS) {
@@ -336,9 +476,11 @@ export function sidesView(blocks: LooseBlock[], meta: SidesLoopMeta): SidesView 
       wallSum: defaulted ? 100 : wallSumPct(b),
       tiles: surfaces.filter((s) => !isWallLine(s)).map((s) => ({
         id: Number(s.id) || 0,
+        code: String(s.code ?? ""),
         label: String(s.internalLabel ?? s.code ?? ""),
         count: Number(s.count) || 1,
-        countable: isWindowLine(s) || isDoorLine(s) || substrateKeyForRateCode(String(s.code ?? "")) === "downpipes",
+        countable: isWindowLine(s) || isDoorLine(s) || isCatalogLine(s)
+          || substrateKeyForRateCode(String(s.code ?? "")) === "downpipes",
         window: isWindowLine(s),
         sizeBand: (s.sizeBand as "S" | "M" | "L" | undefined) ?? (isWindowLine(s) ? "M" : null),
       })),
@@ -350,5 +492,9 @@ export function sidesView(blocks: LooseBlock[], meta: SidesLoopMeta): SidesView 
     dw: { ...dwTotals(blocks), ok: meta.dwOk },
     meta,
     progress: sidesDoneCount(blocks, meta),
+    catalog: CATALOG_CODES.filter((c) => prices[c.code] != null)
+      .map((c) => ({ ...c, priceCents: prices[c.code] })),
+    sweepItems: SWEEP_PRICED_CODES.filter((c) => prices[c.code] != null)
+      .map((c) => ({ ...c, priceCents: prices[c.code], on: hasExtrasItem(blocks, c.code) })),
   };
 }
