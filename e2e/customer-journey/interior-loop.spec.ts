@@ -1,5 +1,4 @@
 import { test, expect } from "@playwright/test";
-import { credentials, missingCreds, signIn } from "../helpers";
 import { MONEY_RANGE, driveNoPlanWizard, openScopeEditor } from "./drive";
 
 /**
@@ -14,15 +13,12 @@ import { MONEY_RANGE, driveNoPlanWizard, openScopeEditor } from "./drive";
  */
 
 test("R3 interior loop: L×W size question, confirm walk, dw check, sweep — CTA gates on completion", async ({ page }) => {
-  const staff = credentials("STAFF");
-  test.skip(!staff, missingCreds("STAFF"));
   test.setTimeout(240_000);
   page.on("response", async (r) => {
     if (r.url().includes("wizard-edit") && r.status() >= 400) {
       console.log("EDIT-FAIL", r.status(), (await r.text().catch(() => "")).slice(0, 160));
     }
   });
-  await signIn(page, staff!, /estimates/);
   await driveNoPlanWizard(page);
   await openScopeEditor(page);
 
@@ -88,7 +84,7 @@ test("R3 interior loop: L×W size question, confirm walk, dw check, sweep — CT
   await sweep.getByRole("button", { name: /Confirm — nothing missing/ }).click();
 
   // Complete: header flips, CTA enables, the range survives.
-  await expect(prog).toContainText(/(\d+) OF \1/);
-  await expect(cta).toBeEnabled();
+  await expect(prog).toContainText(/(\d+) OF \1/, { timeout: 45_000 }); // production queue drain
+  await expect(cta).toBeEnabled({ timeout: 15_000 });
   await expect(page.locator(".sc-r")).toHaveText(MONEY_RANGE);
 });

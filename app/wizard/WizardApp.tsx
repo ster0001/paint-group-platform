@@ -450,7 +450,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
             {page === 1 && (
               <PageProperty
                 state={state} set={set} isCustomer={isCustomer} substrates={substrates}
-                planFileCount={planFileCount} facadeFileCount={facadeFileCount} uploading={uploading}
+                planFileCount={planFileCount} facadeFileCount={facadeFileCount}
+                uploading={uploading || !sessionReady /* P1: a fast tap before anonymous sign-in completed got a staff-only 403 */}
                 planInputRef={planInputRef} facadeInputRef={facadeInputRef}
                 onPlanFiles={uploadPlans} onFacadeFiles={uploadFacades}
               />

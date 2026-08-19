@@ -1,5 +1,4 @@
 import { test, expect } from "@playwright/test";
-import { credentials, missingCreds, signIn } from "../helpers";
 import { MONEY_RANGE, driveNoPlanWizard, openScopeEditor } from "./drive";
 
 /**
@@ -16,10 +15,7 @@ import { MONEY_RANGE, driveNoPlanWizard, openScopeEditor } from "./drive";
 
 test.describe("R1.2 openings priced", () => {
   test("styles answered: every room's doors/windows are on, priced, steppered", async ({ page }) => {
-    const staff = credentials("STAFF");
-    test.skip(!staff, missingCreds("STAFF"));
     test.setTimeout(180_000);
-    await signIn(page, staff!, /estimates/);
     await driveNoPlanWizard(page, { doorStyle: "Panel", windowStyle: "Sash" });
     await openScopeEditor(page);
 
@@ -32,10 +28,7 @@ test.describe("R1.2 openings priced", () => {
   });
 
   test("styles unsure: openings still priced at defaults with an amber trace", async ({ page }) => {
-    const staff = credentials("STAFF");
-    test.skip(!staff, missingCreds("STAFF"));
     test.setTimeout(180_000);
-    await signIn(page, staff!, /estimates/);
     await driveNoPlanWizard(page); // page 4 untouched — both styles stay unsure
     await openScopeEditor(page);
 

@@ -1,5 +1,4 @@
 import { test, expect } from "@playwright/test";
-import { credentials, missingCreds, signIn } from "../helpers";
 
 /**
  * R1.3 — the document model (diagnostic #2 and #3).
@@ -19,10 +18,7 @@ const FIXTURES = "e2e/fixtures";
 
 test.describe("R1.3 document model", () => {
   test("floorplan intake is exactly one file — a second upload replaces", async ({ page }) => {
-    const staff = credentials("STAFF");
-    test.skip(!staff, missingCreds("STAFF"));
     test.setTimeout(120_000);
-    await signIn(page, staff!, /estimates/);
     await page.goto("/estimate");
 
     // The input is single-file at the DOM level, not just by convention.
@@ -48,9 +44,6 @@ test.describe("R1.3 document model", () => {
   });
 
   test("the exterior path has no floorplan field anywhere", async ({ page }) => {
-    const staff = credentials("STAFF");
-    test.skip(!staff, missingCreds("STAFF"));
-    await signIn(page, staff!, /estimates/);
     await page.goto("/estimate");
     await page.getByRole("button", { name: "Exterior", exact: true }).click();
 
@@ -61,15 +54,12 @@ test.describe("R1.3 document model", () => {
   });
 
   test("condition photos that can't be analysed end in a VISIBLE state", async ({ page }) => {
-    const staff = credentials("STAFF");
-    test.skip(!staff, missingCreds("STAFF"));
     test.setTimeout(180_000);
     page.on("response", async (r) => {
       if (r.url().includes("/api/extract/photos") || (r.url().includes("/api/") && r.status() >= 400)) {
         console.log("API", r.status(), r.url().split("/api/")[1], (await r.text().catch(() => "")).slice(0, 300));
       }
     });
-    await signIn(page, staff!, /estimates/);
     await page.goto("/estimate");
 
     // No-plan path (no plan run = the damage reader has nowhere to go —
