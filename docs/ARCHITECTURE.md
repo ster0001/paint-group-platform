@@ -558,3 +558,15 @@ derives Interior/Exterior from the node, not the client's vocab toggle. Null
 (`storeyHeightsFromBlocks`) so a double-storey wizard job keeps both storeys;
 recommitted rooms prune their own aiDeferred entries. Parity is tested:
 an untouched wizard room prices identically after a capture round-trip.
+**Fast removals (A4)**: profiled with the two kept specs
+(`e2e/perf-removals.spec.ts`, `e2e/perf-wizard-editor.spec.ts`). The /quote
+builder was already fast (32–49 ms, zero network per removal — pricing is
+client-side, save is manual). The real cost was the wizard editor: every
+action awaited the full `wizard-edit` round trip (~820 ms dev) before the row
+disappeared, serially. The editor now renders a DERIVED payload — the last
+authoritative server response with pending optimistic transforms re-applied —
+so removals vanish instantly (33–45 ms measured), requests queue strictly
+serially in the background (the server never races itself on builder_state),
+failures drop their transform (the row returns) with a message, and the
+route loads its pricing context in parallel with the mutation (~200 ms off
+every action). No refetching anywhere: the action's response IS the payload.
