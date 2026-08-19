@@ -34,9 +34,12 @@ test("interior add-surface panel: catalogue chips, air vent countable, more wind
   await airVent.locator(".sc-st button", { hasText: "+" }).click();
   await expect(airVent.locator(".sc-st b")).toHaveText("2", { timeout: 15_000 });
 
-  // "+ More windows — a different size" lives INSIDE the panel.
+  // "+ More windows — a different size" lives INSIDE the panel; the group
+  // arrives as its own tile with the S/M/L seg inside it.
   await panel.getByRole("button", { name: /More windows — a different size/ }).click();
-  await expect(first.locator(".il-wingroup")).toHaveCount(1, { timeout: 15_000 });
+  const group = first.locator(".sc-tl", { hasText: "More windows" });
+  await expect(group).toBeVisible({ timeout: 15_000 });
+  await expect(group.locator(".sd-wseg")).toBeVisible();
 
   // Custom input INSIDE the panel → amber ⚑ tile, site-visit toast.
   await panel.getByPlaceholder(/Something else/).fill("wall panelling");

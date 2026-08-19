@@ -341,3 +341,9 @@
 .wz .wz-waking { pointer-events: none; }
 .wz .sd-saving { position: fixed; left: 18px; bottom: 18px; z-index: 80; font-family: var(--wz-mono); font-size: 9px; letter-spacing: .14em; color: var(--muted); border: 1px solid var(--line); background: var(--panel2); border-radius: 100px; padding: 7px 13px; }
 .wz .sd-confirm:disabled { opacity: .65; cursor: wait; }
+
+/* ---- C1: sides visual geometry chips -------------------------------------- */
+.wz .sd-geo { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.wz .sd-g { font-family: var(--wz-mono); font-size: 8.5px; letter-spacing: .08em; color: var(--muted); border: 1px solid var(--line); border-radius: 100px; padding: 5px 10px; }
+.wz .sd-g i { font-style: normal; color: var(--emerald); }
+.wz .sd-geo button { font-family: var(--wz-sans); font-size: 11.5px; color: var(--amber); background: none; border: 1px solid rgba(224,168,60,.45); border-radius: 100px; padding: 5px 11px; cursor: pointer; }

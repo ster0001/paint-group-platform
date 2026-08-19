@@ -771,7 +771,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       scopeRooms: customerScopeRooms(blocks, (rulesRows ?? []) as ScopeRule[]),
       exterior: customerExteriorView(blocks),
       // R2b: the sides confirm loop's full view (null when no sides exist).
-      sides: sidesView(blocks, sidesMeta, extrasPrices(ctx.rateItems)),
+      sides: sidesView(blocks, sidesMeta, extrasPrices(ctx.rateItems),
+        (() => { const sn = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
+                 return sn.success ? (sn.data.exterior?.storeys ?? null) : null; })()),
       // R3: the interior confirm loop — rooms joined by areaId, plus the
       // totals check and sweep state. Cupboard questions are data-driven off
       // the live rate card.
