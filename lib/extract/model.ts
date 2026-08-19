@@ -33,9 +33,17 @@ Rules, in order of importance:
 3. NEVER drop a room. An unlabelled enclosed space is a room with
    name_on_plan: null and normalised_type: "unknown". A human will classify it.
 
-4. Count door and window SYMBOLS on the plan. A door symbol is an arc or a gap
-   in a wall; a window is a thin break in the wall line. Count what you see in
-   each room. Do not infer from the room type.
+4. Count door and window SYMBOLS on the plan, and be THOROUGH about windows -
+   they are easy to miss and each one is a priced line. A door symbol is an arc
+   or a gap in a wall. A window is drawn on an EXTERNAL wall as one of: a thin
+   gap bridged by one or more parallel lines, a short rectangle straddling the
+   wall, or three stacked lines. Trace EVERY external wall of each room segment
+   by segment and count each break that is not a door - bay and corner windows
+   are several windows together. A room on an outside corner usually has windows
+   on more than one wall; a living area or a bedroom with none is unusual, so
+   look again before reporting zero. Count what you see - do not infer from the
+   room type, but do use "this room looks under-windowed" as a prompt to
+   re-check the walls, not to invent.
 
 5. Report every storey drawn on this page. Marketing plans frequently place
    ground and first floor side by side, or show four levels. Assign each room

@@ -189,6 +189,7 @@ begin
       (v_card, 'Stucco', 'Exterior', 'Cladding', 'M2 Per Hour', 12.09, 6.91, 4.84, 2, 10000, 'Dulux AcraTex', null, null),
       (v_card, 'Weatherboards', 'Exterior', 'Cladding', 'M2 Per Hour', 8.06, 4.61, 3.23, 2, 10000, 'Dulux Weathershield', null, null),
       (v_card, 'Render', 'Exterior', 'Cladding', 'M2 Per Hour', 10.49, 5.99, 4.19, 2, 10000, 'Dulux AcraTex', null, null),
+      (v_card, 'Brick', 'Exterior', 'Cladding', 'M2 Per Hour', 10.49, 5.99, 4.19, 2, 10000, 'Dulux AcraTex', null, null),
       (v_card, 'Colorbond Cladding', 'Exterior', 'Cladding', 'M2 Per Hour', 12.09, 6.91, 4.84, 2, 10000, 'Dulux Weathershield', null, null),
       (v_card, 'Cutek', 'Exterior', 'Staining', 'M2 Per Hour', 10.08, 5.76, null, 2, 10000, 'Cutek Extreme CD 50', null, null),
       (v_card, 'Eaves', 'Exterior', 'Exterior Trim', 'Lineal Metres', 8.06, 4.61, 3.23, 2, 10000, 'Dulux Weathershield', 36, null),

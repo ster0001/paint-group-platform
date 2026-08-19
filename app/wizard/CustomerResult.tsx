@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import RoomCard from "@/app/components/scope/RoomCard";
+import PlanViewer from "./PlanViewer";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import type { CustomerPayload } from "@/lib/wizard/view";
 
@@ -176,13 +177,7 @@ export default function CustomerResult({ outcome, reveal, roomTypes }: {
           </div>
         )}
 
-        {reveal.planUrl && (
-          <div className="wz-planbox">
-            <div className="wz-t"><span>YOUR HOME</span><span>AS UPLOADED</span></div>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={reveal.planUrl} alt="Your floorplan" />
-          </div>
-        )}
+        {reveal.planUrl && <PlanViewer src={reveal.planUrl} title="YOUR HOME" note="AS UPLOADED" />}
 
         <div className="wz-rooms">
           {payload.rooms.map((r) => {

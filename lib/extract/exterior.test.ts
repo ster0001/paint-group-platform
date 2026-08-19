@@ -19,10 +19,13 @@ describe("computeEnvelope", () => {
     expect(noHeight.requiresSiteCheck.some((r) => /front: weatherboard unmeasured/.test(r))).toBe(true);
   });
 
-  it("painted brick has no rate item and is handed to a human, never guessed", () => {
+  it("painted brick now prices via the Brick rate (a Render duplicate, 20 Aug)", () => {
     const env = computeEnvelope([read({ cladding: [seg({ material: "brick" })] })]);
-    expect(env.elevations[0].surfaces.some((s) => s.m2)).toBe(false);
-    expect(env.requiresSiteCheck.some((r) => /brick needs a human price/.test(r))).toBe(true);
+    const surf = env.elevations[0].surfaces.find((s) => s.m2);
+    expect(surf?.rateCode).toBe("Brick");
+    // An UNKNOWN material still defers to a human.
+    const unknownEnv = computeEnvelope([read({ cladding: [seg({ material: "unknown" })] })]);
+    expect(unknownEnv.requiresSiteCheck.some((r) => /needs a human price/.test(r))).toBe(true);
   });
 
   it("fewer than three measured elevations flags a whole-house site check", () => {

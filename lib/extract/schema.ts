@@ -21,7 +21,7 @@ import { z } from "zod";
  *      get painted.
  */
 
-export const PROMPT_VERSION = "floorplan-2026-08-17-b";
+export const PROMPT_VERSION = "floorplan-2026-08-20-a";
 
 const confidence = z.number().min(0).max(1);
 
@@ -214,6 +214,7 @@ export const EXTRACTION_TOOL = {
             },
             windows: {
               type: "array",
+              description: "ONE ENTRY PER WINDOW on this room's external walls. Trace every outside wall and count each window break - do not skip windows, and do not merge a bay/corner group into one. An external room with zero windows is unusual; re-check before reporting none.",
               items: {
                 type: "object",
                 properties: {

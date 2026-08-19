@@ -88,7 +88,15 @@
 .wz .wz-planbox { position: sticky; top: 74px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
 @media (max-width: 860px) { .wz .wz-planbox { position: static; } }
 .wz .wz-planbox .wz-t { font-family: var(--wz-mono); font-size: 9px; letter-spacing: .16em; color: var(--muted); margin-bottom: 10px; display: flex; justify-content: space-between; }
-.wz .wz-planbox img { width: 100%; height: auto; display: block; border-radius: 8px; background: #fff; }
+/* Zoomable plan: the frame clips, the image transforms inside it. */
+.wz .wz-planframe { position: relative; overflow: hidden; border-radius: 8px; background: #fff; max-height: 70vh; touch-action: none; }
+.wz .wz-planframe img { width: 100%; height: auto; display: block; user-select: none; transition: transform .05s linear; }
+.wz .wz-planzoom { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.wz .wz-planzoom button { width: 26px; height: 26px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); font-size: 15px; line-height: 1; cursor: pointer; }
+.wz .wz-planzoom button:hover { border-color: var(--cyan); }
+.wz .wz-planzoom input[type="range"] { flex: 1; accent-color: var(--cyan); }
+.wz .wz-planpct { font-family: var(--wz-mono); font-size: 10px; color: var(--muted); min-width: 34px; text-align: right; }
+.wz .wz-planreset { width: auto !important; padding: 0 8px; font-size: 11px !important; color: var(--muted); }
 .wz .wz-scorebar { display: flex; align-items: center; justify-content: space-between; gap: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin-bottom: 14px; grid-column: 1 / -1; flex-wrap: wrap; }
 .wz .wz-score { display: flex; align-items: center; gap: 13px; }
 .wz .wz-scring { position: relative; width: 52px; height: 52px; }

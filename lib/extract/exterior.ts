@@ -27,8 +27,9 @@ export const CLADDING_TO_RATE: Record<string, string | null> = {
   render: "Render",
   stucco: "Stucco",
   colorbond: "Colorbond Cladding",
-  /** No brick rate item exists - painted brick is priced by a human. */
-  brick: null,
+  /** Painted brick now has its own rate (a duplicate of Render), added
+   * 20 Aug 2026 — migration 20260919. Needs that SQL run, else it prices $0. */
+  brick: "Brick",
   unknown: null,
 };
 

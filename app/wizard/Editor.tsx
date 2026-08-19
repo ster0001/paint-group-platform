@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import RoomCard from "@/app/components/scope/RoomCard";
+import PlanViewer from "./PlanViewer";
 import type { WizardEditorPayload, WizardRoomView } from "@/lib/wizard/view";
 
 /**
@@ -170,15 +171,7 @@ export default function Editor({ initial, roomTypes }: Props) {
           </div>
         )}
 
-        {initial.planUrl && (
-          <div className="wz-planbox">
-            <div className="wz-t"><span>THE FLOORPLAN</span><span>AS UPLOADED</span></div>
-            {/* Signed URL from a private bucket, short-lived — next/image gains
-                nothing here and would need the host allow-listed. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={initial.planUrl} alt="Uploaded floorplan" />
-          </div>
-        )}
+        {initial.planUrl && <PlanViewer src={initial.planUrl} />}
 
         <div className="wz-rooms">
           {payload.rooms.map((r) => {
