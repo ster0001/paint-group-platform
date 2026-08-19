@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Confirm your exterior estimate · Paint Group</title>
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0A0B0D;--panel:#12161A;--panel2:#171C21;--line:#242B32;--text:#EDF0F2;--muted:#8C959D;
+--cyan:#3BD8E9;--oncyan:#03272D;--amber:#E0A83C;--emerald:#2FA46B;--clay:#B3574A;
+--sans:"Switzer",-apple-system,sans-serif;--mono:"Martian Mono",ui-monospace,monospace}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--ink);color:var(--text);font-family:var(--sans);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;padding-bottom:170px}
+.top{position:sticky;top:0;z-index:50;padding:12px 18px;background:rgba(10,11,13,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.top .row{display:flex;align-items:center;justify-content:space-between;max-width:1020px;margin:0 auto}
+.wm{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.22em}.wm span{color:var(--cyan)}
+.status{display:inline-flex;align-items:center;gap:7px;padding:6px 13px;border:1px solid var(--amber);border-radius:100px;color:var(--amber);font-family:var(--mono);font-size:9.5px;letter-spacing:.12em}
+.status::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--amber);animation:pulse 2s infinite}
+.status.ok{border-color:var(--cyan);color:var(--cyan)}
+.status.ok::before{background:var(--cyan);animation:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.progress{max-width:1020px;margin:9px auto 0}
+.progress .lbl{display:flex;justify-content:space-between;font-family:var(--mono);font-size:8.5px;letter-spacing:.14em;color:var(--muted);margin-bottom:6px}
+.pbar{height:5px;background:var(--line);border-radius:100px;overflow:hidden}
+.pbar i{display:block;height:100%;width:0;background:var(--amber);border-radius:100px;transition:width .5s,background .5s}
+.pbar.ok i{background:var(--cyan)}
+.wrap{max-width:1020px;margin:0 auto;padding:18px}
+.rangebar{display:flex;justify-content:space-between;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 18px;margin-bottom:14px}
+.rangebar .h b{font-size:15px;font-weight:600;display:block}
+.rangebar .h span{font-size:12.5px;color:var(--muted)}
+.range{font-family:var(--mono);font-weight:700;font-size:clamp(15px,3vw,20px);text-align:right}
+.range small{display:block;font-size:8px;font-weight:400;color:var(--muted);letter-spacing:.14em}
+.grid{display:grid;grid-template-columns:360px 1fr;gap:18px;align-items:start}
+@media(max-width:860px){.grid{grid-template-columns:1fr}}
+.visual{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px}
+@media(min-width:861px){.visual{position:sticky;top:118px}}
+.visual .t{font-family:var(--mono);font-size:9px;letter-spacing:.16em;color:var(--muted);margin-bottom:9px}
+svg.house{width:100%;height:auto}
+.edge{stroke:var(--amber);stroke-width:9;stroke-linecap:round;cursor:pointer;transition:stroke .4s}
+.edge.done{stroke:var(--cyan)}
+.edge.skip{stroke:#39424B;stroke-dasharray:4 7}
+.house text{font-family:var(--mono);font-size:9px;fill:#8C959D}
+.house .lbl-done{fill:var(--cyan)}
+.geo{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.geo .g{font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;color:var(--muted);border:1px solid var(--line);border-radius:100px;padding:5px 10px}
+.geo .g i{font-style:normal;color:var(--emerald)}
+.geo button{font-family:var(--sans);font-size:11.5px;color:var(--amber);background:none;border:1px solid rgba(224,168,60,.45);border-radius:100px;padding:5px 11px;cursor:pointer}
+.legend{display:flex;gap:14px;margin-top:10px;font-family:var(--mono);font-size:8px;letter-spacing:.1em;color:var(--muted);flex-wrap:wrap}
+.legend i{display:inline-block;width:14px;height:4px;border-radius:2px;margin-right:5px;font-style:normal}
+.cards{display:flex;flex-direction:column;gap:12px}
+.rc{background:var(--panel);border:1px solid var(--amber);border-left-width:3px;border-radius:13px;overflow:hidden;transition:border-color .4s}
+.rc.done{border-color:var(--cyan)}
+.rc.skip{border-color:var(--line)}
+.rc .hd{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:15px 16px;cursor:pointer}
+.rc .hd b{font-size:16px;font-weight:600}
+.rc .hd .pill{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;padding:5px 11px;border-radius:100px;color:var(--amber);border:1px solid rgba(224,168,60,.5);white-space:nowrap}
+.rc.done .hd .pill{color:var(--cyan);border-color:rgba(59,216,233,.5)}
+.rc.skip .hd .pill{color:var(--muted);border-color:var(--line)}
+.rc .body{display:none;padding:0 16px 16px;border-top:1px solid var(--line)}
+.rc.open .body{display:block}
+.q{margin-top:15px}
+.q .ql{font-size:14px;font-weight:600;margin-bottom:8px}
+.q .ql .req{font-family:var(--mono);font-size:7.5px;letter-spacing:.1em;color:var(--amber)}
+.q .ql .okc{display:none;color:var(--cyan);font-size:12px}
+.q.ok .ql .req{display:none}
+.q.ok .ql .okc{display:inline}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:9px 15px;border-radius:100px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);font-size:13.5px;cursor:pointer;font-family:var(--sans)}
+.chip.on{border-color:var(--cyan);color:var(--cyan)}
+.tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.sidebody{display:none}
+.sidebody.show{display:block}
+.tl{position:relative;border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:10px 12px;cursor:pointer;font-size:13.5px;color:var(--muted)}
+.tl.on{border-color:var(--cyan);color:var(--text);background:rgba(59,216,233,.07)}
+.tl.on::after{content:"✓";position:absolute;top:7px;right:9px;color:var(--cyan);font-size:11px}
+.tl.custom{border-style:dashed;border-color:rgba(224,168,60,.6);color:var(--amber)}
+.tl.custom::after{content:"⚑";color:var(--amber)}
+.st{display:none;align-items:center;gap:9px;margin-top:8px}
+.tl.on .st{display:flex}
+.st button{width:24px;height:24px;border-radius:7px;border:1px solid var(--line);background:none;color:var(--text);font-size:13px;cursor:pointer;line-height:1}
+.st b{font-family:var(--mono);font-size:12px;min-width:18px;text-align:center}
+.wseg{display:none;gap:5px;margin-top:8px}
+.tl.on .wseg{display:flex}
+.wseg button{width:30px;height:26px;border-radius:7px;border:1px solid var(--line);background:none;color:var(--muted);font-family:var(--mono);font-size:10px;cursor:pointer}
+.wseg button.on{border-color:var(--cyan);color:var(--cyan)}
+.wseg i{font-style:normal;font-size:10.5px;color:var(--muted);align-self:center}
+.mrow{display:none;gap:8px;margin-top:9px;align-items:center}
+.mrow.show{display:flex}
+.mrow input{width:130px;background:var(--ink);border:1px solid var(--line);border-radius:9px;color:var(--text);font-family:var(--mono);font-size:13px;padding:9px 11px;outline:none}
+.mrow button{border:1px solid var(--cyan);background:rgba(59,216,233,.08);color:var(--cyan);border-radius:9px;padding:9px 14px;cursor:pointer;font-size:12.5px;font-family:var(--sans);font-weight:600}
+.wrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid rgba(36,43,50,.6)}
+.wrow:last-child{border-bottom:none}
+.pctchips{display:none;gap:6px}
+.wrow.on .pctchips{display:flex}
+.pc{width:36px;height:26px;border-radius:7px;border:1px solid var(--line);background:none;color:var(--muted);font-family:var(--mono);font-size:9.5px;cursor:pointer}
+.pc.on{border-color:var(--cyan);color:var(--cyan)}
+.pseg{flex-wrap:wrap}
+.wsum{font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--emerald);margin-top:9px}
+.wsum.bad{color:var(--amber)}
+.addsurf{margin-top:9px;width:100%;padding:11px;border-radius:10px;border:1.5px dashed var(--line);background:none;color:var(--muted);font-family:var(--sans);font-size:13.5px;cursor:pointer}
+.addsurf:hover{border-color:var(--cyan);color:var(--cyan)}
+.addpanel{display:none;margin-top:10px;border:1px solid var(--line);border-radius:11px;background:var(--panel2);padding:13px}
+.addpanel.show{display:block}
+.addpanel .pl{font-family:var(--mono);font-size:8.5px;letter-spacing:.14em;color:var(--muted);margin-bottom:9px}
+.addpanel .custom{display:flex;gap:8px;margin-top:11px}
+.addpanel .custom input{flex:1;background:var(--ink);border:1px solid var(--line);border-radius:9px;color:var(--text);font-size:13px;padding:10px 12px;outline:none}
+.addpanel .custom button{border:1px solid var(--line);background:none;color:var(--muted);border-radius:9px;padding:0 14px;cursor:pointer;font-size:13px;font-family:var(--sans)}
+.confirmbtn{margin-top:16px;width:100%;padding:13px;border-radius:10px;border:1px solid var(--amber);background:rgba(224,168,60,.08);color:var(--amber);font-family:var(--sans);font-weight:600;font-size:14.5px;cursor:pointer}
+.rc.done .confirmbtn{border-color:var(--cyan);background:rgba(59,216,233,.08);color:var(--cyan)}
+.stick{position:fixed;left:0;right:0;bottom:0;z-index:60;padding:11px 18px;background:rgba(10,11,13,.95);backdrop-filter:blur(14px);border-top:1px solid var(--line)}
+.tier{font-size:11.5px;color:var(--muted);max-width:1020px;margin:0 auto 8px;display:flex;gap:7px;align-items:center}
+.tier i{font-style:normal;width:7px;height:7px;border-radius:50%;background:var(--emerald);flex-shrink:0}
+.tier.visit i{background:var(--amber)}
+.stick .row{display:flex;align-items:center;gap:12px;max-width:1020px;margin:0 auto}
+.stick .pr{font-family:var(--mono);font-weight:700;font-size:15px;line-height:1.25}
+.stick .pr small{display:block;font-size:8px;font-weight:400;color:var(--muted);letter-spacing:.14em}
+.sp{flex:1}
+.btn{font-family:var(--sans);font-weight:600;font-size:15px;padding:13px 20px;border-radius:10px;border:1px solid transparent;cursor:pointer;background:var(--cyan);color:var(--oncyan)}
+.btn:disabled{background:var(--panel2);color:var(--muted);border-color:var(--line);cursor:not-allowed}
+.slots{display:none;gap:8px;margin-top:9px;max-width:1020px;margin-inline:auto;flex-wrap:wrap}
+.slots.show{display:flex}
+.slots button{font-family:var(--mono);font-size:10.5px;padding:9px 14px;border-radius:100px;border:1px solid var(--line);background:none;color:var(--text);cursor:pointer}
+.slots button:hover{border-color:var(--cyan)}
+.toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:var(--panel2);border:1px solid rgba(59,216,233,.45);border-radius:12px;padding:10px 16px;font-size:13.5px;opacity:0;transition:opacity .25s;z-index:70;max-width:460px;text-align:center}
+.toast.show{opacity:1}
+.note{font-family:var(--mono);font-size:9px;letter-spacing:.08em;color:var(--muted);border:1px dashed var(--line);border-radius:10px;padding:10px 14px;margin-top:16px}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+.shake{animation:shake .3s}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="row">
+    <div class="wm">PAINT<span>—</span>GROUP</div>
+    <span class="status" id="topStatus">IN REVIEW · CONFIRM EACH SIDE</span>
+  </div>
+  <div class="progress">
+    <div class="lbl"><span id="progLbl">0 OF 8 CONFIRMED</span><span>ORANGE = TO CONFIRM · BLUE = CONFIRMED</span></div>
+    <div class="pbar" id="pbar"><i id="pfill"></i></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="rangebar">
+    <div class="h"><b>Walk around the house, one side at a time</b><span>Front, both sides, back — confirm each and it turns blue.</span></div>
+    <div class="range"><small>YOUR ESTIMATE · INCL. GST</small><span id="rng">—</span></div>
+  </div>
+
+  <div class="grid">
+    <div class="visual">
+      <p class="t">YOUR HOME FROM ABOVE · TAP A SIDE</p>
+      <svg class="house" viewBox="0 0 300 240">
+        <rect x="62" y="52" width="176" height="136" fill="#12161A" stroke="#242B32"/>
+        <line class="edge" id="e-back"  x1="66" y1="52"  x2="234" y2="52"  onclick="op('back')"/>
+        <line class="edge" id="e-left"  x1="62" y1="56"  x2="62"  y2="184" onclick="op('left')"/>
+        <line class="edge" id="e-right" x1="238" y1="56" x2="238" y2="184" onclick="op('right')"/>
+        <line class="edge" id="e-front" x1="66" y1="188" x2="234" y2="188" onclick="op('front')"/>
+        <rect x="138" y="180" width="24" height="8" fill="#152A31" stroke="#3BD8E9" stroke-width="1"/>
+        <text x="128" y="212" id="l-front">FRONT · STREET</text>
+        <text x="132" y="42"  id="l-back">BACK</text>
+        <text x="14"  y="124" id="l-left">LEFT</text>
+        <text x="248" y="124" id="l-right">RIGHT</text>
+      </svg>
+      <div class="geo">
+        <span class="g">SINGLE STOREY · <i>READ FROM PHOTOS</i></span>
+        <span class="g">WEATHERBOARD · <i>READ FROM PHOTOS</i></span>
+        <button onclick="flagGeo()">Not right? Tell us</button>
+      </div>
+      <div class="legend"><span><i style="background:var(--amber)"></i>TO CONFIRM</span><span><i style="background:var(--cyan)"></i>CONFIRMED</span><span><i style="background:#39424B"></i>NOT PAINTING</span></div>
+    </div>
+
+    <div class="cards" id="cards"></div>
+  </div>
+  <p class="note">DEMO — BUILT SIDE BY SIDE BECAUSE THAT'S HOW THE WORK ORDER READS: "FRONT ELEVATION — WEATHERBOARDS, 3 WINDOWS (1 LARGE), ENTRY DOOR, FASCIAS &amp; GUTTERS." EVERY SIDE CONFIRMS AMBER → BLUE; SKIPPED SIDES SHOW AS NOT PAINTING.</p>
+</main>
+
+<div class="stick">
+  <div class="tier" id="tier"></div>
+  <div class="row">
+    <div class="pr"><small>ESTIMATE · INCL. GST</small><span id="stickRng">—</span></div>
+    <div class="sp"></div>
+    <button class="btn" id="cta" disabled onclick="ctaTap()">Confirm all sides to continue</button>
+  </div>
+  <div class="slots" id="slots">
+    <button onclick="book('Thu 9:00 am')">THU · 9:00 AM</button>
+    <button onclick="book('Thu 2:00 pm')">THU · 2:00 PM</button>
+    <button onclick="book('Fri 10:30 am')">FRI · 10:30 AM</button>
+    <button onclick="book('Sat 8:30 am')">SAT · 8:30 AM</button>
+  </div>
+</div>
+
+<div class="toast" id="toastEl"></div>
+
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+let tt;function toast(m){const t=$("#toastEl");t.textContent=m;t.classList.add("show");clearTimeout(tt);tt=setTimeout(()=>t.classList.remove("show"),3200)}
+const fmt=v=>"$"+Math.round(v).toLocaleString("en-AU");
+let MID=0,flagged=false,peeling=false,hasCustom=false,notSureFence=false,booked=false,badRot=false;
+const WF={S:.8,M:1,L:1.2};
+/* wizard answered "weatherboard" — sides show ONLY that; other wall types live in + Add a surface */
+const WALLTYPES=[{l:"Render",f:1.15},{l:"Painted brick",f:1.25},{l:"Stucco",f:1.2},{l:"Weatherboard cladding",f:1}];
+const SIDES={
+ front:{n:"Front — street side",include:null,size:null,len:12,h:2.6,
+  walls:[{l:"Weatherboard cladding",on:1,pct:100,f:1}],
+  tiles:[{l:"Windows",on:1,q:3,per:120,st:1,win:1,s:"M"},{l:"Entry door",on:1,q:1,per:180,st:1},
+   {l:"Garage door",on:0,v:420},{l:"Fascias & gutters",on:1,run:25},{l:"Eaves",on:1,run:11},{l:"Downpipes",on:1,q:1,per:45,st:1}]},
+ left:{n:"Left side",include:null,size:null,len:14,h:2.6,
+  walls:[{l:"Weatherboard cladding",on:1,pct:100,f:1}],
+  tiles:[{l:"Windows",on:1,q:2,per:120,st:1,win:1,s:"M"},
+   {l:"Fascias & gutters",on:1,run:25},{l:"Eaves",on:1,run:11},{l:"Downpipes",on:1,q:1,per:45,st:1}]},
+ right:{n:"Right side",include:null,size:null,len:14,h:2.6,
+  walls:[{l:"Weatherboard cladding",on:1,pct:100,f:1}],
+  tiles:[{l:"Windows",on:1,q:1,per:120,st:1,win:1,s:"M"},
+   {l:"Fascias & gutters",on:1,run:25},{l:"Eaves",on:1,run:11},{l:"Downpipes",on:1,q:1,per:45,st:1}]},
+ back:{n:"Back",include:null,size:null,len:12,h:2.6,
+  walls:[{l:"Weatherboard cladding",on:1,pct:100,f:1}],
+  tiles:[{l:"Windows",on:1,q:2,per:120,st:1,win:1,s:"M"},{l:"Back door",on:1,q:1,per:160,st:1},{l:"Deck (oil)",on:0,v:850},
+   {l:"Fascias & gutters",on:1,run:25},{l:"Eaves",on:1,run:11},{l:"Downpipes",on:1,q:1,per:45,st:1}]}
+};
+const EX={extras:{ans:null,tiles:[{l:"Fence",on:0,v:0,fence:1},{l:"Pergola",on:0,v:480},{l:"Balustrade",on:0,v:360},{l:"Letterbox",on:0,v:40}]},
+ cond:{cond:null,rot:null,acc:null},dw:{ans:null},sweep:{ans:null}};
+const ORDER=["front","left","right","back","extras","cond","dw","sweep"];
+const done={};ORDER.forEach(k=>done[k]=false);
+const CATALOG=[["Window shutters",240],["Side gate",120],["Security door",90],["Meter box",35]];
+function eff(gk,t){const s=SIDES[gk];
+ if(t.st)return t.q*t.per*(t.s?WF[t.s]:1);
+ if(t.run&&s)return Math.round(t.run*s.len);
+ return t.v||0}
+function wallVal(k){const s=SIDES[k];
+ const mix=s.walls.reduce((a,w)=>a+(w.on?(w.pct/100)*w.f:0),0);
+ return Math.round(s.len*s.h*50*mix)}
+function wallSum(k){return SIDES[k].walls.reduce((a,w)=>a+(w.on?w.pct:0),0)}
+function sideVal(k){return wallVal(k)+SIDES[k].tiles.reduce((a,t)=>a+(t.on?eff(k,t):0),0)}
+const BASE=1400;
+function totalMID(){let s=BASE;Object.keys(SIDES).forEach(k=>{if(SIDES[k].include!==false)s+=sideVal(k)});
+ EX.extras.tiles.forEach(t=>{if(t.on)s+=t.v||0});return s+extraAdj}
+let extraAdj=0;
+
+function wallTile(k,w,i){
+ return `<div class="tl ${w.on?"on":""}" id="wt-${k}-${i}" onclick="wallToggle('${k}',${i},this)">${w.l}
+   <span class="wseg pseg" onclick="event.stopPropagation()"><i>% of wall</i>
+     ${[25,50,75,100].map(p=>`<button class="pc ${w.on&&w.pct===p?"on":""}" id="pc-${k}-${i}-${p}" onclick="wallPct('${k}',${i},${p})">${p}</button>`).join("")}
+   </span></div>`;}
+function tile(gk,t,i){
+ return `<div class="tl ${t.on?"on":""}" id="t-${gk}-${i}" onclick="tg('${gk}',${i},this)">${t.l}
+  ${t.st?`<span class="st" onclick="event.stopPropagation()"><button onclick="tq('${gk}',${i},-1)">−</button><b id="tv-${gk}-${i}">${t.q}</b><button onclick="tq('${gk}',${i},1)">+</button></span>`:""}
+  ${t.win?`<span class="wseg" onclick="event.stopPropagation()"><i>Size</i>
+    <button id="ws-${gk}-${i}-S" onclick="ws('${gk}',${i},'S')">S</button>
+    <button id="ws-${gk}-${i}-M" class="on" onclick="ws('${gk}',${i},'M')">M</button>
+    <button id="ws-${gk}-${i}-L" onclick="ws('${gk}',${i},'L')">L</button></span>`:""}
+  ${t.fence?`<span class="mrow" id="mr-${gk}-${i}" onclick="event.stopPropagation()"><input placeholder="metres — or 'not sure'" id="fi-${gk}-${i}"><button onclick="setFence('${gk}',${i})">Set</button></span>`:""}
+ </div>`;}
+
+function sideCard(k){
+ const s=SIDES[k];
+ return `<div class="rc" id="c-${k}">
+  <div class="hd" onclick="op('${k}')"><b>${s.n}</b><span class="pill" id="pill-${k}">CONFIRM THIS SIDE</span></div>
+  <div class="body">
+    <div class="q" id="q-inc-${k}"><p class="ql">Are we painting this side? <span class="req">REQUIRED</span><span class="okc">✓</span></p>
+      <div class="chips">
+        <button class="chip" onclick="setSide('${k}',true,this)">Yes</button>
+        <button class="chip" onclick="setSide('${k}',false,this)">No — skip this side</button>
+      </div></div>
+    <div class="sidebody" id="sb-${k}">
+      <div class="q" id="q-size-${k}"><p class="ql">This side's about <span id="sz-${k}">${s.len} m long × ${s.h} m high</span> — sound right? <span class="req">REQUIRED</span><span class="okc">✓</span></p>
+        <div class="chips">
+          <button class="chip" onclick="sizeYes('${k}',this)">Looks right</button>
+          <button class="chip" onclick="mark(this);$('#sa-${k}').classList.add('show')">Adjust it</button>
+        </div>
+        <span class="mrow" id="sa-${k}">
+          <input placeholder="length m" id="sl-${k}" inputmode="decimal" style="width:88px">
+          <span style="font-family:var(--mono);color:var(--muted)">×</span>
+          <input placeholder="height m" id="sh-${k}" inputmode="decimal" style="width:88px">
+          <button onclick="setDims('${k}')">Update</button>
+        </span>
+        <p style="font-size:12px;color:var(--muted);margin-top:7px">Pace the length — a big step is about a metre. Height: a single storey is usually 2.4–2.7 m. "Not sure" is fine.</p>
+      </div>
+      <div class="q" id="q-wall-${k}"><p class="ql">The walls on this side — from your answers</p>
+        <div class="tgrid" id="wg-${k}">${s.walls.map((w,i)=>wallTile(k,w,i)).join("")}</div>
+        <p class="wsum" id="wsum-${k}">Adds up to 100% ✓</p>
+      </div>
+      <div class="q"><p class="ql">Also on this side — tap to change</p>
+        <div class="tgrid" id="tg-${k}">${s.tiles.map((t,i)=>tile(k,t,i)).join("")}</div>
+        <button class="addsurf" onclick="openAdd('${k}')">+ Add a surface to this side</button>
+        <div class="addpanel" id="ap-${k}"><p class="pl">EVERYTHING WE PAINT — TAP TO ADD TO ${s.n.toUpperCase()}</p><div class="chips" id="ac-${k}"></div>
+          <div class="custom"><input placeholder="Something else on this side? Name it" id="ci-${k}"><button onclick="addCustom('${k}')">Add</button></div></div>
+      </div>
+      <button class="confirmbtn" id="cb-${k}" onclick="confirmA('${k}')">Confirm ${s.n.toLowerCase()} ✓</button>
+    </div>
+  </div></div>`;}
+
+$("#cards").innerHTML=["front","left","right","back"].map(sideCard).join("")+`
+ <div class="rc" id="c-extras"><div class="hd" onclick="op('extras')"><b>Freestanding extras</b><span class="pill" id="pill-extras">CONFIRM THIS</span></div>
+  <div class="body"><div class="q" id="q-extras"><p class="ql">Not on a wall — fences, pergolas and the like. <span class="req">REQUIRED</span><span class="okc">✓</span></p>
+   <div class="tgrid" id="tg-extras">${EX.extras.tiles.map((t,i)=>tile("extras",t,i)).join("")}</div>
+   <div class="chips" style="margin-top:10px"><button class="chip" onclick="noExtras(this)">Nothing else ✓</button></div></div>
+   <button class="confirmbtn" id="cb-extras" onclick="confirmA('extras')">Confirm extras ✓</button></div></div>
+
+ <div class="rc" id="c-cond"><div class="hd" onclick="op('cond')"><b>Condition &amp; access</b><span class="pill" id="pill-cond">CONFIRM THIS</span></div>
+  <div class="body">
+   <div class="q" id="q-cond"><p class="ql">How's the paintwork holding up? <span class="req">REQUIRED</span><span class="okc">✓</span></p>
+    <div class="chips"><button class="chip" onclick="cond('good',this)">Good overall</button>
+     <button class="chip" onclick="cond('weathered',this)">Weathered</button>
+     <button class="chip" onclick="cond('peeling',this)">Peeling &amp; flaking</button></div></div>
+   <div class="q" id="q-rot"><p class="ql">Any timber rot up on the fascias? <span class="req">REQUIRED</span><span class="okc">✓</span></p>
+    <div class="chips"><button class="chip" onclick="rot('no',this)">No, looks solid</button>
+     <button class="chip" onclick="rot('little',this)">A little</button>
+     <button class="chip" onclick="rot('lots',this)">Quite a bit</button></div></div>
+   <div class="q" id="q-acc"><p class="ql">Anything tricky about access? <span class="req">REQUIRED</span><span class="okc">✓</span></p>
+    <div class="chips"><button class="chip" onclick="acc('steep',this)">Steep block</button>
+     <button class="chip" onclick="acc('tight',this)">Tight side access</button>
+     <button class="chip" onclick="acc('high',this)">Double-height entry</button>
+     <button class="chip" onclick="acc('none',this)">None of these ✓</button></div></div>
+   <button class="confirmbtn" id="cb-cond" onclick="confirmA('cond')">Confirm condition &amp; access ✓</button></div></div>
+
+ <div class="rc" id="c-dw"><div class="hd" onclick="op('dw')"><b>Quick check — windows &amp; doors</b><span class="pill" id="pill-dw">CONFIRM THIS</span></div>
+  <div class="body"><div class="q" id="q-dw"><p class="ql"><span id="dwtotals"></span> <span class="req">REQUIRED</span><span class="okc">✓</span></p>
+   <div class="chips"><button class="chip" onclick="dwOk(this)">That's right ✓</button>
+    <button class="chip" onclick="dwFix(this)">Something's off — I'll adjust</button></div>
+   <p style="font-size:12.5px;color:var(--muted);margin-top:9px">Counts sit on each side above — use the − / + there, then come back.</p></div>
+   <button class="confirmbtn" id="cb-dw" onclick="confirmA('dw')">Confirm counts ✓</button></div></div>
+
+ <div class="rc" id="c-sweep"><div class="hd" onclick="op('sweep')"><b>Last check — anything we haven't listed?</b><span class="pill" id="pill-sweep">CONFIRM THIS</span></div>
+  <div class="body"><div class="q" id="q-sweep"><p class="ql">Sheds, side gates and the fence behind the house are the usual missing ones. <span class="req">REQUIRED</span><span class="okc">✓</span></p>
+   <div class="chips">${["Shed","Side gate","Rear fence","Carport","Something else"].map(n=>`<button class="chip" onclick="swAdd('${n}',this)">+ ${n}</button>`).join("")}
+    <button class="chip" onclick="swDone(this)">No — that's everything ✓</button></div></div>
+   <button class="confirmbtn" id="cb-sweep" onclick="confirmA('sweep')">Confirm — nothing missing ✓</button></div></div>`;
+
+/* ------- helpers ------- */
+function G(gk){return SIDES[gk]?SIDES[gk]:EX[gk]}
+function op(k){$$(".rc").forEach(c=>c.classList.remove("open"));const c=$("#c-"+k);c.classList.add("open");c.scrollIntoView({behavior:"smooth",block:"center"})}
+let notSureLen=false;
+function sizeYes(k,el){SIDES[k].size="yes";mark(el);$("#q-size-"+k).classList.add("ok")}
+function setDims(k){
+ const s=SIDES[k];
+ const lv=$("#sl-"+k).value.trim().toLowerCase(),hv=$("#sh-"+k).value.trim().toLowerCase();
+ if(lv.includes("not")||hv.includes("not")){s.size="ns";notSureLen=true;$("#q-size-"+k).classList.add("ok");
+  $("#sz-"+k).textContent=s.len+" × "+s.h+" m (we'll measure)";$("#sa-"+k).classList.remove("show");
+  rng();toast("Not a problem — we'll measure this side on the day; your range widens a touch until then.");return}
+ let L=lv?parseFloat(lv.replace(/[^0-9.]/g,"")):s.len;
+ let H=hv?parseFloat(hv.replace(/[^0-9.]/g,"")):s.h;
+ if(isNaN(L)||isNaN(H)){toast("Length and height in metres — or 'not sure'.");return}
+ L=Math.min(40,Math.max(3,L));H=Math.min(8,Math.max(2,H));
+ s.len=L;s.h=H;s.size="adjusted";
+ $("#sz-"+k).textContent=L+" m long × "+H+" m high · updated by you";
+ $("#sa-"+k).classList.remove("show");$("#q-size-"+k).classList.add("ok");
+ rng();toast(s.n+" set to "+L+" × "+H+" m — walls and roofline on this side repriced.");}
+function wallToggle(k,i,el){
+ const w=SIDES[k].walls[i];w.on=w.on?0:1;
+ el.classList.toggle("on",!!w.on);
+ if(w.on&&w.pct===0){const rem=Math.max(0,100-wallSum(k));w.pct=[25,50,75,100].includes(rem)?rem:25;}
+ if(!w.on)w.pct=0;
+ [25,50,75,100].forEach(p=>$("#pc-"+k+"-"+i+"-"+p).classList.toggle("on",w.on&&w.pct===p));
+ updWalls(k);rng();
+ toast(w.on?(w.l+" ticked at "+w.pct+"% of the wall — change the % inside the box if needed."):(w.l+" removed."));}
+function wallPct(k,i,p){
+ const w=SIDES[k].walls[i];if(!w.on)return;
+ w.pct=p;[25,50,75,100].forEach(x=>$("#pc-"+k+"-"+i+"-"+x).classList.toggle("on",x===p));
+ updWalls(k);rng();toast(w.l+" set to "+p+"% of this side — repriced.");}
+function updWalls(k){
+ const s=wallSum(k),el=$("#wsum-"+k);if(!el)return;
+ el.textContent=s===100?"Adds up to 100% ✓":"Adds up to "+s+"% — make it 100% before confirming this side";
+ el.classList.toggle("bad",s!==100);}
+function setSide(k,yes,el){const s=SIDES[k];const prev=s.include;
+ el.parentElement.querySelectorAll(".chip").forEach(o=>o.classList.remove("on"));el.classList.add("on");
+ $("#q-inc-"+k).classList.add("ok");
+ s.include=yes;$("#sb-"+k).classList.toggle("show",yes);
+ const c=$("#c-"+k),e=$("#e-"+k);
+ if(!yes){done[k]=true;c.classList.add("skip");c.classList.remove("done","open");
+  $("#pill-"+k).textContent="NOT PAINTING ✓";e.classList.remove("done");e.classList.add("skip");
+  rng();refresh();toast(s.n+" skipped — it'll show as excluded on your quote.");
+  const next=ORDER.find(x=>!done[x]);if(next)op(next);}
+ else{if(prev===false){done[k]=false;c.classList.remove("skip");$("#pill-"+k).textContent="CONFIRM THIS SIDE";e.classList.remove("skip")}
+  rng();refresh();}}
+function tg(gk,i,el){const t=G(gk).tiles[i];const on=el.classList.toggle("on");t.on=on?1:0;
+ if(t.fence){$("#mr-"+gk+"-"+i).classList.toggle("show",on);if(on){toast("Fence — pop in the metres, or 'not sure' and we'll measure it.");return}}
+ rng();updDW();
+ const amt=eff(gk,t);if(amt)toast((on?"Added ":"Removed ")+t.l.toLowerCase()+" — "+(on?"+":"−")+fmt(amt));}
+function tq(gk,i,d){const t=G(gk).tiles[i];if(!$("#t-"+gk+"-"+i).classList.contains("on"))return;
+ const old=t.q;t.q=Math.max(1,Math.min(20,t.q+d));if(t.q===old)return;
+ $("#tv-"+gk+"-"+i).textContent=t.q;rng();updDW();
+ toast(t.l+" ×"+t.q+" — "+(d>0?"+":"−")+fmt(t.per*(t.s?WF[t.s]:1)));}
+function ws(gk,i,sz){const t=G(gk).tiles[i];if(!$("#t-"+gk+"-"+i).classList.contains("on")||t.s===sz)return;
+ ["S","M","L"].forEach(x=>$("#ws-"+gk+"-"+i+"-"+x).classList.toggle("on",x===sz));
+ const delta=t.q*t.per*(WF[sz]-WF[t.s]);t.s=sz;rng();
+ toast("Windows set to "+({S:"small",M:"medium",L:"large"})[sz]+" — "+(delta>=0?"+":"−")+fmt(Math.abs(delta)));}
+function setFence(gk,i){const t=G(gk).tiles[i];const inp=$("#fi-"+gk+"-"+i);const v=inp.value.trim().toLowerCase();if(!v)return;
+ if(v.includes("not")){t.v=1200;notSureFence=true;toast("Not a problem — we'll measure it on the day; your range widens a touch until then.")}
+ else{const m=parseFloat(v.replace(/[^0-9.]/g,""))||0;t.v=Math.round(m*60);toast("Fence set to "+m+" m — repriced.")}
+ rng();}
+function updDW(){let d=0,w=0;Object.keys(SIDES).forEach(k=>{if(SIDES[k].include===false)return;
+ SIDES[k].tiles.forEach(t=>{if(!t.on)return;if(t.l.toLowerCase().includes("door"))d+=t.q||1;if(t.win)w+=t.q})});
+ const el=$("#dwtotals");if(el)el.textContent="Across the sides you're painting, we make it "+w+" windows and "+d+" doors — is that right?";}
+function dwOk(el){EX.dw.ans="yes";mark(el);$("#q-dw").classList.add("ok")}
+function dwFix(el){EX.dw.ans=null;mark(el);$("#q-dw").classList.remove("ok");toast("Adjust the − / + on the side cards above, then tap \"That's right\".")}
+function rot(v,el){EX.cond.rot=v;mark(el);$("#q-rot").classList.add("ok");
+ if(v==="lots"){badRot=true;tier();toast("Thanks for the honesty — rot repair needs eyes on it, so we'll confirm the roofline on the site visit.")}
+ else if(v==="little"){extraAdj+=180;rng();toast("We've allowed for minor fascia prep — +"+fmt(180))}}
+function cond(v,el){EX.cond.cond=v;mark(el);$("#q-cond").classList.add("ok");
+ if(v==="peeling"){peeling=true;tier();toast("Peeling paint on an older home needs a proper look — a lead-safe check is part of our visit.")}
+ else if(v==="weathered"){extraAdj+=420;rng();toast("Extra prep allowed for weathered paintwork — +"+fmt(420))}}
+function acc(v,el){EX.cond.acc=v;mark(el);$("#q-acc").classList.add("ok");
+ if(v!=="none"){extraAdj+=260;rng();toast("Access allowance added — +"+fmt(260))}}
+function noExtras(el){EX.extras.ans="none";mark(el);$("#q-extras").classList.add("ok")}
+function swAdd(n,el){el.classList.add("on");el.textContent="✓ "+n+" added";el.onclick=null;EX.sweep.ans="added";
+ $("#q-sweep").classList.add("ok");
+ if(n==="Something else"){hasCustom=true;tier();toast("Thanks — name it in the notes and we'll confirm this area on the site visit.");return}
+ extraAdj+=n==="Shed"?640:n==="Side gate"?120:n==="Rear fence"?900:520;rng();
+ toast(n+" added and priced in.")}
+function swDone(el){EX.sweep.ans="none";mark(el);$("#q-sweep").classList.add("ok")}
+function mark(el){el.parentElement.querySelectorAll(".chip").forEach(o=>o.classList.remove("on"));el.classList.add("on")}
+function flagGeo(){flagged=true;tier();toast("Flagged — geometry is ours to verify, so your estimator will confirm this on site.")}
+function openAdd(gk){const p=$("#ap-"+gk);const s=p.classList.toggle("show");if(!s)return;
+ const have=SIDES[gk].walls.map(w=>w.l);
+ const wallChips=WALLTYPES.filter(w=>!have.includes(w.l))
+  .map(w=>`<button class="chip" onclick="addWall('${gk}','${w.l}',${w.f},this)">+ ${w.l} — wall surface</button>`).join("");
+ $("#ac-"+gk).innerHTML=wallChips+
+  `<button class="chip" onclick="addWin('${gk}')">+ More windows — a different size</button>`+
+  CATALOG.map(c=>`<button class="chip" onclick="addSurf('${gk}','${c[0]}',${c[1]},this)">+ ${c[0]}</button>`).join("");}
+function addWall(k,label,f,chip){
+ const s=SIDES[k];
+ const w={l:label,on:1,pct:25,f:f};s.walls.push(w);
+ const i=s.walls.length-1;
+ /* auto-balance: take the new share off the largest existing surface */
+ let over=wallSum(k)-100;
+ if(over>0){const big=s.walls.filter(x=>x.on&&x!==w).sort((a,b)=>b.pct-a.pct)[0];
+  if(big){big.pct=Math.max(0,big.pct-over);
+   const bi=s.walls.indexOf(big);
+   [25,50,75,100].forEach(p=>{const el=$("#pc-"+k+"-"+bi+"-"+p);if(el)el.classList.toggle("on",big.pct===p)});}}
+ $("#wg-"+k).insertAdjacentHTML("beforeend",wallTile(k,w,i));
+ chip.remove();updWalls(k);rng();
+ toast(label+" added at 25% of the wall — change the % inside the box; "+(s.walls[0].l.split(" ")[0])+" adjusted to keep it at 100%.");}
+function addWin(gk){
+ G(gk).tiles.push({l:"More windows",on:1,q:1,per:120,st:1,win:1,s:"M"});
+ const i=G(gk).tiles.length-1;
+ $("#tg-"+gk).insertAdjacentHTML("beforeend",tile(gk,G(gk).tiles[i],i));
+ rng();updDW();
+ toast("Added another window group — use − / + for how many, and set its size. Mix as many sizes as the side has.");}
+function addSurf(gk,label,v,chip){
+ G(gk).tiles.push({l:label,on:1,v:v});
+ const i=G(gk).tiles.length-1;
+ $("#tg-"+gk).insertAdjacentHTML("beforeend",tile(gk,G(gk).tiles[i],i));
+ chip.remove();rng();toast("Added "+label.toLowerCase()+" to this side — about +"+fmt(v));}
+function addCustom(gk){const inp=$("#ci-"+gk);const v=inp.value.trim();if(!v)return;
+ $("#tg-"+gk).insertAdjacentHTML("beforeend",`<div class="tl on custom">${v}</div>`);inp.value="";
+ hasCustom=true;tier();
+ toast("Thanks — we've added “"+v+"”, and we'll confirm this area on the site visit.");}
+/* ------- loop ------- */
+function confirmA(k){
+ let missing=false;
+ if(SIDES[k]){
+  if(SIDES[k].include===true&&wallSum(k)!==100){
+   const c=$("#c-"+k);c.classList.add("shake");setTimeout(()=>c.classList.remove("shake"),350);
+   toast("The wall surfaces need to add up to 100% — they're at "+wallSum(k)+"% right now.");return}
+  missing=SIDES[k].include===null||(SIDES[k].include===true&&SIDES[k].size===null);}
+ if(k==="extras")missing=EX.extras.ans===null&&!EX.extras.tiles.some(t=>t.on);
+ if(k==="cond")missing=EX.cond.cond===null||EX.cond.rot===null||EX.cond.acc===null;
+ if(k==="dw")missing=EX.dw.ans===null;
+ if(k==="sweep")missing=EX.sweep.ans===null;
+ if(missing){const c=$("#c-"+k);c.classList.add("shake");setTimeout(()=>c.classList.remove("shake"),350);
+  toast("One question above still needs an answer — it's marked REQUIRED.");return}
+ done[k]=true;
+ const c=$("#c-"+k);c.classList.add("done");c.classList.remove("open");
+ $("#pill-"+k).textContent="CONFIRMED ✓";const cb=$("#cb-"+k);if(cb)cb.textContent="Confirmed ✓";
+ const e=$("#e-"+k);if(e){e.classList.add("done");const l=$("#l-"+k);if(l)l.classList.add("lbl-done")}
+ refresh();
+ const next=ORDER.find(x=>!done[x]);if(next)op(next);
+}
+function refresh(){
+ const n=ORDER.filter(k=>done[k]).length;
+ $("#progLbl").textContent=n+" OF "+ORDER.length+" CONFIRMED";
+ $("#pfill").style.width=(n/ORDER.length*100)+"%";
+ if(n===ORDER.length){$("#pbar").classList.add("ok");
+  const ts=$("#topStatus");ts.classList.add("ok");ts.textContent="ESTIMATE CONFIRMED ✓";
+  tier();toast("Everything's blue — your exterior estimate is confirmed.");}
+ else tier();
+}
+function needsVisit(){return flagged||peeling||hasCustom||badRot||totalMID()>12000}
+function tier(){
+ const t=$("#tier"),cta=$("#cta");
+ const allDone=ORDER.every(k=>done[k]);
+ if(booked){t.className="tier visit";t.innerHTML="<i></i>Visit booked — your price is confirmed on the day, then fixed in writing.";return}
+ if(needsVisit()){t.className="tier visit";
+  t.innerHTML="<i></i>"+(hasCustom?"You've added something we'll price in person — ":peeling?"Peeling paint needs a lead-safe check — ":badRot?"Rot repair needs eyes on it — ":flagged?"You've flagged the photos — ":"Bigger exterior — ")+"we'll visit to confirm before your price is fixed.";
+  cta.textContent=allDone?"Confirm my price — book the visit":"Confirm all sides to continue";}
+ else{t.className="tier";t.innerHTML="<i></i>Straightforward exterior — single storey, photos verified. Accept online once everything's blue.";
+  cta.textContent=allDone?"Accept estimate":"Confirm all sides to continue";}
+ cta.disabled=!allDone;
+}
+function ctaTap(){
+ if($("#cta").textContent.startsWith("Accept")){toast("Accepted — desk check today, then your fixed price and booking follow.");return}
+ $("#slots").classList.toggle("show");}
+function book(slot){booked=true;$("#slots").classList.remove("show");$("#cta").textContent="Visit booked · "+slot;tier();
+ toast("Booked — your estimator arrives with everything you've confirmed, side by side.");}
+function rng(){MID=totalMID();
+ const t=fmt(MID*((notSureFence||notSureLen)?.93:.96))+" – "+fmt(MID*((notSureFence||notSureLen)?1.07:1.04));
+ $("#rng").textContent=t;$("#stickRng").textContent=t;tier();}
+rng();refresh();updDW();
+</script>
+</body>
+</html>

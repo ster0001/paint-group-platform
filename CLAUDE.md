@@ -32,6 +32,8 @@ These rules are mandatory for all work in this repo. If a task conflicts with a 
 - Paginate anything unbounded (jobs, products, activity). Public estimate pages must score ≥ 90 Lighthouse performance on mobile.
 
 ## Process
+- **A referenced file that doesn't exist is a stop-and-report, never a build-around.** If a brief, mockup, or doc a task references is missing from the repo, stop and say so before any code is written.
+- **Testing law:** every fix/feature PR STARTS by writing the failing e2e spec that reproduces the problem or encodes the mockup interaction, **as an anonymous customer**, then makes it pass. Staff-preview specs run alongside (staff-as-tester is how the response-contract bug hid). The customer-journey suite (`e2e/customer-journey/`) must be green before any merge. "Compiles + unit tests" is never the definition of done — "matches the reference mockup" is.
 - Small feature branches; one migration file per change, numbered, committed to `supabase/migrations/` even though Tom pastes SQL manually — the repo must always reflect the true schema.
 - Reference data via API/seed scripts, never hand-edited SQL inserts.
 - After each feature: update `docs/ARCHITECTURE.md` (one paragraph: what changed, where it lives) and leave a manual test script for Tom.

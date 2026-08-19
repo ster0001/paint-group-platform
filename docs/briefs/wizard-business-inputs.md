@@ -1,8 +1,13 @@
-# Wizard business inputs — Tom, Aug 2026
+# Wizard business inputs — Tom, Aug 2026 (v2, 19 Aug 2026)
 
 Owner-supplied values the Step 7–8 builds must use; they override any
 placeholder in the mockup. Committed beside the phase plan per the master
 build plan.
+
+**v2 note (19 Aug 2026): §2's thresholds are superseded.** Tom's later
+policy (ruled in `wizard-rebuild-plan-v2.md` §0) replaces v1's
+$7k / $15k / 80–90% ladder. §2 below now states the current policy; v1's
+numbers are kept only as a struck-through record.
 
 ## 1. Typical room sizes (no-plan starter lists + wizard defaults)
 
@@ -26,18 +31,29 @@ Wall areas derive from these + the storey ceiling height.
 form gains one extra toggle: *"Open-plan kitchen/living?"* — it decides which
 archetype the starter list uses.
 
-## 2. Acceptance / walkthrough policy (Settings values)
+## 2. Acceptance / sign-off policy (Settings values) — v2
 
-- Accuracy **>= 80%** -> estimate can be accepted from the wizard.
-- **Except** jobs under **$7,000**: require accuracy **>= 90%** to accept.
-- Jobs **>= $15,000**: walkthrough always required before acceptance.
-- Anything below its accuracy bar -> "Book a walkthrough" is the only path to a
-  fixed price.
+- **Self-serve:** interior <= **$6,000** with accuracy **>= 90%**, OR
+  straightforward exterior (workflow-doc definition) <= **$12,000** with
+  accuracy **>= 85%** -> "Accept estimate" available online.
+- **Everything else:** human sign-off — "Confirm my price — book the visit"
+  (never a blocked state; the calendar is right there).
+- Specialist handoffs (commercial, heritage, body corporate, lead-era +
+  peeling, asbestos, under the $2,000 floor) unchanged.
+- All four numbers ($6k, $12k, 90%, 85%) are Settings fields, not constants.
 
 Rationale: the $2–4.5k band is the weakest-margin band in the job data
 (~26% GP) — a +/-8% estimate error there can consume the entire margin, so
-small jobs earn the tight +/-4% range before self-serve acceptance. All three
-numbers ($7k, $15k, 80/90%) are Settings fields, not constants.
+small jobs earn the tight +/-4% range before self-serve acceptance.
+
+<details><summary>v1 policy (superseded 19 Aug 2026)</summary>
+
+- ~~Accuracy >= 80% -> estimate can be accepted from the wizard.~~
+- ~~Except jobs under $7,000: require accuracy >= 90% to accept.~~
+- ~~Jobs >= $15,000: walkthrough always required before acceptance.~~ (the
+  $15k walkthrough rule is deleted, not just re-numbered)
+
+</details>
 
 ## 3. Exterior without a listing URL
 

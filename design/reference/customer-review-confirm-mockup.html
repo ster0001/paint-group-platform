@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Confirm your estimate · Paint Group</title>
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0A0B0D;--panel:#12161A;--panel2:#171C21;--line:#242B32;--text:#EDF0F2;--muted:#8C959D;
+--cyan:#3BD8E9;--oncyan:#03272D;--amber:#E0A83C;--emerald:#2FA46B;--clay:#B3574A;
+--sans:"Switzer",-apple-system,sans-serif;--mono:"Martian Mono",ui-monospace,monospace}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--ink);color:var(--text);font-family:var(--sans);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;padding-bottom:150px}
+.top{position:sticky;top:0;z-index:50;padding:12px 18px;background:rgba(10,11,13,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.top .row{display:flex;align-items:center;justify-content:space-between;max-width:1020px;margin:0 auto}
+.wm{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.22em}.wm span{color:var(--cyan)}
+.status{display:inline-flex;align-items:center;gap:7px;padding:6px 13px;border:1px solid var(--amber);border-radius:100px;color:var(--amber);font-family:var(--mono);font-size:9.5px;letter-spacing:.12em}
+.status::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--amber);animation:pulse 2s infinite}
+.status.ok{border-color:var(--cyan);color:var(--cyan)}
+.status.ok::before{background:var(--cyan);animation:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.progress{max-width:1020px;margin:9px auto 0}
+.progress .lbl{display:flex;justify-content:space-between;font-family:var(--mono);font-size:8.5px;letter-spacing:.14em;color:var(--muted);margin-bottom:6px}
+.pbar{height:5px;background:var(--line);border-radius:100px;overflow:hidden}
+.pbar i{display:block;height:100%;width:0;background:var(--amber);border-radius:100px;transition:width .5s,background .5s}
+.pbar.ok i{background:var(--cyan)}
+.wrap{max-width:1020px;margin:0 auto;padding:18px}
+.rangebar{display:flex;justify-content:space-between;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 18px;margin-bottom:14px}
+.rangebar .h b{font-size:15px;font-weight:600;display:block}
+.rangebar .h span{font-size:12.5px;color:var(--muted)}
+.range{font-family:var(--mono);font-weight:700;font-size:clamp(15px,3vw,20px);text-align:right}
+.range small{display:block;font-size:8px;font-weight:400;color:var(--muted);letter-spacing:.14em}
+.grid{display:grid;grid-template-columns:360px 1fr;gap:18px;align-items:start}
+@media(max-width:860px){.grid{grid-template-columns:1fr}}
+.visual{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px}
+@media(min-width:861px){.visual{position:sticky;top:118px}}
+.visual .t{font-family:var(--mono);font-size:9px;letter-spacing:.16em;color:var(--muted);margin-bottom:9px}
+svg.plan{width:100%;height:auto}
+.rmshape{stroke-width:1.4;cursor:pointer;transition:fill .4s,stroke .4s}
+.rmshape.todo{fill:rgba(224,168,60,.16);stroke:var(--amber)}
+.rmshape.done{fill:rgba(59,216,233,.12);stroke:var(--cyan)}
+.plan text{font-family:var(--mono);font-size:7.5px;fill:#B9C2C9;pointer-events:none}
+.legend{display:flex;gap:16px;margin-top:10px;font-family:var(--mono);font-size:8px;letter-spacing:.1em;color:var(--muted)}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;font-style:normal}
+.cards{display:flex;flex-direction:column;gap:12px}
+.rc{background:var(--panel);border:1px solid var(--amber);border-left-width:3px;border-radius:13px;overflow:hidden;transition:border-color .4s}
+.rc.done{border-color:var(--cyan)}
+.rc .hd{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:15px 16px;cursor:pointer}
+.rc .hd b{font-size:16px;font-weight:600}
+.rc .hd .pill{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;padding:5px 11px;border-radius:100px;color:var(--amber);border:1px solid rgba(224,168,60,.5);white-space:nowrap}
+.rc.done .hd .pill{color:var(--cyan);border-color:rgba(59,216,233,.5)}
+.rc .body{display:none;padding:0 16px 16px;border-top:1px solid var(--line)}
+.rc.open .body{display:block}
+.q{margin-top:15px}
+.q .ql{font-size:14px;font-weight:600;margin-bottom:8px;display:flex;gap:8px;align-items:center}
+.q .ql .req{font-family:var(--mono);font-size:7.5px;letter-spacing:.1em;color:var(--amber)}
+.q .ql .okc{display:none;color:var(--cyan);font-size:12px}
+.q.ok .ql .req{display:none}
+.q.ok .ql .okc{display:inline}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:9px 15px;border-radius:100px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);font-size:13.5px;cursor:pointer;font-family:var(--sans)}
+.chip.on{border-color:var(--cyan);color:var(--cyan)}
+.tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+.tl{position:relative;border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:10px 12px;cursor:pointer;font-size:13.5px;color:var(--muted)}
+.tl.on{border-color:var(--cyan);color:var(--text);background:rgba(59,216,233,.07)}
+.tl.on::after{content:"✓";position:absolute;top:7px;right:9px;color:var(--cyan);font-size:11px}
+.st{display:none;align-items:center;gap:9px;margin-top:8px}
+.show .st,.tl.on .st{display:flex}
+.st button{width:24px;height:24px;border-radius:7px;border:1px solid var(--line);background:none;color:var(--text);font-size:13px;cursor:pointer;line-height:1}
+.st b{font-family:var(--mono);font-size:12px;min-width:18px;text-align:center}
+.st span{font-size:11.5px;color:var(--muted)}
+.wseg{display:none;gap:5px;margin-top:8px}
+.tl.on .wseg{display:flex}
+.wseg button{width:30px;height:26px;border-radius:7px;border:1px solid var(--line);background:none;color:var(--muted);font-family:var(--mono);font-size:10px;cursor:pointer}
+.wseg button.on{border-color:var(--cyan);color:var(--cyan)}
+.wseg i{font-style:normal;font-size:10.5px;color:var(--muted);align-self:center}
+.addsurf{margin-top:9px;width:100%;padding:11px;border-radius:10px;border:1.5px dashed var(--line);background:none;color:var(--muted);font-family:var(--sans);font-size:13.5px;cursor:pointer}
+.addsurf:hover{border-color:var(--cyan);color:var(--cyan)}
+.addpanel{display:none;margin-top:10px;border:1px solid var(--line);border-radius:11px;background:var(--panel2);padding:13px}
+.addpanel.show{display:block}
+.addpanel .pl{font-family:var(--mono);font-size:8.5px;letter-spacing:.14em;color:var(--muted);margin-bottom:9px}
+.addpanel .custom{display:flex;gap:8px;margin-top:11px}
+.addpanel .custom input{flex:1;background:var(--ink);border:1px solid var(--line);border-radius:9px;color:var(--text);font-size:13px;padding:10px 12px;outline:none}
+.addpanel .custom button{border:1px solid var(--line);background:none;color:var(--muted);border-radius:9px;padding:0 14px;cursor:pointer;font-size:13px;font-family:var(--sans)}
+.tl.custom{border-style:dashed;border-color:rgba(224,168,60,.6);color:var(--amber)}
+.tl.custom::after{content:"⚑";color:var(--amber)}
+.sizeadj{display:none;margin-top:10px;align-items:center;gap:9px;flex-wrap:wrap}
+.sizeadj.show{display:flex}
+.sizeadj input{width:76px;background:var(--ink);border:1px solid var(--line);border-radius:9px;color:var(--text);font-family:var(--mono);font-size:13px;padding:10px 11px;outline:none;text-align:center}
+.sizeadj input:focus{border-color:var(--cyan)}
+.sizeadj .x{font-family:var(--mono);color:var(--muted);font-size:12px}
+.sizeadj .unit{font-size:12.5px;color:var(--muted)}
+.sizeadj .set{border:1px solid var(--cyan);background:rgba(59,216,233,.08);color:var(--cyan);border-radius:9px;padding:10px 15px;cursor:pointer;font-size:13px;font-family:var(--sans);font-weight:600}
+.finish-note{font-size:12px;color:var(--muted);margin-top:8px;display:none}
+.finish-note.show{display:block}
+.confirmbtn{margin-top:16px;width:100%;padding:13px;border-radius:10px;border:1px solid var(--amber);background:rgba(224,168,60,.08);color:var(--amber);font-family:var(--sans);font-weight:600;font-size:14.5px;cursor:pointer}
+.rc.done .confirmbtn{border-color:var(--cyan);background:rgba(59,216,233,.08);color:var(--cyan)}
+.sweep .chips{margin-top:4px}
+.stick{position:fixed;left:0;right:0;bottom:0;z-index:60;padding:11px 18px;background:rgba(10,11,13,.95);backdrop-filter:blur(14px);border-top:1px solid var(--line)}
+.stick .row{display:flex;align-items:center;gap:12px;max-width:1020px;margin:0 auto}
+.stick .pr{font-family:var(--mono);font-weight:700;font-size:15px;line-height:1.25}
+.stick .pr small{display:block;font-size:8px;font-weight:400;color:var(--muted);letter-spacing:.14em}
+.sp{flex:1}
+.btn{font-family:var(--sans);font-weight:600;font-size:15px;padding:13px 20px;border-radius:10px;border:1px solid transparent;cursor:pointer;background:var(--cyan);color:var(--oncyan)}
+.btn:disabled{background:var(--panel2);color:var(--muted);border-color:var(--line);cursor:not-allowed}
+.toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:var(--panel2);border:1px solid rgba(59,216,233,.45);border-radius:12px;padding:10px 16px;font-size:13.5px;opacity:0;transition:opacity .25s;z-index:70;max-width:460px;text-align:center}
+.toast.show{opacity:1}
+.note{font-family:var(--mono);font-size:9px;letter-spacing:.08em;color:var(--muted);border:1px dashed var(--line);border-radius:10px;padding:10px 14px;margin-top:16px}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+.shake{animation:shake .3s}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="row">
+    <div class="wm">PAINT<span>—</span>GROUP</div>
+    <span class="status" id="topStatus">IN REVIEW · CONFIRM EACH ROOM</span>
+  </div>
+  <div class="progress">
+    <div class="lbl"><span id="progLbl">0 OF 7 CONFIRMED</span><span>ORANGE = STILL TO CONFIRM · BLUE = CONFIRMED</span></div>
+    <div class="pbar" id="pbar"><i id="pfill"></i></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="rangebar">
+    <div class="h"><b>Walk through each room and confirm it</b><span>Tap a room — answer its questions — it turns blue. Blue everywhere = done.</span></div>
+    <div class="range"><small>YOUR ESTIMATE · INCL. GST</small><span id="rng">$12,240 – $13,260</span></div>
+  </div>
+
+  <div class="grid">
+    <div class="visual">
+      <p class="t">YOUR FLOORPLAN · TAP A ROOM</p>
+      <svg class="plan" viewBox="0 0 300 165">
+        <rect class="rmshape todo" id="p-r1" x="10" y="10" width="128" height="92" onclick="openRoom('r1')"/><text x="20" y="26">LIVING</text>
+        <rect class="rmshape todo" id="p-r2" x="143" y="10" width="147" height="58" onclick="openRoom('r2')"/><text x="152" y="26">KITCHEN / MEALS</text>
+        <rect class="rmshape todo" id="p-r3" x="143" y="73" width="70" height="58" onclick="openRoom('r3')"/><text x="150" y="89">BED 1</text>
+        <rect class="rmshape todo" id="p-r4" x="218" y="73" width="72" height="58" onclick="openRoom('r4')"/><text x="226" y="89">BED 2</text>
+        <rect class="rmshape todo" id="p-r5" x="143" y="136" width="60" height="22" onclick="openRoom('r5')"/><text x="149" y="150">BATH</text>
+        <rect class="rmshape todo" id="p-r6" x="10" y="107" width="128" height="51" onclick="openRoom('r6')"/><text x="20" y="123">HALL &amp; ENTRY</text>
+      </svg>
+      <div class="legend">
+        <span><i style="background:var(--amber)"></i>TO CONFIRM</span>
+        <span><i style="background:var(--cyan)"></i>CONFIRMED</span>
+      </div>
+    </div>
+
+    <div class="cards" id="cards"></div>
+  </div>
+  <p class="note">DEMO — THE CONFIRM LOOP FIXES "MISSED AREAS" TWICE: EVERY ROOM MUST BE EXPLICITLY CONFIRMED, AND NOTHING COMPLETES UNTIL THE FINAL "ANYTHING WE MISSED?" SWEEP IS ANSWERED.</p>
+</main>
+
+<div class="stick">
+  <div class="row">
+    <div class="pr"><small>ESTIMATE · INCL. GST</small><span id="stickRng">$12,240 – $13,260</span></div>
+    <div class="sp"></div>
+    <button class="btn" id="cta" disabled onclick="toast('Accepted — desk check today, then your fixed price follows.')">Confirm all rooms to continue</button>
+  </div>
+</div>
+
+<div class="toast" id="toastEl"></div>
+
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+let tt;function toast(m){const t=$("#toastEl");t.textContent=m;t.classList.add("show");clearTimeout(tt);tt=setTimeout(()=>t.classList.remove("show"),3000)}
+let MID=12750;
+const fmt=v=>"$"+Math.round(v).toLocaleString("en-AU");
+function rng(){const t=fmt(MID*.96)+" – "+fmt(MID*1.04);$("#rng").textContent=t;$("#stickRng").textContent=t}
+
+/* rooms: each has required questions; cupboard/robe/vanity are the new cupboard-painting questions */
+const ROOMS=[
+ {id:"r1",n:"Living area",m:"4.0 × 4.0 m",surf:["Walls","Ceiling","Cornices","Skirting",{l:"Doors",q:2,per:95},{l:"Windows",q:2,per:85}],cup:null},
+ {id:"r2",n:"Kitchen / Meals",m:"5.2 × 3.5 m",surf:["Walls","Ceiling","Skirting",{l:"Windows",q:1,per:85}],
+  cup:{q:"Are we painting the kitchen cupboards?",unit:"doors & drawer fronts",def:14,per:85,
+   note:"Cupboards are spray-finished for a smooth, factory-style result — doors, drawer fronts and frames."}},
+ {id:"r3",n:"Bed 1",m:"3.5 × 3.25 m",surf:["Walls","Ceiling","Skirting",{l:"Doors",q:1,per:95},{l:"Windows",q:1,per:85}],
+  cup:{q:"Paint the built-in robe doors?",unit:"robe doors",def:2,per:140,note:""}},
+ {id:"r4",n:"Bed 2",m:"3.4 × 3.05 m",surf:["Walls","Ceiling","Skirting",{l:"Doors",q:1,per:95},{l:"Windows",q:1,per:85}],cup:null},
+ {id:"r5",n:"Bathroom",m:"2.0 × 1.5 m",surf:["Ceiling · wet-area",{l:"Doors",q:1,per:95}],
+  cup:{q:"Paint the vanity cupboard?",unit:"vanity doors",def:2,per:95,note:""}},
+ {id:"r6",n:"Hall & Entry",m:"5.7 × 2.6 m",surf:["Walls","Ceiling","Cornices","Skirting",{l:"Doors",q:3,per:95}],cup:null}
+];
+const state={}; ROOMS.forEach(r=>state[r.id]={size:null,cup:r.cup?null:"n/a",qty:r.cup?r.cup.def:0,done:false});
+ROOMS.forEach(r=>r.surf.forEach(x=>{if(typeof x!=="string"){x.on=true;if(x.l.startsWith("Window"))x.s="M"}}));
+const WF={S:.8,M:1,L:1.2};
+state.dw={ans:null,done:false};
+state.sweep={ans:null,done:false};
+
+function card(r){
+ const s=state[r.id];
+ return `<div class="rc" id="c-${r.id}">
+  <div class="hd" onclick="toggleOpen('${r.id}')">
+    <b>${r.n} <span style="font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:400" id="hm-${r.id}">· ${r.m}</span></b>
+    <span class="pill" id="pill-${r.id}">CONFIRM THIS ROOM</span>
+  </div>
+  <div class="body">
+    <div class="q" id="q-size-${r.id}">
+      <p class="ql">Is <span id="sz-${r.id}">${r.m}</span> about the size of this room? <span class="req">REQUIRED</span><span class="okc">✓</span></p>
+      <div class="chips">
+        <button class="chip" onclick="ans('${r.id}','size','yes',this)">Looks right</button>
+        <button class="chip" onclick="ans('${r.id}','size','adjust',this);openSize('${r.id}')">Adjust it</button>
+      </div>
+      <div class="sizeadj" id="sa-${r.id}">
+        <input id="sl-${r.id}" inputmode="decimal" value="${r.m.split(" × ")[0]}">
+        <span class="x">×</span>
+        <input id="sw-${r.id}" inputmode="decimal" value="${r.m.split(" × ")[1].replace(" m","")}">
+        <span class="unit">metres — pace it out, near enough is fine</span>
+        <button class="set" onclick="setSize('${r.id}')">Update size</button>
+      </div>
+    </div>
+    <div class="q">
+      <p class="ql">What we're painting here — tap to change</p>
+      <div class="tgrid" id="tg-${r.id}">${r.surf.map((x,i)=>typeof x==="string"
+        ?`<div class="tl on" onclick="this.classList.toggle('on');toast('Repriced — range updated.')">${x}</div>`
+        :`<div class="tl on" id="t-${r.id}-${i}" onclick="tileToggle('${r.id}',${i},this)">${x.l}
+            <span class="st" onclick="event.stopPropagation()">
+              <button onclick="tqty('${r.id}',${i},-1)">−</button><b id="tv-${r.id}-${i}">${x.q}</b><button onclick="tqty('${r.id}',${i},1)">+</button>
+            </span>
+            ${x.l.startsWith("Window")?`<span class="wseg" onclick="event.stopPropagation()"><i>Size</i>
+              <button id="ws-${r.id}-${i}-S" onclick="wsize('${r.id}',${i},'S')">S</button>
+              <button id="ws-${r.id}-${i}-M" class="on" onclick="wsize('${r.id}',${i},'M')">M</button>
+              <button id="ws-${r.id}-${i}-L" onclick="wsize('${r.id}',${i},'L')">L</button>
+            </span>`:""}
+          </div>`).join("")}</div>
+      <button class="addsurf" onclick="openAdd('${r.id}')">+ Add a surface</button>
+      <div class="addpanel" id="ap-${r.id}">
+        <p class="pl">EVERYTHING WE PAINT — TAP TO ADD</p>
+        <div class="chips" id="ac-${r.id}"></div>
+        <div class="custom">
+          <input placeholder="Something else? Name it — e.g. wall panelling" id="ci-${r.id}">
+          <button onclick="addCustom('${r.id}')">Add</button>
+        </div>
+      </div>
+    </div>
+    ${r.cup?`<div class="q" id="q-cup-${r.id}">
+      <p class="ql">${r.cup.q} <span class="req">REQUIRED</span><span class="okc">✓</span></p>
+      <div class="chips">
+        <button class="chip" onclick="cup('${r.id}',true,this)">Yes</button>
+        <button class="chip" onclick="cup('${r.id}',false,this)">No</button>
+      </div>
+      <div class="st" id="st-${r.id}"><button onclick="qty('${r.id}',-1)">−</button><b id="qv-${r.id}">${r.cup.def}</b><button onclick="qty('${r.id}',1)">+</button><span>${r.cup.unit}</span></div>
+      ${r.cup.note?`<p class="finish-note" id="fn-${r.id}">${r.cup.note}</p>`:""}
+    </div>`:""}
+    <button class="confirmbtn" id="cb-${r.id}" onclick="confirmRoom('${r.id}')">Confirm ${r.n} ✓</button>
+  </div>
+ </div>`;
+}
+$("#cards").innerHTML=ROOMS.map(card).join("")+`
+ <div class="rc" id="c-dw">
+  <div class="hd" onclick="toggleOpen('dw')">
+    <b>Quick check — doors &amp; windows</b>
+    <span class="pill" id="pill-dw">CONFIRM THIS</span>
+  </div>
+  <div class="body">
+    <div class="q" id="q-dw">
+      <p class="ql"><span id="dwtotals"></span> <span class="req">REQUIRED</span><span class="okc">✓</span></p>
+      <div class="chips">
+        <button class="chip" onclick="dwOk(this)">That's right ✓</button>
+        <button class="chip" onclick="dwFix(this)">Something's off — I'll adjust</button>
+      </div>
+      <p style="font-size:12.5px;color:var(--muted);margin-top:9px">Use the − / + on any room's door or window tile, then come back and tap "That's right".</p>
+    </div>
+    <button class="confirmbtn" id="cb-dw" onclick="confirmRoom('dw')">Confirm counts ✓</button>
+  </div>
+ </div>
+ <div class="rc sweep" id="c-sweep">
+  <div class="hd" onclick="toggleOpen('sweep')">
+    <b>Last check — anything we haven't listed?</b>
+    <span class="pill" id="pill-sweep">CONFIRM THIS</span>
+  </div>
+  <div class="body">
+    <div class="q" id="q-sweep">
+      <p class="ql">Hallways are the ones floorplans miss most — and they make the biggest difference to the price. Laundries, toilets and studies go missing too. <span class="req">REQUIRED</span><span class="okc">✓</span></p>
+      <div class="chips">
+        ${["Hallway","Laundry","Toilet","Study","Garage","Other room"].map(n=>`<button class="chip" onclick="addRoom('${n}',this)">+ ${n}</button>`).join("")}
+        <button class="chip" onclick="sweepDone(this)">No — that's everything ✓</button>
+      </div>
+    </div>
+    <button class="confirmbtn" id="cb-sweep" onclick="confirmRoom('sweep')">Confirm — nothing missing ✓</button>
+  </div>
+ </div>`;
+
+const CATALOG=[
+ {l:"Walls",v:520},{l:"Ceiling",v:320},{l:"Cornices",v:120},{l:"Skirting",v:160},
+ {l:"Doors",v:95},{l:"Windows",v:85},{l:"Architraves",v:110},{l:"Feature wall",v:150},
+ {l:"Robe doors",v:140},{l:"Picture rails",v:90},{l:"Exposed beams",v:180},
+ {l:"Fireplace & mantel",v:120},{l:"Wall panelling / VJ",v:190},{l:"Stair balustrade",v:260}];
+function roomHas(rid,label){
+ const r=ROOMS.find(r=>r.id===rid);
+ const inSurf=r.surf.some(x=>(typeof x==="string"?x:x.l).toLowerCase().startsWith(label.toLowerCase().slice(0,6)));
+ const inAdded=(state[rid].added||[]).some(a=>a.toLowerCase()===label.toLowerCase());
+ return inSurf||inAdded;}
+function openAdd(rid){
+ const p=$("#ap-"+rid);const showing=p.classList.toggle("show");if(!showing)return;
+ $("#ac-"+rid).innerHTML=CATALOG.filter(c=>!roomHas(rid,c.l))
+  .map((c)=>`<button class="chip" onclick="addSurf('${rid}','${c.l.replace(/'/g,"\\'")}',${c.v},this)">+ ${c.l}</button>`).join("")
+  ||'<span style="font-size:12.5px;color:var(--muted)">Everything on file is already in this room — name anything else below.</span>';}
+function addSurf(rid,label,v,chip){
+ state[rid].added=state[rid].added||[];state[rid].added.push(label);
+ $("#tg-"+rid).insertAdjacentHTML("beforeend",
+  `<div class="tl on" onclick="this.classList.toggle('on');toast('Repriced — range updated.')">${label}</div>`);
+ chip.remove();MID+=v;rng();
+ toast("Added "+label.toLowerCase()+" — about +"+fmt(v)+" to your range");}
+function addCustom(rid){
+ const inp=$("#ci-"+rid);const v=inp.value.trim();if(!v)return;
+ state[rid].added=state[rid].added||[];state[rid].added.push(v);
+ $("#tg-"+rid).insertAdjacentHTML("beforeend",`<div class="tl on custom">${v}</div>`);
+ inp.value="";
+ toast("Thanks — we've added “"+v+"”, and we'll confirm this area on the site visit.");}
+function openSize(rid){$("#sa-"+rid).classList.add("show");
+ setTimeout(()=>$("#sl-"+rid).focus(),50)}
+function setSize(rid){
+ const r=ROOMS.find(r=>r.id===rid);
+ let L=parseFloat($("#sl-"+rid).value),W=parseFloat($("#sw-"+rid).value);
+ if(isNaN(L)||isNaN(W)){toast("Just the two numbers — length and width in metres.");return}
+ L=Math.min(15,Math.max(1,L));W=Math.min(15,Math.max(1,W));
+ const oldA=parseFloat(r.m.split(" × ")[0])*parseFloat(r.m.split(" × ")[1]);
+ const newA=L*W;
+ r.m=L+" × "+W+" m";
+ $("#sz-"+rid).textContent=r.m;$("#hm-"+rid).textContent="· "+r.m+" · updated by you";
+ MID+=Math.round((newA-oldA)*38);rng();
+ $("#sa-"+rid).classList.remove("show");
+ $("#q-size-"+rid).classList.add("ok");state[rid].size="adjusted";
+ toast(r.n+" updated to "+r.m+" — repriced"+(newA>oldA?" up":" down")+" for the new size.");}
+function tileToggle(rid,i,el){
+ const it=ROOMS.find(r=>r.id===rid).surf[i];const on=el.classList.toggle("on");it.on=on;
+ const f=it.s?WF[it.s]:1;
+ MID+=(on?1:-1)*it.q*it.per*f;rng();updDW();
+ toast((on?"Added ":"Removed ")+it.l.toLowerCase()+" ×"+it.q+" — "+(on?"+":"−")+fmt(it.q*it.per*f));}
+function tqty(rid,i,d){
+ const it=ROOMS.find(r=>r.id===rid).surf[i];const el=$("#t-"+rid+"-"+i);
+ if(!el.classList.contains("on"))return;
+ const old=it.q;it.q=Math.max(1,Math.min(12,it.q+d));if(it.q===old)return;
+ $("#tv-"+rid+"-"+i).textContent=it.q;
+ const f=it.s?WF[it.s]:1;
+ MID+=(it.q-old)*it.per*f;rng();updDW();
+ toast(it.l+" ×"+it.q+" — "+(d>0?"+":"−")+fmt(it.per*f)+" to your range");}
+function wsize(rid,i,sz){
+ const it=ROOMS.find(r=>r.id===rid).surf[i];
+ if(!$("#t-"+rid+"-"+i).classList.contains("on")||it.s===sz)return;
+ const delta=it.q*it.per*(WF[sz]-WF[it.s]);
+ ["S","M","L"].forEach(k=>$("#ws-"+rid+"-"+i+"-"+k).classList.toggle("on",k===sz));
+ it.s=sz;MID+=delta;rng();
+ toast("Windows set to "+({S:"small",M:"medium",L:"large"})[sz]+" — "+(delta>=0?"+":"−")+fmt(Math.abs(delta)));}
+function updDW(){
+ let d=0,w=0;
+ ROOMS.forEach(r=>r.surf.forEach(x=>{if(typeof x!=="string"&&x.on){
+  if(x.l.startsWith("Door"))d+=x.q;if(x.l.startsWith("Window"))w+=x.q}}));
+ const el=$("#dwtotals");if(el)el.textContent="We make it "+d+" doors and "+w+" windows across the house — is that right?";}
+function dwOk(el){state.dw.ans="yes";el.parentElement.querySelectorAll(".chip").forEach(o=>o.classList.remove("on"));
+ el.classList.add("on");$("#q-dw").classList.add("ok")}
+function dwFix(el){state.dw.ans=null;el.parentElement.querySelectorAll(".chip").forEach(o=>o.classList.remove("on"));
+ el.classList.add("on");$("#q-dw").classList.remove("ok");
+ toast("Adjust the − / + on any door or window tile above, then come back and tap \"That's right\".")}
+function toggleOpen(id){$("#c-"+id).classList.toggle("open")}
+function openRoom(id){$$(".rc").forEach(c=>c.classList.remove("open"));const c=$("#c-"+id);c.classList.add("open");c.scrollIntoView({behavior:"smooth",block:"center"})}
+function ans(id,key,val,el){state[id][key]=val;el.parentElement.querySelectorAll(".chip").forEach(o=>o.classList.remove("on"));el.classList.add("on");
+ $("#q-"+key+"-"+id).classList.add("ok")}
+function cup(id,yes,el){state[id].cup=yes;el.parentElement.querySelectorAll(".chip").forEach(o=>o.classList.remove("on"));el.classList.add("on");
+ $("#q-cup-"+id).classList.add("ok");
+ const st=$("#st-"+id),fn=$("#fn-"+id);
+ if(yes){st.style.display="flex";if(fn)fn.classList.add("show");
+   const r=ROOMS.find(r=>r.id===id);MID+=state[id].qty*r.cup.per;rng();
+   toast("Added — about +"+fmt(state[id].qty*r.cup.per)+" to your range");}
+ else{st.style.display="none";if(fn)fn.classList.remove("show");}}
+function qty(id,d){const r=ROOMS.find(r=>r.id===id),s=state[id];const old=s.qty;
+ s.qty=Math.max(1,Math.min(40,s.qty+d));if(s.qty===old)return;
+ $("#qv-"+id).textContent=s.qty;
+ if(s.cup===true){MID+=(s.qty-old)*r.cup.per;rng();toast((s.qty>old?"+1 ":"−1 ")+r.cup.unit+" — range updated")}}
+function addRoom(n,el){el.classList.add("on");el.textContent="✓ "+n+" added";el.onclick=null;
+ MID+=n==="Hallway"?890:n==="Garage"?1400:n==="Laundry"?540:n==="Toilet"?260:850;rng();
+ toast(n+" added and priced in — it appears above as a new orange room to confirm.")}
+function sweepDone(el){state.sweep.ans="none";el.parentElement.querySelectorAll(".chip").forEach(o=>o.classList.remove("on"));el.classList.add("on");
+ $("#q-sweep").classList.add("ok")}
+
+function confirmRoom(id){
+ const s=state[id];
+ const missing=(id==="sweep"||id==="dw")?(s.ans===null):(s.size===null||(s.cup===null));
+ if(missing){const c=$("#c-"+id);c.classList.add("shake");setTimeout(()=>c.classList.remove("shake"),350);
+  toast("One question above still needs an answer — it's marked REQUIRED.");return}
+ s.done=true;
+ const c=$("#c-"+id);c.classList.add("done");c.classList.remove("open");
+ $("#pill-"+id).textContent="CONFIRMED ✓";
+ $("#cb-"+id).textContent="Confirmed ✓";
+ const shape=$("#p-"+id);if(shape){shape.classList.remove("todo");shape.classList.add("done")}
+ refresh();
+ const next=[...ROOMS.map(r=>r.id),"dw","sweep"].find(x=>!state[x].done);
+ if(next){openRoom(next)}
+}
+function refresh(){
+ const all=[...ROOMS.map(r=>r.id),"dw","sweep"];
+ const done=all.filter(x=>state[x].done).length;
+ $("#progLbl").textContent=done+" OF "+all.length+" CONFIRMED";
+ $("#pfill").style.width=(done/all.length*100)+"%";
+ if(done===all.length){
+  $("#pbar").classList.add("ok");
+  const ts=$("#topStatus");ts.classList.add("ok");ts.textContent="ESTIMATE CONFIRMED ✓";
+  const cta=$("#cta");cta.disabled=false;cta.textContent="Accept estimate";
+  toast("Everything's blue — your estimate is confirmed. Nice work.");
+ }
+}
+rng();refresh();updDW();
+</script>
+</body>
+</html>
