@@ -13,8 +13,11 @@ import { coatsFor, windowStyleToSchema, type WizardState, type WizardSurfaceKey 
  *   - Page 3's tier sets COATS (1 / 2 / 3 on the dark-to-light surfaces).
  *   - Page 4's "mostly" door/window styles RESOLVE the reader's deferred
  *     openings into priced lines — a floorplan cannot show a door style, but
- *     the person who lives there can. "Not sure" leaves them deferred
- *     (Tom's rule: a guessed style is a wrong rate on every door).
+ *     the person who lives there can. "Not sure" prices at the DEFAULT rate
+ *     (flat door / casement window), tagged ai_assumed with the question kept
+ *     open — R1.2's rule: nothing the customer told us exists contributes $0
+ *     silently. ("No guessing" governs rates presented as settled, not
+ *     whether the door exists.)
  *   - Ticking Cornices is the user saying the house HAS cornices, which is
  *     exactly the confirmation scope.ts says only a photo (or a human) can
  *     give. Unticking drops the question entirely.
@@ -75,8 +78,16 @@ export function applyWizardAnswers(
   const skipped = [...draft.skipped];
   let deferred = [...draft.deferred];
 
-  const doorCode = state.details.doorStyle === "unsure" ? null : doorRateCode(state.details.doorStyle);
-  const windowCode = windowRateCode(windowStyleToSchema(state.details.windowStyle));
+  // R1.2: an unsure style still PRICES, at the default rate (flat door /
+  // casement window), tagged ai_assumed with an amber "style to confirm"
+  // trace. A scope element the customer told us exists must never contribute
+  // $0 silently — "no guessing" governs the RATE presented as settled, not
+  // whether the door is on the estimate at all.
+  const doorAnswered = state.details.doorStyle !== "unsure";
+  const doorCode = doorRateCode(state.details.doorStyle) ?? "Flat Door and Frame (1 Side)";
+  const answeredWindowCode = windowRateCode(windowStyleToSchema(state.details.windowStyle));
+  const windowAnswered = answeredWindowCode != null;
+  const windowCode = answeredWindowCode ?? "Awning / Casement Window";
 
   for (const area of draft.areas) {
     const kept = area.surfaces.filter((s) => {
@@ -97,16 +108,34 @@ export function applyWizardAnswers(
         deferred = deferred.filter((x) => x !== d); // not being painted — question closed
         continue;
       }
-      if (kind === "doors" && doorCode) {
+      if (kind === "doors") {
         kept.push(makeDraftSurface(
           nextId(), doorCode,
           doorCode.startsWith("Flat") ? "Flat door & frame" : "Panel door & frame",
-          d.count, "ai_derived", 0.75, ["style"],
+          d.count,
+          doorAnswered ? "ai_derived" : "ai_assumed",
+          doorAnswered ? 0.75 : 0.6,
+          ["style"],
         ));
-        deferred = deferred.filter((x) => x !== d);
-      } else if (kind === "windows" && windowCode) {
-        kept.push(makeDraftSurface(nextId(), windowCode, windowCode, d.count, "ai_derived", 0.75, ["style"]));
-        deferred = deferred.filter((x) => x !== d);
+        // Answered = question closed. Unsure = priced provisionally, and the
+        // open question stays visible (review gate + accuracy both see it).
+        deferred = doorAnswered
+          ? deferred.filter((x) => x !== d)
+          : deferred.map((x) => (x === d
+              ? { ...x, what: "door style to confirm", needs: "priced at the standard flat-door rate — confirm the style before send" }
+              : x));
+      } else if (kind === "windows") {
+        kept.push(makeDraftSurface(
+          nextId(), windowCode, windowCode, d.count,
+          windowAnswered ? "ai_derived" : "ai_assumed",
+          windowAnswered ? 0.75 : 0.6,
+          ["style"],
+        ));
+        deferred = windowAnswered
+          ? deferred.filter((x) => x !== d)
+          : deferred.map((x) => (x === d
+              ? { ...x, what: "window style to confirm", needs: "priced at the standard casement rate — confirm the style before send" }
+              : x));
       } else if (kind === "cornices") {
         // Ticked cornices = the user says the house has them.
         kept.push(makeDraftSurface(nextId(), "Standard Cornices", "Cornices", 1, "ai_derived", 0.8, []));

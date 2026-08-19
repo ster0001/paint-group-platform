@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { credentials, missingCreds, signIn } from "../helpers";
+import { MONEY_RANGE, driveNoPlanWizard } from "./drive";
 
 /**
  * R1.1 — the response contract (diagnostic #1 and #6).
@@ -15,47 +16,6 @@ import { credentials, missingCreds, signIn } from "../helpers";
  * keeps the range rendered → toggled tile actually disappears → removed room
  * actually disappears.
  */
-
-const MONEY_RANGE = /\$[\d,]+\s*–\s*\$[\d,]+/;
-
-/** Drive the no-plan customer wizard from /estimate to the result screen. */
-async function driveNoPlanWizard(page: Page) {
-  await page.goto("/estimate");
-  await page.getByRole("button", { name: /There isn't a floorplan to hand/ }).click();
-  await expect(page.getByText(/thirty seconds of basics/i)).toBeVisible();
-
-  await page.getByPlaceholder("Suburb").fill("Murrumbeena");
-  await page.getByPlaceholder("Postcode").fill("3163");
-  const answer = async (heading: string | RegExp, label: string) => {
-    const row = page
-      .locator(".wz-qhead", { hasText: heading })
-      .locator("xpath=following-sibling::div[1]")
-      .getByRole("button", { name: label, exact: true });
-    if (await row.count()) await row.first().click();
-  };
-  await answer("Heritage listed", "No");
-  await answer("What kind of property", "House");
-
-  const next = async () => {
-    await page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ }).first().click();
-    // A gate error means the drive is wrong — surface it instead of timing out.
-    const err = page.locator(".wz-err");
-    if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
-  };
-  await next(); // → surfaces
-  await next(); // → condition
-  await next(); // → details
-  await answer(/built before 1970/, "No");
-  await next(); // → paint
-  await next(); // → email gate
-  const email = page.locator("input[type=email]");
-  if (await email.count()) await email.fill(`e2e-contract-${Date.now()}@example.com`);
-  await page.getByRole("button", { name: "See my estimate" }).click();
-
-  // Processing → result. The no-plan path prices from typicals, so this is
-  // seconds, not the minute a plan extraction takes.
-  await expect(page.locator(".wz-r")).toBeVisible({ timeout: 90_000 });
-}
 
 async function assertContractHolds(page: Page) {
   // Result screen: the range is a real range, immediately.

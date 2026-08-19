@@ -170,6 +170,8 @@
 .wz .sc-st { display: flex; align-items: center; gap: 9px; margin-top: 7px; }
 .wz .sc-st button { width: 24px; height: 24px; border-radius: 7px; border: 1px solid var(--line); background: none; color: var(--text); font-size: 13px; cursor: pointer; line-height: 1; }
 .wz .sc-st b { font-family: var(--wz-mono); font-size: 12px; min-width: 16px; text-align: center; }
+/* R1.2: unsure style priced at the default rate — the amber on-screen trace */
+.wz .sc-styleconfirm { display: inline-block; margin-top: 7px; font-family: var(--wz-mono); font-size: 8px; letter-spacing: .1em; text-transform: uppercase; color: var(--amber); border: 1px dashed rgba(224,168,60,.55); border-radius: 100px; padding: 3px 9px; }
 .wz .sc-more { margin-top: 10px; background: none; border: none; color: var(--cyan); font-family: var(--wz-sans); font-size: 13px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 .wz .sc-advice { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 11px; border: 1px solid rgba(224,168,60,.5); border-left-width: 2.5px; background: rgba(224,168,60,.05); border-radius: 0 10px 10px 0; padding: 11px 13px; font-size: 13px; }
 .wz .sc-advice button { font-family: var(--wz-sans); font-size: 12.5px; padding: 6px 12px; border-radius: 100px; border: 1px solid var(--line); background: none; color: var(--text); cursor: pointer; }

@@ -24,6 +24,9 @@ export type CustomerTile = {
   countable: boolean;
   /** Offered under "More surfaces…" rather than the main grid. */
   longTail: boolean;
+  /** R1.2: priced at the default rate because the style is unanswered —
+   * renders as an amber "style to confirm" trace, never a silent $0. */
+  styleToConfirm?: boolean;
 };
 
 export type CustomerScopeRoom = {
@@ -63,11 +66,18 @@ export function customerRoomView(block: LooseBlock, rules: ScopeRule[]): Custome
   const stateFor = (key: string) => {
     let on = false;
     let count = 0;
+    let styleToConfirm = false;
     for (const s of surfaces) {
       const k = substrateKeyForRateCode(String(s.code ?? ""));
-      if (k === key) { on = true; count += Number(s.count) || 1; }
+      if (k === key) {
+        on = true;
+        count += Number(s.count) || 1;
+        // ai_assumed + assumed style = priced at the default rate (R1.2).
+        const assumed = Array.isArray(s.assumedFields) ? (s.assumedFields as string[]) : [];
+        if (s.origin === "ai_assumed" && assumed.includes("style")) styleToConfirm = true;
+      }
     }
-    return { on, count: Math.max(1, count) };
+    return { on, count: Math.max(1, count), styleToConfirm };
   };
 
   const seen = new Set<string>();
@@ -86,6 +96,7 @@ export function customerRoomView(block: LooseBlock, rules: ScopeRule[]): Custome
         : rule.surface_type,
       on: st.on,
       ...(countable ? { count: st.count } : {}),
+      ...(st.styleToConfirm ? { styleToConfirm: true } : {}),
       countable,
       // A rule marked optional (is_option) — or currently off — is long-tail
       // only when the wizard didn't put it on the job.
