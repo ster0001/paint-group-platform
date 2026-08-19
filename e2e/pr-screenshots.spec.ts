@@ -5,7 +5,7 @@ import { MONEY_RANGE, driveNoPlanWizard, openScopeEditor } from "./customer-jour
  * PR screenshot capture — not a test of behaviour (the journey suite owns
  * that); drives each editor to a photogenic state and saves full-page shots
  * to test-results/pr-shots/ for the PR description. Run on demand:
- *   npx playwright test e2e/screenshots.setup.ts
+ *   npx playwright test e2e/pr-screenshots.spec.ts
  */
 
 const shot = (page: import("@playwright/test").Page, name: string) =>
