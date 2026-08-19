@@ -140,7 +140,8 @@ async function deliver(
           intro: v.email.message,
           link,
           companyName: company.name,
-          logoUrl: company.logoUrl || undefined,
+          // Email sits on a white card — prefer the light-background logo.
+          logoUrl: company.logoUrlLight || company.logoUrl || undefined,
           estimatorName: company.estimatorName || undefined,
           estimatorTitle: company.estimatorTitle || undefined,
           estimatorPhone: company.estimatorPhone || undefined,

@@ -56,6 +56,10 @@ export default async function SettingsPage() {
   const lineItems = (lineItemsRes.data as LineItemRow[] | null) ?? [];
   const areas = areasRes.data ?? [];
   const products = productsRes.data ?? [];
+  // Paint names for the substrate "Default paint" dropdown.
+  const productNames = [...new Set(
+    (products as Array<{ name?: string | null }>).map((p) => (p.name ?? "").trim()).filter(Boolean),
+  )].sort();
   const colours = (coloursRes.data as ColourRow[] | null) ?? [];
   const presentations = (presentationsRes.data as PresentationRow[] | null) ?? [];
   const usage: Record<string, number> = {};
@@ -142,6 +146,7 @@ export default async function SettingsPage() {
           <EditableTable
             table="rate_items"
             rows={rateItems}
+            sectionKey="sub_category"
             blank={{ code: "", category: "Interior", sub_category: "", unit: "M2", rate_card_id: cardId }}
             columns={[
               { key: "code", label: "Substrate" },
@@ -153,7 +158,8 @@ export default async function SettingsPage() {
               { key: "rate_3_coat", label: "3-coat", type: "number", width: "6rem" },
               { key: "default_coats", label: "Def. coats", type: "number", width: "6rem" },
               { key: "charge_out_cents", label: "Charge-out $/hr", type: "money", width: "8rem" },
-              { key: "default_product", label: "Default product" },
+              // The paint field lists the products on file rather than free text.
+              { key: "default_product", label: "Default paint", type: "select", options: productNames },
             ]}
             addLabel="+ Add substrate"
           />

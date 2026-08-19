@@ -557,9 +557,9 @@ function PrintQuote({
     <div className="printdoc">
       <div className="pd-head">
         <div className="pd-co">
-          {c.logoUrl
+          {(c.logoUrlLight || c.logoUrl)
             // eslint-disable-next-line @next/next/no-img-element
-            ? <img className="pd-logo" src={c.logoUrl} alt={c.name} />
+            ? <img className="pd-logo" src={c.logoUrlLight || c.logoUrl} alt={c.name} />
             : <div className="pd-coname">{c.name}</div>}
           <div className="pd-cometa">
             {c.addressLine1}{c.addressLine2 ? `, ${c.addressLine2}` : ""}<br />

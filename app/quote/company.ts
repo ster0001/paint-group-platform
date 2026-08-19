@@ -5,6 +5,8 @@ export type CompanyProfile = {
   phone: string;
   abn: string;
   logoUrl: string;
+  /** A logo for LIGHT backgrounds (email, quote PDF). Falls back to logoUrl. */
+  logoUrlLight: string;
   estimatorName: string;
   estimatorTitle: string;
   estimatorPhone: string;
@@ -35,6 +37,7 @@ export const DEFAULT_COMPANY: CompanyProfile = {
   phone: "03 8840 9414",
   abn: "41 639 780 108",
   logoUrl: "",
+  logoUrlLight: "",
   estimatorName: "Tom Roman",
   estimatorTitle: "Director",
   estimatorPhone: "0422 453 136",

@@ -57,6 +57,8 @@ export type CustomerSnapshot = {
     estimatorTitle: string;
     estimatorPhone: string;
     logoUrl: string;
+    /** Light-background logo for the printable/PDF doc; falls back to logoUrl. */
+    logoUrlLight?: string;
   };
   estRef: string; // short EST reference
   contactName: string;

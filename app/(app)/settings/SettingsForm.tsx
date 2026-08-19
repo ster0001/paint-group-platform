@@ -14,7 +14,7 @@ export default function SettingsForm({ initial }: { initial: CompanyProfile }) {
 
   // Upload a logo to the shared public estimate-media bucket and store its URL.
   // Remember to click Save to keep it — like every other field here.
-  async function uploadLogo(file?: File | null) {
+  async function uploadLogo(file: File | null | undefined, which: "logoUrl" | "logoUrlLight" = "logoUrl") {
     if (!file) return;
     const bad = checkUpload(file, "image");
     if (bad) { setMsg(bad); return; }
@@ -27,7 +27,7 @@ export default function SettingsForm({ initial }: { initial: CompanyProfile }) {
       const { error } = await supabase.storage.from("estimate-media").upload(path, file, { upsert: true });
       if (error) throw error;
       const { data } = supabase.storage.from("estimate-media").getPublicUrl(path);
-      set("logoUrl", data.publicUrl);
+      set(which, data.publicUrl);
       setMsg("Logo uploaded — click Save to keep it.");
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Upload failed");
@@ -78,12 +78,35 @@ export default function SettingsForm({ initial }: { initial: CompanyProfile }) {
           <div className="flex flex-col gap-1.5">
             <label className="inline-flex w-fit cursor-pointer items-center rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium hover:bg-gray-50">
               {uploading ? "Uploading…" : c.logoUrl ? "Replace logo" : "Upload logo"}
-              <input type="file" accept={acceptAttr("image")} className="hidden" onChange={(e) => uploadLogo(e.target.files?.[0])} />
+              <input type="file" accept={acceptAttr("image")} className="hidden" onChange={(e) => uploadLogo(e.target.files?.[0], "logoUrl")} />
             </label>
             {c.logoUrl && (
               <button onClick={() => set("logoUrl", "")} className="w-fit text-xs text-gray-400 hover:text-red-600">Remove</button>
             )}
             <span className="text-[11px] text-gray-400">PNG with transparent background works best. Shown on a dark header.</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Secondary logo — for LIGHT backgrounds: email and the quote PDF. */}
+      <div className="mt-3">
+        <span className="text-xs text-gray-500">Logo for light backgrounds</span>
+        <div className="mt-1 flex items-center gap-3 rounded-md border border-gray-200 p-3">
+          <div className="flex h-14 w-40 shrink-0 items-center justify-center overflow-hidden rounded border border-gray-200 bg-white">
+            {c.logoUrlLight
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={c.logoUrlLight} alt="Light-background logo" className="max-h-12 max-w-full object-contain" />
+              : <span className="text-[10px] tracking-widest text-gray-300">FALLS BACK TO MAIN</span>}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="inline-flex w-fit cursor-pointer items-center rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium hover:bg-gray-50">
+              {uploading ? "Uploading…" : c.logoUrlLight ? "Replace" : "Upload light logo"}
+              <input type="file" accept={acceptAttr("image")} className="hidden" onChange={(e) => uploadLogo(e.target.files?.[0], "logoUrlLight")} />
+            </label>
+            {c.logoUrlLight && (
+              <button onClick={() => set("logoUrlLight", "")} className="w-fit text-xs text-gray-400 hover:text-red-600">Remove</button>
+            )}
+            <span className="text-[11px] text-gray-400">Used on emails and the quote PDF (white background). If empty, the main logo is used.</span>
           </div>
         </div>
       </div>

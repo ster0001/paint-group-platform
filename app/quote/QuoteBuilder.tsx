@@ -908,7 +908,7 @@ export default function QuoteBuilder({
       company: {
         name: company.name, addressLine1: company.addressLine1, addressLine2: company.addressLine2, phone: company.phone,
         abn: company.abn, email: company.email, estimatorName: company.estimatorName, estimatorTitle: company.estimatorTitle,
-        estimatorPhone: company.estimatorPhone, logoUrl: company.logoUrl,
+        estimatorPhone: company.estimatorPhone, logoUrl: company.logoUrl, logoUrlLight: company.logoUrlLight,
       },
       estRef: token.slice(0, 8).toUpperCase(),
       contactName: contact ? [contact.first_name, contact.last_name].filter(Boolean).join(" ") || contact.company || "" : "",

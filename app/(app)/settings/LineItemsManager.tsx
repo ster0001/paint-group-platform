@@ -21,39 +21,52 @@ let tmpId = -1;
 export default function LineItemsManager({ initial }: { initial: LineItemRow[] }) {
   const [rows, setRows] = useState<LineItemRow[]>(initial);
   const [openId, setOpenId] = useState<string | number | null>(null);
-  const [busy, setBusy] = useState<string | number | null>(null);
-  const [msg, setMsg] = useState<Record<string | number, string>>({});
+  const [dirty, setDirty] = useState<Set<string | number>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [rowErr, setRowErr] = useState<Record<string | number, string>>({});
 
   const rid = (r: LineItemRow) => (r.id ?? r.__localId) as string | number;
-  const set = (r: LineItemRow, patch: Partial<LineItemRow>) =>
+  const set = (r: LineItemRow, patch: Partial<LineItemRow>) => {
     setRows((rs) => rs.map((x) => (rid(x) === rid(r) ? { ...x, ...patch } : x)));
-  const add = () =>
-    setRows((rs) => [...rs, { name: "", type: "Interior", pricing_method: "Hourly", description: "", __localId: tmpId--, __new: true }]);
+    setDirty((d) => new Set(d).add(rid(r)));
+  };
+  const add = () => {
+    const r: LineItemRow = { name: "", type: "Interior", pricing_method: "Hourly", description: "", __localId: tmpId--, __new: true };
+    setRows((rs) => [...rs, r]);
+    setDirty((d) => new Set(d).add(rid(r)));
+  };
 
-  async function save(r: LineItemRow) {
-    if (!r.name.trim()) { setMsg((m) => ({ ...m, [rid(r)]: "Name required" })); return; }
-    setBusy(rid(r));
-    setMsg((m) => ({ ...m, [rid(r)]: "" }));
+  // One save for the whole section (feature #8b): writes every new/edited item.
+  async function saveAll() {
+    const toSave = rows.filter((r) => dirty.has(rid(r)));
+    if (toSave.length === 0) { setMsg("Nothing to save."); return; }
+    const blank = toSave.find((r) => !r.name.trim());
+    if (blank) { setRowErr({ [rid(blank)]: "Name required" }); setMsg("Every line item needs a name."); return; }
+    setBusy(true); setMsg(""); setRowErr({});
     const supabase = createClient();
-    const body = { name: r.name.trim(), type: r.type, pricing_method: r.pricing_method, description: r.description ?? "" };
-    try {
-      let key = rid(r);
-      if (r.__new) {
-        const { data, error } = await supabase.from("line_items").insert(body).select().single();
-        if (error) throw error;
-        const nrow = data as LineItemRow;
-        setRows((rs) => rs.map((x) => (rid(x) === rid(r) ? nrow : x)));
-        key = rid(nrow);
-      } else {
-        const { error } = await supabase.from("line_items").update(body).eq("id", r.id!);
-        if (error) throw error;
+    let saved = 0; const failures: Record<string | number, string> = {};
+    for (const r of toSave) {
+      const body = { name: r.name.trim(), type: r.type, pricing_method: r.pricing_method, description: r.description ?? "" };
+      try {
+        if (r.__new) {
+          const { data, error } = await supabase.from("line_items").insert(body).select().single();
+          if (error) throw error;
+          setRows((rs) => rs.map((x) => (rid(x) === rid(r) ? (data as LineItemRow) : x)));
+        } else {
+          const { error } = await supabase.from("line_items").update(body).eq("id", r.id!);
+          if (error) throw error;
+        }
+        saved++;
+      } catch (e) {
+        failures[rid(r)] = e instanceof Error ? e.message : "Save failed";
       }
-      setMsg((m) => ({ ...m, [key]: "Saved ✓" }));
-    } catch (e) {
-      setMsg((m) => ({ ...m, [rid(r)]: e instanceof Error ? e.message : "Save failed" }));
-    } finally {
-      setBusy(null);
     }
+    setBusy(false);
+    setRowErr(failures);
+    setDirty(new Set(Object.keys(failures).map((k) => (Number.isNaN(Number(k)) ? k : Number(k)))));
+    const failCount = Object.keys(failures).length;
+    setMsg(failCount ? `Saved ${saved}, ${failCount} failed.` : `Saved ${saved} ✓`);
   }
 
   async function del(r: LineItemRow) {
@@ -61,7 +74,7 @@ export default function LineItemsManager({ initial }: { initial: LineItemRow[] }
     if (!confirm(`Delete "${r.name}"? This cannot be undone.`)) return;
     const supabase = createClient();
     const { error } = await supabase.from("line_items").delete().eq("id", r.id!);
-    if (error) { setMsg((m) => ({ ...m, [rid(r)]: error.message })); return; }
+    if (error) { setRowErr((m) => ({ ...m, [rid(r)]: error.message })); return; }
     setRows((rs) => rs.filter((x) => rid(x) !== rid(r)));
   }
 
@@ -72,7 +85,7 @@ export default function LineItemsManager({ initial }: { initial: LineItemRow[] }
       {rows.map((r) => {
         const open = openId === rid(r);
         return (
-          <div key={rid(r)} className="py-2">
+          <div key={rid(r)} className={`py-2 ${rowErr[rid(r)] ? "bg-red-50" : dirty.has(rid(r)) ? "bg-amber-50" : ""}`}>
             <div className="flex flex-wrap items-center gap-2">
               <input className={`${inp} min-w-[12rem] flex-1`} placeholder="Line item name" value={r.name} onChange={(e) => set(r, { name: e.target.value })} />
               <select className={inp} value={r.type ?? ""} onChange={(e) => set(r, { type: e.target.value })}>
@@ -84,23 +97,23 @@ export default function LineItemsManager({ initial }: { initial: LineItemRow[] }
               <button onClick={() => setOpenId(open ? null : rid(r))} className="rounded-md border border-gray-300 px-2 py-1.5 text-xs font-medium hover:bg-gray-50">
                 {open ? "▾ Description" : "▸ Description"}
               </button>
-              <button onClick={() => save(r)} disabled={busy === rid(r)} className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700 disabled:opacity-50">
-                {busy === rid(r) ? "Saving…" : "Save"}
-              </button>
               <button onClick={() => del(r)} className="px-1 text-gray-400 hover:text-red-600" title="Delete">×</button>
-              {msg[rid(r)] && <span className={`text-xs ${msg[rid(r)].startsWith("Saved") ? "text-green-600" : "text-red-600"}`}>{msg[rid(r)]}</span>}
+              {rowErr[rid(r)] && <span className="text-xs text-red-600">{rowErr[rid(r)]}</span>}
             </div>
             {open && (
               <div className="mt-2">
                 <RichTextEditor value={r.description ?? ""} onChange={(html) => set(r, { description: html })} placeholder="Description shown to the customer…" />
-                <p className="mt-1 text-[11px] text-gray-400">Remember to Save after editing the description.</p>
               </div>
             )}
           </div>
         );
       })}
-      <div className="pt-3">
+      <div className="flex items-center gap-3 pt-3">
         <button onClick={add} className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium hover:bg-gray-50">+ Add line item</button>
+        <button onClick={saveAll} disabled={busy || dirty.size === 0} className="rounded-md bg-gray-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50">
+          {busy ? "Saving…" : dirty.size > 0 ? `Save changes (${dirty.size})` : "Save changes"}
+        </button>
+        {msg && <span className={`text-xs ${msg.includes("failed") || msg.includes("needs") ? "text-red-600" : "text-green-600"}`}>{msg}</span>}
       </div>
     </div>
   );
