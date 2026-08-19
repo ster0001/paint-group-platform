@@ -212,6 +212,10 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                           <button aria-label="more" onClick={() => step(room, t, 1)}>+</button>
                         </span>
                       )}
+                      {t.on && t.styleToConfirm && (
+                        // R1.2: priced at the default rate — visible, never $0.
+                        <span className="sc-styleconfirm">style to confirm</span>
+                      )}
                     </div>
                   ))}
                 </div>

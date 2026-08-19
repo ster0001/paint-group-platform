@@ -78,9 +78,25 @@ describe("applyWizardAnswers", () => {
     expect(out.deferred.some((d) => /door/.test(d.what))).toBe(false);
   });
 
-  it("an unsure style leaves the deferral alone — never guessed", () => {
-    const out = applyWizardAnswers(draft(), state(), nextId);
-    expect(out.deferred.some((d) => /door/.test(d.what))).toBe(true);
+  it("an unsure style still PRICES at the default rate — question kept open (R1.2)", () => {
+    // Windows aren't in the page-2 defaults, so tick them for this check.
+    const out = applyWizardAnswers(
+      draft(),
+      state({ surfaces: ["walls", "ceilings", "cornices", "doors", "architraves", "skirting", "windows"] }),
+      nextId,
+    );
+    const bed = out.areas.find((a) => a.name === "Bed 1");
+    // The door and window EXIST on the estimate — never a silent $0.
+    const door = bed?.surfaces.find((x) => x.code === "Flat Door and Frame (1 Side)");
+    expect(door?.count).toBe(1);
+    expect(door?.origin).toBe("ai_assumed");
+    expect(door?.assumedFields).toContain("style");
+    const win = bed?.surfaces.find((x) => x.code === "Awning / Casement Window");
+    expect(win?.origin).toBe("ai_assumed");
+    // And the open question survives, reworded as a confirm — visible to the
+    // review gate and the accuracy score alike.
+    expect(out.deferred.some((d) => d.what === "door style to confirm")).toBe(true);
+    expect(out.deferred.some((d) => d.what === "window style to confirm")).toBe(true);
   });
 
   it("two rooms sharing a name each keep their own deferred doors", () => {
