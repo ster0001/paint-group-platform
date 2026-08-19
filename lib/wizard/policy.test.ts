@@ -141,3 +141,21 @@ describe("guardrails — floor and walkthrough policy", () => {
     expect(d.reasons).toContain("site_check_required");
   });
 });
+
+// ---- audit-fix pins (19 Aug) ------------------------------------------------
+import { GUARDRAIL_MESSAGES as MSGS } from "./policy";
+
+it("a zero total is 'nothing priced' -> handoff, never below_floor", () => {
+  const d = evaluateGuardrails(clean(), 0, 90, false);
+  expect(d.outcome).toBe("handoff");
+  expect(d.reasons).toContain("nothing_priced");
+  expect(MSGS[d.outcome]).toBeTruthy();
+});
+
+it("a null postcode (internal mode) skips the service-area check; an empty customer one does not", () => {
+  const configured = ["3000"];
+  const internal = evaluateGuardrails({ ...clean(), postcode: null }, 500_000, 90, false, undefined, configured);
+  expect(internal.outcome).toBe("reveal");
+  const customerBlank = evaluateGuardrails({ ...clean(), postcode: "" }, 500_000, 90, false, undefined, configured);
+  expect(customerBlank.outcome).toBe("outside_area");
+});

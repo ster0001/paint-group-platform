@@ -102,8 +102,11 @@ export function reviewGate(
       code = CHEAPEST_WINDOW.find((c) => idx.get(`Interior::${c}`)) ?? null;
     } else if (/cornice/i.test(d.what)) code = "Standard Cornices";
     const item = code ? idx.get(`Interior::${code}`) : undefined;
-    let impact = 0;
-    let basis = "no matching rate item - impact unknown";
+    // A deferral the gate cannot price (wizard kinds: damage, staircase,
+    // envelope, oil-to-water...) is UNBOUNDED uncertainty - it must trip the
+    // gate by itself, never slip past it at $0.
+    let impact = REVIEW_GATE_CENTS;
+    let basis = "unpriceable - requires review before sending";
     if (item) {
       if (item.unit === "Hours Per Item") {
         impact = Math.round(hoursPerUnit(item, 2) * d.count * charge("Interior"));

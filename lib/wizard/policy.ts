@@ -118,7 +118,10 @@ export function answersFromState(s: {
     builtPre1970: s.customer?.builtPre1970 ?? "no",
     asbestosSuspected: s.customer?.asbestosSuspected ?? "no",
     damageTier: s.details.damageTier,
-    postcode: s.customer?.postcode ?? "",
+    // null = postcode was never collected (internal previews have no customer
+    // block) - the service-area check does not apply. "" = a customer left it
+    // blank, which the check treats as outside.
+    postcode: s.customer ? s.customer.postcode : null,
   };
 }
 
@@ -130,7 +133,17 @@ export type GuardrailAnswers = {
   builtPre1970: "yes" | "no" | "unsure";
   asbestosSuspected: "yes" | "no" | "unsure";
   damageTier: number;
-  postcode: string;
+  /** null = not collected (internal mode) - the area check is skipped. */
+  postcode: string | null;
+};
+
+/** The customer-facing wording for each blocking outcome - shared by submit
+ * and the edit route so an outcome reads the same wherever it is decided. */
+export const GUARDRAIL_MESSAGES: Record<string, string> = {
+  hard_stop: "Homes of this age and condition need a lead-safe or asbestos assessment before any painting is priced. We'll be in touch to arrange it — there's no obligation.",
+  handoff: "This one needs a person rather than a calculator — we'll look at what you've sent and come back to you within one business day.",
+  outside_area: "It looks like you're outside the area we currently service — we've kept your details and will let you know if that changes.",
+  below_floor: "Smaller jobs are quoted from our minimum call-out. We'll confirm the exact price with you directly.",
 };
 
 export type GuardrailOutcome =
@@ -168,10 +181,14 @@ export function evaluateGuardrails(
 
   // ---- 2. service area ------------------------------------------------------
   // An empty list means the area check is not configured yet — allow, so the
-  // internal proving window is never blocked by an unconfigured setting.
-  const pc = a.postcode.trim();
-  if (serviceAreaPostcodes.length > 0 && (!pc || !serviceAreaPostcodes.includes(pc))) {
-    return { outcome: "outside_area", reasons: ["outside_service_area"], walkthroughRequired: true, canAccept: false };
+  // internal proving window is never blocked by an unconfigured setting. A
+  // null postcode means it was never collected (internal mode) — the check
+  // does not apply; only a customer-entered postcode is judged.
+  if (a.postcode !== null) {
+    const pc = a.postcode.trim();
+    if (serviceAreaPostcodes.length > 0 && (!pc || !serviceAreaPostcodes.includes(pc))) {
+      return { outcome: "outside_area", reasons: ["outside_service_area"], walkthroughRequired: true, canAccept: false };
+    }
   }
 
   // ---- 3. human handoffs ----------------------------------------------------
@@ -188,6 +205,12 @@ export function evaluateGuardrails(
   }
 
   // ---- 4. minimum job -------------------------------------------------------
+  // A zero total is NOT a small job - it means nothing could be measured
+  // (e.g. an exterior whose photos couldn't be read). That needs a person,
+  // never the minimum-call-out message.
+  if (totalCents != null && totalCents <= 0) {
+    return { outcome: "handoff", reasons: ["nothing_priced"], walkthroughRequired: true, canAccept: false };
+  }
   if (totalCents != null && totalCents < policy.minJobCents) {
     return { outcome: "below_floor", reasons: ["below_minimum"], walkthroughRequired: false, canAccept: false };
   }

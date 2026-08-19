@@ -17,7 +17,7 @@ import { ceilingHeightFrom, wizardStateSchema } from "@/lib/wizard/state";
 import { markStarterProvenance, starterExtraction, starterRoomList, type TypicalSizeRow } from "@/lib/wizard/starter";
 import { customerPayload, editorPayload } from "@/lib/wizard/view";
 import {
-  answersFromState, bandsFromSettings, evaluateGuardrails,
+  GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails,
   policyFromSettings, serviceAreaFromSettings, settingValue,
 } from "@/lib/wizard/policy";
 import { reportError } from "@/lib/monitoring/report";
@@ -96,7 +96,7 @@ export async function POST(request: Request) {
         user_id: user.id, email, ip_hash: ipHash,
         suburb: state.customer?.suburb ?? null, postcode: state.customer?.postcode ?? null,
         job_type: state.jobType, outcome: "rate_limited", reasons: ["rate_limited"],
-      }).then(() => undefined, () => undefined);
+      }).then((r) => { if (r.error) reportError(r.error, { where: "wizard.leads.rateLimited", bestEffort: true }); });
       return NextResponse.json({
         outcome: "rate_limited",
         message: limits.holdMessage ?? "Looks like you're busy — talk to us and we'll set you up properly.",
@@ -161,12 +161,19 @@ export async function POST(request: Request) {
     // ---- plan path: rebuild from the stored readings, one run per page -----
     const { data: runs } = await db
       .from("extraction_runs")
-      .select("id, status, raw_output, estimate_sources ( id, storage_path, estimate_id )")
+      .select("id, status, created_by, raw_output, estimate_sources ( id, storage_path, estimate_id )")
       .in("id", state.planRunIds);
 
     for (const runId of state.planRunIds) {
       const run = (runs ?? []).find((r) => r.id === runId);
       if (!run) { warnings.push("One uploaded page could not be found and was skipped."); continue; }
+      // OWNERSHIP: the service client bypasses RLS, so a customer's runs must
+      // be checked against the actor here - same rule as the read route. A
+      // guessed or leaked run UUID must never surface someone else's plan.
+      if (actor.kind === "customer" && (run as { created_by?: string | null }).created_by !== user.id) {
+        warnings.push("One uploaded page could not be found and was skipped.");
+        continue;
+      }
       if (run.status === "applied") { warnings.push("One page was already applied to another estimate and was skipped."); continue; }
 
       const source = (run as unknown as {
@@ -240,9 +247,14 @@ export async function POST(request: Request) {
   if (state.facadeRunIds.length) {
     const { data: facadeRuns } = await db
       .from("extraction_runs")
-      .select("id, status, raw_output, estimate_sources ( id, storage_path, estimate_id )")
+      .select("id, status, created_by, raw_output, estimate_sources ( id, storage_path, estimate_id )")
       .in("id", state.facadeRunIds);
     for (const run of facadeRuns ?? []) {
+      // Same ownership rule as the plan runs above.
+      if (actor.kind === "customer" && (run as { created_by?: string | null }).created_by !== user.id) {
+        warnings.push("One facade photo could not be found and was skipped.");
+        continue;
+      }
       const source = (run as unknown as {
         estimate_sources: { id: string; storage_path: string; estimate_id: string | null } | null;
       }).estimate_sources;
@@ -302,15 +314,16 @@ export async function POST(request: Request) {
     }
     for (const el of envelope.elevations) {
       for (const d of el.deferred) {
-        merged.deferred.push({ room: `Exterior - ${el.name}`, areaId: null, what: d.what, count: 1, needs: d.needs });
+        merged.deferred.push({
+          room: `Exterior - ${el.name}`, areaId: null, what: d.what, count: 1, needs: d.needs,
+          ...(/width measurement required/i.test(d.needs) ? { kind: "exterior_width" } : {}),
+        });
       }
     }
-    for (const s of envelope.requiresSiteCheck) {
-      // Segment-level entries are already covered above; keep the
-      // whole-house ones ("only N elevation(s) measured…").
-      if (s.startsWith("only ")) {
-        merged.deferred.push({ room: "Exterior", areaId: null, what: "site check", count: 1, needs: s });
-      }
+    // Segment-level site-check entries are covered above; the whole-house
+    // verdict is a structured field, not a string prefix to sniff.
+    if (envelope.wholeHouseCheck) {
+      merged.deferred.push({ room: "Exterior", areaId: null, what: "site check", count: 1, needs: envelope.wholeHouseCheck });
     }
   }
 
@@ -318,8 +331,10 @@ export async function POST(request: Request) {
     blocks: merged.areas,
     aiDeferred: merged.deferred,
     // The full answers ride along: the editor's add-room re-applies them, and
-    // the customer layer's range bands recompute from them.
-    wizard: { version: 1, state, submittedAt: new Date().toISOString() },
+    // the customer layer's range bands recompute from them. The EFFECTIVE
+    // state is stored - if the server neutralised the damage-photo claim, the
+    // snapshot must not resurrect it on a later add_room re-merge.
+    wizard: { version: 1, state: effectiveState, submittedAt: new Date().toISOString() },
   };
 
   // ---- price and judge BEFORE anything is revealed -------------------------
@@ -368,7 +383,9 @@ export async function POST(request: Request) {
     ...(actor.kind === "customer" ? { created_by: user.id } : {}),
   };
   let insert = await db.from("estimates").insert(baseRow).select("id").single();
-  if (insert.error && !isCustomerMode && /source/.test(insert.error.message)) {
+  // Match the CONSTRAINT NAME, not the word "source" - an unrelated error
+  // mentioning a source column must not silently retag the estimate.
+  if (insert.error && !isCustomerMode && /estimates_source_check/.test(insert.error.message)) {
     // Migration 20260915 (source check) hasn't run yet — degrade gracefully.
     sourceTag = state.noPlan ? "manual" : "ai_floorplan";
     warnings.push("Saved with the old source tag — run migration 20260915000000_wizard_source.sql to enable source=wizard.");
@@ -391,7 +408,7 @@ export async function POST(request: Request) {
       user_id: user.id, estimate_id: estimateId, email, ip_hash: ipHash,
       suburb: state.customer?.suburb ?? null, postcode: state.customer?.postcode ?? null,
       job_type: state.jobType, outcome: leadOutcome, reasons: decision.reasons,
-    }).then(() => undefined, () => undefined);
+    }).then((r) => { if (r.error) reportError(r.error, { where: "wizard.leads.insert", bestEffort: true }); });
   }
 
   // One key per storey the draft actually has, so capture's storey switcher
@@ -419,10 +436,12 @@ export async function POST(request: Request) {
           .then(() => undefined, () => undefined)
       : Promise.resolve(),
     // Every AI-drafted exterior carries requires_site_check until a human
-    // clears it deliberately (migration 20260910's rule). Best-effort.
+    // clears it deliberately (migration 20260910's rule). Needs the column
+    // grant from migration 20260917 on the staff path - report a refusal
+    // loudly rather than letting the safety flag silently stay false.
     wantsExterior
       ? db.from("estimates").update({ requires_site_check: true }).eq("id", estimateId)
-          .then(() => undefined, () => undefined)
+          .then((r) => { if (r.error) reportError(r.error, { where: "wizard.submit.requiresSiteCheck", bestEffort: true, extra: { estimateId } }); })
       : Promise.resolve(),
     // The reconciled envelope row — what was measured, from what, at what
     // confidence — for the cross-check UI and the E2 scorer. Best-effort.
@@ -449,15 +468,9 @@ export async function POST(request: Request) {
 
   // ---- guardrail outcomes: no price crosses the wire -----------------------
   if (isCustomerMode && decision.outcome !== "reveal") {
-    const MESSAGES: Record<string, string> = {
-      hard_stop: "Homes of this age and condition need a lead-safe or asbestos assessment before any painting is priced. We'll be in touch to arrange it — there's no obligation.",
-      handoff: "This one needs a person rather than a calculator — we'll look at what you've sent and come back to you within one business day.",
-      outside_area: "It looks like you're outside the area we currently service — we've kept your details and will let you know if that changes.",
-      below_floor: `Smaller jobs are quoted from our minimum call-out. We'll confirm the exact price with you directly.`,
-    };
     return NextResponse.json({
       outcome: decision.outcome,
-      message: MESSAGES[decision.outcome] ?? MESSAGES.handoff,
+      message: GUARDRAIL_MESSAGES[decision.outcome] ?? GUARDRAIL_MESSAGES.handoff,
     });
   }
 

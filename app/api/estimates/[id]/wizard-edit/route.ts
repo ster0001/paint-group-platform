@@ -12,7 +12,7 @@ import { wizardStateSchema } from "@/lib/wizard/state";
 import { markStarterProvenance, starterExtraction, type TypicalSizeRow } from "@/lib/wizard/starter";
 import { customerPayload, editorPayload, type WizardDeferred } from "@/lib/wizard/view";
 import {
-  answersFromState, bandsFromSettings, evaluateGuardrails,
+  GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails,
   policyFromSettings, serviceAreaFromSettings, settingValue,
 } from "@/lib/wizard/policy";
 import { reportError } from "@/lib/monitoring/report";
@@ -120,16 +120,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   let storeyHeights: Record<string, number> | null = null;
 
   if (act.action === "confirm_height") {
+    // A CEILING height applies to interior rooms only - Exterior elevation
+    // nodes carry a MEASURED facade height in H (envelopeToAreaNodes), which
+    // a ceiling confirmation must never overwrite.
+    const isInteriorRoom = (b: LooseBlock) => b.kind === "area" && b.type !== "Exterior" && b.areaType !== "surface";
     blocks = blocks.map((b) => {
-      if (b.kind !== "area") return b;
-      const assumed = (Array.isArray(b.assumedFields) ? (b.assumedFields as string[]) : []).filter((f) => f !== "H");
-      return { ...b, H: act.heightM, assumedFields: assumed };
+      if (!isInteriorRoom(b)) return b;
+      const prior = Array.isArray(b.assumedFields) ? (b.assumedFields as string[]) : [];
+      const cleared = prior.filter((f) => f !== "H");
+      // A customer's height claim is a statement, not a settlement - marked so
+      // the review queue cross-checks the one input Step 6 proved is THE walls
+      // error. Staff confirmation clears it clean.
+      const stamped = actor.kind === "customer" && prior.includes("H")
+        ? [...cleared, "height_customer_stated"]
+        : cleared;
+      return { ...b, H: act.heightM, assumedFields: stamped };
     });
-    // One confirmed height across every storey the tree has (Tom's rule);
-    // per-floor differences are capture's job, and it needs every key to
-    // exist to offer the floor at all.
+    // One confirmed height across every INTERIOR storey the tree has (Tom's
+    // rule); per-floor differences are capture's job.
     const storeys = [...new Set(
-      blocks.filter((b) => b.kind === "area").map((b) => (typeof b.storey === "string" && b.storey ? b.storey : "ground")),
+      blocks.filter(isInteriorRoom).map((b) => (typeof b.storey === "string" && b.storey ? b.storey : "ground")),
     )];
     storeyHeights = Object.fromEntries((storeys.length ? storeys : ["ground"]).map((s) => [s, act.heightM]));
   }
@@ -231,6 +241,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   let newDeferred = deferred;
   if (act.action === "remove_room") {
     const before = blocks.length;
+    // The last room can't be removed - an empty tree prices at $0, and the
+    // customer path would render a straight-faced $0-$0 range.
+    if (blocks.filter((b) => b.kind === "area").length <= 1) {
+      return NextResponse.json({ error: "That's the last room — an estimate needs at least one. Start again if this job is different." }, { status: 400 });
+    }
     blocks = blocks.filter((b) => !(b.kind === "area" && Number(b.id) === act.areaId));
     if (blocks.length === before) return NextResponse.json({ error: "No such room." }, { status: 404 });
     // The room's open questions leave with it — otherwise they haunt the
@@ -271,6 +286,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       policyFromSettings(settingValue(ctx.settings, "wizard_policy")),
       serviceAreaFromSettings(settingValue(ctx.settings, "service_area")),
     );
+    // Same rule as submit: a blocking outcome means NO price crosses the
+    // wire - edits can move a job across a guardrail (e.g. under the floor)
+    // and the edit path must honour that, not keep revealing the range.
+    if (decision.outcome !== "reveal") {
+      return NextResponse.json({
+        outcome: decision.outcome,
+        message: GUARDRAIL_MESSAGES[decision.outcome] ?? GUARDRAIL_MESSAGES.handoff,
+      });
+    }
     return NextResponse.json(
       customerPayload(payload, blocks, decision, bandsFromSettings(settingValue(ctx.settings, "wizard_bands"))),
     );

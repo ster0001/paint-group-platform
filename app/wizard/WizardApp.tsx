@@ -120,6 +120,7 @@ export default function WizardApp({ roomTypes, mode = "internal" }: { roomTypes:
 
   async function uploadFacades(files: File[]) {
     if (!files.length) return;
+    setError(null);
     setUploading(true);
     try {
       const fd = new FormData();
@@ -147,6 +148,17 @@ export default function WizardApp({ roomTypes, mode = "internal" }: { roomTypes:
   async function runSubmit() {
     setScreen("processing");
     setError(null);
+    try {
+      await runSubmitInner();
+    } catch {
+      // A dropped connection must never strand the customer on the spinner -
+      // their answers are all still in state, so send them back to retry.
+      setScreen("pages");
+      setError("The connection dropped while we were working — nothing was lost. Check your internet and tap through again.");
+    }
+  }
+
+  async function runSubmitInner() {
     setProcLine(1);
     // 1. Let every background read finish.
     await Promise.all(readsRef.current);
@@ -239,9 +251,10 @@ export default function WizardApp({ roomTypes, mode = "internal" }: { roomTypes:
     if (page === 3 && state.condition.tier === "dark_to_light" && state.condition.darkToLightSurfaces.length === 0) {
       return "Which surfaces are going dark to light?";
     }
-    if (page === 4 && state.details.damageTier >= 2
-      && state.details.damagePhotoCount === 0 && state.details.damageNote.trim() === "") {
-      return "Damage at this level needs photos, or a short description.";
+    if (page === 4 && state.details.damageTier >= 2 && state.details.damagePhotoCount === 0) {
+      // Customer mode is photos-only (Step 8 brief) - a note cannot be priced.
+      if (isCustomer) return "Damage at this level needs photos — a quick phone shot of each area is perfect.";
+      if (state.details.damageNote.trim() === "") return "Damage at this level needs photos, or a short description.";
     }
     return null;
   }

@@ -116,7 +116,7 @@ export default function CustomerResult({ outcome, reveal, roomTypes }: {
                 <circle cx="26" cy="26" r="22" fill="none" stroke="#242B32" strokeWidth="4" />
                 <circle
                   cx="26" cy="26" r="22" fill="none"
-                  stroke={payload.accuracyPct >= 90 ? "#2FA46B" : "#E0A83C"}
+                  stroke={payload.tightBand ? "#2FA46B" : "#E0A83C"}
                   strokeWidth="4" strokeLinecap="round"
                   strokeDasharray={arc} strokeDashoffset={(arc * (1 - payload.accuracyPct / 100)).toFixed(1)}
                 />
@@ -126,7 +126,7 @@ export default function CustomerResult({ outcome, reveal, roomTypes }: {
             <div className="wz-lbl">
               <b>Estimate accuracy</b>
               <span>
-                {payload.accuracyPct >= 90
+                {payload.tightBand
                   ? "Nice — tight range unlocked"
                   : "Confirm the items below to tighten your price"}
               </span>

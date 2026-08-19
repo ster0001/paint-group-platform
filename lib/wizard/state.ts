@@ -112,15 +112,24 @@ export const wizardStateSchema = z.object({
       }
     }
   }
-  // Damage tiers 2–3 need evidence: photos, or (internal mode) a written note
-  // so the estimator can price the prep honestly. Customer mode (Step 8)
-  // tightens this to photos only, per the brief.
-  if (s.details.damageTier >= 2 && s.details.damagePhotoCount === 0 && s.details.damageNote.trim() === "") {
-    ctx.addIssue({ code: "custom", path: ["details", "damageTier"], message: "Damage at this level needs photos, or a short description." });
+  // Damage tiers 2–3 need evidence: photos, or (internal mode only) a written
+  // note so the estimator can price the prep honestly. Customer mode (Step 8)
+  // is photos only, per the brief — a note from a customer cannot be priced.
+  if (s.details.damageTier >= 2 && s.details.damagePhotoCount === 0) {
+    if (s.mode === "customer") {
+      ctx.addIssue({ code: "custom", path: ["details", "damageTier"], message: "Damage at this level needs photos — a quick phone shot of each area is perfect." });
+    } else if (s.details.damageNote.trim() === "") {
+      ctx.addIssue({ code: "custom", path: ["details", "damageTier"], message: "Damage at this level needs photos, or a short description." });
+    }
   }
   // Exterior without a listing URL requires 2–3 facade photos before quoting
-  // (locked decision; business inputs §3).
-  if (wantsExterior && s.listingUrl.trim() === "" && s.facadeRunIds.length < 2) {
+  // (locked decision; business inputs §3). Only a REAL listing link waives the
+  // photos — free text ("don't have one") must not.
+  const listingOk = isAllowedListingUrl(s.listingUrl);
+  if (s.listingUrl.trim() !== "" && !listingOk) {
+    ctx.addIssue({ code: "custom", path: ["listingUrl"], message: "That doesn't look like a realestate.com.au or domain.com.au link — paste the listing address, or add facade photos instead." });
+  }
+  if (wantsExterior && !listingOk && s.facadeRunIds.length < 2) {
     ctx.addIssue({ code: "custom", path: ["facadeRunIds"], message: "Exterior needs the listing, or two to three facade photos — front and each visible side." });
   }
   if (s.paint.waterBasedOnly && s.paint.trimsOilBased == null) {
@@ -207,12 +216,33 @@ export function windowStyleToSchema(style: WizardState["details"]["windowStyle"]
   }
 }
 
-/** Which page (1–5) a field error belongs to, for sending the user back. */
+/** Real-estate hosts whose links count as exterior evidence. Mirrors the
+ * server-side fetch allowlist in lib/extract/listing.ts (which is server-only
+ * and cannot be imported here) — keep the two in sync. */
+const LISTING_HOSTS = ["realestate.com.au", "domain.com.au", "allhomes.com.au", "onthehouse.com.au"];
+
+export function isAllowedListingUrl(raw: string): boolean {
+  const s = raw.trim();
+  if (!s) return false;
+  try {
+    const u = new URL(s.startsWith("http") ? s : `https://${s}`);
+    const host = u.hostname.toLowerCase();
+    return LISTING_HOSTS.some((h) => host === h || host.endsWith(`.${h}`));
+  } catch {
+    return false;
+  }
+}
+
+/** Which page (1–6) a field error belongs to, for sending the user back.
+ * The submit route validates { state: wizardStateSchema }, so issue paths
+ * arrive prefixed with "state" — strip it before matching. */
 export function pageForPath(path: Array<string | number>): number {
-  const head = String(path[0] ?? "");
+  const parts = String(path[0] ?? "") === "state" ? path.slice(1) : path;
+  const head = String(parts[0] ?? "");
   if (["jobType", "title", "listingUrl", "planRunIds", "facadeRunIds", "noPlan", "basics"].includes(head)) return 1;
   if (head === "surfaces") return 2;
   if (head === "condition") return 3;
   if (head === "details") return 4;
+  if (head === "customer") return 6;
   return 5;
 }

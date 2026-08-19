@@ -73,6 +73,9 @@ export type EnvelopeElevation = {
 export type Envelope = {
   elevations: EnvelopeElevation[];
   requiresSiteCheck: string[];
+  /** Structured whole-house verdict (fewer than 3 measured elevations) -
+   * consumers branch on THIS, never on the prose in requiresSiteCheck. */
+  wholeHouseCheck: string | null;
 };
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -88,7 +91,7 @@ export function computeEnvelope(reads: ElevationRead[], minConfidence = 0.6): En
     if (!cur || r.confidence > cur.confidence) byElevation.set(r.elevation, r);
   }
 
-  const out: Envelope = { elevations: [], requiresSiteCheck: [] };
+  const out: Envelope = { elevations: [], requiresSiteCheck: [], wholeHouseCheck: null };
 
   for (const [name, read] of byElevation) {
     const el: EnvelopeElevation = { name, widthM: null, heightM: null, widthFromPlan: false, surfaces: [], deferred: [] };
@@ -132,7 +135,8 @@ export function computeEnvelope(reads: ElevationRead[], minConfidence = 0.6): En
   // Fewer than three measured elevations cannot describe a whole house.
   const measured = out.elevations.filter((e) => e.surfaces.some((s) => s.m2));
   if (measured.length < 3) {
-    out.requiresSiteCheck.push(`only ${measured.length} elevation(s) measured - a whole-house exterior needs all sides`);
+    out.wholeHouseCheck = `only ${measured.length} elevation(s) measured - a whole-house exterior needs all sides`;
+    out.requiresSiteCheck.push(out.wholeHouseCheck);
   }
 
   return out;

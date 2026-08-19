@@ -107,3 +107,33 @@ describe("helpers", () => {
     expect(pageForPath(["paint", "trimsOilBased"])).toBe(5);
   });
 });
+
+// ---- audit-fix pins (19 Aug) ------------------------------------------------
+import { defaultCustomer, isAllowedListingUrl } from "./state";
+
+it("pageForPath strips the route's 'state' prefix and maps customer fields to page 6", () => {
+  expect(pageForPath(["state", "planRunIds"])).toBe(1);
+  expect(pageForPath(["state", "details", "damageTier"])).toBe(4);
+  expect(pageForPath(["state", "customer", "email"])).toBe(6);
+  expect(pageForPath(["surfaces"])).toBe(2); // unprefixed still works
+});
+
+it("customer-mode damage tiers 2+ demand photos - a note is not evidence", () => {
+  const s = { ...valid(), mode: "customer" as const, customer: { ...defaultCustomer(), email: "a@b.co", postcode: "3070", suburb: "Northcote", heritageListed: "no" as const, builtPre1970: "no" as const },
+    details: { ...valid().details, damageTier: 3, damagePhotoCount: 0, damageNote: "old walls" } };
+  const r = wizardStateSchema.safeParse(s);
+  expect(r.success).toBe(false);
+  if (!r.success) expect(r.error.issues.some((i) => /needs photos/.test(i.message))).toBe(true);
+  // internal mode still accepts the note
+  const internal = { ...s, mode: "internal" as const, customer: null };
+  expect(wizardStateSchema.safeParse(internal).success).toBe(true);
+});
+
+it("junk listing text neither validates nor waives the facade photos", () => {
+  expect(isAllowedListingUrl("don't have one")).toBe(false);
+  expect(isAllowedListingUrl("https://evil.example.com/x")).toBe(false);
+  expect(isAllowedListingUrl("https://www.realestate.com.au/property-house-vic-1")).toBe(true);
+  const s = { ...valid(), jobType: "exterior" as const, listingUrl: "no idea", facadeRunIds: [] };
+  const r = wizardStateSchema.safeParse(s);
+  expect(r.success).toBe(false);
+});

@@ -38,6 +38,8 @@ export type WizardDeferred = {
   needs: string;
   /** The room node that raised the question; null = whole-job. */
   areaId?: number | null;
+  /** Machine-readable category - consumers branch on this, not on the prose. */
+  kind?: string;
 };
 
 export type WizardEditorPayload = {
@@ -77,6 +79,9 @@ export type CustomerPayload = {
   rangeLoCents: number;
   rangeHiCents: number;
   bandPct: number;
+  /** The SERVER's verdict on whether the tight band applied - the UI must
+   * never re-derive this from a hardcoded threshold. */
+  tightBand: boolean;
   accuracyPct: number;
   canAccept: boolean;
   walkthroughRequired: boolean;
@@ -121,6 +126,7 @@ export function customerPayload(
     rangeLoCents: loCents,
     rangeHiCents: hiCents,
     bandPct,
+    tightBand: payload.accuracyPct >= bands.tightMin,
     accuracyPct: payload.accuracyPct,
     canAccept: decision.canAccept,
     walkthroughRequired: decision.walkthroughRequired,
@@ -195,6 +201,6 @@ export function editorPayload(
     deferred,
     heightUnconfirmed,
     exteriorWidthFromPlan,
-    exteriorWidthMissing: deferred.some((d) => /width measurement required/i.test(d.needs)),
+    exteriorWidthMissing: deferred.some((d) => d.kind === "exterior_width" || /width measurement required/i.test(d.needs)),
   };
 }
