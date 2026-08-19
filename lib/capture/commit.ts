@@ -76,6 +76,10 @@ export const DEFECT_LABELS: Record<string, string> = {
   previous_poor_finish: "Previous poor finish",
   mould: "Mould",
   nicotine_staining: "Nicotine staining",
+  needs_bogging: "Needs bogging",
+  needs_stripping: "Needs stripping",
+  scraping_filling: "Scraping & filling",
+  caulking: "Caulking",
 };
 
 const DEFECT_UNIT_LABEL: Record<string, string> = { m2: "m2", lin_m: "lin m", each: "x" };
@@ -186,10 +190,12 @@ export function draftToAreaNode(
     // rectangle the builder would assume - rule 2.
     let qtyOverride: number | null = null;
     let measureL: number | null = null;
-    // Wet-area walls: the tap count IS the fraction (1..4 = 25..100%).
+    // Fractional tiles: the tap count IS the fraction (1..4 = 25..100%) —
+    // wet-area walls (room basis) and exterior cladding (plane basis) alike.
     const fraction = tile.fractional ? Math.min(count, 4) / 4 : 1;
     if (tile.fractional && fraction < 1) {
-      qtyOverride = Math.round(resolveQuantity({ basis: "wall_area", geo }) * fraction * 100) / 100;
+      const basis = tile.measureBasis === "plane_area" ? "plane_area" : "wall_area";
+      qtyOverride = Math.round(resolveQuantity({ basis, geo }) * fraction * 100) / 100;
     }
     if (overridden) {
       if (tile.measureBasis === "wall_area") {
@@ -240,7 +246,9 @@ export function draftToAreaNode(
     kind: "area",
     name: draft.name,
     type: opts.exterior ? "Exterior" : "Interior",
-    areaType: "room",
+    // An elevation is one PLANE (width x height), not a room — pricing then
+    // derives m2 as L x H and lineal as L, exactly like builder exteriors.
+    areaType: opts.exterior ? "surface" : "room",
     L: draft.lengthM, W: draft.widthM, H: draft.heightM,
     isOption: false, description: "", open: false, media: [],
     surfaces,

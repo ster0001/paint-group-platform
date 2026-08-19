@@ -192,6 +192,11 @@ const DEFECTS: Array<[string, string, number, number, number]> = [
   ["previous_poor_finish", "m2", 0.12, 0.22, 0.38],
   ["render_cracks", "lin_m", 0.15, 0.30, 0.55],
   ["efflorescence", "m2", 0.18, 0.30, 0.50],
+  // Capture review add-ons — per-substrate extra prep the estimator ticks.
+  ["needs_bogging", "m2", 0.25, 0.40, 0.60],
+  ["needs_stripping", "m2", 0.30, 0.50, 0.80],
+  ["scraping_filling", "m2", 0.15, 0.25, 0.40],
+  ["caulking", "lin_m", 0.08, 0.12, 0.18],
 ];
 
 /**
