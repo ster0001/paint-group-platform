@@ -235,24 +235,37 @@ function extSurface(id: number, code: string): DraftSurfaceLike {
 
 type DraftSurfaceLike = DraftArea["surfaces"][number];
 
+/** The scaffold's cladding line: the first cladding substrate the user
+ * ticked (weatherboards → render → brick), else weatherboards as the
+ * conventional default — a placeholder to swap in the builder either way. */
+function scaffoldCladdingCode(ticked: ReadonlySet<string>): string {
+  if (ticked.has("weatherboards")) return "Weatherboards";
+  if (ticked.has("render")) return "Render";
+  if (ticked.has("brick")) return "Brick";
+  return "Weatherboards";
+}
+
 export function starterExteriorNodes(
   nextId: () => number,
-  opts: { wantsWindows?: boolean; wantsDoors?: boolean } = {},
+  ticked: ReadonlySet<string> = new Set(),
 ): { areas: DraftArea[]; deferred: Array<{ room: string; areaId: number | null; what: string; count: number; needs: string; kind?: string }> } {
   const elevations = ["Front", "Left", "Right", "Rear"] as const;
   const areas: DraftArea[] = [];
   const deferred: Array<{ room: string; areaId: number | null; what: string; count: number; needs: string; kind?: string }> = [];
 
+  // A2: the scaffold is built FROM the page-2 ticks — an unticked trim never
+  // appears; an empty tick set (older saved states) lays out the usual four.
+  const wantsTrim = (key: string) => ticked.size === 0 || ticked.has(key);
+
   for (const name of elevations) {
     const id = nextId();
-    const surfaces: DraftSurfaceLike[] = [
-      extSurface(nextId(), "Weatherboards"), // the default wall cladding; swap in the builder
-      extSurface(nextId(), "Fascias"),
-      extSurface(nextId(), "Gutters"),
-      extSurface(nextId(), "Eaves"),
-    ];
-    if (opts.wantsWindows) surfaces.push(extSurface(nextId(), "Awning / Casement Window"));
-    if (opts.wantsDoors) surfaces.push(extSurface(nextId(), "Front Door"));
+    const surfaces: DraftSurfaceLike[] = [extSurface(nextId(), scaffoldCladdingCode(ticked))];
+    if (wantsTrim("fascias")) surfaces.push(extSurface(nextId(), "Fascias"));
+    if (wantsTrim("gutters")) surfaces.push(extSurface(nextId(), "Gutters"));
+    if (wantsTrim("eaves")) surfaces.push(extSurface(nextId(), "Eaves"));
+    if (ticked.has("downpipes")) surfaces.push(extSurface(nextId(), "Downpipes"));
+    if (ticked.has("exterior_windows")) surfaces.push(extSurface(nextId(), "Fixed / Picture Window"));
+    if (ticked.has("exterior_doors") && name === "Front") surfaces.push(extSurface(nextId(), "Front Door"));
 
     areas.push({
       id, kind: "area", name: `Exterior - ${name}`, type: "Exterior", areaType: "surface",
@@ -271,4 +284,43 @@ export function starterExteriorNodes(
     });
   }
   return { areas, deferred };
+}
+
+/** Ticked exterior EXTRAS — whole-job items (a deck, a fence, a pergola) that
+ * no elevation photo or site plan measures. One "Exterior - Extras" area with
+ * a $0 placeholder line per tick, each deferred for a site measurement, so
+ * a ticked fence can never silently vanish from the estimate. */
+const EXTRA_CODES: ReadonlyArray<{ key: string; code: string; label: string }> = [
+  { key: "garage_doors", code: "Garage Door (1 Car)", label: "Garage door" },
+  { key: "deck", code: "Deck Painting", label: "Deck" },
+  { key: "fence", code: "Paling Fence", label: "Fence" },
+  { key: "pergola", code: "Pergola", label: "Pergola" },
+  { key: "balustrade", code: "Hand Rails", label: "Balustrade / hand rails" },
+];
+
+export function exteriorExtrasNodes(
+  nextId: () => number,
+  ticked: ReadonlySet<string>,
+): { areas: DraftArea[]; deferred: Array<{ room: string; areaId: number | null; what: string; count: number; needs: string; kind?: string }> } {
+  const wanted = EXTRA_CODES.filter((e) => ticked.has(e.key));
+  if (wanted.length === 0) return { areas: [], deferred: [] };
+
+  const id = nextId();
+  const surfaces = wanted.map((e) => extSurface(nextId(), e.code));
+  const area: DraftArea = {
+    id, kind: "area", name: "Exterior - Extras", type: "Exterior", areaType: "surface",
+    roomType: "exterior", storey: "ground",
+    L: 0, W: 0, H: 0,
+    isOption: false, description: "", open: false, media: [],
+    origin: "ai_assumed", confidence: 0.4,
+    assumedFields: ["exterior_envelope"],
+    extractionSourceId: null,
+    surfaces,
+  };
+  const deferred = wanted.map((e) => ({
+    room: "Exterior - Extras", areaId: id, what: `${e.label} measurements`, count: 1,
+    needs: "selected on the surfaces page - measure on site and enter it in the builder",
+    kind: "exterior_width",
+  }));
+  return { areas: [area], deferred };
 }

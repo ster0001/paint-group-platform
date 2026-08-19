@@ -1,6 +1,7 @@
 import type { DraftArea, DraftResult } from "@/lib/extract/draft";
 import { makeDraftSurface } from "@/lib/extract/draft";
 import { doorRateCode, windowRateCode } from "@/lib/extract/scope";
+import { substrateKeyForRateCode } from "@/lib/estimate/substrates";
 import { coatsFor, windowStyleToSchema, type WizardState, type WizardSurfaceKey } from "./state";
 
 /**
@@ -22,23 +23,34 @@ import { coatsFor, windowStyleToSchema, type WizardState, type WizardSurfaceKey 
  * settle stays in `deferred`, where the review gate prices the uncertainty.
  */
 
-const DOOR_CODES = new Set(["Flat Door and Frame (1 Side)", "4-6 Panel Door and Frame (1 Side)"]);
-const WINDOW_CODES = new Set([
-  "Fixed / Picture / Window Reveal", "Awning / Casement Window", "Double Hung Sash", "Colonial / Bay Window",
-]);
 /** Trim surfaces affected by an oil→water enamel conversion. */
 const TRIM_KEYS: WizardSurfaceKey[] = ["doors", "architraves", "skirting", "windows"];
 
-/** Which page-2 tick governs a surface, by its rate code. Null = untouched. */
+/** Which page-2 tick governs a surface, by its rate code (A2: the substrate
+ * registry is the one source of truth — interior and exterior alike). */
 export function surfaceKeyForRateCode(code: string): WizardSurfaceKey | null {
-  if (code === "Walls") return "walls";
-  if (code === "Ceilings") return "ceilings";
-  if (code === "Standard Cornices") return "cornices";
-  if (code === "Skirting Boards") return "skirting";
-  if (code === "Architrave (1 Side)") return "architraves";
-  if (DOOR_CODES.has(code)) return "doors";
-  if (WINDOW_CODES.has(code)) return "windows";
-  return null;
+  return substrateKeyForRateCode(code);
+}
+
+/**
+ * A2: exterior nodes (envelope reads, the starter scaffold) are appended
+ * AFTER applyWizardAnswers, so the page-2 ticks must be applied to them
+ * separately. Surfaces whose substrate is unticked are dropped; an area left
+ * with nothing is dropped whole. Codes no tick governs are kept.
+ */
+export function filterSurfacesByTicks(
+  areas: DraftArea[],
+  ticked: ReadonlySet<WizardSurfaceKey>,
+): DraftArea[] {
+  const out: DraftArea[] = [];
+  for (const area of areas) {
+    const kept = area.surfaces.filter((s) => {
+      const key = substrateKeyForRateCode(s.code);
+      return key == null || ticked.has(key);
+    });
+    if (kept.length > 0) out.push({ ...area, surfaces: kept });
+  }
+  return out;
 }
 
 function deferredKind(what: string): "doors" | "windows" | "cornices" | null {

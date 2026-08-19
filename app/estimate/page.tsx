@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { SCOPE_VERSION } from "@/lib/extract/scope";
+import { substrateOptionsFromRates, type SubstrateGroups } from "@/lib/estimate/substrates";
 import WizardApp from "../wizard/WizardApp";
 
 /**
@@ -33,15 +34,18 @@ export default async function CustomerWizardPage() {
   const svc = createServiceClient();
   let enabled = false;
   let roomTypes: string[] = [];
+  let substrates: SubstrateGroups = { interior: [], exterior: [] };
   if (svc) {
-    const [{ data: flagRow }, { data: rules }] = await Promise.all([
+    const [{ data: flagRow }, { data: rules }, { data: rateItems }] = await Promise.all([
       svc.from("settings").select("value").eq("key", "wizard_public").maybeSingle(),
       svc.from("room_type_scope_rules").select("room_type").eq("version", SCOPE_VERSION),
+      svc.from("rate_items").select("code, category"),
     ]);
     enabled = (flagRow?.value as { enabled?: boolean } | null)?.enabled === true;
     roomTypes = [...new Set((rules ?? []).map((r) => r.room_type as string))]
       .filter((t) => !["exterior", "unknown", "excluded", "exterior_excluded"].includes(t))
       .sort();
+    substrates = substrateOptionsFromRates(rateItems ?? []);
   }
 
   if (!enabled && !isStaff) {
@@ -59,5 +63,5 @@ export default async function CustomerWizardPage() {
     );
   }
 
-  return <WizardApp roomTypes={roomTypes} mode="customer" />;
+  return <WizardApp roomTypes={roomTypes} substrates={substrates} mode="customer" />;
 }

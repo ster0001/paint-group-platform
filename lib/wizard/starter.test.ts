@@ -157,7 +157,10 @@ describe("backfillTypicalSizes (#4/#5)", () => {
 describe("starterExteriorNodes (#2)", () => {
   it("lays out four elevations with exterior substrates, unmeasured + flagged", () => {
     let id = 100;
-    const { areas, deferred } = starterExteriorNodes(() => id++, { wantsWindows: true, wantsDoors: true });
+    const { areas, deferred } = starterExteriorNodes(
+      () => id++,
+      new Set(["weatherboards", "fascias", "gutters", "eaves", "exterior_windows", "exterior_doors"]),
+    );
     expect(areas.map((a) => a.name)).toEqual([
       "Exterior - Front", "Exterior - Left", "Exterior - Right", "Exterior - Rear",
     ]);

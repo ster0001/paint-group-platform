@@ -508,3 +508,16 @@ two-way thread on an estimate. A staff reply (`replyToEstimateChatAction`)
 notifies the customer by SMS and email, both linking to `/e/{token}#chat`,
 which auto-opens the customer chat. Redesigned bubble UI both sides;
 best-effort delivery logged to `estimate_events`, never blocking the message.
+
+**Substrate registry (A2)**: `lib/estimate/substrates.ts` is the ONE source
+of the "what's being painted" lists. Each substrate (walls, weatherboards,
+fence…) maps to its `rate_items` codes; the Interior/Exterior split is read
+from `rate_items.category` at load (`substrateOptionsFromRates`), so the rate
+card stays the authority and a substrate with no rate (Brick pre-20260919) is
+simply not offered. Wizard pages load the options server-side and pass names
+only; page 2 renders Interior, Exterior, or both as grouped sections by job
+type, with per-type default ticks (`defaultSurfacesFor`). The exterior
+scaffold + envelope lines are filtered by the same ticks
+(`filterSurfacesByTicks`), and ticked extras (deck/fence/pergola/garage
+doors/balustrade) always arrive as $0 measure-on-site placeholders
+(`exteriorExtrasNodes`).
