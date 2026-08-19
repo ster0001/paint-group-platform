@@ -591,3 +591,23 @@ details route evaluates the same `service_area` setting as the policy
 engine; out-of-area shows the polite message before any other question).
 `AddressField` degrades to a plain input on the first failed lookup — no
 key, no problem.
+
+**Customer scope editor — B1, interior + shared** (`/estimate/scope?id=…`,
+per `design/reference/customer-scope-editor-mockup.html`): customers get
+full control of WHAT is painted and none of hours/rates/allowances,
+enforced at the wizard-edit route's action whitelist — the only
+customer-reachable mutations are `toggle_surface`, `set_count` (1–12),
+`rename_room`, `add_note` (→ amber estimator deferral, never silently
+priced), `flag_geometry` (→ requires_site_check + deferral) plus the
+existing add/remove room. Pure logic in `lib/wizard/scope-editor.ts`
+(tiles derived from room_type_scope_rules + the A2 substrate registry;
+toggles add lines at the wizard-answered style as customer_stated with
+assumed ["style"]; tested that no hour/rate/cent ever serialises).
+Responses return `customerPayload` (ranges only) + rebuilt `scopeRooms`.
+UI matches the mockup: tile grids + steppers, "More surfaces…",
+skirting pairing advice (Keep/Leave), per-room notes, delta toasts +
+live range flash (Settings `scope_editor.liveRange`, default ON ⚑),
+sign-off ladder framing from the policy decision. Telemetry:
+`estimate_events` type `scope_edit`. Entry: "Open the editor" on the
+customer result screen. STILL TO COME (B2): exterior element-first view,
+real accept + visit booking with prep pack, capture verify-mode handoff.
