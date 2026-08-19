@@ -104,12 +104,27 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input." }, { status: 400 });
   }
   const act = parsed.data;
+  // R1.1 — the response contract. The payload shape follows the REQUESTING
+  // SURFACE, never the caller's role: a staff member previewing a customer
+  // screen gets exactly the customer payload. `view` is REQUIRED so a caller
+  // can never drift onto the wrong shape silently — that is precisely the bug
+  // this replaces (staff previews got editorPayload, the range rendered
+  // undefined, and tiles never refreshed).
+  const viewParse = z.object({ view: z.enum(["customer", "staff"]) }).safeParse(raw);
+  if (!viewParse.success) {
+    return NextResponse.json({ error: "Missing view — say which payload this surface renders: view=customer|staff." }, { status: 400 });
+  }
 
   const supabase = await createClient();
   // Staff edit anything; a customer edits ONLY the draft they created
   // through the wizard, via the service client with an ownership check.
   const actor = await getWizardActor(supabase);
   if (actor.kind === "none") return NextResponse.json({ error: "Staff only." }, { status: 403 });
+  // A customer can never request the staff payload (totals, margin, hours).
+  if (actor.kind === "customer" && viewParse.data.view === "staff") {
+    return NextResponse.json({ error: "No such estimate." }, { status: 404 });
+  }
+  const view = viewParse.data.view;
   let db: SupabaseClient = supabase;
   if (actor.kind === "customer") {
     const svc = createServiceClient();
@@ -396,9 +411,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const ctx = await ctxPromise;
   const payload = editorPayload(blocks, ctx, adjustmentsFrom(newState), newDeferred);
 
-  if (actor.kind === "customer") {
+  if (view === "customer") {
     // The customer's view recomputes the range and the acceptance verdict —
     // their confirmations tighten the band but never bypass the guardrails.
+    // Branching on view (not actor) is the R1.1 contract: staff previews of
+    // customer surfaces exercise the exact payload a customer receives.
     const snap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
     const answers = snap.success
       ? answersFromState(snap.data)
@@ -422,7 +439,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
     // Part B telemetry: which substrates customers remove and where they say
     // "not sure" feeds preset tuning. Best-effort, never blocks the edit.
-    if (act.action === "toggle_surface" || act.action === "add_note" || act.action === "flag_geometry") {
+    // Real customers only — a staff preview must not pollute preset tuning.
+    if (actor.kind === "customer" && (act.action === "toggle_surface" || act.action === "add_note" || act.action === "flag_geometry")) {
       await db.from("estimate_events").insert({
         estimate_id: id,
         type: "scope_edit",

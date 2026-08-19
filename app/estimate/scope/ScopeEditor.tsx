@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import type { CustomerPayload } from "@/lib/wizard/view";
+import { assertCustomerShape } from "@/lib/wizard/contract";
 import type { CustomerExteriorView, CustomerScopeRoom, ExteriorExtent } from "@/lib/wizard/scope-editor";
 
 type Ladder = { tier: "self_serve" | "visit"; visitSlots: string[] };
@@ -72,10 +73,13 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         const res = await fetch(`/api/estimates/${estimateId}/wizard-edit`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
+          // R1.1: this surface renders the CUSTOMER payload — declared
+          // explicitly, so a staff preview gets exactly what a customer gets.
+          body: JSON.stringify({ ...body, view: "customer" }),
         });
         const j = (await res.json().catch(() => ({}))) as Payload;
         if (!res.ok) { say(j.error ?? "That didn't save — try again."); return; }
+        assertCustomerShape(j, "ScopeEditor");
         setPayload(j);
         if (j.scopeRooms) setRooms(j.scopeRooms);
         if (j.exterior !== undefined) setExterior(j.exterior);
