@@ -101,6 +101,9 @@ export function serviceAreaFromSettings(value: unknown): string[] {
 export function answersFromState(s: {
   jobType: "interior" | "exterior" | "both";
   details: { damageTier: number };
+  /** R2: the exterior condition answer maps onto the damage tier, so
+   * peeling + pre-1970 trips the SAME lead hard stop interior damage does. */
+  exterior?: { condition: "good" | "weathered" | "peeling" | null } | null;
   customer: {
     postcode: string;
     propertyKind: "house" | "townhouse" | "unit_apartment" | "commercial";
@@ -110,6 +113,9 @@ export function answersFromState(s: {
     asbestosSuspected: "yes" | "no" | "unsure";
   } | null;
 }): GuardrailAnswers {
+  const exteriorTier = s.exterior?.condition === "peeling" ? 3
+    : s.exterior?.condition === "weathered" ? 2
+    : s.exterior?.condition === "good" ? 1 : null;
   return {
     jobType: s.jobType,
     propertyKind: s.customer?.propertyKind ?? "house",
@@ -117,7 +123,9 @@ export function answersFromState(s: {
     bodyCorporate: s.customer?.bodyCorporate ?? "no",
     builtPre1970: s.customer?.builtPre1970 ?? "no",
     asbestosSuspected: s.customer?.asbestosSuspected ?? "no",
-    damageTier: s.details.damageTier,
+    damageTier: s.jobType === "exterior" && exteriorTier != null
+      ? exteriorTier
+      : Math.max(s.details.damageTier, exteriorTier ?? 0),
     // null = postcode was never collected (internal previews have no customer
     // block) - the service-area check does not apply. "" = a customer left it
     // blank, which the check treats as outside.
