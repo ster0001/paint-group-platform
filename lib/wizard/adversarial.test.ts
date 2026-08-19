@@ -85,7 +85,7 @@ describe("the customer payload leaks nothing internal", () => {
     const internal: WizardEditorPayload = {
       rooms: [{
         areaId: 1, name: "Living", roomType: "living", L: 4, W: 4, H: 2.4,
-        priceCents: 123_456, status: "extracted", assumedFields: [],
+        priceCents: 123_456, status: "extracted", confidencePct: 92, assumedFields: [],
         surfaces: [{ label: "Walls", count: 1, coats: 2 }],
       }],
       totals: { subtotalCents: 999_999, totalCents: 1_000_000, contractorHours: 42, marginCents: 313_370 },

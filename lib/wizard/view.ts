@@ -6,7 +6,7 @@ import {
   type BlockInput,
   type PricingContext,
 } from "@/lib/pricing/estimate";
-import { accuracyScore, type ScoredArea } from "./accuracy";
+import { accuracyScore, roomConfidencePct, type ScoredArea } from "./accuracy";
 import { rangeBandPct, rangeFromTotal, type BandSettings, type GuardrailDecision } from "./policy";
 
 /**
@@ -27,6 +27,9 @@ export type WizardRoomView = {
   /** confirmed = a human settled it · extracted = read from the plan ·
    *  typical = starter-list size · check = read but low-confidence. */
   status: "confirmed" | "extracted" | "typical" | "check";
+  /** R1.4: from the ONE confidence function (accuracy.ts) — the same
+   * credit() the header aggregates, docked for this room's open questions. */
+  confidencePct: number;
   assumedFields: string[];
   surfaces: Array<{ label: string; count: number; coats: number }>;
 };
@@ -92,10 +95,6 @@ export type CustomerPayload = {
   confirmOnSite: string[];
 };
 
-const CONFIDENCE_OF: Record<string, number> = {
-  confirmed: 100, stated: 85, extracted: 90, check: 65, typical: 50,
-};
-
 export function customerPayload(
   payload: WizardEditorPayload,
   blocks: unknown[],
@@ -112,7 +111,8 @@ export function customerPayload(
       areaId: r.areaId,
       name: r.name,
       summary: parts.slice(0, 6).join(", ") + (parts.length > 6 ? "…" : ""),
-      confidencePct: CONFIDENCE_OF[status] ?? 70,
+      // R1.4: the card % IS the header's function — never a second lookup.
+      confidencePct: r.confidencePct,
       status,
     };
   });
@@ -169,7 +169,9 @@ export function editorPayload(
     if (assumed.includes("H")) heightUnconfirmed = true;
     if (assumed.includes("width_from_plan")) exteriorWidthFromPlan = true;
 
-    scored.push({ priceCents, origin: origin || "human_confirmed", confidence, assumedFields: assumed });
+    const scoredArea: ScoredArea = { priceCents, origin: origin || "human_confirmed", confidence, assumedFields: assumed };
+    scored.push(scoredArea);
+    const ownDeferred = deferred.filter((d) => d.areaId != null && d.areaId === Number(b.id)).length;
     rooms.push({
       areaId: Number(b.id) || 0,
       name: String(b.name ?? "Unnamed"),
@@ -179,6 +181,7 @@ export function editorPayload(
       H: Number(b.H) || 0,
       priceCents,
       status: roomStatus(origin, confidence, assumed),
+      confidencePct: roomConfidencePct(scoredArea, ownDeferred),
       assumedFields: assumed,
       surfaces: (b.surfaces ?? []).map((s) => ({
         label: String(s.internalLabel ?? s.code ?? ""),
