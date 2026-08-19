@@ -508,3 +508,15 @@ two-way thread on an estimate. A staff reply (`replyToEstimateChatAction`)
 notifies the customer by SMS and email, both linking to `/e/{token}#chat`,
 which auto-opens the customer chat. Redesigned bubble UI both sides;
 best-effort delivery logged to `estimate_events`, never blocking the message.
+
+**Address autofill (A1)**: wizard page 1's first field autocompletes AU
+addresses via server-proxied Places (New) routes — `/api/places/autocomplete`
++ `/api/places/details`, key in server-only `GOOGLE_MAPS_API_KEY`, Melbourne
+location bias, session-token billing. Picking a suggestion names the estimate
+("street, suburb"), stores the structured address in wizard state
+(`state.address`) → `builder_state.jobAddress` at submit, and for customers
+fills suburb/postcode and runs the service-area check immediately (the
+details route evaluates the same `service_area` setting as the policy
+engine; out-of-area shows the polite message before any other question).
+`AddressField` degrades to a plain input on the first failed lookup — no
+key, no problem.

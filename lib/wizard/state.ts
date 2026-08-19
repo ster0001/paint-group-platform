@@ -54,6 +54,15 @@ export const wizardStateSchema = z.object({
   jobType: z.enum(["interior", "exterior", "both"]),
   /** Internal mode: the job's name/address for the estimates list. */
   title: z.string().max(200).default(""),
+  /** A1: the structured address when a Places suggestion was picked —
+   * flows to builder_state.jobAddress at submit. Plain typing leaves it null. */
+  address: z.object({
+    street: z.string().max(120),
+    suburb: z.string().max(80),
+    state: z.string().max(10),
+    postcode: z.string().max(10),
+    formatted: z.string().max(250),
+  }).nullable().default(null),
   listingUrl: z.string().max(500).default(""),
   /** Extraction runs already started from page-1 uploads (one per page). */
   planRunIds: z.array(z.string().uuid()).max(40).default([]),
@@ -165,6 +174,7 @@ export function defaultWizardState(): WizardState {
     customer: null,
     jobType: "interior",
     title: "",
+    address: null,
     listingUrl: "",
     planRunIds: [],
     facadeRunIds: [],
@@ -239,7 +249,7 @@ export function isAllowedListingUrl(raw: string): boolean {
 export function pageForPath(path: Array<string | number>): number {
   const parts = String(path[0] ?? "") === "state" ? path.slice(1) : path;
   const head = String(parts[0] ?? "");
-  if (["jobType", "title", "listingUrl", "planRunIds", "facadeRunIds", "noPlan", "basics"].includes(head)) return 1;
+  if (["jobType", "title", "address", "listingUrl", "planRunIds", "facadeRunIds", "noPlan", "basics"].includes(head)) return 1;
   if (head === "surfaces") return 2;
   if (head === "condition") return 3;
   if (head === "details") return 4;
