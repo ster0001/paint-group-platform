@@ -51,3 +51,4 @@ next-env.d.ts
 
 # regression corpus (customer plans + PaintScout estimates — never committed)
 /regression-set/
+.claude/worktrees/
