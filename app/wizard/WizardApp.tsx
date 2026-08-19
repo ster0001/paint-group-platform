@@ -1,15 +1,18 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import {
+  defaultCustomer,
   defaultWizardState,
   pageForPath,
   WIZARD_SURFACE_KEYS,
   type WizardState,
   type WizardSurfaceKey,
 } from "@/lib/wizard/state";
-import type { WizardEditorPayload } from "@/lib/wizard/view";
+import type { CustomerPayload, WizardEditorPayload } from "@/lib/wizard/view";
 import Editor from "./Editor";
+import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
 
 /**
  * W1: the five paginated pages, exactly per the workflow doc — Property →
@@ -44,10 +47,32 @@ type SubmitResult = WizardEditorPayload & {
   warnings: string[];
 };
 
-export default function WizardApp({ roomTypes }: { roomTypes: string[] }) {
-  const [state, setState] = useState<WizardState>(defaultWizardState);
+export default function WizardApp({ roomTypes, mode = "internal" }: { roomTypes: string[]; mode?: "internal" | "customer" }) {
+  const [state, setState] = useState<WizardState>(() =>
+    mode === "customer"
+      ? { ...defaultWizardState(), mode: "customer", customer: defaultCustomer() }
+      : defaultWizardState(),
+  );
   const [page, setPage] = useState(1);
   const [screen, setScreen] = useState<Screen>("pages");
+  const isCustomer = mode === "customer";
+  const lastPage = isCustomer ? 6 : 5; // customers get the email gate
+  const [outcome, setOutcome] = useState<CustomerOutcome | null>(null);
+  const [customerResult, setCustomerResult] = useState<(CustomerPayload & { estimateId: string; planUrl: string | null }) | null>(null);
+
+  // A customer needs an identity before they can upload or submit —
+  // an anonymous Supabase session, promoted to an account if they save.
+  const [sessionReady, setSessionReady] = useState(!isCustomer);
+  useEffect(() => {
+    if (!isCustomer) return;
+    const supabase = createBrowserClient();
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (data.session) { setSessionReady(true); return; }
+      const { error } = await supabase.auth.signInAnonymously();
+      if (!error) setSessionReady(true);
+      else setError("The estimate wizard isn't available just now — please try again shortly, or give us a call.");
+    });
+  }, [isCustomer]);
   const [error, setError] = useState<string | null>(null);
   const [procLine, setProcLine] = useState(0);
   const [result, setResult] = useState<SubmitResult | null>(null);
@@ -166,11 +191,23 @@ export default function WizardApp({ roomTypes }: { roomTypes: string[] }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ state: submitState }),
     });
-    const j = await res.json();
+    const j = await res.json().catch(() => ({}));
+
+    // Customer guardrail outcomes are answers, not errors.
+    if (isCustomer && typeof j.outcome === "string" && j.outcome !== "reveal") {
+      setOutcome(j as CustomerOutcome);
+      setScreen("editor"); // the result screen takes over
+      return;
+    }
     if (!res.ok) {
       setScreen("pages");
       if (Array.isArray(j.path) && j.path.length) setPage(pageForPath(j.path));
       setError(j.error ?? "Something didn't work — please check the answers and try again.");
+      return;
+    }
+    if (isCustomer) {
+      setCustomerResult(j as CustomerPayload & { estimateId: string; planUrl: string | null });
+      setScreen("editor");
       return;
     }
     setResult(j as SubmitResult);
@@ -182,6 +219,9 @@ export default function WizardApp({ roomTypes }: { roomTypes: string[] }) {
   function pageBlocker(): string | null {
     if (page === 1) {
       const wantsInterior = state.jobType !== "exterior";
+      if (isCustomer && (!state.customer || state.customer.suburb.trim() === "" || state.customer.postcode.trim() === "")) {
+        return "Where's the property? Suburb and postcode, please.";
+      }
       if (wantsInterior && !state.noPlan && state.planRunIds.length === 0) {
         return "Upload a floorplan, or choose the quick basics instead.";
       }
@@ -189,6 +229,10 @@ export default function WizardApp({ roomTypes }: { roomTypes: string[] }) {
       if (state.jobType !== "interior" && !state.listingUrl.trim() && state.facadeRunIds.length < 2) {
         return "Exterior needs the listing, or two to three facade photos — front and each visible side.";
       }
+    }
+    if (page === 6 && isCustomer) {
+      const email = state.customer?.email.trim() ?? "";
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "A valid email, so your estimate has somewhere to live.";
     }
     if (page === 2 && state.surfaces.length === 0) return "Tick at least one surface.";
     if (page === 3 && state.condition.tier === "dark_to_light" && state.condition.darkToLightSurfaces.length === 0) {
@@ -205,7 +249,7 @@ export default function WizardApp({ roomTypes }: { roomTypes: string[] }) {
     const blocked = pageBlocker();
     if (blocked) { setError(blocked); return; }
     setError(null);
-    if (page < 5) { setPage(page + 1); window.scrollTo({ top: 0 }); return; }
+    if (page < lastPage) { setPage(page + 1); window.scrollTo({ top: 0 }); return; }
     void runSubmit();
   }
 
@@ -219,17 +263,20 @@ export default function WizardApp({ roomTypes }: { roomTypes: string[] }) {
   if (screen === "editor" && result) {
     return <Editor initial={result} roomTypes={roomTypes} />;
   }
+  if (screen === "editor" && isCustomer && (outcome || customerResult)) {
+    return <CustomerResult outcome={outcome} reveal={customerResult} roomTypes={roomTypes} />;
+  }
 
   return (
     <>
       <header className="wz-top">
         <div className="wz-wm">PAINT<span>—</span>GROUP</div>
         <div className="wz-dots">
-          {[1, 2, 3, 4, 5].map((d) => (
+          {Array.from({ length: lastPage }, (_, i) => i + 1).map((d) => (
             <i key={d} className={d < page || screen === "processing" ? "done" : d === page ? "on" : ""} />
           ))}
         </div>
-        <a className="wz-exit" href="/estimates">Exit</a>
+        {!isCustomer && <a className="wz-exit" href="/estimates">Exit</a>}
       </header>
 
       {screen === "processing" ? (
@@ -248,7 +295,7 @@ export default function WizardApp({ roomTypes }: { roomTypes: string[] }) {
           <div className="wz-step" key={page}>
             {page === 1 && (
               <PageProperty
-                state={state} set={set}
+                state={state} set={set} isCustomer={isCustomer}
                 planFileCount={planFileCount} facadeFileCount={facadeFileCount} uploading={uploading}
                 planInputRef={planInputRef} facadeInputRef={facadeInputRef}
                 onPlanFiles={uploadPlans} onFacadeFiles={uploadFacades}
@@ -258,7 +305,7 @@ export default function WizardApp({ roomTypes }: { roomTypes: string[] }) {
             {page === 3 && <PageCondition state={state} set={set} />}
             {page === 4 && (
               <PageDetails
-                state={state} set={set} damageInputRef={damageInputRef}
+                state={state} set={set} damageInputRef={damageInputRef} isCustomer={isCustomer}
                 hasPlanRuns={state.planRunIds.length > 0}
                 onDamageFiles={(files) => {
                   damageFilesRef.current = [...damageFilesRef.current, ...files];
@@ -267,6 +314,19 @@ export default function WizardApp({ roomTypes }: { roomTypes: string[] }) {
               />
             )}
             {page === 5 && <PagePaint state={state} set={set} />}
+            {page === 6 && isCustomer && state.customer && (
+              <>
+                <p className="wz-kick">One last thing</p>
+                <h1>Where should we send your estimate?</h1>
+                <p className="wz-sub">You&rsquo;ll see it on screen right now — this saves it so you can come back, tweak it, and share it.</p>
+                <input
+                  className="wz-field" type="email" placeholder="you@email.com"
+                  value={state.customer.email}
+                  onChange={(e) => set({ customer: { ...state.customer!, email: e.target.value } })}
+                />
+                <p style={{ fontSize: 12.5, color: "var(--muted)" }}>No spam, no obligation. Opt out any time.</p>
+              </>
+            )}
             {error && <div className="wz-err">{error}</div>}
           </div>
         </div>
@@ -277,8 +337,8 @@ export default function WizardApp({ roomTypes }: { roomTypes: string[] }) {
           <button className="wz-btn wz-bg" onClick={back} style={{ visibility: page > 1 ? "visible" : "hidden" }}>
             Back
           </button>
-          <button className="wz-btn wz-bp" onClick={next} disabled={uploading}>
-            {page === 5 ? "See the estimate" : "Continue"}
+          <button className="wz-btn wz-bp" onClick={next} disabled={uploading || !sessionReady}>
+            {page === lastPage ? "See my estimate" : page === 5 && isCustomer ? "Nearly there" : "Continue"}
           </button>
         </nav>
       )}
@@ -305,10 +365,11 @@ function Seg<T extends string>({ options, value, onPick }: {
 // ---- page 1: the property ---------------------------------------------------
 
 function PageProperty({
-  state, set, planFileCount, facadeFileCount, uploading, planInputRef, facadeInputRef, onPlanFiles, onFacadeFiles,
+  state, set, isCustomer = false, planFileCount, facadeFileCount, uploading, planInputRef, facadeInputRef, onPlanFiles, onFacadeFiles,
 }: {
   state: WizardState;
   set: (p: Partial<WizardState>) => void;
+  isCustomer?: boolean;
   planFileCount: number;
   facadeFileCount: number;
   uploading: boolean;
@@ -328,12 +389,28 @@ function PageProperty({
         Or upload a floorplan photo.
       </p>
 
-      <input
-        className="wz-field"
-        placeholder="Job name or address (shows on the estimates list)"
-        value={state.title}
-        onChange={(e) => set({ title: e.target.value })}
-      />
+      {!isCustomer && (
+        <input
+          className="wz-field"
+          placeholder="Job name or address (shows on the estimates list)"
+          value={state.title}
+          onChange={(e) => set({ title: e.target.value })}
+        />
+      )}
+      {isCustomer && state.customer && (
+        <div style={{ display: "flex", gap: 10 }}>
+          <input
+            className="wz-field" placeholder="Suburb"
+            value={state.customer.suburb}
+            onChange={(e) => set({ customer: { ...state.customer!, suburb: e.target.value } })}
+          />
+          <input
+            className="wz-field" placeholder="Postcode" inputMode="numeric" style={{ maxWidth: 130 }}
+            value={state.customer.postcode}
+            onChange={(e) => set({ customer: { ...state.customer!, postcode: e.target.value } })}
+          />
+        </div>
+      )}
       <input
         className="wz-field"
         placeholder="Paste the listing URL — realestate.com.au or Domain"
@@ -415,6 +492,38 @@ function PageProperty({
         value={state.jobType}
         onPick={(v) => set({ jobType: v })}
       />
+
+      {isCustomer && state.customer && (
+        <>
+          <p className="wz-qhead">What kind of property?</p>
+          <Seg
+            options={[
+              { v: "house" as const, label: "House" },
+              { v: "townhouse" as const, label: "Townhouse" },
+              { v: "unit_apartment" as const, label: "Unit / apartment" },
+              { v: "commercial" as const, label: "Commercial" },
+            ]}
+            value={state.customer.propertyKind}
+            onPick={(v) => set({ customer: { ...state.customer!, propertyKind: v } })}
+          />
+          <p className="wz-qhead">Heritage listed? <small>— many period homes aren&rsquo;t</small></p>
+          <Seg
+            options={[{ v: "no" as const, label: "No" }, { v: "yes" as const, label: "Yes" }, { v: "unsure" as const, label: "Not sure" }]}
+            value={state.customer.heritageListed}
+            onPick={(v) => set({ customer: { ...state.customer!, heritageListed: v } })}
+          />
+          {(state.customer.propertyKind === "unit_apartment" || state.customer.propertyKind === "townhouse") && (
+            <>
+              <p className="wz-qhead">Is there a body corporate / owners corporation?</p>
+              <Seg
+                options={[{ v: "no" as const, label: "No" }, { v: "yes" as const, label: "Yes" }, { v: "unsure" as const, label: "Not sure" }]}
+                value={state.customer.bodyCorporate}
+                onPick={(v) => set({ customer: { ...state.customer!, bodyCorporate: v } })}
+              />
+            </>
+          )}
+        </>
+      )}
 
       {needsFacades && (
         <div className="wz-follow">
@@ -522,11 +631,12 @@ function PageCondition({ state, set }: { state: WizardState; set: (p: Partial<Wi
 
 // ---- page 4: details --------------------------------------------------------
 
-function PageDetails({ state, set, damageInputRef, hasPlanRuns, onDamageFiles }: {
+function PageDetails({ state, set, damageInputRef, hasPlanRuns, isCustomer = false, onDamageFiles }: {
   state: WizardState;
   set: (p: Partial<WizardState>) => void;
   damageInputRef: React.RefObject<HTMLInputElement | null>;
   hasPlanRuns: boolean;
+  isCustomer?: boolean;
   onDamageFiles: (files: File[]) => void;
 }) {
   const d = state.details;
@@ -593,6 +703,23 @@ function PageDetails({ state, set, damageInputRef, hasPlanRuns, onDamageFiles }:
           <small>Not sure</small>
         </button>
       </div>
+
+      {isCustomer && state.customer && (
+        <>
+          <p className="wz-qhead">Was the home built before 1970? <small>— older paint can contain lead, and we handle it properly</small></p>
+          <Seg
+            options={[{ v: "no" as const, label: "No" }, { v: "yes" as const, label: "Yes" }, { v: "unsure" as const, label: "Not sure" }]}
+            value={state.customer.builtPre1970}
+            onPick={(v) => set({ customer: { ...state.customer!, builtPre1970: v } })}
+          />
+          <p className="wz-qhead">Any chance of asbestos sheeting in the areas being painted?</p>
+          <Seg
+            options={[{ v: "no" as const, label: "No" }, { v: "yes" as const, label: "Yes" }, { v: "unsure" as const, label: "Not sure" }]}
+            value={state.customer.asbestosSuspected}
+            onPick={(v) => set({ customer: { ...state.customer!, asbestosSuspected: v } })}
+          />
+        </>
+      )}
 
       <p className="wz-qhead">Any damage we should know about?</p>
       <div className="wz-cards">
