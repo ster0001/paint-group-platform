@@ -187,7 +187,14 @@ test("priced extras: condition/access, catalogue chips and sweep items move the 
   const front = page.locator(".sd-card", { hasText: "Front" }).first();
   await front.locator(".sd-hd").click();
   await front.getByRole("button", { name: "Yes", exact: true }).click();
-  await front.getByRole("button", { name: /Looks right/ }).click();
+  // Batch 2: out-of-range dims CLAMP and proceed (3–40 × 2–8) — the gentle
+  // clamp, never a refusal; the toast names the recorded size.
+  await front.getByRole("button", { name: /Adjust it/ }).click();
+  await front.getByPlaceholder("length m").fill("50");
+  await front.getByPlaceholder("height m").fill("9");
+  await front.getByRole("button", { name: "Update", exact: true }).click();
+  await expect(page.locator(".sd-toast")).toContainText(/40 × 8.*3–40/, { timeout: 30_000 });
+  await settled();
   await front.getByRole("button", { name: /Add a surface/ }).click();
   const doorChip = front.getByRole("button", { name: /Security door — \$[\d,]+/ });
   await expect(doorChip).toBeVisible();
@@ -217,5 +224,7 @@ test("priced extras: condition/access, catalogue chips and sweep items move the 
   await sweep.getByRole("button", { name: "+ Carport", exact: true }).click();
   await expect(page.locator(".sd-toast")).toContainText(/carport.*site visit/i, { timeout: 30_000 });
   await settled();
-  await expect(page.locator(".sd-tier")).toContainText(/visit/i);
+  // Batch 2 (C11): the tier line NAMES the reason — a customer-added item
+  // routes as "custom", the mockup's highest-priority wording.
+  await expect(page.locator(".sd-tier")).toContainText(/price in person/i);
 });

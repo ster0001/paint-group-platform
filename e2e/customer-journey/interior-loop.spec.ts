@@ -46,10 +46,13 @@ test("R3 interior loop: L×W size question, confirm walk, dw check, sweep — CT
     const card = cards.nth(i);
     await card.scrollIntoViewIfNeeded();
     if (i === 0) {
+      // Batch 2: out-of-range CLAMPS and proceeds (1–15 m a side) — the
+      // gentle clamp, never a refusal; the toast names the recorded size.
       await card.getByRole("button", { name: /Adjust it/ }).click();
-      await card.getByPlaceholder("length m").fill("4.2");
+      await card.getByPlaceholder("length m").fill("20");
       await card.getByPlaceholder("width m").fill("3.8");
       await card.getByRole("button", { name: "Update size" }).click();
+      await expect(page.locator(".sc-toast")).toContainText(/15 × 3.8.*1–15/, { timeout: 30_000 });
       await expect(card.locator(".il-size")).toContainText("updated by you");
     } else {
       await card.getByRole("button", { name: /Looks right/ }).click();

@@ -17,7 +17,20 @@ import { assertCustomerShape } from "@/lib/wizard/contract";
  * blue; a skipped side reads NOT PAINTING and is an explicit exclusion.
  */
 
-type Ladder = { tier: "self_serve" | "visit"; visitSlots: string[] };
+type Ladder = {
+  tier: "self_serve" | "visit";
+  /** C11: why it's the visit tier — the sticky line names it (mockup wording). */
+  reason?: "custom" | "peeling" | "rot" | "flagged" | "big" | null;
+  visitSlots: string[];
+};
+
+const VISIT_REASON_LINE: Record<NonNullable<Ladder["reason"]>, string> = {
+  custom: "You've added something we'll price in person — ",
+  peeling: "Peeling paint needs a lead-safe check — ",
+  rot: "Rot repair needs eyes on it — ",
+  flagged: "You've flagged the photos — ",
+  big: "Bigger exterior — ",
+};
 type Payload = CustomerPayload & {
   error?: string;
   sides?: SidesView | null;
@@ -222,12 +235,22 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                             setAdjusting(null);
                             return;
                           }
-                          const L = parseFloat(lv.replace(/[^0-9.]/g, ""));
-                          const H = parseFloat(hv.replace(/[^0-9.]/g, ""));
+                          // The gentle clamp (3–40 m long, 2–8 m high) — the
+                          // server clamps too; matching here keeps the toast
+                          // honest about what was recorded.
+                          const rawL = parseFloat(lv.replace(/[^0-9.]/g, ""));
+                          const rawH = parseFloat(hv.replace(/[^0-9.]/g, ""));
+                          const L = isNaN(rawL) ? null : Math.min(40, Math.max(3, rawL));
+                          const H = isNaN(rawH) ? null : Math.min(8, Math.max(2, rawH));
+                          const clamped = (L != null && L !== rawL) || (H != null && H !== rawH);
                           act({
                             action: "side_dims", side: s.key,
-                            lengthM: isNaN(L) ? null : L, heightM: isNaN(H) ? null : H,
-                          }, { done: `${s.label} repriced — walls and roofline follow the new size.` });
+                            lengthM: L, heightM: H,
+                          }, {
+                            done: clamped
+                              ? `${s.label} set to ${L ?? "—"} × ${H ?? "—"} m (sides run 3–40 × 2–8 m) — repriced.`
+                              : `${s.label} repriced — walls and roofline follow the new size.`,
+                          });
                           setAdjusting(null);
                         }}
                       >
@@ -567,7 +590,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
           {booked
             ? "Visit booked — your price is confirmed on the day, then fixed in writing."
             : ladder.tier === "visit"
-              ? "We'll visit to confirm before your price is fixed — the calendar's right here once everything's blue."
+              ? `${VISIT_REASON_LINE[ladder.reason ?? "big"]}we'll visit to confirm before your price is fixed — the calendar's right here once everything's blue.`
               : "Straightforward exterior — accept online once everything's blue."}
         </div>
         <div className="sd-row">
