@@ -146,3 +146,24 @@ export function heightForStorey(
 ): number {
   return storeyHeights?.[storey] ?? storeyHeights?.ground ?? DEFAULT_STOREY_HEIGHTS.ground;
 }
+
+/**
+ * A5: derive per-storey heights from the area nodes themselves — the one
+ * source every estimate has, however it was made. A wizard estimate with
+ * `ceilingHeight: "unsure"` stores no storey_heights row, and capture used
+ * to open wedged on an empty prompt with only "ground" on offer even for a
+ * double-storey. These derived values PRE-FILL the confirm prompt; they
+ * don't skip it — height is the walls error, production always confirms it.
+ */
+export function storeyHeightsFromBlocks(
+  blocks: Array<Record<string, unknown>>,
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const b of blocks) {
+    if (b.kind !== "area" || b.type === "Exterior") continue;
+    const storey = typeof b.storey === "string" && b.storey ? b.storey : "ground";
+    const h = Number(b.H);
+    if (out[storey] == null && h >= 1.8 && h <= 8) out[storey] = h;
+  }
+  return Object.keys(out).length ? out : { ...DEFAULT_STOREY_HEIGHTS };
+}

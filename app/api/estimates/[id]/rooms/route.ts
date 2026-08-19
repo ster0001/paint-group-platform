@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { draftToAreaNode, type RoomDraft } from "@/lib/capture/commit";
+import { mergeRecommittedNode } from "@/lib/capture/recommit";
 import { expandCaptureTiles, tilesForRoomType, type TileRule } from "@/lib/capture/presets";
 import { SCOPE_VERSION } from "@/lib/extract/scope";
 import {
@@ -115,6 +116,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   ]);
   const rules = (rulesRows ?? []) as TileRule[];
   const room = parsed.data.room as RoomDraft & { status?: "capturing" | "complete" };
+  // A5: the wizard's exterior nodes say roomType "exterior"; capture's scope
+  // rules use "exterior_elevation". Same thing — alias, don't 422.
+  if (room.roomType === "exterior") room.roomType = "exterior_elevation";
   const tiles = expandCaptureTiles(tilesForRoomType(room.roomType, rules));
   if (tiles.length === 0) {
     return NextResponse.json({ error: `No scope rules exist for a "${room.roomType}".` }, { status: 422 });
@@ -147,17 +151,34 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   let next = Math.max(0, ...usedIds) + 1;
 
   const draft: RoomDraft = { ...room, status: "complete", areaId: room.areaId ?? null };
+  const existingIdx = draft.areaId != null ? blocks.findIndex((b) => Number(b.id) === draft.areaId) : -1;
+  const oldBlock = existingIdx >= 0 ? blocks[existingIdx] : null;
+
+  // A5: the client's vocab toggle must not flip an exterior room to Interior —
+  // the node's own identity wins over the toggle.
+  const exterior = parsed.data.exterior
+    || room.roomType === "exterior_elevation"
+    || oldBlock?.type === "Exterior";
+
   const node = draftToAreaNode(draft, tiles, () => next++, {
-    exterior: parsed.data.exterior,
+    exterior,
     defectRates: (defectRatesRows ?? []) as import("@/lib/capture/commit").DefectRate[],
   });
+  // A5: a recommit of an existing area preserves what capture can't express —
+  // builder-only lines, products/colours/photos, rate overrides, provenance.
+  mergeRecommittedNode(oldBlock, node, tiles);
 
-  const existingIdx = draft.areaId != null ? blocks.findIndex((b) => Number(b.id) === draft.areaId) : -1;
   const newBlocks = existingIdx >= 0
     ? blocks.map((b, i) => (i === existingIdx ? (node as unknown as Record<string, unknown>) : b))
     : [...blocks, node as unknown as Record<string, unknown>];
 
-  const newState = { ...state, blocks: newBlocks };
+  // The walked room answers its own review questions — AI deferrals keyed to
+  // it would otherwise haunt the list after a human confirmed the room.
+  const aiDeferred = Array.isArray(state.aiDeferred)
+    ? (state.aiDeferred as Array<Record<string, unknown>>).filter((d) => Number(d.areaId) !== node.id)
+    : undefined;
+
+  const newState = { ...state, blocks: newBlocks, ...(aiDeferred !== undefined ? { aiDeferred } : {}) };
 
   const { error: writeError } = await supabase
     .from("estimates")

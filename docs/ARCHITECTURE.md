@@ -545,3 +545,16 @@ instead of aborting the batch, converts HEIC, tags damage evidence
 estimate. The wizard shows "ANALYSING THE DAMAGE PHOTOS…" during the read and
 surfaces per-photo failures as warnings. `npm run seed:extraction` seeds the
 rates table.
+**Capture opens any estimate (A5)**: capture is a view over the area tree
+regardless of author. Provenance is derived (`room_loop` / `assisted` for
+AI-drafted or customer-stated / `builder`), every room card opens, and a
+recommit merges instead of replaces (`lib/capture/recommit.ts`): builder-only
+detail (products, colours, photos, rate overrides) carries onto matched
+surfaces, absolute overrides survive only when the surface was untouched, and
+lines no tile can express are preserved verbatim. Wizard exterior nodes'
+`roomType "exterior"` aliases to capture's `exterior_elevation`; the server
+derives Interior/Exterior from the node, not the client's vocab toggle. Null
+`storey_heights` pre-fills the confirm prompt from the blocks themselves
+(`storeyHeightsFromBlocks`) so a double-storey wizard job keeps both storeys;
+recommitted rooms prune their own aiDeferred entries. Parity is tested:
+an untouched wizard room prices identically after a capture round-trip.

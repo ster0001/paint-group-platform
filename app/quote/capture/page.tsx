@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SCOPE_VERSION } from "@/lib/extract/scope";
-import type { TileRule } from "@/lib/capture/presets";
+import { storeyHeightsFromBlocks, type TileRule } from "@/lib/capture/presets";
 import { jobModifier, priceArea, type AreaInput } from "@/lib/pricing/estimate";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import CaptureApp, { type ExistingRoom, type NamePreset } from "./CaptureApp";
@@ -61,16 +61,27 @@ export default async function CapturePage({
     .map((b) => ({
       areaId: Number(b.id),
       name: String(b.name ?? "Area"),
-      roomType: typeof b.roomType === "string" ? b.roomType : null,
+      // The wizard's exterior vocabulary is "exterior"; capture's is
+      // "exterior_elevation" — same thing, normalised here so the tile
+      // lookup resolves instead of 422ing (A5).
+      roomType: typeof b.roomType === "string"
+        ? (b.roomType === "exterior" ? "exterior_elevation" : b.roomType)
+        : null,
       storey: typeof b.storey === "string" ? b.storey : "ground",
-      capturedVia: b.capturedVia === "room_loop" ? "room_loop" : "builder",
+      // A5: three provenances, all openable. AI-drafted nodes (wizard, plan
+      // reader) and customer-stated ones rebuild onto tiles for the
+      // confirm-as-you-walk pass; builder rooms open too, with their
+      // builder-only lines preserved server-side on recommit.
+      capturedVia: b.capturedVia === "room_loop"
+        ? "room_loop"
+        : typeof b.origin === "string" && (String(b.origin).startsWith("ai_") || b.origin === "customer_stated")
+          ? "assisted"
+          : "builder",
       surfaceCount: Array.isArray(b.surfaces) ? b.surfaces.length : 0,
       priceCents: priceArea(b as unknown as AreaInput, ctx, adj),
       L: Number(b.L) || 0,
       W: Number(b.W) || 0,
       H: Number(b.H) || 0,
-      // Only room_loop nodes are re-editable in capture (their surfaces map
-      // cleanly back onto tiles); builder-made rooms stay builder-owned.
       surfaces: Array.isArray(b.surfaces)
         ? (b.surfaces as Array<Record<string, unknown>>).map((s) => ({
             code: String(s.code ?? ""),
@@ -96,6 +107,7 @@ export default async function CapturePage({
       rateItems={ctx.rateItems}
       jobMod={jobModifier(ctx.modifiers, adj.modSel)}
       initialStoreyHeights={estimate.storey_heights ?? null}
+      derivedStoreyHeights={storeyHeightsFromBlocks(blocks)}
       initialRooms={existingRooms}
     />
   );
