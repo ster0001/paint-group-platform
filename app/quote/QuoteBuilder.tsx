@@ -62,6 +62,9 @@ type Surface = {
   clientLabel: string;    // customer-facing label shown on the estimate
   coats: number;
   count: number;
+  /** A6: window rates only — small/medium/large rate multiplier. Absent or
+   * "medium" prices unchanged; staff-only (the wizard always writes medium). */
+  size?: "small" | "medium" | "large" | null;
   hidden: boolean; // priced into the total, but omitted from the customer's copy
   media: MediaItem[];
   // per-surface measurement override — e.g. one wall that is half render, half
@@ -2383,6 +2386,26 @@ function AreaCard({
                     <td className={nc}>{money(c.labourCents)}</td>
                     <td className={`${nc} font-semibold`}>{money(c.totalCents)}</td>
                     <td className="whitespace-nowrap px-1 py-2 text-right">
+                      {/* A6: compact S/M/L on window rows — a rate multiplier. */}
+                      {/window/i.test(c.item?.sub_category ?? "") && (
+                        <span className="mr-1 inline-flex overflow-hidden rounded border border-gray-300 align-middle">
+                          {(["small", "medium", "large"] as const).map((sz) => (
+                            <button
+                              key={sz}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onPatch({ surfaces: area.surfaces.map((x) => (x.id === s.id ? { ...x, size: sz === "medium" ? null : sz } : x)) });
+                              }}
+                              className={`px-1.5 py-0.5 text-[10px] font-semibold ${
+                                (s.size ?? "medium") === sz ? "bg-gray-900 text-white" : "text-gray-500 hover:bg-gray-100"
+                              }`}
+                              title={sz === "small" ? "Small window · ×0.8" : sz === "large" ? "Large window · ×1.2" : "Medium window · standard rate"}
+                            >
+                              {sz[0].toUpperCase()}
+                            </button>
+                          ))}
+                        </span>
+                      )}
                       {s.hidden && <span className="mr-1 rounded bg-amber-100 px-1 py-0.5 text-[9px] font-medium text-amber-700">Hidden</span>}
                       <button onClick={(e) => { e.stopPropagation(); onDuplicateSurface(s.id); }} className="px-1 text-gray-400 hover:text-gray-700" title="Duplicate surface">⧉</button>
                       <button onClick={(e) => { e.stopPropagation(); onRemoveSurface(s.id); }} className="px-1 text-gray-400 hover:text-red-600" title="Remove surface">×</button>
@@ -2582,8 +2605,32 @@ function SurfaceEditor({
               </F>
             </div>
             {isItem && (
-              <div className="mt-2 max-w-[8rem]">
-                <F label="Count (items)">{num(s.count, (n) => onPatch({ count: n ?? 0 }))}</F>
+              <div className="mt-2 flex items-end gap-4">
+                <div className="max-w-[8rem]">
+                  <F label="Count (items)">{num(s.count, (n) => onPatch({ count: n ?? 0 }))}</F>
+                </div>
+                {/* A6: window size — a multiplier on the window rate. */}
+                {/window/i.test(item.sub_category ?? "") && (
+                  <F label="Window size">
+                    <div className="flex gap-1">
+                      {(["small", "medium", "large"] as const).map((sz) => (
+                        <button
+                          key={sz}
+                          type="button"
+                          onClick={() => onPatch({ size: sz === "medium" ? null : sz })}
+                          className={`rounded-md border px-2.5 py-1.5 text-xs font-medium ${
+                            (s.size ?? "medium") === sz
+                              ? "border-gray-900 bg-gray-900 text-white"
+                              : "border-gray-300 text-gray-600 hover:border-gray-500"
+                          }`}
+                          title={sz === "small" ? "×0.8 on the window rate" : sz === "large" ? "×1.2 on the window rate" : "standard rate"}
+                        >
+                          {sz[0].toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+                  </F>
+                )}
               </div>
             )}
           </div>

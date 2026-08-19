@@ -25,11 +25,17 @@ import type { Product, RateItem } from "./types.ts";
 // out. Anything that doesn't change a cent doesn't belong here.
 // ---------------------------------------------------------------------------
 
+/** A6: window sizes. Absent/null = medium — existing rows price unchanged. */
+export type WindowSize = "small" | "medium" | "large";
+
 export type SurfaceInput = {
   code: string;
   coats: number;
   count: number;
   prepHr: number;
+  /** Only meaningful on window rates; a multiplier on the window rate
+   * (Settings-tunable, defaults 0.8 / 1.0 / 1.2). */
+  size?: WindowSize | null;
   /** Priced like any other surface — `hidden` only affects what the customer sees. */
   hidden?: boolean;
   measureL?: number | null;
@@ -159,7 +165,29 @@ export function resolveRates(ctx: PricingContext, adj: Adjustments) {
     offerPct: sNum("Contractor offer — % of estimated hours") ?? 1,
     hourlyRateOverride: adj.hourlyRateOverride ?? null,
     contractorRateOverride: adj.contractorRateOverride ?? null,
+    // A6: window size multipliers — one window rate × size, not separate
+    // small/large rate items (any legacy ones price as-is, flagged in
+    // Settings as superseded).
+    windowSmall: sNum("Window size — small") ?? 0.8,
+    windowLarge: sNum("Window size — large") ?? 1.2,
   };
+}
+
+/** True for rate items the S/M/L control applies to. */
+export function isWindowItem(item: RateItem | undefined): boolean {
+  return /window/i.test(item?.sub_category ?? "");
+}
+
+/** A6: the size multiplier for a surface on a window rate. Medium/absent = 1. */
+export function windowSizeMultiplier(
+  item: RateItem | undefined,
+  size: WindowSize | null | undefined,
+  rates: Pick<ResolvedRates, "windowSmall" | "windowLarge">,
+): number {
+  if (!isWindowItem(item)) return 1;
+  if (size === "small") return rates.windowSmall;
+  if (size === "large") return rates.windowLarge;
+  return 1;
 }
 
 export type ResolvedRates = ReturnType<typeof resolveRates>;
@@ -270,7 +298,8 @@ export function priceSurface(
   const baseHpu = hoursPerUnit(item, s.coats);
   const dispRate = s.rateOverride ?? (isItem ? baseHpu : 1 / baseHpu);
   const baseHours = isItem ? dispRate * qty : dispRate > 0 ? qty / dispRate : 0;
-  const paintingHr = s.paintingHrOverride ?? baseHours * jobMod;
+  const sizeMul = windowSizeMultiplier(item, s.size, rates);
+  const paintingHr = s.paintingHrOverride ?? baseHours * jobMod * sizeMul;
   const labourCents = Math.round((paintingHr + s.prepHr) * chargeBase);
 
   const prodName = productNameFor(area.type, s, adj.materials, items);

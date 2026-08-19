@@ -47,6 +47,8 @@ export type RoomDraft = {
   defects: Record<string, DefectObservation[]>;
   /** tileId -> manual painting-hours override (RoomReview). Bounded by the route. */
   hoursOverride?: Record<string, number>;
+  /** A6: tileId -> window size (S/M/L rate multiplier). Absent = medium. */
+  sizes?: Record<string, "small" | "medium" | "large">;
   /** tileId -> user label override ("Cupboard door"). */
   labels?: Record<string, string>;
   /** Duplicated substrate instances: unique id cloning a base tile. */
@@ -104,7 +106,7 @@ export function emptyDraft(localId: string, name: string, roomType: string, stor
     lengthM: 0, widthM: 0, heightM, heightInherited: true,
     extraWallSegmentsM: [], perimeterOverrideM: null,
     selections: {}, exclusions: [], prepHours: {}, coats: {}, crewNotes: {},
-    defects: {}, labels: {}, extraTiles: [], hoursOverride: {},
+    defects: {}, labels: {}, extraTiles: [], hoursOverride: {}, sizes: {},
     status: "capturing",
   };
 }
@@ -112,7 +114,9 @@ export function emptyDraft(localId: string, name: string, roomType: string, stor
 /** Exactly QuoteBuilder.newSurface()'s fields and defaults. */
 type BuilderSurface = {
   id: number; code: string; internalLabel: string; clientLabel: string;
-  coats: number; count: number; hidden: boolean; media: never[];
+  coats: number; count: number;
+  size: "small" | "medium" | "large" | null;
+  hidden: boolean; media: never[];
   measureL: number | null; measureH: number | null;
   qtyOverride: number | null; rateOverride: number | null;
   paintingHrOverride: number | null; prepHr: number; priceOverride: number | null;
@@ -209,6 +213,8 @@ export function draftToAreaNode(
       clientLabel: (draft.labels?.[tile.id] ?? tile.label) + (tile.fractional && fraction < 1 ? ` (${fraction * 100}%)` : ""),
       coats: draft.coats[tile.id] ?? 2,
       count: tile.countable && !tile.fractional ? count : 1,
+      // A6: window size (rate multiplier); null/absent = medium.
+      size: draft.sizes?.[tile.id] ?? null,
       hidden: false, media: [],
       measureL, measureH: null,
       qtyOverride, rateOverride: null,

@@ -55,6 +55,9 @@ const roomSchema = z.object({
   // subtracts the manual prep back out (see lib/capture/commit.ts). 200 h
   // comfortably exceeds any real single surface.
   hoursOverride: z.record(z.string(), z.number().min(0).max(200)).default({}),
+  /** A6: window S/M/L per tile — a bounded enum, the multiplier lives in
+   * Settings server-side. */
+  sizes: z.record(z.string(), z.enum(["small", "medium", "large"])).default({}),
   labels: z.record(z.string(), z.string().max(80)).default({}),
   extraTiles: z.array(z.object({ id: z.string().max(80), from: z.string().max(80) })).max(30).default([]),
   // Observations only - severity and affected quantity. The HOURS come from

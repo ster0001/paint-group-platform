@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SCOPE_VERSION } from "@/lib/extract/scope";
 import { storeyHeightsFromBlocks, type TileRule } from "@/lib/capture/presets";
-import { jobModifier, priceArea, type AreaInput } from "@/lib/pricing/estimate";
+import { jobModifier, priceArea, resolveRates, type AreaInput } from "@/lib/pricing/estimate";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import CaptureApp, { type ExistingRoom, type NamePreset } from "./CaptureApp";
 
@@ -89,6 +89,7 @@ export default async function CapturePage({
             prepHr: Number(s.prepHr) || 0,
             coats: Number(s.coats) || 2,
             crewNote: String(s.crewNote ?? ""),
+            size: s.size === "small" || s.size === "large" ? s.size : null,
           }))
         : [],
       extraWallSegmentsM: Array.isArray(b.extraWallSegmentsM) ? (b.extraWallSegmentsM as number[]) : [],
@@ -106,6 +107,7 @@ export default async function CapturePage({
       defectRates={(defectRatesRes.data ?? []) as import("@/lib/capture/commit").DefectRate[]}
       rateItems={ctx.rateItems}
       jobMod={jobModifier(ctx.modifiers, adj.modSel)}
+      windowSizes={{ small: resolveRates(ctx, adj).windowSmall, large: resolveRates(ctx, adj).windowLarge }}
       initialStoreyHeights={estimate.storey_heights ?? null}
       derivedStoreyHeights={storeyHeightsFromBlocks(blocks)}
       initialRooms={existingRooms}

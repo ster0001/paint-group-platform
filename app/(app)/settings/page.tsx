@@ -80,6 +80,18 @@ export default async function SettingsPage() {
 
   const allSettings = (settingsRes.data as SettingRow[] | null) ?? [];
   const pricingRows = allSettings.filter((r) => r.key !== "company_profile" && r.key !== "estimate_templates" && r.key !== INCLUSION_TEMPLATES_KEY && r.key !== EXCLUSION_TEMPLATES_KEY && r.key !== TERMS_KEY && r.key !== MESSAGING_KEY);
+  // A6: the window size multipliers live with the other engine factors. Shown
+  // with their defaults until saved — saving upserts the rows.
+  for (const [key, dflt] of [["Window size — small", 0.8], ["Window size — large", 1.2]] as const) {
+    if (!pricingRows.some((r) => r.key.toLowerCase().replace(/[^a-z]+/g, "") === key.toLowerCase().replace(/[^a-z]+/g, ""))) {
+      pricingRows.push({ key, value: dflt });
+    }
+  }
+  // A6: the model is one window rate × size multiplier — any legacy separate
+  // small/large window rate items keep pricing as-is but are flagged.
+  const supersededWindowItems = (rateItems as Array<{ code?: string | null; sub_category?: string | null }>)
+    .filter((r) => /window/i.test(`${r.sub_category ?? ""} ${r.code ?? ""}`) && /\b(small|large)\b/i.test(r.code ?? ""))
+    .map((r) => r.code as string);
   const messaging = (allSettings.find((r) => r.key === MESSAGING_KEY)?.value as Partial<MessagingValues> | undefined) ?? null;
   const terms = typeof allSettings.find((r) => r.key === TERMS_KEY)?.value === "string" ? (allSettings.find((r) => r.key === TERMS_KEY)!.value as string) : "";
   const templatesRow = allSettings.find((r) => r.key === "estimate_templates");
@@ -264,7 +276,14 @@ export default async function SettingsPage() {
         />
       </SettingsFolder>
 
-      <SettingsFolder title="Pricing & job numbers" subtitle="Markup, GST, sundries, contractor rate" count={pricingRows.length}>
+      <SettingsFolder title="Pricing & job numbers" subtitle="Markup, GST, sundries, contractor rate, window sizes" count={pricingRows.length}>
+        {supersededWindowItems.length > 0 && (
+          <p className="mb-3 rounded bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            Superseded: {supersededWindowItems.join(", ")} — window sizing is now one window rate × the
+            S/M/L multiplier below. These items still price as before where used, but new work should
+            use the size control instead.
+          </p>
+        )}
         <PricingSettings initial={pricingRows} />
       </SettingsFolder>
     </div>
