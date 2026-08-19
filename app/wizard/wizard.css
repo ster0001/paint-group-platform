@@ -314,3 +314,25 @@
 .wz .sd-toast { position: fixed; left: 50%; bottom: 110px; transform: translateX(-50%); background: var(--panel2); border: 1px solid rgba(59,216,233,.45); border-radius: 12px; padding: 10px 16px; font-size: 13.5px; z-index: 70; max-width: 460px; text-align: center; }
 @keyframes sd-shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
 .wz .sd-card.shake { animation: sd-shake .3s; }
+
+/* ---- R3: the interior confirm loop (il-*) --------------------------------- */
+.wz .il-progwrap { max-width: 1020px; margin: 9px auto 0; padding: 0 18px; }
+.wz .sc-rc.amber { border-color: var(--amber); border-left-width: 3px; }
+.wz .sc-rc.done { border-color: var(--cyan); border-left-width: 3px; }
+.wz .il-hm { font-family: var(--wz-mono); font-size: 11px; color: var(--muted); font-weight: 400; }
+.wz .il-pill { font-family: var(--wz-mono); font-size: 8.5px; letter-spacing: .1em; padding: 5px 11px; border-radius: 100px; color: var(--amber); border: 1px solid rgba(224,168,60,.5); white-space: nowrap; }
+.wz .il-pill.done { color: var(--cyan); border-color: rgba(59,216,233,.5); }
+.wz .il-q { margin-top: 13px; }
+.wz .il-ql { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+.wz .il-req { font-family: var(--wz-mono); font-size: 7.5px; letter-spacing: .1em; color: var(--amber); }
+.wz .il-okc { display: none; color: var(--cyan); font-size: 12px; }
+.wz .il-q.ok .il-req { display: none; }
+.wz .il-q.ok .il-okc { display: inline; }
+.wz .il-unit { font-size: 12px; color: var(--muted); }
+.wz .il-note { font-size: 12px; color: var(--muted); margin-top: 8px; }
+.wz .il-wingroups { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 9px; align-items: center; }
+.wz .il-wingroup { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); border-radius: 9px; padding: 6px 9px; }
+.wz .il-wingroup i { font-style: normal; font-size: 12px; color: var(--muted); margin-right: 3px; }
+.wz .il-wingroup button { width: 28px; height: 24px; border-radius: 6px; border: 1px solid var(--line); background: none; color: var(--muted); font-family: var(--wz-mono); font-size: 10px; cursor: pointer; }
+.wz .il-wingroup button.on { border-color: var(--cyan); color: var(--cyan); }
+.wz .sc-rc.shake { animation: sd-shake .3s; }

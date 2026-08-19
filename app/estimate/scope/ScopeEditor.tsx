@@ -20,26 +20,41 @@ type Ladder = { tier: "self_serve" | "visit"; visitSlots: string[] };
  * price exists anywhere in its props.
  */
 
+import type { InteriorLoopMeta, RoomLoopView } from "@/lib/wizard/rooms-loop";
+
+/** R3: the interior confirm-loop state that rides every customer response. */
+export type InteriorLoopView = {
+  rooms: RoomLoopView[];
+  dw: { doors: number; windows: number; ok: boolean | null };
+  meta: InteriorLoopMeta;
+  progress: { done: number; total: number; allDone: boolean };
+};
+
 type Payload = CustomerPayload & {
   scopeRooms?: CustomerScopeRoom[];
   exterior?: CustomerExteriorView | null;
   ladder?: Ladder;
+  interiorLoop?: InteriorLoopView;
   error?: string;
 };
 
 const fmt = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
-export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialLadder, roomTypes, liveRange }: {
+export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialLadder, initialInteriorLoop = null, roomTypes, liveRange }: {
   estimateId: string;
   initial: CustomerPayload;
   initialRooms: CustomerScopeRoom[];
   initialExterior?: CustomerExteriorView | null;
   initialLadder?: Ladder;
+  initialInteriorLoop?: InteriorLoopView | null;
   roomTypes: string[];
   liveRange: boolean;
 }) {
   const [payload, setPayload] = useState<CustomerPayload>(initial);
   const [rooms, setRooms] = useState<CustomerScopeRoom[]>(initialRooms);
+  const [iloop, setIloop] = useState<InteriorLoopView | null>(initialInteriorLoop);
+  const [sizeDrafts, setSizeDrafts] = useState<Record<number, { L: string; W: string; open: boolean }>>({});
+  const [shakeCard, setShakeCard] = useState<string | null>(null);
   const [exterior, setExterior] = useState<CustomerExteriorView | null>(initialExterior);
   const [ladder, setLadder] = useState<Ladder>(initialLadder ?? { tier: "visit", visitSlots: [] });
   const [slotsOpen, setSlotsOpen] = useState(false);
@@ -84,6 +99,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         if (j.scopeRooms) setRooms(j.scopeRooms);
         if (j.exterior !== undefined) setExterior(j.exterior);
         if (j.ladder) setLadder(j.ladder);
+        if (j.interiorLoop) setIloop(j.interiorLoop);
         if (liveRange) { setFlash((n) => n + 1); }
         if (describe && liveRange) {
           const delta = (j.rangeLoCents + j.rangeHiCents) / 2 - before;
@@ -104,6 +120,40 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
     if (abs < 100) return `${added ? "Added" : "Removed"} ${label.toLowerCase()}.`;
     return `${added ? "Added" : "Removed"} ${label.toLowerCase()} — about ${added ? "+" : "−"}${fmt(abs)} ${added ? "to" : "from"} your range`;
   };
+
+  // ---- R3: the confirm loop -------------------------------------------------
+  const loopOf = (areaId: number) => iloop?.rooms.find((r) => r.areaId === areaId) ?? null;
+  function refuseCard(key: string, msg: string) {
+    setShakeCard(key);
+    setTimeout(() => setShakeCard(null), 400);
+    say(msg);
+  }
+  /** Confirm posts get their own path so a 400 shakes the card by name. */
+  function confirmAct(body: Record<string, unknown>, cardKey: string, done: string) {
+    chainRef.current = chainRef.current.then(async () => {
+      try {
+        const res = await fetch(`/api/estimates/${estimateId}/wizard-edit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...body, view: "customer" }),
+        });
+        const j = (await res.json().catch(() => ({}))) as Payload;
+        if (!res.ok) { refuseCard(cardKey, j.error ?? "That didn't save — try again."); return; }
+        assertCustomerShape(j, "ScopeEditor");
+        setPayload(j);
+        if (j.scopeRooms) setRooms(j.scopeRooms);
+        if (j.interiorLoop) setIloop(j.interiorLoop);
+        if (j.ladder) setLadder(j.ladder);
+        say(done);
+      } catch {
+        say("That didn't save — check the connection and try again.");
+      }
+    });
+  }
+  // Hallway leads the sweep — it's the highest-cost commonly-missed area.
+  const sweepTypes = iloop
+    ? [...roomTypes].sort((a, b) => (a === "hallway" ? -1 : b === "hallway" ? 1 : a.localeCompare(b)))
+    : roomTypes;
 
   function toggle(room: CustomerScopeRoom, tile: CustomerScopeRoom["tiles"][number]) {
     const turningOff = tile.on;
@@ -128,16 +178,18 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
     );
   }
 
-  function addNote(scope: number | "job") {
-    const text = (notes[scope] ?? "").trim();
+  /** R3: a named custom surface — an amber flag tile, recorded on the
+   * estimate and NEVER auto-priced; the job routes to the visit tier. */
+  function addCustom(areaId: number) {
+    const text = (notes[areaId] ?? "").trim();
     if (!text) return;
     act(
-      { action: "add_note", areaId: scope === "job" ? null : scope, note: text },
-      `note:${scope}`,
-      () => "Added as a note for your estimator — never priced silently.",
+      { action: "room_custom", areaId, name: text },
+      `custom:${areaId}`,
+      () => `Thanks — we've added “${text}”, and we'll confirm this area on the site visit.`,
     );
-    setNoteChips((c) => ({ ...c, [scope]: text }));
-    setNotes((n) => ({ ...n, [scope]: "" }));
+    setNoteChips((c) => ({ ...c, [areaId]: text }));
+    setNotes((n) => ({ ...n, [areaId]: "" }));
   }
 
   const rangeText = `${fmt(payload.rangeLoCents)} – ${fmt(payload.rangeHiCents)}`;
@@ -153,7 +205,25 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
 
   return (
     <>
-      <header className="wz-top"><div className="wz-wm">PAINT<span>—</span>GROUP</div></header>
+      <header className="wz-top">
+        <div className="wz-wm">PAINT<span>—</span>GROUP</div>
+        {iloop && (
+          <span className={`sd-status ${iloop.progress.allDone ? "ok" : ""}`}>
+            {iloop.progress.allDone ? "ESTIMATE CONFIRMED ✓" : "IN REVIEW · CONFIRM EACH ROOM"}
+          </span>
+        )}
+      </header>
+      {iloop && (
+        <div className="il-progwrap">
+          <div className="sd-lbl">
+            <span className="il-prog">{iloop.progress.done} OF {iloop.progress.total} CONFIRMED</span>
+            <span>ORANGE = STILL TO CONFIRM · BLUE = CONFIRMED</span>
+          </div>
+          <div className={`sd-pbar ${iloop.progress.allDone ? "ok" : ""}`}>
+            <i style={{ width: `${(iloop.progress.done / Math.max(1, iloop.progress.total)) * 100}%` }} />
+          </div>
+        </div>
+      )}
 
       <main className="sc-wrap">
         <div className="sc-scorebar">
@@ -183,18 +253,68 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             const main = room.tiles.filter((t) => !t.longTail);
             const tail = room.tiles.filter((t) => t.longTail);
             const showTail = openMore.has(room.areaId);
+            const loop = loopOf(room.areaId);
             return (
-              <section className="sc-rc" key={room.areaId}>
-                <div className="sc-hd">
-                  <b>{room.name}</b>
+              <section
+                className={`sc-rc ${loop?.confirmed ? "done" : loop ? "amber" : ""} ${shakeCard === `room:${room.areaId}` ? "shake" : ""}`}
+                key={room.areaId}
+                data-room={room.areaId}
+              >
+                <div className="sc-hd il-hd">
+                  <b>
+                    {room.name}
+                    {loop && (
+                      <span className="il-hm"> · {loop.sizeLabel}{loop.size === "adjusted" ? " · updated by you" : ""}</span>
+                    )}
+                  </b>
                   <span className="sc-m">
-                    {room.m2 != null && `${room.m2.toFixed(1)} m²`}
+                    {loop ? (
+                      <span className={`il-pill ${loop.confirmed ? "done" : ""}`}>{loop.confirmed ? "CONFIRMED ✓" : "CONFIRM THIS ROOM"}</span>
+                    ) : (
+                      room.m2 != null && `${room.m2.toFixed(1)} m²`
+                    )}
                     <button
                       className="sc-x" aria-label={`Remove ${room.name}`}
                       onClick={() => act({ action: "remove_room", areaId: room.areaId }, `rm:${room.areaId}`, deltaText(room.name, false))}
                     >×</button>
                   </span>
                 </div>
+                {loop && (
+                  <div className={`il-q ${loop.size != null ? "ok" : ""}`}>
+                    <p className="il-ql">
+                      Is <span className="il-size">{loop.sizeLabel}{loop.size === "adjusted" ? " · updated by you" : ""}</span> about
+                      the size of this room? <span className="il-req">REQUIRED</span><span className="il-okc">✓</span>
+                    </p>
+                    <div className="sc-chips">
+                      <button className={`sd-chip ${loop.size === "yes" ? "on" : ""}`}
+                        onClick={() => act({ action: "room_size_ok", areaId: room.areaId }, `sz:${room.areaId}`)}>
+                        Looks right
+                      </button>
+                      <button className={`sd-chip ${loop.size === "adjusted" || sizeDrafts[room.areaId]?.open ? "on" : ""}`}
+                        onClick={() => setSizeDrafts((d) => ({ ...d, [room.areaId]: { L: "", W: "", open: true } }))}>
+                        Adjust it
+                      </button>
+                    </div>
+                    {sizeDrafts[room.areaId]?.open && (
+                      <div className="sd-mrow">
+                        <input placeholder="length m" inputMode="decimal" value={sizeDrafts[room.areaId].L}
+                          onChange={(e) => setSizeDrafts((d) => ({ ...d, [room.areaId]: { ...d[room.areaId], L: e.target.value } }))} />
+                        <span>×</span>
+                        <input placeholder="width m" inputMode="decimal" value={sizeDrafts[room.areaId].W}
+                          onChange={(e) => setSizeDrafts((d) => ({ ...d, [room.areaId]: { ...d[room.areaId], W: e.target.value } }))} />
+                        <button onClick={() => {
+                          const L = parseFloat(sizeDrafts[room.areaId].L);
+                          const W = parseFloat(sizeDrafts[room.areaId].W);
+                          if (isNaN(L) || isNaN(W)) { say("Just the two numbers — length and width in metres."); return; }
+                          act({ action: "room_dims", areaId: room.areaId, lengthM: L, widthM: W }, `dims:${room.areaId}`,
+                            () => `${room.name} updated to ${L} × ${W} m — repriced for the new size.`);
+                          setSizeDrafts((d) => ({ ...d, [room.areaId]: { ...d[room.areaId], open: false } }));
+                        }}>Update size</button>
+                        <span className="il-unit">metres — pace it out, near enough is fine</span>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="sc-tgrid">
                   {[...main, ...(showTail ? tail : [])].map((t) => (
                     <div
@@ -238,19 +358,80 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     <button onClick={() => { setAdvice(null); say(`No problem — skirting left out of ${room.name}.`); }}>Leave it out</button>
                   </div>
                 )}
+                {loop && loop.windows.length > 0 && (
+                  <div className="il-wingroups">
+                    {loop.windows.map((w) => (
+                      <span className="il-wingroup" key={w.id}>
+                        <i>{w.label} ×{w.count}</i>
+                        {(["S", "M", "L"] as const).map((z) => (
+                          <button key={z} className={w.sizeBand === z ? "on" : ""}
+                            onClick={() => act({ action: "room_win_size", areaId: room.areaId, surfaceId: w.id, size: z }, `ws:${w.id}`,
+                              () => `Windows set to ${z === "S" ? "small" : z === "M" ? "medium" : "large"} — repriced.`)}>
+                            {z}
+                          </button>
+                        ))}
+                      </span>
+                    ))}
+                    <button className="sd-chip" onClick={() => act({ action: "room_add_window_group", areaId: room.areaId }, `wg:${room.areaId}`,
+                      () => "Added another window group — set its count and size. Mix as many sizes as the room has.")}>
+                      + More windows — a different size
+                    </button>
+                  </div>
+                )}
+                {loop && loop.customs.length > 0 && (
+                  <div className="sc-tgrid" style={{ marginTop: 8 }}>
+                    {loop.customs.map((name, i) => <div className="sc-tl on custom" key={i}>{name}</div>)}
+                  </div>
+                )}
+                {loop?.cupboard && (
+                  <div className={`il-q il-cup ${loop.cupboard.on != null ? "ok" : ""}`}>
+                    <p className="il-ql">{loop.cupboard.question} <span className="il-req">REQUIRED</span><span className="il-okc">✓</span></p>
+                    <div className="sc-chips">
+                      <button className={`sd-chip ${loop.cupboard.on === true ? "on" : ""}`}
+                        onClick={() => act({ action: "room_cupboard", areaId: room.areaId, on: true, count: loop.cupboard!.count }, `cup:${room.areaId}`,
+                          deltaText(loop.cupboard!.unit, true))}>
+                        Yes
+                      </button>
+                      <button className={`sd-chip ${loop.cupboard.on === false ? "on" : ""}`}
+                        onClick={() => act({ action: "room_cupboard", areaId: room.areaId, on: false, count: null }, `cup:${room.areaId}`,
+                          () => "Noted — cupboards stay as they are.")}>
+                        No
+                      </button>
+                    </div>
+                    {loop.cupboard.on === true && (
+                      <span className="sc-st" style={{ display: "flex", marginTop: 8 }}>
+                        <button aria-label="fewer" onClick={() => act({ action: "room_cupboard", areaId: room.areaId, on: true, count: Math.max(1, loop.cupboard!.count - 1) }, `cupn:${room.areaId}`)}>−</button>
+                        <b>{loop.cupboard.count}</b>
+                        <button aria-label="more" onClick={() => act({ action: "room_cupboard", areaId: room.areaId, on: true, count: Math.min(40, loop.cupboard!.count + 1) }, `cupn:${room.areaId}`)}>+</button>
+                        <span style={{ fontSize: 11.5, color: "var(--muted)" }}>{loop.cupboard.unit}</span>
+                      </span>
+                    )}
+                    {loop.cupboard.on === true && loop.cupboard.note && (
+                      <p className="il-note">{loop.cupboard.note}</p>
+                    )}
+                  </div>
+                )}
                 <div className="sc-else">
                   <input
-                    placeholder="Something else in this room? Tell us…"
+                    placeholder="Something else in this room? Name it — e.g. wall panelling"
                     value={notes[room.areaId] ?? ""}
                     onChange={(e) => setNotes((n) => ({ ...n, [room.areaId]: e.target.value }))}
-                    onKeyDown={(e) => { if (e.key === "Enter") addNote(room.areaId); }}
+                    onKeyDown={(e) => { if (e.key === "Enter") addCustom(room.areaId); }}
                   />
-                  <button onClick={() => addNote(room.areaId)}>Add</button>
+                  <button onClick={() => addCustom(room.areaId)}>Add</button>
                 </div>
                 {noteChips[room.areaId] && (
-                  <div className="sc-notechip">⚑ Noted for your estimator: &ldquo;{noteChips[room.areaId]}&rdquo; — we&rsquo;ll price this with you</div>
+                  <div className="sc-notechip">⚑ &ldquo;{noteChips[room.areaId]}&rdquo; — we&rsquo;ll confirm this area on the site visit</div>
                 )}
                 <div className="sc-inc">Includes filling minor cracks and sanding — allowances set by us</div>
+                {loop && (
+                  <button
+                    className={`sd-confirm il-confirm ${loop.confirmed ? "done" : ""}`}
+                    onClick={() => confirmAct({ action: "confirm_room_loop", areaId: room.areaId }, `room:${room.areaId}`, `${room.name} confirmed ✓`)}
+                  >
+                    {loop.confirmed ? "Confirmed ✓" : `Confirm ${room.name} ✓`}
+                  </button>
+                )}
               </section>
             );
           })}
@@ -313,17 +494,76 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             </>
           )}
 
-          <div className="sc-addrooms">
-            <p className="q">Are any rooms missing?</p>
-            <div className="sc-chips">
-              {roomTypes.map((t) => (
-                <button key={t} className="sc-chip"
-                  onClick={() => act({ action: "add_room", roomType: t }, `add:${t}`, deltaText(t.replace(/_/g, " "), true))}>
-                  + {t.replace(/_/g, " ")}
-                </button>
-              ))}
+          {!iloop && (
+            <div className="sc-addrooms">
+              <p className="q">Are any rooms missing?</p>
+              <div className="sc-chips">
+                {roomTypes.map((t) => (
+                  <button key={t} className="sc-chip"
+                    onClick={() => act({ action: "add_room", roomType: t }, `add:${t}`, deltaText(t.replace(/_/g, " "), true))}>
+                    + {t.replace(/_/g, " ")}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
+
+          {iloop && (
+            <>
+              <section className={`sc-rc il-card ${iloop.meta.done.dw ? "done" : "amber"} ${shakeCard === "dw" ? "shake" : ""}`}>
+                <div className="sc-hd il-hd">
+                  <b>Quick check — doors &amp; windows</b>
+                  <span className={`il-pill ${iloop.meta.done.dw ? "done" : ""}`}>{iloop.meta.done.dw ? "CONFIRMED ✓" : "CONFIRM THIS"}</span>
+                </div>
+                <div className={`il-q ${iloop.dw.ok === true ? "ok" : ""}`}>
+                  <p className="il-ql">
+                    We make it {iloop.dw.doors} doors and {iloop.dw.windows} windows across the house — is that right?{" "}
+                    <span className="il-req">REQUIRED</span><span className="il-okc">✓</span>
+                  </p>
+                  <div className="sc-chips">
+                    <button className={`sd-chip ${iloop.dw.ok === true ? "on" : ""}`} onClick={() => act({ action: "iloop_dw", ok: true }, "dwok")}>That&rsquo;s right ✓</button>
+                    <button className="sd-chip" onClick={() => { act({ action: "iloop_dw", ok: false }, "dwno"); say("Use the − / + on any room's door or window tile, then come back and tap “That's right”."); }}>
+                      Something&rsquo;s off — I&rsquo;ll adjust
+                    </button>
+                  </div>
+                </div>
+                <button className={`sd-confirm il-confirm ${iloop.meta.done.dw ? "done" : ""}`}
+                  onClick={() => confirmAct({ action: "confirm_iloop_item", item: "dw" }, "dw", "Counts confirmed ✓")}>
+                  {iloop.meta.done.dw ? "Confirmed ✓" : "Confirm counts ✓"}
+                </button>
+              </section>
+
+              <section className={`sc-rc il-card ${iloop.meta.done.sweep ? "done" : "amber"} ${shakeCard === "sweep" ? "shake" : ""}`}>
+                <div className="sc-hd il-hd">
+                  <b>Last check — anything we haven&rsquo;t listed?</b>
+                  <span className={`il-pill ${iloop.meta.done.sweep ? "done" : ""}`}>{iloop.meta.done.sweep ? "CONFIRMED ✓" : "CONFIRM THIS"}</span>
+                </div>
+                <div className={`il-q ${iloop.meta.sweepAns ? "ok" : ""}`}>
+                  <p className="il-ql">
+                    Hallways are the ones floorplans miss most — and they make the biggest difference to the price.
+                    Laundries, toilets and studies go missing too. <span className="il-req">REQUIRED</span><span className="il-okc">✓</span>
+                  </p>
+                  <div className="sc-chips">
+                    {sweepTypes.map((t) => (
+                      <button key={t} className="sd-chip il-chip"
+                        onClick={() => act({ action: "add_room", roomType: t }, `add:${t}`,
+                          () => `${t.replace(/_/g, " ")} added and priced in — it appears above as a new orange room to confirm.`)}>
+                        + {t.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase())}
+                      </button>
+                    ))}
+                    <button className={`sd-chip ${iloop.meta.sweepAns === "none" ? "on" : ""}`}
+                      onClick={() => act({ action: "iloop_sweep", ans: "none" }, "sweepnone")}>
+                      No — that&rsquo;s everything ✓
+                    </button>
+                  </div>
+                </div>
+                <button className={`sd-confirm il-confirm ${iloop.meta.done.sweep ? "done" : ""}`}
+                  onClick={() => confirmAct({ action: "confirm_iloop_item", item: "sweep" }, "sweep", "Everything's blue — your estimate is confirmed. Nice work.")}>
+                  {iloop.meta.done.sweep ? "Confirmed ✓" : "Confirm — nothing missing ✓"}
+                </button>
+              </section>
+            </>
+          )}
         </div>
       </main>
 
@@ -333,16 +573,23 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
           <div className="sc-pr"><small>ESTIMATE · INCL. GST</small><span>{rangeText}</span></div>
           <div className="sc-sp" />
           {!accepted && !booked && (
-            <button className="sc-btn" onClick={() => {
-              if (selfServe) {
-                setAccepted(true);
-                act({ action: "accept_intent" }, "accept");
-                say("Accepted — our team gives it a final desk check today, then your fixed price and booking confirmation follow.");
-              } else {
-                setSlotsOpen((v) => !v);
-              }
-            }}>
-              {selfServe ? "Accept estimate" : "Confirm my price — book the visit"}
+            <button
+              className="sc-btn il-cta"
+              // R3: acceptance and sign-off sit BEHIND full confirmation.
+              disabled={iloop != null && !iloop.progress.allDone}
+              onClick={() => {
+                if (selfServe) {
+                  setAccepted(true);
+                  act({ action: "accept_intent" }, "accept");
+                  say("Accepted — our team gives it a final desk check today, then your fixed price and booking confirmation follow.");
+                } else {
+                  setSlotsOpen((v) => !v);
+                }
+              }}
+            >
+              {iloop != null && !iloop.progress.allDone
+                ? `Confirm all rooms to continue — ${iloop.progress.done} of ${iloop.progress.total}`
+                : selfServe ? "Accept estimate" : "Confirm my price — book the visit"}
             </button>
           )}
         </div>

@@ -13,6 +13,7 @@ import { wizardStateSchema } from "@/lib/wizard/state";
 import ScopeEditor from "./ScopeEditor";
 import SidesEditor from "./SidesEditor";
 import { defaultSidesLoop, sidesView, type SidesLoopMeta } from "@/lib/wizard/sides";
+import { defaultInteriorLoop, interiorDwTotals, interiorProgress, roomLoopViews, type InteriorLoopMeta } from "@/lib/wizard/rooms-loop";
 import "../../wizard/wizard.css";
 
 /**
@@ -134,6 +135,15 @@ export default async function ScopeEditorPage({
     );
   }
 
+  // R3: the interior confirm loop's initial state.
+  const interiorMeta = ((state.interiorLoop as InteriorLoopMeta | undefined) ?? defaultInteriorLoop());
+  const interiorLoop = interiorRooms.length > 0 ? {
+    rooms: roomLoopViews(blocks, new Set(ctx.rateItems.map((r) => r.code))),
+    dw: { ...interiorDwTotals(blocks), ok: interiorMeta.dwOk },
+    meta: interiorMeta,
+    progress: interiorProgress(blocks, interiorMeta),
+  } : null;
+
   return (
     <div className="wz">
       <ScopeEditor
@@ -142,6 +152,7 @@ export default async function ScopeEditorPage({
         initialRooms={interiorRooms}
         initialExterior={customerExteriorView(blocks)}
         initialLadder={{ tier: selfServe ? "self_serve" : "visit", visitSlots: offeredVisitSlots(editorFlags) }}
+        initialInteriorLoop={interiorLoop}
         roomTypes={roomTypes}
         liveRange={editorFlags.liveRange !== false}
       />
