@@ -66,7 +66,9 @@ test("R3 interior loop: L×W size question, confirm walk, dw check, sweep — CT
   }
 
   // Custom surface on the first room: amber flag tile, never auto-priced.
-  // (Lives inside the "+ Add a surface" panel per the mockup.)
+  // (Lives inside the "+ Add a surface" panel per the mockup; the card is
+  // collapsed after its confirm, so reopen it from the header first.)
+  await first.locator(".il-hd").click();
   await first.scrollIntoViewIfNeeded();
   await first.getByRole("button", { name: /\+ Add a surface/ }).click();
   await first.getByPlaceholder(/Something else/).fill("wall panelling");

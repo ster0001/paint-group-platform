@@ -456,6 +456,8 @@ export type SideView = {
 
 export type SidesView = {
   sides: SideView[];
+  /** C1: the visual panel's geometry chips — read from the ANSWERS. */
+  geo: { storeys: "single" | "double" | null; substrates: string[] };
   dw: { windows: number; doors: number; ok: boolean | null };
   meta: SidesLoopMeta;
   progress: { done: number; total: number; allDone: boolean };
@@ -468,6 +470,7 @@ export type SidesView = {
 export function sidesView(
   blocks: LooseBlock[], meta: SidesLoopMeta,
   prices: Record<string, number> = {},
+  storeys: "single" | "double" | null = null,
 ): SidesView | null {
   if (!SIDE_KEYS.some((k) => findSide(blocks, k))) return null;
   const sides: SideView[] = [];
@@ -496,7 +499,11 @@ export function sidesView(
       tiles: surfaces.filter((s) => !isWallLine(s)).map((s) => ({
         id: Number(s.id) || 0,
         code: String(s.code ?? ""),
-        label: String(s.internalLabel ?? s.code ?? ""),
+        // Mockup parity: window lines read "Windows" customer-facing, never
+        // the rate code ("Fixed / Picture Window"); added groups keep theirs.
+        label: isWindowLine(s) && String(s.internalLabel ?? "") === String(s.code ?? "")
+          ? "Windows"
+          : String(s.internalLabel ?? s.code ?? ""),
         count: Number(s.count) || 1,
         countable: isWindowLine(s) || isDoorLine(s) || isCatalogLine(s)
           || substrateKeyForRateCode(String(s.code ?? "")) === "downpipes",
@@ -506,8 +513,10 @@ export function sidesView(
       customs: b.customerCustom ?? [],
     });
   }
+  const substrates = [...new Set(sides.flatMap((sv) => sv.walls.map((w) => w.label)))];
   return {
     sides,
+    geo: { storeys, substrates },
     dw: { ...dwTotals(blocks), ok: meta.dwOk },
     meta,
     progress: sidesDoneCount(blocks, meta),

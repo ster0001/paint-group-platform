@@ -120,7 +120,8 @@ export default async function ScopeEditorPage({
   // loop sides editor (reference: customer-review-confirm-exterior-v2-sides).
   const interiorRooms = customerScopeRooms(blocks, rules);
   const sidesMeta = ((state.sidesLoop as SidesLoopMeta | undefined) ?? defaultSidesLoop());
-  const sides = sidesView(blocks, sidesMeta, extrasPrices(ctx.rateItems));
+  const sides = sidesView(blocks, sidesMeta, extrasPrices(ctx.rateItems),
+    snap.success ? (snap.data.exterior?.storeys ?? null) : null);
   if (sides && interiorRooms.length === 0) {
     return (
       <div className="wz">

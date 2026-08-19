@@ -304,7 +304,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                           <span className="sd-wseg" onClick={(e) => e.stopPropagation()}>
                             <i>Size</i>
                             {(["S", "M", "L"] as const).map((z) => (
-                              <button key={z} className={sel(`ws:${s.key}:${t.id}`, t.sizeBand === z, z) ? "on" : ""} onClick={() => act({ action: "win_size", side: s.key, surfaceId: t.id, size: z }, { done: `Windows set to ${z === "S" ? "small" : z === "M" ? "medium" : "large"} — repriced.`, opt: [`ws:${s.key}:${t.id}`, z] })}>{z}</button>
+                              <button key={z} className={sel(`ws:${s.key}:${t.id}`, t.sizeBand === z, z) ? "on" : ""} onClick={() => act({ action: "win_size", side: s.key, surfaceId: t.id, size: z }, { describe: withDelta(`Windows set to ${z === "S" ? "small" : z === "M" ? "medium" : "large"}`), opt: [`ws:${s.key}:${t.id}`, z] })}>{z}</button>
                             ))}
                           </span>
                         )}
@@ -434,7 +434,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
     const next = Math.max(1, Math.min(20, shownCount(sideKey, t) + dir));
     if (next === shownCount(sideKey, t)) return;
     act({ action: "side_count", side: sideKey, surfaceId: t.id, count: next },
-      { done: `${t.label} ×${next}`, opt: [`cnt:${sideKey}:${t.id}`, String(next)] });
+      { describe: withDelta(`${t.label} ×${next}`), opt: [`cnt:${sideKey}:${t.id}`, String(next)] });
   }
 
   return (
@@ -473,6 +473,23 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
               <text x="14" y="124">LEFT</text>
               <text x="248" y="124">RIGHT</text>
             </svg>
+            {sides.geo && (
+              <div className="sd-geo">
+                {sides.geo.storeys && (
+                  <span className="sd-g">{sides.geo.storeys === "double" ? "DOUBLE" : "SINGLE"} STOREY · <i>FROM YOUR ANSWERS</i></span>
+                )}
+                {sides.geo.substrates.slice(0, 2).map((sub) => (
+                  <span className="sd-g" key={sub}>{sub.toUpperCase()} · <i>FROM YOUR ANSWERS</i></span>
+                ))}
+                <button
+                  onClick={() => act({ action: "flag_geometry" }, {
+                    done: "Flagged — geometry is ours to verify, so your estimator will confirm this on site.",
+                  })}
+                >
+                  Not right? Tell us
+                </button>
+              </div>
+            )}
             <div className="sd-legend">
               <span><i style={{ background: "var(--amber)" }} />TO CONFIRM</span>
               <span><i style={{ background: "var(--cyan)" }} />CONFIRMED</span>
