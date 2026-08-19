@@ -126,14 +126,24 @@ describe("guardrails — floor and walkthrough policy", () => {
     expect(d.canAccept).toBe(false);
   });
 
-  it("under $7k needs 90%; a mid-size job needs 80%", () => {
-    expect(evaluateGuardrails(clean(), 500_000, 85, false).canAccept).toBe(false);
+  it("v2 ladder: interior self-serves <= $6k at >= 90%, else the visit tier", () => {
+    expect(evaluateGuardrails(clean(), 500_000, 85, false).canAccept).toBe(false); // accuracy below bar
     expect(evaluateGuardrails(clean(), 500_000, 92, false).canAccept).toBe(true);
-    expect(evaluateGuardrails(clean(), 900_000, 85, false).canAccept).toBe(true);
-    expect(evaluateGuardrails(clean(), 900_000, 79, false).canAccept).toBe(false);
+    expect(evaluateGuardrails(clean(), 700_000, 95, false).canAccept).toBe(false); // over the $6k cap
+    const over = evaluateGuardrails(clean(), 700_000, 95, false);
+    expect(over.outcome).toBe("reveal"); // never a blocked state — the visit tier is an offer
+    expect(over.reasons).toContain("over_self_serve_cap");
   });
 
-  it("requires_site_check (every exterior) can never self-accept", () => {
+  it("v2 ladder: a STRAIGHTFORWARD exterior self-serves <= $12k at >= 85%", () => {
+    expect(evaluateGuardrails(clean({ jobType: "exterior" }), 900_000, 87, false).canAccept).toBe(true);
+    expect(evaluateGuardrails(clean({ jobType: "exterior" }), 900_000, 82, false).canAccept).toBe(false);
+    expect(evaluateGuardrails(clean({ jobType: "exterior" }), 1_300_000, 95, false).canAccept).toBe(false);
+    // A mixed interior+exterior job is always the visit tier.
+    expect(evaluateGuardrails(clean({ jobType: "both" }), 500_000, 95, false).canAccept).toBe(false);
+  });
+
+  it("requires_site_check (a non-straightforward exterior) can never self-accept", () => {
     const d = evaluateGuardrails(clean({ jobType: "exterior" }), 900_000, 95, true);
     expect(d.outcome).toBe("reveal");
     expect(d.walkthroughRequired).toBe(true);

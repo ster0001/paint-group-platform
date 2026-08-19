@@ -114,7 +114,7 @@ export default async function ScopeEditorPage({
   const cap = hasExterior ? (editorFlags.selfServeExteriorCapCents ?? 1_200_000) : (editorFlags.selfServeInteriorCapCents ?? 600_000);
   const mid = (customer.rangeLoCents + customer.rangeHiCents) / 2;
   const selfServe = decision.canAccept && !decision.walkthroughRequired
-    && payload.accuracyPct >= (editorFlags.selfServeMinAccuracy ?? 90) && mid <= cap;
+    && payload.accuracyPct >= (editorFlags.selfServeMinAccuracy ?? (hasExterior ? 85 : 90)) && mid <= cap;
 
   // R2b: a job with exterior sides and no interior rooms gets the confirm-
   // loop sides editor (reference: customer-review-confirm-exterior-v2-sides).

@@ -663,7 +663,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const cap = hasExterior ? (flags.selfServeExteriorCapCents ?? 1_200_000) : (flags.selfServeInteriorCapCents ?? 600_000);
     const mid = (cp.rangeLoCents + cp.rangeHiCents) / 2;
     const selfServe = decision.canAccept && !decision.walkthroughRequired
-      && payload.accuracyPct >= (flags.selfServeMinAccuracy ?? 90) && mid <= cap;
+      && payload.accuracyPct >= (flags.selfServeMinAccuracy ?? (hasExterior ? 85 : 90)) && mid <= cap;
     return NextResponse.json({
       ...cp,
       scopeRooms: customerScopeRooms(blocks, (rulesRows ?? []) as ScopeRule[]),
