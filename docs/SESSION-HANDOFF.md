@@ -41,6 +41,9 @@ with a repro (which screen, which tap), not as absence of the feature.
     fix, turbopack.root pin.
   - `8d4f123`→`007eaf4`: batch 5 — skip-restore e2e assert; excluded side
     verified rendering as explicit exclusion on /e/[token].
+  - `306b2c6`: staff wizard submit lands in the NEW confirm-loop editor
+    (/estimate/scope) instead of the old W3 internal editor — Tom's
+    request after seeing the old view; spec staff-wizard-new-editor.spec.
   - batch 4 (`451503c`): Both jobs = stacked Inside→Outside
     loops (SidesEditor `embedded` + onState feeding ONE combined progress
     and ONE CTA; both→visit tier), old element-grouped exterior editor
