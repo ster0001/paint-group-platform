@@ -1,7 +1,10 @@
 import { makeDraftSurface, type DraftArea } from "@/lib/extract/draft";
 import { substrateKeyForRateCode, substrateLabel, type SubstrateKey } from "@/lib/estimate/substrates";
-import { SURFACE_TO_RATE_CODE, doorRateCode, windowRateCode, type ScopeRule } from "@/lib/extract/scope";
-import type { WizardState } from "./state";
+import {
+  ARCHITRAVE_CODE, SURFACE_TO_RATE_CODE, doorCodeFor, doorLineLabel, doorScopeOfCode,
+  doorStyleOfCode, windowRateCode, type DoorScope, type ScopeRule,
+} from "@/lib/extract/scope";
+import { windowStyleLabel, type WizardState } from "./state";
 
 /**
  * Part B: the customer scope editor's server logic. Pure functions over the
@@ -29,6 +32,8 @@ export type CustomerTile = {
   styleToConfirm?: boolean;
   /** Catalogue lines (no scope-rule key): mutations go by surface id. */
   surfaceId?: number;
+  /** Doors only: what's included with each door in THIS room. */
+  doorScope?: DoorScope;
 };
 
 export type CustomerScopeRoom = {
@@ -53,13 +58,49 @@ function keyForRule(rule: ScopeRule): SubstrateKey | string | null {
   return substrateKeyForRateCode(code) ?? rule.surface_type;
 }
 
-const COUNTABLE_KEYS = new Set(["doors", "windows"]);
+const COUNTABLE_KEYS = new Set(["doors", "windows", "architraves"]);
+
+/**
+ * The surfaces EVERY interior room offers, in grid order, whether or not the
+ * room type's scope rules mention them (Tom, 21 Aug: "when I click in wc,
+ * skirting boards weren't available to add — please can these always be
+ * included in the tiles if they are not in the main component", and "if
+ * doors aren't included in the main estimate, they're not coming up in the
+ * tile to add").
+ *
+ * Both reports are the same gap. The v3 rules give a WC ceiling, cornices
+ * and a door but no skirting; a storage room or garage gets no door rule at
+ * all. Tiles were derived from the rules alone, so those surfaces had no
+ * tile — a customer could only reach them through the "+ Add a surface"
+ * panel, if they thought to open it.
+ *
+ * The rules still decide what is ON by default (Tom's wet-area rule —
+ * ceiling and door only — is untouched). This list only decides what is
+ * VISIBLE and one tap away.
+ */
+const ALWAYS_OFFERED: SubstrateKey[] = [
+  "walls", "ceilings", "cornices", "skirting", "doors", "windows", "architraves",
+];
+
+/**
+ * What comes with this room's doors, read back off the lines themselves
+ * rather than from a stored flag — the surfaces ARE the answer, so an
+ * estimator's edit in the builder can never disagree with the tile.
+ */
+export function roomDoorScope(block: LooseBlock): DoorScope {
+  const surfaces = Array.isArray(block.surfaces) ? block.surfaces : [];
+  const door = surfaces.find((s) => doorStyleOfCode(String(s.code ?? "")) != null);
+  if (!door) return "frame";
+  if (surfaces.some((s) => String(s.code ?? "") === ARCHITRAVE_CODE)) return "architrave";
+  return doorScopeOfCode(String(door.code ?? "")) ?? "frame";
+}
 
 /**
  * The tile list a customer sees for one room: derived from the SAME scope
- * rules that drive capture's tile grid (room_type_scope_rules ordering), with
- * tick state read off the room's actual surfaces. Rules the wizard pre-ticked
- * sit in the grid; optional rules ride the "More surfaces…" tail.
+ * rules that drive capture's tile grid (room_type_scope_rules ordering), plus
+ * the always-offered core list, with tick state read off the room's actual
+ * surfaces. Optional rules outside the core list ride the "More surfaces…"
+ * tail.
  */
 export function customerRoomView(block: LooseBlock, rules: ScopeRule[]): CustomerScopeRoom {
   const roomType = typeof block.roomType === "string" ? block.roomType : "bedroom";
@@ -82,29 +123,39 @@ export function customerRoomView(block: LooseBlock, rules: ScopeRule[]): Custome
     return { on, count: Math.max(1, count), styleToConfirm };
   };
 
+  const scope = roomDoorScope(block);
+
   const seen = new Set<string>();
   const tiles: CustomerTile[] = [];
-  for (const rule of rules.filter((r) => r.room_type === roomType)) {
-    const key = keyForRule(rule);
-    if (!key || seen.has(String(key))) continue;
+  const push = (key: SubstrateKey | string, label: string, longTail: boolean) => {
+    if (seen.has(String(key))) return;
     seen.add(String(key));
     const st = stateFor(String(key));
     const countable = COUNTABLE_KEYS.has(String(key));
     tiles.push({
-      key,
-      label: typeof key === "string" && substrateKeyForRateCode(SURFACE_TO_RATE_CODE[rule.surface_type] ?? "")
-        ? substrateLabel(key as SubstrateKey)
-        : rule.surface_type === "Door & Frame" ? "Doors"
-        : rule.surface_type,
+      key, label,
       on: st.on,
       ...(countable ? { count: st.count } : {}),
       ...(st.styleToConfirm ? { styleToConfirm: true } : {}),
+      ...(key === "doors" ? { doorScope: scope } : {}),
       countable,
-      // A rule marked optional (is_option) — or currently off — is long-tail
-      // only when the wizard didn't put it on the job.
-      longTail: (rule as { is_option?: boolean }).is_option === true && !st.on,
+      // A core surface is never buried in the tail: the whole point is that
+      // it is visible and one tap away in every room.
+      longTail: longTail && !st.on && !ALWAYS_OFFERED.includes(key as SubstrateKey),
     });
+  };
+
+  for (const rule of rules.filter((r) => r.room_type === roomType)) {
+    const key = keyForRule(rule);
+    if (!key) continue;
+    const label = typeof key === "string" && substrateKeyForRateCode(SURFACE_TO_RATE_CODE[rule.surface_type] ?? "")
+      ? substrateLabel(key as SubstrateKey)
+      : rule.surface_type === "Door & Frame" ? "Doors"
+      : rule.surface_type;
+    push(key, label, (rule as { is_option?: boolean }).is_option === true);
   }
+  // The core list, for the room types whose rules never mention them.
+  for (const key of ALWAYS_OFFERED) push(key, substrateLabel(key), false);
   // Catalogue lines (Air Vent and friends): surfaces whose code no rule key
   // covers render as their own countable tiles, mutated by surface id.
   const ruleKeys = new Set(tiles.map((t) => String(t.key)));
@@ -150,9 +201,9 @@ export function rateCodeForCustomerAdd(
   snapshot: WizardState | null,
 ): { code: string; label: string; assumed: string[] } | null {
   if (key === "doors") {
-    const style = snapshot?.details.doorStyle;
-    const code = style && style !== "unsure" ? doorRateCode(style) : "Flat Door and Frame (1 Side)";
-    return { code: code ?? "Flat Door and Frame (1 Side)", label: "Doors", assumed: ["style"] };
+    const face: "flat" | "panel" = snapshot?.details.doorStyle === "panel" ? "panel" : "flat";
+    const scope = snapshot?.details.doorScope ?? "frame";
+    return { code: doorCodeFor(face, scope)!, label: doorLineLabel(face, scope), assumed: ["style"] };
   }
   if (key === "windows") {
     const style = snapshot?.details.windowStyle;
@@ -161,7 +212,8 @@ export function rateCodeForCustomerAdd(
       : style === "colonial" ? "colonial_bay"
       : style === "winder" ? "awning_casement" : null;
     const code = schema ? windowRateCode(schema) : null;
-    return { code: code ?? "Awning / Casement Window", label: "Windows", assumed: ["style"] };
+    // The label repeats the customer's own answer — see windowStyleLabel.
+    return { code: code ?? "Awning / Casement Window", label: windowStyleLabel(style ?? "unsure"), assumed: ["style"] };
   }
   // One-to-one substrates: the registry's first code for the key.
   const direct: Record<string, string> = {
@@ -206,6 +258,13 @@ export function applyToggle(
   }
   const out = [...blocks];
   out[idx] = block;
+  // Doors switched on in a job whose answer is "door, frame & architrave"
+  // arrive WITH their architrave — the answer applies to every door, not
+  // only the ones the plan reader found.
+  if (on && key === "doors" && (snapshot?.details.doorScope ?? "frame") === "architrave") {
+    const withArch = applyDoorScope(out, areaId, "architrave", nextId);
+    if (withArch.ok) return withArch;
+  }
   return { ok: true, blocks: out };
 }
 
@@ -233,6 +292,69 @@ export function applyCount(
   const others = mine.slice(1).reduce((n, { s }) => n + (Number(s.count) || 1), 0);
   const first = { ...mine[0].s, count: Math.max(1, count - others) };
   surfaces[mine[0].i] = first;
+  // An architrave riding with the doors follows the door count — four doors
+  // and one architrave would be a quiet under-price.
+  if (key === "doors") {
+    const a = surfaces.findIndex((s) => String(s.code ?? "") === ARCHITRAVE_CODE);
+    if (a >= 0) surfaces[a] = { ...surfaces[a], count };
+  }
+  block.surfaces = surfaces;
+  const out = [...blocks];
+  out[idx] = block;
+  return { ok: true, blocks: out };
+}
+
+/**
+ * "What comes with each door" for ONE room: door only · door + frame ·
+ * door, frame + architrave (Tom, 21 Aug).
+ *
+ * The door LINES are rewritten in place, so each door keeps the flat/panel
+ * style a photo or the wizard established — the answer being changed is what
+ * is included, not what kind of door it is. The architrave is added and
+ * removed as its own visible, priced line at the room's door count; it is
+ * never folded into the door rate.
+ */
+export function applyDoorScope(
+  blocks: LooseBlock[],
+  areaId: number,
+  scope: DoorScope,
+  nextId: () => number,
+): ScopeToggleResult {
+  const idx = blocks.findIndex((b) => b.kind === "area" && Number(b.id) === areaId);
+  if (idx < 0) return { ok: false, error: "No such room." };
+  const block = { ...blocks[idx] };
+  const surfaces = (Array.isArray(block.surfaces) ? block.surfaces : []).map((s) => ({ ...s }));
+
+  let doors = 0;
+  let touched = false;
+  for (const s of surfaces) {
+    const face = doorStyleOfCode(String(s.code ?? ""));
+    if (face == null) continue;
+    doors += Number(s.count) || 1;
+    const code = doorCodeFor(face, scope)!;
+    if (code !== s.code) touched = true;
+    s.code = code;
+    s.internalLabel = doorLineLabel(face, scope);
+    s.clientLabel = doorLineLabel(face, scope);
+  }
+  if (doors === 0) return { ok: false, error: "Turn the doors on first, then say what comes with them." };
+
+  const archIdx = surfaces.findIndex((s) => String(s.code ?? "") === ARCHITRAVE_CODE);
+  if (scope === "architrave") {
+    if (archIdx < 0) {
+      const line = makeDraftSurface(nextId(), ARCHITRAVE_CODE, "Architraves (with the doors)", doors, "customer_stated", 0.85, []);
+      surfaces.push(line as unknown as Record<string, unknown>);
+      touched = true;
+    } else if ((Number(surfaces[archIdx].count) || 1) !== doors) {
+      surfaces[archIdx] = { ...surfaces[archIdx], count: doors };
+      touched = true;
+    }
+  } else if (archIdx >= 0) {
+    surfaces.splice(archIdx, 1);
+    touched = true;
+  }
+  if (!touched) return { ok: false, error: "That's already what's included." };
+
   block.surfaces = surfaces;
   const out = [...blocks];
   out[idx] = block;
@@ -270,7 +392,7 @@ export type CustomerExteriorView = {
 };
 
 const EXT_GROUPS: Array<{ group: ExteriorGroup["group"]; label: string; keys: string[] }> = [
-  { group: "body", label: "THE BODY", keys: ["weatherboards", "render", "brick"] },
+  { group: "body", label: "THE BODY", keys: ["weatherboards", "render", "brick", "brick_unpainted"] },
   { group: "trims", label: "TRIMS & OPENINGS", keys: ["exterior_windows", "exterior_doors", "garage_doors"] },
   { group: "roofline", label: "THE ROOFLINE", keys: ["fascias", "gutters", "eaves", "downpipes"] },
   { group: "extras", label: "EXTRAS", keys: ["deck", "fence", "pergola", "balustrade"] },
@@ -372,6 +494,7 @@ export function applyExteriorToggle(
   if (already) return { ok: false, error: "That surface is already on." };
   const CODE: Record<string, string> = {
     weatherboards: "Weatherboards", render: "Render", brick: "Brick",
+    brick_unpainted: "Brick (Unpainted)",
     fascias: "Fascias", gutters: "Gutters", eaves: "Eaves", downpipes: "Downpipes",
     exterior_windows: "Fixed / Picture Window", exterior_doors: "Front Door",
     garage_doors: "Garage Door (1 Car)", deck: "Deck Painting", fence: "Paling Fence",

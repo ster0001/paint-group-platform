@@ -185,3 +185,33 @@ Semantics, all guarded by `e2e/customer-journey/batch-edits.spec.ts`:
 - Curly-apostrophe trap in specs: match /That.s right/ not /That's/.
 - e2e-spec-first as an anonymous customer; mockups win; STOP on
   data-model conflicts (Tom rules).
+
+---
+
+# 21 Aug 2026 — Tom's editor batch (9 asks), ON MAIN
+
+Driven on the real screen; `e2e/customer-journey/doors-tiles-steppers.spec.ts`
+is the new guard (3 tests). 387 unit tests green, `npm run build` clean.
+
+| Ask | What was actually wrong | Fix |
+|---|---|---|
+| "It only lists doors, without frames — should we offer doors only, door and frame, and architrave?" | The card has carried all four door codes plus `Architrave (1 Side)` since v7. The estimator only ever wrote the "and Frame" codes and never an architrave, so the question could not be answered at all | `lib/extract/scope.ts` gains `DoorScope` (`door` \| `frame` \| `architrave`) with `doorCodeFor` / `doorStyleOfCode` / `doorScopeOfCode` / `doorLineLabel`. New wizard question on page 4, a `With each` segment on the Doors tile, and `room_door_scope` on wizard-edit. **Default is `frame` — every estimate written before today already means that, so nothing reprices.** "+ architrave" adds a REAL Architrave line at the room's door count, visible on the Architraves tile; it is never a hidden loading, and the door count carries it |
+| "When I click in the WC, skirting boards weren't available to add" + "if doors aren't included in the main estimate, they're not coming up in the tile" | Same root cause. Tiles came only from `room_type_scope_rules`, and v3 gives a WC/bathroom/kitchen/laundry/storage/garage **no Skirting Boards rule**, and storage/garage **no Door & Frame rule**. Those surfaces had no tile — only the "+ Add a surface" panel, if you thought to open it | `ALWAYS_OFFERED` in `scope-editor.ts`: walls, ceilings, cornices, skirting, doors, windows, architraves are tiles in EVERY room, off if not in scope, never in the "More surfaces…" tail. **The rules still decide what is ON** — Tom's wet-area "ceiling and door only" default is untouched |
+| "Make the size question stand out so it's easy to answer first" | It sat between the tiles and the cupboard question in the same 14px weight as everything else | `.il-first` panel + `FIRST — THE SIZE OF THIS ROOM` kicker, amber edge, bigger chips; settles to cyan once answered so a finished room stops shouting. Same treatment on a side |
+| "I chose winder window and it gave me awning casement in the builder" | A winder IS priced at the awning/casement rate (right rate family, no winder row on the card) but the LINE was labelled with the rate code | `windowStyleLabel()` — the line now says "Winder window (awning/casement rate)". Every style carries its own label, internal and client-facing |
+| "Add unpainted brick as an option in the builder (3 x coats)" | No such row, and `default_coats` had existed since rate card v7 with **nothing reading it** | Migration `20260925000000_unpainted_brick.sql` + `brick_unpainted` substrate. `default_coats` is now read: the builder seeds a new surface's coats on the first substrate pick, and the sides "+ wall surface" add does the same |
+| "I can't untick items from exterior quotes, all should be untickable" | SidesEditor rendered walls, side tiles and customs as permanently `on` with no control. The interior has had `room_remove_line` since R5 | `removeSideLine` / `removeSideCustom` + a × on every tile. A removed WALL hands its share to the biggest wall left so the side still totals 100%; the LAST wall refuses ("use No — skip this side"), because a wall-less side is a skipped side |
+| "Remove accept estimate from the bottom of the exterior wizard — all exterior jobs need estimator sign-off" | — | `policy.ts`: `jobType !== "interior"` → visit tier, reason `exterior_signoff`, whatever the size or accuracy. The self-serve branch is DELETED from SidesEditor, not hidden. New `visitReason` fallback `signoff` ("Every exterior job is signed off by your estimator — "). Supersedes the v2 rung "straightforward exterior ≤$12k at ≥85%"; the interior rung is untouched |
+| "Doors move quickly, but windows don't — anything with a +/- should move the same" | R5 gave the TILE stepper optimistic counts + coalescing. The window-group and cupboard steppers still posted one request per tap computed off the SERVER's count — the exact two bugs R5 fixed | ONE `stepBy()` helper behind all three. Verified on the real screen: three quick taps land on 4 within 3s and are still 4 after the save |
+
+**SQL Tom must run: `20260925000000_unpainted_brick.sql`** (one insert + one
+update, idempotent). Until then the unpainted-brick tick is simply not offered
+anywhere — a substrate whose code the card doesn't carry is offered nowhere.
+Everything else in this batch is pure code.
+
+**Gate note.** The full serial journey run showed 21 passed / 9 failed, and all
+nine failures were the documented **Supabase anonymous sign-in rate limit** —
+`/estimate` renders "The estimate wizard isn't available just now" and Continue
+stays disabled (screenshot captured). All nine were re-run in isolation with
+cool-downs and **all nine pass**. This is env, not code; see the working
+agreement below. Both new specs passed inside the full run too.

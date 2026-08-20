@@ -91,6 +91,11 @@ export const wizardStateSchema = z.object({
   details: z.object({
     /** "Mostly" answers. unsure = nothing generated (Tom's rule, scope.ts). */
     doorStyle: z.enum(["panel", "flat", "unsure"]),
+    /** What comes with each door — leaf only, leaf + frame, or leaf + frame
+     * + architrave (lib/extract/scope.DoorScope). Defaulted, not required:
+     * every estimate written before 21 Aug 2026 means "frame", which is what
+     * the old code always generated. */
+    doorScope: z.enum(["door", "frame", "architrave"]).default("frame"),
     windowStyle: z.enum(["casement", "sash", "colonial", "winder", "unsure"]),
     ceilingHeight: z.enum(["2.4", "2.7", "3.0", "unsure"]),
     /** 0 none · 1 minor · 2 a few areas of concern · 3 desperate need. */
@@ -235,6 +240,7 @@ export function defaultWizardState(): WizardState {
     condition: { tier: "change", darkToLightSurfaces: [] },
     details: {
       doorStyle: "unsure",
+      doorScope: "frame",
       windowStyle: "unsure",
       ceilingHeight: "unsure",
       damageTier: 1,
@@ -295,6 +301,27 @@ export function ceilingHeightFrom(choice: WizardState["details"]["ceilingHeight"
   if (choice === "2.7") return { heightM: 2.7, assumed: false };
   if (choice === "3.0") return { heightM: 3.0, assumed: false };
   return { heightM: 2.4, assumed: true };
+}
+
+/**
+ * The label a line carries when the customer named the style (Tom, 21 Aug:
+ * "I choose winder window, and it gave me awning casement window in the
+ * builder").
+ *
+ * Four of the five answers have their own rate row, so their label is just
+ * the row. A WINDER does not: it is a crank-operated awning/casement and
+ * prices at that rate. Labelling it "Awning / Casement Window" answered a
+ * question nobody asked — so the line now says what the customer said, and
+ * names the rate family it rides in the same breath.
+ */
+export function windowStyleLabel(style: WizardState["details"]["windowStyle"]): string {
+  switch (style) {
+    case "casement": return "Awning / casement window";
+    case "sash": return "Double hung sash window";
+    case "colonial": return "Colonial / bay window";
+    case "winder": return "Winder window (awning/casement rate)";
+    default: return "Windows — style to confirm";
+  }
 }
 
 /** Wizard window answers to the extraction schema's window styles. */

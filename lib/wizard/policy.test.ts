@@ -135,12 +135,23 @@ describe("guardrails — floor and walkthrough policy", () => {
     expect(over.reasons).toContain("over_self_serve_cap");
   });
 
-  it("v2 ladder: a STRAIGHTFORWARD exterior self-serves <= $12k at >= 85%", () => {
-    expect(evaluateGuardrails(clean({ jobType: "exterior" }), 900_000, 87, false).canAccept).toBe(true);
+  it("21 Aug: NO exterior job self-accepts — an estimator signs every one off", () => {
+    // Supersedes the v2 "straightforward exterior <= $12k at >= 85%" rung.
+    // Tom: "remove accept estimate from the bottom of the exterior wizard for
+    // now, all exterior jobs will require a job sign off by the estimator."
+    const small = evaluateGuardrails(clean({ jobType: "exterior" }), 900_000, 87, false);
+    expect(small.canAccept).toBe(false);
+    expect(small.walkthroughRequired).toBe(true);
+    expect(small.reasons).toContain("exterior_signoff");
+    // Still a REVEAL — the visit is an offer with the calendar right there,
+    // never a blocked state.
+    expect(small.outcome).toBe("reveal");
     expect(evaluateGuardrails(clean({ jobType: "exterior" }), 900_000, 82, false).canAccept).toBe(false);
     expect(evaluateGuardrails(clean({ jobType: "exterior" }), 1_300_000, 95, false).canAccept).toBe(false);
     // A mixed interior+exterior job is always the visit tier.
     expect(evaluateGuardrails(clean({ jobType: "both" }), 500_000, 95, false).canAccept).toBe(false);
+    // The interior rung is untouched.
+    expect(evaluateGuardrails(clean(), 500_000, 92, false).canAccept).toBe(true);
   });
 
   it("requires_site_check (a non-straightforward exterior) can never self-accept", () => {

@@ -1,8 +1,8 @@
 import type { DraftArea, DraftResult } from "@/lib/extract/draft";
 import { makeDraftSurface } from "@/lib/extract/draft";
-import { doorRateCode, windowRateCode } from "@/lib/extract/scope";
+import { ARCHITRAVE_CODE, doorCodeFor, doorLineLabel, doorStyleOfCode, windowRateCode } from "@/lib/extract/scope";
 import { substrateKeyForRateCode } from "@/lib/estimate/substrates";
-import { coatsFor, windowStyleToSchema, type WizardState, type WizardSurfaceKey } from "./state";
+import { coatsFor, windowStyleLabel, windowStyleToSchema, type WizardState, type WizardSurfaceKey } from "./state";
 
 /**
  * W2's merge: wizard answers applied over the drafted tree — the one place
@@ -84,10 +84,17 @@ export function applyWizardAnswers(
   // $0 silently — "no guessing" governs the RATE presented as settled, not
   // whether the door is on the estimate at all.
   const doorAnswered = state.details.doorStyle !== "unsure";
-  const doorCode = doorRateCode(state.details.doorStyle) ?? "Flat Door and Frame (1 Side)";
+  const doorScope = state.details.doorScope ?? "frame";
+  const doorFace: "flat" | "panel" = state.details.doorStyle === "panel" ? "panel" : "flat";
+  const doorCode = doorCodeFor(doorFace, doorScope)!;
+  const doorLabel = doorLineLabel(doorFace, doorScope);
   const answeredWindowCode = windowRateCode(windowStyleToSchema(state.details.windowStyle));
   const windowAnswered = answeredWindowCode != null;
   const windowCode = answeredWindowCode ?? "Awning / Casement Window";
+  // The label says what the CUSTOMER chose, not which rate row it landed on
+  // — "Winder" answered in the wizard used to reappear in the builder as
+  // "Awning / Casement Window" with nothing to connect the two.
+  const windowLabel = windowStyleLabel(state.details.windowStyle);
 
   for (const area of draft.areas) {
     const kept = area.surfaces.filter((s) => {
@@ -110,13 +117,13 @@ export function applyWizardAnswers(
       }
       if (kind === "doors") {
         kept.push(makeDraftSurface(
-          nextId(), doorCode,
-          doorCode.startsWith("Flat") ? "Flat door & frame" : "Panel door & frame",
-          d.count,
+          nextId(), doorCode, doorLabel, d.count,
           doorAnswered ? "ai_derived" : "ai_assumed",
           doorAnswered ? 0.75 : 0.6,
           ["style"],
         ));
+        // ("Door, frame & architrave" adds its architrave line below, once
+        // per room against the room's whole door count.)
         // Answered = question closed. Unsure = priced provisionally, and the
         // open question stays visible (review gate + accuracy both see it).
         deferred = doorAnswered
@@ -126,7 +133,7 @@ export function applyWizardAnswers(
               : x));
       } else if (kind === "windows") {
         kept.push(makeDraftSurface(
-          nextId(), windowCode, windowCode, d.count,
+          nextId(), windowCode, windowLabel, d.count,
           windowAnswered ? "ai_derived" : "ai_assumed",
           windowAnswered ? 0.75 : 0.6,
           ["style"],
@@ -140,6 +147,31 @@ export function applyWizardAnswers(
         // Ticked cornices = the user says the house has them.
         kept.push(makeDraftSurface(nextId(), "Standard Cornices", "Cornices", 1, "ai_derived", 0.8, []));
         deferred = deferred.filter((x) => x !== d);
+      }
+    }
+
+    // Doors the PLAN READER already priced (their style came off a photo)
+    // still have to honour the "what comes with the door" answer — the
+    // reader only ever writes the door-and-frame code. Style is preserved:
+    // the photo saw it, the customer didn't state it.
+    for (const s of kept) {
+      const face = doorStyleOfCode(s.code);
+      if (face == null) continue;
+      const code = doorCodeFor(face, doorScope)!;
+      s.code = code;
+      // Both labels: clientLabel is what the customer reads on the quote, so
+      // a door-only job must not still say "& frame" there.
+      s.internalLabel = doorLineLabel(face, doorScope);
+      s.clientLabel = doorLineLabel(face, doorScope);
+    }
+    if (doorScope === "architrave") {
+      const doors = kept.filter((s) => doorStyleOfCode(s.code) != null)
+        .reduce((n, s) => n + (s.count || 1), 0);
+      const already = kept.find((s) => s.code === ARCHITRAVE_CODE);
+      if (doors > 0 && !already) {
+        kept.push(makeDraftSurface(
+          nextId(), ARCHITRAVE_CODE, "Architraves (with the doors)", doors, "customer_stated", 0.8, [],
+        ));
       }
     }
 

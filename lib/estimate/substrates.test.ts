@@ -24,9 +24,12 @@ describe("substrate registry ↔ rate card alignment", () => {
   const items = goldenRateItems();
   const codes = new Set(items.map((i) => i.code));
 
-  it("every registry code exists in the rate card (Brick excepted until migration 20260919)", () => {
+  it("every registry code exists in the rate card (the two brick rows excepted until their migrations run)", () => {
     const missing = SUBSTRATE_DEFS.flatMap((d) => d.codes).filter((c) => !codes.has(c));
-    expect(missing).toEqual(["Brick"]);
+    // 'Brick' arrives with 20260919, 'Brick (Unpainted)' with 20260925 —
+    // the golden card predates both. A substrate whose code the loaded card
+    // doesn't carry is simply not offered, which is the point of the test.
+    expect(missing).toEqual(["Brick", "Brick (Unpainted)"]);
   });
 
   it("no two substrates claim the same rate code", () => {
@@ -61,11 +64,17 @@ describe("substrateOptionsFromRates", () => {
     expect(exteriorKeys).not.toContain("walls");
     // Brick has no rate row yet — a tick that cannot price is not offered.
     expect(exteriorKeys).not.toContain("brick");
+    expect(exteriorKeys).not.toContain("brick_unpainted");
   });
 
   it("offers brick once its rate exists", () => {
     const withBrick = substrateOptionsFromRates([...items, { code: "Brick", category: "Exterior" }]);
     expect(withBrick.exterior.map((o) => o.key)).toContain("brick");
+    // …and painted brick alone does NOT bring the unpainted (3-coat) row in.
+    expect(withBrick.exterior.map((o) => o.key)).not.toContain("brick_unpainted");
+    const withBoth = substrateOptionsFromRates([...items,
+      { code: "Brick", category: "Exterior" }, { code: "Brick (Unpainted)", category: "Exterior" }]);
+    expect(withBoth.exterior.map((o) => o.key)).toContain("brick_unpainted");
   });
 
   it("offers nothing from an empty rate card", () => {

@@ -44,9 +44,69 @@ export const SURFACE_TO_RATE_CODE: Record<string, string> = {
  * a guessed door style is a wrong rate on every door in the house.
  */
 export function doorRateCode(style: string): string | null {
-  if (style === "flat") return "Flat Door and Frame (1 Side)";
-  if (style === "panel") return "4-6 Panel Door and Frame (1 Side)";
+  return doorCodeFor(style, "frame");
+}
+
+/**
+ * WHAT COMES WITH THE DOOR (Tom, 21 Aug: "it only lists doors, without frames
+ * in the estimator — should we offer doors only, door and frame, and
+ * architrave?").
+ *
+ * The rate card has carried all three shapes since v7 — a door-only rate, a
+ * door-and-frame rate, and a per-item architrave — but the estimator only
+ * ever wrote the "and Frame" codes and never the architrave, so a customer
+ * could not say what they actually wanted painted. This is the one place
+ * that decides which code a door answer lands on.
+ *
+ *   door        just the leaf (a frame already painted, or a sliding door)
+ *   frame       leaf + frame — the default, and what every existing
+ *               estimate already means
+ *   architrave  leaf + frame, PLUS an Architrave (1 Side) line at the same
+ *               count. The architrave rides as its OWN visible line rather
+ *               than a hidden loading: it is a separate rate and it shows on
+ *               the Architraves tile, so nothing is priced invisibly.
+ */
+export type DoorScope = "door" | "frame" | "architrave";
+
+export const DOOR_SCOPES: DoorScope[] = ["door", "frame", "architrave"];
+
+export const ARCHITRAVE_CODE = "Architrave (1 Side)";
+
+const DOOR_CODES: Record<"flat" | "panel", Record<"door" | "frame", string>> = {
+  flat: { door: "Flat Door (1 Side)", frame: "Flat Door and Frame (1 Side)" },
+  panel: { door: "4-6 Panel Door (1 Side)", frame: "4-6 Panel Door and Frame (1 Side)" },
+};
+
+/** The door code for a style + scope. "architrave" rides the frame code —
+ * the architrave itself is a second line, not a different door rate. */
+export function doorCodeFor(style: string, scope: DoorScope): string | null {
+  const family = style === "flat" ? DOOR_CODES.flat : style === "panel" ? DOOR_CODES.panel : null;
+  if (!family) return null;
+  return scope === "door" ? family.door : family.frame;
+}
+
+/** Read a door line's style back off its code. */
+export function doorStyleOfCode(code: string): "flat" | "panel" | null {
+  if (DOOR_CODES.flat.door === code || DOOR_CODES.flat.frame === code) return "flat";
+  if (DOOR_CODES.panel.door === code || DOOR_CODES.panel.frame === code) return "panel";
   return null;
+}
+
+/** Read a door line's scope back off its code (architrave is a separate
+ * line, so a code alone can only say door or frame). */
+export function doorScopeOfCode(code: string): "door" | "frame" | null {
+  if (DOOR_CODES.flat.door === code || DOOR_CODES.panel.door === code) return "door";
+  if (DOOR_CODES.flat.frame === code || DOOR_CODES.panel.frame === code) return "frame";
+  return null;
+}
+
+/** The staff-facing label for a door line — says the style AND what it
+ * includes, because "Doors" alone was exactly the complaint. */
+export function doorLineLabel(style: "flat" | "panel", scope: DoorScope): string {
+  const face = style === "flat" ? "Flat door" : "Panel door";
+  if (scope === "door") return `${face} only`;
+  if (scope === "architrave") return `${face}, frame & architrave`;
+  return `${face} & frame`;
 }
 
 /** Same rule for windows: no type, no line. */

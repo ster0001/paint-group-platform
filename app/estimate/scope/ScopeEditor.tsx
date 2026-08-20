@@ -59,6 +59,14 @@ const MAX_BATCH = 24;
 const endsBatch = (body: Record<string, unknown>) =>
   String(body.action ?? "").startsWith("confirm_");
 
+/** The door tile's "what comes with each door" segment: value, the label on
+ * the button, and how the toast says it back. */
+const DOOR_SCOPE_SEG: Array<["door" | "frame" | "architrave", string, string]> = [
+  ["door", "Door", "the door only"],
+  ["frame", "+ frame", "the door and its frame"],
+  ["architrave", "+ arch.", "the door, frame and architrave"],
+];
+
 const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
 const snapshotFalse = () => false;
@@ -353,22 +361,62 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   const shownCount = (room: CustomerScopeRoom, tile: CustomerScopeRoom["tiles"][number]) =>
     draftCounts[`${room.areaId}:${tile.key}`] ?? tile.count ?? 1;
 
-  function step(room: CustomerScopeRoom, tile: CustomerScopeRoom["tiles"][number], dir: 1 | -1) {
-    const cap = tile.surfaceId != null ? 20 : 12;
-    const key = `${room.areaId}:${tile.key}`;
-    const next = Math.max(1, Math.min(cap, shownCount(room, tile) + dir));
-    if (next === shownCount(room, tile)) return;
+  /**
+   * ONE stepper for every +/− on this screen (Tom, 21 Aug: "doors now move
+   * quickly, but windows don't — please allow so anything with a +/− button
+   * moves the same as the doors").
+   *
+   * The tile stepper got the optimistic-count + coalesce treatment in R5;
+   * the window-group and cupboard steppers were left posting one request per
+   * tap off the SERVER's count, which is exactly the two bugs R5 fixed —
+   * ~2.9s of nothing per tap, and a quick second tap recomputing the same
+   * number and being lost. Everything routes through here now.
+   *
+   * `key` is the draft-count slot and the coalesce key; `send` builds the
+   * action for the settled value.
+   */
+  function stepBy(
+    key: string, current: number, dir: 1 | -1, cap: number,
+    send: (count: number) => Record<string, unknown>,
+    label: string,
+  ) {
+    const shown = draftCounts[key] ?? current;
+    const next = Math.max(1, Math.min(cap, shown + dir));
+    if (next === shown) return;
     setDraftCounts((d) => ({ ...d, [key]: next }));
     // One save per burst, carrying the final count (useCoalesced).
     queue(`n:${key}`, () => act(
-      tile.surfaceId != null
-        ? { action: "room_line_count", areaId: room.areaId, surfaceId: tile.surfaceId, count: next }
-        : { action: "set_count", areaId: room.areaId, key: tile.key, count: next },
+      send(next),
       `${key}:n`,
-      (d) => `${tile.label} ×${next}${liveRange && Math.abs(d) >= 100 ? ` — about ${d > 0 ? "+" : "−"}${fmt(Math.abs(d))}` : ""}`,
+      (d) => `${label} ×${next}${liveRange && Math.abs(d) >= 100 ? ` — about ${d > 0 ? "+" : "−"}${fmt(Math.abs(d))}` : ""}`,
       undefined,
       () => setDraftCounts((cur) => { const n = { ...cur }; delete n[key]; return n; }),
     ));
+  }
+
+  /** The count to SHOW for any stepper: the customer's taps, then the server. */
+  const shown = (key: string, serverCount: number) => draftCounts[key] ?? serverCount;
+
+  function step(room: CustomerScopeRoom, tile: CustomerScopeRoom["tiles"][number], dir: 1 | -1) {
+    stepBy(
+      `${room.areaId}:${tile.key}`, tile.count ?? 1, dir, tile.surfaceId != null ? 20 : 12,
+      (count) => tile.surfaceId != null
+        ? { action: "room_line_count", areaId: room.areaId, surfaceId: tile.surfaceId, count }
+        : { action: "set_count", areaId: room.areaId, key: tile.key, count },
+      tile.label,
+    );
+  }
+
+  /** A window GROUP's stepper — same path as the door tile's. */
+  function stepWindow(room: CustomerScopeRoom, w: { id: number; count: number; label: string }, dir: 1 | -1) {
+    stepBy(`${room.areaId}:win${w.id}`, w.count, dir, 20,
+      (count) => ({ action: "room_line_count", areaId: room.areaId, surfaceId: w.id, count }), w.label);
+  }
+
+  /** The cupboard stepper — same path again. */
+  function stepCupboard(room: CustomerScopeRoom, cup: { count: number; unit: string }, dir: 1 | -1) {
+    stepBy(`${room.areaId}:cup`, cup.count, dir, 40,
+      (count) => ({ action: "room_cupboard", areaId: room.areaId, on: true, count }), cup.unit);
   }
 
   /** R3: a named custom surface — an amber flag tile, recorded on the
@@ -521,8 +569,14 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                   </span>
                 </div>
                 {(!loop || openCard === `room:${room.areaId}`) && (<>
+                {/* Tom, 21 Aug: "make this stand out a bit more so it's easy
+                    for the customer to answer first." It is the one question
+                    every room needs and the one the price moves most on, so it
+                    gets its own panel and its own kicker instead of reading
+                    like the tiles above it. */}
                 {loop && (
-                  <div className={`il-q ${loop.size != null ? "ok" : ""}`}>
+                  <div className={`il-q il-first ${loop.size != null ? "ok" : ""}`}>
+                    <p className="il-kick">FIRST — THE SIZE OF THIS ROOM</p>
                     <p className="il-ql">
                       Is <span className="il-size">{loop.sizeLabel}{loop.size === "adjusted" ? " · updated by you" : ""}</span> about
                       the size of this room? <span className="il-req">REQUIRED</span><span className="il-okc">✓</span>
@@ -583,6 +637,28 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                           <button aria-label="more" onClick={() => step(room, t, 1)}>+</button>
                         </span>
                       )}
+                      {tileOn(room, t) && t.doorScope != null && (
+                        // Tom, 21 Aug: "it only lists doors, without frames".
+                        // The card prices all three, so the tile asks — and
+                        // the architrave rides as its own visible line.
+                        <span className="sd-wseg" onClick={(e) => e.stopPropagation()}>
+                          <i>With each</i>
+                          {DOOR_SCOPE_SEG.map(([v, short, said]) => (
+                            <button
+                              key={v}
+                              className={`dsg ${sel(`ds:${room.areaId}`, t.doorScope === v, v) ? "on" : ""}`}
+                              onClick={() => act(
+                                { action: "room_door_scope", areaId: room.areaId, scope: v },
+                                `ds:${room.areaId}`,
+                                (d) => `${room.name}: ${said}${liveRange && Math.abs(d) >= 100 ? ` — about ${d > 0 ? "+" : "−"}${fmt(Math.abs(d))}` : ""}`,
+                                [`ds:${room.areaId}`, v],
+                              )}
+                            >
+                              {short}
+                            </button>
+                          ))}
+                        </span>
+                      )}
                       {tileOn(room, t) && t.styleToConfirm && (
                         // R1.2: priced at the default rate — visible, never $0.
                         <span className="sc-styleconfirm">style to confirm</span>
@@ -602,9 +678,9 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                       onClick={() => act({ action: "room_remove_line", areaId: room.areaId, surfaceId: w.id }, `${room.areaId}:win${w.id}`, deltaText(w.label, false))}>
                       {w.label}
                       <span className="sc-st" onClick={(e) => e.stopPropagation()}>
-                        <button aria-label="fewer" onClick={() => w.count > 1 && act({ action: "room_line_count", areaId: room.areaId, surfaceId: w.id, count: w.count - 1 }, `${room.areaId}:win${w.id}:n`, (d) => `${w.label} ×${w.count - 1}${Math.abs(d) >= 100 ? ` — about ${d > 0 ? "+" : "−"}${fmt(Math.abs(d))}` : ""}`)}>−</button>
-                        <b>{w.count}</b>
-                        <button aria-label="more" onClick={() => act({ action: "room_line_count", areaId: room.areaId, surfaceId: w.id, count: w.count + 1 }, `${room.areaId}:win${w.id}:n`, (d) => `${w.label} ×${w.count + 1}${Math.abs(d) >= 100 ? ` — about ${d > 0 ? "+" : "−"}${fmt(Math.abs(d))}` : ""}`)}>+</button>
+                        <button aria-label="fewer" onClick={() => stepWindow(room, w, -1)}>−</button>
+                        <b>{shown(`${room.areaId}:win${w.id}`, w.count)}</b>
+                        <button aria-label="more" onClick={() => stepWindow(room, w, 1)}>+</button>
                       </span>
                       <span className="sd-wseg" onClick={(e) => e.stopPropagation()}>
                         <i>Size</i>
@@ -709,9 +785,9 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     </div>
                     {loop.cupboard.on === true && (
                       <span className="sc-st" style={{ display: "flex", marginTop: 8 }}>
-                        <button aria-label="fewer" onClick={() => act({ action: "room_cupboard", areaId: room.areaId, on: true, count: Math.max(1, loop.cupboard!.count - 1) }, `cupn:${room.areaId}`)}>−</button>
-                        <b>{loop.cupboard.count}</b>
-                        <button aria-label="more" onClick={() => act({ action: "room_cupboard", areaId: room.areaId, on: true, count: Math.min(40, loop.cupboard!.count + 1) }, `cupn:${room.areaId}`)}>+</button>
+                        <button aria-label="fewer" onClick={() => stepCupboard(room, loop.cupboard!, -1)}>−</button>
+                        <b>{shown(`${room.areaId}:cup`, loop.cupboard.count)}</b>
+                        <button aria-label="more" onClick={() => stepCupboard(room, loop.cupboard!, 1)}>+</button>
                         <span style={{ fontSize: 11.5, color: "var(--muted)" }}>{loop.cupboard.unit}</span>
                       </span>
                     )}

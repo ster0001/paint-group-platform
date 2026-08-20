@@ -23,7 +23,7 @@ import type { EstimateDocuments } from "@/lib/wizard/documents";
 type Ladder = {
   tier: "self_serve" | "visit";
   /** C11: why it's the visit tier — the sticky line names it (mockup wording). */
-  reason?: "custom" | "peeling" | "rot" | "flagged" | "big" | null;
+  reason?: "custom" | "peeling" | "rot" | "flagged" | "big" | "signoff" | null;
   visitSlots: string[];
 };
 
@@ -33,6 +33,7 @@ const VISIT_REASON_LINE: Record<NonNullable<Ladder["reason"]>, string> = {
   rot: "Rot repair needs eyes on it — ",
   flagged: "You've flagged the photos — ",
   big: "Bigger exterior — ",
+  signoff: "Every exterior job is signed off by your estimator — ",
 };
 type Payload = CustomerPayload & {
   error?: string;
@@ -61,6 +62,7 @@ function Chip({ on, label, onClick }: { on: boolean; label: string; onClick: () 
 const WALL_ADDABLE = [
   { code: "Render", label: "Render" },
   { code: "Brick", label: "Painted brick" },
+  { code: "Brick (Unpainted)", label: "Unpainted brick (3 coats)" },
   { code: "Stucco", label: "Stucco" },
   { code: "Weatherboards", label: "Weatherboard cladding" },
 ];
@@ -92,7 +94,6 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
   const [fenceText, setFenceText] = useState("");
   const [slotsOpen, setSlotsOpen] = useState(false);
   const [booked, setBooked] = useState<string | null>(null);
-  const [accepted, setAccepted] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [shake, setShake] = useState<string | null>(null);
   // P1: production feel. `ready` gates interaction until React has hydrated
@@ -307,7 +308,8 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
 
             {s.include === true && (
               <>
-                <div className={`sd-q ${s.size != null ? "ok" : ""}`}>
+                <div className={`sd-q il-first ${s.size != null ? "ok" : ""}`}>
+                  <p className="il-kick">FIRST — THE SIZE OF THIS SIDE</p>
                   <p className="sd-ql">
                     This side&rsquo;s about{" "}
                     <span className="sd-size">
@@ -366,7 +368,9 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                   <p className="sd-ql">The walls on this side — from your answers</p>
                   <div className="sd-tgrid">
                     {s.walls.map((w) => (
-                      <div className="sd-wall sd-tl on" key={w.id}>
+                      <div className="sd-wall sd-tl on has-x" key={w.id}>
+                        <button className="sd-x" aria-label={`Remove ${w.label}`}
+                          onClick={(e) => { e.stopPropagation(); removeLine(s.key, w.id, w.label); }}>×</button>
                         {w.label}
                         <span className="sd-pcts" onClick={(e) => e.stopPropagation()}>
                           <i>% of wall</i>
@@ -392,7 +396,11 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                   <p className="sd-ql">Also on this side — tap to change</p>
                   <div className="sd-tgrid">
                     {s.tiles.map((t) => (
-                      <div className="sd-tl on" key={t.id}>
+                      <div className="sd-tl on has-x" key={t.id}>
+                        {/* Tom, 21 Aug: "I can't untick items from exterior
+                            quotes, all should be untickable." */}
+                        <button className="sd-x" aria-label={`Remove ${t.label}`}
+                          onClick={(e) => { e.stopPropagation(); removeLine(s.key, t.id, t.label); }}>×</button>
                         {t.label}
                         {t.countable && (
                           <span className="sd-st" onClick={(e) => e.stopPropagation()}>
@@ -412,7 +420,14 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                       </div>
                     ))}
                     {s.customs.map((name, i) => (
-                      <div className="sd-tl on custom" key={`c${i}`}>{name}</div>
+                      <div className="sd-tl on custom has-x" key={`c${i}`}>
+                        <button className="sd-x" aria-label={`Remove ${name}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            act({ action: "side_remove_custom", side: s.key, index: i }, { done: `Removed “${name}”.` });
+                          }}>×</button>
+                        {name}
+                      </div>
                     ))}
                   </div>
                   <button className="sd-addsurf" onClick={() => setAddOpen(addOpen === s.key ? null : s.key)}>+ Add a surface to this side</button>
@@ -551,6 +566,12 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
     const o = optimistic[`cnt:${sideKey}:${t.id}`];
     return o != null ? parseInt(o, 10) : t.count;
   }
+  /** Take one line off a side. The refusal that matters — the last wall —
+   * comes back from the server and lands as an ordinary toast. */
+  function removeLine(sideKey: SideKey, surfaceId: number, label: string) {
+    act({ action: "side_remove_line", side: sideKey, surfaceId }, { describe: withDelta(`Removed ${label.toLowerCase()}`) });
+  }
+
   function stepCount(sideKey: SideKey, t: { id: number; count: number; label: string }, dir: 1 | -1) {
     const next = Math.max(1, Math.min(20, shownCount(sideKey, t) + dir));
     if (next === shownCount(sideKey, t)) return;
@@ -758,31 +779,24 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
       <div className="sd-stick">
         <div className={`sd-tier ${ladder.tier === "visit" ? "visit" : ""}`}>
           <i />
+          {/* Tom, 21 Aug: exterior never accepts online. policy.ts puts every
+              exterior job on the visit tier, so there is no self-serve branch
+              here to fall through to. */}
           {booked
             ? "Visit booked — your price is confirmed on the day, then fixed in writing."
-            : ladder.tier === "visit"
-              ? `${VISIT_REASON_LINE[ladder.reason ?? "big"]}we'll visit to confirm before your price is fixed — the calendar's right here once everything's blue.`
-              : "Straightforward exterior — accept online once everything's blue."}
+            : `${VISIT_REASON_LINE[ladder.reason ?? "signoff"]}we'll visit to confirm before your price is fixed — the calendar's right here once everything's blue.`}
         </div>
         <div className="sd-row">
           <div className="sd-pr"><small>ESTIMATE · INCL. GST</small><span data-role="range">{range}</span></div>
           <div className="sd-sp" />
           <button
             className="sd-cta"
-            disabled={!allDone || accepted || booked != null}
-            onClick={() => {
-              if (ladder.tier === "self_serve") {
-                act({ action: "accept_intent" }, { done: "Accepted — desk check today, then your fixed price and booking follow." });
-                setAccepted(true);
-              } else {
-                setSlotsOpen((v) => !v);
-              }
-            }}
+            disabled={!allDone || booked != null}
+            onClick={() => setSlotsOpen((v) => !v)}
           >
             {booked ? `Visit booked · ${booked}`
-              : accepted ? "Accepted ✓"
               : !allDone ? "Confirm all sides to continue"
-              : ladder.tier === "self_serve" ? "Accept estimate" : "Confirm my price — book the visit"}
+              : "Confirm my price — book the visit"}
           </button>
         </div>
         {slotsOpen && (

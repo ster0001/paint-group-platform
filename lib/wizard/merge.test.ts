@@ -173,3 +173,66 @@ describe("applyWizardAnswers", () => {
     expect(out.deferred.some((d) => d.what === "exterior envelope")).toBe(true);
   });
 });
+
+// ---- 21 Aug: the wizard's answers reach the builder intact ------------------
+
+describe("the answer the customer clicked is the answer the builder shows", () => {
+  it("a WINDER window is labelled a winder, not an awning/casement", () => {
+    // Tom: "I choose winder window, and it gave me awning casement window in
+    // the builder." A winder IS priced at the awning/casement rate — that is
+    // the right rate family — but the line must say what was chosen.
+    const s = state({ surfaces: ["walls", "windows"], details: { ...state().details, windowStyle: "winder" } });
+    const out = applyWizardAnswers(draft(), s, nextId);
+    const win = out.areas.flatMap((a) => a.surfaces).find((x) => x.code === "Awning / Casement Window");
+    expect(win?.internalLabel).toBe("Winder window (awning/casement rate)");
+  });
+
+  it("each named style keeps its own label", () => {
+    for (const [style, code, label] of [
+      ["sash", "Double Hung Sash", "Double hung sash window"],
+      ["colonial", "Colonial / Bay Window", "Colonial / bay window"],
+    ] as const) {
+      const out = applyWizardAnswers(draft(), state({ surfaces: ["walls", "windows"], details: { ...state().details, windowStyle: style } }), nextId);
+      const win = out.areas.flatMap((a) => a.surfaces).find((x) => x.code === code);
+      expect(win?.internalLabel).toBe(label);
+    }
+  });
+});
+
+describe("what comes with each door", () => {
+  const withScope = (doorScope: "door" | "frame" | "architrave", doorStyle: "flat" | "panel" = "panel") =>
+    applyWizardAnswers(draft(), state({ details: { ...state().details, doorStyle, doorScope } }), nextId);
+
+  it("defaults to door + frame — every estimate before 21 Aug means this", () => {
+    const out = applyWizardAnswers(draft(), state({ details: { ...state().details, doorStyle: "panel" } }), nextId);
+    const door = out.areas.flatMap((a) => a.surfaces).find((s) => /Panel Door/.test(s.code));
+    expect(door?.code).toBe("4-6 Panel Door and Frame (1 Side)");
+    expect(door?.internalLabel).toBe("Panel door & frame");
+    expect(out.areas.flatMap((a) => a.surfaces).some((s) => s.code === "Architrave (1 Side)")).toBe(false);
+  });
+
+  it("'door only' uses the card's door-only rate, keeping the style", () => {
+    const door = withScope("door").areas.flatMap((a) => a.surfaces).find((s) => /Panel Door/.test(s.code));
+    expect(door?.code).toBe("4-6 Panel Door (1 Side)");
+    expect(door?.internalLabel).toBe("Panel door only");
+    expect(withScope("door").areas.flatMap((a) => a.surfaces).some((s) => s.code === "Architrave (1 Side)")).toBe(false);
+  });
+
+  it("'+ architrave' rides the frame rate AND adds a visible architrave line", () => {
+    const out = withScope("architrave", "flat");
+    const bed = out.areas.find((a) => a.name === "Bed 1")!;
+    const door = bed.surfaces.find((s) => /Flat Door/.test(s.code));
+    expect(door?.code).toBe("Flat Door and Frame (1 Side)");
+    expect(door?.internalLabel).toBe("Flat door, frame & architrave");
+    const arch = bed.surfaces.find((s) => s.code === "Architrave (1 Side)");
+    expect(arch, "the architrave is its own line, never a hidden loading").toBeTruthy();
+    // …at the room's door count, not one per room.
+    expect(arch!.count).toBe(door!.count);
+  });
+
+  it("a room with no doors gets no architrave", () => {
+    const out = withScope("architrave");
+    const living = out.areas.find((a) => a.name === "Living")!;
+    expect(living.surfaces.some((s) => s.code === "Architrave (1 Side)")).toBe(false);
+  });
+});

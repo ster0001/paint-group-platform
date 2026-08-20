@@ -435,3 +435,35 @@
   .wz .pp-side .wz-planbox { position: static; }
   .wz .pp-mobile { display: none; }
 }
+
+/* ---- 21 Aug: the size question leads the card ------------------------------
+   Tom: "where it asks the question about the sizing of this room, please make
+   this stand out a bit more so it's easy for the customer to answer first."
+   It sat between the tiles and the cupboard question in the same 14px weight
+   as everything else, so it read as one of several. Now it is a panel with an
+   amber edge and its own kicker — and it settles to cyan once answered, so a
+   finished room doesn't keep shouting. */
+.wz .il-first {
+  margin-top: 0; margin-bottom: 14px; padding: 12px 13px 13px;
+  border: 1px solid rgba(224,168,60,.45); border-left: 3px solid var(--amber);
+  border-radius: 11px; background: rgba(224,168,60,.06);
+}
+.wz .il-first.ok { border-color: rgba(59,216,233,.4); border-left-color: var(--cyan); background: rgba(59,216,233,.05); }
+.wz .il-kick { font-family: var(--wz-mono); font-size: 8.5px; letter-spacing: .14em; color: var(--amber); margin-bottom: 7px; }
+.wz .il-first.ok .il-kick { color: var(--cyan); }
+.wz .il-first .il-ql, .wz .il-first .sd-ql { font-size: 15.5px; line-height: 1.4; }
+.wz .il-first .sd-chips button, .wz .il-first .sc-chips button { padding: 9px 15px; font-size: 13.5px; }
+
+/* ---- 21 Aug: "with each door" segment on the Doors tile -------------------- */
+.wz .sd-wseg button.dsg { width: auto; padding: 0 9px; }
+
+/* ---- 21 Aug: every exterior item can be taken off -------------------------- */
+.wz .sd-tl .sd-x, .wz .sc-tl .sd-x {
+  position: absolute; top: 5px; right: 6px; width: 20px; height: 20px;
+  border: none; background: none; color: var(--muted); font-size: 14px;
+  line-height: 1; cursor: pointer; border-radius: 6px; z-index: 2;
+}
+.wz .sd-tl .sd-x:hover, .wz .sc-tl .sd-x:hover { color: var(--amber); background: rgba(224,168,60,.12); }
+/* The ✓ badge and the × would sit on top of each other — the × wins, because
+   it is the thing Tom could not find. */
+.wz .sd-tl.has-x.on::after, .wz .sc-tl.has-x.on::after { content: none; }

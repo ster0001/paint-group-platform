@@ -941,6 +941,19 @@ function PageDetails({ state, set, damageInputRef, hasPlanRuns, isCustomer = fal
         </button>
       </div>
 
+      {/* Tom, 21 Aug: the estimator only ever listed "doors" and quietly meant
+          door-and-frame. The rate card prices all three, so ask. */}
+      <p className="wz-qhead">And what gets painted with each door?</p>
+      <Seg
+        options={[
+          { v: "door" as const, label: "Door only" },
+          { v: "frame" as const, label: "Door + frame" },
+          { v: "architrave" as const, label: "+ architrave" },
+        ]}
+        value={d.doorScope ?? "frame"}
+        onPick={(v) => set({ details: { ...d, doorScope: v } })}
+      />
+
       <p className="wz-qhead">Ceiling height <small>— approximate is fine</small></p>
       <Seg
         options={[

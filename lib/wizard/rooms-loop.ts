@@ -1,5 +1,5 @@
 import { makeDraftSurface } from "@/lib/extract/draft";
-import { doorRateCode, windowRateCode } from "@/lib/extract/scope";
+import { windowRateCode } from "@/lib/extract/scope";
 import { substrateKeyForRateCode } from "@/lib/estimate/substrates";
 import { windowStyleToSchema, type WizardState } from "./state";
 
