@@ -38,6 +38,10 @@ export const SUBSTRATE_DEFS = [
   { key: "weatherboards", label: "Weatherboards", codes: ["Weatherboards"], defaultOn: true },
   { key: "render", label: "Render", codes: ["Render", "Stucco"], defaultOn: true },
   { key: "brick", label: "Brick (painted)", codes: ["Brick"], defaultOn: true },
+  /** Bare brick that has never been painted: sealer plus two topcoats, which
+   * is why its rate row carries default_coats 3 (migration 20260925). Not
+   * pre-ticked — the customer has to say the brick is bare. */
+  { key: "brick_unpainted", label: "Brick (unpainted — 3 coats)", codes: ["Brick (Unpainted)"], defaultOn: false },
   { key: "eaves", label: "Eaves", codes: ["Eaves"], defaultOn: true },
   { key: "fascias", label: "Fascias", codes: ["Fascias"], defaultOn: true },
   { key: "gutters", label: "Gutters", codes: ["Gutters"], defaultOn: true },

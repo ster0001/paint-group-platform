@@ -8,6 +8,9 @@ export type DriveOptions = {
   doorStyle?: "Panel" | "Flat";
   /** Page-4 window style to pick; omit to leave it untouched ("unsure"). */
   windowStyle?: "Casement" | "Sash" | "Colonial" | "Winder";
+  /** Page-4 "what gets painted with each door"; omit to leave the default
+   * ("Door + frame", which is what every pre-21-Aug estimate means). */
+  doorScope?: "Door only" | "Door + frame" | "+ architrave";
 };
 
 /**
@@ -42,6 +45,7 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
   await next(); // → details
   if (opts.doorStyle) await page.getByRole("button", { name: opts.doorStyle, exact: true }).click();
   if (opts.windowStyle) await page.getByRole("button", { name: opts.windowStyle, exact: true }).click();
+  if (opts.doorScope) await page.getByRole("button", { name: opts.doorScope, exact: true }).click();
   await answer(/built before 1970/, "No");
   await next(); // → paint
   await next(); // → email gate

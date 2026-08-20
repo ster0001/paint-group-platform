@@ -11,14 +11,14 @@ import { applyWizardAnswers } from "@/lib/wizard/merge";
 import { wizardStateSchema } from "@/lib/wizard/state";
 import { markStarterProvenance, starterExtraction, type TypicalSizeRow } from "@/lib/wizard/starter";
 import {
-  applyCount, applyExtent, applyExteriorToggle, applyFenceLength, applyRename, applyToggle,
+  applyCount, applyDoorScope, applyExtent, applyExteriorToggle, applyFenceLength, applyRename, applyToggle,
   customerExteriorView, customerScopeRooms, offeredVisitSlots,
 } from "@/lib/wizard/scope-editor";
 import {
   ALLOWANCE_CODES, SWEEP_PRICED_CODES, WEATHERED_MODIFIER_CODE,
   addCatalogItem, addSideCustom, addSideSurface, addWallSurface, addWindowGroup, applySideCount, applySideDims,
   applySideInclude, applySideSizeOk, applyWallShare, applyWindowSize, confirmSide, defaultSidesLoop,
-  extrasPrices, hasExtrasItem, rateFor, sidesView, toggleExtrasItem, visitReason,
+  extrasPrices, hasExtrasItem, rateFor, removeSideCustom, removeSideLine, sidesView, toggleExtrasItem, visitReason,
   type SidesLoopMeta,
 } from "@/lib/wizard/sides";
 import {
@@ -85,6 +85,8 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("toggle_surface"), areaId: z.number().int().positive(), key: z.string().min(1).max(40), on: z.boolean() }),
   z.object({ action: z.literal("set_count"), areaId: z.number().int().positive(), key: z.string().min(1).max(40), count: z.number().int().min(1).max(12) }),
   z.object({ action: z.literal("rename_room"), areaId: z.number().int().positive(), name: z.string().min(1).max(60) }),
+  /** What comes with each door in one room — door · door+frame · +architrave. */
+  z.object({ action: z.literal("room_door_scope"), areaId: z.number().int().positive(), scope: z.enum(["door", "frame", "architrave"]) }),
   /** Free text → an amber estimator note. NEVER silently priced. */
   z.object({ action: z.literal("add_note"), areaId: z.number().int().positive().nullable().default(null), note: z.string().min(1).max(500) }),
   /** "Not right? Tell us" — flags the job non-straightforward. */
@@ -120,6 +122,10 @@ const actionSchema = z.discriminatedUnion("action", [
   /** R5: any Exterior rate-card row onto one side — validated against the
    * LIVE card in the handler, so the card decides what is offerable. */
   z.object({ action: z.literal("add_side_surface"), side: z.enum(["front", "left", "right", "back"]), code: z.string().min(1).max(60) }),
+  /** 21 Aug: every exterior item is untickable — a wall, an "also on this
+   * side" tile, or one of the customer's own named notes. */
+  z.object({ action: z.literal("side_remove_line"), side: z.enum(["front", "left", "right", "back"]), surfaceId: z.number().int().positive() }),
+  z.object({ action: z.literal("side_remove_custom"), side: z.enum(["front", "left", "right", "back"]), index: z.number().int().min(0).max(40) }),
   z.object({ action: z.literal("confirm_side"), side: z.enum(["front", "left", "right", "back"]) }),
   z.object({ action: z.literal("loop_cond"), cond: z.enum(["good", "weathered", "peeling"]).optional(), rot: z.enum(["no", "little", "lots"]).optional(), acc: z.enum(["steep", "tight", "high", "none"]).optional() }),
   z.object({ action: z.literal("loop_extras_none") }),
@@ -388,7 +394,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     // ---- Part B: customer scope actions — pure helpers, then reprice --------
-    if (act.action === "toggle_surface" || act.action === "set_count" || act.action === "rename_room") {
+    if (act.action === "toggle_surface" || act.action === "set_count" || act.action === "rename_room"
+      || act.action === "room_door_scope") {
       const snap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
       const snapshot = snap.success ? snap.data : null;
       let next = Math.max(0, ...blocks.flatMap((b) => [
@@ -398,6 +405,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const result =
         act.action === "toggle_surface" ? applyToggle(blocks, act.areaId, act.key, act.on, snapshot, () => next++)
         : act.action === "set_count" ? applyCount(blocks, act.areaId, act.key, act.count)
+        : act.action === "room_door_scope" ? applyDoorScope(blocks, act.areaId, act.scope, () => next++)
         : applyRename(blocks, act.areaId, act.name);
       if (!result.ok) return { error: result.error, status: 400 };
       blocks = result.blocks as LooseBlock[];
@@ -486,7 +494,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (act.action === "side_include" || act.action === "side_size_ok" || act.action === "side_dims"
       || act.action === "wall_share" || act.action === "add_wall" || act.action === "win_size"
       || act.action === "side_count" || act.action === "add_window_group" || act.action === "side_custom"
-      || act.action === "add_catalog" || act.action === "add_side_surface" || act.action === "confirm_side") {
+      || act.action === "add_catalog" || act.action === "add_side_surface"
+      || act.action === "side_remove_line" || act.action === "side_remove_custom"
+      || act.action === "confirm_side") {
       let next = Math.max(0, ...blocks.flatMap((b) => [
         Number(b.id) || 0, ...(b.surfaces ?? []).map((s) => Number(s.id) || 0),
       ])) + 1;
@@ -499,6 +509,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       // R5: a generic side add is checked against the LIVE Exterior card, and
       // only against rows the panel is allowed to offer — the wall %-mix and
       // the whole-job sweep items keep their own controls.
+      // A wall substrate arrives at the card's own coat count (unpainted
+      // brick is sealed then twice topcoated — a 3-coat row).
+      const wallCoats = act.action === "add_wall"
+        ? ((await ctxPromise).rateItems.find((r) => r.code === act.code && r.category === "Exterior")?.default_coats ?? null)
+        : null;
       let sideAddLabel = "";
       let sideAddRate: number | null = null;
       if (act.action === "add_side_surface") {
@@ -515,13 +530,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         : act.action === "side_size_ok" ? applySideSizeOk(blocks, act.side)
         : act.action === "side_dims" ? applySideDims(blocks, act.side, { lengthM: act.lengthM, heightM: act.heightM, notSure: act.notSure })
         : act.action === "wall_share" ? applyWallShare(blocks, act.side, act.surfaceId, act.pct)
-        : act.action === "add_wall" ? addWallSurface(blocks, act.side, act.code, () => next++)
+        : act.action === "add_wall" ? addWallSurface(blocks, act.side, act.code, () => next++, wallCoats)
         : act.action === "add_side_surface" ? addSideSurface(blocks, act.side, act.code, sideAddLabel, () => next++, sideAddRate)
         : act.action === "win_size" ? applyWindowSize(blocks, act.side, act.surfaceId, act.size)
         : act.action === "side_count" ? applySideCount(blocks, act.side, act.surfaceId, act.count)
         : act.action === "add_window_group" ? addWindowGroup(blocks, act.side, () => next++)
         : act.action === "side_custom" ? addSideCustom(blocks, act.side, act.name)
         : act.action === "add_catalog" ? addCatalogItem(blocks, act.side, act.code, () => next++, catalogRate!.chargeOutDollars)
+        : act.action === "side_remove_line" ? removeSideLine(blocks, act.side, act.surfaceId)
+        : act.action === "side_remove_custom" ? removeSideCustom(blocks, act.side, act.index)
         : confirmSide(blocks, act.side);
       if (!result.ok) return { error: result.error, status: 400 };
       blocks = result.blocks as LooseBlock[];

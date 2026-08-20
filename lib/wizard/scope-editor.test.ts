@@ -14,6 +14,15 @@ const rules: ScopeRule[] = [
   { room_type: "bedroom", surface_type: "Door & Frame", is_option: false, requires_confirm: false, notes: null },
   { room_type: "bedroom", surface_type: "Windows", is_option: false, requires_confirm: false, notes: null },
   { room_type: "bedroom", surface_type: "Cornices", is_option: true, requires_confirm: false, notes: null },
+  { room_type: "bedroom", surface_type: "Mantle", is_option: true, requires_confirm: false, notes: null },
+];
+
+/** A WC as the LIVE v3 rules actually define it: ceiling, cornices and a
+ * door — no skirting rule at all, and no walls. */
+const wcRules: ScopeRule[] = [
+  { room_type: "wc", surface_type: "Ceiling", is_option: false, requires_confirm: false, notes: null },
+  { room_type: "wc", surface_type: "Cornices", is_option: false, requires_confirm: false, notes: null },
+  { room_type: "wc", surface_type: "Door & Frame", is_option: false, requires_confirm: false, notes: null },
 ];
 
 const surface = (id: number, code: string, count = 1, over: Record<string, unknown> = {}) => ({
@@ -44,8 +53,32 @@ describe("customerScopeRooms", () => {
     expect(by.skirting.on).toBe(true);
     expect(by.doors).toMatchObject({ on: true, count: 2, countable: true });
     expect(by.windows).toMatchObject({ on: false, countable: true });
-    // Optional + off → long tail ("More surfaces…").
-    expect(by.cornices).toMatchObject({ on: false, longTail: true });
+    // Optional + off → long tail ("More surfaces…") — but only for surfaces
+    // OUTSIDE the always-offered core list.
+    expect(by.Mantle).toMatchObject({ on: false, longTail: true });
+    expect(by.cornices).toMatchObject({ on: false, longTail: false });
+  });
+
+  it("every room offers the core surfaces, whatever its rules say", () => {
+    // Tom, 21 Aug: a WC had no skirting tile because the v3 rules give a WC
+    // no skirting rule — so it could not be added from the tile grid at all.
+    const wc = {
+      id: 9, kind: "area", name: "WC", type: "Interior", areaType: "room",
+      roomType: "wc", storey: "ground", L: 1.25, W: 1, H: 2.4,
+      surfaces: [surface(10, "Ceilings")],
+    };
+    const [r] = customerScopeRooms([wc], wcRules);
+    const by = Object.fromEntries(r.tiles.map((t) => [t.key, t]));
+    for (const key of ["walls", "ceilings", "cornices", "skirting", "doors", "windows", "architraves"]) {
+      expect(by[key], `${key} tile`).toBeTruthy();
+      expect(by[key].longTail, `${key} is in the main grid`).toBe(false);
+    }
+    // The RULES still decide what is ON — Tom's wet-area rule is untouched.
+    expect(by.ceilings.on).toBe(true);
+    expect(by.skirting.on).toBe(false);
+    expect(by.walls.on).toBe(false);
+    // …and no tile is duplicated by being both a rule and a core surface.
+    expect(r.tiles.map((t) => t.key).length).toBe(new Set(r.tiles.map((t) => t.key)).size);
   });
 
   it("never exposes an hour, rate or cent", () => {
@@ -167,5 +200,58 @@ describe("applyExteriorToggle / applyExtent / applyFenceLength (B2)", () => {
       expect(applyFenceLength(withFence.blocks, 0).ok).toBe(false);
     }
     expect(applyFenceLength(extBlocks(), 24).ok).toBe(false); // not on yet
+  });
+});
+
+// ---- 21 Aug: what comes with each door -------------------------------------
+
+import { applyDoorScope, roomDoorScope } from "./scope-editor";
+
+describe("applyDoorScope", () => {
+  const withDoors = () => ({ ...room(), surfaces: [surface(9, "4-6 Panel Door and Frame (1 Side)", 3)] });
+  let id = 500;
+  const next = () => id++;
+
+  it("reads the current answer back off the lines", () => {
+    expect(roomDoorScope(withDoors())).toBe("frame");
+    expect(roomDoorScope({ ...room(), surfaces: [surface(9, "Flat Door (1 Side)")] })).toBe("door");
+  });
+
+  it("'door only' swaps the rate and KEEPS the panel/flat style", () => {
+    const r = applyDoorScope([withDoors()], 5, "door", next);
+    expect(r.ok).toBe(true);
+    const s = (r as { blocks: Array<{ surfaces: Array<Record<string, unknown>> }> }).blocks[0].surfaces[0];
+    expect(s.code).toBe("4-6 Panel Door (1 Side)");
+    expect(s.internalLabel).toBe("Panel door only");
+  });
+
+  it("'+ architrave' adds ONE architrave line at the room's door count", () => {
+    const r = applyDoorScope([withDoors()], 5, "architrave", next);
+    const surfaces = (r as { blocks: Array<{ surfaces: Array<Record<string, unknown>> }> }).blocks[0].surfaces;
+    const arch = surfaces.find((s) => s.code === "Architrave (1 Side)");
+    expect(arch?.count).toBe(3);
+    // …and the doors stay on the frame rate, not a third door code.
+    expect(surfaces[0].code).toBe("4-6 Panel Door and Frame (1 Side)");
+    expect(roomDoorScope({ ...withDoors(), surfaces })).toBe("architrave");
+  });
+
+  it("going back to 'door + frame' takes the architrave off again", () => {
+    const on = applyDoorScope([withDoors()], 5, "architrave", next) as unknown as { blocks: never[] };
+    const off = applyDoorScope(on.blocks, 5, "frame", next);
+    const surfaces = (off as { blocks: Array<{ surfaces: Array<Record<string, unknown>> }> }).blocks[0].surfaces;
+    expect(surfaces.some((s) => s.code === "Architrave (1 Side)")).toBe(false);
+  });
+
+  it("refuses when the room has no doors, rather than pricing an orphan architrave", () => {
+    const doorless = { ...room(), surfaces: [surface(6, "Walls")] };
+    const r = applyDoorScope([doorless], 5, "architrave", next);
+    expect(r.ok).toBe(false);
+  });
+
+  it("the door count carries the architrave with it", () => {
+    const on = applyDoorScope([withDoors()], 5, "architrave", next) as unknown as { blocks: never[] };
+    const counted = applyCount(on.blocks, 5, "doors", 6);
+    const surfaces = (counted as { blocks: Array<{ surfaces: Array<Record<string, unknown>> }> }).blocks[0].surfaces;
+    expect(surfaces.find((s) => s.code === "Architrave (1 Side)")?.count).toBe(6);
   });
 });

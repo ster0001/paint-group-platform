@@ -510,6 +510,17 @@ export default function QuoteBuilder({
           : b,
       ),
     );
+  /**
+   * The coat count a substrate arrives with, off the rate card's own
+   * default_coats column (21 Aug: unpainted brick is sealer + two topcoats,
+   * so it must land on 3 without anyone remembering). The column has existed
+   * since rate card v7 and was read by nothing; two is still the fallback.
+   */
+  const defaultCoatsFor = (type: string, code: string): number => {
+    const cat = type === "Exterior" ? "Exterior" : "Interior";
+    const n = itemByKey.get(`${cat}::${code}`)?.default_coats;
+    return typeof n === "number" && n >= 1 && n <= 6 ? n : 2;
+  };
   // Choose a substrate for a surface. Seeds the internal/client labels and, on the
   // FIRST selection, appends the substrate's label to the area's client Description.
   const selectSubstrate = (areaId: number, sid: number, code: string) =>
@@ -520,7 +531,13 @@ export default function QuoteBuilder({
         const firstPick = !prev?.code && !!code;
         const surfaces = b.surfaces.map((s) =>
           s.id === sid
-            ? { ...s, code, internalLabel: s.internalLabel || code, clientLabel: s.clientLabel || code }
+            ? {
+                ...s, code,
+                internalLabel: s.internalLabel || code, clientLabel: s.clientLabel || code,
+                // Only on the first pick — re-picking must not silently undo
+                // an estimator's own coat count.
+                coats: firstPick ? defaultCoatsFor(b.type, code) : s.coats,
+              }
             : s,
         );
         let description = b.description ?? "";
@@ -538,6 +555,7 @@ export default function QuoteBuilder({
     setBlocks((bs) =>
       bs.map((b) => {
         if (b.id !== areaId || b.kind !== "area") return b;
+        surf.coats = defaultCoatsFor(b.type, code);
         const line = `<p>${code}</p>`;
         const description = (b.description ?? "").trim() ? b.description + line : line;
         return { ...b, surfaces: [...b.surfaces, surf], description };

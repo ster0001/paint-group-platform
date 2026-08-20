@@ -19,7 +19,9 @@ import {
 import type { RateItem } from "../pricing/types.ts";
 import {
   ALLOWANCE_CODES, addCatalogItem, applySideDims, defaultSidesLoop, extrasPrices, findSide,
-  hasExtrasItem, rateFor, toggleExtrasItem, visitReason, type LooseBlock, type SidesLoopMeta,
+  hasExtrasItem, rateFor, removeSideCustom, removeSideLine, toggleExtrasItem, visitReason,
+  addSideCustom, addWallSurface, addSideSurface, wallSumPct,
+  type LooseBlock, type SidesLoopMeta,
 } from "./sides.ts";
 
 // ---- live-card mirrors ------------------------------------------------------
@@ -177,7 +179,9 @@ test("visitReason names the cause in the mockup's priority order", () => {
   assert.equal(visitReason(meta({ cond: "peeling", rot: "lots" }), []), "peeling");
   assert.equal(visitReason(meta({ rot: "lots" }), flagged), "rot", "rot beats flagged");
   assert.equal(visitReason(meta(), flagged), "flagged");
-  assert.equal(visitReason(meta(), []), "big", "the residual reason");
+  // 21 Aug: every exterior job is signed off by an estimator, so the
+  // residual reason is that sign-off — not "this one is big".
+  assert.equal(visitReason(meta(), []), "signoff", "the residual reason");
 });
 
 // ---- the charge-out lookup hardening -----------------------------------------
@@ -186,4 +190,62 @@ test("Extras/Allowances rows never define the category charge-out, in any row or
   const reversed = [...CARD].reverse(); // Shed's $128/h row first
   assert.equal(chargeOutCents("Exterior", reversed, null), 10000, "the walls row wins");
   assert.equal(chargeOutCents("Exterior", CARD, null), 10000);
+});
+
+// ---- 21 Aug: "I can't untick items from exterior quotes" --------------------
+
+const ok = (r: unknown) => (r as { ok: true; blocks: LooseBlock[] }).blocks;
+
+test("an 'also on this side' item can be taken off again", () => {
+  let next = 90;
+  let blocks: LooseBlock[] = [sideBlock()];
+  blocks = ok(addSideSurface(blocks, "front", "Meter Box", "Meter box", () => next++, 130));
+  const line = findSide(blocks, "front")!.surfaces!.find((s) => s.code === "Meter Box")!;
+  blocks = ok(removeSideLine(blocks, "front", Number(line.id)));
+  assert.equal(
+    findSide(blocks, "front")!.surfaces!.some((s) => s.code === "Meter Box"), false,
+    "the tile the customer removed is gone from the tree",
+  );
+  assert.equal(
+    (removeSideLine(blocks, "front", Number(line.id)) as { ok: boolean }).ok, false,
+    "removing it twice refuses rather than silently succeeding",
+  );
+});
+
+test("removing a wall hands its share to the biggest wall left — still 100%", () => {
+  let next = 90;
+  let blocks: LooseBlock[] = [sideBlock()];
+  blocks = ok(addWallSurface(blocks, "front", "Render", () => next++));
+  assert.equal(wallSumPct(findSide(blocks, "front")!), 100, "the add already balances");
+  const render = findSide(blocks, "front")!.surfaces!.find((s) => s.code === "Render")!;
+  blocks = ok(removeSideLine(blocks, "front", Number(render.id)));
+  const side = findSide(blocks, "front")!;
+  assert.equal(side.surfaces!.some((s) => s.code === "Render"), false);
+  assert.equal(wallSumPct(side), 100, "the wall mix still adds to 100 after a removal");
+  // The measures follow the restored share, or the engine prices 75% of a wall.
+  assert.equal(side.surfaces!.find((s) => s.code === "Weatherboards")!.measureL, 12);
+});
+
+test("the LAST wall can't be removed — that's what skipping the side is for", () => {
+  const blocks: LooseBlock[] = [sideBlock()];
+  const only = findSide(blocks, "front")!.surfaces![0];
+  const r = removeSideLine(blocks, "front", Number(only.id)) as { ok: boolean; error?: string };
+  assert.equal(r.ok, false);
+  assert.match(r.error!, /skip this side/);
+});
+
+test("a customer's own note can be taken off — a typo shouldn't cost a site visit", () => {
+  let blocks: LooseBlock[] = [sideBlock()];
+  blocks = ok(addSideCustom(blocks, "front", "reat fence"));
+  blocks = ok(addSideCustom(blocks, "front", "rear fence"));
+  blocks = ok(removeSideCustom(blocks, "front", 0));
+  assert.deepEqual(findSide(blocks, "front")!.customerCustom, ["rear fence"]);
+  assert.equal((removeSideCustom(blocks, "front", 5) as { ok: boolean }).ok, false);
+});
+
+test("unpainted brick is a wall surface, and lands on the card's 3 coats", () => {
+  let next = 90;
+  const blocks = ok(addWallSurface([sideBlock()], "front", "Brick (Unpainted)", () => next++, 3));
+  const brick = findSide(blocks, "front")!.surfaces!.find((s) => s.code === "Brick (Unpainted)")!;
+  assert.equal(brick.coats, 3, "sealer plus two topcoats");
 });

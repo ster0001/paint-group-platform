@@ -241,6 +241,14 @@ export function evaluateGuardrails(
   if (a.jobType === "both") {
     walkthrough = true; softReasons.push("mixed_scope");
   }
+  // Tom, 21 Aug: "remove accept estimate from the bottom of the exterior
+  // wizard for now — all exterior jobs will require a job sign-off by the
+  // estimator." So ANY exterior work takes the visit tier, whatever the
+  // size or the accuracy score. The caps below still run: they only ever
+  // add reasons, never remove them.
+  if (isExteriorish) {
+    walkthrough = true; softReasons.push("exterior_signoff");
+  }
   const cap = isExteriorish ? policy.exteriorSelfServeCapCents : policy.interiorSelfServeCapCents;
   const minAcc = isExteriorish ? policy.exteriorSelfServeMinAccuracyPct : policy.interiorSelfServeMinAccuracyPct;
   if (totalCents != null && totalCents > cap) {

@@ -42,6 +42,9 @@ export const WALL_CODES: ReadonlyArray<{ code: string; label: string }> = [
   { code: "Render", label: "Render" },
   { code: "Stucco", label: "Stucco" },
   { code: "Brick", label: "Painted brick" },
+  // Bare brick — sealer plus two topcoats. Its rate row carries
+  // default_coats 3 (migration 20260925); the line reads the card.
+  { code: "Brick (Unpainted)", label: "Unpainted brick (3 coats)" },
 ];
 
 /** S/M/L window factors — mirror of the interior multipliers (Settings own
@@ -266,7 +269,10 @@ export function applyWallShare(blocks: LooseBlock[], key: SideKey, surfaceId: nu
 
 /** "+ Render — wall surface": arrives at 25% and AUTO-BALANCES — the largest
  * existing wall gives up the share so the side stays at 100%. */
-export function addWallSurface(blocks: LooseBlock[], key: SideKey, code: string, nextId: () => number): SidesResult {
+export function addWallSurface(
+  blocks: LooseBlock[], key: SideKey, code: string, nextId: () => number,
+  defaultCoats: number | null = null,
+): SidesResult {
   const def = WALL_CODES.find((w) => w.code === code);
   if (!def) return { ok: false, error: "That isn't a wall surface we price." };
   return withSide(blocks, key, (b) => {
@@ -274,6 +280,8 @@ export function addWallSurface(blocks: LooseBlock[], key: SideKey, code: string,
     const walls = (b.surfaces ?? []).filter(isWallLine);
     if (walls.some((s) => String(s.code) === code)) return "That wall surface is already on this side.";
     const line = makeDraftSurface(nextId(), def.code, def.label, 1, "customer_stated", 0.75, []) as unknown as LooseSurface;
+    // The card's own coat count — unpainted brick is a 3-coat row.
+    if (defaultCoats != null) line.coats = defaultCoats;
     line.sharePct = 25;
     const biggest = walls.sort((a, x) => (Number(x.sharePct) || 0) - (Number(a.sharePct) || 0))[0];
     if (biggest) biggest.sharePct = Math.max(0, (Number(biggest.sharePct) || 0) - 25);
@@ -301,6 +309,54 @@ export function addSideSurface(
     const line = makeDraftSurface(nextId(), code, label, 1, "customer_stated", 0.75, []) as unknown as LooseSurface;
     if (chargeOutDollars != null) { line.useCustomRate = true; line.customRate = chargeOutDollars; }
     b.surfaces = [...(b.surfaces ?? []), line];
+  });
+}
+
+/**
+ * Take one line OFF a side (Tom, 21 Aug: "I can't untick items from exterior
+ * quotes, all should be untickable").
+ *
+ * The interior editor has had `room_remove_line` since R5; the sides editor
+ * rendered every tile as permanently ON with no way back — a customer who
+ * wasn't having the gutters done had to ask for a person. Walls, the "also
+ * on this side" tiles and the customer's own named customs are all removable
+ * here.
+ *
+ * A wall is the one that needs care: shares must still add to 100, so the
+ * removed share goes to the largest wall left. The LAST wall cannot go —
+ * a side with no wall surface isn't a side you skip a surface on, it's a
+ * side you skip, and "No — skip this side" already does that properly
+ * (it stays visible on the quote as an exclusion).
+ */
+export function removeSideLine(blocks: LooseBlock[], key: SideKey, surfaceId: number): SidesResult {
+  return withSide(blocks, key, (b) => {
+    const surfaces = b.surfaces ?? [];
+    const line = surfaces.find((s) => Number(s.id) === surfaceId);
+    if (!line) return "That item isn't on this side.";
+    if (isWallLine(line)) {
+      normaliseShares(b);
+      const walls = (b.surfaces ?? []).filter(isWallLine);
+      if (walls.length <= 1) {
+        return "A side needs at least one wall surface — use “No — skip this side” if none of it is being painted.";
+      }
+      const share = Number(line.sharePct) || 0;
+      const biggest = walls.filter((s) => Number(s.id) !== surfaceId)
+        .sort((a, x) => (Number(x.sharePct) || 0) - (Number(a.sharePct) || 0))[0];
+      if (biggest) biggest.sharePct = Math.min(100, (Number(biggest.sharePct) || 0) + share);
+    }
+    b.surfaces = (b.surfaces ?? []).filter((s) => Number(s.id) !== surfaceId);
+    syncWallMeasures(b);
+  });
+}
+
+/** Take one of the customer's own named customs off a side. Customs are
+ * never priced, but they DO route the job to a visit — so removing one has
+ * to be possible, or a typo is a site visit. */
+export function removeSideCustom(blocks: LooseBlock[], key: SideKey, index: number): SidesResult {
+  return withSide(blocks, key, (b) => {
+    const customs = b.customerCustom ?? [];
+    if (!(index >= 0 && index < customs.length)) return "That note isn't on this side.";
+    b.customerCustom = customs.filter((_, i) => i !== index);
   });
 }
 
@@ -447,7 +503,7 @@ export function confirmSide(blocks: LooseBlock[], key: SideKey): SidesResult {
 /** Why this job is on the visit tier — the mockup names the reason on the
  * sticky tier line, in this priority order. "big" is the residual: nothing
  * specific flagged it, the exterior is just past the self-serve bar. */
-export type VisitReason = "custom" | "peeling" | "rot" | "flagged" | "big";
+export type VisitReason = "custom" | "peeling" | "rot" | "flagged" | "big" | "signoff";
 
 export function visitReason(
   meta: SidesLoopMeta,
@@ -457,7 +513,9 @@ export function visitReason(
   if (meta.cond.cond === "peeling") return "peeling";
   if (meta.cond.rot === "lots") return "rot";
   if (deferred.some((d) => /flagged/i.test(`${d.what} ${d.needs}`))) return "flagged";
-  return "big";
+  // The floor, since 21 Aug: every exterior job is signed off by an
+  // estimator, so "big" is no longer the reason of last resort.
+  return "signoff";
 }
 
 export function sidesDoneCount(blocks: LooseBlock[], meta: SidesLoopMeta): { done: number; total: number; allDone: boolean } {
