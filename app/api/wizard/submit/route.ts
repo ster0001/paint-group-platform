@@ -518,11 +518,13 @@ export async function POST(request: Request) {
     appliedRunIds.length
       ? db.from("extraction_runs").update({ status: "applied" }).in("id", appliedRunIds)
       : Promise.resolve(),
-    sourceIds.length || facadeSourceIds.length
+    sourceIds.length || facadeSourceIds.length || state.conditionSourceIds.length
       // Belt and braces: the ownership check above plus is-null here, so a
-      // concurrent claim can't repoint another estimate's plan.
+      // concurrent claim can't repoint another estimate's plan. R5 adds the
+      // run-less condition photos, which nothing used to claim at all.
       ? db.from("estimate_sources").update({ estimate_id: estimateId })
-          .in("id", [...sourceIds, ...facadeSourceIds]).is("estimate_id", null)
+          .in("id", [...sourceIds, ...facadeSourceIds, ...state.conditionSourceIds])
+          .is("estimate_id", null).eq("created_by", user.id)
       : Promise.resolve(),
     // A7: damage/property photos ride under runs/{runId}/photos/ — claim them
     // too, so the evidence cascades with the estimate instead of orphaning.

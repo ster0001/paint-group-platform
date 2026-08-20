@@ -70,6 +70,12 @@ export const wizardStateSchema = z.object({
   planRunIds: z.array(z.string().uuid()).max(40).default([]),
   /** Elevation/facade photo runs — stored for the envelope pipeline (E2). */
   facadeRunIds: z.array(z.string().uuid()).max(12).default([]),
+  /** R5: the customer's OWN condition photos, kept without a plan run
+   * (/api/extract/photos). They are already stored; these ids let submit
+   * claim them for the estimate, so they show on the editor and cascade with
+   * it on delete. Before this they were written with estimate_id = null and
+   * nothing ever set it. */
+  conditionSourceIds: z.array(z.string().uuid()).max(12).default([]),
   noPlan: z.boolean().default(false),
   basics: basicsSchema.nullable().default(null),
 
@@ -222,6 +228,7 @@ export function defaultWizardState(): WizardState {
     listingUrl: "",
     planRunIds: [],
     facadeRunIds: [],
+    conditionSourceIds: [],
     noPlan: false,
     basics: null,
     surfaces: [...DEFAULT_SURFACES],

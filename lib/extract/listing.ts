@@ -137,3 +137,4 @@ export function crossCheck(facts: ListingFacts, counts: { bedrooms: number; bath
   }
   return notes;
 }
+

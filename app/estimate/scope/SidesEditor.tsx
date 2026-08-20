@@ -5,6 +5,9 @@ import type { CustomerPayload } from "@/lib/wizard/view";
 import type { CustomerExteriorView } from "@/lib/wizard/scope-editor";
 import type { SidesView, SideView, SideKey } from "@/lib/wizard/sides";
 import { assertCustomerShape } from "@/lib/wizard/contract";
+import PlanPanel from "./PlanPanel";
+import { useCoalesced } from "./useCoalesced";
+import type { EstimateDocuments } from "@/lib/wizard/documents";
 
 /**
  * R2b — the exterior confirm-loop editor, BY SIDES.
@@ -36,6 +39,8 @@ type Payload = CustomerPayload & {
   sides?: SidesView | null;
   exterior?: CustomerExteriorView | null;
   ladder?: Ladder;
+  /** A guardrail verdict arrives as a 200 with no range — see act(). */
+  message?: string;
 };
 
 const fmt = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
@@ -57,12 +62,15 @@ const WALL_ADDABLE = [
   { code: "Weatherboards", label: "Weatherboard cladding" },
 ];
 
-export default function SidesEditor({ estimateId, initial, initialSides, initialExterior, initialLadder, embedded = false, onState }: {
+export default function SidesEditor({ estimateId, initial, initialSides, initialExterior, initialLadder, embedded = false, onState, docs = { plan: null, photos: [] } }: {
   estimateId: string;
   initial: CustomerPayload;
   initialSides: SidesView;
   initialExterior: CustomerExteriorView | null;
   initialLadder: Ladder;
+  /** R5: the photos/plan on file — the embedded (Both-job) case leaves this
+   * to the parent ScopeEditor so a stacked page shows ONE plan, not two. */
+  docs?: EstimateDocuments;
   /** Batch 4: Both-jobs render the sides stack INSIDE the interior editor —
    * embedded mode drops SidesEditor's own chrome (header/range/CTA) and
    * reports progress + range upward so the host owns one combined loop. */
@@ -97,6 +105,8 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
   const [optimistic, setOptimistic] = useState<Record<string, string>>({});
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chainRef = useRef<Promise<void>>(Promise.resolve());
+  /** R5: a burst of stepper taps becomes ONE save (see useCoalesced). */
+  const { queue, flush } = useCoalesced();
 
   function say(m: string) {
     setToast(m);
@@ -131,6 +141,14 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
           return;
         }
         assertCustomerShape(j, "SidesEditor");
+        // R5: a guardrail outcome is a 200 with NO range in it. Storing it as
+        // the payload rendered "$NaN – $NaN" and an NaN progress ring — the
+        // screen looked broken at exactly the moment we needed to explain
+        // ourselves. Keep the last good numbers and say the sentence instead.
+        if (typeof j.outcome === "string" && j.outcome !== "reveal") {
+          say(j.message ?? "That change needs one of our team — we'll be in touch.");
+          return;
+        }
         setPayload(j);
         if (j.sides) setSides(j.sides);
         if (j.sides) onState?.({ progress: j.sides.progress, payload: j });
@@ -163,6 +181,21 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
     if (abs < 100) return msg;
     return `${msg.replace(/\.$/, "")} — about ${delta > 0 ? "+" : "−"}${fmt(abs)} on your range.`;
   };
+
+  /** R5: what one side can still have added, grouped by the card's own
+   * sub-categories. Anything already on the side — or already offered as a
+   * priced catalogue chip — is left out. */
+  function sideAddGroups(s: SideView): Array<[string, SidesView["addable"]]> {
+    const onCodes = new Set(s.tiles.map((t) => t.code));
+    const priced = new Set(sides.catalog.map((c) => c.code));
+    const groups = new Map<string, SidesView["addable"]>();
+    for (const o of sides.addable ?? []) {
+      if (onCodes.has(o.key) || priced.has(o.key)) continue;
+      if (!groups.has(o.group)) groups.set(o.group, []);
+      groups.get(o.group)!.push(o);
+    }
+    return [...groups.entries()];
+  }
 
   const range = `${fmt(payload.rangeLoCents)} – ${fmt(payload.rangeHiCents)}`;
   const prog = sides.progress;
@@ -351,6 +384,26 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                           </button>
                         ))}
                       </div>
+                      {/* R5: the rest of the exterior card, per side — eaves,
+                          gutters, downpipes, posts, columns, shutters, a roof.
+                          Grouped as the card groups them; a code already on
+                          this side, or already offered as a priced chip above,
+                          is filtered out. */}
+                      {sideAddGroups(s).map(([group, opts]) => (
+                        <div className="sd-group" key={group}>
+                          <p className="sd-gl">{group.toUpperCase()}</p>
+                          <div className="sd-chips">
+                            {opts.map((o) => (
+                              <button key={o.key} className="sd-chip"
+                                onClick={() => act({ action: "add_side_surface", side: s.key, code: o.key }, {
+                                  describe: withDelta(`${o.label} added to ${s.label}`),
+                                })}>
+                                + {o.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
                       <div className="sd-custom">
                         <input placeholder="Something else on this side? Name it" value={customText} onChange={(e) => setCustomText(e.target.value)} />
                         <button
@@ -376,12 +429,12 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
               <button
                 className="sd-confirm"
                 disabled={optimistic[`confirm:${s.key}`] != null}
-                onClick={() => act({ action: "confirm_side", side: s.key }, {
+                onClick={() => { flush(); act({ action: "confirm_side", side: s.key }, {
                   done: `${s.label} confirmed ✓`,
                   onFail: (m) => refuse(s.key, m),
                   onOk: openNext,
                   opt: [`confirm:${s.key}`, "1"],
-                })}
+                }); }}
               >
                 {optimistic[`confirm:${s.key}`] != null ? "Confirming…"
                   : s.confirmed ? "Confirmed ✓" : `Confirm ${s.label.split(" — ")[0].toLowerCase()} ✓`}
@@ -408,12 +461,12 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
             <button
               className="sd-confirm"
               disabled={optimistic[`confirm:${key}`] != null}
-              onClick={() => act({ action: "confirm_loop_item", item: key }, {
+              onClick={() => { flush(); act({ action: "confirm_loop_item", item: key }, {
                 done: "Confirmed ✓",
                 onFail: (m) => refuse(key, m),
                 onOk: openNext,
                 opt: [`confirm:${key}`, "1"],
-              })}
+              }); }}
             >
               {optimistic[`confirm:${key}`] != null ? "Confirming…" : done ? "Confirmed ✓" : confirmLabel}
             </button>
@@ -439,8 +492,12 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
   function stepCount(sideKey: SideKey, t: { id: number; count: number; label: string }, dir: 1 | -1) {
     const next = Math.max(1, Math.min(20, shownCount(sideKey, t) + dir));
     if (next === shownCount(sideKey, t)) return;
-    act({ action: "side_count", side: sideKey, surfaceId: t.id, count: next },
-      { describe: withDelta(`${t.label} ×${next}`), opt: [`cnt:${sideKey}:${t.id}`, String(next)] });
+    // R5: the tile already moved optimistically; a burst of taps sends ONE
+    // save carrying the final count instead of one save per tap.
+    setOptimistic((o) => ({ ...o, [`cnt:${sideKey}:${t.id}`]: String(next) }));
+    queue(`n:${sideKey}:${t.id}`, () =>
+      act({ action: "side_count", side: sideKey, surfaceId: t.id, count: next },
+        { describe: withDelta(`${t.label} ×${next}`), opt: [`cnt:${sideKey}:${t.id}`, String(next)] }));
   }
 
   return (
@@ -457,6 +514,31 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
           <div className="sd-lbl"><span className="sd-prog">{prog.done} OF {prog.total} CONFIRMED</span><span>ORANGE = TO CONFIRM · BLUE = CONFIRMED</span></div>
           <div className={`sd-pbar ${allDone ? "ok" : ""}`}><i style={{ width: `${(prog.done / prog.total) * 100}%` }} /></div>
         </div>
+        {/* R5: an exterior-only job had no confidence score at all — same
+            ring, same one function, frozen with the rest of the header. */}
+        <div className="sd-scorewrap">
+          <div className="sc-scorebar">
+            <div className="sc-score">
+              <div className="sc-ring">
+                <svg width="48" height="48" style={{ transform: "rotate(-90deg)" }}>
+                  <circle cx="24" cy="24" r="20" fill="none" stroke="#242B32" strokeWidth="4" />
+                  <circle cx="24" cy="24" r="20" fill="none" stroke={payload.accuracyPct >= 85 ? "#2FA46B" : "#E0A83C"}
+                    strokeWidth="4" strokeLinecap="round" strokeDasharray="125.6"
+                    strokeDashoffset={(125.6 * (1 - payload.accuracyPct / 100)).toFixed(1)} />
+                </svg>
+                <div className="sc-num">{payload.accuracyPct}%</div>
+              </div>
+              <div className="sc-lbl">
+                <b>Confidence score</b>
+                <span>{allDone
+                  ? "Everything confirmed — this is as sure as we get before we see it"
+                  : "It climbs with every side you confirm"}</span>
+              </div>
+            </div>
+            <div className="sc-range" data-role="range"><small>YOUR ESTIMATE · INCL. GST</small><div className="sc-r">{range}</div></div>
+          </div>
+        </div>
+        {!embedded && <div className="sd-scorewrap" style={{ marginTop: 8 }}><PlanPanel docs={docs} variant="peek" /></div>}
       </header>
       )}
 
@@ -467,6 +549,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
         </div>
 
         <div className="sd-grid">
+          {!embedded && <PlanPanel docs={docs} variant="column" />}
           <div className="sd-visual">
             <p className="sd-t">YOUR HOME FROM ABOVE · TAP A SIDE</p>
             <svg viewBox="0 0 300 240" className="sd-house">

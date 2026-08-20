@@ -7,6 +7,7 @@ import {
   type PricingContext,
 } from "@/lib/pricing/estimate";
 import { accuracyScore, roomConfidencePct, type ScoredArea } from "./accuracy";
+import type { LoopConfirmState } from "./confirm-state";
 import { rangeBandPct, rangeFromTotal, type BandSettings, type GuardrailDecision } from "./policy";
 
 /**
@@ -153,6 +154,10 @@ export function editorPayload(
   ctx: PricingContext,
   adj: Adjustments,
   deferred: WizardDeferred[],
+  /** R5: the customer's confirm-loop position, so the score climbs as they
+   * work it. Omit it (staff editors, the submit route's first draft) and
+   * scoring is exactly what it was before R5. */
+  loop: LoopConfirmState | null = null,
 ): WizardEditorPayload {
   const loose = blocks as LooseBlock[];
   const rooms: WizardRoomView[] = [];
@@ -169,7 +174,10 @@ export function editorPayload(
     if (assumed.includes("H")) heightUnconfirmed = true;
     if (assumed.includes("width_from_plan")) exteriorWidthFromPlan = true;
 
-    const scoredArea: ScoredArea = { priceCents, origin: origin || "human_confirmed", confidence, assumedFields: assumed };
+    const scoredArea: ScoredArea = {
+      priceCents, origin: origin || "human_confirmed", confidence, assumedFields: assumed,
+      confirmState: loop?.states.get(Number(b.id) || 0),
+    };
     // R2b: an excluded side (isOption — "not painting") sits outside the
     // total, so it must sit outside the accuracy weighting too.
     if (b.isOption !== true) scored.push(scoredArea);
@@ -202,7 +210,7 @@ export function editorPayload(
       contractorHours: Math.round(totals.contractorHours * 100) / 100,
       marginCents: totals.marginCents,
     },
-    accuracyPct: accuracyScore(scored, deferred.length),
+    accuracyPct: accuracyScore(scored, deferred.length, loop?.checksDone ?? 0),
     deferred,
     heightUnconfirmed,
     exteriorWidthFromPlan,

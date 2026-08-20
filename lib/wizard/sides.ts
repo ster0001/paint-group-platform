@@ -235,11 +235,20 @@ export function applySideDims(
   });
 }
 
+/** "Looks right" on a side — R5: settles the dimensions the same way
+ * applySideDims does, so agreeing with our figure lifts the confidence
+ * score instead of leaving it pinned (see rooms-loop applyRoomSizeOk). */
 export function applySideSizeOk(blocks: LooseBlock[], key: SideKey): SidesResult {
   return withSide(blocks, key, (b) => {
     const c = customerOf(b);
     if (c.include !== true) return "Answer “Are we painting this side?” first.";
     normaliseShares(b);
+    b.origin = "customer_stated"; b.confidence = 0.85;
+    // Only the DIMENSIONS the question asked about. `width_from_plan` and
+    // `exterior_envelope` are staff-review provenance flags — a customer
+    // saying "looks right" is not a staff measurement, so they stay put.
+    b.assumedFields = (Array.isArray(b.assumedFields) ? (b.assumedFields as string[]) : [])
+      .filter((f) => f !== "L" && f !== "H");
     b.customer = { ...c, size: "yes" };
   });
 }
@@ -270,6 +279,28 @@ export function addWallSurface(blocks: LooseBlock[], key: SideKey, code: string,
     if (biggest) biggest.sharePct = Math.max(0, (Number(biggest.sharePct) || 0) - 25);
     b.surfaces = [...(b.surfaces ?? []), line];
     syncWallMeasures(b);
+  });
+}
+
+/**
+ * R5: add ANY exterior rate-card row to one side (eaves, gutters, posts,
+ * shutters, a roof…). The route validates the code against the live card
+ * and passes the per-item charge-out where the row carries its own, so the
+ * engine bills what the card says rather than the category rate.
+ *
+ * Quantity looks after itself: computeQuantity reads a lineal row off the
+ * side's length and an M2 row off length × height, so only per-item rows
+ * ride the count.
+ */
+export function addSideSurface(
+  blocks: LooseBlock[], key: SideKey, code: string, label: string,
+  nextId: () => number, chargeOutDollars: number | null = null,
+): SidesResult {
+  return withSide(blocks, key, (b) => {
+    if ((b.surfaces ?? []).some((s) => String(s.code) === code)) return "That's already on this side.";
+    const line = makeDraftSurface(nextId(), code, label, 1, "customer_stated", 0.75, []) as unknown as LooseSurface;
+    if (chargeOutDollars != null) { line.useCustomRate = true; line.customRate = chargeOutDollars; }
+    b.surfaces = [...(b.surfaces ?? []), line];
   });
 }
 
@@ -465,12 +496,15 @@ export type SidesView = {
   catalog: Array<{ code: string; label: string; priceCents: number }>;
   /** Priced sweep chips with their on-state (Shed / Side gate). */
   sweepItems: Array<{ code: string; label: string; priceCents: number; on: boolean }>;
+  /** R5: every exterior surface the live card can price, offered per side. */
+  addable: Array<{ key: string; label: string; group: string }>;
 };
 
 export function sidesView(
   blocks: LooseBlock[], meta: SidesLoopMeta,
   prices: Record<string, number> = {},
   storeys: "single" | "double" | null = null,
+  addable: Array<{ key: string; label: string; group: string }> = [],
 ): SidesView | null {
   if (!SIDE_KEYS.some((k) => findSide(blocks, k))) return null;
   const sides: SideView[] = [];
@@ -524,5 +558,6 @@ export function sidesView(
       .map((c) => ({ ...c, priceCents: prices[c.code] })),
     sweepItems: SWEEP_PRICED_CODES.filter((c) => prices[c.code] != null)
       .map((c) => ({ ...c, priceCents: prices[c.code], on: hasExtrasItem(blocks, c.code) })),
+    addable,
   };
 }

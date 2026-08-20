@@ -21,7 +21,36 @@ export type ScoredArea = {
   origin: string;
   confidence: number;
   assumedFields: string[];
+  /**
+   * R5: where this area sits in the customer's confirm loop. UNDEFINED means
+   * the area is not part of a loop at all (staff estimates, pre-loop drafts)
+   * — those score exactly as they always did.
+   */
+  confirmState?: "pending" | "confirmed";
 };
+
+/**
+ * R5 (Tom, 20 Aug 2026): the score has to be EARNED.
+ *
+ * Until the customer has confirmed a room or a side we will not claim more
+ * than PENDING_CAP for it, however well the plan read — an unconfirmed
+ * reading is a good guess, not a settled fact. Once they have walked it,
+ * it is worth nearly a staff confirmation. This is the whole reason the
+ * ring climbs as the loop is worked instead of sitting still: before this,
+ * confirming a room changed no number the customer could see.
+ *
+ * Both are applied BEFORE the height and L/W penalties, so a confirmed room
+ * with an assumed ceiling is still docked for the ceiling, and a side the
+ * customer answered "not sure" to still caps at the assumed-dimension 0.5.
+ */
+const PENDING_CAP = 0.62;
+const CONFIRMED_CREDIT = 0.95;
+/** Each whole-job check the customer settles (the doors & windows totals,
+ * the "anything we missed" sweep, the exterior condition and extras) is
+ * worth 2 points, up to 6 — they retire real questions, but they measure
+ * nothing, so they can never carry the score on their own. */
+const CHECK_POINTS = 2;
+const CHECK_POINTS_MAX = 6;
 
 function credit(a: ScoredArea): number {
   let c: number;
@@ -35,6 +64,8 @@ function credit(a: ScoredArea): number {
     case "ai_assumed": c = 0.45; break;
     default: c = 1.0; // absent origin reads as human work (pre-AI estimates)
   }
+  if (a.confirmState === "pending") c = Math.min(c, PENDING_CAP);
+  else if (a.confirmState === "confirmed") c = Math.max(c, CONFIRMED_CREDIT);
   if (a.assumedFields.includes("H")) c -= 0.15;
   if (a.assumedFields.includes("L") || a.assumedFields.includes("W")) c = Math.min(c, 0.5);
   return Math.max(0.2, c);
@@ -60,7 +91,7 @@ export function roomConfidencePct(a: ScoredArea, roomDeferredCount = 0): number 
 const UNVERIFIED_CAP = 65;
 const VERIFIED_ORIGINS = new Set(["human_confirmed", "customer_stated", "ai_extracted", ""]);
 
-export function accuracyScore(areas: ScoredArea[], deferredCount = 0): number {
+export function accuracyScore(areas: ScoredArea[], deferredCount = 0, checksDone = 0): number {
   if (areas.length === 0) return 0;
 
   const positive = areas.filter((a) => a.priceCents > 0);
@@ -78,7 +109,11 @@ export function accuracyScore(areas: ScoredArea[], deferredCount = 0): number {
 
   const base = (creditSum / weightSum) * 100;
   const deferredPenalty = Math.min(deferredCount * 2, 12);
-  const score = Math.max(0, Math.min(100, Math.round(base - deferredPenalty)));
-  const verified = areas.some((a) => VERIFIED_ORIGINS.has(a.origin));
+  const checkCredit = Math.min(checksDone * CHECK_POINTS, CHECK_POINTS_MAX);
+  const score = Math.max(0, Math.min(100, Math.round(base - deferredPenalty + checkCredit)));
+  // A room the customer walked and confirmed is verification too — the
+  // no-plan path is assumptions until they answer, and their answers are
+  // exactly what lifts it off the floor.
+  const verified = areas.some((a) => VERIFIED_ORIGINS.has(a.origin) || a.confirmState === "confirmed");
   return verified ? score : Math.min(score, UNVERIFIED_CAP);
 }

@@ -16,7 +16,7 @@ import {
 } from "@/lib/wizard/scope-editor";
 import {
   ALLOWANCE_CODES, SWEEP_PRICED_CODES, WEATHERED_MODIFIER_CODE,
-  addCatalogItem, addSideCustom, addWallSurface, addWindowGroup, applySideCount, applySideDims,
+  addCatalogItem, addSideCustom, addSideSurface, addWallSurface, addWindowGroup, applySideCount, applySideDims,
   applySideInclude, applySideSizeOk, applyWallShare, applyWindowSize, confirmSide, defaultSidesLoop,
   extrasPrices, hasExtrasItem, rateFor, sidesView, toggleExtrasItem, visitReason,
   type SidesLoopMeta,
@@ -27,6 +27,9 @@ import {
   defaultInteriorLoop, interiorDwTotals, interiorProgress, removeLine, roomLoopViews,
   type InteriorLoopMeta,
 } from "@/lib/wizard/rooms-loop";
+import { loopConfirmState } from "@/lib/wizard/confirm-state";
+import { loadScopeRules } from "@/lib/extract/scope-cache";
+import { exteriorAddOptions, interiorAddOptions, perItemChargeOut } from "@/lib/wizard/add-catalogue";
 import { customerPayload, editorPayload, type WizardDeferred } from "@/lib/wizard/view";
 import {
   GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails,
@@ -114,6 +117,9 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("side_custom"), side: z.enum(["front", "left", "right", "back"]), name: z.string().min(1).max(120) }),
   /** Parity STOP-item 1: a priced catalogue item onto one side's tile grid. */
   z.object({ action: z.literal("add_catalog"), side: z.enum(["front", "left", "right", "back"]), code: z.enum(["Window Shutters", "Side Gate", "Security Door", "Meter Box"]) }),
+  /** R5: any Exterior rate-card row onto one side — validated against the
+   * LIVE card in the handler, so the card decides what is offerable. */
+  z.object({ action: z.literal("add_side_surface"), side: z.enum(["front", "left", "right", "back"]), code: z.string().min(1).max(60) }),
   z.object({ action: z.literal("confirm_side"), side: z.enum(["front", "left", "right", "back"]) }),
   z.object({ action: z.literal("loop_cond"), cond: z.enum(["good", "weathered", "peeling"]).optional(), rot: z.enum(["no", "little", "lots"]).optional(), acc: z.enum(["steep", "tight", "high", "none"]).optional() }),
   z.object({ action: z.literal("loop_extras_none") }),
@@ -445,7 +451,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (act.action === "side_include" || act.action === "side_size_ok" || act.action === "side_dims"
     || act.action === "wall_share" || act.action === "add_wall" || act.action === "win_size"
     || act.action === "side_count" || act.action === "add_window_group" || act.action === "side_custom"
-    || act.action === "add_catalog" || act.action === "confirm_side") {
+    || act.action === "add_catalog" || act.action === "add_side_surface" || act.action === "confirm_side") {
     let next = Math.max(0, ...blocks.flatMap((b) => [
       Number(b.id) || 0, ...(b.surfaces ?? []).map((s) => Number(s.id) || 0),
     ])) + 1;
@@ -455,12 +461,27 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (act.action === "add_catalog" && !catalogRate) {
       return NextResponse.json({ error: "We can't price that item right now — name it in “Something else” instead." }, { status: 400 });
     }
+    // R5: a generic side add is checked against the LIVE Exterior card, and
+    // only against rows the panel is allowed to offer — the wall %-mix and
+    // the whole-job sweep items keep their own controls.
+    let sideAddLabel = "";
+    let sideAddRate: number | null = null;
+    if (act.action === "add_side_surface") {
+      const rateItems = (await ctxPromise).rateItems;
+      const allowed = exteriorAddOptions(rateItems).find((o) => o.key === act.code);
+      if (!allowed) {
+        return NextResponse.json({ error: "We can't price that item right now — name it in “Something else” instead." }, { status: 422 });
+      }
+      sideAddLabel = allowed.label;
+      sideAddRate = perItemChargeOut(rateItems, "Exterior", act.code);
+    }
     const result =
       act.action === "side_include" ? applySideInclude(blocks, act.side, act.include)
       : act.action === "side_size_ok" ? applySideSizeOk(blocks, act.side)
       : act.action === "side_dims" ? applySideDims(blocks, act.side, { lengthM: act.lengthM, heightM: act.heightM, notSure: act.notSure })
       : act.action === "wall_share" ? applyWallShare(blocks, act.side, act.surfaceId, act.pct)
       : act.action === "add_wall" ? addWallSurface(blocks, act.side, act.code, () => next++)
+      : act.action === "add_side_surface" ? addSideSurface(blocks, act.side, act.code, sideAddLabel, () => next++, sideAddRate)
       : act.action === "win_size" ? applyWindowSize(blocks, act.side, act.surfaceId, act.size)
       : act.action === "side_count" ? applySideCount(blocks, act.side, act.surfaceId, act.count)
       : act.action === "add_window_group" ? addWindowGroup(blocks, act.side, () => next++)
@@ -619,12 +640,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (act.action === "room_add_catalogue") {
       // Only real Interior rate-card codes — the card, never the client,
       // decides what is priceable.
-      const item = (await ctxPromise).rateItems.find((r) => r.code === act.code && r.category === "Interior");
+      const rateItems = (await ctxPromise).rateItems;
+      const item = rateItems.find((r) => r.code === act.code && r.category === "Interior");
       if (!item) return NextResponse.json({ error: "That surface isn't on our rate card." }, { status: 422 });
       catalogueLabel = item.code;
       // Per-item charge-out (Air Vent $180/h × 0.25 h = $45) — without it
-      // the engine bills the category rate and the price lands wrong.
-      catalogueChargeOut = item.charge_out_cents != null ? item.charge_out_cents / 100 : null;
+      // the engine bills the category rate and the price lands wrong. R5:
+      // pinned ONLY where the row differs from its category base, so
+      // widening the panel to ordinary rows can't override a staff hourly
+      // rate. See lib/wizard/add-catalogue.perItemChargeOut.
+      catalogueChargeOut = perItemChargeOut(rateItems, "Interior", item.code);
     }
     const result =
       act.action === "room_add_catalogue" ? addCatalogueLine(blocks, act.areaId, act.code, catalogueLabel, () => next++, catalogueChargeOut)
@@ -709,7 +734,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const ctx = await ctxPromise;
-  const payload = editorPayload(blocks, ctx, adjustmentsFrom(newState), newDeferred);
+  // R5: score against the loop the customer has just moved — this very
+  // action may be the confirmation that lifts the ring.
+  const loopState = loopConfirmState(blocks, interiorMeta, sidesMeta);
+  const payload = editorPayload(blocks, ctx, adjustmentsFrom(newState), newDeferred, loopState);
 
   if (view === "customer") {
     // The customer's view recomputes the range and the acceptance verdict —
@@ -750,10 +778,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     // The editor's tile grids re-derive from the tree + the same scope rules
     // that drive capture — one source of truth, mode="customer".
-    const { data: rulesRows } = await db
-      .from("room_type_scope_rules")
-      .select("room_type, surface_type, is_option, requires_confirm, notes")
-      .eq("version", SCOPE_VERSION);
+    // R5: reference data, cached per process — it was re-read on every tap.
+    const rules = await loadScopeRules(db);
     // B2: the sign-off ladder — thresholds are Settings values (defaults
     // $6k interior / $12k exterior at ≥90%), and the visit tier is an offer,
     // never a block. Slots recompute server-side so booking can validate.
@@ -768,12 +794,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       && payload.accuracyPct >= (flags.selfServeMinAccuracy ?? (hasExterior ? 85 : 90)) && mid <= cap;
     return NextResponse.json({
       ...cp,
-      scopeRooms: customerScopeRooms(blocks, (rulesRows ?? []) as ScopeRule[]),
+      scopeRooms: customerScopeRooms(blocks, rules),
       exterior: customerExteriorView(blocks),
       // R2b: the sides confirm loop's full view (null when no sides exist).
       sides: sidesView(blocks, sidesMeta, extrasPrices(ctx.rateItems),
         (() => { const sn = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
-                 return sn.success ? (sn.data.exterior?.storeys ?? null) : null; })()),
+                 return sn.success ? (sn.data.exterior?.storeys ?? null) : null; })(),
+        exteriorAddOptions(ctx.rateItems)),
       // R3: the interior confirm loop — rooms joined by areaId, plus the
       // totals check and sweep state. Cupboard questions are data-driven off
       // the live rate card.
@@ -782,11 +809,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         dw: { ...interiorDwTotals(blocks), ok: interiorMeta.dwOk },
         meta: interiorMeta,
         progress: interiorProgress(blocks, interiorMeta),
-        // The add-surface panel's priced catalogue: the card's Interior
-        // extras (Air Vent and friends) — data-driven, never hardcoded.
-        catalogue: ctx.rateItems
-          .filter((r) => r.category === "Interior" && r.sub_category === "Extras")
-          .map((r) => ({ code: r.code, label: r.code })),
+        // R5: the add-surface panel offers EVERY interior surface the live
+        // card can price, not just the one row filed under Extras.
+        catalogue: interiorAddOptions(ctx.rateItems),
       },
       // C11: the visit tier names its reason (custom > peeling > rot >
       // flagged > big) — the sticky line renders the mockup's wording.

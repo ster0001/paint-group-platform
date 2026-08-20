@@ -69,6 +69,54 @@ with a repro (which screen, which tap), not as absence of the feature.
   wizard_public ON (noindex). wizard_limits.maxEstimatesPerVisitor=500
   (proving window — DROP TO 2 AT LAUNCH).
 
+## R5 editor batch — 20 Aug PM (Tom's six asks + photos), ON MAIN
+
+All driven on the real screen; `e2e/customer-journey/r5-editor.spec.ts` is the
+new guard (5 tests). 376 unit tests green, `npm run build` clean.
+
+| Ask | What was actually wrong | Fix |
+|---|---|---|
+| "confidence score" wording | header said "Shape your estimate" | renamed; the sub-line now explains that it climbs. Exterior-only jobs had NO ring at all — added |
+| score should start low and climb | it was FROZEN. `applyRoomSizeOk` ("Looks right") set a flag and nothing else, so a full walk-through left it at 18% start AND finish (measured) | `accuracy.ts` gains `confirmState`: unconfirmed in-loop areas cap at 0.62, confirmed floor at 0.95; size-ok now settles L/W as `customer_stated` like typing them does; dw/sweep checks worth +2 each (max +6). Measured no-plan ramp 18→68%; plan job now starts 55% instead of ~92% |
+| floorplan not showing | `PlanViewer` existed only in the OLD `app/wizard` editor — /estimate/scope never had one | `lib/wizard/documents.ts` signs the estimate's own sources; `PlanPanel.tsx` = sticky desktop column + phone peek/sheet + photo strip + lightbox. Verified pinned after a 2200px scroll with a card open |
+| all surfaces in the add panel | interior offered the room type's optional rules + the ONE row filed Interior/Extras; exterior offered 4 cladding + 4 extras | `lib/wizard/add-catalogue.ts` derives the offer FROM THE CARD. Interior now 7 chips in 4 groups (picture rails, mantle, balustrades, window reveals…); a side now 29 chips in 7 groups. New `add_side_surface` action. Both verified to reprice, not $0 |
+| freeze the header + progress + score | only `wz-top` was sticky | ONE `.sc-freeze` ancestor (never nested stickies — that is what detaches on iOS); `scroll-margin-top` so auto-advance doesn't land under it |
+| autosave feels like a crash | NOT a React crash — could not reproduce one under hammering (dropped connection and 500 both degrade to a toast). The real faults: every +/- was its own save (8 taps = 8 queued × ~2.9s prod = ~23s of SAVING), the interior stepper computed each tap from the SERVER's stale count so rapid taps were **silently lost**, and a double tap re-sent the same instruction and 400'd | `useCoalesced.ts`: a burst = ONE save with the final value, flushed before any confirm. Tiles/steppers read optimistic state. **Measured: 8 taps → 1 save, count lands on 9/9, zero double-tap errors.** Reference data cached per process (`loadPricingContext` + new `scope-cache.ts`, 20s TTL): local median 314→273ms |
+| the customer's photos on file | run-less condition photos were inserted with `estimate_id = null` and NOTHING ever claimed them, so a completed submit still left them attached to nothing — **18 such rows live** (the other 77 orphans are abandoned uploads, which is by design) | the photos route returns its ids, they ride `state.conditionSourceIds` into submit and get claimed with `.is(estimate_id,null).eq(created_by,user)`. Verified live: `{"kept":1,"sourceIds":["de4cf7fb…"]}` |
+
+**SQL Tom must run: NONE.** This whole batch is pure code.
+
+**⚠ KNOWN, DELIBERATE DB↔REPO DRIFT.** A `20260924000000_listing_photo_kind.sql`
+was written for the listing-photo import and **Tom ran it live before the
+feature was withdrawn**. The file is gone from the repo; the change is still in
+the database. So `estimate_sources_kind_check` on production accepts
+`'listing_photo'`, and no migration in this repo explains why. That is fine and
+deliberate: it is a widened CHECK permitting a value nothing writes. Verified
+20 Aug — 0 `listing_photo` rows, 0 stranded probe rows, no data touched. Do NOT
+"fix" it by rebuilding the feature. If exact parity is ever wanted, the revert
+is safe while that count is still 0:
+`alter table public.estimate_sources drop constraint estimate_sources_kind_check;`
+then re-add it with the original eight values (floorplan, site_plan, elevation,
+exterior_photo, defect_photo, listing, aerial).
+
+**Tom's ruling, 20 Aug (do not rebuild this):** agency photos scraped from a
+real-estate listing are NOT to be put on file — "just add photos added by the
+customer". The import route, its SSRF-guarded URL checks, its tests and its
+migration were all removed the same session. `estimateDocuments` reads the
+customer's OWN uploads only. The listing URL still feeds the existing
+bedroom/bathroom cross-check (words, not pictures) — that was never in scope
+here and is untouched.
+
+**Tom must know:**
+1. **The ladder moved.** Self-serve needs ≥90% (interior); a plan job now starts
+   at ~55% and only crosses 90 once the loop is finished. That is the intended
+   incentive, but it means fewer instant online accepts than yesterday.
+2. The "crashes on autosave" report has no reproduction here. If it still
+   happens, I need the screen and the tap.
+3. The 18 unclaimed condition photos predate the fix and are NOT retro-claimed.
+   Deleting the rows would leave their FILES in the bucket, so that cleanup
+   belongs with the Step 10 "clear test data" script, not raw SQL.
+
 ## Remaining queue (in order)
 
 1. Tom runs the archive SQL (pre-rebuild customer drafts → expired; sent

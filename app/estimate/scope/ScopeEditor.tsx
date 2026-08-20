@@ -6,6 +6,9 @@ import { assertCustomerShape } from "@/lib/wizard/contract";
 import type { CustomerExteriorView, CustomerScopeRoom } from "@/lib/wizard/scope-editor";
 import type { SidesView } from "@/lib/wizard/sides";
 import SidesEditor from "./SidesEditor";
+import PlanPanel from "./PlanPanel";
+import { useCoalesced } from "./useCoalesced";
+import type { EstimateDocuments } from "@/lib/wizard/documents";
 
 type Ladder = { tier: "self_serve" | "visit"; visitSlots: string[] };
 
@@ -30,8 +33,10 @@ export type InteriorLoopView = {
   dw: { doors: number; windows: number; ok: boolean | null };
   meta: InteriorLoopMeta;
   progress: { done: number; total: number; allDone: boolean };
-  /** The add-surface panel's priced catalogue (rate-card Interior extras). */
-  catalogue?: Array<{ code: string; label: string }>;
+  /** R5: every interior surface the live rate card can price, grouped by
+   * the card's own sub-category. `via` says whether the tap is a substrate
+   * tick or a rate-code add. */
+  catalogue?: Array<{ via: "substrate" | "code"; key: string; label: string; group: string }>;
 };
 
 type Payload = CustomerPayload & {
@@ -40,6 +45,8 @@ type Payload = CustomerPayload & {
   ladder?: Ladder;
   interiorLoop?: InteriorLoopView;
   error?: string;
+  /** A guardrail verdict arrives as a 200 with no range — see act(). */
+  message?: string;
 };
 
 const fmt = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
@@ -48,7 +55,7 @@ const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
 const snapshotFalse = () => false;
 
-export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, roomTypes, liveRange }: {
+export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, roomTypes, liveRange, docs = { plan: null, photos: [] } }: {
   estimateId: string;
   initial: CustomerPayload;
   initialRooms: CustomerScopeRoom[];
@@ -60,6 +67,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   initialInteriorLoop?: InteriorLoopView | null;
   roomTypes: string[];
   liveRange: boolean;
+  /** R5: the plan and photos this customer uploaded, pinned beside the loop. */
+  docs?: EstimateDocuments;
 }) {
   const [payload, setPayload] = useState<CustomerPayload>(initial);
   const [rooms, setRooms] = useState<CustomerScopeRoom[]>(initialRooms);
@@ -113,6 +122,13 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   const [accepted, setAccepted] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chainRef = useRef<Promise<void>>(Promise.resolve());
+  // R5: a burst of stepper taps becomes ONE save carrying the final count.
+  const { queue, flush } = useCoalesced();
+  /** What the customer has tapped a counter to, ahead of the server. The
+   * stepper reads THIS, not the server's count — the old code stepped from
+   * the server value, so a quick second tap recomputed the same number and
+   * the tap was silently lost. */
+  const [draftCounts, setDraftCounts] = useState<Record<string, number>>({});
 
   const mid = (payload.rangeLoCents + payload.rangeHiCents) / 2;
 
@@ -123,7 +139,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   }
 
   /** POST a whitelisted action; reconcile range + tiles from the server. */
-  function act(body: Record<string, unknown>, busyKey: string, describe?: (deltaCents: number) => string, opt?: [string, string]) {
+  function act(body: Record<string, unknown>, busyKey: string, describe?: (deltaCents: number) => string, opt?: [string, string], onSettled?: () => void) {
     setBusyKeys((s) => new Set(s).add(busyKey));
     if (opt) setOptimistic((o) => ({ ...o, [opt[0]]: opt[1] }));
     setPendingCount((n) => n + 1);
@@ -140,6 +156,14 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         const j = (await res.json().catch(() => ({}))) as Payload;
         if (!res.ok) { say(j.error ?? "That didn't save — try again."); return; }
         assertCustomerShape(j, "ScopeEditor");
+        // R5: a guardrail outcome is a 200 with NO range in it. Storing it as
+        // the payload rendered "$NaN – $NaN" and an NaN progress ring — the
+        // screen looked broken at exactly the moment we needed to explain
+        // ourselves. Keep the last good numbers and say the sentence instead.
+        if (typeof j.outcome === "string" && j.outcome !== "reveal") {
+          say(j.message ?? "That change needs one of our team — we'll be in touch.");
+          return;
+        }
         setPayload(j);
         if (j.scopeRooms) setRooms(j.scopeRooms);
         if (j.ladder) setLadder(j.ladder);
@@ -157,6 +181,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         setBusyKeys((s) => { const n = new Set(s); n.delete(busyKey); return n; });
         setPendingCount((n) => n - 1);
         if (opt) setOptimistic((o) => { const n = { ...o }; delete n[opt[0]]; return n; });
+        onSettled?.();
       }
     });
   }
@@ -176,6 +201,9 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   }
   /** Confirm posts get their own path so a 400 shakes the card by name. */
   function confirmAct(body: Record<string, unknown>, cardKey: string, done: string) {
+    // A debounce must never eat an answer: anything still queued goes now,
+    // ahead of the confirm, so the room is confirmed with what they tapped.
+    flush();
     setOptimistic((o) => ({ ...o, [`confirm:${cardKey}`]: "1" }));
     setPendingCount((n) => n + 1);
     chainRef.current = chainRef.current.then(async () => {
@@ -188,6 +216,14 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         const j = (await res.json().catch(() => ({}))) as Payload;
         if (!res.ok) { refuseCard(cardKey, j.error ?? "That didn't save — try again."); return; }
         assertCustomerShape(j, "ScopeEditor");
+        // R5: a guardrail outcome is a 200 with NO range in it. Storing it as
+        // the payload rendered "$NaN – $NaN" and an NaN progress ring — the
+        // screen looked broken at exactly the moment we needed to explain
+        // ourselves. Keep the last good numbers and say the sentence instead.
+        if (typeof j.outcome === "string" && j.outcome !== "reveal") {
+          say(j.message ?? "That change needs one of our team — we'll be in touch.");
+          return;
+        }
         setPayload(j);
         if (j.scopeRooms) setRooms(j.scopeRooms);
         if (j.interiorLoop) setIloop(j.interiorLoop);
@@ -217,28 +253,51 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         `${room.areaId}:${tile.key}`, deltaText(tile.label, false));
       return;
     }
-    const turningOff = tile.on;
+    // R5: read the tile's state OPTIMISTICALLY. It used to read the server's
+    // `tile.on`, which is stale for the ~2.9s a save takes on production, so
+    // a second tap re-sent the SAME instruction and the server answered
+    // "that surface isn't on this room" — a red error toast for what the
+    // customer experienced as one ordinary double tap.
+    const optKey = `on:${room.areaId}:${tile.key}`;
+    const isOn = sel(optKey, tile.on);
+    const turningOff = isOn;
     // Pairing advice (mockup): skirting off while walls stay on → advisory.
     if (turningOff && tile.key === "skirting" && room.tiles.some((t) => t.key === "walls" && t.on)) {
       setAdvice({ areaId: room.areaId, key: "skirting" });
     }
     act(
-      { action: "toggle_surface", areaId: room.areaId, key: tile.key, on: !tile.on },
+      { action: "toggle_surface", areaId: room.areaId, key: tile.key, on: !isOn },
       `${room.areaId}:${tile.key}`,
-      deltaText(tile.label, !tile.on),
+      deltaText(tile.label, !isOn),
+      [optKey, !isOn ? "1" : "0"],
     );
   }
 
+  /** Is this tile ON right now, as far as the customer is concerned? */
+  const tileOn = (room: CustomerScopeRoom, tile: CustomerScopeRoom["tiles"][number]) =>
+    sel(`on:${room.areaId}:${tile.key}`, tile.on);
+
+  /** The count to SHOW: what the customer has tapped to, falling back to the
+   * server's number once the save has landed. */
+  const shownCount = (room: CustomerScopeRoom, tile: CustomerScopeRoom["tiles"][number]) =>
+    draftCounts[`${room.areaId}:${tile.key}`] ?? tile.count ?? 1;
+
   function step(room: CustomerScopeRoom, tile: CustomerScopeRoom["tiles"][number], dir: 1 | -1) {
-    const next = Math.max(1, Math.min(tile.surfaceId != null ? 20 : 12, (tile.count ?? 1) + dir));
-    if (next === tile.count) return;
-    act(
+    const cap = tile.surfaceId != null ? 20 : 12;
+    const key = `${room.areaId}:${tile.key}`;
+    const next = Math.max(1, Math.min(cap, shownCount(room, tile) + dir));
+    if (next === shownCount(room, tile)) return;
+    setDraftCounts((d) => ({ ...d, [key]: next }));
+    // One save per burst, carrying the final count (useCoalesced).
+    queue(`n:${key}`, () => act(
       tile.surfaceId != null
         ? { action: "room_line_count", areaId: room.areaId, surfaceId: tile.surfaceId, count: next }
         : { action: "set_count", areaId: room.areaId, key: tile.key, count: next },
-      `${room.areaId}:${tile.key}:n`,
+      `${key}:n`,
       (d) => `${tile.label} ×${next}${liveRange && Math.abs(d) >= 100 ? ` — about ${d > 0 ? "+" : "−"}${fmt(Math.abs(d))}` : ""}`,
-    );
+      undefined,
+      () => setDraftCounts((cur) => { const n = { ...cur }; delete n[key]; return n; }),
+    ));
   }
 
   /** R3: a named custom surface — an amber flag tile, recorded on the
@@ -262,6 +321,31 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
     allDone: iloop.progress.allDone && (sidesProg ? sidesProg.allDone : true),
   } : null;
 
+  /**
+   * R5: the add panel's offer for ONE room — everything the card can price
+   * that this room hasn't got, grouped the way the card groups it. The two
+   * filters matter: a substrate already ticked would refuse server-side
+   * ("that surface is already on"), and a rate row already on the room would
+   * duplicate the line.
+   */
+  function addGroupsFor(room: CustomerScopeRoom): Array<[string, NonNullable<InteriorLoopView["catalogue"]>]> {
+    const onKeys = new Set(room.tiles.filter((t) => t.on).map((t) => String(t.key)));
+    const onLabels = new Set(room.tiles.filter((t) => t.on).map((t) => t.label.toLowerCase()));
+    const offered = (iloop?.catalogue ?? []).filter((o) =>
+      o.via === "substrate" ? !onKeys.has(o.key) : !onLabels.has(o.label.toLowerCase()) && !onKeys.has(o.key));
+    // Long-tail scope rules this room type declares but the card-derived list
+    // doesn't name (custom surface types live only in the rules table).
+    const extraTail = room.tiles
+      .filter((t) => t.longTail && !t.on && !offered.some((o) => o.key === String(t.key)))
+      .map((t) => ({ via: "substrate" as const, key: String(t.key), label: t.label, group: "The usual surfaces" }));
+    const groups = new Map<string, NonNullable<InteriorLoopView["catalogue"]>>();
+    for (const o of [...offered, ...extraTail]) {
+      if (!groups.has(o.group)) groups.set(o.group, []);
+      groups.get(o.group)!.push(o);
+    }
+    return [...groups.entries()];
+  }
+
   const rangeText = `${fmt(payload.rangeLoCents)} – ${fmt(payload.rangeHiCents)}`;
   const selfServe = ladder.tier === "self_serve";
   // The visit tier is an offer, never a block (mockup copy verbatim).
@@ -277,49 +361,62 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
     <div className={ready ? undefined : "wz-waking"} data-ready={ready ? "1" : undefined}>
       {!ready && <div className="sd-saving">ONE MOMENT…</div>}
       {ready && pendingCount > 0 && <div className="sd-saving">SAVING…</div>}
-      <header className="wz-top">
-        <div className="wz-wm">PAINT<span>—</span>GROUP</div>
+      {/* R5 (Tom, 20 Aug): ONE frozen stack — brand, progress and the
+          confidence score all stay on screen while the cards scroll under
+          them, so "how far am I" and "how sure are we" are never more than
+          a glance away. */}
+      <div className="sc-freeze">
+        <header className="wz-top">
+          <div className="wz-wm">PAINT<span>—</span>GROUP</div>
+          {iloop && (
+            <span className={`sd-status ${combined!.allDone ? "ok" : ""}`}>
+              {combined!.allDone ? "ESTIMATE CONFIRMED ✓" : initialSides ? "IN REVIEW · INSIDE THEN OUTSIDE" : "IN REVIEW · CONFIRM EACH ROOM"}
+            </span>
+          )}
+        </header>
         {iloop && (
-          <span className={`sd-status ${combined!.allDone ? "ok" : ""}`}>
-            {combined!.allDone ? "ESTIMATE CONFIRMED ✓" : initialSides ? "IN REVIEW · INSIDE THEN OUTSIDE" : "IN REVIEW · CONFIRM EACH ROOM"}
-          </span>
-        )}
-      </header>
-      {iloop && (
-        <div className="il-progwrap">
-          <div className="sd-lbl">
-            <span className="il-prog">{combined!.done} OF {combined!.total} CONFIRMED</span>
-            <span>ORANGE = STILL TO CONFIRM · BLUE = CONFIRMED</span>
+          <div className="il-progwrap">
+            <div className="sd-lbl">
+              <span className="il-prog">{combined!.done} OF {combined!.total} CONFIRMED</span>
+              <span>ORANGE = STILL TO CONFIRM · BLUE = CONFIRMED</span>
+            </div>
+            <div className={`sd-pbar ${combined!.allDone ? "ok" : ""}`}>
+              <i style={{ width: `${(combined!.done / Math.max(1, combined!.total)) * 100}%` }} />
+            </div>
           </div>
-          <div className={`sd-pbar ${combined!.allDone ? "ok" : ""}`}>
-            <i style={{ width: `${(combined!.done / Math.max(1, combined!.total)) * 100}%` }} />
+        )}
+        <div className="sc-scorewrap">
+          <div className="sc-scorebar">
+            <div className="sc-score">
+              <div className="sc-ring">
+                <svg width="48" height="48" style={{ transform: "rotate(-90deg)" }}>
+                  <circle cx="24" cy="24" r="20" fill="none" stroke="#242B32" strokeWidth="4" />
+                  <circle cx="24" cy="24" r="20" fill="none" stroke={payload.accuracyPct >= 90 ? "#2FA46B" : "#E0A83C"}
+                    strokeWidth="4" strokeLinecap="round" strokeDasharray="125.6"
+                    strokeDashoffset={(125.6 * (1 - payload.accuracyPct / 100)).toFixed(1)} />
+                </svg>
+                <div className="sc-num">{payload.accuracyPct}%</div>
+              </div>
+              <div className="sc-lbl">
+                <b>Confidence score</b>
+                <span>{combined?.allDone
+                  ? "Everything confirmed — this is as sure as we get before we see it"
+                  : "It climbs with every room you confirm — we\u2019ll reprice as you go"}</span>
+              </div>
+            </div>
+            <div className="sc-range" key={flash}>
+              <small>YOUR ESTIMATE · INCL. GST</small>
+              <div className="sc-r">{rangeText}</div>
+            </div>
           </div>
         </div>
-      )}
+        <div className="sc-scorewrap" style={{ paddingTop: 0 }}>
+          <PlanPanel docs={docs} variant="peek" />
+        </div>
+      </div>
 
       <main className="sc-wrap">
-        <div className="sc-scorebar">
-          <div className="sc-score">
-            <div className="sc-ring">
-              <svg width="48" height="48" style={{ transform: "rotate(-90deg)" }}>
-                <circle cx="24" cy="24" r="20" fill="none" stroke="#242B32" strokeWidth="4" />
-                <circle cx="24" cy="24" r="20" fill="none" stroke={payload.accuracyPct >= 90 ? "#2FA46B" : "#E0A83C"}
-                  strokeWidth="4" strokeLinecap="round" strokeDasharray="125.6"
-                  strokeDashoffset={(125.6 * (1 - payload.accuracyPct / 100)).toFixed(1)} />
-              </svg>
-              <div className="sc-num">{payload.accuracyPct}%</div>
-            </div>
-            <div className="sc-lbl">
-              <b>Shape your estimate</b>
-              <span>Add or remove anything — we&rsquo;ll reprice as you go</span>
-            </div>
-          </div>
-          <div className="sc-range" key={flash}>
-            <small>YOUR ESTIMATE · INCL. GST</small>
-            <div className="sc-r">{rangeText}</div>
-          </div>
-        </div>
-
+        <div className="sc-cols">
         <div className="sc-cards">
           {rooms.map((room) => {
             const main = room.tiles.filter((t) => !t.longTail);
@@ -402,20 +499,20 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     .map((t) => (
                     <div
                       key={String(t.key)}
-                      className={`sc-tl ${t.on ? "on" : ""} ${busyKeys.has(`${room.areaId}:${t.key}`) ? "busy" : ""}`}
-                      role="checkbox" aria-checked={t.on} tabIndex={0}
+                      className={`sc-tl ${tileOn(room, t) ? "on" : ""} ${busyKeys.has(`${room.areaId}:${t.key}`) ? "busy" : ""}`}
+                      role="checkbox" aria-checked={tileOn(room, t)} tabIndex={0}
                       onClick={() => toggle(room, t)}
                       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(room, t); } }}
                     >
                       {t.label}
-                      {t.on && t.countable && (
+                      {tileOn(room, t) && t.countable && (
                         <span className="sc-st" onClick={(e) => e.stopPropagation()}>
                           <button aria-label="fewer" onClick={() => step(room, t, -1)}>−</button>
-                          <b>{t.count ?? 1}</b>
+                          <b>{shownCount(room, t)}</b>
                           <button aria-label="more" onClick={() => step(room, t, 1)}>+</button>
                         </span>
                       )}
-                      {t.on && t.styleToConfirm && (
+                      {tileOn(room, t) && t.styleToConfirm && (
                         // R1.2: priced at the default rate — visible, never $0.
                         <span className="sc-styleconfirm">style to confirm</span>
                       )}
@@ -454,29 +551,35 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                 {openPanel.has(room.areaId) && (
                   <div className="sd-addpanel">
                     <p className="sd-pl">EVERYTHING WE PAINT — TAP TO ADD</p>
-                    <div className="sd-chips">
-                      {tail.filter((t) => !t.on).map((t) => (
-                        <button key={String(t.key)} className="sd-chip"
-                          onClick={() => act({ action: "toggle_surface", areaId: room.areaId, key: String(t.key), on: true }, `${room.areaId}:${t.key}`, deltaText(t.label, true))}>
-                          + {t.label}
-                        </button>
-                      ))}
-                      {(iloop?.catalogue ?? [])
-                        .filter((c) => !room.tiles.some((t) => t.label.toLowerCase() === c.label.toLowerCase() && t.on))
-                        .map((c) => (
-                          <button key={c.code} className="sd-chip"
-                            onClick={() => act({ action: "room_add_catalogue", areaId: room.areaId, code: c.code }, `${room.areaId}:cat:${c.code}`, deltaText(c.label, true))}>
-                            + {c.label}
-                          </button>
-                        ))}
-                      {loop && (
-                        <button className="sd-chip"
-                          onClick={() => act({ action: "room_add_window_group", areaId: room.areaId }, `wg:${room.areaId}`,
-                            () => "Added another window group — set its count and size. Mix as many sizes as the room has.")}>
-                          + More windows — a different size
-                        </button>
-                      )}
-                    </div>
+                    {/* R5: every interior surface the card can price, in the
+                        card's own groups — not just this room type's optional
+                        rules plus a single "Extras" row. Anything already on
+                        the room is filtered out so the panel only ever offers
+                        what tapping it would actually add. */}
+                    {addGroupsFor(room).map(([group, opts]) => (
+                      <div className="sd-group" key={group}>
+                        <p className="sd-gl">{group.toUpperCase()}</p>
+                        <div className="sd-chips">
+                          {opts.map((o) => (
+                            <button key={`${o.via}:${o.key}`} className="sd-chip"
+                              onClick={() => act(
+                                o.via === "substrate"
+                                  ? { action: "toggle_surface", areaId: room.areaId, key: o.key, on: true }
+                                  : { action: "room_add_catalogue", areaId: room.areaId, code: o.key },
+                                `${room.areaId}:${o.key}`, deltaText(o.label, true))}>
+                              + {o.label}
+                            </button>
+                          ))}
+                          {group === "The usual surfaces" && loop && (
+                            <button className="sd-chip"
+                              onClick={() => act({ action: "room_add_window_group", areaId: room.areaId }, `wg:${room.areaId}`,
+                                () => "Added another window group — set its count and size. Mix as many sizes as the room has.")}>
+                              + More windows — a different size
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                     <div className="sd-custom">
                       <input
                         placeholder="Something else? Name it — e.g. wall panelling"
@@ -645,6 +748,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
               </section>
             </>
           )}
+        </div>
+        <PlanPanel docs={docs} variant="column" />
         </div>
       </main>
 

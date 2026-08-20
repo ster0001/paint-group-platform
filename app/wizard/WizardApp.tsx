@@ -84,6 +84,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
   const readsRef = useRef<Array<Promise<unknown>>>([]);
   const primaryRunRef = useRef<string | null>(null);
   const damageFilesRef = useRef<File[]>([]);
+  /** R5: estimate_sources rows created for run-less condition photos, so the
+   * submit can claim them for the estimate (they used to orphan). */
+  const conditionSourceIdsRef = useRef<string[]>([]);
   const planInputRef = useRef<HTMLInputElement>(null);
   const facadeInputRef = useRef<HTMLInputElement>(null);
   const damageInputRef = useRef<HTMLInputElement>(null);
@@ -275,6 +278,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
         for (const p of (j.perPhoto ?? []) as Array<{ file?: string; error?: string }>) {
           if (p.error) issues.push(`Damage photo "${p.file ?? "photo"}": ${p.error}`);
         }
+        // R5: the run-less route now hands back the rows it created so the
+        // submit can CLAIM them for the estimate. Before this they were kept
+        // in storage with estimate_id = null — saved, but attached to
+        // nothing, so they never appeared on the editor.
+        if (Array.isArray(j.sourceIds)) conditionSourceIdsRef.current = j.sourceIds as string[];
         if (!primaryRunRef.current && Number(j.kept) > 0) {
           issues.push("Your damage photos are saved with the estimate — your estimator reviews them rather than the automatic reader (no floorplan to attach them to).");
         }
@@ -322,6 +330,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
     const submitState = {
       ...state,
       planRunIds: footprintRunId ? [...state.planRunIds, footprintRunId] : state.planRunIds,
+      conditionSourceIds: conditionSourceIdsRef.current,
     };
     const res = await fetch("/api/wizard/submit", {
       method: "POST",

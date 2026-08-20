@@ -81,8 +81,19 @@ function withRoom(blocks: LooseBlock[], areaId: number, fn: (b: LooseBlock) => s
   return { ok: true, blocks: blocks.map((b) => (b === room ? copy : b)) };
 }
 
+/**
+ * "Looks right" — the customer agrees the size we assumed IS the size.
+ *
+ * R5: this SETTLES the dimensions, exactly as typing the same numbers back
+ * would (applyRoomDims below). Before R5 it only set a flag, so a customer
+ * could agree with every room in the house and the confidence score would
+ * not move a single point — measured stuck at 18% across a full walk-through
+ * on 20 Aug. Agreeing with a number is an answer, not a shrug.
+ */
 export function applyRoomSizeOk(blocks: LooseBlock[], areaId: number): RoomsLoopResult {
   return withRoom(blocks, areaId, (b) => {
+    b.origin = "customer_stated"; b.confidence = 0.85;
+    b.assumedFields = (Array.isArray(b.assumedFields) ? (b.assumedFields as string[]) : []).filter((f) => f !== "L" && f !== "W");
     b.customer = { ...customerOf(b), size: "yes" };
   });
 }

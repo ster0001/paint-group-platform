@@ -44,6 +44,11 @@ export async function POST(request: Request) {
 
   const perPhoto: Array<{ file: string; error?: string; kept?: boolean }> = [];
   const stagedToClean: string[] = [];
+  /** R5: the rows we create, handed back so submit can CLAIM them for the
+   * estimate. Without this they were written with estimate_id = null and
+   * nothing ever set it — the photos were kept but belonged to no estimate,
+   * so they never showed on the editor and never cascaded on delete. */
+  const sourceIds: string[] = [];
   let kept = 0;
 
   for (const u of staged.data.uploads) {
@@ -73,7 +78,8 @@ export async function POST(request: Request) {
       page_class: "photo",
       page_class_confidence: 0.95,
       created_by: actor.user.id,
-    });
+    }).select("id").maybeSingle();
+    if (ins.data?.id) sourceIds.push(ins.data.id as string);
     if (ins.error) {
       reportError(ins.error, { where: "extract.conditionPhotoRecord", bestEffort: true });
       perPhoto.push({ file: u.name, error: "couldn't be recorded — try again" });
@@ -87,5 +93,5 @@ export async function POST(request: Request) {
     await db.storage.from("estimate-sources").remove(stagedToClean).then(() => null, () => null);
   }
 
-  return NextResponse.json({ kept, perPhoto });
+  return NextResponse.json({ kept, perPhoto, sourceIds });
 }

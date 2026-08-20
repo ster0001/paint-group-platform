@@ -80,7 +80,7 @@ type RateItemLike = { code: string | null; category: string | null };
  * items declare, in registry order. Load rate_items server-side and pass the
  * result to the client — the options carry names only, never rates.
  */
-export function substrateOptionsFromRates(rateItems: RateItemLike[]): SubstrateGroups {
+export function substrateOptionsFromRates(rateItems: ReadonlyArray<RateItemLike>): SubstrateGroups {
   const sideByCode = new Map<string, SubstrateSide>();
   for (const r of rateItems) {
     if (!r.code) continue;

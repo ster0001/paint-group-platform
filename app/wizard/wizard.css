@@ -145,6 +145,50 @@
 
 /* ---- Part B: customer scope editor (.sc-, per customer-scope-editor-mockup) */
 .wz .sc-wrap { max-width: 1020px; margin: 0 auto; padding: 20px 20px 170px; }
+
+/* R5 (Tom, 20 Aug): the frozen stack. Brand row, progress bar and the
+   confidence score ride together at the top of the viewport so progress is
+   readable at any scroll position. ONE sticky ancestor, not three stacked
+   sticky children — nesting sticky inside sticky is what makes headers
+   detach and overlap mid-scroll on iOS. `wz-top` inside keeps its own
+   styling but stops being independently sticky (see the override below). */
+/* Solid, NOT backdrop-filtered: a filtered element becomes the containing
+   block for its `position: fixed` descendants, which would anchor the phone's
+   plan overlay to this header instead of the viewport. It is 94% opaque
+   anyway — the blur bought nothing and cost that. */
+.wz .sc-freeze { position: sticky; top: 0; z-index: 45; background: #0A0B0D; border-bottom: 1px solid var(--line); }
+.wz .sc-freeze .wz-top { position: static; backdrop-filter: none; background: transparent; border-bottom: 0; }
+.wz .sc-scorewrap { max-width: 1020px; margin: 0 auto; padding: 9px 20px 12px; }
+.wz .sc-freeze .sc-scorebar { margin-bottom: 0; }
+/* A phone gives up most of its screen to a tall header, and this one carries
+   four things. On small screens it keeps only what cannot be inferred — the
+   count, the bar, the ring and the range — and sheds every line of prose.
+   Measured on a 390px viewport: ~190px down to ~120px. */
+@media (max-width: 560px) {
+  .wz .sc-freeze .sc-lbl span { display: none; }
+  .wz .sc-freeze .sc-lbl b { font-size: 12.5px; white-space: nowrap; }
+  /* The colour legend is the one thing the colours themselves already say. */
+  .wz .sc-freeze .sd-lbl span:last-child { display: none; }
+  .wz .sc-freeze .il-prog { white-space: nowrap; }
+  .wz .sc-scorewrap { padding: 5px 12px 8px; }
+  .wz .sc-freeze .sc-scorebar { padding: 9px 12px; gap: 10px; }
+  .wz .sc-freeze .sc-ring, .wz .sc-freeze .sc-ring svg { width: 38px; height: 38px; }
+  .wz .sc-freeze .sc-range small { white-space: nowrap; font-size: 7.5px; }
+  .wz .sc-freeze .il-progwrap { padding: 0 12px; margin-top: 6px; }
+  /* Opening the plan must not push the cards off the screen: on a phone the
+     sheet is an OVERLAY under the header, not part of it. */
+  .wz .pp-sheet {
+    position: fixed; left: 0; right: 0; top: var(--pp-top, 150px); bottom: 96px;
+    z-index: 44; overflow-y: auto; padding: 12px 14px;
+    background: #0A0B0D; border-top: 1px solid var(--line);
+  }
+  .wz .pp-sheet .wz-planframe { max-height: none; }
+  /* The peek strip is a control, not a card — keep it thin. */
+  .wz .pp-peek { padding: 6px 10px; gap: 9px; }
+  .wz .pp-peek img { width: 34px; height: 26px; }
+  .wz .pp-peek span { font-size: 12px; }
+  .wz .pp-mobile { margin-bottom: 0; }
+}
 .wz .sc-scorebar { display: flex; align-items: center; justify-content: space-between; gap: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 15px 18px; margin-bottom: 14px; }
 .wz .sc-score { display: flex; align-items: center; gap: 12px; }
 .wz .sc-ring { position: relative; width: 48px; height: 48px; }
@@ -214,6 +258,9 @@
 /* ---- R2b: the exterior sides confirm-loop editor (sd-*) -------------------
    Reference: design/reference/customer-review-confirm-exterior-v2-sides.html */
 .wz .sd { padding-bottom: 170px; }
+.wz .sd-scorewrap { max-width: 1100px; margin: 9px auto 0; }
+.wz .sd-scorewrap .sc-scorebar { margin-bottom: 0; }
+@media (max-width: 560px) { .wz .sd-scorewrap .sc-lbl span { display: none; } .wz .sd-scorewrap .sc-scorebar { padding: 10px 13px; } }
 .wz .sd-top { position: sticky; top: 0; z-index: 50; padding: 12px 18px; background: rgba(10,11,13,.94); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
 .wz .sd-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; max-width: 1020px; margin: 0 auto; }
 .wz .sd-wm { font-family: var(--wz-mono); font-size: 12px; font-weight: 700; letter-spacing: .22em; }
@@ -317,6 +364,10 @@
 
 /* ---- R3: the interior confirm loop (il-*) --------------------------------- */
 .wz .il-progwrap { max-width: 1020px; margin: 9px auto 0; padding: 0 18px; }
+/* The confirm loop auto-scrolls the next card into view; the frozen stack
+   above must never be what lands on top of it. */
+.wz .sc-rc { scroll-margin-top: 168px; }
+@media (max-width: 560px) { .wz .sc-rc { scroll-margin-top: 132px; } }
 .wz .sc-rc.amber { border-color: var(--amber); border-left-width: 3px; }
 .wz .sc-rc.done { border-color: var(--cyan); border-left-width: 3px; }
 .wz .il-hm { font-family: var(--wz-mono); font-size: 11px; color: var(--muted); font-weight: 400; }
@@ -347,3 +398,40 @@
 .wz .sd-g { font-family: var(--wz-mono); font-size: 8.5px; letter-spacing: .08em; color: var(--muted); border: 1px solid var(--line); border-radius: 100px; padding: 5px 10px; }
 .wz .sd-g i { font-style: normal; color: var(--emerald); }
 .wz .sd-geo button { font-family: var(--wz-sans); font-size: 11.5px; color: var(--amber); background: none; border: 1px solid rgba(224,168,60,.45); border-radius: 100px; padding: 5px 11px; cursor: pointer; }
+
+
+/* R5: the widened add panel — grouped by the rate card's own sub-categories
+   so a long list stays scannable. */
+.wz .sd-group + .sd-group { margin-top: 10px; }
+.wz .sd-gl { font-family: var(--wz-mono); font-size: 8.5px; letter-spacing: .16em; color: var(--muted); margin: 0 0 6px; }
+.wz .sd-addpanel { max-height: 46vh; overflow-y: auto; }
+
+/* ---- R5: the pinned plan + photos on file (pp-*) --------------------------
+   Tom, 20 Aug: "add floorplan to screen view again... ensure it always shows
+   while click into the rooms and scrolling." Desktop gets a sticky column
+   beside the cards; a phone gets a pinned peek strip in the frozen header
+   that opens to the same viewer. */
+.wz .sc-cols { display: grid; grid-template-columns: 1fr; gap: 16px; }
+.wz .pp-side { display: none; }
+.wz .pp-mobile { margin: 0 auto 12px; max-width: 1020px; }
+.wz .pp-peek { width: 100%; display: flex; align-items: center; gap: 11px; padding: 8px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; color: inherit; cursor: pointer; text-align: left; }
+.wz .pp-peek img { width: 42px; height: 34px; object-fit: cover; border-radius: 6px; background: #fff; flex: none; }
+.wz .pp-peek span { flex: 1; font-size: 13px; font-weight: 600; }
+.wz .pp-peek i { font-style: normal; font-size: 10px; color: var(--muted); }
+.wz .pp-sheet { margin-top: 10px; }
+.wz .pp-strip { margin-top: 12px; }
+.wz .pp-t { font-family: var(--wz-mono); font-size: 9px; letter-spacing: .16em; color: var(--muted); margin-bottom: 8px; }
+.wz .pp-thumbs { display: flex; flex-wrap: wrap; gap: 8px; }
+.wz .pp-thumbs img { width: 62px; height: 50px; object-fit: cover; border-radius: 7px; border: 1px solid var(--line); background: #fff; cursor: zoom-in; }
+.wz .pp-lightbox { position: fixed; inset: 0; z-index: 120; background: rgba(6,7,9,.93); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; cursor: zoom-out; }
+.wz .pp-lightbox img { max-width: 100%; max-height: 82vh; border-radius: 10px; }
+.wz .pp-lightbox span { font-family: var(--wz-mono); font-size: 9px; letter-spacing: .14em; color: var(--muted); }
+
+@media (min-width: 900px) {
+  /* The plan earns a column of its own and never scrolls away. Its `top`
+     clears the frozen header stack above it. */
+  .wz .sc-cols { grid-template-columns: minmax(0, 1fr) 340px; align-items: start; }
+  .wz .pp-side { display: block; position: sticky; top: 196px; }
+  .wz .pp-side .wz-planbox { position: static; }
+  .wz .pp-mobile { display: none; }
+}

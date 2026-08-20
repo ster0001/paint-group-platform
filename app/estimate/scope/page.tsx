@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getWizardActor } from "@/lib/supabase/guards";
-import { SCOPE_VERSION, type ScopeRule } from "@/lib/extract/scope";
+import { loadScopeRules } from "@/lib/extract/scope-cache";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { customerExteriorView, customerScopeRooms, offeredVisitSlots } from "@/lib/wizard/scope-editor";
 import { customerPayload, editorPayload, type WizardDeferred } from "@/lib/wizard/view";
@@ -14,6 +14,9 @@ import ScopeEditor from "./ScopeEditor";
 import SidesEditor from "./SidesEditor";
 import { defaultSidesLoop, extrasPrices, sidesView, visitReason, type SidesLoopMeta } from "@/lib/wizard/sides";
 import { defaultInteriorLoop, interiorDwTotals, interiorProgress, roomLoopViews, type InteriorLoopMeta } from "@/lib/wizard/rooms-loop";
+import { loopConfirmState } from "@/lib/wizard/confirm-state";
+import { estimateDocuments } from "@/lib/wizard/documents";
+import { exteriorAddOptions, interiorAddOptions } from "@/lib/wizard/add-catalogue";
 import "../../wizard/wizard.css";
 
 /**
@@ -77,13 +80,19 @@ export default async function ScopeEditorPage({
   const blocks = Array.isArray(state.blocks) ? (state.blocks as Array<Record<string, unknown>>) : [];
   const deferred: WizardDeferred[] = Array.isArray(state.aiDeferred) ? (state.aiDeferred as WizardDeferred[]) : [];
 
-  const [{ data: rulesRows }, ctx] = await Promise.all([
-    db.from("room_type_scope_rules").select("room_type, surface_type, is_option, requires_confirm, notes").eq("version", SCOPE_VERSION),
+  const [rules, ctx, docs] = await Promise.all([
+    loadScopeRules(db),
     loadPricingContext(db),
+    // R5: the plan and photos this customer uploaded, signed for the browser.
+    estimateDocuments(db, id),
   ]);
-  const rules = (rulesRows ?? []) as ScopeRule[];
 
-  const payload = editorPayload(blocks, ctx, adjustmentsFrom(state), deferred);
+  // R5: the confidence score follows the confirm loop, so the loop's state
+  // has to be read BEFORE the estimate is priced and scored.
+  const sidesMeta = ((state.sidesLoop as SidesLoopMeta | undefined) ?? defaultSidesLoop());
+  const interiorMeta = ((state.interiorLoop as InteriorLoopMeta | undefined) ?? defaultInteriorLoop());
+  const loopState = loopConfirmState(blocks, interiorMeta, sidesMeta);
+  const payload = editorPayload(blocks, ctx, adjustmentsFrom(state), deferred, loopState);
   const snap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
   const answers = snap.success
     ? answersFromState(snap.data)
@@ -119,9 +128,9 @@ export default async function ScopeEditorPage({
   // R2b: a job with exterior sides and no interior rooms gets the confirm-
   // loop sides editor (reference: customer-review-confirm-exterior-v2-sides).
   const interiorRooms = customerScopeRooms(blocks, rules);
-  const sidesMeta = ((state.sidesLoop as SidesLoopMeta | undefined) ?? defaultSidesLoop());
   const sides = sidesView(blocks, sidesMeta, extrasPrices(ctx.rateItems),
-    snap.success ? (snap.data.exterior?.storeys ?? null) : null);
+    snap.success ? (snap.data.exterior?.storeys ?? null) : null,
+    exteriorAddOptions(ctx.rateItems));
   // Batch 4: an estimate with exterior blocks but NO sides structure
   // predates the rebuild — the old editor is deleted, so it gets a polite
   // restart message, never a broken surface. (Tom's ruling: archive +
@@ -144,21 +153,20 @@ export default async function ScopeEditorPage({
             reason: selfServe ? null : visitReason(sidesMeta, deferred),
             visitSlots: offeredVisitSlots(editorFlags),
           }}
+          docs={docs}
         />
       </div>
     );
   }
 
   // R3: the interior confirm loop's initial state.
-  const interiorMeta = ((state.interiorLoop as InteriorLoopMeta | undefined) ?? defaultInteriorLoop());
   const interiorLoop = interiorRooms.length > 0 ? {
     rooms: roomLoopViews(blocks, new Set(ctx.rateItems.map((r) => r.code))),
     dw: { ...interiorDwTotals(blocks), ok: interiorMeta.dwOk },
     meta: interiorMeta,
     progress: interiorProgress(blocks, interiorMeta),
-    catalogue: ctx.rateItems
-      .filter((r) => r.category === "Interior" && r.sub_category === "Extras")
-      .map((r) => ({ code: r.code, label: r.code })),
+    // R5: every interior surface the live card can price.
+    catalogue: interiorAddOptions(ctx.rateItems),
   } : null;
 
   return (
@@ -173,6 +181,7 @@ export default async function ScopeEditorPage({
         initialInteriorLoop={interiorLoop}
         roomTypes={roomTypes}
         liveRange={editorFlags.liveRange !== false}
+        docs={docs}
       />
     </div>
   );
