@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { checkUpload } from "@/lib/uploads/validate";
 import {
@@ -16,7 +17,6 @@ import {
 import { defaultSurfacesFor, type SubstrateGroups } from "@/lib/estimate/substrates";
 import type { CustomerPayload, WizardEditorPayload } from "@/lib/wizard/view";
 import AddressField from "./AddressField";
-import Editor from "./Editor";
 import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
 
 /**
@@ -69,7 +69,6 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
   const [sessionReady, setSessionReady] = useState(!isCustomer);
   const [error, setError] = useState<string | null>(null);
   const [procLine, setProcLine] = useState(0);
-  const [result, setResult] = useState<SubmitResult | null>(null);
   const [planFileCount, setPlanFileCount] = useState(0);
   const [facadeFileCount, setFacadeFileCount] = useState(0);
   // The canonical hydration detector (same as the editors): server snapshot
@@ -89,6 +88,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
   const facadeInputRef = useRef<HTMLInputElement>(null);
   const damageInputRef = useRef<HTMLInputElement>(null);
 
+  const router = useRouter();
   const set = (patch: Partial<WizardState>) => setState((s) => ({ ...s, ...patch }));
 
   useEffect(() => {
@@ -353,12 +353,12 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
       setScreen("editor");
       return;
     }
-    const withPhotoIssues = j as SubmitResult;
-    if (photoIssues.length) {
-      withPhotoIssues.warnings = [...(withPhotoIssues.warnings ?? []), ...photoIssues];
-    }
-    setResult(withPhotoIssues);
-    setScreen("editor");
+    // Tom (20 Aug): staff land in the NEW confirm-loop editor — the same
+    // view the customer gets (R1.1 parity), replacing the old W3 internal
+    // editor screen. Margin and deep surgery stay in /quote; photo issues
+    // ride the estimate as review deferrals either way.
+    const landed = j as SubmitResult;
+    router.push(`/estimate/scope?id=${landed.estimateId}`);
   }
 
   // ---- client-side page gates (server re-validates everything) --------------
@@ -416,9 +416,6 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
 
   // ---- render ---------------------------------------------------------------
 
-  if (screen === "editor" && result) {
-    return <Editor initial={result} roomTypes={roomTypes} />;
-  }
   if (screen === "editor" && isCustomer && (outcome || customerResult)) {
     return <CustomerResult outcome={outcome} reveal={customerResult} roomTypes={roomTypes} />;
   }
