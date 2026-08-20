@@ -45,6 +45,9 @@ type Payload = CustomerPayload & {
 
 const fmt = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
+/** Matches the wizard-edit route's own cap on a batch. */
+const MAX_BATCH = 24;
+
 const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
 const snapshotFalse = () => false;
@@ -121,19 +124,56 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
     return o != null ? o === val : serverOn;
   }
 
-  function act(
-    body: Record<string, unknown>,
-    opts: { done?: string; describe?: (deltaCents: number) => string; onFail?: (msg: string) => void; onOk?: (j: Payload) => void; opt?: [string, string] } = {},
-  ) {
-    if (opts.opt) setOptimistic((o) => ({ ...o, [opts.opt![0]]: opts.opt![1] }));
-    setPendingCount((n) => n + 1);
-    const before = (payload.rangeLoCents + payload.rangeHiCents) / 2;
+  type Queued = {
+    body: Record<string, unknown>;
+    opts: { done?: string; describe?: (deltaCents: number) => string; onFail?: (msg: string) => void; onOk?: (j: Payload) => void; opt?: [string, string] };
+  };
+
+  /**
+   * A confirm ENDS its batch — nothing tapped after it travels with it.
+   *
+   * A confirm is the one action whose refusal is a normal part of the walk
+   * ("the wall surfaces need to add up to 100%"), and a batch stops at the
+   * first refusal. Batching past one therefore threw away the customer's
+   * CORRECTION: tapping 50% → confirm → 100% → confirm quickly arrived as a
+   * single batch, the first confirm refused exactly as designed, and the
+   * 100% fix and its confirm were dropped on the floor. Caught by
+   * sides-editor's "amber to cyan" failing 2 runs in 3.
+   */
+  const endsBatch = (body: Record<string, unknown>) =>
+    String(body.action ?? "").startsWith("confirm_");
+  const queuedRef = useRef<Queued[]>([]);
+
+  /**
+   * R5.1: the same queue the interior editor uses. Taps queue as WORK, not as
+   * requests — a step sweeps up everything tapped since the last one and
+   * sends it as one batch, so a side with several surfaces to add costs two
+   * round trips rather than six. Ordering comes from the chain, so a confirm
+   * appended after a tap can never overtake it.
+   */
+  function drain() {
     chainRef.current = chainRef.current.then(async () => {
+      // Take up to MAX_BATCH (the route's own cap), stopping AFTER the first
+      // confirm. The rest waits for the next step rather than being dropped.
+      const q = queuedRef.current;
+      let take = 0;
+      while (take < q.length && take < MAX_BATCH) { take++; if (endsBatch(q[take - 1].body)) break; }
+      const batch = q.slice(0, take);
+      if (batch.length === 0) return;
+      queuedRef.current = q.slice(take);
+      const before = (payload.rangeLoCents + payload.rangeHiCents) / 2;
+      // The last tap owns the toast and the callbacks — it is the one the
+      // customer is watching.
+      const opts = batch[batch.length - 1].opts;
       try {
         const res = await fetch(`/api/estimates/${estimateId}/wizard-edit`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...body, view: "customer" }),
+          body: JSON.stringify(
+            batch.length === 1
+              ? { ...batch[0].body, view: "customer" }
+              : { actions: batch.map((b) => b.body), view: "customer" },
+          ),
         });
         const j = (await res.json().catch(() => ({}))) as Payload;
         if (!res.ok) {
@@ -156,16 +196,38 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
         if (j.ladder) setLadder(j.ladder);
         // The interior editor's $-delta toasts, same recipe: the range
         // midpoint before vs after IS the honest customer-visible delta.
-        if (opts.describe) say(opts.describe((j.rangeLoCents + j.rangeHiCents) / 2 - before));
+        // A batch that stopped part-way still saved what applied.
+        if (j.error) (opts.onFail ?? say)(j.error);
+        else if (opts.describe) say(opts.describe((j.rangeLoCents + j.rangeHiCents) / 2 - before));
         else if (opts.done) say(opts.done);
-        opts.onOk?.(j);
+        // EVERY item's onOk runs, not just the last one's. The confirm
+        // buttons hang `openNext` here, and a confirm that landed in the
+        // middle of a batch (tap a side's confirm, then immediately open the
+        // next side) would otherwise never advance the walk — an
+        // intermittent stall that showed up as sides-editor's "amber to
+        // cyan" failing on one run in several. openNext reads the payload,
+        // so running it per item is idempotent.
+        if (!j.error) for (const b of batch) b.opts.onOk?.(j);
       } catch {
         say("That didn't save — check the connection and try again.");
       } finally {
-        setPendingCount((n) => n - 1);
-        if (opts.opt) setOptimistic((o) => { const n = { ...o }; delete n[opts.opt![0]]; return n; });
+        setPendingCount((n) => n - batch.length);
+        for (const b of batch) {
+          if (b.opts.opt) setOptimistic((o) => { const n = { ...o }; delete n[b.opts.opt![0]]; return n; });
+        }
+        if (queuedRef.current.length) drain();
       }
     });
+  }
+
+  function act(
+    body: Record<string, unknown>,
+    opts: { done?: string; describe?: (deltaCents: number) => string; onFail?: (msg: string) => void; onOk?: (j: Payload) => void; opt?: [string, string] } = {},
+  ) {
+    if (opts.opt) setOptimistic((o) => ({ ...o, [opts.opt![0]]: opts.opt![1] }));
+    setPendingCount((n) => n + 1);
+    queuedRef.current.push({ body, opts });
+    drain();
   }
 
   function refuse(cardKey: string, msg: string) {

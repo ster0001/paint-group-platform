@@ -51,6 +51,14 @@ type Payload = CustomerPayload & {
 
 const fmt = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
+/** Matches the wizard-edit route's own cap on a batch. */
+const MAX_BATCH = 24;
+
+/** A confirm ends its batch: its refusal is part of the walk, and a batch
+ * stops at the first refusal, so anything queued behind one would be lost. */
+const endsBatch = (body: Record<string, unknown>) =>
+  String(body.action ?? "").startsWith("confirm_");
+
 const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
 const snapshotFalse = () => false;
@@ -129,6 +137,16 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
    * the server value, so a quick second tap recomputed the same number and
    * the tap was silently lost. */
   const [draftCounts, setDraftCounts] = useState<Record<string, number>>({});
+  /** R5.1: surfaces the customer has tapped to add, before the save lands.
+   * Without this the chip stayed in the panel and no tile appeared for a
+   * whole round trip (~3.4s on production) — so people tapped again, and the
+   * second tap became a duplicate the server refused. Reproduced end to end:
+   * three taps, nothing visible for fifteen seconds, one surface added. */
+  const [pendingAdds, setPendingAdds] = useState<Record<number, string[]>>({});
+  const addPending = (areaId: number, label: string) =>
+    setPendingAdds((p) => ({ ...p, [areaId]: [...(p[areaId] ?? []), label] }));
+  const clearPending = (areaId: number, label: string) =>
+    setPendingAdds((p) => ({ ...p, [areaId]: (p[areaId] ?? []).filter((l) => l !== label) }));
 
   const mid = (payload.rangeLoCents + payload.rangeHiCents) / 2;
 
@@ -138,28 +156,62 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
     toastTimer.current = setTimeout(() => setToast(null), 3200);
   }
 
-  /** POST a whitelisted action; reconcile range + tiles from the server. */
-  function act(body: Record<string, unknown>, busyKey: string, describe?: (deltaCents: number) => string, opt?: [string, string], onSettled?: () => void) {
-    setBusyKeys((s) => new Set(s).add(busyKey));
-    if (opt) setOptimistic((o) => ({ ...o, [opt[0]]: opt[1] }));
-    setPendingCount((n) => n + 1);
-    const before = mid;
+  /**
+   * R5.1 (Tom: "while it continually autosaves, it stops working, so you
+   * can't add any further detail and you have to wait").
+   *
+   * Saves must run one at a time — they read-modify-write one row — and a
+   * round trip is ~3.4s on production. Sending one request per tap meant
+   * three quick taps took fifteen seconds, showing nothing in between.
+   *
+   * So taps no longer queue as REQUESTS, they queue as WORK: anything
+   * tapped while a save is in flight is collected and sent as a single
+   * batch the moment that save returns. Ten taps cost two round trips, not
+   * ten, and the customer is never blocked from adding the next thing.
+   */
+  const queuedRef = useRef<Array<{ body: Record<string, unknown>; describe?: (d: number) => string; onSettled?: () => void }>>([]);
+
+  /**
+   * Append a send step to the chain. When the step RUNS it sweeps up
+   * everything queued by then — so taps made while the previous save was in
+   * flight travel together, and a step that finds an empty queue (because an
+   * earlier one already swept it) simply does nothing.
+   *
+   * Ordering falls out of the chain rather than a flag: a confirm appended
+   * after a tap can never overtake it, which is the bug a separate
+   * in-flight flag would have introduced.
+   */
+  function drain() {
     chainRef.current = chainRef.current.then(async () => {
+      // Take up to MAX_BATCH (the route's own cap), stopping AFTER the first
+      // confirm: a batch halts at its first refusal, and a confirm's refusal
+      // is a NORMAL part of the walk ("that question still needs an answer").
+      // Batching past one would discard the customer's correction — see the
+      // note on endsBatch in SidesEditor.
+      const q = queuedRef.current;
+      let take = 0;
+      while (take < q.length && take < MAX_BATCH) { take++; if (endsBatch(q[take - 1].body)) break; }
+      const batch = q.slice(0, take);
+      if (batch.length === 0) return;
+      queuedRef.current = q.slice(take);
+      const before = mid;
+      // The last tap owns the toast — it is the one they are watching.
+      const describe = [...batch].reverse().find((b) => b.describe)?.describe;
       try {
         const res = await fetch(`/api/estimates/${estimateId}/wizard-edit`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           // R1.1: this surface renders the CUSTOMER payload — declared
           // explicitly, so a staff preview gets exactly what a customer gets.
-          body: JSON.stringify({ ...body, view: "customer" }),
+          body: JSON.stringify(
+            batch.length === 1
+              ? { ...batch[0].body, view: "customer" }
+              : { actions: batch.map((b) => b.body), view: "customer" },
+          ),
         });
         const j = (await res.json().catch(() => ({}))) as Payload;
         if (!res.ok) { say(j.error ?? "That didn't save — try again."); return; }
         assertCustomerShape(j, "ScopeEditor");
-        // R5: a guardrail outcome is a 200 with NO range in it. Storing it as
-        // the payload rendered "$NaN – $NaN" and an NaN progress ring — the
-        // screen looked broken at exactly the moment we needed to explain
-        // ourselves. Keep the last good numbers and say the sentence instead.
         if (typeof j.outcome === "string" && j.outcome !== "reveal") {
           say(j.message ?? "That change needs one of our team — we'll be in touch.");
           return;
@@ -168,23 +220,42 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         if (j.scopeRooms) setRooms(j.scopeRooms);
         if (j.ladder) setLadder(j.ladder);
         if (j.interiorLoop) setIloop(j.interiorLoop);
-        if (liveRange) { setFlash((n) => n + 1); }
-        if (describe && liveRange) {
-          const delta = (j.rangeLoCents + j.rangeHiCents) / 2 - before;
-          say(describe(delta));
+        if (liveRange) setFlash((n) => n + 1);
+        // A batch that stopped part-way still saved what applied.
+        if (j.error) say(j.error);
+        else if (describe && liveRange) {
+          say(describe((j.rangeLoCents + j.rangeHiCents) / 2 - before));
         } else if (describe) {
           say(describe(0).replace(/ — about.*$/, ""));
         }
       } catch {
         say("That didn't save — check the connection and try again.");
       } finally {
-        setBusyKeys((s) => { const n = new Set(s); n.delete(busyKey); return n; });
-        setPendingCount((n) => n - 1);
-        if (opt) setOptimistic((o) => { const n = { ...o }; delete n[opt[0]]; return n; });
-        onSettled?.();
+        for (const b of batch) b.onSettled?.();
+        setPendingCount((n) => n - batch.length);
+        // Anything tapped while this ran needs a step of its own to carry it.
+        if (queuedRef.current.length) drain();
       }
     });
   }
+
+  /** Record a whitelisted action; the queue decides when it travels. */
+  function act(body: Record<string, unknown>, busyKey: string, describe?: (deltaCents: number) => string, opt?: [string, string], onSettled?: () => void) {
+    setBusyKeys((s) => new Set(s).add(busyKey));
+    if (opt) setOptimistic((o) => ({ ...o, [opt[0]]: opt[1] }));
+    setPendingCount((n) => n + 1);
+    queuedRef.current.push({
+      body,
+      describe,
+      onSettled: () => {
+        setBusyKeys((s) => { const n = new Set(s); n.delete(busyKey); return n; });
+        if (opt) setOptimistic((o) => { const n = { ...o }; delete n[opt[0]]; return n; });
+        onSettled?.();
+      },
+    });
+    drain();
+  }
+
 
   const deltaText = (label: string, added: boolean) => (delta: number) => {
     const abs = Math.abs(Math.round(delta));
@@ -518,6 +589,11 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                       )}
                     </div>
                   ))}
+                  {(pendingAdds[room.areaId] ?? [])
+                    .filter((label) => !room.tiles.some((t) => t.on && t.label.toLowerCase() === label.toLowerCase()))
+                    .map((label) => (
+                      <div key={`pending:${label}`} className="sc-tl on busy" aria-live="polite">{label}</div>
+                    ))}
                   {loop && loop.windows.map((w) => (
                     // B4/B5: window GROUPS are tiles of their own, with the
                     // stepper and the S/M/L seg INSIDE the tile (mockup).
@@ -560,13 +636,20 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                       <div className="sd-group" key={group}>
                         <p className="sd-gl">{group.toUpperCase()}</p>
                         <div className="sd-chips">
-                          {opts.map((o) => (
+                          {opts
+                            .filter((o) => !(pendingAdds[room.areaId] ?? []).includes(o.label))
+                            .map((o) => (
                             <button key={`${o.via}:${o.key}`} className="sd-chip"
-                              onClick={() => act(
-                                o.via === "substrate"
-                                  ? { action: "toggle_surface", areaId: room.areaId, key: o.key, on: true }
-                                  : { action: "room_add_catalogue", areaId: room.areaId, code: o.key },
-                                `${room.areaId}:${o.key}`, deltaText(o.label, true))}>
+                              onClick={() => {
+                                // React on the tap, not on the response.
+                                addPending(room.areaId, o.label);
+                                act(
+                                  o.via === "substrate"
+                                    ? { action: "toggle_surface", areaId: room.areaId, key: o.key, on: true }
+                                    : { action: "room_add_catalogue", areaId: room.areaId, code: o.key },
+                                  `${room.areaId}:${o.key}`, deltaText(o.label, true), undefined,
+                                  () => clearPending(room.areaId, o.label));
+                              }}>
                               + {o.label}
                             </button>
                           ))}

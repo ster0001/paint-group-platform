@@ -82,6 +82,13 @@ test("R2b sides loop: amber to cyan, walls must total 100%, skip reads NOT PAINT
   await expect(page.locator(".sd-prog")).toContainText("1 OF 8");
 
   // A wall mix that is NOT 100% blocks the confirm.
+  //
+  // R5.1 REGRESSION GUARD: this sequence — wrong value, refused confirm,
+  // corrected value, confirm again — is the one that broke when taps began
+  // batching. All four arrived as ONE batch, the first confirm refused
+  // exactly as designed, the batch stopped there, and the CORRECTION was
+  // discarded. It failed 2 runs in 3 before a confirm was made to end its
+  // batch. If this goes flaky again, look there first, not at the timeouts.
   const left = page.locator(".sd-card", { hasText: "Left" }).first();
   await left.locator(".sd-hd").click();
   await left.getByRole("button", { name: "Yes", exact: true }).click();

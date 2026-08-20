@@ -107,6 +107,44 @@ customer's OWN uploads only. The listing URL still feeds the existing
 bedroom/bathroom cross-check (words, not pictures) — that was never in scope
 here and is untouched.
 
+## R5.1 — the autosave stall (Tom, 20 Aug evening)
+
+"The screen doesn't crash, but while it continually autosaves it stops
+working, so you can't add any further detail and you have to wait."
+
+REPRODUCED at production latency (3s injected locally): three taps on a
+surface chip produced **nothing visible for 15 seconds**, and only ONE of the
+three landed — because the chip never disappeared, the customer taps it again,
+and the repeats came back "that surface is already on this room". Two causes:
+
+1. **Adds had no optimistic state.** Tiles and steppers reacted on the tap
+   (R5); the add-panel chips did not. `pendingAdds` now removes the chip and
+   shows a dimmed pending tile the instant it is tapped.
+2. **Taps queued as REQUESTS.** Saves are serialized (they read-modify-write
+   ONE builder_state row, so they must be) at ~3.4s each. Now they queue as
+   WORK: a send step sweeps up everything tapped since the last one and posts
+   it as `{ actions: [...] }`. **Measured: 6 taps → 2 requests, 0 errors, all
+   six landed, every one visible within ~150ms of its tap.**
+
+Route: the per-action mutation body is now `applyAction()` and the handler
+loops it. 17 early `return NextResponse.json({error})` became refusal values.
+Semantics, all guarded by `e2e/customer-journey/batch-edits.spec.ts`:
+- ordered — a confirm later in a batch sees answers from earlier in it;
+- a refusal mid-batch STOPS the batch but KEEPS what applied, and rides back
+  with the authoritative payload as `error` + `appliedCount`;
+- a batch whose FIRST action fails saves nothing and answers as an error, no
+  price on the wire;
+- `accept_intent` / `book_visit` are never batched (they write events and a
+  prep pack) — refused server-side, not just avoided client-side.
+- **A CONFIRM ENDS ITS BATCH.** This one cost a real bug, found only by
+  re-running: a confirm's refusal is a NORMAL part of the walk ("the wall
+  surfaces need to add up to 100%"), and a batch stops at its first refusal.
+  So `50% → confirm → 100% → confirm` tapped quickly arrived as ONE batch,
+  the first confirm refused exactly as designed, and the customer's
+  CORRECTION was discarded. `sides-editor`'s "amber to cyan" failed 2 runs
+  in 3; it now passes 4/4. The guard is documented in that spec — if it goes
+  flaky again, look at batch composition, not at timeouts.
+
 **Tom must know:**
 1. **The ladder moved.** Self-serve needs ≥90% (interior); a plan job now starts
    at ~55% and only crosses 90 once the loop is finished. That is the intended
