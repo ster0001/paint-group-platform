@@ -122,6 +122,15 @@ export default async function ScopeEditorPage({
   const sidesMeta = ((state.sidesLoop as SidesLoopMeta | undefined) ?? defaultSidesLoop());
   const sides = sidesView(blocks, sidesMeta, extrasPrices(ctx.rateItems),
     snap.success ? (snap.data.exterior?.storeys ?? null) : null);
+  // Batch 4: an estimate with exterior blocks but NO sides structure
+  // predates the rebuild — the old editor is deleted, so it gets a polite
+  // restart message, never a broken surface. (Tom's ruling: archive +
+  // no fallback.)
+  const hasExteriorBlocks = blocks.some((b) => (b as { kind?: string; type?: string }).kind === "area" && (b as { kind?: string; type?: string }).type === "Exterior");
+  if (hasExteriorBlocks && !sides) {
+    return <Holding line="This estimate was made before our new editor — start a fresh one and it takes about two minutes." />;
+  }
+
   if (sides && interiorRooms.length === 0) {
     return (
       <div className="wz">
@@ -158,6 +167,7 @@ export default async function ScopeEditorPage({
         estimateId={estimate.id as string}
         initial={customer}
         initialRooms={interiorRooms}
+        initialSides={sides}
         initialExterior={customerExteriorView(blocks)}
         initialLadder={{ tier: selfServe ? "self_serve" : "visit", visitSlots: offeredVisitSlots(editorFlags) }}
         initialInteriorLoop={interiorLoop}

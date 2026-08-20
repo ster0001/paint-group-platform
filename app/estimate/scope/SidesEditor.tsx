@@ -57,12 +57,17 @@ const WALL_ADDABLE = [
   { code: "Weatherboards", label: "Weatherboard cladding" },
 ];
 
-export default function SidesEditor({ estimateId, initial, initialSides, initialExterior, initialLadder }: {
+export default function SidesEditor({ estimateId, initial, initialSides, initialExterior, initialLadder, embedded = false, onState }: {
   estimateId: string;
   initial: CustomerPayload;
   initialSides: SidesView;
   initialExterior: CustomerExteriorView | null;
   initialLadder: Ladder;
+  /** Batch 4: Both-jobs render the sides stack INSIDE the interior editor —
+   * embedded mode drops SidesEditor's own chrome (header/range/CTA) and
+   * reports progress + range upward so the host owns one combined loop. */
+  embedded?: boolean;
+  onState?: (s: { progress: SidesView["progress"]; payload: CustomerPayload }) => void;
 }) {
   const [payload, setPayload] = useState<CustomerPayload>(initial);
   const [sides, setSides] = useState<SidesView>(initialSides);
@@ -128,6 +133,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
         assertCustomerShape(j, "SidesEditor");
         setPayload(j);
         if (j.sides) setSides(j.sides);
+        if (j.sides) onState?.({ progress: j.sides.progress, payload: j });
         if (j.exterior !== undefined) setExterior(j.exterior ?? null);
         if (j.ladder) setLadder(j.ladder);
         // The interior editor's $-delta toasts, same recipe: the range
@@ -438,9 +444,10 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
   }
 
   return (
-    <div className={`sd ${ready ? "" : "wz-waking"}`} data-ready={ready ? "1" : undefined}>
-      {!ready && <div className="sd-saving">ONE MOMENT…</div>}
-      {ready && pendingCount > 0 && <div className="sd-saving">SAVING…</div>}
+    <div className={`sd ${ready || embedded ? "" : "wz-waking"}`} data-ready={embedded ? undefined : ready ? "1" : undefined}>
+      {!embedded && !ready && <div className="sd-saving">ONE MOMENT…</div>}
+      {!embedded && ready && pendingCount > 0 && <div className="sd-saving">SAVING…</div>}
+      {!embedded && (
       <header className="sd-top">
         <div className="sd-row">
           <div className="sd-wm">PAINT<span>—</span>GROUP</div>
@@ -451,11 +458,12 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
           <div className={`sd-pbar ${allDone ? "ok" : ""}`}><i style={{ width: `${(prog.done / prog.total) * 100}%` }} /></div>
         </div>
       </header>
+      )}
 
       <main className="sd-wrap">
         <div className="sd-rangebar">
-          <div><b>Walk around the house, one side at a time</b><span>Front, both sides, back — confirm each and it turns blue.</span></div>
-          <div className="sd-range" data-role="range"><small>YOUR ESTIMATE · INCL. GST</small>{range}</div>
+          <div><b>{embedded ? "Now the outside — one side at a time" : "Walk around the house, one side at a time"}</b><span>Front, both sides, back — confirm each and it turns blue.</span></div>
+          {!embedded && <div className="sd-range" data-role="range"><small>YOUR ESTIMATE · INCL. GST</small>{range}</div>}
         </div>
 
         <div className="sd-grid">
@@ -601,6 +609,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
         </div>
       </main>
 
+      {!embedded && (
       <div className="sd-stick">
         <div className={`sd-tier ${ladder.tier === "visit" ? "visit" : ""}`}>
           <i />
@@ -645,6 +654,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
           </div>
         )}
       </div>
+      )}
 
       {toast && <div className="sd-toast sd-show">{toast}</div>}
     </div>

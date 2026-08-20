@@ -3,7 +3,9 @@
 import { useRef, useState, useSyncExternalStore } from "react";
 import type { CustomerPayload } from "@/lib/wizard/view";
 import { assertCustomerShape } from "@/lib/wizard/contract";
-import type { CustomerExteriorView, CustomerScopeRoom, ExteriorExtent } from "@/lib/wizard/scope-editor";
+import type { CustomerExteriorView, CustomerScopeRoom } from "@/lib/wizard/scope-editor";
+import type { SidesView } from "@/lib/wizard/sides";
+import SidesEditor from "./SidesEditor";
 
 type Ladder = { tier: "self_serve" | "visit"; visitSlots: string[] };
 
@@ -46,11 +48,14 @@ const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
 const snapshotFalse = () => false;
 
-export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialLadder, initialInteriorLoop = null, roomTypes, liveRange }: {
+export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, roomTypes, liveRange }: {
   estimateId: string;
   initial: CustomerPayload;
   initialRooms: CustomerScopeRoom[];
   initialExterior?: CustomerExteriorView | null;
+  /** Batch 4: a Both job stacks the sides loop below the rooms — ONE
+   * combined progress count, ONE CTA (always the visit tier in v1). */
+  initialSides?: SidesView | null;
   initialLadder?: Ladder;
   initialInteriorLoop?: InteriorLoopView | null;
   roomTypes: string[];
@@ -59,6 +64,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   const [payload, setPayload] = useState<CustomerPayload>(initial);
   const [rooms, setRooms] = useState<CustomerScopeRoom[]>(initialRooms);
   const [iloop, setIloop] = useState<InteriorLoopView | null>(initialInteriorLoop);
+  const [sidesProg, setSidesProg] = useState<SidesView["progress"] | null>(initialSides?.progress ?? null);
   const [sizeDrafts, setSizeDrafts] = useState<Record<number, { L: string; W: string; open: boolean }>>({});
   // A3: the confirmation walk — one card open at a time; confirming opens
   // the next unconfirmed card and scrolls it into view (mockup openRoom).
@@ -94,11 +100,9 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
     const o = optimistic[key];
     return o != null ? o === val : serverOn;
   };
-  const [exterior, setExterior] = useState<CustomerExteriorView | null>(initialExterior);
   const [ladder, setLadder] = useState<Ladder>(initialLadder ?? { tier: "visit", visitSlots: [] });
   const [slotsOpen, setSlotsOpen] = useState(false);
   const [booked, setBooked] = useState<string | null>(null);
-  const [fenceText, setFenceText] = useState("");
   const [busyKeys, setBusyKeys] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<string | null>(null);
   const [flash, setFlash] = useState(0);
@@ -138,7 +142,6 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         assertCustomerShape(j, "ScopeEditor");
         setPayload(j);
         if (j.scopeRooms) setRooms(j.scopeRooms);
-        if (j.exterior !== undefined) setExterior(j.exterior);
         if (j.ladder) setLadder(j.ladder);
         if (j.interiorLoop) setIloop(j.interiorLoop);
         if (liveRange) { setFlash((n) => n + 1); }
@@ -252,6 +255,13 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
     setNotes((n) => ({ ...n, [areaId]: "" }));
   }
 
+  // Batch 4: ONE loop — interior items plus the embedded sides items.
+  const combined = iloop ? {
+    done: iloop.progress.done + (sidesProg?.done ?? 0),
+    total: iloop.progress.total + (sidesProg?.total ?? 0),
+    allDone: iloop.progress.allDone && (sidesProg ? sidesProg.allDone : true),
+  } : null;
+
   const rangeText = `${fmt(payload.rangeLoCents)} – ${fmt(payload.rangeHiCents)}`;
   const selfServe = ladder.tier === "self_serve";
   // The visit tier is an offer, never a block (mockup copy verbatim).
@@ -270,19 +280,19 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
       <header className="wz-top">
         <div className="wz-wm">PAINT<span>—</span>GROUP</div>
         {iloop && (
-          <span className={`sd-status ${iloop.progress.allDone ? "ok" : ""}`}>
-            {iloop.progress.allDone ? "ESTIMATE CONFIRMED ✓" : "IN REVIEW · CONFIRM EACH ROOM"}
+          <span className={`sd-status ${combined!.allDone ? "ok" : ""}`}>
+            {combined!.allDone ? "ESTIMATE CONFIRMED ✓" : initialSides ? "IN REVIEW · INSIDE THEN OUTSIDE" : "IN REVIEW · CONFIRM EACH ROOM"}
           </span>
         )}
       </header>
       {iloop && (
         <div className="il-progwrap">
           <div className="sd-lbl">
-            <span className="il-prog">{iloop.progress.done} OF {iloop.progress.total} CONFIRMED</span>
+            <span className="il-prog">{combined!.done} OF {combined!.total} CONFIRMED</span>
             <span>ORANGE = STILL TO CONFIRM · BLUE = CONFIRMED</span>
           </div>
-          <div className={`sd-pbar ${iloop.progress.allDone ? "ok" : ""}`}>
-            <i style={{ width: `${(iloop.progress.done / Math.max(1, iloop.progress.total)) * 100}%` }} />
+          <div className={`sd-pbar ${combined!.allDone ? "ok" : ""}`}>
+            <i style={{ width: `${(combined!.done / Math.max(1, combined!.total)) * 100}%` }} />
           </div>
         </div>
       )}
@@ -542,62 +552,21 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             );
           })}
 
-          {exterior && (
-            <>
-              <div className="sc-geo">
-                <span className="g">{exterior.storeys > 1 ? "DOUBLE" : "SINGLE"} STOREY · <i>FROM YOUR PHOTOS</i></span>
-                <button onClick={() => {
-                  act({ action: "flag_geometry" }, "geo", () => "Flagged — geometry is ours to verify, so your estimator will confirm this on site.");
-                }}>Not right? Tell us</button>
-              </div>
-              {exterior.groups.map((g) => (
-                <div key={g.group}>
-                  <p className="sc-grouplbl">{g.label}</p>
-                  <section className="sc-rc">
-                    <div className="sc-tgrid">
-                      {g.tiles.map((t) => (
-                        <div key={String(t.key)} className={`sc-tl ${t.on ? "on" : ""}`}
-                          role="checkbox" aria-checked={t.on} tabIndex={0}
-                          onClick={() => act({ action: "toggle_exterior", key: String(t.key), on: !t.on }, `ext:${t.key}`, deltaText(t.label, !t.on))}>
-                          {t.label}
-                        </div>
-                      ))}
-                    </div>
-                    {g.group === "body" && (
-                      <div className="sc-seg">
-                        {([["whole", "Whole house"], ["front", "Front only"], ["front_sides", "Front + sides"]] as Array<[ExteriorExtent, string]>).map(([v, l]) => (
-                          <button key={v} className={exterior.extent === v ? "on" : ""}
-                            onClick={() => act({ action: "set_extent", extent: v }, "extent", (d) => `${l}${liveRange && Math.abs(d) >= 100 ? ` — about ${d > 0 ? "+" : "−"}${fmt(Math.abs(d))}` : ""}`)}>
-                            {l}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    {g.group === "roofline" && (
-                      <div className="sc-inc">Pre-selected — most exterior quotes include the roofline. Untick anything you don&rsquo;t want.</div>
-                    )}
-                    {g.group === "extras" && (
-                      <div className="sc-else">
-                        <input placeholder="Fence length in metres — or type 'not sure'"
-                          value={fenceText} onChange={(e) => setFenceText(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                          onBlur={() => {
-                            const v = fenceText.trim().toLowerCase();
-                            if (!v) return;
-                            setFenceText("");
-                            if (v.includes("not")) act({ action: "set_fence", metres: null }, "fence", () => "Not a problem — we'll measure it on the day.");
-                            else {
-                              const m = Number(v.replace(/[^0-9.]/g, ""));
-                              if (m > 0) act({ action: "set_fence", metres: m }, "fence", () => `Fence set to ${m} m — range repriced.`);
-                            }
-                          }} />
-                      </div>
-                    )}
-                  </section>
-                </div>
-              ))}
-              <section className="sc-rc"><div className="sc-inc">Prep, access equipment and sundries are allowed for by us and included in your range</div></section>
-            </>
+          {initialSides && (
+            // Batch 4: the Both-job editor stacks the SIDES loop below the
+            // rooms — the embedded SidesEditor owns its cards and actions,
+            // reports progress + range up so this page's single header/CTA
+            // covers the whole walk. (The old element-grouped exterior
+            // editor is deleted — no estimate renders it any more.)
+            <SidesEditor
+              estimateId={estimateId}
+              initial={initial}
+              initialSides={initialSides}
+              initialExterior={initialExterior}
+              initialLadder={ladder}
+              embedded
+              onState={({ progress, payload: p }) => { setSidesProg(progress); setPayload(p); }}
+            />
           )}
 
           {!iloop && (
@@ -688,7 +657,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             <button
               className="sc-btn il-cta"
               // R3: acceptance and sign-off sit BEHIND full confirmation.
-              disabled={iloop != null && !iloop.progress.allDone}
+              disabled={combined != null && !combined.allDone}
               onClick={() => {
                 if (selfServe) {
                   setAccepted(true);
@@ -699,8 +668,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                 }
               }}
             >
-              {iloop != null && !iloop.progress.allDone
-                ? `Confirm all rooms to continue — ${iloop.progress.done} of ${iloop.progress.total}`
+              {combined != null && !combined.allDone
+                ? `Confirm ${initialSides ? "everything" : "all rooms"} to continue — ${combined.done} of ${combined.total}`
                 : selfServe ? "Accept estimate" : "Confirm my price — book the visit"}
             </button>
           )}
