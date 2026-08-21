@@ -89,7 +89,7 @@ export default function Walkthrough({
                 </button>
                 <button type="button" className="cv-btn ghost" disabled={pending}
                   onClick={() => setFlagging(heading)} data-testid={`flag-${heading}`}>
-                  Something's not right
+                  Something&rsquo;s not right
                 </button>
               </div>
             )}
