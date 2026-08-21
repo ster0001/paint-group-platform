@@ -215,3 +215,37 @@ nine failures were the documented **Supabase anonymous sign-in rate limit** —
 stays disabled (screenshot captured). All nine were re-run in isolation with
 cool-downs and **all nine pass**. This is env, not code; see the working
 agreement below. Both new specs passed inside the full run too.
+
+## 21 Aug, follow-up — "please make the floorplan view bigger"
+
+Second time the plan's visibility has come back (R5 pinned it; this makes it
+readable). Guard: `e2e/customer-journey/plan-panel.spec.ts` — the ONE spec
+that uploads a real plan from the regression corpus and pays for one
+extraction, because everything it checks needs a plan on file.
+
+- **The pinned column grew with the viewport.** It was a flat `340px` at every
+  width, so a 27" screen showed the same postage stamp as a laptop. Now
+  400 / 480 / 580px at 900 / 1200 / 1500px, and the frame uses
+  `calc(100vh - 300px)` instead of a flat `70vh`. Measured at 1512×900:
+  frame 546×364, where the whole column used to be 340 wide.
+- **⤢ BIGGER** on the plan header throws it over the whole page — same zoom
+  and pan, ✕ CLOSE / Escape / backdrop-click to come back. Measured
+  1442×763 on the same screen.
+- **Two bugs found only by driving it**, both invisible to unit tests:
+  1. The overlay rendered UNDERNEATH the frozen header and the sticky footer
+     despite z-index 130 vs 45/60 — confirmed with `elementFromPoint`
+     (`.sc-freeze` on top at the header, `.sc-row` at the footer), so ✕ CLOSE
+     was unreachable and Escape was the only way out. Fixed by PORTALLING the
+     overlay (and the photo lightbox, which had the same latent bug) to
+     `document.body`. If you add another page-level overlay in this editor,
+     portal it — do not just raise z-index.
+  2. The overlay grew PAST the viewport (961px tall in a 900px window) because
+     a flex item's `min-height` defaults to its content. `min-height: 0` on
+     both the box and the frame.
+- The full-screen frame is `background: transparent`: `object-fit: contain`
+  letterboxes a 3:2 plan in a wide window, and the inherited white frame
+  turned those bands into two bright slabs either side of the plan.
+
+Note for whoever debugs this next: a Playwright screenshot can beat the image
+decode, and the plan then photographs as a pure white box. `await img.decode()`
+before the screenshot — the image was fine every time.

@@ -8,10 +8,16 @@ import { useRef, useState } from "react";
  * wheel, or a slider; drag to pan when zoomed in. No dependencies: a CSS
  * transform inside an overflow-hidden frame.
  */
-export default function PlanViewer({ src, title = "THE FLOORPLAN", note = "AS UPLOADED" }: {
+export default function PlanViewer({ src, title = "THE FLOORPLAN", note = "AS UPLOADED", onExpand, onClose }: {
   src: string;
   title?: string;
   note?: string;
+  /** Renders the "open it bigger" control in the header (Tom, 21 Aug).
+   * The pinned column is only ever as wide as the column; a plan you are
+   * reading room dimensions off wants the whole screen. */
+  onExpand?: () => void;
+  /** Renders the close control instead — used by the full-screen copy. */
+  onClose?: () => void;
 }) {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -29,7 +35,19 @@ export default function PlanViewer({ src, title = "THE FLOORPLAN", note = "AS UP
     <div className="wz-planbox">
       <div className="wz-t">
         <span>{title}</span>
-        <span>{note}</span>
+        <span className="wz-planacts">
+          {note}
+          {onExpand && (
+            <button type="button" className="wz-planfs" onClick={onExpand} aria-label="Open the plan full screen">
+              ⤢ BIGGER
+            </button>
+          )}
+          {onClose && (
+            <button type="button" className="wz-planfs" onClick={onClose} aria-label="Close the full-screen plan">
+              ✕ CLOSE
+            </button>
+          )}
+        </span>
       </div>
       <div
         className="wz-planframe"

@@ -429,12 +429,19 @@
 
 @media (min-width: 900px) {
   /* The plan earns a column of its own and never scrolls away. Its `top`
-     clears the frozen header stack above it. */
-  .wz .sc-cols { grid-template-columns: minmax(0, 1fr) 340px; align-items: start; }
+     clears the frozen header stack above it.
+     21 Aug (Tom: "make the floorplan view bigger"): the column was a flat
+     340px at every width, so a 27" screen showed the same postage stamp as a
+     laptop. It now grows with the viewport, and the frame uses the height
+     actually left below the frozen header instead of a flat 70vh. */
+  .wz .sc-cols { grid-template-columns: minmax(0, 1fr) 400px; align-items: start; }
   .wz .pp-side { display: block; position: sticky; top: 196px; }
   .wz .pp-side .wz-planbox { position: static; }
+  .wz .pp-side .wz-planframe { max-height: calc(100vh - 300px); min-height: 320px; }
   .wz .pp-mobile { display: none; }
 }
+@media (min-width: 1200px) { .wz .sc-cols { grid-template-columns: minmax(0, 1fr) 480px; } }
+@media (min-width: 1500px) { .wz .sc-cols { grid-template-columns: minmax(0, 1fr) 580px; } }
 
 /* ---- 21 Aug: the size question leads the card ------------------------------
    Tom: "where it asks the question about the sizing of this room, please make
@@ -467,3 +474,35 @@
 /* The ✓ badge and the × would sit on top of each other — the × wins, because
    it is the thing Tom could not find. */
 .wz .sd-tl.has-x.on::after, .wz .sc-tl.has-x.on::after { content: none; }
+
+
+/* ---- 21 Aug: "please make the floorplan view bigger" -----------------------
+   Two changes. The pinned column grows with the viewport (above), and the
+   plan can be thrown up over the WHOLE page — same zoom and pan, just room
+   to actually read it. Escape or ✕ CLOSE comes back. */
+.wz .wz-planacts { display: inline-flex; align-items: center; gap: 10px; }
+.wz .wz-planfs {
+  font-family: var(--wz-mono); font-size: 8.5px; letter-spacing: .12em;
+  color: var(--cyan); background: none; border: 1px solid rgba(59,216,233,.45);
+  border-radius: 100px; padding: 4px 9px; cursor: pointer; white-space: nowrap;
+}
+.wz .wz-planfs:hover { background: rgba(59,216,233,.1); }
+.wz .pp-full {
+  position: fixed; inset: 0; z-index: 200; background: rgba(6,7,9,.96);
+  padding: 18px; display: flex; flex-direction: column; overflow: hidden;
+}
+/* min-height:0 on BOTH the box and the frame. A flex item's min-height
+   defaults to its content, so without it the image sizes itself first and
+   the overlay grows past the viewport — measured 961px tall in a 900px
+   window before this line existed. */
+.wz .pp-full .wz-planbox {
+  position: static; flex: 1; min-height: 0; display: flex; flex-direction: column;
+  max-width: 1600px; width: 100%; margin: 0 auto;
+}
+/* The frame takes every pixel the controls don't — that IS the "bigger".
+   Transparent, unlike the pinned frame: object-fit letterboxes a 3:2 plan in
+   a wide window, and a white frame turned those bands into two bright slabs
+   either side of the plan. */
+.wz .pp-full .wz-planframe { flex: 1; max-height: none; min-height: 0; background: transparent; }
+.wz .pp-full .wz-planframe img { height: 100%; width: 100%; object-fit: contain; }
+@media (max-width: 560px) { .wz .pp-full { padding: 10px; } }
