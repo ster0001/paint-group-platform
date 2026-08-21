@@ -117,7 +117,28 @@ async function main() {
   const customerId = await idFor(db, "pg.melissa.customer@gmail.com", "customers");
   if (!contractorId) throw new Error("no contractors row for pg.josef.contractor@gmail.com");
 
-  // ---- Job A: live on site -------------------------------------------------
+  // ---- Job A: an OFFER waiting on the contractor ---------------------------
+  // With no booking_offers row at all, committedIds() treats a job as committed
+  // (staff assigned it directly), so the full address shows and there is nothing
+  // to accept. The first demo did exactly that, which made it look as though the
+  // address rule and the acceptance transition were broken. It needs a real
+  // live offer to demonstrate either.
+  const offered = await makeJob(db, "WO-DEMO0", "DEMO — 2/88 Rathdowne St, Carlton North",
+    "2/88 Rathdowne St, Carlton North VIC 3054", contractorId, customerId, [
+      { heading: "Front", meta: "8 × 2.6 m · render", labels: ["Walls — render", "Windows × 2"] },
+    ], 918_000);
+  await db.from("work_orders").update({ stage: "offered", status: "issued", start_date: null })
+    .eq("id", offered.workOrderId);
+  const start = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
+  const end = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
+  await db.from("booking_offers").insert({
+    work_order_id: offered.workOrderId, contractor_id: contractorId, state: "offered",
+    start_date: start, end_date: end, payment_cents: 394_000,
+    staff_note: "Three days, render front. Access via the lane.",
+    expires_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+  });
+
+  // ---- Job C: live on site -------------------------------------------------
   const a = await makeJob(db, "WO-DEMO1", "DEMO — 14 Bellair St, Kensington",
     "14 Bellair St, Kensington VIC 3031", contractorId, customerId, [
       { heading: "Front", meta: "12 × 2.6 m · wb 75 / render 25", labels: ["Walls — weatherboard + render", "Windows × 3 · entry door", "Fascias & gutters"] },
@@ -164,6 +185,8 @@ async function main() {
     .select("customer_token").eq("work_order_id", b.workOrderId).single();
 
   console.log("\n=== demo jobs seeded ===");
+  console.log(`Offer  (to accept)  WO-DEMO0  /portal/requests   (suburb only until accepted)`);
+  console.log(`       start ${start} -> end ${end}`);
   console.log(`Job A (on site)     WO-DEMO1  /portal/jobs/${a.workOrderId}`);
   console.log(`Job A console       /pc/wo/${a.workOrderId}`);
   console.log(`Job B (walkthrough) WO-DEMO2  /s/${(signoff as { customer_token: string }).customer_token}`);
