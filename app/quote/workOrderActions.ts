@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { WO_STAGES } from "@/lib/workorder/stages";
+import { seedRowsFromDoc } from "@/lib/workorder/surfaces";
+import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
 import type { ActionResult } from "@/app/(app)/schedule/actions";
 
 /**
@@ -77,8 +79,45 @@ export async function issueWorkOrderAction(raw: unknown): Promise<ActionResult> 
   const { data, error } = await supabase.rpc("issue_work_order", { p_work_order_id: parsed.data.workOrderId });
   if (error) return { ok: false, kind: "error", message: error.message };
   const r = interpret(data);
-  if (r.ok) { revalidatePath("/schedule"); revalidatePath("/quote"); }
+  if (r.ok) {
+    // Issuing is the moment the job sheet becomes real, so it is also the moment
+    // the tick list should exist. Seeding is idempotent and never resets state,
+    // so re-issuing refreshes wording and order without wiping a painter's day.
+    await seedSurfaces(supabase, parsed.data.workOrderId);
+    revalidatePath("/schedule");
+    revalidatePath("/quote");
+  }
   return r;
+}
+
+/**
+ * Build the tick list from the estimate's saved work-order document — the same
+ * document `issue_work_order` freezes. Best-effort: a work order that issues but
+ * fails to seed is still issued, and the next issue (or a staff re-issue) will
+ * seed it. Never blocks the issue itself.
+ */
+async function seedSurfaces(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  workOrderId: string,
+): Promise<void> {
+  try {
+    const { data: wo } = await supabase
+      .from("work_orders").select("estimate_id").eq("id", workOrderId).maybeSingle();
+    if (!wo?.estimate_id) return;
+
+    const { data: est } = await supabase
+      .from("estimates").select("builder_state").eq("id", wo.estimate_id).maybeSingle();
+    const doc = (est?.builder_state as { woDoc?: WorkOrderDoc } | null)?.woDoc;
+    if (!doc?.areas?.length) return;
+
+    await supabase.rpc("wo_seed_surfaces", {
+      p_work_order_id: workOrderId,
+      p_rows: seedRowsFromDoc(doc),
+    });
+  } catch {
+    // Seeding is a convenience, not a gate. Silence here is deliberate: the
+    // issue succeeded, and a missing tick list is visible and re-seedable.
+  }
 }
 
 export async function setWorkOrderScheduleAction(raw: unknown): Promise<ActionResult> {

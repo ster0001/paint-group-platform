@@ -424,3 +424,35 @@
   margin-top: 14px;
 }
 .pt .signout:hover { color: var(--text); }
+
+/* ---- tick list (WO loop step 2) -------------------------------------------
+   Phone-first: rows are big tap targets, the whole row is the button, and the
+   three-segment switch reads at a glance in sunlight. */
+.pt .tick-head { display: flex; align-items: baseline; gap: 10px; }
+.pt .tick-head b { font-size: 15px; }
+.pt .tick-count { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pt .tick-prog { height: 5px; border-radius: 3px; background: rgba(255,255,255,.07); overflow: hidden; margin: 10px 0 4px; }
+.pt .tick-prog i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--paint), var(--cyan)); transition: width .5s cubic-bezier(.2,.7,.2,1); }
+.pt .tick-msg { margin: 10px 0 0; font-size: 13px; color: var(--amber); }
+.pt .tick-photo {
+  display: block; width: 100%; text-align: left; margin: 8px 0 4px; cursor: pointer;
+  background: rgba(224,168,60,.08); border: 1px solid rgba(224,168,60,.4); border-radius: 10px;
+  padding: 11px 12px; color: var(--amber); font-size: 13px; font-family: inherit;
+}
+.pt .tick-photo:disabled { opacity: .6; cursor: default; }
+.pt .tickrow {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 12px 4px; background: none; border: 0; border-top: 1px solid var(--line);
+  color: var(--text); font-family: inherit; font-size: 13.5px; cursor: pointer; min-height: 48px;
+}
+.pt .tickrow:disabled { opacity: .5; }
+.pt .tickrow-label { flex: 1; min-width: 0; }
+.pt .tickrow .sw { display: flex; gap: 2px; flex: 0 0 auto; }
+.pt .tickrow .sw i { width: 20px; height: 12px; border-radius: 3px; background: var(--graphite); border: 1px solid var(--line); display: block; }
+.pt .tickrow .sw i.a { background: rgba(47,164,107,.25); border-color: rgba(47,164,107,.6); }
+.pt .tickrow .sw i.b { background: rgba(59,216,233,.2); border-color: rgba(59,216,233,.55); }
+.pt .elev { margin-top: 14px; }
+.pt .elev .eh { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
+.pt .elev .eh b { font-size: 13.5px; }
+.pt .elev .eh em { font-style: normal; font-family: var(--mono); font-size: 9px; color: var(--muted); }
+.pt .elev .eh .ct { margin-left: auto; font-family: var(--mono); font-size: 9.5px; color: var(--muted); font-variant-numeric: tabular-nums; }

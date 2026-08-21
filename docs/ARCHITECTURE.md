@@ -694,3 +694,38 @@ customer own-job-only) and write-revoked for every client role, plus the private
 sign-off switches, `clockEnabled: true` (the clock and nudge ladder may run) and
 `deemedEnabled: FALSE` (deemed execution waits on the ACL/UCT legal review), a
 deliberate departure from the brief's default.
+
+## WO loop — step 2: surfaces, ticks and the photo gate (2026-08-21)
+
+The tick list is an INDEX into the work-order document, not a second copy of the
+scope: `wo_surfaces` holds one row per surface, seeded by `wo_seed_surfaces` from
+the document the builder already computes (`lib/workorder/surfaces.ts`
+`seedRowsFromDoc`), carrying labels and headings only — no money, no
+measurements it could contradict. Seeding runs on issue and is idempotent:
+re-issuing refreshes wording and order but never resets state, so it cannot wipe
+a day's ticks off a painter's phone. Heading meta is derived from what the
+document actually knows ("3 surfaces · 2 coats · PG-3") rather than the mockup's
+measurements, which live in the estimate's sides loop and aren't in the frozen
+snapshot; `seedRowsFromDoc` takes a `metaFor` hook for when they are.
+
+`wo_tick_surface` is the only way a surface moves. It establishes the actor from
+the session, refuses a job that isn't in `in_progress`, and enforces the
+before-photo rule: **the first tick on an elevation is refused unless that
+elevation has a `before` photo** (`error:before_photo_required:<heading>`). The
+UI prompts for the photo ahead of the tap so a painter meets the rule as an
+instruction, but the rule is server-side and a direct RPC call hits it — proven
+in `e2e/wo-ticks.spec.ts`, which calls the RPC outside the browser. Ticks move
+in any direction because a mis-tap on a phone needs an undo, and every move
+writes a `wo_events` row of type `surface_tick` with `{from, to, heading}` — the
+same log the console, the daily update and the completion report read.
+
+Photos take the remediated two-stage path (`app/api/wo/photos`): POST signs an
+upload into the private `wo-photos` bucket, the phone PUTs the bytes, PUT
+ingests — reading the signature from the STAGED BYTES, because a signed URL is
+permission to store bytes and never a statement of what they are. A file that
+fails the sniff is deleted rather than left as an orphan.
+
+Step 2 also fills its arm of `wo_gate_blocked`: leaving `in_progress` now
+requires every surface `done`, reported as "N of M surfaces still to tick off".
+A job with no tick list at all is deliberately exempt, so work orders issued
+before this step aren't stranded behind a gate they cannot pass.
