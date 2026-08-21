@@ -230,10 +230,14 @@ test.describe("a variation, end to end", () => {
   });
 
   test("a job cannot leave in_progress while a variation is open", async () => {
-    // Clear the surfaces gate first, or that one answers and we never reach the
-    // variation check — which is itself the right order for the console to
-    // report, just not what this test is about.
+    // Start from a genuinely clear gate, whatever the earlier tests left behind:
+    // every surface done, and no variation still waiting on anyone. Anything
+    // else and this test would depend on the order the suite happened to run in.
     await db!.from("wo_surfaces").update({ state: "done" }).eq("work_order_id", fixture!.workOrderId);
+    await db!.from("wo_variations")
+      .update({ status: "cancelled" })
+      .eq("work_order_id", fixture!.workOrderId)
+      .in("status", ["raised", "priced", "customer_approved"]);
 
     const { data: clear } = await db!.rpc("wo_gate_blocked", {
       p_wo_id: fixture!.workOrderId, p_from: "in_progress", p_to: "completion_prep",

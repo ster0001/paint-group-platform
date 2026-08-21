@@ -729,3 +729,38 @@ Step 2 also fills its arm of `wo_gate_blocked`: leaving `in_progress` now
 requires every surface `done`, reported as "N of M surfaces still to tick off".
 A job with no tick list at all is deliberately exempt, so work orders issued
 before this step aren't stranded behind a gate they cannot pass.
+
+## WO loop — step 3: variations, both-sided (2026-08-21)
+
+`wo_variations` carries one variation from raise to accepted, and the order is
+enforced by the database. `wo_raise_variation` refuses without photos
+(`error:photos_required`) — evidence is what stops a variation becoming an
+argument later. `wo_price_variation` is staff-only and takes the customer price
+from `app/quote/variationActions.ts`, which computes it on the server through
+`lib/pricing`'s `chargeOutCents` (hours × the active card's charge-out for the
+trade, plus any materials figure staff enter). The engine's inputs are stored in
+`priced_inputs` beside its output so any figure can be recomputed later.
+
+**The contractor's side is computed in SQL and cannot be supplied by a caller**:
+`round(hours × wo_contractor_rate_cents())`, reading the `Contractor rate`
+setting, with the rate stamped onto the row so an approved variation cannot
+silently reprice. Change the rate in Settings and the next variation follows it.
+
+Nothing reaches `contractor_accepted` without both approvals recorded, in order:
+`wo_customer_respond_variation` (token-only, like the quote) writes
+`customer_responded_at`, `wo_release_variation` is the PC's human step between
+the two money events (⚑2, `variationRelease` defaults to `pc`, `auto` skips it),
+and the accept refuses with `customer_not_approved` or `not_released` otherwise.
+Declined variations are kept, never deleted — they belong on the completion
+report as raised-and-declined. The customer surface is `/v/[token]`: unknown
+token → 404, and the contractor's rate and delta are absent from the HTML, not
+hidden.
+
+Photos live in the private `wo-photos` bucket at `wo/<work_order_id>/<file>`,
+and `20261003` gives `storage.objects` the policies that path implies — staff,
+the assigned contractor, or the job's own customer. Without them the bucket
+existed but every upload failed at the signed-URL step; the lesson is that
+creating a bucket in a migration is only half of it.
+
+Step 3 also extends `wo_gate_blocked`: no forward stage move while a variation
+is `raised`, `priced` or `customer_approved`. The surfaces gate answers first.
