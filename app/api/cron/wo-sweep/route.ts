@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { composeUpdate, type TickEvent } from "@/lib/workorder/updates";
+import { melbourneDate, melbourneDayStartUtc } from "@/lib/workorder/console";
 import { reportError } from "@/lib/monitoring/report";
 
 /**
@@ -34,19 +35,15 @@ function authorised(request: Request): boolean {
   return header === `Bearer ${secret}`;
 }
 
-/** Melbourne, always — the business runs on it and so do the dates. */
-function melbourneToday(): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit",
-  }).format(new Date());
-}
-
 async function sweep() {
   const db = createServiceClient();
   if (!db) return { ok: false as const, error: "no service client" };
 
-  const today = melbourneToday();
-  const since = `${today}T00:00:00+10:00`;
+  // Melbourne, always — and the day's start is derived from the zone rather
+  // than a hardcoded +10:00, which would be an hour out from October to April.
+  const now = new Date();
+  const today = melbourneDate(now);
+  const since = melbourneDayStartUtc(now);
 
   // Every tick logged today, across every job.
   const { data: ticks, error: tickError } = await db

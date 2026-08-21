@@ -822,3 +822,34 @@ compliance lives** — while deemed is off the copy must not mention deemed
 signing, automatic sign-off, invoices or payment, and `signoff.test.ts` asserts
 exactly that. Each rung fires at most once; a late sweep sends one late nudge,
 never the whole ladder. An unanswered extension request pauses the clock.
+
+## WO loop — step 6: the PC Command console (2026-08-21)
+
+`/pc` is the approved mockup as real routes — Command, The flow, Updates, and a
+work-order view — staff-gated in the layout (a contractor is redirected to
+`/portal`). `lib/workorder/console.ts` holds the logic as pure functions:
+`buildQueue` turns rows into the §6.1 cards, `rankQueue` orders them
+critical→warning→info and oldest-first inside each, `pulseTiles` counts **from
+the queue it was given** so a tile can never disagree with the cards below it,
+and `headline` is written from those same counts. `consoleData.ts` loads it in a
+fixed set of parallel queries — never one per card.
+
+Two date bugs were caught by the TZ-pinned suite and are worth keeping in mind
+for anything else that buckets by day: `toISOString().slice(0,10)` is the **UTC**
+date, so before 10am Melbourne it silently reports yesterday — `melbourneDate()`
+is the fix, and `melbourneDayStartUtc()` derives the day's start from the zone
+rather than a hardcoded `+10:00`, which would be an hour out from October to
+April. The cron sweep now uses both.
+
+The console is also where the PC surfaces deferred from steps 3–5 landed:
+pricing a variation (hours in, money worked out on the server — `lib/pricing`
+for the customer's side, SQL for the contractor's), releasing the adjusted
+offer, and reviewing/editing/sending a drafted update.
+
+**A grant, not a policy, was the bug worth remembering** (`20261007`): with a
+`zero_tick_flag` row present and `is_staff()` true, a staff session read zero
+rows from `wo_events`. RLS was never involved — a policy only filters rows a
+role may already select, and the table-level `GRANT SELECT` was missing, so the
+console rendered "nothing needs you" over a database that had something to say.
+Every table this module adds now states its read access outright rather than
+relying on the project's default privileges.

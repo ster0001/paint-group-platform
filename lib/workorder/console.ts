@@ -1,0 +1,301 @@
+/**
+ * The PC Command console's logic — §6 of the brief.
+ *
+ * Everything the console shows is DERIVED here from rows the model already
+ * holds. There is no console table, no "status" anybody types, and no number a
+ * human keeps up to date. If a card is on the screen, something in the data put
+ * it there; when the data changes, the card leaves by itself.
+ */
+
+export type Severity = "critical" | "warning" | "info";
+
+export type QueueCard = {
+  key: string;
+  severity: Severity;
+  title: string;
+  detail: string;
+  ref: string;
+  workOrderId: string;
+  /** Hours since the thing happened — drives ranking and the "27h" badge. */
+  ageHours: number;
+  action: { label: string; href?: string; tel?: string; kind: string };
+};
+
+export type ConsoleInput = {
+  now: Date;
+  workOrders: {
+    id: string;
+    woRef: string;
+    stage: string;
+    title: string;
+    contractorName: string | null;
+    contractValueCents: number;
+    startDate: string | null;
+    coloursConfirmed: boolean;
+    blockedReason: string | null;
+    ticksDone: number;
+    ticksTotal: number;
+  }[];
+  offers: { workOrderId: string; state: string; expiresAt: string; contractorName: string }[];
+  variations: { id: string; workOrderId: string; status: string; createdAt: string; pricedAt: string | null }[];
+  updates: { id: string; workOrderId: string; status: string; createdAt: string }[];
+  signoffs: {
+    workOrderId: string; evidencePackSentAt: string | null; signedAt: string | null;
+    extensionRequestedAt: string | null; extensionApprovedAt: string | null;
+  }[];
+  zeroTickFlags: { workOrderId: string; at: string }[];
+  settings: { coloursWarnDays: number; variationCustomerSilentHours: number };
+};
+
+const hoursBetween = (from: string | Date, to: Date): number =>
+  (to.getTime() - new Date(from).getTime()) / 3_600_000;
+
+/**
+ * The calendar date in Melbourne, which is NOT what toISOString() gives you.
+ * Before 10am local, the UTC date is still yesterday — so a sparkline keyed on
+ * toISOString().slice(0,10) silently plots every morning's work on the previous
+ * day, and "days until the start date" comes out one short. This is the bug the
+ * suite's TZ=Australia/Melbourne pin exists to catch, and it caught it.
+ */
+export const melbourneDate = (d: Date): string =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(d);
+
+/**
+ * The UTC instant at which the Melbourne day began, as an ISO string.
+ *
+ * Not `${date}T00:00:00+10:00`: Melbourne is +11 from October to April, so a
+ * hardcoded offset silently shifts the window by an hour for half the year —
+ * which, for a "today's ticks" query run in the evening, quietly drops or
+ * double-counts an hour of work. The offset is read from the zone instead.
+ */
+export function melbourneDayStartUtc(d: Date): string {
+  const date = melbourneDate(d);
+  const offset = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Australia/Melbourne", timeZoneName: "longOffset",
+  }).formatToParts(d).find((p) => p.type === "timeZoneName")?.value ?? "GMT+10:00";
+  const sign = offset.includes("-") ? "-" : "+";
+  const hhmm = offset.replace(/^GMT[+-]?/, "") || "10:00";
+  return new Date(`${date}T00:00:00${sign}${hhmm}`).toISOString();
+}
+
+/** Whole days from today (Melbourne) to a yyyy-mm-dd date. */
+const daysUntil = (date: string, now: Date): number => {
+  const asUtcMidnight = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
+  return Math.round((asUtcMidnight(date) - asUtcMidnight(melbourneDate(now))) / 86_400_000);
+};
+
+/**
+ * One card per §6.1 trigger. Each is keyed so it can be matched across renders,
+ * and each carries exactly one primary action — a console that offers three
+ * things to do is a console nobody acts on.
+ */
+export function buildQueue(input: ConsoleInput): QueueCard[] {
+  const { now, settings } = input;
+  const byId = new Map(input.workOrders.map((w) => [w.id, w]));
+  const cards: QueueCard[] = [];
+
+  const label = (id: string) => {
+    const w = byId.get(id);
+    return w ? `${w.woRef} · ${w.title}` : id;
+  };
+
+  // 1. Offer past its SLA — the existing scheduling clock, not a new one.
+  for (const offer of input.offers) {
+    if (offer.state !== "offered" && offer.state !== "proposed") continue;
+    const overdueBy = hoursBetween(offer.expiresAt, now);
+    if (overdueBy <= 0) continue;
+    const w = byId.get(offer.workOrderId);
+    if (!w) continue;
+    cards.push({
+      key: `offer-sla:${offer.workOrderId}`,
+      severity: "critical",
+      title: "Offer unanswered past SLA",
+      detail: `${offer.contractorName} has had it ${Math.round(overdueBy + 24)} hours. Chase, or release it to the next contractor.`,
+      ref: label(offer.workOrderId),
+      workOrderId: offer.workOrderId,
+      ageHours: overdueBy,
+      action: { label: "Reoffer", kind: "reoffer", href: `/pc/wo/${offer.workOrderId}` },
+    });
+  }
+
+  // 2. A site that went quiet. Never an automated message — a phone call.
+  for (const flag of input.zeroTickFlags) {
+    const w = byId.get(flag.workOrderId);
+    if (!w) continue;
+    cards.push({
+      key: `zero-tick:${flag.workOrderId}`,
+      severity: "critical",
+      title: "Silent site — zero ticks yesterday",
+      detail: "Crew was on site, nothing marked, so no update went to the customer. Silence is a signal.",
+      ref: label(flag.workOrderId),
+      workOrderId: flag.workOrderId,
+      ageHours: hoursBetween(flag.at, now),
+      action: { label: "Call crew", kind: "call", href: `/pc/wo/${flag.workOrderId}` },
+    });
+  }
+
+  for (const v of input.variations) {
+    const w = byId.get(v.workOrderId);
+    if (!w) continue;
+
+    // 3. Raised, waiting on the office for a price.
+    if (v.status === "raised") {
+      cards.push({
+        key: `variation-price:${v.id}`,
+        severity: "warning",
+        title: "Variation waiting on a price",
+        detail: "The contractor has stopped on that part of the job until this is priced.",
+        ref: label(v.workOrderId),
+        workOrderId: v.workOrderId,
+        ageHours: hoursBetween(v.createdAt, now),
+        action: { label: "Price it", kind: "price", href: `/pc/wo/${v.workOrderId}#variation-${v.id}` },
+      });
+    }
+
+    // 7. Priced, and the customer has gone quiet on it.
+    if (v.status === "priced" && v.pricedAt) {
+      const silentFor = hoursBetween(v.pricedAt, now);
+      if (silentFor >= settings.variationCustomerSilentHours) {
+        cards.push({
+          key: `variation-silent:${v.id}`,
+          severity: "warning",
+          title: "Variation priced, customer silent",
+          detail: `Sent ${Math.round(silentFor)} hours ago with no answer. The job is waiting on it.`,
+          ref: label(v.workOrderId),
+          workOrderId: v.workOrderId,
+          ageHours: silentFor,
+          action: { label: "Nudge customer", kind: "nudge", href: `/pc/wo/${v.workOrderId}` },
+        });
+      }
+    }
+  }
+
+  // 4. Colours unconfirmed with the start date closing in.
+  for (const w of input.workOrders) {
+    if (w.coloursConfirmed || !w.startDate) continue;
+    if (w.stage !== "pre_start" && w.stage !== "offered") continue;
+    const days = daysUntil(w.startDate, now);
+    if (days > settings.coloursWarnDays) continue;
+    cards.push({
+      key: `colours:${w.id}`,
+      severity: "warning",
+      title: days < 0 ? "Colours still unconfirmed — job has started" : "Colours unconfirmed",
+      detail: days < 0
+        ? "The paint order cannot go in until the schedule is signed."
+        : `Starts in ${days} day${days === 1 ? "" : "s"}. The paint order cannot go in until the schedule is signed.`,
+      ref: label(w.id),
+      workOrderId: w.id,
+      // Closer to the start date = older, so it ranks up.
+      ageHours: (settings.coloursWarnDays - days) * 24,
+      action: { label: "Open", kind: "open", href: `/pc/wo/${w.id}` },
+    });
+  }
+
+  for (const s of input.signoffs) {
+    if (s.signedAt || !s.evidencePackSentAt) continue;
+    const w = byId.get(s.workOrderId);
+    if (!w) continue;
+
+    // 8. An extension the customer asked for and nobody has answered.
+    if (s.extensionRequestedAt && !s.extensionApprovedAt) {
+      cards.push({
+        key: `extension:${s.workOrderId}`,
+        severity: "warning",
+        title: "Extension requested on sign-off",
+        detail: "They have asked for more time. Approve it and the clock waits.",
+        ref: label(s.workOrderId),
+        workOrderId: s.workOrderId,
+        ageHours: hoursBetween(s.extensionRequestedAt, now),
+        action: { label: "Approve / decline", kind: "extension", href: `/pc/wo/${s.workOrderId}` },
+      });
+      continue;   // one card per job: the extension IS the sign-off question
+    }
+
+    // 5. The clock has run past the second nudge.
+    const elapsed = hoursBetween(s.evidencePackSentAt, now);
+    if (elapsed >= 48) {
+      cards.push({
+        key: `signoff-clock:${s.workOrderId}`,
+        severity: "warning",
+        title: "Sign-off clock at 48 hours",
+        detail: "Second reminder sent, still nothing back. Worth a call.",
+        ref: label(s.workOrderId),
+        workOrderId: s.workOrderId,
+        ageHours: elapsed,
+        action: { label: "Ring them", kind: "ring", href: `/pc/wo/${s.workOrderId}` },
+      });
+    }
+  }
+
+  // 6. Drafted updates, gathered into one card — they are reviewed together.
+  const drafted = input.updates.filter((u) => u.status === "drafted");
+  if (drafted.length > 0) {
+    const oldest = drafted.reduce((a, b) => (a.createdAt < b.createdAt ? a : b));
+    cards.push({
+      key: "updates-drafted",
+      severity: "info",
+      title: drafted.length === 1 ? "One customer update drafted" : `${drafted.length} customer updates drafted`,
+      detail: "Written from today's ticks. Nothing reaches a customer until you approve it.",
+      ref: [...new Set(drafted.map((u) => byId.get(u.workOrderId)?.woRef ?? ""))].filter(Boolean).join(" · "),
+      workOrderId: drafted[0].workOrderId,
+      ageHours: hoursBetween(oldest.createdAt, now),
+      action: { label: "Review", kind: "review", href: "/pc/updates" },
+    });
+  }
+
+  return rankQueue(cards);
+}
+
+/** §6.2 — critical oldest-first, then warning oldest-first, then info. */
+export function rankQueue(cards: QueueCard[]): QueueCard[] {
+  const order: Record<Severity, number> = { critical: 0, warning: 1, info: 2 };
+  return [...cards].sort((a, b) =>
+    order[a.severity] - order[b.severity] || b.ageHours - a.ageHours || a.key.localeCompare(b.key));
+}
+
+export type PulseTiles = {
+  onTheBooksCents: number;
+  openJobs: number;
+  critical: number;
+  waiting: number;
+  signedOffThisWeek: number;
+};
+
+/** §6.3 — the four tiles, all from the same rows the queue used. */
+export function pulseTiles(
+  input: ConsoleInput,
+  queue: QueueCard[],
+  signedOffThisWeek: number,
+): PulseTiles {
+  const open = input.workOrders.filter((w) => w.stage !== "closed");
+  return {
+    onTheBooksCents: open.reduce((sum, w) => sum + w.contractValueCents, 0),
+    openJobs: open.length,
+    critical: queue.filter((c) => c.severity === "critical").length,
+    waiting: queue.filter((c) => c.severity === "warning").length,
+    signedOffThisWeek,
+  };
+}
+
+/** The headline. Counts come from the same query as everything else. */
+export function headline(tiles: PulseTiles): { top: string; bottom: string } {
+  const jobs = tiles.openJobs;
+  const needs = tiles.critical + tiles.waiting;
+  const top = jobs === 0 ? "Nothing live right now." : `${jobs === 1 ? "One job" : `${jobs} jobs`} live.`;
+  const bottom = needs === 0
+    ? "Nothing needs you."
+    : `${needs === 1 ? "One needs" : `${needs} need`} you before coffee.`;
+  return { top, bottom };
+}
+
+/** Tick events per day for the sparkline, oldest first, 14 days. */
+export function sparkline(ticksByDay: Record<string, number>, now: Date, days = 14): number[] {
+  const out: number[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * 86_400_000);
+    out.push(ticksByDay[melbourneDate(d)] ?? 0);
+  }
+  return out;
+}
