@@ -1,0 +1,27 @@
+/* The variation mini-estimate. Borrows the customer estimate's palette so the
+   two feel like one document — amber while it awaits an answer, emerald once
+   it has one. */
+.cv-wrap { max-width: 560px; margin: 0 auto; padding: 28px 18px 60px; }
+.cv-sub { color: var(--muted); margin: 6px 0 0; font-size: 14px; }
+.cv-card { margin-top: 20px; background: var(--panel, #12161a); border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
+.cv-cat { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--amber); }
+.cv-comment { margin: 10px 0 0; font-size: 15px; line-height: 1.55; }
+.cv-price { display: flex; align-items: baseline; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.cv-price span { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.cv-price b { margin-left: auto; font-family: var(--mono); font-size: 24px; color: var(--cyan); }
+.cv-actions { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+.cv-btn { width: 100%; padding: 15px 16px; border-radius: 12px; font-family: inherit; font-size: 15px; font-weight: 600; cursor: pointer; border: 1px solid var(--line); background: transparent; color: var(--text); min-height: 52px; }
+.cv-btn.primary { background: linear-gradient(135deg, var(--cyan), var(--paint)); color: var(--on-cyan, #03272d); border-color: transparent; }
+.cv-btn.ghost { color: var(--muted); }
+.cv-btn.link { border: 0; background: none; color: var(--muted); font-weight: 400; min-height: 0; padding: 4px; }
+.cv-btn:disabled { opacity: .6; cursor: default; }
+.cv-fine { font-size: 12.5px; color: var(--muted); margin: 4px 0 0; }
+.cv-msg { font-size: 13.5px; color: var(--amber); margin: 0; }
+.cv-label { font-size: 13px; color: var(--muted); }
+.cv-note { width: 100%; background: var(--ink); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; font-family: inherit; font-size: 14px; }
+.cv-done { margin-top: 18px; border-radius: 14px; padding: 18px; border: 1px solid var(--line); }
+.cv-done b { font-size: 16px; }
+.cv-done p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+.cv-done.approved { border-color: rgba(47,164,107,.45); background: rgba(47,164,107,.07); }
+.cv-done.approved b { color: var(--emerald); }
+.cv-done.declined { border-color: var(--line); }

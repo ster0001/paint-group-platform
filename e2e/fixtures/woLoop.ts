@@ -116,3 +116,33 @@ export async function destroyLoopFixture(db: SupabaseClient, fixture: LoopFixtur
   // Everything cascades from the estimate.
   await db.from("estimates").delete().eq("id", fixture.estimateId);
 }
+
+/**
+ * Call an RPC as a real signed-in user.
+ *
+ * The service key is NOT a shortcut for "staff": it carries no JWT claims, so
+ * is_staff() is false under it and every staff-gated RPC answers
+ * 'error:not_staff'. Anything the office does has to be driven with an actual
+ * staff session, which is also closer to what the app does.
+ */
+export async function rpcAs(
+  who: { email: string; password: string },
+  fn: string,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const auth = await fetch(`${url}/auth/v1/token?grant_type=password`, {
+    method: "POST",
+    headers: { apikey: anon, "Content-Type": "application/json" },
+    body: JSON.stringify({ email: who.email, password: who.password }),
+  }).then((r) => r.json());
+  if (!auth.access_token) throw new Error(`sign-in failed for ${who.email}`);
+
+  const result = await fetch(`${url}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { apikey: anon, Authorization: `Bearer ${auth.access_token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(args),
+  }).then((r) => r.json());
+  return String(result);
+}

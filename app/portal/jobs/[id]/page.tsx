@@ -6,6 +6,7 @@ import { getContractorJob } from "@/lib/contractor/jobs";
 import WorkOrderDoc from "@/app/w/WorkOrderDoc";
 import RescheduleRequest from "./RescheduleRequest";
 import TickList from "./TickList";
+import Variations, { type VariationView } from "./Variations";
 import type { SurfaceRow } from "@/lib/workorder/surfaces";
 import { OFFER_COLUMNS, type BookingOffer } from "@/lib/scheduling/offers";
 import type { PortalBlock, PortalJobDay } from "@/app/portal/calendar/CalendarGrid";
@@ -61,6 +62,22 @@ export default async function PortalJobPage({ params }: { params: Promise<{ id: 
     supabase.from("work_orders").select("stage").eq("id", id).maybeSingle(),
   ]);
 
+  const { data: variationRows } = await supabase
+    .from("wo_variations")
+    .select("id, category, comment, status, contractor_delta_cents, est_hours, released_at")
+    .eq("work_order_id", id)
+    .order("created_at", { ascending: false });
+
+  const variations: VariationView[] = ((variationRows as {
+    id: string; category: string; comment: string; status: VariationView["status"];
+    contractor_delta_cents: number | null; est_hours: number | null; released_at: string | null;
+  }[] | null) ?? []).map((v) => ({
+    id: v.id, category: v.category, comment: v.comment, status: v.status,
+    contractorDeltaCents: v.contractor_delta_cents,
+    estHours: v.est_hours === null ? null : Number(v.est_hours),
+    released: v.released_at !== null,
+  }));
+
   const surfaces: SurfaceRow[] = ((surfaceRows as
     { id: string; heading: string; label: string; state: SurfaceRow["state"]; rectification: boolean }[] | null) ?? [])
     .map((r) => ({ id: r.id, heading: r.heading, label: r.label, state: r.state, rectification: r.rectification }));
@@ -113,6 +130,12 @@ export default async function PortalJobPage({ params }: { params: Promise<{ id: 
             headingsWithBeforePhoto={headingsWithBeforePhoto}
             headingMeta={headingMeta}
           />
+        </div>
+      )}
+
+      {job.committed && (
+        <div style={{ padding: "0 16px" }}>
+          <Variations workOrderId={id} variations={variations} />
         </div>
       )}
 

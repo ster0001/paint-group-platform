@@ -456,3 +456,24 @@
 .pt .elev .eh b { font-size: 13.5px; }
 .pt .elev .eh em { font-style: normal; font-family: var(--mono); font-size: 9px; color: var(--muted); }
 .pt .elev .eh .ct { margin-left: auto; font-family: var(--mono); font-size: 9.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* ---- variations (WO loop step 3) ------------------------------------------ */
+.pt .var-add { margin-left: auto; background: none; border: 1px solid var(--cyan); color: var(--cyan); border-radius: 9px; padding: 7px 12px; font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
+.pt .var-form { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.pt .var-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.pt .var-chip { background: var(--graphite); border: 1px solid var(--line); color: var(--muted); border-radius: 100px; padding: 8px 12px; font-size: 12.5px; font-family: inherit; cursor: pointer; min-height: 40px; }
+.pt .var-chip.on { border-color: var(--cyan); color: var(--cyan); background: rgba(59,216,233,.08); }
+.pt .var-note, .pt .var-hours { width: 100%; background: var(--ink); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; font-family: inherit; font-size: 14px; }
+.pt .var-hours { max-width: 100px; margin-left: 10px; }
+.pt .var-label { font-size: 13px; color: var(--muted); display: flex; align-items: center; }
+.pt .var-photo { text-align: left; background: rgba(224,168,60,.08); border: 1px solid rgba(224,168,60,.4); color: var(--amber); border-radius: 10px; padding: 12px; font-size: 13px; font-family: inherit; cursor: pointer; min-height: 48px; }
+.pt .var-photo:disabled { opacity: .6; }
+.pt .var-row { display: flex; gap: 8px; align-items: center; }
+.pt .var-send { flex: 1; background: linear-gradient(135deg, var(--cyan), var(--paint)); color: #03272d; border: 0; border-radius: 10px; padding: 14px; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; min-height: 48px; }
+.pt .var-send:disabled { opacity: .5; cursor: default; }
+.pt .var-cancel { background: none; border: 0; color: var(--muted); font-family: inherit; font-size: 13px; cursor: pointer; padding: 8px; }
+.pt .var-item { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
+.pt .var-item-top { display: flex; align-items: center; gap: 8px; }
+.pt .var-item-top b { font-size: 13.5px; }
+.pt .var-item-top .chip { margin-left: auto; }
+.pt .var-item-comment { margin: 6px 0 10px; font-size: 13px; color: var(--soft, #c6ccd1); }
