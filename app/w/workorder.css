@@ -109,3 +109,29 @@
   .wo .surf-hours .hval, .wo .surf-hours input { color: #111 !important; }
   .wo .surf-hours .hlab { color: #666 !important; }
 }
+
+/* ---- seven-stage badge (loop step 1) --------------------------------------
+   The live stage, beside the v1 status chip. Amber = waiting on a decision,
+   cyan = active work, emerald = done — the same meanings the rest of the
+   product uses, so nobody has to learn a second colour language. */
+.wo .wo-chips { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.wo .stage-badge {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase;
+  border: 1px solid var(--line); border-radius: 100px; padding: 4px 10px;
+  color: var(--muted); background: var(--ink); white-space: nowrap;
+}
+.wo .stage-badge b { font-weight: 600; color: var(--text); margin-right: 4px; }
+.wo .stage-badge.offered,
+.wo .stage-badge.pre_start { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 45%, var(--line)); }
+.wo .stage-badge.offered b,
+.wo .stage-badge.pre_start b { color: var(--amber); }
+.wo .stage-badge.in_progress,
+.wo .stage-badge.qa,
+.wo .stage-badge.completion_prep { color: var(--cyan); border-color: color-mix(in srgb, var(--cyan) 45%, var(--line)); }
+.wo .stage-badge.in_progress b,
+.wo .stage-badge.qa b,
+.wo .stage-badge.completion_prep b { color: var(--cyan); }
+.wo .stage-badge.walkthrough { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 45%, var(--line)); }
+.wo .stage-badge.walkthrough b { color: var(--amber); }
+.wo .stage-badge.closed { color: var(--emerald); border-color: color-mix(in srgb, var(--emerald) 45%, var(--line)); }
+.wo .stage-badge.closed b { color: var(--emerald); }

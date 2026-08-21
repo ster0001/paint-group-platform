@@ -3,6 +3,7 @@
 import type { WorkOrderDoc as Doc } from "@/lib/workorder/snapshot";
 import { WO_STATUS_LABEL } from "@/lib/workorder/snapshot";
 import { FINISH_LEVELS, FINISH_ORDER } from "@/lib/workorder/finish";
+import { STAGE_LANES, type WoStage } from "@/lib/workorder/stages";
 import FinishChip from "@/app/components/FinishChip";
 import "./workorder.css";
 
@@ -23,7 +24,12 @@ export type WOEdit = {
   onAreaFinish: (areaId: string, code: string | null) => void;
 };
 
-export default function WorkOrderDoc({ doc, edit }: { doc: Doc; edit?: WOEdit }) {
+/**
+ * `stage` is the live seven-stage position, read from the work_orders row — not
+ * from the frozen snapshot, which is why it is a prop rather than part of Doc.
+ * Step 1 renders it and nothing more; the ticks and gates arrive in step 2.
+ */
+export default function WorkOrderDoc({ doc, edit, stage }: { doc: Doc; edit?: WOEdit; stage?: WoStage | null }) {
   return (
     <div className="wo">
       <div className="wrap">
@@ -32,7 +38,14 @@ export default function WorkOrderDoc({ doc, edit }: { doc: Doc; edit?: WOEdit })
             <div className="wo-ref">{doc.woRef}</div>
             <div className="wo-brand">Work order · {doc.company.name}</div>
           </div>
-          <span className={`chip ${doc.status}`}>{WO_STATUS_LABEL[doc.status] ?? doc.status}</span>
+          <span className="wo-chips">
+            {stage ? (
+              <span className={`stage-badge ${stage}`} title={`Stage ${STAGE_LANES[stage].n} of 07`}>
+                <b>{STAGE_LANES[stage].n}</b> {STAGE_LANES[stage].title}
+              </span>
+            ) : null}
+            <span className={`chip ${doc.status}`}>{WO_STATUS_LABEL[doc.status] ?? doc.status}</span>
+          </span>
         </div>
 
         <h1>{doc.jobTitle}</h1>

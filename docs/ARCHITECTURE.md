@@ -656,3 +656,41 @@ ladder in `policy.ts` (interior ≤$6k @≥90 / straightforward exterior
 now SPREAD loaded builder_state (the fixed key list silently dropped
 wizard/prepPack/loop state). The journey suite `e2e/customer-journey/`
 drives all of it as the definition of done.
+
+## Work-order completion loop — step 1: the seven-stage machine (2026-08-21)
+
+WO v1's `status` (draft | issued | in_progress | complete) is now DERIVED, never
+typed. `work_orders.stage` (`wo_stage`: offered → pre_start → in_progress → qa →
+completion_prep → walkthrough → closed) is the single source of truth for the
+loop, and `public.wo_derive_status(stage, issued_at)` recomputes `status` inside
+every transition so the contractor link, the schedule board and the v1 chips keep
+working with nothing rewritten. The legal moves live in a TABLE,
+`wo_stage_transitions` (from, to, label, actors), because the RPC, the UI and the
+tests all need to agree about them; `lib/workorder/stages.ts` mirrors it for the
+browser and `stages.test.ts` parses the migration and diffs the two, so the
+mirror cannot drift silently. Ten moves are legal, the other 39 pairs are not,
+and both failure paths (QA fail, walkthrough flag) return to `in_progress` — one
+tick list, always.
+
+Every change of stage goes through `wo_set_stage`, which validates the move,
+writes a `wo_events` row and re-derives `status` in one transaction; the public
+`wo_advance_stage` RPC works out whether the caller is staff, the assigned
+contractor or the job's customer **from the session** and checks that actor
+against the transition's `actors` — `'system'` is not reachable from outside.
+`wo_gate_blocked()` is the hook each later step fills with its own readiness gate
+(all surfaces ticked, QA passed, pack delivered); today it is deliberately open.
+A trigger on `booking_offers.state` keeps the stage honest when a booking is
+accepted, cancelled, declined, expired or withdrawn, rather than reopening three
+working scheduling functions. Client UPDATE on `stage`/`stage_entered_at`/
+`blocked_reason` is revoked at the database.
+
+Migration 20260927 creates the rest of the loop's tables — `wo_checklist_items`,
+`wo_surfaces`, `wo_photos`, `wo_variations`, `wo_updates`, `wo_qa_checks`,
+`wo_signoff` — each RLS'd three ways (staff all, contractor assigned-only,
+customer own-job-only) and write-revoked for every client role, plus the private
+`wo-photos` bucket. Surfaces carry no history columns: tick history is
+`wo_events` rows, because the report and the console already read that log.
+20260928 lands the ⚑ business decisions in `settings.wo_loop` — including the two
+sign-off switches, `clockEnabled: true` (the clock and nudge ladder may run) and
+`deemedEnabled: FALSE` (deemed execution waits on the ACL/UCT legal review), a
+deliberate departure from the brief's default.
