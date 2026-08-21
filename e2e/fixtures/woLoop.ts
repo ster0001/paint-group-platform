@@ -125,11 +125,13 @@ export async function destroyLoopFixture(db: SupabaseClient, fixture: LoopFixtur
  * 'error:not_staff'. Anything the office does has to be driven with an actual
  * staff session, which is also closer to what the app does.
  */
-export async function rpcAs(
-  who: { email: string; password: string },
-  fn: string,
-  args: Record<string, unknown>,
-): Promise<string> {
+const tokenCache = new Map<string, string>();
+
+/** One sign-in per account per run: the auth endpoint throttles repeats. */
+export async function accessTokenFor(who: { email: string; password: string }): Promise<string> {
+  const cached = tokenCache.get(who.email);
+  if (cached) return cached;
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   const auth = await fetch(`${url}/auth/v1/token?grant_type=password`, {
@@ -137,12 +139,42 @@ export async function rpcAs(
     headers: { apikey: anon, "Content-Type": "application/json" },
     body: JSON.stringify({ email: who.email, password: who.password }),
   }).then((r) => r.json());
-  if (!auth.access_token) throw new Error(`sign-in failed for ${who.email}`);
+  if (!auth.access_token) {
+    throw new Error(`sign-in failed for ${who.email}: ${auth.error_description ?? auth.msg ?? "no token"}`);
+  }
+  tokenCache.set(who.email, auth.access_token);
+  return auth.access_token;
+}
+
+export async function rpcAs(
+  who: { email: string; password: string },
+  fn: string,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const accessToken = await accessTokenFor(who);
 
   const result = await fetch(`${url}/rest/v1/rpc/${fn}`, {
     method: "POST",
-    headers: { apikey: anon, Authorization: `Bearer ${auth.access_token}`, "Content-Type": "application/json" },
+    headers: { apikey: anon, Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify(args),
   }).then((r) => r.json());
   return String(result);
+}
+
+/** Same as rpcAs, for functions that return json rather than a status string. */
+export async function rpcAsJson<T = unknown>(
+  who: { email: string; password: string },
+  fn: string,
+  args: Record<string, unknown>,
+): Promise<T> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const accessToken = await accessTokenFor(who);
+  return fetch(`${url}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { apikey: anon, Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify(args),
+  }).then((r) => r.json()) as Promise<T>;
 }

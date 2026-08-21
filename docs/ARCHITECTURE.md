@@ -793,3 +793,32 @@ writes. `vercel.json` schedules it at 08:00 UTC = 6pm Melbourne, end of the
 working day. Composition happens in the route (TypeScript), storage in the RPC —
 the same split the rest of the money/state boundary uses. **CRON_SECRET must be
 set in the Vercel project env for the schedule to do anything in production.**
+
+## WO loop — step 5: QA, prep, walkthrough and sign-off (2026-08-21)
+
+QA checks are auto-scheduled only for contractors inside their first N finished
+jobs (⚑1). `wo_record_qa` records pass/fail; a **fail appends rectification rows
+to `wo_surfaces` and returns the job to `in_progress`** — the same tick list, with
+`rectification = true` the only thing marking them out. Photo minimums (⚑5) set
+`thin_record` and never block a pass. The completion-prep checklist is seeded per
+Settings (the rubbish line changes with `rubbish.organisedBy`) and gates
+`completion_prep → walkthrough`.
+
+The customer surface is `/s/[token]`: area-by-area approve or flag, then
+type-to-sign. A flag becomes a rectification row and sends the job back, and —
+found by the e2e — **a flagged area must be re-reviewable**, or a job can never
+close after being put right. Views are recorded because a viewed-but-silent pack
+is what makes a deemed sign-off defensible later.
+
+`wo_sign` is one transaction: warranty (2 years from the sign-off date, ⚑4,
+deemed included), the review-request `follow_ups` row, the completion report
+built from `wo_events`/surfaces/photos/variations/QA — **declined variations
+included** — and the draft invoice stub for the invoicing phase.
+
+The clock is split into two switches per Tom's ruling: `clockEnabled` (on) runs
+the 0/24/48h ladder, `deemedEnabled` (**off**, pending ACL/UCT review) would
+execute the sign-off. **`wo_nudge_copy(rung, deemed_enabled)` is where the
+compliance lives** — while deemed is off the copy must not mention deemed
+signing, automatic sign-off, invoices or payment, and `signoff.test.ts` asserts
+exactly that. Each rung fires at most once; a late sweep sends one late nudge,
+never the whole ladder. An unanswered extension request pauses the clock.

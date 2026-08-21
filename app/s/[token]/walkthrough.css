@@ -1,0 +1,13 @@
+/* The walkthrough. Approving and flagging are given equal weight on purpose. */
+.wt-area { border: 1px solid var(--line); border-radius: 14px; padding: 14px 15px; }
+.wt-area-top { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
+.wt-area-top b { font-size: 15px; }
+.wt-area-top .chip { margin-left: auto; font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; border: 1px solid var(--line); border-radius: 100px; padding: 4px 9px; }
+.wt-area-top .chip.grn { color: var(--emerald); border-color: rgba(47,164,107,.5); }
+.wt-area-top .chip.amb { color: var(--amber); border-color: rgba(224,168,60,.5); }
+.wt-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.wt-row .cv-btn { flex: 1; min-width: 150px; }
+.wt-flag { display: flex; flex-direction: column; gap: 9px; }
+.wt-sign { margin-top: 8px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--line); padding-top: 18px; }
+.wt-away { margin-top: 6px; color: var(--muted); font-size: 13px; }
+.wt-away summary { cursor: pointer; padding: 8px 0; }
