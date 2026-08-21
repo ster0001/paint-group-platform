@@ -15,7 +15,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
 
   const { data: wo } = await supabase
     .from("work_orders")
-    .select("id, wo_ref, stage, blocked_reason, contractor_payment_cents, start_date, wo_snapshot, estimates(total_cents, deposit_paid_at:accepted_at)")
+    .select("id, wo_ref, stage, blocked_reason, contractor_payment_cents, start_date, end_date, estimate_id, wo_snapshot, estimates(total_cents, deposit_paid_at:accepted_at)")
     .eq("id", id).maybeSingle();
   if (!wo) notFound();
 
@@ -25,6 +25,8 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     wo_snapshot: { jobTitle?: string; jobAddress?: string } | null;
     estimates: { total_cents: number | null; deposit_paid_at: string | null } | null;
   };
+
+  const estimateId = (wo as { estimate_id?: string }).estimate_id ?? "";
 
   const [{ data: surfaceRows }, { data: variationRows }, { data: updateRows }, { data: qaRows }, { data: rateRow }] =
     await Promise.all([
@@ -82,7 +84,15 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
               {row.wo_ref}{row.wo_snapshot?.jobAddress ? ` · ${row.wo_snapshot.jobAddress}` : ""}
             </span>
           </div>
-          <span className="pill p-cy" style={{ marginLeft: "auto" }}>PC view</span>
+          <span style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+            <span className="pill p-cy">PC view</span>
+            {/* This screen reads the job; the job sheet itself is edited in the
+                builder, and saying so beats hunting for a control that is not
+                here on purpose. */}
+            <a className="btn" href={`/quote?id=${estimateId}&view=workorder`} data-testid="edit-wo">
+              Edit job sheet
+            </a>
+          </span>
         </div>
 
         <div className="rail7" data-testid="stage-rail">

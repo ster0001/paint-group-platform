@@ -37,6 +37,7 @@ export default async function PcLayout({ children }: { children: React.ReactNode
           <Link href="/pc">Command</Link>
           <Link href="/pc/flow">The flow</Link>
           <Link href="/pc/updates">Updates</Link>
+          <Link href="/estimates">← Back to app</Link>
         </nav>
 
         {children}
