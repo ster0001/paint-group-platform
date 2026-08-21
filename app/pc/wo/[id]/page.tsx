@@ -26,7 +26,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     estimates: { total_cents: number | null; deposit_paid_at: string | null } | null;
   };
 
-  const [{ data: surfaceRows }, { data: variationRows }, { data: updateRows }, { data: qaRows }] =
+  const [{ data: surfaceRows }, { data: variationRows }, { data: updateRows }, { data: qaRows }, { data: rateRow }] =
     await Promise.all([
       supabase.from("wo_surfaces")
         .select("id, heading, heading_meta, label, state, rectification")
@@ -37,7 +37,14 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
       supabase.from("wo_updates").select("id, draft_text, final_text, status, for_date")
         .eq("work_order_id", id).order("for_date", { ascending: false }).limit(1),
       supabase.from("wo_qa_checks").select("id, kind, result, thin_record").eq("work_order_id", id),
+      // The live contractor rate, so the price preview cannot drift from what
+      // the server will actually work out when Tom edits it in Settings.
+      supabase.from("settings").select("value").eq("key", "Contractor rate").maybeSingle(),
     ]);
+
+  const contractorRateCents = Math.round(
+    Number((rateRow as { value?: { value?: number } } | null)?.value?.value ?? 60) * 100,
+  );
 
   const surfaces = ((surfaceRows ?? []) as {
     id: string; heading: string; heading_meta: string; label: string;
@@ -175,6 +182,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
                 estHours={v.est_hours === null ? null : Number(v.est_hours)}
                 priceCents={v.price_cents}
                 deltaCents={v.contractor_delta_cents}
+                rateCents={contractorRateCents}
               />
             </div>
           ))}

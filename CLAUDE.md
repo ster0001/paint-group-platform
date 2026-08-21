@@ -31,6 +31,18 @@ These rules are mandatory for all work in this repo. If a task conflicts with a 
 - Images through `next/image` with Supabase transforms; videos streamed, never proxied through the app server.
 - Paginate anything unbounded (jobs, products, activity). Public estimate pages must score ≥ 90 Lighthouse performance on mobile.
 
+## Migrations and RLS — learned the hard way (WO loop, Aug 2026)
+- **A migration "running" is not the same as its statements applying.** Three separate things from the tail of one migration file — the RLS policies, the booking→stage trigger, and a revoke — were absent while the tables and seed rows from the same file were present. Symptoms were silent: an empty console over a full database, and offer acceptance that left the job on stage 01. **Every migration that creates policies, triggers or grants ends with a `select` that lists what it just made, and that output gets read back, not assumed.**
+- **RLS enabled with no matching policy denies every row and says nothing.** An empty array is not proof of "no data" — it is equally the signature of a missing policy. A missing GRANT is different and louder: it raises `42501`. Use the difference to tell them apart before guessing.
+- **A policy's subquery is itself subject to RLS.** `exists (select 1 from work_orders …)` inside a customer policy silently fails when the customer cannot read `work_orders`. Put ownership tests in `SECURITY DEFINER` helpers (`wo_is_my_job_as_customer`) so a policy can ask the question without the caller needing to read the evidence — especially where the evidence table carries contractor pay.
+- **Never verify RLS through the service-role key.** It bypasses RLS entirely, so a suite that reads back through it cannot tell you what a user sees — that is exactly how an absent policy set survived six build steps. Role-facing specs assert reads through **each role's own session** (`e2e/wo-rls.spec.ts` is the pattern).
+- **Creating a storage bucket is half the job**; `storage.objects` needs its own policies or every upload dies at the signed-URL step behind a 502.
+- The service key is **not** a shortcut for staff: it carries no JWT claims, so `is_staff()` is false under it and staff-gated RPCs answer `not_staff`.
+
+## Dates
+- **`toISOString().slice(0,10)` is the UTC date, not the local one.** Before 10am Melbourne it silently reports yesterday, which shifted a sparkline by a day and made "days until start" come out one short. Bucket by calendar day with an `Intl` formatter pinned to `Australia/Melbourne`.
+- **Never hardcode `+10:00`.** Melbourne is +11 from October to April. Measure the offset from the zone; don't write one down.
+
 ## Process
 - **A referenced file that doesn't exist is a stop-and-report, never a build-around.** If a brief, mockup, or doc a task references is missing from the repo, stop and say so before any code is written.
 - **Testing law:** every fix/feature PR STARTS by writing the failing e2e spec that reproduces the problem or encodes the mockup interaction, **as an anonymous customer**, then makes it pass. Staff-preview specs run alongside (staff-as-tester is how the response-contract bug hid). The customer-journey suite (`e2e/customer-journey/`) must be green before any merge. "Compiles + unit tests" is never the definition of done — "matches the reference mockup" is.

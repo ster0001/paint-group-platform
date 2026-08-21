@@ -72,12 +72,29 @@ export const melbourneDate = (d: Date): string =>
  */
 export function melbourneDayStartUtc(d: Date): string {
   const date = melbourneDate(d);
-  const offset = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Australia/Melbourne", timeZoneName: "longOffset",
-  }).formatToParts(d).find((p) => p.type === "timeZoneName")?.value ?? "GMT+10:00";
-  const sign = offset.includes("-") ? "-" : "+";
-  const hhmm = offset.replace(/^GMT[+-]?/, "") || "10:00";
-  return new Date(`${date}T00:00:00${sign}${hhmm}`).toISOString();
+  // Midnight in Melbourne is midnight-UTC minus the zone's offset at that
+  // moment. Measure the offset rather than writing one down: it changes twice a
+  // year, and the second pass settles the hour where a DST switch falls between
+  // the guess and the answer.
+  let guess = Date.parse(`${date}T00:00:00Z`);
+  for (let i = 0; i < 2; i++) guess = Date.parse(`${date}T00:00:00Z`) - zoneOffsetMs(new Date(guess));
+  return new Date(guess).toISOString();
+}
+
+/** How far ahead of UTC Melbourne is at a given instant, in milliseconds. */
+function zoneOffsetMs(at: Date): number {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Australia/Melbourne", hour12: false,
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+    }).formatToParts(at).map((p) => [p.type, p.value]),
+  ) as Record<string, string>;
+
+  const wallClockAsUtc = Date.parse(
+    `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}Z`,
+  );
+  return wallClockAsUtc - at.getTime();
 }
 
 /** Whole days from today (Melbourne) to a yyyy-mm-dd date. */

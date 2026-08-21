@@ -853,3 +853,28 @@ role may already select, and the table-level `GRANT SELECT` was missing, so the
 console rendered "nothing needs you" over a database that had something to say.
 Every table this module adds now states its read access outright rather than
 relying on the project's default privileges.
+
+## WO loop — step 7: hardening, and what the full story found (2026-08-21)
+
+`e2e/wo-full-loop.spec.ts` runs one job all the way round in every role that
+touches it — offer accepted (through `send_offer`, which is what puts the
+contractor on the work order), pre-start, ticks gated on before-photos, a
+variation through both approvals, the day's update drafted by the cron sweep and
+sent by a person, a QA fail and its rectification, QA pass, the prep checklist
+gate, the customer flagging an area, the fix, and the signature. It then asserts
+the downstream artefacts exist and that **every stage the job passed through is
+reconstructable from `wo_events` alone**, both loops back into `in_progress`
+included.
+
+`lib/workorder/boundary.test.ts` is the brief's §7.6 grep audit as a test, since
+a grep somebody has to remember is a grep that stops being run: no client write
+to a money or status column on a loop table, no hard-coded contractor rate
+outside the engine, no hours×rate arithmetic outside `lib/pricing`, no service
+key in a client component, and none of the date traps above. It **strips
+comments before matching and matches within a statement rather than a file** —
+its first version flagged three files, and all three were the prose explaining
+the rule.
+
+Known and unchanged from before this phase: `estimates.subtotal_cents` /
+`total_cents` are still written from the builder client. That predates the loop
+and is on the audit list; the loop's own tables are all RPC-only.

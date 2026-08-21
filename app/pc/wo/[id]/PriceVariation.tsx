@@ -16,10 +16,12 @@ const money = (c: number) => "$" + (c / 100).toLocaleString("en-AU", { minimumFr
  * side and in SQL from the settings rate for the contractor's.
  */
 export default function PriceVariation({
-  id, status, released, estHours, priceCents, deltaCents,
+  id, status, released, estHours, priceCents, deltaCents, rateCents,
 }: {
   id: string; status: VariationStatus; released: boolean;
   estHours: number | null; priceCents: number | null; deltaCents: number | null;
+  /** Read from Settings by the server component — never hardcoded here. */
+  rateCents: number;
 }) {
   const [hours, setHours] = useState(estHours ? String(estHours) : "");
   const [materials, setMaterials] = useState("");
@@ -28,8 +30,9 @@ export default function PriceVariation({
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  // Preview only — 6000 is the shipped rate; the server reads Settings.
-  const preview = contractorDeltaCents(Number(hours) || 0, 6000);
+  // A preview of what the server will work out, using the same rate it will
+  // use. Hardcoding $60 here would quietly lie the moment Settings changed.
+  const preview = contractorDeltaCents(Number(hours) || 0, rateCents);
 
   function price() {
     setMessage(null);

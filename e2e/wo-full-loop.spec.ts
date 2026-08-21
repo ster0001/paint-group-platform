@@ -63,17 +63,29 @@ test.describe("the whole loop, one job", () => {
 
   test("1 · the contractor accepts the offer, and the stage follows the booking", async () => {
     const contractorId = await contractorIdForEmail(db!, contractor!.email);
-    const { data: offer } = await db!.from("booking_offers").insert({
-      work_order_id: job!.workOrderId, contractor_id: contractorId,
-      state: "offered", start_date: new Date().toISOString().slice(0, 10),
-      payment_cents: 786_000,
-      expires_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
-    }).select("id").single();
+
+    // Through send_offer, not a hand-inserted row: it is what puts the
+    // contractor onto the work order, and the first version of this test
+    // skipped it and then wondered why the painter was "not yours".
+    const sent = await rpcAs(staff!, "send_offer", {
+      p_work_order_id: job!.workOrderId,
+      p_contractor_id: contractorId,
+      p_start: new Date().toISOString().slice(0, 10),
+      p_end: null, p_note: "",
+    });
+    expect(sent, "send_offer refuses a contractor who is not compliant").toMatch(/^ok|offered/);
+
+    const { data: offer } = await db!.from("booking_offers")
+      .select("id").eq("work_order_id", job!.workOrderId).eq("state", "offered").single();
 
     const result = await rpcAs(contractor!, "respond_to_offer", {
       p_offer_id: (offer as { id: string }).id, p_action: "accept", p_note: "",
     });
     expect(result).toMatch(/accepted/);
+
+    const { data: assigned } = await db!.from("work_orders")
+      .select("contractor_id").eq("id", job!.workOrderId).single();
+    expect((assigned as { contractor_id: string | null }).contractor_id).toBe(contractorId);
 
     const { data: wo } = await db!.from("work_orders").select("stage").eq("id", job!.workOrderId).single();
     expect((wo as { stage: string }).stage).toBe("pre_start");   // the trigger, not a hand edit
