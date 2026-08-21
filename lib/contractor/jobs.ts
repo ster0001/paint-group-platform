@@ -11,6 +11,8 @@ export type ContractorJob = {
   woRef: string;
   status: string;
   startDate: string | null;
+  /** The booking's last day, when one has been set. */
+  endDate: string | null;
   issuedAt: string | null;
   viewedAt: string | null;
   paymentCents: number | null;
@@ -21,13 +23,14 @@ export type ContractorJob = {
 };
 
 const JOB_COLUMNS =
-  "id, wo_ref, status, start_date, issued_at, viewed_at, contractor_payment_cents, wo_snapshot";
+  "id, wo_ref, status, start_date, end_date, issued_at, viewed_at, contractor_payment_cents, wo_snapshot";
 
 export type Row = {
   id: string;
   wo_ref: string;
   status: string;
   start_date: string | null;
+  end_date?: string | null;
   issued_at: string | null;
   viewed_at: string | null;
   contractor_payment_cents: number | null;
@@ -67,6 +70,7 @@ export function toJob(r: Row, committed: boolean): ContractorJob {
     woRef: r.wo_ref,
     status: r.status,
     startDate: r.start_date,
+    endDate: r.end_date ?? null,
     issuedAt: r.issued_at,
     viewedAt: r.viewed_at,
     paymentCents: r.contractor_payment_cents,

@@ -4,6 +4,7 @@ import type { WorkOrderDoc as Doc } from "@/lib/workorder/snapshot";
 import { WO_STATUS_LABEL } from "@/lib/workorder/snapshot";
 import { FINISH_LEVELS, FINISH_ORDER } from "@/lib/workorder/finish";
 import { STAGE_LANES, type WoStage } from "@/lib/workorder/stages";
+import { bookingCaption, bookingDates, bookingDays, bookingLabel, bookingTone, type Booking } from "@/lib/workorder/booking";
 import FinishChip from "@/app/components/FinishChip";
 import "./workorder.css";
 
@@ -29,7 +30,11 @@ export type WOEdit = {
  * from the frozen snapshot, which is why it is a prop rather than part of Doc.
  * Step 1 renders it and nothing more; the ticks and gates arrive in step 2.
  */
-export default function WorkOrderDoc({ doc, edit, stage }: { doc: Doc; edit?: WOEdit; stage?: WoStage | null }) {
+export default function WorkOrderDoc({ doc, edit, stage, booking }: {
+  doc: Doc; edit?: WOEdit; stage?: WoStage | null;
+  /** The live booking, derived from the offer — requested is not confirmed. */
+  booking?: Booking | null;
+}) {
   return (
     <div className="wo">
       <div className="wrap">
@@ -47,6 +52,17 @@ export default function WorkOrderDoc({ doc, edit, stage }: { doc: Doc; edit?: WO
             <span className={`chip ${doc.status}`}>{WO_STATUS_LABEL[doc.status] ?? doc.status}</span>
           </span>
         </div>
+
+        {booking && booking.state !== "none" && (
+          <div className={`wo-booking ${bookingTone(booking.state)}`} data-testid="wo-booking">
+            <span className="wo-booking-when">{bookingDates(booking)}</span>
+            <span className="wo-booking-days">
+              {bookingDays(booking)} day{bookingDays(booking) === 1 ? "" : "s"}
+            </span>
+            <span className="wo-booking-state">{bookingLabel(booking.state)}</span>
+            <p>{bookingCaption(booking)}</p>
+          </div>
+        )}
 
         <h1>{doc.jobTitle}</h1>
         <div className="wo-addr">{doc.jobAddress}</div>

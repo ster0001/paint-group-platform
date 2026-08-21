@@ -108,6 +108,20 @@ export default async function QuotePage({
     if (t) initial = { id: null, title: "", builder_state: t.builder_state };
   }
 
+  // Requested / proposed / confirmed, from the live offer. Derived, not stored.
+  const woId = (workOrderRes.data as { id?: string } | null)?.id;
+  const { data: liveOffer } = woId
+    ? await supabase.from("booking_offers").select("state")
+        .eq("work_order_id", woId).in("state", ["offered", "proposed", "accepted"])
+        .order("offered_at", { ascending: false }).limit(1).maybeSingle()
+    : { data: null };
+  const offerState = (liveOffer as { state?: string } | null)?.state;
+  const bookingState =
+    offerState === "accepted" ? "confirmed"
+    : offerState === "proposed" ? "proposed"
+    : offerState === "offered" ? "requested"
+    : "none";
+
   return (
     <QuoteBuilder
       initialView={initialView}
@@ -127,6 +141,7 @@ export default async function QuotePage({
       typicalSizes={typicalSizes}
       terms={terms}
       workOrder={workOrderRes.data ?? null}
+      bookingState={bookingState}
       contractors={contractors}
       presentations={presentations}
     />

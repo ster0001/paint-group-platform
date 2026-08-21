@@ -13,7 +13,8 @@ export type PortalBlock = {
   source: "contractor" | "staff";
 };
 
-export type PortalJobDay = { date: string; label: string; status: string };
+/** `id` is the work order, so a booked day can open the job it belongs to. */
+export type PortalJobDay = { date: string; label: string; status: string; id?: string };
 
 // Local calendar date (lib/scheduling/dates.ts explains why this can never go
 // through toISOString): the calendar would otherwise highlight the wrong
@@ -230,11 +231,16 @@ export default function CalendarGrid({
               onPointerDown={() => dayDown(date)}
               onPointerEnter={() => dayEnter(date)}
               onPointerUp={dayUp}
-              onClick={() => { if (mode === "pick" && !tooEarly) onPickDate?.(date); }}
-              disabled={busy === date || (mode === "block" && Boolean(job)) || (mode === "pick" && tooEarly)}
+              onClick={() => {
+                // A booked day belongs to a job; tapping it should open that job.
+                if (job?.id) { router.push(`/portal/jobs/${job.id}`); return; }
+                if (mode === "pick" && !tooEarly) onPickDate?.(date);
+              }}
+              disabled={busy === date || (mode === "pick" && tooEarly && !job?.id)}
+              data-testid={job?.id ? `calendar-job-${date}` : undefined}
               title={
-                tooEarly ? "That date has passed"
-                : job ? job.label
+                tooEarly && !job ? "That date has passed"
+                : job ? `${job.label} — tap to open the job`
                 : blk ? (blk.source === "staff" ? "Blocked by Paint Group" : "You marked this unavailable")
                 : mode === "pick" ? "Tap to start here"
                 : "Tap, or drag across several days"

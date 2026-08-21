@@ -135,3 +135,27 @@
 .wo .stage-badge.walkthrough b { color: var(--amber); }
 .wo .stage-badge.closed { color: var(--emerald); border-color: color-mix(in srgb, var(--emerald) 45%, var(--line)); }
 .wo .stage-badge.closed b { color: var(--emerald); }
+
+/* ---- the booking, on the work order (calendar batch) ----------------------
+   Requested and confirmed are different facts and must not look the same: a
+   date the office asked for is not one the contractor has agreed to. */
+.wo .wo-booking {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  margin: 14px 0 4px; padding: 12px 14px; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--panel-2, #171c21);
+}
+.wo .wo-booking-when { font-family: var(--mono); font-size: 15px; font-weight: 600; }
+.wo .wo-booking-days { font-family: var(--mono); font-size: 9px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted); }
+.wo .wo-booking-state { margin-left: auto; font-family: var(--mono); font-size: 9px;
+  letter-spacing: .1em; text-transform: uppercase; border: 1px solid var(--line);
+  border-radius: 100px; padding: 4px 10px; }
+.wo .wo-booking p { flex: 1 0 100%; margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
+.wo .wo-booking.amber { border-color: color-mix(in srgb, var(--amber) 40%, var(--line)); }
+.wo .wo-booking.amber .wo-booking-when,
+.wo .wo-booking.amber .wo-booking-state { color: var(--amber); }
+.wo .wo-booking.amber .wo-booking-state { border-color: color-mix(in srgb, var(--amber) 45%, var(--line)); }
+.wo .wo-booking.emerald { border-color: color-mix(in srgb, var(--emerald) 40%, var(--line)); }
+.wo .wo-booking.emerald .wo-booking-when,
+.wo .wo-booking.emerald .wo-booking-state { color: var(--emerald); }
+.wo .wo-booking.emerald .wo-booking-state { border-color: color-mix(in srgb, var(--emerald) 45%, var(--line)); }

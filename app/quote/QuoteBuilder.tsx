@@ -47,6 +47,7 @@ type WorkOrderRow = {
   colours: Record<string, { name?: string; status?: string }>; hours_overrides: Record<string, number>;
   wo_snapshot: unknown; issued_at: string | null;
   stage?: WoStage | null; stage_entered_at?: string | null; blocked_reason?: string | null;
+  end_date?: string | null;
 };
 import type { CompanyProfile, Contact, JobAddress } from "./company";
 import type { Product, RateItem } from "@/lib/pricing/types";
@@ -209,6 +210,7 @@ export default function QuoteBuilder({
   exclusionTemplates = [],
   terms = "",
   workOrder = null,
+  bookingState = "none",
   contractors = [],
   initialView,
   presentations = [],
@@ -229,6 +231,7 @@ export default function QuoteBuilder({
   exclusionTemplates?: InclusionTemplate[];
   terms?: string;
   workOrder?: WorkOrderRow | null;
+  bookingState?: "none" | "requested" | "proposed" | "confirmed";
   contractors?: { id: string; name: string }[];
   initialView?: "builder" | "customer" | "workorder";
   presentations?: { id: string; name: string; blocks: { kind: string; position: number; enabled: boolean; content: unknown }[] }[];
@@ -1439,7 +1442,14 @@ export default function QuoteBuilder({
             issued={Boolean(workOrder?.issued_at)}
           />
           <div className="mt-4 overflow-hidden rounded-xl border border-gray-200">
-            <WorkOrderDoc doc={computeWorkOrderDoc()} edit={woEdit} stage={workOrder?.stage ?? null} />
+            <WorkOrderDoc
+              doc={computeWorkOrderDoc()}
+              edit={woEdit}
+              stage={workOrder?.stage ?? null}
+              booking={workOrder ? {
+                state: bookingState, startDate: workOrder.start_date, endDate: workOrder.end_date ?? null,
+              } : null}
+            />
           </div>
         </div>
       )}

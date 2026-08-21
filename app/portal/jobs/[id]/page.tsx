@@ -8,6 +8,7 @@ import RescheduleRequest from "./RescheduleRequest";
 import TickList from "./TickList";
 import Variations, { type VariationView } from "./Variations";
 import type { SurfaceRow } from "@/lib/workorder/surfaces";
+import type { Booking } from "@/lib/workorder/booking";
 import { OFFER_COLUMNS, type BookingOffer } from "@/lib/scheduling/offers";
 import type { PortalBlock, PortalJobDay } from "@/app/portal/calendar/CalendarGrid";
 
@@ -48,7 +49,7 @@ export default async function PortalJobPage({ params }: { params: Promise<{ id: 
   const blocks: PortalBlock[] = ((u as { id: string; start_date: string; end_date: string; reason: string; source: "contractor" | "staff" }[] | null) ?? [])
     .map((b) => ({ id: b.id, start: b.start_date, end: b.end_date, reason: b.reason, source: b.source }));
   const jobDays: PortalJobDay[] = job.startDate
-    ? [{ date: job.startDate, label: job.doc.jobTitle, status: job.status }]
+    ? [{ date: job.startDate, label: job.doc.jobTitle, status: job.status, id }]
     : [];
 
   // The tick list and the before-photos already logged. RLS scopes both to this
@@ -61,6 +62,13 @@ export default async function PortalJobPage({ params }: { params: Promise<{ id: 
       .select("area").eq("work_order_id", id).eq("kind", "before"),
     supabase.from("work_orders").select("stage").eq("id", id).maybeSingle(),
   ]);
+
+  // Requested or confirmed — derived from the live offer, never stored twice.
+  const { data: bookingRows } = await supabase.rpc("wo_booking", { p_work_order_id: id });
+  const bookingRow = ((bookingRows as { state: string; start_date: string | null; end_date: string | null }[] | null) ?? [])[0];
+  const woBooking: Booking = bookingRow
+    ? { state: bookingRow.state as Booking["state"], startDate: bookingRow.start_date, endDate: bookingRow.end_date }
+    : { state: "none", startDate: job.startDate, endDate: job.endDate };
 
   const { data: variationRows } = await supabase
     .from("wo_variations")
@@ -139,7 +147,7 @@ export default async function PortalJobPage({ params }: { params: Promise<{ id: 
         </div>
       )}
 
-      <WorkOrderDoc doc={job.doc} />
+      <WorkOrderDoc doc={job.doc} booking={woBooking} />
     </div>
   );
 }

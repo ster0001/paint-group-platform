@@ -41,12 +41,18 @@ export default async function CalendarPage() {
   const jobDays: PortalJobDay[] = [];
   for (const j of jobs) {
     if (!j.startDate) continue;
+    // The booking's own end date decides the span. Estimated hours are only a
+    // fallback for a job booked before end dates existed — a guess should never
+    // override what the office actually booked.
     const hours = j.doc ? j.doc.areas.flatMap((a) => a.surfaces).reduce((n, s) => n + (s.hours ?? 0), 0) : 0;
-    const span = Math.max(1, Math.ceil((hours || 8) / 8));
+    const span = j.endDate
+      ? Math.max(1, Math.round(
+          (Date.parse(`${j.endDate}T00:00:00Z`) - Date.parse(`${j.startDate}T00:00:00Z`)) / 86_400_000) + 1)
+      : Math.max(1, Math.ceil((hours || 8) / 8));
     for (let i = 0; i < span; i++) {
       const d = new Date(j.startDate + "T00:00:00");
       d.setDate(d.getDate() + i);
-      jobDays.push({ date: iso(d), label: j.doc?.jobTitle || j.woRef, status: j.status });
+      jobDays.push({ date: iso(d), label: j.doc?.jobTitle || j.woRef, status: j.status, id: j.id });
     }
   }
 
