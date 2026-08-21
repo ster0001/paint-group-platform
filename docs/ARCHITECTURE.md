@@ -878,3 +878,31 @@ the rule.
 Known and unchanged from before this phase: `estimates.subtotal_cents` /
 `total_cents` are still written from the builder client. That predates the loop
 and is on the audit list; the loop's own tables are all RPC-only.
+
+## Booking → work order: the calendar comes first (2026-08-22)
+
+`send_offer` used to write only `contractor_id`; the dates lived on
+`booking_offers` and reached the work order when `respond_to_offer` copied
+`start_date` across on acceptance. So a job the office had scheduled showed no
+dates on its own work order, and `work_orders` had no `end_date` column at all.
+
+`20261011` adds `end_date` and moves the booking→work-order glue into
+`wo_stage_follows_offer`, which now fires **on INSERT as well as UPDATE**:
+offering a job puts its requested dates on the work order immediately, and
+releasing the last live offer clears them. The four booking functions are
+untouched — they work, and reconstructing one from memory is how `send_offer`
+lost its compliance check.
+
+**Requested vs confirmed is derived, not stored.** `wo_booking(work_order_id)`
+reads the live offer's state; a second column would be a second thing to keep
+true. `lib/workorder/booking.ts` turns it into words and a tone — amber while it
+waits on the contractor, emerald once accepted — and the work-order header says
+which it is rather than showing a bare date.
+
+The contractor's calendar opens the job when a booked day is tapped, and a job's
+span now comes from the booking's real `end_date` instead of a `hours ÷ 8` guess.
+
+**Known limitation, surfaced by a test collision:** the contractor calendar keys
+jobs by date (`Map<date, job>`), so when two jobs fall on the same day only the
+last one is shown and tapping it opens that one. Fine while a contractor runs
+one job at a time; it needs a real answer before they run two.
