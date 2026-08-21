@@ -110,6 +110,13 @@ describe("status is derived, never typed", () => {
     expect(deriveStatus("pre_start", "2026-08-21T00:00:00Z")).toBe("issued");
   });
 
+  // A booking can be accepted before the estimate has a saved WO document. That
+  // job is at pre_start but has never been issued, and saying "issued" on the
+  // contractor's screen would be a lie. Found live, fixed in 20260929.
+  it("does not call an unissued job issued just because it reached pre-start", () => {
+    expect(deriveStatus("pre_start", null)).toBe("draft");
+  });
+
   it("collapses the four working stages onto in_progress", () => {
     for (const s of ["in_progress", "qa", "completion_prep", "walkthrough"] as const) {
       expect(deriveStatus(s, "2026-08-21T00:00:00Z")).toBe("in_progress");
@@ -155,9 +162,14 @@ describe("the mirror matches the migration", () => {
   it("derives status the same way the SQL does", () => {
     // The SQL arms, read back as a crude contract check: closed -> complete,
     // pre_start -> issued, offered -> draft/issued on issued_at, else in_progress.
-    expect(sql).toContain("when p_stage = 'closed'    then 'complete'");
-    expect(sql).toContain("when p_stage = 'pre_start' then 'issued'");
-    expect(sql).toMatch(/p_stage = 'offered'[\s\S]*?p_issued_at is null/);
+    const fix = readFileSync(
+      resolve(process.cwd(), "supabase/migrations/20260929000000_wo_derive_status_fix.sql"), "utf8");
+    expect(fix).toContain("when p_stage = 'closed' then 'complete'");
+    expect(fix).toContain("when p_stage in ('offered', 'pre_start') then");
+    expect(fix).toMatch(/p_issued_at is null then 'draft'/);
+    // and the invariant is restored for rows that predate the fix
+    expect(fix).toContain("update public.work_orders");
+    expect(fix).toContain("status is distinct from public.wo_derive_status(stage, issued_at)");
   });
 
   it("locks the state columns away from client writes", () => {

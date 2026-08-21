@@ -81,7 +81,9 @@ export function deriveStatus(
   issuedAt: string | null,
 ): "draft" | "issued" | "in_progress" | "complete" {
   if (stage === "closed") return "complete";
-  if (stage === "offered") return issuedAt === null ? "draft" : "issued";
-  if (stage === "pre_start") return "issued";
+  // Not started yet: the document decides draft vs issued. A booking can be
+  // accepted before the estimate has a saved work-order document, so pre_start
+  // reads issued_at exactly as offered does — see migration 20260929.
+  if (stage === "offered" || stage === "pre_start") return issuedAt === null ? "draft" : "issued";
   return "in_progress";
 }
