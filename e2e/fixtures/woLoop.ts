@@ -49,13 +49,15 @@ export async function createLoopFixture(
   db: SupabaseClient,
   contractorId: string,
   headings: { heading: string; labels: string[] }[],
+  /** Attach the job to a customer, so customer-side RLS can be exercised. */
+  customerId?: string | null,
 ): Promise<LoopFixture> {
   const { data: est, error: estErr } = await db
     .from("estimates")
     // level_of_finish is required once an estimate is past draft
     // (estimates_finish_required_when_sent) — the DB is the last line of defence
     // and the fixture has to satisfy it like any other row.
-    .insert({ status: "accepted", source: "manual", level_of_finish: 3 })
+    .insert({ status: "accepted", source: "manual", level_of_finish: 3, customer_id: customerId ?? null })
     .select("id")
     .single();
   if (estErr) throw new Error(`fixture estimate: ${estErr.message}`);
@@ -177,4 +179,20 @@ export async function rpcAsJson<T = unknown>(
     headers: { apikey: anon, Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify(args),
   }).then((r) => r.json()) as Promise<T>;
+}
+
+/** The customers row behind a login, for fixtures that need customer-side RLS. */
+export async function customerIdForEmail(db: SupabaseClient, email: string): Promise<string | null> {
+  const wanted = email.toLowerCase();
+  for (let page = 1; page <= 10; page++) {
+    const { data, error } = await db.auth.admin.listUsers({ page, perPage: 200 });
+    if (error || !data?.users?.length) return null;
+    const user = data.users.find((u) => (u.email ?? "").toLowerCase() === wanted);
+    if (user) {
+      const { data: row } = await db.from("customers").select("id").eq("profile_id", user.id).maybeSingle();
+      return (row as { id: string } | null)?.id ?? null;
+    }
+    if (data.users.length < 200) return null;
+  }
+  return null;
 }
