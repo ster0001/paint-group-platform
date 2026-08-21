@@ -158,7 +158,14 @@ test.describe("PC Command", () => {
     await page.goto("/pc");
 
     await expect(page.getByTestId(`card-zero-tick:${fixture!.workOrderId}`)).toBeVisible();
-    await expect(page.getByTestId("tile-critical")).toHaveText("1");
+
+    // At least one, not exactly one: the console shows every job on the board,
+    // and a real silent site alongside the fixture's is the console working, not
+    // the test failing. Asserting "1" only passed while the board happened to be
+    // otherwise quiet.
+    const critical = Number(await page.getByTestId("tile-critical").textContent());
+    expect(critical).toBeGreaterThanOrEqual(1);
+    expect(critical).toBe(await page.locator('[data-testid^="card-"].al-crit').count());
   });
 
   test("the PC reviews, edits and sends a drafted update", async ({ page }) => {

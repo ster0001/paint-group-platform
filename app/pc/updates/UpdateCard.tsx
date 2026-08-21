@@ -16,12 +16,20 @@ export default function UpdateCard({
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  function run(action: typeof approveUpdate) {
+  /**
+   * `becomes` is passed in rather than inferred from which action ran.
+   *
+   * This used to compare server-action references — `action === approveAndSend`
+   * — which holds in a dev build and does NOT survive a production build, where
+   * server actions compile to opaque references. The send worked and the card
+   * never said so, which only showed up when the e2e ran against production.
+   */
+  function run(action: typeof approveUpdate, becomes: "approved" | "sent") {
     setMessage(null);
     startTransition(async () => {
       const result = await action({ updateId: id, text: editing ? body : undefined });
       if (result.ok) {
-        setState(action === approveAndSendUpdate ? "sent" : "approved");
+        setState(becomes);
         setEditing(false);
         setMessage(result.message ?? null);
       } else setMessage(result.message);
@@ -53,7 +61,7 @@ export default function UpdateCard({
         ) : (
           <>
             <button type="button" className="btn primary" disabled={pending}
-              onClick={() => run(approveAndSendUpdate)} data-testid={`send-${id}`}>
+              onClick={() => run(approveAndSendUpdate, "sent")} data-testid={`send-${id}`}>
               {pending ? "Sending…" : "Approve & send"}
             </button>
             <button type="button" className="btn" onClick={() => setEditing((e) => !e)}
