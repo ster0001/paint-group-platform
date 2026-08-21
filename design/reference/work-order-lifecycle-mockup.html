@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Work order lifecycle · Paint Group</title>
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0A0B0D;--panel:#12161A;--panel2:#171C21;--line:#242B32;--text:#EDF0F2;--muted:#8C959D;
+--cyan:#3BD8E9;--oncyan:#03272D;--amber:#E0A83C;--emerald:#2FA46B;--clay:#B3574A;
+--sans:"Switzer",-apple-system,sans-serif;--mono:"Martian Mono",ui-monospace,monospace}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--ink);color:var(--text);font-family:var(--sans);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;padding-bottom:120px}
+.top{position:sticky;top:0;z-index:50;padding:12px 16px;background:rgba(10,11,13,.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.top .r1{display:flex;align-items:center;justify-content:space-between;max-width:960px;margin:0 auto}
+.wm{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.2em}.wm span{color:var(--cyan)}
+.ref{font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.1em;text-align:right}
+.rail{display:flex;gap:4px;max-width:960px;margin:11px auto 0}
+.rail .st{flex:1;text-align:center;cursor:pointer}
+.rail .bar{height:4px;border-radius:100px;background:var(--line);margin-bottom:5px;transition:background .4s}
+.rail .st.now .bar{background:var(--amber)}
+.rail .st.done .bar{background:var(--cyan)}
+.rail .lb{font-family:var(--mono);font-size:6.9px;letter-spacing:.06em;color:var(--muted);white-space:nowrap}
+.rail .st.now .lb{color:var(--amber)}
+.rail .st.done .lb{color:var(--cyan)}
+.wrap{max-width:960px;margin:0 auto;padding:16px}
+.lane{display:inline-flex;align-items:center;gap:7px;padding:6px 13px;border-radius:100px;font-family:var(--mono);font-size:9px;letter-spacing:.14em;border:1px solid var(--line);color:var(--muted);margin-bottom:11px}
+.lane i{font-style:normal;width:7px;height:7px;border-radius:50%}
+.lane.contractor i{background:var(--cyan)}.lane.pc i{background:var(--amber)}.lane.customer i{background:var(--emerald)}.lane.system i{background:var(--muted)}
+h2{font-size:19px;font-weight:600;margin-bottom:4px}
+.sub{font-size:13px;color:var(--muted);margin-bottom:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:15px 16px;margin-bottom:11px}
+.card h3{font-size:14.5px;font-weight:600;margin-bottom:9px;display:flex;justify-content:space-between;align-items:center}
+.card h3 .tag{font-family:var(--mono);font-size:8px;letter-spacing:.12em;color:var(--muted)}
+.meta{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:11px}
+.meta .m{font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;padding:6px 11px;border-radius:100px;border:1px solid var(--line);color:var(--muted)}
+.meta .m.hot{border-color:rgba(224,168,60,.55);color:var(--amber)}
+.meta .m.good{border-color:rgba(59,216,233,.4);color:var(--cyan)}
+.scope p{font-size:13.5px;color:var(--muted);padding:7px 0;border-bottom:1px solid rgba(36,43,50,.55)}
+.scope p:last-child{border:none}
+.scope b{color:var(--text);font-weight:600}
+.chk{display:flex;align-items:flex-start;gap:11px;padding:10px 0;border-bottom:1px solid rgba(36,43,50,.55);cursor:pointer}
+.chk:last-child{border:none}
+.chk .bx{width:22px;height:22px;border-radius:7px;border:1.5px solid var(--line);flex-shrink:0;display:grid;place-items:center;font-size:12px;color:var(--oncyan);transition:.2s;margin-top:1px}
+.chk.on .bx{background:var(--cyan);border-color:var(--cyan)}
+.chk .tx b{display:block;font-size:14px;font-weight:600}
+.chk .tx span{font-size:12px;color:var(--muted)}
+.tick{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(36,43,50,.55);cursor:pointer}
+.tick:last-child{border:none}
+.tick .dot{width:12px;height:12px;border-radius:50%;background:var(--line);flex-shrink:0;transition:.25s}
+.tick.prepped .dot{background:var(--amber)}
+.tick.done .dot{background:var(--cyan)}
+.tick .nm{flex:1;font-size:14px}
+.tick .stt{font-family:var(--mono);font-size:8px;letter-spacing:.1em;color:var(--muted)}
+.tick.prepped .stt{color:var(--amber)}
+.tick.done .stt{color:var(--cyan)}
+.tick.rect .nm{color:var(--amber)}
+.elv{font-family:var(--mono);font-size:8.5px;letter-spacing:.14em;color:var(--muted);margin:13px 0 3px;display:flex;justify-content:space-between;align-items:center}
+.pchip{font-family:var(--mono);font-size:8px;letter-spacing:.06em;border:1px dashed var(--line);border-radius:100px;padding:4px 10px;color:var(--muted);cursor:pointer}
+.pchip.on{border-style:solid;border-color:var(--cyan);color:var(--cyan)}
+.btn{font-family:var(--sans);font-weight:600;font-size:14px;padding:11px 16px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text);cursor:pointer}
+.btn.pri{background:var(--cyan);color:var(--oncyan);border-color:transparent}
+.btn.amb{border-color:rgba(224,168,60,.55);color:var(--amber);background:rgba(224,168,60,.07)}
+.btn.sm{font-size:12.5px;padding:8px 13px}
+.vrow{border:1px solid rgba(224,168,60,.5);border-left-width:3px;border-radius:11px;padding:12px 13px;margin-top:10px}
+.vrow.ok{border-color:rgba(59,216,233,.5)}
+.vrow b{font-size:13.5px;display:block}
+.vrow span{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;color:var(--amber)}
+.vrow.ok span{color:var(--cyan)}
+.vin{display:flex;gap:8px;margin-top:10px}
+.vin input{flex:1;background:var(--ink);border:1px solid var(--line);border-radius:9px;color:var(--text);font-size:13px;padding:10px 12px;outline:none}
+.upd{border:1px dashed rgba(59,216,233,.45);border-radius:11px;padding:12px 13px;margin-top:11px;font-size:13px;color:var(--muted)}
+.upd b{color:var(--text);font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;display:block;margin-bottom:5px}
+.qa{display:flex;gap:8px;margin-top:10px}
+.area{border:1px solid var(--amber);border-left-width:3px;border-radius:11px;padding:12px 13px;margin-bottom:9px}
+.area.ok{border-color:var(--cyan)}
+.area .rw{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.area b{font-size:14px}
+.area .st2{font-family:var(--mono);font-size:8px;letter-spacing:.1em;color:var(--amber)}
+.area.ok .st2{color:var(--cyan)}
+.area .acts{display:flex;gap:7px;margin-top:9px}
+.sig{display:flex;gap:9px;margin-top:12px}
+.sig input{flex:1;background:var(--ink);border:1px solid var(--line);border-radius:10px;color:var(--text);font-size:15px;padding:12px 14px;outline:none;font-family:var(--sans)}
+.rep{border:1px solid rgba(59,216,233,.5);border-radius:13px;padding:15px 16px;margin-top:12px}
+.rep h4{font-family:var(--mono);font-size:9px;letter-spacing:.16em;color:var(--cyan);margin-bottom:9px}
+.rep p{font-size:13px;color:var(--muted);padding:5px 0;border-bottom:1px solid rgba(36,43,50,.5)}
+.rep p:last-child{border:none}
+.gate{position:fixed;left:0;right:0;bottom:0;z-index:60;padding:12px 16px;background:rgba(10,11,13,.95);backdrop-filter:blur(14px);border-top:1px solid var(--line)}
+.gate .in{display:flex;align-items:center;gap:12px;max-width:960px;margin:0 auto}
+.gate .gt{flex:1;font-size:12px;color:var(--muted)}
+.gate .gt b{color:var(--amber);font-family:var(--mono);font-size:9px;letter-spacing:.1em;display:block;margin-bottom:2px}
+.gate button{font-family:var(--sans);font-weight:600;font-size:14.5px;padding:12px 18px;border-radius:10px;border:none;background:var(--cyan);color:var(--oncyan);cursor:pointer;white-space:nowrap}
+.gate button:disabled{background:var(--panel2);color:var(--muted);border:1px solid var(--line);cursor:not-allowed}
+.toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);background:var(--panel2);border:1px solid rgba(59,216,233,.45);border-radius:12px;padding:10px 16px;font-size:13px;opacity:0;transition:.25s;z-index:70;max-width:440px;text-align:center}
+.toast.show{opacity:1}
+.note{font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;color:var(--muted);border:1px dashed var(--line);border-radius:10px;padding:10px 13px;margin-top:8px}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+.shake{animation:shake .3s}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="r1">
+    <div class="wm">PAINT<span>—</span>GROUP</div>
+    <div class="ref">WO-2094 · 12 HAWTHORN AVE<br>EXTERIOR · $9,640 · M. ROSSI (2ND JOB)</div>
+  </div>
+  <div class="rail" id="rail"></div>
+</header>
+
+<main class="wrap" id="main"></main>
+
+<div class="gate"><div class="in">
+  <div class="gt" id="gateTxt"></div>
+  <button id="gateBtn" onclick="tryAdvance()">Complete stage</button>
+</div></div>
+<div class="toast" id="toastEl"></div>
+
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+let tt;function toast(m){const t=$("#toastEl");t.textContent=m;t.classList.add("show");clearTimeout(tt);tt=setTimeout(()=>t.classList.remove("show"),3400)}
+
+const STAGES=["CREATED","PRE-START","IN PROGRESS","QA CHECK","COMPLETION","SIGN-OFF","CLOSED"];
+let cur=0;
+const S={
+ s1:{ticks:[0,0]},
+ s2:{ticks:[0,0,0,0,0,0]},
+ s3:{surfs:{
+   "FRONT — 12 × 2.6 M · WEATHERBOARD 75% / RENDER 25%":["Weatherboards & render","Windows ×3 (2 M, 1 L)","Entry door","Fascias & gutters"],
+   "LEFT SIDE — 14 × 2.6 M · WEATHERBOARD":["Weatherboards","Windows ×2","Fascias & gutters"],
+   "BACK — 12 × 2.6 M · WEATHERBOARD":["Weatherboards","Windows ×2","Back door","Fascias & gutters"]},
+  state:{},photos:{},vars:[],updSent:false},
+ s4:{logged:null,rectFixed:true},
+ s5:{ticks:[0,0,0,0]},
+ s6:{areas:{"Front":null,"Left side":null,"Back":null},sig:"",signed:false,defFixed:true}
+};
+Object.keys(S.s3.surfs).forEach(e=>{S.s3.state[e]=S.s3.surfs[e].map(()=>0);S.s3.photos[e]=[false,false]});
+
+function rail(){$("#rail").innerHTML=STAGES.map((s,i)=>
+ `<div class="st ${i<cur?"done":i===cur?"now":""}" onclick="jump(${i})"><div class="bar"></div><div class="lb">${s}</div></div>`).join("")}
+function jump(i){if(i<=cur){cur=i;render()}else toast("Finish this stage first — the gate below tells you what's left.")}
+
+/* ---------- renders ---------- */
+function render(){rail();const m=$("#main");
+if(cur===0)m.innerHTML=`
+ <span class="lane pc"><i></i>PROJECT COORDINATOR</span>
+ <h2>Work order created</h2><p class="sub">Generated from the accepted estimate — this travels WITH the booking offer, so the contractor sees it before accepting.</p>
+ <div class="card"><div class="meta">
+   <span class="m hot">LEVEL 3 FINISH</span><span class="m">DULUX WEATHERSHIELD</span><span class="m hot">COLOURS: TBC — CONSULT BOOKED</span><span class="m good">2-COAT SYSTEM</span></div>
+  <h3>Scope — by elevation <span class="tag">FROM ESTIMATE #3201</span></h3>
+  <div class="scope">
+   <p><b>Front — 12 × 2.6 m</b> · weatherboard 75% / render 25% · 3 windows (2 M, 1 L) · entry door · fascias &amp; gutters · eaves</p>
+   <p><b>Left side — 14 × 2.6 m</b> · weatherboard · 2 windows · fascias &amp; gutters · eaves</p>
+   <p><b>Back — 12 × 2.6 m</b> · weatherboard · 2 windows · back door · fascias &amp; gutters</p>
+   <p><b>Right side</b> · <span style="color:var(--muted)">NOT PAINTING — customer exclusion</span></p>
+   <p><b>Equipment</b> · extension ladders ×2 (office) · sprayer (office)</p>
+  </div></div>
+ <div class="card"><h3>PC review — ready to OFFER, not ready to start</h3>
+  ${["Scope matches the accepted estimate","Finish level & standards labels shown per surface"].map((t,i)=>
+  `<div class="chk ${S.s1.ticks[i]?"on":""}" onclick="tk('s1',${i},this)"><div class="bx">✓</div><div class="tx"><b>${t}</b></div></div>`).join("")}
+ </div>
+ <p class="note">COLOURS AREN'T REQUIRED YET — THE CONTRACTOR ACCEPTS WITH THE TBC CHIP VISIBLE, AND COLOURS BECOME A PRE-START ITEM AFTER ACCEPTANCE. STANDARDS LABELS RENDER PER SURFACE FROM THE QUALITY-STANDARDS LIBRARY.</p>`;
+
+if(cur===1)m.innerHTML=`
+ <span class="lane pc"><i></i>PROJECT COORDINATOR</span>
+ <h2>Pre-start</h2><p class="sub">M. Rossi accepted the offer with colours pending. Now everything the site needs, arranged before day one.</p>
+ <div class="card"><h3>Pre-start checklist</h3>
+  ${[["Colour schedule finalised","Vivid White / Domino confirmed at Tuesday's colour consult"],
+     ["Materials ordered","Weathershield order to Dulux Trade — needs the colours above first"],
+     ["Equipment movements booked","Ladders ×2 + sprayer — courier to site Mon 7am · return trigger pre-created"],
+     ["Access details recorded","Side gate code + dog note on file"],
+     ["QA schedule created","M. Rossi is on job 2 of 3 — day-1 prep check + final check auto-scheduled"],
+     ["Customer 'what to expect' queued","Sends the evening before start"]].map((t,i)=>
+  `<div class="chk ${S.s2.ticks[i]?"on":""}" onclick="tk('s2',${i},this)"><div class="bx">✓</div><div class="tx"><b>${t[0]}</b><span>${t[1]}</span></div></div>`).join("")}
+ </div>
+ <p class="note">A JOB NEARING ITS START DATE WITH COLOURS UNCONFIRMED SHOWS AMBER IN THE PC CONSOLE — COLOURS NAMED AS THE BLOCKER.</p>`;
+
+if(cur===2){const s=S.s3;m.innerHTML=`
+ <span class="lane contractor"><i></i>CONTRACTOR — ON SITE</span>
+ <h2>The job runs</h2><p class="sub">Tap a surface to move it TO DO → PREPPED → DONE. Photos before the first tick on each side.</p>
+ <div class="card">${Object.keys(s.surfs).map(e=>`
+   <div class="elv"><span>${e}</span><span>
+     <span class="pchip ${s.photos[e][0]?"on":""}" onclick="photo('${e}',0,this)">📷 BEFORE</span>
+     <span class="pchip ${s.photos[e][1]?"on":""}" onclick="photo('${e}',1,this)">📷 AFTER</span></span></div>
+   ${s.surfs[e].map((n,i)=>{const st=s.state[e][i];return `
+   <div class="tick ${st===1?"prepped":st===2?"done":""} ${n.startsWith("Rectify")?"rect":""}" onclick="cyc('${e}',${i},this)">
+     <div class="dot"></div><div class="nm">${n}</div><div class="stt">${st===2?"DONE":st===1?"PREPPED":"TO DO"}</div></div>`}).join("")}`).join("")}
+ </div>
+ <div class="card"><h3>Variations <span class="tag">PRICED BY OFFICE · APPROVED BY CUSTOMER</span></h3>
+  ${s.vars.map((v,i)=>`<div class="vrow ${v.ok?"ok":""}"><b>${v.t}</b><span>${v.ok?"APPROVED ✓ · +$"+v.amt+" · YOUR PAYMENT ADJUSTED":"AWAITING PRICE & CUSTOMER APPROVAL"}</span>
+   ${v.ok?"":`<div style="margin-top:8px"><button class="btn sm amb" onclick="apprV(${i})">Simulate: office prices $${v.amt} → customer approves</button></div>`}</div>`).join("")}
+  <div class="vin"><input id="vIn" placeholder="Found something? e.g. rotten sill on back window"><button class="btn sm" onclick="addV()">Raise</button></div>
+ </div>
+ <div class="card"><h3>Daily customer update <span class="tag">PC CONSOLE</span></h3>
+  <div class="upd"><b>AUTO-DRAFT FROM TODAY'S TICKS</b>${draftTxt()}</div>
+  <div style="margin-top:9px"><button class="btn sm ${s.updSent?"":"pri"}" onclick="sendUpd(this)">${s.updSent?"Sent ✓":"PC: approve & send"}</button></div>
+  <p class="note" style="margin-top:9px">A WORKING DAY WITH ZERO TICKS SHOWS RED IN THE PC CONSOLE — THE "PAINTER FORGOT" CATCH.</p>
+ </div>`;}
+
+if(cur===3){const q=S.s4;m.innerHTML=`
+ <span class="lane pc"><i></i>PROJECT COORDINATOR — SITE VISIT</span>
+ <h2>QA check</h2><p class="sub">New-contractor schedule: this is M. Rossi's final check. Photo-logged against the standards.</p>
+ <div class="card"><h3>Final check — Level 3 standards</h3>
+  <div class="scope">
+   <p><b>Cut lines</b> · straight to the eye at 1.5 m</p>
+   <p><b>Coverage</b> · no misses under raking light, laps even</p>
+   <p><b>Prep evidence</b> · sanded edges feathered, gaps caulked</p>
+   <p><b>Site</b> · overspray checks on glass, paths clean</p></div>
+  <div class="qa">
+   <button class="btn pri" onclick="qaLog(true)">${q.logged==="pass"?"Logged: PASS ✓":"Log check — PASS"}</button>
+   <button class="btn amb" onclick="qaLog(false)">Log FAIL — raise rectification</button></div>
+  ${q.logged==="fail"&&!q.rectFixed?`<div class="vrow" style="margin-top:11px"><b>Rectification raised: touch-up cut line, front entry</b><span>ADDED TO THE CONTRACTOR'S TICK LIST — RE-CHECK REQUIRED</span>
+   <div style="margin-top:8px"><button class="btn sm" onclick="qaFix()">Simulate: rectified → re-check PASS</button></div></div>`:""}
+ </div>
+ <p class="note">EVERY CHECK IS A PHOTO-LOGGED QA RECORD ON THE JOB FILE — IT APPEARS IN THE COMPLETION REPORT AUTOMATICALLY.</p>`;}
+
+if(cur===4)m.innerHTML=`
+ <span class="lane contractor"><i></i>CONTRACTOR</span>
+ <h2>Completion prep</h2><p class="sub">The last pass before the customer walks through.</p>
+ <div class="card"><h3>Completion checklist</h3>
+  ${[["Touch-up sweep done","Walked every elevation with the standards card"],
+     ["Site clean","Paths, glass, garden beds checked"],
+     ["Rubbish handled","Bagged for courier collection Thu"],
+     ["Equipment return triggered","Ladders + sprayer — courier booked back to office"]].map((t,i)=>
+  `<div class="chk ${S.s5.ticks[i]?"on":""}" onclick="tk('s5',${i},this)"><div class="bx">✓</div><div class="tx"><b>${t[0]}</b><span>${t[1]}</span></div></div>`).join("")}
+ </div>`;
+
+if(cur===5){const w=S.s6;m.innerHTML=`
+ <span class="lane customer"><i></i>CUSTOMER — PORTAL WALKTHROUGH</span>
+ <h2>Walk around and sign off</h2><p class="sub">Approve each side — or flag anything, and we fix it before you sign.</p>
+ ${Object.keys(w.areas).map(a=>{const st=w.areas[a];return `
+ <div class="area ${st==="ok"?"ok":""}"><div class="rw"><b>${a}</b><span class="st2">${st==="ok"?"APPROVED ✓":st==="flag"?"FLAGGED — BEING FIXED":"REVIEW"}</span></div>
+  ${st==="ok"?"":`<div class="acts">
+   <button class="btn sm pri" onclick="wOk('${a}')">Looks great ✓</button>
+   <button class="btn sm amb" onclick="wFlag('${a}')">Flag something</button></div>`}
+  ${st==="flag"?`<div style="margin-top:8px"><button class="btn sm" onclick="wFixed('${a}')">Simulate: rectified → re-review</button></div>`:""}
+ </div>`}).join("")}
+ <div class="card"><h3>Sign-off</h3>
+  <p style="font-size:13px;color:var(--muted)">Signing confirms the work above is complete to your satisfaction. It starts your 2-year workmanship warranty and generates your completion report.</p>
+  <div class="sig"><input id="sigIn" placeholder="Type your full name to sign" value="${w.sig}" oninput="S.s6.sig=this.value;gate()">
+   <button class="btn pri" onclick="sign()">${w.signed?"Signed ✓":"Sign"}</button></div>
+  ${w.signed?`<div class="rep"><h4>COMPLETION REPORT — GENERATED, NOT WRITTEN</h4>
+   <p>Scope delivered — 3 elevations incl. variation: rotten sill repair (+$180)</p>
+   <p>Before &amp; after photos — 6 sets, by elevation</p>
+   <p>QA records — day-1 prep check ✓ · final check ✓ (photo-logged)</p>
+   <p>Colour schedule — Vivid White / Domino, Dulux Weathershield</p>
+   <p>Warranty certificate — 2 years from ${new Date().toLocaleDateString("en-AU")}</p></div>`:""}
+ </div>`;}
+
+if(cur===6)m.innerHTML=`
+ <span class="lane system"><i></i>SYSTEM · PC</span>
+ <h2>Closed</h2><p class="sub">Sign-off was the master event — everything below fired from it.</p>
+ <div class="card"><div class="scope">
+  <p><b>Final invoice</b> · raised &amp; sent with Stripe link <span style="color:var(--cyan)">→ PHASE 2</span></p>
+  <p><b>Warranty calendar</b> · 12-month check-in + 22-month inspection booked <span style="color:var(--cyan)">→ PHASE 5</span></p>
+  <p><b>Review request</b> · queued for tomorrow morning</p>
+  <p><b>Contractor payment</b> · released incl. variation adjustment — their invoice in their portal</p>
+  <p><b>Equipment</b> · returns confirmed at office</p>
+  <p><b>Materials reconciliation</b> · Dulux invoice awaiting one-click match <span style="color:var(--cyan)">→ PHASE 6</span></p>
+  <p><b>Job P&amp;L snapshot</b> · estimated vs actual drafted</p>
+  <p><b>Customer records</b> · report, colours &amp; photos filed in their portal — forever</p></div></div>
+ <p class="note">DEMO COMPLETE — EVERY STAGE WAS A GATE; NOTHING COULD BE SKIPPED. THAT IS THE WORKFLOW.</p>`;
+ gate();}
+
+/* ---------- interactions ---------- */
+function tk(g,i,el){S[g].ticks[i]=S[g].ticks[i]?0:1;el.classList.toggle("on");gate()}
+function photo(e,i,el){S.s3.photos[e][i]=!S.s3.photos[e][i];el.classList.toggle("on");
+ if(S.s3.photos[e][i])toast((i?"After":"Before")+" photos logged for this side.");gate()}
+function cyc(e,i,el){const s=S.s3;
+ if(!s.photos[e][0]&&s.state[e][i]===0){el.classList.add("shake");setTimeout(()=>el.classList.remove("shake"),350);
+  toast("Before photos first — tap 📷 BEFORE on this side.");return}
+ s.state[e][i]=(s.state[e][i]+1)%3;render();gate()}
+function draftTxt(){let done=0,prep=0;Object.values(S.s3.state).forEach(a=>a.forEach(v=>{if(v===2)done++;else if(v===1)prep++}));
+ return done+prep===0?"No ticks yet today — nothing to send.":
+ `"Good progress at 12 Hawthorn Ave today — ${prep?prep+" surface(s) prepped":""}${prep&&done?", ":""}${done?done+" finished":""}. Photos attached. On track for Thursday."`}
+function sendUpd(b){if(S.s3.updSent)return;let any=Object.values(S.s3.state).some(a=>a.some(v=>v>0));
+ if(!any){toast("Nothing ticked yet — the draft is empty.");return}
+ S.s3.updSent=true;b.textContent="Sent ✓";b.classList.remove("pri");toast("Update sent to the customer — logged on the job timeline.")}
+function addV(){const v=$("#vIn").value.trim();if(!v)return;S.s3.vars.push({t:v,ok:false,amt:180});render();
+ toast("Variation raised — the office prices it through the engine; the customer approves before it's worked.")}
+function apprV(i){S.s3.vars[i].ok=true;render();
+ toast("Approved — scope merged into the work order, your fixed payment adjusted by the variation hours × $60.")}
+function qaLog(pass){const q=S.s4;
+ if(pass){if(q.logged==="fail"&&!q.rectFixed){toast("The rectification is still open — fix it first.");return}
+  q.logged="pass";toast("Check logged PASS with photos — on the job's QA record.")}
+ else{q.logged="fail";q.rectFixed=false;
+  Object.keys(S.s3.surfs)[0]&&(S.s3.surfs["FRONT — 12 × 2.6 M · WEATHERBOARD 75% / RENDER 25%"].push("Rectify: cut line, front entry"),
+   S.s3.state["FRONT — 12 × 2.6 M · WEATHERBOARD 75% / RENDER 25%"].push(0));
+  toast("Fail logged — rectification added to the contractor's tick list; completion is blocked until re-check.")}
+ render()}
+function qaFix(){const q=S.s4;q.rectFixed=true;q.logged="pass";
+ const e="FRONT — 12 × 2.6 M · WEATHERBOARD 75% / RENDER 25%";const idx=S.s3.surfs[e].indexOf("Rectify: cut line, front entry");
+ if(idx>-1)S.s3.state[e][idx]=2;render();toast("Rectified and re-checked — PASS logged.")}
+function wOk(a){S.s6.areas[a]="ok";render();toast(a+" approved.")}
+function wFlag(a){S.s6.areas[a]="flag";render();
+ toast("Flagged — this becomes a rectification item with photos; you'll re-review once it's fixed. Nothing gets signed around.")}
+function wFixed(a){S.s6.areas[a]=null;render();toast("Rectified — please re-review "+a+".")}
+function sign(){const w=S.s6;
+ if(Object.values(w.areas).some(v=>v!=="ok")){toast("Every side needs your approval before signing — one's still open.");return}
+ if(!w.sig.trim()){toast("Type your name to sign.");return}
+ w.signed=true;render();toast("Signed — warranty started, final invoice fired, completion report generated.")}
+
+/* ---------- gates ---------- */
+function gateState(){
+ if(cur===0)return[S.s1.ticks.every(v=>v),"PC review — "+S.s1.ticks.filter(v=>v).length+" of 2 confirmed (colours can be TBC)","Attach to booking offer — contractor reviews & accepts"];
+ if(cur===1)return[S.s2.ticks.every(v=>v),"Pre-start — "+S.s2.ticks.filter(v=>v).length+" of 6 arranged (colours first, materials need them)","Start date arrives — job begins"];
+ if(cur===2){const s=S.s3;const all=Object.values(s.state).every(a=>a.every(v=>v===2));
+  const ph=Object.values(s.photos).every(p=>p[0]&&p[1]);const vok=s.vars.every(v=>v.ok);
+  const left=[];if(!all)left.push("surfaces not DONE");if(!ph)left.push("photos missing");if(!vok)left.push("variation awaiting approval");
+  return[all&&ph&&vok,left.length?("Blocking: "+left.join(" · ")):"All surfaces done, photos in, variations approved","All done — request QA check"]}
+ if(cur===3)return[S.s4.logged==="pass"&&S.s4.rectFixed,"QA — "+(S.s4.logged==="pass"?"passed":"check not passed yet"),"QA passed — completion prep"];
+ if(cur===4)return[S.s5.ticks.every(v=>v),"Completion — "+S.s5.ticks.filter(v=>v).length+" of 4 done","Ready for walkthrough — notify customer"];
+ if(cur===5)return[S.s6.signed,S.s6.signed?"Signed":"Awaiting customer walkthrough & signature","Sign-off received — close the job"];
+ return[false,"Job closed — the loop is complete.",""]}
+function gate(){const[ok,txt,btn]=gateState();
+ $("#gateTxt").innerHTML="<b>GATE — STAGE "+(cur+1)+" OF 7</b>"+txt;
+ const b=$("#gateBtn");b.textContent=btn||"—";b.disabled=!ok||cur===6;b.style.display=cur===6?"none":"block"}
+function tryAdvance(){const[ok]=gateState();
+ if(!ok){$("#gateBtn").classList.add("shake");setTimeout(()=>$("#gateBtn").classList.remove("shake"),350);return}
+ cur++;render();window.scrollTo({top:0,behavior:"smooth"});
+ toast("Stage complete — "+STAGES[cur]+" begins.")}
+render();
+</script>
+</body>
+</html>
