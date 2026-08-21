@@ -764,3 +764,32 @@ creating a bucket in a migration is only half of it.
 
 Step 3 also extends `wo_gate_blocked`: no forward stage move while a variation
 is `raised`, `priced` or `customer_approved`. The surfaces gate answers first.
+
+## WO loop — step 4: drafted updates and the silent site (2026-08-21)
+
+`lib/workorder/updates.ts` composes the day's customer update from `wo_events`
+rows of type `surface_tick` — grouped by elevation, latest state per surface
+winning, in plain English rather than Australian ("we have prepped the left-hand
+side", not "knocked that over"). It is a pure function taking `now`, so the
+greeting is testable. **No ticks means no draft**: it returns null rather than
+writing filler, and the console gets a flag instead.
+
+Storage and the gates are `20261004`: `wo_draft_update` (staff or the service-key
+sweep), `wo_approve_update` (staff; the edit and the approval are one action, so
+there is no edited-but-unapproved window), `wo_send_update` (refuses anything not
+already approved). `source_tick_ids` is stored with the draft so any sentence
+traces to the events behind it, and a later sweep never rewrites an update a
+person has approved. Delivery itself is a later phase — this records that it went.
+
+`wo_zero_tick_sweep()` flags a job that is `in_progress`, whose start date has
+arrived, and which logged no tick yesterday or today: one `zero_tick_flag` event
+per job per day plus a `blocked_reason`, and a trigger clears the reason on the
+next tick. It never messages the customer — a silent site is a phone call.
+
+`app/api/cron/wo-sweep` is the first scheduled endpoint in the codebase. It is
+guarded by `Authorization: Bearer $CRON_SECRET` and refuses everything when the
+secret is unset rather than falling back to running unauthenticated, because it
+writes. `vercel.json` schedules it at 08:00 UTC = 6pm Melbourne, end of the
+working day. Composition happens in the route (TypeScript), storage in the RPC —
+the same split the rest of the money/state boundary uses. **CRON_SECRET must be
+set in the Vercel project env for the schedule to do anything in production.**
