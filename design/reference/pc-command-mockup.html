@@ -1,0 +1,669 @@
+<title>PC Command</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Martian+Mono:wght@300;400;600&display=swap">
+<style>
+  :root{
+    --ink:#0A0B0D;--graphite:#12161A;--raised:#171C21;--line:#242B32;
+    --text:#EDF0F2;--soft:#C6CCD1;--muted:#8C959D;--dim:#3A424A;
+    --cyan:#3BD8E9;--paint:#2FB9CB;--amber:#E0A83C;--emerald:#2FA46B;--clay:#B3574A;
+    --oncyan:#03272D;
+    --sans:'Switzer','Hanken Grotesk',ui-sans-serif,-apple-system,'Segoe UI',system-ui,sans-serif;
+    --mono:'Martian Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+    background:
+      radial-gradient(1100px 480px at 80% -12%, rgba(59,216,233,.10), transparent 62%),
+      radial-gradient(760px 420px at -10% 8%, rgba(47,185,203,.06), transparent 60%),
+      var(--ink);
+    background-attachment:fixed;
+  }
+  ::selection{background:rgba(59,216,233,.28)}
+  .shell{max-width:1060px;margin:0 auto;padding:20px 16px 110px}
+
+  /* ---------- top bar ---------- */
+  .topbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:6px 0 18px;
+          border-bottom:1px solid transparent;
+          border-image:linear-gradient(90deg,transparent,var(--line) 18%,var(--line) 82%,transparent) 1}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:-.02em}
+  .drip{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--cyan),var(--paint) 70%);
+        position:relative;box-shadow:0 0 18px rgba(59,216,233,.4)}
+  .drip::after{content:"";position:absolute;left:7px;bottom:-6px;width:5px;height:9px;border-radius:0 0 4px 4px;
+        background:var(--paint)}
+  .brand b{color:var(--cyan)}
+  .meta{display:flex;flex-direction:column;line-height:1.4}
+  .meta .d{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .meta .t{font-family:var(--mono);font-size:12px;color:var(--text);font-variant-numeric:tabular-nums}
+  .who{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .who .role{font-family:var(--mono);font-size:8.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);text-align:right;line-height:1.5}
+  .who .role b{display:block;color:var(--cyan);font-weight:400}
+  .avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
+          background:linear-gradient(150deg,var(--raised),var(--graphite));
+          border:1px solid var(--line);color:var(--cyan);font-family:var(--mono);font-size:10px;
+          box-shadow:inset 0 0 12px rgba(59,216,233,.08)}
+
+  /* ---------- nav ---------- */
+  .nav{position:sticky;top:10px;z-index:40;display:flex;gap:4px;margin:16px auto 30px;width:fit-content;max-width:100%;
+       background:rgba(18,22,26,.82);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+       border:1px solid var(--line);border-radius:12px;padding:4px;overflow-x:auto}
+  .nav button{position:relative;font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;
+       background:none;border:0;color:var(--muted);padding:10px 16px;border-radius:9px;cursor:pointer;white-space:nowrap;
+       transition:color .25s}
+  .nav button.on{color:var(--oncyan);background:linear-gradient(135deg,var(--cyan),var(--paint));
+       box-shadow:0 2px 18px rgba(59,216,233,.35);font-weight:600}
+  .nav button:not(.on):hover{color:var(--text)}
+  .nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+
+  .view{display:none}
+  .view.on{display:block;animation:viewin .45s cubic-bezier(.2,.7,.2,1)}
+  @keyframes viewin{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+  /* ---------- reveal choreography ---------- */
+  .rv{opacity:0;transform:translateY(14px);transition:opacity .6s cubic-bezier(.2,.7,.2,1),transform .6s cubic-bezier(.2,.7,.2,1)}
+  .rv.in{opacity:1;transform:none}
+
+  h1{font-size:clamp(26px,6vw,38px);font-weight:700;letter-spacing:-.035em;line-height:1.05;margin:0;text-wrap:balance}
+  .lede{color:var(--muted);margin:8px 0 0;font-size:15px;max-width:52ch}
+  .sect{margin-top:38px}
+  .sect-h{display:flex;align-items:baseline;gap:12px;margin-bottom:14px}
+  .sect-h h2{margin:0;font-size:19px;font-weight:700;letter-spacing:-.025em}
+  .sect-h span{font-family:var(--mono);font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+  .sect-h .spark{margin-left:auto}
+
+  /* ---------- pulse tiles ---------- */
+  .pulse{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:24px}
+  @media(min-width:760px){.pulse{grid-template-columns:repeat(4,1fr)}}
+  .tile{position:relative;overflow:hidden;background:linear-gradient(165deg,var(--raised),var(--graphite) 65%);
+        border:1px solid var(--line);border-radius:14px;padding:16px 16px 14px;display:flex;flex-direction:column;gap:4px}
+  .tile::before{content:"";position:absolute;inset:0 0 auto 0;height:1px;
+        background:linear-gradient(90deg,transparent,rgba(59,216,233,.5),transparent);opacity:.5}
+  .tile .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+  .tile .v{font-family:var(--mono);font-size:clamp(22px,5vw,30px);font-weight:600;letter-spacing:-.02em;
+           font-variant-numeric:tabular-nums;line-height:1.1}
+  .tile .s{font-size:12px;color:var(--muted)}
+  .tile.warn .v{color:var(--amber)} .tile.crit .v{color:var(--clay)} .tile.good .v{color:var(--emerald)}
+  .tile .halo{position:absolute;right:-30px;top:-30px;width:110px;height:110px;border-radius:50%;
+        background:radial-gradient(circle,rgba(59,216,233,.14),transparent 70%);pointer-events:none}
+  .tile.warn .halo{background:radial-gradient(circle,rgba(224,168,60,.16),transparent 70%)}
+  .tile.crit .halo{background:radial-gradient(circle,rgba(179,87,74,.18),transparent 70%)}
+  .tile.good .halo{background:radial-gradient(circle,rgba(47,164,107,.16),transparent 70%)}
+
+  /* ---------- attention stack ---------- */
+  .stack{display:flex;flex-direction:column;gap:10px}
+  .al{position:relative;display:flex;gap:14px;align-items:center;
+      background:linear-gradient(165deg,var(--raised),var(--graphite) 70%);
+      border:1px solid var(--line);border-radius:14px;padding:15px 16px;
+      transition:transform .25s cubic-bezier(.2,.7,.2,1),border-color .25s,box-shadow .25s}
+  .al:hover{transform:translateY(-2px);border-color:#2E3740;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+  .al .rail{position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:3px;background:var(--muted)}
+  .al-crit .rail{background:var(--clay);box-shadow:0 0 12px rgba(179,87,74,.7)}
+  .al-warn .rail{background:var(--amber);box-shadow:0 0 12px rgba(224,168,60,.55)}
+  .al-info .rail{background:var(--cyan);box-shadow:0 0 12px rgba(59,216,233,.55)}
+  .al .ic{flex:0 0 40px;height:40px;border-radius:11px;display:grid;place-items:center;
+      background:var(--graphite);border:1px solid var(--line);font-size:15px}
+  .al-crit .ic{color:var(--clay)} .al-warn .ic{color:var(--amber)} .al-info .ic{color:var(--cyan)}
+  .al .bd{flex:1;min-width:0}
+  .al .hd{display:flex;gap:9px;align-items:baseline;flex-wrap:wrap}
+  .al .hd strong{font-size:14.5px;font-weight:600;letter-spacing:-.01em}
+  .ref{font-family:var(--mono);font-size:8.5px;letter-spacing:.04em;color:var(--muted)}
+  .al p{margin:3px 0 0;font-size:13px;color:var(--muted)}
+  .al .tm{font-family:var(--mono);font-size:9px;color:var(--muted);white-space:nowrap;align-self:flex-start;padding-top:2px}
+  .al-crit .tm{color:var(--clay)}
+  .pulse-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--clay);margin-right:5px;
+      animation:pp 1.6s ease-in-out infinite}
+  @keyframes pp{0%,100%{box-shadow:0 0 0 0 rgba(179,87,74,.5)}50%{box-shadow:0 0 0 6px rgba(179,87,74,0)}}
+  .btn{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;
+       background:var(--graphite);border:1px solid var(--line);color:var(--text);
+       padding:9px 14px;border-radius:9px;cursor:pointer;white-space:nowrap;
+       transition:all .2s}
+  .btn:hover{border-color:var(--cyan);color:var(--cyan);box-shadow:0 0 16px rgba(59,216,233,.18)}
+  .btn:active{transform:scale(.96)}
+  .btn:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+  .btn.primary{background:linear-gradient(135deg,var(--cyan),var(--paint));color:var(--oncyan);border-color:transparent;font-weight:600}
+  .btn.primary:hover{box-shadow:0 4px 22px rgba(59,216,233,.4);color:var(--oncyan)}
+  .btn.done{color:var(--emerald);border-color:rgba(47,164,107,.5);background:rgba(47,164,107,.08);cursor:default}
+
+  /* ---------- FLOW / pipeline river ---------- */
+  .riverwrap{overflow-x:auto;padding:6px 2px 14px;-webkit-overflow-scrolling:touch}
+  .river{display:grid;grid-template-columns:repeat(7,minmax(128px,1fr));gap:10px;min-width:960px}
+  .lane{display:flex;flex-direction:column;gap:9px}
+  .lane-h{display:flex;flex-direction:column;gap:7px;padding:0 2px}
+  .lane-h .n{font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .lane-h .bar{height:3px;border-radius:2px;background:var(--dim);position:relative;overflow:hidden}
+  .lane.hot .bar{background:linear-gradient(90deg,var(--paint),var(--cyan))}
+  .lane.hot .bar::after{content:"";position:absolute;inset:0;
+      background:linear-gradient(90deg,transparent,rgba(255,255,255,.5),transparent);
+      transform:translateX(-100%);animation:sheen 2.6s ease-in-out infinite}
+  @keyframes sheen{60%{transform:translateX(100%)}100%{transform:translateX(100%)}}
+  .lane-h .c{font-family:var(--mono);font-size:11px;color:var(--soft);font-variant-numeric:tabular-nums}
+  .lane .slot{min-height:10px}
+  .job{position:relative;background:linear-gradient(165deg,var(--raised),var(--graphite) 75%);
+       border:1px solid var(--line);border-radius:12px;padding:11px 12px;display:flex;flex-direction:column;gap:5px;
+       transition:transform .25s cubic-bezier(.2,.7,.2,1),box-shadow .25s,border-color .25s;cursor:pointer}
+  .job:hover{transform:translateY(-3px);box-shadow:0 12px 28px rgba(0,0,0,.4);border-color:#2E3740}
+  .job .a{font-weight:600;font-size:13px;letter-spacing:-.01em;line-height:1.3}
+  .job .r{font-family:var(--mono);font-size:8px;color:var(--muted);letter-spacing:.04em}
+  .job .m{font-family:var(--mono);font-size:11px;color:var(--soft);font-variant-numeric:tabular-nums}
+  .job .fl{display:flex;gap:5px;flex-wrap:wrap;margin-top:2px}
+  .pill{font-family:var(--mono);font-size:7.5px;letter-spacing:.06em;text-transform:uppercase;
+        padding:3px 8px;border-radius:100px;border:1px solid var(--line);color:var(--muted)}
+  .p-amber{color:var(--amber);border-color:rgba(224,168,60,.4);background:rgba(224,168,60,.07)}
+  .p-clay{color:var(--clay);border-color:rgba(179,87,74,.45);background:rgba(179,87,74,.08)}
+  .p-em{color:var(--emerald);border-color:rgba(47,164,107,.4);background:rgba(47,164,107,.07)}
+  .p-cy{color:var(--cyan);border-color:rgba(59,216,233,.35);background:rgba(59,216,233,.06)}
+  .job.crit{border-color:rgba(179,87,74,.5)}
+  .job.warnb{border-color:rgba(224,168,60,.45)}
+  .job.glow{border-color:rgba(59,216,233,.4);box-shadow:0 0 22px rgba(59,216,233,.12)}
+  .flowfig{margin:18px 0 0;background:linear-gradient(165deg,var(--raised),var(--graphite) 70%);
+           border:1px solid var(--line);border-radius:16px;padding:20px 14px 16px;overflow-x:auto}
+  .flowfig svg{display:block;width:100%;height:auto;min-width:640px}
+  .flowcap{font-size:12.5px;color:var(--muted);text-align:center;margin:12px auto 0;max-width:52ch}
+  .flowdash{stroke-dasharray:5 7;animation:flowmove 1.4s linear infinite}
+  @keyframes flowmove{to{stroke-dashoffset:-12}}
+
+  /* ---------- WO detail ---------- */
+  .wohead{position:relative;overflow:hidden;background:linear-gradient(160deg,var(--raised),var(--graphite) 70%);
+          border:1px solid var(--line);border-radius:18px;padding:20px 18px;display:flex;flex-direction:column;gap:16px}
+  .wohead::before{content:"";position:absolute;inset:0 0 auto 0;height:2px;
+          background:linear-gradient(90deg,transparent,var(--cyan),transparent);opacity:.6}
+  .wotop{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
+  .wotop h2{margin:0;font-size:clamp(20px,5vw,26px);letter-spacing:-.03em;font-weight:700}
+  .rail7{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
+  .st{flex:1;min-width:72px;display:flex;flex-direction:column;gap:7px}
+  .st i{height:4px;border-radius:2px;background:var(--dim);display:block;position:relative;overflow:hidden}
+  .st.p i{background:var(--emerald)}
+  .st.c i{background:linear-gradient(90deg,var(--paint),var(--cyan))}
+  .st.c i::after{content:"";position:absolute;inset:0;
+      background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);
+      transform:translateX(-100%);animation:sheen 2.2s ease-in-out infinite}
+  .st span{font-family:var(--mono);font-size:7.5px;letter-spacing:.05em;color:var(--muted);text-transform:uppercase;line-height:1.4}
+  .st.c span{color:var(--cyan)}
+  .money{display:flex;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:14px;gap:14px 0}
+  .mi{flex:1;min-width:105px;display:flex;flex-direction:column;gap:3px}
+  .mi span{font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .mi b{font-family:var(--mono);font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+  .blocker{display:flex;gap:12px;align-items:flex-start;margin-top:14px;
+           background:linear-gradient(160deg,rgba(224,168,60,.1),rgba(224,168,60,.04));
+           border:1px solid rgba(224,168,60,.35);border-radius:13px;padding:14px 15px}
+  .blocker .fl{color:var(--amber);font-size:15px;animation:fpulse 2.4s ease-in-out infinite}
+  @keyframes fpulse{0%,100%{opacity:1}50%{opacity:.45}}
+  .blocker b{color:var(--amber);font-size:14px}
+  .blocker p{margin:2px 0 0;font-size:13px;color:var(--muted)}
+  .grid2{display:grid;grid-template-columns:1fr;gap:12px;margin-top:14px}
+  @media(min-width:840px){.grid2{grid-template-columns:1.25fr .95fr}}
+  .card{background:linear-gradient(165deg,var(--raised),var(--graphite) 75%);
+        border:1px solid var(--line);border-radius:15px;padding:16px 17px;display:flex;flex-direction:column;gap:12px}
+  .card h3{margin:0;font-size:15px;font-weight:700;letter-spacing:-.015em;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .card h3 em{font-style:normal;font-family:var(--mono);font-size:8px;letter-spacing:.08em;text-transform:uppercase;
+              color:var(--muted);margin-left:auto}
+  .prog{height:5px;border-radius:3px;background:var(--dim);overflow:hidden}
+  .prog i{display:block;height:100%;width:0;border-radius:3px;
+          background:linear-gradient(90deg,var(--paint),var(--cyan));
+          transition:width 1.1s cubic-bezier(.2,.7,.2,1)}
+  .elev{border-top:1px solid var(--line);padding-top:11px;display:flex;flex-direction:column;gap:6px}
+  .elev:first-of-type{border-top:0;padding-top:0}
+  .eh{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+  .eh b{font-size:13.5px;font-weight:600}
+  .eh em{font-style:normal;font-family:var(--mono);font-size:8px;color:var(--muted)}
+  .eh .ct{font-family:var(--mono);font-size:8.5px;color:var(--muted);margin-left:auto;font-variant-numeric:tabular-nums}
+  .tick{display:flex;align-items:center;gap:10px;padding:4px 0}
+  .tick p{margin:0;font-size:13px;flex:1;min-width:0;color:var(--soft)}
+  .sw{display:flex;gap:2px}
+  .sw i{width:20px;height:12px;border-radius:3px;background:var(--graphite);border:1px solid var(--line);display:block}
+  .sw i.a{background:rgba(47,164,107,.25);border-color:rgba(47,164,107,.6)}
+  .sw i.b{background:rgba(59,216,233,.2);border-color:rgba(59,216,233,.55)}
+  .draft{background:rgba(10,11,13,.5);border:1px solid var(--line);border-radius:10px;padding:13px 14px;
+         font-size:13.5px;color:var(--soft)}
+  .draft b{color:var(--text)}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  .note{font-size:12px;color:var(--muted);margin:0}
+  .vsteps{display:flex;align-items:center;gap:0;margin:2px 0}
+  .vs{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;position:relative}
+  .vs::before{content:"";position:absolute;top:7px;left:-50%;right:50%;height:2px;background:var(--dim)}
+  .vs:first-child::before{display:none}
+  .vs.hit::before{background:var(--emerald)}
+  .vs.now::before{background:var(--emerald)}
+  .vs i{width:14px;height:14px;border-radius:50%;background:var(--graphite);border:2px solid var(--dim);z-index:1}
+  .vs.hit i{background:var(--emerald);border-color:var(--emerald)}
+  .vs.now i{background:var(--amber);border-color:var(--amber);animation:pp2 1.8s ease-in-out infinite}
+  @keyframes pp2{0%,100%{box-shadow:0 0 0 0 rgba(224,168,60,.45)}50%{box-shadow:0 0 0 7px rgba(224,168,60,0)}}
+  .vs span{font-family:var(--mono);font-size:7px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);
+           text-align:center;line-height:1.4}
+  .vs.now span{color:var(--amber)}
+  .foot{margin-top:44px;border-top:1px solid var(--line);padding-top:18px;
+        font-family:var(--mono);font-size:10.5px;line-height:1.8;color:var(--muted)}
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation:none!important;transition:none!important}
+    .rv{opacity:1;transform:none}
+    .prog i{width:var(--w)!important}
+  }
+</style>
+
+<div class="shell">
+
+  <div class="topbar rv">
+    <span class="brand"><span class="drip" aria-hidden="true"></span>Paint <b>Group</b></span>
+    <span class="meta"><span class="d">Command · Fri 21 Aug</span><span class="t" id="clock">—</span></span>
+    <span class="who"><span class="role">Project coordinator<b>PC view</b></span><span class="avatar">PC</span></span>
+  </div>
+
+  <nav class="nav rv" role="tablist" aria-label="Console views">
+    <button class="on" data-v="command" role="tab">Command</button>
+    <button data-v="flow" role="tab">The flow</button>
+    <button data-v="wo" role="tab">WO-3184</button>
+  </nav>
+
+  <!-- ================= COMMAND ================= -->
+  <div class="view on" id="v-command">
+
+    <div class="rv">
+      <h1>Six jobs live.<br>Two need you before coffee.</h1>
+      <p class="lede">Everything below is read from the work-order model — no typed statuses, no stale boards.</p>
+    </div>
+
+    <div class="pulse">
+      <div class="tile rv"><span class="halo"></span><span class="k">On the books</span><span class="v" data-count="84310" data-prefix="$">$0</span><span class="s">inc GST · 6 open jobs</span></div>
+      <div class="tile crit rv"><span class="halo"></span><span class="k">Critical</span><span class="v" data-count="2">0</span><span class="s">SLA breach · silent site</span></div>
+      <div class="tile warn rv"><span class="halo"></span><span class="k">Waiting on you</span><span class="v" data-count="4">0</span><span class="s">price · colours · nudge · drafts</span></div>
+      <div class="tile good rv"><span class="halo"></span><span class="k">Signed off this week</span><span class="v" data-count="1">0</span><span class="s">WO-3168 · Hawthorn</span></div>
+    </div>
+
+    <div class="sect rv">
+      <div class="sect-h">
+        <h2>Needs you now</h2><span>ranked · worst first</span>
+        <svg class="spark" width="120" height="30" viewBox="0 0 120 30" role="img" aria-label="Ticks logged per day, last 14 days">
+          <polyline points="2,22 11,19 20,21 29,14 38,16 47,10 56,13 65,8 74,12 83,6 92,15 101,26 110,9 118,7"
+            fill="none" stroke="#3BD8E9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>
+          <circle cx="101" cy="26" r="3" fill="#B3574A"/>
+          <circle cx="118" cy="7" r="3" fill="#3BD8E9"/>
+        </svg>
+      </div>
+      <div class="stack">
+
+        <div class="al al-crit rv"><span class="rail"></span>
+          <span class="ic">⚑</span>
+          <div class="bd">
+            <div class="hd"><strong><span class="pulse-dot"></span>Offer unanswered past SLA</strong><span class="ref">WO-3191 · 2/88 Rathdowne St, Carlton North</span></div>
+            <p>Dean M. has had it 27 hours. The 24-hour SLA is breached — chase, or release it to the next contractor.</p>
+          </div>
+          <span class="tm">27h</span>
+          <button class="btn primary">Reoffer</button>
+        </div>
+
+        <div class="al al-crit rv"><span class="rail"></span>
+          <span class="ic">◌</span>
+          <div class="bd">
+            <div class="hd"><strong><span class="pulse-dot"></span>Silent site — zero ticks yesterday</strong><span class="ref">WO-3179 · Chemist Warehouse, Sunshine</span></div>
+            <p>Crew was on site, nothing marked, so no update went to the customer. Silence is a signal.</p>
+          </div>
+          <span class="tm">1d</span>
+          <button class="btn">Call crew</button>
+        </div>
+
+        <div class="al al-warn rv"><span class="rail"></span>
+          <span class="ic">◐</span>
+          <div class="bd">
+            <div class="hd"><strong>Variation waiting on a price</strong><span class="ref">WO-3184 · 14 Bellair St, Kensington</span></div>
+            <p>Rot in three lower weatherboards, left elevation. 4 photos in, 3 hrs estimated. Marko has stopped on that side.</p>
+          </div>
+          <span class="tm">4h</span>
+          <button class="btn">Price it</button>
+        </div>
+
+        <div class="al al-warn rv"><span class="rail"></span>
+          <span class="ic">◔</span>
+          <div class="bd">
+            <div class="hd"><strong>Colours unconfirmed — starts Monday</strong><span class="ref">WO-3188 · 31 Loch Ave, Camberwell</span></div>
+            <p>Consult booked 3pm today. Paint order can't go in until the schedule is signed.</p>
+          </div>
+          <span class="tm">3d</span>
+          <button class="btn">Open</button>
+        </div>
+
+        <div class="al al-warn rv"><span class="rail"></span>
+          <span class="ic">◷</span>
+          <div class="bd">
+            <div class="hd"><strong>Sign-off clock at 48 hours</strong><span class="ref">WO-3172 · 7 The Boulevard, Ivanhoe</span></div>
+            <p>Second nudge sent. Pack opened twice, not signed. Deemed signed in 24 hours — worth a call first.</p>
+          </div>
+          <span class="tm">48h</span>
+          <button class="btn">Ring them</button>
+        </div>
+
+        <div class="al al-info rv"><span class="rail"></span>
+          <span class="ic">✎</span>
+          <div class="bd">
+            <div class="hd"><strong>Two customer updates drafted</strong><span class="ref">WO-3184 · WO-3179</span></div>
+            <p>Written from today's ticks. Nothing reaches a customer until you approve it.</p>
+          </div>
+          <span class="tm">now</span>
+          <button class="btn">Review</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= FLOW ================= -->
+  <div class="view" id="v-flow">
+
+    <div class="rv in">
+      <h1>The flow, live.</h1>
+      <p class="lede">Seven stages, every open job sitting where the model says it sits. A card moves only when its gate is true.</p>
+    </div>
+
+    <div class="sect rv in">
+      <div class="riverwrap">
+        <div class="river">
+
+          <div class="lane hot">
+            <div class="lane-h"><span class="n">01 Offer</span><span class="bar"></span><span class="c">1</span></div>
+            <div class="job crit">
+              <span class="a">2/88 Rathdowne St</span><span class="r">WO-3191 · Carlton North</span>
+              <span class="m">$9,180</span>
+              <div class="fl"><span class="pill p-clay">SLA 27h</span><span class="pill">unassigned</span></div>
+            </div>
+          </div>
+
+          <div class="lane hot">
+            <div class="lane-h"><span class="n">02 Pre-start</span><span class="bar"></span><span class="c">1</span></div>
+            <div class="job warnb">
+              <span class="a">31 Loch Ave</span><span class="r">WO-3188 · Camberwell · Vince R.</span>
+              <span class="m">$12,650</span>
+              <div class="fl"><span class="pill p-amber">Colours TBC</span><span class="pill">starts Mon</span></div>
+            </div>
+          </div>
+
+          <div class="lane hot">
+            <div class="lane-h"><span class="n">03 In progress</span><span class="bar"></span><span class="c">2</span></div>
+            <div class="job glow" data-goto="wo">
+              <span class="a">14 Bellair St</span><span class="r">WO-3184 · Kensington · Marko P.</span>
+              <span class="m">$18,420 · 18/34 ticks</span>
+              <div class="fl"><span class="pill p-amber">Variation</span><span class="pill p-cy">open →</span></div>
+            </div>
+            <div class="job crit">
+              <span class="a">Chemist Warehouse</span><span class="r">WO-3179 · Sunshine · Dean M.</span>
+              <span class="m">$31,900 · 9/41 ticks</span>
+              <div class="fl"><span class="pill p-clay">No ticks 1d</span></div>
+            </div>
+          </div>
+
+          <div class="lane"><div class="lane-h"><span class="n">04 QA</span><span class="bar"></span><span class="c">0</span></div><div class="slot"></div></div>
+          <div class="lane"><div class="lane-h"><span class="n">05 Prep</span><span class="bar"></span><span class="c">0</span></div><div class="slot"></div></div>
+
+          <div class="lane hot">
+            <div class="lane-h"><span class="n">06 Walkthrough</span><span class="bar"></span><span class="c">1</span></div>
+            <div class="job warnb">
+              <span class="a">7 The Boulevard</span><span class="r">WO-3172 · Ivanhoe · Vince R.</span>
+              <span class="m">$7,340</span>
+              <div class="fl"><span class="pill p-amber">48h → deemed</span></div>
+            </div>
+          </div>
+
+          <div class="lane hot">
+            <div class="lane-h"><span class="n">07 Closed</span><span class="bar"></span><span class="c">1</span></div>
+            <div class="job">
+              <span class="a">9 Manningtree Rd</span><span class="r">WO-3168 · Hawthorn · Marko P.</span>
+              <span class="m">$4,820</span>
+              <div class="fl"><span class="pill p-em">Signed off</span><span class="pill p-em">Invoiced</span></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <p class="note">Swipe sideways. Amber border = blocked on a decision · red = overdue · cyan glow = open in the work-order tab.</p>
+    </div>
+
+    <div class="sect rv in">
+      <div class="sect-h"><h2>How a job travels</h2><span>gates &amp; loops</span></div>
+      <div class="flowfig">
+        <svg viewBox="0 0 900 240" role="img" aria-label="The seven stages left to right with animated forward flow; QA fail and walkthrough flags loop back into In progress; sign-off fires warranty, invoice, review and report.">
+          <defs>
+            <marker id="fa" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3BD8E9"/></marker>
+            <marker id="fc" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#B3574A"/></marker>
+            <marker id="fm" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#E0A83C"/></marker>
+            <marker id="fe" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2FA46B"/></marker>
+            <linearGradient id="stagegrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#171C21"/><stop offset="1" stop-color="#12161A"/>
+            </linearGradient>
+          </defs>
+
+          <g>
+            <rect x="10"  y="92" width="104" height="46" rx="10" fill="url(#stagegrad)" stroke="#242B32"/>
+            <rect x="138" y="92" width="104" height="46" rx="10" fill="url(#stagegrad)" stroke="#242B32"/>
+            <rect x="266" y="92" width="104" height="46" rx="10" fill="url(#stagegrad)" stroke="#3BD8E9" stroke-opacity=".7"/>
+            <rect x="394" y="92" width="104" height="46" rx="10" fill="url(#stagegrad)" stroke="#242B32"/>
+            <rect x="522" y="92" width="104" height="46" rx="10" fill="url(#stagegrad)" stroke="#242B32"/>
+            <rect x="650" y="92" width="104" height="46" rx="10" fill="url(#stagegrad)" stroke="#242B32"/>
+            <rect x="778" y="92" width="112" height="46" rx="10" fill="url(#stagegrad)" stroke="#2FA46B" stroke-opacity=".6"/>
+          </g>
+          <g font-family="'Martian Mono',monospace" font-size="8" fill="#8C959D" text-anchor="middle">
+            <text x="62"  y="108">01</text><text x="190" y="108">02</text><text x="318" y="108" fill="#3BD8E9">03</text>
+            <text x="446" y="108">04</text><text x="574" y="108">05</text><text x="702" y="108">06</text><text x="834" y="108" fill="#2FA46B">07</text>
+          </g>
+          <g font-family="'Hanken Grotesk',system-ui,sans-serif" font-size="11.5" fill="#EDF0F2" text-anchor="middle" font-weight="600">
+            <text x="62"  y="126">Offer</text><text x="190" y="126">Pre-start</text><text x="318" y="126">In progress</text>
+            <text x="446" y="126">QA</text><text x="574" y="126">Prep</text><text x="702" y="126">Walkthrough</text><text x="834" y="126">Closed</text>
+          </g>
+
+          <g stroke="#3BD8E9" stroke-width="1.6" marker-end="url(#fa)" class="flowdash" opacity=".85">
+            <line x1="114" y1="115" x2="132" y2="115"/><line x1="242" y1="115" x2="260" y2="115"/>
+            <line x1="370" y1="115" x2="388" y2="115"/><line x1="498" y1="115" x2="516" y2="115"/>
+            <line x1="626" y1="115" x2="644" y2="115"/><line x1="754" y1="115" x2="772" y2="115"/>
+          </g>
+
+          <g font-family="'Martian Mono',monospace" font-size="7" fill="#8C959D" text-anchor="middle">
+            <text x="123" y="88">accepts</text><text x="251" y="88">colours ✓</text>
+            <text x="379" y="88">all done</text><text x="507" y="88">QA pass</text>
+            <text x="635" y="88">pack sent</text><text x="763" y="88">signed</text>
+          </g>
+
+          <path d="M446,138 v34 a10,10 0 0 1 -10,10 H340 a10,10 0 0 1 -10,-10 V144" fill="none"
+                stroke="#B3574A" stroke-width="1.5" marker-end="url(#fc)" class="flowdash"/>
+          <text x="388" y="196" font-family="'Martian Mono',monospace" font-size="7.5" fill="#B3574A" text-anchor="middle">QA fail — rectify, same tick list</text>
+
+          <path d="M702,138 v58 a10,10 0 0 1 -10,10 H316 a10,10 0 0 1 -10,-10 V144" fill="none"
+                stroke="#E0A83C" stroke-width="1.5" marker-end="url(#fm)" class="flowdash"/>
+          <text x="505" y="220" font-family="'Martian Mono',monospace" font-size="7.5" fill="#E0A83C" text-anchor="middle">area flagged at walkthrough — rectify, same tick list</text>
+
+          <g stroke="#2FA46B" stroke-width="1.4" marker-end="url(#fe)">
+            <path d="M834,92 v-16 h-38" fill="none"/><path d="M834,92 v-34 h-38" fill="none"/>
+            <path d="M834,92 v-16 h38" fill="none"/><path d="M834,92 v-34 h38" fill="none"/>
+          </g>
+          <g font-family="'Martian Mono',monospace" font-size="7" fill="#2FA46B">
+            <text x="712" y="79" text-anchor="end">warranty starts</text>
+            <text x="712" y="61" text-anchor="end">final invoice</text>
+            <text x="876" y="79">review ask</text>
+            <text x="876" y="61">report</text>
+          </g>
+        </svg>
+        <p class="flowcap">Forward motion is earned at each gate. Both failure paths pour back into stage 03 — one tick list, always — and sign-off is the single event that fires everything downstream.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= WORK ORDER ================= -->
+  <div class="view" id="v-wo">
+
+    <div class="wohead rv in">
+      <div class="wotop">
+        <div>
+          <h2>14 Bellair St, Kensington</h2>
+          <span class="ref">WO-3184 · exterior · Marko P. · day 4 on site</span>
+        </div>
+        <span class="pill p-cy" style="margin-left:auto">PC view</span>
+      </div>
+      <div class="rail7">
+        <span class="st p"><i></i><span>01 Offer</span></span>
+        <span class="st p"><i></i><span>02 Pre-start</span></span>
+        <span class="st c"><i></i><span>03 In progress</span></span>
+        <span class="st"><i></i><span>04 QA</span></span>
+        <span class="st"><i></i><span>05 Prep</span></span>
+        <span class="st"><i></i><span>06 Walkthrough</span></span>
+        <span class="st"><i></i><span>07 Closed</span></span>
+      </div>
+      <div class="money">
+        <span class="mi"><span>Contract inc GST</span><b>$18,420</b></span>
+        <span class="mi"><span>Variations</span><b style="color:var(--amber)">+ pending</b></span>
+        <span class="mi"><span>Contractor</span><b>$7,860</b></span>
+        <span class="mi"><span>Est. GP</span><b style="color:var(--emerald)">33.1%</b></span>
+        <span class="mi"><span>Deposit</span><b style="color:var(--emerald)">$4,605 ✓</b></span>
+      </div>
+    </div>
+
+    <div class="blocker rv in">
+      <span class="fl">⚑</span>
+      <div><b>One variation is holding the left elevation.</b>
+      <p>Marko has stopped on that side pending your price. Everything else is running.</p></div>
+    </div>
+
+    <div class="grid2">
+
+      <div class="card rv in">
+        <h3>Scope &amp; ticks <em id="tickcount">18 / 34</em></h3>
+        <div class="prog"><i style="--w:53%" data-w="53%"></i></div>
+
+        <div class="elev">
+          <div class="eh"><b>Front</b><em>12 × 2.6 m · wb 75 / render 25</em><span class="ct">7/7 ✓</span></div>
+          <div class="tick"><span class="sw"><i class="a"></i><i class="a"></i><i class="a"></i></span><p>Walls — weatherboard + render</p><span class="pill p-em">Done</span></div>
+          <div class="tick"><span class="sw"><i class="a"></i><i class="a"></i><i class="a"></i></span><p>Windows × 3 · entry door · fascias &amp; gutters</p><span class="pill p-em">Done</span></div>
+        </div>
+
+        <div class="elev">
+          <div class="eh"><b>Left</b><em>9 × 2.6 m · weatherboard</em><span class="ct">2/9</span></div>
+          <div class="tick"><span class="sw"><i class="a"></i><i class="a"></i><i class="a"></i></span><p>Eaves — 9 m</p><span class="pill p-em">Done</span></div>
+          <div class="tick"><span class="sw"><i class="a"></i><i class="b"></i><i></i></span><p>Walls — weatherboard</p><span class="pill p-cy">Prepped</span></div>
+          <div class="tick"><span class="sw"><i></i><i></i><i></i></span><p>Windows × 2 · fascias &amp; gutters</p><span class="pill p-amber">Held — variation</span></div>
+        </div>
+
+        <div class="elev">
+          <div class="eh"><b>Right &amp; Back</b><em>weatherboard · fence 14 m</em><span class="ct">0/14</span></div>
+          <div class="tick"><span class="sw"><i></i><i></i><i></i></span><p>14 surfaces queued</p><span class="pill">To do</span></div>
+        </div>
+        <p class="note">Before-photos are in for Front and Left. Right can't take its first tick until photos land — the rule, not a reminder.</p>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:12px">
+
+        <div class="card rv in">
+          <h3>Variation <em>your move</em></h3>
+          <div class="vsteps" aria-label="Variation progress: raised, then priced, customer, contractor, work">
+            <span class="vs hit"><i></i><span>Raised</span></span>
+            <span class="vs now"><i></i><span>Priced</span></span>
+            <span class="vs"><i></i><span>Customer</span></span>
+            <span class="vs"><i></i><span>Contractor</span></span>
+            <span class="vs"><i></i><span>Work</span></span>
+          </div>
+          <div class="draft">“Three lower boards on the left side are gone at the bottom edge — soft right through. Needs cutting out and replacing before I can prep that wall.” <b>— Marko P., 9:40am · Rot/substrate · 4 photos · est. 3 hrs</b></div>
+          <div class="row">
+            <button class="btn primary">Price through the engine</button>
+            <button class="btn">Photos (4)</button>
+          </div>
+          <p class="note">Your price → customer approves as a mini-estimate → Marko gets the adjusted offer at hours × $60, one tap. Both logged before the work starts.</p>
+        </div>
+
+        <div class="card rv in">
+          <h3>Today's update to Melissa <em>drafted from ticks</em></h3>
+          <div class="draft">Good afternoon Melissa — today we finished the front of the house: weatherboards, render, windows, the entry door and the fascias and gutters are all complete. We have prepped the left-hand wall and will be back on it tomorrow. <b>Photos attached (6).</b></div>
+          <div class="row">
+            <button class="btn primary" data-approve>Approve &amp; send</button>
+            <button class="btn">Edit</button>
+          </div>
+        </div>
+
+        <div class="card rv in">
+          <h3>Job facts</h3>
+          <div class="tick"><p>Colour schedule</p><span class="pill p-em">Signed 15 Aug</span></div>
+          <div class="tick"><p>Materials</p><span class="pill p-em">Ordered — Kensington</span></div>
+          <div class="tick"><p>Equipment</p><span class="pill p-em">Trestles · 3.6 m ladder</span></div>
+          <div class="tick"><p>QA check</p><span class="pill p-cy">Not required — established</span></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <p class="foot rv">
+    PC Command · mockup mapped 1:1 to the seven-stage work order model.<br>
+    Contractor and customer render their own views of the same jobs — RLS + explicit view param, never role-inferred.
+  </p>
+</div>
+
+<script>
+(function(){
+  var reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // clock (Melbourne local of the viewer)
+  function tick(){
+    var d=new Date(), el=document.getElementById('clock');
+    if(el){el.textContent=('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)+':'+('0'+d.getSeconds()).slice(-2);}
+  }
+  tick(); setInterval(tick,1000);
+
+  // tabs
+  var tabs=document.querySelectorAll('.nav button');
+  function show(v){
+    tabs.forEach(function(x){x.classList.toggle('on',x.dataset.v===v)});
+    document.querySelectorAll('.view').forEach(function(p){p.classList.remove('on')});
+    var el=document.getElementById('v-'+v); el.classList.add('on');
+    el.querySelectorAll('.rv').forEach(function(r){r.classList.add('in')});
+    window.scrollTo({top:0,behavior:reduced?'auto':'smooth'});
+    if(v==='wo'){fills();}
+    if(v==='command'){counts();}
+  }
+  tabs.forEach(function(b){b.addEventListener('click',function(){show(b.dataset.v)})});
+  document.querySelectorAll('[data-goto]').forEach(function(j){
+    j.addEventListener('click',function(){show(j.dataset.goto)});
+  });
+
+  // reveal choreography
+  if(!reduced && 'IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){
+      es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+    },{threshold:.12});
+    document.querySelectorAll('.rv').forEach(function(el,i){
+      el.style.transitionDelay=Math.min(i*60,420)+'ms';
+      io.observe(el);
+    });
+  } else {
+    document.querySelectorAll('.rv').forEach(function(el){el.classList.add('in')});
+  }
+
+  // count-up tiles
+  var counted=false;
+  function counts(){
+    if(counted) return; counted=true;
+    document.querySelectorAll('[data-count]').forEach(function(el){
+      var target=parseInt(el.dataset.count,10), pre=el.dataset.prefix||'';
+      if(reduced){el.textContent=pre+target.toLocaleString();return;}
+      var t0=null, dur=1100;
+      function step(ts){
+        if(!t0)t0=ts;
+        var p=Math.min((ts-t0)/dur,1), e=1-Math.pow(1-p,3);
+        el.textContent=pre+Math.round(target*e).toLocaleString();
+        if(p<1)requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    });
+  }
+  counts();
+
+  // progress bars in WO
+  function fills(){
+    document.querySelectorAll('.prog i').forEach(function(b){
+      requestAnimationFrame(function(){ b.style.width=b.dataset.w; });
+    });
+  }
+
+  // approve interaction
+  document.querySelectorAll('[data-approve]').forEach(function(b){
+    b.addEventListener('click',function(){
+      b.textContent='Sent to Melissa ✓'; b.classList.remove('primary'); b.classList.add('done');
+    });
+  });
+})();
+</script>

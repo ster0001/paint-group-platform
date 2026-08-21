@@ -5,6 +5,9 @@ import { requireContractor } from "@/lib/contractor/session";
 import { getContractorJob } from "@/lib/contractor/jobs";
 import WorkOrderDoc from "@/app/w/WorkOrderDoc";
 import RescheduleRequest from "./RescheduleRequest";
+import TickList from "./TickList";
+import Variations, { type VariationView } from "./Variations";
+import type { SurfaceRow } from "@/lib/workorder/surfaces";
 import { OFFER_COLUMNS, type BookingOffer } from "@/lib/scheduling/offers";
 import type { PortalBlock, PortalJobDay } from "@/app/portal/calendar/CalendarGrid";
 
@@ -48,6 +51,50 @@ export default async function PortalJobPage({ params }: { params: Promise<{ id: 
     ? [{ date: job.startDate, label: job.doc.jobTitle, status: job.status }]
     : [];
 
+  // The tick list and the before-photos already logged. RLS scopes both to this
+  // contractor's own jobs, so an id that isn't theirs simply returns nothing.
+  const [{ data: surfaceRows }, { data: photoRows }, { data: woRow }] = await Promise.all([
+    supabase.from("wo_surfaces")
+      .select("id, heading, heading_meta, label, state, rectification")
+      .eq("work_order_id", id).order("sort", { ascending: true }),
+    supabase.from("wo_photos")
+      .select("area").eq("work_order_id", id).eq("kind", "before"),
+    supabase.from("work_orders").select("stage").eq("id", id).maybeSingle(),
+  ]);
+
+  const { data: variationRows } = await supabase
+    .from("wo_variations")
+    .select("id, category, comment, status, contractor_delta_cents, est_hours, released_at")
+    .eq("work_order_id", id)
+    .order("created_at", { ascending: false });
+
+  const variations: VariationView[] = ((variationRows as {
+    id: string; category: string; comment: string; status: VariationView["status"];
+    contractor_delta_cents: number | null; est_hours: number | null; released_at: string | null;
+  }[] | null) ?? []).map((v) => ({
+    id: v.id, category: v.category, comment: v.comment, status: v.status,
+    contractorDeltaCents: v.contractor_delta_cents,
+    estHours: v.est_hours === null ? null : Number(v.est_hours),
+    released: v.released_at !== null,
+  }));
+
+  const surfaces: SurfaceRow[] = ((surfaceRows as
+    { id: string; heading: string; label: string; state: SurfaceRow["state"]; rectification: boolean }[] | null) ?? [])
+    .map((r) => ({ id: r.id, heading: r.heading, label: r.label, state: r.state, rectification: r.rectification }));
+
+  const headingMeta: Record<string, string> = {};
+  for (const r of (surfaceRows as { heading: string; heading_meta: string }[] | null) ?? []) {
+    if (r.heading_meta) headingMeta[r.heading] = r.heading_meta;
+  }
+
+  const headingsWithBeforePhoto = [...new Set(
+    ((photoRows as { area: string }[] | null) ?? []).map((p) => p.area).filter(Boolean),
+  )];
+
+  // Ticking only makes sense once the job is under way — before that the list is
+  // still worth seeing, so it renders read-only via the server's own refusal.
+  const canTick = (woRow as { stage?: string } | null)?.stage === "in_progress";
+
   return (
     <div className="wrap" style={{ paddingLeft: 0, paddingRight: 0 }}>
       <div style={{ padding: "0 16px" }}>
@@ -73,6 +120,23 @@ export default async function PortalJobPage({ params }: { params: Promise<{ id: 
           blocks={blocks}
           jobDays={jobDays}
         />
+      )}
+
+      {canTick && surfaces.length > 0 && (
+        <div style={{ padding: "0 16px" }}>
+          <TickList
+            workOrderId={id}
+            surfaces={surfaces}
+            headingsWithBeforePhoto={headingsWithBeforePhoto}
+            headingMeta={headingMeta}
+          />
+        </div>
+      )}
+
+      {job.committed && (
+        <div style={{ padding: "0 16px" }}>
+          <Variations workOrderId={id} variations={variations} />
+        </div>
       )}
 
       <WorkOrderDoc doc={job.doc} />

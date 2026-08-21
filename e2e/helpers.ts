@@ -3,13 +3,15 @@ import { expect, type Page } from "@playwright/test";
 export type Credentials = { email: string; password: string };
 
 /** Reads a login from the environment. Null when it isn't configured. */
-export function credentials(who: "CONTRACTOR" | "STAFF"): Credentials | null {
+export type Who = "CONTRACTOR" | "STAFF" | "CUSTOMER";
+
+export function credentials(who: Who): Credentials | null {
   const email = process.env[`E2E_${who}_EMAIL`];
   const password = process.env[`E2E_${who}_PASSWORD`];
   return email && password ? { email, password } : null;
 }
 
-export const missingCreds = (who: "CONTRACTOR" | "STAFF") =>
+export const missingCreds = (who: Who) =>
   `set E2E_${who}_EMAIL and E2E_${who}_PASSWORD to run this`;
 
 /**

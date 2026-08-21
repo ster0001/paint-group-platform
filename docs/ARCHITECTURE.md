@@ -656,3 +656,225 @@ ladder in `policy.ts` (interior ≤$6k @≥90 / straightforward exterior
 now SPREAD loaded builder_state (the fixed key list silently dropped
 wizard/prepPack/loop state). The journey suite `e2e/customer-journey/`
 drives all of it as the definition of done.
+
+## Work-order completion loop — step 1: the seven-stage machine (2026-08-21)
+
+WO v1's `status` (draft | issued | in_progress | complete) is now DERIVED, never
+typed. `work_orders.stage` (`wo_stage`: offered → pre_start → in_progress → qa →
+completion_prep → walkthrough → closed) is the single source of truth for the
+loop, and `public.wo_derive_status(stage, issued_at)` recomputes `status` inside
+every transition so the contractor link, the schedule board and the v1 chips keep
+working with nothing rewritten. The legal moves live in a TABLE,
+`wo_stage_transitions` (from, to, label, actors), because the RPC, the UI and the
+tests all need to agree about them; `lib/workorder/stages.ts` mirrors it for the
+browser and `stages.test.ts` parses the migration and diffs the two, so the
+mirror cannot drift silently. Ten moves are legal, the other 39 pairs are not,
+and both failure paths (QA fail, walkthrough flag) return to `in_progress` — one
+tick list, always.
+
+Every change of stage goes through `wo_set_stage`, which validates the move,
+writes a `wo_events` row and re-derives `status` in one transaction; the public
+`wo_advance_stage` RPC works out whether the caller is staff, the assigned
+contractor or the job's customer **from the session** and checks that actor
+against the transition's `actors` — `'system'` is not reachable from outside.
+`wo_gate_blocked()` is the hook each later step fills with its own readiness gate
+(all surfaces ticked, QA passed, pack delivered); today it is deliberately open.
+A trigger on `booking_offers.state` keeps the stage honest when a booking is
+accepted, cancelled, declined, expired or withdrawn, rather than reopening three
+working scheduling functions. Client UPDATE on `stage`/`stage_entered_at`/
+`blocked_reason` is revoked at the database.
+
+Migration 20260927 creates the rest of the loop's tables — `wo_checklist_items`,
+`wo_surfaces`, `wo_photos`, `wo_variations`, `wo_updates`, `wo_qa_checks`,
+`wo_signoff` — each RLS'd three ways (staff all, contractor assigned-only,
+customer own-job-only) and write-revoked for every client role, plus the private
+`wo-photos` bucket. Surfaces carry no history columns: tick history is
+`wo_events` rows, because the report and the console already read that log.
+20260928 lands the ⚑ business decisions in `settings.wo_loop` — including the two
+sign-off switches, `clockEnabled: true` (the clock and nudge ladder may run) and
+`deemedEnabled: FALSE` (deemed execution waits on the ACL/UCT legal review), a
+deliberate departure from the brief's default.
+
+## WO loop — step 2: surfaces, ticks and the photo gate (2026-08-21)
+
+The tick list is an INDEX into the work-order document, not a second copy of the
+scope: `wo_surfaces` holds one row per surface, seeded by `wo_seed_surfaces` from
+the document the builder already computes (`lib/workorder/surfaces.ts`
+`seedRowsFromDoc`), carrying labels and headings only — no money, no
+measurements it could contradict. Seeding runs on issue and is idempotent:
+re-issuing refreshes wording and order but never resets state, so it cannot wipe
+a day's ticks off a painter's phone. Heading meta is derived from what the
+document actually knows ("3 surfaces · 2 coats · PG-3") rather than the mockup's
+measurements, which live in the estimate's sides loop and aren't in the frozen
+snapshot; `seedRowsFromDoc` takes a `metaFor` hook for when they are.
+
+`wo_tick_surface` is the only way a surface moves. It establishes the actor from
+the session, refuses a job that isn't in `in_progress`, and enforces the
+before-photo rule: **the first tick on an elevation is refused unless that
+elevation has a `before` photo** (`error:before_photo_required:<heading>`). The
+UI prompts for the photo ahead of the tap so a painter meets the rule as an
+instruction, but the rule is server-side and a direct RPC call hits it — proven
+in `e2e/wo-ticks.spec.ts`, which calls the RPC outside the browser. Ticks move
+in any direction because a mis-tap on a phone needs an undo, and every move
+writes a `wo_events` row of type `surface_tick` with `{from, to, heading}` — the
+same log the console, the daily update and the completion report read.
+
+Photos take the remediated two-stage path (`app/api/wo/photos`): POST signs an
+upload into the private `wo-photos` bucket, the phone PUTs the bytes, PUT
+ingests — reading the signature from the STAGED BYTES, because a signed URL is
+permission to store bytes and never a statement of what they are. A file that
+fails the sniff is deleted rather than left as an orphan.
+
+Step 2 also fills its arm of `wo_gate_blocked`: leaving `in_progress` now
+requires every surface `done`, reported as "N of M surfaces still to tick off".
+A job with no tick list at all is deliberately exempt, so work orders issued
+before this step aren't stranded behind a gate they cannot pass.
+
+## WO loop — step 3: variations, both-sided (2026-08-21)
+
+`wo_variations` carries one variation from raise to accepted, and the order is
+enforced by the database. `wo_raise_variation` refuses without photos
+(`error:photos_required`) — evidence is what stops a variation becoming an
+argument later. `wo_price_variation` is staff-only and takes the customer price
+from `app/quote/variationActions.ts`, which computes it on the server through
+`lib/pricing`'s `chargeOutCents` (hours × the active card's charge-out for the
+trade, plus any materials figure staff enter). The engine's inputs are stored in
+`priced_inputs` beside its output so any figure can be recomputed later.
+
+**The contractor's side is computed in SQL and cannot be supplied by a caller**:
+`round(hours × wo_contractor_rate_cents())`, reading the `Contractor rate`
+setting, with the rate stamped onto the row so an approved variation cannot
+silently reprice. Change the rate in Settings and the next variation follows it.
+
+Nothing reaches `contractor_accepted` without both approvals recorded, in order:
+`wo_customer_respond_variation` (token-only, like the quote) writes
+`customer_responded_at`, `wo_release_variation` is the PC's human step between
+the two money events (⚑2, `variationRelease` defaults to `pc`, `auto` skips it),
+and the accept refuses with `customer_not_approved` or `not_released` otherwise.
+Declined variations are kept, never deleted — they belong on the completion
+report as raised-and-declined. The customer surface is `/v/[token]`: unknown
+token → 404, and the contractor's rate and delta are absent from the HTML, not
+hidden.
+
+Photos live in the private `wo-photos` bucket at `wo/<work_order_id>/<file>`,
+and `20261003` gives `storage.objects` the policies that path implies — staff,
+the assigned contractor, or the job's own customer. Without them the bucket
+existed but every upload failed at the signed-URL step; the lesson is that
+creating a bucket in a migration is only half of it.
+
+Step 3 also extends `wo_gate_blocked`: no forward stage move while a variation
+is `raised`, `priced` or `customer_approved`. The surfaces gate answers first.
+
+## WO loop — step 4: drafted updates and the silent site (2026-08-21)
+
+`lib/workorder/updates.ts` composes the day's customer update from `wo_events`
+rows of type `surface_tick` — grouped by elevation, latest state per surface
+winning, in plain English rather than Australian ("we have prepped the left-hand
+side", not "knocked that over"). It is a pure function taking `now`, so the
+greeting is testable. **No ticks means no draft**: it returns null rather than
+writing filler, and the console gets a flag instead.
+
+Storage and the gates are `20261004`: `wo_draft_update` (staff or the service-key
+sweep), `wo_approve_update` (staff; the edit and the approval are one action, so
+there is no edited-but-unapproved window), `wo_send_update` (refuses anything not
+already approved). `source_tick_ids` is stored with the draft so any sentence
+traces to the events behind it, and a later sweep never rewrites an update a
+person has approved. Delivery itself is a later phase — this records that it went.
+
+`wo_zero_tick_sweep()` flags a job that is `in_progress`, whose start date has
+arrived, and which logged no tick yesterday or today: one `zero_tick_flag` event
+per job per day plus a `blocked_reason`, and a trigger clears the reason on the
+next tick. It never messages the customer — a silent site is a phone call.
+
+`app/api/cron/wo-sweep` is the first scheduled endpoint in the codebase. It is
+guarded by `Authorization: Bearer $CRON_SECRET` and refuses everything when the
+secret is unset rather than falling back to running unauthenticated, because it
+writes. `vercel.json` schedules it at 08:00 UTC = 6pm Melbourne, end of the
+working day. Composition happens in the route (TypeScript), storage in the RPC —
+the same split the rest of the money/state boundary uses. **CRON_SECRET must be
+set in the Vercel project env for the schedule to do anything in production.**
+
+## WO loop — step 5: QA, prep, walkthrough and sign-off (2026-08-21)
+
+QA checks are auto-scheduled only for contractors inside their first N finished
+jobs (⚑1). `wo_record_qa` records pass/fail; a **fail appends rectification rows
+to `wo_surfaces` and returns the job to `in_progress`** — the same tick list, with
+`rectification = true` the only thing marking them out. Photo minimums (⚑5) set
+`thin_record` and never block a pass. The completion-prep checklist is seeded per
+Settings (the rubbish line changes with `rubbish.organisedBy`) and gates
+`completion_prep → walkthrough`.
+
+The customer surface is `/s/[token]`: area-by-area approve or flag, then
+type-to-sign. A flag becomes a rectification row and sends the job back, and —
+found by the e2e — **a flagged area must be re-reviewable**, or a job can never
+close after being put right. Views are recorded because a viewed-but-silent pack
+is what makes a deemed sign-off defensible later.
+
+`wo_sign` is one transaction: warranty (2 years from the sign-off date, ⚑4,
+deemed included), the review-request `follow_ups` row, the completion report
+built from `wo_events`/surfaces/photos/variations/QA — **declined variations
+included** — and the draft invoice stub for the invoicing phase.
+
+The clock is split into two switches per Tom's ruling: `clockEnabled` (on) runs
+the 0/24/48h ladder, `deemedEnabled` (**off**, pending ACL/UCT review) would
+execute the sign-off. **`wo_nudge_copy(rung, deemed_enabled)` is where the
+compliance lives** — while deemed is off the copy must not mention deemed
+signing, automatic sign-off, invoices or payment, and `signoff.test.ts` asserts
+exactly that. Each rung fires at most once; a late sweep sends one late nudge,
+never the whole ladder. An unanswered extension request pauses the clock.
+
+## WO loop — step 6: the PC Command console (2026-08-21)
+
+`/pc` is the approved mockup as real routes — Command, The flow, Updates, and a
+work-order view — staff-gated in the layout (a contractor is redirected to
+`/portal`). `lib/workorder/console.ts` holds the logic as pure functions:
+`buildQueue` turns rows into the §6.1 cards, `rankQueue` orders them
+critical→warning→info and oldest-first inside each, `pulseTiles` counts **from
+the queue it was given** so a tile can never disagree with the cards below it,
+and `headline` is written from those same counts. `consoleData.ts` loads it in a
+fixed set of parallel queries — never one per card.
+
+Two date bugs were caught by the TZ-pinned suite and are worth keeping in mind
+for anything else that buckets by day: `toISOString().slice(0,10)` is the **UTC**
+date, so before 10am Melbourne it silently reports yesterday — `melbourneDate()`
+is the fix, and `melbourneDayStartUtc()` derives the day's start from the zone
+rather than a hardcoded `+10:00`, which would be an hour out from October to
+April. The cron sweep now uses both.
+
+The console is also where the PC surfaces deferred from steps 3–5 landed:
+pricing a variation (hours in, money worked out on the server — `lib/pricing`
+for the customer's side, SQL for the contractor's), releasing the adjusted
+offer, and reviewing/editing/sending a drafted update.
+
+**A grant, not a policy, was the bug worth remembering** (`20261007`): with a
+`zero_tick_flag` row present and `is_staff()` true, a staff session read zero
+rows from `wo_events`. RLS was never involved — a policy only filters rows a
+role may already select, and the table-level `GRANT SELECT` was missing, so the
+console rendered "nothing needs you" over a database that had something to say.
+Every table this module adds now states its read access outright rather than
+relying on the project's default privileges.
+
+## WO loop — step 7: hardening, and what the full story found (2026-08-21)
+
+`e2e/wo-full-loop.spec.ts` runs one job all the way round in every role that
+touches it — offer accepted (through `send_offer`, which is what puts the
+contractor on the work order), pre-start, ticks gated on before-photos, a
+variation through both approvals, the day's update drafted by the cron sweep and
+sent by a person, a QA fail and its rectification, QA pass, the prep checklist
+gate, the customer flagging an area, the fix, and the signature. It then asserts
+the downstream artefacts exist and that **every stage the job passed through is
+reconstructable from `wo_events` alone**, both loops back into `in_progress`
+included.
+
+`lib/workorder/boundary.test.ts` is the brief's §7.6 grep audit as a test, since
+a grep somebody has to remember is a grep that stops being run: no client write
+to a money or status column on a loop table, no hard-coded contractor rate
+outside the engine, no hours×rate arithmetic outside `lib/pricing`, no service
+key in a client component, and none of the date traps above. It **strips
+comments before matching and matches within a statement rather than a file** —
+its first version flagged three files, and all three were the prose explaining
+the rule.
+
+Known and unchanged from before this phase: `estimates.subtotal_cents` /
+`total_cents` are still written from the builder client. That predates the loop
+and is on the audit list; the loop's own tables are all RPC-only.

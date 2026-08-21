@@ -33,6 +33,8 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 # NOTE: .env* also covers .env.local — secrets never get committed.
 .env*
+# ...except the template, which carries names only, never values.
+!.env.example
 
 # data exports (rate cards etc. — keep business data out of the repo)
 *.csv

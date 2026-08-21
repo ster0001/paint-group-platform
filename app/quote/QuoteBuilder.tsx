@@ -29,6 +29,7 @@ import { type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import WorkOrderDoc, { type WOEdit } from "@/app/w/WorkOrderDoc";
 import ColourPicker from "@/app/components/ColourPicker";
 import { roundUpLitres, type WorkOrderDoc as WODoc, type WOMaterial, type WOArea } from "@/lib/workorder/snapshot";
+import type { WoStage } from "@/lib/workorder/stages";
 import { finishFromModifier } from "@/lib/workorder/finish";
 import OfferPanel from "./OfferPanel";
 import { replyToEstimateChatAction, sendEstimateAction, type DeliveryOutcome } from "./actions";
@@ -45,6 +46,7 @@ type WorkOrderRow = {
   area_finish?: Record<string, string> | null;
   colours: Record<string, { name?: string; status?: string }>; hours_overrides: Record<string, number>;
   wo_snapshot: unknown; issued_at: string | null;
+  stage?: WoStage | null; stage_entered_at?: string | null; blocked_reason?: string | null;
 };
 import type { CompanyProfile, Contact, JobAddress } from "./company";
 import type { Product, RateItem } from "@/lib/pricing/types";
@@ -1437,7 +1439,7 @@ export default function QuoteBuilder({
             issued={Boolean(workOrder?.issued_at)}
           />
           <div className="mt-4 overflow-hidden rounded-xl border border-gray-200">
-            <WorkOrderDoc doc={computeWorkOrderDoc()} edit={woEdit} />
+            <WorkOrderDoc doc={computeWorkOrderDoc()} edit={woEdit} stage={workOrder?.stage ?? null} />
           </div>
         </div>
       )}
