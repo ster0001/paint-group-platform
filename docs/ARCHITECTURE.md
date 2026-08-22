@@ -906,3 +906,37 @@ span now comes from the booking's real `end_date` instead of a `hours ÷ 8` gues
 jobs by date (`Map<date, job>`), so when two jobs fall on the same day only the
 last one is shown and tapping it opens that one. Fine while a contractor runs
 one job at a time; it needs a real answer before they run two.
+
+## Stages 1–4 completed against the lifecycle mockup (2026-08-22)
+
+`design/reference/work-order-lifecycle-mockup.html` defines each stage **by
+lane**, and three stages had machinery but no face. Now built:
+
+**Pre-offer / pre-start checklists** (`20261012`–`20261014`). Labels and
+captions are the mockup's, not paraphrased. Colours and QA are DERIVED, not
+ticked — colours read the builder's per-product chips, QA reads whether checks
+are scheduled — because a checkbox that can disagree with the data is a lie
+waiting to happen; those rows say `auto` and explain where to change them.
+Colours block "Materials ordered" per the mockup, and gate the START, never the
+offer ("the contractor accepts with the TBC chip visible").
+
+Two bugs worth remembering came out of it. The seeder was staff-gated, so the
+SQL editor's own backfill was refused silently AND a **contractor accepting an
+offer** — which moves the stage under their session — never got the pre-start
+list on the job they had just taken. Seeding is machinery, not a privilege; the
+guard is gone. And `wo_colours_confirmed()` answered false for a job whose
+document listed no materials, which would have stranded it at pre-start for
+ever; with nothing to confirm the step is vacuously done.
+
+**Completion prep** moved to the contractor's lane, where the mockup puts it —
+the person who did the work is the one who can say the site is clean.
+
+**QA standards** (`20261015`–`20261016`) are tickable lines, seeded per check by
+a trigger: cut lines, coverage, prep evidence, site. A PASS is refused until
+every one is ticked (`standards_outstanding:N`); a FAIL is not, because its job
+is to record what was wrong and put rectification on the painter's own list.
+
+**Deliberately not built:** the closed/completion-report view. The report is
+generated and stored at sign-off, but rendering it staff-only would be half a
+feature — it ships with the customer portal, where the customer gets it beside
+their warranty and job history.

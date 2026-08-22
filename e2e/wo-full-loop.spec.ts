@@ -91,11 +91,32 @@ test.describe("the whole loop, one job", () => {
     expect((wo as { stage: string }).stage).toBe("pre_start");   // the trigger, not a hand edit
   });
 
-  test("2 · the office finishes pre-start and the job goes live", async () => {
-    const result = await rpcAs(staff!, "wo_advance_stage", {
+  test("2 · the office works the pre-start list, and only then does the job go live", async () => {
+    // The gate is real now: colours first, then the rest of the list.
+    expect(await rpcAs(staff!, "wo_advance_stage", {
       p_work_order_id: job!.workOrderId, p_to: "in_progress",
-    });
-    expect(result).toBe("ok:in_progress");
+    })).toContain("colour schedule is not finalised");
+
+    await db!.from("work_orders").update({
+      colours: { Weathershield: { name: "Vivid White", hex: "#fff", status: "confirmed" } },
+    }).eq("id", job!.workOrderId);
+
+    expect(await rpcAs(staff!, "wo_advance_stage", {
+      p_work_order_id: job!.workOrderId, p_to: "in_progress",
+    })).toContain("pre-start item");
+
+    const { data: items } = await db!.from("wo_checklist_items")
+      .select("id, auto_key, required")
+      .eq("work_order_id", job!.workOrderId).eq("phase", "pre_start");
+    for (const item of (items as { id: string; auto_key: string | null; required: boolean }[])) {
+      if (item.auto_key || !item.required) continue;
+      expect(await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: item.id, p_done: true }))
+        .toBe("ok:done");
+    }
+
+    expect(await rpcAs(staff!, "wo_advance_stage", {
+      p_work_order_id: job!.workOrderId, p_to: "in_progress",
+    })).toBe("ok:in_progress");
   });
 
   test("3 · the painter cannot tick until the before photo is in", async () => {
@@ -205,6 +226,13 @@ test.describe("the whole loop, one job", () => {
     const { data: check } = await db!.from("wo_qa_checks")
       .insert({ work_order_id: job!.workOrderId, kind: "final" }).select("id").single();
     for (let i = 0; i < 3; i++) await photoFor(job!.workOrderId, "qa");
+
+    // A pass now has to have looked at every standard.
+    const { data: qaItems } = await db!.from("wo_qa_items")
+      .select("id").eq("qa_check_id", (check as { id: string }).id);
+    for (const item of (qaItems as { id: string }[])) {
+      await rpcAs(staff!, "wo_tick_qa_item", { p_item_id: item.id, p_done: true });
+    }
 
     expect(await rpcAs(staff!, "wo_record_qa", {
       p_check_id: (check as { id: string }).id, p_result: "pass", p_notes: "All good.", p_rectify: [],
