@@ -477,3 +477,17 @@
 .pt .var-item-top b { font-size: 13.5px; }
 .pt .var-item-top .chip { margin-left: auto; }
 .pt .var-item-comment { margin: 6px 0 10px; font-size: 13px; color: var(--soft, #c6ccd1); }
+
+/* ---- completion prep, on the phone ---------------------------------------- */
+.pt .prep { display:flex; align-items:flex-start; gap:11px; width:100%; text-align:left;
+  background:none; border:0; border-top:1px solid var(--line); padding:13px 2px;
+  color:var(--text); font-family:inherit; cursor:pointer; min-height:54px; }
+.pt .prep:first-of-type { border-top:0; }
+.pt .prep:disabled { opacity:.6; }
+.pt .prep-box { flex:0 0 22px; height:22px; border-radius:6px; border:1px solid var(--line);
+  background:var(--graphite); display:grid; place-items:center; font-size:13px; color:#03272d; margin-top:1px; }
+.pt .prep.on .prep-box { background:linear-gradient(135deg,var(--cyan),var(--paint)); border-color:transparent; }
+.pt .prep-body { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.pt .prep-body b { font-size:14px; font-weight:600; }
+.pt .prep-body small { font-size:12.5px; color:var(--muted); }
+.pt .prep.on .prep-body b { color:var(--soft); }

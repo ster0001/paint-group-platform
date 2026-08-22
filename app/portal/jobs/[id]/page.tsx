@@ -7,6 +7,7 @@ import WorkOrderDoc from "@/app/w/WorkOrderDoc";
 import RescheduleRequest from "./RescheduleRequest";
 import TickList from "./TickList";
 import Variations, { type VariationView } from "./Variations";
+import PrepChecklist, { type PrepItem } from "./PrepChecklist";
 import type { SurfaceRow } from "@/lib/workorder/surfaces";
 import type { Booking } from "@/lib/workorder/booking";
 import { OFFER_COLUMNS, type BookingOffer } from "@/lib/scheduling/offers";
@@ -70,6 +71,17 @@ export default async function PortalJobPage({ params }: { params: Promise<{ id: 
     ? { state: bookingRow.state as Booking["state"], startDate: bookingRow.start_date, endDate: bookingRow.end_date }
     : { state: "none", startDate: job.startDate, endDate: job.endDate };
 
+  const { data: prepRows } = await supabase
+    .from("wo_checklist_items")
+    .select("id, label, detail, required, done_at")
+    .eq("work_order_id", id).eq("phase", "completion_prep").order("sort");
+
+  const prepItems: PrepItem[] = ((prepRows as {
+    id: string; label: string; detail: string | null; required: boolean; done_at: string | null;
+  }[] | null) ?? []).map((r) => ({
+    id: r.id, label: r.label, detail: r.detail ?? "", required: r.required, done: r.done_at !== null,
+  }));
+
   const { data: variationRows } = await supabase
     .from("wo_variations")
     .select("id, category, comment, status, contractor_delta_cents, est_hours, released_at")
@@ -102,6 +114,7 @@ export default async function PortalJobPage({ params }: { params: Promise<{ id: 
   // Ticking only makes sense once the job is under way — before that the list is
   // still worth seeing, so it renders read-only via the server's own refusal.
   const canTick = (woRow as { stage?: string } | null)?.stage === "in_progress";
+  const canPrep = (woRow as { stage?: string } | null)?.stage === "completion_prep";
 
   return (
     <div className="wrap" style={{ paddingLeft: 0, paddingRight: 0 }}>
@@ -138,6 +151,12 @@ export default async function PortalJobPage({ params }: { params: Promise<{ id: 
             headingsWithBeforePhoto={headingsWithBeforePhoto}
             headingMeta={headingMeta}
           />
+        </div>
+      )}
+
+      {canPrep && prepItems.length > 0 && (
+        <div style={{ padding: "0 16px" }}>
+          <PrepChecklist items={prepItems} />
         </div>
       )}
 
