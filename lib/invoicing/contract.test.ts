@@ -44,11 +44,16 @@ describe("every invoice carries its own customer", () => {
     );
   });
 
-  it("A2 is the newest word on both live insert sites", () => {
-    // Four earlier files insert without customer_id — they are superseded
-    // `create or replace` of accept_estimate, plus wo_sign. A2 must sort
-    // last, or the old bodies would be the live ones.
-    expect(insertingMigrations.at(-1)).toBe("20261026000000_invoices_customer_link.sql");
+  it("the NEWEST word on the insert sites still names customer_id", () => {
+    // Earlier files insert without customer_id — superseded `create or
+    // replace` bodies. Whatever migration sorts LAST and redefines an insert
+    // site must carry the column, or A2 is silently undone. (Originally this
+    // pinned A2's filename; 20261028 legitimately replaced wo_sign — the
+    // invariant is the column, not the filename.)
+    const newest = read(insertingMigrations.at(-1)!);
+    const inserts = newest.match(/^\s*insert into public\.invoices \([^)]*\)/gm) ?? [];
+    expect(inserts.length).toBeGreaterThanOrEqual(1);
+    for (const i of inserts) expect(i).toContain("customer_id");
     expect(insertingMigrations.length).toBeGreaterThanOrEqual(5);
   });
 

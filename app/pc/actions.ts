@@ -249,3 +249,54 @@ export async function recordQa(raw: unknown): Promise<PcResult> {
     p_notes: parsed.data.notes, p_rectify: parsed.data.rectify,
   }, parsed.data.result === "pass" ? "Passed." : "Failed — rectification is on the painter's list.");
 }
+
+// ---------------------------------------------------------------------------
+// §4b (v3) — walkthrough booking + the two-mode sign-off, staff side.
+// The RPCs hold every rule; these validate shape and translate refusals.
+// ---------------------------------------------------------------------------
+
+export async function bookWalkthrough(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({
+    workOrderId: uuid,
+    kind: z.enum(["pre", "final"]),
+    // Omitted for a final = the booking's last day on site, decided in SQL.
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null),
+    note: z.string().max(500).default(""),
+  }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  const v = parsed.data;
+  const r = await call("wo_book_walkthrough",
+    { p_work_order_id: v.workOrderId, p_kind: v.kind, p_date: v.date, p_note: v.note },
+    v.kind === "final" ? "Final walkthrough booked." : "Pre-walkthrough booked.");
+  if (!r.ok && r.message === "no date") {
+    return { ok: false, message: "No accepted booking to take a date from — pick the day yourself." };
+  }
+  return r;
+}
+
+export async function setWalkthroughStatus(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({
+    walkthroughId: uuid,
+    status: z.enum(["done", "missed", "cancelled"]),
+  }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  return call("wo_set_walkthrough_status",
+    { p_walkthrough_id: parsed.data.walkthroughId, p_status: parsed.data.status },
+    parsed.data.status === "missed"
+      ? "Marked missed — the customer can now be asked to sign remotely."
+      : "Updated.");
+}
+
+export async function markClientUnavailable(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ workOrderId: uuid }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  return call("wo_mark_client_unavailable", { p_work_order_id: parsed.data.workOrderId },
+    "Marked unavailable — remote sign-off is now open to them.");
+}
+
+export async function generateReportDraft(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ workOrderId: uuid }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  return call("wo_generate_report_draft", { p_work_order_id: parsed.data.workOrderId },
+    "Draft report generated.");
+}

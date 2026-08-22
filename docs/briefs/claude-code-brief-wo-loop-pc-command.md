@@ -246,3 +246,43 @@ One phase per Claude Code session. Paste the block, verbatim, at session start. 
 6. `grep` audits: no `payment_cents|stage|state` writes from client code; no price arithmetic outside lib/pricing.
 
 — End of brief. If anything here contradicts work-order-completion-workflow.md, that file wins for workflow semantics and this file wins for build order; report the contradiction either way.
+
+---
+
+## 4b. Walkthroughs & two-mode sign-off — v3 addendum
+
+**Transcribed 23 Aug 2026 from Tom's kickoff ruling (the v3 file itself was
+never committed; this section is the spec of record for §4b).**
+
+Walkthroughs are booked through the EXISTING scheduling calendar
+(`wo_walkthroughs`): pre optional, final required, visible to contractor,
+customer and staff; the final defaults to the last day on site.
+
+Sign-off has two modes:
+
+- **Mode A — DEFAULT: on the contractor's device ("Walkthrough Mode").**
+  A scoped, time-boxed RPC serves the customer walkthrough view into the
+  contractor's session — never a role bypass. The signer's name is recorded;
+  the signed report is auto-emailed to the customer immediately.
+- **Mode B — remote from the customer's own view, FALLBACK ONLY.** Gated
+  behind PC marking the client unavailable or the final walkthrough being
+  missed; no sign action in the portal before that.
+
+Completion report: DRAFT at completion prep, FINAL at close.
+
+Schema: `wo_walkthroughs` added; `wo_signoff` carries `report_draft_id`,
+signer name (existing `signed_name`), `signed_kind on_device|remote|deemed`,
+`captured_on`.
+
+### ⚑ Decisions 10–12 (Settings `wo_loop.walkthrough`, defaults per ruling)
+
+| # | Decision | Default |
+|---|---|---|
+| 10 | Sign-email integrity — signed report emailed at once | `signEmailImmediate: true` |
+| 11 | Who books walkthroughs | `bookedBy: 'office'` |
+| 12 | Pre-walkthrough policy | `preRequired: false` (optional) |
+
+Implemented by migration `20261028000000_wo_walkthroughs_signoff_v3.sql`.
+`docs/briefs/acceptance-to-paid-workflow.md` (§1 list) remains missing on this
+machine — searched 23 Aug (repo, git history, Spotlight, Downloads); noted, not
+reconstructed.

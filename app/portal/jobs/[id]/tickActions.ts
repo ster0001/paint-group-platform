@@ -85,3 +85,28 @@ export async function getCrewLink(raw: unknown): Promise<CrewLinkResult> {
   if (s === "error:not_issued") return { ok: false, message: "This job sheet hasn't been issued yet." };
   return { ok: false, message: "Couldn't get the link just now." };
 }
+
+export type WalkthroughModeResult = { ok: true; url: string } | { ok: false; message: string };
+
+/**
+ * Mode A: open the customer's walkthrough view inside this contractor's visit.
+ * The RPC checks assignment, stage and a booked final; the session dies in two
+ * hours. What comes back is the SAME /s view the customer's own link serves.
+ */
+export async function startWalkthroughMode(raw: unknown): Promise<WalkthroughModeResult> {
+  const parsed = z.object({ workOrderId: z.string().uuid() }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "That didn't make sense — pull down to refresh." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_start_walkthrough_mode", {
+    p_work_order_id: parsed.data.workOrderId,
+  });
+  if (error) return { ok: false, message: "Walkthrough Mode isn't switched on yet — ask the office." };
+
+  const s = String(data ?? "");
+  if (s.startsWith("ok:")) return { ok: true, url: `/s/${s.slice(3)}` };
+  if (s === "error:not_at_walkthrough") return { ok: false, message: "The job isn't at the walkthrough stage yet." };
+  if (s === "error:no_walkthrough_booked") return { ok: false, message: "No final walkthrough is booked for today — the office books it first." };
+  if (s === "error:not_yours") return { ok: false, message: "That job isn't yours." };
+  return { ok: false, message: "Couldn't start the walkthrough just now." };
+}
