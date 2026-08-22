@@ -8,6 +8,7 @@ import RescheduleRequest from "./RescheduleRequest";
 import TickList from "@/app/components/wo/TickList";
 import Variations, { type VariationView } from "./Variations";
 import PrepChecklist, { type PrepItem } from "./PrepChecklist";
+import CrewShare from "./CrewShare";
 import SitePhotos from "./SitePhotos";
 import type { SurfaceRow } from "@/lib/workorder/surfaces";
 import type { Booking } from "@/lib/workorder/booking";
@@ -183,6 +184,14 @@ export default async function PortalJobPage({
       {(canTick || canPrep) && (
         <div style={{ padding: "0 16px" }}>
           <SitePhotos workOrderId={id} areas={[...new Set(surfaces.map((s) => s.heading))]} />
+        </div>
+      )}
+
+      {/* Committed jobs only: an open offer's suburb-only view has nothing a
+          crew needs, and the link would outlive a declined offer. */}
+      {job.committed && (
+        <div style={{ padding: "0 16px" }}>
+          <CrewShare workOrderId={id} />
         </div>
       )}
 

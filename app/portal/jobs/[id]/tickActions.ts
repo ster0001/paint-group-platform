@@ -57,3 +57,31 @@ export async function addJobNote(raw: unknown): Promise<NoteResult> {
   if (s === "error:not_yours") return { ok: false, message: "That job isn't yours." };
   return { ok: false, message: "Couldn't send that note." };
 }
+
+export type CrewLinkResult = { ok: true; url: string } | { ok: false; message: string };
+
+/**
+ * Mint (or rotate) the crew link for a job. The RPC checks the caller IS the
+ * assigned contractor; rotating kills the old link — that is the point of
+ * rotating, so the confirm lives in the UI, not here.
+ */
+export async function getCrewLink(raw: unknown): Promise<CrewLinkResult> {
+  const parsed = z.object({ workOrderId: z.string().uuid(), rotate: z.boolean().default(false) }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "That didn't make sense — pull down to refresh." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_or_create_crew_token", {
+    p_work_order_id: parsed.data.workOrderId, p_rotate: parsed.data.rotate,
+  });
+  if (error) {
+    // The RPC not existing yet reads as a missing function — say something
+    // human rather than PostgREST's error string.
+    return { ok: false, message: "Crew links aren't switched on yet — ask the office." };
+  }
+
+  const s = String(data ?? "");
+  if (s.startsWith("ok:")) return { ok: true, url: `/crew/${s.slice(3)}` };
+  if (s === "error:not_yours") return { ok: false, message: "That job isn't yours." };
+  if (s === "error:not_issued") return { ok: false, message: "This job sheet hasn't been issued yet." };
+  return { ok: false, message: "Couldn't get the link just now." };
+}

@@ -5,6 +5,7 @@ import { WO_STATUS_LABEL } from "@/lib/workorder/snapshot";
 import { FINISH_LEVELS, FINISH_ORDER } from "@/lib/workorder/finish";
 import { STAGE_LANES, type WoStage } from "@/lib/workorder/stages";
 import { SURFACE_STATE_LABEL, type SurfaceState } from "@/lib/workorder/surfaces";
+import type { CrewVariation } from "@/lib/workorder/crew";
 import { WO_PHOTO_KIND_LABEL, groupByKind, type WOPhoto } from "@/lib/workorder/photos";
 import PhotoGrid from "@/app/components/wo/PhotoGrid";
 import { bookingCaption, bookingDates, bookingDays, bookingLabel, bookingTone, type Booking } from "@/lib/workorder/booking";
@@ -33,8 +34,16 @@ export type WOEdit = {
  * from the frozen snapshot, which is why it is a prop rather than part of Doc.
  * Step 1 renders it and nothing more; the ticks and gates arrive in step 2.
  */
-export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos = [] }: {
+export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos = [], variant = "contractor", crewVariations = [] }: {
   doc: Doc; edit?: WOEdit; stage?: WoStage | null;
+  /**
+   * "crew" is the painter's copy: no payment section, no customer phone. The
+   * doc it receives is ALREADY stripped by lib/workorder/crew.ts — hiding the
+   * section here is the second lock on the same door, not the first.
+   */
+  variant?: "contractor" | "crew";
+  /** Variations for the crew view: the work, never the money. */
+  crewVariations?: readonly CrewVariation[];
   /** The live booking, derived from the offer — requested is not confirmed. */
   booking?: Booking | null;
   /**
@@ -260,14 +269,38 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
           </section>
         )}
 
-        {/* CONTRACTOR PAYMENT — their price only. No customer pricing anywhere. */}
-        <section>
-          <h2>Payment</h2>
-          <div className="pay">
-            <div className="l">Contractor payment for this job<small>Fixed price · paid on completion of the scope above</small></div>
-            <div className="v">{money(doc.contractorPaymentCents || 0)}</div>
-          </div>
-        </section>
+        {/* VARIATIONS, crew copy — what changed on site, so the painter is not
+            working to a stale scope. Scope only; the money lives on the
+            contractor's own view of the variation, never here. */}
+        {variant === "crew" && crewVariations.length > 0 && (
+          <section data-testid="crew-variations">
+            <h2>Variations</h2>
+            <ul className="excl">
+              {crewVariations.map((v, i) => (
+                <li key={i}>
+                  <b style={{ textTransform: "capitalize" }}>{v.category.replace(/_/g, " ")}</b>
+                  {v.comment ? ` — ${v.comment}` : ""}
+                  {v.estHours != null ? ` · ~${v.estHours} h` : ""}
+                  <span style={{ marginLeft: 6, fontFamily: "var(--mono)", fontSize: 10, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--muted)" }}>
+                    {v.status.replace(/_/g, " ")}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* CONTRACTOR PAYMENT — their price only. No customer pricing anywhere,
+            and the crew's copy has no payment at all. */}
+        {variant !== "crew" && (
+          <section>
+            <h2>Payment</h2>
+            <div className="pay">
+              <div className="l">Contractor payment for this job<small>Fixed price · paid on completion of the scope above</small></div>
+              <div className="v">{money(doc.contractorPaymentCents || 0)}</div>
+            </div>
+          </section>
+        )}
 
         {/* EXCLUSIONS — what NOT to do */}
         {doc.exclusions.length > 0 && (
@@ -278,7 +311,10 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
         )}
 
         <div className="wo-foot">
-          {doc.company.name}{doc.company.phone ? ` · ${doc.company.phone}` : ""} · {doc.woRef}. This work order is confidential and for the assigned contractor only.
+          {doc.company.name}{doc.company.phone ? ` · ${doc.company.phone}` : ""} · {doc.woRef}.{" "}
+          {variant === "crew"
+            ? "This job sheet is for the assigned crew. Questions go through your contractor."
+            : "This work order is confidential and for the assigned contractor only."}
         </div>
       </div>
     </div>
