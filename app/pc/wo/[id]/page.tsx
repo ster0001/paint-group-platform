@@ -7,6 +7,7 @@ import PriceVariation from "./PriceVariation";
 import Checklist, { type ChecklistItem } from "./Checklist";
 import QaCheck, { type QaCheckView } from "./QaCheck";
 import TickList from "@/app/components/wo/TickList";
+import StageAdvance from "./StageAdvance";
 
 export const dynamic = "force-dynamic";
 
@@ -230,6 +231,8 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
         )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <StageAdvance workOrderId={id} stage={row.stage} />
+
           {row.stage === "offered" && forPhase("pre_offer").length > 0 && (
             <Checklist
               title="Ready to offer"

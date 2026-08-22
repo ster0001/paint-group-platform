@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { WO_STAGES } from "@/lib/workorder/stages";
 
 /**
  * The console's own actions — the three PC surfaces the earlier steps deferred
@@ -54,6 +55,61 @@ export async function approveAndSendUpdate(raw: unknown): Promise<PcResult> {
   const approved = await approveUpdate(parsed.data);
   if (!approved.ok) return approved;
   return call("wo_send_update", { p_update_id: parsed.data.updateId }, "Sent.");
+}
+
+/**
+ * Move a job to its next stage.
+ *
+ * Every gate refusal comes back as `error:gate:<plain english>`, so the console
+ * can say "3 pre-start items still to tick" rather than a code. The stage
+ * machine decides whether the move is legal and whether it is ready; this only
+ * asks, and reports.
+ */
+export async function advanceStage(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ workOrderId: uuid, to: z.enum(WO_STAGES) }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_advance_stage", {
+    p_work_order_id: parsed.data.workOrderId, p_to: parsed.data.to, p_meta: {},
+  });
+  if (error) return { ok: false, message: error.message };
+
+  const s = String(data ?? "");
+  if (s.startsWith("ok:")) {
+    revalidatePath("/pc"); revalidatePath("/pc/flow"); revalidatePath("/portal/jobs");
+    return { ok: true };
+  }
+  if (s.startsWith("error:gate:")) return { ok: false, message: s.slice("error:gate:".length) };
+  if (s.startsWith("error:illegal_transition:")) {
+    return { ok: false, message: "A job can't make that move from where it is." };
+  }
+  return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") };
+}
+
+/**
+ * Completion prep -> walkthrough goes through wo_deliver_evidence_pack rather
+ * than a bare stage move: delivering the pack is what starts the customer's
+ * clock and mints their link, and doing one without the other would leave a job
+ * at walkthrough with nothing for the customer to open.
+ */
+export async function deliverEvidencePack(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ workOrderId: uuid }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_deliver_evidence_pack", {
+    p_work_order_id: parsed.data.workOrderId,
+  });
+  if (error) return { ok: false, message: error.message };
+
+  const s = String(data ?? "");
+  if (s.startsWith("ok:")) {
+    revalidatePath("/pc"); revalidatePath("/pc/flow");
+    return { ok: true, message: "Sent — the customer can walk through and sign now." };
+  }
+  if (s.startsWith("error:gate:")) return { ok: false, message: s.slice("error:gate:".length) };
+  return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") };
 }
 
 export async function reofferJob(raw: unknown): Promise<PcResult> {
