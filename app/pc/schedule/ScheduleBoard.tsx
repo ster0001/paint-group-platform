@@ -776,8 +776,11 @@ export default function ScheduleBoard({
                 const we = p.dow === 0 || p.dow === 6;
                 return (
                   <div key={d} className={`cell ${we ? "we" : ""} ${d === today ? "today" : ""}`}>
-                    {dayW >= 44 ? `${p.short} ` : ""}
-                    {p.num}
+                    {/* Day name AND number, always — a column of bare numbers
+                        gives no sense of where the weekends fall. Zoomed right
+                        out there is only room for the initial. */}
+                    <span className="dw">{dayW >= 34 ? p.short : p.short.slice(0, 1)}</span>
+                    <span className="dn">{p.num}</span>
                   </div>
                 );
               })}

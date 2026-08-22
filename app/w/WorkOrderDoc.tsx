@@ -4,6 +4,9 @@ import type { WorkOrderDoc as Doc } from "@/lib/workorder/snapshot";
 import { WO_STATUS_LABEL } from "@/lib/workorder/snapshot";
 import { FINISH_LEVELS, FINISH_ORDER } from "@/lib/workorder/finish";
 import { STAGE_LANES, type WoStage } from "@/lib/workorder/stages";
+import { SURFACE_STATE_LABEL, type SurfaceState } from "@/lib/workorder/surfaces";
+import { WO_PHOTO_KIND_LABEL, groupByKind, type WOPhoto } from "@/lib/workorder/photos";
+import PhotoGrid from "@/app/components/wo/PhotoGrid";
 import { bookingCaption, bookingDates, bookingDays, bookingLabel, bookingTone, type Booking } from "@/lib/workorder/booking";
 import FinishChip from "@/app/components/FinishChip";
 import "./workorder.css";
@@ -30,10 +33,19 @@ export type WOEdit = {
  * from the frozen snapshot, which is why it is a prop rather than part of Doc.
  * Step 1 renders it and nothing more; the ticks and gates arrive in step 2.
  */
-export default function WorkOrderDoc({ doc, edit, stage, booking }: {
+export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos = [] }: {
   doc: Doc; edit?: WOEdit; stage?: WoStage | null;
   /** The live booking, derived from the offer — requested is not confirmed. */
   booking?: Booking | null;
+  /**
+   * Live ticks from `wo_surfaces`, keyed by the document's own surface key.
+   * The snapshot's per-surface status is frozen at issue and never written
+   * again, so without this the job sheet says "Not started" over work the
+   * painter finished — read the ticks, not the copy of the scope.
+   */
+  ticks?: Record<string, SurfaceState>;
+  /** Site photos already signed — see lib/workorder/photos.ts. */
+  photos?: readonly WOPhoto[];
 }) {
   return (
     <div className="wo">
@@ -193,7 +205,19 @@ export default function WorkOrderDoc({ doc, edit, stage, booking }: {
                       {s.prep && <div className="surf-prep">{s.prep}</div>}
                     </div>
                     <div className="surf-right">
-                      <span className="pill">{s.status === "in_progress" ? "In progress" : s.status === "complete" ? "Complete" : "Not started"}</span>
+                      {(() => {
+                        // The tick wins where there is one; the snapshot's own
+                        // status is the fallback for a job issued before the
+                        // tick list existed.
+                        const tick = ticks?.[s.key];
+                        const label = tick
+                          ? SURFACE_STATE_LABEL[tick]
+                          : s.status === "in_progress" ? "In progress"
+                          : s.status === "complete" ? "Complete" : "Not started";
+                        const tone = tick === "done" || s.status === "complete" ? " done"
+                          : tick === "prepped" || s.status === "in_progress" ? " doing" : "";
+                        return <span className={`pill${tone}`} data-testid={`surf-state-${s.key}`}>{label}</span>;
+                      })()}
                       {(edit || s.hours != null) && (
                         <div className="surf-hours">
                           <span className="hlab">Hours</span>
@@ -213,6 +237,24 @@ export default function WorkOrderDoc({ doc, edit, stage, booking }: {
                     ))}
                   </div>
                 )}
+              </div>
+            ))}
+          </section>
+        )}
+
+        {/* SITE PHOTOS — what actually came back from site. Signed, short-lived
+            URLs into the private bucket; staff and the assigned contractor see
+            them, nobody else. Print drops them (see photogrid.css). */}
+        {photos.length > 0 && (
+          <section className="print-hide" data-testid="wo-site-photos">
+            <h2>Site photos</h2>
+            {groupByKind(photos).map((g) => (
+              <div className="wo-photoset" key={g.kind}>
+                <div className="wo-photoset-h">
+                  {WO_PHOTO_KIND_LABEL[g.kind]}
+                  <span>{g.photos.length}</span>
+                </div>
+                <PhotoGrid photos={g.photos} showKind={false} />
               </div>
             ))}
           </section>

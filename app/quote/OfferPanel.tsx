@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { reportIfError } from "@/lib/monitoring/report";
-import { withdrawOfferAction, sendOfferAction } from "@/app/(app)/schedule/actions";
+import { withdrawOfferAction, sendOfferAction } from "@/app/pc/schedule/actions";
 import {
   OFFER_COLUMNS,
   formatDMY,

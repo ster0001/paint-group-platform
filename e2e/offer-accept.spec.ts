@@ -59,7 +59,7 @@ test.describe("offer a job, contractor accepts", () => {
     const staffContext = await browser.newContext();
     const staffPage = await staffContext.newPage();
     await signIn(staffPage, staff!, /\/estimates/);
-    await staffPage.goto("/schedule");
+    await staffPage.goto("/pc/schedule");
 
     // The board streams: goto() resolves while the loading skeleton is still on
     // screen, and elements inside a suspense boundary exist in the DOM without

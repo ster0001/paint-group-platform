@@ -4,6 +4,52 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## Projects console: the schedule moves in, and site photos finally get read
+
+**2026-08-22 · `app/pc/schedule/` (was `app/(app)/schedule/`), `app/pc/PcNav.tsx`,
+`lib/workorder/photos.ts`, `app/components/wo/PhotoGrid.tsx`,
+`supabase/migrations/20261024000000`**
+
+Four changes, one theme: the office screens now show what the job actually is.
+
+**Scheduling is a step in the workflow, not a separate app.** The board moved
+under `/pc/schedule` and became the FIRST tab of the console, which the sidebar
+now calls **Projects** rather than "Live jobs"; the standalone Schedule sidebar
+entry is gone and `/schedule` permanently redirects. The tab rail became a client
+component (`PcNav`) so the current tab can light up — the `.on` style was already
+in the stylesheet with nothing setting it. `schedule.css` widens the console
+shell only on a page that actually contains a board (`:has(> .sb)`), so the rest
+of the console keeps its 1060px measure.
+
+**The lane column pins.** `.cinfo` (and the two header cells above it) are
+`position: sticky; left: 0` inside the timeline scroller, with the `.tl` left
+padding removed — a gutter there is a strip the pinned names do NOT cover, and
+blocks scrolled through it and read as debris. The day header now stacks the
+weekday over the date at every zoom level instead of dropping the name below
+44px per day.
+
+**The job sheet reads the ticks, not the frozen copy of the scope.**
+`wo_snapshot` carries a `status` per surface, written once at issue and never
+again, so every job sheet said "Not started" over work the painter finished.
+`WorkOrderDoc` now takes a `ticks` map keyed by the document's own surface key
+(`lib/workorder/surfaces.ts` → `ticksBySurfaceKey`): the builder's Work order tab
+gets it from `wo_surfaces` in the page query, and `/w/[token]` — anon, so RLS
+rightly refuses it the table — gets it from the new security-definer
+`get_work_order_ticks_by_token`, degrading to the frozen statuses if the
+migration has not been applied yet.
+
+**Site photos exist on screen.** `wo_photos` rows had been written since the loop
+shipped and read by exactly one query ("has this elevation got a before
+photo?"). `lib/workorder/photos.ts` is the read side — one place that signs a
+batch of paths into the private bucket, shapes and groups them, and drops a row
+whose object has gone missing rather than rendering a broken tile.
+`PhotoGrid` renders them with no hooks, so the same component serves the Server
+Components and the builder's client tree. They now appear on the console job
+screen (grouped by kind, and again under the variation each one justifies), on
+the job sheet, and as a "Latest from site" strip on the Projects dashboard.
+
+---
+
 ## AI plan reader — P0: the boundary, the schema and the file pipeline
 
 **2026-08-17 · `lib/extract/`, `app/api/extract/floorplan/route.ts`,

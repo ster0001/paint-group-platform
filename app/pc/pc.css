@@ -246,3 +246,16 @@
   border-top:1px solid var(--line); padding-top:12px; }
 .pc .reoffer select { background:var(--ink); color:var(--text); border:1px solid var(--line);
   border-radius:8px; padding:9px 10px; font-family:inherit; font-size:13px; }
+
+/* ---- site photos ---------------------------------------------------------- */
+/* The painter's record, finally on screen. Grouped by kind inside a card, and
+   on the dashboard as one strip across every running job. */
+.pc .photoset { margin-top: 12px; }
+.pc .photoset:first-of-type { margin-top: 8px; }
+.pc .photoset-h { display: flex; align-items: center; gap: 8px; }
+.pc .photoset-h b { font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted); font-weight: 400; }
+.pc .photostrip-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pc .photostrip-h a { color: var(--cyan); text-decoration: none; font-family: var(--mono);
+  font-size: 8.5px; letter-spacing: .08em; text-transform: uppercase; }
+.pc .photostrip-h a:hover { text-decoration: underline; }

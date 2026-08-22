@@ -99,7 +99,7 @@ async function run(fn: string, args: Record<string, unknown>): Promise<ActionRes
 
   const result = interpret(data);
   if (result.ok) {
-    revalidatePath("/schedule");
+    revalidatePath("/pc/schedule");
     revalidatePath("/contractors");
   }
   return result;
@@ -170,6 +170,6 @@ export async function blockOutAction(raw: unknown): Promise<ActionResult> {
     source: "staff",
   });
   if (error) return { ok: false, kind: "error", message: error.message };
-  revalidatePath("/schedule");
+  revalidatePath("/pc/schedule");
   return { ok: true, state: "blocked" };
 }

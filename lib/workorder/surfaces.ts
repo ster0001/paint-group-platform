@@ -13,7 +13,7 @@
  * A painter should never be asked to mark a scaffold hire as "prepped", and the
  * progress bar must mean work done, not lines billed.
  */
-import type { WorkOrderDoc, WOArea } from "./snapshot";
+import type { WorkOrderDoc, WOArea, WOSurfaceStatus } from "./snapshot";
 
 export type SurfaceState = "todo" | "prepped" | "done";
 
@@ -75,6 +75,39 @@ export function seedRowsFromDoc(
     }
   }
   return rows;
+}
+
+/**
+ * The tick list's own three states, said in the job sheet's language.
+ *
+ * The work-order DOCUMENT carries a `status` per surface, but that is frozen
+ * into the snapshot when the order is issued — it is always `not_started`,
+ * because nothing writes it afterwards. Ticks live in `wo_surfaces`. So the
+ * job sheet has to READ the ticks rather than the snapshot, or it goes on
+ * saying "Not started" over an elevation the painter finished a week ago.
+ */
+export const SURFACE_STATE_LABEL: Record<SurfaceState, string> = {
+  todo: "Not started",
+  prepped: "Prepped",
+  done: "Complete",
+};
+
+/** The document's own vocabulary, for anything typed on WOSurfaceStatus. */
+export function statusFromState(state: SurfaceState): WOSurfaceStatus {
+  return state === "done" ? "complete" : state === "prepped" ? "in_progress" : "not_started";
+}
+
+/**
+ * Live ticks keyed by the document's surface key, ready to hand to the job
+ * sheet. Rows a rectification added have no `surface_key` and no counterpart in
+ * the document, so they are skipped rather than guessed at.
+ */
+export function ticksBySurfaceKey(
+  rows: readonly { surface_key: string | null; state: SurfaceState }[],
+): Record<string, SurfaceState> {
+  const out: Record<string, SurfaceState> = {};
+  for (const r of rows) if (r.surface_key) out[r.surface_key] = r.state;
+  return out;
 }
 
 export type SurfaceRow = {

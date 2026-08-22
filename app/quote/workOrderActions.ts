@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { WO_STAGES } from "@/lib/workorder/stages";
 import { seedRowsFromDoc } from "@/lib/workorder/surfaces";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
-import type { ActionResult } from "@/app/(app)/schedule/actions";
+import type { ActionResult } from "@/app/pc/schedule/actions";
 
 /**
  * Work-order actions.
@@ -84,7 +84,7 @@ export async function issueWorkOrderAction(raw: unknown): Promise<ActionResult> 
     // the tick list should exist. Seeding is idempotent and never resets state,
     // so re-issuing refreshes wording and order without wiping a painter's day.
     await seedSurfaces(supabase, parsed.data.workOrderId);
-    revalidatePath("/schedule");
+    revalidatePath("/pc/schedule");
     revalidatePath("/quote");
   }
   return r;
@@ -132,7 +132,7 @@ export async function setWorkOrderScheduleAction(raw: unknown): Promise<ActionRe
     const { data, error } = await supabase.rpc("clear_work_order_contractor", { p_work_order_id: v.workOrderId });
     if (error) return { ok: false, kind: "error", message: error.message };
     const r = interpret(data);
-    if (r.ok) revalidatePath("/schedule");
+    if (r.ok) revalidatePath("/pc/schedule");
     return r;
   }
 
@@ -143,7 +143,7 @@ export async function setWorkOrderScheduleAction(raw: unknown): Promise<ActionRe
   });
   if (error) return { ok: false, kind: "error", message: error.message };
   const r = interpret(data);
-  if (r.ok) revalidatePath("/schedule");
+  if (r.ok) revalidatePath("/pc/schedule");
   return r;
 }
 
@@ -173,7 +173,7 @@ export async function advanceStageAction(raw: unknown): Promise<ActionResult> {
 
   const raw_s = String(data ?? "");
   if (raw_s.startsWith("ok:")) {
-    revalidatePath("/schedule");
+    revalidatePath("/pc/schedule");
     revalidatePath("/quote");
     revalidatePath("/portal/jobs");
     return { ok: true, state: raw_s.slice(3) };

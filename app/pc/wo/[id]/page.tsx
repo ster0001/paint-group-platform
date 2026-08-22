@@ -7,6 +7,8 @@ import PriceVariation from "./PriceVariation";
 import Checklist, { type ChecklistItem } from "./Checklist";
 import QaCheck, { type QaCheckView } from "./QaCheck";
 import TickList from "@/app/components/wo/TickList";
+import PhotoGrid from "@/app/components/wo/PhotoGrid";
+import { WO_PHOTO_KIND_LABEL, forVariation, groupByKind, signPhotos, type WOPhotoRow } from "@/lib/workorder/photos";
 import StageAdvance from "./StageAdvance";
 import RebuildTicks from "./RebuildTicks";
 
@@ -72,12 +74,21 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
         : r.done_at !== null,
   }));
 
-  // Which elevations already have their before-photo, so the office meets the
-  // same gate the painter does rather than a special case.
+  // Every photo on the job, newest first — the record the painter has been
+  // building all along and that nothing on this screen used to show. Signed
+  // here (private bucket) and read twice: once for the gallery, once for the
+  // before-photo gate, so the office meets the same gate the painter does
+  // rather than running a second query to ask the same question.
   const { data: photoRows } = await supabase
-    .from("wo_photos").select("area").eq("work_order_id", id).eq("kind", "before");
+    .from("wo_photos")
+    .select("id, work_order_id, kind, area, caption, storage_path, created_at, variation_id")
+    .eq("work_order_id", id)
+    .order("created_at", { ascending: false })
+    .limit(120);
+  const photos = await signPhotos(supabase, (photoRows as WOPhotoRow[] | null) ?? []);
   const headingsWithBeforePhoto = [...new Set(
-    ((photoRows as { area: string }[] | null) ?? []).map((p) => p.area).filter(Boolean),
+    ((photoRows as WOPhotoRow[] | null) ?? [])
+      .filter((p) => p.kind === "before").map((p) => p.area ?? "").filter(Boolean),
   )];
 
   const qaChecks: QaCheckView[] = ((qaRows ?? []) as unknown as {
@@ -298,6 +309,14 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
                 &ldquo;{v.comment}&rdquo; <b>— {v.category.replace(/_/g, " ")}
                 {v.est_hours ? ` · est. ${Number(v.est_hours)} hrs` : ""}</b>
               </div>
+              {/* What the painter photographed when they raised it — pricing a
+                  variation off a one-line comment was guesswork. */}
+              <PhotoGrid
+                photos={forVariation(photos, v.id)}
+                tight
+                showKind={false}
+                empty="No photo was attached to this variation."
+              />
               <PriceVariation
                 id={v.id}
                 status={v.status}
@@ -319,6 +338,26 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
               )}
             </div>
           )}
+
+          <div className="card" data-testid="site-photos">
+            <h3>From site <em data-testid="photo-count">{photos.length} photo{photos.length === 1 ? "" : "s"}</em></h3>
+            {photos.length === 0 ? (
+              <p className="note">
+                Nothing sent in yet. Before-photos arrive with the first tick on
+                each elevation; progress, QA and completion photos follow.
+              </p>
+            ) : (
+              groupByKind(photos).map((g) => (
+                <div className="photoset" key={g.kind}>
+                  <div className="photoset-h">
+                    <b>{WO_PHOTO_KIND_LABEL[g.kind]}</b>
+                    <span className="pill">{g.photos.length}</span>
+                  </div>
+                  <PhotoGrid photos={g.photos} tight showKind={false} />
+                </div>
+              ))
+            )}
+          </div>
 
           <div className="card">
             <h3>Job facts</h3>
