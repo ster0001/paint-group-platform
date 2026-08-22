@@ -15,6 +15,15 @@ import {
   type WizardSurfaceKey,
 } from "@/lib/wizard/state";
 import { defaultSurfacesFor, type SubstrateGroups } from "@/lib/estimate/substrates";
+import {
+  busyReason,
+  continueState,
+  establishSession,
+  planUploadLabel,
+  SESSION_ERROR_TEXT,
+  SESSION_SLOW_TEXT,
+  type SessionPhase,
+} from "@/lib/wizard/session";
 import type { CustomerPayload, WizardEditorPayload } from "@/lib/wizard/view";
 import AddressField from "./AddressField";
 import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
@@ -66,7 +75,14 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
 
   // A customer needs an identity before they can upload or submit —
   // an anonymous Supabase session, promoted to an account if they save.
-  const [sessionReady, setSessionReady] = useState(!isCustomer);
+  // S0: this is a three-state thing, not a boolean. "failed" is a place the
+  // customer can act from; the old `false` was a dead end with no way out.
+  const [sessionPhase, setSessionPhase] = useState<SessionPhase>(isCustomer ? "connecting" : "ready");
+  /** Bumped by "Try again" to re-run the sign-in effect. */
+  const [sessionAttemptId, setSessionAttemptId] = useState(0);
+  /** S0: set the moment the first attempt fails, so the ~26s worst case says
+   *  it is still going instead of sitting there looking frozen. */
+  const [sessionSlow, setSessionSlow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [procLine, setProcLine] = useState(0);
   const [planFileCount, setPlanFileCount] = useState(0);
@@ -96,14 +112,46 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
 
   useEffect(() => {
     if (!isCustomer) return;
+    let live = true;
     const supabase = createBrowserClient();
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (data.session) { setSessionReady(true); return; }
+
+    /** One full try: use the session we have, else ask for an anonymous one. */
+    const attempt = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) return true;
       const { error: signInError } = await supabase.auth.signInAnonymously();
-      if (!signInError) setSessionReady(true);
-      else setError("The estimate wizard isn't available just now — please try again shortly, or give us a call.");
+      return !signInError;
+    };
+
+    // Already "connecting" — initial state for a customer, and what
+    // retrySession sets before it bumps the id that re-runs this.
+    void establishSession(attempt, {
+      onAttemptFailed: ({ willRetry }) => {
+        // Only while another try is coming — once it is over, the error and
+        // its "Try again" say everything, and two messages would compete.
+        if (live && willRetry) setSessionSlow(true);
+      },
+    }).then((outcome) => {
+      if (!live) return;
+      setSessionSlow(false);
+      setSessionPhase(outcome.phase);
+      // The error clears on a retry, so it can never outlive the failure.
+      setError(outcome.phase === "failed" ? SESSION_ERROR_TEXT : null);
     });
-  }, [isCustomer]);
+
+    return () => { live = false; };
+  }, [isCustomer, sessionAttemptId]);
+
+  /** S0: the way back. Without this a failed sign-in could only be escaped by
+   *  reloading the page, which most customers on a phone will not do. */
+  const retrySession = () => {
+    setError(null);
+    setSessionSlow(false);
+    setSessionPhase("connecting");
+    setSessionAttemptId((n) => n + 1);
+    // NOTE: `state`, `page` and the staged files are deliberately untouched —
+    // a retry must never cost the customer what they have already typed.
+  };
 
   // ---- page-1 uploads -------------------------------------------------------
 
@@ -425,6 +473,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
 
   // ---- render ---------------------------------------------------------------
 
+  /** Why Continue is unavailable, kept apart from what it is unavailable FOR. */
+  const nav = continueState({ uploading, sessionPhase });
+
   if (screen === "editor" && isCustomer && (outcome || customerResult)) {
     return <CustomerResult outcome={outcome} reveal={customerResult} roomTypes={roomTypes} />;
   }
@@ -469,7 +520,12 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
               <PageProperty
                 state={state} set={set} isCustomer={isCustomer} substrates={substrates}
                 planFileCount={planFileCount} facadeFileCount={facadeFileCount}
-                uploading={uploading || !sessionReady /* P1: a fast tap before anonymous sign-in completed got a staff-only 403 */}
+                uploading={uploading}
+                /* P1: a fast tap before anonymous sign-in completed got a
+                   staff-only 403, so the controls still wait for the session —
+                   but as a SEPARATE reason, so no label claims a file is
+                   uploading when none was chosen (S0.3). */
+                sessionBlocked={sessionPhase !== "ready"}
                 planInputRef={planInputRef} facadeInputRef={facadeInputRef}
                 onPlanFiles={uploadPlans} onFacadeFiles={uploadFacades}
               />
@@ -524,7 +580,19 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
                 we&rsquo;ll price what we can and flag the rest for a person to check.
               </div>
             )}
-            {error && <div className="wz-err">{error}</div>}
+            {sessionSlow && sessionPhase === "connecting" && (
+              <div className="wz-waiting">{SESSION_SLOW_TEXT}</div>
+            )}
+            {error && (
+              <div className="wz-err">
+                {error}
+                {sessionPhase === "failed" && (
+                  <button className="wz-linkish" onClick={retrySession}>
+                    Try again
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -534,9 +602,12 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal" }: 
           <button className="wz-btn wz-bg" onClick={back} style={{ visibility: page > 1 ? "visible" : "hidden" }}>
             Back
           </button>
-          <button className="wz-btn wz-bp" onClick={next} disabled={uploading || !sessionReady}>
+          <button className="wz-btn wz-bp" onClick={next} disabled={nav.disabled} title={nav.note ?? undefined}>
             {page === lastPage ? "See my estimate" : page === 5 && isCustomer ? "Nearly there" : "Continue"}
           </button>
+          {/* S0.3: the honest reason, beside the button rather than inside a
+              label that claims a file is going up when none was chosen. */}
+          {nav.note && <span className="wz-navnote">{nav.note}</span>}
         </nav>
       )}
     </div>
@@ -562,7 +633,7 @@ function Seg<T extends string>({ options, value, onPick }: {
 // ---- page 1: the property ---------------------------------------------------
 
 function PageProperty({
-  state, set, isCustomer = false, substrates, planFileCount, facadeFileCount, uploading, planInputRef, facadeInputRef, onPlanFiles, onFacadeFiles,
+  state, set, isCustomer = false, substrates, planFileCount, facadeFileCount, uploading, sessionBlocked = false, planInputRef, facadeInputRef, onPlanFiles, onFacadeFiles,
 }: {
   state: WizardState;
   set: (p: Partial<WizardState>) => void;
@@ -570,7 +641,10 @@ function PageProperty({
   substrates: SubstrateGroups;
   planFileCount: number;
   facadeFileCount: number;
+  /** A file the customer chose is going up. Labels may say so. */
   uploading: boolean;
+  /** The session has not landed. Disables, but never reads as "Uploading…". */
+  sessionBlocked?: boolean;
   planInputRef: React.RefObject<HTMLInputElement | null>;
   facadeInputRef: React.RefObject<HTMLInputElement | null>;
   onPlanFiles: (files: File[]) => void;
@@ -578,6 +652,8 @@ function PageProperty({
 }) {
   const basics = state.basics;
   const needsFacades = state.jobType !== "interior" && !state.listingUrl.trim();
+  /** Both reasons disable the upload controls; only one may be spoken aloud. */
+  const blocked = busyReason({ uploading, sessionPhase: sessionBlocked ? "connecting" : "ready" }) !== null;
   // A1: the customer's address line as typed (structured only once picked),
   // and the immediate service-area answer for the polite early message.
   const [addressText, setAddressText] = useState("");
@@ -660,11 +736,9 @@ function PageProperty({
           <button
             className={`wz-upload ${planFileCount ? "done" : ""}`}
             onClick={() => planInputRef.current?.click()}
-            disabled={uploading}
+            disabled={blocked}
           >
-            {planFileCount
-              ? "✓ Floorplan uploaded — reading in the background. Replace it?"
-              : uploading ? "Uploading…" : "📐 Upload a floorplan — photo or PDF"}
+            {planUploadLabel({ planFileCount, uploading })}
           </button>
           <button
             className="wz-linkish"
@@ -784,7 +858,7 @@ function PageProperty({
           <button
             className={`wz-upload ${facadeFileCount >= 2 ? "done" : ""}`}
             onClick={() => facadeInputRef.current?.click()}
-            disabled={uploading}
+            disabled={blocked}
           >
             {facadeFileCount
               ? `✓ ${facadeFileCount} photo${facadeFileCount === 1 ? "" : "s"} added — add another?`
