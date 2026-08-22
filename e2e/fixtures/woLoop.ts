@@ -78,7 +78,10 @@ export async function createLoopFixture(
         jobTitle: "E2E tick fixture", jobAddress: "1 Test St, Melbourne",
         contactFirstName: "Test", contactPhone: "", startDate: null,
         accessNotes: "", crewNotes: "", levelOfFinish: "Level 3", finishCode: "PG-3",
-        contractorName: "", contractorPaymentCents: 0, materials: [],
+        contractorName: "", contractorPaymentCents: 0,
+        // One product, so anything reading the colour chips has something to read.
+        materials: [{ product: "Weathershield", photoUrl: "", litres: 10, coverageMissing: false,
+                      colourName: "", colourHex: "", colourStatus: "tbc" }],
         areas: headings.map((h, i) => ({
           id: `a${i}`, title: h.heading, finishCode: "PG-3", finishOverridden: false, photos: [],
           surfaces: h.labels.map((label, j) => ({
