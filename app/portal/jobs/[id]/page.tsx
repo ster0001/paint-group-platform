@@ -14,6 +14,7 @@ import type { Booking } from "@/lib/workorder/booking";
 import { OFFER_COLUMNS, type BookingOffer } from "@/lib/scheduling/offers";
 import type { PortalBlock, PortalJobDay } from "@/app/portal/calendar/CalendarGrid";
 import { jobDaysFor } from "@/lib/contractor/jobDays";
+import { suburbOnly } from "@/lib/scheduling/offers";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +71,7 @@ export default async function PortalJobPage({
       .select("id, heading, heading_meta, label, state, rectification")
       .eq("work_order_id", id).order("sort", { ascending: true }),
     supabase.from("wo_photos")
-      .select("area").eq("work_order_id", id).eq("kind", "before"),
+      .select("area, kind").eq("work_order_id", id).in("kind", ["before", "completion"]),
     supabase.from("work_orders").select("stage").eq("id", id).maybeSingle(),
   ]);
 
@@ -117,8 +118,13 @@ export default async function PortalJobPage({
     if (r.heading_meta) headingMeta[r.heading] = r.heading_meta;
   }
 
+  const photoAreas = (photoRows as { area: string; kind: string }[] | null) ?? [];
   const headingsWithBeforePhoto = [...new Set(
-    ((photoRows as { area: string }[] | null) ?? []).map((p) => p.area).filter(Boolean),
+    photoAreas.filter((p) => p.kind === "before").map((p) => p.area).filter(Boolean),
+  )];
+  // The finished shots already in, so a done elevation stops asking.
+  const headingsWithAfterPhoto = [...new Set(
+    photoAreas.filter((p) => p.kind === "completion").map((p) => p.area).filter(Boolean),
   )];
 
   // Ticking only makes sense once the job is under way — before that the list is
@@ -136,7 +142,15 @@ export default async function PortalJobPage({
         {!job.committed && (
           <div className="card amberish" style={{ marginTop: 4 }}>
             <span className="chip amb">Suburb only</span>
-            <div style={{ marginTop: 8, fontSize: "12.5px", color: "var(--muted)" }}>
+            {/* SHOW the suburb. This panel used to announce that the address was
+                hidden without saying where the job actually was, so a contractor
+                deciding whether to take it had to guess (Tom, 22 Aug). The
+                address on `job.doc` is already reduced to the suburb by the
+                server — see the privacy gate in lib/contractor/jobs.ts. */}
+            <div style={{ marginTop: 8, fontSize: "15px", fontWeight: 600 }} data-testid="job-suburb">
+              {suburbOnly(job.doc?.jobAddress)}
+            </div>
+            <div style={{ marginTop: 6, fontSize: "12.5px", color: "var(--muted)" }}>
               The full address and the customer&rsquo;s contact details unlock once you
               accept the booking.
             </div>
@@ -160,6 +174,7 @@ export default async function PortalJobPage({
             workOrderId={id}
             surfaces={surfaces}
             headingsWithBeforePhoto={headingsWithBeforePhoto}
+            headingsWithAfterPhoto={headingsWithAfterPhoto}
             headingMeta={headingMeta}
           />
         </div>

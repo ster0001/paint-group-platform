@@ -259,3 +259,6 @@
 .pc .photostrip-h a { color: var(--cyan); text-decoration: none; font-family: var(--mono);
   font-size: 8.5px; letter-spacing: .08em; text-transform: uppercase; }
 .pc .photostrip-h a:hover { text-decoration: underline; }
+
+/* Finished-photo prompt — see the note in portal.css. */
+.pc .tick-photo.after { background:rgba(47,164,107,.09); border-color:rgba(47,164,107,.45); color:var(--green,#2FA46B); }

@@ -491,3 +491,10 @@
 .pt .prep-body b { font-size:14px; font-weight:600; }
 .pt .prep-body small { font-size:12.5px; color:var(--muted); }
 .pt .prep.on .prep-body b { color:var(--soft); }
+
+/* The finished-photo prompt. Green rather than amber: the before-photo prompt
+   is a gate blocking the first tick, this is an invitation once an elevation is
+   already done — a different feeling, so a different colour. */
+.pt .tick-photo.after {
+  background: rgba(47,164,107,.09); border-color: rgba(47,164,107,.45); color: var(--green, #2FA46B);
+}

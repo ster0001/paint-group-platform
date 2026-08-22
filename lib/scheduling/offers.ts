@@ -139,7 +139,15 @@ export function suburbOnly(address: string | null | undefined): string {
   const raw = (address ?? "").trim();
   if (!raw) return "Location on acceptance";
   const parts = raw.split(",").map((p) => p.trim()).filter(Boolean);
-  if (parts.length < 2) return "Location on acceptance";
+
+  // ALREADY a bare suburb — one part, no digits in it. This makes the function
+  // idempotent, which matters because the server redacts a job's address to the
+  // suburb before it reaches the browser and a screen may reduce it again.
+  // Without this, suburbOnly(suburbOnly("… Oakleigh South, VIC, 3145")) threw
+  // away a perfectly good "Oakleigh South" and said "Location on acceptance".
+  // A single part WITH digits is a street line ("12 Baker Street") and must
+  // still be refused.
+  if (parts.length === 1) return /\d/.test(parts[0]) ? "Location on acceptance" : parts[0];
 
   // Walk from the end, skipping bare postcodes/states, and take the first part
   // that has no digits (a street line always carries a number).

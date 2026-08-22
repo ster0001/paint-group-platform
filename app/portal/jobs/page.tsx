@@ -16,8 +16,9 @@ export const dynamic = "force-dynamic";
 function JobCard({ job }: { job: ContractorJob }) {
   const chip = JOB_STATUS_CHIP[job.status] ?? { cls: "gry", label: job.status };
   const doc = job.doc;
-  const done = doc ? doc.areas.flatMap((a) => a.surfaces).filter((s) => s.status === "complete").length : 0;
-  const total = doc ? doc.areas.flatMap((a) => a.surfaces).length : 0;
+  // Live, from wo_surfaces — the frozen document never leaves "not_started".
+  const done = job.surfacesDone;
+  const total = job.surfacesTotal;
 
   return (
     <div className="card">

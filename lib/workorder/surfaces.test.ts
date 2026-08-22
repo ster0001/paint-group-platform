@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   allSurfacesDone, describeArea, needsBeforePhoto, nextState,
   progressByHeading, progressOf, seedRowsFromDoc, statusFromState,
-  ticksBySurfaceKey, SURFACE_STATE_LABEL, type SurfaceRow,
+  ticksBySurfaceKey, SURFACE_STATE_LABEL, needsAfterPhoto, type SurfaceRow,
 } from "./surfaces";
 import type { WorkOrderDoc, WOArea } from "./snapshot";
 
@@ -180,4 +180,38 @@ describe("live ticks on the job sheet", () => {
     expect(statusFromState("done")).toBe("complete");
     expect(SURFACE_STATE_LABEL.done).toBe("Complete");
   });
+});
+
+// ---- the finished-photo prompt ----------------------------------------------
+
+describe("asking for the after photo", () => {
+
+  it("asks for a finished photo once every surface on the elevation is done", () => {
+  const rows = [
+    { id: "1", heading: "Front", label: "Render", state: "done", rectification: false },
+    { id: "2", heading: "Front", label: "Trim", state: "done", rectification: false },
+  ] as never;
+  expect(needsAfterPhoto("Front", rows, [])).toBe(true);
+});
+
+  it("does not ask mid-job", () => {
+  const rows = [
+    { id: "1", heading: "Front", label: "Render", state: "done", rectification: false },
+    { id: "2", heading: "Front", label: "Trim", state: "prepped", rectification: false },
+  ] as never;
+  expect(needsAfterPhoto("Front", rows, [])).toBe(false);
+});
+
+  it("stops asking once a finished photo is in", () => {
+  const rows = [
+    { id: "1", heading: "Front", label: "Render", state: "done", rectification: false },
+  ] as never;
+  expect(needsAfterPhoto("Front", rows, ["Front"])).toBe(false);
+});
+
+  it("an elevation with no surfaces is not 'finished'", () => {
+  // every() is true for an empty list — without the length guard a heading with
+  // no rows would ask for a photo of nothing.
+  expect(needsAfterPhoto("Ghost", [] as never, [])).toBe(false);
+});
 });

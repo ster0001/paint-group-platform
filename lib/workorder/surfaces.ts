@@ -160,6 +160,28 @@ export function needsBeforePhoto(
   return surfaces.filter((s) => s.heading === heading).every((s) => s.state === "todo");
 }
 
+/**
+ * An elevation that is finished but has no "after" shot yet.
+ *
+ * The mirror of needsBeforePhoto, at the other end of the work. Before-photos
+ * were prompted per elevation and after-photos were not prompted at all — the
+ * only route to one was the generic "Photos & notes" panel, which a painter has
+ * no reason to open (Tom, 22 Aug). Without them the completion report has a
+ * before and nothing to compare it to.
+ *
+ * Asked for only once every surface on the elevation is done, so it reads as
+ * "you've finished this one, snap it" rather than nagging mid-job.
+ */
+export function needsAfterPhoto(
+  heading: string,
+  surfaces: readonly SurfaceRow[],
+  headingsWithAfterPhoto: readonly string[],
+): boolean {
+  if (headingsWithAfterPhoto.includes(heading)) return false;
+  const mine = surfaces.filter((s) => s.heading === heading);
+  return mine.length > 0 && mine.every((s) => s.state === "done");
+}
+
 /** Every surface done — the gate out of in_progress. */
 export function allSurfacesDone(surfaces: readonly SurfaceRow[]): boolean {
   return surfaces.length > 0 && surfaces.every((s) => s.state === "done");

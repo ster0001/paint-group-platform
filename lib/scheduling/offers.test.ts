@@ -89,6 +89,14 @@ test("suburbOnly keeps the suburb and drops the street", () => {
   expect(suburbOnly("Unit 3, 22 Smith Road, Kew East VIC 3102")).toBe("Kew East");
 });
 
+test("suburbOnly is idempotent — a suburb stays a suburb", () => {
+  // The server redacts to the suburb before the browser sees it; a screen that
+  // reduces it a second time must not lose it.
+  expect(suburbOnly("Oakleigh South")).toBe("Oakleigh South");
+  expect(suburbOnly(suburbOnly("25/25-27 Bunney Road, Oakleigh South, VIC, 3145"))).toBe("Oakleigh South");
+  expect(suburbOnly(suburbOnly("12 Baker Street, Richmond VIC 3121"))).toBe("Richmond");
+});
+
 test("suburbOnly never returns anything containing a street number", () => {
   const addresses = [
     "12 Baker Street, Richmond VIC 3121",

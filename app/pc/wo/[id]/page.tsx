@@ -97,6 +97,12 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     ((photoRows as WOPhotoRow[] | null) ?? [])
       .filter((p) => p.kind === "before").map((p) => p.area ?? "").filter(Boolean),
   )];
+  // Without this the finished-photo prompt would keep asking for shots that
+  // are already in — the prop defaults to "none logged".
+  const headingsWithAfterPhoto = [...new Set(
+    ((photoRows as WOPhotoRow[] | null) ?? [])
+      .filter((p) => p.kind === "completion").map((p) => p.area ?? "").filter(Boolean),
+  )];
 
   const qaChecks: QaCheckView[] = ((qaRows ?? []) as unknown as {
     id: string; kind: string; result: string | null; thin_record: boolean;
@@ -211,6 +217,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
               rectification: s.rectification,
             }))}
             headingsWithBeforePhoto={headingsWithBeforePhoto}
+            headingsWithAfterPhoto={headingsWithAfterPhoto}
             headingMeta={Object.fromEntries(
               surfaces.map((s) => [s.heading, s.heading_meta]).filter(([, m]) => m),
             )}

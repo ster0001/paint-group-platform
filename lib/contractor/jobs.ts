@@ -20,6 +20,16 @@ export type ContractorJob = {
   committed: boolean;
   /** The contractor-safe document frozen at issue. Null if somehow unset. */
   doc: WorkOrderDoc | null;
+  /**
+   * Live tick progress, from `wo_surfaces` — NOT from the document.
+   *
+   * `doc` is the snapshot frozen when the work order was issued, so every
+   * surface in it reads `not_started` for ever. The jobs list counted from it
+   * and showed "0 OF 13 SURFACES" on a job whose thirteen surfaces were all
+   * ticked done (Tom, 22 Aug). The table is the only thing that moves.
+   */
+  surfacesDone: number;
+  surfacesTotal: number;
 };
 
 const JOB_COLUMNS =
@@ -75,6 +85,10 @@ export function toJob(r: Row, committed: boolean): ContractorJob {
     viewedAt: r.viewed_at,
     paymentCents: r.contractor_payment_cents,
     committed,
+    // Filled in by the loaders below; the snapshot's own count is the fallback
+    // for total so a job renders sensibly even if the tick rows are missing.
+    surfacesDone: 0,
+    surfacesTotal: out ? out.areas.flatMap((a) => a.surfaces).length : 0,
     doc: out,
   };
 }
@@ -121,7 +135,8 @@ export async function listContractorJobs(contractorId: string): Promise<Contract
     .order("start_date", { ascending: true, nullsFirst: false });
   const rows = (data as Row[] | null) ?? [];
   const committed = await committedSet(rows.map((r) => r.id));
-  return rows.map((r) => toJob(r, committed.has(r.id)));
+  const jobs = rows.map((r) => toJob(r, committed.has(r.id)));
+  return withSurfaceProgress(supabase, jobs);
 }
 
 export async function getContractorJob(contractorId: string, id: string): Promise<ContractorJob | null> {
@@ -136,7 +151,37 @@ export async function getContractorJob(contractorId: string, id: string): Promis
   if (!data) return null;
   const row = data as Row;
   const committed = await committedSet([row.id]);
-  return toJob(row, committed.has(row.id));
+  const [job] = await withSurfaceProgress(supabase, [toJob(row, committed.has(row.id))]);
+  return job;
+}
+
+/**
+ * Live tick counts, in ONE query for the whole list rather than one per card.
+ * A job with no surface rows keeps the snapshot's total and zero done, which is
+ * the honest reading of "issued but nothing ticked yet".
+ */
+async function withSurfaceProgress(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  jobs: ContractorJob[],
+): Promise<ContractorJob[]> {
+  const ids = jobs.map((j) => j.id);
+  if (ids.length === 0) return jobs;
+
+  const { data } = await supabase
+    .from("wo_surfaces").select("work_order_id, state").in("work_order_id", ids);
+
+  const tally = new Map<string, { done: number; total: number }>();
+  for (const row of ((data ?? []) as { work_order_id: string; state: string }[])) {
+    const t = tally.get(row.work_order_id) ?? { done: 0, total: 0 };
+    t.total += 1;
+    if (row.state === "done") t.done += 1;
+    tally.set(row.work_order_id, t);
+  }
+
+  return jobs.map((j) => {
+    const t = tally.get(j.id);
+    return t ? { ...j, surfacesDone: t.done, surfacesTotal: t.total } : j;
+  });
 }
 
 /** Current work first, then what's coming, then what's done. */

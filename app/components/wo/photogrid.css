@@ -5,7 +5,10 @@
 .wophotos { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 10px; margin-top: 10px; }
 .wophotos.tight { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
 
-.wophoto { display: block; text-decoration: none; color: inherit; min-width: 0; }
+/* A button now, not a link — it opens the lightbox rather than a new tab.
+   The resets keep it looking exactly as the anchor did. */
+.wophoto { display: block; text-decoration: none; color: inherit; min-width: 0;
+  width: 100%; padding: 0; background: none; border: 0; font: inherit; text-align: left; cursor: zoom-in; }
 .wophoto figure { margin: 0; }
 .wophoto .shot {
   position: relative; display: block; width: 100%; aspect-ratio: 4 / 3; overflow: hidden;
@@ -28,3 +31,35 @@
 .wophotos-empty { font-size: 12px; opacity: 0.7; margin: 8px 0 0; }
 
 @media print { .wophotos { display: none; } }
+
+
+/* Full-size view. Fixed overlay so it works the same on the console and on a
+   phone in a driveway; the image is capped to the viewport so a 12MP photo
+   never overflows. */
+.wolightbox {
+  position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center;
+  background: rgba(6, 9, 13, .93); padding: 24px; overscroll-behavior: contain;
+}
+.wolightbox figure { margin: 0; max-width: 100%; max-height: 100%; display: flex; flex-direction: column; gap: 10px; }
+.wolightbox img {
+  max-width: min(1400px, 96vw); max-height: 82vh; width: auto; height: auto;
+  object-fit: contain; border-radius: 8px; display: block; margin: 0 auto;
+}
+.wolightbox figcaption {
+  color: #C8CFD6; font-size: 13px; line-height: 1.5; text-align: center;
+  display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
+}
+.wolightbox figcaption .count { color: #8C959D; font-variant-numeric: tabular-nums; }
+.wolb-close, .wolb-nav {
+  position: absolute; background: rgba(255,255,255,.09); border: 1px solid rgba(255,255,255,.18);
+  color: #fff; cursor: pointer; border-radius: 999px; line-height: 1; font-family: inherit;
+}
+.wolb-close { top: 16px; right: 16px; width: 40px; height: 40px; font-size: 24px; }
+.wolb-nav { top: 50%; transform: translateY(-50%); width: 44px; height: 44px; font-size: 28px; }
+.wolb-nav.prev { left: 14px; }
+.wolb-nav.next { right: 14px; }
+.wolb-close:hover, .wolb-nav:hover { background: rgba(255,255,255,.18); }
+@media (max-width: 600px) {
+  .wolightbox { padding: 12px; }
+  .wolb-nav { width: 38px; height: 38px; font-size: 24px; }
+}

@@ -53,7 +53,7 @@ export default async function AsContractorPage({ params }: { params: Promise<{ i
       supabase.from("wo_surfaces")
         .select("id, heading, heading_meta, label, state, rectification")
         .eq("work_order_id", id).order("sort"),
-      supabase.from("wo_photos").select("area").eq("work_order_id", id).eq("kind", "before"),
+      supabase.from("wo_photos").select("area, kind").eq("work_order_id", id).in("kind", ["before", "completion"]),
       supabase.from("wo_variations")
         .select("id, category, comment, status, contractor_delta_cents, est_hours, released_at")
         .eq("work_order_id", id).order("created_at", { ascending: false }),
@@ -106,7 +106,12 @@ export default async function AsContractorPage({ params }: { params: Promise<{ i
             id: s.id, heading: s.heading, label: s.label, state: s.state, rectification: s.rectification,
           }))}
           headingsWithBeforePhoto={[...new Set(
-            ((photoRows as { area: string }[] | null) ?? []).map((p) => p.area).filter(Boolean),
+            ((photoRows as { area: string; kind: string }[] | null) ?? [])
+              .filter((p) => p.kind === "before").map((p) => p.area).filter(Boolean),
+          )]}
+          headingsWithAfterPhoto={[...new Set(
+            ((photoRows as { area: string; kind: string }[] | null) ?? [])
+              .filter((p) => p.kind === "completion").map((p) => p.area).filter(Boolean),
           )]}
           headingMeta={headingMeta}
         />
