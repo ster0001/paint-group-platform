@@ -60,6 +60,15 @@ const roomSchema = z.object({
   sizes: z.record(z.string(), z.enum(["small", "medium", "large"])).default({}),
   labels: z.record(z.string(), z.string().max(80)).default({}),
   extraTiles: z.array(z.object({ id: z.string().max(80), from: z.string().max(80) })).max(30).default([]),
+  /**
+   * Hours-and-a-note allowances (plastering, sealing raw timber). Bounded here
+   * like every other client number — a browser does not get to post 900 hours
+   * of plastering, and the note is capped at the same length as a crew note.
+   */
+  allowances: z.record(
+    z.string().max(60),
+    z.object({ hours: z.number().min(0).max(200).default(0), note: z.string().max(500).default("") }),
+  ).default({}),
   // Observations only - severity and affected quantity. The HOURS come from
   // defect_prep_rates server-side; a client cannot post its own prep time
   // beyond the bounded manual stepper above.

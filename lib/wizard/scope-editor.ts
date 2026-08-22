@@ -80,6 +80,10 @@ const COUNTABLE_KEYS = new Set(["doors", "windows", "architraves"]);
  */
 const ALWAYS_OFFERED: SubstrateKey[] = [
   "walls", "ceilings", "cornices", "skirting", "doors", "windows", "architraves",
+  // Balustrades ride the same rule (Tom, 23 Aug). A hall or stairwell is
+  // exactly the room whose scope rules never mention them, and the add panel
+  // is not where somebody looks for a surface they expect to see.
+  "balustrade",
 ];
 
 /**
@@ -219,6 +223,9 @@ export function rateCodeForCustomerAdd(
   const direct: Record<string, string> = {
     walls: "Walls", ceilings: "Ceilings", cornices: "Standard Cornices",
     skirting: "Skirting Boards", architraves: "Architrave (1 Side)",
+    // Indoors the card calls it Balustrades; the exterior sides editor adds
+    // the Hand Rails row by code through its own catalogue.
+    balustrade: "Balustrades",
   };
   const code = direct[key];
   return code ? { code, label: substrateLabel(key as SubstrateKey), assumed: [] } : null;

@@ -4,7 +4,7 @@
  * builder. Plus the badge model: four taps = one row at qty 4, never four rows.
  */
 import { describe, expect, it } from "vitest";
-import { defectHours, defectSummary, draftToAreaNode, emptyDraft, type DefectRate } from "./commit";
+import { ALLOWANCE_DEFS, defectHours, defectSummary, draftToAreaNode, emptyDraft, type DefectRate } from "./commit";
 import { expandCaptureTiles, tilesForRoomType, type TileRule } from "./presets";
 import {
   priceArea,
@@ -257,4 +257,60 @@ it("an elevation commits as a SURFACE plane: m2 = W×H, lineal = W, fractions sc
   expect(wb.qtyOverride).toBeCloseTo(12 * 2.6 * 0.75, 2); // 75% of the plane
   expect(node.surfaces.find((s) => s.code === "Gutters")!.qtyOverride).toBeNull(); // full lineal = L, derived
   expect(node.surfaces.find((s) => s.code === "Fixed / Picture Window")!.count).toBe(4);
+});
+
+// ---------------------------------------------------------------------------
+// The hour-and-a-note allowances (Tom, 23 Aug): plastering, and raw timber
+// that has to be sealed before the topcoats.
+// ---------------------------------------------------------------------------
+
+describe("allowances committed from capture", () => {
+  const draftWith = (allowances: Record<string, { hours: number; note: string }>) => {
+    const d = emptyDraft("l1", "Hall", "hallway", "ground", 2.7);
+    d.lengthM = 4; d.widthM = 2;
+    d.allowances = allowances;
+    return d;
+  };
+  const commit = (allowances: Record<string, { hours: number; note: string }>) => {
+    let id = 100;
+    return draftToAreaNode(draftWith(allowances), [], () => id++);
+  };
+
+  it("prices the typed hours, not a count of items", () => {
+    const [line] = commit({ Plastering: { hours: 2.5, note: "hallway ceiling crack" } }).surfaces;
+    expect(line.code).toBe("Plastering");
+    // Hours, not a painted quantity. Prep hours are charged at the charge-out
+    // rate with or without a matching rate-card row, so this prices from the
+    // day it ships rather than waiting on a migration — and a decimal survives.
+    expect(line.prepHr).toBe(2.5);
+    expect(line.qtyOverride).toBe(0);
+    expect(line.coats).toBe(1);
+  });
+
+  it("sends where it is, to the work order", () => {
+    const [line] = commit({ Plastering: { hours: 1, note: "  patch behind the door  " } }).surfaces;
+    expect(line.crewNote).toBe("patch behind the door");
+  });
+
+  it("stamps raw timber so the crew know to seal it, and keeps the note", () => {
+    const [line] = commit({ "Raw Timber Sealing": { hours: 1.5, note: "new architraves" } }).surfaces;
+    expect(line.crewNote).toBe("RAW TIMBER — seal before topcoats. new architraves");
+    expect(line.clientLabel).toBe("Raw timber — seal first");
+  });
+
+  it("writes nothing for an allowance left blank", () => {
+    expect(commit({ Plastering: { hours: 0, note: "" } }).surfaces).toHaveLength(0);
+    expect(commit({}).surfaces).toHaveLength(0);
+  });
+
+  it("still records the raw-timber tag when there are no hours to charge", () => {
+    // The tag IS the point: hours can be nil and the crew must still be told.
+    const [line] = commit({ "Raw Timber Sealing": { hours: 0, note: "replaced boards, back wall" } }).surfaces;
+    expect(line.prepHr).toBe(0);
+    expect(line.crewNote).toContain("RAW TIMBER");
+  });
+
+  it("keeps one definition of the two allowances", () => {
+    expect(ALLOWANCE_DEFS.map((d) => d.code)).toEqual(["Plastering", "Raw Timber Sealing"]);
+  });
 });

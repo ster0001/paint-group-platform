@@ -53,8 +53,49 @@ export type RoomDraft = {
   labels?: Record<string, string>;
   /** Duplicated substrate instances: unique id cloning a base tile. */
   extraTiles?: Array<{ id: string; from: string }>;
+  /**
+   * Work this room needs that isn't a painted surface: plastering, sealing raw
+   * timber. Hours the estimator types on site, plus where — see ALLOWANCE_DEFS.
+   */
+  allowances?: Record<string, { hours: number; note: string }>;
   status: "capturing" | "complete";
 };
+
+/**
+ * The two hour-and-a-note allowances (Tom, 23 Aug).
+ *
+ * Both are the same shape: real work, charged at the charge-out rate, with a
+ * note saying WHERE — which is the part the crew actually needs.
+ *
+ * The hours ride `prepHr`, NOT a quantity. That is deliberate: pricing charges
+ * prep hours at the charge-out rate whether or not the code matches a rate-card
+ * row, so these price correctly with no new rate rows and no migration to wait
+ * on. A rate row would also have had to be kept at exactly one hour per unit
+ * for ever, and any drift there would have silently changed every plastering
+ * line ever quoted.
+ *
+ * Raw timber is a TAG as much as an allowance: the note is stamped whether or
+ * not hours are added, because the crew has to know to seal it before the
+ * topcoats go on. Coat counts are untouched — Tom's call.
+ */
+export const ALLOWANCE_DEFS = [
+  {
+    code: "Plastering",
+    label: "Plastering",
+    hint: "Hours, and where it needs plastering",
+    placeholder: "Where — e.g. hallway ceiling crack, patch behind the door",
+    stamp: "",
+  },
+  {
+    code: "Raw Timber Sealing",
+    label: "Raw timber — seal first",
+    hint: "Bare timber that needs sealing before the topcoats",
+    placeholder: "Where — e.g. new architraves, replaced weatherboards",
+    stamp: "RAW TIMBER — seal before topcoats.",
+  },
+] as const;
+
+export type AllowanceCode = (typeof ALLOWANCE_DEFS)[number]["code"];
 
 export type DefectObservation = { type: string; severity: 1 | 2 | 3; qty: number };
 
@@ -115,7 +156,7 @@ export function emptyDraft(localId: string, name: string, roomType: string, stor
     lengthM: 0, widthM: 0, heightM, heightInherited: true,
     extraWallSegmentsM: [], perimeterOverrideM: null,
     selections: {}, exclusions: [], prepHours: {}, coats: {}, crewNotes: {},
-    defects: {}, labels: {}, extraTiles: [], hoursOverride: {}, sizes: {},
+    defects: {}, labels: {}, extraTiles: [], hoursOverride: {}, sizes: {}, allowances: {},
     status: "capturing",
   };
 }
@@ -240,6 +281,42 @@ export function draftToAreaNode(
       priceOverride: null, productName: null, color: "", colorHex: "",
       coverageOverride: null, volumeOverride: null, unitPriceOverride: null,
       crewNote: note,
+      hideQty: false, showCoats: false, showPrice: false,
+      useCustomRate: false, customRate: null, open: false,
+      origin: "human_confirmed", confidence: 1, assumedFields: [],
+    });
+  }
+
+  // The hour-and-a-note allowances. One line each, the hours carried as PREP
+  // hours — see the note on ALLOWANCE_DEFS — so 2.5 hours of plastering prices
+  // as 2.5 hours at the charge-out rate. A raw-timber line with no hours still
+  // rides, because the STAMP is the point: the crew must know to seal it.
+  for (const def of ALLOWANCE_DEFS) {
+    const entry = draft.allowances?.[def.code];
+    if (!entry) continue;
+    const hours = Math.max(0, Math.round((Number(entry.hours) || 0) * 100) / 100);
+    const where = (entry.note ?? "").trim();
+    if (hours <= 0 && !where && !def.stamp) continue;
+    if (hours <= 0 && !where) continue;
+
+    surfaces.push({
+      id: nextId(),
+      code: def.code,
+      internalLabel: def.label,
+      clientLabel: def.label,
+      coats: 1,
+      count: 1,
+      size: null,
+      hidden: false, media: [],
+      measureL: null, measureH: null,
+      // No painted quantity: this is hours of work, not m² of coating.
+      qtyOverride: 0,
+      rateOverride: null,
+      paintingHrOverride: null,
+      prepHr: hours,
+      priceOverride: null, productName: null, color: "", colorHex: "",
+      coverageOverride: null, volumeOverride: null, unitPriceOverride: null,
+      crewNote: [def.stamp, where].filter(Boolean).join(" "),
       hideQty: false, showCoats: false, showPrice: false,
       useCustomRate: false, customRate: null, open: false,
       origin: "human_confirmed", confidence: 1, assumedFields: [],

@@ -5,6 +5,7 @@ import SettingsFolder from "./SettingsFolder";
 import EditableTable from "./EditableTable";
 import LineItemsManager, { type LineItemRow } from "./LineItemsManager";
 import PricingSettings, { type SettingRow } from "./PricingSettings";
+import { isNumericSetting } from "@/lib/settings/numeric";
 import TemplatesManager, { type TemplateMeta } from "./TemplatesManager";
 import InclusionTemplatesManager from "./InclusionTemplatesManager";
 import TermsEditor, { TERMS_KEY } from "./TermsEditor";
@@ -79,7 +80,12 @@ export default async function SettingsPage() {
   const rateItems = rateItemsRes.data ?? [];
 
   const allSettings = (settingsRes.data as SettingRow[] | null) ?? [];
-  const pricingRows = allSettings.filter((r) => r.key !== "company_profile" && r.key !== "estimate_templates" && r.key !== INCLUSION_TEMPLATES_KEY && r.key !== EXCLUSION_TEMPLATES_KEY && r.key !== TERMS_KEY && r.key !== MESSAGING_KEY);
+  // Numeric levers only, decided by SHAPE. The old filter excluded six named
+  // keys and swept up everything else — including whole config objects like
+  // `wizard_policy` and `wo_loop`, which coerced to NaN, serialised to null and
+  // failed the NOT NULL column, taking the entire save with them. A key added
+  // tomorrow is now handled without anyone having to remember this line.
+  const pricingRows = allSettings.filter((r) => isNumericSetting(r.value));
   // A6: the window size multipliers live with the other engine factors. Shown
   // with their defaults until saved — saving upserts the rows.
   for (const [key, dflt] of [["Window size — small", 0.8], ["Window size — large", 1.2]] as const) {

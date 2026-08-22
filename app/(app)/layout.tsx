@@ -27,7 +27,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex min-h-screen">
       <AppSidebar name={profile?.name || user.email || ""} email={user.email || ""} logoUrl={logoUrl} />
-      <div className="min-w-0 flex-1 bg-gray-50">{children}</div>
+      {/* On a phone the sidebar is a fixed off-canvas drawer with a bar across
+          the top, so the page starts below that bar. On md+ the sidebar is back
+          in the flex row and the padding goes away. */}
+      <div className="min-w-0 flex-1 bg-gray-50 pt-[52px] md:pt-0">{children}</div>
     </div>
   );
 }

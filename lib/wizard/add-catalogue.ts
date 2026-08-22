@@ -40,6 +40,15 @@ type LooseRateItem = {
 /** Rows a customer must not add directly — another control owns them. */
 const CABINETRY = new Set(["Kitchen Cupboard Front", "Robe Door", "Vanity Door"]);
 
+/**
+ * Allowances are an ESTIMATOR's judgement in hours — plastering, sealing raw
+ * timber, access. They price by the hour, so a customer tapping one would be
+ * buying an hour of something they cannot scope. Offered in capture and the
+ * builder, never in the customer's add panel.
+ */
+const isAllowance = (subCategory: string | null | undefined) =>
+  (subCategory ?? "").trim().toLowerCase() === "allowances";
+
 /** Whole-job exterior items that belong to the sweep, not to one side. */
 const WHOLE_JOB_EXTERIOR = new Set(["Shed", "Pressure Washing", "Access Allowance", "Minor Fascia Rot Allowance"]);
 
@@ -49,7 +58,7 @@ const TITLE: Record<string, string> = {
   "Soffits / Exterior Ceilings": "Soffits",
   "Cutek": "Timber stain (Cutek)",
   "Deck Painting": "Deck",
-  "Hand Rails": "Hand rails",
+  "Hand Rails": "Balustrades & hand rails",
   "Roof": "Roof",
 };
 
@@ -78,7 +87,7 @@ export function interiorAddOptions(rateItems: ReadonlyArray<LooseRateItem>): Add
   for (const r of rateItems) {
     const code = r.code;
     if (!code || r.category !== "Interior") continue;
-    if (CABINETRY.has(code)) continue;
+    if (CABINETRY.has(code) || isAllowance(r.sub_category)) continue;
     // Style variants ride their family tile (Doors / Windows), and anything
     // a substrate tick governs is already offered above.
     if (substrateKeyForRateCode(code) != null) continue;
@@ -97,7 +106,7 @@ export function exteriorAddOptions(rateItems: ReadonlyArray<LooseRateItem>): Add
   for (const r of rateItems) {
     const code = r.code;
     if (!code || r.category !== "Exterior") continue;
-    if (WHOLE_JOB_EXTERIOR.has(code)) continue;
+    if (WHOLE_JOB_EXTERIOR.has(code) || isAllowance(r.sub_category)) continue;
     if ((r.sub_category ?? "") === "Cladding") continue;
     out.push({ via: "code", key: code, label: prettify(code), group: r.sub_category || "Also on our card" });
   }
