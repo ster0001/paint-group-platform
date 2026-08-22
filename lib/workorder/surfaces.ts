@@ -5,6 +5,13 @@
  * (one row per surface, grouped under its area/elevation heading). The document
  * stays the one tree: this is an index into it for ticking, not a second copy of
  * the scope. Nothing here computes or carries money.
+ *
+ * ONLY REAL WORK IS TICKABLE. The tick list is built from `doc.areas[].surfaces`
+ * and nothing else, so scope-level line items — allowances, pass-throughs,
+ * traffic management, skip hire — can never appear on it. They are excluded
+ * upstream too: `computeWorkOrderDoc` skips any block whose `kind !== "area"`.
+ * A painter should never be asked to mark a scaffold hire as "prepped", and the
+ * progress bar must mean work done, not lines billed.
  */
 import type { WorkOrderDoc, WOArea } from "./snapshot";
 
@@ -56,6 +63,8 @@ export function seedRowsFromDoc(
   for (const area of doc.areas) {
     const headingMeta = metaFor?.(area) ?? describeArea(area);
     for (const surface of area.surfaces) {
+      // Defensive: a surface with no label is not work anybody can tick.
+      if (!surface.label?.trim()) continue;
       rows.push({
         heading: area.title,
         headingMeta,

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   allSurfacesDone, describeArea, needsBeforePhoto, nextState,
@@ -54,6 +56,39 @@ describe("seeding the tick list from the document", () => {
   it("lets a caller pass richer heading text when it has it", () => {
     const seeded = seedRowsFromDoc(doc([area("Front", ["Walls"])]), () => "12 × 2.6 m · wb 75 / render 25");
     expect(seeded[0].headingMeta).toBe("12 × 2.6 m · wb 75 / render 25");
+  });
+});
+
+describe("only real work is tickable", () => {
+  it("takes rows from areas' surfaces and nothing else", () => {
+    // A doc carrying a line-item-shaped block alongside its areas: allowances,
+    // traffic management, skip hire. A painter must never be asked to mark a
+    // scaffold hire as "prepped", and the progress bar must mean work done.
+    const withLineItems = {
+      version: 1,
+      areas: [area("Front", ["Walls"])],
+      // Line items live outside `areas` by construction — this asserts the
+      // seeder reads only `areas`, so nothing else can leak in.
+      lines: [{ label: "Traffic management", cents: 120_000 }],
+      exclusions: ["Right side — not painting"],
+    } as unknown as WorkOrderDoc;
+
+    const rows = seedRowsFromDoc(withLineItems);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].label).toBe("Walls");
+    expect(rows.some((r) => r.label.toLowerCase().includes("traffic"))).toBe(false);
+  });
+
+  it("skips a surface with no label — that is not work anybody can tick", () => {
+    const a = area("Front", ["Walls", ""]);
+    expect(seedRowsFromDoc(doc([a]))).toHaveLength(1);
+  });
+
+  it("the builder never puts a non-area block in the document", () => {
+    // The upstream half of the same rule, pinned so a refactor cannot drop it.
+    const builder = readFileSync(
+      resolve(process.cwd(), "app/quote/QuoteBuilder.tsx"), "utf8");
+    expect(builder).toContain('if (b.kind !== "area" || b.isOption) continue;');
   });
 });
 
