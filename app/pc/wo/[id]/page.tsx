@@ -8,6 +8,7 @@ import Checklist, { type ChecklistItem } from "./Checklist";
 import QaCheck, { type QaCheckView } from "./QaCheck";
 import TickList from "@/app/components/wo/TickList";
 import StageAdvance from "./StageAdvance";
+import RebuildTicks from "./RebuildTicks";
 
 export const dynamic = "force-dynamic";
 
@@ -229,7 +230,13 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
               );
             })}
 
-            {surfaces.length === 0 && <p className="note">No tick list yet — it seeds when the job sheet is issued.</p>}
+            {surfaces.length === 0 && (
+              <p className="note">
+                No tick list yet. Jobs issued before the tick list existed have none —
+                build it from the job sheet and the painter can start ticking.
+              </p>
+            )}
+            <RebuildTicks workOrderId={id} empty={surfaces.length === 0} />
           </div>
         )}
 

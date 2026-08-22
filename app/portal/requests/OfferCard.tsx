@@ -171,7 +171,7 @@ export default function OfferCard({
       )}
 
       {/* The full job sheet, still suburb-only until they accept. */}
-      <Link href={`/portal/jobs/${workOrderId}`} className="btn gh">
+      <Link href={`/portal/jobs/${workOrderId}?from=requests`} className="btn gh">
         View full work order
       </Link>
 

@@ -8,6 +8,7 @@ import RescheduleRequest from "./RescheduleRequest";
 import TickList from "@/app/components/wo/TickList";
 import Variations, { type VariationView } from "./Variations";
 import PrepChecklist, { type PrepItem } from "./PrepChecklist";
+import SitePhotos from "./SitePhotos";
 import type { SurfaceRow } from "@/lib/workorder/surfaces";
 import type { Booking } from "@/lib/workorder/booking";
 import { OFFER_COLUMNS, type BookingOffer } from "@/lib/scheduling/offers";
@@ -18,8 +19,16 @@ export const dynamic = "force-dynamic";
 // The signed-in contractor's own work order. Same document the public
 // /w/[token] link serves — read-only, contractor-safe, no customer pricing or
 // margin — but reached through their login rather than a shared link.
-export default async function PortalJobPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PortalJobPage({
+  params, searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string }>;
+}) {
   const { id } = await params;
+  // Where they came from, so "back" goes back rather than to a default the
+  // painter has to re-navigate out of.
+  const { from } = await searchParams;
   const { contractor } = await requireContractor();
   if (!contractor) notFound();
 
@@ -119,8 +128,9 @@ export default async function PortalJobPage({ params }: { params: Promise<{ id: 
   return (
     <div className="wrap" style={{ paddingLeft: 0, paddingRight: 0 }}>
       <div style={{ padding: "0 16px" }}>
-        <Link href="/portal/jobs" className="backlink">
-          ← Jobs
+        <Link href={from === "requests" ? "/portal/requests" : from === "calendar" ? "/portal/calendar" : "/portal/jobs"}
+          className="backlink" data-testid="job-back">
+          ← {from === "requests" ? "Offers" : from === "calendar" ? "Calendar" : "Jobs"}
         </Link>
         {!job.committed && (
           <div className="card amberish" style={{ marginTop: 4 }}>
@@ -151,6 +161,12 @@ export default async function PortalJobPage({ params }: { params: Promise<{ id: 
             headingsWithBeforePhoto={headingsWithBeforePhoto}
             headingMeta={headingMeta}
           />
+        </div>
+      )}
+
+      {(canTick || canPrep) && (
+        <div style={{ padding: "0 16px" }}>
+          <SitePhotos workOrderId={id} areas={[...new Set(surfaces.map((s) => s.heading))]} />
         </div>
       )}
 

@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { WO_STAGES } from "@/lib/workorder/stages";
+import { seedRowsFromDoc } from "@/lib/workorder/surfaces";
+import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
 
 /**
  * The console's own actions — the three PC surfaces the earlier steps deferred
@@ -159,6 +161,41 @@ export async function reofferJob(raw: unknown): Promise<PcResult> {
     return { ok: false, message: "That contractor isn't compliant — their insurance needs to be current." };
   }
   return result;
+}
+
+/**
+ * Build (or repair) a job's tick list from its own frozen job sheet.
+ *
+ * Jobs issued before the tick list existed have no surfaces, so the painter has
+ * nothing to tick and no way to say so. Seeding is idempotent and never resets
+ * state, so pressing this on a live job refreshes wording and order without
+ * touching a day's work.
+ */
+export async function rebuildTickList(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ workOrderId: uuid }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+
+  const supabase = await createClient();
+  const { data: wo } = await supabase
+    .from("work_orders").select("wo_snapshot").eq("id", parsed.data.workOrderId).maybeSingle();
+
+  const doc = (wo as { wo_snapshot?: WorkOrderDoc } | null)?.wo_snapshot;
+  if (!doc?.areas?.length) {
+    return { ok: false, message: "This job has no job sheet yet — issue it from the builder first." };
+  }
+
+  const { data, error } = await supabase.rpc("wo_seed_surfaces", {
+    p_work_order_id: parsed.data.workOrderId,
+    p_rows: seedRowsFromDoc(doc),
+  });
+  if (error) return { ok: false, message: error.message };
+
+  const s = String(data ?? "");
+  if (!s.startsWith("ok:")) return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") };
+
+  revalidatePath("/pc");
+  revalidatePath("/portal/jobs");
+  return { ok: true, message: "Tick list built — the painter can work it now." };
 }
 
 export async function tickChecklistItem(raw: unknown): Promise<PcResult> {

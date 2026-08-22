@@ -28,3 +28,32 @@ export async function tickPrepItem(raw: unknown): Promise<PrepResult> {
   if (s === "error:not_yours") return { ok: false, message: "That job isn't yours." };
   return { ok: false, message: "Couldn't save that just now." };
 }
+
+
+export type NoteResult = { ok: true } | { ok: false; message: string };
+
+/**
+ * A note from site. It lands on the job's own event log rather than a separate
+ * inbox, so the office reads it beside the ticks and photos that surround it.
+ */
+export async function addJobNote(raw: unknown): Promise<NoteResult> {
+  const parsed = z.object({
+    workOrderId: z.string().uuid(),
+    note: z.string().trim().min(3).max(2000),
+    area: z.string().max(120).default(""),
+  }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Write a little more and try again." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_add_note", {
+    p_work_order_id: parsed.data.workOrderId,
+    p_note: parsed.data.note,
+    p_area: parsed.data.area,
+  });
+  if (error) return { ok: false, message: "Couldn't send that — check your signal and try again." };
+
+  const s = String(data ?? "");
+  if (s.startsWith("ok:")) { revalidatePath("/portal/jobs"); revalidatePath("/pc"); return { ok: true }; }
+  if (s === "error:not_yours") return { ok: false, message: "That job isn't yours." };
+  return { ok: false, message: "Couldn't send that note." };
+}

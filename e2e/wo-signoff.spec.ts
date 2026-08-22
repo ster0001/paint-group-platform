@@ -22,7 +22,7 @@ const db: SupabaseClient | null = serviceClient();
 let fixture: LoopFixture | null = null;
 let quiet: LoopFixture | null = null;
 let token = "";
-let quietToken = "";
+
 
 async function readyForWalkthrough(f: LoopFixture): Promise<string> {
   // Every surface done, prep list ticked — the two gates before a walkthrough.
@@ -52,7 +52,7 @@ test.describe("walkthrough and sign-off", () => {
     quiet = await createLoopFixture(db!, contractorId!, [{ heading: "Back", labels: ["Walls"] }]);
 
     token = await readyForWalkthrough(fixture);
-    quietToken = await readyForWalkthrough(quiet);
+    await readyForWalkthrough(quiet);
   });
 
   test.afterAll(async () => {

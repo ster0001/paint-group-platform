@@ -233,7 +233,7 @@ export default function CalendarGrid({
               onPointerUp={dayUp}
               onClick={() => {
                 // A booked day belongs to a job; tapping it should open that job.
-                if (job?.id) { router.push(`/portal/jobs/${job.id}`); return; }
+                if (job?.id) { router.push(`/portal/jobs/${job.id}?from=calendar`); return; }
                 if (mode === "pick" && !tooEarly) onPickDate?.(date);
               }}
               disabled={busy === date || (mode === "pick" && tooEarly && !job?.id)}
