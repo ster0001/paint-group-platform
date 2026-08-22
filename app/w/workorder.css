@@ -76,6 +76,15 @@
 .wo .surf-hours .hval { font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--text); }
 .wo .surf-hours input { width: 68px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; color: var(--text); font-family: var(--mono); font-size: 14px; font-weight: 600; padding: 3px 7px; text-align: right; }
 .wo .pill { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; padding: 2px 8px; border-radius: 100px; border: 1px solid var(--line); color: var(--muted); }
+/* A ticked surface has to LOOK ticked — a row of identical grey pills is how
+   "Not started" went unnoticed over finished work in the first place. */
+.wo .pill.doing { color: var(--cyan, #3bd8e9); border-color: rgba(59, 216, 233, .45); }
+.wo .pill.done { color: var(--emerald, #2fa46b); border-color: rgba(47, 164, 107, .45); }
+
+.wo .wo-photoset { margin-top: 14px; }
+.wo .wo-photoset-h { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.wo .wo-photoset-h span { padding: 1px 7px; border: 1px solid var(--line); border-radius: 100px; }
+
 .wo .area-photos { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
 .wo .area-photos img { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
 

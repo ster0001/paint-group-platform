@@ -1,0 +1,30 @@
+/* Site photos — one grid, used by the console, the job sheet and the dashboard.
+   Self-contained and neutral: it lands inside three different palettes (.pc,
+   .wo, the staff app), so it borrows nothing and inherits only the text colour
+   it is given. */
+.wophotos { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 10px; margin-top: 10px; }
+.wophotos.tight { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+
+.wophoto { display: block; text-decoration: none; color: inherit; min-width: 0; }
+.wophoto figure { margin: 0; }
+.wophoto .shot {
+  position: relative; display: block; width: 100%; aspect-ratio: 4 / 3; overflow: hidden;
+  border-radius: 10px; border: 1px solid rgba(140, 149, 157, 0.28); background: rgba(140, 149, 157, 0.08);
+}
+.wophoto .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.wophoto:hover .shot { border-color: rgba(59, 216, 233, 0.6); }
+
+.wophoto .kind {
+  position: absolute; left: 5px; top: 5px; padding: 2px 6px; border-radius: 100px;
+  font-family: var(--mono, ui-monospace, monospace); font-size: 7.5px; letter-spacing: 0.08em;
+  text-transform: uppercase; background: rgba(10, 11, 13, 0.72); color: #edf0f2; backdrop-filter: blur(4px);
+}
+.wophoto figcaption {
+  margin-top: 5px; font-size: 10.5px; line-height: 1.35; opacity: 0.72;
+  overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.wophoto .where { display: block; font-weight: 600; opacity: 0.9; }
+
+.wophotos-empty { font-size: 12px; opacity: 0.7; margin: 8px 0 0; }
+
+@media print { .wophotos { display: none; } }

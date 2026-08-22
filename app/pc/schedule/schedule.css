@@ -87,7 +87,10 @@
 .sb .hint { font-size: 12px; color: var(--muted); margin-top: 14px; line-height: 1.6; }
 
 /* ---- timeline ------------------------------------------------------------ */
-.sb .tl { overflow-x: auto; padding: 16px 16px 60px; }
+/* No left padding: the lane column sticks to left:0 of the scrollport, so any
+   gutter here is a strip the pinned names DON'T cover — blocks scroll through
+   it and read as debris beside the name. */
+.sb .tl { overflow-x: auto; padding: 16px 16px 60px 0; }
 .sb .grid { min-width: min-content; }
 .sb .mb { display: grid; grid-template-columns: var(--lane-w) repeat(var(--days), var(--day-w)); }
 .sb .mb .mcell {
@@ -98,10 +101,19 @@
 .sb .mb .mcell.spacer { border-left: none; }
 
 .sb .dh { display: grid; grid-template-columns: var(--lane-w) repeat(var(--days), var(--day-w)); border-bottom: 1px solid var(--line); }
-.sb .dh .cell { padding: 8px 2px; text-align: center; font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 0.04em; overflow: hidden; white-space: nowrap; }
+/* Two lines: the weekday, then the date. Stacked rather than "MON 12" on one
+   line so the name survives every zoom level instead of dropping out. */
+.sb .dh .cell {
+  padding: 6px 2px; text-align: center; font-family: var(--mono); font-size: 9px;
+  color: var(--muted); letter-spacing: 0.04em; overflow: hidden; white-space: nowrap;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; line-height: 1.2;
+}
+.sb .dh .cell .dw { font-size: 8px; letter-spacing: 0.09em; opacity: 0.8; }
+.sb .dh .cell .dn { font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .sb .dh .cell.we { color: #5a6268; }
 .sb .dh .cell.today { color: var(--cyan); }
-.sb .dh .cell.lanehead { text-align: left; padding-left: 12px; }
+.sb .dh .cell.today .dn { font-weight: 700; }
+.sb .dh .cell.lanehead { align-items: flex-start; justify-content: center; text-align: left; padding-left: 12px; }
 
 .sb .crow {
   display: grid; grid-template-columns: var(--lane-w) repeat(var(--days), var(--day-w));
@@ -109,10 +121,16 @@
   min-height: var(--row-h);
   transition: height 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
+/* The lane column pins to the left edge of the scroller. Three weeks out, a
+   board with the names scrolled off is a wall of blocks nobody can attribute —
+   the name has to travel with the row. z-index clears the blocks (4) and the
+   today line (5); the solid background stops them showing through. */
 .sb .cinfo {
   padding: 8px 12px; border-right: 1px solid var(--line); overflow: hidden;
   display: flex; flex-direction: column; justify-content: center; gap: 2px; min-width: 0;
+  position: sticky; left: 0; z-index: 8; background: var(--ink);
 }
+.sb .dh .cell.lanehead, .sb .mb .mcell.spacer { position: sticky; left: 0; z-index: 9; background: var(--ink); }
 .sb .cinfo .nmrow { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .sb .cinfo .nm { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sb .cinfo .tg { font-family: var(--mono); font-size: 8.5px; color: var(--muted); letter-spacing: 0.05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -213,3 +231,16 @@
 .sb .fpop .viewrow button.del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 12px; }
 
 .sb .empty { border: 1px dashed var(--line); border-radius: 12px; padding: 26px 18px; text-align: center; color: var(--muted); font-size: 12.5px; }
+
+/* ---- inside the Projects console ---------------------------------------- */
+/* The console shell is a 1060px reading column; a timeline wants every pixel it
+   can get. Widen the shell only on the page that actually holds a board, so
+   the rest of the console keeps its measure. */
+.pc .shell:has(> .sb) { max-width: 1500px; }
+.pc .sb {
+  min-height: 0; background: transparent;
+  border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+}
+/* The console's own tab rail is the sticky furniture on this page. */
+.pc .sb .top { position: static; }
+.pc .sb .layout { min-height: calc(100vh - 260px); }

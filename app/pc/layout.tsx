@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import PcNav from "./PcNav";
 import "./pc.css";
 
 export const dynamic = "force-dynamic";
@@ -33,12 +33,7 @@ export default async function PcLayout({ children }: { children: React.ReactNode
           </span>
         </div>
 
-        <nav className="nav" aria-label="Console views">
-          <Link href="/pc">Command</Link>
-          <Link href="/pc/flow">The flow</Link>
-          <Link href="/pc/updates">Updates</Link>
-          <Link href="/estimates">← Back to app</Link>
-        </nav>
+        <PcNav />
 
         {children}
 

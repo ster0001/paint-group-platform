@@ -3,7 +3,8 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   allSurfacesDone, describeArea, needsBeforePhoto, nextState,
-  progressByHeading, progressOf, seedRowsFromDoc, type SurfaceRow,
+  progressByHeading, progressOf, seedRowsFromDoc, statusFromState,
+  ticksBySurfaceKey, SURFACE_STATE_LABEL, type SurfaceRow,
 } from "./surfaces";
 import type { WorkOrderDoc, WOArea } from "./snapshot";
 
@@ -153,5 +154,30 @@ describe("the before-photo prompt", () => {
   it("gates each elevation on its own photo, not the job's", () => {
     const both = rows([["Front", "Walls", "prepped"], ["Right", "Walls", "todo"]]);
     expect(needsBeforePhoto("Right", both, ["Front"])).toBe(true);
+  });
+});
+
+describe("live ticks on the job sheet", () => {
+  // The snapshot's per-surface status is frozen at issue and never written
+  // again, so a job sheet that reads it says "Not started" over finished work.
+  it("keys the ticks by the document's own surface key", () => {
+    expect(ticksBySurfaceKey([
+      { surface_key: "front:0", state: "done" },
+      { surface_key: "front:1", state: "prepped" },
+    ])).toEqual({ "front:0": "done", "front:1": "prepped" });
+  });
+
+  it("skips a rectification row, which has no counterpart in the document", () => {
+    expect(ticksBySurfaceKey([
+      { surface_key: null, state: "todo" },
+      { surface_key: "front:0", state: "done" },
+    ])).toEqual({ "front:0": "done" });
+  });
+
+  it("says the same three things the document does", () => {
+    expect(statusFromState("todo")).toBe("not_started");
+    expect(statusFromState("prepped")).toBe("in_progress");
+    expect(statusFromState("done")).toBe("complete");
+    expect(SURFACE_STATE_LABEL.done).toBe("Complete");
   });
 });

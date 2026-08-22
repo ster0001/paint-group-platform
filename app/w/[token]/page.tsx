@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { reportIfError } from "@/lib/monitoring/report";
 import type { WorkOrderDoc as WODoc } from "@/lib/workorder/snapshot";
+import { ticksBySurfaceKey, type SurfaceState } from "@/lib/workorder/surfaces";
 import WorkOrderDoc from "../WorkOrderDoc";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +26,16 @@ export default async function Page({ params }: { params: Promise<{ token: string
     bestEffort: true,
   });
 
+  // The snapshot's per-surface status is frozen at issue. The ticks are live, so
+  // ask for them — an RPC because this route is anon and RLS quite rightly will
+  // not show wo_surfaces to a caller with no session. Degrades to the frozen
+  // statuses if the RPC isn't there yet, rather than 500ing a contractor's job
+  // sheet on a Monday morning.
+  const { data: tickRows } = await supabase.rpc("get_work_order_ticks_by_token", { p_token: token });
+  const ticks = ticksBySurfaceKey(
+    (tickRows as { surface_key: string | null; state: SurfaceState }[] | null) ?? [],
+  );
+
   const doc: WODoc = { ...row.snapshot, status: row.status ?? row.snapshot.status, startDate: row.start_date ?? row.snapshot.startDate };
-  return <WorkOrderDoc doc={doc} />;
+  return <WorkOrderDoc doc={doc} ticks={ticks} />;
 }

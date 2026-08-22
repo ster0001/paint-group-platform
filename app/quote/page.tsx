@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { ticksBySurfaceKey, type SurfaceState } from "@/lib/workorder/surfaces";
+import { signPhotos, type WOPhotoRow } from "@/lib/workorder/photos";
 import { createClient } from "@/lib/supabase/server";
 import QuoteBuilder from "./QuoteBuilder";
 import { DEFAULT_COMPANY, type CompanyProfile, type Contact } from "./company";
@@ -110,11 +112,29 @@ export default async function QuotePage({
 
   // Requested / proposed / confirmed, from the live offer. Derived, not stored.
   const woId = (workOrderRes.data as { id?: string } | null)?.id;
-  const { data: liveOffer } = woId
-    ? await supabase.from("booking_offers").select("state")
-        .eq("work_order_id", woId).in("state", ["offered", "proposed", "accepted"])
-        .order("offered_at", { ascending: false }).limit(1).maybeSingle()
-    : { data: null };
+  const [{ data: liveOffer }, { data: tickRows }, { data: photoRows }] = await Promise.all([
+    woId
+      ? supabase.from("booking_offers").select("state")
+          .eq("work_order_id", woId).in("state", ["offered", "proposed", "accepted"])
+          .order("offered_at", { ascending: false }).limit(1).maybeSingle()
+      : Promise.resolve({ data: null }),
+    // The live ticks and the photos from site. The job sheet is a document, not
+    // a status board — but the office reading it needs to see what has actually
+    // been done and what came back from the painter's phone.
+    woId
+      ? supabase.from("wo_surfaces").select("surface_key, state").eq("work_order_id", woId)
+      : Promise.resolve({ data: null }),
+    woId
+      ? supabase.from("wo_photos")
+          .select("id, work_order_id, kind, area, caption, storage_path, created_at, variation_id")
+          .eq("work_order_id", woId).order("created_at", { ascending: false }).limit(60)
+      : Promise.resolve({ data: null }),
+  ]);
+
+  const woTicks = ticksBySurfaceKey(
+    ((tickRows as { surface_key: string | null; state: SurfaceState }[] | null) ?? []),
+  );
+  const woPhotos = await signPhotos(supabase, (photoRows as WOPhotoRow[] | null) ?? []);
   const offerState = (liveOffer as { state?: string } | null)?.state;
   const bookingState =
     offerState === "accepted" ? "confirmed"
@@ -141,6 +161,8 @@ export default async function QuotePage({
       typicalSizes={typicalSizes}
       terms={terms}
       workOrder={workOrderRes.data ?? null}
+      woTicks={woTicks}
+      woPhotos={woPhotos}
       bookingState={bookingState}
       contractors={contractors}
       presentations={presentations}

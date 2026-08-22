@@ -1,3 +1,33 @@
+# 22 Aug 2026 (later) — Projects console, pinned lanes, live ticks, site photos
+
+Branch `feat/projects-console-photos`. Five things Tom asked for after driving
+the console:
+
+1. **Scheduling moved into the console as its first tab** (`/pc/schedule`), the
+   sidebar entry "Live jobs" is now **Projects**, and the standalone Schedule
+   sidebar entry is gone. `/schedule` permanently redirects, so old links and
+   `e2e/offer-accept.spec.ts` still work.
+2. **The contractor column pins** while the dates scroll.
+3. **Day names sit above the date numbers** at every zoom level.
+4. **The job sheet reads the live ticks**, so a ticked area no longer reads
+   "Not started". The snapshot's per-surface status is frozen at issue — that
+   was the bug.
+5. **Site photos are visible**: on the console job screen (grouped by kind, and
+   under the variation each one justifies), on the job sheet, and as a "Latest
+   from site" strip on the Projects dashboard.
+
+**⚑ ONE MIGRATION TO RUN:** `supabase/migrations/20261024000000_wo_ticks_by_token.sql`
+— a security-definer read that lets the ANON contractor link at `/w/<token>` see
+the ticks (RLS rightly refuses it `wo_surfaces` directly). Everything else works
+without it; until it is applied, `/w/<token>` alone still shows "Not started",
+and `e2e/wo-photos.spec.ts` skips that one test with a message saying so.
+
+Manual test script: `docs/manual-tests/projects-console-and-site-photos.md`.
+Tests: 558 unit (14 new), and `e2e/wo-photos.spec.ts` (4 tests — one skipped until the
+migration lands). Note the sidebar label in the section below is now "Projects".
+
+---
+
 # 22 Aug 2026 — work order completion loop + PC Command console: SHIPPED
 
 **On main, deployed, verified against production: 103 e2e, 546 unit tests, 0 lint

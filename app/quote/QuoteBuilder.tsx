@@ -37,6 +37,8 @@ import SendDialog, { type SendDelivery } from "./SendDialog";
 import { reviewGate, REVIEW_GATE_CENTS, type AiDeferred } from "@/lib/estimate/reviewGate";
 import { DEFAULT_MESSAGING, MESSAGING_KEY, type MessagingSettings } from "@/lib/messaging/config";
 import { issueWorkOrderAction, setWorkOrderScheduleAction } from "./workOrderActions";
+import type { SurfaceState } from "@/lib/workorder/surfaces";
+import type { WOPhoto } from "@/lib/workorder/photos";
 import { acceptAttr, checkUpload } from "@/lib/uploads/validate";
 import { reportIfError, errorMessage } from "@/lib/monitoring/report";
 
@@ -210,6 +212,8 @@ export default function QuoteBuilder({
   exclusionTemplates = [],
   terms = "",
   workOrder = null,
+  woTicks = {},
+  woPhotos = [],
   bookingState = "none",
   contractors = [],
   initialView,
@@ -231,6 +235,10 @@ export default function QuoteBuilder({
   exclusionTemplates?: InclusionTemplate[];
   terms?: string;
   workOrder?: WorkOrderRow | null;
+  /** Live ticks from wo_surfaces, keyed by surface key — see WorkOrderDoc. */
+  woTicks?: Record<string, SurfaceState>;
+  /** Site photos, already signed server-side (the bucket is private). */
+  woPhotos?: WOPhoto[];
   bookingState?: "none" | "requested" | "proposed" | "confirmed";
   contractors?: { id: string; name: string }[];
   initialView?: "builder" | "customer" | "workorder";
@@ -1445,6 +1453,8 @@ export default function QuoteBuilder({
             <WorkOrderDoc
               doc={computeWorkOrderDoc()}
               edit={woEdit}
+              ticks={woTicks}
+              photos={woPhotos}
               stage={workOrder?.stage ?? null}
               booking={workOrder ? {
                 state: bookingState, startDate: workOrder.start_date, endDate: workOrder.end_date ?? null,

@@ -7,7 +7,7 @@ import { sendEstimateInput } from "@/lib/validation/estimate";
 import { DEFAULT_MESSAGING, MESSAGING_KEY, normalisePhoneAU, renderTemplate, type MessagingSettings } from "@/lib/messaging/config";
 import { buildChatEmailHtml, buildEstimateEmailHtml, emailConfigured, sendEmail, sendSms, smsConfigured, type DeliveryResult } from "@/lib/messaging/send";
 import { DEFAULT_COMPANY, type CompanyProfile, type Contact } from "./company";
-import type { ActionResult } from "@/app/(app)/schedule/actions";
+import type { ActionResult } from "@/app/pc/schedule/actions";
 import { z } from "zod";
 
 const replyInput = z.object({
