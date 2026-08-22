@@ -14,7 +14,12 @@ export default async function UpdatesPage() {
   const { data } = await supabase
     .from("wo_updates")
     .select("id, work_order_id, for_date, draft_text, final_text, status, photo_count, work_orders(wo_ref, wo_snapshot)")
-    .in("status", ["drafted", "approved"])
+    // Today's SENT updates stay on the page, greyed, rather than vanishing the
+    // moment you press send: a card that disappears reads as "did that work?".
+    // (It also made the e2e flaky — the card unmounted before it could confirm.)
+    .or(`status.in.(drafted,approved),and(status.eq.sent,for_date.eq.${new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit",
+    }).format(new Date())})`)
     .order("created_at", { ascending: true });
 
   const rows = (data ?? []) as unknown as {
