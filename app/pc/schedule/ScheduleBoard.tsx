@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { msRemaining, isReschedule, formatDMY, type BookingOffer } from "@/lib/scheduling/offers";
 import { addDays, dayDiff, todayIso } from "@/lib/scheduling/dates";
 import { sendOfferAction, reassignOfferAction, moveBookingAction, blockOutAction, addBookingNote, deleteBookingNote, type ActionResult } from "./actions";
-import type { Block, Lane, TrayJob } from "@/lib/scheduling/board";
+import type { Block, BoardWalkthrough, Lane, TrayJob } from "@/lib/scheduling/board";
 import "./schedule.css";
 
 const money = (c: number | null) => (c == null ? "—" : "$" + (c / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 }));
@@ -53,6 +53,7 @@ export default function ScheduleBoard({
   lanes,
   blocks,
   tray,
+  walkthroughs = [],
   from,
   rangeDays,
   savedViews,
@@ -62,6 +63,7 @@ export default function ScheduleBoard({
   lanes: Lane[];
   blocks: Block[];
   tray: TrayJob[];
+  walkthroughs?: BoardWalkthrough[];
   from: string;
   rangeDays: number;
   savedViews: SavedView[];
@@ -932,6 +934,29 @@ export default function ScheduleBoard({
                       {days.map((d) => {
                         const dow = dayParts(d).dow;
                         return <div key={d} className={`bgc ${dow === 0 || dow === 6 ? "we" : ""}`} />;
+                      })}
+
+                      {/* §4b: walkthrough pins — the sign-off visit, on the
+                          day it is booked. Not draggable (rebooking happens on
+                          the job page, where the Mode B gate lives beside it);
+                          tap-through to the work order. The bottom strip keeps
+                          them clear of the booking blocks. */}
+                      {walkthroughs.filter((w) => w.contractorId === l.contractorId).map((w) => {
+                        const off = dayDiff(start, w.date);
+                        if (off < 0 || off >= range) return null;
+                        return (
+                          <a
+                            key={w.id}
+                            className="wtpin"
+                            href={`/pc/wo/${w.workOrderId}`}
+                            style={{ left: `calc(var(--day-w) * ${off} + 3px)` }}
+                            title={`${w.kind === "final" ? "Final" : "Pre"} walkthrough · ${w.title} · ${w.woRef}`}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            data-testid={`walkthrough-pin-${w.id}`}
+                          >
+                            {w.kind === "final" ? "WALK ✓" : "PRE"}
+                          </a>
+                        );
                       })}
 
                       {lay.placed.map(({ block: b, row }) => {

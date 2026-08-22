@@ -102,6 +102,16 @@ test.describe("v3 walkthrough + two-mode sign-off", () => {
     }
   });
 
+  test("the booked final pins onto the staff schedule board", async ({ page }) => {
+    const { signIn } = await import("./helpers");
+    await signIn(page, staff!, /\/(estimates|pc)/);
+    await page.goto("/pc/schedule");
+    const pin = page.locator('[data-testid^="walkthrough-pin-"]', { hasText: /WALK/ }).first();
+    await expect(pin).toBeVisible({ timeout: 20_000 });
+    // Tap-through lands on the work order, where the Mode B gate lives.
+    expect(await pin.getAttribute("href")).toContain(`/pc/wo/${fixture!.workOrderId}`);
+  });
+
   test("the painter's job page offers Start the walkthrough, and it opens the customer view", async ({ page }) => {
     // The UI half of Mode A, in the real role: the button exists at the
     // walkthrough stage, and pressing it lands in the customer's own view.

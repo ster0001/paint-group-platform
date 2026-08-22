@@ -42,6 +42,17 @@ export type Block = {
   reason: string;
 };
 
+/** A booked walkthrough, pinned on the assigned contractor's lane (§4b). */
+export type BoardWalkthrough = {
+  id: string;
+  workOrderId: string;
+  contractorId: string;
+  date: string;
+  kind: "pre" | "final";
+  woRef: string;
+  title: string;
+};
+
 /** An issued job with no live or accepted booking — the drag tray. */
 export type TrayJob = {
   workOrderId: string;
@@ -94,6 +105,7 @@ export type BoardData = {
   lanes: Lane[];
   blocks: Block[];
   tray: TrayJob[];
+  walkthroughs: BoardWalkthrough[];
   approvals: Approval[];
   /** Query failures, surfaced rather than silently rendering an empty board. */
   errors: string[];
@@ -127,6 +139,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     { data: offers, error: oErr },
     { data: unavail, error: uErr },
     { data: bookingNotes, error: nErr },
+    { data: walkthroughRows },
   ] = await Promise.all([
       supabase
         .from("contractors")
@@ -162,6 +175,13 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
         .from("wo_booking_notes")
         .select("id, work_order_id, note, author, created_at")
         .order("created_at", { ascending: false }),
+      // §4b: booked walkthroughs pin onto the assigned contractor's lane.
+      supabase
+        .from("wo_walkthroughs")
+        .select("id, work_order_id, kind, scheduled_date")
+        .eq("status", "booked")
+        .gte("scheduled_date", from)
+        .lte("scheduled_date", to),
     ]);
 
   // An empty board because a query failed looks exactly like an empty board
@@ -399,5 +419,24 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
   // Not-yet-issued jobs first — they're the ones needing a decision.
   tray.sort((a, b) => Number(b.needsIssuing) - Number(a.needsIssuing));
 
-  return { lanes, blocks, tray, approvals, errors };
+  const walkthroughs: BoardWalkthrough[] = [];
+  for (const w of ((walkthroughRows ?? []) as {
+    id: string; work_order_id: string; kind: string; scheduled_date: string;
+  }[])) {
+    const wo = woById.get(w.work_order_id);
+    // No assigned contractor = no lane to pin it on; the PC card still shows it.
+    if (!wo?.contractor_id) continue;
+    const doc = snapshotOf(wo.wo_snapshot);
+    walkthroughs.push({
+      id: w.id,
+      workOrderId: w.work_order_id,
+      contractorId: wo.contractor_id,
+      date: w.scheduled_date,
+      kind: w.kind === "pre" ? "pre" : "final",
+      woRef: wo.wo_ref,
+      title: doc?.jobTitle || wo.wo_ref,
+    });
+  }
+
+  return { lanes, blocks, tray, walkthroughs, approvals, errors };
 }

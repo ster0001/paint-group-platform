@@ -285,3 +285,16 @@
 .sb .jcard .notes .noterow button:hover, .sb .jcard .notes .addnote:hover { color: var(--text); border-color: var(--muted); }
 .sb .jcard .notes .noterow .save { border-color: var(--cyan); color: var(--cyan); }
 .sb .jcard .notes .noteerr { display: block; margin-top: 5px; font-size: 11px; color: var(--clay); }
+
+/* §4b: a booked walkthrough on the lane — the sign-off visit. Sits in the
+   bottom strip under the booking rows; cyan because it is an appointment,
+   not a warning. */
+.sb .lane .wtpin {
+  position: absolute; bottom: 1px; height: 12px; z-index: 3;
+  display: inline-flex; align-items: center; padding: 0 5px;
+  font-family: var(--mono); font-size: 7.5px; letter-spacing: .08em;
+  color: var(--cyan); background: rgba(59,216,233,.10);
+  border: 1px solid rgba(59,216,233,.45); border-radius: 4px;
+  text-decoration: none; cursor: pointer; white-space: nowrap;
+}
+.sb .lane .wtpin:hover { background: rgba(59,216,233,.22); }

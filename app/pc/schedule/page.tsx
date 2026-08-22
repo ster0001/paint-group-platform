@@ -40,6 +40,7 @@ export default async function SchedulePage({
       lanes={board.lanes}
       blocks={board.blocks}
       tray={board.tray}
+      walkthroughs={board.walkthroughs}
       from={from}
       rangeDays={RANGE}
       savedViews={savedViews}
