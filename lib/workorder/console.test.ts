@@ -18,7 +18,7 @@ const wo = (over: Partial<ConsoleInput["workOrders"][number]> = {}) => ({
 
 const base = (over: Partial<ConsoleInput> = {}): ConsoleInput => ({
   now, workOrders: [wo()], offers: [], variations: [], updates: [], signoffs: [],
-  zeroTickFlags: [],
+  quietSites: [],
   settings: { coloursWarnDays: 5, variationCustomerSilentHours: 24 },
   ...over,
 });
@@ -51,11 +51,15 @@ describe("each trigger produces exactly one card", () => {
     expect(q).toEqual([]);
   });
 
-  it("flags a silent site, and offers a phone call rather than a message", () => {
-    const q = buildQueue(base({ zeroTickFlags: [{ workOrderId: "w1", at: hoursAgo(14) }] }));
+  it("reminds about a quiet site rather than treating it as a crisis", () => {
+    const q = buildQueue(base({ quietSites: [{ workOrderId: "w1", at: hoursAgo(14), days: 3 }] }));
     expect(q).toHaveLength(1);
-    expect(q[0].severity).toBe("critical");
+    // A reminder, not a blockage: nobody expects a painter to tick daily.
+    expect(q[0].severity).toBe("warning");
+    expect(q[0].title).toContain("3 days");
     expect(q[0].action.kind).toBe("call");
+    // And never an automated message to the customer.
+    expect(q[0].detail.toLowerCase()).toContain("call");
   });
 
   it("flags a variation waiting on a price", () => {
@@ -137,7 +141,7 @@ describe("each trigger produces exactly one card", () => {
   });
 
   it("never raises a card for a job it cannot name", () => {
-    const q = buildQueue(base({ zeroTickFlags: [{ workOrderId: "ghost", at: hoursAgo(2) }] }));
+    const q = buildQueue(base({ quietSites: [{ workOrderId: "ghost", at: hoursAgo(2), days: 3 }] }));
     expect(q).toEqual([]);
   });
 });
@@ -168,7 +172,7 @@ describe("the pulse tiles read from the same rows", () => {
   const input = base({
     workOrders: [wo(), wo({ id: "w2", woRef: "WO-3179", contractValueCents: 3_190_000 }),
                  wo({ id: "w3", stage: "closed", contractValueCents: 482_000 })],
-    zeroTickFlags: [{ workOrderId: "w1", at: hoursAgo(14) }],
+    quietSites: [{ workOrderId: "w1", at: hoursAgo(14), days: 3 }],
     variations: [{ id: "v1", workOrderId: "w2", status: "raised", createdAt: hoursAgo(4), pricedAt: null }],
   });
 

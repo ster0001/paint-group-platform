@@ -45,7 +45,7 @@ export type ConsoleInput = {
     workOrderId: string; evidencePackSentAt: string | null; signedAt: string | null;
     extensionRequestedAt: string | null; extensionApprovedAt: string | null;
   }[];
-  zeroTickFlags: { workOrderId: string; at: string }[];
+  quietSites: { workOrderId: string; at: string; days: number }[];
   settings: { coloursWarnDays: number; variationCustomerSilentHours: number };
 };
 
@@ -140,15 +140,17 @@ export function buildQueue(input: ConsoleInput): QueueCard[] {
     });
   }
 
-  // 2. A site that went quiet. Never an automated message — a phone call.
-  for (const flag of input.zeroTickFlags) {
+  // 2. A site that has gone quiet for a few days. A REMINDER, not a blockage:
+  // nobody expects a painter to tick daily, and a red card every morning is
+  // just noise. Never an automated message to the customer either — a call.
+  for (const flag of input.quietSites) {
     const w = byId.get(flag.workOrderId);
     if (!w) continue;
     cards.push({
-      key: `zero-tick:${flag.workOrderId}`,
-      severity: "critical",
-      title: "Silent site — zero ticks yesterday",
-      detail: "Crew was on site, nothing marked, so no update went to the customer. Silence is a signal.",
+      key: `quiet-site:${flag.workOrderId}`,
+      severity: "warning",
+      title: `Nothing ticked in ${flag.days} days`,
+      detail: "No update has gone to the customer since then. Worth a quick call to see how it is going.",
       ref: label(flag.workOrderId),
       workOrderId: flag.workOrderId,
       ageHours: hoursBetween(flag.at, now),

@@ -25,7 +25,6 @@ type WoRow = {
 export async function loadConsole(supabase: SupabaseClient, now = new Date()): Promise<ConsoleData> {
   const weekAgo = new Date(now.getTime() - 7 * 86_400_000).toISOString();
   const fortnightAgo = new Date(now.getTime() - 14 * 86_400_000).toISOString();
-  const dayAgo = new Date(now.getTime() - 36 * 3_600_000).toISOString();
 
   const [wos, offers, variations, updates, signoffs, flags, closed, ticks, contractors, settings] =
     await Promise.all([
@@ -41,8 +40,8 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
       supabase.from("wo_updates").select("id, work_order_id, status, created_at").eq("status", "drafted"),
       supabase.from("wo_signoff")
         .select("work_order_id, evidence_pack_sent_at, signed_at, extension_requested_at, extension_approved_at"),
-      supabase.from("wo_events").select("work_order_id, created_at")
-        .eq("type", "zero_tick_flag").gte("created_at", dayAgo),
+      supabase.from("wo_events").select("work_order_id, created_at, meta")
+        .eq("type", "quiet_site").gte("created_at", weekAgo),
       supabase.from("wo_events").select("work_order_id").eq("type", "signed_off").gte("created_at", weekAgo),
       supabase.from("wo_events").select("created_at").eq("type", "surface_tick").gte("created_at", fortnightAgo),
       supabase.from("contractors").select("id, company_name"),
@@ -123,8 +122,9 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
         signedAt: s.signed_at, extensionRequestedAt: s.extension_requested_at,
         extensionApprovedAt: s.extension_approved_at,
       })),
-      zeroTickFlags: ((flags.data ?? []) as { work_order_id: string; created_at: string }[])
-        .map((f) => ({ workOrderId: f.work_order_id, at: f.created_at })),
+      quietSites: ((flags.data ?? []) as {
+        work_order_id: string; created_at: string; meta: { days?: number } | null;
+      }[]).map((f) => ({ workOrderId: f.work_order_id, at: f.created_at, days: f.meta?.days ?? 3 })),
       settings: {
         coloursWarnDays: Number(loop.coloursWarnDays ?? 5),
         variationCustomerSilentHours: Number(loop.variationCustomerSilentHours ?? 24),

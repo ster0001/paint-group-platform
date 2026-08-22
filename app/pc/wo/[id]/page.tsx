@@ -137,6 +137,9 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             {/* This screen reads the job; the job sheet itself is edited in the
                 builder, and saying so beats hunting for a control that is not
                 here on purpose. */}
+            <a className="btn" href={`/pc/wo/${id}/as-contractor`} data-testid="as-contractor">
+              Painter&rsquo;s view
+            </a>
             <a className="btn" href={`/quote?id=${estimateId}&view=workorder`} data-testid="edit-wo">
               Edit job sheet
             </a>
