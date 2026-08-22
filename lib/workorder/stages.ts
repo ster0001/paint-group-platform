@@ -1,8 +1,8 @@
 /**
  * The seven-stage work-order loop, mirrored from the database.
  *
- * `wo_stage_transitions` in 20260926000000_wo_loop_stage_machine.sql is the
- * source of truth — the RPC reads that table, so the database is what actually
+ * `wo_stage_transitions`, re-seeded canonically in
+ * 20261019000000_wo_autostart.sql, is the source of truth — the RPC reads that table, so the database is what actually
  * decides. This module exists so the UI can offer only the moves that exist and
  * so the rules can be unit-tested without a round trip.
  *
@@ -37,7 +37,7 @@ export type WoTransition = {
 export const TRANSITIONS: readonly WoTransition[] = [
   { from: "offered", to: "pre_start", label: "contractor accepted the offer", actors: ["system", "staff"] },
   { from: "pre_start", to: "offered", label: "booking released — back to the tray", actors: ["system", "staff"] },
-  { from: "pre_start", to: "in_progress", label: "pre-start checklist complete", actors: ["staff"] },
+  { from: "pre_start", to: "in_progress", label: "pre-start checklist complete", actors: ["system", "staff"] },
   { from: "in_progress", to: "qa", label: "all surfaces done — QA is scheduled", actors: ["system", "staff", "contractor"] },
   { from: "in_progress", to: "completion_prep", label: "all surfaces done — no QA due", actors: ["system", "staff", "contractor"] },
   { from: "qa", to: "completion_prep", label: "QA passed", actors: ["staff"] },

@@ -112,6 +112,30 @@ export async function deliverEvidencePack(raw: unknown): Promise<PcResult> {
   return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") };
 }
 
+/**
+ * "They got on site today" — start a job before its booked date.
+ *
+ * It moves the start date to today as well. Otherwise the silent-site catch
+ * would measure against a date that is no longer true, and the calendar would
+ * show the job starting on a day it did not.
+ */
+export async function startNow(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ workOrderId: uuid }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_start_now", { p_work_order_id: parsed.data.workOrderId });
+  if (error) return { ok: false, message: error.message };
+
+  const s = String(data ?? "");
+  if (s.startsWith("ok:")) {
+    revalidatePath("/pc"); revalidatePath("/pc/flow"); revalidatePath("/portal/jobs");
+    return { ok: true, message: "Started, and the start date moved to today." };
+  }
+  if (s.startsWith("error:gate:")) return { ok: false, message: s.slice("error:gate:".length) };
+  return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") };
+}
+
 export async function reofferJob(raw: unknown): Promise<PcResult> {
   const parsed = z.object({
     offerId: uuid,

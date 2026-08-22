@@ -107,7 +107,13 @@ async function sweep() {
   const { data: flagged, error: sweepError } = await db.rpc("wo_zero_tick_sweep");
   if (sweepError) reportError(sweepError, { where: "cron.woSweep.zeroTick" });
 
-  return { ok: true as const, date: today, drafted, flagged: flagged ?? 0 };
+  // Jobs whose start date has arrived and whose pre-start list is true go live
+  // on their own. Finishing the list and the job starting are two events; this
+  // is the second one, and nobody should have to remember it.
+  const { data: started, error: startError } = await db.rpc("wo_autostart_sweep");
+  if (startError) reportError(startError, { where: "cron.woSweep.autostart" });
+
+  return { ok: true as const, date: today, drafted, flagged: flagged ?? 0, started: started ?? 0 };
 }
 
 export async function GET(request: Request) {

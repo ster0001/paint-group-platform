@@ -231,7 +231,14 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
         )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <StageAdvance workOrderId={id} stage={row.stage} />
+          <StageAdvance
+            workOrderId={id}
+            stage={row.stage}
+            startDate={row.start_date}
+            today={new Intl.DateTimeFormat("en-CA", {
+              timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit",
+            }).format(new Date())}
+          />
 
           {row.stage === "offered" && forPhase("pre_offer").length > 0 && (
             <Checklist

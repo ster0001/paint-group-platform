@@ -11,7 +11,10 @@ import {
   nextStages,
 } from "./stages";
 
-const MIGRATION = "supabase/migrations/20260926000000_wo_loop_stage_machine.sql";
+// The canonical seed moved when 'system' was allowed to start a job on its
+// date; the mirror is diffed against wherever the list currently lives.
+const MIGRATION = "supabase/migrations/20261019000000_wo_autostart.sql";
+const MACHINE = "supabase/migrations/20260926000000_wo_loop_stage_machine.sql";
 
 describe("the transition matrix", () => {
   it("allows exactly the ten moves the workflow defines", () => {
@@ -88,6 +91,11 @@ describe("who may ask for a move", () => {
       .toEqual(["closed", "in_progress"]);
   });
 
+  it("lets the sweep start a job on its own date, but nothing else new", () => {
+    expect(nextStages("pre_start", "system").map((t) => t.to).sort())
+      .toEqual(["in_progress", "offered"]);
+  });
+
   it("keeps QA a staff decision", () => {
     expect(nextStages("qa", "contractor")).toEqual([]);
     expect(nextStages("qa", "staff").map((t) => t.to).sort())
@@ -135,6 +143,7 @@ describe("status is derived, never typed", () => {
 // ---------------------------------------------------------------------------
 describe("the mirror matches the migration", () => {
   const sql = readFileSync(resolve(process.cwd(), MIGRATION), "utf8");
+  const machine = readFileSync(resolve(process.cwd(), MACHINE), "utf8");
 
   const rows = [...sql.matchAll(
     /\(\s*'(\w+)',\s*'(\w+)',\s*'([^']*)',\s*array\[([^\]]+)\]\s*\)/g,
@@ -173,13 +182,13 @@ describe("the mirror matches the migration", () => {
   });
 
   it("locks the state columns away from client writes", () => {
-    expect(sql).toContain(
+    expect(machine).toContain(
       "revoke update (stage, stage_entered_at, blocked_reason) on public.work_orders from authenticated",
     );
   });
 
   it("writes an event on every transition", () => {
-    expect(sql).toMatch(/insert into public\.wo_events[\s\S]*?'stage_changed'/);
+    expect(machine).toMatch(/insert into public\.wo_events[\s\S]*?'stage_changed'/);
   });
 });
 
