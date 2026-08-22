@@ -66,8 +66,19 @@ test.describe("deleting an estimate", () => {
     expect(still).not.toBeNull();
 
     // ---- and the back door is shut ----------------------------------------
+    // A2 REWRITE: `invoices.estimate_id` is now ON DELETE RESTRICT, so an
+    // estimate WITH an invoice is refused by the constraint as well as by the
+    // revoke — and this assertion could no longer tell which one did it. This
+    // estimate was inserted directly rather than accepted through
+    // `accept_estimate`, so no invoice exists for it; both facts are now
+    // asserted, leaving the revoke as the only thing that can be refusing.
+    const { count: invoiceCount } = await sb.from("invoices")
+      .select("id", { count: "exact", head: true }).eq("estimate_id", acceptedId);
+    expect(invoiceCount ?? 0).toBe(0);
+
     const direct = await sb.from("estimates").delete().eq("id", acceptedId);
     expect(direct.error).not.toBeNull();
+    expect(direct.error!.code).not.toBe("23503"); // 23503 = foreign_key_violation
     const { data: stillThere } = await sb.from("estimates").select("id").eq("id", acceptedId).maybeSingle();
     expect(stillThere).not.toBeNull();
 
