@@ -964,3 +964,28 @@ checklist exists updates it.
 never a forked copy. The console renders it interactive while a job is in
 progress, read-only at other stages, and the office meets the same before-photo
 gate the painter does.
+
+## Moving a job forward, and starting on time (2026-08-22)
+
+**The control did not exist.** The stage machine, its gates, `wo_advance_stage`
+and its server action were all built and tested, and nothing in the UI called
+them — a job could reach pre-start and stop there for ever. Every e2e drove the
+RPC directly as staff, so the whole suite passed while the button was missing.
+*A test that calls the API cannot tell you a screen is unreachable.*
+
+`app/pc/wo/[id]/StageAdvance.tsx` is that control. Its buttons come from the
+transition table, so the console can never offer a move the database would call
+illegal — only not-yet-ready, which it reports in the gate's own words. Forward
+moves only; going back is a QA fail or a customer's flag, which are their own
+actions. Prep → walkthrough routes through `wo_deliver_evidence_pack`, because
+delivering the pack is what mints the customer's link and starts their clock.
+
+**Starting on time** (`20261019`): `system` may make the `pre_start →
+in_progress` move, and `wo_autostart_sweep()` — run from the 6pm cron — starts
+every job whose date has come and whose list is true. The gate still decides.
+`wo_start_now()` covers "they got on site today" and **moves the start date with
+it**, so the silent-site catch is not measuring against a date that is no longer
+true. The console asks before starting early, naming the booked date.
+
+The transition table is re-seeded canonically in `20261019`, and
+`stages.test.ts` diffs the mirror against that file — one list, still.

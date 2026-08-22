@@ -5,6 +5,16 @@ lived only in chat, and went missing — it had to be restated on 22 Aug. Every
 business ruling from here goes in this section on the day it is made, with the
 date and enough of the reasoning to act on it without the conversation.
 
+### 2026-08-22 · A job goes live when its date arrives, not when someone remembers
+The pre-start list is meant to be closeable a week or two out; finishing it and
+the job going live are two different events. So: tick the list any time, and the
+6pm sweep starts the job on the morning of its booked date if the list is true
+(`wo_autostart_sweep`, event `via: start_date_arrived`). The gate still decides —
+an unfinished list simply waits, amber on the console with the blocker named.
+Starting early is still possible, but it asks first and **moves the start date to
+today**, or the silent-site check would flag the job every morning for turning up
+early.
+
 ### 2026-08-22 · Staff work the same tick list as the painter
 The office needs to update a job from their side during a quality visit, with
 the contractor's view rather than a read-only copy. `wo_tick_surface` already

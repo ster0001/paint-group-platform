@@ -104,7 +104,10 @@ test.describe("moving a job forward from the console", () => {
 
     // First press warns rather than acting.
     await page.getByTestId("advance-in_progress").click();
-    await expect(page.getByTestId("early-warning")).toContainText("isn't due to start until");
+    // The page renders a typographic apostrophe; match on words that carry no
+    // punctuation rather than guessing which kind is in the markup.
+    await expect(page.getByTestId("early-warning")).toContainText("due to start until");
+    await expect(page.getByTestId("early-warning")).toContainText("moves the start date to today");
     let { data: still } = await db!.from("work_orders").select("stage").eq("id", later.workOrderId).single();
     expect((still as { stage: string }).stage).toBe("pre_start");
 
