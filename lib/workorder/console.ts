@@ -35,6 +35,12 @@ export type ConsoleInput = {
     startDate: string | null;
     coloursConfirmed: boolean;
     blockedReason: string | null;
+    /** When the customer accepted the estimate. Null on a job never accepted. */
+    acceptedAt: string | null;
+    /** False while the work order is still a draft — it can't be offered yet. */
+    issued: boolean;
+    /** The estimate behind it — issuing happens by opening the builder. */
+    estimateId: string;
     ticksDone: number;
     ticksTotal: number;
   }[];
@@ -160,6 +166,48 @@ export function buildQueue(input: ConsoleInput): QueueCard[] {
       workOrderId: offer.workOrderId,
       ageHours: overdueBy,
       action: { label: "Reoffer", kind: "reoffer", href: `/pc/wo/${offer.workOrderId}` },
+    });
+  }
+
+  // 1b. Accepted, and nobody booked into it. The customer has said yes and is
+  // waiting to hear a date, and every day of silence is a day they wonder
+  // whether we forgot. Nothing else surfaced this: the offer cards above only
+  // fire once an offer has been SENT and lapsed, so a job nobody ever offered
+  // was invisible — it sat in the Unscheduled tray and only got worked if
+  // somebody happened to scroll the board.
+  //
+  // Counted from the customer's acceptance, not from anything internal. A job
+  // still waiting to be issued is included (Tom, 22 Aug) but asks for a
+  // different action: open it once, rather than ring anyone.
+  for (const w of input.workOrders) {
+    if (w.stage !== "offered" || !w.acceptedAt) continue;
+    // Somebody is already mid-conversation about this job — the offer cards
+    // above own that case, and two cards for one job is nagging.
+    const liveOffer = input.offers.some((o) =>
+      o.workOrderId === w.id && (o.state === "offered" || o.state === "proposed"));
+    if (liveOffer) continue;
+
+    const waitingHours = hoursBetween(w.acceptedAt, now);
+    const days = Math.floor(waitingHours / 24);
+    // A day's grace: a job accepted this morning is not yet a failure.
+    if (days < 1) continue;
+
+    const since = days === 1 ? "yesterday" : `${days} days ago`;
+    cards.push({
+      key: `unbooked:${w.id}`,
+      severity: days >= 3 ? "critical" : "warning",
+      title: w.issued ? "Accepted, still not booked in" : "Accepted — work order not issued yet",
+      detail: w.issued
+        ? `They accepted ${since} and have not been given a date. Ring them and book it in.`
+        : `They accepted ${since}. Open the job once to issue the work order, then it can be offered.`,
+      ref: label(w.id),
+      workOrderId: w.id,
+      ageHours: waitingHours,
+      action: w.issued
+        ? { label: "Book it in", kind: "ring", href: `/pc/schedule` }
+        // Opening the BUILDER is what issues a draft work order, and it is keyed
+        // by estimate — the work-order id would 404 there.
+        : { label: "Open it once", kind: "ring", href: `/quote?id=${w.estimateId}&view=workorder&from=/pc` },
     });
   }
 

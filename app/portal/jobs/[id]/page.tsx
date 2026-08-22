@@ -13,6 +13,7 @@ import type { SurfaceRow } from "@/lib/workorder/surfaces";
 import type { Booking } from "@/lib/workorder/booking";
 import { OFFER_COLUMNS, type BookingOffer } from "@/lib/scheduling/offers";
 import type { PortalBlock, PortalJobDay } from "@/app/portal/calendar/CalendarGrid";
+import { jobDaysFor } from "@/lib/contractor/jobDays";
 
 export const dynamic = "force-dynamic";
 
@@ -58,9 +59,9 @@ export default async function PortalJobPage({
     .eq("contractor_id", contractor.id);
   const blocks: PortalBlock[] = ((u as { id: string; start_date: string; end_date: string; reason: string; source: "contractor" | "staff" }[] | null) ?? [])
     .map((b) => ({ id: b.id, start: b.start_date, end: b.end_date, reason: b.reason, source: b.source }));
-  const jobDays: PortalJobDay[] = job.startDate
-    ? [{ date: job.startDate, label: job.doc.jobTitle, status: job.status, id }]
-    : [];
+  // The whole booking, not just day one — this calendar is how a contractor
+  // sees how long they are on site for.
+  const jobDays: PortalJobDay[] = jobDaysFor([{ ...job, id }]);
 
   // The tick list and the before-photos already logged. RLS scopes both to this
   // contractor's own jobs, so an id that isn't theirs simply returns nothing.

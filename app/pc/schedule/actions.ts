@@ -173,3 +173,51 @@ export async function blockOutAction(raw: unknown): Promise<ActionResult> {
   revalidatePath("/pc/schedule");
   return { ok: true, state: "blocked" };
 }
+
+// ---------------------------------------------------------------------------
+// Booking notes — the chase log on a job waiting for a date.
+//
+// Straight table writes rather than an RPC: there is no derived money or state
+// machine involved, and `wo_booking_notes` is staff-only at the policy level,
+// so RLS is the real guard and this is the fast, clear failure in front of it.
+// ---------------------------------------------------------------------------
+
+export async function addBookingNote(raw: unknown): Promise<ActionResult> {
+  const parsed = z.object({
+    workOrderId: z.string().uuid(),
+    // Trimmed BEFORE the length check, so a box of spaces is caught here and
+    // not by the CHECK constraint as a database error.
+    note: z.string().transform((t) => t.trim()).pipe(z.string().min(1, "Write the note first.").max(2000)),
+  }).safeParse(raw);
+  if (!parsed.success) return invalid(parsed.error);
+
+  const { supabase, ok } = await requireStaff();
+  if (!ok) return { ok: false, kind: "error", message: ERROR_WORDING.not_staff };
+
+  const { data: { user } } = await supabase.auth.getUser();
+  const { error } = await supabase.from("wo_booking_notes").insert({
+    work_order_id: parsed.data.workOrderId,
+    note: parsed.data.note,
+    author: user?.id ?? null,
+  });
+  if (error) return { ok: false, kind: "error", message: error.message };
+
+  revalidatePath("/pc/schedule");
+  revalidatePath("/pc");
+  return { ok: true, state: "noted" };
+}
+
+export async function deleteBookingNote(raw: unknown): Promise<ActionResult> {
+  const parsed = z.object({ noteId: z.string().uuid() }).safeParse(raw);
+  if (!parsed.success) return invalid(parsed.error);
+
+  const { supabase, ok } = await requireStaff();
+  if (!ok) return { ok: false, kind: "error", message: ERROR_WORDING.not_staff };
+
+  const { error } = await supabase.from("wo_booking_notes").delete().eq("id", parsed.data.noteId);
+  if (error) return { ok: false, kind: "error", message: error.message };
+
+  revalidatePath("/pc/schedule");
+  revalidatePath("/pc");
+  return { ok: true, state: "deleted" };
+}

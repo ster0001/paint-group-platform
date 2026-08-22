@@ -56,6 +56,18 @@ export type TrayJob = {
   /** Set when a previous contractor declined — worth flagging to staff. */
   lastDeclineReason: string;
   /**
+   * The chase log: what we have said to this customer while trying to book
+   * them in. Staff-only (wo_booking_notes has no customer policy), newest
+   * first. Empty when nobody has rung them yet.
+   */
+  notes: { id: string; note: string; at: string; author: string }[];
+  /**
+   * Why WE pulled the last offer, when we did. The contractor declining is a
+   * different thing and reads on `lastDeclineReason` — this is the office's
+   * own note from the cancel dialog, which was being written and never shown.
+   */
+  cancelledReason: string;
+  /**
    * Set when the last offer on this job ran out its 24 hours unanswered, so the
    * job came back here on its own. Staff never chose to withdraw it and would
    * otherwise have no idea why it reappeared — see expire_booking_offers().
@@ -114,6 +126,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     { data: workOrders, error: wErr },
     { data: offers, error: oErr },
     { data: unavail, error: uErr },
+    { data: bookingNotes, error: nErr },
   ] = await Promise.all([
       supabase
         .from("contractors")
@@ -137,6 +150,18 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
         .select("id, contractor_id, start_date, end_date, reason, source")
         .lte("start_date", to)
         .gte("end_date", from),
+      // The chase log. Every unbooked job's notes in one query rather than one
+      // per tray card; the table is staff-only, so a non-staff session simply
+      // gets nothing back rather than an error.
+      //
+      // No `profiles:author(name)` embed here, however tempting: `author`
+      // references auth.users, PostgREST cannot follow a foreign key into the
+      // auth schema, and the whole query 400s with PGRST200. Names are resolved
+      // in a second query below.
+      supabase
+        .from("wo_booking_notes")
+        .select("id, work_order_id, note, author, created_at")
+        .order("created_at", { ascending: false }),
     ]);
 
   // An empty board because a query failed looks exactly like an empty board
@@ -146,6 +171,10 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     wErr && `work orders: ${wErr.message}`,
     oErr && `offers: ${oErr.message}`,
     uErr && `unavailability: ${uErr.message}`,
+    // Surfaced, not swallowed. The first version of this query used a PostgREST
+    // embed that 400s, and because only `data` was destructured the notes just
+    // silently never appeared — the write had worked, so nothing looked wrong.
+    nErr && `booking notes: ${nErr.message}`,
   ].filter(Boolean) as string[];
 
   type CRow = { id: string; tier: string | null; active: boolean; offerable: boolean; company_name: string | null; crew_size: number | null; profiles: { name: string | null } | null };
@@ -256,6 +285,42 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     });
   }
 
+  const noteRows = (bookingNotes ?? []) as unknown as {
+    id: string; work_order_id: string; note: string; author: string | null; created_at: string;
+  }[];
+
+  // Who wrote each one. A separate query because the FK points at auth.users;
+  // only the authors actually present are looked up.
+  const authorIds = [...new Set(noteRows.map((n) => n.author).filter(Boolean))] as string[];
+  const authorName = new Map<string, string>();
+  if (authorIds.length > 0) {
+    const { data: people } = await supabase.from("profiles").select("id, name").in("id", authorIds);
+    for (const p of (people ?? []) as { id: string; name: string | null }[]) {
+      if (p.name) authorName.set(p.id, p.name);
+    }
+  }
+
+  const notesByWo = new Map<string, TrayJob["notes"]>();
+  for (const n of noteRows) {
+    const list = notesByWo.get(n.work_order_id) ?? [];
+    list.push({
+      id: n.id, note: n.note, at: n.created_at,
+      author: n.author ? authorName.get(n.author) ?? "" : "",
+    });
+    notesByWo.set(n.work_order_id, list);
+  }
+
+  // Why WE cancelled — the MOST RECENT cancellation on the job, by cancelled_at
+  // rather than whichever row the query happened to return first. A job pulled
+  // twice should read the reason it was pulled this time.
+  const cancelledByWo = new Map<string, { reason: string; at: string }>();
+  for (const o of allOffers) {
+    if (o.state !== "cancelled" || !o.cancelled_reason) continue;
+    const at = o.cancelled_at ?? "";
+    const seen = cancelledByWo.get(o.work_order_id);
+    if (!seen || at >= seen.at) cancelledByWo.set(o.work_order_id, { reason: o.cancelled_reason, at });
+  }
+
   // Contractor display names, wanted by both the tray's lapse note and the
   // approvals queue below.
   const laneName = new Map(lanes.map((l) => [l.contractorId, l.name]));
@@ -307,6 +372,8 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
         hours: hours || null,
         estimatedDays: daysFromHours(hours),
         lastDeclineReason: declineByWo.get(w.id) ?? "",
+        notes: notesByWo.get(w.id) ?? [],
+        cancelledReason: cancelledByWo.get(w.id)?.reason ?? "",
         lapsed: lapsedByWo.get(w.id) ?? null,
         needsIssuing: !w.issued_at,
       };

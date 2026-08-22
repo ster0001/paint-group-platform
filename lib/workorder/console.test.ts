@@ -13,7 +13,8 @@ const daysAhead = (d: number) => melbourneDate(new Date(now.getTime() + d * 86_4
 const wo = (over: Partial<ConsoleInput["workOrders"][number]> = {}) => ({
   id: "w1", woRef: "WO-3184", stage: "in_progress", title: "14 Bellair St",
   contractorName: "Marko P.", contractValueCents: 1_842_000, startDate: daysAhead(3),
-  coloursConfirmed: true, blockedReason: null, ticksDone: 18, ticksTotal: 34, ...over,
+  coloursConfirmed: true, blockedReason: null, acceptedAt: null, issued: true, estimateId: "e1",
+  ticksDone: 18, ticksTotal: 34, ...over,
 });
 
 const base = (over: Partial<ConsoleInput> = {}): ConsoleInput => ({
@@ -93,6 +94,68 @@ describe("each trigger produces exactly one card", () => {
     expect(sla).toHaveLength(1);
     // The newest attempt is the one worth chasing.
     expect(sla[0].detail).toContain("Third");
+  });
+
+  it("chases a customer who accepted and has never been given a date", () => {
+    // WO-VERIFY1, live on 22 Aug: accepted on the 17th, work order issued, no
+    // contractor, no date — and nothing on the console mentioned it. The offer
+    // cards only fire once an offer has been SENT, so a job nobody ever offered
+    // was invisible unless somebody happened to scroll the tray.
+    const q = buildQueue(base({
+      workOrders: [wo({ stage: "offered", acceptedAt: hoursAgo(24 * 5), issued: true })],
+    }));
+    const card = q.find((c) => c.key === "unbooked:w1");
+    expect(card).toBeDefined();
+    expect(card!.title).toBe("Accepted, still not booked in");
+    expect(card!.detail).toContain("5 days ago");
+    expect(card!.severity).toBe("critical");
+  });
+
+  it("says yesterday rather than 1 days ago", () => {
+    const q = buildQueue(base({
+      workOrders: [wo({ stage: "offered", acceptedAt: hoursAgo(30), issued: true })],
+    }));
+    const card = q.find((c) => c.key === "unbooked:w1")!;
+    expect(card.detail).toContain("yesterday");
+    expect(card.severity).toBe("warning");   // not yet critical
+  });
+
+  it("gives a job accepted this morning the day's grace", () => {
+    const q = buildQueue(base({
+      workOrders: [wo({ stage: "offered", acceptedAt: hoursAgo(4), issued: true })],
+    }));
+    expect(q.filter((c) => c.key.startsWith("unbooked:"))).toEqual([]);
+  });
+
+  it("does not chase a job that already has an offer out with someone", () => {
+    // The offer cards own that conversation; two cards for one job is nagging.
+    const q = buildQueue(base({
+      workOrders: [wo({ stage: "offered", acceptedAt: hoursAgo(24 * 5), issued: true })],
+      offers: [{ id: "o1", workOrderId: "w1", state: "offered", expiresAt: hoursAgo(-6), contractorName: "Dean M." }],
+    }));
+    expect(q.filter((c) => c.key.startsWith("unbooked:"))).toEqual([]);
+  });
+
+  it("does not chase a job somebody is already painting", () => {
+    const q = buildQueue(base({
+      workOrders: [wo({ stage: "in_progress", acceptedAt: hoursAgo(24 * 30), issued: true })],
+    }));
+    expect(q.filter((c) => c.key.startsWith("unbooked:"))).toEqual([]);
+  });
+
+  it("asks for the work order to be issued rather than for a phone call", () => {
+    const q = buildQueue(base({
+      workOrders: [wo({ stage: "offered", acceptedAt: hoursAgo(24 * 2), issued: false, estimateId: "est-9" })],
+    }));
+    const card = q.find((c) => c.key === "unbooked:w1")!;
+    expect(card.title).toContain("not issued yet");
+    // Issuing happens in the BUILDER, which is keyed by estimate, not work order.
+    expect(card.action.href).toContain("id=est-9");
+  });
+
+  it("ignores a job the customer never accepted", () => {
+    const q = buildQueue(base({ workOrders: [wo({ stage: "offered", acceptedAt: null })] }));
+    expect(q.filter((c) => c.key.startsWith("unbooked:"))).toEqual([]);
   });
 
   it("leaves an offer that is still inside its SLA alone", () => {

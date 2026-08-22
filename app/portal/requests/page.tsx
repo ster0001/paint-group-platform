@@ -6,6 +6,7 @@ import type { PortalBlock, PortalJobDay } from "../calendar/CalendarGrid";
 import { effectiveState, isLive } from "@/lib/scheduling/offers";
 import Placeholder from "../Placeholder";
 import OfferCard from "./OfferCard";
+import { jobDaysFor } from "@/lib/contractor/jobDays";
 
 export const dynamic = "force-dynamic";
 
@@ -26,9 +27,9 @@ export default async function RequestsPage() {
     myBlocks = ((u as { id: string; start_date: string; end_date: string; reason: string; source: "contractor" | "staff" }[] | null) ?? [])
       .map((b) => ({ id: b.id, start: b.start_date, end: b.end_date, reason: b.reason, source: b.source }));
 
-    for (const j of await listContractorJobs(contractor.id)) {
-      if (j.startDate) myJobDays.push({ date: j.startDate, label: j.doc?.jobTitle || j.woRef, status: j.status });
-    }
+    // Every day of every booking, with the id. Was the start date only and no
+    // id: a four-day job showed as one square, and tapping it did nothing.
+    myJobDays.push(...jobDaysFor(await listContractorJobs(contractor.id)));
   }
 
   const live = offers.filter((o) => isLive(effectiveState(o.offer)));

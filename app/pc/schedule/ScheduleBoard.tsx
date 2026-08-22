@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { msRemaining, isReschedule, formatDMY, type BookingOffer } from "@/lib/scheduling/offers";
 import { addDays, dayDiff, todayIso } from "@/lib/scheduling/dates";
-import { sendOfferAction, reassignOfferAction, moveBookingAction, blockOutAction, type ActionResult } from "./actions";
+import { sendOfferAction, reassignOfferAction, moveBookingAction, blockOutAction, addBookingNote, deleteBookingNote, type ActionResult } from "./actions";
 import type { Block, Lane, TrayJob } from "@/lib/scheduling/board";
 import "./schedule.css";
 
@@ -386,6 +386,28 @@ export default function ScheduleBoard({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const lapsedJobs = tray.filter((j) => j.lapsed);
+  // The chase log composer. Keyed by work order so two cards can't share a
+  // draft, and closed by default — the tray is a drag surface first.
+  const [noteOpen, setNoteOpen] = useState<string | null>(null);
+  const [noteText, setNoteText] = useState("");
+  const [noteBusy, setNoteBusy] = useState(false);
+  const [noteErr, setNoteErr] = useState("");
+
+  async function saveNote(workOrderId: string) {
+    if (!noteText.trim()) { setNoteErr("Write the note first."); return; }
+    setNoteBusy(true); setNoteErr("");
+    const r = await addBookingNote({ workOrderId, note: noteText });
+    setNoteBusy(false);
+    if (r.ok) { setNoteText(""); setNoteOpen(null); router.refresh(); }
+    else setNoteErr(r.message);
+  }
+
+  async function removeNote(noteId: string) {
+    setNoteBusy(true); setNoteErr("");
+    const r = await deleteBookingNote({ noteId });
+    setNoteBusy(false);
+    if (r.ok) router.refresh(); else setNoteErr(r.message);
+  }
   // A note that rides along with the offer — the scheduling context a date and
   // a price can't carry ("client's on a tight schedule, needs to start Monday").
   // It reaches the contractor on their offer card as `staff_note`.
@@ -768,11 +790,69 @@ export default function ScheduleBoard({
                   </div>
                   <div className="pay">{money(j.paymentCents)}</div>
                   {j.lastDeclineReason && <div className="flagline">DECLINED — {j.lastDeclineReason.toUpperCase()}</div>}
+                  {/* Why WE pulled it. Written in the cancel dialog and, until
+                      now, never shown anywhere afterwards. */}
+                  {j.cancelledReason && (
+                    <div className="flagline" data-testid="tray-cancelled">
+                      WE CANCELLED — {j.cancelledReason.toUpperCase()}
+                    </div>
+                  )}
                   {j.lapsed && (
                     <div className="lapsedline" data-testid="tray-lapsed">
                       {j.lapsed.contractorName.toUpperCase()} DIDN&rsquo;T ACCEPT WITHIN 24 HOURS — MOVED BACK
                     </div>
                   )}
+
+                  {/* The chase log. onPointerDown is stopped throughout: this
+                      card is a drag handle, and typing a note must not start
+                      dragging the job onto a contractor's row. */}
+                  <div className="notes" onPointerDown={(e) => e.stopPropagation()}>
+                    {j.notes.length > 0 && (
+                      <ul data-testid={`notes-${j.woRef}`}>
+                        {j.notes.map((n) => (
+                          <li key={n.id}>
+                            <span className="when">
+                              {new Date(n.at).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}
+                              {n.author ? ` · ${n.author.split(/\s+/)[0]}` : ""}
+                            </span>
+                            <span className="what">{n.note}</span>
+                            <button type="button" title="Delete this note" disabled={noteBusy}
+                              onClick={() => removeNote(n.id)} data-testid={`note-del-${n.id}`}>×</button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {noteOpen === j.workOrderId ? (
+                      <>
+                        <textarea
+                          rows={2}
+                          autoFocus
+                          maxLength={2000}
+                          value={noteText}
+                          placeholder="e.g. Left a voicemail — no answer. Trying again Thursday."
+                          onChange={(e) => setNoteText(e.target.value)}
+                          data-testid="note-input"
+                        />
+                        {noteErr && <span className="noteerr">{noteErr}</span>}
+                        <span className="noterow">
+                          <button type="button" className="save" disabled={noteBusy}
+                            onClick={() => saveNote(j.workOrderId)} data-testid="note-save">
+                            {noteBusy ? "Saving…" : "Save note"}
+                          </button>
+                          <button type="button" disabled={noteBusy}
+                            onClick={() => { setNoteOpen(null); setNoteText(""); setNoteErr(""); }}>
+                            Cancel
+                          </button>
+                        </span>
+                      </>
+                    ) : (
+                      <button type="button" className="addnote" data-testid={`add-note-${j.woRef}`}
+                        onClick={() => { setNoteOpen(j.workOrderId); setNoteText(""); setNoteErr(""); }}>
+                        {j.notes.length ? "+ Add another note" : "+ Add a note"}
+                      </button>
+                    )}
+                  </div>
                 </div>
               ),
             )

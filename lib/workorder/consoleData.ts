@@ -16,10 +16,11 @@ export type ConsoleData = {
 };
 
 type WoRow = {
-  id: string; wo_ref: string; stage: string; contractor_id: string | null;
+  id: string; estimate_id: string; wo_ref: string; stage: string; contractor_id: string | null;
   start_date: string | null; colours: Record<string, { status?: string }> | null;
   blocked_reason: string | null; wo_snapshot: { jobTitle?: string } | null;
-  estimates: { total_cents: number | null } | null;
+  issued_at: string | null;
+  estimates: { total_cents: number | null; accepted_at: string | null } | null;
 };
 
 export async function loadConsole(supabase: SupabaseClient, now = new Date()): Promise<ConsoleData> {
@@ -29,7 +30,7 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
   const [wos, offers, variations, updates, signoffs, flags, closed, ticks, contractors, settings] =
     await Promise.all([
       supabase.from("work_orders")
-        .select("id, wo_ref, stage, contractor_id, start_date, colours, blocked_reason, wo_snapshot, estimates(total_cents)")
+        .select("id, estimate_id, wo_ref, stage, contractor_id, start_date, colours, blocked_reason, wo_snapshot, issued_at, estimates(total_cents, accepted_at)")
         .neq("stage", "closed"),
       supabase.from("booking_offers")
         .select("id, work_order_id, state, expires_at, contractors(company_name)")
@@ -73,6 +74,13 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
       // No colour rows at all is "not confirmed" — an empty object is not a yes.
       coloursConfirmed: values.length > 0 && values.every((c) => c?.status === "confirmed"),
       blockedReason: w.blocked_reason,
+      // When the CUSTOMER said yes — the clock the office is judged on. Not the
+      // work order's own created_at, which is an internal artefact.
+      acceptedAt: w.estimates?.accepted_at ?? null,
+      // A job accepted before its work order exists still needs chasing, but
+      // the action is "open it once", not "ring them".
+      issued: Boolean(w.issued_at),
+      estimateId: w.estimate_id,
       ticksDone: 0,
       ticksTotal: 0,
     };

@@ -3,11 +3,9 @@ import { requireContractor } from "@/lib/contractor/session";
 import { listContractorJobs } from "@/lib/contractor/jobs";
 import CalendarGrid, { type PortalBlock, type PortalJobDay } from "./CalendarGrid";
 import Placeholder from "../Placeholder";
-import { localIso } from "@/lib/scheduling/dates";
+import { jobDaysFor } from "@/lib/contractor/jobDays";
 
 export const dynamic = "force-dynamic";
-
-const iso = localIso;
 
 export default async function CalendarPage() {
   const { contractor } = await requireContractor();
@@ -38,23 +36,7 @@ export default async function CalendarPage() {
   // Booked days come from the jobs themselves, so the calendar and the Jobs tab
   // can never disagree.
   const jobs = await listContractorJobs(contractor.id);
-  const jobDays: PortalJobDay[] = [];
-  for (const j of jobs) {
-    if (!j.startDate) continue;
-    // The booking's own end date decides the span. Estimated hours are only a
-    // fallback for a job booked before end dates existed — a guess should never
-    // override what the office actually booked.
-    const hours = j.doc ? j.doc.areas.flatMap((a) => a.surfaces).reduce((n, s) => n + (s.hours ?? 0), 0) : 0;
-    const span = j.endDate
-      ? Math.max(1, Math.round(
-          (Date.parse(`${j.endDate}T00:00:00Z`) - Date.parse(`${j.startDate}T00:00:00Z`)) / 86_400_000) + 1)
-      : Math.max(1, Math.ceil((hours || 8) / 8));
-    for (let i = 0; i < span; i++) {
-      const d = new Date(j.startDate + "T00:00:00");
-      d.setDate(d.getDate() + i);
-      jobDays.push({ date: iso(d), label: j.doc?.jobTitle || j.woRef, status: j.status, id: j.id });
-    }
-  }
+  const jobDays: PortalJobDay[] = jobDaysFor(jobs);
 
   return (
     <div className="wrap">
