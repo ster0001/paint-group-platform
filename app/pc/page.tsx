@@ -24,6 +24,10 @@ export default async function CommandPage() {
 
   // Who a lapsed job can go to: compliant contractors only. send_offer enforces
   // it too, but offering someone who will be refused is a wasted tap.
+  // A week out, computed once rather than during render.
+  const defaultReofferStart = new Date(input.now.getTime() + 7 * 86_400_000)
+    .toISOString().slice(0, 10);
+
   const { data: offerable } = await supabase
     .from("contractors").select("id, company_name").eq("offerable", true).eq("active", true);
   const targets = ((offerable ?? []) as { id: string; company_name: string }[])
@@ -101,7 +105,7 @@ export default async function CommandPage() {
                     jobTitle={card.ref}
                     lapsedName={card.detail.split(" has had it")[0]}
                     contractors={targets}
-                    defaultStart={new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10)}
+                    defaultStart={defaultReofferStart}
                   />
                 </span>
               ) : (
