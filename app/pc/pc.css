@@ -240,3 +240,9 @@
 .pc .chip.grn { color:var(--emerald); border-color:rgba(47,164,107,.4); }
 .pc .chip.cyn { color:var(--cyan); border-color:rgba(59,216,233,.35); }
 .pc .chip.amb { color:var(--amber); border-color:rgba(224,168,60,.4); }
+
+/* ---- reoffer: a confirm step, because it moves a job between people ------- */
+.pc .reoffer { flex:1 0 100%; display:flex; flex-direction:column; gap:9px; margin-top:10px;
+  border-top:1px solid var(--line); padding-top:12px; }
+.pc .reoffer select { background:var(--ink); color:var(--text); border:1px solid var(--line);
+  border-radius:8px; padding:9px 10px; font-family:inherit; font-size:13px; }

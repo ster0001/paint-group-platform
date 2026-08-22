@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { loadConsole } from "@/lib/workorder/consoleData";
 import { buildQueue, headline, pulseTiles, sparkline } from "@/lib/workorder/console";
+import ReofferDialog from "./ReofferDialog";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,13 @@ export default async function CommandPage() {
   const { input, signedOffThisWeek, ticksByDay } = await loadConsole(supabase);
 
   const queue = buildQueue(input);
+
+  // Who a lapsed job can go to: compliant contractors only. send_offer enforces
+  // it too, but offering someone who will be refused is a wasted tap.
+  const { data: offerable } = await supabase
+    .from("contractors").select("id, company_name").eq("offerable", true).eq("active", true);
+  const targets = ((offerable ?? []) as { id: string; company_name: string }[])
+    .map((c) => ({ id: c.id, name: c.company_name || "Unnamed contractor" }));
   const tiles = pulseTiles(input, queue, signedOffThisWeek);
   const head = headline(tiles);
   const line = sparkline(ticksByDay, input.now);
@@ -86,11 +94,23 @@ export default async function CommandPage() {
                 <p>{card.detail}</p>
               </div>
               <span className="tm">{age(card.ageHours)}</span>
-              <Link className={`btn ${card.severity === "critical" ? "primary" : ""}`}
-                href={card.action.href ?? `/pc/wo/${card.workOrderId}`}
-                data-testid={`action-${card.key}`}>
-                {card.action.label}
-              </Link>
+              {card.action.kind === "reoffer" && card.offerId ? (
+                <span data-testid={`action-${card.key}`}>
+                  <ReofferDialog
+                    offerId={card.offerId}
+                    jobTitle={card.ref}
+                    lapsedName={card.detail.split(" has had it")[0]}
+                    contractors={targets}
+                    defaultStart={new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10)}
+                  />
+                </span>
+              ) : (
+                <Link className={`btn ${card.severity === "critical" ? "primary" : ""}`}
+                  href={card.action.href ?? `/pc/wo/${card.workOrderId}`}
+                  data-testid={`action-${card.key}`}>
+                  {card.action.label}
+                </Link>
+              )}
             </div>
           ))}
 

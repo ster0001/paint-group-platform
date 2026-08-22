@@ -33,7 +33,7 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
         .select("id, wo_ref, stage, contractor_id, start_date, colours, blocked_reason, wo_snapshot, estimates(total_cents)")
         .neq("stage", "closed"),
       supabase.from("booking_offers")
-        .select("work_order_id, state, expires_at, contractors(company_name)")
+        .select("id, work_order_id, state, expires_at, contractors(company_name)")
         .in("state", ["offered", "proposed"]),
       supabase.from("wo_variations")
         .select("id, work_order_id, status, created_at, priced_lines, contractor_rate_cents")
@@ -98,9 +98,10 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
       now,
       workOrders,
       offers: ((offers.data ?? []) as unknown as {
-        work_order_id: string; state: string; expires_at: string; contractors: { company_name: string } | null;
+        id: string; work_order_id: string; state: string; expires_at: string;
+        contractors: { company_name: string } | null;
       }[]).map((o) => ({
-        workOrderId: o.work_order_id, state: o.state, expiresAt: o.expires_at,
+        id: o.id, workOrderId: o.work_order_id, state: o.state, expiresAt: o.expires_at,
         contractorName: o.contractors?.company_name ?? "The contractor",
       })),
       variations: ((variations.data ?? []) as {

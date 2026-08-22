@@ -18,6 +18,8 @@ export type QueueCard = {
   workOrderId: string;
   /** Hours since the thing happened — drives ranking and the "27h" badge. */
   ageHours: number;
+  /** Set on the SLA card: the offer Reoffer withdraws. */
+  offerId?: string;
   action: { label: string; href?: string; tel?: string; kind: string };
 };
 
@@ -36,7 +38,7 @@ export type ConsoleInput = {
     ticksDone: number;
     ticksTotal: number;
   }[];
-  offers: { workOrderId: string; state: string; expiresAt: string; contractorName: string }[];
+  offers: { id?: string; workOrderId: string; state: string; expiresAt: string; contractorName: string }[];
   variations: { id: string; workOrderId: string; status: string; createdAt: string; pricedAt: string | null }[];
   updates: { id: string; workOrderId: string; status: string; createdAt: string }[];
   signoffs: {
@@ -127,6 +129,7 @@ export function buildQueue(input: ConsoleInput): QueueCard[] {
     if (!w) continue;
     cards.push({
       key: `offer-sla:${offer.workOrderId}`,
+      offerId: offer.id,
       severity: "critical",
       title: "Offer unanswered past SLA",
       detail: `${offer.contractorName} has had it ${Math.round(overdueBy + 24)} hours. Chase, or release it to the next contractor.`,

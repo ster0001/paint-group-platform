@@ -56,6 +56,31 @@ export async function approveAndSendUpdate(raw: unknown): Promise<PcResult> {
   return call("wo_send_update", { p_update_id: parsed.data.updateId }, "Sent.");
 }
 
+export async function reofferJob(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({
+    offerId: uuid,
+    contractorId: uuid,
+    start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    note: z.string().max(500).default(""),
+  }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Pick a contractor and a start date." };
+
+  const result = await call("wo_reoffer", {
+    p_offer_id: parsed.data.offerId,
+    p_contractor_id: parsed.data.contractorId,
+    p_start: parsed.data.start,
+    p_end: null,
+    p_note: parsed.data.note,
+  }, "Reoffered — and the first contractor has been told.");
+
+  // send_offer refuses a contractor without current insurance, and that refusal
+  // must not be lost on the reoffer path of all places.
+  if (!result.ok && result.message.includes("offerable")) {
+    return { ok: false, message: "That contractor isn't compliant — their insurance needs to be current." };
+  }
+  return result;
+}
+
 export async function tickChecklistItem(raw: unknown): Promise<PcResult> {
   const parsed = z.object({ itemId: uuid, done: z.boolean() }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };
