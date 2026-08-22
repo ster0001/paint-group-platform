@@ -8,6 +8,7 @@ import RescheduleRequest from "./RescheduleRequest";
 import TickList from "@/app/components/wo/TickList";
 import Variations, { type VariationView } from "./Variations";
 import PrepChecklist, { type PrepItem } from "./PrepChecklist";
+import WalkthroughStart from "./WalkthroughStart";
 import CrewShare from "./CrewShare";
 import SitePhotos from "./SitePhotos";
 import type { SurfaceRow } from "@/lib/workorder/surfaces";
@@ -67,13 +68,16 @@ export default async function PortalJobPage({
 
   // The tick list and the before-photos already logged. RLS scopes both to this
   // contractor's own jobs, so an id that isn't theirs simply returns nothing.
-  const [{ data: surfaceRows }, { data: photoRows }, { data: woRow }] = await Promise.all([
+  const [{ data: surfaceRows }, { data: photoRows }, { data: woRow }, { data: walkthroughRows }] = await Promise.all([
     supabase.from("wo_surfaces")
       .select("id, heading, heading_meta, label, state, rectification")
       .eq("work_order_id", id).order("sort", { ascending: true }),
     supabase.from("wo_photos")
       .select("area, kind").eq("work_order_id", id).in("kind", ["before", "completion"]),
     supabase.from("work_orders").select("stage").eq("id", id).maybeSingle(),
+    supabase.from("wo_walkthroughs")
+      .select("kind, scheduled_date, status").eq("work_order_id", id)
+      .eq("status", "booked"),
   ]);
 
   // Requested or confirmed — derived from the live offer, never stored twice.
@@ -131,6 +135,9 @@ export default async function PortalJobPage({
   // Ticking only makes sense once the job is under way — before that the list is
   // still worth seeing, so it renders read-only via the server's own refusal.
   const canTick = (woRow as { stage?: string } | null)?.stage === "in_progress";
+  const atWalkthrough = (woRow as { stage?: string } | null)?.stage === "walkthrough";
+  const bookedFinal = ((walkthroughRows ?? []) as { kind: string; scheduled_date: string }[])
+    .find((w) => w.kind === "final")?.scheduled_date ?? null;
   const canPrep = (woRow as { stage?: string } | null)?.stage === "completion_prep";
 
   return (
@@ -184,6 +191,14 @@ export default async function PortalJobPage({
       {(canTick || canPrep) && (
         <div style={{ padding: "0 16px" }}>
           <SitePhotos workOrderId={id} areas={[...new Set(surfaces.map((s) => s.heading))]} />
+        </div>
+      )}
+
+      {/* §4b Mode A: at the walkthrough stage the painter runs the sign-off
+          from their own phone. */}
+      {atWalkthrough && job.committed && (
+        <div style={{ padding: "0 16px" }}>
+          <WalkthroughStart workOrderId={id} finalDate={bookedFinal} />
         </div>
       )}
 

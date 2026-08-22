@@ -3,6 +3,9 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { sendSignedReportEmail } from "@/lib/workorder/signEmail";
+import { headers } from "next/headers";
 
 /** The customer's walkthrough: approve or flag each area, then sign. */
 
@@ -38,13 +41,36 @@ export async function signAction(raw: unknown): Promise<SignResult> {
   if (!parsed.success) return { ok: false, message: "Please type your full name to sign." };
 
   const supabase = await createClient();
+
+  // Resolve the CUSTOMER token BEFORE signing: wo_sign clears a Mode A session
+  // token on success, so an after-the-fact lookup would find nothing and the
+  // on-device path — the one ⚑10 exists for — would never email.
+  const service = createServiceClient();
+  const { data: pre } = service
+    ? await service.from("wo_signoff").select("customer_token").or(
+        `customer_token.eq.${parsed.data.token},walkthrough_session_token.eq.${parsed.data.token}`,
+      ).maybeSingle()
+    : { data: null };
+
   const { data, error } = await supabase.rpc("wo_sign", {
     p_token: parsed.data.token, p_name: parsed.data.name, p_kind: "remote", p_device: "web",
   });
   if (error) return { ok: false, message: "We couldn't record your sign-off — please try again." };
 
   const s = String(data ?? "");
-  if (s.startsWith("ok:")) { revalidatePath(`/s/${parsed.data.token}`); return { ok: true }; }
+  if (s.startsWith("ok:")) {
+    revalidatePath(`/s/${parsed.data.token}`);
+    // ⚑10: the signed report goes to the customer at once. wo_sign derives the
+    // kind server-side, so this token may have been a Mode A session — the
+    // email always addresses the CUSTOMER token, which the service lookup
+    // resolves from the same sign-off row. Best-effort by construction.
+    if (service && pre?.customer_token) {
+      const origin = (await headers()).get("origin")
+        ?? process.env.NEXT_PUBLIC_SITE_URL ?? "https://paint-group-platform.vercel.app";
+      await sendSignedReportEmail(service, pre.customer_token, origin);
+    }
+    return { ok: true };
+  }
   if (s.startsWith("error:areas_outstanding:")) {
     const outstanding = s.slice("error:areas_outstanding:".length).split(",").filter(Boolean);
     return {

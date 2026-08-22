@@ -5,6 +5,7 @@ import { progressByHeading, progressOf, type SurfaceRow } from "@/lib/workorder/
 import { VARIATION_STEPS, stepIndex, type VariationStatus } from "@/lib/workorder/variations";
 import PriceVariation from "./PriceVariation";
 import Checklist, { type ChecklistItem } from "./Checklist";
+import WalkthroughCard from "./WalkthroughCard";
 import QaCheck, { type QaCheckView } from "./QaCheck";
 import TickList from "@/app/components/wo/TickList";
 import PhotoGrid from "@/app/components/wo/PhotoGrid";
@@ -35,7 +36,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
 
   const estimateId = (wo as { estimate_id?: string }).estimate_id ?? "";
 
-  const [{ data: surfaceRows }, { data: variationRows }, { data: updateRows }, { data: qaRows }, { data: checklistRows }, { data: rateRow }] =
+  const [{ data: surfaceRows }, { data: variationRows }, { data: updateRows }, { data: qaRows }, { data: checklistRows }, { data: rateRow }, { data: walkthroughRows }, { data: signoffRow }] =
     await Promise.all([
       supabase.from("wo_surfaces")
         .select("id, heading, heading_meta, label, state, rectification")
@@ -54,6 +55,12 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
       // The live contractor rate, so the price preview cannot drift from what
       // the server will actually work out when Tom edits it in Settings.
       supabase.from("settings").select("value").eq("key", "Contractor rate").maybeSingle(),
+      supabase.from("wo_walkthroughs")
+        .select("id, kind, scheduled_date, status")
+        .eq("work_order_id", id).order("created_at", { ascending: true }),
+      supabase.from("wo_signoff")
+        .select("signed_at, client_unavailable_at")
+        .eq("work_order_id", id).maybeSingle(),
     ]);
 
   // Derived items answer from the data they read, so the screen and the gate
@@ -292,6 +299,18 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
               items={forPhase("pre_start")}
               outstanding={outstanding("pre_start")}
               coloursHref={coloursHref}
+            />
+          )}
+
+          {/* §4b: book the walkthroughs and hold the Mode B gate. Shown from
+              completion prep (book ahead) through walkthrough (run it). */}
+          {(row.stage === "completion_prep" || row.stage === "walkthrough") && (
+            <WalkthroughCard
+              workOrderId={id}
+              walkthroughs={((walkthroughRows ?? []) as { id: string; kind: string; scheduled_date: string; status: string }[])
+                .map((w) => ({ id: w.id, kind: w.kind, scheduledDate: w.scheduled_date, status: w.status }))}
+              clientUnavailable={Boolean((signoffRow as { client_unavailable_at?: string | null } | null)?.client_unavailable_at)}
+              signedAt={(signoffRow as { signed_at?: string | null } | null)?.signed_at ?? null}
             />
           )}
 

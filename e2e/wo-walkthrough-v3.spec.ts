@@ -102,6 +102,17 @@ test.describe("v3 walkthrough + two-mode sign-off", () => {
     }
   });
 
+  test("the painter's job page offers Start the walkthrough, and it opens the customer view", async ({ page }) => {
+    // The UI half of Mode A, in the real role: the button exists at the
+    // walkthrough stage, and pressing it lands in the customer's own view.
+    const { signIn } = await import("./helpers");
+    await signIn(page, contractor!, /\/portal/);
+    await page.goto(`/portal/jobs/${fixture!.workOrderId}`);
+    await page.getByTestId("start-walkthrough").click();
+    await page.waitForURL(/\/s\/[a-f0-9]{64}/, { timeout: 20_000 });
+    await expect(page.locator("h1")).toContainText(/finished/i);
+  });
+
   test("Mode A signs as on_device, captured on the contractor's device", async () => {
     const started = await rpcAs(contractor!, "wo_start_walkthrough_mode",
       { p_work_order_id: fixture!.workOrderId });

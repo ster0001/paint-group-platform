@@ -101,6 +101,13 @@ export async function deliverEvidencePack(raw: unknown): Promise<PcResult> {
   if (!parsed.success) return { ok: false, message: "Invalid input." };
 
   const supabase = await createClient();
+
+  // §4b: the DRAFT report travels with the pack — generated here so what the
+  // customer previews is exactly what they will sign. Best-effort: a draft
+  // failure must not hold the pack hostage.
+  await supabase.rpc("wo_generate_report_draft", { p_work_order_id: parsed.data.workOrderId })
+    .then(() => {}, () => {});
+
   const { data, error } = await supabase.rpc("wo_deliver_evidence_pack", {
     p_work_order_id: parsed.data.workOrderId,
   });

@@ -38,6 +38,22 @@ export default async function CalendarPage() {
   const jobs = await listContractorJobs(contractor.id);
   const jobDays: PortalJobDay[] = jobDaysFor(jobs);
 
+  // §4b: booked walkthroughs on the calendar, tap-through to the job. They
+  // ride as jobDays — a walkthrough IS a site visit — labelled so the painter
+  // knows it's the sign-off, not a painting day.
+  const { data: wt } = await supabase
+    .from("wo_walkthroughs")
+    .select("work_order_id, kind, scheduled_date")
+    .eq("status", "booked");
+  for (const w of ((wt ?? []) as { work_order_id: string; kind: string; scheduled_date: string }[])) {
+    jobDays.push({
+      date: w.scheduled_date,
+      label: w.kind === "final" ? "Walkthrough" : "Pre-walk",
+      status: "walkthrough",
+      id: w.work_order_id,
+    });
+  }
+
   return (
     <div className="wrap">
       <h1>Calendar</h1>
