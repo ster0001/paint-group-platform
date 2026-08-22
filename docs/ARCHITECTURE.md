@@ -940,3 +940,27 @@ is to record what was wrong and put rectification on the painter's own list.
 generated and stored at sign-off, but rendering it staff-only would be half a
 feature — it ships with the customer portal, where the customer gets it beside
 their warranty and job history.
+
+## Reoffer, job kind, and staff-side ticking (2026-08-22)
+
+**Reoffer** (`20261018`) is one transaction: withdraw the lapsed offer, write an
+`offer_lapsed` event for the contractor whose it was, then create the next offer
+by **calling `send_offer`** rather than reimplementing it — `send_offer` carries
+the compliance check that a contractor without current insurance cannot be
+offered work, and the reoffer path is the worst place to lose it. If it refuses,
+the whole thing rolls back, so a job can never be left with the old offer
+withdrawn and no new one. The courteous wording lives in the migration so its
+tone has one home, and the spec asserts it carries no blame words.
+
+**job_kind** (`20261017`) — `residential | commercial | body_corporate` on
+estimates, with its own column-level UPDATE grant (R2 granted `estimates` UPDATE
+column-by-column, so a later column is silently unsavable without one). SWMS
+becomes a required pre-start item for commercial and body corporate, and the
+`required` flag is reconciled on every seed so changing a job's kind after the
+checklist exists updates it.
+
+**Staff tick the same list as the painter.** `TickList` moved to
+`app/components/wo/` and takes a `surface` prop switching class names only —
+never a forked copy. The console renders it interactive while a job is in
+progress, read-only at other stages, and the office meets the same before-photo
+gate the painter does.

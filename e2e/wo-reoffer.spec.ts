@@ -25,6 +25,7 @@ let job: LoopFixture | null = null;
 let lapsedOfferId = "";
 let firstContractor = "";
 let secondContractor = "";
+let uncompliantContractor = "";
 
 test.describe.configure({ mode: "serial" });
 
@@ -34,10 +35,17 @@ test.describe("reoffering a lapsed job", () => {
 
   test.beforeAll(async () => {
     firstContractor = (await contractorIdForEmail(db!, contractor!.email))!;
-    // A second contractor to reoffer to. Mira exists as a test login.
+    // A second contractor to reoffer to — and it must be a COMPLIANT one.
+    // The first version of this test grabbed whoever came back first, got a
+    // contractor with no current insurance, and send_offer rightly refused:
+    // the compliance check surviving on the reoffer path is the point.
     const { data: others } = await db!.from("contractors")
-      .select("id").neq("id", firstContractor).limit(1);
+      .select("id").neq("id", firstContractor).eq("offerable", true).eq("active", true).limit(1);
     secondContractor = ((others ?? []) as { id: string }[])[0]?.id ?? "";
+
+    const { data: notCompliant } = await db!.from("contractors")
+      .select("id").eq("offerable", false).limit(1);
+    uncompliantContractor = ((notCompliant ?? []) as { id: string }[])[0]?.id ?? "";
 
     job = await createLoopFixture(db!, firstContractor, [{ heading: "Front", labels: ["Walls"] }]);
     await db!.from("work_orders").update({
@@ -130,6 +138,27 @@ test.describe("reoffering a lapsed job", () => {
     await page.goto("/pc");
     // The breach is gone: the live offer is inside its SLA again.
     await expect(page.getByTestId(`card-offer-sla:${job!.workOrderId}`)).toHaveCount(0);
+  });
+
+  test("a contractor without current insurance cannot be reoffered to", async () => {
+    test.skip(!uncompliantContractor, "needs a non-compliant contractor to test against");
+
+    // Set up a fresh lapsed offer, since the last one is spent.
+    const { data: fresh } = await db!.from("booking_offers")
+      .select("id").eq("work_order_id", job!.workOrderId).eq("state", "offered").single();
+
+    const result = await rpcAs(staff!, "wo_reoffer", {
+      p_offer_id: (fresh as { id: string }).id,
+      p_contractor_id: uncompliantContractor,
+      p_start: new Date(Date.now() + 78 * 86_400_000).toISOString().slice(0, 10),
+      p_end: null, p_note: "",
+    });
+    // It refuses, and — because it is one transaction — the live offer survives.
+    expect(result).not.toMatch(/^ok:/);
+
+    const { data: still } = await db!.from("booking_offers")
+      .select("state").eq("id", (fresh as { id: string }).id).single();
+    expect((still as { state: string }).state).toBe("offered");
   });
 
   test("a job with no live offer cannot be reoffered", async () => {

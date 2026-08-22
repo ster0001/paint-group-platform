@@ -112,8 +112,11 @@ test.describe("PC Command", () => {
     await expect(page.getByTestId("money-gp")).toHaveText("57.3%");
     // An open variation shows as pending rather than a number nobody has agreed.
     await expect(page.getByTestId("money-variations")).toHaveText("+ pending");
-    // Two of three surfaces done, from the rows themselves.
-    await expect(page.getByTestId("tick-count")).toHaveText("2 / 3");
+    // Two of three surfaces done, from the rows themselves. The console shows
+    // the shared, interactive list while a job is in progress — staff tick on
+    // the painter's behalf during a quality visit — so the count comes from
+    // that component rather than the read-only rendering used at other stages.
+    await expect(page.getByTestId("tick-progress")).toHaveText("2 / 3");
     // The stage rail marks in_progress as current.
     await expect(page.getByTestId("rail-in_progress")).toHaveClass(/\bc\b/);
   });

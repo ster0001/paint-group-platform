@@ -5,6 +5,14 @@ lived only in chat, and went missing — it had to be restated on 22 Aug. Every
 business ruling from here goes in this section on the day it is made, with the
 date and enough of the reasoning to act on it without the conversation.
 
+### 2026-08-22 · Staff work the same tick list as the painter
+The office needs to update a job from their side during a quality visit, with
+the contractor's view rather than a read-only copy. `wo_tick_surface` already
+allowed staff, so this was a UI gap: the component moved to
+`app/components/wo/TickList.tsx` and takes a `surface` prop that switches class
+names only. Same RPC, same before-photo gate (the office meets it too), same
+events — recorded as `staff` rather than `contractor`.
+
 ### 2026-08-22 · Reoffer is a real action, not a deep-link
 When an offer breaches its SLA, the console's **Reoffer** does all of this:
 1. Tap → **confirm dialog** (a human between two contractors).
