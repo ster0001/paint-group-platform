@@ -37,6 +37,7 @@ describe("an empty desk", () => {
 describe("each trigger produces exactly one card", () => {
   it("flags an offer past its SLA as critical", () => {
     const q = buildQueue(base({
+      workOrders: [wo({ stage: "offered" })],
       offers: [{ workOrderId: "w1", state: "offered", expiresAt: hoursAgo(3), contractorName: "Dean M." }],
     }));
     expect(q).toHaveLength(1);
@@ -49,6 +50,7 @@ describe("each trigger produces exactly one card", () => {
     // breach. If the console only watched live offers, the card would vanish
     // before anyone saw it and the job would be quietly unassigned.
     const q = buildQueue(base({
+      workOrders: [wo({ stage: "offered" })],
       offers: [{ id: "o1", workOrderId: "w1", state: "expired", expiresAt: hoursAgo(4), contractorName: "Dean M." }],
     }));
     expect(q).toHaveLength(1);
@@ -57,9 +59,40 @@ describe("each trigger produces exactly one card", () => {
 
   it("surfaces a declined offer as nobody being on the job", () => {
     const q = buildQueue(base({
+      workOrders: [wo({ stage: "offered" })],
       offers: [{ id: "o1", workOrderId: "w1", state: "declined", expiresAt: hoursAgo(2), contractorName: "Dean M." }],
     }));
     expect(q[0].title).toContain("nobody on this job");
+  });
+
+  it("drops the chase card once somebody has accepted the job", () => {
+    // WO-2T625S4K, live on 22 Aug: an offer that expired five days earlier kept
+    // the top of "Needs you now" saying "chase TR Painters, or release it to the
+    // next contractor" — while a different contractor had accepted it and was on
+    // site painting. Acceptance moves a job off `offered`; a card that survives
+    // that is telling the office to undo work already underway.
+    const q = buildQueue(base({
+      workOrders: [wo({ stage: "in_progress" })],
+      offers: [{ id: "o1", workOrderId: "w1", state: "expired", expiresAt: hoursAgo(128), contractorName: "TR Painters" }],
+    }));
+    expect(q.filter((c) => c.key.startsWith("offer-sla:"))).toEqual([]);
+  });
+
+  it("chases a job that has been round the houses ONCE, not once per attempt", () => {
+    // Nothing downstream de-duplicates by key, so a job with several lapsed
+    // offers used to stack identical cards on top of each other.
+    const q = buildQueue(base({
+      workOrders: [wo({ stage: "offered" })],
+      offers: [
+        { id: "o1", workOrderId: "w1", state: "declined", expiresAt: hoursAgo(72), contractorName: "First" },
+        { id: "o2", workOrderId: "w1", state: "expired", expiresAt: hoursAgo(48), contractorName: "Second" },
+        { id: "o3", workOrderId: "w1", state: "expired", expiresAt: hoursAgo(4), contractorName: "Third" },
+      ],
+    }));
+    const sla = q.filter((c) => c.key.startsWith("offer-sla:"));
+    expect(sla).toHaveLength(1);
+    // The newest attempt is the one worth chasing.
+    expect(sla[0].detail).toContain("Third");
   });
 
   it("leaves an offer that is still inside its SLA alone", () => {

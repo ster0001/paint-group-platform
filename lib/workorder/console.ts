@@ -123,13 +123,31 @@ export function buildQueue(input: ConsoleInput): QueueCard[] {
   // 1. An offer nobody is coming to. Either still live and past its SLA, or
   // already flipped to expired/declined — the sweep does that within minutes of
   // the breach, and a job with a lapsed offer is exactly what needs a person.
+  //
+  // ONLY WHILE THE JOB IS STILL AT THE OFFER STAGE. A lapsed offer on a job
+  // somebody has since accepted is history, not work. WO-2T625S4K sat at the
+  // top of "Needs you now" for five days telling the office to chase TR
+  // Painters and "release it to the next contractor" — while a different
+  // contractor had already accepted it and was on site painting. The stage is
+  // the reliable signal: acceptance moves a job to pre_start, and a booking
+  // that later falls over moves it back, so `offered` means nobody is coming.
+  //
+  // One card per job, newest offer wins. A job that has been round the houses
+  // carries several lapsed offers and needs chasing once, not once per attempt
+  // — these cards all share a key, and nothing downstream de-duplicates them.
+  const lapsedPerJob = new Map<string, ConsoleInput["offers"][number]>();
   for (const offer of input.offers) {
     const lapsed = offer.state === "expired" || offer.state === "declined";
     if (!lapsed && offer.state !== "offered" && offer.state !== "proposed") continue;
-    const overdueBy = hoursBetween(offer.expiresAt, now);
-    if (!lapsed && overdueBy <= 0) continue;
+    if (!lapsed && hoursBetween(offer.expiresAt, now) <= 0) continue;
     const w = byId.get(offer.workOrderId);
-    if (!w) continue;
+    if (!w || w.stage !== "offered") continue;
+    const seen = lapsedPerJob.get(offer.workOrderId);
+    if (!seen || offer.expiresAt > seen.expiresAt) lapsedPerJob.set(offer.workOrderId, offer);
+  }
+
+  for (const offer of lapsedPerJob.values()) {
+    const overdueBy = hoursBetween(offer.expiresAt, now);
     cards.push({
       key: `offer-sla:${offer.workOrderId}`,
       offerId: offer.id,
