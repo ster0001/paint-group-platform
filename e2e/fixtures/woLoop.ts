@@ -118,8 +118,16 @@ export async function createLoopFixture(
 
 export async function destroyLoopFixture(db: SupabaseClient, fixture: LoopFixture | null) {
   if (!fixture) return;
-  // Everything cascades from the estimate.
-  await db.from("estimates").delete().eq("id", fixture.estimateId);
+  // Invoices FIRST. A2 made invoices.estimate_id ON DELETE RESTRICT, and a
+  // spec that signs its job creates a stub invoice — deleting the estimate
+  // with it still attached is refused by the database, the delete fails
+  // silently here, and the fixture leaks (found 23 Aug: three $0 stubs and
+  // three closed WO-E2E* jobs left behind by the walkthrough-v3 gate run).
+  await db.from("invoices").delete().eq("estimate_id", fixture.estimateId);
+  // Everything else cascades from the estimate.
+  const { error } = await db.from("estimates").delete().eq("id", fixture.estimateId);
+  // A leak is a bug in the spec, not a shrug — fail loudly so it gets fixed.
+  if (error) throw new Error(`fixture leak: estimate ${fixture.estimateId} not deleted — ${error.message}`);
 }
 
 /**
