@@ -295,7 +295,7 @@ const EXTRA_CODES: ReadonlyArray<{ key: string; code: string; label: string }> =
   { key: "deck", code: "Deck Painting", label: "Deck" },
   { key: "fence", code: "Paling Fence", label: "Fence" },
   { key: "pergola", code: "Pergola", label: "Pergola" },
-  { key: "balustrade", code: "Hand Rails", label: "Balustrade / hand rails" },
+  { key: "balustrade", code: "Hand Rails", label: "Balustrades & hand rails" },
 ];
 
 export function exteriorExtrasNodes(

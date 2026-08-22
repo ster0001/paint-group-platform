@@ -242,7 +242,10 @@ export default function CustomerEstimate({
           <div className="resultbanner accepted" style={{ marginTop: 28 }}>
             <span className="tick">✓</span>
             <span>
-              Estimate accepted{acceptedName ? ` by ${acceptedName}` : ""}. We&apos;ll email your deposit invoice and booking shortly.
+              {/* No promise about a deposit invoice here (Tom, 23 Aug) — what
+                  happens next is arranged with the customer, not stated by the
+                  estimate page. */}
+              Estimate accepted{acceptedName ? ` by ${acceptedName}` : ""}. We&apos;ll be in touch shortly.
               {signatureSaved === false && (
                 <> Your acceptance is recorded, though we couldn&apos;t store the signature image &mdash; we may ask you to sign again.</>
               )}

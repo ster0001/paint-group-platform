@@ -14,6 +14,11 @@ import DeleteEstimateButton from "./DeleteEstimateButton";
  * Bulk delete runs the SAME per-estimate server action row by row, so every
  * database refusal (invoice attached, work order live…) is honoured and
  * reported per estimate rather than failing the whole batch.
+ *
+ * Deletes are OPTIMISTIC (Tom, 23 Aug): the row leaves the list the moment you
+ * confirm and the server action finishes behind it. A row only comes BACK if
+ * the database actually refused it — and then it returns with the reason
+ * beside it, which is the only case where waiting would have told you anything.
  */
 
 export type EstimateRow = {
@@ -31,12 +36,51 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [asking, setAsking] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState("");
   const [failures, setFailures] = useState<string[]>([]);
+  /** Gone from the list, still being deleted on the server. */
+  const [removing, setRemoving] = useState<Set<string>>(new Set());
 
-  const selectable = estimates.filter((e) => e.status !== "accepted");
+  const visible = estimates.filter((e) => !removing.has(e.id));
+  const selectable = visible.filter((e) => e.status !== "accepted");
   const allTicked = selectable.length > 0 && selectable.every((e) => selected.has(e.id));
+
+  const hide = (ids: string[]) =>
+    setRemoving((s) => { const n = new Set(s); for (const id of ids) n.add(id); return n; });
+  const unhide = (ids: string[]) =>
+    setRemoving((s) => { const n = new Set(s); for (const id of ids) n.delete(id); return n; });
+
+  const nameOf = (id: string) => estimates.find((e) => e.id === id)?.title || "Untitled estimate";
+
+  /**
+   * Take the rows off screen, then delete them. One at a time on the server,
+   * through the same guarded action as the single button, so a refusal
+   * (invoice, work order) skips that row and names itself.
+   */
+  async function removeNow(ids: string[]) {
+    if (ids.length === 0) return;
+    hide(ids);
+    setFailures([]);
+    setSelected(new Set());
+    setAsking(false);
+
+    const failed: string[] = [];
+    const refused: string[] = [];
+    let n = 0;
+    for (const id of ids) {
+      if (ids.length > 1) setProgress(`Deleting ${++n} of ${ids.length}…`);
+      const r = await deleteEstimateAction({ estimateId: id });
+      if (!r.ok) {
+        refused.push(id);
+        failed.push(`“${nameOf(id)}”: ${r.message}`);
+      }
+    }
+    setProgress("");
+    // Only what the database refused comes back, with its reason.
+    if (refused.length) unhide(refused);
+    setFailures(failed);
+    router.refresh();
+  }
 
   function toggle(id: string) {
     setSelected((s) => {
@@ -52,30 +96,8 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
     setAsking(false);
   }
 
-  async function removeSelected() {
-    setBusy(true);
-    setFailures([]);
-    const ids = estimates.filter((e) => selected.has(e.id)).map((e) => e.id);
-    const failed: string[] = [];
-    let done = 0;
-    // One at a time, through the same guarded action as the single button —
-    // a refusal (invoice, work order) skips that row and names itself.
-    for (const id of ids) {
-      setProgress(`Deleting ${done + 1} of ${ids.length}…`);
-      const r = await deleteEstimateAction({ estimateId: id });
-      if (r.ok) done++;
-      else {
-        const title = estimates.find((e) => e.id === id)?.title || "Untitled estimate";
-        failed.push(`“${title}”: ${r.message}`);
-      }
-    }
-    setBusy(false);
-    setProgress("");
-    setAsking(false);
-    setSelected(new Set()); // refusals show their reasons below instead
-    setFailures(failed);
-    router.refresh();
-  }
+  const removeSelected = () =>
+    removeNow(visible.filter((e) => selected.has(e.id)).map((e) => e.id));
 
   return (
     <>
@@ -101,17 +123,21 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
               </span>
               <button
                 onClick={removeSelected}
-                disabled={busy}
-                className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700"
               >
-                {busy ? progress || "Deleting…" : `Yes, delete ${selected.size}`}
+                Yes, delete {selected.size}
               </button>
-              <button onClick={() => setAsking(false)} disabled={busy} className="text-xs text-gray-500 hover:text-gray-800">
+              <button onClick={() => setAsking(false)} className="text-xs text-gray-500 hover:text-gray-800">
                 Cancel
               </button>
             </>
           )}
         </div>
+      )}
+      {/* The rows are already gone; this is only so a long batch doesn't look
+          finished while the server is still working through it. */}
+      {progress && (
+        <div className="mt-2 text-xs text-gray-500" data-testid="delete-progress">{progress}</div>
       )}
       {failures.length > 0 && (
         <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-xs text-amber-900">
@@ -144,7 +170,7 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {estimates.map((e) => (
+            {visible.map((e) => (
               <tr key={e.id} className={`hover:bg-gray-50 ${selected.has(e.id) ? "bg-gray-50" : ""}`}>
                 <td className="px-3 py-2.5">
                   {e.status !== "accepted" ? (
@@ -183,6 +209,7 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
                     estimateId={e.id}
                     title={e.title || "Untitled estimate"}
                     status={e.status}
+                    onConfirm={(id) => removeNow([id])}
                   />
                 </td>
               </tr>

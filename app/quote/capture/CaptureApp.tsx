@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import SurfaceTileBox, { type TileState } from "@/app/components/scope/SurfaceTileBox";
 import RoomCard from "@/app/components/scope/RoomCard";
-import { emptyDraft, defectHours, DEFECT_LABELS, type DefectObservation, type DefectRate, type RoomDraft } from "@/lib/capture/commit";
+import { ALLOWANCE_DEFS, emptyDraft, defectHours, DEFECT_LABELS, type DefectObservation, type DefectRate, type RoomDraft } from "@/lib/capture/commit";
 import { expandCaptureTiles, heightForStorey, tilesForRoomType, DEFAULT_STOREY_HEIGHTS, type SurfaceTile, type TileRule } from "@/lib/capture/presets";
 import { perimeterM, perimeterPlausibility, resolveQuantity } from "@/lib/capture/quantities";
 import { hoursPerUnit } from "@/lib/pricing/engine";
@@ -778,6 +778,34 @@ function RoomReview({
           </div>
         );
       })}
+
+      {/* Work that isn't a painted surface (Tom, 23 Aug): plastering, and raw
+          timber that has to be sealed first. Hours here are charged at the
+          charge-out rate, and the "where" travels to the work order. */}
+      <div className="rounded-lg border border-gray-200 bg-white p-3" data-testid="room-allowances">
+        <div className="text-xs font-semibold text-gray-700">Also in this room</div>
+        {ALLOWANCE_DEFS.map((def) => {
+          const cur = draft.allowances?.[def.code] ?? { hours: 0, note: "" };
+          const patch = (next: { hours?: number; note?: string }) =>
+            set({ allowances: { ...(draft.allowances ?? {}), [def.code]: { ...cur, ...next } } });
+          return (
+            <div key={def.code} className="mt-2" data-testid={`allowance-${def.code}`}>
+              <div className="flex items-center gap-2">
+                <span className="w-40 shrink-0 text-xs text-gray-600">{def.label}</span>
+                <input type="number" inputMode="decimal" step="0.25" min="0"
+                  value={cur.hours || ""} placeholder="hrs"
+                  onChange={(e) => patch({ hours: Number(e.target.value) || 0 })}
+                  className="w-20 rounded border border-gray-300 px-2 py-1 text-xs" />
+                <span className="text-[11px] text-gray-400">hours</span>
+              </div>
+              <input value={cur.note} placeholder={def.placeholder}
+                onChange={(e) => patch({ note: e.target.value })}
+                className="mt-1 w-full rounded border border-gray-200 px-2 py-1 text-xs" />
+            </div>
+          );
+        })}
+      </div>
+
       <div className="flex gap-2 pt-1">
         <button onClick={onBack} className="flex-1 rounded-lg border border-gray-400 py-2.5 text-sm">← Back to tiles</button>
         <button onClick={onNextRoom} className="flex-1 rounded-lg bg-gray-900 py-2.5 text-sm font-medium text-white">Next room →</button>

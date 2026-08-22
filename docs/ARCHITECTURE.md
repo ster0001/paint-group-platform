@@ -4,6 +4,54 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## Tom's 23 Aug batch: settings that save, optimistic deletes, a phone nav, balustrades, allowances
+
+**2026-08-23 · `lib/settings/numeric.ts`, `app/(app)/settings/PricingSettings.tsx`,
+`app/(app)/estimates/`, `app/(app)/AppSidebar.tsx`, `lib/estimate/substrates.ts`,
+`lib/capture/commit.ts`, `app/api/estimates/[id]/rooms/route.ts`**
+
+**Settings could not be saved at all.** "Pricing & job numbers" took every row
+that wasn't one of six named keys — including whole configuration objects
+(`wizard_policy`, `wo_loop`, `service_area`) — coerced each with `Number()`, and
+got `NaN`. `NaN` serialises to JSON `null`, `settings.value` is NOT NULL, and one
+bad value fails the whole upsert. `lib/settings/numeric.ts` now decides by SHAPE
+rather than by a list of keys to exclude, so a key added tomorrow is handled
+without anyone remembering the folder exists; and a save writes the
+`{unit, notes, value}` envelope back whole instead of flattening a lever to a
+bare number. Had the old save ever succeeded it would have wiped the units and
+notes off every row and replaced the config objects with integers.
+
+**Deletes are optimistic.** The row leaves the list on confirm and the server
+action finishes behind it; a row only returns if the database actually refused
+it, and then it returns with the reason. The single button no longer deletes —
+it asks, and hands the id to the table, which owns the list.
+
+**The staff sidebar is a drawer on a phone.** 224px of a 390px screen left
+almost nothing for the page. Off-canvas behind a menu button under `md`, with
+the logo and the current page's name in a bar across the top.
+
+**Balustrades are one tick on both sides.** The card files the interior run
+under `Balustrades` and the exterior one under `Hand Rails`, so the substrate —
+which knew only the exterior code — was invisible indoors and went by a name
+nobody searches for outdoors. One key, both codes, one label ("Balustrades &
+hand rails"), and it joins the always-offered tiles so it is in the grid rather
+than buried in the add panel. Allowances are now excluded from the customer's
+add panel: an allowance is an estimator's judgement in hours.
+
+**Plastering and raw timber: hours and a note, on the capture screen.**
+`ALLOWANCE_DEFS` in `lib/capture/commit.ts` is one mechanism with two members.
+The hours ride `prepHr`, NOT a quantity — pricing charges prep hours at the
+charge-out rate whether or not the code matches a rate-card row, so they price
+correctly with no new rate rows and no migration to wait on, and can never be
+knocked out by a rate row drifting off "one hour per unit". Raw timber stamps
+`RAW TIMBER — seal before topcoats.` on the crew note whether or not hours are
+added, because the tag is the point. **The e2e caught a real bug here**: the
+rooms route's zod schema strips what it does not name, so the allowances reached
+the server and were silently dropped — the "compiles and unit-tests" version of
+this feature would have shipped doing nothing.
+
+---
+
 ## Projects console: the schedule moves in, and site photos finally get read
 
 **2026-08-22 · `app/pc/schedule/` (was `app/(app)/schedule/`), `app/pc/PcNav.tsx`,

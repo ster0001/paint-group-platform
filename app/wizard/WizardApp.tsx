@@ -1303,7 +1303,7 @@ function PageExteriorExtras({ state, set }: { state: WizardState; set: (p: Parti
         {extra("deck", "Deck (oil)")}
         {extra("fence", "Fence")}
         {extra("pergola", "Pergola")}
-        {extra("balustrade", "Balustrade & hand rails")}
+        {extra("balustrade", "Balustrades & hand rails")}
       </div>
       {ext.extras.fence && (
         <div className="wz-follow">

@@ -52,7 +52,14 @@ export const SUBSTRATE_DEFS = [
   { key: "deck", label: "Deck", codes: ["Deck Painting"], defaultOn: false },
   { key: "fence", label: "Fence", codes: ["Paling Fence", "Picket Fence (Hand Paint)", "Picket Fence (Spray)"], defaultOn: false },
   { key: "pergola", label: "Pergola", codes: ["Pergola"], defaultOn: false },
-  { key: "balustrade", label: "Balustrade & hand rails", codes: ["Hand Rails"], defaultOn: false },
+  /**
+   * BOTH sides (Tom, 23 Aug: "no option for balustrades"). The card files the
+   * interior run under `Balustrades` and the exterior one under `Hand Rails`,
+   * so a tick that only knew the exterior code was invisible indoors and went
+   * by a name nobody searches for outdoors. One tick, one name, the right rate
+   * row on each side.
+   */
+  { key: "balustrade", label: "Balustrades & hand rails", codes: ["Balustrades", "Hand Rails"], defaultOn: false },
 ] as const;
 
 export type SubstrateKey = (typeof SUBSTRATE_DEFS)[number]["key"];
