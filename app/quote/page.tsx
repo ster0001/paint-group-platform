@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import QuoteBuilder from "./QuoteBuilder";
 import { DEFAULT_COMPANY, type CompanyProfile, type Contact } from "./company";
 import { DEFAULT_INCLUSION_TEMPLATES, DEFAULT_EXCLUSION_TEMPLATES, INCLUSION_TEMPLATES_KEY, EXCLUSION_TEMPLATES_KEY, type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
+import { parseBackTo } from "@/lib/navigation/backTo";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ export const dynamic = "force-dynamic";
 export default async function QuotePage({
   searchParams,
 }: {
-  searchParams: Promise<{ id?: string; template?: string; view?: string }>;
+  searchParams: Promise<{ id?: string; template?: string; view?: string; from?: string }>;
 }) {
   const supabase = await createClient();
 
@@ -46,8 +47,11 @@ export default async function QuotePage({
     .eq("is_active", true)
     .single();
 
-  const { id, template, view } = await searchParams;
+  const { id, template, view, from } = await searchParams;
   const initialView = view === "workorder" || view === "customer" ? view : undefined;
+  // Where the top-left link goes. Validated, because `from` comes off the URL —
+  // see lib/navigation/backTo.ts. Null falls back to the estimates list.
+  const backTo = parseBackTo(from);
 
   // Everything below is independent — fetch it all in one round-trip. The single
   // `settings` fetch also carries the company profile and any saved templates, so
@@ -145,6 +149,7 @@ export default async function QuotePage({
   return (
     <QuoteBuilder
       initialView={initialView}
+      backTo={backTo}
       rateCardId={card?.id ?? null}
       rateCardVersion={card?.version ?? null}
       rateItems={rateItems.data ?? []}

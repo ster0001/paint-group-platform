@@ -10,7 +10,7 @@ export type QaCheckView = {
 };
 
 /**
- * A QA check, worked through rather than rubber-stamped.
+ * A quality check, worked through rather than rubber-stamped.
  *
  * The standards come from the lifecycle mockup and are ticked one at a time; a
  * PASS is refused until every one has been looked at. A FAIL is not — the point
@@ -55,7 +55,7 @@ export default function QaCheck({ check }: { check: QaCheckView }) {
   if (result) {
     return (
       <div className="card" data-testid={`qa-${check.id}`}>
-        <h3>QA check <em>{check.kind.replace(/_/g, " ")}</em></h3>
+        <h3>Quality check <em>{check.kind.replace(/_/g, " ")}</em></h3>
         <p className="note" data-testid={`qa-result-${check.id}`}>
           Logged: <b style={{ color: result === "pass" ? "var(--emerald)" : "var(--clay)" }}>
             {result.toUpperCase()}
@@ -69,7 +69,7 @@ export default function QaCheck({ check }: { check: QaCheckView }) {
   return (
     <div className="card" data-testid={`qa-${check.id}`}>
       <h3>
-        QA check <em>{left === 0 ? "ready to log" : `${left} to check`}</em>
+        Quality check <em>{left === 0 ? "ready to log" : `${left} to check`}</em>
       </h3>
       <p className="note">Photo-logged against the standards. Every line looked at before a pass.</p>
 

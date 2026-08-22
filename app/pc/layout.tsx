@@ -6,7 +6,7 @@ import "./pc.css";
 export const dynamic = "force-dynamic";
 
 /**
- * The PC Command shell — the mockup's top bar and tab rail, as real routes so
+ * The PC Dashboard shell — the mockup's top bar and tab rail, as real routes so
  * every queue action can deep-link to the thing it is about.
  */
 export default async function PcLayout({ children }: { children: React.ReactNode }) {
@@ -26,7 +26,7 @@ export default async function PcLayout({ children }: { children: React.ReactNode
       <div className="shell">
         <div className="topbar">
           <span className="brand"><span className="drip" aria-hidden="true" />Paint <b>Group</b></span>
-          <span className="meta"><span className="d">Command · {today}</span></span>
+          <span className="meta"><span className="d">Dashboard · {today}</span></span>
           <span className="who">
             <span className="role">Project coordinator<b>PC view</b></span>
             <span className="avatar">PC</span>
@@ -38,7 +38,7 @@ export default async function PcLayout({ children }: { children: React.ReactNode
         {children}
 
         <p className="foot">
-          PC Command · every number read from the work-order model.<br />
+          PC Dashboard · every number read from the work-order model.<br />
           Contractor and customer render their own views of the same jobs — RLS
           plus an explicit view, never inferred from role.
         </p>

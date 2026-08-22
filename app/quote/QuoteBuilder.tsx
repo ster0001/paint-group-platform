@@ -21,6 +21,7 @@ import {
 } from "@/lib/pricing/estimate";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import type { BackTo } from "@/lib/navigation/backTo";
 import EstimateHeader from "./EstimateHeader";
 import RichTextEditor from "@/app/components/RichTextEditor";
 import CustomerEstimate from "@/app/e/[token]/CustomerEstimate";
@@ -217,6 +218,7 @@ export default function QuoteBuilder({
   bookingState = "none",
   contractors = [],
   initialView,
+  backTo = null,
   presentations = [],
   typicalSizes = {},
 }: {
@@ -242,6 +244,8 @@ export default function QuoteBuilder({
   bookingState?: "none" | "requested" | "proposed" | "confirmed";
   contractors?: { id: string; name: string }[];
   initialView?: "builder" | "customer" | "workorder";
+  /** Top-left link target, from ?from= — see lib/navigation/backTo.ts. */
+  backTo?: BackTo | null;
   presentations?: { id: string; name: string; blocks: { kind: string; position: number; enabled: boolean; content: unknown }[] }[];
   typicalSizes?: Record<string, { L: number; W: number }>;
 }) {
@@ -1282,7 +1286,15 @@ export default function QuoteBuilder({
     <main className="mx-auto max-w-6xl p-6">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3 rounded-xl bg-ink px-5 py-4 text-white">
         <div>
-          <Link href="/estimates" className="text-sm font-medium text-gray-400 hover:text-white">← Estimates</Link>
+          {/* Where you came from, not always the estimates list — you may have
+              arrived here from a job to set its colours. */}
+          <Link
+            href={backTo?.href ?? "/estimates"}
+            className="text-sm font-medium text-gray-400 hover:text-white"
+            data-testid="builder-back"
+          >
+            ← {backTo?.label ?? "Estimates"}
+          </Link>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">{title || "New estimate"}</h1>
           <p className="text-sm text-gray-400">
             Rate card v{rateCardVersion ?? "?"} · live pricing

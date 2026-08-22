@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { WO_STAGES } from "@/lib/workorder/stages";
 import { seedRowsFromDoc } from "@/lib/workorder/surfaces";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
+import { humaniseGate } from "@/lib/workorder/gateText";
 
 /**
  * The console's own actions — the three PC surfaces the earlier steps deferred
@@ -82,7 +83,7 @@ export async function advanceStage(raw: unknown): Promise<PcResult> {
     revalidatePath("/pc"); revalidatePath("/pc/flow"); revalidatePath("/portal/jobs");
     return { ok: true };
   }
-  if (s.startsWith("error:gate:")) return { ok: false, message: s.slice("error:gate:".length) };
+  if (s.startsWith("error:gate:")) return { ok: false, message: humaniseGate(s.slice("error:gate:".length)) };
   if (s.startsWith("error:illegal_transition:")) {
     return { ok: false, message: "A job can't make that move from where it is." };
   }
@@ -110,7 +111,7 @@ export async function deliverEvidencePack(raw: unknown): Promise<PcResult> {
     revalidatePath("/pc"); revalidatePath("/pc/flow");
     return { ok: true, message: "Sent — the customer can walk through and sign now." };
   }
-  if (s.startsWith("error:gate:")) return { ok: false, message: s.slice("error:gate:".length) };
+  if (s.startsWith("error:gate:")) return { ok: false, message: humaniseGate(s.slice("error:gate:".length)) };
   return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") };
 }
 
@@ -134,7 +135,7 @@ export async function startNow(raw: unknown): Promise<PcResult> {
     revalidatePath("/pc"); revalidatePath("/pc/flow"); revalidatePath("/portal/jobs");
     return { ok: true, message: "Started, and the start date moved to today." };
   }
-  if (s.startsWith("error:gate:")) return { ok: false, message: s.slice("error:gate:".length) };
+  if (s.startsWith("error:gate:")) return { ok: false, message: humaniseGate(s.slice("error:gate:".length)) };
   return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") };
 }
 
@@ -223,7 +224,7 @@ export async function tickChecklistItem(raw: unknown): Promise<PcResult> {
       ok: false,
       message: s.includes("colours")
         ? "This ticks itself once every colour on the job sheet is confirmed."
-        : "This ticks itself once the QA checks are scheduled.",
+        : "This ticks itself once the quality checks are scheduled.",
     };
   }
   return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") };

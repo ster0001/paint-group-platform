@@ -8,13 +8,13 @@ import { usePathname } from "next/navigation";
  * a rail of five identical links gives no sense of where you are, and the
  * mockup's `.on` state was already in the stylesheet with nothing setting it.
  *
- * Order is the job's own order: schedule it, work the queue, watch the flow,
+ * Order is the job's own order: schedule it, work the queue, watch progress,
  * read what came back from site.
  */
 const TABS = [
   { href: "/pc/schedule", label: "Schedule" },
-  { href: "/pc", label: "Command" },
-  { href: "/pc/flow", label: "The flow" },
+  { href: "/pc", label: "Dashboard" },
+  { href: "/pc/flow", label: "Project Progress" },
   { href: "/pc/updates", label: "Updates" },
 ];
 

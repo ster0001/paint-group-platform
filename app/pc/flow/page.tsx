@@ -29,7 +29,7 @@ export default async function FlowPage() {
   return (
     <>
       <div>
-        <h1>The flow, live.</h1>
+        <h1>Project progress, live.</h1>
         <p className="lede">
           Seven stages, every open job sitting where the model says it sits. A card
           moves only when its gate is true.
@@ -80,7 +80,7 @@ export default async function FlowPage() {
         </div>
         <p className="note">
           Swipe sideways. Amber = blocked on a decision · red = overdue. Both failure
-          paths — a QA fail and a flag at walkthrough — pour back into 03.
+          paths — a quality-check fail and a flag at walkthrough — pour back into 03.
         </p>
       </div>
     </>

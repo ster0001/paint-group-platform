@@ -34,6 +34,10 @@ export type WoTransition = {
   actors: readonly WoActor[];
 };
 
+// NOTE: the `label` on each transition mirrors the seed row in
+// supabase/migrations — stages.test.ts compares them string-for-string, and
+// they are never shown to anyone. The console writes its own button copy, so
+// the "QA" wording here is the database's, not the screen's.
 export const TRANSITIONS: readonly WoTransition[] = [
   { from: "offered", to: "pre_start", label: "contractor accepted the offer", actors: ["system", "staff"] },
   { from: "pre_start", to: "offered", label: "booking released — back to the tray", actors: ["system", "staff"] },
@@ -52,7 +56,7 @@ export const STAGE_LANES: Record<WoStage, { n: string; title: string }> = {
   offered: { n: "01", title: "Offer" },
   pre_start: { n: "02", title: "Pre-start" },
   in_progress: { n: "03", title: "In progress" },
-  qa: { n: "04", title: "QA" },
+  qa: { n: "04", title: "Quality check" },
   completion_prep: { n: "05", title: "Prep" },
   walkthrough: { n: "06", title: "Walkthrough" },
   closed: { n: "07", title: "Closed" },

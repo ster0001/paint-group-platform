@@ -18,7 +18,7 @@ const ICON: Record<string, string> = {
 const age = (hours: number) =>
   hours < 1 ? "now" : hours < 48 ? `${Math.round(hours)}h` : `${Math.round(hours / 24)}d`;
 
-export default async function CommandPage() {
+export default async function DashboardPage() {
   const supabase = await createClient();
   const { input, signedOffThisWeek, ticksByDay } = await loadConsole(supabase);
 

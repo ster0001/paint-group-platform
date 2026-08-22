@@ -5,7 +5,8 @@ import { melbourneDate, melbourneDayStartUtc } from "@/lib/workorder/console";
 import { reportError } from "@/lib/monitoring/report";
 
 /**
- * The daily sweep: draft today's customer updates, and flag the silent sites.
+ * The daily sweep: draft today's customer updates, flag the silent sites, and
+ * withdraw the offers nobody answered.
  *
  * Runs from Vercel Cron, which sends `Authorization: Bearer $CRON_SECRET`.
  * Without CRON_SECRET set the route refuses everything — it does not fall back
@@ -113,7 +114,18 @@ async function sweep() {
   const { data: started, error: startError } = await db.rpc("wo_autostart_sweep");
   if (startError) reportError(startError, { where: "cron.woSweep.autostart" });
 
-  return { ok: true as const, date: today, drafted, flagged: flagged ?? 0, started: started ?? 0 };
+  // Offers nobody answered. expire_booking_offers() also runs whenever anyone
+  // loads the board, so in practice a lapse is caught the moment a scheduler
+  // looks — this is the backstop for the days nobody does, so a job can't sit
+  // "offered" against a contractor who went quiet a week ago. The expired offer
+  // drops the job back into the unscheduled tray, where the board flags why.
+  const { data: lapsed, error: lapseError } = await db.rpc("expire_booking_offers");
+  if (lapseError) reportError(lapseError, { where: "cron.woSweep.expireOffers" });
+
+  return {
+    ok: true as const, date: today, drafted,
+    flagged: flagged ?? 0, started: started ?? 0, lapsed: lapsed ?? 0,
+  };
 }
 
 export async function GET(request: Request) {

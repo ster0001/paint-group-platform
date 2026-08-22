@@ -56,6 +56,12 @@ export type TrayJob = {
   /** Set when a previous contractor declined — worth flagging to staff. */
   lastDeclineReason: string;
   /**
+   * Set when the last offer on this job ran out its 24 hours unanswered, so the
+   * job came back here on its own. Staff never chose to withdraw it and would
+   * otherwise have no idea why it reappeared — see expire_booking_offers().
+   */
+  lapsed: { contractorName: string; at: string } | null;
+  /**
    * Accepted but not yet issued. It can't be offered until the work order is
    * issued (that's what freezes the document the contractor reads), but it MUST
    * still be visible here — otherwise accepted jobs quietly pile up somewhere
@@ -250,11 +256,36 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     });
   }
 
+  // Contractor display names, wanted by both the tray's lapse note and the
+  // approvals queue below.
+  const laneName = new Map(lanes.map((l) => [l.contractorId, l.name]));
+
   // --- the tray: issued jobs with nothing live and no accepted booking --------
   const liveWoIds = new Set(allOffers.filter((o) => isLive(effectiveState(o))).map((o) => o.work_order_id));
   const declineByWo = new Map<string, string>();
   for (const o of allOffers) {
     if (o.state === "declined" && o.decline_reason) declineByWo.set(o.work_order_id, o.decline_reason);
+  }
+
+  // The most recent lapse per job. Only the LATEST offer counts: a job offered
+  // again after a lapse and then declined should read as declined, not as
+  // still-lapsed, so a later outcome on the same job clears it.
+  const lapsedByWo = new Map<string, { contractorName: string; at: string }>();
+  const latestByWo = new Map<string, (typeof allOffers)[number]>();
+  for (const o of allOffers) {
+    const seen = latestByWo.get(o.work_order_id);
+    // offered_at is when it went out; responded_at when it settled. Either
+    // orders the offers on a job well enough to pick the latest one.
+    const when = o.responded_at ?? o.offered_at ?? "";
+    const seenWhen = seen ? (seen.responded_at ?? seen.offered_at ?? "") : "";
+    if (!seen || when >= seenWhen) latestByWo.set(o.work_order_id, o);
+  }
+  for (const [woId, o] of latestByWo) {
+    if (effectiveState(o) !== "expired") continue;
+    lapsedByWo.set(woId, {
+      contractorName: laneName.get(o.contractor_id) ?? "The contractor",
+      at: o.responded_at ?? o.expires_at ?? "",
+    });
   }
 
   const tray: TrayJob[] = wos
@@ -276,6 +307,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
         hours: hours || null,
         estimatedDays: daysFromHours(hours),
         lastDeclineReason: declineByWo.get(w.id) ?? "",
+        lapsed: lapsedByWo.get(w.id) ?? null,
         needsIssuing: !w.issued_at,
       };
     });
@@ -283,7 +315,6 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
   // Anything waiting on a staff decision, newest first. These need chasing even
   // when their dates sit outside the visible window, so they are NOT filtered
   // by the date range.
-  const laneName = new Map(lanes.map((l) => [l.contractorId, l.name]));
   const approvals: Approval[] = allOffers
     .filter((o) => o.state === "proposed")
     .sort((a, b) => (a.responded_at ?? "").localeCompare(b.responded_at ?? ""))

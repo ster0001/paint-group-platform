@@ -385,6 +385,11 @@ export default function ScheduleBoard({
   // ---- commit ---------------------------------------------------------------
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const lapsedJobs = tray.filter((j) => j.lapsed);
+  // A note that rides along with the offer — the scheduling context a date and
+  // a price can't carry ("client's on a tight schedule, needs to start Monday").
+  // It reaches the contractor on their offer card as `staff_note`.
+  const [offerNote, setOfferNote] = useState("");
   const [toast, setToast] = useState("");
   const [detail, setDetail] = useState<Block | null>(null);
   const [blockReason, setBlockReason] = useState("");
@@ -414,9 +419,12 @@ export default function ScheduleBoard({
       contractorId: pendingDrop.contractorId,
       startDate: pendingDrop.startDate,
       endDate: addDays(pendingDrop.startDate, pendingDrop.spanDays - 1),
-      note: "",
+      note: offerNote.trim(),
     });
-    if (handle(r, "Offer sent — the contractor has 24 hours to respond.")) setPendingDrop(null);
+    if (handle(r, "Offer sent — the contractor has 24 hours to respond.")) {
+      setPendingDrop(null);
+      setOfferNote("");   // never carry one job's note onto the next offer
+    }
     setBusy(false);
   }
 
@@ -699,6 +707,19 @@ export default function ScheduleBoard({
             </div>
           )}
 
+          {/* Nobody withdrew these — the 24-hour clock did, and the job landed
+              back here on its own. Without saying so, a job reappearing in the
+              tray looks like a bug. */}
+          {lapsedJobs.length > 0 && (
+            <div className="lapsed-banner" data-testid="lapsed-banner">
+              <b>{lapsedJobs.length} offer{lapsedJobs.length === 1 ? "" : "s"} came back to you</b>
+              <span>
+                Not accepted within 24 hours, so {lapsedJobs.length === 1 ? "it was" : "they were"}{" "}
+                withdrawn automatically and moved back to Unscheduled. Offer{lapsedJobs.length === 1 ? " it" : " them"} to someone else.
+              </span>
+            </div>
+          )}
+
           <h2>Unscheduled</h2>
           <p className="sub">Accepted jobs awaiting dates · drag onto the timeline</p>
           {tray.length === 0 ? (
@@ -747,6 +768,11 @@ export default function ScheduleBoard({
                   </div>
                   <div className="pay">{money(j.paymentCents)}</div>
                   {j.lastDeclineReason && <div className="flagline">DECLINED — {j.lastDeclineReason.toUpperCase()}</div>}
+                  {j.lapsed && (
+                    <div className="lapsedline" data-testid="tray-lapsed">
+                      {j.lapsed.contractorName.toUpperCase()} DIDN&rsquo;T ACCEPT WITHIN 24 HOURS — MOVED BACK
+                    </div>
+                  )}
                 </div>
               ),
             )
@@ -887,7 +913,7 @@ export default function ScheduleBoard({
       {/* confirm a drop */}
       <div
         className={`scrim ${pendingDrop || detail || pendingBlock ? "on" : ""}`}
-        onClick={() => { setPendingDrop(null); setDetail(null); setPendingBlock(null); setErr(""); }}
+        onClick={() => { setPendingDrop(null); setDetail(null); setPendingBlock(null); setErr(""); setOfferNote(""); }}
       />
 
       <div className={`sheet ${pendingDrop ? "open" : ""}`}>
@@ -924,6 +950,30 @@ export default function ScheduleBoard({
               </div>
             )}
 
+            {pendingDrop.kind === "tray" && (
+              <div className="frow" style={{ display: "block" }}>
+                <span className="l" style={{ display: "block", marginBottom: 6 }}>
+                  Note for the contractor <span style={{ opacity: 0.6 }}>(optional)</span>
+                </span>
+                <textarea
+                  rows={3}
+                  maxLength={500}
+                  value={offerNote}
+                  onChange={(e) => setOfferNote(e.target.value)}
+                  data-testid="offer-note"
+                  placeholder="e.g. Client is on a tight schedule — this needs to start on the date shown."
+                  style={{
+                    width: "100%", background: "var(--panel, #11151c)", color: "var(--text)",
+                    border: "1px solid var(--line)", borderRadius: 8, padding: "8px 10px",
+                    fontSize: 13, lineHeight: 1.45, fontFamily: "inherit", resize: "vertical",
+                  }}
+                />
+                <span style={{ fontSize: 11, color: "var(--muted)" }}>
+                  They see this on the offer, before they accept. {500 - offerNote.length} left.
+                </span>
+              </div>
+            )}
+
             {pendingDrop.blocked && (
               <div className="err">
                 This contractor has blocked these days out. You can still send it, but
@@ -935,7 +985,7 @@ export default function ScheduleBoard({
             <button className="btn cy" disabled={busy} onClick={pendingDrop.kind === "tray" ? sendOffer : moveBooking}>
               {busy ? "Working…" : pendingDrop.kind === "tray" ? "Send offer" : "Move booking"}
             </button>
-            <button className="btn gh" onClick={() => { setPendingDrop(null); setErr(""); }}>Cancel</button>
+            <button className="btn gh" onClick={() => { setPendingDrop(null); setErr(""); setOfferNote(""); }}>Cancel</button>
           </>
         )}
       </div>

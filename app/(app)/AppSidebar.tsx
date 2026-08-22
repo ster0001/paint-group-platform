@@ -5,9 +5,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signout } from "@/app/auth/actions";
 
+// "Read a plan" was removed from this rail on 22 Aug — the wizard covers plan
+// reading now. The /plans ROUTE still exists and still works; only the nav
+// entry is gone, so anything holding a link to it (and the wizard's own use of
+// the extraction pipeline) is untouched.
 const NAV = [
   { href: "/estimates", label: "Estimates", icon: "📄" },
-  { href: "/plans", label: "Read a plan", icon: "📐" },
   { href: "/proving", label: "Proving", icon: "🎯" },
   // Projects — the job workflow, from scheduling through to sign-off. It lives
   // outside this route group (its own chrome), so it has to be linked

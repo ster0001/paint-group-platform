@@ -28,7 +28,8 @@ export default function StageAdvance({
   const [moved, setMoved] = useState<WoStage | null>(null);
   const [pending, startTransition] = useTransition();
 
-  // Forward moves only: going back happens by a QA fail or a customer's flag,
+  // Forward moves only: going back happens by a quality-check fail or a
+  // customer's flag,
   // which are their own actions with their own consequences.
   const order = Object.keys(STAGE_LANES) as WoStage[];
   const moves = nextStages(stage, "staff").filter((t) => order.indexOf(t.to) > order.indexOf(stage));
@@ -95,7 +96,7 @@ export default function StageAdvance({
             onClick={() => go(t.to)} data-testid={`advance-${t.to}`}>
             {pending ? "Working…" : t.to === "walkthrough" ? "Send the pack to the customer"
               : t.to === "in_progress" ? "Start the job"
-              : t.to === "qa" ? "Send to QA"
+              : t.to === "qa" ? "Send to quality check"
               : t.to === "completion_prep" ? "Move to completion prep"
               : `Move to ${STAGE_LANES[t.to].title}`}
           </button>

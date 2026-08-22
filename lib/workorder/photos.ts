@@ -28,7 +28,7 @@ export const WO_PHOTO_KIND_LABEL: Record<WOPhotoKind, string> = {
   before: "Before",
   progress: "Progress",
   variation: "Variation",
-  qa: "QA",
+  qa: "Quality check",
   completion: "Completion",
 };
 

@@ -63,6 +63,13 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
   );
   const qaScheduled = ((qaRows ?? []) as unknown[]).length > 0;
 
+  // The job sheet, opened on the work-order view where the colours live, and
+  // carrying `from` so the builder's top-left link comes back here rather than
+  // dumping you on the estimates list.
+  const coloursHref = estimateId
+    ? `/quote?id=${estimateId}&view=workorder&from=${encodeURIComponent(`/pc/wo/${id}`)}`
+    : undefined;
+
   const checklist = ((checklistRows ?? []) as {
     id: string; phase: string; label: string; detail: string;
     required: boolean; done_at: string | null; auto_key: string | null;
@@ -152,7 +159,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             <a className="btn" href={`/pc/wo/${id}/as-contractor`} data-testid="as-contractor">
               Painter&rsquo;s view
             </a>
-            <a className="btn" href={`/quote?id=${estimateId}&view=workorder`} data-testid="edit-wo">
+            <a className="btn" href={`/quote?id=${estimateId}&view=workorder&from=${encodeURIComponent(`/pc/wo/${id}`)}`} data-testid="edit-wo">
               Edit job sheet
             </a>
           </span>
@@ -267,6 +274,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
               caption="Not ready to start — colours can still be TBC when the contractor accepts."
               items={forPhase("pre_offer")}
               outstanding={outstanding("pre_offer")}
+              coloursHref={coloursHref}
             />
           )}
 
@@ -276,6 +284,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
               caption="Everything the site needs, arranged before day one. The job cannot start until these are true."
               items={forPhase("pre_start")}
               outstanding={outstanding("pre_start")}
+              coloursHref={coloursHref}
             />
           )}
 
@@ -344,7 +353,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             {photos.length === 0 ? (
               <p className="note">
                 Nothing sent in yet. Before-photos arrive with the first tick on
-                each elevation; progress, QA and completion photos follow.
+                each elevation; progress, quality-check and completion photos follow.
               </p>
             ) : (
               groupByKind(photos).map((g) => (
@@ -362,7 +371,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
           <div className="card">
             <h3>Job facts</h3>
             <div className="tick"><p>Start date</p><span className="pill">{row.start_date ?? "TBC"}</span></div>
-            <div className="tick"><p>QA checks</p>
+            <div className="tick"><p>Quality checks</p>
               <span className={`pill ${(qaRows ?? []).length === 0 ? "" : "p-cy"}`}>
                 {(qaRows ?? []).length === 0 ? "Not required — established" : `${(qaRows ?? []).length} scheduled`}
               </span>

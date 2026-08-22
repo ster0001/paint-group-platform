@@ -1,5 +1,5 @@
 /**
- * The PC Command console's logic — §6 of the brief.
+ * The PC Dashboard console's logic — §6 of the brief.
  *
  * Everything the console shows is DERIVED here from rows the model already
  * holds. There is no console table, no "status" anybody types, and no number a

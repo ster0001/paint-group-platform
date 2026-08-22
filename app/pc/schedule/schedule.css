@@ -244,3 +244,14 @@
 /* The console's own tab rail is the sticky furniture on this page. */
 .pc .sb .top { position: static; }
 .pc .sb .layout { min-height: calc(100vh - 260px); }
+
+/* An offer that ran out its 24 hours and came back on its own. Amber, not red:
+   nothing is broken — a contractor simply didn't answer, and the job is waiting
+   to go to someone else. */
+.sb .jcard .lapsedline { margin-top: 7px; font-family: var(--mono); font-size: 8.5px; color: var(--amber); line-height: 1.5; }
+.sb .tray .lapsed-banner {
+  margin-bottom: 14px; padding: 10px 12px; border-radius: 8px;
+  border: 1px solid var(--amber); background: color-mix(in srgb, var(--amber) 10%, transparent);
+}
+.sb .tray .lapsed-banner b { display: block; font-size: 12.5px; color: var(--amber); margin-bottom: 3px; }
+.sb .tray .lapsed-banner span { display: block; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
