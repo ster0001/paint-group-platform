@@ -199,3 +199,20 @@
   .pc .wohead { padding: 16px 14px; }
   .pc .card { padding: 14px 14px; }
 }
+
+/* ---- checklists: the gate, made visible ----------------------------------- */
+.pc .chk { display:flex; align-items:flex-start; gap:11px; width:100%; text-align:left;
+  background:none; border:0; border-top:1px solid var(--line); padding:12px 2px;
+  color:var(--text); font-family:inherit; cursor:pointer; min-height:52px; }
+.pc .chk:first-of-type { border-top:0; }
+.pc .chk:disabled { opacity:.6; cursor:default; }
+.pc .chk-box { flex:0 0 20px; height:20px; border-radius:6px; border:1px solid var(--line);
+  background:var(--graphite); display:grid; place-items:center; font-size:12px; color:var(--oncyan); margin-top:1px; }
+.pc .chk.on .chk-box { background:linear-gradient(135deg,var(--cyan),var(--paint)); border-color:transparent; }
+.pc .chk-body { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.pc .chk-body b { font-size:13.5px; font-weight:600; }
+.pc .chk-body b em { font-style:normal; color:var(--muted); font-weight:400; font-size:12px; }
+.pc .chk-body small { font-size:12px; color:var(--muted); }
+.pc .chk.on .chk-body b { color:var(--soft); }
+.pc .chk.auto { cursor:default; }
+.pc .chk .pill { align-self:center; }

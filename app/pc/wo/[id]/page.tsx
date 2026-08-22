@@ -4,6 +4,7 @@ import { STAGE_LANES, WO_STAGES, type WoStage } from "@/lib/workorder/stages";
 import { progressByHeading, progressOf, type SurfaceRow } from "@/lib/workorder/surfaces";
 import { VARIATION_STEPS, stepIndex, type VariationStatus } from "@/lib/workorder/variations";
 import PriceVariation from "./PriceVariation";
+import Checklist, { type ChecklistItem } from "./Checklist";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
 
   const estimateId = (wo as { estimate_id?: string }).estimate_id ?? "";
 
-  const [{ data: surfaceRows }, { data: variationRows }, { data: updateRows }, { data: qaRows }, { data: rateRow }] =
+  const [{ data: surfaceRows }, { data: variationRows }, { data: updateRows }, { data: qaRows }, { data: checklistRows }, { data: rateRow }] =
     await Promise.all([
       supabase.from("wo_surfaces")
         .select("id, heading, heading_meta, label, state, rectification")
@@ -39,10 +40,35 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
       supabase.from("wo_updates").select("id, draft_text, final_text, status, for_date")
         .eq("work_order_id", id).order("for_date", { ascending: false }).limit(1),
       supabase.from("wo_qa_checks").select("id, kind, result, thin_record").eq("work_order_id", id),
+      supabase.from("wo_checklist_items")
+        .select("id, phase, label, detail, required, done_at, auto_key")
+        .eq("work_order_id", id).order("phase").order("sort"),
       // The live contractor rate, so the price preview cannot drift from what
       // the server will actually work out when Tom edits it in Settings.
       supabase.from("settings").select("value").eq("key", "Contractor rate").maybeSingle(),
     ]);
+
+  // Derived items answer from the data they read, so the screen and the gate
+  // can never disagree about whether a stage is ready.
+  const coloursConfirmed = Boolean(
+    (await supabase.rpc("wo_colours_confirmed", { p_work_order_id: id })).data,
+  );
+  const qaScheduled = ((qaRows ?? []) as unknown[]).length > 0;
+
+  const checklist = ((checklistRows ?? []) as {
+    id: string; phase: string; label: string; detail: string;
+    required: boolean; done_at: string | null; auto_key: string | null;
+  }[]).map((r): ChecklistItem & { phase: string } => ({
+    phase: r.phase, id: r.id, label: r.label, detail: r.detail ?? "", required: r.required,
+    auto: r.auto_key,
+    done: r.auto_key === "colours" ? coloursConfirmed
+        : r.auto_key === "qa" ? qaScheduled
+        : r.done_at !== null,
+  }));
+
+  const forPhase = (phase: string) => checklist.filter((c) => c.phase === phase);
+  const outstanding = (phase: string) =>
+    forPhase(phase).filter((c) => c.required && !c.done).length;
 
   const contractorRateCents = Math.round(
     Number((rateRow as { value?: { value?: number } } | null)?.value?.value ?? 60) * 100,
@@ -168,6 +194,33 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {row.stage === "offered" && forPhase("pre_offer").length > 0 && (
+            <Checklist
+              title="Ready to offer"
+              caption="Not ready to start — colours can still be TBC when the contractor accepts."
+              items={forPhase("pre_offer")}
+              outstanding={outstanding("pre_offer")}
+            />
+          )}
+
+          {row.stage === "pre_start" && forPhase("pre_start").length > 0 && (
+            <Checklist
+              title="Pre-start"
+              caption="Everything the site needs, arranged before day one. The job cannot start until these are true."
+              items={forPhase("pre_start")}
+              outstanding={outstanding("pre_start")}
+            />
+          )}
+
+          {row.stage === "completion_prep" && forPhase("completion_prep").length > 0 && (
+            <Checklist
+              title="Completion prep"
+              caption="The last pass before the customer walks through."
+              items={forPhase("completion_prep")}
+              outstanding={outstanding("completion_prep")}
+            />
+          )}
+
           {variations.map((v) => (
             <div className="card" key={v.id} id={`variation-${v.id}`} data-testid={`variation-${v.id}`}>
               <h3>Variation <em>{v.status.replace(/_/g, " ")}</em></h3>

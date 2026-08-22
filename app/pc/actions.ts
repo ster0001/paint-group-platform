@@ -52,6 +52,37 @@ export async function approveAndSendUpdate(raw: unknown): Promise<PcResult> {
   return call("wo_send_update", { p_update_id: parsed.data.updateId }, "Sent.");
 }
 
+export async function tickChecklistItem(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ itemId: uuid, done: z.boolean() }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_tick_checklist_item", {
+    p_item_id: parsed.data.itemId, p_done: parsed.data.done,
+  });
+  if (error) return { ok: false, message: error.message };
+
+  const s = String(data ?? "");
+  if (s.startsWith("ok:")) {
+    revalidatePath("/pc");
+    revalidatePath("/pc/flow");
+    return { ok: true };
+  }
+  // The two refusals worth explaining rather than reporting as codes.
+  if (s === "error:colours_first") {
+    return { ok: false, message: "Confirm the colour schedule first — the paint order depends on it." };
+  }
+  if (s.startsWith("error:derived:")) {
+    return {
+      ok: false,
+      message: s.includes("colours")
+        ? "This ticks itself once every colour on the job sheet is confirmed."
+        : "This ticks itself once the QA checks are scheduled.",
+    };
+  }
+  return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") };
+}
+
 export async function recordQa(raw: unknown): Promise<PcResult> {
   const parsed = z.object({
     checkId: uuid,
