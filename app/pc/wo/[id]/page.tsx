@@ -6,6 +6,7 @@ import { VARIATION_STEPS, stepIndex, type VariationStatus } from "@/lib/workorde
 import PriceVariation from "./PriceVariation";
 import Checklist, { type ChecklistItem } from "./Checklist";
 import QaCheck, { type QaCheckView } from "./QaCheck";
+import TickList from "@/app/components/wo/TickList";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +69,14 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
         : r.auto_key === "qa" ? qaScheduled
         : r.done_at !== null,
   }));
+
+  // Which elevations already have their before-photo, so the office meets the
+  // same gate the painter does rather than a special case.
+  const { data: photoRows } = await supabase
+    .from("wo_photos").select("area").eq("work_order_id", id).eq("kind", "before");
+  const headingsWithBeforePhoto = [...new Set(
+    ((photoRows as { area: string }[] | null) ?? []).map((p) => p.area).filter(Boolean),
+  )];
 
   const qaChecks: QaCheckView[] = ((qaRows ?? []) as unknown as {
     id: string; kind: string; result: string | null; thin_record: boolean;
@@ -171,39 +180,54 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
       )}
 
       <div className="grid2">
-        <div className="card">
-          <h3>Scope &amp; ticks <em data-testid="tick-count">{progress.done} / {progress.total}</em></h3>
-          <div className="prog"><i style={{ width: `${progress.pct}%` }} /></div>
+        {row.stage === "in_progress" ? (
+          <TickList
+            workOrderId={id}
+            surfaces={surfaces.map((s) => ({
+              id: s.id, heading: s.heading, label: s.label, state: s.state,
+              rectification: s.rectification,
+            }))}
+            headingsWithBeforePhoto={headingsWithBeforePhoto}
+            headingMeta={Object.fromEntries(
+              surfaces.map((s) => [s.heading, s.heading_meta]).filter(([, m]) => m),
+            )}
+            surface="console"
+          />
+        ) : (
+          <div className="card">
+            <h3>Scope &amp; ticks <em data-testid="tick-count">{progress.done} / {progress.total}</em></h3>
+            <div className="prog"><i style={{ width: `${progress.pct}%` }} /></div>
 
-          {headings.map((heading) => {
-            const p = byHeading.get(heading);
-            const meta = surfaces.find((s) => s.heading === heading)?.heading_meta ?? "";
-            return (
-              <div className="elev" key={heading}>
-                <div className="eh">
-                  <b>{heading}</b>
-                  {meta && <em>{meta}</em>}
-                  <span className="ct">{p ? `${p.done}/${p.total}` : ""}{p && p.done === p.total ? " ✓" : ""}</span>
-                </div>
-                {surfaces.filter((s) => s.heading === heading).map((s) => (
-                  <div className="tick" key={s.id}>
-                    <span className="sw" aria-hidden="true">
-                      <i className={s.state !== "todo" ? "a" : ""} />
-                      <i className={s.state === "done" ? "a" : s.state === "prepped" ? "b" : ""} />
-                      <i className={s.state === "done" ? "a" : ""} />
-                    </span>
-                    <p>{s.label}</p>
-                    <span className={`pill ${s.state === "done" ? "p-em" : s.state === "prepped" ? "p-cy" : s.rectification ? "p-amber" : ""}`}>
-                      {s.rectification && s.state !== "done" ? "Rectify" : s.state === "done" ? "Done" : s.state === "prepped" ? "Prepped" : "To do"}
-                    </span>
+            {headings.map((heading) => {
+              const p = byHeading.get(heading);
+              const meta = surfaces.find((s) => s.heading === heading)?.heading_meta ?? "";
+              return (
+                <div className="elev" key={heading}>
+                  <div className="eh">
+                    <b>{heading}</b>
+                    {meta && <em>{meta}</em>}
+                    <span className="ct">{p ? `${p.done}/${p.total}` : ""}{p && p.done === p.total ? " ✓" : ""}</span>
                   </div>
-                ))}
-              </div>
-            );
-          })}
+                  {surfaces.filter((s) => s.heading === heading).map((s) => (
+                    <div className="tick" key={s.id}>
+                      <span className="sw" aria-hidden="true">
+                        <i className={s.state !== "todo" ? "a" : ""} />
+                        <i className={s.state === "done" ? "a" : s.state === "prepped" ? "b" : ""} />
+                        <i className={s.state === "done" ? "a" : ""} />
+                      </span>
+                      <p>{s.label}</p>
+                      <span className={`pill ${s.state === "done" ? "p-em" : s.state === "prepped" ? "p-cy" : s.rectification ? "p-amber" : ""}`}>
+                        {s.rectification && s.state !== "done" ? "Rectify" : s.state === "done" ? "Done" : s.state === "prepped" ? "Prepped" : "To do"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
 
-          {surfaces.length === 0 && <p className="note">No tick list yet — it seeds when the job sheet is issued.</p>}
-        </div>
+            {surfaces.length === 0 && <p className="note">No tick list yet — it seeds when the job sheet is issued.</p>}
+          </div>
+        )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {row.stage === "offered" && forPhase("pre_offer").length > 0 && (

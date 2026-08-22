@@ -1,3 +1,61 @@
+# Rulings — Tom's business decisions, recorded the day they are made
+
+**Why this section exists.** The Reoffer decision was made in an earlier session,
+lived only in chat, and went missing — it had to be restated on 22 Aug. Every
+business ruling from here goes in this section on the day it is made, with the
+date and enough of the reasoning to act on it without the conversation.
+
+### 2026-08-22 · Reoffer is a real action, not a deep-link
+When an offer breaches its SLA, the console's **Reoffer** does all of this:
+1. Tap → **confirm dialog** (a human between two contractors).
+2. **Withdraw the lapsed offer**, logged as an event.
+3. **Create the next offer** to the chosen contractor through the existing
+   scheduling flow — not a second offer path.
+4. **Notify the lapsed contractor** courteously: their offer has lapsed and the
+   job has been reoffered. No blame, no silence.
+
+### 2026-08-22 · Job kind drives SWMS
+`estimates.job_kind` — `residential | commercial | body_corporate`, default
+`residential`. Staff set it in the builder header; the wizard's "My business"
+path writes `commercial` automatically. The SWMS / induction pre-start item is
+**required** for commercial and body corporate, optional for residential.
+
+### 2026-08-22 · The completion report waits for the customer portal
+It is generated and stored at every sign-off, so nothing is lost by waiting.
+Rendering it staff-only would be half a feature; it ships whole when the
+customer portal lands, beside the customer's warranty and job history.
+
+### 2026-08-21 · Deemed sign-off ships OFF
+Two switches, not one. `clockEnabled: true` runs the 0/24/48h reminder ladder;
+`deemedEnabled: false` until the clause passes ACL/UCT review. While deemed is
+off the reminder copy must not mention deemed signing, automatic sign-off,
+invoices or payment — asserted by `lib/workorder/signoff.test.ts`. Jobs wait at
+walkthrough for a human signature.
+
+### 2026-08-21 · Timestamps are computed, communications are never backdated
+A late-discovered nudge still sends, late. Each rung fires at most once. A sweep
+that runs a day late produces one late result, not a week of them at once.
+
+---
+
+# Known limitations — recorded, not forgotten
+
+### Calendar shows one job per day
+`app/portal/calendar/CalendarGrid.tsx` keys booked days by date
+(`Map<date, job>`), so when two jobs fall on the same day **only the last one
+renders**, and tapping it opens that one. Found 22 Aug when an e2e fixture
+overlapped a demo booking and "opened the wrong job".
+
+Acceptable while a contractor runs one job at a time. **Contractors will be
+running crews across two sites within months**, so this is scheduled for the
+contractor-portal polish phase, not left to be discovered.
+
+**TODO (write the failing test first):** `e2e/wo-booking.spec.ts` — book two
+jobs on the same day for one contractor, assert both are reachable from that
+day's cell. It will fail today; that is the point.
+
+---
+
 # Session handoff — 20 Aug 2026 (parity build, two-session day)
 
 The next session starts HERE, not from memory. Memory files

@@ -5,7 +5,7 @@ import { requireContractor } from "@/lib/contractor/session";
 import { getContractorJob } from "@/lib/contractor/jobs";
 import WorkOrderDoc from "@/app/w/WorkOrderDoc";
 import RescheduleRequest from "./RescheduleRequest";
-import TickList from "./TickList";
+import TickList from "@/app/components/wo/TickList";
 import Variations, { type VariationView } from "./Variations";
 import PrepChecklist, { type PrepItem } from "./PrepChecklist";
 import type { SurfaceRow } from "@/lib/workorder/surfaces";

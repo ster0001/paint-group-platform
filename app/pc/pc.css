@@ -216,3 +216,27 @@
 .pc .chk.on .chk-body b { color:var(--soft); }
 .pc .chk.auto { cursor:default; }
 .pc .chk .pill { align-self:center; }
+
+/* ---- the shared tick list, in console chrome ------------------------------
+   Same component the painter uses: a coordinator on a quality visit ticks the
+   same list, meets the same before-photo gate, and writes the same events. */
+.pc .tick-head { display:flex; align-items:baseline; gap:10px; }
+.pc .tick-head b { font-size:15px; }
+.pc .tick-count { margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; }
+.pc .tick-prog { height:5px; border-radius:3px; background:var(--dim); overflow:hidden; margin:10px 0 4px; }
+.pc .tick-prog i { display:block; height:100%; border-radius:3px; background:linear-gradient(90deg,var(--paint),var(--cyan)); transition:width .5s; }
+.pc .tick-msg { margin:10px 0 0; font-size:13px; color:var(--amber); }
+.pc .tick-photo { display:block; width:100%; text-align:left; margin:8px 0 4px; cursor:pointer;
+  background:rgba(224,168,60,.08); border:1px solid rgba(224,168,60,.4); border-radius:10px;
+  padding:11px 12px; color:var(--amber); font-size:13px; font-family:inherit; }
+.pc .tickrow { display:flex; align-items:center; gap:10px; width:100%; text-align:left;
+  padding:12px 4px; background:none; border:0; border-top:1px solid var(--line);
+  color:var(--text); font-family:inherit; font-size:13.5px; cursor:pointer; min-height:48px; }
+.pc .tickrow:disabled { opacity:.5; }
+.pc .tickrow-label { flex:1; min-width:0; }
+.pc .tickrow .sw { display:flex; gap:2px; flex:0 0 auto; }
+.pc .chip { font-family:var(--mono); font-size:7.5px; letter-spacing:.06em; text-transform:uppercase;
+  padding:3px 8px; border-radius:100px; border:1px solid var(--line); color:var(--muted); }
+.pc .chip.grn { color:var(--emerald); border-color:rgba(47,164,107,.4); }
+.pc .chip.cyn { color:var(--cyan); border-color:rgba(59,216,233,.35); }
+.pc .chip.amb { color:var(--amber); border-color:rgba(224,168,60,.4); }

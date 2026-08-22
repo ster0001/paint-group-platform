@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState, useTransition } from "react";
-import { tickSurfaceAction } from "./tickActions";
+import { tickSurfaceAction } from "./tickAction";
 import {
   nextState, needsBeforePhoto, progressByHeading, progressOf,
   type SurfaceRow, type SurfaceState,
@@ -22,11 +22,19 @@ type Props = {
   surfaces: SurfaceRow[];
   headingsWithBeforePhoto: string[];
   headingMeta: Record<string, string>;
+  /**
+   * Which chrome this is rendering in. The two surfaces have different
+   * stylesheets, so the class names differ — the behaviour does not, which is
+   * the point: the office ticking on a quality visit uses the same list, the
+   * same photo gate and the same events as the painter.
+   */
+  surface?: "portal" | "console";
 };
 
 const LABEL: Record<SurfaceState, string> = { todo: "To do", prepped: "Prepped", done: "Done" };
 
-export default function TickList({ workOrderId, surfaces, headingsWithBeforePhoto, headingMeta }: Props) {
+export default function TickList({ workOrderId, surfaces, headingsWithBeforePhoto, headingMeta, surface = "portal" }: Props) {
+  const c = surface === "console" ? "pcw" : "";
   const [rows, setRows] = useState<SurfaceRow[]>(surfaces);
   const [photoHeadings, setPhotoHeadings] = useState<string[]>(headingsWithBeforePhoto);
   const [message, setMessage] = useState<{ text: string; heading?: string } | null>(null);
@@ -111,8 +119,8 @@ export default function TickList({ workOrderId, surfaces, headingsWithBeforePhot
   }
 
   return (
-    <div className="card" style={{ marginTop: 12 }} data-testid="tick-list">
-      <div className="tick-head">
+    <div className={`card ${c}`} data-testid="tick-list">
+      <div className={`tick-head ${c}`}>
         <b>Scope &amp; ticks</b>
         <span className="tick-count" data-testid="tick-progress">{overall.done} / {overall.total}</span>
       </div>
