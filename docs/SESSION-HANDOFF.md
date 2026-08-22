@@ -1,3 +1,76 @@
+# 22 Aug 2026 — work order completion loop + PC Command console: SHIPPED
+
+**On main, deployed, verified against production: 103 e2e, 546 unit tests, 0 lint
+errors.** Every migration through `20261023` is applied to the live database.
+
+## What a job can now do, end to end
+
+Estimate accepted → work order → **offered** (dates land on the WO immediately,
+marked *Requested* in amber) → contractor accepts (stage follows the booking by
+trigger; their pre-start list appears) → **pre-start** (six items, colours derived
+from the job-sheet chips, colours block materials, the gate refuses a start until
+the list is true) → **in progress** (auto-starts on its booked date via the 6pm
+sweep, or early with a confirm that moves the start date) → per-surface ticks
+with a server-side before-photo gate, photos and notes from site, two-sided
+variations → **QA** (four tickable Level-3 standards; a pass needs all four, a
+fail puts rectification on the same tick list) → **completion prep** on the
+painter's phone → **walkthrough** (customer approves or flags per area; a flag
+returns the job to the painter) → **type-to-sign** → **closed**, which fires
+warranty, review task, completion report and invoice stub in one transaction.
+
+The PC console (`/pc`, "Live jobs" in the sidebar) reads all of it: pulse tiles,
+a ranked queue, the seven-lane pipeline, and a work-order view where staff price
+variations, work the checklists, record QA, reoffer a lapsed job, move the stage,
+and tick on the painter's behalf.
+
+## Still open — start here next session
+
+1. **`job_kind` control.** The column, the enum and the SWMS consequence are
+   live; there is NO UI to set it, so every job reads `residential`. A select in
+   the builder header, wired to the column (its UPDATE grant already exists).
+2. **Nothing writes `source='trade_wizard'`** — the wizard's "My business" path
+   is not built, so commercial jobs need setting by hand once (1) exists.
+3. **Completion report view** — deliberately deferred to the customer portal
+   (Rulings, 22 Aug). It is generated and stored at every sign-off; nothing
+   renders it.
+4. **Calendar shows one job per day** — see Known limitations. Failing test to
+   write first.
+5. **Offer address** — Tom reported seeing a street number on an offer; I could
+   not reproduce (`suburbOnly` renders "Carlton North" correctly, server-side).
+   `WO-GBKAAPEK` is a live offer to TR Painters — check it as a contractor.
+
+## How to verify anything here
+
+    npm test                     # 546, no DB needed
+    npx tsc --noEmit
+    npm run lint                 # read the ✖ line, NOT the "potentially fixable" line
+    E2E_BASE_URL=https://paint-group-platform.vercel.app \
+      CRON_SECRET=<from Vercel> npx playwright test e2e/wo-*.spec.ts e2e/pc-console.spec.ts
+
+Demo data: `npx tsx scripts/seed-demo-loop.ts` (and `--destroy`). Three jobs,
+prefixed WO-DEMO: an offer to accept, one on site, one at walkthrough.
+
+## What this build kept teaching
+
+- **A migration running is not the same as its statements applying.** Four
+  half-landed: policies missing, a backfill refused by its own guard, a trigger
+  absent, a seeder that would have refused every contractor. Every symptom was
+  SILENCE. Every migration now ends with a `select` whose output must be read
+  back — and short SQL pasted into chat lands where long attached files did not.
+- **Never verify RLS through the service key.** It bypasses RLS, so an absent
+  policy set survived six steps. `e2e/wo-rls.spec.ts` asserts every read through
+  each role's own session.
+- **A test that calls the API cannot tell you a screen is unreachable.** The
+  stage machine was fully tested while no button called it; Tom found it by
+  trying to start a real job.
+- **Run against production, not just preview.** Comparing server-action
+  references works in dev and breaks in a production build — "Approve & send"
+  silently did nothing.
+- **Flaky usually means real.** The reoffer flake was a genuine hole: breached
+  offers expire within minutes and both the card and the button ignored them.
+
+---
+
 # Rulings — Tom's business decisions, recorded the day they are made
 
 **Why this section exists.** The Reoffer decision was made in an earlier session,
