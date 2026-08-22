@@ -120,19 +120,24 @@ export function buildQueue(input: ConsoleInput): QueueCard[] {
     return w ? `${w.woRef} · ${w.title}` : id;
   };
 
-  // 1. Offer past its SLA — the existing scheduling clock, not a new one.
+  // 1. An offer nobody is coming to. Either still live and past its SLA, or
+  // already flipped to expired/declined — the sweep does that within minutes of
+  // the breach, and a job with a lapsed offer is exactly what needs a person.
   for (const offer of input.offers) {
-    if (offer.state !== "offered" && offer.state !== "proposed") continue;
+    const lapsed = offer.state === "expired" || offer.state === "declined";
+    if (!lapsed && offer.state !== "offered" && offer.state !== "proposed") continue;
     const overdueBy = hoursBetween(offer.expiresAt, now);
-    if (overdueBy <= 0) continue;
+    if (!lapsed && overdueBy <= 0) continue;
     const w = byId.get(offer.workOrderId);
     if (!w) continue;
     cards.push({
       key: `offer-sla:${offer.workOrderId}`,
       offerId: offer.id,
       severity: "critical",
-      title: "Offer unanswered past SLA",
-      detail: `${offer.contractorName} has had it ${Math.round(overdueBy + 24)} hours. Chase, or release it to the next contractor.`,
+      title: offer.state === "declined" ? "Offer declined — nobody on this job" : "Offer unanswered past SLA",
+      detail: offer.state === "declined"
+        ? `${offer.contractorName} turned it down. It needs offering to someone else.`
+        : `${offer.contractorName} has had it ${Math.round(overdueBy + 24)} hours. Chase, or release it to the next contractor.`,
       ref: label(offer.workOrderId),
       workOrderId: offer.workOrderId,
       ageHours: overdueBy,

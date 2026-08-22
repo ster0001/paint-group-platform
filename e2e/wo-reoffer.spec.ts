@@ -61,7 +61,9 @@ test.describe("reoffering a lapsed job", () => {
       .eq("work_order_id", job.workOrderId).eq("state", "offered").single();
     lapsedOfferId = (offer as { id: string }).id;
 
-    // Push it past its SLA, the way 27 hours of silence would.
+    // Push it past its SLA, the way 27 hours of silence would. It may also be
+    // flipped to 'expired' by the opportunistic sweep before we get to it —
+    // which is the normal case in production, and Reoffer must handle it.
     await db!.from("booking_offers")
       .update({ expires_at: new Date(Date.now() - 3 * 3600 * 1000).toISOString() })
       .eq("id", lapsedOfferId);
@@ -78,7 +80,7 @@ test.describe("reoffering a lapsed job", () => {
     await expect(page.getByTestId(`action-offer-sla:${job!.workOrderId}`)).toContainText("Reoffer");
   });
 
-  test("reoffering withdraws the lapsed offer and logs it", async () => {
+  test("reoffering works whether the offer is still live or already expired", async () => {
     test.skip(!secondContractor, "needs a second contractor to reoffer to");
 
     const result = await rpcAs(staff!, "wo_reoffer", {
@@ -90,9 +92,11 @@ test.describe("reoffering a lapsed job", () => {
     });
     expect(result).toMatch(/^ok:/);
 
+    // Withdrawn if it was still live, left as expired if the sweep got there
+    // first — either way it is no longer somebody's to accept.
     const { data: lapsed } = await db!.from("booking_offers")
       .select("state").eq("id", lapsedOfferId).single();
-    expect((lapsed as { state: string }).state).toBe("withdrawn");
+    expect(["withdrawn", "expired"]).toContain((lapsed as { state: string }).state);
 
     const { data: events } = await db!.from("wo_events")
       .select("type, meta").eq("work_order_id", job!.workOrderId).eq("type", "offer_reoffered");

@@ -25,9 +25,9 @@ let fixture: LoopFixture | null = null;
 let silent: LoopFixture | null = null;
 let updateId = "";
 
-const yesterday = () => {
+const daysAgo = (n: number) => {
   const d = new Date();
-  d.setDate(d.getDate() - 1);
+  d.setDate(d.getDate() - n);
   return d.toISOString().slice(0, 10);
 };
 
@@ -54,7 +54,10 @@ test.describe("daily updates and the silent site", () => {
     const silentFixture = await createLoopFixture(db!, contractorId!, [
       { heading: "Back", labels: ["Walls"] },
     ]);
-    await db!.from("work_orders").update({ start_date: yesterday() })
+    // Four days back: a job has to have been RUNNING for the window before
+    // silence means anything. One that started this morning has not been quiet
+    // for three days, it has simply not started yet.
+    await db!.from("work_orders").update({ start_date: daysAgo(4) })
       .eq("id", silentFixture.workOrderId);
     silent = silentFixture;
   });
@@ -171,23 +174,42 @@ test.describe("daily updates and the silent site", () => {
     expect(rows.length).toBe(0);
   });
 
-  test("a silent site raises one flag, and only one", async ({ request }) => {
+  test("a quiet site raises one reminder, and does not block the job", async ({ request }) => {
     const first = await request.get("/api/cron/wo-sweep", { headers: { Authorization: `Bearer ${SECRET}` } });
     expect(first.status()).toBe(200);
 
     const { data: flags } = await db!.from("wo_events")
-      .select("id, meta").eq("work_order_id", silent!.workOrderId).eq("type", "zero_tick_flag");
+      .select("id, meta").eq("work_order_id", silent!.workOrderId).eq("type", "quiet_site");
     expect((flags ?? []).length).toBe(1);
+    expect(((flags ?? []) as { meta: { days: number } }[])[0].meta.days).toBe(3);
 
+    // Nobody expects a painter to tick daily; silence is a reminder, not a
+    // blockage, so nothing about the job is marked blocked.
     const { data: wo } = await db!.from("work_orders")
       .select("blocked_reason").eq("id", silent!.workOrderId).single();
-    expect((wo as { blocked_reason: string | null }).blocked_reason).toContain("call the crew");
+    expect((wo as { blocked_reason: string | null }).blocked_reason).toBeNull();
 
-    // Run it again the same day: still one flag. A late sweep is late, not loud.
+    // Again inside the same window: still one. One nudge, not a drumbeat.
     await request.get("/api/cron/wo-sweep", { headers: { Authorization: `Bearer ${SECRET}` } });
     const { data: again } = await db!.from("wo_events")
-      .select("id").eq("work_order_id", silent!.workOrderId).eq("type", "zero_tick_flag");
+      .select("id").eq("work_order_id", silent!.workOrderId).eq("type", "quiet_site");
     expect((again ?? []).length).toBe(1);
+  });
+
+  test("a job that only started today is not called quiet", async ({ request }) => {
+    const contractorId = await contractorIdForEmail(db!, contractor!.email);
+    const fresh = await createLoopFixture(db!, contractorId!, [{ heading: "Front", labels: ["Walls"] }]);
+    await db!.from("work_orders")
+      .update({ start_date: new Date().toISOString().slice(0, 10) })
+      .eq("id", fresh.workOrderId);
+
+    await request.get("/api/cron/wo-sweep", { headers: { Authorization: `Bearer ${SECRET}` } });
+
+    const { data } = await db!.from("wo_events")
+      .select("id").eq("work_order_id", fresh.workOrderId).eq("type", "quiet_site");
+    expect(data ?? []).toEqual([]);   // it has not started, it is not silent
+
+    await destroyLoopFixture(db!, fresh);
   });
 
   test("the silent site is never messaged — only flagged", async () => {
@@ -195,7 +217,7 @@ test.describe("daily updates and the silent site", () => {
     expect((data ?? []).length).toBe(0);
   });
 
-  test("a tick clears the flag, because the site is no longer silent", async () => {
+  test("a tick means the next window is quiet no longer", async () => {
     const surface = silent!.surfaces[0];
     await db!.from("wo_photos").insert({
       work_order_id: silent!.workOrderId, kind: "before", area: surface.heading,
@@ -205,8 +227,13 @@ test.describe("daily updates and the silent site", () => {
     const result = await rpcAs(contractor!, "wo_tick_surface", { p_surface_id: surface.id, p_to: "prepped" });
     expect(result).toBe("ok:prepped");
 
+    // The tick is what the reminder was asking for; nothing was ever blocked.
     const { data: wo } = await db!.from("work_orders")
       .select("blocked_reason").eq("id", silent!.workOrderId).single();
     expect((wo as { blocked_reason: string | null }).blocked_reason).toBeNull();
+
+    const { data: ticks } = await db!.from("wo_events")
+      .select("id").eq("work_order_id", silent!.workOrderId).eq("type", "surface_tick");
+    expect((ticks ?? []).length).toBeGreaterThan(0);
   });
 });

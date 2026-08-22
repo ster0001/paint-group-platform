@@ -33,7 +33,10 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
         .neq("stage", "closed"),
       supabase.from("booking_offers")
         .select("id, work_order_id, state, expires_at, contractors(company_name)")
-        .in("state", ["offered", "proposed"]),
+        // 'expired' and 'declined' too: the sweep flips a breached offer to
+        // expired within minutes, and a job nobody is coming to is precisely
+        // what the console has to surface.
+        .in("state", ["offered", "proposed", "expired", "declined"]),
       supabase.from("wo_variations")
         .select("id, work_order_id, status, created_at, priced_lines, contractor_rate_cents")
         .in("status", ["raised", "priced", "customer_approved"]),

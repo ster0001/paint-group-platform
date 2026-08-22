@@ -150,25 +150,28 @@ test.describe("PC Command", () => {
     await expect(page.getByTestId(`card-variation-price:${variationId}`)).toHaveCount(0);
   });
 
-  test("a silent site shows as critical", async ({ page }) => {
+  test("a quiet site shows as a reminder, not a crisis", async ({ page }) => {
     const { error } = await db!.from("wo_events").insert({
-      work_order_id: fixture!.workOrderId, type: "zero_tick_flag", actor_kind: "system",
-      meta: { date: new Date().toISOString().slice(0, 10), wo_ref: "WO-E2E" },
+      work_order_id: fixture!.workOrderId, type: "quiet_site", actor_kind: "system",
+      meta: { date: new Date().toISOString().slice(0, 10), wo_ref: "WO-E2E", days: 3 },
     });
     expect(error).toBeNull();
 
     await signIn(page, staff!, /\/estimates/);
     await page.goto("/pc");
 
-    await expect(page.getByTestId(`card-zero-tick:${fixture!.workOrderId}`)).toBeVisible();
+    const card = page.getByTestId(`card-quiet-site:${fixture!.workOrderId}`);
+    await expect(card).toBeVisible();
+    await expect(card).toContainText("Nothing ticked in 3 days");
+    // Amber, not red: three times a week is plenty.
+    await expect(card).toHaveClass(/al-warn/);
 
     // At least one, not exactly one: the console shows every job on the board,
     // and a real silent site alongside the fixture's is the console working, not
     // the test failing. Asserting "1" only passed while the board happened to be
     // otherwise quiet.
-    const critical = Number(await page.getByTestId("tile-critical").textContent());
-    expect(critical).toBeGreaterThanOrEqual(1);
-    expect(critical).toBe(await page.locator('[data-testid^="card-"].al-crit').count());
+    const waiting = Number(await page.getByTestId("tile-waiting").textContent());
+    expect(waiting).toBe(await page.locator('[data-testid^="card-"].al-warn').count());
   });
 
   test("the PC reviews, edits and sends a drafted update", async ({ page }) => {

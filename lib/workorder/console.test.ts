@@ -44,6 +44,24 @@ describe("each trigger produces exactly one card", () => {
     expect(q[0].action.kind).toBe("reoffer");
   });
 
+  it("still surfaces a job whose offer has already lapsed to expired", () => {
+    // expire_booking_offers() flips a breached offer within minutes of the
+    // breach. If the console only watched live offers, the card would vanish
+    // before anyone saw it and the job would be quietly unassigned.
+    const q = buildQueue(base({
+      offers: [{ id: "o1", workOrderId: "w1", state: "expired", expiresAt: hoursAgo(4), contractorName: "Dean M." }],
+    }));
+    expect(q).toHaveLength(1);
+    expect(q[0].action.kind).toBe("reoffer");
+  });
+
+  it("surfaces a declined offer as nobody being on the job", () => {
+    const q = buildQueue(base({
+      offers: [{ id: "o1", workOrderId: "w1", state: "declined", expiresAt: hoursAgo(2), contractorName: "Dean M." }],
+    }));
+    expect(q[0].title).toContain("nobody on this job");
+  });
+
   it("leaves an offer that is still inside its SLA alone", () => {
     const q = buildQueue(base({
       offers: [{ workOrderId: "w1", state: "offered", expiresAt: hoursAgo(-5), contractorName: "Dean M." }],
