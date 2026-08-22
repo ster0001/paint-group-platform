@@ -41,8 +41,12 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
         .select("id, work_order_id, status, created_at, priced_lines, contractor_rate_cents")
         .in("status", ["raised", "priced", "customer_approved"]),
       supabase.from("wo_updates").select("id, work_order_id, status, created_at").eq("status", "drafted"),
+      // Unsigned only. buildQueue skips a signed row on the first line of its
+      // loop, so this changes nothing on screen — but signed jobs accumulate
+      // for ever, and the console was reading every one of them on every load.
       supabase.from("wo_signoff")
-        .select("work_order_id, evidence_pack_sent_at, signed_at, extension_requested_at, extension_approved_at"),
+        .select("work_order_id, evidence_pack_sent_at, signed_at, extension_requested_at, extension_approved_at")
+        .is("signed_at", null),
       supabase.from("wo_events").select("work_order_id, created_at, meta")
         .eq("type", "quiet_site").gte("created_at", weekAgo),
       supabase.from("wo_events").select("work_order_id").eq("type", "signed_off").gte("created_at", weekAgo),
@@ -79,8 +83,9 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
   if (ids.length > 0) {
     const { data: surfaces } = await supabase
       .from("wo_surfaces").select("work_order_id, state").in("work_order_id", ids);
+    const byId = new Map(workOrders.map((w) => [w.id, w]));
     for (const row of (surfaces ?? []) as { work_order_id: string; state: string }[]) {
-      const w = workOrders.find((x) => x.id === row.work_order_id);
+      const w = byId.get(row.work_order_id);
       if (!w) continue;
       w.ticksTotal += 1;
       if (row.state === "done") w.ticksDone += 1;

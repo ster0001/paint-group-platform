@@ -28,17 +28,16 @@ import type { Adjustments, PricingContext } from "./estimate";
  *    this context crosses the wire — customerPayload emits a range, never a
  *    rate. Re-check this if a new caller passes a client that is neither.
  *  - A SHORT TTL, so a rate change a staff member makes shows up within
- *    seconds without anyone clearing anything.
+ *    seconds without anyone clearing anything. The TTL is the ONLY
+ *    invalidation: settings and rates are edited straight from the browser
+ *    under RLS, so there is no server hook an explicit invalidate could hang
+ *    off. An exported `invalidatePricingContext` used to sit here promising a
+ *    discipline nothing followed — worse than no hook at all.
  *  - PER-PROCESS. Serverless gives each instance its own copy; a miss just
  *    means the old four queries.
  */
 const CACHE_TTL_MS = 20_000;
 let cached: { at: number; ctx: PricingContext } | null = null;
-
-/** Drop the cached reference data — call after writing rates or settings. */
-export function invalidatePricingContext(): void {
-  cached = null;
-}
 
 export async function loadPricingContext(supabase: SupabaseClient): Promise<PricingContext> {
   const now = Date.now();
