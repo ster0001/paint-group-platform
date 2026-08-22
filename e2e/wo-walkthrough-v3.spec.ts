@@ -133,6 +133,22 @@ test.describe("v3 walkthrough + two-mode sign-off", () => {
     expect(data?.signed_name).toBe("Melissa Hartley");
   });
 
+  test("the signed page renders the completion report the email promises", async ({ browser }) => {
+    // The ⚑10 email links to /s/<customer_token> saying the report lives
+    // there. Fetched as the CUSTOMER: no session, just the link from the email.
+    const anon = await browser.newContext();
+    try {
+      const page = await anon.newPage();
+      await page.goto(`/s/${token}`);
+      await expect(page.getByTestId("signed")).toBeVisible();
+      await expect(page.getByTestId("completion-report")).toBeVisible();
+      await expect(page.getByTestId("report-warranty")).toContainText(/warranty/i);
+      await expect(page.getByTestId("report-area-Front")).toContainText("Walls");
+    } finally {
+      await anon.close();
+    }
+  });
+
   test("an unassigned contractor cannot open Walkthrough Mode on someone else's job", async () => {
     // The fixture's job belongs to E2E_CONTRACTOR; staff without the contractor
     // hat pass is_staff, so use a second fixture owned by nobody to prove the

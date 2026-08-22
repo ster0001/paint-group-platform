@@ -11,3 +11,20 @@
 .wt-sign { margin-top: 8px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--line); padding-top: 18px; }
 .wt-away { margin-top: 6px; color: var(--muted); font-size: 13px; }
 .wt-away summary { cursor: pointer; padding: 8px 0; }
+
+/* ---- the completion report — the permanent record under the signed banner -- */
+.cv-report { margin-top: 26px; border-top: 1px solid var(--line, #e5e7eb); padding-top: 18px; }
+.cv-report h2 { font-size: 19px; margin: 0 0 4px; }
+.cv-report h3 { font-size: 14px; margin: 18px 0 8px; text-transform: uppercase; letter-spacing: .05em; opacity: .75; }
+.cv-warranty {
+  margin: 12px 0; padding: 12px 14px; border-radius: 10px;
+  background: rgba(47,164,107,.08); border: 1px solid rgba(47,164,107,.35);
+  display: grid; gap: 3px; font-size: 13.5px;
+}
+.cv-warranty b { font-size: 14.5px; }
+.cv-area { margin: 8px 0; font-size: 13.5px; }
+.cv-area ul { margin: 4px 0 0; padding-left: 18px; }
+.cv-area li { margin: 2px 0; }
+.cv-area em, .cv-vars em { font-style: normal; opacity: .65; font-size: 12.5px; }
+.cv-vars { margin: 4px 0 0; padding-left: 18px; font-size: 13.5px; }
+.cv-vars li { margin: 4px 0; }
