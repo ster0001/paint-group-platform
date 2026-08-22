@@ -5,6 +5,7 @@ import { progressByHeading, progressOf, type SurfaceRow } from "@/lib/workorder/
 import { VARIATION_STEPS, stepIndex, type VariationStatus } from "@/lib/workorder/variations";
 import PriceVariation from "./PriceVariation";
 import Checklist, { type ChecklistItem } from "./Checklist";
+import QaCheck, { type QaCheckView } from "./QaCheck";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,9 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
         .eq("work_order_id", id).order("created_at", { ascending: false }),
       supabase.from("wo_updates").select("id, draft_text, final_text, status, for_date")
         .eq("work_order_id", id).order("for_date", { ascending: false }).limit(1),
-      supabase.from("wo_qa_checks").select("id, kind, result, thin_record").eq("work_order_id", id),
+      supabase.from("wo_qa_checks")
+        .select("id, kind, result, thin_record, wo_qa_items(id, label, detail, sort, done_at)")
+        .eq("work_order_id", id),
       supabase.from("wo_checklist_items")
         .select("id, phase, label, detail, required, done_at, auto_key")
         .eq("work_order_id", id).order("phase").order("sort"),
@@ -64,6 +67,15 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     done: r.auto_key === "colours" ? coloursConfirmed
         : r.auto_key === "qa" ? qaScheduled
         : r.done_at !== null,
+  }));
+
+  const qaChecks: QaCheckView[] = ((qaRows ?? []) as unknown as {
+    id: string; kind: string; result: string | null; thin_record: boolean;
+    wo_qa_items: { id: string; label: string; detail: string; sort: number; done_at: string | null }[] | null;
+  }[]).map((c) => ({
+    id: c.id, kind: c.kind, result: c.result, thinRecord: c.thin_record,
+    standards: [...(c.wo_qa_items ?? [])].sort((a, b) => a.sort - b.sort)
+      .map((i) => ({ id: i.id, label: i.label, detail: i.detail, done: i.done_at !== null })),
   }));
 
   const forPhase = (phase: string) => checklist.filter((c) => c.phase === phase);
@@ -220,6 +232,10 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
               outstanding={outstanding("completion_prep")}
             />
           )}
+
+          {row.stage === "qa" && qaChecks.map((c) => (
+            <QaCheck key={c.id} check={c} />
+          ))}
 
           {variations.map((v) => (
             <div className="card" key={v.id} id={`variation-${v.id}`} data-testid={`variation-${v.id}`}>

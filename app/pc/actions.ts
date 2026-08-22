@@ -26,6 +26,10 @@ async function call(fn: string, args: Record<string, unknown>, okWording?: strin
     return { ok: true, message: okWording };
   }
   const reason = s.replace("error:", "");
+  if (reason.startsWith("standards_outstanding:")) {
+    const n = reason.split(":")[1];
+    return { ok: false, message: `Look at all the standards first — ${n} still unticked.` };
+  }
   return { ok: false, message: reason.replace(/_/g, " ") };
 }
 
@@ -81,6 +85,12 @@ export async function tickChecklistItem(raw: unknown): Promise<PcResult> {
     };
   }
   return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") };
+}
+
+export async function tickQaItem(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ itemId: uuid, done: z.boolean() }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  return call("wo_tick_qa_item", { p_item_id: parsed.data.itemId, p_done: parsed.data.done });
 }
 
 export async function recordQa(raw: unknown): Promise<PcResult> {
