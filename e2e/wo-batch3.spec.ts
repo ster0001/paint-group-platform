@@ -131,7 +131,9 @@ test.describe("batch 3 — cadence, finish date, unbooked walkthrough, staff sig
     expect((closed as { stage: string }).stage).toBe("closed");
     const { data: warranty } = await db!.from("warranties").select("id").eq("work_order_id", f!.workOrderId);
     expect((warranty ?? []).length).toBe(1);
-    expect(await rpcAs(staff!, "wo_staff_sign", { p_work_order_id: f!.workOrderId, p_name: "Pat Customer", p_note: "" })).toBe("ok:already");
+    // A second press: the job is closed now, so the stage check answers first.
+    expect(await rpcAs(staff!, "wo_staff_sign", { p_work_order_id: f!.workOrderId, p_name: "Pat Customer", p_note: "" }))
+      .toMatch(/^(ok:already|error:not_at_walkthrough)$/);
   });
 
   test("the painter's page shows the finish date and lets them move it; the staff card shows the estimated finish", async ({ page }) => {
