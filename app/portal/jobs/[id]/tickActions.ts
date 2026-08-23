@@ -112,7 +112,7 @@ export async function startWalkthroughMode(raw: unknown): Promise<WalkthroughMod
 }
 
 export type FinishResult =
-  | { ok: true; to: "completion_prep"; qaPending: boolean }
+  | { ok: true; to: "qa" | "walkthrough" }
   | { ok: false; message: string };
 
 /**
@@ -130,12 +130,26 @@ export async function contractorFinish(raw: unknown): Promise<FinishResult> {
   });
   if (error) return { ok: false, message: "Couldn't finish up just now — check your signal and try again." };
 
+  // completion_prep is invisible now (Tom, 23 Aug): finishing and confirming
+  // are ONE press. The finish moves through the hidden stage; the confirm
+  // routes it — qa when a check is due, otherwise the pack goes out. A job
+  // already sitting at the hidden stage (staff moved it) skips straight to
+  // the confirm.
   const s = String(data ?? "");
-  revalidatePath("/portal/jobs");
-  if (s === "ok:completion_prep:qa_pending") return { ok: true, to: "completion_prep", qaPending: true };
-  if (s === "ok:completion_prep") return { ok: true, to: "completion_prep", qaPending: false };
   if (s.startsWith("error:gate:")) return { ok: false, message: s.slice("error:gate:".length) };
-  if (s === "error:not_in_progress") return { ok: false, message: "This job isn't running right now — pull down to refresh." };
+  if (!s.startsWith("ok:") && s !== "error:not_in_progress") {
+    return { ok: false, message: "Couldn't finish up just now." };
+  }
+
+  const { data: routed, error: routeError } = await supabase.rpc("wo_contractor_confirm_prep", {
+    p_work_order_id: parsed.data.workOrderId,
+  });
+  revalidatePath("/portal/jobs");
+  if (routeError) return { ok: false, message: "Couldn't finish up just now — check your signal and try again." };
+  const r = String(routed ?? "");
+  if (r === "ok:qa") return { ok: true, to: "qa" };
+  if (r === "ok:walkthrough") return { ok: true, to: "walkthrough" };
+  if (r.startsWith("error:gate:")) return { ok: false, message: r.slice("error:gate:".length) };
   return { ok: false, message: "Couldn't finish up just now." };
 }
 

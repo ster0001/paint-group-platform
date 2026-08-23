@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { STAGE_LANES, WO_STAGES, type WoStage } from "@/lib/workorder/stages";
+import { STAGE_LANES, WO_STAGES, type WoStage, VISIBLE_STAGES, visibleStage } from "@/lib/workorder/stages";
 import { progressByHeading, progressOf, type SurfaceRow } from "@/lib/workorder/surfaces";
 import { VARIATION_STEPS, stepIndex, type VariationStatus } from "@/lib/workorder/variations";
 import PriceVariation from "./PriceVariation";
@@ -72,6 +72,12 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
   // job answers ok:0. Best-effort — the page renders regardless.
   if (row.stage === "pre_start" || row.stage === "in_progress") {
     await supabase.rpc("wo_schedule_qa", { p_work_order_id: id }).then(() => {}, () => {});
+  }
+  // The finishing-up list is part of the tick-off step (Tom, 23 Aug): seed it
+  // the moment the job is in progress or parked at the hidden prep stage, so
+  // the questions are on screen when the last box is ticked. Idempotent.
+  if (row.stage === "in_progress" || row.stage === "completion_prep") {
+    await supabase.rpc("wo_seed_prep_checklist", { p_work_order_id: id }).then(() => {}, () => {});
   }
 
   const coloursConfirmed = Boolean(
@@ -160,7 +166,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     v.status === "raised" || v.status === "priced" || v.status === "customer_approved");
   const gp = contract > 0 ? Math.round(((contract - contractorPay) / contract) * 1000) / 10 : 0;
 
-  const stageIndex = WO_STAGES.indexOf(row.stage);
+  const stageIndex = VISIBLE_STAGES.indexOf(visibleStage(row.stage));
   const update = ((updateRows ?? []) as { id: string; draft_text: string; final_text: string | null; status: string; for_date: string }[])[0];
 
   return (
@@ -188,7 +194,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
         </div>
 
         <div className="rail7" data-testid="stage-rail">
-          {WO_STAGES.map((stage, i) => (
+          {VISIBLE_STAGES.map((stage, i) => (
             <span className={`st ${i < stageIndex ? "p" : i === stageIndex ? "c" : ""}`} key={stage}
               data-testid={`rail-${stage}`}>
               <i /><span>{STAGE_LANES[stage].n} {STAGE_LANES[stage].title}</span>
@@ -327,10 +333,14 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             />
           )}
 
-          {row.stage === "completion_prep" && forPhase("completion_prep").length > 0 && (
+          {/* The finishing-up list, shown WITH the ticks once they're done —
+              completion prep is not a stage anyone sees any more. */}
+          {(row.stage === "completion_prep"
+            || (row.stage === "in_progress" && progress.done === progress.total && progress.total > 0))
+            && forPhase("completion_prep").length > 0 && (
             <Checklist
-              title="Completion prep"
-              caption="The last pass before the customer walks through."
+              title="Finishing up"
+              caption="The last pass before the customer walks through — part of ticking off."
               items={forPhase("completion_prep")}
               outstanding={outstanding("completion_prep")}
             />

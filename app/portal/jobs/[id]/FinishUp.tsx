@@ -20,9 +20,9 @@ export default function FinishUp({ workOrderId }: { workOrderId: string }) {
     const r = await contractorFinish({ workOrderId });
     setBusy(false);
     if (!r.ok) { setMessage(r.message); return; }
-    setMessage(r.qaPending
-      ? "Nice work — on to completion prep. Heads up: Paint Group will quality check this job before sign-off, so the sign-off date gets booked once the check has passed."
-      : "Nice work — on to completion prep. Confirm it and the sign-off gets moving.");
+    setMessage(r.to === "qa"
+      ? "Nice work. Paint Group will quality check the job now — the sign-off date gets booked with the customer once it passes."
+      : "Nice work — the customer has their pack, and the walkthrough is next.");
     router.refresh();
   }
 
@@ -30,13 +30,14 @@ export default function FinishUp({ workOrderId }: { workOrderId: string }) {
     <div className="card" data-testid="finish-up">
       <div className="tick-head"><b>All surfaces done</b></div>
       <p className="hint" style={{ padding: 0, marginTop: 6 }}>
-        Everything&rsquo;s ticked. Next up is completion prep — the last pass
-        before handover.
+        Work through the finishing-up list above, then send the job on — if a
+        quality check is due it happens before the customer walkthrough is
+        booked.
       </p>
       {message && <p className="tick-msg" role="status" data-testid="finish-msg">{message}</p>}
       <button type="button" className="btn" disabled={busy} onClick={() => void finish()}
         data-testid="finish-job" style={{ marginTop: 10 }}>
-        {busy ? "Sending…" : "I'm done — next step"}
+        {busy ? "Sending…" : "All done — next step"}
       </button>
     </div>
   );

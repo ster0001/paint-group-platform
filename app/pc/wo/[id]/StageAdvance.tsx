@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { advanceStage, deliverEvidencePack, startNow } from "../../actions";
+import { advanceStage, confirmPrepStaff, deliverEvidencePack, startNow } from "../../actions";
 import { STAGE_LANES, nextStages, type WoStage } from "@/lib/workorder/stages";
 
 /**
@@ -90,6 +90,23 @@ export default function StageAdvance({
         </p>
       )}
 
+      {stage === "completion_prep" || stage === "in_progress" ? (
+        <div className="row">
+          {/* One routed step, same as the painter's: the server decides
+              quality-check-or-pack. Two raw lane buttons here made the split
+              look like a staff choice — it isn't (Tom, 23 Aug). */}
+          <button type="button" className="btn primary" disabled={pending}
+            data-testid="advance-confirm-prep"
+            onClick={() => startTransition(async () => {
+              setMessage(null);
+              const r = await confirmPrepStaff({ workOrderId });
+              if (r.ok && r.to) { setMoved(r.to); setMessage(r.message ?? null); }
+              else setMessage(r.message ?? "That didn't work.");
+            })}>
+            {pending ? "Working…" : "All done — next step"}
+          </button>
+        </div>
+      ) : (
       <div className="row">
         {moves.map((t) => (
           <button key={t.to} type="button" className="btn primary" disabled={pending}
@@ -102,6 +119,7 @@ export default function StageAdvance({
           </button>
         ))}
       </div>
+      )}
       <p className="note">
         {stage === "pre_start" ? (early
             ? "Tick the list whenever you like — the job starts itself on its booked date."

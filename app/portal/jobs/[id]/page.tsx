@@ -8,7 +8,6 @@ import RescheduleRequest from "./RescheduleRequest";
 import TickList from "@/app/components/wo/TickList";
 import Variations, { type VariationView } from "./Variations";
 import PrepChecklist, { type PrepItem } from "./PrepChecklist";
-import ConfirmPrep from "./ConfirmPrep";
 import FinishUp from "./FinishUp";
 import WalkthroughStart from "./WalkthroughStart";
 import CrewShare from "./CrewShare";
@@ -146,9 +145,27 @@ export default async function PortalJobPage({
   const bookedFinal = ((walkthroughRows ?? []) as { kind: string; scheduled_date: string }[])
     .find((w) => w.kind === "final")?.scheduled_date ?? null;
   const canPrep = stage === "completion_prep";
-  const prepDone = prepItems.length > 0 && prepItems.every((i) => !i.required || i.done);
-  const qaPending = ((qaRows ?? []) as { result: string | null }[])
-    .some((c) => c.result === null || c.result === "fail");
+  // The finishing-up list belongs to the TICK-OFF step now (Tom, 23 Aug): it
+  // appears the moment every surface is done, while the job still reads
+  // In progress. Seed on demand — idempotent, and the refetch picks it up.
+  if ((canPrep || (canTick && allSurfacesDone)) && prepItems.length === 0) {
+    const { data: seeded } = await supabase.rpc("wo_seed_prep_checklist", { p_work_order_id: id });
+    if (String(seeded ?? "").startsWith("ok:") && String(seeded) !== "ok:0") {
+      // The refetch MUST NOT be byte-identical to the page's earlier prep
+      // query: Next memoises fetches per request, and an identical URL would
+      // hand back the pre-seed EMPTY result — the list then only appeared on
+      // the NEXT page view (found 23 Aug, masked for a while by the router
+      // firing double requests). `sort` in the select changes the URL.
+      const { data: fresh } = await supabase.from("wo_checklist_items")
+        .select("id, label, detail, required, done_at, sort")
+        .eq("work_order_id", id).eq("phase", "completion_prep").order("sort");
+      prepItems.length = 0;
+      for (const r of ((fresh ?? []) as { id: string; label: string; detail: string | null; required: boolean; done_at: string | null }[])) {
+        prepItems.push({ id: r.id, label: r.label, detail: r.detail ?? "", required: r.required, done: Boolean(r.done_at) });
+      }
+    }
+  }
+
 
   return (
     <div className="wrap" style={{ paddingLeft: 0, paddingRight: 0 }}>
@@ -204,9 +221,13 @@ export default async function PortalJobPage({
         </div>
       )}
 
-      {/* Every surface done → the painter finishes the job themselves. */}
-      {canTick && allSurfacesDone && (
+      {/* Every surface done → the finishing-up list joins the tick-off step,
+          and one press routes the job (the hidden prep stage is the server's
+          business, not the painter's). A job staff parked mid-hand-over gets
+          the same screen. */}
+      {((canTick && allSurfacesDone) || canPrep) && (
         <div style={{ padding: "0 16px" }}>
+          {prepItems.length > 0 && <PrepChecklist items={prepItems} />}
           <FinishUp workOrderId={id} />
         </div>
       )}
@@ -239,18 +260,6 @@ export default async function PortalJobPage({
       {job.committed && (
         <div style={{ padding: "0 16px" }}>
           <CrewShare workOrderId={id} />
-        </div>
-      )}
-
-      {canPrep && prepDone && (
-        <div style={{ padding: "0 16px" }}>
-          <ConfirmPrep workOrderId={id} qaPending={qaPending} />
-        </div>
-      )}
-
-      {canPrep && prepItems.length > 0 && (
-        <div style={{ padding: "0 16px" }}>
-          <PrepChecklist items={prepItems} />
         </div>
       )}
 

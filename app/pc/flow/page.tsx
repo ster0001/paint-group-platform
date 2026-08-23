@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { loadConsole } from "@/lib/workorder/consoleData";
 import { buildQueue } from "@/lib/workorder/console";
-import { STAGE_LANES, WO_STAGES } from "@/lib/workorder/stages";
+import { STAGE_LANES, VISIBLE_STAGES, visibleStage } from "@/lib/workorder/stages";
 
 export const dynamic = "force-dynamic";
 
@@ -39,8 +39,8 @@ export default async function FlowPage() {
       <div className="sect">
         <div className="riverwrap">
           <div className="river" data-testid="river">
-            {WO_STAGES.map((stage) => {
-              const jobs = input.workOrders.filter((w) => w.stage === stage);
+            {VISIBLE_STAGES.map((stage) => {
+              const jobs = input.workOrders.filter((w) => visibleStage(w.stage as never) === stage);
               const lane = STAGE_LANES[stage];
               return (
                 <div className={`lane ${jobs.length > 0 ? "hot" : ""}`} key={stage} data-testid={`lane-${stage}`}>

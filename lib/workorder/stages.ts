@@ -51,15 +51,31 @@ export const TRANSITIONS: readonly WoTransition[] = [
   { from: "walkthrough", to: "in_progress", label: "area flagged — rectification raised", actors: ["staff", "customer"] },
 ];
 
-/** Console lane numbering and wording — the mockup's "01 Offer" … "07 Closed". */
+/**
+ * The stages a person SEES. completion_prep still exists in the machine — it
+ * is the gate between the ticks and the qa/sign-off split — but Tom ruled it
+ * off every screen (23 Aug): the prep questions are part of the tick-off step,
+ * and a job passing through (or parked at) completion_prep displays as
+ * In progress. Fold with `visibleStage()`, list lanes with VISIBLE_STAGES.
+ */
+export type VisibleStage = Exclude<WoStage, "completion_prep">;
+export const VISIBLE_STAGES =
+  WO_STAGES.filter((s): s is VisibleStage => s !== "completion_prep");
+
+/** Where a stage DISPLAYS — completion_prep folds into in_progress. */
+export const visibleStage = (s: WoStage): VisibleStage =>
+  s === "completion_prep" ? "in_progress" : s;
+
+/** Console lane numbering and wording — six lanes on screen since 23 Aug. */
 export const STAGE_LANES: Record<WoStage, { n: string; title: string }> = {
   offered: { n: "01", title: "Offer" },
   pre_start: { n: "02", title: "Pre-start" },
   in_progress: { n: "03", title: "In progress" },
   qa: { n: "04", title: "Quality check" },
-  completion_prep: { n: "05", title: "Completion prep" },
-  walkthrough: { n: "06", title: "Walkthrough" },
-  closed: { n: "07", title: "Closed" },
+  // Display identity of in_progress — never shown as its own lane or rail stop.
+  completion_prep: { n: "03", title: "In progress" },
+  walkthrough: { n: "05", title: "Walkthrough" },
+  closed: { n: "06", title: "Closed" },
 };
 
 export function findTransition(from: WoStage, to: WoStage): WoTransition | undefined {

@@ -310,3 +310,43 @@ export async function generateReportDraft(raw: unknown): Promise<PcResult> {
   return call("wo_generate_report_draft", { p_work_order_id: parsed.data.workOrderId },
     "Draft report generated.");
 }
+
+/**
+ * Staff confirm the prep from the console — the SAME routed step the painter
+ * has: the server sends the job to quality check when one is due, otherwise
+ * the pack goes to the customer. One button, no lane-picking.
+ */
+export async function confirmPrepStaff(raw: unknown): Promise<PcResult & { to?: "qa" | "walkthrough" }> {
+  const parsed = z.object({ workOrderId: uuid }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+
+  const supabase = await createClient();
+
+  // completion_prep is invisible: from in_progress this walks the hidden stage
+  // and routes in one press. Already past the ticks? The finish no-ops with
+  // not_in_progress and the confirm still runs.
+  const { data: finished } = await supabase.rpc("wo_contractor_finish", {
+    p_work_order_id: parsed.data.workOrderId,
+  });
+  const f = String(finished ?? "");
+  if (f.startsWith("error:gate:")) return { ok: false, message: humaniseGate(f.slice("error:gate:".length)) };
+
+  const { data, error } = await supabase.rpc("wo_contractor_confirm_prep", {
+    p_work_order_id: parsed.data.workOrderId,
+  });
+  if (error) return { ok: false, message: error.message };
+
+  const s = String(data ?? "");
+  if (s === "ok:qa" || s === "ok:walkthrough") {
+    revalidatePath("/pc"); revalidatePath("/pc/flow");
+    return {
+      ok: true,
+      to: s === "ok:qa" ? "qa" : "walkthrough",
+      message: s === "ok:qa"
+        ? "Prep confirmed — quality check next. The sign-off date gets booked once it passes."
+        : "Prep confirmed — the pack is with the customer, sign-off is running.",
+    };
+  }
+  if (s.startsWith("error:gate:")) return { ok: false, message: humaniseGate(s.slice("error:gate:".length)) };
+  return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") };
+}

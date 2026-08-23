@@ -66,7 +66,7 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
           </div>
           <span className="wo-chips">
             {stage ? (
-              <span className={`stage-badge ${stage}`} title={`Stage ${STAGE_LANES[stage].n} of 07`}>
+              <span className={`stage-badge ${stage}`} title={`Stage ${STAGE_LANES[stage].n} of 06`}>
                 <b>{STAGE_LANES[stage].n}</b> {STAGE_LANES[stage].title}
               </span>
             ) : null}

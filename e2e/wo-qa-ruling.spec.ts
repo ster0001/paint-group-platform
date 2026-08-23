@@ -105,16 +105,26 @@ test.describe("QA ruling — finish, route, gate", () => {
     expect(delivered).toMatch(/^ok:/);
   });
 
-  test("the painter's own screen: finish → completion prep with the QA heads-up", async ({ page }) => {
+  test("the painter's screen: ticks done → finishing-up list, one press routes it", async ({ page }) => {
     await signIn(page, contractor!, /\/portal/);
     await page.goto(`/portal/jobs/${uiFixture!.workOrderId}`);
-    await page.getByTestId("finish-job").click();
-    // Prep is next, and the painter is told the check comes before sign-off.
-    await expect(page.getByTestId("finish-msg")).toContainText(/completion prep/i, { timeout: 15_000 });
-    await expect(page.getByTestId("finish-msg")).toContainText(/quality check/i);
 
-    // At completion prep, the checklist renders (items seed on stage entry).
-    await page.reload();
+    // The finishing-up list is part of the tick-off step — visible at
+    // In progress the moment every surface is done, no stage change shown.
     await expect(page.getByTestId("prep-checklist")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("finish-job")).toBeVisible();
+
+    // Unticked list → the press is refused in the gate's words.
+    await page.getByTestId("finish-job").click();
+    await expect(page.getByTestId("finish-msg")).toContainText(/still to tick/i, { timeout: 15_000 });
+
+    // Tick it (the office can too), press again → routed to quality check.
+    const { data: prep } = await db!.from("wo_checklist_items")
+      .select("id").eq("work_order_id", uiFixture!.workOrderId).eq("phase", "completion_prep");
+    for (const item of (prep ?? []) as { id: string }[]) {
+      await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: item.id, p_done: true });
+    }
+    await page.getByTestId("finish-job").click();
+    await expect(page.getByTestId("finish-msg")).toContainText(/quality check/i, { timeout: 15_000 });
   });
 });

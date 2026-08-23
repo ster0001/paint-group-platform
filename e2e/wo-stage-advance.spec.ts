@@ -76,12 +76,14 @@ test.describe("moving a job forward from the console", () => {
   test("the console never offers a move the machine would call illegal", async ({ page }) => {
     await signIn(page, staff!, /\/estimates/);
     await page.goto(`/pc/wo/${job!.workOrderId}`);
-    // Ruling of 23 Aug: from in_progress the ONLY forward move is completion
-    // prep — the qa-or-signoff split happens after prep is confirmed.
-    await expect(page.getByTestId("advance-completion_prep")).toBeVisible();
+    // Ruling of 23 Aug (evening): completion prep is not a visible stage.
+    // From in_progress there is ONE routed button; the qa-or-signoff split is
+    // the server's, and no raw lane button exists to bypass it.
+    await expect(page.getByTestId("advance-confirm-prep")).toBeVisible();
     await expect(page.getByTestId("advance-qa")).toHaveCount(0);
     await expect(page.getByTestId("advance-closed")).toHaveCount(0);
     await expect(page.getByTestId("advance-walkthrough")).toHaveCount(0);
+    await expect(page.getByTestId("advance-completion_prep")).toHaveCount(0);
   });
 
   test("a job booked for next week warns before starting early, and moves the date", async ({ page }) => {
@@ -180,7 +182,9 @@ test.describe("moving a job forward from the console", () => {
 
     await signIn(page, staff!, /\/estimates/);
     await page.goto(`/pc/wo/${job!.workOrderId}`);
-    await page.getByTestId("advance-walkthrough").click();
+    // One routed button at prep — the server picked walkthrough because every
+    // check is settled.
+    await page.getByTestId("advance-confirm-prep").click();
     await expect(page.getByTestId("stage-moved")).toContainText("Walkthrough");
 
     // The customer has something to open — a stage move alone would not do this.
