@@ -58,14 +58,14 @@ update public.wo_checklist_items
 -- Jobs that already have a prep list get the two new items now, so the list on
 -- screen is complete on the NEXT view, not the one after the seeder runs.
 insert into public.wo_checklist_items (work_order_id, phase, label, detail, required, sort, kind, item_key)
-select distinct i.work_order_id, 'completion_prep', 'All work completed to the level required', '', true, 6, 'tick', 'scope_complete'
+select distinct i.work_order_id, 'completion_prep'::public.wo_checklist_phase, 'All work completed to the level required', '', true, 6, 'tick', 'scope_complete'
   from public.wo_checklist_items i
   join public.work_orders w on w.id = i.work_order_id
  where i.phase = 'completion_prep' and w.stage not in ('closed')
    and not exists (select 1 from public.wo_checklist_items x
                     where x.work_order_id = i.work_order_id and x.phase = 'completion_prep' and x.item_key = 'scope_complete');
 insert into public.wo_checklist_items (work_order_id, phase, label, detail, required, sort, kind, item_key)
-select distinct i.work_order_id, 'completion_prep', 'Any notes for the customer', 'Shown to the customer at sign-off', false, 7, 'note', 'customer_note'
+select distinct i.work_order_id, 'completion_prep'::public.wo_checklist_phase, 'Any notes for the customer', 'Shown to the customer at sign-off', false, 7, 'note', 'customer_note'
   from public.wo_checklist_items i
   join public.work_orders w on w.id = i.work_order_id
  where i.phase = 'completion_prep' and w.stage not in ('closed')
