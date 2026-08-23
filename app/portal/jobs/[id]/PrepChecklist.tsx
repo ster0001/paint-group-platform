@@ -32,7 +32,7 @@ export default function PrepChecklist({ items }: { items: PrepItem[] }) {
   return (
     <div className="card" style={{ marginTop: 12 }} data-testid="prep-checklist">
       <div className="tick-head">
-        <b>Before the customer walks through</b>
+        <b>Completion prep</b>
         <span className="tick-count" data-testid="prep-count">
           {left === 0 ? "all done" : `${left} to go`}
         </span>

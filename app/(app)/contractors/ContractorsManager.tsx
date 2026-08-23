@@ -14,6 +14,8 @@ export type ContractorSummary = {
   crewSize: number;
   active: boolean;
   offerable: boolean;
+  /** Staff-set: every job quality checked, not just their first few. */
+  requiresQa: boolean;
   abn: string;
   hasBank: boolean;
   docs: ContractorDoc[];
@@ -117,6 +119,22 @@ export default function ContractorsManager({
     if (error) setErr(error.message);
     else {
       setMsg("Invite revoked — that link no longer works.");
+      router.refresh();
+    }
+    setBusy(null);
+  }
+
+  async function setRequiresQa(id: string, requires: boolean) {
+    setBusy(id);
+    setErr("");
+    const { data, error } = await supabase.rpc("set_contractor_requires_qa",
+      { p_contractor_id: id, p_requires: requires });
+    if (error) setErr(error.message);
+    else if (String(data).startsWith("error:")) setErr(String(data).replace("error:", ""));
+    else {
+      setMsg(requires
+        ? "Every job for this contractor now gets a quality check before sign-off."
+        : "Back to the normal cadence — first few jobs only.");
       router.refresh();
     }
     setBusy(null);
@@ -429,6 +447,19 @@ export default function ContractorsManager({
                     <span className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600">
                       {c.crewSize} painter{c.crewSize === 1 ? "" : "s"}
                     </span>
+                    <button
+                      onClick={() => setRequiresQa(c.id, !c.requiresQa)}
+                      disabled={busy === c.id}
+                      title="Quality check every job for this contractor before sign-off"
+                      data-testid={`requires-qa-${c.id}`}
+                      className={`rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50 ${
+                        c.requiresQa
+                          ? "bg-amber-100 text-amber-800 border border-amber-300"
+                          : "border border-gray-300 text-gray-700 hover:bg-gray-100"
+                      }`}
+                    >
+                      {c.requiresQa ? "QA: every job" : "QA: first jobs"}
+                    </button>
                     <button
                       onClick={() => setActive(c.id, !c.active)}
                       disabled={busy === c.id}

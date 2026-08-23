@@ -76,9 +76,10 @@ test.describe("moving a job forward from the console", () => {
   test("the console never offers a move the machine would call illegal", async ({ page }) => {
     await signIn(page, staff!, /\/estimates/);
     await page.goto(`/pc/wo/${job!.workOrderId}`);
-    // From in_progress the only forward moves are QA and completion prep.
-    await expect(page.getByTestId("advance-qa")).toBeVisible();
+    // Ruling of 23 Aug: from in_progress the ONLY forward move is completion
+    // prep — the qa-or-signoff split happens after prep is confirmed.
     await expect(page.getByTestId("advance-completion_prep")).toBeVisible();
+    await expect(page.getByTestId("advance-qa")).toHaveCount(0);
     await expect(page.getByTestId("advance-closed")).toHaveCount(0);
     await expect(page.getByTestId("advance-walkthrough")).toHaveCount(0);
   });
@@ -169,6 +170,13 @@ test.describe("moving a job forward from the console", () => {
     for (const i of (items as { id: string }[])) {
       await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: i.id, p_done: true });
     }
+
+    // Earlier tests VIEWED this job while in progress, and the console
+    // self-heals QA scheduling for a new contractor — so checks exist here,
+    // and the ruling says the pack cannot leave while one is unpassed. This
+    // test is about the pack minting the link, so settle the checks first.
+    await db!.from("wo_qa_checks").update({ result: "pass" })
+      .eq("work_order_id", job!.workOrderId).is("result", null);
 
     await signIn(page, staff!, /\/estimates/);
     await page.goto(`/pc/wo/${job!.workOrderId}`);

@@ -110,3 +110,58 @@ export async function startWalkthroughMode(raw: unknown): Promise<WalkthroughMod
   if (s === "error:not_yours") return { ok: false, message: "That job isn't yours." };
   return { ok: false, message: "Couldn't start the walkthrough just now." };
 }
+
+export type FinishResult =
+  | { ok: true; to: "completion_prep"; qaPending: boolean }
+  | { ok: false; message: string };
+
+/**
+ * "I'm done" — the painter finishes their own job. The SERVER routes it:
+ * quality checks due → qa (with the notice event), none → completion prep.
+ * The same stage gates apply as any advance; this never picks for the painter.
+ */
+export async function contractorFinish(raw: unknown): Promise<FinishResult> {
+  const parsed = z.object({ workOrderId: z.string().uuid() }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "That didn't make sense — pull down to refresh." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_contractor_finish", {
+    p_work_order_id: parsed.data.workOrderId,
+  });
+  if (error) return { ok: false, message: "Couldn't finish up just now — check your signal and try again." };
+
+  const s = String(data ?? "");
+  revalidatePath("/portal/jobs");
+  if (s === "ok:completion_prep:qa_pending") return { ok: true, to: "completion_prep", qaPending: true };
+  if (s === "ok:completion_prep") return { ok: true, to: "completion_prep", qaPending: false };
+  if (s.startsWith("error:gate:")) return { ok: false, message: s.slice("error:gate:".length) };
+  if (s === "error:not_in_progress") return { ok: false, message: "This job isn't running right now — pull down to refresh." };
+  return { ok: false, message: "Couldn't finish up just now." };
+}
+
+export type ConfirmPrepResult =
+  | { ok: true; to: "qa" | "walkthrough" }
+  | { ok: false; message: string };
+
+/**
+ * Prep confirmed — the SERVER routes it: quality check when one is due,
+ * otherwise the pack goes to the customer and sign-off begins.
+ */
+export async function contractorConfirmPrep(raw: unknown): Promise<ConfirmPrepResult> {
+  const parsed = z.object({ workOrderId: z.string().uuid() }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "That didn't make sense — pull down to refresh." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_contractor_confirm_prep", {
+    p_work_order_id: parsed.data.workOrderId,
+  });
+  if (error) return { ok: false, message: "Couldn't confirm just now — check your signal and try again." };
+
+  const s = String(data ?? "");
+  revalidatePath("/portal/jobs");
+  if (s === "ok:qa") return { ok: true, to: "qa" };
+  if (s === "ok:walkthrough") return { ok: true, to: "walkthrough" };
+  if (s.startsWith("error:gate:")) return { ok: false, message: s.slice("error:gate:".length) };
+  if (s === "error:not_at_prep") return { ok: false, message: "This job isn't at prep — pull down to refresh." };
+  return { ok: false, message: "Couldn't confirm just now." };
+}

@@ -60,6 +60,7 @@ export default async function ContractorsPage() {
     crewSize: c.crew_size ?? 1,
     active: c.active,
     offerable: c.offerable,
+    requiresQa: Boolean((c as Row & { requires_qa?: boolean }).requires_qa),
     abn: c.abn ?? "",
     hasBank: Boolean(c.bank_account_last4),
     docs: allDocs.filter((d) => d.contractor_id === c.id),

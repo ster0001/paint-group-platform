@@ -8,6 +8,8 @@ import RescheduleRequest from "./RescheduleRequest";
 import TickList from "@/app/components/wo/TickList";
 import Variations, { type VariationView } from "./Variations";
 import PrepChecklist, { type PrepItem } from "./PrepChecklist";
+import ConfirmPrep from "./ConfirmPrep";
+import FinishUp from "./FinishUp";
 import WalkthroughStart from "./WalkthroughStart";
 import CrewShare from "./CrewShare";
 import SitePhotos from "./SitePhotos";
@@ -68,7 +70,7 @@ export default async function PortalJobPage({
 
   // The tick list and the before-photos already logged. RLS scopes both to this
   // contractor's own jobs, so an id that isn't theirs simply returns nothing.
-  const [{ data: surfaceRows }, { data: photoRows }, { data: woRow }, { data: walkthroughRows }] = await Promise.all([
+  const [{ data: surfaceRows }, { data: photoRows }, { data: woRow }, { data: walkthroughRows }, { data: qaRows }] = await Promise.all([
     supabase.from("wo_surfaces")
       .select("id, heading, heading_meta, label, state, rectification")
       .eq("work_order_id", id).order("sort", { ascending: true }),
@@ -78,6 +80,8 @@ export default async function PortalJobPage({
     supabase.from("wo_walkthroughs")
       .select("kind, scheduled_date, status").eq("work_order_id", id)
       .eq("status", "booked"),
+    supabase.from("wo_qa_checks")
+      .select("id, result").eq("work_order_id", id),
   ]);
 
   // Requested or confirmed — derived from the live offer, never stored twice.
@@ -134,11 +138,17 @@ export default async function PortalJobPage({
 
   // Ticking only makes sense once the job is under way — before that the list is
   // still worth seeing, so it renders read-only via the server's own refusal.
-  const canTick = (woRow as { stage?: string } | null)?.stage === "in_progress";
-  const atWalkthrough = (woRow as { stage?: string } | null)?.stage === "walkthrough";
+  const stage = (woRow as { stage?: string } | null)?.stage;
+  const canTick = stage === "in_progress";
+  // Live states are already on this page; done means done, not prepped.
+  const allSurfacesDone = surfaces.length > 0 && surfaces.every((s) => s.state === "done");
+  const atWalkthrough = stage === "walkthrough";
   const bookedFinal = ((walkthroughRows ?? []) as { kind: string; scheduled_date: string }[])
     .find((w) => w.kind === "final")?.scheduled_date ?? null;
-  const canPrep = (woRow as { stage?: string } | null)?.stage === "completion_prep";
+  const canPrep = stage === "completion_prep";
+  const prepDone = prepItems.length > 0 && prepItems.every((i) => !i.required || i.done);
+  const qaPending = ((qaRows ?? []) as { result: string | null }[])
+    .some((c) => c.result === null || c.result === "fail");
 
   return (
     <div className="wrap" style={{ paddingLeft: 0, paddingRight: 0 }}>
@@ -194,6 +204,28 @@ export default async function PortalJobPage({
         </div>
       )}
 
+      {/* Every surface done → the painter finishes the job themselves. */}
+      {canTick && allSurfacesDone && (
+        <div style={{ padding: "0 16px" }}>
+          <FinishUp workOrderId={id} />
+        </div>
+      )}
+
+      {/* The QA notice (Tom, 23 Aug): while the job is being checked, the
+          painter knows sign-off waits for it — no walkthrough date until then. */}
+      {stage === "qa" && (
+        <div style={{ padding: "0 16px" }}>
+          <div className="card" data-testid="qa-notice">
+            <div className="tick-head"><b>Quality check</b></div>
+            <p className="hint" style={{ padding: 0, marginTop: 6 }}>
+              Paint Group is quality checking this job before sign-off. The
+              customer walkthrough gets booked once the check has passed —
+              nothing for you to do here unless something comes back to fix.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* §4b Mode A: at the walkthrough stage the painter runs the sign-off
           from their own phone. */}
       {atWalkthrough && job.committed && (
@@ -207,6 +239,12 @@ export default async function PortalJobPage({
       {job.committed && (
         <div style={{ padding: "0 16px" }}>
           <CrewShare workOrderId={id} />
+        </div>
+      )}
+
+      {canPrep && prepDone && (
+        <div style={{ padding: "0 16px" }}>
+          <ConfirmPrep workOrderId={id} qaPending={qaPending} />
         </div>
       )}
 

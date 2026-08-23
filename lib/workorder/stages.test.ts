@@ -13,7 +13,7 @@ import {
 
 // The canonical seed moved when 'system' was allowed to start a job on its
 // date; the mirror is diffed against wherever the list currently lives.
-const MIGRATION = "supabase/migrations/20261019000000_wo_autostart.sql";
+const MIGRATION = "supabase/migrations/20261030000000_wo_qa_ruling.sql";
 const MACHINE = "supabase/migrations/20260926000000_wo_loop_stage_machine.sql";
 
 describe("the transition matrix", () => {
@@ -61,8 +61,10 @@ describe("the transition matrix", () => {
   });
 
   it("lets a job walk the full happy path", () => {
+    // Ruling of 23 Aug: prep comes BEFORE quality check — ticks done → prep,
+    // prep confirmed → qa (when due) → walkthrough.
     const path: WoStage[] = [
-      "offered", "pre_start", "in_progress", "qa", "completion_prep", "walkthrough", "closed",
+      "offered", "pre_start", "in_progress", "completion_prep", "qa", "walkthrough", "closed",
     ];
     for (let i = 0; i < path.length - 1; i++) {
       expect(isLegalTransition(path[i], path[i + 1])).toBe(true);
@@ -98,13 +100,18 @@ describe("who may ask for a move", () => {
 
   it("keeps QA a staff decision", () => {
     expect(nextStages("qa", "contractor")).toEqual([]);
+    // Pass sends the pack out (walkthrough); fail goes back to the brushes.
     expect(nextStages("qa", "staff").map((t) => t.to).sort())
-      .toEqual(["completion_prep", "in_progress"]);
+      .toEqual(["in_progress", "walkthrough"]);
   });
 
   it("lets the contractor report the work finished", () => {
+    // One exit only: prep. The qa-or-signoff split happens AFTER prep is
+    // confirmed, and the server decides it — never the painter.
     expect(nextStages("in_progress", "contractor").map((t) => t.to).sort())
-      .toEqual(["completion_prep", "qa"]);
+      .toEqual(["completion_prep"]);
+    expect(nextStages("completion_prep", "contractor").map((t) => t.to).sort())
+      .toEqual(["qa", "walkthrough"]);
   });
 });
 

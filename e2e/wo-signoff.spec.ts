@@ -36,6 +36,9 @@ async function readyForWalkthrough(f: LoopFixture): Promise<string> {
   await rpcAs(staff!, "wo_advance_stage", { p_work_order_id: f.workOrderId, p_to: "completion_prep" });
   const result = await rpcAs(staff!, "wo_deliver_evidence_pack", { p_work_order_id: f.workOrderId });
   expect(result).toMatch(/^ok:/);
+  // Mode B (remote sign) is a FALLBACK now — these specs exercise the remote
+  // path, so staff open it the legitimate way: the customer can't attend.
+  await rpcAs(staff!, "wo_mark_client_unavailable", { p_work_order_id: f.workOrderId });
   return result.slice(3);
 }
 

@@ -192,11 +192,25 @@ test.describe("the whole loop, one job", () => {
   });
 
   test("6 · QA fails, and the rectification lands on the SAME tick list", async () => {
-    expect(await rpcAs(staff!, "wo_advance_stage", { p_work_order_id: job!.workOrderId, p_to: "qa" }))
-      .toBe("ok:qa");
+    // Ruling of 23 Aug: ticks done → PREP, and prep gates BOTH exits. The
+    // quality check comes after the prep list is confirmed, never before.
+    expect(await rpcAs(staff!, "wo_advance_stage", { p_work_order_id: job!.workOrderId, p_to: "completion_prep" }))
+      .toBe("ok:completion_prep");
+    expect(await rpcAs(staff!, "wo_seed_prep_checklist", { p_work_order_id: job!.workOrderId })).toMatch(/^ok:/);
 
     const { data: check } = await db!.from("wo_qa_checks")
       .insert({ work_order_id: job!.workOrderId, kind: "final" }).select("id").single();
+
+    const early = await rpcAs(staff!, "wo_advance_stage", { p_work_order_id: job!.workOrderId, p_to: "qa" });
+    expect(early).toContain("still to tick");
+
+    const { data: prep } = await db!.from("wo_checklist_items")
+      .select("id").eq("work_order_id", job!.workOrderId).eq("phase", "completion_prep");
+    for (const item of (prep as { id: string }[])) {
+      await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: item.id, p_done: true });
+    }
+    expect(await rpcAs(staff!, "wo_advance_stage", { p_work_order_id: job!.workOrderId, p_to: "qa" }))
+      .toBe("ok:qa");
 
     const failed = await rpcAs(staff!, "wo_record_qa", {
       p_check_id: (check as { id: string }).id, p_result: "fail",
@@ -221,6 +235,9 @@ test.describe("the whole loop, one job", () => {
       expect(await rpcAs(contractor!, "wo_tick_surface", { p_surface_id: s.id, p_to: "done" })).toBe("ok:done");
     }
 
+    // Back through prep (its items are still ticked from step 6), then to qa.
+    expect(await rpcAs(staff!, "wo_advance_stage", { p_work_order_id: job!.workOrderId, p_to: "completion_prep" }))
+      .toBe("ok:completion_prep");
     expect(await rpcAs(staff!, "wo_advance_stage", { p_work_order_id: job!.workOrderId, p_to: "qa" })).toBe("ok:qa");
 
     const { data: check } = await db!.from("wo_qa_checks")
@@ -238,28 +255,26 @@ test.describe("the whole loop, one job", () => {
       p_check_id: (check as { id: string }).id, p_result: "pass", p_notes: "All good.", p_rectify: [],
     })).toBe("ok:pass");
 
-    // The failed check from step 6 still blocks — every check must be answered pass.
+    // The failed check from step 6 still blocks the pack — every check must
+    // be answered pass before the customer is asked to look.
+    const blocked = await rpcAs(staff!, "wo_deliver_evidence_pack", { p_work_order_id: job!.workOrderId });
+    expect(blocked).toContain("still open");
     await db!.from("wo_qa_checks").update({ result: "pass" })
       .eq("work_order_id", job!.workOrderId).eq("result", "fail");
-
-    expect(await rpcAs(staff!, "wo_advance_stage", { p_work_order_id: job!.workOrderId, p_to: "completion_prep" }))
-      .toBe("ok:completion_prep");
   });
 
-  test("8 · the prep list gates the customer being asked to look", async () => {
-    expect(await rpcAs(staff!, "wo_seed_prep_checklist", { p_work_order_id: job!.workOrderId })).toMatch(/^ok:/);
+  test("8 · the checks all passed, so the pack goes to the customer", async () => {
+    // The console self-heals QA scheduling for a NEW contractor whenever staff
+    // view an in-progress job — earlier steps did exactly that, so cadence
+    // checks (day_one) exist beside the ones this story created. The ruling
+    // says the pack cannot leave while ANY is unpassed; settle the stragglers
+    // the way the office would.
+    await db!.from("wo_qa_checks").update({ result: "pass" })
+      .eq("work_order_id", job!.workOrderId).is("result", null);
 
-    const blocked = await rpcAs(staff!, "wo_advance_stage", {
-      p_work_order_id: job!.workOrderId, p_to: "walkthrough",
-    });
-    expect(blocked).toContain("still to tick");
-
-    const { data: items } = await db!.from("wo_checklist_items")
-      .select("id").eq("work_order_id", job!.workOrderId).eq("phase", "completion_prep");
-    for (const item of (items as { id: string }[])) {
-      await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: item.id, p_done: true });
-    }
-
+    // Prep was confirmed back in step 6; the checks passed in step 7. From the
+    // qa stage the pack goes straight out — quality check sits between prep
+    // and sign-off now, not before prep.
     const delivered = await rpcAs(staff!, "wo_deliver_evidence_pack", { p_work_order_id: job!.workOrderId });
     expect(delivered).toMatch(/^ok:/);
     signoffToken = delivered.slice(3);
@@ -281,6 +296,9 @@ test.describe("the whole loop, one job", () => {
   });
 
   test("10 · put right again, and the customer signs", async ({ page }) => {
+    // Remote sign-off is gated now; the office opens it because the customer
+    // is signing from home rather than at a walkthrough.
+    await rpcAs(staff!, "wo_mark_client_unavailable", { p_work_order_id: job!.workOrderId });
     const { data: outstanding } = await db!.from("wo_surfaces")
       .select("id").eq("work_order_id", job!.workOrderId).neq("state", "done");
     for (const s of (outstanding as { id: string }[])) {
@@ -334,13 +352,15 @@ test.describe("the whole loop, one job", () => {
 
     const moves = (data as { from_stage: string; to_stage: string }[]).map((e) => `${e.from_stage}>${e.to_stage}`);
 
-    // The forward path, and both loops back into in_progress.
+    // The forward path IN THE NEW ORDER (prep before quality check), and both
+    // loops back into in_progress.
     expect(moves[0]).toBe("offered>pre_start");
     expect(moves).toContain("pre_start>in_progress");
-    expect(moves).toContain("in_progress>qa");
+    expect(moves).toContain("in_progress>completion_prep");
+    expect(moves).toContain("completion_prep>qa");
     expect(moves).toContain("qa>in_progress");          // the QA fail
     expect(moves).toContain("walkthrough>in_progress"); // the customer's flag
-    expect(moves).toContain("completion_prep>walkthrough");
+    expect(moves).toContain("qa>walkthrough");          // pack out of the check
     expect(moves[moves.length - 1]).toBe("walkthrough>closed");
   });
 

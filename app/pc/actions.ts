@@ -278,6 +278,9 @@ export async function bookWalkthrough(raw: unknown): Promise<PcResult> {
   if (!r.ok && r.message === "no date") {
     return { ok: false, message: "No accepted booking to take a date from — pick the day yourself." };
   }
+  if (!r.ok && r.message === "qa first") {
+    return { ok: false, message: "Quality check first — the final isn't booked with the customer until the checks pass." };
+  }
   return r;
 }
 
