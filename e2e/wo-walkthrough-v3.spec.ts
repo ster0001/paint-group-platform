@@ -62,6 +62,14 @@ test.describe("v3 walkthrough + two-mode sign-off", () => {
       { heading: "Front", labels: ["Walls"] },
     ]);
     token = await readyForWalkthrough(fixture!);
+    // The booked final lives HERE, not in a test: when a test fails, Playwright
+    // restarts the worker and re-runs beforeAll with a FRESH fixture — any
+    // state a later test relied on from an earlier one is gone, and the whole
+    // tail cascades (exactly what happened on 23 Aug). Hooks build ALL state.
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" });
+    const booked = await rpcAs(staff!, "wo_book_walkthrough",
+      { p_work_order_id: fixture!.workOrderId, p_kind: "final", p_date: today, p_note: "" });
+    if (!booked.startsWith("ok:")) throw new Error(`fixture walkthrough not booked: ${booked}`);
   });
 
   test.afterAll(async () => {
@@ -83,33 +91,29 @@ test.describe("v3 walkthrough + two-mode sign-off", () => {
     expect(r).toBe("error:deemed_too_early");
   });
 
-  test("Walkthrough Mode needs a booked final; booking defaults to the last day on site", async () => {
-    // No booking yet → the contractor cannot open the session.
-    const early = await rpcAs(contractor!, "wo_start_walkthrough_mode",
-      { p_work_order_id: fixture!.workOrderId });
-    expect(early).toBe("error:no_walkthrough_booked");
-
-    // Staff book the final. No date passed — it must land on the booking's end.
-    const booked = await rpcAs(staff!, "wo_book_walkthrough",
+  test("booking with no date derives it, or asks for one when no booking exists", async () => {
+    // The fixture has no accepted booking, so the default-date path must say
+    // so rather than inventing a date. (A real job takes the booking's end.)
+    const noDate = await rpcAs(staff!, "wo_book_walkthrough",
       { p_work_order_id: fixture!.workOrderId, p_kind: "final", p_date: null, p_note: "" });
-    expect(booked).toMatch(/^(ok:|error:no_date)/);
-    // The fixture may carry no accepted booking; date it explicitly then.
-    if (booked === "error:no_date") {
-      const today = new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" });
-      const explicit = await rpcAs(staff!, "wo_book_walkthrough",
-        { p_work_order_id: fixture!.workOrderId, p_kind: "final", p_date: today, p_note: "" });
-      expect(explicit).toMatch(/^ok:/);
-    }
+    expect(noDate).toBe("error:no_date");
+
+    // Rebooking with an explicit date cancels and replaces the live final.
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" });
+    const rebooked = await rpcAs(staff!, "wo_book_walkthrough",
+      { p_work_order_id: fixture!.workOrderId, p_kind: "final", p_date: today, p_note: "" });
+    expect(rebooked).toMatch(/^ok:/);
   });
 
   test("the booked final pins onto the staff schedule board", async ({ page }) => {
     const { signIn } = await import("./helpers");
     await signIn(page, staff!, /\/(estimates|pc)/);
     await page.goto("/pc/schedule");
-    const pin = page.locator('[data-testid^="walkthrough-pin-"]', { hasText: /WALK/ }).first();
+    // OUR pin, by href — Tom's real walkthroughs share this board now, and
+    // first() was whichever lane sorted higher.
+    const pin = page.locator(`[href="/pc/wo/${fixture!.workOrderId}"][data-testid^="walkthrough-pin-"]`);
     await expect(pin).toBeVisible({ timeout: 20_000 });
-    // Tap-through lands on the work order, where the Mode B gate lives.
-    expect(await pin.getAttribute("href")).toContain(`/pc/wo/${fixture!.workOrderId}`);
+    await expect(pin).toContainText(/WALK/);
   });
 
   test("the painter's job page offers Start the walkthrough, and it opens the customer view", async ({ page }) => {
