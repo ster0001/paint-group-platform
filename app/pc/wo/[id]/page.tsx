@@ -264,6 +264,12 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
               {row.estimates?.deposit_paid_at ? "Accepted ✓" : "—"}
             </b>
           </span>
+          {/* §7 navigation map: the money strip links to the job's money view,
+              and the money view's crumb links back here. */}
+          <a className="btn" style={{ marginLeft: "auto" }} href={`/invoicing/job/${estimateId}`}
+            data-testid="money-view-link">
+            Money view →
+          </a>
         </div>
       </div>
 

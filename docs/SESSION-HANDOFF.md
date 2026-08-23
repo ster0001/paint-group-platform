@@ -1,3 +1,50 @@
+# 24 Aug 2026 (later) — Invoicing Step 2: the three §7 screens, live (branch `feat/invoicing-payments`)
+
+**ONE paste queued:** `20261113_invoice_draft_editing.sql` (§7.3 editor RPCs + the
+reconciliation paths + a selected_options hardening of invoice_draft_final).
+Script + read-backs: `docs/manual-tests/invoicing-step2.md`. The screens are live
+without it — only the edit controls wait on it.
+
+Built 1:1 from the three mockups, phone-first, all under `/invoicing`
+(`app/invoicing/invoicing.css` is the mockups' chrome, scoped `.invx`):
+
+1. **/invoicing (§7.2)** — four pulse tiles (sparkline from payment days), filter
+   chips with counts as shareable query params, chase-order sort, per-row payment
+   stage dots, aged-buckets bar, Activity feed from invoice_events; Payables is a
+   labelled empty state until Steps 5–6. Row tap → document; address tap → money view.
+2. **/invoicing/job/[estimateId] (§7.1)** — stage rail (emerald/cyan/amber/clay per
+   mockup), 5-cell money strip off `invoice_ledger_staff`, Payments/Invoices/Costs
+   tabs (Costs = contractor group only), deposit-draft card front-and-centre,
+   request-payment sheet (10/25/50/custom %/fixed $ — the sheet sends the CHOICE,
+   preview via lib/invoicing mirror), invoice-in-full, record-payment sheet, void
+   with reason, draft delete. PC integration: PcNav "Invoicing" tab + "Money
+   view →" on the WO money strip (crumbs link back).
+3. **/invoicing/inv/[id] (§7.3)** — the editor IS the document: settings-driven
+   letterhead (⚑11/⚑12), grouped lines (contract / variations with approval
+   dates / this claim), inline line edit/add/remove (server recompute), deposit
+   "Amend the amount", final totals block (adjusted · less previously invoiced ·
+   subtotal · GST · balance due), the amber reconciliation banner with BOTH
+   one-tap paths (one-off adjustment event / staff-override variation via the
+   existing wo_variations machinery — ledger moves, document reconciles emerald),
+   payments section, Issue (locks at the DB). Send/PDF/token buttons are present
+   and honestly disabled "Step 3".
+
+Every figure: lib/invoicing (`derive.ts` — tiles/buckets/stages/ages, golden-tested
+on the mockup's own numbers) or the ledger RPC. Components format only.
+
+**Gate:** 780 unit green · tsc/eslint clean · e2e `e2e/invoicing.spec.ts` **5/6
+passed live** (accept→deposit draft on both surfaces→issue INV-0001→DB refuses
+post-issue edits even via service key→bank payment RCT-0001→rail/strip/dashboard
+follow→25% request = $4,625 server-computed); test 6 (reconciliation banner, both
+paths) SKIPS until 20261113 runs — probe-gated, not hoped. Screens driven at
+375×812 (`e2e/_invoicing-look.spec.ts`) — dashboard/money view/document match the
+mockups on real data.
+
+⚠ The e2e burnt INV-0001/RCT-0001 from the live sequences (by design — numbers
+never reuse). Tom: `setval` both sequences before real invoicing starts.
+
+---
+
 # 24 Aug 2026 — Invoicing & Payments Step 1: ledger, schema, state machine (branch `feat/invoicing-payments`)
 
 The invoicing build begins, per `docs/briefs/claude-code-brief-invoicing-payments.md`

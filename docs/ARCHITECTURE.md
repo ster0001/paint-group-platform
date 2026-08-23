@@ -1112,3 +1112,20 @@ delete_draft/request_payment/create_final`); direct client writes to
 `invoices`/`payments` are revoked. `overdue` is derived, never stored.
 Migrations `20261111` (enum, alone) + `20261112` (core); Tom's script:
 `docs/manual-tests/invoicing-step1.md`.
+
+## Invoicing Step 2 — the three money screens (24 Aug 2026)
+
+`/invoicing` is the business-wide dashboard, `/invoicing/job/[estimateId]` one
+job's ledger, `/invoicing/inv/[id]` one document — three altitudes over the
+same `lib/invoicing` functions and `invoice_events`, never a second store.
+`lib/invoicing/derive.ts` owns every screen figure (tiles, aged buckets, stage
+rail, ages) and is golden-tested against the dashboard mockup's own numbers;
+components only format. The §7.3 editor round-trips every edit through the
+20261113 RPCs (line edits recompute totals server-side; deposits amend by
+inc-anchored re-split) and the reconciliation banner makes silent drift
+impossible: the server-computed drift either becomes a recorded one-off
+adjustment event or a staff-override variation on the existing wo_variations
+machinery, which moves the adjusted contract so the document reconciles. The
+PC console links in (nav tab + per-job "Money view →"), and
+`e2e/invoicing.spec.ts` walks accept → deposit → issue → pay in a real
+browser as staff, including the database-level immutability proof.

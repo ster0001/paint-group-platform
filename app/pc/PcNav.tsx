@@ -16,6 +16,7 @@ const TABS = [
   { href: "/pc", label: "Dashboard" },
   { href: "/pc/flow", label: "Project Progress" },
   { href: "/pc/updates", label: "Updates" },
+  { href: "/invoicing", label: "Invoicing" },
 ];
 
 export default function PcNav() {
