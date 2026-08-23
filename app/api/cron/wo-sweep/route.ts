@@ -122,9 +122,21 @@ async function sweep() {
   const { data: lapsed, error: lapseError } = await db.rpc("expire_booking_offers");
   if (lapseError) reportError(lapseError, { where: "cron.woSweep.expireOffers" });
 
+  // QA cadence backstop: schedule checks for any pre-start/in-progress job that
+  // should have them and doesn't — the PC page self-heals on view, this catches
+  // jobs nobody opened. Idempotent per job.
+  const { data: qaJobs } = await db.from("work_orders")
+    .select("id").in("stage", ["pre_start", "in_progress"]);
+  let qaScheduled = 0;
+  for (const j of ((qaJobs ?? []) as { id: string }[])) {
+    const { data: r } = await db.rpc("wo_schedule_qa", { p_work_order_id: j.id });
+    if (typeof r === "string" && r.startsWith("ok:") && r !== "ok:0") qaScheduled += 1;
+  }
+
   return {
     ok: true as const, date: today, drafted,
     flagged: flagged ?? 0, started: started ?? 0, lapsed: lapsed ?? 0,
+    qaScheduled,
   };
 }
 

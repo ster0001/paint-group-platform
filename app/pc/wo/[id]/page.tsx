@@ -65,6 +65,15 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
 
   // Derived items answer from the data they read, so the screen and the gate
   // can never disagree about whether a stage is ready.
+  // QA cadence self-heal: wo_schedule_qa was defined and NEVER CALLED anywhere
+  // (found 23 Aug — a new contractor's first jobs sailed past quality checks,
+  // and a job manually sent to the qa stage arrived to an empty screen).
+  // Idempotent by construction: established contractor or already-scheduled
+  // job answers ok:0. Best-effort — the page renders regardless.
+  if (row.stage === "pre_start" || row.stage === "in_progress") {
+    await supabase.rpc("wo_schedule_qa", { p_work_order_id: id }).then(() => {}, () => {});
+  }
+
   const coloursConfirmed = Boolean(
     (await supabase.rpc("wo_colours_confirmed", { p_work_order_id: id })).data,
   );
@@ -330,6 +339,18 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
           {row.stage === "qa" && qaChecks.map((c) => (
             <QaCheck key={c.id} check={c} />
           ))}
+          {/* An empty qa stage was a silent dead end: no cards, no explanation,
+              and the way forward not obviously the answer. Say what's true. */}
+          {row.stage === "qa" && qaChecks.length === 0 && (
+            <div className="card" data-testid="qa-none">
+              <h3>Quality check <em>none due</em></h3>
+              <p className="note">
+                No checks are scheduled on this job — the cadence only creates them
+                for a contractor&rsquo;s first few jobs. Use{" "}
+                <b>Move to completion prep</b> above to continue.
+              </p>
+            </div>
+          )}
 
           {variations.map((v) => (
             <div className="card" key={v.id} id={`variation-${v.id}`} data-testid={`variation-${v.id}`}>
