@@ -86,7 +86,8 @@ export default function WalkthroughCard({
             </button>
           </div>
           <p className="note" style={{ marginTop: 6 }}>
-            Leave the date empty and the final lands on the last day on site.
+            Book this with the customer when you book the job in. Leave the date
+            empty and the final lands on the last day on site.
           </p>
 
           <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)" }}>

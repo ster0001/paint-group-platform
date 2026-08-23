@@ -303,8 +303,12 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
           )}
 
           {/* §4b: book the walkthroughs and hold the Mode B gate. Shown from
-              completion prep (book ahead) through walkthrough (run it). */}
-          {(row.stage === "completion_prep" || row.stage === "walkthrough") && (
+              PRE-START (Tom, 23 Aug): the walkthrough is booked WITH the client
+              at the start of the process — usually while booking the job in —
+              not remembered at the end. Blank date still means last day on
+              site, so an early booking follows the schedule automatically. */}
+          {(row.stage === "pre_start" || row.stage === "in_progress" || row.stage === "qa"
+            || row.stage === "completion_prep" || row.stage === "walkthrough") && (
             <WalkthroughCard
               workOrderId={id}
               walkthroughs={((walkthroughRows ?? []) as { id: string; kind: string; scheduled_date: string; status: string }[])
