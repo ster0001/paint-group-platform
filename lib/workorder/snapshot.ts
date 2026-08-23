@@ -13,6 +13,14 @@ export type WOMaterial = {
   colourName: string;
   colourHex: string; // "" when none — for the swatch
   colourStatus: WOColourStatus;
+  /**
+   * Colour match (Tom, 23 Aug): the estimator flags a substrate for a colour
+   * match and, when known, gives the code / brand / can size. Blank code = the
+   * painter supplies it from the job (work_orders.colours → product → match);
+   * the hand-over is gated until every required code is in. Optional — older
+   * documents have none.
+   */
+  colourMatch?: { required: boolean; code: string; brand: string; canSize: string } | null;
 };
 
 export type WOSurface = {

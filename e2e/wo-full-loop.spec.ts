@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { credentials, missingCreds, signIn } from "./helpers";
 import {
-  accessTokenFor, completePrep, contractorIdForEmail, createLoopFixture, customerIdForEmail,
+  accessTokenFor, completePreStart, completePrep, contractorIdForEmail, createLoopFixture, customerIdForEmail,
   destroyLoopFixture, rpcAs, rpcAsJson, serviceClient, type LoopFixture,
 } from "./fixtures/woLoop";
 
@@ -106,14 +106,7 @@ test.describe("the whole loop, one job", () => {
     })).toContain("pre-start item");
 
     // In list order: the colours box (1) must be ticked before materials (2).
-    const { data: items } = await db!.from("wo_checklist_items")
-      .select("id, auto_key, required")
-      .eq("work_order_id", job!.workOrderId).eq("phase", "pre_start").order("sort");
-    for (const item of (items as { id: string; auto_key: string | null; required: boolean }[])) {
-      if (item.auto_key || !item.required) continue;
-      expect(await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: item.id, p_done: true }))
-        .toBe("ok:done");
-    }
+    await completePreStart(db!, staff!, job!.workOrderId);
 
     expect(await rpcAs(staff!, "wo_advance_stage", {
       p_work_order_id: job!.workOrderId, p_to: "in_progress",

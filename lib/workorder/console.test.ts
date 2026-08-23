@@ -88,6 +88,11 @@ describe("quality checks, updates due and walkthroughs to book (Tom, 23 Aug)", (
     expect(card.severity).toBe("warning");
   });
 
+  it("never asks to book a walkthrough on a 'walkthrough not required' job", () => {
+    expect(buildQueue(base({ workOrders: [wo({ stage: "walkthrough", walkthroughRequired: false })] }))
+      .find((c) => c.key === "contact:w1")).toBeUndefined();
+  });
+
   it("gives an early nudge two days out from the last booked day, and none once booked", () => {
     expect(buildQueue(base({ workOrders: [wo({ endDate: daysAhead(1) })] }))
       .find((c) => c.key === "contact:w1")?.severity).toBe("info");

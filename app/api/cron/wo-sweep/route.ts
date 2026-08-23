@@ -3,6 +3,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { composeUpdate, type TickEvent } from "@/lib/workorder/updates";
 import { melbourneDate, melbourneDayStartUtc } from "@/lib/workorder/console";
 import { reportError } from "@/lib/monitoring/report";
+import { sendPreStartChecklists } from "@/lib/workorder/preStart";
 
 /**
  * The daily sweep: draft today's customer updates, flag the silent sites, and
@@ -13,8 +14,10 @@ import { reportError } from "@/lib/monitoring/report";
  * to running unauthenticated, because it writes.
  *
  * Two things it deliberately does NOT do:
- *   - it never sends anything to a customer. It writes drafts; a person
- *     approves them.
+ *   - it never sends anything to a customer UNAPPROVED. It writes drafts; a
+ *     person approves them. The one send it makes — the pre-start checklist —
+ *     goes only where the office has ticked "Pre-start checklist" on the job
+ *     (Tom, 23 Aug), and once.
  *   - it never back-dates. Drafts are written for the date being swept and
  *     flagged once per day, so a sweep that runs late produces one late result
  *     rather than a week of them at once.
@@ -134,6 +137,10 @@ async function sweep() {
   }
   // A job parked at qa with every check passed goes to the customer on its
   // own (Tom, 23 Aug). The pass routes it; this catches one nobody looked at.
+  // The pre-start checklist, N days before the start, where the office opted in.
+  let preStartSent = 0;
+  try { preStartSent = await sendPreStartChecklists(db, now); } catch (e) { reportError(e, { where: "wo-sweep.preStart" }); }
+
   const { data: passedJobs } = await db.from("work_orders").select("id").eq("stage", "qa");
   let qaRouted = 0;
   for (const j of ((passedJobs ?? []) as { id: string }[])) {
@@ -146,6 +153,7 @@ async function sweep() {
     flagged: flagged ?? 0, started: started ?? 0, lapsed: lapsed ?? 0,
     qaScheduled,
     qaRouted,
+    preStartSent,
   };
 }
 

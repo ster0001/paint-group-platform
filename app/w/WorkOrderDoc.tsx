@@ -167,6 +167,16 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
                       <span className={`cchip ${m.colourStatus}`}>{m.colourStatus === "confirmed" ? "Confirmed" : "TBC"}</span>
                     )}
                   </div>
+                  {/* Colour match (Tom, 23 Aug): codes on the sheet when the
+                      estimator had them; otherwise the painter supplies them
+                      on the job page before sign-off. */}
+                  {m.colourMatch?.required && (
+                    <div className="mat-colour" data-testid={`mat-colour-match-${m.product}`} style={{ marginTop: 2 }}>
+                      {m.colourMatch.code
+                        ? <span>Colour match: <b>{m.colourMatch.code}</b>{m.colourMatch.brand ? ` · ${m.colourMatch.brand}` : ""}{m.colourMatch.canSize ? ` · ${m.colourMatch.canSize}` : ""}</span>
+                        : <span className="cchip tbc">Colour match required — supply the code, brand and can size</span>}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <div className="mat-litres">{m.litres != null ? `${m.litres} L` : "— L"}</div>

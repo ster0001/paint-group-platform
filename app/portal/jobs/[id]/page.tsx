@@ -9,6 +9,7 @@ import TickList from "@/app/components/wo/TickList";
 import Variations, { type VariationView } from "./Variations";
 import PrepChecklist, { type PrepItem } from "./PrepChecklist";
 import FinishDate from "./FinishDate";
+import ColourMatchCard from "@/app/components/wo/ColourMatchCard";
 import FinishUp from "./FinishUp";
 import WalkthroughStart from "./WalkthroughStart";
 import CrewShare from "./CrewShare";
@@ -76,7 +77,7 @@ export default async function PortalJobPage({
       .eq("work_order_id", id).order("sort", { ascending: true }),
     supabase.from("wo_photos")
       .select("area, kind").eq("work_order_id", id).in("kind", ["before", "completion"]),
-    supabase.from("work_orders").select("stage").eq("id", id).maybeSingle(),
+    supabase.from("work_orders").select("stage, walkthrough_required, colours").eq("id", id).maybeSingle(),
     supabase.from("wo_walkthroughs")
       .select("kind, scheduled_date, status").eq("work_order_id", id)
       .eq("status", "booked"),
@@ -96,6 +97,10 @@ export default async function PortalJobPage({
     .from("wo_checklist_items")
     .select("id, label, detail, required, done_at, kind, item_key, answer, answer_note")
     .eq("work_order_id", id).eq("phase", "completion_prep").order("sort");
+  // The pre-start colours question: a No opens the colour-match work for the painter.
+  const { data: coloursItem } = await supabase.from("wo_checklist_items").select("answer")
+    .eq("work_order_id", id).eq("phase", "pre_start").eq("item_key", "colours").maybeSingle();
+  const coloursNo = (coloursItem as { answer?: string | null } | null)?.answer === "no";
 
   type PrepRow = {
     id: string; label: string; detail: string | null; required: boolean; done_at: string | null;
@@ -146,6 +151,8 @@ export default async function PortalJobPage({
   // Ticking only makes sense once the job is under way — before that the list is
   // still worth seeing, so it renders read-only via the server's own refusal.
   let stage = (woRow as { stage?: string } | null)?.stage;
+  const walkthroughRequired = (woRow as { walkthrough_required?: boolean | null } | null)?.walkthrough_required !== false;
+  const woColours = ((woRow as { colours?: Record<string, { match?: { code?: string; brand?: string; canSize?: string; by?: string } }> | null } | null)?.colours) ?? {};
   const canTick = stage === "in_progress";
   // Live states are already on this page; done means done, not prepped.
   const allSurfacesDone = surfaces.length > 0 && surfaces.every((s) => s.state === "done");
@@ -289,15 +296,40 @@ export default async function PortalJobPage({
         </div>
       )}
 
+      {/* Colour matches (Tom, 23 Aug): codes the painter supplies on the job. */}
+      {job.committed && (
+        <div style={{ padding: "0 16px" }}>
+          <ColourMatchCard ui="pt" workOrderId={id} canEdit={stage !== "closed"} coloursNo={coloursNo}
+            materials={(job.doc?.materials ?? []).map((m) => ({
+              product: m.product, colourName: m.colourName,
+              required: Boolean(m.colourMatch?.required),
+              snapCode: m.colourMatch?.code ?? "", snapBrand: m.colourMatch?.brand ?? "", snapCan: m.colourMatch?.canSize ?? "",
+              woMatch: woColours[m.product]?.match ?? null,
+            }))} />
+        </div>
+      )}
+
       {/* The finish / walkthrough date, movable by the painter (Tom, 23 Aug),
           with any dated quality check the office has booked. */}
-      {job.committed && stage !== "closed" && stage !== "offered" && (
+      {job.committed && stage !== "closed" && stage !== "offered" && walkthroughRequired && (
         <div style={{ padding: "0 16px" }}>
           <FinishDate workOrderId={id} finalDate={bookedFinal} endDate={woBooking.endDate}
             startDate={woBooking.startDate} stage={stage ?? ""}
             qaDates={((qaRows ?? []) as { kind: string; scheduled_for: string | null; result: string | null }[])
               .filter((q) => q.scheduled_for)
               .map((q) => ({ kind: q.kind, date: q.scheduled_for as string, result: q.result }))} />
+        </div>
+      )}
+
+      {job.committed && !walkthroughRequired && stage !== "closed" && stage !== "offered" && (
+        <div style={{ padding: "0 16px" }}>
+          <div className="card" data-testid="no-walkthrough">
+            <div className="tick-head"><b>No customer walkthrough on this job</b></div>
+            <p className="hint" style={{ padding: 0, marginTop: 6 }}>
+              Once you&rsquo;ve finished (and any quality check has passed) the job closes on its own —
+              Paint Group invoices the customer. Nothing to book.
+            </p>
+          </div>
         </div>
       )}
 

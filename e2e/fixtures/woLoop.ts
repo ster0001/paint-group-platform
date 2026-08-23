@@ -243,3 +243,27 @@ export async function completePrep(
   }
   return n;
 }
+
+/**
+ * Complete the pre-start list the way the office would (Tom, 23 Aug): the
+ * colours yes/no is answered (Yes unless told otherwise), required ticks are
+ * ticked in sort order (colours before materials), derived/optional left.
+ */
+export async function completePreStart(
+  db: SupabaseClient,
+  who: { email: string; password: string },
+  workOrderId: string,
+  answers: { colours?: "yes" | "no" } = {},
+): Promise<void> {
+  const { data } = await db.from("wo_checklist_items")
+    .select("id, auto_key, required, kind, item_key")
+    .eq("work_order_id", workOrderId).eq("phase", "pre_start").order("sort");
+  for (const i of (data ?? []) as { id: string; auto_key: string | null; required: boolean; kind: string | null; item_key: string | null }[]) {
+    if (i.auto_key || !i.required) continue;
+    if (i.kind === "yes_no") {
+      await rpcAs(who, "wo_answer_checklist_item", { p_item_id: i.id, p_answer: answers.colours ?? "yes", p_note: "" });
+    } else {
+      await rpcAs(who, "wo_tick_checklist_item", { p_item_id: i.id, p_done: true });
+    }
+  }
+}

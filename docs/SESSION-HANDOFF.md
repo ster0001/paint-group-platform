@@ -1,3 +1,38 @@
+# 23 Aug 2026 (small hours) — batch 4: walkthrough not required, pre-start list, colour match
+
+**TWO pastes, in order:** `20261109_wo_signoff_kind_no_walkthrough.sql` (enum label alone) then
+`20261110_wo_no_walkthrough_colour_match.sql` (read-back: transitions 13, wt_col 1, new_fns 4,
+qa_items_left 0, gate_reads_colours true, seeder_current true).
+
+1. **Walkthrough not required** — tick in the scheduler's offer dialog (`sendOfferInput.
+   walkthroughRequired`) or on the staff Walkthrough card; `work_orders.walkthrough_required` +
+   `wo_set_walkthrough_required`. Routing: `wo_contractor_confirm_prep` (no check due) and
+   `wo_qa_route_passed` (last pass) call **`wo_close_without_walkthrough`** → `completion_prep|qa →
+   closed` (two new matrix rows; 13 moves / 36 illegal in the drift test) and write the record a
+   signing would: `wo_signoff` row (`signed_kind='no_walkthrough'`, report frozen), warranty from
+   the close date, review follow-up, $0 invoice stub, event `closed_without_walkthrough`.
+   `wo_record_qa` returns `ok:pass:closed`; `confirmPrepStaff` / `contractorFinish` carry
+   `to: "closed"`; StageAdvance offers "Close the job — no walkthrough required" at qa; the
+   contact card skips these jobs; portal shows "No customer walkthrough on this job".
+2. **Pre-start list** — derived "QA schedule created" DELETED (seeder + live rows); "Customer
+   'what to expect'" → **"Pre-start checklist"** (optional, `item_key pre_start_checklist`);
+   "Colour schedule finalised" → **yes/no** (`item_key colours`; No = colour matches needed).
+   Ticking the checklist item opts the job in: `lib/workorder/preStart.ts` (called from the sweep)
+   emails the customer `messaging.preStartBody` N = `preStartDaysBefore` days before the start,
+   ONCE (events `pre_start_checklist_sent|skipped` are the guard — a skip is not retried).
+   Settings → Messaging has the template + days. `buildPlainEmailHtml` (no button).
+3. **Colour match** — builder: "Colour match" tick per substrate beside the colour, with code /
+   brand / can size (`builder_state.colourMatches`, `WOMaterial.colourMatch`). Job sheet shows it.
+   `wo_colour_match_outstanding(wo)` = products flagged OR (colours=No AND no colour) with no code
+   in snapshot or `work_orders.colours→product→match`; `wo_gate_blocked` refuses the pack / the
+   close with "colour match codes still needed for …". Painter (or office) supplies via
+   `wo_set_colour_match` — `ColourMatchCard` on both job pages (`app/components/wo/`).
+   e2e fixtures: `completePreStart()` answers the colours yes/no; `wo-batch4.spec.ts` (4).
+   ⚠ boundary.test: an `.insert({…})` on a loop table must not contain the WORD `status` anywhere
+   inside its braces (even `result.status`) — alias it first.
+
+---
+
 # 23 Aug 2026 (late night) — batch 3: cadence, finish date, dashboard prompts, ideal painters, staff sign-off
 
 Tom's third list of the night, all on `audit/workflow-23aug`. **Migration `20261105_wo_qa_cadence_finish_date.sql`

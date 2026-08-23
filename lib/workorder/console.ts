@@ -35,6 +35,8 @@ export type ConsoleInput = {
     startDate: string | null;
     /** The booking's last day on site (null until booked). */
     endDate?: string | null;
+    /** False = "walkthrough not required" — no walkthrough to book or chase. */
+    walkthroughRequired?: boolean;
     coloursConfirmed: boolean;
     blockedReason: string | null;
     /** When the customer accepted the estimate. Null on a job never accepted. */
@@ -409,7 +411,7 @@ export function buildQueue(input: ConsoleInput): QueueCard[] {
   // Walkthrough (or within two days of its last booked day).
   const booked = new Set(input.walkthroughBooked ?? []);
   for (const w of input.workOrders) {
-    if (booked.has(w.id)) continue;
+    if (booked.has(w.id) || w.walkthroughRequired === false) continue;
     const atWalk = w.stage === "walkthrough";
     const nearEnd = (w.stage === "in_progress" || w.stage === "completion_prep" || w.stage === "qa")
       && !!w.endDate && daysUntil(w.endDate, now) <= 2;

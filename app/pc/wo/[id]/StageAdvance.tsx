@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { advanceStage, confirmPrepStaff, deliverEvidencePack, reopenSignoff, startNow } from "../../actions";
+import { advanceStage, closeWithoutWalkthrough, confirmPrepStaff, deliverEvidencePack, reopenSignoff, startNow } from "../../actions";
 import { STAGE_LANES, nextStages, type WoStage } from "@/lib/workorder/stages";
 
 /**
@@ -14,13 +14,15 @@ import { STAGE_LANES, nextStages, type WoStage } from "@/lib/workorder/stages";
  * which it then explains in the gate's own words.
  */
 export default function StageAdvance({
-  workOrderId, stage, startDate, today,
+  workOrderId, stage, startDate, today, walkthroughRequired = true,
 }: {
   workOrderId: string; stage: WoStage;
   /** The booked start date, so starting early can be recognised as such. */
   startDate: string | null;
   /** Today in Melbourne, computed on the server so the two agree. */
   today: string;
+  /** False = "walkthrough not required" on the booking: prep/QA close the job. */
+  walkthroughRequired?: boolean;
 }) {
   const early = stage === "pre_start" && startDate !== null && startDate > today;
   const [confirmEarly, setConfirmEarly] = useState(false);
@@ -34,7 +36,11 @@ export default function StageAdvance({
   // customer's flag,
   // which are their own actions with their own consequences.
   const order = Object.keys(STAGE_LANES) as WoStage[];
-  const moves = nextStages(stage, "staff").filter((t) => order.indexOf(t.to) > order.indexOf(stage));
+  // Forward moves; and the two hand-over exits are mutually exclusive per job —
+  // the pack when a walkthrough is required, straight to closed when it isn't.
+  const moves = nextStages(stage, "staff")
+    .filter((t) => order.indexOf(t.to) > order.indexOf(stage))
+    .filter((t) => !(stage === "qa" && (t.to === "walkthrough" ? !walkthroughRequired : t.to === "closed" ? walkthroughRequired : false)));
 
   if (moved) {
     return (
@@ -106,9 +112,11 @@ export default function StageAdvance({
       // Prep -> walkthrough mints the customer's link and starts their clock.
       const result = to === "walkthrough"
         ? await deliverEvidencePack({ workOrderId })
-        : to === "in_progress" && early
-          ? await startNow({ workOrderId })
-          : await advanceStage({ workOrderId, to });
+        : to === "closed" && stage !== "walkthrough"
+          ? await closeWithoutWalkthrough({ workOrderId })
+          : to === "in_progress" && early
+            ? await startNow({ workOrderId })
+            : await advanceStage({ workOrderId, to });
       if (result.ok) { setMoved(to); setMessage(result.message ?? null); }
       else setMessage(result.message);
     });
@@ -151,6 +159,7 @@ export default function StageAdvance({
           <button key={t.to} type="button" className="btn primary" disabled={pending}
             onClick={() => go(t.to)} data-testid={`advance-${t.to}`}>
             {pending ? "Working…" : t.to === "walkthrough" ? "Send the pack to the customer"
+              : t.to === "closed" && stage !== "walkthrough" ? "Close the job — no walkthrough required"
               : t.to === "in_progress" ? "Start the job"
               : t.to === "qa" ? "Send to quality check"
               : t.to === "completion_prep" ? "Move to completion prep"
@@ -164,7 +173,9 @@ export default function StageAdvance({
             ? "Tick the list whenever you like — the job starts itself on its booked date."
             : "The pre-start list has to be true before a job can start.")
           : stage === "in_progress" ? "Every surface has to be ticked off first."
-          : stage === "qa" ? "Every scheduled check has to be logged as a pass."
+          : stage === "qa" ? (walkthroughRequired
+              ? "Every scheduled check has to be logged as a pass."
+              : "Every scheduled check has to be logged as a pass — then the job closes (no walkthrough on this booking).")
           : stage === "completion_prep" ? "The completion list has to be ticked before the customer is asked to look."
           : ""}
       </p>

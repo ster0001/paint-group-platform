@@ -137,9 +137,14 @@ export default function Checklist({
                     onClick={() => answer(item, "yes")} data-testid={`chk-yes-${item.id}`}>Yes</button>
                   <button type="button" className={`btn ${item.answer === "no" ? "primary" : ""}`} disabled={pending}
                     onClick={() => answer(item, "no")} data-testid={`chk-no-${item.id}`}>No</button>
-                  {item.answer === "yes" && (
+                  {item.answer === "yes" && item.itemKey !== "colours" && (
                     <span className={`pill ${item.handled ? "" : "p-am"}`} data-testid={`chk-handled-${item.id}`}>
                       {item.handled ? "organised" : "to organise — on the dashboard"}
+                    </span>
+                  )}
+                  {item.answer === "no" && item.itemKey === "colours" && (
+                    <span className="pill p-am" data-testid={`chk-colours-no-${item.id}`}>
+                      colour matches needed — see the Colour matches card
                     </span>
                   )}
                 </span>

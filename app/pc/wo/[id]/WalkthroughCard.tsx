@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  bookWalkthrough, markClientUnavailable, setWalkthroughStatus, staffSign, staffStartWalkthrough,
+  bookWalkthrough, markClientUnavailable, setWalkthroughRequired, setWalkthroughStatus, staffSign, staffStartWalkthrough,
 } from "../../actions";
 
 export type WalkthroughRow = {
@@ -23,7 +23,7 @@ export type WalkthroughRow = {
  * or record a manual sign-off from our side.
  */
 export default function WalkthroughCard({
-  workOrderId, walkthroughs, clientUnavailable, signedAt, startDate, endDate, stage,
+  workOrderId, walkthroughs, clientUnavailable, signedAt, startDate, endDate, stage, walkthroughRequired = true,
 }: {
   workOrderId: string;
   walkthroughs: WalkthroughRow[];
@@ -33,6 +33,8 @@ export default function WalkthroughCard({
   startDate: string | null;
   endDate: string | null;
   stage: string;
+  /** False = "walkthrough not required" on the booking (Tom, 23 Aug). */
+  walkthroughRequired?: boolean;
 }) {
   const router = useRouter();
   const dateRef = useRef<HTMLInputElement>(null);
@@ -108,7 +110,22 @@ export default function WalkthroughCard({
         </div>
       )}
 
-      {!signedAt && (
+      {!signedAt && stage !== "closed" && (
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, margin: "8px 0", cursor: "pointer" }}>
+          <input type="checkbox" checked={!walkthroughRequired} disabled={pending} data-testid="walkthrough-not-required"
+            onChange={(e) => run(() => setWalkthroughRequired({ workOrderId, required: !e.target.checked }))} />
+          Walkthrough not required — the job closes (invoice stage) once it&rsquo;s finished and checked
+        </label>
+      )}
+
+      {!signedAt && !walkthroughRequired && (
+        <p className="note" data-testid="no-walkthrough-note">
+          No customer walkthrough on this booking. When the painter finishes (and any quality
+          check passes) the job closes itself — report frozen, warranty started.
+        </p>
+      )}
+
+      {!signedAt && walkthroughRequired && (
         <>
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
             <input ref={dateRef} type="date" value={date} onChange={(e) => setDate(e.target.value)}

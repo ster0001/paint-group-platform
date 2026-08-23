@@ -415,6 +415,7 @@ export default function ScheduleBoard({
   // It reaches the contractor on their offer card as `staff_note`.
   const [offerNote, setOfferNote] = useState("");
   const [offerQa, setOfferQa] = useState(false);
+  const [offerNoWalk, setOfferNoWalk] = useState(false);
   const [toast, setToast] = useState("");
   const [detail, setDetail] = useState<Block | null>(null);
   const [blockReason, setBlockReason] = useState("");
@@ -446,11 +447,13 @@ export default function ScheduleBoard({
       endDate: addDays(pendingDrop.startDate, pendingDrop.spanDays - 1),
       note: offerNote.trim(),
       qaRequired: offerQa,
+      walkthroughRequired: !offerNoWalk,
     });
     if (handle(r, "Offer sent — the contractor has 24 hours to respond.")) {
       setPendingDrop(null);
       setOfferNote("");   // never carry one job's note onto the next offer
       setOfferQa(false);
+      setOfferNoWalk(false);
     }
     setBusy(false);
   }
@@ -1086,6 +1089,11 @@ export default function ScheduleBoard({
                   <input type="checkbox" checked={offerQa} onChange={(e) => setOfferQa(e.target.checked)}
                     data-testid="offer-qa-required" />
                   Quality check required on this job
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 13, cursor: "pointer" }}>
+                  <input type="checkbox" checked={offerNoWalk} onChange={(e) => setOfferNoWalk(e.target.checked)}
+                    data-testid="offer-no-walkthrough" />
+                  Walkthrough not required — closes straight after the job (and any quality check)
                 </label>
               </div>
             )}

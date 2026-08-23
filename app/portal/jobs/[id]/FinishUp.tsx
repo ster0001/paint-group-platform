@@ -22,7 +22,9 @@ export default function FinishUp({ workOrderId }: { workOrderId: string }) {
     if (!r.ok) { setMessage(r.message); return; }
     setMessage(r.to === "qa"
       ? "Nice work. Paint Group will quality check the job now — the sign-off date gets booked with the customer once it passes."
-      : "Nice work — the customer has their pack, and the walkthrough is next.");
+      : r.to === "closed"
+        ? "Nice work — no walkthrough on this job, so it's complete. Paint Group will invoice the customer."
+        : "Nice work — the customer has their pack, and the walkthrough is next.");
     router.refresh();
   }
 

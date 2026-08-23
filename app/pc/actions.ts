@@ -246,7 +246,7 @@ export async function tickQaItem(raw: unknown): Promise<PcResult> {
   return call("wo_tick_qa_item", { p_item_id: parsed.data.itemId, p_done: parsed.data.done });
 }
 
-export type QaResult = PcResult & { to?: "walkthrough" };
+export type QaResult = PcResult & { to?: "walkthrough" | "closed" };
 
 /**
  * Log a check. A FAIL sends the job back to the brushes; the LAST PASS sends
@@ -287,6 +287,9 @@ export async function recordQa(raw: unknown): Promise<QaResult> {
   if (s.startsWith("ok:pass:walkthrough")) {
     return { ok: true, to: "walkthrough", message: `Passed — all checks clear. The customer has their walkthrough; sign-off is running.${thin}` };
   }
+  if (s.startsWith("ok:pass:closed")) {
+    return { ok: true, to: "closed", message: `Passed — all checks clear. No walkthrough on this job, so it's closed: invoice stage.${thin}` };
+  }
   if (s.startsWith("ok:pass:gate:")) {
     const why = s.slice("ok:pass:gate:".length).replace(/:thin_record$/, "");
     return { ok: true, message: `Passed — but the handover can't go yet: ${humaniseGate(why)}${thin}` };
@@ -300,6 +303,25 @@ export async function setQaRequired(raw: unknown): Promise<PcResult> {
   if (!parsed.success) return { ok: false, message: "Invalid input." };
   return call("wo_set_qa_required", { p_work_order_id: parsed.data.workOrderId, p_required: parsed.data.required },
     parsed.data.required ? "Quality check scheduled for this job." : "Flag cleared.");
+}
+
+/** "Walkthrough not required" on a job — it closes after finish (+ QA). */
+export async function setWalkthroughRequired(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ workOrderId: uuid, required: z.boolean() }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  return call("wo_set_walkthrough_required", { p_work_order_id: parsed.data.workOrderId, p_required: parsed.data.required },
+    parsed.data.required ? "Walkthrough required again." : "No walkthrough — the job will close once it's finished and checked.");
+}
+
+/** Close a "walkthrough not required" job from prep / quality check (invoice stage). */
+export async function closeWithoutWalkthrough(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ workOrderId: uuid }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  const r = await call("wo_close_without_walkthrough", { p_work_order_id: parsed.data.workOrderId },
+    "Closed — invoice stage. Report frozen, warranty started.");
+  if (!r.ok && r.message.startsWith("gate:")) return { ok: false, message: humaniseGate(r.message.slice(5)) };
+  if (!r.ok && r.message === "walkthrough required") return { ok: false, message: "This job has a walkthrough — send the pack instead." };
+  return r;
 }
 
 /** A mid-job quality check, on top of the standard final (Tom, 23 Aug). */
@@ -437,7 +459,7 @@ export async function generateReportDraft(raw: unknown): Promise<PcResult> {
  * has: the server sends the job to quality check when one is due, otherwise
  * the pack goes to the customer. One button, no lane-picking.
  */
-export async function confirmPrepStaff(raw: unknown): Promise<PcResult & { to?: "qa" | "walkthrough" }> {
+export async function confirmPrepStaff(raw: unknown): Promise<PcResult & { to?: "qa" | "walkthrough" | "closed" }> {
   const parsed = z.object({ workOrderId: uuid }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };
 
@@ -458,14 +480,16 @@ export async function confirmPrepStaff(raw: unknown): Promise<PcResult & { to?: 
   if (error) return { ok: false, message: error.message };
 
   const s = String(data ?? "");
-  if (s === "ok:qa" || s === "ok:walkthrough") {
+  if (s === "ok:qa" || s === "ok:walkthrough" || s === "ok:closed") {
     revalidatePath("/pc"); revalidatePath("/pc/flow");
     return {
       ok: true,
-      to: s === "ok:qa" ? "qa" : "walkthrough",
+      to: s === "ok:qa" ? "qa" : s === "ok:closed" ? "closed" : "walkthrough",
       message: s === "ok:qa"
         ? "Prep confirmed — quality check next. The sign-off date gets booked once it passes."
-        : "Prep confirmed — the pack is with the customer, sign-off is running.",
+        : s === "ok:closed"
+          ? "Prep confirmed — no walkthrough on this job, so it's closed: invoice stage."
+          : "Prep confirmed — the pack is with the customer, sign-off is running.",
     };
   }
   if (s.startsWith("error:gate:")) return { ok: false, message: humaniseGate(s.slice("error:gate:".length)) };

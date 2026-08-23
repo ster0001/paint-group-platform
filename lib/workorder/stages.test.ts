@@ -13,12 +13,12 @@ import {
 
 // The canonical seed moved when 'system' was allowed to start a job on its
 // date; the mirror is diffed against wherever the list currently lives.
-const MIGRATION = "supabase/migrations/20261108000000_wo_reopen_signoff.sql";
+const MIGRATION = "supabase/migrations/20261110000000_wo_no_walkthrough_colour_match.sql";
 const MACHINE = "supabase/migrations/20260926000000_wo_loop_stage_machine.sql";
 
 describe("the transition matrix", () => {
-  it("allows exactly the eleven moves the workflow defines", () => {
-    expect(TRANSITIONS).toHaveLength(11);
+  it("allows exactly the thirteen moves the workflow defines", () => {
+    expect(TRANSITIONS).toHaveLength(13);
   });
 
   // Every ordered pair of stages, checked. The legal ten pass; the other 39 —
@@ -39,7 +39,7 @@ describe("the transition matrix", () => {
 
   it("counts the illegal pairs so a silently-widened matrix is caught", () => {
     const total = WO_STAGES.length * WO_STAGES.length; // 49
-    expect(total - legal.size).toBe(38);
+    expect(total - legal.size).toBe(36);
   });
 
   it("cannot skip a stage on the happy path", () => {
@@ -108,10 +108,11 @@ describe("who may ask for a move", () => {
     // wo_qa_route_passed) — from a staff OR a contractor session, which is why
     // the contractor actor is on this row; the painter never gets a button
     // (Tom, 23 Aug). The pack gate still refuses while any check is unpassed.
-    expect(nextStages("qa", "contractor").map((t) => t.to)).toEqual(["walkthrough"]);
-    // Pass sends the pack out (walkthrough); fail goes back to the brushes.
+    // …to the pack, or straight to closed on a "walkthrough not required" job.
+    expect(nextStages("qa", "contractor").map((t) => t.to).sort()).toEqual(["closed", "walkthrough"]);
+    // Pass sends the pack out (walkthrough) or closes; fail goes back to the brushes.
     expect(nextStages("qa", "staff").map((t) => t.to).sort())
-      .toEqual(["in_progress", "walkthrough"]);
+      .toEqual(["closed", "in_progress", "walkthrough"]);
   });
 
   it("lets the contractor report the work finished", () => {
@@ -120,7 +121,7 @@ describe("who may ask for a move", () => {
     expect(nextStages("in_progress", "contractor").map((t) => t.to).sort())
       .toEqual(["completion_prep"]);
     expect(nextStages("completion_prep", "contractor").map((t) => t.to).sort())
-      .toEqual(["qa", "walkthrough"]);
+      .toEqual(["closed", "qa", "walkthrough"]);
   });
 });
 

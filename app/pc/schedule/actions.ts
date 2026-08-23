@@ -117,6 +117,10 @@ export async function sendOfferAction(raw: unknown): Promise<ActionResult> {
     const flagged = await run("wo_set_qa_required", { p_work_order_id: v.workOrderId, p_required: true });
     if (!flagged.ok) return flagged;
   }
+  if (!v.walkthroughRequired) {
+    const flagged = await run("wo_set_walkthrough_required", { p_work_order_id: v.workOrderId, p_required: false });
+    if (!flagged.ok) return flagged;
+  }
   return run("send_offer", {
     p_work_order_id: v.workOrderId,
     p_contractor_id: v.contractorId,

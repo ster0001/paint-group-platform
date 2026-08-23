@@ -9,6 +9,7 @@ import Checklist, { type ChecklistItem } from "./Checklist";
 import WalkthroughCard from "./WalkthroughCard";
 import QaCheck, { type QaCheckView } from "./QaCheck";
 import QaControls from "./QaControls";
+import ColourMatchCard from "@/app/components/wo/ColourMatchCard";
 import { humaniseGate } from "@/lib/workorder/gateText";
 import TickList from "@/app/components/wo/TickList";
 import PhotoGrid from "@/app/components/wo/PhotoGrid";
@@ -26,14 +27,15 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
 
   const { data: wo } = await supabase
     .from("work_orders")
-    .select("id, wo_ref, stage, blocked_reason, contractor_payment_cents, start_date, end_date, qa_required, estimate_id, wo_snapshot, estimates(total_cents, deposit_paid_at:accepted_at)")
+    .select("id, wo_ref, stage, blocked_reason, contractor_payment_cents, start_date, end_date, qa_required, walkthrough_required, colours, estimate_id, wo_snapshot, estimates(total_cents, deposit_paid_at:accepted_at)")
     .eq("id", id).maybeSingle();
   if (!wo) notFound();
 
   const row = wo as unknown as {
     id: string; wo_ref: string; stage: WoStage; blocked_reason: string | null;
     contractor_payment_cents: number | null; start_date: string | null; end_date: string | null;
-    qa_required: boolean | null;
+    qa_required: boolean | null; walkthrough_required: boolean | null;
+    colours: Record<string, { status?: string; match?: { code?: string; brand?: string; canSize?: string; by?: string } }> | null;
     wo_snapshot: { jobTitle?: string; jobAddress?: string } | null;
     estimates: { total_cents: number | null; deposit_paid_at: string | null } | null;
   };
@@ -340,6 +342,22 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             today={new Intl.DateTimeFormat("en-CA", {
               timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit",
             }).format(new Date())}
+            walkthroughRequired={row.walkthrough_required !== false}
+          />
+
+          {/* Colour matches (Tom, 23 Aug): flagged by the estimator or opened by
+              a "No" on the colours question — codes come from the estimate or
+              the painter, and the hand-over is gated until they're in. */}
+          <ColourMatchCard
+            workOrderId={id}
+            materials={(snapshotDoc?.materials ?? []).map((m) => ({
+              product: m.product, colourName: m.colourName,
+              required: Boolean(m.colourMatch?.required),
+              snapCode: m.colourMatch?.code ?? "", snapBrand: m.colourMatch?.brand ?? "", snapCan: m.colourMatch?.canSize ?? "",
+              woMatch: row.colours?.[m.product]?.match ?? null,
+            }))}
+            coloursNo={checklist.some((c) => c.phase === "pre_start" && c.itemKey === "colours" && c.answer === "no")}
+            canEdit={row.stage !== "closed"}
           />
 
           {row.stage === "offered" && forPhase("pre_offer").length > 0 && (
@@ -378,6 +396,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
               startDate={row.start_date}
               endDate={row.end_date}
               stage={row.stage}
+              walkthroughRequired={row.walkthrough_required !== false}
             />
           )}
 

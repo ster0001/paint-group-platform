@@ -197,6 +197,9 @@ function relTime(iso: string): string {
 const unitLabel = (item?: RateItem) =>
   !item ? "" : item.unit === "Hours Per Item" ? "items" : item.unit === "Lineal Metres" ? "m" : "m²";
 
+/** Colour match on a substrate (Tom, 23 Aug): flagged, with codes when known. */
+type ColourMatch = { required: boolean; code: string; brand: string; canSize: string };
+
 export default function QuoteBuilder({
   rateCardId,
   rateCardVersion,
@@ -277,7 +280,7 @@ export default function QuoteBuilder({
     return g;
   }, [modifiers]);
 
-  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; materialColours?: Record<string, { name: string; hex: string }>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null; contractorRateOverride?: number | null; aiDeferred?: AiDeferred[]; idealPainters?: number | null } | null;
+  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; materialColours?: Record<string, { name: string; hex: string }>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null; contractorRateOverride?: number | null; aiDeferred?: AiDeferred[]; idealPainters?: number | null; colourMatches?: Record<string, ColourMatch> } | null;
   // Deferred plan-reader decisions ride builder_state so the review gate can
   // price them; the builder itself only carries them through saves.
   const aiDeferred = useMemo(() => loaded?.aiDeferred ?? [], [loaded]);
@@ -304,6 +307,9 @@ export default function QuoteBuilder({
   // Global colour per surface type (same cascade model as the product): choose the
   // walls colour once and every un-pinned wall follows it; a per-surface colour wins.
   const [materialColours, setMaterialColours] = useState<Record<string, { name: string; hex: string }>>(() => loaded?.materialColours ?? {});
+  // Colour match per substrate (Tom, 23 Aug): flagged here, codes given here
+  // or left for the painter to supply on the job. Keyed like materialColours.
+  const [colourMatches, setColourMatches] = useState<Record<string, ColourMatch>>(() => loaded?.colourMatches ?? {});
   const materialKey = (type: string, code: string) => `${type}::${code}`;
   const colourFor = (type: string, s: Surface): { name: string; hex: string } =>
     s.color ? { name: s.color, hex: s.colorHex || "" } : materialColours[materialKey(type, s.code)] ?? { name: "", hex: "" };
@@ -694,7 +700,7 @@ export default function QuoteBuilder({
       // keys — the old fixed key list silently dropped builder_state.wizard
       // (the answers + proving snapshot), prepPack, sidesLoop and interiorLoop
       // on every staff save. Keys the builder owns still overwrite.
-      builder_state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, aiDeferred, idealPainters, woDoc: computeWorkOrderDoc() },
+      builder_state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, aiDeferred, idealPainters, woDoc: computeWorkOrderDoc() },
       share_token: token,
       presentation_id: presentationId,
       sent_snapshot: buildCustomerDoc(token),
@@ -1018,6 +1024,9 @@ export default function QuoteBuilder({
   function computeWorkOrderDoc(): WODoc {
     const matMap = new Map<string, { vol: number; photo: string }>();
     const colourByProduct = new Map<string, { name: string; hex: string }>();
+    // A product's colour match: the first substrate (material key) that uses
+    // the product and is flagged wins — one product, one match on the sheet.
+    const matchByProduct = new Map<string, ColourMatch>();
     const areasDoc: WOArea[] = [];
     // The job's contractor-facing standard, derived from the priced level of
     // finish. Null when the estimate's level has no PG equivalent.
@@ -1035,6 +1044,8 @@ export default function QuoteBuilder({
           matMap.set(pname, cur);
           const col = colourFor(b.type, s);
           if (col.name && !colourByProduct.get(pname)?.name) colourByProduct.set(pname, col);
+          const cm = colourMatches[materialKey(b.type, s.code)];
+          if (cm?.required && !matchByProduct.has(pname)) matchByProduct.set(pname, cm);
         }
         const key = `${b.id}:${s.id}`;
         surfaces.push({
@@ -1062,7 +1073,12 @@ export default function QuoteBuilder({
       const missing = !(vol > 0); // no coverage data → never fabricate a litre figure
       const col = colourByProduct.get(product) ?? { name: "", hex: "" }; // colour comes from the estimate
       const status = woColours[product]?.status ?? "tbc"; // confirmed/TBC stays on the work order
-      return { product, photoUrl: photo, litres: missing ? null : roundUpLitres(vol), coverageMissing: missing, colourName: col.name, colourHex: col.hex, colourStatus: status };
+      const cm = matchByProduct.get(product) ?? null;
+      return {
+        product, photoUrl: photo, litres: missing ? null : roundUpLitres(vol), coverageMissing: missing,
+        colourName: col.name, colourHex: col.hex, colourStatus: status,
+        colourMatch: cm ? { required: true, code: cm.code ?? "", brand: cm.brand ?? "", canSize: cm.canSize ?? "" } : null,
+      };
     });
     return {
       version: 1,
@@ -1638,6 +1654,32 @@ export default function QuoteBuilder({
                                 onChange={(c) => setMaterialColours((m) => ({ ...m, [r.key]: c }))}
                                 compact
                               />
+                            )}
+                            {globalName && (
+                              <label className="flex items-center gap-1.5 text-[11px] text-gray-600" title="This colour needs a colour match — codes here, or the painter supplies them on the job">
+                                <input type="checkbox" checked={Boolean(colourMatches[r.key]?.required)}
+                                  data-testid={`colour-match-${r.key}`}
+                                  onChange={(e) => setColourMatches((m) => ({
+                                    ...m, [r.key]: { required: e.target.checked, code: m[r.key]?.code ?? "", brand: m[r.key]?.brand ?? "", canSize: m[r.key]?.canSize ?? "" },
+                                  }))} />
+                                Colour match
+                              </label>
+                            )}
+                            {globalName && colourMatches[r.key]?.required && (
+                              <div className="flex w-full flex-wrap items-center gap-2 pl-40 text-xs" data-testid={`colour-match-fields-${r.key}`}>
+                                <input className="w-32 rounded-md border border-gray-300 px-2 py-1 text-xs" placeholder="Colour code"
+                                  value={colourMatches[r.key]?.code ?? ""}
+                                  onChange={(e) => setColourMatches((m) => ({ ...m, [r.key]: { ...(m[r.key] ?? { required: true, code: "", brand: "", canSize: "" }), code: e.target.value } }))} />
+                                <input className="w-32 rounded-md border border-gray-300 px-2 py-1 text-xs" placeholder="Paint brand"
+                                  value={colourMatches[r.key]?.brand ?? ""}
+                                  onChange={(e) => setColourMatches((m) => ({ ...m, [r.key]: { ...(m[r.key] ?? { required: true, code: "", brand: "", canSize: "" }), brand: e.target.value } }))} />
+                                <input className="w-24 rounded-md border border-gray-300 px-2 py-1 text-xs" placeholder="Can size"
+                                  value={colourMatches[r.key]?.canSize ?? ""}
+                                  onChange={(e) => setColourMatches((m) => ({ ...m, [r.key]: { ...(m[r.key] ?? { required: true, code: "", brand: "", canSize: "" }), canSize: e.target.value } }))} />
+                                <span className="text-[11px] text-gray-500">
+                                  {colourMatches[r.key]?.code ? "Code on the job sheet." : "Leave the code blank and the painter supplies it — the job can't go to sign-off until it's in."}
+                                </span>
+                              </div>
                             )}
                             {r.customCount > 0 && (
                               <div className="flex items-center gap-2">

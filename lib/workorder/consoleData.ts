@@ -17,7 +17,8 @@ export type ConsoleData = {
 
 type WoRow = {
   id: string; estimate_id: string; wo_ref: string; stage: string; contractor_id: string | null;
-  start_date: string | null; end_date: string | null; colours: Record<string, { status?: string }> | null;
+  start_date: string | null; end_date: string | null; walkthrough_required: boolean | null;
+  colours: Record<string, { status?: string }> | null;
   blocked_reason: string | null; wo_snapshot: { jobTitle?: string } | null;
   issued_at: string | null;
   estimates: { total_cents: number | null; accepted_at: string | null } | null;
@@ -31,7 +32,7 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
          qaOpen, walkBooked, sentUpdates] =
     await Promise.all([
       supabase.from("work_orders")
-        .select("id, estimate_id, wo_ref, stage, contractor_id, start_date, end_date, colours, blocked_reason, wo_snapshot, issued_at, estimates(total_cents, accepted_at)")
+        .select("id, estimate_id, wo_ref, stage, contractor_id, start_date, end_date, walkthrough_required, colours, blocked_reason, wo_snapshot, issued_at, estimates(total_cents, accepted_at)")
         // Open jobs, plus anything closed in the last 30 days — so a signed job
         // lands in the board's Closed lane rather than vanishing (Tom, 23 Aug).
         // The queue and tiles filter closed out where they should.
@@ -92,6 +93,7 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
       contractValueCents: w.estimates?.total_cents ?? 0,
       startDate: w.start_date,
       endDate: w.end_date,
+      walkthroughRequired: w.walkthrough_required !== false,
       // No colour rows at all is "not confirmed" — an empty object is not a yes.
       coloursConfirmed: coloursTickedIds.has(w.id)
         || (values.length > 0 && values.every((c) => c?.status === "confirmed")),

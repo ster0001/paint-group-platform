@@ -140,7 +140,7 @@ export async function startWalkthroughMode(raw: unknown): Promise<WalkthroughMod
 }
 
 export type FinishResult =
-  | { ok: true; to: "qa" | "walkthrough" }
+  | { ok: true; to: "qa" | "walkthrough" | "closed" }
   | { ok: false; message: string };
 
 /**
@@ -177,6 +177,7 @@ export async function contractorFinish(raw: unknown): Promise<FinishResult> {
   const r = String(routed ?? "");
   if (r === "ok:qa") return { ok: true, to: "qa" };
   if (r === "ok:walkthrough") return { ok: true, to: "walkthrough" };
+  if (r === "ok:closed") return { ok: true, to: "closed" };
   if (r.startsWith("error:gate:")) return { ok: false, message: r.slice("error:gate:".length) };
   return { ok: false, message: "Couldn't finish up just now." };
 }

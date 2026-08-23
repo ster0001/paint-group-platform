@@ -188,3 +188,40 @@ export function buildChatEmailHtml(opts: {
 </table>
 </body></html>`;
 }
+
+/**
+ * A plain branded email — heading + paragraphs, no button. Used for the
+ * pre-start checklist (Tom, 23 Aug), where there is nothing to click.
+ */
+export function buildPlainEmailHtml(opts: {
+  heading: string;
+  message: string;
+  companyName: string;
+  logoUrl?: string;
+  companyPhone?: string;
+}): string {
+  const logo = opts.logoUrl
+    ? `<img src="${esc(opts.logoUrl)}" alt="${esc(opts.companyName)}" height="40" style="height:40px;max-width:200px;object-fit:contain;" />`
+    : `<span style="font-size:19px;font-weight:700;color:#111827;">${esc(opts.companyName)}</span>`;
+  const bodyHtml = opts.message
+    .split(/\n{2,}/)
+    .map((p) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#1f2937;">${esc(p).replace(/\n/g, "<br/>")}</p>`)
+    .join("");
+  return `<!doctype html>
+<html><body style="margin:0;padding:0;background:#f3f4f6;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:24px 0;">
+  <tr><td align="center">
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:94%;background:#ffffff;border-radius:12px;overflow:hidden;">
+      <tr><td style="padding:24px 32px 16px;border-bottom:1px solid #e5e7eb;">${logo}</td></tr>
+      <tr><td style="padding:24px 32px 8px;">
+        <h1 style="margin:0 0 14px;font-size:20px;line-height:1.3;color:#111827;">${esc(opts.heading)}</h1>
+        ${bodyHtml}
+      </td></tr>
+      <tr><td style="padding:18px 32px;border-top:1px solid #e5e7eb;">
+        <p style="margin:0;font-size:12px;color:#9ca3af;">${esc(opts.companyName)}${opts.companyPhone ? ` · ${esc(opts.companyPhone)}` : ""}</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body></html>`;
+}

@@ -23,9 +23,9 @@ let job: LoopFixture | null = null;
 
 const items = async (phase: string) => {
   const { data } = await db!.from("wo_checklist_items")
-    .select("id, label, required, auto_key, done_at")
+    .select("id, label, required, auto_key, done_at, kind, item_key")
     .eq("work_order_id", job!.workOrderId).eq("phase", phase).order("sort");
-  return (data ?? []) as { id: string; label: string; required: boolean; auto_key: string | null; done_at: string | null }[];
+  return (data ?? []) as { id: string; label: string; required: boolean; auto_key: string | null; done_at: string | null; kind: string | null; item_key: string | null }[];
 };
 
 test.describe.configure({ mode: "serial" });
@@ -59,10 +59,14 @@ test.describe("pre-offer and pre-start checklists", () => {
       p_offer_id: (offer as { id: string }).id, p_action: "accept", p_note: "",
     })).toMatch(/accepted/);
 
-    // Seeded under the CONTRACTOR's session — this is the regression. Seven
-    // rows since the SWMS item (20261017); a stale seeder overload kept
-    // answering with six until 20261102 dropped it.
-    expect((await items("pre_start")).length).toBe(7);
+    // Seeded under the CONTRACTOR's session — this is the regression. SIX rows
+    // since 20261110 (the derived QA item is gone; "Pre-start checklist" is
+    // optional; colours is a yes/no question).
+    const pre = await items("pre_start");
+    expect(pre.length).toBe(6);
+    expect(pre.find((i) => i.auto_key === "qa")).toBeUndefined();
+    expect(pre.find((i) => i.item_key === "pre_start_checklist")?.required).toBe(false);
+    expect(pre.find((i) => i.item_key === "colours")?.kind).toBe("yes_no");
     expect((await items("pre_offer")).length).toBe(2);
   });
 
@@ -81,19 +85,15 @@ test.describe("pre-offer and pre-start checklists", () => {
       .toBe("error:colours_first");
   });
 
-  test("the QA item is still derived — you change what it reads", async () => {
-    const qa = (await items("pre_start")).find((i) => i.auto_key === "qa")!;
-    expect(await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: qa.id, p_done: true }))
-      .toBe("error:derived:qa");
-  });
-
-  test("ticking the colours box by hand satisfies that step, and unlocks materials", async () => {
-    // 23 Oakdene, 23 Aug: every colour entered, box would not tick — it read a
-    // per-product status the builder never writes. It is a plain tick now.
+  test("answering the colours question (Yes or No) satisfies that step, and unlocks materials", async () => {
+    // 23 Aug, later: the colours box is a YES/NO — No means colour matches are
+    // needed and the painter supplies codes; either answer counts as done.
     const colours = (await items("pre_start")).find((i) => i.label === "Colour schedule finalised")!;
     expect(colours.auto_key).toBeNull();
     expect(await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: colours.id, p_done: true }))
-      .toBe("ok:done");
+      .toBe("error:answer_required");
+    expect(await rpcAs(staff!, "wo_answer_checklist_item", { p_item_id: colours.id, p_answer: "yes", p_note: "" }))
+      .toBe("ok:yes");
     const materials = (await items("pre_start")).find((i) => i.label === "Materials ordered")!;
     expect(await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: materials.id, p_done: true }))
       .toBe("ok:done");
@@ -107,7 +107,7 @@ test.describe("pre-offer and pre-start checklists", () => {
 
   test("and with the list ticked, the job starts", async () => {
     for (const item of await items("pre_start")) {
-      if (item.auto_key || !item.required) continue;
+      if (item.auto_key || !item.required || item.kind === "yes_no") continue;
       expect(await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: item.id, p_done: true }))
         .toBe("ok:done");
     }

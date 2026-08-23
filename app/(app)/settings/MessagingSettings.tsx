@@ -74,6 +74,32 @@ export default function MessagingSettings({ initial }: { initial: Partial<Msg> |
         )}
       </div>
 
+      <div className="rounded-lg border border-gray-200 p-4">
+        <h3 className="text-sm font-semibold text-gray-800">Pre-start checklist</h3>
+        <p className="mt-1 text-xs text-gray-500">
+          Sent to the customer before the job starts, when &ldquo;Pre-start checklist&rdquo; is ticked on the job&rsquo;s pre-start list.
+          Placeholders: {"{{first_name}}"} · {"{{company_name}}"} · {"{{start_date}}"} · {"{{address}}"} · {"{{estimate_title}}"}
+        </p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-[10rem_1fr]">
+          <label className="text-sm text-gray-700">
+            Days before start
+            <input type="number" min={0} max={30} value={form.preStartDaysBefore}
+              onChange={(e) => set("preStartDaysBefore", Math.max(0, Math.min(30, parseInt(e.target.value || "0", 10) || 0)))}
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm" data-testid="prestart-days" />
+          </label>
+          <label className="text-sm text-gray-700">
+            Email subject
+            <input value={form.preStartSubject} onChange={(e) => set("preStartSubject", e.target.value)}
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm" />
+          </label>
+        </div>
+        <label className="mt-3 block text-sm text-gray-700">
+          Checklist (the email body)
+          <textarea rows={10} value={form.preStartBody} onChange={(e) => set("preStartBody", e.target.value)}
+            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm leading-relaxed" data-testid="prestart-body" />
+        </label>
+      </div>
+
       <div className="flex items-center gap-3">
         <button onClick={save} disabled={saving} className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50">
           {saving ? "Saving…" : "Save"}

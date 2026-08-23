@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { credentials, missingCreds, signIn } from "./helpers";
 import {
-  completePrep, contractorIdForEmail, createLoopFixture, destroyLoopFixture,
+  completePreStart, completePrep, contractorIdForEmail, createLoopFixture, destroyLoopFixture,
   rpcAs, serviceClient, type LoopFixture,
 } from "./fixtures/woLoop";
 
@@ -55,13 +55,7 @@ test.describe("moving a job forward from the console", () => {
       colours: { Weathershield: { name: "Vivid White", hex: "#fff", status: "confirmed" } },
     }).eq("id", job!.workOrderId);
 
-    const { data: items } = await db!.from("wo_checklist_items")
-      .select("id, auto_key, required")
-      .eq("work_order_id", job!.workOrderId).eq("phase", "pre_start").order("sort");
-    for (const i of (items as { id: string; auto_key: string | null; required: boolean }[])) {
-      if (i.auto_key || !i.required) continue;
-      await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: i.id, p_done: true });
-    }
+    await completePreStart(db!, staff!, job!.workOrderId);
 
     await signIn(page, staff!, /\/estimates/);
     await page.goto(`/pc/wo/${job!.workOrderId}`);
@@ -95,12 +89,7 @@ test.describe("moving a job forward from the console", () => {
       colours: { Weathershield: { name: "Vivid White", hex: "#fff", status: "confirmed" } },
     }).eq("id", later.workOrderId);
     await rpcAs(staff!, "wo_seed_checklists", { p_work_order_id: later.workOrderId });
-    const { data: items } = await db!.from("wo_checklist_items")
-      .select("id, auto_key, required").eq("work_order_id", later.workOrderId).eq("phase", "pre_start");
-    for (const i of (items as { id: string; auto_key: string | null; required: boolean }[])) {
-      if (i.auto_key || !i.required) continue;
-      await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: i.id, p_done: true });
-    }
+    await completePreStart(db!, staff!, later.workOrderId);
 
     await signIn(page, staff!, /\/estimates/);
     await page.goto(`/pc/wo/${later.workOrderId}`);
@@ -145,12 +134,7 @@ test.describe("moving a job forward from the console", () => {
     await db!.from("work_orders").update({
       colours: { Weathershield: { name: "Vivid White", hex: "#fff", status: "confirmed" } },
     }).eq("id", due.workOrderId);
-    const { data: items } = await db!.from("wo_checklist_items")
-      .select("id, auto_key, required").eq("work_order_id", due.workOrderId).eq("phase", "pre_start");
-    for (const i of (items as { id: string; auto_key: string | null; required: boolean }[])) {
-      if (i.auto_key || !i.required) continue;
-      await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: i.id, p_done: true });
-    }
+    await completePreStart(db!, staff!, due.workOrderId);
 
     await rpcAs(staff!, "wo_autostart_sweep", {});
     ({ data } = await db!.from("work_orders").select("stage").eq("id", due.workOrderId).single());
