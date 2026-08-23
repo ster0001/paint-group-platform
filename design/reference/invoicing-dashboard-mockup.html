@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Invoicing dashboard — invoicing-dashboard-mockup</title>
+<link rel="preconnect" href="https://api.fontshare.com">
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@500,600,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0B0D; --graphite:#12161A; --raised:#171C21; --line:#242B32;
+    --text:#EDF0F2; --muted:#8C959D;
+    --cyan:#3BD8E9; --on-cyan:#03272D; --paint:#2FB9CB;
+    --amber:#E0A83C; --emerald:#2FA46B; --clay:#B3574A;
+    --sans:'Switzer',system-ui,-apple-system,sans-serif;
+    --mono:'Martian Mono',ui-monospace,SFMono-Regular,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--ink);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+  body{max-width:480px;margin:0 auto;padding-bottom:40px}
+  .mono{font-family:var(--mono)}
+  header{padding:18px 16px 0}
+  .crumb{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;font-weight:500}
+  .crumb .chev{color:var(--cyan)}
+  h1{font-size:22px;font-weight:700;letter-spacing:-.02em;margin-top:8px}
+  .sub{color:var(--muted);font-size:13px;margin-top:2px;font-weight:500}
+  /* ---------- pulse tiles ---------- */
+  .tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:16px 16px 0}
+  .tile{border:1px solid var(--line);border-radius:13px;background:var(--graphite);padding:12px 13px;position:relative;overflow:hidden}
+  .tile .k{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .tile .v{font-family:var(--mono);font-size:19px;font-weight:600;margin-top:7px}
+  .tile .m{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:4px}
+  .tile.overdue{border-color:rgba(179,87,74,.5)}
+  .tile.overdue .v{color:var(--clay)}
+  .tile.week .v{color:var(--amber)}
+  .tile.collected{border-color:rgba(47,164,107,.4)}
+  .tile.collected .v{color:var(--emerald)}
+  .spark{position:absolute;right:10px;bottom:10px;display:flex;align-items:flex-end;gap:2px;height:20px;opacity:.85}
+  .spark i{width:4px;border-radius:2px;background:var(--emerald)}
+  /* ---------- tabs ---------- */
+  nav{position:sticky;top:0;z-index:5;display:flex;gap:4px;margin-top:16px;padding:10px 16px;background:linear-gradient(var(--ink) 75%,transparent);backdrop-filter:blur(6px)}
+  nav button{flex:1;appearance:none;border:1px solid var(--line);background:var(--graphite);color:var(--muted);
+    font-family:var(--sans);font-size:13.5px;font-weight:600;padding:9px 0;border-radius:10px;cursor:pointer}
+  nav button.on{background:var(--cyan);border-color:var(--cyan);color:var(--on-cyan)}
+  section{display:none;padding:4px 16px 0}
+  section.on{display:block}
+  /* ---------- filter chips ---------- */
+  .filters{display:flex;gap:6px;overflow-x:auto;padding:6px 0 2px;scrollbar-width:none}
+  .filters::-webkit-scrollbar{display:none}
+  .f{appearance:none;flex:none;border:1px solid var(--line);background:var(--graphite);color:var(--muted);
+    font-family:var(--mono);font-size:10.5px;padding:7px 11px;border-radius:999px;cursor:pointer}
+  .f b{color:var(--text);font-weight:500;margin-left:4px}
+  .f.on{background:var(--raised);border-color:var(--cyan);color:var(--cyan)}
+  .f.on b{color:var(--cyan)}
+  /* ---------- invoice rows ---------- */
+  .rows{margin-top:8px}
+  .r{display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:13px;background:var(--graphite);
+    padding:12px 13px;margin-top:9px;cursor:pointer}
+  .r.hide{display:none}
+  .r .body{flex:1;min-width:0}
+  .r .job{font-size:14.5px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .r .ref{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:3px}
+  .r .age{font-family:var(--mono);font-size:10px;margin-top:5px;color:var(--muted)}
+  .r .age.clay{color:var(--clay)} .r .age.amber{color:var(--amber)} .r .age.cyan{color:var(--cyan)} .r .age.emerald{color:var(--emerald)}
+  .r .right{text-align:right;flex:none}
+  .r .amt{font-family:var(--mono);font-size:14px;font-weight:600}
+  .dots{display:flex;gap:4px;justify-content:flex-end;margin-top:6px}
+  .d{width:7px;height:7px;border-radius:50%;border:1.5px solid var(--line)}
+  .d.paid{background:var(--emerald);border-color:var(--emerald)}
+  .d.open{border-color:var(--cyan)}
+  .r .go{color:var(--muted);flex:none}
+  .r.overdue{border-color:rgba(179,87,74,.5)}
+  .r.draft{border-style:dashed}
+  /* ---------- aged bar ---------- */
+  .card{border:1px solid var(--line);border-radius:14px;background:var(--graphite);padding:14px;margin-top:14px}
+  h3{font-size:15px;font-weight:600;letter-spacing:-.01em}
+  .agebar{display:flex;height:12px;border-radius:6px;overflow:hidden;margin-top:12px;background:var(--line)}
+  .agebar i{height:100%}
+  .agekeys{display:grid;grid-template-columns:repeat(5,1fr);margin-top:10px}
+  .agekeys div{text-align:center;font-family:var(--mono);font-size:8.5px;color:var(--muted);letter-spacing:.04em}
+  .agekeys b{display:block;font-size:10px;color:var(--text);font-weight:500;margin-bottom:3px}
+  /* ---------- payables ---------- */
+  .ptiles{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  .chip{display:inline-block;font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;
+    padding:4px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+  .chip.submitted{color:var(--amber);border-color:rgba(224,168,60,.4)}
+  .chip.approved{color:var(--cyan);border-color:rgba(59,216,233,.4)}
+  .mini{appearance:none;border:1px solid var(--line);background:var(--ink);color:var(--text);
+    font-family:var(--sans);font-size:12px;font-weight:600;padding:7px 11px;border-radius:9px;cursor:pointer}
+  .mini.cy{border-color:rgba(59,216,233,.4);color:var(--cyan)}
+  .acts{display:flex;gap:8px;margin-top:11px}
+  .badge{font-family:var(--mono);font-size:9px;background:var(--amber);color:var(--ink);border-radius:999px;padding:2px 7px;margin-left:8px}
+  /* ---------- activity ---------- */
+  .ev{display:flex;gap:12px;padding:12px 2px;border-bottom:1px solid var(--line)}
+  .ev:last-child{border-bottom:0}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--line);margin-top:5px;flex:none}
+  .dot.emerald{background:var(--emerald)} .dot.cyan{background:var(--cyan)} .dot.amber{background:var(--amber)} .dot.clay{background:var(--clay)}
+  .ev .t{font-size:13.5px;font-weight:500}
+  .ev .m{color:var(--muted);font-size:11.5px;margin-top:2px;font-family:var(--mono)}
+  .note{margin:26px 16px 0;color:var(--muted);font-size:11px;font-family:var(--mono);text-align:center}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="crumb"><span class="chev">‹</span> PC Command</div>
+  <h1>Invoicing</h1>
+  <div class="sub">All jobs · receivables &amp; payables · sample data</div>
+</header>
+
+<div class="tiles">
+  <div class="tile"><div class="k">Outstanding</div><div class="v">$21,150</div><div class="m">4 invoices · 4 jobs</div></div>
+  <div class="tile overdue"><div class="k">Overdue</div><div class="v">$8,240</div><div class="m">2 invoices · oldest 6 days</div></div>
+  <div class="tile week"><div class="k">Due this week</div><div class="v">$12,910</div><div class="m">2 invoices</div></div>
+  <div class="tile collected"><div class="k">Collected · 14 days</div><div class="v">$23,406</div>
+    <div class="spark"><i style="height:6px"></i><i style="height:10px"></i><i style="height:4px"></i><i style="height:14px"></i><i style="height:8px"></i><i style="height:20px"></i><i style="height:12px"></i></div>
+  </div>
+</div>
+
+<nav>
+  <button class="on" data-tab="recv">Receivables</button>
+  <button data-tab="pay">Payables</button>
+  <button data-tab="act">Activity</button>
+</nav>
+
+<!-- ================= RECEIVABLES ================= -->
+<section id="recv" class="on">
+  <div class="filters">
+    <button class="f on" data-s="all">All<b>6</b></button>
+    <button class="f" data-s="overdue">Overdue<b>2</b></button>
+    <button class="f" data-s="awaiting">Awaiting<b>2</b></button>
+    <button class="f" data-s="draft">Draft<b>1</b></button>
+    <button class="f" data-s="paid">Paid<b>1</b></button>
+  </div>
+
+  <div class="rows">
+    <div class="r overdue" data-s="overdue">
+      <div class="body">
+        <div class="job">4 Barkly St, Brunswick</div>
+        <div class="ref">INV-0138 · Final · balance $6,262.00</div>
+        <div class="age clay">6 days overdue · chase drafted, awaiting your approval</div>
+      </div>
+      <div class="right"><div class="amt">$6,262</div>
+        <div class="dots"><span class="d paid"></span><span class="d paid"></span><span class="d open"></span></div>
+      </div><span class="go">›</span>
+    </div>
+
+    <div class="r overdue" data-s="overdue">
+      <div class="body">
+        <div class="job">90 Tennyson St, Elwood</div>
+        <div class="ref">INV-0145 · Deposit · balance $1,978.00</div>
+        <div class="age clay">2 days overdue · job starts Thu — deposit unpaid</div>
+      </div>
+      <div class="right"><div class="amt">$1,978</div>
+        <div class="dots"><span class="d open"></span><span class="d"></span><span class="d"></span></div>
+      </div><span class="go">›</span>
+    </div>
+
+    <div class="r" data-s="awaiting">
+      <div class="body">
+        <div class="job">12 Ellerslie Grove, Elsternwick</div>
+        <div class="ref">INV-0151 · Progress · balance $5,935.00</div>
+        <div class="age cyan">Due in 4 days · viewed yesterday 6:41 pm</div>
+      </div>
+      <div class="right"><div class="amt">$5,935</div>
+        <div class="dots"><span class="d paid"></span><span class="d open"></span><span class="d"></span></div>
+      </div><span class="go">›</span>
+    </div>
+
+    <div class="r" data-s="awaiting">
+      <div class="body">
+        <div class="job">22 Mercer Rd, Armadale</div>
+        <div class="ref">INV-0152 · Final · balance $6,975.00</div>
+        <div class="age amber">Due in 6 days · sent Wed, not yet viewed</div>
+      </div>
+      <div class="right"><div class="amt">$6,975</div>
+        <div class="dots"><span class="d paid"></span><span class="d paid"></span><span class="d open"></span></div>
+      </div><span class="go">›</span>
+    </div>
+
+    <div class="r draft" data-s="draft">
+      <div class="body">
+        <div class="job">8 Pine Ave, Caulfield</div>
+        <div class="ref">Deposit · draft (unnumbered) · auto-drafted on acceptance</div>
+        <div class="age amber">Awaiting review — amend or issue</div>
+      </div>
+      <div class="right"><div class="amt">$2,120</div>
+        <div class="dots"><span class="d"></span><span class="d"></span><span class="d"></span></div>
+      </div><span class="go">›</span>
+    </div>
+
+    <div class="r" data-s="paid">
+      <div class="body">
+        <div class="job">31 Ash Grove, Malvern</div>
+        <div class="ref">INV-0140 · Final · $4,890.00</div>
+        <div class="age emerald">Paid in full Tue · bank transfer · receipt RCT-0140</div>
+      </div>
+      <div class="right"><div class="amt">$0</div>
+        <div class="dots"><span class="d paid"></span><span class="d paid"></span><span class="d paid"></span></div>
+      </div><span class="go">›</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Aged receivables</h3>
+    <div class="agebar">
+      <i style="width:61%;background:var(--paint)"></i>
+      <i style="width:39%;background:var(--clay)"></i>
+    </div>
+    <div class="agekeys">
+      <div><b>$12,910</b>current</div>
+      <div><b>$8,240</b>1–7 d</div>
+      <div><b>$0</b>8–14 d</div>
+      <div><b>$0</b>15–30 d</div>
+      <div><b>$0</b>30+ d</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PAYABLES ================= -->
+<section id="pay">
+  <div class="ptiles">
+    <div class="tile"><div class="k">To approve</div><div class="v" style="color:var(--amber)">$9,660</div><div class="m">1 contractor invoice</div></div>
+    <div class="tile"><div class="k">To pay this week</div><div class="v">$1,630</div><div class="m">2 items</div></div>
+  </div>
+
+  <div class="rows">
+    <div class="r">
+      <div class="body">
+        <div class="job">Marcus V. — 12 Ellerslie Grove</div>
+        <div class="ref">CI-0031 · offer $9,300 + variations $360</div>
+        <div class="age amber">Submitted yesterday · <span class="chip submitted">Submitted</span></div>
+        <div class="acts"><button class="mini cy">Approve</button><button class="mini">Open</button></div>
+      </div>
+      <div class="right"><div class="amt">$9,660</div></div>
+    </div>
+
+    <div class="r">
+      <div class="body">
+        <div class="job">SkyReach Hire — scaffold, 4 Barkly St</div>
+        <div class="ref">Job cost · linked to estimate pass-through</div>
+        <div class="age cyan">Approved · due Fri · <span class="chip approved">To pay</span></div>
+        <div class="acts"><button class="mini cy">Mark paid</button><button class="mini">Invoice PDF</button></div>
+      </div>
+      <div class="right"><div class="amt">$1,450</div></div>
+    </div>
+
+    <div class="r">
+      <div class="body">
+        <div class="job">Tip run — 22 Mercer Rd</div>
+        <div class="ref">Job cost · not in estimate — scope-creep flag on the job</div>
+        <div class="age cyan">Approved · <span class="chip approved">To pay</span></div>
+        <div class="acts"><button class="mini cy">Mark paid</button></div>
+      </div>
+      <div class="right"><div class="amt">$180</div></div>
+    </div>
+
+    <div class="r">
+      <div class="body">
+        <div class="job">Materials — unmatched queue<span class="badge">2</span></div>
+        <div class="ref">Haymes $312.40 · Dulux $186.10 — no job match on order ref</div>
+        <div class="age amber">Assign to a job</div>
+      </div>
+      <span class="go">›</span>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ACTIVITY ================= -->
+<section id="act">
+  <div class="card" style="margin-top:8px">
+    <div class="ev"><span class="dot emerald"></span><div><div class="t">Payment received — card via Stripe</div><div class="m">12 Ellerslie Grove · INV-0142 · $1,978.00 · today 9:12 am</div></div></div>
+    <div class="ev"><span class="dot clay"></span><div><div class="t">Invoice fell overdue — chase drafted for approval</div><div class="m">4 Barkly St · INV-0138 · 6 days · today 6:00 pm sweep</div></div></div>
+    <div class="ev"><span class="dot cyan"></span><div><div class="t">Invoice viewed by customer</div><div class="m">12 Ellerslie Grove · INV-0151 · yesterday 6:41 pm</div></div></div>
+    <div class="ev"><span class="dot cyan"></span><div><div class="t">Final invoice sent — email + pay link</div><div class="m">22 Mercer Rd · INV-0152 · Wed 4:03 pm</div></div></div>
+    <div class="ev"><span class="dot amber"></span><div><div class="t">Deposit auto-drafted on acceptance</div><div class="m">8 Pine Ave · 10% · $2,120.00 · Wed 11:20 am</div></div></div>
+    <div class="ev"><span class="dot emerald"></span><div><div class="t">Contractor invoice paid — remittance emailed</div><div class="m">Davide R. · CI-0029 · $6,180.00 · Tue</div></div></div>
+  </div>
+</section>
+
+<div class="note">design/reference/invoicing-dashboard-mockup.html · all figures sample · every real number reads from lib/invoicing</div>
+
+<script>
+  document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{
+    document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+    document.querySelectorAll('section').forEach(s=>s.classList.toggle('on',s.id===b.dataset.tab));
+    window.scrollTo({top:0});
+  }));
+  document.querySelectorAll('.f').forEach(f=>f.addEventListener('click',()=>{
+    document.querySelectorAll('.f').forEach(x=>x.classList.toggle('on',x===f));
+    const s=f.dataset.s;
+    document.querySelectorAll('#recv .r').forEach(r=>r.classList.toggle('hide',s!=='all'&&r.dataset.s!==s));
+  }));
+</script>
+</body>
+</html>

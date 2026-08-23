@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Invoice document — invoice-document-mockup</title>
+<link rel="preconnect" href="https://api.fontshare.com">
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@500,600,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0B0D; --graphite:#12161A; --raised:#171C21; --line:#242B32;
+    --text:#EDF0F2; --muted:#8C959D;
+    --cyan:#3BD8E9; --on-cyan:#03272D; --paint:#2FB9CB;
+    --amber:#E0A83C; --emerald:#2FA46B; --clay:#B3574A;
+    --sans:'Switzer',system-ui,-apple-system,sans-serif;
+    --mono:'Martian Mono',ui-monospace,SFMono-Regular,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--ink);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+  body{max-width:480px;margin:0 auto;padding-bottom:104px}
+  .mono{font-family:var(--mono)}
+  header{padding:18px 16px 0}
+  .crumb{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;font-weight:500}
+  .crumb .chev{color:var(--cyan)}
+  h1{font-size:21px;font-weight:700;letter-spacing:-.02em;margin-top:8px}
+  .sub{color:var(--muted);font-size:13px;margin-top:2px;font-weight:500}
+  .chip{display:inline-block;font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;
+    padding:4px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);vertical-align:2px;margin-left:8px}
+  .chip.draft{color:var(--amber);border-color:rgba(224,168,60,.45)}
+  /* ---------- draft banner ---------- */
+  .banner{display:flex;gap:10px;align-items:flex-start;margin:14px 16px 0;border:1px solid rgba(224,168,60,.4);
+    border-radius:12px;background:var(--graphite);padding:11px 13px}
+  .banner .i{color:var(--amber);font-size:14px;line-height:1.3}
+  .banner p{font-size:12.5px;color:var(--muted);line-height:1.45;font-weight:500}
+  .banner b{color:var(--text);font-weight:600}
+  /* ---------- document ---------- */
+  .doc{margin:14px 16px 0;border:1px solid var(--line);border-radius:16px;background:var(--graphite);overflow:hidden}
+  .doc-head{padding:16px 15px 14px;border-bottom:1px solid var(--line)}
+  .brand{font-weight:700;font-size:16px;letter-spacing:.14em}
+  .brand span{color:var(--cyan)}
+  .brand-sub{font-family:var(--mono);font-size:8.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-top:3px}
+  .entity{font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.7;margin-top:10px}
+  .doc-meta{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:13px 15px;border-bottom:1px solid var(--line)}
+  .doc-meta .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .doc-meta .v{font-size:13px;font-weight:600;margin-top:4px}
+  .doc-meta .v.mono{font-family:var(--mono);font-weight:500;font-size:12px}
+  .doc-meta .v small{display:block;color:var(--muted);font-weight:500;font-size:11.5px;margin-top:2px}
+  /* ---------- line items ---------- */
+  .grp-h{display:flex;justify-content:space-between;align-items:baseline;padding:13px 15px 4px}
+  .grp-h .t{font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--cyan)}
+  .line{display:flex;justify-content:space-between;gap:12px;padding:10px 15px;border-bottom:1px solid var(--line)}
+  .line:last-of-type{border-bottom:0}
+  .line .n{font-size:14px;font-weight:600;letter-spacing:-.01em}
+  .line .d{color:var(--muted);font-size:12px;line-height:1.45;margin-top:3px;font-weight:500}
+  .line .a{font-family:var(--mono);font-size:13px;font-weight:600;flex:none}
+  .line .edit{color:var(--muted);font-size:11px;flex:none;align-self:center;border:1px solid var(--line);border-radius:8px;padding:5px 8px;font-family:var(--mono)}
+  .vline .n{color:var(--text)}
+  .vline .appr{font-family:var(--mono);font-size:9.5px;color:var(--emerald);margin-top:4px}
+  .add-line{margin:10px 15px 14px;border:1px dashed var(--line);border-radius:10px;text-align:center;
+    padding:10px;color:var(--cyan);font-size:13px;font-weight:600;cursor:pointer}
+  /* ---------- totals ---------- */
+  .totals{background:var(--raised);border-top:1px solid var(--line);padding:13px 15px}
+  .trow{display:flex;justify-content:space-between;padding:4px 0;font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+  .trow b{color:var(--text);font-weight:500}
+  .trow.big{padding-top:9px;margin-top:6px;border-top:1px solid var(--line)}
+  .trow.big span{font-family:var(--sans);font-size:14px;font-weight:700;color:var(--text)}
+  .trow.big b{font-size:16px;font-weight:600;color:var(--cyan)}
+  .recon{display:flex;gap:8px;align-items:center;margin-top:10px;font-family:var(--mono);font-size:10px;color:var(--emerald)}
+  /* ---------- payments ---------- */
+  .card{border:1px solid var(--line);border-radius:14px;background:var(--graphite);padding:14px;margin:14px 16px 0}
+  h3{font-size:15px;font-weight:600;letter-spacing:-.01em}
+  .pay{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)}
+  .pay:last-of-type{border-bottom:0}
+  .pay .m{font-size:13.5px;font-weight:600}
+  .pay .s{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:3px}
+  .pay .amt{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--emerald);flex:none}
+  .payacts{display:flex;gap:8px;margin-top:12px}
+  .mini{appearance:none;border:1px solid var(--line);background:var(--ink);color:var(--text);
+    font-family:var(--sans);font-size:12.5px;font-weight:600;padding:9px 12px;border-radius:9px;cursor:pointer;flex:1}
+  .mini.cy{border-color:rgba(59,216,233,.4);color:var(--cyan)}
+  /* ---------- secondary actions ---------- */
+  .secacts{display:flex;gap:8px;margin:14px 16px 0}
+  .secacts .mini{flex:1}
+  .note{margin:24px 16px 0;color:var(--muted);font-size:11px;font-family:var(--mono);text-align:center;line-height:1.6}
+  /* ---------- primary bar ---------- */
+  .actions{position:fixed;bottom:0;left:0;right:0;max-width:480px;margin:0 auto;display:flex;gap:10px;
+    padding:12px 16px calc(14px + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--ink) 40%)}
+  .btn{flex:1;appearance:none;border:0;border-radius:12px;padding:14px 0;font-family:var(--sans);font-size:14.5px;font-weight:700;cursor:pointer}
+  .btn.primary{background:var(--cyan);color:var(--on-cyan)}
+  .btn.ghost{background:var(--raised);color:var(--text);border:1px solid var(--line)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="crumb"><span class="chev">‹</span> Invoicing · 12 Ellerslie Grove · Money view</div>
+  <h1>Final invoice<span class="chip draft">Draft — check before sending</span></h1>
+  <div class="sub">Auto-drafted at sign-off · number allocated when issued · sample data</div>
+</header>
+
+<div class="banner">
+  <div class="i">✎</div>
+  <p><b>Editable while draft.</b> Lines are seeded from the accepted estimate and approved variations. Amend descriptions or amounts freely — if the total moves away from the job ledger, an amber banner shows the difference and offers to record it as a variation. <b>Issuing locks the document</b> and generates the PDF.</p>
+</div>
+
+<div class="doc">
+  <!-- letterhead -->
+  <div class="doc-head">
+    <div class="brand">PAINT<span>GROUP</span></div>
+    <div class="brand-sub">Painting · Plastering · Restoration</div>
+    <div class="entity">25/25-35 Bunney Road, Oakleigh South VIC 3167 · ABN 41 639 780 108<br>
+    Banking: ENLVN Pty Ltd · Commonwealth Bank · ref INV number<br>
+    <span style="color:var(--text)">TAX INVOICE</span> · from Settings — edit there, not here</div>
+  </div>
+
+  <!-- meta -->
+  <div class="doc-meta">
+    <div><div class="k">Billed to</div><div class="v">Sarah Mitchell<small>12 Ellerslie Grove, Elsternwick VIC 3185</small></div></div>
+    <div><div class="k">Job</div><div class="v">Exterior repaint<small>WO-0087 · signed off 21 Aug</small></div></div>
+    <div><div class="k">Invoice no.</div><div class="v mono">— at issue</div></div>
+    <div><div class="k">Due</div><div class="v mono">issue + 7 days</div></div>
+  </div>
+
+  <!-- contract lines, grouped by elevation like the estimate -->
+  <div class="grp-h"><span class="t">Contract works — from accepted estimate</span></div>
+  <div class="line"><div><div class="n">Front elevation</div><div class="d">Weatherboard 75% / render 25%, 12 × 2.6 m, 2 coats · 3 windows (2M, 1L) · entry door · sills &amp; trims</div></div><div class="a">$6,240.00</div><div class="edit">✎</div></div>
+  <div class="line"><div><div class="n">Left side</div><div class="d">Weatherboard, 9 × 2.6 m, 2 coats · 2 windows (M)</div></div><div class="a">$3,180.00</div><div class="edit">✎</div></div>
+  <div class="line"><div><div class="n">Right side</div><div class="d">Weatherboard, 9 × 2.6 m, 2 coats · 1 window (S) · meter box</div></div><div class="a">$2,890.00</div><div class="edit">✎</div></div>
+  <div class="line"><div><div class="n">Back elevation</div><div class="d">Weatherboard, 11 × 2.6 m, 2 coats · 3 windows (3M) · laundry door</div></div><div class="a">$3,610.00</div><div class="edit">✎</div></div>
+  <div class="line"><div><div class="n">Fascias, gutters &amp; eaves</div><div class="d">Fascias &amp; gutters 42 m · eaves 38 m, 2 coats</div></div><div class="a">$1,420.00</div><div class="edit">✎</div></div>
+  <div class="line"><div><div class="n">Scissor lift hire</div><div class="d">Pass-through — includes pick-up and drop-off</div></div><div class="a">$1,200.00</div><div class="edit">✎</div></div>
+
+  <!-- variation lines -->
+  <div class="grp-h"><span class="t">Variations — approved during the job</span></div>
+  <div class="line vline"><div><div class="n">Gate &amp; fence posts</div><div class="d">Two coats, both sides, incl. prep</div><div class="appr">✓ Approved by customer 15 Aug</div></div><div class="a">$883.00</div><div class="edit">✎</div></div>
+  <div class="line vline"><div><div class="n">Extra preparation — south wall rot</div><div class="d">Cut-out, fill and seal prior to painting, 6.0 h</div><div class="appr">✓ Approved by customer 18 Aug</div></div><div class="a">$360.00</div><div class="edit">✎</div></div>
+
+  <div class="add-line">+ Add a line (manual — flagged if it moves off the ledger)</div>
+
+  <!-- totals -->
+  <div class="totals">
+    <div class="trow"><span>Adjusted contract (incl. variations)</span><b>$19,783.00</b></div>
+    <div class="trow"><span>Less previously invoiced — INV-0142 deposit, INV-0151 progress</span><b>−$7,913.00</b></div>
+    <div class="trow"><span>This invoice — subtotal</span><b>$10,790.91</b></div>
+    <div class="trow"><span>GST (10%)</span><b>$1,079.09</b></div>
+    <div class="trow big"><span>Balance due</span><b>$11,870.00</b></div>
+    <div class="recon">● Reconciles to the job ledger — nothing owed after this invoice</div>
+  </div>
+</div>
+
+<!-- payments on this job -->
+<div class="card">
+  <h3>Payments — this job</h3>
+  <div class="pay"><div><div class="m">Deposit — card via Stripe</div><div class="s">INV-0142 · 8 Aug · receipt RCT-0142 · incl. $34.00 surcharge</div></div><div class="amt">$1,978.00</div></div>
+  <div class="pay"><div><div class="m">Progress — bank transfer</div><div class="s">INV-0151 · 20 Aug · recorded by Tom</div></div><div class="amt">$5,935.00</div></div>
+  <div class="payacts">
+    <button class="mini">Record payment</button>
+    <button class="mini cy">Request payment</button>
+  </div>
+</div>
+
+<div class="secacts">
+  <button class="mini">Preview as customer</button>
+  <button class="mini">Copy pay link</button>
+  <button class="mini">PDF</button>
+</div>
+
+<div class="note">Once issued: number allocated · PDF generated &amp; locked · edits become void-and-reissue or credit note.<br>design/reference/invoice-document-mockup.html · all figures sample</div>
+
+<div class="actions">
+  <button class="btn ghost">Save draft</button>
+  <button class="btn primary">Issue &amp; send…</button>
+</div>
+
+</body>
+</html>
