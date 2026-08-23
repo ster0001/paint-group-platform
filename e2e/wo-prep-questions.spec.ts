@@ -182,7 +182,8 @@ test.describe("prep questions + pass → walkthrough", () => {
         await rpcAs(staff!, "wo_tick_qa_item", { p_item_id: item.id, p_done: true });
       }
       const r = await rpcAs(staff!, "wo_record_qa", { p_check_id: c.id, p_result: "pass", p_notes: "e2e", p_rectify: [] });
-      expect(r).toMatch(i === list.length - 1 ? /^ok:pass:walkthrough/ : /^ok:pass$/);
+      // Fixture jobs have no QA photos, so ":thin_record" may trail either answer.
+      expect(r).toMatch(i === list.length - 1 ? /^ok:pass:walkthrough/ : /^ok:pass(:thin_record)?$/);
     }
     const { data: wo } = await db!.from("work_orders").select("stage").eq("id", painterFixture!.workOrderId).maybeSingle();
     expect((wo as { stage: string }).stage).toBe("walkthrough");
