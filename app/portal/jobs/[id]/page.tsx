@@ -8,6 +8,7 @@ import RescheduleRequest from "./RescheduleRequest";
 import TickList from "@/app/components/wo/TickList";
 import Variations, { type VariationView } from "./Variations";
 import PrepChecklist, { type PrepItem } from "./PrepChecklist";
+import FinishDate from "./FinishDate";
 import FinishUp from "./FinishUp";
 import WalkthroughStart from "./WalkthroughStart";
 import CrewShare from "./CrewShare";
@@ -80,7 +81,7 @@ export default async function PortalJobPage({
       .select("kind, scheduled_date, status").eq("work_order_id", id)
       .eq("status", "booked"),
     supabase.from("wo_qa_checks")
-      .select("id, result").eq("work_order_id", id),
+      .select("id, result, kind, scheduled_for").eq("work_order_id", id),
   ]);
 
   // Requested or confirmed — derived from the live offer, never stored twice.
@@ -266,6 +267,18 @@ export default async function PortalJobPage({
                 : "Paint Group is quality checking this job before sign-off. The walkthrough opens here the moment it passes — nothing for you to do unless something comes back to fix."}
             </p>
           </div>
+        </div>
+      )}
+
+      {/* The finish / walkthrough date, movable by the painter (Tom, 23 Aug),
+          with any dated quality check the office has booked. */}
+      {job.committed && stage !== "closed" && stage !== "offered" && (
+        <div style={{ padding: "0 16px" }}>
+          <FinishDate workOrderId={id} finalDate={bookedFinal} endDate={woBooking.endDate}
+            startDate={woBooking.startDate} stage={stage ?? ""}
+            qaDates={((qaRows ?? []) as { kind: string; scheduled_for: string | null; result: string | null }[])
+              .filter((q) => q.scheduled_for)
+              .map((q) => ({ kind: q.kind, date: q.scheduled_for as string, result: q.result }))} />
         </div>
       )}
 

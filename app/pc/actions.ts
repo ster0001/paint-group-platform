@@ -294,6 +294,21 @@ export async function recordQa(raw: unknown): Promise<QaResult> {
   return { ok: true, message: `Passed — another check is still to log before sign-off.${thin}` };
 }
 
+/** The job-level "quality check required" flag (Tom, 23 Aug). */
+export async function setQaRequired(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ workOrderId: uuid, required: z.boolean() }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  return call("wo_set_qa_required", { p_work_order_id: parsed.data.workOrderId, p_required: parsed.data.required },
+    parsed.data.required ? "Quality check scheduled for this job." : "Flag cleared.");
+}
+
+/** A mid-job quality check, on top of the standard final (Tom, 23 Aug). */
+export async function addQaCheck(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ workOrderId: uuid, date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable() }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  return call("wo_add_qa_check", { p_work_order_id: parsed.data.workOrderId, p_date: parsed.data.date }, "Mid-job check added.");
+}
+
 /** A completion-prep QUESTION answered by the office on the painter's behalf. */
 export async function answerChecklistItem(raw: unknown): Promise<PcResult> {
   const parsed = z.object({
@@ -363,6 +378,38 @@ export async function markClientUnavailable(raw: unknown): Promise<PcResult> {
   if (!parsed.success) return { ok: false, message: "Invalid input." };
   return call("wo_mark_client_unavailable", { p_work_order_id: parsed.data.workOrderId },
     "Marked unavailable — remote sign-off is now open to them.");
+}
+
+/** Staff standing with the customer: the on-device walkthrough from our phone. */
+export async function staffStartWalkthrough(raw: unknown): Promise<PcResult & { url?: string }> {
+  const parsed = z.object({ workOrderId: uuid }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_start_walkthrough_mode", { p_work_order_id: parsed.data.workOrderId });
+  if (error) return { ok: false, message: error.message };
+  const s = String(data ?? "");
+  if (s.startsWith("ok:")) return { ok: true, url: `/s/${s.slice(3)}`, message: "Walkthrough open on this device." };
+  if (s === "error:not_at_walkthrough") return { ok: false, message: "The job isn't at the walkthrough stage yet." };
+  return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") };
+}
+
+/**
+ * Staff record the sign-off from our side (Tom, 23 Aug): the customer approved
+ * in person / on the phone / on paper. Approves the outstanding areas on their
+ * behalf, signs, warranty + report + invoice stub + close as for any signing.
+ */
+export async function staffSign(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({
+    workOrderId: uuid, name: z.string().trim().min(1).max(120), note: z.string().max(1000).default(""),
+  }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "The customer's name is needed." };
+  const r = await call("wo_staff_sign",
+    { p_work_order_id: parsed.data.workOrderId, p_name: parsed.data.name, p_note: parsed.data.note },
+    "Signed off and closed — warranty started, report frozen.");
+  if (!r.ok && r.message.startsWith("areas outstanding")) {
+    return { ok: false, message: "Some areas are flagged by the customer — settle those first." };
+  }
+  return r;
 }
 
 export async function generateReportDraft(raw: unknown): Promise<PcResult> {

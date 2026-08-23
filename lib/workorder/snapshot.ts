@@ -60,6 +60,12 @@ export type WorkOrderDoc = {
   areas: WOArea[];
   exclusions: string[];
   company: { name: string; phone: string; logoUrl: string };
+  /**
+   * The estimator's ideal crew size (Job settings). The scheduler divides the
+   * estimated hours by it to land the job with the right length. Optional —
+   * documents issued before 23 Aug have none and read as one painter.
+   */
+  idealPainters?: number | null;
 };
 
 // Purchasable tin sizes (litres). Round total required litres UP to what the

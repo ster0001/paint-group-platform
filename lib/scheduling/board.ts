@@ -64,6 +64,8 @@ export type TrayJob = {
   finishCode: string | null;
   estimatedDays: number;
   hours: number | null;
+  /** The estimator's ideal crew size — what estimatedDays was worked out on. */
+  idealPainters: number | null;
   /** Set when a previous contractor declined — worth flagging to staff. */
   lastDeclineReason: string;
   /**
@@ -111,10 +113,15 @@ export type BoardData = {
   errors: string[];
 };
 
-/** A job's duration in days, from its hours allowance. 8h days, minimum one. */
-export function daysFromHours(hours: number | null | undefined): number {
+/**
+ * A job's duration in days, from its hours allowance. 8h days, minimum one.
+ * With the estimator's "ideal number of painters" (Tom, 23 Aug) the hours are
+ * shared across the crew: 40h for 2 painters is 3 days, not 5.
+ */
+export function daysFromHours(hours: number | null | undefined, painters: number | null | undefined = 1): number {
   if (!hours || hours <= 0) return 1;
-  return Math.max(1, Math.ceil(hours / 8));
+  const crew = painters && painters > 0 ? Math.floor(painters) : 1;
+  return Math.max(1, Math.ceil(hours / (8 * crew)));
 }
 
 function snapshotOf(v: unknown): WorkOrderDoc | null {
@@ -378,6 +385,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     .map((w) => {
       const doc = snapshotOf(w.wo_snapshot);
       const hours = doc ? doc.areas.flatMap((a) => a.surfaces).reduce((n, s) => n + (s.hours ?? 0), 0) : 0;
+      const idealPainters = doc?.idealPainters && doc.idealPainters > 0 ? Math.floor(doc.idealPainters) : null;
       return {
         workOrderId: w.id,
         estimateId: w.estimate_id,
@@ -390,7 +398,8 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
         paymentCents: w.contractor_payment_cents,
         finishCode: doc?.finishCode ?? null,
         hours: hours || null,
-        estimatedDays: daysFromHours(hours),
+        estimatedDays: daysFromHours(hours, idealPainters),
+        idealPainters,
         lastDeclineReason: declineByWo.get(w.id) ?? "",
         notes: notesByWo.get(w.id) ?? [],
         cancelledReason: cancelledByWo.get(w.id)?.reason ?? "",

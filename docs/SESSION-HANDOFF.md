@@ -1,3 +1,43 @@
+# 23 Aug 2026 (late night) — batch 3: cadence, finish date, dashboard prompts, ideal painters, staff sign-off
+
+Tom's third list of the night, all on `audit/workflow-23aug`. **Migration `20261105_wo_qa_cadence_finish_date.sql`
+to run** (read-back: checks `["final"]`, qa_required_col 1, new_fns 4, start_unbooked_ok true,
+schedule_reads_flag true).
+
+1. **Dashboard prompts** (console.ts 5c–5e, loader queries): *Quality check to do* (job at qa with
+   a check to log, or a dated mid-job check due/overdue — action "Check it"), *Customer update due*
+   (in progress, nothing approved/sent for `wo_loop.updateEveryDays` = 3 days, nothing drafted →
+   /pc/updates), *Call the customer — book the walkthrough* (no booked final; warning at
+   Walkthrough, info within 2 days of the booking's end). Unit-tested.
+2. **One quality check as standard** — `qaCadence.checks` = `["final"]`; unlogged `day_one` rows on
+   live jobs deleted. `wo_add_qa_check` (staff, kind `mid`, dated) behind "+ Add a mid-job check" on
+   the PC job page; `work_orders.qa_required` + `wo_set_qa_required` (staff) — the checkbox on the
+   job page AND the "Quality check required on this job" tick in the scheduler's offer dialog
+   (`sendOfferInput.qaRequired`, flag set before `send_offer`). `wo_schedule_qa` reads the flag.
+3. **Painter's walkthrough**: `wo_start_walkthrough_mode` no longer needs a booked final. New
+   **Finish & walkthrough card** on the painter's job page (booked final, else the booking's end),
+   "Change the date" → `wo_contractor_set_finish_date` (assigned contractor or staff): moves the
+   accepted offer's `end_date` (trigger copies to work_orders; calendar lane follows), cancels +
+   re-books the final walkthrough to that day, event `finish_date_changed`. Dated QA checks
+   (mid-job) show on the card read-only. Interpretation: Tom wrote "the date the quality check has
+   been booked" — read as the finish/walkthrough date; flagged in chat.
+4. **Staff Walkthrough card**: "📅 Pick a date" (`showPicker()`), "Estimated finish <end> · N days
+   booked from <start>", and **our side of the sign-off**: "Walk through on this device"
+   (`wo_start_walkthrough_mode` as staff → /s/<session> in a new tab) and **"Record sign-off
+   manually"** → `wo_staff_sign(wo, name, note)`: approves every unanswered area `via:'staff'`,
+   mints a 10-minute session token and runs the REAL `wo_sign` (warranty, report, invoice stub,
+   close, all as usual), then stamps `captured_on='staff_recorded'` (row + frozen report) and
+   writes `signed_off_by_staff`. Refuses with `areas_outstanding` only if the customer FLAGGED an
+   area (approved_at null but flagged — settle first).
+5. **Ideal number of painters** — `builder_state.idealPainters` + `WorkOrderDoc.idealPainters`
+   (Job settings input with a live "≈ N days on site" hint); `daysFromHours(hours, painters)` =
+   ceil(hours / (8 × crew)); the tray card reads "· 2 PAINTERS" and a dragged job lands with the
+   right span. No estimates column (so no grant trap) — it rides builder_state/snapshot.
+
+Tests: 692 unit (+10); e2e `wo-batch3.spec.ts` (4, needs the migration). Gate before merge.
+
+---
+
 # 23 Aug 2026 (night) — prep QUESTIONS, pass → walkthrough, the customer never sees QA
 
 Tom's rulings, answered in one batch (branch `audit/workflow-23aug`):

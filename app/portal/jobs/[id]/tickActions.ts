@@ -135,7 +135,6 @@ export async function startWalkthroughMode(raw: unknown): Promise<WalkthroughMod
   const s = String(data ?? "");
   if (s.startsWith("ok:")) return { ok: true, url: `/s/${s.slice(3)}` };
   if (s === "error:not_at_walkthrough") return { ok: false, message: "The job isn't at the walkthrough stage yet." };
-  if (s === "error:no_walkthrough_booked") return { ok: false, message: "No final walkthrough is booked for today — the office books it first." };
   if (s === "error:not_yours") return { ok: false, message: "That job isn't yours." };
   return { ok: false, message: "Couldn't start the walkthrough just now." };
 }
@@ -180,6 +179,26 @@ export async function contractorFinish(raw: unknown): Promise<FinishResult> {
   if (r === "ok:walkthrough") return { ok: true, to: "walkthrough" };
   if (r.startsWith("error:gate:")) return { ok: false, message: r.slice("error:gate:".length) };
   return { ok: false, message: "Couldn't finish up just now." };
+}
+
+/**
+ * The painter moves the finish / walkthrough date (Tom, 23 Aug): the booking's
+ * end moves on the calendar and the final walkthrough is re-booked to that day.
+ */
+export async function setFinishDate(raw: unknown): Promise<PrepResult> {
+  const parsed = z.object({ workOrderId: z.string().uuid(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "That didn't make sense — pull down to refresh." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_contractor_set_finish_date", {
+    p_work_order_id: parsed.data.workOrderId, p_date: parsed.data.date,
+  });
+  if (error) return { ok: false, message: "Couldn't move the date — check your signal and try again." };
+  const s = String(data ?? "");
+  if (s.startsWith("ok:")) { revalidatePath("/portal/jobs"); revalidatePath("/portal/calendar"); return { ok: true }; }
+  if (s === "error:before_start") return { ok: false, message: "That's before the job starts — pick a later day." };
+  if (s === "error:no_booking") return { ok: false, message: "This job isn't booked in yet — the office books it first." };
+  if (s === "error:not_yours") return { ok: false, message: "That job isn't yours." };
+  return { ok: false, message: "Couldn't move the date just now." };
 }
 
 export type ConfirmPrepResult =

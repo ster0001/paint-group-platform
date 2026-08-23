@@ -414,6 +414,7 @@ export default function ScheduleBoard({
   // a price can't carry ("client's on a tight schedule, needs to start Monday").
   // It reaches the contractor on their offer card as `staff_note`.
   const [offerNote, setOfferNote] = useState("");
+  const [offerQa, setOfferQa] = useState(false);
   const [toast, setToast] = useState("");
   const [detail, setDetail] = useState<Block | null>(null);
   const [blockReason, setBlockReason] = useState("");
@@ -444,10 +445,12 @@ export default function ScheduleBoard({
       startDate: pendingDrop.startDate,
       endDate: addDays(pendingDrop.startDate, pendingDrop.spanDays - 1),
       note: offerNote.trim(),
+      qaRequired: offerQa,
     });
     if (handle(r, "Offer sent — the contractor has 24 hours to respond.")) {
       setPendingDrop(null);
       setOfferNote("");   // never carry one job's note onto the next offer
+      setOfferQa(false);
     }
     setBusy(false);
   }
@@ -789,6 +792,7 @@ export default function ScheduleBoard({
                     {j.suburb ? `${j.suburb.toUpperCase()} · ` : ""}
                     {j.estimatedDays} DAY{j.estimatedDays === 1 ? "" : "S"}
                     {j.hours ? ` · ${j.hours.toFixed(1)} H` : ""}
+                    {j.idealPainters ? ` · ${j.idealPainters} PAINTER${j.idealPainters === 1 ? "" : "S"}` : ""}
                   </div>
                   <div className="pay">{money(j.paymentCents)}</div>
                   {j.lastDeclineReason && <div className="flagline">DECLINED — {j.lastDeclineReason.toUpperCase()}</div>}
@@ -1076,6 +1080,13 @@ export default function ScheduleBoard({
                 <span style={{ fontSize: 11, color: "var(--muted)" }}>
                   They see this on the offer, before they accept. {500 - offerNote.length} left.
                 </span>
+                {/* Tom, 23 Aug: flag a quality check when booking the job in —
+                    new painters get one regardless; this widens it to any job. */}
+                <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 13, cursor: "pointer" }}>
+                  <input type="checkbox" checked={offerQa} onChange={(e) => setOfferQa(e.target.checked)}
+                    data-testid="offer-qa-required" />
+                  Quality check required on this job
+                </label>
               </div>
             )}
 

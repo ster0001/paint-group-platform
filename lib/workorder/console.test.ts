@@ -35,6 +35,69 @@ describe("an empty desk", () => {
   });
 });
 
+describe("quality checks, updates due and walkthroughs to book (Tom, 23 Aug)", () => {
+  it("says a job waiting at Quality check has checks to log", () => {
+    const q = buildQueue(base({
+      workOrders: [wo({ stage: "qa" })],
+      qaChecks: [{ workOrderId: "w1", kind: "final", scheduledFor: null, createdAt: hoursAgo(5) }],
+    }));
+    expect(q.map((c) => c.key)).toContain("qa-due:w1");
+    const card = q.find((c) => c.key === "qa-due:w1")!;
+    expect(card.title).toBe("Quality check to do");
+    expect(card.detail).toContain("1 check to log (final)");
+    expect(card.action.kind).toBe("qa");
+  });
+
+  it("flags a dated mid-job check on the day, while the job is still in progress", () => {
+    const q = buildQueue(base({
+      qaChecks: [{ workOrderId: "w1", kind: "mid", scheduledFor: daysAhead(0), createdAt: hoursAgo(30) }],
+    }));
+    expect(q.find((c) => c.key === "qa-due:w1")?.title).toBe("Mid-job quality check due");
+  });
+
+  it("stays quiet about a mid-job check booked for later in the week", () => {
+    const q = buildQueue(base({
+      qaChecks: [{ workOrderId: "w1", kind: "mid", scheduledFor: daysAhead(2), createdAt: hoursAgo(30) }],
+    }));
+    expect(q.find((c) => c.key === "qa-due:w1")).toBeUndefined();
+  });
+
+  it("asks for a customer update after three quiet days in progress", () => {
+    const q = buildQueue(base({
+      workOrders: [wo({ startDate: daysAhead(-6) })],
+      lastUpdateAt: { w1: hoursAgo(4 * 24) },
+    }));
+    const card = q.find((c) => c.key === "update-due:w1")!;
+    expect(card.title).toBe("Customer update due");
+    expect(card.action.href).toBe("/pc/updates");
+  });
+
+  it("does not nag when an update went out yesterday, or one is drafted and waiting", () => {
+    expect(buildQueue(base({ workOrders: [wo({ startDate: daysAhead(-6) })], lastUpdateAt: { w1: hoursAgo(20) } }))
+      .find((c) => c.key === "update-due:w1")).toBeUndefined();
+    expect(buildQueue(base({
+      workOrders: [wo({ startDate: daysAhead(-6) })], lastUpdateAt: { w1: hoursAgo(96) },
+      updates: [{ id: "u1", workOrderId: "w1", status: "drafted", createdAt: hoursAgo(1) }],
+    })).find((c) => c.key === "update-due:w1")).toBeUndefined();
+  });
+
+  it("says to ring the customer when the job is at Walkthrough with nothing booked", () => {
+    const q = buildQueue(base({ workOrders: [wo({ stage: "walkthrough" })], walkthroughBooked: [] }));
+    const card = q.find((c) => c.key === "contact:w1")!;
+    expect(card.title).toBe("Call the customer — book the walkthrough");
+    expect(card.severity).toBe("warning");
+  });
+
+  it("gives an early nudge two days out from the last booked day, and none once booked", () => {
+    expect(buildQueue(base({ workOrders: [wo({ endDate: daysAhead(1) })] }))
+      .find((c) => c.key === "contact:w1")?.severity).toBe("info");
+    expect(buildQueue(base({ workOrders: [wo({ endDate: daysAhead(1) })], walkthroughBooked: ["w1"] }))
+      .find((c) => c.key === "contact:w1")).toBeUndefined();
+    expect(buildQueue(base({ workOrders: [wo({ endDate: daysAhead(6) })] }))
+      .find((c) => c.key === "contact:w1")).toBeUndefined();
+  });
+});
+
 describe("collections from the finishing-up list (Tom, 23 Aug)", () => {
   const collection = (over: Partial<NonNullable<ConsoleInput["collections"]>[number]> = {}) => ({
     itemId: "i1", workOrderId: "w1", kind: "rubbish" as const, note: "", answeredAt: hoursAgo(3),

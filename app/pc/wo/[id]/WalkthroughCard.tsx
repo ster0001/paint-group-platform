@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { bookWalkthrough, markClientUnavailable, setWalkthroughStatus } from "../../actions";
+import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import {
+  bookWalkthrough, markClientUnavailable, setWalkthroughStatus, staffSign, staffStartWalkthrough,
+} from "../../actions";
 
 export type WalkthroughRow = {
   id: string; kind: string; scheduledDate: string; status: string;
@@ -14,34 +17,68 @@ export type WalkthroughRow = {
  * the booking; the date field here is an override). Remote sign-off stays
  * locked until "missed" or "can't attend" is pressed — both are deliberate,
  * logged staff acts, which is the whole point of the gate.
+ *
+ * Tom, 23 Aug: a real calendar to pick the date from; the estimated finish
+ * read from the booking; and the office can run the walkthrough on OUR device
+ * or record a manual sign-off from our side.
  */
 export default function WalkthroughCard({
-  workOrderId, walkthroughs, clientUnavailable, signedAt,
+  workOrderId, walkthroughs, clientUnavailable, signedAt, startDate, endDate, stage,
 }: {
   workOrderId: string;
   walkthroughs: WalkthroughRow[];
   clientUnavailable: boolean;
   signedAt: string | null;
+  /** The booking's span, from the work order (kept in step by trigger). */
+  startDate: string | null;
+  endDate: string | null;
+  stage: string;
 }) {
+  const router = useRouter();
+  const dateRef = useRef<HTMLInputElement>(null);
   const [date, setDate] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [signing, setSigning] = useState(false);
+  const [signName, setSignName] = useState("");
+  const [signNote, setSignNote] = useState("");
 
   const run = (fn: () => Promise<{ ok: boolean; message?: string }>) =>
     startTransition(async () => {
       setMessage(null);
       const r = await fn();
       setMessage(r.message ?? (r.ok ? "Done." : "That didn't work."));
+      if (r.ok) router.refresh();
     });
 
   const final = walkthroughs.find((w) => w.kind === "final" && w.status === "booked");
   const missed = walkthroughs.some((w) => w.kind === "final" && w.status === "missed");
   const fmt = (d: string) =>
     new Date(d + "T00:00:00").toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
+  const daysBooked = startDate && endDate
+    ? Math.max(1, Math.round((Date.parse(endDate) - Date.parse(startDate)) / 86_400_000) + 1)
+    : null;
+
+  // Opens the browser's own calendar on the date field (falls back to focus).
+  function openCalendar() {
+    const el = dateRef.current;
+    if (!el) return;
+    const withPicker = el as HTMLInputElement & { showPicker?: () => void };
+    try { withPicker.showPicker ? withPicker.showPicker() : el.focus(); } catch { el.focus(); }
+  }
 
   return (
     <div className="card" data-testid="walkthrough-card">
       <h3>Walkthrough <em>{signedAt ? "signed" : final ? fmt(final.scheduledDate) : "not booked"}</em></h3>
+
+      {/* The finish the calendar says — the default for the final walkthrough. */}
+      {endDate && (
+        <p className="note" data-testid="estimated-finish" style={{ marginTop: 4 }}>
+          Estimated finish <b>{fmt(endDate)}</b>
+          {daysBooked ? ` · ${daysBooked} day${daysBooked === 1 ? "" : "s"} booked` : ""}
+          {startDate ? ` from ${fmt(startDate)}` : ""}
+        </p>
+      )}
 
       {walkthroughs.length > 0 && (
         <div style={{ display: "grid", gap: 4, margin: "8px 0" }}>
@@ -73,9 +110,11 @@ export default function WalkthroughCard({
 
       {!signedAt && (
         <>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
+            <input ref={dateRef} type="date" value={date} onChange={(e) => setDate(e.target.value)}
               style={{ fontSize: 13 }} data-testid="walkthrough-date" />
+            <button type="button" className="btn dim" onClick={openCalendar} data-testid="walkthrough-pick-date"
+              title="Open the calendar">📅 Pick a date</button>
             <button className="btn" disabled={pending} data-testid="book-final"
               onClick={() => run(() => bookWalkthrough({ workOrderId, kind: "final", date: date || null, note: "" }))}>
               {final ? "Rebook final" : "Book final"}
@@ -87,8 +126,51 @@ export default function WalkthroughCard({
           </div>
           <p className="note" style={{ marginTop: 6 }}>
             Book this with the customer when you book the job in. Leave the date
-            empty and the final lands on the last day on site.
+            empty and the final lands on the last day on site. The painter can
+            also start the walkthrough themselves, and move the finish date if
+            they&rsquo;re early or late.
           </p>
+
+          {/* Our side of the sign-off (Tom, 23 Aug): run it on our device with
+              the customer, or record it when they've approved another way. */}
+          {stage === "walkthrough" && (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)" }} data-testid="staff-signoff">
+              <p className="note">Sign-off from our side — when you&rsquo;re with the customer, or they&rsquo;ve approved by phone or on paper.</p>
+              <div className="row" style={{ flexWrap: "wrap" }}>
+                <button className="btn" disabled={pending} data-testid="staff-walkthrough"
+                  onClick={() => startTransition(async () => {
+                    setMessage(null);
+                    const r = await staffStartWalkthrough({ workOrderId });
+                    if (r.ok && r.url) window.open(r.url, "_blank", "noopener");
+                    setMessage(r.message ?? null);
+                  })}>
+                  Walk through on this device
+                </button>
+                <button className="btn dim" disabled={pending} data-testid="staff-sign-open"
+                  onClick={() => setSigning((v) => !v)}>
+                  {signing ? "Hide" : "Record sign-off manually"}
+                </button>
+              </div>
+              {signing && (
+                <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
+                  <input className="num" style={{ width: "100%" }} value={signName} placeholder="Customer's full name"
+                    onChange={(e) => setSignName(e.target.value)} data-testid="staff-sign-name" />
+                  <textarea className="edit" rows={2} value={signNote} data-testid="staff-sign-note"
+                    placeholder="How they approved — e.g. by phone 3:10pm, happy with everything"
+                    onChange={(e) => setSignNote(e.target.value)} />
+                  <div className="row">
+                    <button className="btn primary" disabled={pending || !signName.trim()} data-testid="staff-sign"
+                      onClick={() => run(() => staffSign({ workOrderId, name: signName.trim(), note: signNote.trim() }))}>
+                      {pending ? "Signing…" : "Sign off and close the job"}
+                    </button>
+                  </div>
+                  <p className="note" style={{ margin: 0 }}>
+                    Any area the customer hasn&rsquo;t answered is approved on their behalf. Recorded as signed by staff.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)" }}>
             {clientUnavailable || missed ? (

@@ -17,7 +17,7 @@ export type ConsoleData = {
 
 type WoRow = {
   id: string; estimate_id: string; wo_ref: string; stage: string; contractor_id: string | null;
-  start_date: string | null; colours: Record<string, { status?: string }> | null;
+  start_date: string | null; end_date: string | null; colours: Record<string, { status?: string }> | null;
   blocked_reason: string | null; wo_snapshot: { jobTitle?: string } | null;
   issued_at: string | null;
   estimates: { total_cents: number | null; accepted_at: string | null } | null;
@@ -27,10 +27,11 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
   const weekAgo = new Date(now.getTime() - 7 * 86_400_000).toISOString();
   const fortnightAgo = new Date(now.getTime() - 14 * 86_400_000).toISOString();
 
-  const [wos, offers, variations, updates, signoffs, flags, closed, ticks, contractors, settings, coloursTicked, collections] =
+  const [wos, offers, variations, updates, signoffs, flags, closed, ticks, contractors, settings, coloursTicked, collections,
+         qaOpen, walkBooked, sentUpdates] =
     await Promise.all([
       supabase.from("work_orders")
-        .select("id, estimate_id, wo_ref, stage, contractor_id, start_date, colours, blocked_reason, wo_snapshot, issued_at, estimates(total_cents, accepted_at)")
+        .select("id, estimate_id, wo_ref, stage, contractor_id, start_date, end_date, colours, blocked_reason, wo_snapshot, issued_at, estimates(total_cents, accepted_at)")
         .neq("stage", "closed"),
       supabase.from("booking_offers")
         .select("id, work_order_id, state, expires_at, contractors(company_name)")
@@ -63,6 +64,10 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
         .select("id, work_order_id, item_key, answer_note, done_at, work_orders(wo_ref, contractor_id, wo_snapshot)")
         .eq("phase", "completion_prep").in("item_key", ["rubbish", "equipment"])
         .eq("answer", "yes").is("handled_at", null),
+      // Tom, 23 Aug: quality checks to do, walkthroughs not booked, updates due.
+      supabase.from("wo_qa_checks").select("work_order_id, kind, scheduled_for, created_at").is("result", null),
+      supabase.from("wo_walkthroughs").select("work_order_id").eq("kind", "final").eq("status", "booked"),
+      supabase.from("wo_updates").select("work_order_id, approved_at, sent_at, created_at").in("status", ["approved", "sent"]),
     ]);
 
   const contractorName = new Map(
@@ -83,6 +88,7 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
       contractorName: w.contractor_id ? contractorName.get(w.contractor_id) ?? null : null,
       contractValueCents: w.estimates?.total_cents ?? 0,
       startDate: w.start_date,
+      endDate: w.end_date,
       // No colour rows at all is "not confirmed" — an empty object is not a yes.
       coloursConfirmed: coloursTickedIds.has(w.id)
         || (values.length > 0 && values.every((c) => c?.status === "confirmed")),
@@ -164,8 +170,18 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
         woRef: c.work_orders?.wo_ref ?? "", title: c.work_orders?.wo_snapshot?.jobTitle ?? c.work_orders?.wo_ref ?? "",
         contractorName: c.work_orders?.contractor_id ? contractorName.get(c.work_orders.contractor_id) ?? null : null,
       })),
+      qaChecks: ((qaOpen.data ?? []) as { work_order_id: string; kind: string; scheduled_for: string | null; created_at: string }[])
+        .map((c) => ({ workOrderId: c.work_order_id, kind: c.kind, scheduledFor: c.scheduled_for, createdAt: c.created_at })),
+      walkthroughBooked: ((walkBooked.data ?? []) as { work_order_id: string }[]).map((w) => w.work_order_id),
+      lastUpdateAt: ((sentUpdates.data ?? []) as { work_order_id: string; approved_at: string | null; sent_at: string | null; created_at: string }[])
+        .reduce<Record<string, string>>((acc, u) => {
+          const at = u.sent_at ?? u.approved_at ?? u.created_at;
+          if (!acc[u.work_order_id] || acc[u.work_order_id] < at) acc[u.work_order_id] = at;
+          return acc;
+        }, {}),
       settings: {
         coloursWarnDays: Number(loop.coloursWarnDays ?? 5),
+        updateEveryDays: Number(loop.updateEveryDays ?? 3),
         variationCustomerSilentHours: Number(loop.variationCustomerSilentHours ?? 24),
       },
     },

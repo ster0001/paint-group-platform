@@ -33,6 +33,8 @@ export type ConsoleInput = {
     contractorName: string | null;
     contractValueCents: number;
     startDate: string | null;
+    /** The booking's last day on site (null until booked). */
+    endDate?: string | null;
     coloursConfirmed: boolean;
     blockedReason: string | null;
     /** When the customer accepted the estimate. Null on a job never accepted. */
@@ -62,7 +64,17 @@ export type ConsoleInput = {
     itemId: string; workOrderId: string; kind: "rubbish" | "equipment";
     note: string; answeredAt: string; woRef: string; title: string; contractorName: string | null;
   }[];
-  settings: { coloursWarnDays: number; variationCustomerSilentHours: number };
+  /** Open quality checks (result null), with any date the office set. */
+  qaChecks?: { workOrderId: string; kind: string; scheduledFor: string | null; createdAt: string }[];
+  /** Work orders with a final walkthrough BOOKED. */
+  walkthroughBooked?: string[];
+  /** Latest approved/sent customer update per job (ISO time). */
+  lastUpdateAt?: Record<string, string>;
+  settings: {
+    coloursWarnDays: number; variationCustomerSilentHours: number;
+    /** Days without a customer update before the desk says so (default 3). */
+    updateEveryDays?: number;
+  };
 };
 
 const hoursBetween = (from: string | Date, to: Date): number =>
@@ -330,6 +342,90 @@ export function buildQueue(input: ConsoleInput): QueueCard[] {
         action: { label: "Ring them", kind: "ring", href: `/pc/wo/${s.workOrderId}` },
       });
     }
+  }
+
+  // 5c. Quality checks (Tom, 23 Aug): a job waiting at Quality check with a
+  // check still to log, or a dated (mid-job) check due today or overdue.
+  const today = melbourneDate(now);
+  const qaByWo = new Map<string, NonNullable<ConsoleInput["qaChecks"]>>();
+  for (const c of input.qaChecks ?? []) {
+    const list = qaByWo.get(c.workOrderId) ?? [];
+    list.push(c);
+    qaByWo.set(c.workOrderId, list);
+  }
+  for (const [woId, checks] of qaByWo) {
+    const w = byId.get(woId);
+    if (!w || w.stage === "closed") continue;
+    const dated = checks.filter((c) => c.scheduledFor && c.scheduledFor <= today);
+    const atQa = w.stage === "qa";
+    if (!atQa && dated.length === 0) continue;
+    const oldest = checks.reduce((a, b) => (a.createdAt < b.createdAt ? a : b));
+    const kinds = [...new Set(checks.map((c) => c.kind === "mid" ? "mid-job" : c.kind.replace(/_/g, " ")))].join(" + ");
+    cards.push({
+      key: `qa-due:${woId}`,
+      severity: "warning",
+      title: atQa ? "Quality check to do" : "Mid-job quality check due",
+      detail: atQa
+        ? `The painter has finished — ${checks.length} check${checks.length === 1 ? "" : "s"} to log (${kinds}) before the customer walkthrough.`
+        : `Booked for ${dated[0].scheduledFor === today ? "today" : dated[0].scheduledFor} — log it on the job page.`,
+      ref: label(woId),
+      workOrderId: woId,
+      ageHours: atQa ? hoursBetween(w.stage === "qa" ? oldest.createdAt : oldest.createdAt, now)
+        : Math.max(1, (Date.parse(today) - Date.parse(dated[0].scheduledFor as string)) / 3_600_000 + 1),
+      action: { label: "Check it", kind: "qa", href: `/pc/wo/${woId}` },
+    });
+  }
+
+  // 5d. Customer update due (Tom, 23 Aug): a job in progress that the customer
+  // has heard nothing about for a few days, and nothing drafted waiting.
+  const everyDays = settings.updateEveryDays ?? 3;
+  const draftedIds = new Set(input.updates.filter((u) => u.status === "drafted").map((u) => u.workOrderId));
+  for (const w of input.workOrders) {
+    if (w.stage !== "in_progress" && w.stage !== "completion_prep") continue;
+    if (draftedIds.has(w.id)) continue;
+    const last = input.lastUpdateAt?.[w.id] ?? null;
+    const since = last ?? w.startDate;
+    if (!since) continue;
+    // A bare date (the start date) counts from that Melbourne morning.
+    const hours = hoursBetween(since.length === 10
+      ? new Date(Date.parse(melbourneDayStartUtc(new Date(`${since}T12:00:00Z`))) + 8 * 3_600_000)
+      : since, now);
+    if (hours < everyDays * 24) continue;
+    cards.push({
+      key: `update-due:${w.id}`,
+      severity: "info",
+      title: "Customer update due",
+      detail: last
+        ? `Nothing sent to the customer for ${Math.floor(hours / 24)} days. A line on progress keeps them easy.`
+        : `In progress ${Math.floor(hours / 24)} days and the customer hasn't had an update yet.`,
+      ref: label(w.id),
+      workOrderId: w.id,
+      ageHours: hours - everyDays * 24,
+      action: { label: "Write update", kind: "review", href: "/pc/updates" },
+    });
+  }
+
+  // 5e. Call the customer — the walkthrough isn't booked and the job is at
+  // Walkthrough (or within two days of its last booked day).
+  const booked = new Set(input.walkthroughBooked ?? []);
+  for (const w of input.workOrders) {
+    if (booked.has(w.id)) continue;
+    const atWalk = w.stage === "walkthrough";
+    const nearEnd = (w.stage === "in_progress" || w.stage === "completion_prep" || w.stage === "qa")
+      && !!w.endDate && daysUntil(w.endDate, now) <= 2;
+    if (!atWalk && !nearEnd) continue;
+    cards.push({
+      key: `contact:${w.id}`,
+      severity: atWalk ? "warning" : "info",
+      title: "Call the customer — book the walkthrough",
+      detail: atWalk
+        ? "The job is ready for them and no walkthrough is booked. Ring and agree a time (the painter can run it on site)."
+        : `Last booked day is ${w.endDate} and no walkthrough is booked yet.`,
+      ref: label(w.id),
+      workOrderId: w.id,
+      ageHours: atWalk ? 24 : Math.max(1, (2 - daysUntil(w.endDate as string, now)) * 24),
+      action: { label: "Ring them", kind: "ring", href: `/pc/wo/${w.id}` },
+    });
   }
 
   // 5b. Rubbish / equipment for collection — the painter said yes on the

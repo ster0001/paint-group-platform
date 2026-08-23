@@ -8,6 +8,7 @@ import PriceVariation from "./PriceVariation";
 import Checklist, { type ChecklistItem } from "./Checklist";
 import WalkthroughCard from "./WalkthroughCard";
 import QaCheck, { type QaCheckView } from "./QaCheck";
+import QaControls from "./QaControls";
 import { humaniseGate } from "@/lib/workorder/gateText";
 import TickList from "@/app/components/wo/TickList";
 import PhotoGrid from "@/app/components/wo/PhotoGrid";
@@ -25,13 +26,14 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
 
   const { data: wo } = await supabase
     .from("work_orders")
-    .select("id, wo_ref, stage, blocked_reason, contractor_payment_cents, start_date, end_date, estimate_id, wo_snapshot, estimates(total_cents, deposit_paid_at:accepted_at)")
+    .select("id, wo_ref, stage, blocked_reason, contractor_payment_cents, start_date, end_date, qa_required, estimate_id, wo_snapshot, estimates(total_cents, deposit_paid_at:accepted_at)")
     .eq("id", id).maybeSingle();
   if (!wo) notFound();
 
   const row = wo as unknown as {
     id: string; wo_ref: string; stage: WoStage; blocked_reason: string | null;
-    contractor_payment_cents: number | null; start_date: string | null;
+    contractor_payment_cents: number | null; start_date: string | null; end_date: string | null;
+    qa_required: boolean | null;
     wo_snapshot: { jobTitle?: string; jobAddress?: string } | null;
     estimates: { total_cents: number | null; deposit_paid_at: string | null } | null;
   };
@@ -60,7 +62,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
       supabase.from("wo_updates").select("id, draft_text, final_text, status, for_date")
         .eq("work_order_id", id).order("for_date", { ascending: false }).limit(1),
       supabase.from("wo_qa_checks")
-        .select("id, kind, result, thin_record, wo_qa_items(id, label, detail, sort, done_at)")
+        .select("id, kind, result, thin_record, scheduled_for, wo_qa_items(id, label, detail, sort, done_at)")
         .eq("work_order_id", id),
       supabase.from("wo_checklist_items")
         .select("id, phase, label, detail, required, done_at, auto_key, kind, item_key, answer, answer_note, handled_at")
@@ -373,6 +375,9 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
                 .map((w) => ({ id: w.id, kind: w.kind, scheduledDate: w.scheduled_date, status: w.status }))}
               clientUnavailable={Boolean((signoffRow as { client_unavailable_at?: string | null } | null)?.client_unavailable_at)}
               signedAt={(signoffRow as { signed_at?: string | null } | null)?.signed_at ?? null}
+              startDate={row.start_date}
+              endDate={row.end_date}
+              stage={row.stage}
             />
           )}
 
@@ -493,14 +498,16 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
                 {(qaRows ?? []).length === 0 ? "Not required — established" : `${(qaRows ?? []).length} scheduled`}
               </span>
             </div>
-            {((qaRows ?? []) as { id: string; kind: string; result: string | null; thin_record: boolean }[]).map((q) => (
+            {((qaRows ?? []) as { id: string; kind: string; result: string | null; thin_record: boolean; scheduled_for: string | null }[]).map((q) => (
               <div className="tick" key={q.id}>
-                <p>{q.kind.replace(/_/g, " ")}</p>
+                <p>{q.kind === "mid" ? "mid-job" : q.kind.replace(/_/g, " ")}{q.scheduled_for ? ` · ${q.scheduled_for}` : ""}</p>
                 <span className={`pill ${q.result === "pass" ? "p-em" : q.result === "fail" ? "p-clay" : "p-amber"}`}>
                   {q.result ?? "due"}{q.thin_record ? " · thin record" : ""}
                 </span>
               </div>
             ))}
+            <QaControls workOrderId={id} qaRequired={Boolean(row.qa_required)}
+              scheduledCount={(qaRows ?? []).length} closed={row.stage === "closed"} />
           </div>
         </div>
       </div>

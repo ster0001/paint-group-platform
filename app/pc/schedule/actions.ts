@@ -111,6 +111,12 @@ export async function sendOfferAction(raw: unknown): Promise<ActionResult> {
   const parsed = sendOfferInput.safeParse(raw);
   if (!parsed.success) return invalid(parsed.error);
   const v = parsed.data;
+  // The job-level QA flag is set FIRST (it is the job's, not the offer's), so
+  // whoever accepts, the check is scheduled the moment the job goes live.
+  if (v.qaRequired) {
+    const flagged = await run("wo_set_qa_required", { p_work_order_id: v.workOrderId, p_required: true });
+    if (!flagged.ok) return flagged;
+  }
   return run("send_offer", {
     p_work_order_id: v.workOrderId,
     p_contractor_id: v.contractorId,

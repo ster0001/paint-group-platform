@@ -39,7 +39,7 @@ export default function WalkthroughStart({
       <p className="hint" style={{ padding: 0, marginTop: 6 }}>
         {finalDate
           ? `Final walkthrough booked for ${new Date(finalDate + "T00:00:00").toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" })}.`
-          : "The office books the final walkthrough — usually your last day on site."}{" "}
+          : "No date booked — start it whenever the customer is with you."}{" "}
         Walk the job with the customer on your phone: they approve each area and
         sign with their own name, right there.
       </p>

@@ -277,7 +277,7 @@ export default function QuoteBuilder({
     return g;
   }, [modifiers]);
 
-  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; materialColours?: Record<string, { name: string; hex: string }>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null; contractorRateOverride?: number | null; aiDeferred?: AiDeferred[] } | null;
+  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; materialColours?: Record<string, { name: string; hex: string }>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null; contractorRateOverride?: number | null; aiDeferred?: AiDeferred[]; idealPainters?: number | null } | null;
   // Deferred plan-reader decisions ride builder_state so the review gate can
   // price them; the builder itself only carries them through saves.
   const aiDeferred = useMemo(() => loaded?.aiDeferred ?? [], [loaded]);
@@ -291,6 +291,9 @@ export default function QuoteBuilder({
     return [newArea()];
   });
   const [modSel, setModSel] = useState<Record<string, string>>(() => loaded?.modSel ?? {});
+  // Ideal crew size (Tom, 23 Aug) — the scheduler divides the estimated hours
+  // by it to land the job with the right number of days.
+  const [idealPainters, setIdealPainters] = useState<number | null>(() => loaded?.idealPainters ?? null);
   // Materials — the GLOBAL paint choice per surface type, keyed "${type}::${code}".
   // A surface with productName === null follows this global default (falling back
   // to the rate card's default_product); a surface with productName set is PINNED
@@ -691,7 +694,7 @@ export default function QuoteBuilder({
       // keys — the old fixed key list silently dropped builder_state.wizard
       // (the answers + proving snapshot), prepPack, sidesLoop and interiorLoop
       // on every staff save. Keys the builder owns still overwrite.
-      builder_state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, aiDeferred, woDoc: computeWorkOrderDoc() },
+      builder_state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, aiDeferred, idealPainters, woDoc: computeWorkOrderDoc() },
       share_token: token,
       presentation_id: presentationId,
       sent_snapshot: buildCustomerDoc(token),
@@ -1079,6 +1082,7 @@ export default function QuoteBuilder({
       materials, areas: areasDoc,
       exclusions: exclusions.map((t) => t.trim()).filter(Boolean),
       company: { name: company.name, phone: company.phone, logoUrl: company.logoUrl },
+      idealPainters,
     };
   }
 
@@ -1547,6 +1551,25 @@ export default function QuoteBuilder({
                       </label>
                     ))}
                   </div>
+                  <label className="mt-3 block text-xs sm:max-w-xs">
+                    <span className="text-gray-500">Ideal number of painters <span className="text-gray-400">· the scheduler sizes the booking from this</span></span>
+                    <input
+                      type="number" min={1} max={20} step={1} inputMode="numeric"
+                      className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                      value={idealPainters ?? ""}
+                      placeholder="e.g. 2"
+                      onChange={(e) => {
+                        const n = parseInt(e.target.value, 10);
+                        setIdealPainters(Number.isFinite(n) && n > 0 ? Math.min(20, n) : null);
+                      }}
+                      data-testid="ideal-painters"
+                    />
+                    {idealPainters && totals.contractorHours > 0 && (
+                      <span className="mt-1 block text-[11px] text-gray-500">
+                        ≈ {Math.max(1, Math.ceil(totals.contractorHours / (8 * idealPainters)))} day{Math.max(1, Math.ceil(totals.contractorHours / (8 * idealPainters))) === 1 ? "" : "s"} on site at {totals.contractorHours.toFixed(1)} h
+                      </span>
+                    )}
+                  </label>
                   {presentations.length > 0 && (
                     <label className="mt-3 block text-xs">
                       <span className="text-gray-500">Presentation <span className="text-gray-400">· injects capability/proof blocks into the customer view</span></span>

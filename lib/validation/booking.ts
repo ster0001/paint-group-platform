@@ -24,6 +24,8 @@ export const sendOfferInput = z
     startDate: isoDate,
     endDate: isoDate.nullish(),
     note: z.string().max(500).default(""),
+    /** "Quality check required on this job" — ticked when booking in (Tom, 23 Aug). */
+    qaRequired: z.boolean().default(false),
   })
   .refine((v) => !v.endDate || v.endDate >= v.startDate, {
     message: "the end date cannot be before the start date",
