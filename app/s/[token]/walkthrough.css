@@ -28,3 +28,8 @@
 .cv-area em, .cv-vars em { font-style: normal; opacity: .65; font-size: 12.5px; }
 .cv-vars { margin: 4px 0 0; padding-left: 18px; font-size: 13.5px; }
 .cv-vars li { margin: 4px 0; }
+
+/* The painter's note for the customer, from the finishing-up list. */
+.cv-painter-note { margin: 14px 0 4px; border: 1px solid var(--line); border-radius: 14px; padding: 14px 15px; }
+.cv-painter-note b { font-size: 14px; }
+.cv-painter-note p { margin: 6px 0 0; font-size: 14px; white-space: pre-wrap; }

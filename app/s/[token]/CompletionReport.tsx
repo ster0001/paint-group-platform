@@ -91,12 +91,9 @@ export default function CompletionReport({
         </>
       )}
 
-      {(report.qa ?? []).length > 0 && (
-        <p className="cv-fine" data-testid="report-qa">
-          Quality checks on this job: {(report.qa ?? []).filter((q) => q.result === "pass").length} passed
-          of {(report.qa ?? []).length} logged.
-        </p>
-      )}
+      {/* The quality check is OURS — how we check the contractor's work — and
+          nothing to do with the customer (Tom, 23 Aug). The tally stays in the
+          frozen record; it is simply not shown here. */}
 
       {photos.length > 0 && (
         <>

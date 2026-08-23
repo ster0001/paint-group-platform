@@ -29,6 +29,35 @@ export async function tickPrepItem(raw: unknown): Promise<PrepResult> {
   return { ok: false, message: "Couldn't save that just now." };
 }
 
+/**
+ * Answering a prep QUESTION (Tom, 23 Aug): rubbish / equipment for collection
+ * are yes/no — a yes on rubbish prompts the office, a yes on equipment needs
+ * the list — and the customer note is free text. The RPC holds the rules.
+ */
+export async function answerPrepItem(raw: unknown): Promise<PrepResult> {
+  const parsed = z.object({
+    itemId: z.string().uuid(),
+    answer: z.enum(["yes", "no"]).optional(),
+    note: z.string().max(2000).default(""),
+  }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "That didn't make sense — pull down to refresh." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_answer_checklist_item", {
+    p_item_id: parsed.data.itemId, p_answer: parsed.data.answer ?? null, p_note: parsed.data.note,
+  });
+  if (error) return { ok: false, message: "Couldn't save that — check your signal and try again." };
+
+  const s = String(data ?? "");
+  if (s.startsWith("ok:")) {
+    revalidatePath("/portal/jobs");
+    return { ok: true };
+  }
+  if (s === "error:not_yours") return { ok: false, message: "That job isn't yours." };
+  if (s === "error:list_required") return { ok: false, message: "Type what needs collecting first, then press Yes." };
+  if (s === "error:bad_answer") return { ok: false, message: "Pick Yes or No." };
+  return { ok: false, message: "Couldn't save that just now." };
+}
 
 export type NoteResult = { ok: true } | { ok: false; message: string };
 
@@ -151,6 +180,29 @@ export async function contractorFinish(raw: unknown): Promise<FinishResult> {
   if (r === "ok:walkthrough") return { ok: true, to: "walkthrough" };
   if (r.startsWith("error:gate:")) return { ok: false, message: r.slice("error:gate:".length) };
   return { ok: false, message: "Couldn't finish up just now." };
+}
+
+/**
+ * Quality check passed, job still at that stage: the painter sends the pack
+ * (Tom, 23 Aug — either side may). The draft report travels with it; the gate
+ * inside the RPC still refuses while any check is unpassed.
+ */
+export async function contractorSendPack(raw: unknown): Promise<PrepResult> {
+  const parsed = z.object({ workOrderId: z.string().uuid() }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "That didn't make sense — pull down to refresh." };
+
+  const supabase = await createClient();
+  await supabase.rpc("wo_generate_report_draft", { p_work_order_id: parsed.data.workOrderId })
+    .then(() => {}, () => {});
+  const { data, error } = await supabase.rpc("wo_deliver_evidence_pack", {
+    p_work_order_id: parsed.data.workOrderId,
+  });
+  if (error) return { ok: false, message: "Couldn't send it just now — check your signal and try again." };
+  const s = String(data ?? "");
+  if (s.startsWith("ok:")) { revalidatePath("/portal/jobs"); return { ok: true }; }
+  if (s.startsWith("error:gate:")) return { ok: false, message: s.slice("error:gate:".length) };
+  if (s === "error:not_staff") return { ok: false, message: "That job isn't yours." };
+  return { ok: false, message: "Couldn't send it just now." };
 }
 
 export type ConfirmPrepResult =

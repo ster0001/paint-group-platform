@@ -35,6 +35,39 @@ describe("an empty desk", () => {
   });
 });
 
+describe("collections from the finishing-up list (Tom, 23 Aug)", () => {
+  const collection = (over: Partial<NonNullable<ConsoleInput["collections"]>[number]> = {}) => ({
+    itemId: "i1", workOrderId: "w1", kind: "rubbish" as const, note: "", answeredAt: hoursAgo(3),
+    woRef: "WO-3184", title: "14 Bellair St", contractorName: "Marko P.", ...over,
+  });
+
+  it("prompts the office to book a rubbish pickup", () => {
+    const q = buildQueue(base({ collections: [collection()] }));
+    expect(q).toHaveLength(1);
+    expect(q[0].key).toBe("collect:i1");
+    expect(q[0].title).toBe("Rubbish to collect");
+    expect(q[0].detail).toContain("Marko P. says");
+    expect(q[0].action.kind).toBe("collect");
+    expect(q[0].action.label).toBe("Organised");
+  });
+
+  it("repeats the painter's equipment list on the card", () => {
+    const q = buildQueue(base({ collections: [collection({ itemId: "i2", kind: "equipment", note: "2 ladders, the sprayer" })] }));
+    expect(q[0].title).toBe("Equipment to collect");
+    expect(q[0].detail).toContain("2 ladders, the sprayer");
+  });
+
+  it("survives the job closing — the skip still needs booking after sign-off", () => {
+    const q = buildQueue(base({ workOrders: [], collections: [collection({ workOrderId: "gone" })] }));
+    expect(q).toHaveLength(1);
+    expect(q[0].ref).toBe("WO-3184 · 14 Bellair St");
+  });
+
+  it("is silent once organised — the loader simply stops sending it", () => {
+    expect(buildQueue(base({ collections: [] }))).toEqual([]);
+  });
+});
+
 describe("each trigger produces exactly one card", () => {
   it("flags an offer past its SLA as critical", () => {
     const q = buildQueue(base({

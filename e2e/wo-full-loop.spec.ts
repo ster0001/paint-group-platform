@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { credentials, missingCreds, signIn } from "./helpers";
 import {
-  accessTokenFor, contractorIdForEmail, createLoopFixture, customerIdForEmail,
+  accessTokenFor, completePrep, contractorIdForEmail, createLoopFixture, customerIdForEmail,
   destroyLoopFixture, rpcAs, rpcAsJson, serviceClient, type LoopFixture,
 } from "./fixtures/woLoop";
 
@@ -205,11 +205,7 @@ test.describe("the whole loop, one job", () => {
     const early = await rpcAs(staff!, "wo_advance_stage", { p_work_order_id: job!.workOrderId, p_to: "qa" });
     expect(early).toContain("still to tick");
 
-    const { data: prep } = await db!.from("wo_checklist_items")
-      .select("id").eq("work_order_id", job!.workOrderId).eq("phase", "completion_prep");
-    for (const item of (prep as { id: string }[])) {
-      await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: item.id, p_done: true });
-    }
+    await completePrep(db!, staff!, job!.workOrderId);
     expect(await rpcAs(staff!, "wo_advance_stage", { p_work_order_id: job!.workOrderId, p_to: "qa" }))
       .toBe("ok:qa");
 

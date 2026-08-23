@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { credentials, missingCreds, signIn } from "./helpers";
 import {
-  contractorIdForEmail, createLoopFixture, destroyLoopFixture,
+  completePrep, contractorIdForEmail, createLoopFixture, destroyLoopFixture,
   rpcAs, serviceClient, type LoopFixture,
 } from "./fixtures/woLoop";
 
@@ -61,11 +61,7 @@ test.describe("QA ruling — finish, route, gate", () => {
 
   test("prep confirmed → the server routes to quality check, not the painter", async () => {
     // Entering prep seeded the checklist (stage trigger); tick it complete.
-    const { data: prep } = await db!.from("wo_checklist_items")
-      .select("id").eq("work_order_id", fixture!.workOrderId).eq("phase", "completion_prep");
-    for (const item of (prep ?? []) as { id: string }[]) {
-      await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: item.id, p_done: true });
-    }
+    await completePrep(db!, staff!, fixture!.workOrderId);
     const r = await rpcAs(contractor!, "wo_contractor_confirm_prep", { p_work_order_id: fixture!.workOrderId });
     expect(r).toBe("ok:qa");
   });
@@ -119,11 +115,7 @@ test.describe("QA ruling — finish, route, gate", () => {
     await expect(page.getByTestId("finish-msg")).toContainText(/still to tick/i, { timeout: 15_000 });
 
     // Tick it (the office can too), press again → routed to quality check.
-    const { data: prep } = await db!.from("wo_checklist_items")
-      .select("id").eq("work_order_id", uiFixture!.workOrderId).eq("phase", "completion_prep");
-    for (const item of (prep ?? []) as { id: string }[]) {
-      await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: item.id, p_done: true });
-    }
+    await completePrep(db!, staff!, uiFixture!.workOrderId);
     await page.getByTestId("finish-job").click();
     await expect(page.getByTestId("finish-msg")).toContainText(/quality check/i, { timeout: 15_000 });
   });

@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { credentials, missingCreds, signIn } from "./helpers";
 import {
-  contractorIdForEmail, createLoopFixture, destroyLoopFixture,
+  completePrep, contractorIdForEmail, createLoopFixture, destroyLoopFixture,
   rpcAs, serviceClient, type LoopFixture,
 } from "./fixtures/woLoop";
 
@@ -167,11 +167,7 @@ test.describe("moving a job forward from the console", () => {
   test("sending the pack mints the customer's link, not just a stage change", async ({ page }) => {
     await db!.from("wo_surfaces").update({ state: "done" }).eq("work_order_id", job!.workOrderId);
     await rpcAs(staff!, "wo_advance_stage", { p_work_order_id: job!.workOrderId, p_to: "completion_prep" });
-    const { data: items } = await db!.from("wo_checklist_items")
-      .select("id").eq("work_order_id", job!.workOrderId).eq("phase", "completion_prep");
-    for (const i of (items as { id: string }[])) {
-      await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: i.id, p_done: true });
-    }
+    await completePrep(db!, staff!, job!.workOrderId);
 
     // Earlier tests VIEWED this job while in progress, and the console
     // self-heals QA scheduling for a new contractor — so checks exist here,

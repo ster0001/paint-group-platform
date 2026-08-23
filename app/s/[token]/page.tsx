@@ -26,6 +26,12 @@ export default async function WalkthroughPage({ params }: { params: Promise<{ to
   // A viewed-but-unsigned pack is the record that matters later; best-effort.
   await supabase.rpc("wo_record_signoff_view", { p_token: token }).then(() => {}, () => {});
 
+  // The painter's note for the customer, from the finishing-up list (Tom, 23
+  // Aug). Read by the same token the walkthrough runs on; empty when unsaid.
+  const painterNote = String(
+    (await supabase.rpc("wo_prep_note_by_token", { p_token: token }).then((r) => r.data, () => "")) ?? "",
+  ).trim();
+
   // Signed: the page is the permanent record the sign-off email links to.
   // The report is the jsonb frozen at signing; photo paths inside it are
   // signed into URLs with the service client — possession of the customer
@@ -42,7 +48,9 @@ export default async function WalkthroughPage({ params }: { params: Promise<{ to
       warrantyEnds = r.warranty_ends;
       warrantyYears = r.warranty_years;
       const service = createServiceClient();
-      const paths = report.photos ?? [];
+      // Our QA photos are internal — the customer sees before/progress/
+      // completion/variation photos only (Tom, 23 Aug).
+      const paths = (report.photos ?? []).filter((ph) => ph.kind !== "qa");
       if (service && paths.length > 0) {
         reportPhotos = await signPhotos(service, paths.map((ph, i) => ({
           id: String(i), work_order_id: "", kind: ph.kind, area: ph.area,
@@ -72,6 +80,13 @@ export default async function WalkthroughPage({ params }: { params: Promise<{ to
           right, say so — that&rsquo;s what this is for, and it goes straight back to
           the painter.
         </p>
+
+        {painterNote && (
+          <div className="cv-painter-note" data-testid="painter-note">
+            <b>A note from your painter</b>
+            <p>{painterNote}</p>
+          </div>
+        )}
 
         <Walkthrough
           token={token}

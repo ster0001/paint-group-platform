@@ -13,7 +13,7 @@ import {
 
 // The canonical seed moved when 'system' was allowed to start a job on its
 // date; the mirror is diffed against wherever the list currently lives.
-const MIGRATION = "supabase/migrations/20261030000000_wo_qa_ruling.sql";
+const MIGRATION = "supabase/migrations/20261103000000_wo_prep_questions.sql";
 const MACHINE = "supabase/migrations/20260926000000_wo_loop_stage_machine.sql";
 
 describe("the transition matrix", () => {
@@ -98,8 +98,11 @@ describe("who may ask for a move", () => {
       .toEqual(["in_progress", "offered"]);
   });
 
-  it("keeps QA a staff decision", () => {
-    expect(nextStages("qa", "contractor")).toEqual([]);
+  it("keeps the QA verdict a staff decision — but a passed job may be sent on by either", () => {
+    // The contractor cannot fail a check (that's the office's verdict), but once
+    // it has passed, either side may send the pack (Tom, 23 Aug). The pack gate
+    // still refuses while any check is unpassed.
+    expect(nextStages("qa", "contractor").map((t) => t.to)).toEqual(["walkthrough"]);
     // Pass sends the pack out (walkthrough); fail goes back to the brushes.
     expect(nextStages("qa", "staff").map((t) => t.to).sort())
       .toEqual(["in_progress", "walkthrough"]);

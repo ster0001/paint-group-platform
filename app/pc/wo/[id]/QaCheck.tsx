@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { recordQa, tickQaItem } from "../../actions";
 
 export type QaStandard = { id: string; label: string; detail: string; done: boolean };
@@ -18,6 +19,7 @@ export type QaCheckView = {
  * same tick list they already use.
  */
 export default function QaCheck({ check }: { check: QaCheckView }) {
+  const router = useRouter();
   const [standards, setStandards] = useState(check.standards);
   const [result, setResult] = useState(check.result);
   const [notes, setNotes] = useState("");
@@ -47,7 +49,15 @@ export default function QaCheck({ check }: { check: QaCheckView }) {
           ? [{ heading: heading.trim() || "Rectification", label: label.trim() }]
           : [],
       });
-      if (r.ok) { setResult(outcome); setMessage(r.message ?? null); setFailing(false); }
+      if (r.ok) {
+        setResult(outcome);
+        setMessage(r.message ?? null);
+        setFailing(false);
+        // The last PASS sends the pack and the job moves to Walkthrough; a FAIL
+        // sends it back to In progress. Either way the rest of this page (next
+        // step, walkthrough card, rail) must show the new stage — refresh it.
+        router.refresh();
+      }
       else setMessage(r.message);
     });
   }
@@ -62,6 +72,7 @@ export default function QaCheck({ check }: { check: QaCheckView }) {
           </b>
           {check.thinRecord && " · thin photo record"}
         </p>
+        {message && <p className="note" data-testid={`qa-msg-${check.id}`}>{message}</p>}
       </div>
     );
   }

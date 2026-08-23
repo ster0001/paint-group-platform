@@ -52,6 +52,16 @@ export type ConsoleInput = {
     extensionRequestedAt: string | null; extensionApprovedAt: string | null;
   }[];
   quietSites: { workOrderId: string; at: string; days: number }[];
+  /**
+   * Completion-prep yeses the office has to act on (Tom, 23 Aug): rubbish for
+   * collection, equipment for collection (with the painter's list). Gone from
+   * here once "Organised" is pressed. Carries its own ref so it survives the
+   * job closing — the skip still needs booking after the customer signs.
+   */
+  collections?: {
+    itemId: string; workOrderId: string; kind: "rubbish" | "equipment";
+    note: string; answeredAt: string; woRef: string; title: string; contractorName: string | null;
+  }[];
   settings: { coloursWarnDays: number; variationCustomerSilentHours: number };
 };
 
@@ -320,6 +330,24 @@ export function buildQueue(input: ConsoleInput): QueueCard[] {
         action: { label: "Ring them", kind: "ring", href: `/pc/wo/${s.workOrderId}` },
       });
     }
+  }
+
+  // 5b. Rubbish / equipment for collection — the painter said yes on the
+  // finishing-up list; someone in the office books it and presses Organised.
+  for (const c of input.collections ?? []) {
+    const who = c.contractorName ? `${c.contractorName} says` : "The painter says";
+    cards.push({
+      key: `collect:${c.itemId}`,
+      severity: "warning",
+      title: c.kind === "rubbish" ? "Rubbish to collect" : "Equipment to collect",
+      detail: c.kind === "rubbish"
+        ? `${who} there's rubbish on site for collection — book the pickup.`
+        : `${who} this needs collecting: ${c.note.trim() || "(no list given)"}`,
+      ref: `${c.woRef} · ${c.title}`,
+      workOrderId: c.workOrderId,
+      ageHours: hoursBetween(c.answeredAt, now),
+      action: { label: "Organised", kind: "collect", href: `/pc/wo/${c.workOrderId}` },
+    });
   }
 
   // 6. Drafted updates, gathered into one card — they are reviewed together.

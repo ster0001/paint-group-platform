@@ -51,7 +51,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
         .select("id, kind, result, thin_record, wo_qa_items(id, label, detail, sort, done_at)")
         .eq("work_order_id", id),
       supabase.from("wo_checklist_items")
-        .select("id, phase, label, detail, required, done_at, auto_key")
+        .select("id, phase, label, detail, required, done_at, auto_key, kind, item_key, answer, answer_note, handled_at")
         .eq("work_order_id", id).order("phase").order("sort"),
       // The live contractor rate, so the price preview cannot drift from what
       // the server will actually work out when Tom edits it in Settings.
@@ -119,9 +119,16 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
   const checklist = ((checklistRows ?? []) as {
     id: string; phase: string; label: string; detail: string;
     required: boolean; done_at: string | null; auto_key: string | null;
+    kind: string | null; item_key: string | null; answer: string | null;
+    answer_note: string | null; handled_at: string | null;
   }[]).map((r): ChecklistItem & { phase: string } => ({
     phase: r.phase, id: r.id, label: r.label, detail: r.detail ?? "", required: r.required,
     auto: r.auto_key,
+    kind: r.kind === "yes_no" || r.kind === "note" ? r.kind : "tick",
+    itemKey: r.item_key,
+    answer: r.answer === "yes" || r.answer === "no" ? r.answer : null,
+    answerNote: r.answer_note ?? "",
+    handled: r.handled_at !== null,
     done: r.auto_key === "colours" ? coloursConfirmed
         : r.auto_key === "qa" ? qaScheduled
         : r.done_at !== null,
@@ -364,9 +371,10 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             && forPhase("completion_prep").length > 0 && (
             <Checklist
               title="Finishing up"
-              caption="The last pass before the customer walks through — part of ticking off."
+              caption="The last pass before the customer walks through — part of ticking off. A yes on rubbish or equipment puts a prompt on the dashboard."
               items={forPhase("completion_prep")}
               outstanding={outstanding("completion_prep")}
+              footer="Ticking this list is the painter's confirmation that the work has been completed to the scope and standard on the job sheet."
             />
           )}
 

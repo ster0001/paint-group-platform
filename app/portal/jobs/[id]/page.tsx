@@ -8,6 +8,7 @@ import RescheduleRequest from "./RescheduleRequest";
 import TickList from "@/app/components/wo/TickList";
 import Variations, { type VariationView } from "./Variations";
 import PrepChecklist, { type PrepItem } from "./PrepChecklist";
+import SendPack from "./SendPack";
 import FinishUp from "./FinishUp";
 import WalkthroughStart from "./WalkthroughStart";
 import CrewShare from "./CrewShare";
@@ -92,14 +93,20 @@ export default async function PortalJobPage({
 
   const { data: prepRows } = await supabase
     .from("wo_checklist_items")
-    .select("id, label, detail, required, done_at")
+    .select("id, label, detail, required, done_at, kind, item_key, answer, answer_note")
     .eq("work_order_id", id).eq("phase", "completion_prep").order("sort");
 
-  const prepItems: PrepItem[] = ((prepRows as {
+  type PrepRow = {
     id: string; label: string; detail: string | null; required: boolean; done_at: string | null;
-  }[] | null) ?? []).map((r) => ({
+    kind: string | null; item_key: string | null; answer: string | null; answer_note: string | null;
+  };
+  const toPrepItem = (r: PrepRow): PrepItem => ({
     id: r.id, label: r.label, detail: r.detail ?? "", required: r.required, done: r.done_at !== null,
-  }));
+    kind: r.kind === "yes_no" || r.kind === "note" ? r.kind : "tick",
+    itemKey: r.item_key, answer: r.answer === "yes" || r.answer === "no" ? r.answer : null,
+    answerNote: r.answer_note ?? "",
+  });
+  const prepItems: PrepItem[] = ((prepRows as PrepRow[] | null) ?? []).map(toPrepItem);
 
   const { data: variationRows } = await supabase
     .from("wo_variations")
@@ -142,6 +149,10 @@ export default async function PortalJobPage({
   // Live states are already on this page; done means done, not prepped.
   const allSurfacesDone = surfaces.length > 0 && surfaces.every((s) => s.state === "done");
   const atWalkthrough = stage === "walkthrough";
+  // Every scheduled check logged as a pass: the job is cleared to go to the
+  // customer, and the painter may send it on themselves (Tom, 23 Aug).
+  const qaList = ((qaRows ?? []) as { id: string; result: string | null }[]);
+  const qaPassed = qaList.length > 0 && qaList.every((q) => q.result === "pass");
   const bookedFinal = ((walkthroughRows ?? []) as { kind: string; scheduled_date: string }[])
     .find((w) => w.kind === "final")?.scheduled_date ?? null;
   const canPrep = stage === "completion_prep";
@@ -157,12 +168,10 @@ export default async function PortalJobPage({
       // the NEXT page view (found 23 Aug, masked for a while by the router
       // firing double requests). `sort` in the select changes the URL.
       const { data: fresh } = await supabase.from("wo_checklist_items")
-        .select("id, label, detail, required, done_at, sort")
+        .select("id, label, detail, required, done_at, kind, item_key, answer, answer_note, sort")
         .eq("work_order_id", id).eq("phase", "completion_prep").order("sort");
       prepItems.length = 0;
-      for (const r of ((fresh ?? []) as { id: string; label: string; detail: string | null; required: boolean; done_at: string | null }[])) {
-        prepItems.push({ id: r.id, label: r.label, detail: r.detail ?? "", required: r.required, done: Boolean(r.done_at) });
-      }
+      for (const r of ((fresh ?? []) as PrepRow[])) prepItems.push(toPrepItem(r));
     }
   }
 
@@ -236,14 +245,18 @@ export default async function PortalJobPage({
           painter knows sign-off waits for it — no walkthrough date until then. */}
       {stage === "qa" && (
         <div style={{ padding: "0 16px" }}>
-          <div className="card" data-testid="qa-notice">
-            <div className="tick-head"><b>Quality check</b></div>
-            <p className="hint" style={{ padding: 0, marginTop: 6 }}>
-              Paint Group is quality checking this job before sign-off. The
-              customer walkthrough gets booked once the check has passed —
-              nothing for you to do here unless something comes back to fix.
-            </p>
-          </div>
+          {qaPassed
+            ? <SendPack workOrderId={id} />
+            : (
+              <div className="card" data-testid="qa-notice">
+                <div className="tick-head"><b>Quality check</b></div>
+                <p className="hint" style={{ padding: 0, marginTop: 6 }}>
+                  Paint Group is quality checking this job before sign-off. The
+                  customer walkthrough gets booked once the check has passed —
+                  nothing for you to do here unless something comes back to fix.
+                </p>
+              </div>
+            )}
         </div>
       )}
 

@@ -27,7 +27,7 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
   const weekAgo = new Date(now.getTime() - 7 * 86_400_000).toISOString();
   const fortnightAgo = new Date(now.getTime() - 14 * 86_400_000).toISOString();
 
-  const [wos, offers, variations, updates, signoffs, flags, closed, ticks, contractors, settings, coloursTicked] =
+  const [wos, offers, variations, updates, signoffs, flags, closed, ticks, contractors, settings, coloursTicked, collections] =
     await Promise.all([
       supabase.from("work_orders")
         .select("id, estimate_id, wo_ref, stage, contractor_id, start_date, colours, blocked_reason, wo_snapshot, issued_at, estimates(total_cents, accepted_at)")
@@ -58,6 +58,11 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
       // "Colours TBC" reads THAT, not the phantom per-product status.
       supabase.from("wo_checklist_items").select("work_order_id")
         .eq("phase", "pre_start").eq("label", "Colour schedule finalised").not("done_at", "is", null),
+      // Rubbish / equipment yeses nobody has organised yet (Tom, 23 Aug).
+      supabase.from("wo_checklist_items")
+        .select("id, work_order_id, item_key, answer_note, done_at, work_orders(wo_ref, contractor_id, wo_snapshot)")
+        .eq("phase", "completion_prep").in("item_key", ["rubbish", "equipment"])
+        .eq("answer", "yes").is("handled_at", null),
     ]);
 
   const contractorName = new Map(
@@ -149,6 +154,16 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
       quietSites: ((flags.data ?? []) as {
         work_order_id: string; created_at: string; meta: { days?: number } | null;
       }[]).map((f) => ({ workOrderId: f.work_order_id, at: f.created_at, days: f.meta?.days ?? 3 })),
+      collections: ((collections.data ?? []) as unknown as {
+        id: string; work_order_id: string; item_key: string; answer_note: string | null; done_at: string | null;
+        work_orders: { wo_ref: string; contractor_id: string | null; wo_snapshot: { jobTitle?: string } | null } | null;
+      }[]).map((c) => ({
+        itemId: c.id, workOrderId: c.work_order_id,
+        kind: c.item_key === "equipment" ? "equipment" as const : "rubbish" as const,
+        note: c.answer_note ?? "", answeredAt: c.done_at ?? now.toISOString(),
+        woRef: c.work_orders?.wo_ref ?? "", title: c.work_orders?.wo_snapshot?.jobTitle ?? c.work_orders?.wo_ref ?? "",
+        contractorName: c.work_orders?.contractor_id ? contractorName.get(c.work_orders.contractor_id) ?? null : null,
+      })),
       settings: {
         coloursWarnDays: Number(loop.coloursWarnDays ?? 5),
         variationCustomerSilentHours: Number(loop.variationCustomerSilentHours ?? 24),

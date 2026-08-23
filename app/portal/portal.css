@@ -491,6 +491,12 @@
 .pt .prep-body b { font-size:14px; font-weight:600; }
 .pt .prep-body small { font-size:12.5px; color:var(--muted); }
 .pt .prep.on .prep-body b { color:var(--soft); }
+/* Questions on the prep list: a yes/no pair, an optional text box. */
+.pt .prep.q { cursor:default; }
+.pt .prep-yn { display:flex; gap:8px; margin-top:8px; }
+.pt .prep-yn .btn.narrow { min-width:72px; }
+.pt .prep-note { display:flex; flex-direction:column; gap:8px; margin-top:8px; }
+.pt .prep-note textarea { margin:0; }
 
 /* The finished-photo prompt. Green rather than amber: the before-photo prompt
    is a gate blocking the first tick, this is an invitation once an elevation is

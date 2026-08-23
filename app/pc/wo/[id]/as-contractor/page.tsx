@@ -58,7 +58,7 @@ export default async function AsContractorPage({ params }: { params: Promise<{ i
         .select("id, category, comment, status, contractor_delta_cents, est_hours, released_at")
         .eq("work_order_id", id).order("created_at", { ascending: false }),
       supabase.from("wo_checklist_items")
-        .select("id, label, detail, required, done_at")
+        .select("id, label, detail, required, done_at, kind, item_key, answer, answer_note")
         .eq("work_order_id", id).eq("phase", "completion_prep").order("sort"),
     ]);
 
@@ -82,8 +82,12 @@ export default async function AsContractorPage({ params }: { params: Promise<{ i
 
   const prepItems: PrepItem[] = ((prepRows as {
     id: string; label: string; detail: string | null; required: boolean; done_at: string | null;
+    kind: string | null; item_key: string | null; answer: string | null; answer_note: string | null;
   }[] | null) ?? []).map((r) => ({
     id: r.id, label: r.label, detail: r.detail ?? "", required: r.required, done: r.done_at !== null,
+    kind: r.kind === "yes_no" || r.kind === "note" ? r.kind : "tick",
+    itemKey: r.item_key, answer: r.answer === "yes" || r.answer === "no" ? r.answer : null,
+    answerNote: r.answer_note ?? "",
   }));
 
   return (

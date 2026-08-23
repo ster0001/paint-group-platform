@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { credentials, missingCreds } from "./helpers";
 import {
-  contractorIdForEmail, createLoopFixture, destroyLoopFixture,
+  completePrep, contractorIdForEmail, createLoopFixture, destroyLoopFixture,
   rpcAs, rpcAsJson, serviceClient, type LoopFixture,
 } from "./fixtures/woLoop";
 
@@ -27,12 +27,7 @@ let token = "";
 async function readyForWalkthrough(f: LoopFixture): Promise<string> {
   // Every surface done, prep list ticked — the two gates before a walkthrough.
   await db!.from("wo_surfaces").update({ state: "done" }).eq("work_order_id", f.workOrderId);
-  await rpcAs(staff!, "wo_seed_prep_checklist", { p_work_order_id: f.workOrderId });
-  const { data: items } = await db!.from("wo_checklist_items")
-    .select("id").eq("work_order_id", f.workOrderId).eq("phase", "completion_prep");
-  for (const item of (items ?? []) as { id: string }[]) {
-    await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: item.id, p_done: true });
-  }
+  await completePrep(db!, staff!, f.workOrderId);
   await rpcAs(staff!, "wo_advance_stage", { p_work_order_id: f.workOrderId, p_to: "completion_prep" });
   const result = await rpcAs(staff!, "wo_deliver_evidence_pack", { p_work_order_id: f.workOrderId });
   expect(result).toMatch(/^ok:/);

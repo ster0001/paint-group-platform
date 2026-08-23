@@ -1,3 +1,52 @@
+# 23 Aug 2026 (night) — prep QUESTIONS, pass → walkthrough, the customer never sees QA
+
+Tom's rulings, answered in one batch (branch `audit/workflow-23aug`):
+
+1. **The finishing-up list is now questions, not five ticks** (seeder
+   `wo_seed_prep_checklist`, migration `20261103`): Touch-up sweep done ·
+   Site left clean · **Rubbish for collection? (yes/no)** · **Equipment for
+   collection? (yes/no — yes needs the list)** · Final photos taken ·
+   **All work completed to the level required** · **Any notes for the customer**
+   (optional). A line under the list says ticking it is the painter's
+   confirmation the work was done to scope. `wo_checklist_items` gained
+   `kind` (tick|yes_no|note), `item_key`, `answer`, `answer_note`, `handled_at`.
+   Questions go through **`wo_answer_checklist_item`** — the tick RPC now
+   refuses them (`error:answer_required`). Old five-item lists are migrated in
+   place (rubbish/equipment become the questions; a past tick reads as "yes,
+   already handled", so nothing historic pops up).
+2. **A rubbish or equipment YES is a dashboard card** ("Rubbish to collect" /
+   "Equipment to collect", with the painter's list) on the Projects dashboard;
+   **Organised** (`wo_handle_collection`, staff only) clears it. It carries
+   its own ref, so it survives the job closing.
+3. **The customer's note** shows on the `/s` sign-off page ("A note from your
+   painter") — `wo_prep_note_by_token`, customer OR session token.
+4. **A passed quality check moves the job on.** The LAST pass on the staff
+   job page sends the pack itself (`recordQa` → `deliverPack`): job at
+   Walkthrough, customer link minted, painter's page shows "Start the
+   walkthrough". A pass with another check still open says so; a pack-gate
+   refusal (variation waiting) keeps the pass and explains. The painter may
+   also send a passed job on (`qa→walkthrough` now admits the contractor;
+   portal card "Quality check passed"). QA itself stays staff-only.
+5. **The customer never sees the quality check.** There was no QA *stage* on
+   any customer screen; the one leak — the signed report's "Quality checks on
+   this job: N passed" line and our QA-kind photos — is gone from `/s`. The
+   tally stays in the frozen report jsonb for our records. The sign-off flow
+   itself (painter hands the phone over, customer approves areas and signs,
+   report appears after signing) is unchanged — Tom prefers it as built.
+
+**⚑ ONE MIGRATION TO RUN: `20261103000000_wo_prep_questions.sql`** (ends with a
+read-back select — expect transitions=10, qa_to_walkthrough_actors containing
+`contractor`, three fn counts ≥1, new_cols=5). Until it is pasted the PC and
+portal checklists select columns that don't exist yet — **paste it BEFORE
+merging this branch to main**, then merge straight away (old code on the new
+schema shows the questions as plain ticks that refuse to tick).
+
+Tests: 682 unit (4 new, console card); e2e `wo-prep-questions.spec.ts` (6 —
+needs the migration); five loop specs now complete prep through
+`completePrep()` in `e2e/fixtures/woLoop.ts`. Drift test points at `20261103`.
+
+---
+
 # 22 Aug 2026 (later) — Projects console, pinned lanes, live ticks, site photos
 
 Branch `feat/projects-console-photos`. Five things Tom asked for after driving

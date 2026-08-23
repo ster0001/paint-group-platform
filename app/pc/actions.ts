@@ -99,17 +99,22 @@ export async function advanceStage(raw: unknown): Promise<PcResult> {
 export async function deliverEvidencePack(raw: unknown): Promise<PcResult> {
   const parsed = z.object({ workOrderId: uuid }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };
-
   const supabase = await createClient();
+  return deliverPack(supabase, parsed.data.workOrderId);
+}
 
+/** The pack delivery itself — shared by the Next-step button and the last QA pass. */
+async function deliverPack(
+  supabase: Awaited<ReturnType<typeof createClient>>, workOrderId: string,
+): Promise<PcResult> {
   // §4b: the DRAFT report travels with the pack — generated here so what the
   // customer previews is exactly what they will sign. Best-effort: a draft
   // failure must not hold the pack hostage.
-  await supabase.rpc("wo_generate_report_draft", { p_work_order_id: parsed.data.workOrderId })
+  await supabase.rpc("wo_generate_report_draft", { p_work_order_id: workOrderId })
     .then(() => {}, () => {});
 
   const { data, error } = await supabase.rpc("wo_deliver_evidence_pack", {
-    p_work_order_id: parsed.data.workOrderId,
+    p_work_order_id: workOrderId,
   });
   if (error) return { ok: false, message: error.message };
 
@@ -241,7 +246,18 @@ export async function tickQaItem(raw: unknown): Promise<PcResult> {
   return call("wo_tick_qa_item", { p_item_id: parsed.data.itemId, p_done: parsed.data.done });
 }
 
-export async function recordQa(raw: unknown): Promise<PcResult> {
+export type QaResult = PcResult & { to?: "walkthrough" };
+
+/**
+ * Log a check. A FAIL sends the job back to the brushes (the RPC does that).
+ * A PASS used to just sit there — the job stayed at Quality check until someone
+ * remembered the "Send the pack" button. Now the LAST pass sends the pack
+ * itself (Tom, 23 Aug): the customer gets their link, the painter's page moves
+ * to the walkthrough. If another check is still open, it says so; if the pack
+ * gate refuses (a variation waiting on a decision, say), the pass still stands
+ * and the message says what's holding the handover.
+ */
+export async function recordQa(raw: unknown): Promise<QaResult> {
   const parsed = z.object({
     checkId: uuid,
     result: z.enum(["pass", "fail"]),
@@ -249,10 +265,57 @@ export async function recordQa(raw: unknown): Promise<PcResult> {
     rectify: z.array(z.object({ heading: z.string().max(120), label: z.string().max(300) })).default([]),
   }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };
-  return call("wo_record_qa", {
+  const logged = await call("wo_record_qa", {
     p_check_id: parsed.data.checkId, p_result: parsed.data.result,
     p_notes: parsed.data.notes, p_rectify: parsed.data.rectify,
   }, parsed.data.result === "pass" ? "Passed." : "Failed — rectification is on the painter's list.");
+  if (!logged.ok || parsed.data.result !== "pass") return logged;
+
+  const supabase = await createClient();
+  const { data: check } = await supabase.from("wo_qa_checks")
+    .select("work_order_id").eq("id", parsed.data.checkId).maybeSingle();
+  const workOrderId = (check as { work_order_id?: string } | null)?.work_order_id;
+  if (!workOrderId) return logged;
+
+  const [{ data: wo }, { data: open }] = await Promise.all([
+    supabase.from("work_orders").select("stage").eq("id", workOrderId).maybeSingle(),
+    supabase.from("wo_qa_checks").select("id, result").eq("work_order_id", workOrderId),
+  ]);
+  const stillOpen = ((open ?? []) as { result: string | null }[]).filter((c) => c.result !== "pass").length;
+  if (stillOpen > 0) {
+    return { ok: true, message: `Passed — ${stillOpen} check${stillOpen === 1 ? "" : "s"} still to log before sign-off.` };
+  }
+  if ((wo as { stage?: string } | null)?.stage !== "qa") return logged;
+
+  const sent = await deliverPack(supabase, workOrderId);
+  if (sent.ok) {
+    return { ok: true, to: "walkthrough", message: "Passed — all checks clear. Pack sent to the customer; sign-off is running." };
+  }
+  return { ok: true, message: `Passed — but the pack can't go yet: ${sent.message}` };
+}
+
+/** A completion-prep QUESTION answered by the office on the painter's behalf. */
+export async function answerChecklistItem(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({
+    itemId: uuid, answer: z.enum(["yes", "no"]).optional(), note: z.string().max(2000).default(""),
+  }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_answer_checklist_item", {
+    p_item_id: parsed.data.itemId, p_answer: parsed.data.answer ?? null, p_note: parsed.data.note,
+  });
+  if (error) return { ok: false, message: error.message };
+  const s = String(data ?? "");
+  if (s.startsWith("ok:")) { revalidatePath("/pc"); revalidatePath("/pc/flow"); return { ok: true }; }
+  if (s === "error:list_required") return { ok: false, message: "List what needs collecting, then save." };
+  return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") };
+}
+
+/** "Organised" on a rubbish / equipment collection — clears the dashboard prompt. */
+export async function markCollectionHandled(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ itemId: uuid }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  return call("wo_handle_collection", { p_item_id: parsed.data.itemId }, "Organised.");
 }
 
 // ---------------------------------------------------------------------------

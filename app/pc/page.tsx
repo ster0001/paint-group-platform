@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { loadConsole } from "@/lib/workorder/consoleData";
 import { buildQueue, headline, pulseTiles, sparkline } from "@/lib/workorder/console";
 import ReofferDialog from "./ReofferDialog";
+import CollectionDone from "./CollectionDone";
 import PhotoGrid from "@/app/components/wo/PhotoGrid";
 import { signPhotos, type WOPhoto, type WOPhotoRow } from "@/lib/workorder/photos";
 
@@ -12,7 +13,7 @@ const money = (c: number) => "$" + Math.round(c / 100).toLocaleString("en-AU");
 
 const ICON: Record<string, string> = {
   reoffer: "⚑", call: "◌", price: "◐", open: "◔", ring: "◷",
-  review: "✎", nudge: "◑", extension: "◓",
+  review: "✎", nudge: "◑", extension: "◓", collect: "⌂",
 };
 
 const age = (hours: number) =>
@@ -140,6 +141,9 @@ export default async function DashboardPage() {
                     defaultStart={defaultReofferStart}
                   />
                 </span>
+              ) : card.action.kind === "collect" ? (
+                <CollectionDone itemId={card.key.slice("collect:".length)} cardKey={card.key}
+                  href={card.action.href ?? `/pc/wo/${card.workOrderId}`} />
               ) : (
                 <Link className={`btn ${card.severity === "critical" ? "primary" : ""}`}
                   href={card.action.href ?? `/pc/wo/${card.workOrderId}`}

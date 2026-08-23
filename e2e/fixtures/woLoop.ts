@@ -207,3 +207,39 @@ export async function customerIdForEmail(db: SupabaseClient, email: string): Pro
   }
   return null;
 }
+
+/**
+ * Complete the finishing-up list the way a person would (Tom, 23 Aug): ticks
+ * are ticked, the yes/no questions are answered, the optional note is left.
+ * Seeds the list first (idempotent). Returns the number of items handled.
+ */
+export async function completePrep(
+  db: SupabaseClient,
+  who: { email: string; password: string },
+  workOrderId: string,
+  answers: { rubbish?: "yes" | "no"; equipment?: "yes" | "no"; equipmentList?: string; note?: string } = {},
+): Promise<number> {
+  await rpcAs(who, "wo_seed_prep_checklist", { p_work_order_id: workOrderId });
+  const { data } = await db.from("wo_checklist_items")
+    .select("id, kind, item_key, required")
+    .eq("work_order_id", workOrderId).eq("phase", "completion_prep");
+  let n = 0;
+  for (const item of (data ?? []) as { id: string; kind: string | null; item_key: string | null; required: boolean }[]) {
+    const kind = item.kind ?? "tick";
+    if (kind === "tick") {
+      await rpcAs(who, "wo_tick_checklist_item", { p_item_id: item.id, p_done: true });
+    } else if (kind === "yes_no") {
+      const answer = item.item_key === "equipment" ? (answers.equipment ?? "no") : (answers.rubbish ?? "no");
+      await rpcAs(who, "wo_answer_checklist_item", {
+        p_item_id: item.id, p_answer: answer,
+        p_note: item.item_key === "equipment" && answer === "yes" ? (answers.equipmentList ?? "a ladder") : "",
+      });
+    } else if (answers.note) {
+      await rpcAs(who, "wo_answer_checklist_item", { p_item_id: item.id, p_answer: null, p_note: answers.note });
+    } else {
+      continue;
+    }
+    n += 1;
+  }
+  return n;
+}
