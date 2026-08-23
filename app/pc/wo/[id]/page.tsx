@@ -378,7 +378,10 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             />
           )}
 
-          {row.stage === "qa" && qaChecks.map((c) => (
+          {/* The checks stay on screen past the pass (walkthrough, closed):
+              the last PASS sends the pack and refreshes this page — the card
+              must survive that, or its "pack sent" message vanishes with it. */}
+          {(row.stage === "qa" || row.stage === "walkthrough" || row.stage === "closed") && qaChecks.map((c) => (
             <QaCheck key={c.id} check={c} />
           ))}
           {/* An empty qa stage was a silent dead end: no cards, no explanation,
