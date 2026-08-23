@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { STAGE_LANES, WO_STAGES, type WoStage, VISIBLE_STAGES, visibleStage } from "@/lib/workorder/stages";
-import { progressByHeading, progressOf, type SurfaceRow } from "@/lib/workorder/surfaces";
+import { progressByHeading, progressOf, seedRowsFromDoc, type SurfaceRow } from "@/lib/workorder/surfaces";
+import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
 import { VARIATION_STEPS, stepIndex, type VariationStatus } from "@/lib/workorder/variations";
 import PriceVariation from "./PriceVariation";
 import Checklist, { type ChecklistItem } from "./Checklist";
@@ -65,6 +66,29 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
 
   // Derived items answer from the data they read, so the screen and the gate
   // can never disagree about whether a stage is ready.
+  // Tick-list self-heal (23 Oakdene, 23 Aug): a job issued before tick seeding
+  // existed reached In progress with a job sheet of 80 surfaces and ZERO tick
+  // rows — "No tick list on this job yet", and the painter had nothing to tick.
+  // Build it on view from the frozen job sheet; idempotent (wo_seed_surfaces
+  // keeps what exists). The refetch is a DIFFERENT select shape on purpose:
+  // Next memoises identical fetches within a request and would hand back the
+  // pre-seed empty list.
+  let healedSurfaceRows: typeof surfaceRows = null;
+  const snapshotDoc = row.wo_snapshot as WorkOrderDoc | null;
+  if ((row.stage === "pre_start" || row.stage === "in_progress")
+      && (surfaceRows ?? []).length === 0 && (snapshotDoc?.areas?.length ?? 0) > 0) {
+    const { data: seeded } = await supabase.rpc("wo_seed_surfaces", {
+      p_work_order_id: id, p_rows: seedRowsFromDoc(snapshotDoc!),
+    });
+    if (String(seeded ?? "").startsWith("ok:")) {
+      const { data: fresh } = await supabase.from("wo_surfaces")
+        .select("id, heading, heading_meta, label, state, rectification, sort")
+        .eq("work_order_id", id).order("sort");
+      healedSurfaceRows = fresh as typeof surfaceRows;
+    }
+  }
+  const liveSurfaceRows = healedSurfaceRows ?? surfaceRows;
+
   // QA cadence self-heal: wo_schedule_qa was defined and NEVER CALLED anywhere
   // (found 23 Aug — a new contractor's first jobs sailed past quality checks,
   // and a job manually sent to the qa stage arrived to an empty screen).
@@ -143,7 +167,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     Number((rateRow as { value?: { value?: number } } | null)?.value?.value ?? 60) * 100,
   );
 
-  const surfaces = ((surfaceRows ?? []) as {
+  const surfaces = ((liveSurfaceRows ?? []) as {
     id: string; heading: string; heading_meta: string; label: string;
     state: SurfaceRow["state"]; rectification: boolean;
   }[]);
