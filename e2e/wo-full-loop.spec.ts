@@ -92,10 +92,10 @@ test.describe("the whole loop, one job", () => {
   });
 
   test("2 · the office works the pre-start list, and only then does the job go live", async () => {
-    // The gate is real now: colours first, then the rest of the list.
+    // The gate is real: the required pre-start list, colours box included.
     expect(await rpcAs(staff!, "wo_advance_stage", {
       p_work_order_id: job!.workOrderId, p_to: "in_progress",
-    })).toContain("colour schedule is not finalised");
+    })).toContain("pre-start item");
 
     await db!.from("work_orders").update({
       colours: { Weathershield: { name: "Vivid White", hex: "#fff", status: "confirmed" } },
@@ -105,9 +105,10 @@ test.describe("the whole loop, one job", () => {
       p_work_order_id: job!.workOrderId, p_to: "in_progress",
     })).toContain("pre-start item");
 
+    // In list order: the colours box (1) must be ticked before materials (2).
     const { data: items } = await db!.from("wo_checklist_items")
       .select("id, auto_key, required")
-      .eq("work_order_id", job!.workOrderId).eq("phase", "pre_start");
+      .eq("work_order_id", job!.workOrderId).eq("phase", "pre_start").order("sort");
     for (const item of (items as { id: string; auto_key: string | null; required: boolean }[])) {
       if (item.auto_key || !item.required) continue;
       expect(await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: item.id, p_done: true }))

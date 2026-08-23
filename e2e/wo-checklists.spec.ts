@@ -59,16 +59,20 @@ test.describe("pre-offer and pre-start checklists", () => {
       p_offer_id: (offer as { id: string }).id, p_action: "accept", p_note: "",
     })).toMatch(/accepted/);
 
-    // Seeded under the CONTRACTOR's session — this is the regression.
-    expect((await items("pre_start")).length).toBe(6);
+    // Seeded under the CONTRACTOR's session — this is the regression. Seven
+    // rows since the SWMS item (20261017); a stale seeder overload kept
+    // answering with six until 20261102 dropped it.
+    expect((await items("pre_start")).length).toBe(7);
     expect((await items("pre_offer")).length).toBe(2);
   });
 
-  test("the start is gated on colours before anything else", async () => {
+  test("the start is gated on the pre-start list — colours box included", async () => {
+    // Ruling of 23 Aug: the colours box is a reminder a PERSON ticks; the gate
+    // is the required list, not a derived colour status.
     const result = await rpcAs(staff!, "wo_advance_stage", {
       p_work_order_id: job!.workOrderId, p_to: "in_progress",
     });
-    expect(result).toContain("colour schedule is not finalised");
+    expect(result).toContain("pre-start item");
   });
 
   test("materials cannot be ticked while a colour is still TBC", async () => {
@@ -77,20 +81,22 @@ test.describe("pre-offer and pre-start checklists", () => {
       .toBe("error:colours_first");
   });
 
-  test("a derived item cannot be ticked by hand — you change what it reads", async () => {
-    const colours = (await items("pre_start")).find((i) => i.auto_key === "colours")!;
-    expect(await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: colours.id, p_done: true }))
-      .toBe("error:derived:colours");
+  test("the QA item is still derived — you change what it reads", async () => {
+    const qa = (await items("pre_start")).find((i) => i.auto_key === "qa")!;
+    expect(await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: qa.id, p_done: true }))
+      .toBe("error:derived:qa");
   });
 
-  test("confirming every colour on the job sheet satisfies that step", async () => {
-    // What the builder's chips write.
-    await db!.from("work_orders").update({
-      colours: { Weathershield: { name: "Vivid White", hex: "#fff", status: "confirmed" } },
-    }).eq("id", job!.workOrderId);
-
-    const { data } = await db!.rpc("wo_colours_confirmed", { p_work_order_id: job!.workOrderId });
-    expect(data).toBe(true);
+  test("ticking the colours box by hand satisfies that step, and unlocks materials", async () => {
+    // 23 Oakdene, 23 Aug: every colour entered, box would not tick — it read a
+    // per-product status the builder never writes. It is a plain tick now.
+    const colours = (await items("pre_start")).find((i) => i.label === "Colour schedule finalised")!;
+    expect(colours.auto_key).toBeNull();
+    expect(await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: colours.id, p_done: true }))
+      .toBe("ok:done");
+    const materials = (await items("pre_start")).find((i) => i.label === "Materials ordered")!;
+    expect(await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: materials.id, p_done: true }))
+      .toBe("ok:done");
 
     // The gate moves on to what is actually left.
     const result = await rpcAs(staff!, "wo_advance_stage", {

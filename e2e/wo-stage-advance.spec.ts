@@ -44,7 +44,7 @@ test.describe("moving a job forward from the console", () => {
     await signIn(page, staff!, /\/estimates/);
     await page.goto(`/pc/wo/${job!.workOrderId}`);
     await page.getByTestId("advance-in_progress").click();
-    await expect(page.getByTestId("stage-message")).toContainText("colour schedule is not finalised");
+    await expect(page.getByTestId("stage-message")).toContainText("pre-start item");
 
     const { data } = await db!.from("work_orders").select("stage").eq("id", job!.workOrderId).single();
     expect((data as { stage: string }).stage).toBe("pre_start");
@@ -57,7 +57,7 @@ test.describe("moving a job forward from the console", () => {
 
     const { data: items } = await db!.from("wo_checklist_items")
       .select("id, auto_key, required")
-      .eq("work_order_id", job!.workOrderId).eq("phase", "pre_start");
+      .eq("work_order_id", job!.workOrderId).eq("phase", "pre_start").order("sort");
     for (const i of (items as { id: string; auto_key: string | null; required: boolean }[])) {
       if (i.auto_key || !i.required) continue;
       await rpcAs(staff!, "wo_tick_checklist_item", { p_item_id: i.id, p_done: true });

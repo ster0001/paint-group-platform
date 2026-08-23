@@ -224,14 +224,12 @@ export async function tickChecklistItem(raw: unknown): Promise<PcResult> {
   }
   // The two refusals worth explaining rather than reporting as codes.
   if (s === "error:colours_first") {
-    return { ok: false, message: "Confirm the colour schedule first — the paint order depends on it." };
+    return { ok: false, message: "Tick the colour schedule first — the paint order depends on it." };
   }
   if (s.startsWith("error:derived:")) {
     return {
       ok: false,
-      message: s.includes("colours")
-        ? "This ticks itself once every colour on the job sheet is confirmed."
-        : "This ticks itself once the quality checks are scheduled.",
+      message: "This ticks itself once the quality checks are scheduled.",
     };
   }
   return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") };

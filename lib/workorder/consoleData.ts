@@ -27,7 +27,7 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
   const weekAgo = new Date(now.getTime() - 7 * 86_400_000).toISOString();
   const fortnightAgo = new Date(now.getTime() - 14 * 86_400_000).toISOString();
 
-  const [wos, offers, variations, updates, signoffs, flags, closed, ticks, contractors, settings] =
+  const [wos, offers, variations, updates, signoffs, flags, closed, ticks, contractors, settings, coloursTicked] =
     await Promise.all([
       supabase.from("work_orders")
         .select("id, estimate_id, wo_ref, stage, contractor_id, start_date, colours, blocked_reason, wo_snapshot, issued_at, estimates(total_cents, accepted_at)")
@@ -54,12 +54,19 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
       supabase.from("wo_events").select("created_at").eq("type", "surface_tick").gte("created_at", fortnightAgo),
       supabase.from("contractors").select("id, company_name"),
       supabase.from("settings").select("value").eq("key", "wo_loop").maybeSingle(),
+      // The colours box is a person's tick now (Tom, 23 Aug) — the console's
+      // "Colours TBC" reads THAT, not the phantom per-product status.
+      supabase.from("wo_checklist_items").select("work_order_id")
+        .eq("phase", "pre_start").eq("label", "Colour schedule finalised").not("done_at", "is", null),
     ]);
 
   const contractorName = new Map(
     ((contractors.data ?? []) as { id: string; company_name: string }[]).map((c) => [c.id, c.company_name]),
   );
 
+  const coloursTickedIds = new Set(
+    ((coloursTicked.data ?? []) as { work_order_id: string }[]).map((r) => r.work_order_id),
+  );
   const workOrders = ((wos.data ?? []) as unknown as WoRow[]).map((w) => {
     const colours = w.colours ?? {};
     const values = Object.values(colours);
@@ -72,7 +79,8 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
       contractValueCents: w.estimates?.total_cents ?? 0,
       startDate: w.start_date,
       // No colour rows at all is "not confirmed" — an empty object is not a yes.
-      coloursConfirmed: values.length > 0 && values.every((c) => c?.status === "confirmed"),
+      coloursConfirmed: coloursTickedIds.has(w.id)
+        || (values.length > 0 && values.every((c) => c?.status === "confirmed")),
       blockedReason: w.blocked_reason,
       // When the CUSTOMER said yes — the clock the office is judged on. Not the
       // work order's own created_at, which is an internal artefact.
