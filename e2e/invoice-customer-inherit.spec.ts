@@ -92,9 +92,21 @@ test.describe("an invoice inherits the estimate's customer", () => {
       }).select("id").single();
       estimateId = est!.id as string;
 
-      await sb.from("invoices").insert({
+      // Invoicing Step 1 (20261112) adds NOT NULL kind + token; before it
+      // runs those columns don't exist and naming them is an error. Try the
+      // new shape first, fall back to the old, so this proof stays green on
+      // either side of the migration window.
+      const withKind = await sb.from("invoices").insert({
         estimate_id: estimateId, status: "draft", amount_cents: 1234,
+        kind: "standalone",
+        token: `a2t${Date.now()}${Math.floor(Math.random() * 1e9)}`,
       });
+      if (withKind.error) {
+        const { error } = await sb.from("invoices").insert({
+          estimate_id: estimateId, status: "draft", amount_cents: 1234,
+        });
+        if (error) throw new Error(error.message);
+      }
 
       // Not the revoke — the service role may delete. This is the FK talking.
       const refused = await sb.from("estimates").delete().eq("id", estimateId);

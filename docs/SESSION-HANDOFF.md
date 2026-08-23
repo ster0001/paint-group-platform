@@ -1,3 +1,54 @@
+# 24 Aug 2026 — Invoicing & Payments Step 1: ledger, schema, state machine (branch `feat/invoicing-payments`)
+
+The invoicing build begins, per `docs/briefs/claude-code-brief-invoicing-payments.md`
+(kickoff ritual done: brief + all three §7 mockups committed;
+`acceptance-to-paid-workflow.md` is still missing from the repo — Step 7 stays ⛔).
+
+**TWO pastes, in order:** `20261111_invoice_status_enum.sql` (enum labels alone) then
+`20261112_invoicing_core.sql`. Read-backs + three safe live probes:
+`docs/manual-tests/invoicing-step1.md`. Optional after: `setval` to align INV numbers
+with PaintScout, and the real BSB/ACC into the `invoicing_bank` setting.
+
+1. **The ledger** — `invoice_ledger` (SQL) + `lib/invoicing/ledger.ts` (twin, golden
+   tests incl. credit variations) are THE computation of adjusted contract / invoiced /
+   paid / balance. `estimates.accepted_total_cents` freezes the anchor at acceptance;
+   `wo_variations.credit` marks descope credits.
+2. **§3.1 model** — invoices get kind/number/token/ex+GST+inc totals/pdf_path;
+   `invoice_lines` (variation single-billing partial unique index),
+   payments extensions (surcharge/stripe/receipt columns), `credit_notes`,
+   `stripe_events`, `invoice_events`, `contractor_invoices`, `vendors`, `job_costs`,
+   `material_costs`; RLS on all, client writes revoked (money is RPC-only, §4.1).
+3. **§3.2 machine** — `invoice_transitions` seed (18 rows) + guard triggers: illegal
+   transitions raise, issued invoices are immutable at the DB, only drafts delete
+   (service_role exempt for e2e teardown), PDF writes once, void frees billed
+   variations. Mirror + lock-step test: `lib/invoicing/stateMachine.ts`.
+4. **RPCs** — issue (number at issue, ⚑3 terms), send, mark_viewed (token),
+   record_payment (bounded ≤ balance×1.05, RCT receipts, card refused — webhook only),
+   void (reason; paid → credit note instead), write_off (⚑17), extend_due,
+   delete_draft, request_payment (percent/fixed intent — server computes cents),
+   create_final. GST: ⚑14 one rule in `lib/invoicing/gst.ts` + SQL twins.
+5. **Producers rewired** — accept_estimate drafts the deposit (snapshot depositPct
+   wins, else ⚑1 setting 10%) in-transaction; wo_sign + wo_close_without_walkthrough
+   call `invoice_draft_final` (snapshot-seeded lines, "less previously invoiced"
+   balancing line) instead of the $0 stub; wo_reopen_signoff deletes the final DRAFT.
+6. **Settings** — every §2 value seeded under `invoicing` / `invoicing_entity` /
+   `invoicing_bank` / `invoicing_myob` (bank BSB/ACC deliberately blank).
+
+Gate: 764 unit (5 new invoicing files, 83 tests incl. the A2 suite untouched),
+tsc + eslint clean. e2e untouched except `invoice-customer-inherit.spec.ts`
+(direct insert made migration-window-safe). NO UI yet beyond the existing
+read-only /invoices list — Step 2 builds the three screens from the mockups
+and e2e-proves the whole accept→deposit→issue→pay flow in the real roles.
+
+Open ⚑s for Tom (per brief §2, to be re-listed in the PR body): 2 (deposit cap
+legal), 4/5 (surcharge rate + GST treatment), 9 (RCTI agreement), 11 (legal
+entity line), 16 (email provider), 18 (MYOB codes), 17 (write-off is staff-gated
+until roles can distinguish Tom), plus: variation prices are charged as approved
+on /v (GST treatment of that figure needs a ruling), and the estimate builder
+still defaults deposit % to 50 — decide if it should read the new setting.
+
+---
+
 # 23 Aug 2026 (small hours) — batch 4: walkthrough not required, pre-start list, colour match
 
 **TWO pastes, in order:** `20261109_wo_signoff_kind_no_walkthrough.sql` (enum label alone) then

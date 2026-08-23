@@ -1083,3 +1083,32 @@ true. The console asks before starting early, naming the booked date.
 
 The transition table is re-seeded canonically in `20261019`, and
 `stages.test.ts` diffs the mirror against that file — one list, still.
+
+## Invoicing Step 1 — the job money ledger (24 Aug 2026)
+
+Each job now has a **ledger**, and one function owns its arithmetic:
+`public.invoice_ledger` in SQL (the runtime authority inside transactions)
+and `lib/invoicing/ledger.ts` in TypeScript (the golden-tested twin; a
+contract test pins the two to the same rule). Adjusted contract = the
+accepted snapshot total (frozen into `estimates.accepted_total_cents` at
+acceptance) plus approved variations, minus approved credits. Invoices are
+the only "payment request" concept — deposit / progress / final / variation /
+standalone are all rows in `invoices` with a `kind`. The §3.2 state machine
+(draft → issued → sent → viewed → partially_paid → paid, with void and
+written_off off the issued+ states) is a seeded matrix table enforced by a
+BEFORE UPDATE trigger for every writer, so an issued invoice is immutable at
+the database: money edits raise, only drafts delete, the PDF path writes
+once, and a variation can appear on at most one non-void invoice (partial
+unique index — double-billing is a constraint violation). GST has one
+rounding rule (⚑14) in `lib/invoicing/gst.ts` mirrored by SQL twins:
+line-built invoices sum ex-GST lines and compute GST once; ledger-anchored
+invoices (deposit/progress/final) carry the promised inc figure and split it.
+`accept_estimate` drafts the deposit invoice in its own transaction;
+`wo_sign` / `wo_close_without_walkthrough` draft the final invoice
+(replacing the old $0 stub) via `invoice_draft_final`, which seeds lines
+from the snapshot by source refs. All mutations are SECURITY DEFINER RPCs
+(`invoice_issue/send/mark_viewed/record_payment/void/write_off/extend_due/
+delete_draft/request_payment/create_final`); direct client writes to
+`invoices`/`payments` are revoked. `overdue` is derived, never stored.
+Migrations `20261111` (enum, alone) + `20261112` (core); Tom's script:
+`docs/manual-tests/invoicing-step1.md`.
