@@ -10,7 +10,11 @@ import { headers } from "next/headers";
 /** The customer's walkthrough: approve or flag each area, then sign. */
 
 export type AreaResult = { ok: true; state: "approved" | "flagged" } | { ok: false; message: string };
-export type SignResult = { ok: true } | { ok: false; message: string; outstanding?: string[] };
+export type SignResult =
+  /** onDevice: signed through a Mode A session token — that token is dead now,
+   *  so the painter's (or staff's) device must go back to the job, not reload. */
+  | { ok: true; onDevice: boolean }
+  | { ok: false; message: string; outstanding?: string[] };
 
 const token = z.string().min(24).max(200);
 
@@ -59,7 +63,15 @@ export async function signAction(raw: unknown): Promise<SignResult> {
 
   const s = String(data ?? "");
   if (s.startsWith("ok:")) {
-    revalidatePath(`/s/${parsed.data.token}`);
+    // Mode A: wo_sign has just NULLED this session token. Revalidating its path
+    // re-renders the page against a token that no longer resolves — notFound,
+    // i.e. the 404 the painter saw after signing (Tom, 23 Aug). The customer's
+    // own link is the one that re-renders into the signed report.
+    // NOTE: ANY revalidatePath inside a server action re-renders the CURRENT
+    // route, whatever path it names — so on-device we revalidate nothing at
+    // all. The job pages are dynamic; they read the closed stage on arrival.
+    const onDevice = Boolean(pre && pre.customer_token !== parsed.data.token);
+    if (!onDevice) revalidatePath(`/s/${parsed.data.token}`);
     // ⚑10: the signed report goes to the customer at once. wo_sign derives the
     // kind server-side, so this token may have been a Mode A session — the
     // email always addresses the CUSTOMER token, which the service lookup
@@ -69,7 +81,7 @@ export async function signAction(raw: unknown): Promise<SignResult> {
         ?? process.env.NEXT_PUBLIC_SITE_URL ?? "https://paint-group-platform.vercel.app";
       await sendSignedReportEmail(service, pre.customer_token, origin);
     }
-    return { ok: true };
+    return { ok: true, onDevice };
   }
   if (s.startsWith("error:areas_outstanding:")) {
     const outstanding = s.slice("error:areas_outstanding:".length).split(",").filter(Boolean);

@@ -15,8 +15,14 @@ type Row = {
   signed_at: string | null; signed_name: string | null; deadline_at: string | null; headings: string[];
 };
 
-export default async function WalkthroughPage({ params }: { params: Promise<{ token: string }> }) {
+export default async function WalkthroughPage({
+  params, searchParams,
+}: { params: Promise<{ token: string }>; searchParams?: Promise<{ back?: string }> }) {
   const { token } = await params;
+  // Where the DEVICE goes after an on-device sign: the painter's job page or
+  // the staff job page. Same-site paths only — never an arbitrary URL.
+  const rawBack = (await searchParams)?.back ?? "";
+  const backHref = /^\/(portal|pc)\//.test(rawBack) ? rawBack : null;
   const supabase = await createClient();
 
   const { data } = await supabase.rpc("wo_walkthrough_by_token", { p_token: token });
@@ -93,6 +99,7 @@ export default async function WalkthroughPage({ params }: { params: Promise<{ to
           headings={row.headings ?? []}
           initial={initial}
           signedName={row.signed_at ? row.signed_name : null}
+          backHref={backHref}
         />
 
         {report && (

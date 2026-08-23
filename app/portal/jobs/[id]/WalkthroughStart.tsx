@@ -29,7 +29,9 @@ export default function WalkthroughStart({
     setMessage(null);
     const r = await startWalkthroughMode({ workOrderId });
     setBusy(false);
-    if (r.ok) router.push(r.url);
+    // The device comes back HERE after the customer signs (the session token
+    // dies on signing, so the sign page itself can't be reloaded).
+    if (r.ok) router.push(`${r.url}?back=${encodeURIComponent(`/portal/jobs/${workOrderId}`)}`);
     else setMessage(r.message);
   }
 

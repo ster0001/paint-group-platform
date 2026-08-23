@@ -141,7 +141,7 @@ export default function WalkthroughCard({
                   onClick={() => startTransition(async () => {
                     setMessage(null);
                     const r = await staffStartWalkthrough({ workOrderId });
-                    if (r.ok && r.url) window.open(r.url, "_blank", "noopener");
+                    if (r.ok && r.url) window.open(`${r.url}?back=${encodeURIComponent(`/pc/wo/${workOrderId}`)}`, "_blank", "noopener");
                     setMessage(r.message ?? null);
                   })}>
                   Walk through on this device

@@ -70,7 +70,7 @@ export default async function PortalJobPage({
 
   // The tick list and the before-photos already logged. RLS scopes both to this
   // contractor's own jobs, so an id that isn't theirs simply returns nothing.
-  const [{ data: surfaceRows }, { data: photoRows }, { data: woRow }, { data: walkthroughRows }, { data: qaRows }] = await Promise.all([
+  const [{ data: surfaceRows }, { data: photoRows }, { data: woRow }, { data: walkthroughRows }, { data: qaRows }, { data: signoffRow }] = await Promise.all([
     supabase.from("wo_surfaces")
       .select("id, heading, heading_meta, label, state, rectification")
       .eq("work_order_id", id).order("sort", { ascending: true }),
@@ -82,6 +82,7 @@ export default async function PortalJobPage({
       .eq("status", "booked"),
     supabase.from("wo_qa_checks")
       .select("id, result, kind, scheduled_for").eq("work_order_id", id),
+    supabase.from("wo_signoff").select("signed_at, signed_name").eq("work_order_id", id).maybeSingle(),
   ]);
 
   // Requested or confirmed — derived from the live offer, never stored twice.
@@ -224,6 +225,24 @@ export default async function PortalJobPage({
           blocks={blocks}
           jobDays={jobDays}
         />
+      )}
+
+      {/* Signed and closed: the job is complete — the first thing the painter
+          sees coming back from the sign-off (Tom, 23 Aug). */}
+      {stage === "closed" && (
+        <div style={{ padding: "0 16px" }}>
+          <div className="card" data-testid="job-complete">
+            <div className="tick-head"><b>Job complete</b><span className="tick-count">signed off</span></div>
+            <p className="hint" style={{ padding: 0, marginTop: 6 }}>
+              {(() => {
+                const so = signoffRow as { signed_at?: string | null; signed_name?: string | null } | null;
+                return so?.signed_at
+                  ? `Signed off by ${so.signed_name || "the customer"} on ${new Date(so.signed_at).toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" })}. Nice work — nothing more to do here.`
+                  : "Signed off and closed. Nice work — nothing more to do here.";
+              })()}
+            </p>
+          </div>
+        </div>
       )}
 
       {canTick && surfaces.length > 0 && (

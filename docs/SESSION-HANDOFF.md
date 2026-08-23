@@ -36,6 +36,16 @@ schedule_reads_flag true).
 
 Tests: 692 unit (+10); e2e `wo-batch3.spec.ts` (4, needs the migration). Gate before merge.
 
+6. **The post-sign 404 (Tom's last item):** Mode A — the customer signs on the painter's phone,
+   `wo_sign` NULLS the session token, and `signAction` revalidated → Next re-rendered the current
+   route against the dead token → `notFound()`. Worse: ANY `revalidatePath` inside a server action
+   re-renders the current route, whatever path it names. Fix: `signAction` returns `onDevice`
+   (resolved from the pre-sign lookup: token ≠ customer_token) and revalidates NOTHING on that path;
+   the sign page shows thank-you then the device goes back to `?back=` (portal job page for the
+   painter, `/pc/wo/<id>` for staff's "Walk through on this device") — same-site paths only. The
+   portal job page now has a **Job complete — signed off by <name>** card at stage closed.
+   e2e `wo-sign-return.spec.ts` drives the real buttons end to end.
+
 ---
 
 # 23 Aug 2026 (night) — prep QUESTIONS, pass → walkthrough, the customer never sees QA

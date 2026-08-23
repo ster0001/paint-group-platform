@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { requestExtensionAction, signAction, walkthroughAreaAction } from "./actions";
 
 type AreaState = { approved?: boolean; flagged?: boolean; note?: string };
@@ -13,8 +14,14 @@ type AreaState = { approved?: boolean; flagged?: boolean; note?: string };
  * weeks later, and by then the painter has gone.
  */
 export default function Walkthrough({
-  token, headings, initial, signedName,
-}: { token: string; headings: string[]; initial: Record<string, AreaState>; signedName: string | null }) {
+  token, headings, initial, signedName, backHref = null,
+}: {
+  token: string; headings: string[]; initial: Record<string, AreaState>; signedName: string | null;
+  /** Set on an on-device walkthrough: where this device returns after signing. */
+  backHref?: string | null;
+}) {
+  const router = useRouter();
+  const [goBack, setGoBack] = useState(false);
   const [areas, setAreas] = useState<Record<string, AreaState>>(initial);
   const [signed, setSigned] = useState<string | null>(signedName);
   const [name, setName] = useState("");
@@ -22,6 +29,12 @@ export default function Walkthrough({
   const [flagging, setFlagging] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (!goBack || !backHref) return;
+    const t = setTimeout(() => router.push(backHref), 2500);
+    return () => clearTimeout(t);
+  }, [goBack, backHref, router]);
 
   if (signed) {
     return (
@@ -31,6 +44,15 @@ export default function Walkthrough({
           Your completion report and two-year warranty are on their way. If anything
           comes up later, that warranty still covers you.
         </p>
+        {goBack && backHref && (
+          <p className="cv-fine" style={{ marginTop: 10 }}>
+            <button type="button" className="cv-btn primary" data-testid="back-to-job"
+              onClick={() => router.push(backHref)}>
+              Back to the job
+            </button>
+            {" "}Taking you back in a moment…
+          </p>
+        )}
       </div>
     );
   }
@@ -53,8 +75,12 @@ export default function Walkthrough({
     setMessage(null);
     startTransition(async () => {
       const result = await signAction({ token, name });
-      if (result.ok) setSigned(name);
-      else setMessage(result.message);
+      if (result.ok) {
+        setSigned(name);
+        // On-device: this session token is spent; the device goes back to the
+        // job page (painter's or staff's), which now shows it complete.
+        if (result.onDevice && backHref) setGoBack(true);
+      } else setMessage(result.message);
     });
   }
 
