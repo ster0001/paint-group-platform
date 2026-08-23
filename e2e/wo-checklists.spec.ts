@@ -126,6 +126,10 @@ test.describe("pre-offer and pre-start checklists", () => {
     await expect(card).toBeVisible();
     await expect(card).toContainText("Colour schedule finalised");
     await expect(card).toContainText("Access details recorded");
-    await expect(card).toContainText("auto");
+    // 23 Aug: no derived "auto" QA item any more; the colours question is Yes/No
+    // and the optional pre-start checklist item is on the list.
+    await expect(card).not.toContainText("QA schedule created");
+    await expect(card).toContainText("Pre-start checklist");
+    await expect(card.getByRole("button", { name: "Yes" })).toBeVisible();
   });
 });
