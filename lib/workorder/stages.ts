@@ -2,7 +2,7 @@
  * The seven-stage work-order loop, mirrored from the database.
  *
  * `wo_stage_transitions`, re-seeded canonically in
- * 20261103000000_wo_prep_questions.sql, is the source of truth — the RPC reads that table, so the database is what actually
+ * 20261108000000_wo_reopen_signoff.sql, is the source of truth — the RPC reads that table, so the database is what actually
  * decides. This module exists so the UI can offer only the moves that exist and
  * so the rules can be unit-tested without a round trip.
  *
@@ -49,6 +49,8 @@ export const TRANSITIONS: readonly WoTransition[] = [
   { from: "qa", to: "in_progress", label: "QA failed — rectification raised", actors: ["staff"] },
   { from: "walkthrough", to: "closed", label: "signed off", actors: ["system", "staff", "customer"] },
   { from: "walkthrough", to: "in_progress", label: "area flagged — rectification raised", actors: ["staff", "customer"] },
+  // Tom, 23 Aug: something picked up within days of signing — staff reopen.
+  { from: "closed", to: "walkthrough", label: "reopened after sign-off", actors: ["staff"] },
 ];
 
 /**
@@ -75,7 +77,7 @@ export const STAGE_LANES: Record<WoStage, { n: string; title: string }> = {
   // Display identity of in_progress — never shown as its own lane or rail stop.
   completion_prep: { n: "03", title: "In progress" },
   walkthrough: { n: "05", title: "Walkthrough" },
-  closed: { n: "06", title: "Closed" },
+  closed: { n: "06", title: "Closed — final invoice sent" },
 };
 
 export function findTransition(from: WoStage, to: WoStage): WoTransition | undefined {

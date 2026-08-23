@@ -32,7 +32,10 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
     await Promise.all([
       supabase.from("work_orders")
         .select("id, estimate_id, wo_ref, stage, contractor_id, start_date, end_date, colours, blocked_reason, wo_snapshot, issued_at, estimates(total_cents, accepted_at)")
-        .neq("stage", "closed"),
+        // Open jobs, plus anything closed in the last 30 days — so a signed job
+        // lands in the board's Closed lane rather than vanishing (Tom, 23 Aug).
+        // The queue and tiles filter closed out where they should.
+        .or(`stage.neq.closed,stage_entered_at.gte.${new Date(now.getTime() - 30 * 86_400_000).toISOString()}`),
       supabase.from("booking_offers")
         .select("id, work_order_id, state, expires_at, contractors(company_name)")
         // 'expired' and 'declined' too: the sweep flips a breached offer to

@@ -309,6 +309,19 @@ export async function addQaCheck(raw: unknown): Promise<PcResult> {
   return call("wo_add_qa_check", { p_work_order_id: parsed.data.workOrderId, p_date: parsed.data.date }, "Mid-job check added.");
 }
 
+/**
+ * Reopen a closed job for sign-off (Tom, 23 Aug): something picked up within
+ * days of signing. Back to Walkthrough, unsigned; the customer signs again.
+ */
+export async function reopenSignoff(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ workOrderId: uuid, reason: z.string().max(500).default("") }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  const r = await call("wo_reopen_signoff", { p_work_order_id: parsed.data.workOrderId, p_reason: parsed.data.reason },
+    "Reopened — back at Walkthrough. The customer's link can sign again once it's put right.");
+  if (!r.ok && r.message.startsWith("gate:")) return { ok: false, message: humaniseGate(r.message.slice(5)) };
+  return r;
+}
+
 /** A completion-prep QUESTION answered by the office on the painter's behalf. */
 export async function answerChecklistItem(raw: unknown): Promise<PcResult> {
   const parsed = z.object({

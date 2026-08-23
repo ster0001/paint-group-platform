@@ -45,6 +45,17 @@ Tests: 692 unit (+10); e2e `wo-batch3.spec.ts` (4, needs the migration). Gate be
    painter, `/pc/wo/<id>` for staff's "Walk through on this device") — same-site paths only. The
    portal job page now has a **Job complete — signed off by <name>** card at stage closed.
    e2e `wo-sign-return.spec.ts` drives the real buttons end to end.
+7. **Closed lane + reopen (Tom, 23 Aug; migration `20261108`):** signed jobs were closing in the
+   DB but vanishing from the Projects board — `loadConsole` excluded closed rows. It now includes
+   jobs closed in the last 30 days (`stage_entered_at`), so the lane **"06 Closed — final invoice
+   sent"** (renamed) shows them; queue/tiles still skip closed. New matrix row
+   `closed → walkthrough` (staff) + `wo_reopen_signoff(wo, reason)`: stage back via wo_set_stage
+   (gate applies), signoff UNSIGNED (signed_at/name/kind/captured_on/session cleared, areas reset
+   so the customer looks again), the first signing's $0 draft invoice stub deleted (re-sign writes a
+   fresh one), warranty untouched, event `signoff_reopened`. StageAdvance at closed: "Something
+   found after sign-off — reopen" with a reason. Drift test → 20261108 (11 moves, 38 illegal).
+   Known edge (unchanged): wo_sign ignores wo_set_stage's result, so a signed job with a variation
+   still waiting would stay at walkthrough — the gate message is visible on the Next-step card.
 
 ---
 

@@ -13,12 +13,12 @@ import {
 
 // The canonical seed moved when 'system' was allowed to start a job on its
 // date; the mirror is diffed against wherever the list currently lives.
-const MIGRATION = "supabase/migrations/20261103000000_wo_prep_questions.sql";
+const MIGRATION = "supabase/migrations/20261108000000_wo_reopen_signoff.sql";
 const MACHINE = "supabase/migrations/20260926000000_wo_loop_stage_machine.sql";
 
 describe("the transition matrix", () => {
-  it("allows exactly the ten moves the workflow defines", () => {
-    expect(TRANSITIONS).toHaveLength(10);
+  it("allows exactly the eleven moves the workflow defines", () => {
+    expect(TRANSITIONS).toHaveLength(11);
   });
 
   // Every ordered pair of stages, checked. The legal ten pass; the other 39 —
@@ -39,7 +39,7 @@ describe("the transition matrix", () => {
 
   it("counts the illegal pairs so a silently-widened matrix is caught", () => {
     const total = WO_STAGES.length * WO_STAGES.length; // 49
-    expect(total - legal.size).toBe(39);
+    expect(total - legal.size).toBe(38);
   });
 
   it("cannot skip a stage on the happy path", () => {
@@ -49,10 +49,14 @@ describe("the transition matrix", () => {
     expect(isLegalTransition("in_progress", "walkthrough")).toBe(false);
   });
 
-  it("cannot reopen a closed job", () => {
+  it("reopens a closed job ONLY back to sign-off, and only by staff (Tom, 23 Aug)", () => {
     for (const to of WO_STAGES) {
-      expect(isLegalTransition("closed", to)).toBe(false);
+      expect(isLegalTransition("closed", to)).toBe(to === "walkthrough");
     }
+    expect(nextStages("closed", "staff").map((t) => t.to)).toEqual(["walkthrough"]);
+    expect(nextStages("closed", "contractor")).toEqual([]);
+    expect(nextStages("closed", "customer")).toEqual([]);
+    expect(nextStages("closed", "system")).toEqual([]);
   });
 
   it("routes both failure paths back into the same tick list", () => {

@@ -61,4 +61,31 @@ test.describe("on-device sign-off returns to the job, shown complete", () => {
     const { data: wo } = await db!.from("work_orders").select("stage").eq("id", f!.workOrderId).maybeSingle();
     expect((wo as { stage: string }).stage).toBe("closed");
   });
+
+  test("the closed job sits in the board's Closed lane, and staff can reopen it for sign-off", async ({ page }) => {
+    await signIn(page, staff!, /\/estimates/);
+    await page.goto("/pc/flow");
+    await expect(page.getByTestId("lane-closed")).toContainText(/final invoice sent/i, { timeout: 15_000 });
+    await expect(page.getByTestId("lane-closed").getByTestId(`job-${f!.workOrderId}`)).toBeVisible();
+
+    // Reopen: staff only, closed only, back to Walkthrough unsigned.
+    expect(await rpcAs(contractor!, "wo_reopen_signoff", { p_work_order_id: f!.workOrderId, p_reason: "x" })).toBe("error:not_staff");
+    await page.goto(`/pc/wo/${f!.workOrderId}`);
+    await page.getByTestId("reopen-open").click();
+    await page.getByTestId("reopen-reason").fill("Customer rang — run in the hallway paint");
+    await page.getByTestId("reopen-confirm").click();
+    await expect(page.getByTestId("stage-moved")).toContainText(/Walkthrough/, { timeout: 15_000 });
+
+    const { data: wo } = await db!.from("work_orders").select("stage").eq("id", f!.workOrderId).maybeSingle();
+    expect((wo as { stage: string }).stage).toBe("walkthrough");
+    const { data: so } = await db!.from("wo_signoff").select("signed_at, customer_token").eq("work_order_id", f!.workOrderId).maybeSingle();
+    expect((so as { signed_at: string | null }).signed_at).toBeNull();
+    const { data: ev } = await db!.from("wo_events").select("meta").eq("work_order_id", f!.workOrderId).eq("type", "signoff_reopened");
+    expect((ev ?? []).length).toBe(1);
+    // Only one warranty, still from the first signing; no duplicate draft stub.
+    const { data: warranty } = await db!.from("warranties").select("id").eq("work_order_id", f!.workOrderId);
+    expect((warranty ?? []).length).toBe(1);
+    // Reopening twice: not closed any more.
+    expect(await rpcAs(staff!, "wo_reopen_signoff", { p_work_order_id: f!.workOrderId, p_reason: "" })).toBe("error:not_closed");
+  });
 });

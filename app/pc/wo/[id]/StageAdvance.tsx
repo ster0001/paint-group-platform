@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { advanceStage, confirmPrepStaff, deliverEvidencePack, startNow } from "../../actions";
+import { advanceStage, confirmPrepStaff, deliverEvidencePack, reopenSignoff, startNow } from "../../actions";
 import { STAGE_LANES, nextStages, type WoStage } from "@/lib/workorder/stages";
 
 /**
@@ -27,6 +27,8 @@ export default function StageAdvance({
   const [message, setMessage] = useState<string | null>(null);
   const [moved, setMoved] = useState<WoStage | null>(null);
   const [pending, startTransition] = useTransition();
+  const [reopening, setReopening] = useState(false);
+  const [reason, setReason] = useState("");
 
   // Forward moves only: going back happens by a quality-check fail or a
   // customer's flag,
@@ -45,14 +47,51 @@ export default function StageAdvance({
     );
   }
 
+  // Closed: the one way back is a deliberate staff reopen (Tom, 23 Aug) —
+  // something picked up within days of signing. The customer signs again.
+  if (stage === "closed") {
+    return (
+      <div className="card" data-testid="stage-advance">
+        <h3>Next step <em>06 Closed — final invoice sent</em></h3>
+        <p className="note">This job is finished and signed off.</p>
+        {message && <p className="note" style={{ color: "var(--amber)" }} data-testid="stage-message">{message}</p>}
+        {reopening ? (
+          <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
+            <textarea className="edit" rows={2} value={reason} data-testid="reopen-reason"
+              placeholder="What was found — e.g. customer rang, run in the hallway paint"
+              onChange={(e) => setReason(e.target.value)} />
+            <div className="row">
+              <button type="button" className="btn primary" disabled={pending} data-testid="reopen-confirm"
+                onClick={() => startTransition(async () => {
+                  setMessage(null);
+                  const r = await reopenSignoff({ workOrderId, reason: reason.trim() });
+                  if (r.ok) { setMoved("walkthrough"); setMessage(r.message ?? null); setReopening(false); }
+                  else setMessage(r.message);
+                })}>
+                {pending ? "Reopening…" : "Reopen — back to sign-off"}
+              </button>
+              <button type="button" className="btn" onClick={() => setReopening(false)}>Cancel</button>
+            </div>
+            <p className="note" style={{ margin: 0 }}>
+              The sign-off is cleared and the customer looks again; the warranty keeps its original start.
+            </p>
+          </div>
+        ) : (
+          <button type="button" className="btn dim" style={{ marginTop: 8 }} data-testid="reopen-open"
+            onClick={() => setReopening(true)}>
+            Something found after sign-off — reopen
+          </button>
+        )}
+      </div>
+    );
+  }
+
   if (moves.length === 0) {
     return (
       <div className="card" data-testid="stage-advance">
         <h3>Next step</h3>
         <p className="note">
-          {stage === "closed"
-            ? "This job is finished."
-            : "Nothing for the office to press here — this stage moves when the contractor or the customer acts."}
+          Nothing for the office to press here — this stage moves when the contractor or the customer acts.
         </p>
       </div>
     );
