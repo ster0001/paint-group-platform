@@ -20,13 +20,18 @@ Tom's rulings, answered in one batch (branch `audit/workflow-23aug`):
    its own ref, so it survives the job closing.
 3. **The customer's note** shows on the `/s` sign-off page ("A note from your
    painter") — `wo_prep_note_by_token`, customer OR session token.
-4. **A passed quality check moves the job on.** The LAST pass on the staff
-   job page sends the pack itself (`recordQa` → `deliverPack`): job at
-   Walkthrough, customer link minted, painter's page shows "Start the
-   walkthrough". A pass with another check still open says so; a pack-gate
-   refusal (variation waiting) keeps the pass and explains. The painter may
-   also send a passed job on (`qa→walkthrough` now admits the contractor;
-   portal card "Quality check passed"). QA itself stays staff-only.
+4. **A passed quality check moves the job on — in the database** (second
+   ruling the same night, migration `20261104`): `wo_record_qa`'s LAST pass
+   calls `wo_qa_route_passed` → `wo_deliver_evidence_pack` + draft report →
+   job at Walkthrough, customer link minted, wherever the pass was logged
+   (returns `ok:pass:walkthrough` / `ok:pass:gate:<why>` / `ok:pass`). Both
+   job pages SELF-HEAL a job already parked passed-at-qa on view (staff or
+   contractor session — the `qa→walkthrough` row admits the contractor actor
+   for exactly that, never for a button) and the sweep backstops it
+   (`qaRouted`). **The painter sees nothing customer-facing**: the "Quality
+   check passed — send to the customer" card was removed; at qa they see the
+   notice, and a pack-gate hold reads "waiting on the office: <why>". Staff
+   keep "Send the pack" as a fallback. QA verdicts stay staff-only.
 5. **The customer never sees the quality check.** There was no QA *stage* on
    any customer screen; the one leak — the signed report's "Quality checks on
    this job: N passed" line and our QA-kind photos — is gone from `/s`. The
@@ -34,15 +39,14 @@ Tom's rulings, answered in one batch (branch `audit/workflow-23aug`):
    itself (painter hands the phone over, customer approves areas and signs,
    report appears after signing) is unchanged — Tom prefers it as built.
 
-**⚑ ONE MIGRATION TO RUN: `20261103000000_wo_prep_questions.sql`** (ends with a
-read-back select — expect transitions=10, qa_to_walkthrough_actors containing
-`contractor`, three fn counts ≥1, new_cols=5). Until it is pasted the PC and
-portal checklists select columns that don't exist yet — **paste it BEFORE
-merging this branch to main**, then merge straight away (old code on the new
-schema shows the questions as plain ticks that refuse to tick).
+Migrations `20261103` (prep questions — RUN LIVE) and **`20261104_wo_qa_pass_routes.sql`
+(the in-database routing — read-back expects route_fn 1, record_fn 1,
+record_routes true, draft_system_ok true)**. Until 20261104 runs, the app's
+`wo_qa_route_passed` calls fail silently (best-effort) and a pass is a plain
+pass — no breakage, just no auto-move.
 
-Tests: 682 unit (4 new, console card); e2e `wo-prep-questions.spec.ts` (6 —
-needs the migration); five loop specs now complete prep through
+Tests: 682 unit (4 new, console card); e2e `wo-prep-questions.spec.ts` (7 —
+needs both migrations); five loop specs now complete prep through
 `completePrep()` in `e2e/fixtures/woLoop.ts`. Drift test points at `20261103`.
 
 ---

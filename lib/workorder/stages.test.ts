@@ -98,10 +98,12 @@ describe("who may ask for a move", () => {
       .toEqual(["in_progress", "offered"]);
   });
 
-  it("keeps the QA verdict a staff decision — but a passed job may be sent on by either", () => {
-    // The contractor cannot fail a check (that's the office's verdict), but once
-    // it has passed, either side may send the pack (Tom, 23 Aug). The pack gate
-    // still refuses while any check is unpassed.
+  it("keeps the QA verdict a staff decision — the machine routes a passed job from either session", () => {
+    // The contractor cannot fail a check (that's the office's verdict). Once
+    // every check has passed the MACHINE moves the job on (wo_record_qa /
+    // wo_qa_route_passed) — from a staff OR a contractor session, which is why
+    // the contractor actor is on this row; the painter never gets a button
+    // (Tom, 23 Aug). The pack gate still refuses while any check is unpassed.
     expect(nextStages("qa", "contractor").map((t) => t.to)).toEqual(["walkthrough"]);
     // Pass sends the pack out (walkthrough); fail goes back to the brushes.
     expect(nextStages("qa", "staff").map((t) => t.to).sort())

@@ -132,11 +132,20 @@ async function sweep() {
     const { data: r } = await db.rpc("wo_schedule_qa", { p_work_order_id: j.id });
     if (typeof r === "string" && r.startsWith("ok:") && r !== "ok:0") qaScheduled += 1;
   }
+  // A job parked at qa with every check passed goes to the customer on its
+  // own (Tom, 23 Aug). The pass routes it; this catches one nobody looked at.
+  const { data: passedJobs } = await db.from("work_orders").select("id").eq("stage", "qa");
+  let qaRouted = 0;
+  for (const j of ((passedJobs ?? []) as { id: string }[])) {
+    const { data: r } = await db.rpc("wo_qa_route_passed", { p_work_order_id: j.id });
+    if (r === "ok:walkthrough") qaRouted += 1;
+  }
 
   return {
     ok: true as const, date: today, drafted,
     flagged: flagged ?? 0, started: started ?? 0, lapsed: lapsed ?? 0,
     qaScheduled,
+    qaRouted,
   };
 }
 

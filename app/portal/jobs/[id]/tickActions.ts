@@ -182,29 +182,6 @@ export async function contractorFinish(raw: unknown): Promise<FinishResult> {
   return { ok: false, message: "Couldn't finish up just now." };
 }
 
-/**
- * Quality check passed, job still at that stage: the painter sends the pack
- * (Tom, 23 Aug — either side may). The draft report travels with it; the gate
- * inside the RPC still refuses while any check is unpassed.
- */
-export async function contractorSendPack(raw: unknown): Promise<PrepResult> {
-  const parsed = z.object({ workOrderId: z.string().uuid() }).safeParse(raw);
-  if (!parsed.success) return { ok: false, message: "That didn't make sense — pull down to refresh." };
-
-  const supabase = await createClient();
-  await supabase.rpc("wo_generate_report_draft", { p_work_order_id: parsed.data.workOrderId })
-    .then(() => {}, () => {});
-  const { data, error } = await supabase.rpc("wo_deliver_evidence_pack", {
-    p_work_order_id: parsed.data.workOrderId,
-  });
-  if (error) return { ok: false, message: "Couldn't send it just now — check your signal and try again." };
-  const s = String(data ?? "");
-  if (s.startsWith("ok:")) { revalidatePath("/portal/jobs"); return { ok: true }; }
-  if (s.startsWith("error:gate:")) return { ok: false, message: s.slice("error:gate:".length) };
-  if (s === "error:not_staff") return { ok: false, message: "That job isn't yours." };
-  return { ok: false, message: "Couldn't send it just now." };
-}
-
 export type ConfirmPrepResult =
   | { ok: true; to: "qa" | "walkthrough" }
   | { ok: false; message: string };

@@ -8,7 +8,6 @@ import RescheduleRequest from "./RescheduleRequest";
 import TickList from "@/app/components/wo/TickList";
 import Variations, { type VariationView } from "./Variations";
 import PrepChecklist, { type PrepItem } from "./PrepChecklist";
-import SendPack from "./SendPack";
 import FinishUp from "./FinishUp";
 import WalkthroughStart from "./WalkthroughStart";
 import CrewShare from "./CrewShare";
@@ -144,15 +143,29 @@ export default async function PortalJobPage({
 
   // Ticking only makes sense once the job is under way — before that the list is
   // still worth seeing, so it renders read-only via the server's own refusal.
-  const stage = (woRow as { stage?: string } | null)?.stage;
+  let stage = (woRow as { stage?: string } | null)?.stage;
   const canTick = stage === "in_progress";
   // Live states are already on this page; done means done, not prepped.
   const allSurfacesDone = surfaces.length > 0 && surfaces.every((s) => s.state === "done");
-  const atWalkthrough = stage === "walkthrough";
-  // Every scheduled check logged as a pass: the job is cleared to go to the
-  // customer, and the painter may send it on themselves (Tom, 23 Aug).
+  // Every check passed but the job still parked at qa (passed before the
+  // routing existed, or a page that never refreshed): the MACHINE moves it on
+  // the moment anyone looks — the painter never presses anything customer-
+  // facing (Tom, 23 Aug). A pack-gate refusal is shown in its own words.
   const qaList = ((qaRows ?? []) as { id: string; result: string | null }[]);
   const qaPassed = qaList.length > 0 && qaList.every((q) => q.result === "pass");
+  let qaHold: string | null = null;
+  if (stage === "qa" && qaPassed) {
+    const { data: routed } = await supabase.rpc("wo_qa_route_passed", { p_work_order_id: id });
+    const r = String(routed ?? "");
+    if (r === "ok:walkthrough") {
+      // Different-shape refetch (the Next fetch-memo trap): read the stage again.
+      const { data: again } = await supabase.from("work_orders").select("stage, id").eq("id", id).maybeSingle();
+      stage = ((again as { stage?: string } | null)?.stage ?? "walkthrough") as typeof stage;
+    } else if (r.startsWith("error:gate:")) {
+      qaHold = r.slice("error:gate:".length);
+    }
+  }
+  const atWalkthrough = stage === "walkthrough";
   const bookedFinal = ((walkthroughRows ?? []) as { kind: string; scheduled_date: string }[])
     .find((w) => w.kind === "final")?.scheduled_date ?? null;
   const canPrep = stage === "completion_prep";
@@ -245,18 +258,14 @@ export default async function PortalJobPage({
           painter knows sign-off waits for it — no walkthrough date until then. */}
       {stage === "qa" && (
         <div style={{ padding: "0 16px" }}>
-          {qaPassed
-            ? <SendPack workOrderId={id} />
-            : (
-              <div className="card" data-testid="qa-notice">
-                <div className="tick-head"><b>Quality check</b></div>
-                <p className="hint" style={{ padding: 0, marginTop: 6 }}>
-                  Paint Group is quality checking this job before sign-off. The
-                  customer walkthrough gets booked once the check has passed —
-                  nothing for you to do here unless something comes back to fix.
-                </p>
-              </div>
-            )}
+          <div className="card" data-testid="qa-notice">
+            <div className="tick-head"><b>Quality check</b></div>
+            <p className="hint" style={{ padding: 0, marginTop: 6 }}>
+              {qaHold
+                ? `The quality check has passed. The walkthrough is waiting on the office: ${qaHold}.`
+                : "Paint Group is quality checking this job before sign-off. The walkthrough opens here the moment it passes — nothing for you to do unless something comes back to fix."}
+            </p>
+          </div>
         </div>
       )}
 

@@ -249,13 +249,14 @@ export async function tickQaItem(raw: unknown): Promise<PcResult> {
 export type QaResult = PcResult & { to?: "walkthrough" };
 
 /**
- * Log a check. A FAIL sends the job back to the brushes (the RPC does that).
- * A PASS used to just sit there — the job stayed at Quality check until someone
- * remembered the "Send the pack" button. Now the LAST pass sends the pack
- * itself (Tom, 23 Aug): the customer gets their link, the painter's page moves
- * to the walkthrough. If another check is still open, it says so; if the pack
- * gate refuses (a variation waiting on a decision, say), the pass still stands
- * and the message says what's holding the handover.
+ * Log a check. A FAIL sends the job back to the brushes; the LAST PASS sends
+ * the pack and moves the job to Walkthrough — both inside wo_record_qa itself
+ * (Tom, 23 Aug: automatic, for staff and contractor alike, wherever the pass is
+ * logged). This only reads the RPC's answer back into words:
+ *   ok:pass:walkthrough  → moved
+ *   ok:pass:gate:<why>   → passed, but the pack can't go yet (a variation
+ *                          waiting, say) — the job stays at qa and says why
+ *   ok:pass              → passed, another check still to log
  */
 export async function recordQa(raw: unknown): Promise<QaResult> {
   const parsed = z.object({
@@ -265,33 +266,32 @@ export async function recordQa(raw: unknown): Promise<QaResult> {
     rectify: z.array(z.object({ heading: z.string().max(120), label: z.string().max(300) })).default([]),
   }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };
-  const logged = await call("wo_record_qa", {
-    p_check_id: parsed.data.checkId, p_result: parsed.data.result,
-    p_notes: parsed.data.notes, p_rectify: parsed.data.rectify,
-  }, parsed.data.result === "pass" ? "Passed." : "Failed — rectification is on the painter's list.");
-  if (!logged.ok || parsed.data.result !== "pass") return logged;
 
   const supabase = await createClient();
-  const { data: check } = await supabase.from("wo_qa_checks")
-    .select("work_order_id").eq("id", parsed.data.checkId).maybeSingle();
-  const workOrderId = (check as { work_order_id?: string } | null)?.work_order_id;
-  if (!workOrderId) return logged;
-
-  const [{ data: wo }, { data: open }] = await Promise.all([
-    supabase.from("work_orders").select("stage").eq("id", workOrderId).maybeSingle(),
-    supabase.from("wo_qa_checks").select("id, result").eq("work_order_id", workOrderId),
-  ]);
-  const stillOpen = ((open ?? []) as { result: string | null }[]).filter((c) => c.result !== "pass").length;
-  if (stillOpen > 0) {
-    return { ok: true, message: `Passed — ${stillOpen} check${stillOpen === 1 ? "" : "s"} still to log before sign-off.` };
+  const { data, error } = await supabase.rpc("wo_record_qa", {
+    p_check_id: parsed.data.checkId, p_result: parsed.data.result,
+    p_notes: parsed.data.notes, p_rectify: parsed.data.rectify,
+  });
+  if (error) return { ok: false, message: error.message };
+  const s = String(data ?? "");
+  if (!s.startsWith("ok:")) {
+    const reason = s.replace("error:", "");
+    if (reason.startsWith("standards_outstanding:")) {
+      return { ok: false, message: `Look at all the standards first — ${reason.split(":")[1]} still unticked.` };
+    }
+    return { ok: false, message: reason.replace(/_/g, " ") };
   }
-  if ((wo as { stage?: string } | null)?.stage !== "qa") return logged;
-
-  const sent = await deliverPack(supabase, workOrderId);
-  if (sent.ok) {
-    return { ok: true, to: "walkthrough", message: "Passed — all checks clear. Pack sent to the customer; sign-off is running." };
+  revalidatePath("/pc"); revalidatePath("/pc/flow"); revalidatePath("/pc/updates");
+  const thin = s.endsWith(":thin_record") ? " (thin photo record)" : "";
+  if (s.startsWith("ok:fail")) return { ok: true, message: `Failed — rectification is on the painter's list.${thin}` };
+  if (s.startsWith("ok:pass:walkthrough")) {
+    return { ok: true, to: "walkthrough", message: `Passed — all checks clear. The customer has their walkthrough; sign-off is running.${thin}` };
   }
-  return { ok: true, message: `Passed — but the pack can't go yet: ${sent.message}` };
+  if (s.startsWith("ok:pass:gate:")) {
+    const why = s.slice("ok:pass:gate:".length).replace(/:thin_record$/, "");
+    return { ok: true, message: `Passed — but the handover can't go yet: ${humaniseGate(why)}${thin}` };
+  }
+  return { ok: true, message: `Passed — another check is still to log before sign-off.${thin}` };
 }
 
 /** A completion-prep QUESTION answered by the office on the painter's behalf. */

@@ -149,7 +149,7 @@ test.describe("prep questions + pass → walkthrough", () => {
     await expect(page.getByTestId(`qa-${lastCheck}`)).toBeVisible({ timeout: 15_000 });
     await page.getByTestId(`qa-pass-${lastCheck}`).click();
     await expect(page.getByTestId(`qa-result-${lastCheck}`)).toContainText("PASS", { timeout: 15_000 });
-    await expect(page.getByTestId(`qa-msg-${lastCheck}`)).toContainText(/pack sent/i);
+    await expect(page.getByTestId(`qa-msg-${lastCheck}`)).toContainText(/walkthrough/i);
 
     // The stage moved — the database says so, and the page re-rendered around it.
     const { data: wo } = await db!.from("work_orders").select("stage").eq("id", uiFixture!.workOrderId).maybeSingle();
@@ -167,25 +167,58 @@ test.describe("prep questions + pass → walkthrough", () => {
     await expect(page.getByTestId("qa-notice")).toHaveCount(0);
   });
 
-  test("the painter may send a passed job on themselves", async ({ page }) => {
+  test("the pass itself moves the job — the painter sees the walkthrough, never a send button", async ({ page }) => {
     await completePrep(db!, staff!, painterFixture!.workOrderId);
     expect(await rpcAs(contractor!, "wo_contractor_finish", { p_work_order_id: painterFixture!.workOrderId }))
       .toBe("ok:completion_prep:qa_pending");
     expect(await rpcAs(contractor!, "wo_contractor_confirm_prep", { p_work_order_id: painterFixture!.workOrderId })).toBe("ok:qa");
 
-    // Unpassed: the painter's send is refused by the gate, in its words.
-    expect(await rpcAs(contractor!, "wo_deliver_evidence_pack", { p_work_order_id: painterFixture!.workOrderId }))
-      .toMatch(/^error:gate:.*quality check/i);
-
-    // Passed by RPC (no screen, so nothing auto-sent) → the painter's card offers the send.
-    await passEveryCheck(painterFixture!.workOrderId);
-    await signIn(page, contractor!, /\/portal/);
-    await page.goto(`/portal/jobs/${painterFixture!.workOrderId}`);
-    await expect(page.getByTestId("qa-passed")).toBeVisible({ timeout: 15_000 });
-    await page.getByTestId("send-pack").click();
-    await expect(page.getByTestId("send-pack-msg")).toContainText(/walkthrough is next/i, { timeout: 15_000 });
+    // Passed by RPC, no screen involved: wo_record_qa routes it on the last pass.
+    const { data: checks } = await db!.from("wo_qa_checks").select("id").eq("work_order_id", painterFixture!.workOrderId);
+    const list = (checks ?? []) as { id: string }[];
+    for (const [i, c] of list.entries()) {
+      const { data: items } = await db!.from("wo_qa_items").select("id").eq("qa_check_id", c.id);
+      for (const item of (items ?? []) as { id: string }[]) {
+        await rpcAs(staff!, "wo_tick_qa_item", { p_item_id: item.id, p_done: true });
+      }
+      const r = await rpcAs(staff!, "wo_record_qa", { p_check_id: c.id, p_result: "pass", p_notes: "e2e", p_rectify: [] });
+      expect(r).toMatch(i === list.length - 1 ? /^ok:pass:walkthrough/ : /^ok:pass$/);
+    }
     const { data: wo } = await db!.from("work_orders").select("stage").eq("id", painterFixture!.workOrderId).maybeSingle();
     expect((wo as { stage: string }).stage).toBe("walkthrough");
+    const { data: so } = await db!.from("wo_signoff").select("evidence_pack_sent_at")
+      .eq("work_order_id", painterFixture!.workOrderId).maybeSingle();
+    expect((so as { evidence_pack_sent_at: string | null }).evidence_pack_sent_at).not.toBeNull();
+
+    await signIn(page, contractor!, /\/portal/);
+    await page.goto(`/portal/jobs/${painterFixture!.workOrderId}`);
     await expect(page.getByTestId("walkthrough-start")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("send-pack")).toHaveCount(0);
+    await expect(page.getByTestId("qa-passed")).toHaveCount(0);
+  });
+
+  test("a job left passed-at-qa by any other path moves the moment the painter looks", async ({ page }) => {
+    // Park a job at qa with every check passed WITHOUT going through
+    // wo_record_qa (a straight row update — the shape of a pre-routing job).
+    const cid = await contractorIdForEmail(db!, contractor!.email);
+    const parked = await createLoopFixture(db!, cid!, [{ heading: "Rear", labels: ["Walls"] }]);
+    try {
+      await allDone(parked);
+      await completePrep(db!, staff!, parked.workOrderId);
+      expect(await rpcAs(contractor!, "wo_contractor_finish", { p_work_order_id: parked.workOrderId }))
+        .toBe("ok:completion_prep:qa_pending");
+      expect(await rpcAs(contractor!, "wo_contractor_confirm_prep", { p_work_order_id: parked.workOrderId })).toBe("ok:qa");
+      await db!.from("wo_qa_checks").update({ result: "pass" }).eq("work_order_id", parked.workOrderId);
+      const { data: before } = await db!.from("work_orders").select("stage").eq("id", parked.workOrderId).maybeSingle();
+      expect((before as { stage: string }).stage).toBe("qa");
+
+      await signIn(page, contractor!, /\/portal/);
+      await page.goto(`/portal/jobs/${parked.workOrderId}`);
+      await expect(page.getByTestId("walkthrough-start")).toBeVisible({ timeout: 15_000 });
+      const { data: after } = await db!.from("work_orders").select("stage").eq("id", parked.workOrderId).maybeSingle();
+      expect((after as { stage: string }).stage).toBe("walkthrough");
+    } finally {
+      await destroyLoopFixture(db!, parked);
+    }
   });
 });

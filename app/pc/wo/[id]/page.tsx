@@ -8,6 +8,7 @@ import PriceVariation from "./PriceVariation";
 import Checklist, { type ChecklistItem } from "./Checklist";
 import WalkthroughCard from "./WalkthroughCard";
 import QaCheck, { type QaCheckView } from "./QaCheck";
+import { humaniseGate } from "@/lib/workorder/gateText";
 import TickList from "@/app/components/wo/TickList";
 import PhotoGrid from "@/app/components/wo/PhotoGrid";
 import { WO_PHOTO_KIND_LABEL, forVariation, groupByKind, signPhotos, type WOPhotoRow } from "@/lib/workorder/photos";
@@ -36,6 +37,17 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
   };
 
   const estimateId = (wo as { estimate_id?: string }).estimate_id ?? "";
+
+  // A job parked at qa with every check passed moves itself the moment anyone
+  // looks (Tom, 23 Aug — automatic, never a press). Idempotent: anything but a
+  // fully-passed qa job answers ok:0; a pack-gate refusal shows in its words.
+  let qaHold: string | null = null;
+  if (row.stage === "qa") {
+    const { data: routed } = await supabase.rpc("wo_qa_route_passed", { p_work_order_id: id });
+    const r = String(routed ?? "");
+    if (r === "ok:walkthrough") row.stage = "walkthrough";
+    else if (r.startsWith("error:gate:")) qaHold = r.slice("error:gate:".length);
+  }
 
   const [{ data: surfaceRows }, { data: variationRows }, { data: updateRows }, { data: qaRows }, { data: checklistRows }, { data: rateRow }, { data: walkthroughRows }, { data: signoffRow }] =
     await Promise.all([
@@ -386,6 +398,15 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
           ))}
           {/* An empty qa stage was a silent dead end: no cards, no explanation,
               and the way forward not obviously the answer. Say what's true. */}
+          {row.stage === "qa" && qaHold && (
+            <div className="card" data-testid="qa-hold">
+              <h3>Quality check <em>passed — handover waiting</em></h3>
+              <p className="note">
+                Every check has passed, but the customer can&rsquo;t be asked to look yet: {humaniseGate(qaHold)}.
+                Clear that and the job moves to Walkthrough on its own.
+              </p>
+            </div>
+          )}
           {row.stage === "qa" && qaChecks.length === 0 && (
             <div className="card" data-testid="qa-none">
               <h3>Quality check <em>none due</em></h3>
