@@ -66,7 +66,7 @@ export type CustomerSnapshot = {
   jobAddress: string;
   jobTitle: string;
   gstRatePct: number; // e.g. 10
-  depositPct: number; // deposit % payable on acceptance (e.g. 50)
+  depositPct: number; // deposit % payable on acceptance (builder value, seeded from the invoicing Settings default)
   baseSubtotalCents: number; // included items + sundries, ex-GST (excludes options)
   areas: SnapshotArea[];
   lineItems: SnapshotLine[];

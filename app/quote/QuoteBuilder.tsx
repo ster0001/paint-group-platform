@@ -37,6 +37,7 @@ import { replyToEstimateChatAction, sendEstimateAction, type DeliveryOutcome } f
 import SendDialog, { type SendDelivery } from "./SendDialog";
 import { reviewGate, REVIEW_GATE_CENTS, type AiDeferred } from "@/lib/estimate/reviewGate";
 import { DEFAULT_MESSAGING, MESSAGING_KEY, type MessagingSettings } from "@/lib/messaging/config";
+import { depositPctFromSettings } from "@/lib/invoicing/settings";
 import { issueWorkOrderAction, setWorkOrderScheduleAction } from "./workOrderActions";
 import type { SurfaceState } from "@/lib/workorder/surfaces";
 import type { WOPhoto } from "@/lib/workorder/photos";
@@ -320,7 +321,11 @@ export default function QuoteBuilder({
   const [contact, setContact] = useState<Contact | null>(() => loaded?.contact ?? null);
   const [jobAddress, setJobAddress] = useState<JobAddress | null>(() => loaded?.jobAddress ?? null);
   // Deposit payable on acceptance, as a % of the GST-inclusive total. Defaults to 50%.
-  const [depositPct, setDepositPct] = useState<number>(() => loaded?.depositPct ?? 50);
+  // A saved estimate keeps its own deposit %; a NEW one reads the Settings
+  // value (Tom's 24 Aug ruling: no percentage literals — one source of truth).
+  const [depositPct, setDepositPct] = useState<number>(
+    () => loaded?.depositPct ?? depositPctFromSettings(settings),
+  );
   // Presentation tick — which presentation (if any) injects into the customer view.
   const [presentationId, setPresentationId] = useState<string | null>(initial?.presentation_id ?? null);
   const presentationDoc = () => {

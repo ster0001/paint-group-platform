@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { reportIfError } from "@/lib/monitoring/report";
 import type { CustomerSnapshot, SnapshotPaint } from "@/lib/customer/snapshot";
+import { DEFAULT_DEPOSIT_PCT } from "@/lib/invoicing/settings";
 import PresentationBlocks from "./PresentationBlocks";
 import "../customer.css";
 
@@ -91,7 +92,9 @@ export default function CustomerEstimate({
   const subtotal = grossSubtotal - discount;
   const gst = Math.round(subtotal * gstRate);
   const total = subtotal + gst;
-  const depositPct = snap.depositPct ?? 50;
+  // Every snapshot since the builder existed carries its own depositPct; the
+  // fallback is the shared invoicing default, never a literal (Tom's ruling).
+  const depositPct = snap.depositPct ?? DEFAULT_DEPOSIT_PCT;
   const deposit = Math.round(total * depositPct / 100);
 
   // view + dwell tracking (real customer page only, never the builder preview)

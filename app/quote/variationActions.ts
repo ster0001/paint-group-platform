@@ -18,6 +18,12 @@ import type { RateItem } from "@/lib/pricing/types";
  * The CONTRACTOR's side of the same variation is not computed here at all —
  * wo_price_variation derives it in SQL from the "Contractor rate" setting, so
  * it cannot be influenced from this process either.
+ *
+ * GST — Tom's 24 Aug ruling: the price produced here is **GST-INCLUSIVE**.
+ * It is the figure the customer sees and approves on /v/[token], and it is
+ * charged exactly as approved — the invoice backs GST out of it
+ * (lib/invoicing/variation.ts), never adds 10% on top. The variable names
+ * below say IncGst so the rule is visible, not implied.
  */
 
 export type VariationResult =
@@ -90,12 +96,14 @@ export async function priceVariationAction(raw: unknown): Promise<VariationResul
   const rateItems = (rateRows ?? []) as unknown as RateItem[];
   const perHour = chargeOutCents(type, rateItems, builder.hourlyRateOverride ?? null);
   const labourCents = Math.round(hours * perHour);
-  const priceCents = labourCents + materialsCents;
+  // GST-INCLUSIVE (Tom's ruling): this is the whole price the customer
+  // approves and pays. wo_variations.price_cents carries it verbatim.
+  const priceIncGstCents = labourCents + materialsCents;
 
   const { data, error } = await supabase.rpc("wo_price_variation", {
     p_variation_id: variationId,
-    p_price_cents: priceCents,
-    p_inputs: { hours, chargeOutCents: perHour, type, materialsCents },
+    p_price_cents: priceIncGstCents,
+    p_inputs: { hours, chargeOutCents: perHour, type, materialsCents, incGst: true },
     p_priced_lines: [
       { label: `Labour — ${hours} hr at $${(perHour / 100).toFixed(2)}/hr`, cents: labourCents },
       ...(materialsCents > 0 ? [{ label: "Materials & sundries", cents: materialsCents }] : []),
