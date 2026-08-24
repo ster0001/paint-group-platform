@@ -16,6 +16,25 @@ import {
   type InvoicingResult,
 } from "../../actions";
 import { fmt0, fmt2, fmtSigned2 } from "../../format";
+import AddCostSheet from "./AddCostSheet";
+
+export type JobCostItemProp = {
+  id: string;
+  vendor: string;
+  ref: string; // "scaffold · SR-2291 · 22 Aug"
+  amtCents: number;
+  status: "recorded" | "approved" | "paid";
+  sourceChip: string; // bills@ / receipt / airtable / manual
+  docUrl: string | null;
+  linked: boolean; // ties to an estimate pass-through line
+};
+
+export type MaterialItemProp = {
+  id: string;
+  label: string; // "Haymes · $412.80 · 22 Aug"
+  sourceChip: string;
+  docUrl: string | null;
+};
 
 /**
  * §7.1 client shell — stage rail, money strip, three tabs, the
@@ -65,11 +84,14 @@ export default function MoneyView({
   costs: {
     offerCents: number; acceptedDeltaCents: number;
     ci?: { number: string | null; status: string } | null;
+    rows?: JobCostItemProp[];
+    materials?: MaterialItemProp[];
   };
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<"payments" | "invoices" | "costs">("payments");
   const [sheet, setSheet] = useState<null | "request" | { record: InvoiceCardProp }>(null);
+  const [addCost, setAddCost] = useState(false);
   const [busy, startTransition] = useTransition();
   const [flash, setFlash] = useState<string | null>(null);
 
@@ -262,9 +284,45 @@ export default function MoneyView({
           <div className="kv"><span>Accepted variations</span><b>{costs.acceptedDeltaCents ? (costs.acceptedDeltaCents > 0 ? "+" : "−") + fmt2(Math.abs(costs.acceptedDeltaCents)) : "—"}</b></div>
           <div className="kv"><span>To pay after sign-off</span><b>{fmt2(costs.offerCents + costs.acceptedDeltaCents)}</b></div>
         </div>
-        <div className="card grp">
-          <div className="k" style={{ marginBottom: 4 }}>Materials · other trades</div>
-          <div className="hint">Est-vs-actual bars land with the costs build (Step 6) — materials sync, vendor invoices and the unmatched queue.</div>
+        <div className="card grp" data-testid="materials-group">
+          <div className="k" style={{ marginBottom: 4 }}>Materials</div>
+          {(costs.materials ?? []).length === 0 && (
+            <div className="hint">No material costs yet — supplier invoices land here from bills@ and the Airtable sync.</div>
+          )}
+          {(costs.materials ?? []).map((m) => (
+            <div className="kv" key={m.id} data-testid={`material-${m.id}`}>
+              <span>
+                {m.label} <span className="chip draft" style={{ marginLeft: 6 }}>{m.sourceChip}</span>
+              </span>
+              <b>{m.docUrl ? <a href={m.docUrl} target="_blank" rel="noreferrer" style={{ color: "var(--cyan)" }}>doc →</a> : ""}</b>
+            </div>
+          ))}
+        </div>
+
+        <div className="card grp" data-testid="trades-group">
+          <div className="k" style={{ marginBottom: 4 }}>Other trades &amp; costs</div>
+          {(costs.rows ?? []).length === 0 && (
+            <div className="hint">Nothing recorded — vendor invoices and dockets land here through the intake queue, or add one below.</div>
+          )}
+          {(costs.rows ?? []).map((r) => (
+            <div className="kv" key={r.id} data-testid={`job-cost-item-${r.id}`}>
+              <span>
+                {r.vendor} · {r.ref}
+                <span className="chip draft" style={{ marginLeft: 6 }}>{r.sourceChip}</span>
+                {!r.linked && <span className="chip submitted" style={{ marginLeft: 4 }}>not in estimate</span>}
+              </span>
+              <b>
+                {fmt2(r.amtCents)}
+                {r.docUrl ? <> · <a href={r.docUrl} target="_blank" rel="noreferrer" style={{ color: "var(--cyan)" }}>doc →</a></> : null}
+              </b>
+            </div>
+          ))}
+          <div className="hint" style={{ marginTop: 8 }}>Est-vs-actual bars arrive with 6b.</div>
+          {woId && (
+            <button className="mini cy" style={{ marginTop: 10 }} onClick={() => setAddCost(true)} data-testid="add-cost-button">
+              ＋ Add cost
+            </button>
+          )}
         </div>
       </section>
 
@@ -280,6 +338,7 @@ export default function MoneyView({
       </div>
 
       {/* sheets */}
+      {woId && <AddCostSheet estimateId={estimateId} woId={woId} open={addCost} onClose={() => setAddCost(false)} />}
       <div className="scrim" onClick={() => setSheet(null)} style={sheet ? { opacity: 1, pointerEvents: "auto" } : undefined} />
 
       {/* request payment */}

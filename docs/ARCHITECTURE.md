@@ -1383,3 +1383,29 @@ allowed. The revision builder's INVOICE tab now renders the customer document
 headed "Invoice EST-…" (CustomerEstimate `docLabel` prop — eyebrow + footer
 drop the 60-day validity line), so what staff preview is the invoice the
 customer will see, live from the working scope.
+
+## Cost capture 6a — one pipeline, four doors (25 Aug 2026)
+
+Every cost now enters through `cost_intake` (migration `20261122`): the
+bills@ email webhook (`app/api/inbound/bills` — svix-signed, 3-state
+idempotency door keyed on message_id, raw email + attachments stored in the
+private `cost-docs` bucket), the Airtable/Zapier transition webhook
+(`app/api/inbound/airtable`, Bearer secret, idempotent per record_id), and
+staff manual entry ("+ Add cost" on the job money view — document required,
+staged through a signed upload URL and byte-sniffed before the row exists).
+Reading is `lib/costs/`: `rules.ts` (deterministic field extraction, always
+runs), `extractBill.ts` (Anthropic forced-tool reader, proposes only, with
+per-vendor `extraction_hints` injected), `match.ts` (the ladder: exact
+`PG-<job_no>` order ref → single-winner address match → vendor sender-domain
+memory → unmatched). Work orders gained a sequential `job_no` — the `PG-0087`
+job code (⚑A3/⚑21) that makes supplier matching exact. Nothing becomes a
+cost row until a person confirms in the intake queue on the Payables tab
+(`app/invoicing/PayablesCosts.tsx`); the duplicate guard (same
+vendor+invoice-no, or same total+date+sender inside the Settings window)
+flags instead of writing; unreadable documents park as "couldn't read this",
+never $0. Confirmed rows land in `job_costs` (recorded → approved → paid,
+inline on Payables) or `material_costs` (null WO = unmatched queue, one-tap
+assign) with the source document attached and proposed-vs-confirmed kept —
+the accuracy readout on the queue header is the evidence for ⚑A1
+(auto-confirm, seeded OFF and inert). Settings → Cost intake carries the
+window/threshold/toggle. e2e: `cost-intake.spec.ts` 9/9 on C1.

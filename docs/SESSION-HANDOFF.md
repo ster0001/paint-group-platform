@@ -1,3 +1,38 @@
+# 25 Aug 2026 (PM) — STEP 6a SHIPPED (cost capture: pipeline + intake queue)
+
+Built to the NEW briefs (`claude-code-brief-cost-capture.md` supersedes Step
+6's materials scope; updated invoicing brief committed alongside). Migration
+**20261122_cost_intake** is applied on C1 and **AWAITS TOM ON PROD** —
+read-backs + eyeball script in `docs/manual-tests/cost-capture-6a.md`.
+Deployed code is inert-but-safe until it runs (every cost query degrades to
+empty; bills@ answers 503 until ⚑16 lands a provider + BILLS_INBOUND_SECRET).
+
+- What shipped: `cost_intake` pipeline (4 doors: bills@ webhook w/ svix
+  signature + 3-state idempotency door · airtable transition webhook w/
+  Bearer secret · staff manual + Add cost w/ required document · photo door
+  reserved for 6b), `lib/costs/*` (rules/AI reader/matching ladder), intake
+  queue + accuracy readout + unmatched-materials assign + job-cost
+  recorded→approved→paid rows on the Payables tab, Costs tab groups on the
+  job money view, Settings → Cost intake, `work_orders.job_no` (the PG-0087
+  order reference, ⚑A3/⚑21 — exact matching is real now).
+- Gates: unit 914/914 (53 new incl. migration contract tests) ·
+  `e2e/cost-intake.spec.ts` 9/9 on C1 · regression suites re-run green ·
+  build + tsc clean. Known pre-existing lint error in portal RequestClaim
+  (react-compiler memoization warning) — untouched.
+- ⚑A1 auto-confirm: setting exists, seeded OFF, deliberately NOT implemented
+  in any code path (first-month rule); the accuracy readout is live.
+- e2e traps for 6b/6c: destroyLoopFixture now deletes job_costs/
+  material_costs/cost_intake (RESTRICT-FK lesson); test env secrets
+  BILLS_INBOUND_SECRET/AIRTABLE_SYNC_SECRET live in .env.test.local; C1 has
+  no ANTHROPIC key so e2e exercises the rules reader deterministically.
+- NEXT: 6b (snap receipt + reimbursements — photo door, who-paid,
+  est-vs-actual bars), then 6c (contractor expenses), Step 7 still ⛔ on
+  acceptance-to-paid-workflow rulings. ⚑16 provider decision now also gates
+  bills@ go-live (Resend recommended — it already sends our email and does
+  inbound).
+
+---
+
 # 25 Aug 2026 — HANDOFF TO THE STEP 6 SESSION (costs)
 
 State: main @ e84f432, deployed, live-verified. Migrations 20261111–20261121

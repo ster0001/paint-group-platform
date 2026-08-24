@@ -6,6 +6,10 @@ import Link from "next/link";
 import type { DashboardTiles, PayablesTiles } from "@/lib/invoicing/derive";
 import { fmt0, fmt2 } from "./format";
 import { approveContractorInvoiceAction, markContractorInvoicePaidAction } from "./actions";
+import PayablesCosts, {
+  type AccuracyProp, type CostPayableRowProp, type IntakeCardProp,
+  type JobPickProp, type UnmatchedMaterialProp,
+} from "./PayablesCosts";
 
 /**
  * §7.2 client shell — tabs, filter chips (mirrored into query params so a
@@ -58,7 +62,7 @@ const BUCKET_COLOURS = ["var(--paint)", "var(--clay)", "var(--clay)", "var(--cla
 
 export default function Dashboard({
   tiles, buckets, rows, activity, initialFilter, initialTab,
-  payables = null, payableRows = [],
+  payables = null, payableRows = [], costs = null,
 }: {
   tiles: DashboardTiles;
   buckets: [number, number, number, number, number];
@@ -68,6 +72,13 @@ export default function Dashboard({
   initialTab: string;
   payables?: PayablesTiles | null;
   payableRows?: PayableRowProp[];
+  costs?: {
+    cards: IntakeCardProp[];
+    jobs: JobPickProp[];
+    unmatched: UnmatchedMaterialProp[];
+    costRows: CostPayableRowProp[];
+    accuracy: AccuracyProp;
+  } | null;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState(initialTab === "pay" || initialTab === "act" ? initialTab : "recv");
@@ -224,6 +235,12 @@ export default function Dashboard({
           </div>
         )}
 
+        {/* Step 6a — the intake queue + job costs + unmatched materials */}
+        {costs && (
+          <PayablesCosts cards={costs.cards} jobs={costs.jobs} unmatched={costs.unmatched}
+            costRows={costs.costRows} accuracy={costs.accuracy} />
+        )}
+
         {payMessage && <div className="hint" role="status" data-testid="payables-message" style={{ margin: "8px 0" }}>{payMessage}</div>}
 
         <div className="rows" data-testid="payable-rows">
@@ -270,8 +287,7 @@ export default function Dashboard({
           {payableRows.length === 0 && (
             <div className="card"><div className="hint">
               No contractor invoices yet — one drafts itself the moment a job
-              signs off. Job costs and the materials queue join this tab in
-              Step 6. Nothing here moves money — it records and reminds.
+              signs off. Nothing here moves money — it records and reminds.
             </div></div>
           )}
         </div>

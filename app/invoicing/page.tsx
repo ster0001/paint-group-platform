@@ -10,10 +10,13 @@ import {
   stageDots,
   type DeriveInvoice,
 } from "@/lib/invoicing/derive";
-import { loadDashboard, toDerive, toDerivePayments, type EventRow, type InvoiceRow } from "./data";
+import { loadCostCapture, loadDashboard, toDerive, toDerivePayments, type EventRow, type InvoiceRow } from "./data";
 import { STAGE_LANES, visibleStage, type WoStage } from "@/lib/workorder/stages";
+import { accuracyReadout, jobCode, queueRows, SOURCE_LABEL, type ExtractedBill, type IntakeRow, type IntakeSource } from "@/lib/costs/intake";
+import { COST_DOCS_BUCKET } from "@/lib/costs/store";
 import { fmt2, KIND_LABEL, shortDay } from "./format";
 import Dashboard, { type ActivityProp, type PayableRowProp, type RowProp } from "./Dashboard";
+import type { CostPayableRowProp, IntakeCardProp, JobPickProp, UnmatchedMaterialProp } from "./PayablesCosts";
 
 export const dynamic = "force-dynamic";
 
@@ -77,7 +80,10 @@ export default async function InvoicingDashboardPage({
   const { f, tab } = await searchParams;
   const supabase = await createClient();
   const today = melbourneDate(new Date());
-  const { invoices, payments, events, contractorInvoices } = await loadDashboard(supabase);
+  const [{ invoices, payments, events, contractorInvoices }, capture] = await Promise.all([
+    loadDashboard(supabase),
+    loadCostCapture(supabase),
+  ]);
 
   const derive = toDerive(invoices);
   const dPays = toDerivePayments(payments);
@@ -190,6 +196,108 @@ export default async function InvoicingDashboardPage({
     })
     .sort((a, b) => (CI_SORT[a.status] ?? 9) - (CI_SORT[b.status] ?? 9));
 
+  // ---- Step 6a: the cost-capture section of the Payables tab ----
+  const jobsForPick: JobPickProp[] = capture.jobs.map((j) => ({
+    woId: j.id,
+    estimateId: j.estimate_id,
+    label: [jobCode(j.job_no), j.job_address ?? "Unnamed job"].filter(Boolean).join(" · "),
+  }));
+  const jobLabelByWo = new Map(jobsForPick.map((j) => [j.woId, j.label]));
+
+  const queue = queueRows(
+    capture.intake.map((r) => ({ ...r, status: r.status as IntakeRow["status"] })),
+  );
+  const docPaths = [
+    ...queue.map((q) => q.raw_doc_path),
+    ...capture.jobCosts.map((c) => c.doc_path),
+  ].filter((p): p is string => Boolean(p));
+  const docUrlByPath = new Map<string, string>();
+  if (docPaths.length) {
+    const { data: signed } = await supabase.storage
+      .from(COST_DOCS_BUCKET)
+      .createSignedUrls([...new Set(docPaths)], 600);
+    for (const s of signed ?? []) {
+      if (s.signedUrl && s.path) docUrlByPath.set(s.path, s.signedUrl);
+    }
+  }
+
+  const MATCH_WHY: Record<string, string> = {
+    order_ref: "matched on order reference",
+    address: "address found in the document",
+    vendor_memory: "known vendor — job unmatched",
+    none: "",
+  };
+  const cards: IntakeCardProp[] = queue.map((q) => {
+    const e = (q.extracted ?? {}) as ExtractedBill;
+    const failed = q.extract_status === "failed";
+    const isPdf = Boolean(q.raw_doc_path?.toLowerCase().endsWith(".pdf"));
+    const conf =
+      q.match_reason === "order_ref" && typeof e.confidence?.order_ref === "number"
+        ? Math.round(e.confidence.order_ref * 100)
+        : null;
+    return {
+      intakeId: q.id,
+      title: `${e.supplier || q.from_email || "Document"} — ${q.source === "photo" ? "receipt" : "invoice"}`,
+      sourceChip: `${SOURCE_LABEL[q.source as IntakeSource] ?? q.source}${isPdf ? " · PDF" : ""}`,
+      kv: [
+        { k: "Invoice no.", v: e.invoice_no || "—" },
+        { k: "Date", v: e.invoice_date ? shortDay(e.invoice_date) : "—" },
+        { k: "Total inc GST", v: e.total_cents ? fmt2(e.total_cents) : "—" },
+        { k: "GST", v: e.gst_cents ? fmt2(e.gst_cents) : "—" },
+      ],
+      failed,
+      duplicate: q.status === "duplicate",
+      duplicateNote:
+        "Looks like a document already recorded (same vendor + invoice number, or same total, date and sender). No cost was written.",
+      matchLabel: q.proposed_wo_id ? jobLabelByWo.get(q.proposed_wo_id) ?? null : null,
+      matchWhy: MATCH_WHY[q.match_reason] || null,
+      confidencePct: conf,
+      proposedWoId: q.proposed_wo_id,
+      vendorId: q.proposed_vendor_id,
+      vendorName: e.supplier ?? "",
+      totalCents: e.total_cents ?? 0,
+      gstCents: e.gst_cents ?? 0,
+      invoiceNo: e.invoice_no ?? "",
+      invoiceDate: e.invoice_date ?? null,
+      docUrl: q.raw_doc_path ? docUrlByPath.get(q.raw_doc_path) ?? null : null,
+    };
+  });
+
+  const unmatched: UnmatchedMaterialProp[] = capture.unmatchedMaterials.map((m) => ({
+    id: m.id,
+    label: [m.supplier || "Materials", fmt2(m.amount_cents), m.invoice_date ? shortDay(m.invoice_date) : null]
+      .filter(Boolean).join(" · "),
+    hint: [m.order_ref, m.address_text].filter(Boolean).join(" · ") || "no reference on the record",
+  }));
+
+  const costRows: CostPayableRowProp[] = capture.jobCosts
+    .filter((c) => c.status !== "paid")
+    .map((c) => ({
+      id: c.id,
+      estimateId: c.work_orders?.estimate_id ?? null,
+      vendor: c.vendors?.name || c.description || "Cost",
+      ref: [
+        c.invoice_no || null,
+        c.category.replaceAll("_", " "),
+        jobCode(c.work_orders?.job_no ?? null) || null,
+        c.work_orders?.job_address ?? null,
+      ].filter(Boolean).join(" · "),
+      status: c.status as CostPayableRowProp["status"],
+      amtCents: c.amount_ex_cents + c.gst_cents,
+      docUrl: c.doc_path ? docUrlByPath.get(c.doc_path) ?? null : null,
+    }));
+
+  const accuracy = accuracyReadout(
+    capture.intake.map((r) => ({
+      status: r.status as IntakeRow["status"],
+      match_reason: r.match_reason as IntakeRow["match_reason"],
+      proposed_wo_id: r.proposed_wo_id,
+      confirmed_wo_id: r.confirmed_wo_id,
+      confirmed_at: r.confirmed_at,
+    })),
+    today,
+  );
+
   return (
     <Dashboard
       tiles={tiles}
@@ -200,6 +308,7 @@ export default async function InvoicingDashboardPage({
       initialTab={tab ?? "recv"}
       payables={payables}
       payableRows={payableRows}
+      costs={{ cards, jobs: jobsForPick, unmatched, costRows, accuracy }}
     />
   );
 }

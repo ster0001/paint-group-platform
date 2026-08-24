@@ -7,10 +7,14 @@ import {
   invoicePaidCents,
   paymentStages,
 } from "@/lib/invoicing/derive";
-import { loadJobMoney, toDerive, toDerivePayments } from "../../data";
+import { loadJobCosts, loadJobMoney, toDerive, toDerivePayments } from "../../data";
 import { contractorVariationsCents } from "@/lib/workorder/contractorPay";
+import { SOURCE_LABEL, type IntakeSource } from "@/lib/costs/intake";
+import { COST_DOCS_BUCKET } from "@/lib/costs/store";
 import { fmt2, KIND_LABEL, shortDay, STATUS_LABEL } from "../../format";
-import MoneyView, { type InvoiceCardProp, type FeedProp } from "./MoneyView";
+import MoneyView, {
+  type InvoiceCardProp, type FeedProp, type JobCostItemProp, type MaterialItemProp,
+} from "./MoneyView";
 
 export const dynamic = "force-dynamic";
 
@@ -89,10 +93,43 @@ export default async function JobMoneyPage({
     }
   });
 
-  // Costs tab — contractor group only until Steps 5–6 fill the rest. Credits
-  // subtract (manual deduction wins on started work) — one rule, in the lib.
+  // Costs tab — contractor group + the 6a cost rows. Credits subtract
+  // (manual deduction wins on started work) — one rule, in the lib.
   const offerCents = Number(job.wo?.contractor_payment ?? 0) || 0;
   const acceptedDeltaCents = contractorVariationsCents(job.variations);
+
+  const woId = job.wo?.id ?? null;
+  const jobCostData = woId ? await loadJobCosts(supabase, woId) : { jobCosts: [], materials: [] };
+  const costDocPaths = jobCostData.jobCosts
+    .map((c) => c.doc_path)
+    .filter((p): p is string => Boolean(p));
+  const docUrlByPath = new Map<string, string>();
+  if (costDocPaths.length) {
+    const { data: signed } = await supabase.storage
+      .from(COST_DOCS_BUCKET)
+      .createSignedUrls([...new Set(costDocPaths)], 600);
+    for (const s of signed ?? []) if (s.signedUrl && s.path) docUrlByPath.set(s.path, s.signedUrl);
+  }
+  const sourceChip = (source: string | null | undefined, intakeId: string | null) =>
+    intakeId || source ? SOURCE_LABEL[(source ?? "manual") as IntakeSource] ?? "manual" : "manual";
+  const costRows: JobCostItemProp[] = jobCostData.jobCosts.map((c) => ({
+    id: c.id,
+    vendor: c.vendors?.name || c.description || "Cost",
+    ref: [c.category.replaceAll("_", " "), c.invoice_no || null, c.invoice_date ? shortDay(c.invoice_date) : null]
+      .filter(Boolean).join(" · "),
+    amtCents: c.amount_ex_cents + c.gst_cents,
+    status: c.status as JobCostItemProp["status"],
+    sourceChip: c.intake_id ? "bills@/queue" : "manual",
+    docUrl: c.doc_path ? docUrlByPath.get(c.doc_path) ?? null : null,
+    linked: Boolean(c.estimate_line_ref),
+  }));
+  const materialRows: MaterialItemProp[] = jobCostData.materials.map((m) => ({
+    id: m.id,
+    label: [m.supplier || "Materials", fmt2(m.amount_cents), m.invoice_date ? shortDay(m.invoice_date) : null]
+      .filter(Boolean).join(" · "),
+    sourceChip: sourceChip(m.source, m.intake_id),
+    docUrl: null,
+  }));
 
   return (
     <MoneyView
@@ -112,7 +149,7 @@ export default async function JobMoneyPage({
       }}
       cards={cards}
       feed={feed}
-      costs={{ offerCents, acceptedDeltaCents, ci: job.contractorInvoice }}
+      costs={{ offerCents, acceptedDeltaCents, ci: job.contractorInvoice, rows: costRows, materials: materialRows }}
     />
   );
 }

@@ -127,6 +127,13 @@ export async function destroyLoopFixture(db: SupabaseClient, fixture: LoopFixtur
   // Contractor invoices too (Step 5): work_order_id is ON DELETE RESTRICT and
   // sign-off auto-drafts one, so a signed job's fixture would leak without this.
   await db.from("contractor_invoices").delete().eq("work_order_id", fixture.workOrderId);
+  // Job costs (Step 6a): work_order_id is ON DELETE RESTRICT too. Materials
+  // and intake rows only set-null, but leaving them is still a leak.
+  await db.from("job_costs").delete().eq("work_order_id", fixture.workOrderId);
+  await db.from("material_costs").delete().eq("work_order_id", fixture.workOrderId);
+  await db.from("cost_intake").delete().or(
+    `proposed_wo_id.eq.${fixture.workOrderId},confirmed_wo_id.eq.${fixture.workOrderId}`,
+  );
   // Everything else cascades from the estimate.
   const { error } = await db.from("estimates").delete().eq("id", fixture.estimateId);
   // A leak is a bug in the spec, not a shrug — fail loudly so it gets fixed.

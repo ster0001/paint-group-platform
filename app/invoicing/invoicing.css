@@ -235,3 +235,11 @@
 .invx .ptiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 12px; }
 .invx .chip.submitted { color: var(--amber, #e0a83c); border-color: rgba(224, 168, 60, 0.5); }
 .invx .chip.approved { color: var(--cyan, #3bd8e9); border-color: rgba(59, 216, 233, 0.5); }
+
+/* ---- Step 6a: the intake queue (cost-capture mockup) ---- */
+.invx .ikv{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-top:10px}
+.invx .ikv .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.invx .ikv .v{font-family:var(--mono);font-size:12px;margin-top:3px}
+.invx .chips.wrap{flex-wrap:wrap}
+.invx .chips.wrap .pchip{flex:0 0 auto}
+.invx label.hint input{margin-top:4px}

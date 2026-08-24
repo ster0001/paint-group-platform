@@ -100,6 +100,119 @@ export type ContractorInvoiceRow = {
   work_orders: { wo_ref: string; estimate_id: string; stage: string; job_address: string | null } | null;
 };
 
+// ---- Step 6a: cost capture rows -------------------------------------------
+
+export type IntakeDbRow = {
+  id: string;
+  source: string;
+  raw_doc_path: string | null;
+  from_email: string;
+  subject: string;
+  extracted: Record<string, unknown>;
+  extract_status: string;
+  proposed_vendor_id: string | null;
+  proposed_wo_id: string | null;
+  match_reason: string;
+  status: string;
+  duplicate_of: string | null;
+  confirmed_wo_id: string | null;
+  confirmed_at: string | null;
+  created_at: string;
+};
+
+export type JobCostRow = {
+  id: string;
+  work_order_id: string;
+  category: string;
+  description: string;
+  amount_ex_cents: number;
+  gst_cents: number;
+  doc_path: string | null;
+  estimate_line_ref: string | null;
+  status: string;
+  paid_with: string;
+  invoice_no: string;
+  invoice_date: string | null;
+  intake_id: string | null;
+  created_at: string;
+  vendors: { name: string } | null;
+  work_orders: { estimate_id: string; wo_ref: string; job_no: number | null; job_address: string | null } | null;
+};
+
+export type MaterialCostRow = {
+  id: string;
+  work_order_id: string | null;
+  supplier: string;
+  brand: string;
+  order_ref: string;
+  address_text: string;
+  amount_cents: number;
+  invoice_date: string | null;
+  source: string;
+  intake_id: string | null;
+  created_at: string;
+};
+
+export type JobPickRow = {
+  id: string; // work order id
+  estimate_id: string;
+  job_no: number | null;
+  stage: string;
+  job_address: string | null;
+};
+
+/**
+ * The 6a rows, fetched tolerantly: until migration 20261122 runs these tables
+ * and columns don't exist, and every query degrades to an empty list so the
+ * deployed code stays inert-but-safe (house law).
+ */
+export async function loadCostCapture(supabase: SupabaseClient) {
+  const [intake, jobCosts, unmatched, jobs] = await Promise.all([
+    supabase.from("cost_intake")
+      .select("id, source, raw_doc_path, from_email, subject, extracted, extract_status, proposed_vendor_id, proposed_wo_id, match_reason, status, duplicate_of, confirmed_wo_id, confirmed_at, created_at")
+      .order("created_at", { ascending: false })
+      .limit(200),
+    supabase.from("job_costs")
+      .select("id, work_order_id, category, description, amount_ex_cents, gst_cents, doc_path, estimate_line_ref, status, paid_with, invoice_no, invoice_date, intake_id, created_at, vendors(name), work_orders(estimate_id, wo_ref, job_no, job_address:wo_snapshot->>jobAddress)")
+      .order("created_at", { ascending: false })
+      .limit(200),
+    supabase.from("material_costs")
+      .select("id, work_order_id, supplier, brand, order_ref, address_text, amount_cents, invoice_date, source, intake_id, created_at")
+      .is("work_order_id", null)
+      .order("created_at", { ascending: false })
+      .limit(100),
+    supabase.from("work_orders")
+      .select("id, estimate_id, job_no, stage, job_address:wo_snapshot->>jobAddress")
+      .neq("stage", "closed")
+      .order("created_at", { ascending: false })
+      .limit(100),
+  ]);
+  return {
+    intake: (intake.error ? [] : intake.data ?? []) as unknown as IntakeDbRow[],
+    jobCosts: (jobCosts.error ? [] : jobCosts.data ?? []) as unknown as JobCostRow[],
+    unmatchedMaterials: (unmatched.error ? [] : unmatched.data ?? []) as unknown as MaterialCostRow[],
+    jobs: (jobs.error ? [] : jobs.data ?? []) as unknown as JobPickRow[],
+  };
+}
+
+/** One job's costs (§7.1 Costs tab) — tolerant like loadCostCapture. */
+export async function loadJobCosts(supabase: SupabaseClient, woId: string) {
+  const [jobCosts, materials] = await Promise.all([
+    supabase.from("job_costs")
+      .select("id, work_order_id, category, description, amount_ex_cents, gst_cents, doc_path, estimate_line_ref, status, paid_with, invoice_no, invoice_date, intake_id, created_at, vendors(name)")
+      .eq("work_order_id", woId)
+      .order("created_at", { ascending: true }),
+    supabase.from("material_costs")
+      .select("id, work_order_id, supplier, brand, order_ref, address_text, amount_cents, invoice_date, source, intake_id, created_at")
+      .eq("work_order_id", woId)
+      .order("created_at", { ascending: true }),
+  ]);
+  return {
+    jobCosts: (jobCosts.error ? [] : jobCosts.data ?? []) as unknown as (Omit<JobCostRow, "work_orders">)[],
+    materials: (materials.error ? [] : materials.data ?? []) as unknown as MaterialCostRow[],
+  };
+}
+
 /** Everything the dashboard needs, four round trips. */
 export async function loadDashboard(supabase: SupabaseClient) {
   const { data: invoices } = await supabase

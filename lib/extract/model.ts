@@ -74,9 +74,9 @@ export type ReadResult =
  * no credit on it. "Your credit balance is too low" buried in a request-id dump
  * tells a painter nothing about what to do.
  */
-type FailCode = "no_api_key" | "no_credit" | "rate_limited" | "bad_key" | "overloaded" | "refused" | "invalid_output" | "api_error";
+export type FailCode = "no_api_key" | "no_credit" | "rate_limited" | "bad_key" | "overloaded" | "refused" | "invalid_output" | "api_error";
 
-function interpretApiError(raw: string): { code: FailCode; message: string } {
+export function interpretApiError(raw: string): { code: FailCode; message: string } {
   const t = raw.toLowerCase();
   if (t.includes("credit balance")) {
     return {

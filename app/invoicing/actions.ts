@@ -7,6 +7,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { ensureInvoicePdf, ensureReceiptPdf, ensureRemittancePdf, signedDocUrl } from "@/lib/invoicing/pdf";
 import { sendInvoiceEmail, sendReceiptEmail, sendRemittanceEmail } from "@/lib/invoicing/sendInvoice";
+import { COST_DOCS_BUCKET, isOwnReceiptPath } from "@/lib/costs/store";
+import { sniffKind } from "@/lib/extract/normalise";
 
 /**
  * Invoicing actions — thin, zod-validated translations over the Step 1/2
@@ -46,6 +48,15 @@ const WORDING: Record<string, string> = {
   bad_date: "Pick a date.",
   not_submitted: "The contractor hasn't submitted this yet (only RCTI invoices approve from draft).",
   not_approved: "Approve it first — then mark it paid.",
+  // Step 6a — cost capture
+  already_decided: "Someone already dealt with this document.",
+  no_document: "No source document — a cost can't exist without one.",
+  bad_destination: "Pick where this cost belongs.",
+  no_job: "Pick the job this cost belongs to.",
+  duplicate: "That invoice number is already recorded for this vendor.",
+  bad_state: "This cost isn't in the right state for that.",
+  already_matched: "That cost is already matched to a job.",
+  bad_paid_with: "Pick how it was paid.",
 };
 
 function revalidateAll(estimateId?: string, invoiceId?: string) {
@@ -372,4 +383,166 @@ export async function markContractorInvoicePaidAction(raw: unknown): Promise<Inv
     await sendRemittanceEmail(service, ciId, url);
   });
   return result;
+}
+
+// ---- Step 6a: cost capture (docs/briefs/claude-code-brief-cost-capture.md) --
+//
+// The AI reads, a human confirms, the ledger records: these actions are the
+// confirm side. Amounts here are the one legitimate operator-entered figure
+// (like record-bank-transfer) — zod-bounded, and the SQL bounds them again.
+
+const JOB_COST_CATEGORIES = [
+  "scaffold", "render", "carpentry", "rubbish",
+  "equipment_hire", "permit", "traffic_mgmt", "other",
+] as const;
+
+const confirmIntakeInput = z.object({
+  intakeId: uuid,
+  destination: z.enum(["job_cost", "material_cost"]),
+  woId: uuid.nullish(),
+  estimateId: uuid.nullish(), // revalidation only
+  vendorId: uuid.nullish(),
+  vendorName: z.string().trim().max(200).default(""),
+  category: z.enum(JOB_COST_CATEGORIES).default("other"),
+  description: z.string().trim().max(400).default(""),
+  amountExCents: z.number().int().min(0).max(100_000_000),
+  gstCents: z.number().int().min(0).max(100_000_000),
+  invoiceNo: z.string().trim().max(60).default(""),
+  invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
+  estimateLineRef: z.string().trim().max(200).default(""),
+  paidWith: z.enum(["company_card", "personal", "account"]).default("account"),
+});
+
+export async function confirmIntakeAction(raw: unknown): Promise<InvoicingResult> {
+  const p = confirmIntakeInput.safeParse(raw);
+  if (!p.success) return { ok: false, message: "Check the cost details and try again." };
+  return call(
+    "cost_intake_confirm",
+    {
+      p_id: p.data.intakeId,
+      p_destination: p.data.destination,
+      p_wo: p.data.woId ?? null,
+      p_vendor: p.data.vendorId ?? null,
+      p_vendor_name: p.data.vendorName,
+      p_category: p.data.category,
+      p_description: p.data.description,
+      p_amount_ex_cents: p.data.amountExCents,
+      p_gst_cents: p.data.gstCents,
+      p_invoice_no: p.data.invoiceNo,
+      p_invoice_date: p.data.invoiceDate ?? null,
+      p_estimate_line_ref: p.data.estimateLineRef,
+      p_paid_with: p.data.paidWith,
+    },
+    { estimateId: p.data.estimateId ?? undefined },
+    "Cost recorded with the document attached.",
+  );
+}
+
+const intakeIdInput = z.object({ intakeId: uuid });
+
+export async function rejectIntakeAction(raw: unknown): Promise<InvoicingResult> {
+  const p = intakeIdInput.safeParse(raw);
+  if (!p.success) return { ok: false, message: "Couldn't find that document." };
+  return call("cost_intake_reject", { p_id: p.data.intakeId }, {}, "Dismissed — no cost was written.");
+}
+
+const recordJobCostInput = z.object({
+  estimateId: uuid,
+  woId: uuid,
+  vendorId: uuid.nullish(),
+  vendorName: z.string().trim().max(200).default(""),
+  category: z.enum(JOB_COST_CATEGORIES).default("other"),
+  description: z.string().trim().max(400).default(""),
+  amountExCents: z.number().int().min(0).max(100_000_000),
+  gstCents: z.number().int().min(0).max(100_000_000),
+  docPath: z.string().min(1).max(400),
+  estimateLineRef: z.string().trim().max(200).default(""),
+  paidWith: z.enum(["company_card", "personal", "account"]).default("account"),
+  invoiceNo: z.string().trim().max(60).default(""),
+  invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
+});
+
+export async function recordJobCostAction(raw: unknown): Promise<InvoicingResult> {
+  const p = recordJobCostInput.safeParse(raw);
+  if (!p.success) return { ok: false, message: "Check the cost details and try again." };
+
+  // The remediated upload path's ingest half: the staged bytes are sniffed
+  // BEFORE the row is written — a signed URL was permission to store bytes,
+  // never a statement of what they are. A failed sniff removes the object.
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Sign in to record costs." };
+  if (!isOwnReceiptPath(p.data.docPath, user.id)) {
+    return { ok: false, message: "That document isn't part of this upload." };
+  }
+  const { data: blob } = await supabase.storage.from(COST_DOCS_BUCKET).download(p.data.docPath);
+  if (!blob) return { ok: false, message: "We couldn't find that upload — try again." };
+  const kind = sniffKind(new Uint8Array(await blob.arrayBuffer()));
+  if (!kind) {
+    await supabase.storage.from(COST_DOCS_BUCKET).remove([p.data.docPath]).catch(() => {});
+    return { ok: false, message: "That doesn't look like a document — use a PDF or a photo." };
+  }
+
+  return call(
+    "job_cost_record",
+    {
+      p_wo: p.data.woId,
+      p_vendor: p.data.vendorId ?? null,
+      p_vendor_name: p.data.vendorName,
+      p_category: p.data.category,
+      p_description: p.data.description,
+      p_amount_ex_cents: p.data.amountExCents,
+      p_gst_cents: p.data.gstCents,
+      p_doc_path: p.data.docPath,
+      p_estimate_line_ref: p.data.estimateLineRef,
+      p_paid_with: p.data.paidWith,
+      p_invoice_no: p.data.invoiceNo,
+      p_invoice_date: p.data.invoiceDate ?? null,
+    },
+    { estimateId: p.data.estimateId },
+    "Cost recorded with the document attached.",
+  );
+}
+
+const jobCostIdInput = z.object({ jobCostId: uuid, estimateId: uuid.nullish() });
+
+export async function approveJobCostAction(raw: unknown): Promise<InvoicingResult> {
+  const p = jobCostIdInput.safeParse(raw);
+  if (!p.success) return { ok: false, message: "Couldn't find that cost." };
+  return call(
+    "job_cost_approve",
+    { p_id: p.data.jobCostId },
+    { estimateId: p.data.estimateId ?? undefined },
+    "Approved — it joins the to-pay list.",
+  );
+}
+
+const markJobCostPaidInput = z.object({
+  jobCostId: uuid,
+  estimateId: uuid.nullish(),
+  paidOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+export async function markJobCostPaidAction(raw: unknown): Promise<InvoicingResult> {
+  const p = markJobCostPaidInput.safeParse(raw);
+  if (!p.success) return { ok: false, message: "Check the date and try again." };
+  return call(
+    "job_cost_mark_paid",
+    { p_id: p.data.jobCostId, p_paid_on: p.data.paidOn ?? null },
+    { estimateId: p.data.estimateId ?? undefined },
+    "Paid recorded.",
+  );
+}
+
+const assignMaterialInput = z.object({ materialCostId: uuid, woId: uuid });
+
+export async function assignMaterialCostAction(raw: unknown): Promise<InvoicingResult> {
+  const p = assignMaterialInput.safeParse(raw);
+  if (!p.success) return { ok: false, message: "Pick the job first." };
+  return call(
+    "material_cost_assign",
+    { p_id: p.data.materialCostId, p_wo: p.data.woId },
+    {},
+    "Matched — the cost now sits on its job.",
+  );
 }

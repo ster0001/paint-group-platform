@@ -11,6 +11,8 @@ import InclusionTemplatesManager from "./InclusionTemplatesManager";
 import TermsEditor, { TERMS_KEY } from "./TermsEditor";
 import MessagingSettings from "./MessagingSettings";
 import InvoicingSettings from "./InvoicingSettings";
+import CostIntakeSettings from "./CostIntakeSettings";
+import { COST_INTAKE_KEY } from "@/lib/costs/intake";
 import { MESSAGING_KEY, type MessagingSettings as MessagingValues } from "@/lib/messaging/config";
 import ProductsManager, { type ProductRow } from "./ProductsManager";
 import ColoursManager, { type ColourRow } from "./ColoursManager";
@@ -148,6 +150,12 @@ export default async function SettingsPage() {
           initialEntity={(allSettings.find((r) => r.key === "invoicing_entity")?.value as Record<string, string> | undefined) ?? null}
           initialBank={(allSettings.find((r) => r.key === "invoicing_bank")?.value as Record<string, string> | undefined) ?? null}
           initialCore={(allSettings.find((r) => r.key === "invoicing")?.value as Record<string, number> | undefined) ?? null}
+        />
+      </SettingsFolder>
+
+      <SettingsFolder title="Cost intake" subtitle="bills@ intake queue rules — duplicate window, auto-confirm, contractor expense threshold">
+        <CostIntakeSettings
+          initial={(allSettings.find((r) => r.key === COST_INTAKE_KEY)?.value as { duplicateWindowDays?: number; autoConfirmExactRef?: boolean; expenseThresholdCents?: number } | undefined) ?? null}
         />
       </SettingsFolder>
 
