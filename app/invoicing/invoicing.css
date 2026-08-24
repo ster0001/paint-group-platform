@@ -227,3 +227,8 @@
 .invx .secacts .mini{flex:1}
 
 @media (prefers-reduced-motion:reduce){.invx .sheet,.invx .scrim{transition:none}}
+
+/* ---- Step 5: Payables ---- */
+.invx .ptiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 12px; }
+.invx .chip.submitted { color: var(--amber, #e0a83c); border-color: rgba(224, 168, 60, 0.5); }
+.invx .chip.approved { color: var(--cyan, #3bd8e9); border-color: rgba(59, 216, 233, 0.5); }

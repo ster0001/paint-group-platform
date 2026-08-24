@@ -154,6 +154,65 @@ export async function sendInvoiceEmail(
   return { status: "error", message: result.message };
 }
 
+/**
+ * Email the remittance advice to the contractor once their invoice is paid
+ * (Step 5). The recipient is the contractor's LOGIN email, resolved through
+ * the admin API from contractors.profile_id — contractors carry no email
+ * column, and the session shape is browser-side only. Best-effort, ⚑16
+ * log-driver when unconfigured, PDF link is a short-lived signed URL.
+ */
+export async function sendRemittanceEmail(
+  service: SupabaseClient,
+  contractorInvoiceId: string,
+  pdfSignedUrl: string | null,
+): Promise<InvoiceSendOutcome> {
+  const { data } = await service
+    .from("contractor_invoices")
+    .select("id, number, remittance_number, total_inc_cents, bank_reference, entity_snapshot, contractor_id, contractors(profile_id), work_orders(wo_ref)")
+    .eq("id", contractorInvoiceId)
+    .maybeSingle();
+  const ci = data as {
+    id: string; number: string | null; remittance_number: string | null;
+    total_inc_cents: number; bank_reference: string;
+    entity_snapshot: { company_name?: string } | null;
+    contractors: { profile_id: string | null } | null;
+    work_orders: { wo_ref: string } | null;
+  } | null;
+  if (!ci?.remittance_number) return { status: "error", message: "no remittance" };
+
+  let to = "";
+  if (ci.contractors?.profile_id) {
+    const { data: user } = await service.auth.admin.getUserById(ci.contractors.profile_id);
+    to = user?.user?.email?.trim() ?? "";
+  }
+  if (!to) return { status: "no_recipient" };
+
+  const company = ci.entity_snapshot?.company_name || "there";
+  const html = buildInvoiceEmailHtml({
+    companyName: "Paint Group",
+    heading: "Payment sent — remittance advice",
+    intro:
+      `Hello ${company},\n\n` +
+      `We've paid your invoice ${ci.number ?? ""} for job ${ci.work_orders?.wo_ref ?? ""} — ` +
+      `${money(ci.total_inc_cents)}${ci.bank_reference ? ` (bank reference ${ci.bank_reference})` : ""}. ` +
+      `Your remittance advice ${ci.remittance_number} is attached below.`,
+    link: pdfSignedUrl ?? siteUrl() + "/portal/money",
+    buttonLabel: pdfSignedUrl ? "Download remittance advice" : "Open your Money tab",
+    bank: {},
+    reference: null,
+  });
+
+  if (!emailConfigured()) {
+    console.log(`[invoice-send:log-driver] to=${to} subject="Remittance ${ci.remittance_number}"`);
+    return { status: "not_configured", to };
+  }
+  const result = await sendEmail({ to, subject: `Remittance advice ${ci.remittance_number} — Paint Group`, html });
+  if (result.status === "sent") return { status: "sent", to };
+  if (result.status === "not_configured") return { status: "not_configured", to };
+  reportError(new Error(result.message), { where: "sendRemittanceEmail", extra: { contractorInvoiceId } });
+  return { status: "error", message: result.message };
+}
+
 /** Email the receipt for a recorded payment — best-effort, never blocking. */
 export async function sendReceiptEmail(
   service: SupabaseClient,

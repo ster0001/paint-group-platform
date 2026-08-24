@@ -112,7 +112,7 @@ export default async function JobMoneyPage({
       }}
       cards={cards}
       feed={feed}
-      costs={{ offerCents, acceptedDeltaCents }}
+      costs={{ offerCents, acceptedDeltaCents, ci: job.contractorInvoice }}
     />
   );
 }

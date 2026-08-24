@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
-import type { DashboardTiles } from "@/lib/invoicing/derive";
-import { fmt0 } from "./format";
+import type { DashboardTiles, PayablesTiles } from "@/lib/invoicing/derive";
+import { fmt0, fmt2 } from "./format";
+import { approveContractorInvoiceAction, markContractorInvoicePaidAction } from "./actions";
 
 /**
  * §7.2 client shell — tabs, filter chips (mirrored into query params so a
@@ -29,6 +30,17 @@ export type RowProp = {
 
 export type ActivityProp = { tone: string; title: string; meta: string };
 
+export type PayableRowProp = {
+  ciId: string;
+  estimateId: string | null;
+  company: string;
+  ref: string; // "CI-0031 · WO-1234 · job address"
+  status: "draft" | "submitted" | "approved" | "paid";
+  amtCents: number;
+  dueLabel: string;
+  rcti: boolean;
+};
+
 const FILTERS: { key: string; label: string }[] = [
   { key: "all", label: "All" },
   { key: "overdue", label: "Overdue" },
@@ -43,6 +55,7 @@ const BUCKET_COLOURS = ["var(--paint)", "var(--clay)", "var(--clay)", "var(--cla
 
 export default function Dashboard({
   tiles, buckets, rows, activity, initialFilter, initialTab,
+  payables = null, payableRows = [],
 }: {
   tiles: DashboardTiles;
   buckets: [number, number, number, number, number];
@@ -50,10 +63,35 @@ export default function Dashboard({
   activity: ActivityProp[];
   initialFilter: string;
   initialTab: string;
+  payables?: PayablesTiles | null;
+  payableRows?: PayableRowProp[];
 }) {
   const router = useRouter();
   const [tab, setTab] = useState(initialTab === "pay" || initialTab === "act" ? initialTab : "recv");
   const [filter, setFilter] = useState(FILTERS.some((f) => f.key === initialFilter) ? initialFilter : "all");
+  const [payMessage, setPayMessage] = useState<string | null>(null);
+  const [payBusy, startPay] = useTransition();
+
+  function approveCi(ciId: string) {
+    setPayMessage(null);
+    startPay(async () => {
+      const result = await approveContractorInvoiceAction({ contractorInvoiceId: ciId });
+      setPayMessage(result.message ?? null);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  function markCiPaid(ciId: string) {
+    // Recording, not moving, money — the reference is the bank's, typed here.
+    const reference = window.prompt("Bank reference for this payment (shown on the remittance):");
+    if (reference === null) return;
+    setPayMessage(null);
+    startPay(async () => {
+      const result = await markContractorInvoicePaidAction({ contractorInvoiceId: ciId, reference });
+      setPayMessage(result.message ?? null);
+      if (result.ok) router.refresh();
+    });
+  }
 
   const setUrl = (nextTab: string, nextFilter: string) => {
     const q = new URLSearchParams();
@@ -160,14 +198,60 @@ export default function Dashboard({
 
       {/* ================= PAYABLES ================= */}
       <section className={`tab ${tab === "pay" ? "on" : ""}`}>
-        <div className="card">
-          <h3>Payables</h3>
-          <div className="hint" style={{ marginTop: 6 }}>
-            The other direction of money — contractor invoices to approve and pay, job
-            costs, and the materials unmatched queue. This tab fills in when contractor
-            invoicing (Step 5) and costs (Step 6) land; nothing here will ever move
-            money — it records and reminds.
+        {payables && (
+          <div className="ptiles">
+            <div className="tile"><div className="k">To approve</div>
+              <div className="v" data-testid="tile-to-approve">{fmt0(payables.toApproveCents)}</div>
+              <div className="m">{payables.toApproveCount ? `${payables.toApproveCount} contractor invoice${payables.toApproveCount === 1 ? "" : "s"}` : "nothing waiting"}</div>
+            </div>
+            <div className="tile week"><div className="k">To pay this week</div>
+              <div className="v" data-testid="tile-to-pay">{fmt0(payables.toPayWeekCents)}</div>
+              <div className="m">{payables.approvedCount ? `${payables.toPayWeekCount} of ${payables.approvedCount} approved` : "nothing approved"}</div>
+            </div>
           </div>
+        )}
+
+        {payMessage && <div className="hint" role="status" data-testid="payables-message" style={{ margin: "8px 0" }}>{payMessage}</div>}
+
+        <div className="rows" data-testid="payable-rows">
+          {payableRows.map((p) => (
+            <div key={p.ciId} className="r" data-testid={`payable-${p.ciId}`}>
+              <div className="body">
+                <div className="job">
+                  {p.estimateId
+                    ? <Link href={`/invoicing/job/${p.estimateId}`}>{p.company}</Link>
+                    : p.company}
+                  {p.rcti && <span className="chip draft" style={{ marginLeft: 8 }}>RCTI</span>}
+                </div>
+                <div className="ref">{p.ref}</div>
+                <div className={`age ${p.status === "submitted" ? "amber" : p.status === "approved" ? "cyan" : p.status === "paid" ? "emerald" : ""}`}>{p.dueLabel}</div>
+              </div>
+              <div className="right">
+                <div className="amt">{fmt2(p.amtCents)}</div>
+                <div className="acts" style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                  {(p.status === "submitted" || (p.status === "draft" && p.rcti)) && (
+                    <button className="mini cy" disabled={payBusy}
+                      onClick={() => approveCi(p.ciId)} data-testid={`approve-ci-${p.ciId}`}>
+                      Approve
+                    </button>
+                  )}
+                  {p.status === "approved" && (
+                    <button className="mini cy" disabled={payBusy}
+                      onClick={() => markCiPaid(p.ciId)} data-testid={`pay-ci-${p.ciId}`}>
+                      Mark paid
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+          {payableRows.length === 0 && (
+            <div className="card"><div className="hint">
+              No contractor invoices yet — one drafts itself the moment a job
+              signs off. Job costs and the materials queue join this tab in
+              Step 6. Nothing here moves money — it records and reminds.
+            </div></div>
+          )}
         </div>
       </section>
 

@@ -16,6 +16,7 @@ export type ContractorSummary = {
   offerable: boolean;
   /** Staff-set: every job quality checked, not just their first few. */
   requiresQa: boolean;
+  rctiSigned: boolean;
   abn: string;
   hasBank: boolean;
   docs: ContractorDoc[];
@@ -135,6 +136,29 @@ export default function ContractorsManager({
       setMsg(requires
         ? "Every job for this contractor now gets a quality check before sign-off."
         : "Back to the normal cadence — first few jobs only.");
+      router.refresh();
+    }
+    setBusy(null);
+  }
+
+  async function setRcti(id: string, signed: boolean) {
+    // ⚑9: recording that the RCTI agreement is signed. With it on, the
+    // platform issues the contractor's invoice on their behalf at approval —
+    // the submit step collapses. Turning it on without a signed agreement on
+    // file is a compliance problem, so the confirm says exactly that.
+    if (signed && !window.confirm(
+      "Confirm the RCTI agreement is signed and on file for this contractor? " +
+      "From now on their invoices are issued by us on their behalf.")) return;
+    setBusy(id);
+    setErr("");
+    const { data, error } = await supabase.rpc("contractor_set_rcti",
+      { p_contractor_id: id, p_signed: signed });
+    if (error) setErr(error.message);
+    else if (String(data).startsWith("error:")) setErr(String(data).replace("error:", ""));
+    else {
+      setMsg(signed
+        ? "RCTI on — their invoices are now raised by us at approval."
+        : "RCTI off — back to contractor-submitted invoices.");
       router.refresh();
     }
     setBusy(null);
@@ -459,6 +483,19 @@ export default function ContractorsManager({
                       }`}
                     >
                       {c.requiresQa ? "QA: every job" : "QA: first jobs"}
+                    </button>
+                    <button
+                      onClick={() => setRcti(c.id, !c.rctiSigned)}
+                      disabled={busy === c.id}
+                      title="Recipient-created tax invoices — we issue their invoice at approval (needs the signed agreement on file)"
+                      data-testid={`rcti-${c.id}`}
+                      className={`rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50 ${
+                        c.rctiSigned
+                          ? "bg-sky-100 text-sky-800 border border-sky-300"
+                          : "border border-gray-300 text-gray-700 hover:bg-gray-100"
+                      }`}
+                    >
+                      {c.rctiSigned ? "RCTI: on" : "RCTI: off"}
                     </button>
                     <button
                       onClick={() => setActive(c.id, !c.active)}

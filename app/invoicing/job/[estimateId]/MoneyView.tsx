@@ -62,7 +62,10 @@ export default function MoneyView({
   };
   cards: InvoiceCardProp[];
   feed: FeedProp[];
-  costs: { offerCents: number; acceptedDeltaCents: number };
+  costs: {
+    offerCents: number; acceptedDeltaCents: number;
+    ci?: { number: string | null; status: string } | null;
+  };
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<"payments" | "invoices" | "costs">("payments");
@@ -221,7 +224,17 @@ export default function MoneyView({
       {/* ================= COSTS ================= */}
       <section className={`tab ${tab === "costs" ? "on" : ""}`}>
         <div className="card grp">
-          <div className="row"><div className="k">Contractor</div><span className="chip awaiting">Invoice at sign-off</span></div>
+          <div className="row">
+            <div className="k">Contractor</div>
+            <span
+              className={`chip ${costs.ci?.status === "paid" ? "paid" : costs.ci?.status === "approved" ? "approved" : costs.ci?.status === "submitted" ? "submitted" : "awaiting"}`}
+              data-testid="ci-chip"
+            >
+              {costs.ci
+                ? `${costs.ci.number ?? "Drafted"} · ${costs.ci.status}`
+                : "Invoice at sign-off"}
+            </span>
+          </div>
           <div className="kv"><span>Offer (fixed)</span><b>{fmt2(costs.offerCents)}</b></div>
           <div className="kv"><span>Accepted variations</span><b>{costs.acceptedDeltaCents ? (costs.acceptedDeltaCents > 0 ? "+" : "−") + fmt2(Math.abs(costs.acceptedDeltaCents)) : "—"}</b></div>
           <div className="kv"><span>To pay after sign-off</span><b>{fmt2(costs.offerCents + costs.acceptedDeltaCents)}</b></div>

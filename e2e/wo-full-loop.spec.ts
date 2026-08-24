@@ -338,6 +338,16 @@ test.describe("the whole loop, one job", () => {
     const variations = report.variations as { status: string }[];
     expect(variations.some((v) => v.status === "contractor_accepted")).toBe(true);
     expect((report.qa as unknown[]).length).toBeGreaterThanOrEqual(2);
+
+    // Step 5: sign-off also drafted the CONTRACTOR'S invoice — offer plus the
+    // accepted variation's delta, computed by the database.
+    const { data: ci } = await db!.from("contractor_invoices")
+      .select("status, offer_cents, variation_delta_cents, total_inc_cents")
+      .eq("work_order_id", job!.workOrderId).single();
+    const draft = ci as { status: string; offer_cents: number; variation_delta_cents: number; total_inc_cents: number };
+    expect(draft.status).toBe("draft");
+    expect(draft.variation_delta_cents).toBe(18_000); // the accepted 3 hr × $60
+    expect(draft.total_inc_cents).toBe(draft.offer_cents + 18_000);
   });
 
   test("12 · every stage it passed through is reconstructable from the events alone", async () => {

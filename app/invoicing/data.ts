@@ -90,7 +90,16 @@ export function toDerivePayments(rows: readonly PaymentRow[]): DerivePayment[] {
   }));
 }
 
-/** Everything the dashboard needs, three round trips. */
+export type ContractorInvoiceRow = {
+  id: string; number: string | null; status: string;
+  total_inc_cents: number; due_on: string | null;
+  submitted_at: string | null; approved_at: string | null; paid_at: string | null;
+  rcti: boolean;
+  contractors: { company_name: string | null } | null;
+  work_orders: { wo_ref: string; estimate_id: string; job_address: string | null } | null;
+};
+
+/** Everything the dashboard needs, four round trips. */
 export async function loadDashboard(supabase: SupabaseClient) {
   const { data: invoices } = await supabase
     .from("invoices")
@@ -100,7 +109,7 @@ export async function loadDashboard(supabase: SupabaseClient) {
   const rows = (invoices ?? []) as unknown as InvoiceRow[];
 
   const ids = rows.map((r) => r.id);
-  const [{ data: payments }, { data: events }] = await Promise.all([
+  const [{ data: payments }, { data: events }, { data: cis }] = await Promise.all([
     ids.length
       ? supabase.from("payments")
           .select("id, invoice_id, amount_cents, surcharge_cents, status, method, paid_on, receipt_number, reference")
@@ -110,12 +119,18 @@ export async function loadDashboard(supabase: SupabaseClient) {
       .select("id, invoice_id, type, actor_kind, meta, created_at")
       .order("created_at", { ascending: false })
       .limit(60),
+    // Step 5: the Payables tab — contractor invoices across every job.
+    supabase.from("contractor_invoices")
+      .select("id, number, status, total_inc_cents, due_on, submitted_at, approved_at, paid_at, rcti, contractors(company_name), work_orders(wo_ref, estimate_id, job_address:wo_snapshot->>jobAddress)")
+      .order("created_at", { ascending: false })
+      .limit(200),
   ]);
 
   return {
     invoices: rows,
     payments: (payments ?? []) as PaymentRow[],
     events: (events ?? []) as EventRow[],
+    contractorInvoices: (cis ?? []) as unknown as ContractorInvoiceRow[],
   };
 }
 
@@ -137,7 +152,7 @@ export async function loadJobMoney(supabase: SupabaseClient, estimateId: string)
   const ids = rows.map((r) => r.id);
   const woId = (wo as { id?: string } | null)?.id;
 
-  const [{ data: payments }, { data: events }, { data: variations }] = await Promise.all([
+  const [{ data: payments }, { data: events }, { data: variations }, { data: ciRow }] = await Promise.all([
     ids.length
       ? supabase.from("payments")
           .select("id, invoice_id, amount_cents, surcharge_cents, status, method, paid_on, receipt_number, reference")
@@ -153,6 +168,11 @@ export async function loadJobMoney(supabase: SupabaseClient, estimateId: string)
           .select("id, category, comment, status, price_cents, credit, contractor_delta_cents, customer_responded_at, signed_name, signed_at, needs_manual_deduction, deduction_cents")
           .eq("work_order_id", woId)
       : Promise.resolve({ data: [] }),
+    woId
+      ? supabase.from("contractor_invoices")
+          .select("id, number, status, total_inc_cents")
+          .eq("work_order_id", woId).order("created_at", { ascending: false }).limit(1).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
 
   const ledger = ((ledgerRes.data as Ledger[] | null) ?? [])[0] ?? null;
@@ -173,6 +193,9 @@ export async function loadJobMoney(supabase: SupabaseClient, estimateId: string)
       needs_manual_deduction: boolean; deduction_cents: number | null;
     }[],
     wo: wo as { id: string; wo_ref: string; stage: string; contractor_payment: string | null } | null,
+    contractorInvoice: ciRow as {
+      id: string; number: string | null; status: string; total_inc_cents: number;
+    } | null,
   };
 }
 

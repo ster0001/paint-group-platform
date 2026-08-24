@@ -5,8 +5,8 @@ import { after } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { ensureInvoicePdf, ensureReceiptPdf } from "@/lib/invoicing/pdf";
-import { sendInvoiceEmail, sendReceiptEmail } from "@/lib/invoicing/sendInvoice";
+import { ensureInvoicePdf, ensureReceiptPdf, ensureRemittancePdf, signedDocUrl } from "@/lib/invoicing/pdf";
+import { sendInvoiceEmail, sendReceiptEmail, sendRemittanceEmail } from "@/lib/invoicing/sendInvoice";
 
 /**
  * Invoicing actions — thin, zod-validated translations over the Step 1/2
@@ -44,6 +44,8 @@ const WORDING: Record<string, string> = {
   use_line_editor: "Edit this invoice's lines in the document view.",
   not_open: "This invoice isn't open.",
   bad_date: "Pick a date.",
+  not_submitted: "The contractor hasn't submitted this yet (only RCTI invoices approve from draft).",
+  not_approved: "Approve it first — then mark it paid.",
 };
 
 function revalidateAll(estimateId?: string, invoiceId?: string) {
@@ -319,4 +321,55 @@ export async function recordDriftAsVariationAction(raw: unknown): Promise<Invoic
     { estimateId: p.data.estimateId, invoiceId: p.data.invoiceId },
     "Recorded as a variation — the ledger now agrees.",
   );
+}
+
+// ---- Step 5: contractor invoices (Payables) -------------------------------
+
+export async function approveContractorInvoiceAction(raw: unknown): Promise<InvoicingResult> {
+  const p = z.object({ contractorInvoiceId: uuid }).safeParse(raw);
+  if (!p.success) return { ok: false, message: "Something went wrong." };
+  const result = await call(
+    "contractor_invoice_approve",
+    { p_id: p.data.contractorInvoiceId },
+    {},
+    "Approved — it's in the To-pay pile.",
+  );
+  if (result.ok) revalidatePath("/portal/money");
+  return result;
+}
+
+const markCiPaidInput = z.object({
+  contractorInvoiceId: uuid,
+  reference: z.string().trim().max(200).default(""),
+  paidOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+export async function markContractorInvoicePaidAction(raw: unknown): Promise<InvoicingResult> {
+  const p = markCiPaidInput.safeParse(raw);
+  if (!p.success) return { ok: false, message: "Check the reference and try again." };
+
+  const result = await call(
+    "contractor_invoice_mark_paid",
+    {
+      p_id: p.data.contractorInvoiceId,
+      p_reference: p.data.reference,
+      p_paid_on: p.data.paidOn ?? null,
+    },
+    {},
+    "Paid recorded — remittance advice on its way to the contractor.",
+  );
+  if (!result.ok) return result;
+
+  revalidatePath("/portal/money");
+  // The remittance PDF + email ride behind the response (⚑16 log-driver when
+  // email isn't configured) — recording the payment never waits on Chromium.
+  const ciId = p.data.contractorInvoiceId;
+  after(async () => {
+    const service = createServiceClient();
+    if (!service) return;
+    const path = await ensureRemittancePdf(ciId);
+    const url = path ? await signedDocUrl(path, 60 * 60 * 24 * 7) : null;
+    await sendRemittanceEmail(service, ciId, url);
+  });
+  return result;
 }

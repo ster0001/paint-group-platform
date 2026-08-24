@@ -1292,3 +1292,33 @@ deltas are hours × the stamped rate and `contractorAdjustedCents` nets them;
 and the accepted estimate row is byte-identical before and after the whole
 journey. No figure in the spec is typed — every expectation comes from
 lib/pricing, lib/invoicing and lib/workorder, the modules production uses.
+
+## Invoicing Step 5 — contractor invoicing v2 (24 Aug 2026)
+
+The 20261112 `contractor_invoices` table got its machinery (migration
+`20261119`). ONE money rule, twinned: total (inc) = offer + Σ accepted
+addition deltas − Σ deductions, where a deduction is the engine's figure for a
+clean removal and ONLY the PC's `deduction_cents` on started work —
+`contractor_invoice_amounts` in SQL, `lib/workorder/contractorPay.ts` in TS,
+contract-tested against each other. INC-ANCHORED (⚑14): GST registration
+changes the document (Tax Invoice + GST backed out vs Invoice + GST 0), never
+what we pay — accountant flag. Sign-off AUTO-DRAFTS it (both tails — `wo_sign`
+and `wo_close_without_walkthrough`, re-issued BODY BASIS 20261112, which also
+put the drawn-signature record into the frozen completion report);
+`wo_reopen_signoff` drops the draft. The contractor reviews it at
+`/portal/money/[id]` — LIVE figures while draft, deduction lines named and
+noted pre-submit — and `contractor_invoice_submit` validates (entity fields,
+11-digit ABN, bank, no pending manual deduction), recomputes, pins entity +
+GST registration, allocates `CI-…` (ci_no_seq) and freezes the row (guard
+trigger: draft→submitted→approved→paid, RCTI shortcut draft→approved only
+with `rcti_agreement_signed_at` — staff record it via `contractor_set_rcti`,
+toggle on the contractors page). PC approves and marks paid (bank reference +
+date) from the dashboard's Payables tab (`payablesTiles` in derive.ts, rows
+with inline Approve/Mark paid); paying allocates `REM-…`, renders the
+remittance advice (`remittanceHtml.ts` → `ensureRemittancePdf`, invoice-docs
+bucket, attach-once) and emails it to the contractor's login email behind
+`after()` (⚑16 log-driver). The job money view's Costs tab shows the CI chip.
+e2e: `e2e/contractor-invoicing.spec.ts` (7 scenarios — all three §8.5 accept
+criteria) + the full-loop's sign-off assertion now covers the auto-draft;
+`ciStateMachine.ts` mirrors the guard. Loop fixtures delete contractor
+invoices in teardown (work_order_id is RESTRICT).

@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { createServiceClient } from "@/lib/supabase/service";
 import { reportError } from "@/lib/monitoring/report";
 import { buildReceiptHtml } from "./receiptHtml";
+import { buildRemittanceHtml, type RemittanceDeduction } from "./remittanceHtml";
 
 /**
  * SERVER ONLY — the §6.7 PDF pipeline.
@@ -175,6 +176,67 @@ export async function ensureReceiptPdf(paymentId: string): Promise<string | null
     return path;
   } catch (e) {
     reportError(e, { where: "ensureReceiptPdf", extra: { paymentId } });
+    return null;
+  }
+}
+
+/** Remittance-advice PDF for a PAID contractor invoice (Step 5) — same
+ * attach-once discipline as the receipt. */
+export async function ensureRemittancePdf(contractorInvoiceId: string): Promise<string | null> {
+  const service = createServiceClient();
+  if (!service) return null;
+
+  const { data } = await service
+    .from("contractor_invoices")
+    .select("id, number, status, remittance_number, remittance_pdf_path, bank_reference, paid_at, " +
+      "offer_cents, variation_delta_cents, deduction_lines, gst_cents, total_inc_cents, entity_snapshot, " +
+      "work_orders(wo_ref, wo_snapshot)")
+    .eq("id", contractorInvoiceId)
+    .maybeSingle();
+  const ci = data as {
+    id: string; number: string | null; status: string; remittance_number: string | null;
+    remittance_pdf_path: string | null; bank_reference: string; paid_at: string | null;
+    offer_cents: number; variation_delta_cents: number; deduction_lines: RemittanceDeduction[];
+    gst_cents: number; total_inc_cents: number;
+    entity_snapshot: Record<string, string>;
+    work_orders: { wo_ref: string; wo_snapshot: { jobTitle?: string } | null } | null;
+  } | null;
+  if (!ci || ci.status !== "paid" || !ci.remittance_number) return null;
+  if (ci.remittance_pdf_path) return ci.remittance_pdf_path;
+
+  try {
+    const { data: settings } = await service
+      .from("settings").select("key, value").eq("key", "invoicing_entity").maybeSingle();
+
+    const html = buildRemittanceHtml({
+      remittanceNumber: ci.remittance_number,
+      ciNumber: ci.number ?? "",
+      totalIncCents: ci.total_inc_cents,
+      gstCents: ci.gst_cents,
+      offerCents: ci.offer_cents,
+      additionsCents: ci.variation_delta_cents,
+      deductionLines: Array.isArray(ci.deduction_lines) ? ci.deduction_lines : [],
+      paidOn: ci.paid_at ? ci.paid_at.slice(0, 10) : null,
+      bankReference: ci.bank_reference,
+      contractor: ci.entity_snapshot ?? {},
+      woRef: ci.work_orders?.wo_ref ?? "",
+      jobTitle: ci.work_orders?.wo_snapshot?.jobTitle ?? "",
+      entity: ((settings as { value?: Record<string, string> } | null)?.value) ?? {},
+    });
+    const pdf = await renderHtmlToPdf(html);
+    const path = `${ci.id}/${ci.remittance_number}.pdf`;
+    const up = await service.storage.from(BUCKET).upload(path, pdf, {
+      contentType: "application/pdf",
+      upsert: false,
+    });
+    if (up.error && !/already exists/i.test(up.error.message)) throw new Error(up.error.message);
+    const attach = await service.rpc("contractor_invoice_attach_remittance_pdf", {
+      p_id: ci.id, p_path: path,
+    });
+    if (attach.error) throw new Error(attach.error.message);
+    return path;
+  } catch (e) {
+    reportError(e, { where: "ensureRemittancePdf", extra: { contractorInvoiceId } });
     return null;
   }
 }

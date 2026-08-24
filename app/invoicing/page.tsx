@@ -4,13 +4,15 @@ import {
   agedBucketsCents,
   ageInfo,
   dashboardTiles,
+  daysBetween,
   invoiceBalanceCents,
+  payablesTiles,
   stageDots,
   type DeriveInvoice,
 } from "@/lib/invoicing/derive";
 import { loadDashboard, toDerive, toDerivePayments, type EventRow, type InvoiceRow } from "./data";
 import { fmt2, KIND_LABEL, shortDay } from "./format";
-import Dashboard, { type ActivityProp, type RowProp } from "./Dashboard";
+import Dashboard, { type ActivityProp, type PayableRowProp, type RowProp } from "./Dashboard";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +76,7 @@ export default async function InvoicingDashboardPage({
   const { f, tab } = await searchParams;
   const supabase = await createClient();
   const today = melbourneDate(new Date());
-  const { invoices, payments, events } = await loadDashboard(supabase);
+  const { invoices, payments, events, contractorInvoices } = await loadDashboard(supabase);
 
   const derive = toDerive(invoices);
   const dPays = toDerivePayments(payments);
@@ -147,6 +149,40 @@ export default async function InvoicingDashboardPage({
   const buckets = agedBucketsCents(derive, dPays, today);
   const activity = events.map((e) => eventLine(e, byId));
 
+  // Step 5 — the Payables tab: submitted first (they need a decision), then
+  // approved by due date, drafts (visible, RCTI approvable), paid last.
+  const payables = payablesTiles(
+    contractorInvoices.map((c) => ({
+      status: c.status, totalIncCents: c.total_inc_cents, dueOn: c.due_on,
+    })),
+    today,
+  );
+  const CI_SORT: Record<string, number> = { submitted: 0, approved: 1, draft: 2, paid: 3 };
+  const payableRows: PayableRowProp[] = contractorInvoices
+    .map((c) => {
+      const due = c.due_on ? daysBetween(today, c.due_on) : null;
+      const dueLabel =
+        c.status === "paid" ? "Paid"
+        : c.status === "draft" ? (c.rcti ? "Drafted at sign-off — RCTI, approve to issue" : "With the contractor — drafted at sign-off")
+        : c.status === "submitted" ? "Submitted — approve or query"
+        : due == null ? "Approved — pay when ready"
+        : due < 0 ? `Approved · ${-due} day${due === -1 ? "" : "s"} past terms`
+        : due === 0 ? "Approved · due today"
+        : `Approved · due in ${due} day${due === 1 ? "" : "s"}`;
+      return {
+        ciId: c.id,
+        estimateId: c.work_orders?.estimate_id ?? null,
+        company: c.contractors?.company_name ?? "Contractor",
+        ref: [c.number ?? "Draft (unnumbered)", c.work_orders?.wo_ref, c.work_orders?.job_address]
+          .filter(Boolean).join(" · "),
+        status: c.status as PayableRowProp["status"],
+        amtCents: c.total_inc_cents,
+        dueLabel,
+        rcti: c.rcti,
+      };
+    })
+    .sort((a, b) => (CI_SORT[a.status] ?? 9) - (CI_SORT[b.status] ?? 9));
+
   return (
     <Dashboard
       tiles={tiles}
@@ -155,6 +191,8 @@ export default async function InvoicingDashboardPage({
       activity={activity}
       initialFilter={f ?? "all"}
       initialTab={tab ?? "recv"}
+      payables={payables}
+      payableRows={payableRows}
     />
   );
 }

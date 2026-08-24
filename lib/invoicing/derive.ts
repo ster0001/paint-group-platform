@@ -244,3 +244,46 @@ export function stageDots(
 export function requestPreviewCents(adjustedContractCents: number, pct: number): number {
   return Math.round((adjustedContractCents * pct) / 100);
 }
+
+// ---------------------------------------------------------------------------
+// Payables (Step 5) — the other direction of money, same discipline: every
+// figure on the Payables tab derives HERE from contractor_invoices rows;
+// nothing on screen sums anything itself.
+// ---------------------------------------------------------------------------
+
+export type DeriveContractorInvoice = {
+  status: string; // ci_status
+  totalIncCents: number;
+  dueOn: string | null; // yyyy-mm-dd
+};
+
+export type PayablesTiles = {
+  toApproveCents: number;
+  toApproveCount: number;
+  /** Approved and due within the next 7 days (or with no due date — owed now). */
+  toPayWeekCents: number;
+  toPayWeekCount: number;
+  approvedCents: number;
+  approvedCount: number;
+};
+
+export function payablesTiles(
+  cis: readonly DeriveContractorInvoice[],
+  todayIso: string,
+): PayablesTiles {
+  const submitted = cis.filter((c) => c.status === "submitted");
+  const approved = cis.filter((c) => c.status === "approved");
+  const dueSoon = approved.filter(
+    (c) => c.dueOn == null || daysBetween(todayIso, c.dueOn) <= 7,
+  );
+  const sum = (rows: readonly DeriveContractorInvoice[]) =>
+    rows.reduce((s, c) => s + c.totalIncCents, 0);
+  return {
+    toApproveCents: sum(submitted),
+    toApproveCount: submitted.length,
+    toPayWeekCents: sum(dueSoon),
+    toPayWeekCount: dueSoon.length,
+    approvedCents: sum(approved),
+    approvedCount: approved.length,
+  };
+}

@@ -26,7 +26,7 @@ export default async function ContractorsPage() {
   const supabase = await createClient();
 
   const [{ data: rows }, { data: docs }, { data: invites }, { data: offers }, { data: events }] = await Promise.all([
-    supabase.from("contractors").select(`${CONTRACTOR_COLUMNS}, profiles ( name )`).order("company_name"),
+    supabase.from("contractors").select(`${CONTRACTOR_COLUMNS}, requires_qa, rcti_agreement_signed_at, profiles ( name )`).order("company_name"),
     supabase.from("contractor_documents").select(DOC_COLUMNS),
     supabase
       .from("contractor_invites")
@@ -61,6 +61,8 @@ export default async function ContractorsPage() {
     active: c.active,
     offerable: c.offerable,
     requiresQa: Boolean((c as Row & { requires_qa?: boolean }).requires_qa),
+    // ⚑9: the RCTI switch is inert until the agreement is recorded as signed.
+    rctiSigned: Boolean((c as Row & { rcti_agreement_signed_at?: string | null }).rcti_agreement_signed_at),
     abn: c.abn ?? "",
     hasBank: Boolean(c.bank_account_last4),
     docs: allDocs.filter((d) => d.contractor_id === c.id),
