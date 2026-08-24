@@ -116,14 +116,18 @@ export type SurfaceRow = {
   label: string;
   state: SurfaceState;
   rectification?: boolean;
+  /** Struck by a signed credit variation — visible, never tickable (A3). */
+  removed?: boolean;
 };
 
 export type Progress = { done: number; total: number; pct: number };
 
-/** "18 / 34" and the bar width — derivable from the data alone, per the brief. */
+/** "18 / 34" and the bar width — derivable from the data alone, per the brief.
+ * Struck surfaces are out of the working set: they neither count nor block. */
 export function progressOf(surfaces: readonly SurfaceRow[]): Progress {
-  const total = surfaces.length;
-  const done = surfaces.filter((s) => s.state === "done").length;
+  const counted = surfaces.filter((s) => !s.removed);
+  const total = counted.length;
+  const done = counted.filter((s) => s.state === "done").length;
   return { done, total, pct: total === 0 ? 0 : Math.round((done / total) * 100) };
 }
 

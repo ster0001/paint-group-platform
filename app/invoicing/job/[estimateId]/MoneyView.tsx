@@ -223,7 +223,7 @@ export default function MoneyView({
         <div className="card grp">
           <div className="row"><div className="k">Contractor</div><span className="chip awaiting">Invoice at sign-off</span></div>
           <div className="kv"><span>Offer (fixed)</span><b>{fmt2(costs.offerCents)}</b></div>
-          <div className="kv"><span>Accepted variations</span><b>{costs.acceptedDeltaCents ? "+" + fmt2(costs.acceptedDeltaCents) : "—"}</b></div>
+          <div className="kv"><span>Accepted variations</span><b>{costs.acceptedDeltaCents ? (costs.acceptedDeltaCents > 0 ? "+" : "−") + fmt2(Math.abs(costs.acceptedDeltaCents)) : "—"}</b></div>
           <div className="kv"><span>To pay after sign-off</span><b>{fmt2(costs.offerCents + costs.acceptedDeltaCents)}</b></div>
         </div>
         <div className="card grp">

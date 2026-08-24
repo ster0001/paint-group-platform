@@ -59,6 +59,33 @@ export async function raiseVariationAction(raw: unknown): Promise<RaiseResult> {
   return { ok: false, message: WORDING[reason] ?? "Couldn't send that variation." };
 }
 
+/**
+ * Acknowledge a signed credit (addendum ruling 2): the scope belongs to the
+ * customer — no veto — and the deduction figure was either computed from the
+ * engine's hours or set by the PC. This records that the contractor has seen it.
+ */
+export async function acknowledgeVariationAction(raw: unknown): Promise<AcceptResult> {
+  const parsed = z.object({ variationId: z.string().uuid() }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("wo_contractor_acknowledge_variation", {
+    p_variation_id: parsed.data.variationId,
+  });
+  if (error) return { ok: false, message: "Couldn't record that just now — try again." };
+
+  const s = String(data ?? "");
+  if (s.startsWith("ok:")) {
+    revalidatePath("/portal/jobs");
+    return { ok: true };
+  }
+  const reason = s.replace("error:", "").replace(/^already_/, "");
+  if (reason === "awaiting_pc_deduction") {
+    return { ok: false, message: "The office is still working out the pay adjustment — nothing to do yet." };
+  }
+  return { ok: false, message: WORDING[reason] ?? "Couldn't record that." };
+}
+
 export async function acceptVariationAction(raw: unknown): Promise<AcceptResult> {
   const parsed = z.object({ variationId: z.string().uuid() }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };

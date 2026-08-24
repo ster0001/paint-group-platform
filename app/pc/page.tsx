@@ -13,7 +13,7 @@ const money = (c: number) => "$" + Math.round(c / 100).toLocaleString("en-AU");
 
 const ICON: Record<string, string> = {
   reoffer: "⚑", call: "◌", price: "◐", open: "◔", ring: "◷",
-  review: "✎", nudge: "◑", extension: "◓", collect: "⌂", qa: "✓",
+  review: "✎", nudge: "◑", extension: "◓", collect: "⌂", qa: "✓", deduct: "−",
 };
 
 const age = (hours: number) =>

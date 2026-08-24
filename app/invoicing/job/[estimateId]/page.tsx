@@ -8,6 +8,7 @@ import {
   paymentStages,
 } from "@/lib/invoicing/derive";
 import { loadJobMoney, toDerive, toDerivePayments } from "../../data";
+import { contractorVariationsCents } from "@/lib/workorder/contractorPay";
 import { fmt2, KIND_LABEL, shortDay, STATUS_LABEL } from "../../format";
 import MoneyView, { type InvoiceCardProp, type FeedProp } from "./MoneyView";
 
@@ -88,11 +89,10 @@ export default async function JobMoneyPage({
     }
   });
 
-  // Costs tab — contractor group only until Steps 5–6 fill the rest.
+  // Costs tab — contractor group only until Steps 5–6 fill the rest. Credits
+  // subtract (manual deduction wins on started work) — one rule, in the lib.
   const offerCents = Number(job.wo?.contractor_payment ?? 0) || 0;
-  const acceptedDeltaCents = job.variations
-    .filter((v) => v.status === "contractor_accepted")
-    .reduce((a, v) => a + (v.contractor_delta_cents ?? 0), 0);
+  const acceptedDeltaCents = contractorVariationsCents(job.variations);
 
   return (
     <MoneyView

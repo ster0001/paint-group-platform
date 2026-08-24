@@ -34,7 +34,7 @@ export type WOEdit = {
  * from the frozen snapshot, which is why it is a prop rather than part of Doc.
  * Step 1 renders it and nothing more; the ticks and gates arrive in step 2.
  */
-export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos = [], variant = "contractor", crewVariations = [] }: {
+export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos = [], variant = "contractor", crewVariations = [], removedKeys = [] }: {
   doc: Doc; edit?: WOEdit; stage?: WoStage | null;
   /**
    * "crew" is the painter's copy: no payment section, no customer phone. The
@@ -53,6 +53,8 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
    * painter finished — read the ticks, not the copy of the scope.
    */
   ticks?: Record<string, SurfaceState>;
+  /** Surface keys struck by a signed credit variation — shown, never hidden (A3). */
+  removedKeys?: readonly string[];
   /** Site photos already signed — see lib/workorder/photos.ts. */
   photos?: readonly WOPhoto[];
 }) {
@@ -217,14 +219,19 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
                   )}
                 </div>
                 {a.surfaces.map((s) => (
-                  <div className="surf" key={s.key}>
+                  <div className="surf" key={s.key} style={removedKeys.includes(s.key) ? { opacity: 0.55 } : undefined}>
                     <div className="surf-main">
-                      <div className="surf-name">{s.label}</div>
+                      <div className="surf-name" style={removedKeys.includes(s.key) ? { textDecoration: "line-through" } : undefined}>{s.label}</div>
                       <div className="surf-meta">{s.coats} {s.coats === 1 ? "coat" : "coats"}{s.product ? ` · ${s.product}` : ""}</div>
                       {s.prep && <div className="surf-prep">{s.prep}</div>}
                     </div>
                     <div className="surf-right">
                       {(() => {
+                        // A struck surface (signed credit) says so — it never
+                        // just looks like work nobody started.
+                        if (removedKeys.includes(s.key)) {
+                          return <span className="pill" data-testid={`surf-state-${s.key}`}>Removed from scope</span>;
+                        }
                         // The tick wins where there is one; the snapshot's own
                         // status is the fallback for a job issued before the
                         // tick list existed.

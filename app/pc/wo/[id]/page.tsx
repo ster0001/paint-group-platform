@@ -16,6 +16,7 @@ import PhotoGrid from "@/app/components/wo/PhotoGrid";
 import { WO_PHOTO_KIND_LABEL, forVariation, groupByKind, signPhotos, type WOPhotoRow } from "@/lib/workorder/photos";
 import StageAdvance from "./StageAdvance";
 import RebuildTicks from "./RebuildTicks";
+import SetDeduction from "./SetDeduction";
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +57,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
   const [{ data: surfaceRows }, { data: variationRows }, { data: updateRows }, { data: qaRows }, { data: checklistRows }, { data: rateRow }, { data: walkthroughRows }, { data: signoffRow }] =
     await Promise.all([
       supabase.from("wo_surfaces")
-        .select("id, heading, heading_meta, label, state, rectification")
+        .select("id, heading, heading_meta, label, state, rectification, removed_from_scope")
         .eq("work_order_id", id).order("sort"),
       supabase.from("wo_variations")
         .select("id, category, comment, status, est_hours, price_cents, contractor_delta_cents, released_at, credit, signed_name, signed_at, needs_manual_deduction, deduction_cents")
@@ -192,8 +193,8 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
 
   const surfaces = ((liveSurfaceRows ?? []) as {
     id: string; heading: string; heading_meta: string; label: string;
-    state: SurfaceRow["state"]; rectification: boolean;
-  }[]);
+    state: SurfaceRow["state"]; rectification: boolean; removed_from_scope?: boolean;
+  }[]).map((s) => ({ ...s, removed: s.removed_from_scope ?? false }));
   const progress = progressOf(surfaces);
   const byHeading = progressByHeading(surfaces);
   const headings = [...new Set(surfaces.map((s) => s.heading))];
@@ -299,7 +300,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             workOrderId={id}
             surfaces={surfaces.map((s) => ({
               id: s.id, heading: s.heading, label: s.label, state: s.state,
-              rectification: s.rectification,
+              rectification: s.rectification, removed: s.removed,
             }))}
             headingsWithBeforePhoto={headingsWithBeforePhoto}
             headingsWithAfterPhoto={headingsWithAfterPhoto}
@@ -324,15 +325,15 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
                     <span className="ct">{p ? `${p.done}/${p.total}` : ""}{p && p.done === p.total ? " ✓" : ""}</span>
                   </div>
                   {surfaces.filter((s) => s.heading === heading).map((s) => (
-                    <div className="tick" key={s.id}>
+                    <div className="tick" key={s.id} style={s.removed ? { opacity: 0.55 } : undefined}>
                       <span className="sw" aria-hidden="true">
                         <i className={s.state !== "todo" ? "a" : ""} />
                         <i className={s.state === "done" ? "a" : s.state === "prepped" ? "b" : ""} />
                         <i className={s.state === "done" ? "a" : ""} />
                       </span>
-                      <p>{s.label}</p>
-                      <span className={`pill ${s.state === "done" ? "p-em" : s.state === "prepped" ? "p-cy" : s.rectification ? "p-amber" : ""}`}>
-                        {s.rectification && s.state !== "done" ? "Rectify" : s.state === "done" ? "Done" : s.state === "prepped" ? "Prepped" : "To do"}
+                      <p style={s.removed ? { textDecoration: "line-through" } : undefined}>{s.label}</p>
+                      <span className={`pill ${s.removed ? "p-amber" : s.state === "done" ? "p-em" : s.state === "prepped" ? "p-cy" : s.rectification ? "p-amber" : ""}`}>
+                        {s.removed ? "Removed from scope" : s.rectification && s.state !== "done" ? "Rectify" : s.state === "done" ? "Done" : s.state === "prepped" ? "Prepped" : "To do"}
                       </span>
                     </div>
                   ))}
@@ -492,15 +493,31 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
                 showKind={false}
                 empty="No photo was attached to this variation."
               />
-              <PriceVariation
-                id={v.id}
-                status={v.status}
-                released={v.released_at !== null}
-                estHours={v.est_hours === null ? null : Number(v.est_hours)}
-                priceCents={v.price_cents}
-                deltaCents={v.contractor_delta_cents}
-                rateCents={contractorRateCents}
-              />
+              {/* Credits don't travel the release→accept path: the contractor
+                  ACKNOWLEDGES (or the PC sets the manual deduction). */}
+              {!v.credit && (
+                <PriceVariation
+                  id={v.id}
+                  status={v.status}
+                  released={v.released_at !== null}
+                  estHours={v.est_hours === null ? null : Number(v.est_hours)}
+                  priceCents={v.price_cents}
+                  deltaCents={v.contractor_delta_cents}
+                  rateCents={contractorRateCents}
+                />
+              )}
+              {v.credit && v.needs_manual_deduction && v.deduction_cents === null
+                && (v.status === "customer_approved" || v.status === "contractor_accepted") && (
+                <SetDeduction id={v.id} startedSurfaces={null} creditCents={v.price_cents} />
+              )}
+              {v.credit && v.deduction_cents !== null && (
+                <p className="note" data-testid={`deduction-set-${v.id}`}>
+                  Pay deduction set: −{money(v.deduction_cents)}.
+                </p>
+              )}
+              {v.credit && !v.needs_manual_deduction && v.status === "customer_approved" && (
+                <p className="note">Waiting on the contractor to acknowledge the removal.</p>
+              )}
             </div>
           ))}
 

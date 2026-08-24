@@ -44,6 +44,24 @@ export async function releaseVariation(raw: unknown): Promise<PcResult> {
     "Released — it's with the contractor now.");
 }
 
+/**
+ * Ruling 3 (addendum): work had started on removed scope, so the pay deduction
+ * is set BY A PERSON, never computed. Dollars in, integer cents to the RPC.
+ */
+export async function setVariationDeduction(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({
+    variationId: uuid,
+    amountDollars: z.number().min(0).max(50_000),
+    note: z.string().trim().max(500).default(""),
+  }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Enter the deduction as a dollar figure." };
+  return call("wo_set_variation_deduction", {
+    p_variation_id: parsed.data.variationId,
+    p_cents: Math.round(parsed.data.amountDollars * 100),
+    p_note: parsed.data.note,
+  }, "Deduction set — the contractor sees it on their job page.");
+}
+
 export async function approveUpdate(raw: unknown): Promise<PcResult> {
   const parsed = z.object({ updateId: uuid, text: z.string().max(4000).optional() }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };

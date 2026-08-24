@@ -49,7 +49,11 @@ export type ConsoleInput = {
     ticksTotal: number;
   }[];
   offers: { id?: string; workOrderId: string; state: string; expiresAt: string; contractorName: string }[];
-  variations: { id: string; workOrderId: string; status: string; createdAt: string; pricedAt: string | null }[];
+  variations: {
+    id: string; workOrderId: string; status: string; createdAt: string; pricedAt: string | null;
+    /** A3 — credits whose pay deduction routes to the PC when work had started. */
+    credit?: boolean; needsManualDeduction?: boolean; deductionCents?: number | null;
+  }[];
   updates: { id: string; workOrderId: string; status: string; createdAt: string }[];
   signoffs: {
     workOrderId: string; evidencePackSentAt: string | null; signedAt: string | null;
@@ -286,6 +290,23 @@ export function buildQueue(input: ConsoleInput): QueueCard[] {
           action: { label: "Nudge customer", kind: "nudge", href: `/pc/wo/${v.workOrderId}` },
         });
       }
+    }
+
+    // A3 ruling 3: a signed removal hit scope that was already started, so
+    // the pay deduction is a PERSON's decision and the job's money is wrong
+    // until someone makes it.
+    if (v.status === "customer_approved" && v.credit
+        && v.needsManualDeduction && v.deductionCents == null) {
+      cards.push({
+        key: `variation-deduction:${v.id}`,
+        severity: "warning",
+        title: "Removal signed — pay deduction needs you",
+        detail: "Work had started on the removed scope. Set the contractor's deduction by hand; it is never computed.",
+        ref: label(v.workOrderId),
+        workOrderId: v.workOrderId,
+        ageHours: hoursBetween(v.createdAt, now),
+        action: { label: "Set deduction", kind: "deduct", href: `/pc/wo/${v.workOrderId}#variation-${v.id}` },
+      });
     }
   }
 

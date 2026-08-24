@@ -32,10 +32,12 @@ export default async function Page({ params }: { params: Promise<{ token: string
   // statuses if the RPC isn't there yet, rather than 500ing a contractor's job
   // sheet on a Monday morning.
   const { data: tickRows } = await supabase.rpc("get_work_order_ticks_by_token", { p_token: token });
-  const ticks = ticksBySurfaceKey(
-    (tickRows as { surface_key: string | null; state: SurfaceState }[] | null) ?? [],
-  );
+  const tickList = (tickRows as { surface_key: string | null; state: SurfaceState; removed?: boolean }[] | null) ?? [];
+  const ticks = ticksBySurfaceKey(tickList);
+  // Struck by a signed credit (A3) — the job sheet shows the strike, never a
+  // silently shorter list. Degrades to none before migration 20261118.
+  const removedKeys = tickList.filter((t) => t.removed && t.surface_key).map((t) => t.surface_key!);
 
   const doc: WODoc = { ...row.snapshot, status: row.status ?? row.snapshot.status, startDate: row.start_date ?? row.snapshot.startDate };
-  return <WorkOrderDoc doc={doc} ticks={ticks} />;
+  return <WorkOrderDoc doc={doc} ticks={ticks} removedKeys={removedKeys} />;
 }

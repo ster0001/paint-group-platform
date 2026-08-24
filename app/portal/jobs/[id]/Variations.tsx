@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { acceptVariationAction, raiseVariationAction } from "./variationActions";
+import { acceptVariationAction, acknowledgeVariationAction, raiseVariationAction } from "./variationActions";
 import { VARIATION_CATEGORIES, type VariationStatus } from "@/lib/workorder/variations";
 
 const money = (c: number) =>
@@ -15,6 +15,12 @@ export type VariationView = {
   contractorDeltaCents: number | null;
   estHours: number | null;
   released: boolean;
+  /** A signed scope REMOVAL — the pay moves down, and it's acknowledged, not accepted. */
+  credit?: boolean;
+  needsManualDeduction?: boolean;
+  deductionCents?: number | null;
+  deductionNote?: string;
+  acknowledged?: boolean;
 };
 
 /**
@@ -99,6 +105,20 @@ export default function Variations({
     });
   }
 
+  function acknowledge(id: string) {
+    setMessage(null);
+    startTransition(async () => {
+      const result = await acknowledgeVariationAction({ variationId: id });
+      if (result.ok) {
+        setList((l) => l.map((v) => (v.id === id ? { ...v, status: "contractor_accepted", acknowledged: true } : v)));
+      } else setMessage(result.message);
+    });
+  }
+
+  /** What comes off the pay for a credit: the PC's manual figure wins. */
+  const creditDeduction = (v: VariationView) =>
+    v.needsManualDeduction ? v.deductionCents : v.contractorDeltaCents;
+
   return (
     <div className="card" style={{ marginTop: 12 }} data-testid="variations">
       <div className="tick-head">
@@ -167,27 +187,58 @@ export default function Variations({
       {list.map((v) => (
         <div className="var-item" key={v.id} data-testid={`variation-${v.id}`}>
           <div className="var-item-top">
-            <b>{VARIATION_CATEGORIES.find((c) => c.code === v.category)?.label ?? v.category}</b>
+            <b>
+              {v.category === "scope_removed" ? "Removed from scope"
+                : VARIATION_CATEGORIES.find((c) => c.code === v.category)?.label ?? v.category}
+            </b>
             <span className={`chip ${v.status === "contractor_accepted" ? "grn" : v.status === "declined" ? "cly" : "amb"}`}>
               {v.status === "raised" ? "With the office"
                 : v.status === "priced" ? "With the customer"
-                : v.status === "customer_approved" ? (v.released ? "Your approval" : "Approved — coming to you")
-                : v.status === "contractor_accepted" ? "Accepted"
+                : v.status === "customer_approved"
+                  ? (v.credit
+                      ? (v.needsManualDeduction && v.deductionCents == null ? "With the office" : "Acknowledge")
+                      : v.released ? "Your approval" : "Approved — coming to you")
+                : v.status === "contractor_accepted" ? (v.credit ? "Acknowledged" : "Accepted")
                 : v.status === "declined" ? "Declined" : "Closed"}
             </span>
           </div>
           <p className="var-item-comment">{v.comment}</p>
 
-          {v.status === "customer_approved" && v.released && (
+          {/* Additions: the existing accept (both approvals, in order). */}
+          {!v.credit && v.status === "customer_approved" && v.released && (
             <button type="button" className="var-send" disabled={pending}
               onClick={() => accept(v.id)} data-testid={`accept-${v.id}`}>
               Accept {v.contractorDeltaCents ? money(v.contractorDeltaCents) : ""} — {v.estHours ?? "?"} hrs
             </button>
           )}
 
-          {v.status === "contractor_accepted" && v.contractorDeltaCents != null && (
+          {/* Credits: the customer owns the scope — acknowledge, no veto. */}
+          {v.credit && v.status === "customer_approved" && (
+            v.needsManualDeduction && v.deductionCents == null ? (
+              <p className="note" data-testid={`deduction-pending-${v.id}`}>
+                Work had started here, so the office is working out the pay
+                adjustment — you&rsquo;ll see the figure before your invoice goes in.
+              </p>
+            ) : (
+              <button type="button" className="var-send" disabled={pending}
+                onClick={() => acknowledge(v.id)} data-testid={`acknowledge-${v.id}`}>
+                Acknowledge — {creditDeduction(v) != null ? `− ${money(creditDeduction(v)!)}` : "no pay change"}
+                {v.needsManualDeduction ? " (set by the office)" : ""}
+              </button>
+            )
+          )}
+
+          {v.status === "contractor_accepted" && !v.credit && v.contractorDeltaCents != null && (
             <p className="note" data-testid={`delta-${v.id}`}>
               {money(v.contractorDeltaCents)} added to your payment for this job.
+            </p>
+          )}
+          {v.status === "contractor_accepted" && v.credit && (
+            <p className="note" data-testid={`delta-${v.id}`}>
+              {creditDeduction(v) != null && creditDeduction(v)! > 0
+                ? `${money(creditDeduction(v)!)} comes off your payment for this job${v.needsManualDeduction ? " (set by the office)" : ""}.`
+                : "No pay change for this one."}
+              {v.deductionNote ? ` ${v.deductionNote}` : ""}
             </p>
           )}
         </div>

@@ -73,7 +73,7 @@ export default async function PortalJobPage({
   // contractor's own jobs, so an id that isn't theirs simply returns nothing.
   const [{ data: surfaceRows }, { data: photoRows }, { data: woRow }, { data: walkthroughRows }, { data: qaRows }, { data: signoffRow }] = await Promise.all([
     supabase.from("wo_surfaces")
-      .select("id, heading, heading_meta, label, state, rectification")
+      .select("id, heading, heading_meta, label, state, rectification, removed_from_scope")
       .eq("work_order_id", id).order("sort", { ascending: true }),
     supabase.from("wo_photos")
       .select("area, kind").eq("work_order_id", id).in("kind", ["before", "completion"]),
@@ -116,23 +116,30 @@ export default async function PortalJobPage({
 
   const { data: variationRows } = await supabase
     .from("wo_variations")
-    .select("id, category, comment, status, contractor_delta_cents, est_hours, released_at")
+    .select("id, category, comment, status, contractor_delta_cents, est_hours, released_at, credit, needs_manual_deduction, deduction_cents, deduction_note, contractor_acknowledged_at")
     .eq("work_order_id", id)
     .order("created_at", { ascending: false });
 
   const variations: VariationView[] = ((variationRows as {
     id: string; category: string; comment: string; status: VariationView["status"];
     contractor_delta_cents: number | null; est_hours: number | null; released_at: string | null;
+    credit: boolean; needs_manual_deduction: boolean; deduction_cents: number | null;
+    deduction_note: string; contractor_acknowledged_at: string | null;
   }[] | null) ?? []).map((v) => ({
     id: v.id, category: v.category, comment: v.comment, status: v.status,
     contractorDeltaCents: v.contractor_delta_cents,
     estHours: v.est_hours === null ? null : Number(v.est_hours),
     released: v.released_at !== null,
+    credit: v.credit,
+    needsManualDeduction: v.needs_manual_deduction,
+    deductionCents: v.deduction_cents,
+    deductionNote: v.deduction_note ?? "",
+    acknowledged: v.contractor_acknowledged_at !== null,
   }));
 
   const surfaces: SurfaceRow[] = ((surfaceRows as
-    { id: string; heading: string; label: string; state: SurfaceRow["state"]; rectification: boolean }[] | null) ?? [])
-    .map((r) => ({ id: r.id, heading: r.heading, label: r.label, state: r.state, rectification: r.rectification }));
+    { id: string; heading: string; label: string; state: SurfaceRow["state"]; rectification: boolean; removed_from_scope: boolean }[] | null) ?? [])
+    .map((r) => ({ id: r.id, heading: r.heading, label: r.label, state: r.state, rectification: r.rectification, removed: r.removed_from_scope }));
 
   const headingMeta: Record<string, string> = {};
   for (const r of (surfaceRows as { heading: string; heading_meta: string }[] | null) ?? []) {
@@ -155,7 +162,10 @@ export default async function PortalJobPage({
   const woColours = ((woRow as { colours?: Record<string, { match?: { code?: string; brand?: string; canSize?: string; by?: string } }> | null } | null)?.colours) ?? {};
   const canTick = stage === "in_progress";
   // Live states are already on this page; done means done, not prepped.
-  const allSurfacesDone = surfaces.length > 0 && surfaces.every((s) => s.state === "done");
+  // Struck surfaces are out of the working set — a job whose only leftovers
+  // are removed-from-scope rows is finishable.
+  const workingSurfaces = surfaces.filter((s) => !s.removed);
+  const allSurfacesDone = workingSurfaces.length > 0 && workingSurfaces.every((s) => s.state === "done");
   // Every check passed but the job still parked at qa (passed before the
   // routing existed, or a page that never refreshed): the MACHINE moves it on
   // the moment anyone looks — the painter never presses anything customer-

@@ -1255,3 +1255,23 @@ contractor at signing (`variation_no_site_work`). e2e:
 accepted-row proof); contracts: `lib/workorder/revisionDraft.contract.test.ts`.
 C1 seed now provisions an active rate card + items so pricing paths run on the
 test project.
+
+## Invoice-builder addendum A3 — the contractor loop + WO sync (24 Aug 2026)
+
+Rulings 2–3 on every surface. CREDITS: the portal card says **Acknowledge**
+(scope owner is the customer — no veto) via
+`wo_contractor_acknowledge_variation`; the pay figure is the engine's
+hours-delta unless the removal hit started work, in which case
+`needs_manual_deduction` routes it to the PC — a `SetDeduction` card on the
+job page plus a `variation-deduction` warning card in the /pc queue — and
+`wo_set_variation_deduction` records the person's figure (acknowledge REFUSES
+`awaiting_pc_deduction` until then; the contractor is told, not asked).
+ADDITIONS keep release → accept. Struck surfaces render struck-through with a
+"Removed from scope" chip on the portal TickList, the PC read-only list AND
+the anon /w job sheet (migration `20261118` adds the flag to
+`get_work_order_ticks_by_token`); `progressOf` excludes them so "N of M" and
+the finish gate mean live scope. The one pay rule lives in
+`lib/workorder/contractorPay.ts` (offer + accepted additions − acknowledged
+credits, manual deduction winning; only `contractor_accepted` counts) and the
+invoicing job money view's Costs tab reads it. e2e:
+`e2e/revision-contractor.spec.ts` (5 scenarios AS CONTRACTOR/PC).

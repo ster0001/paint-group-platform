@@ -205,30 +205,48 @@ export default function TickList({
               </button>
             )}
 
-            {rows.filter((r) => r.heading === heading).map((row) => (
-              <button
-                key={row.id}
-                type="button"
-                className={`tickrow ${row.state}`}
-                onClick={() => tap(row)}
-                disabled={busy === row.id}
-                data-testid={`tick-${row.id}`}
-                aria-label={`${row.label} — ${LABEL[row.state]}. Tap to mark ${LABEL[nextState(row.state)]}`}
-              >
-                <span className="sw" aria-hidden="true">
-                  <i className={row.state !== "todo" ? "a" : ""} />
-                  <i className={row.state === "done" ? "a" : row.state === "prepped" ? "b" : ""} />
-                  <i className={row.state === "done" ? "a" : ""} />
-                </span>
-                <span className="tickrow-label">
-                  {row.label}
-                  {row.rectification ? <span className="chip amb" style={{ marginLeft: 6 }}>Rectify</span> : null}
-                </span>
-                <span className={`chip ${row.state === "done" ? "grn" : row.state === "prepped" ? "cyn" : ""}`}>
-                  {LABEL[row.state]}
-                </span>
-              </button>
-            ))}
+            {rows.filter((r) => r.heading === heading).map((row) =>
+              row.removed ? (
+                // Struck by a signed credit — visible, marked, never tickable
+                // (addendum ruling 2: removed, not deleted).
+                <div
+                  key={row.id}
+                  className="tickrow removed"
+                  data-testid={`tick-${row.id}`}
+                  aria-label={`${row.label} — removed from scope`}
+                  style={{ opacity: 0.55 }}
+                >
+                  <span className="sw" aria-hidden="true"><i /><i /><i /></span>
+                  <span className="tickrow-label" style={{ textDecoration: "line-through" }}>
+                    {row.label}
+                  </span>
+                  <span className="chip amb">Removed from scope</span>
+                </div>
+              ) : (
+                <button
+                  key={row.id}
+                  type="button"
+                  className={`tickrow ${row.state}`}
+                  onClick={() => tap(row)}
+                  disabled={busy === row.id}
+                  data-testid={`tick-${row.id}`}
+                  aria-label={`${row.label} — ${LABEL[row.state]}. Tap to mark ${LABEL[nextState(row.state)]}`}
+                >
+                  <span className="sw" aria-hidden="true">
+                    <i className={row.state !== "todo" ? "a" : ""} />
+                    <i className={row.state === "done" ? "a" : row.state === "prepped" ? "b" : ""} />
+                    <i className={row.state === "done" ? "a" : ""} />
+                  </span>
+                  <span className="tickrow-label">
+                    {row.label}
+                    {row.rectification ? <span className="chip amb" style={{ marginLeft: 6 }}>Rectify</span> : null}
+                  </span>
+                  <span className={`chip ${row.state === "done" ? "grn" : row.state === "prepped" ? "cyn" : ""}`}>
+                    {LABEL[row.state]}
+                  </span>
+                </button>
+              ),
+            )}
           </div>
         );
       })}
