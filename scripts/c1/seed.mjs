@@ -102,6 +102,57 @@ if (contractorId) {
   } else if (crow) console.log("= contractor already offerable");
 }
 
+// A minimal ACTIVE rate card so anything that prices through lib/pricing (the
+// revision builder, capture, proving) has real rows to price with. Prod's card
+// arrives via seed scripts, not migrations, so a fresh test project has none.
+{
+  const { data: card } = await service.from("rate_cards").select("id").eq("is_active", true).maybeSingle();
+  let cardId = card?.id ?? null;
+  if (!cardId) {
+    const { data, error } = await service.from("rate_cards")
+      .insert({ version: 1, is_active: true }).select("id").single();
+    if (error) console.log(`~ rate card: ${error.message}`);
+    else { cardId = data.id; console.log("+ rate card created"); }
+  } else console.log("= rate card exists");
+
+  if (cardId) {
+    const { count } = await service.from("rate_items").select("id", { count: "exact", head: true }).eq("rate_card_id", cardId);
+    if (!count) {
+      const { error } = await service.from("rate_items").insert([
+        { rate_card_id: cardId, category: "Interior", code: "WALL", unit: "M2", sub_category: "Walls",
+          rate_1_coat: 12, rate_2_coat: 8, rate_3_coat: 6, default_coats: 2,
+          charge_out_cents: 8500, default_product: "C1 Wall Paint" },
+        { rate_card_id: cardId, category: "Interior", code: "DOOR", unit: "Hours Per Item", sub_category: "Doors",
+          rate_1_coat: 0.5, rate_2_coat: 0.8, rate_3_coat: 1.0, default_coats: 2,
+          charge_out_cents: 8500, default_product: "C1 Enamel", litres_per_item_per_coat: 0.2 },
+        { rate_card_id: cardId, category: "Exterior", code: "WEATHERBOARD", unit: "M2", sub_category: "Walls",
+          rate_1_coat: 10, rate_2_coat: 7, rate_3_coat: 5, default_coats: 2,
+          charge_out_cents: 10000, default_product: "C1 Exterior" },
+      ]);
+      console.log(error ? `~ rate items: ${error.message}` : "+ rate items seeded (3)");
+    } else console.log("= rate items exist");
+  }
+
+  const { count: modCount } = await service.from("modifiers").select("id", { count: "exact", head: true });
+  if (!modCount) {
+    const { error } = await service.from("modifiers").insert([
+      { group_name: "Level of Finish", label: "Level 3", code: "FIN-3", multiplier: 1, active: true },
+      { group_name: "Level of Finish", label: "Level 4", code: "FIN-4", multiplier: 1.06, active: true },
+    ]);
+    console.log(error ? `~ modifiers: ${error.message}` : "+ modifiers seeded (2)");
+  } else console.log("= modifiers exist");
+
+  const { count: prodCount } = await service.from("products").select("id", { count: "exact", head: true });
+  if (!prodCount) {
+    const { error } = await service.from("products").insert([
+      { name: "C1 Wall Paint", coverage: 14, price_per_litre: 2000, wastage_pct: 10 },
+      { name: "C1 Enamel", coverage: 12, price_per_litre: 4000, wastage_pct: 0 },
+      { name: "C1 Exterior", coverage: 12, price_per_litre: 2500, wastage_pct: 10 },
+    ]);
+    console.log(error ? `~ products: ${error.message}` : "+ products seeded (3)");
+  } else console.log("= products exist");
+}
+
 // One customers row, for specs that attach a customer to an estimate.
 if (staffId) {
   const { data: anyCustomer } = await service.from("customers").select("id").limit(1).maybeSingle();

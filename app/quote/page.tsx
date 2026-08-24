@@ -6,6 +6,7 @@ import QuoteBuilder from "./QuoteBuilder";
 import { DEFAULT_COMPANY, type CompanyProfile, type Contact } from "./company";
 import { DEFAULT_INCLUSION_TEMPLATES, DEFAULT_EXCLUSION_TEMPLATES, INCLUSION_TEMPLATES_KEY, EXCLUSION_TEMPLATES_KEY, type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import { parseBackTo } from "@/lib/navigation/backTo";
+import type { ExistingRevisionVariation } from "./RevisionPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export const dynamic = "force-dynamic";
 export default async function QuotePage({
   searchParams,
 }: {
-  searchParams: Promise<{ id?: string; template?: string; view?: string; from?: string }>;
+  searchParams: Promise<{ id?: string; template?: string; view?: string; from?: string; mode?: string }>;
 }) {
   const supabase = await createClient();
 
@@ -47,17 +48,57 @@ export default async function QuotePage({
     .eq("is_active", true)
     .single();
 
-  const { id, template, view, from } = await searchParams;
+  const { id, template, view, from, mode } = await searchParams;
   const initialView = view === "workorder" || view === "customer" ? view : undefined;
   // Where the top-left link goes. Validated, because `from` comes off the URL —
   // see lib/navigation/backTo.ts. Null falls back to the estimates list.
   const backTo = parseBackTo(from);
 
+  // Addendum A2 — ?mode=revision opens the SAME builder over the job's working
+  // scope. The estimate must be accepted; the clone is made on first open; and
+  // pricing uses the estimate's OWN rate card, never the active one (a signed
+  // job must not silently reprice on a newer card).
+  const revisionMode = mode === "revision" && !!id;
+  let revisionScope: { accepted: unknown; working: unknown } | null = null;
+  let effectiveCard: { id: string; version: number | null } | null =
+    card ? { id: card.id, version: card.version } : null;
+  if (revisionMode) {
+    const { data: est } = await supabase
+      .from("estimates").select("rate_card_id, rate_card_version, status").eq("id", id!).maybeSingle();
+    if (!est) {
+      return (
+        <main className="mx-auto max-w-2xl p-6">
+          <h1 className="text-xl font-semibold">Estimate not found</h1>
+        </main>
+      );
+    }
+    const { data: ws } = await supabase.rpc("wo_open_working_scope", { p_estimate_id: id! });
+    const scope = (ws ?? null) as { error?: string; accepted_state?: unknown; working_state?: unknown } | null;
+    if (!scope || scope.error) {
+      const why =
+        scope?.error === "not_accepted"
+          ? "Revisions open once the estimate is accepted — until then, edit the estimate itself."
+          : scope?.error === "no_work_order"
+            ? "This job has no work order yet — accept the estimate first."
+            : "The working scope couldn't be opened.";
+      return (
+        <main className="mx-auto max-w-2xl p-6">
+          <h1 className="text-xl font-semibold">No revision to open</h1>
+          <p className="mt-2 text-sm text-gray-500">{why}</p>
+        </main>
+      );
+    }
+    revisionScope = { accepted: scope.accepted_state ?? {}, working: scope.working_state ?? {} };
+    if (est.rate_card_id) {
+      effectiveCard = { id: est.rate_card_id as string, version: (est.rate_card_version as number | null) ?? null };
+    }
+  }
+
   // Everything below is independent — fetch it all in one round-trip. The single
   // `settings` fetch also carries the company profile and any saved templates, so
   // we don't query settings three separate times.
   const [rateItems, modifiers, products, settings, lineItems, areaNames, contactsRes, estimateRes, workOrderRes, contractorsRes, presentationsRes, typicalRes] = await Promise.all([
-    supabase.from("rate_items").select("*").eq("rate_card_id", card?.id ?? "").order("category").order("sub_category"),
+    supabase.from("rate_items").select("*").eq("rate_card_id", effectiveCard?.id ?? "").order("category").order("sub_category"),
     supabase.from("modifiers").select("*").eq("active", true),
     supabase.from("products").select("*"),
     supabase.from("settings").select("*"),
@@ -107,6 +148,10 @@ export default async function QuotePage({
   let initial: Initial | null = null;
   if (id) {
     if (estimateRes.data) initial = estimateRes.data as Initial;
+    // Revision: the builder edits the WORKING SCOPE, not the estimate row.
+    if (initial && revisionMode && revisionScope) {
+      initial = { ...initial, builder_state: revisionScope.working };
+    }
   } else if (template) {
     const tRow = settingsRows.find((s) => s.key === "estimate_templates");
     const list = Array.isArray(tRow?.value) ? (tRow!.value as { id: string; name: string; builder_state: unknown }[]) : [];
@@ -138,6 +183,15 @@ export default async function QuotePage({
   const woTicks = ticksBySurfaceKey(
     ((tickRows as { surface_key: string | null; state: SurfaceState }[] | null) ?? []),
   );
+
+  // Revision-drafted variations already on the job — the panel shows what's
+  // pending signature and what's signed (new drafts only carry the beyond).
+  const { data: revVarRows } = revisionMode && woId
+    ? await supabase.from("wo_variations")
+        .select("id, revision_block_ref, status, price_cents, credit, est_hours, customer_token, signed_name, comment")
+        .eq("work_order_id", woId).not("revision_block_ref", "is", null)
+        .order("created_at", { ascending: true })
+    : { data: null };
   const woPhotos = await signPhotos(supabase, (photoRows as WOPhotoRow[] | null) ?? []);
   const offerState = (liveOffer as { state?: string } | null)?.state;
   const bookingState =
@@ -150,8 +204,11 @@ export default async function QuotePage({
     <QuoteBuilder
       initialView={initialView}
       backTo={backTo}
-      rateCardId={card?.id ?? null}
-      rateCardVersion={card?.version ?? null}
+      rateCardId={effectiveCard?.id ?? null}
+      rateCardVersion={effectiveCard?.version ?? null}
+      mode={revisionMode ? "revision" : "estimate"}
+      revisionBaseline={revisionScope?.accepted ?? null}
+      revisionVariations={(revVarRows ?? []) as ExistingRevisionVariation[]}
       rateItems={rateItems.data ?? []}
       modifiers={modifiers.data ?? []}
       products={products.data ?? []}

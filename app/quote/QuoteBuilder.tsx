@@ -43,6 +43,9 @@ import type { SurfaceState } from "@/lib/workorder/surfaces";
 import type { WOPhoto } from "@/lib/workorder/photos";
 import { acceptAttr, checkUpload } from "@/lib/uploads/validate";
 import { reportIfError, errorMessage } from "@/lib/monitoring/report";
+import RevisionPanel, { type ExistingRevisionVariation } from "./RevisionPanel";
+import { saveWorkingScopeAction } from "./revisionActions";
+import { diffRevision, type RevisionState } from "@/lib/revision/diff";
 
 type WorkOrderRow = {
   id: string; wo_ref: string; status: string; contractor_id: string | null; start_date: string | null;
@@ -225,6 +228,9 @@ export default function QuoteBuilder({
   backTo = null,
   presentations = [],
   typicalSizes = {},
+  mode = "estimate",
+  revisionBaseline = null,
+  revisionVariations = [],
 }: {
   rateCardId: string | null;
   rateCardVersion: number | null;
@@ -252,6 +258,18 @@ export default function QuoteBuilder({
   backTo?: BackTo | null;
   presentations?: { id: string; name: string; blocks: { kind: string; position: number; enabled: boolean; content: unknown }[] }[];
   typicalSizes?: Record<string, { L: number; W: number }>;
+  /**
+   * "revision" (addendum A2): the SAME builder, loaded with the job's working
+   * scope instead of the estimate. Edits save to wo_working_scopes only — the
+   * accepted estimate row is DB-frozen — and the diff against the accepted
+   * baseline becomes engine-priced variations. Shared component + mode prop,
+   * per CLAUDE.md; never a fork.
+   */
+  mode?: "estimate" | "revision";
+  /** The accepted builder_state the revision diffs against. */
+  revisionBaseline?: unknown;
+  /** Revision-drafted variations already on the job (for the panel). */
+  revisionVariations?: ExistingRevisionVariation[];
 }) {
   const chargeFor = (t: string) => chargeOutCents(t, rateItems, hourlyRateOverride);
 
@@ -375,7 +393,10 @@ export default function QuoteBuilder({
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
   const [sendingNow, setSendingNow] = useState(false);
   const [deliveryOutcome, setDeliveryOutcome] = useState<DeliveryOutcome | null>(null);
-  const locked = estStatus === "accepted";
+  const revision = mode === "revision";
+  // In revision mode "accepted" is exactly why we're here — the working scope
+  // is editable while the estimate row itself stays DB-frozen.
+  const locked = estStatus === "accepted" && !revision;
   // Email/SMS wording templates, managed in Settings → Messaging. The settings
   // prop is typed for numeric pricing rows, so widen it to read this jsonb row.
   const messaging: MessagingSettings = useMemo(
@@ -400,7 +421,8 @@ export default function QuoteBuilder({
     initialView ?? "builder",
   );
   // Editing is off until asked for, so nobody changes a live quote by accident.
-  const [editing, setEditing] = useState(!initial?.id);
+  // A revision exists to be edited, so it opens hot.
+  const [editing, setEditing] = useState(!initial?.id || mode === "revision");
 
   /**
    * The published customer document. This — not a live rebuild of the current
@@ -677,11 +699,43 @@ export default function QuoteBuilder({
     };
   }, [blocks, pricingCtx, adjustments]);
 
+  // Revision preview: the live diff of what's on screen vs the accepted
+  // baseline, priced by the same engine. Display only — the server action
+  // recomputes from the SAVED scope before any variation is written.
+  const revisionDiff = useMemo(() => {
+    if (!revision || !revisionBaseline) return null;
+    const currentState = {
+      blocks, modSel, materials, discountPct, discountMode, discountFixedCents,
+      hourlyRateOverride, contractorRateOverride,
+    } as RevisionState;
+    return diffRevision(revisionBaseline as RevisionState, currentState, pricingCtx);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revision, revisionBaseline, blocks, modSel, materials, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, pricingCtx]);
+
   const marginPct = totals.subtotal > 0 ? (totals.margin / totals.subtotal) * 100 : 0;
   const salesRateCents = totals.contractorHours > 0 ? Math.round(totals.subtotal / totals.contractorHours) : 0;
 
   async function save(): Promise<{ id: string | null; token: string | null }> {
     if (locked) { setSaveMsg("This estimate is accepted and locked."); return { id: quoteId, token: shareToken }; }
+
+    // Revision mode: the whole save goes to the WORKING SCOPE. The estimate
+    // row is DB-frozen (estimates_frozen trigger) and stays byte-identical.
+    if (revision) {
+      if (!quoteId) { setSaveMsg("No estimate id."); return { id: null, token: shareToken }; }
+      setSaving(true);
+      setSaveMsg("");
+      try {
+        const result = await saveWorkingScopeAction({
+          estimateId: quoteId,
+          state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, aiDeferred, idealPainters },
+        });
+        setSaveMsg(result.ok ? "Saved ✓ (working scope)" : result.message);
+      } finally {
+        setSaving(false);
+      }
+      return { id: quoteId, token: shareToken };
+    }
+
     setSaving(true);
     setSaveMsg("");
     const supabase = createClient();
@@ -1344,7 +1398,7 @@ export default function QuoteBuilder({
             ))}
           </div>
           {/* On-site room-loop capture - a different way IN to this same estimate. */}
-          {initial?.id && !locked && (
+          {initial?.id && !locked && !revision && (
             <a
               href={`/quote/capture?id=${initial.id}`}
               className="rounded-md border border-line2 px-3 py-2 text-[11px] font-medium tracking-wider text-gray-300 hover:bg-white/5"
@@ -1355,7 +1409,12 @@ export default function QuoteBuilder({
             </a>
           )}
           {locked && <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">Accepted · locked</span>}
-          {!locked && quoteId && (
+          {revision && (
+            <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700" data-testid="revision-badge">
+              Revision · working scope
+            </span>
+          )}
+          {!locked && !revision && quoteId && (
             <div className="relative">
               <button
                 onClick={() => setStatusMenu((v) => !v)}
@@ -1387,37 +1446,44 @@ export default function QuoteBuilder({
           )}
           {viewMode === "builder" && !locked && (
             <>
-              <input
-                className="w-40 rounded-md border border-line2 bg-graphite px-3 py-2 text-sm text-white placeholder-gray-500"
-                placeholder="Quote name"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
+              {!revision && (
+                <input
+                  className="w-40 rounded-md border border-line2 bg-graphite px-3 py-2 text-sm text-white placeholder-gray-500"
+                  placeholder="Quote name"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+              )}
               <button
                 onClick={save}
                 disabled={saving}
                 className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accentink hover:bg-paint disabled:opacity-50"
+                data-testid="builder-save"
               >
-                {saving ? "Saving…" : quoteId ? "Save" : "Save draft"}
+                {saving ? "Saving…" : revision ? "Save working scope" : quoteId ? "Save" : "Save draft"}
               </button>
-              <button
-                onClick={openSendDialog}
-                disabled={saving}
-                className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-                title={estStatus === "draft" ? "Save + mark sent, and get the customer link" : "Update the sent estimate"}
-              >
-                {estStatus === "draft" ? "Send to customer" : "Update sent"}
-              </button>
-              <button
-                onClick={() => { setTemplateName(title.trim()); setTemplateModal(true); }}
-                className="rounded-md border border-line2 px-3 py-2 text-sm font-medium text-gray-200 hover:bg-white/5"
-                title="Save this build as a reusable template"
-              >
-                Save as template
-              </button>
-              <a href="/estimates" className="rounded-md border border-line2 px-3 py-2 text-sm font-medium text-gray-200 hover:bg-white/5">
-                New
-              </a>
+              {!revision && (
+                <>
+                  <button
+                    onClick={openSendDialog}
+                    disabled={saving}
+                    className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                    title={estStatus === "draft" ? "Save + mark sent, and get the customer link" : "Update the sent estimate"}
+                  >
+                    {estStatus === "draft" ? "Send to customer" : "Update sent"}
+                  </button>
+                  <button
+                    onClick={() => { setTemplateName(title.trim()); setTemplateModal(true); }}
+                    className="rounded-md border border-line2 px-3 py-2 text-sm font-medium text-gray-200 hover:bg-white/5"
+                    title="Save this build as a reusable template"
+                  >
+                    Save as template
+                  </button>
+                  <a href="/estimates" className="rounded-md border border-line2 px-3 py-2 text-sm font-medium text-gray-200 hover:bg-white/5">
+                    New
+                  </a>
+                </>
+              )}
             </>
           )}
           {saveMsg && (
@@ -1503,7 +1569,7 @@ export default function QuoteBuilder({
 
       {/* Editing something the customer is already looking at is worth saying out
           loud — saving republishes their copy underneath them. */}
-      {editing && sentSnapshot && !customerView && !workOrderView && !locked && (
+      {editing && sentSnapshot && !customerView && !workOrderView && !locked && !revision && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
           <span>
             <span className="font-semibold">Editing a published estimate</span>
@@ -1537,6 +1603,17 @@ export default function QuoteBuilder({
             }}
             estimateId={quoteId ? quoteId.slice(0, 8) : "New"}
             dateStr={new Date().toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
+          />
+        </div>
+      )}
+
+      {viewMode === "builder" && revision && revisionDiff && quoteId && (
+        <div className="mt-4">
+          <RevisionPanel
+            estimateId={quoteId}
+            diff={revisionDiff}
+            existing={revisionVariations}
+            saveFirst={save}
           />
         </div>
       )}

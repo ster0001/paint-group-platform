@@ -1229,3 +1229,29 @@ to builder_state/sent_snapshot/money columns while status='accepted'
 + working_state, written only by `wo_open_working_scope` (clone-on-first-open) /
 `wo_save_working_scope`, both staff-gated. Contract tests:
 `lib/workorder/variationSign.contract.test.ts`.
+
+## Invoice-builder addendum A2 — builder mode "revision" (24 Aug 2026)
+
+`QuoteBuilder` gained `mode="revision"` (shared component + mode prop — no
+fork): `/quote?id=<estimate>&mode=revision` opens the SAME builder over the
+job's working scope (clone-on-first-open via `wo_open_working_scope`), priced
+with the estimate's OWN `rate_card_id` — never the active card, so a signed
+job cannot silently reprice. Saves go to `wo_save_working_scope` only; the
+send/status/template controls disappear; an amber "Revision · working scope"
+badge replaces the status pill. The DIFF against the accepted baseline is
+`lib/revision/diff.ts`: a CHAIN of whole-estimate re-prices (one changed block
+swapped in at a time, adjustments last) so sundries/discount/GST rounding ride
+along and Σ deltas = working − accepted TO THE CENT by construction (unit-
+pinned). `RevisionPanel` previews the changes live and "Save & draft
+variations for signature" calls `draftRevisionVariationsAction`, which
+RECOMPUTES server-side and writes through `wo_draft_revision_variation`
+(migration `20261117`): one live draft per change (`revision_block_ref` +
+partial unique index), re-draft updates the same row/token, zero-delta
+retires it, contractor delta = hours × settings rate stamped in SQL, and
+already-SIGNED revision variations for a block subtract so a second round
+drafts only the increment. Zero-site-work variations auto-advance past the
+contractor at signing (`variation_no_site_work`). e2e:
+`e2e/revision-builder.spec.ts` (5 scenarios incl. the byte-identical
+accepted-row proof); contracts: `lib/workorder/revisionDraft.contract.test.ts`.
+C1 seed now provisions an active rate card + items so pricing paths run on the
+test project.
