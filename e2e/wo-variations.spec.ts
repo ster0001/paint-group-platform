@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { credentials, missingCreds, signIn } from "./helpers";
+import { credentials, missingCreds, signIn, drawSignature } from "./helpers";
 import {
   contractorIdForEmail, createLoopFixture, destroyLoopFixture,
   serviceClient, rpcAs, type LoopFixture,
@@ -150,7 +150,7 @@ test.describe("a variation, end to end", () => {
     expect(v.contractor_delta_cents).toBe(18000);
   });
 
-  test("the customer approves it on the token link", async ({ page }) => {
+  test("the customer approves it on the token link — by SIGNING (ruling 1)", async ({ page }) => {
     await page.goto(`/v/${token}`);
     await expect(page.getByTestId("variation-price")).toHaveText("$840.00");
     await expect(page.getByTestId("variation-photos")).toContainText("1 photo");
@@ -161,14 +161,72 @@ test.describe("a variation, end to end", () => {
     expect(html).not.toContain("18000");
     expect(html).not.toContain("$180.00");
 
+    // Approve opens the signing panel — a name and a drawn signature, no
+    // one-tap approval any more.
     await page.getByTestId("approve-variation").click();
+
+    // Signature first without a name: the client refuses politely.
+    await drawSignature(page);
+    await page.getByTestId("confirm-sign").click();
+    await expect(page.getByTestId("variation-message")).toContainText("full name");
+
+    await page.getByTestId("sign-name").fill("Casey Customer");
+    await page.getByTestId("confirm-sign").click();
     await expect(page.getByTestId("variation-outcome")).toContainText("Approved");
+    await expect(page.getByTestId("variation-signedby")).toContainText("Casey Customer");
 
     const { data } = await db!.from("wo_variations")
-      .select("status, customer_responded_at").eq("id", variationId).single();
-    const v = data as { status: string; customer_responded_at: string | null };
+      .select("status, customer_responded_at, signed_name, signed_at, signature")
+      .eq("id", variationId).single();
+    const v = data as {
+      status: string; customer_responded_at: string | null;
+      signed_name: string | null; signed_at: string | null; signature: string | null;
+    };
     expect(v.status).toBe("customer_approved");
     expect(v.customer_responded_at).not.toBeNull();
+    expect(v.signed_name).toBe("Casey Customer");
+    expect(v.signed_at).not.toBeNull();
+    expect(v.signature).toMatch(/^data:image\/png;base64,/);
+    // A drawn squiggle is real image data, not a token-size stub.
+    expect((v.signature ?? "").length).toBeGreaterThan(500);
+  });
+
+  test("declining needs no signature and changes nothing on the job", async ({ page }) => {
+    // A second variation, seeded and priced the same way.
+    const { data: seeded } = await db!.from("wo_variations").insert({
+      work_order_id: fixture!.workOrderId,
+      category: "customer_request",
+      comment: "Could you also do the letterbox?",
+      est_hours: 1,
+      status: "raised",
+    }).select("id").single();
+    const declineId = (seeded as { id: string }).id;
+    const priced = await rpcAs(staff!, "wo_price_variation", {
+      p_variation_id: declineId, p_price_cents: 12_000,
+      p_inputs: { hours: 1 }, p_priced_lines: [{ label: "Labour — 1 hr", cents: 12_000 }],
+      p_hours: 1,
+    });
+    expect(priced).toMatch(/^ok:/);
+
+    const { data: surfacesBefore } = await db!.from("wo_surfaces")
+      .select("id, state, removed_from_scope").eq("work_order_id", fixture!.workOrderId).order("id");
+
+    await page.goto(`/v/${priced.slice(3)}`);
+    await page.getByTestId("decline-variation").click();
+    await page.getByTestId("confirm-decline").click();
+    await expect(page.getByTestId("variation-outcome")).toContainText("Declined");
+
+    const { data: after } = await db!.from("wo_variations")
+      .select("status, signed_name, signature").eq("id", declineId).single();
+    const v = after as { status: string; signed_name: string | null; signature: string | null };
+    expect(v.status).toBe("declined");
+    expect(v.signed_name).toBeNull();
+    expect(v.signature).toBeNull();
+
+    // Declined keeps everything unchanged — no strike, no state moves.
+    const { data: surfacesAfter } = await db!.from("wo_surfaces")
+      .select("id, state, removed_from_scope").eq("work_order_id", fixture!.workOrderId).order("id");
+    expect(surfacesAfter).toEqual(surfacesBefore);
   });
 
   test("a stranger's token gets a 404, never a 403", async ({ page }) => {

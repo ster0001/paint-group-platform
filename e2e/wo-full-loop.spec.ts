@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { credentials, missingCreds, signIn } from "./helpers";
+import { credentials, missingCreds, signIn, TINY_SIGNATURE_PNG } from "./helpers";
 import {
   accessTokenFor, completePreStart, completePrep, contractorIdForEmail, createLoopFixture, customerIdForEmail,
   destroyLoopFixture, rpcAs, rpcAsJson, serviceClient, type LoopFixture,
@@ -146,8 +146,13 @@ test.describe("the whole loop, one job", () => {
     });
     expect(priced).toMatch(/^ok:/);
 
-    const approved = await rpcAs(customer!, "wo_customer_respond_variation", {
+    // One-tap approval is gone (ruling 1, 24 Aug): approving means SIGNING.
+    expect(await rpcAs(customer!, "wo_customer_respond_variation", {
       p_token: priced.slice(3), p_approve: true, p_note: "",
+    })).toBe("error:signature_required");
+
+    const approved = await rpcAs(customer!, "wo_customer_sign_variation", {
+      p_token: priced.slice(3), p_name: "Loop Customer", p_signature: TINY_SIGNATURE_PNG,
     });
     expect(approved).toBe("ok:approved");
 

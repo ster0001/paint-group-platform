@@ -150,7 +150,7 @@ export async function loadJobMoney(supabase: SupabaseClient, estimateId: string)
       : Promise.resolve({ data: [] }),
     woId
       ? supabase.from("wo_variations")
-          .select("id, category, comment, status, price_cents, credit, contractor_delta_cents, customer_responded_at")
+          .select("id, category, comment, status, price_cents, credit, contractor_delta_cents, customer_responded_at, signed_name, signed_at")
           .eq("work_order_id", woId)
       : Promise.resolve({ data: [] }),
   ]);
@@ -169,7 +169,7 @@ export async function loadJobMoney(supabase: SupabaseClient, estimateId: string)
     variations: (variations ?? []) as {
       id: string; category: string; comment: string; status: string;
       price_cents: number | null; credit: boolean; contractor_delta_cents: number | null;
-      customer_responded_at: string | null;
+      customer_responded_at: string | null; signed_name: string | null; signed_at: string | null;
     }[],
     wo: wo as { id: string; wo_ref: string; stage: string; contractor_payment: string | null } | null,
   };

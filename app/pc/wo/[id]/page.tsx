@@ -59,7 +59,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
         .select("id, heading, heading_meta, label, state, rectification")
         .eq("work_order_id", id).order("sort"),
       supabase.from("wo_variations")
-        .select("id, category, comment, status, est_hours, price_cents, contractor_delta_cents, released_at")
+        .select("id, category, comment, status, est_hours, price_cents, contractor_delta_cents, released_at, credit, signed_name, signed_at, needs_manual_deduction, deduction_cents")
         .eq("work_order_id", id).order("created_at", { ascending: false }),
       supabase.from("wo_updates").select("id, draft_text, final_text, status, for_date")
         .eq("work_order_id", id).order("for_date", { ascending: false }).limit(1),
@@ -202,13 +202,17 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     id: string; category: string; comment: string; status: VariationStatus;
     est_hours: string | null; price_cents: number | null;
     contractor_delta_cents: number | null; released_at: string | null;
+    credit: boolean; signed_name: string | null; signed_at: string | null;
+    needs_manual_deduction: boolean; deduction_cents: number | null;
   }[]);
 
   const contract = row.estimates?.total_cents ?? 0;
   const contractorPay = row.contractor_payment_cents ?? 0;
+  // Signed credits subtract — same signature rule as the ledger (a signed
+  // customer approval already counts; the contractor step is pay-side only).
   const approvedVariations = variations
-    .filter((v) => v.status === "contractor_accepted")
-    .reduce((sum, v) => sum + (v.price_cents ?? 0), 0);
+    .filter((v) => v.status === "contractor_accepted" || v.status === "customer_approved")
+    .reduce((sum, v) => sum + (v.credit ? -(v.price_cents ?? 0) : (v.price_cents ?? 0)), 0);
   const pendingVariations = variations.some((v) =>
     v.status === "raised" || v.status === "priced" || v.status === "customer_approved");
   const gp = contract > 0 ? Math.round(((contract - contractorPay) / contract) * 1000) / 10 : 0;
@@ -253,7 +257,13 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
           <span className="mi"><span>Contract inc GST</span><b data-testid="money-contract">{money(contract)}</b></span>
           <span className="mi"><span>Variations</span>
             <b style={{ color: pendingVariations ? "var(--amber)" : undefined }} data-testid="money-variations">
-              {pendingVariations ? "+ pending" : approvedVariations > 0 ? `+ ${money(approvedVariations)}` : "—"}
+              {pendingVariations
+                ? "+ pending"
+                : approvedVariations > 0
+                  ? `+ ${money(approvedVariations)}`
+                  : approvedVariations < 0
+                    ? `− ${money(Math.abs(approvedVariations))}`
+                    : "—"}
             </b>
           </span>
           <span className="mi"><span>Contractor</span><b>{money(contractorPay)}</b></span>
@@ -463,8 +473,17 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
               </div>
               <div className="draft">
                 &ldquo;{v.comment}&rdquo; <b>— {v.category.replace(/_/g, " ")}
-                {v.est_hours ? ` · est. ${Number(v.est_hours)} hrs` : ""}</b>
+                {v.est_hours ? ` · est. ${Number(v.est_hours)} hrs` : ""}
+                {v.credit ? " · credit" : ""}</b>
               </div>
+              {v.signed_name && (
+                <p className="note" data-testid={`variation-signed-${v.id}`}>
+                  ✓ Signed by {v.signed_name}
+                  {v.signed_at
+                    ? ` on ${new Date(v.signed_at).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}`
+                    : ""}
+                </p>
+              )}
               {/* What the painter photographed when they raised it — pricing a
                   variation off a one-line comment was guesswork. */}
               <PhotoGrid

@@ -125,7 +125,7 @@ export default function InvoiceDoc({
         <div>
           <div className="n">{l.title}</div>
           {l.detail && <div className="d2">{l.detail}</div>}
-          {l.approvedOn && <div className="appr">✓ Approved by customer {l.approvedOn}</div>}
+          {l.approvedOn && <div className="appr">✓ {l.approvedOn}</div>}
         </div>
         <div className="a">{fmtSigned2(l.amountExCents)}</div>
         {isDraft && <button className="edit" aria-label="Edit line" onClick={() => startEdit(l)}>✎</button>}

@@ -6,6 +6,7 @@ import { reportIfError } from "@/lib/monitoring/report";
 import type { CustomerSnapshot, SnapshotPaint } from "@/lib/customer/snapshot";
 import { DEFAULT_DEPOSIT_PCT } from "@/lib/invoicing/settings";
 import PresentationBlocks from "./PresentationBlocks";
+import SignaturePad from "@/app/components/SignaturePad";
 import "../customer.css";
 
 // The public token page keeps this row shape; the builder passes a live snapshot
@@ -821,66 +822,6 @@ function PaintCard({ p }: { p: SnapshotPaint }) {
         )}
         {p.customerVisible && p.guarantee && <p className="pc-guarantee">{p.guarantee}</p>}
       </div>
-    </div>
-  );
-}
-
-// A simple canvas signature pad. Emits a PNG data URL as the customer draws, or
-// null when cleared/empty. Works with mouse and touch via pointer events.
-function SignaturePad({ onChange }: { onChange: (dataUrl: string | null) => void }) {
-  const ref = useRef<HTMLCanvasElement | null>(null);
-  const drawing = useRef(false);
-  const dirty = useRef(false);
-
-  useEffect(() => {
-    const c = ref.current;
-    if (!c) return;
-    // Size the backing store to the element for crisp lines on all displays.
-    const dpr = Math.min(window.devicePixelRatio || 1, 3);
-    const rect = c.getBoundingClientRect();
-    c.width = Math.round(rect.width * dpr);
-    c.height = Math.round(rect.height * dpr);
-    const ctx = c.getContext("2d");
-    if (ctx) { ctx.scale(dpr, dpr); ctx.lineWidth = 2; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#0a0b0d"; }
-  }, []);
-
-  const pos = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-  };
-  const start = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId);
-    const ctx = e.currentTarget.getContext("2d");
-    if (!ctx) return;
-    drawing.current = true;
-    const p = pos(e);
-    ctx.beginPath(); ctx.moveTo(p.x, p.y);
-  };
-  const move = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!drawing.current) return;
-    const ctx = e.currentTarget.getContext("2d");
-    if (!ctx) return;
-    const p = pos(e);
-    ctx.lineTo(p.x, p.y); ctx.stroke();
-    dirty.current = true;
-  };
-  const end = () => {
-    if (!drawing.current) return;
-    drawing.current = false;
-    if (dirty.current && ref.current) onChange(ref.current.toDataURL("image/png"));
-  };
-  const clear = () => {
-    const c = ref.current; if (!c) return;
-    const ctx = c.getContext("2d");
-    if (ctx) ctx.clearRect(0, 0, c.width, c.height);
-    dirty.current = false;
-    onChange(null);
-  };
-
-  return (
-    <div className="sigpad">
-      <canvas ref={ref} className="sigcanvas" onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerLeave={end} />
-      <button type="button" className="sigclear" onClick={clear}>Clear</button>
     </div>
   );
 }

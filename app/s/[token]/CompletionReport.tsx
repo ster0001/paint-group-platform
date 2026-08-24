@@ -10,7 +10,12 @@ import type { WOPhoto } from "@/lib/workorder/photos";
  * "we flagged it, you said no" is the record that settles the argument).
  */
 type ReportSurface = { heading: string; label: string; state: string; rectification: boolean };
-type ReportVariation = { category: string; comment: string; status: string; price_cents: number | null };
+type ReportVariation = {
+  category: string; comment: string; status: string; price_cents: number | null;
+  // Present on reports frozen after the A1 drawn-signature build; older
+  // reports simply don't carry them and render as before.
+  credit?: boolean; signed_name?: string | null; signed_at?: string | null;
+};
 type ReportQa = { kind: string; result: string | null; thin_record: boolean };
 
 export type Report = {
@@ -84,7 +89,13 @@ export default function CompletionReport({
                 {v.comment ? ` — ${v.comment}` : ""}
                 {v.status === "declined"
                   ? <em> · flagged by the painter, declined — not part of the work</em>
-                  : v.price_cents != null ? ` · ${money(v.price_cents)}` : ""}
+                  : v.price_cents != null ? ` · ${v.credit ? "−" : ""}${money(v.price_cents)}` : ""}
+                {v.signed_name ? (
+                  <em>
+                    {" "}· signed by {v.signed_name}
+                    {v.signed_at ? ` on ${dateFmt(v.signed_at)}` : ""}
+                  </em>
+                ) : null}
               </li>
             ))}
           </ul>

@@ -1202,3 +1202,30 @@ dedicated test project. Settings gained an Invoicing folder (entity, bank,
 money defaults); banking now has ONE editor that writes both
 company_profile (estimate header) and invoicing_bank (invoices) in
 lock-step.
+
+## Invoice-builder addendum A1 — drawn variation signatures + the working scope (24 Aug 2026)
+
+Ruling 1 made law (migration `20261116`): a variation is APPROVED only by
+`wo_customer_sign_variation` — name + drawn PNG (data URL, stored on
+`wo_variations.signature/signed_name/signed_at`, the estimates.accepted_signature
+pattern); the old one-tap approve in `wo_customer_respond_variation` now answers
+`error:signature_required` (decline stays one tap). The pad itself is ONE shared
+component now — `app/components/SignaturePad.tsx` — used by `/e` acceptance and
+`/v` approval; `/v` also renders the credit sign, the engine's `priced_lines`,
+old → new job total (from `invoice_ledger` via the token RPC), and the signed-by
+record; the signer's name travels to the invoice line detail
+(`app/invoicing/inv/[id]`) and the completion report. Rulings 2–3 machinery: a
+signed CREDIT strikes its `wo_surfaces` rows (`removed_from_scope`, never
+deleted; tick RPC refuses them, the stage gate no longer counts them, reseeds
+keep them) — but only `todo` surfaces; any started/done surface flips
+`needs_manual_deduction` and the PC sets `deduction_cents` by hand via
+`wo_set_variation_deduction` (⚑10 stands — deductions are never computed).
+Contractors ACKNOWLEDGE credits (`wo_contractor_acknowledge_variation`, no veto,
+refuses while a manual deduction is unset); additions keep release → accept.
+The estimate side is now DB-frozen: trigger `estimates_frozen` refuses changes
+to builder_state/sent_snapshot/money columns while status='accepted'
+(service_role exempt), and post-acceptance edits live on
+`public.wo_working_scopes` — accepted_state (immutable baseline, trigger-guarded)
++ working_state, written only by `wo_open_working_scope` (clone-on-first-open) /
+`wo_save_working_scope`, both staff-gated. Contract tests:
+`lib/workorder/variationSign.contract.test.ts`.

@@ -33,7 +33,13 @@ export default async function InvoiceDocPage({
       detail: l.description.includes(" — ") ? l.description.slice(l.description.indexOf(" — ") + 3) : "",
       description: l.description,
       amountExCents: l.amount_ex_cents,
-      approvedOn: v?.customer_responded_at ? shortDay(v.customer_responded_at) : null,
+      // Ruling 1 (addendum): the drawn signature travels to the invoice line
+      // detail — name the signer when there is one.
+      approvedOn: v?.signed_name
+        ? `Signed by ${v.signed_name} · ${shortDay(v.signed_at ?? v.customer_responded_at ?? "")}`
+        : v?.customer_responded_at
+          ? `Approved by customer ${shortDay(v.customer_responded_at)}`
+          : null,
     };
   });
 

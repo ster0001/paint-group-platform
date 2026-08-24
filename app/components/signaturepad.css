@@ -1,0 +1,6 @@
+/* The shared signature pad. Base look lives here so /e and /v render the same
+   box; customer.css keeps its identical .cv-scoped rules for the estimate page
+   (same values — the cascade cannot diverge them). */
+.sigpad { position: relative; }
+.sigcanvas { width: 100%; height: 160px; background: #ffffff; border: 1px solid var(--line, #2a2f36); border-radius: 8px; display: block; touch-action: none; cursor: crosshair; }
+.sigclear { position: absolute; top: 8px; right: 8px; font-family: var(--mono, monospace); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted, #8a93a0); background: rgba(255,255,255,0.85); border: 1px solid var(--line, #2a2f36); border-radius: 6px; padding: 3px 8px; cursor: pointer; }

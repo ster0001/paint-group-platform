@@ -65,6 +65,41 @@ if (contractorId) {
     if (error) console.log(`~ contractors row: ${error.message} (fine if columns differ — fix forward)`);
     else console.log("+ contractors row created");
   } else console.log("= contractors row exists");
+
+  // Offerable = a valid insurance document (contractor_recompute_offerable).
+  // Without one, send_offer refuses with error:not_offerable and every loop
+  // suite dies at step 1 — same as the prod test contractor, which has one.
+  const { data: crow } = await service.from("contractors").select("id, offerable").eq("profile_id", contractorId).maybeSingle();
+  if (crow && !crow.offerable) {
+    // The compliance trigger checks the path sits in the contractor's own
+    // folder AND that a real object exists in contractor-docs — so upload one.
+    const path = `${crow.id}/c1-insurance.pdf`;
+    const pdf = Buffer.from("%PDF-1.4\n%c1 seed insurance placeholder\n%%EOF\n");
+    const up = await service.storage.from("contractor-docs")
+      .upload(path, pdf, { contentType: "application/pdf", upsert: true });
+    if (up.error) console.log(`~ insurance upload: ${up.error.message}`);
+
+    const future = new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+    const { data: doc } = await service.from("contractor_documents")
+      .select("id").eq("contractor_id", crow.id).eq("kind", "insurance").maybeSingle();
+    // Phase F: offerable also needs verified_at — a human has seen the doc.
+    const fields = { file_url: path, expires_on: future, verified_at: new Date().toISOString() };
+    const write = doc
+      ? service.from("contractor_documents").update(fields).eq("id", doc.id)
+      : service.from("contractor_documents").insert({ contractor_id: crow.id, kind: "insurance", ...fields });
+    const { error } = await write;
+    if (error) console.log(`~ insurance doc: ${error.message}`);
+    else {
+      // Belt and braces: the docs trigger recomputes on row changes, but a
+      // no-op update recomputes nothing — ask for it explicitly.
+      const { error: rec } = await service.rpc("contractor_recompute_offerable", { p_cid: crow.id });
+      if (rec) console.log(`~ recompute offerable: ${rec.message}`);
+      const { data: after } = await service.from("contractors").select("offerable").eq("id", crow.id).single();
+      console.log(after?.offerable
+        ? "+ insurance doc in place (contractor now offerable)"
+        : "~ contractor still not offerable — check contractor_documents");
+    }
+  } else if (crow) console.log("= contractor already offerable");
 }
 
 // One customers row, for specs that attach a customer to an estimate.

@@ -25,3 +25,16 @@
 .cv-done.approved { border-color: rgba(47,164,107,.45); background: rgba(47,164,107,.07); }
 .cv-done.approved b { color: var(--emerald); }
 .cv-done.declined { border-color: var(--line); }
+
+/* the engine's line detail, and old → new */
+.cv-lines { list-style: none; margin: 12px 0 0; padding: 0; border-top: 1px solid var(--line); }
+.cv-lines li { display: flex; align-items: baseline; gap: 10px; padding: 7px 0; border-bottom: 1px dashed var(--line); font-size: 13.5px; }
+.cv-lines li span { color: var(--muted); }
+.cv-lines li b { margin-left: auto; font-family: var(--mono); font-size: 13px; }
+.cv-oldnew { display: flex; align-items: baseline; gap: 8px; margin-top: 12px; font-size: 13px; }
+.cv-oldnew > span:first-child { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.cv-oldnew b { font-family: var(--mono); font-size: 14px; color: var(--muted); }
+.cv-oldnew b.cv-new { color: var(--emerald); font-size: 15px; }
+.cv-oldnew em { color: var(--muted); font-style: normal; }
+.cv-incgst { color: var(--muted); font-size: 11px; }
+.cv-signedby { font-family: var(--mono); font-size: 11px; letter-spacing: .04em; }
