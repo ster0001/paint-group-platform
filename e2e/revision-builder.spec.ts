@@ -179,8 +179,14 @@ test.describe("the revision builder — diff → signed variations", () => {
     // View invoice: the customer-doc preview, headed as an INVOICE (Tom,
     // 24 Aug close-off) and built live from the working scope.
     await page.getByTestId("view-invoice").click();
-    await expect(page.getByTestId("invoice-preview")).toBeVisible();
-    await expect(page.getByTestId("invoice-preview")).toContainText(/Invoice\s+EST-/);
+    const preview = page.getByTestId("invoice-preview");
+    await expect(preview).toBeVisible();
+    await expect(preview).toContainText(/Invoice\s+EST-/);
+    // Invoice dress: no acceptance machinery, no quote-speak anywhere.
+    await expect(preview).toContainText("Your invoice · incl. GST");
+    await expect(preview).not.toContainText("Accept estimate");
+    await expect(preview).not.toContainText("Valid 60 days");
+    await expect(preview).not.toContainText("What happens when you accept");
     await page.getByTestId("back-to-revision").click();
     await expect(page.getByTestId("revision-panel")).toBeVisible();
   });

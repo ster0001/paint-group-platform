@@ -68,6 +68,9 @@ export default function CustomerEstimate({
   docLabel?: "Estimate" | "Invoice";
 }) {
   const gstRate = (snap.gstRatePct ?? 10) / 100;
+  // Invoice dress (Tom, 24 Aug close-off): the revision preview is the
+  // INVOICE the customer will see — no acceptance machinery, no quote-speak.
+  const invoiceMode = docLabel === "Invoice";
   const interactive = !preview && !!token; // real customer page can write; builder preview cannot
 
   const [selected, setSelected] = useState<Set<string>>(() => new Set(selectedOptionsInit ?? []));
@@ -327,21 +330,25 @@ export default function CustomerEstimate({
 
           <div className="pricecard">
             <div>
-              <div className="pricelabel">Your painting quote · incl. GST</div>
+              <div className="pricelabel">{invoiceMode ? "Your invoice · incl. GST" : "Your painting quote · incl. GST"}</div>
               <div className="price">{money0(total)}</div>
             </div>
-            {!done && (
+            {!done && !invoiceMode && (
               <div className="cta-row print-hide">
                 <a className="btn btn-primary" href="#accept">Accept estimate</a>
                 <button className="btn btn-ghost" onClick={() => { setPanel("ask"); document.getElementById("accept")?.scrollIntoView(); }}>Ask a question</button>
               </div>
             )}
           </div>
-          <p className="viewnote">Valid 60 days{validUntil ? `, until ${dateFmt(validUntil)}` : ""}.</p>
+          {!invoiceMode && (
+            <p className="viewnote">Valid 60 days{validUntil ? `, until ${dateFmt(validUntil)}` : ""}.</p>
+          )}
 
-          <div className="cta-row print-hide" style={{ marginTop: 14 }}>
-            <button className="btn btn-ghost" onClick={() => window.print()}>⤓ Download estimate (PDF)</button>
-          </div>
+          {!invoiceMode && (
+            <div className="cta-row print-hide" style={{ marginTop: 14 }}>
+              <button className="btn btn-ghost" onClick={() => window.print()}>⤓ Download estimate (PDF)</button>
+            </div>
+          )}
 
           {interactive && (
             <>
@@ -355,16 +362,18 @@ export default function CustomerEstimate({
         </div>
 
         {/* COLOUR CONSULTATION — reassurance callout */}
+        {!invoiceMode && (
         <div className="colourbox">
           <div className="cb-title">Colour consultation included</div>
           <p>Colours are confirmed after you accept. We provide unlimited samples, so you can try out for yourself in your own light.</p>
         </div>
+        )}
 
         {/* PRESENTATION BLOCKS — view-only, between hero and scope */}
-        {snap.presentation?.blocks?.length ? <PresentationBlocks blocks={snap.presentation.blocks} /> : null}
+        {!invoiceMode && snap.presentation?.blocks?.length ? <PresentationBlocks blocks={snap.presentation.blocks} /> : null}
 
         {/* PHOTOS */}
-        {snap.areas.some((a) => a.photos.length) && (
+        {!invoiceMode && snap.areas.some((a) => a.photos.length) && (
           <section>
             <h2>Your home, as we saw it</h2>
             <p className="sub">Photos from your enquiry and our site notes. Your estimate is scoped to these exact rooms and surfaces.</p>
@@ -444,7 +453,7 @@ export default function CustomerEstimate({
         })()}
 
         {/* OPTIONS */}
-        {snap.options.length > 0 && (
+        {!invoiceMode && snap.options.length > 0 && (
           <section>
             <h2>Optional extras</h2>
             <p className="sub">Add any of these to your estimate — your total updates instantly, and your selection is saved when you accept.</p>
@@ -499,13 +508,16 @@ export default function CustomerEstimate({
             <div className="trow"><span className="l">GST</span><span className="v">{money2(gst)}</span></div>
             <div className="trow total"><span className="l">Total incl. GST</span><span className="v">{money2(total)}</span></div>
           </div>
+          {!invoiceMode && (
           <div className="deposit">
             <div className="l"><b>Deposit payable ({depositPct}%)</b><span>Payable in full prior to work commencement · balance on completion, after your walkthrough</span></div>
             <div className="v">{money2(deposit)}</div>
           </div>
+          )}
         </section>
 
         {/* PROCESS */}
+        {!invoiceMode && (
         <section>
           <h2>What happens when you accept</h2>
           <div className="steps">
@@ -516,8 +528,10 @@ export default function CustomerEstimate({
             <div className="step"><span className="stepnum" /><div><b>Final walkthrough</b><p>We walk through every room with you to confirm you&apos;re 100% satisfied before final payment.</p></div></div>
           </div>
         </section>
+        )}
 
         {/* TRUST */}
+        {!invoiceMode && (
         <section>
           <h2>Why Melburnians choose us</h2>
           <div className="trust">
@@ -526,9 +540,10 @@ export default function CustomerEstimate({
             <div className="tcard"><div className="tval gold">Master Painters</div><div className="tlab">accredited member</div></div>
           </div>
         </section>
+        )}
 
         {/* ACCEPT / DECLINE / ASK */}
-        {!done && !interactive && (
+        {!done && !interactive && !invoiceMode && (
           <section id="accept">
             <div className="acceptpanel cutin">
               <h2>Ready when you are</h2>
@@ -649,13 +664,17 @@ export default function CustomerEstimate({
           </section>
         )}
 
-        <div style={{ marginTop: 28 }} className="print-hide">
-          <button className="btn btn-ghost" onClick={() => window.print()}>⤓ Download estimate (PDF)</button>
-        </div>
+        {!invoiceMode && (
+          <div style={{ marginTop: 28 }} className="print-hide">
+            <button className="btn btn-ghost" onClick={() => window.print()}>⤓ Download estimate (PDF)</button>
+          </div>
+        )}
 
         <footer className="doc">
           {snap.company.name} · Melbourne · ABN {snap.company.abn} · {est}{docLabel === "Estimate" ? ` valid for 60 days from ${dateFmt(sentAt)}` : ""}.
-          This quote covers the scope above; any variation is quoted and approved by you in writing before work proceeds.
+          {invoiceMode
+            ? " This invoice reflects your accepted scope plus every change you have signed."
+            : " This quote covers the scope above; any variation is quoted and approved by you in writing before work proceeds."}
           Fully insured — {snap.proof.liability} public liability. Member, Master Painters Association.
         </footer>
       </main>
@@ -669,7 +688,7 @@ export default function CustomerEstimate({
         deposit={deposit} depositPct={depositPct} acceptedName={acceptedName} done={done}
       />
 
-      {!done && (
+      {!done && !invoiceMode && (
         <div className="stickybar print-hide">
           <div className="p"><small>Total incl. GST</small>{money0(total)}</div>
           <a className="btn btn-primary" href="#accept">Accept estimate</a>
