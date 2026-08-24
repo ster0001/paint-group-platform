@@ -1,3 +1,20 @@
+# 24 Aug 2026 — INVOICING IS LIVE ON PRODUCTION (main fast-forwarded to ceb6af9)
+
+Tom put the live Stripe values into Vercel (sk_live + webhook signing secret,
+endpoint registered for checkout.session.completed / charge.refunded /
+payment_intent.payment_failed), said "go live", and main was fast-forwarded
+(08c9f15..ceb6af9 — the 12 invoicing commits, nothing else). Verified on the
+deployed site: the webhook refuses an unsigned probe with 400 "Bad signature."
+(PROOF the secret is loaded — unconfigured answers 503), /invoicing bounces
+anon to /login, an unknown /i token gets the friendly 404. Card payments are
+armed: the Pay button appears on the next ISSUED invoice's customer page.
+
+⚠ BEFORE THE FIRST REAL INVOICE: test runs burned INV-0001..~0016 on the live
+sequence — Tom runs  select setval('public.invoice_no_seq', <last real PaintScout number>);
+so numbering continues from his real book.
+
+---
+
 # 24 Aug 2026 (later still) — C1 LIVE and the Stripe money suite GREEN 6/6
 
 Tom created the test project (qarfyjrzgdeoqbnbbxfp, Sydney). All 103 repo
