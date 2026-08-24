@@ -1,3 +1,29 @@
+# 24 Aug 2026 (night) — Step 4 CLOSED: migration 20261115 live, gates proven on production
+
+Tom ran `20261115_stripe_payments.sql` (read-backs good). Live probes after:
+the idempotency door answers new → retry → done; anon AND staff calling
+`record_stripe_payment` are refused 42501 — the signed webhook (service role)
+is provably the sole writer of card-payment success. Invoicing e2e 9/9 again.
+
+Stripe is now fully built and inert: no STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET
+in any env, so the card path stays invisible (bank transfer only) until keys land.
+Sequence to switch cards on, per Tom's C1 ruling:
+  1. C1 session — dedicated test Supabase project + Stripe TEST keys there only;
+     the test-card e2e (pay in full / duplicate webhook / expired session inert /
+     refund flow) is written IN that session against that stack.
+  2. Then live keys → Vercel env only + webhook endpoint registered in the
+     Stripe dashboard (Developers → Webhooks →
+     https://paint-group-platform.vercel.app/api/webhooks/stripe).
+Tom's question answered in-session: no "API build" needed on his side — two
+dashboard values pasted into Vercel, that's the whole link.
+
+Also closed this session: Settings → Invoicing folder live and verified (BSB
+063-143 / ACC 1064-4591 showing); banking single-sourced (one save writes
+company_profile + invoicing_bank; live rows aligned — company_profile's acc
+had a space, now normalised).
+
+---
+
 # 24 Aug 2026 (evening) — Invoicing Step 3 COMPLETE: PDF · send · token view (branch `feat/invoicing-payments`)
 
 Migration `20261114_invoice_pdf_token.sql` RUN LIVE (Tom, read-backs good). e2e
