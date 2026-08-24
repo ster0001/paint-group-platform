@@ -38,9 +38,20 @@ const dateFmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(
 
 const DECLINE_PICKS = ["Went with another quote", "Postponing", "Price", "Other"];
 
+export type CustomerChanges = {
+  accepted_total_cents: number;
+  adjusted_total_cents: number;
+  variations: {
+    id: string; comment: string; category: string; price_cents: number;
+    credit: boolean; status: string; signed_name: string | null;
+    signed_at: string | null; token: string | null;
+  }[];
+};
+
 export default function CustomerEstimate({
   snapshot: snap, token, status = "sent", acceptedName = null,
   validUntil = null, sentAt = null, selectedOptionsInit = null, preview = false,
+  changes = null,
 }: {
   snapshot: CustomerSnapshot;
   token?: string;
@@ -50,6 +61,8 @@ export default function CustomerEstimate({
   sentAt?: string | null;
   selectedOptionsInit?: string[] | null;
   preview?: boolean;
+  /** Signed / awaiting variations + adjusted total (accepted jobs only). */
+  changes?: CustomerChanges | null;
 }) {
   const gstRate = (snap.gstRatePct ?? 10) / 100;
   const interactive = !preview && !!token; // real customer page can write; builder preview cannot
@@ -255,6 +268,44 @@ export default function CustomerEstimate({
               )}
             </span>
           </div>
+        )}
+
+        {/* Changes since acceptance (24 Aug follow-up): the signed variations
+            move the customer's own figures HERE, on their page — and anything
+            still awaiting their signature links straight to its signing page. */}
+        {done === "accepted" && changes && changes.variations.length > 0 && (
+          <section id="changes" className="resultbanner accepted" style={{ marginTop: 14, display: "block" }} data-testid="customer-changes">
+            <b style={{ fontSize: 15 }}>Changes to your job</b>
+            <ul style={{ listStyle: "none", margin: "10px 0 0", padding: 0 }}>
+              {changes.variations.map((v) => (
+                <li key={v.id} style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 8, padding: "7px 0", borderTop: "1px solid rgba(255,255,255,0.12)", fontSize: 13.5 }}>
+                  <span style={{ fontFamily: "var(--mono)", fontSize: 13 }}>
+                    {v.credit ? "−" : "+"}{money2(v.price_cents)}
+                  </span>
+                  <span>{v.comment || v.category.replace(/_/g, " ")}</span>
+                  {v.status === "priced" && v.token ? (
+                    <a href={`/v/${v.token}`} style={{ marginLeft: "auto", color: "inherit", textDecoration: "underline" }} data-testid={`sign-change-${v.id}`}>
+                      Review &amp; sign →
+                    </a>
+                  ) : (
+                    <em style={{ marginLeft: "auto", fontStyle: "normal", fontSize: 12, opacity: 0.8 }}>
+                      Signed{v.signed_name ? ` by ${v.signed_name}` : ""}{v.signed_at ? ` · ${dateFmt(v.signed_at)}` : ""}
+                    </em>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.25)" }} data-testid="updated-total">
+              <b>Your updated total</b>
+              <b style={{ marginLeft: "auto", fontFamily: "var(--mono)", fontSize: 17 }}>{money2(changes.adjusted_total_cents)}</b>
+              <span style={{ fontSize: 11, opacity: 0.8 }}>incl. GST</span>
+            </div>
+            {changes.variations.some((v) => v.status === "priced") && (
+              <p style={{ margin: "8px 0 0", fontSize: 12, opacity: 0.85 }}>
+                Changes awaiting your signature aren&apos;t in the total yet — they join it the moment you sign.
+              </p>
+            )}
+          </section>
         )}
         {done === "declined" && (
           <div className="resultbanner declined" style={{ marginTop: 28 }}>

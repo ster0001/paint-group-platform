@@ -6,6 +6,9 @@ import { createClient } from "@/lib/supabase/server";
 import type { PricingContext } from "@/lib/pricing/estimate";
 import type { RateItem, Product } from "@/lib/pricing/types";
 import { diffRevision, type RevisionState } from "@/lib/revision/diff";
+import { emailConfigured, sendEmail, sendSms, smsConfigured } from "@/lib/messaging/send";
+import { normalisePhoneAU } from "@/lib/messaging/config";
+import { buildInvoiceEmailHtml } from "@/lib/invoicing/sendInvoice";
 
 /**
  * The revision builder's server side (addendum A2).
@@ -229,4 +232,109 @@ export async function draftRevisionVariationsAction(raw: unknown): Promise<Draft
     acceptedIncCents: diff.acceptedIncCents,
     workingIncCents: diff.workingIncCents,
   };
+}
+
+// ---- send a variation for signature (email + SMS) --------------------------
+
+export type SendVariationResult = {
+  ok: boolean;
+  email?: { status: string; message?: string };
+  sms?: { status: string; message?: string };
+  message?: string;
+};
+
+/**
+ * Tom's follow-up (24 Aug): the signing link goes out through the SAME
+ * messaging rails as estimates — email and text, ⚑16 log-driver when
+ * unconfigured. Recipient comes from the estimate's own contact; nothing is
+ * typed. Re-sending is fine — the link is stable per variation.
+ */
+export async function sendVariationForSignatureAction(raw: unknown): Promise<SendVariationResult> {
+  const parsed = z.object({
+    variationId: uuid.optional(),
+    token: z.string().min(24).max(200).optional(),
+  }).refine((d) => d.variationId || d.token).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+
+  const supabase = await createClient();
+  const query = supabase
+    .from("wo_variations")
+    .select("id, customer_token, status, price_cents, credit, comment, work_orders(estimate_id, wo_ref)");
+  const { data: v } = await (parsed.data.variationId
+    ? query.eq("id", parsed.data.variationId)
+    : query.eq("customer_token", parsed.data.token!)
+  ).maybeSingle();
+  const variation = v as {
+    id: string; customer_token: string | null; status: string;
+    price_cents: number | null; credit: boolean; comment: string;
+    work_orders: { estimate_id: string; wo_ref: string } | null;
+  } | null;
+  if (!variation?.customer_token) return { ok: false, message: "Price it first — there's no signing link yet." };
+  if (variation.status !== "priced") return { ok: false, message: "This one has already been answered." };
+
+  const [{ data: est }, { data: settingsRows }] = await Promise.all([
+    supabase.from("estimates").select("builder_state, title").eq("id", variation.work_orders?.estimate_id ?? "").maybeSingle(),
+    supabase.from("settings").select("key, value").eq("key", "company_profile").maybeSingle()
+      .then((r) => ({ data: r.data ? [r.data] : [] })),
+  ]);
+  const contact = ((est?.builder_state as { contact?: { first_name?: string; email?: string; phone?: string } } | null)?.contact) ?? null;
+  const company = ((settingsRows?.[0] as { value?: { name?: string; email?: string } } | undefined)?.value) ?? {};
+
+  const link = `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://paint-group-platform.vercel.app"}/v/${variation.customer_token}`;
+  const money = "$" + (Math.abs(variation.price_cents ?? 0) / 100).toLocaleString("en-AU", { minimumFractionDigits: 2 });
+  const first = contact?.first_name || "there";
+  const what = variation.credit
+    ? `a change that takes ${money} off your job total`
+    : `a change adding ${money} to your job total`;
+
+  const result: SendVariationResult = { ok: false };
+
+  if (contact?.email) {
+    if (!emailConfigured()) {
+      console.log(`[variation-send:log-driver] to=${contact.email} link=${link}`);
+      result.email = { status: "not_configured" };
+    } else {
+      const sent = await sendEmail({
+        to: contact.email,
+        subject: `A change to your job needs your signature — ${company.name ?? "Paint Group"}`,
+        replyTo: company.email || undefined,
+        html: buildInvoiceEmailHtml({
+          companyName: company.name ?? "Paint Group",
+          heading: "A change to your job needs your signature",
+          intro:
+            `Hello ${first},\n\n` +
+            `There's ${what}: ${variation.comment || "a scope change"}. ` +
+            `Please review and sign it at the link below — nothing changes on your invoice until you do.`,
+          link,
+          buttonLabel: "Review & sign the change",
+          bank: {},
+          reference: null,
+        }),
+      });
+      result.email = { status: sent.status, ...("message" in sent ? { message: sent.message } : {}) };
+    }
+  }
+
+  if (contact?.phone) {
+    const to = normalisePhoneAU(contact.phone);
+    if (!smsConfigured()) {
+      console.log(`[variation-send:log-driver] sms=${contact.phone} link=${link}`);
+      result.sms = { status: "not_configured" };
+    } else if (!to) {
+      result.sms = { status: "error", message: "That mobile number doesn't look Australian." };
+    } else {
+      const sent = await sendSms({
+        to,
+        body: `${company.name ?? "Paint Group"}: ${what} on your job needs your signature. Review & sign: ${link}`,
+      });
+      result.sms = { status: sent.status, ...("message" in sent ? { message: sent.message } : {}) };
+    }
+  }
+
+  if (!contact?.email && !contact?.phone) {
+    return { ok: false, message: "No email or mobile on the estimate's contact — copy the link instead." };
+  }
+  result.ok = result.email?.status === "sent" || result.sms?.status === "sent"
+    || result.email?.status === "not_configured" || result.sms?.status === "not_configured";
+  return result;
 }

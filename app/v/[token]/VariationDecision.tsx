@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import SignaturePad from "@/app/components/SignaturePad";
 import { respondToVariationAction, signVariationAction } from "./actions";
 
@@ -16,10 +16,12 @@ const dateFmt = (iso: string) =>
  * one-tap it always was — nobody signs to say no.
  */
 export default function VariationDecision({
-  token, priceCents, credit, status, signedName, signedAt,
+  token, priceCents, credit, status, signedName, signedAt, estimateToken = null,
 }: {
   token: string; priceCents: number; credit: boolean; status: string;
   signedName: string | null; signedAt: string | null;
+  /** Their own /e page — where signing lands them, updated figures and all. */
+  estimateToken?: string | null;
 }) {
   const [state, setState] = useState(status);
   const [message, setMessage] = useState<string | null>(null);
@@ -29,9 +31,23 @@ export default function VariationDecision({
   const [panel, setPanel] = useState<"none" | "sign" | "decline">("none");
   const [doneName, setDoneName] = useState(signedName);
   const [doneAt, setDoneAt] = useState(signedAt);
+  const [justSigned, setJustSigned] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  if (state === "customer_approved" || state === "contractor_accepted") {
+  const approved = state === "customer_approved" || state === "contractor_accepted";
+
+  // Tom's ruling (24 Aug follow-up): signing takes the customer back to THEIR
+  // page, where the change now shows on their figures. A fresh signature
+  // redirects after a beat; an older visit keeps the button only.
+  useEffect(() => {
+    if (!justSigned || !estimateToken) return;
+    const t = setTimeout(() => {
+      window.location.assign(`/e/${estimateToken}#changes`);
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [justSigned, estimateToken]);
+
+  if (approved) {
     return (
       <div className="cv-done approved" data-testid="variation-outcome">
         <b>Approved — thank you.</b>
@@ -45,6 +61,16 @@ export default function VariationDecision({
             Signed by {doneName}
             {doneAt ? ` on ${dateFmt(doneAt)}` : ""}.
           </p>
+        )}
+        {estimateToken && (
+          <a
+            className="cv-btn primary"
+            style={{ display: "block", textAlign: "center", marginTop: 12, textDecoration: "none" }}
+            href={`/e/${estimateToken}#changes`}
+            data-testid="back-to-invoice"
+          >
+            {justSigned ? "See your updated invoice → (taking you there…)" : "See your updated invoice →"}
+          </a>
         )}
       </div>
     );
@@ -77,6 +103,7 @@ export default function VariationDecision({
         setDoneName(name.trim());
         setDoneAt(new Date().toISOString());
         setState("customer_approved");
+        setJustSigned(true);
       } else setMessage(result.message);
     });
   }

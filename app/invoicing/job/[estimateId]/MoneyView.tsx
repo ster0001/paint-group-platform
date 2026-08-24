@@ -117,6 +117,21 @@ export default function MoneyView({
         </div>
         <h1>{address}</h1>
         <div className="sub">{jobTitle ? `${jobTitle} · ` : ""}Money view</div>
+        {/* The one door for changing what this job charges (Tom, 24 Aug):
+            everything is measured, engine-priced and customer-SIGNED there —
+            the invoice editor no longer takes manual lines. */}
+        <Link
+          href={`/quote?id=${estimateId}&mode=revision`}
+          data-testid="revise-scope-button"
+          style={{
+            display: "inline-block", marginTop: 12,
+            background: "var(--amber, #e0a83c)", color: "#141414",
+            fontWeight: 700, fontSize: 13, padding: "10px 16px",
+            borderRadius: 10, textDecoration: "none",
+          }}
+        >
+          ✎ Revise scope — price &amp; sign changes to this invoice
+        </Link>
       </header>
 
       {/* payment stage progress bar */}

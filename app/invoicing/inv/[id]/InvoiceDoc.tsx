@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
-  addLineAction,
   issueAndSendAction,
   recordDriftAsVariationAction,
   recordPaymentAction,
@@ -93,7 +92,7 @@ export default function InvoiceDoc({
     setDollars((l.amountExCents / 100).toFixed(2));
   };
 
-  const lineEditor = (l: DocLine | null) => (
+  const lineEditor = (l: DocLine) => (
     <div className="line" style={{ display: "block" }}>
       <input type="text" style={editInput} value={desc} placeholder="Line description"
         onChange={(e) => setDesc(e.target.value)} data-testid="line-desc" />
@@ -101,17 +100,13 @@ export default function InvoiceDoc({
         placeholder="Amount ex GST (dollars)" onChange={(e) => setDollars(e.target.value)} data-testid="line-amount" />
       <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
         <button className="mini cy" disabled={busy || !desc.trim() || !Number.isFinite(Number(dollars))}
-          onClick={() => run(() => l
-            ? updateLineAction({ invoiceId, estimateId, lineId: l.id, description: desc.trim(), amountExCents: Math.round(Number(dollars) * 100) })
-            : addLineAction({ invoiceId, estimateId, description: desc.trim(), amountExCents: Math.round(Number(dollars) * 100) }))}>
+          onClick={() => run(() => updateLineAction({ invoiceId, estimateId, lineId: l.id, description: desc.trim(), amountExCents: Math.round(Number(dollars) * 100) }))}>
           Save
         </button>
-        {l && (
-          <button className="mini" disabled={busy}
-            onClick={() => { if (confirm("Remove this line from the claim?")) run(() => removeLineAction({ invoiceId, estimateId, lineId: l.id })); }}>
-            Remove
-          </button>
-        )}
+        <button className="mini" disabled={busy}
+          onClick={() => { if (confirm("Remove this line from the claim?")) run(() => removeLineAction({ invoiceId, estimateId, lineId: l.id })); }}>
+          Remove
+        </button>
         <button className="mini" onClick={() => setEditing(null)}>Cancel</button>
       </div>
     </div>
@@ -217,11 +212,15 @@ export default function InvoiceDoc({
           </>
         )}
 
-        {isDraft && editing === "new" && lineEditor(null)}
-        {isDraft && editing !== "new" && (
-          <button className="add-line" onClick={() => { setEditing("new"); setDesc(""); setDollars(""); }}>
-            + Add a line (manual — flagged if it moves off the ledger)
-          </button>
+        {/* Tom's ruling (24 Aug follow-up): NO manual lines. Every change to
+            the invoice travels through Revise scope — measured, engine-priced,
+            and SIGNED — so nothing lands here the customer didn't approve. */}
+        {isDraft && (
+          <a className="add-line" href={`/quote?id=${estimateId}&mode=revision`}
+            style={{ display: "block", textAlign: "center", textDecoration: "none" }}
+            data-testid="revise-scope-hint">
+            Need to change this invoice? Revise scope — priced by the engine, signed by the customer →
+          </a>
         )}
 
         <div className="totals">

@@ -1322,3 +1322,25 @@ e2e: `e2e/contractor-invoicing.spec.ts` (7 scenarios — all three §8.5 accept
 criteria) + the full-loop's sign-off assertion now covers the auto-draft;
 `ciStateMachine.ts` mirrors the guard. Loop fixtures delete contractor
 invoices in teardown (work_order_id is RESTRICT).
+
+## Revision builder = THE invoice surface (24 Aug 2026, Tom's follow-up)
+
+Five rulings in one pass. (1) The money view's "Revise scope" is now a
+prominent amber button under the header (crumb link stays). (2) The invoice
+document editor takes NO manual lines any more — the add-line control is gone,
+replaced by a link to Revise scope; every change to an invoice is measured,
+engine-priced and customer-SIGNED (amend/remove on existing lines and the
+reconciliation banner remain as the safety net). (3) In revision mode the
+customer tab is labelled INVOICE and always renders LIVE from the working
+scope — "the final invoice, previewed" — with a View invoice button on the
+RevisionPanel flipping to it. (4) Signing links go out through the messaging
+rails: `sendVariationForSignatureAction` (email via the branded shell + SMS,
+recipient from the estimate's own contact, ⚑16 log-driver), with per-variation
+"Email & text to customer" buttons beside Copy on both fresh drafts and
+standing ones. (5) Signing lands the customer back on THEIR page: migration
+`20261120` adds `estimate_changes_by_token` (signed + awaiting variations,
+adjusted total — customer-safe) and `estimate_token` on the variation token
+read; /v's approved state auto-redirects (4s) to `/e/<token>#changes` and /e
+renders "Changes to your job" — each signed change, sign-links for pending
+ones, and the ledger's updated total to the cent. e2e: revision-builder 7/7
+(the new customer-journey test walks /v → /e for real).

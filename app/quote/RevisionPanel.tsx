@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import type { RevisionDiff } from "@/lib/revision/diff";
-import { draftRevisionVariationsAction, type DraftedVariation } from "./revisionActions";
+import {
+  draftRevisionVariationsAction,
+  sendVariationForSignatureAction,
+  type DraftedVariation,
+} from "./revisionActions";
 
 const money = (c: number) =>
   "$" + (Math.abs(c) / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -27,18 +31,42 @@ export type ExistingRevisionVariation = {
  * recompute and draft — nothing here writes money.
  */
 export default function RevisionPanel({
-  estimateId, diff, existing, saveFirst,
+  estimateId, diff, existing, saveFirst, onViewInvoice,
 }: {
   estimateId: string;
   diff: RevisionDiff;
   existing: ExistingRevisionVariation[];
   /** The builder's own save() — the server drafts from the SAVED scope. */
   saveFirst: () => Promise<unknown>;
+  /** Flip to the customer tab — what the final invoice will read. */
+  onViewInvoice?: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [drafted, setDrafted] = useState<DraftedVariation[] | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [sending, setSending] = useState<string | null>(null);
+  const [sentIds, setSentIds] = useState<string[]>([]);
+
+  async function sendLink(token: string) {
+    setSending(token);
+    setMessage(null);
+    try {
+      const result = await sendVariationForSignatureAction({ token });
+      if (result.ok) {
+        setSentIds((s) => [...s, token]);
+        const bits = [
+          result.email ? `email ${result.email.status === "sent" ? "sent" : result.email.status.replace(/_/g, " ")}` : null,
+          result.sms ? `text ${result.sms.status === "sent" ? "sent" : result.sms.status.replace(/_/g, " ")}` : null,
+        ].filter(Boolean);
+        setMessage(`Signing link on its way — ${bits.join(", ")}.`);
+      } else {
+        setMessage(result.message ?? "Couldn't send that.");
+      }
+    } finally {
+      setSending(null);
+    }
+  }
 
   const signedOnes = existing.filter(
     (v) => v.status === "customer_approved" || v.status === "contractor_accepted",
@@ -111,12 +139,6 @@ export default function RevisionPanel({
           {" — "}new drafts carry only what goes beyond these.
         </p>
       )}
-      {pending.length > 0 && !drafted && (
-        <p className="mt-1 text-[11px] text-amber-400/90">
-          {pending.length} draft{pending.length === 1 ? "" : "s"} already awaiting signature —
-          re-drafting updates {pending.length === 1 ? "it" : "them"} in place.
-        </p>
-      )}
 
       <div className="mt-3 flex items-center gap-3">
         <button
@@ -128,31 +150,68 @@ export default function RevisionPanel({
         >
           {busy ? "Drafting…" : "Save & draft variations for signature"}
         </button>
+        {onViewInvoice && (
+          <button
+            type="button"
+            onClick={onViewInvoice}
+            className="rounded-lg border border-white/20 px-3 py-2 text-xs font-semibold text-gray-200 hover:bg-white/5"
+            data-testid="view-invoice"
+            title="What the customer's final invoice will read once every change is signed"
+          >
+            View invoice
+          </button>
+        )}
         {message && <span className="text-xs text-gray-400" data-testid="revision-message">{message}</span>}
       </div>
 
-      {drafted && drafted.some((d) => d.state === "drafted") && (
-        <ul className="mt-3 space-y-1.5" data-testid="drafted-list">
-          {drafted.filter((d) => d.state === "drafted").map((d) => (
-            <li key={d.blockRef} className="flex items-center gap-2 text-xs">
-              <span className={`font-mono ${d.credit ? "text-rose-400" : "text-emerald-400"}`}>
-                {d.credit ? "− " : "+ "}{money(d.priceIncCents)}
-              </span>
-              <span>{d.title}</span>
-              {d.token && (
+      {/* One row per live signing link — freshly drafted this visit, or a
+          draft still awaiting the customer from earlier. Copy it, or fire it
+          straight to their email + mobile through the messaging rails. */}
+      {(() => {
+        const rows: { key: string; title: string; credit: boolean; priceIncCents: number; token: string }[] = [
+          ...(drafted ?? [])
+            .filter((d) => d.state === "drafted" && d.token)
+            .map((d) => ({ key: d.blockRef, title: d.title, credit: d.credit, priceIncCents: d.priceIncCents, token: d.token! })),
+          ...(!drafted
+            ? pending
+                .filter((p) => p.customer_token)
+                .map((p) => ({
+                  key: p.id, title: p.comment || "Awaiting signature", credit: p.credit,
+                  priceIncCents: p.price_cents ?? 0, token: p.customer_token!,
+                }))
+            : []),
+        ];
+        if (rows.length === 0) return null;
+        return (
+          <ul className="mt-3 space-y-1.5" data-testid="drafted-list">
+            {rows.map((d) => (
+              <li key={d.key} className="flex flex-wrap items-center gap-2 text-xs">
+                <span className={`font-mono ${d.credit ? "text-rose-400" : "text-emerald-400"}`}>
+                  {d.credit ? "− " : "+ "}{money(d.priceIncCents)}
+                </span>
+                <span>{d.title}</span>
                 <button
                   type="button"
                   className="rounded border border-white/15 px-2 py-0.5 text-[11px] text-gray-300 hover:bg-white/5"
-                  onClick={() => copyLink(d.token!)}
-                  data-testid={`copy-link-${d.blockRef.replace(/[^a-z0-9]/gi, "-")}`}
+                  onClick={() => copyLink(d.token)}
+                  data-testid={`copy-link-${d.key.replace(/[^a-z0-9]/gi, "-")}`}
                 >
                   {copied === d.token ? "Copied ✓" : "Copy signing link"}
                 </button>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+                <button
+                  type="button"
+                  className="rounded bg-cyan-500/90 px-2 py-0.5 text-[11px] font-semibold text-black hover:bg-cyan-400 disabled:opacity-50"
+                  onClick={() => sendLink(d.token)}
+                  disabled={sending === d.token}
+                  data-testid={`send-link-${d.key.replace(/[^a-z0-9]/gi, "-")}`}
+                >
+                  {sending === d.token ? "Sending…" : sentIds.includes(d.token) ? "Sent ✓ — send again" : "Email & text to customer"}
+                </button>
+              </li>
+            ))}
+          </ul>
+        );
+      })()}
     </section>
   );
 }

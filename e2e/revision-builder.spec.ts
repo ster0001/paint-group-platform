@@ -43,6 +43,7 @@ let estimateId = "";
 let workOrderId = "";
 let ctx: PricingContext | null = null;
 let frozenRow: Record<string, unknown> | null = null;
+let estimateShareToken = "";
 
 test.describe.configure({ mode: "serial" });
 
@@ -75,10 +76,12 @@ test.describe("the revision builder — diff → signed variations", () => {
       modSel: MODSEL, materials: {},
     });
 
-    const token = `rev1test${Math.abs(Date.now() % 1e10)}${process.pid}`;
+    estimateShareToken = `rev1test${Math.abs(Date.now() % 1e10)}${process.pid}`;
+    const token = estimateShareToken;
     const { data: est, error } = await sb.from("estimates").insert({
       title: "Revision e2e",
       status: "sent",
+      sent_at: new Date().toISOString(), // /e gates on sent_at, not status
       level_of_finish: 3,
       share_token: token,
       rate_card_id: card.id,
@@ -86,13 +89,27 @@ test.describe("the revision builder — diff → signed variations", () => {
       total_cents: totals.totalCents,
       builder_state: acceptedState,
       sent_snapshot: {
+        // A VALID customer snapshot — /e refuses anything else (version guard),
+        // and the changes test walks the real customer page.
+        version: 1,
+        company: {
+          name: "Paint Group", addressLine1: "", addressLine2: "", phone: "",
+          abn: "", email: "", estimatorName: "", estimatorTitle: "",
+          estimatorPhone: "", logoUrl: "",
+        },
+        estRef: "EST-REV1",
+        contactName: "Revision Customer",
+        contactEmail: "",
         totals: { totalCents: totals.totalCents },
         depositPct: 10,
         jobAddress: `9 Revision Test Pl ${process.pid}`,
         jobTitle: "Interior repaint",
         gstRatePct: 10,
         baseSubtotalCents: totals.netSubtotalCents,
-        areas: [], lineItems: [], options: [],
+        areas: [], lineItems: [], options: [], paints: [],
+        inclusions: [], exclusions: [],
+        proof: { rating: 4.9, reviews: 100, liability: "$20m", warrantyYears: 2 },
+        terms: "",
       },
     }).select("id").single();
     if (error) throw new Error(`fixture estimate: ${error.message}`);
@@ -231,6 +248,30 @@ test.describe("the revision builder — diff → signed variations", () => {
       staff!, "invoice_ledger_staff", { p_estimate_id: estimateId });
     expect(ledger[0].adjusted_contract_cents)
       .toBe(((est as { accepted_total_cents: number }).accepted_total_cents) - credit.price_cents);
+  });
+
+  test("the customer's own page shows the change and the updated total", async ({ page }) => {
+    // /v for the signed credit now offers the way back…
+    const { data: credit } = await db!.from("wo_variations")
+      .select("customer_token, price_cents").eq("work_order_id", workOrderId)
+      .eq("credit", true).single();
+    const c = credit as { customer_token: string; price_cents: number };
+    await page.goto(`/v/${c.customer_token}`);
+    await expect(page.getByTestId("back-to-invoice")).toBeVisible();
+
+    // …and /e carries the change: the signed credit, the pending addition
+    // with its signing link, and the ledger's adjusted total to the cent.
+    await page.goto(`/e/${estimateShareToken}`);
+    const section = page.getByTestId("customer-changes");
+    await expect(section).toBeVisible();
+    await expect(section).toContainText("Signed by Revision Customer");
+    await expect(section.getByRole("link", { name: /Review & sign/ })).toBeVisible();
+
+    const ledger = await rpcAsJson<{ adjusted_contract_cents: number }[]>(
+      staff!, "invoice_ledger_staff", { p_estimate_id: estimateId });
+    const expected = "$" + (ledger[0].adjusted_contract_cents / 100)
+      .toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    await expect(page.getByTestId("updated-total")).toContainText(expected);
   });
 
   test("re-drafting after the signature drafts only what goes beyond it", async ({ page }) => {

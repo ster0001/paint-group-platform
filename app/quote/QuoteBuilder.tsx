@@ -1385,7 +1385,9 @@ export default function QuoteBuilder({
           <div className="inline-flex overflow-hidden rounded-md border border-line2" style={{ fontFamily: "var(--font-mono, monospace)" }}>
             {([
               { key: "builder", label: "BUILDER" },
-              { key: "customer", label: "ESTIMATE" },
+              // In revision mode the customer tab IS the invoice preview —
+              // what the final invoice will read once changes are signed.
+              { key: "customer", label: revision ? "INVOICE" : "ESTIMATE" },
               { key: "workorder", label: "WORK ORDER" },
             ] as const).map((t) => (
               <button
@@ -1511,16 +1513,20 @@ export default function QuoteBuilder({
       {customerView && (
         /* ---- live customer view: the same dark page the customer opens ---- */
         <div className="mt-4">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-700">
+          <div className={`mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md px-3 py-2 text-xs ${revision ? "bg-amber-50 text-amber-800" : "bg-blue-50 text-blue-700"}`}>
             <span>
-              <span className="font-semibold">{sentSnapshot ? "The customer's copy" : "Not published yet"}</span>
+              <span className="font-semibold">
+                {revision ? "The final invoice, previewed" : sentSnapshot ? "The customer's copy" : "Not published yet"}
+              </span>
               <span>
-                {sentSnapshot
-                  ? " · exactly what they see at their link. Editing republishes it."
-                  : " · a preview. Sending publishes this to the customer."}
+                {revision
+                  ? " · the working scope as the customer's invoice will read once every change is signed. Their live page keeps the accepted figures until then."
+                  : sentSnapshot
+                    ? " · exactly what they see at their link. Editing republishes it."
+                    : " · a preview. Sending publishes this to the customer."}
               </span>
             </span>
-            {!locked && (
+            {!locked && !revision && (
               <button
                 onClick={() => { setEditing(true); setViewMode("builder"); }}
                 className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
@@ -1528,13 +1534,26 @@ export default function QuoteBuilder({
                 Edit estimate
               </button>
             )}
+            {revision && (
+              <button
+                onClick={() => setViewMode("builder")}
+                className="rounded-md bg-amber-500 px-3 py-1.5 text-xs font-medium text-black hover:bg-amber-400"
+                data-testid="back-to-revision"
+              >
+                Back to the builder
+              </button>
+            )}
           </div>
-          <div className="cv overflow-hidden rounded-xl border border-gray-200">
+          <div className="cv overflow-hidden rounded-xl border border-gray-200" data-testid={revision ? "invoice-preview" : undefined}>
             {/* Published snapshot when there is one — this is literally the
                 customer's copy. Only an unsent estimate falls back to a live
-                build, because there is nothing published yet. */}
+                build, because there is nothing published yet. REVISION mode is
+                the exception the other way: it always builds LIVE from the
+                working scope — that is the whole point of the preview. */}
             <CustomerEstimate
-              snapshot={(sentSnapshot as ReturnType<typeof buildCustomerDoc> | null) ?? buildCustomerDoc(shareToken ?? "PREVIEW00")}
+              snapshot={revision
+                ? buildCustomerDoc(shareToken ?? "PREVIEW00")
+                : (sentSnapshot as ReturnType<typeof buildCustomerDoc> | null) ?? buildCustomerDoc(shareToken ?? "PREVIEW00")}
               validUntil={validUntil}
               sentAt={sentAt}
               preview
@@ -1630,6 +1649,7 @@ export default function QuoteBuilder({
             diff={revisionDiff}
             existing={revisionVariations}
             saveFirst={save}
+            onViewInvoice={() => setViewMode("customer")}
           />
         </div>
       )}

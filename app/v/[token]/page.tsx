@@ -17,6 +17,7 @@ type Row = {
   credit: boolean; priced_lines: PricedLine[] | null;
   signed_name: string | null; signed_at: string | null;
   adjusted_contract_cents: number | null;
+  estimate_token: string | null;
 };
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -98,6 +99,7 @@ export default async function VariationPage({ params }: { params: Promise<{ toke
           status={row.status}
           signedName={row.signed_name}
           signedAt={row.signed_at}
+          estimateToken={row.estimate_token}
         />
       </div>
     </main>
