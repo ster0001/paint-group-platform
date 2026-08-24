@@ -140,6 +140,20 @@ test.describe("the revision builder — diff → signed variations", () => {
     frozenRow = data as Record<string, unknown>;
   });
 
+  test("every door leads here: money view, locked builder", async ({ page }) => {
+    await signIn(page, staff!, /\/estimates/);
+
+    // From the job's money view…
+    await page.goto(`/invoicing/job/${estimateId}`);
+    await page.getByTestId("revision-builder-link").click();
+    await expect(page.getByTestId("revision-badge")).toBeVisible();
+
+    // …and from the locked estimate builder itself.
+    await page.goto(`/quote?id=${estimateId}`);
+    await page.getByTestId("open-revision").click();
+    await expect(page.getByTestId("revision-badge")).toBeVisible();
+  });
+
   test("remove the pergola, add the garage → two engine-priced drafts", async ({ page }) => {
     // The edit, saved the way the builder saves it.
     const saved = await rpcAs(staff!, "wo_save_working_scope", {

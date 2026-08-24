@@ -105,7 +105,15 @@ export default function MoneyView({
       <header>
         <div className="crumb">
           <Link href={woId ? `/pc/wo/${woId}` : "/pc"}><span className="chev">‹</span> PC Command{woRef ? <> · Work order <span className="mono" style={{ fontSize: 11 }}>{woRef}</span></> : null}</Link>
-          <span style={{ marginLeft: "auto" }}><Link href="/invoicing">Invoicing</Link></span>
+          <span style={{ marginLeft: "auto", display: "inline-flex", gap: 14 }}>
+            {/* The scope door (addendum A2): every accepted job's cost breakdown
+                is editable in the revision builder — the diff becomes signed,
+                engine-priced variations that this ledger then reads. */}
+            <Link href={`/quote?id=${estimateId}&mode=revision`} data-testid="revision-builder-link">
+              Revise scope in builder
+            </Link>
+            <Link href="/invoicing">Invoicing</Link>
+          </span>
         </div>
         <h1>{address}</h1>
         <div className="sub">{jobTitle ? `${jobTitle} · ` : ""}Money view</div>

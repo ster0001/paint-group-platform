@@ -276,8 +276,14 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             </b>
           </span>
           {/* §7 navigation map: the money strip links to the job's money view,
-              and the money view's crumb links back here. */}
-          <a className="btn" style={{ marginLeft: "auto" }} href={`/invoicing/job/${estimateId}`}
+              and the money view's crumb links back here. The revision builder
+              (addendum A2 — measure the change, price it, send for signature)
+              is the scope door on every accepted job. */}
+          <a className="btn" style={{ marginLeft: "auto" }} href={`/quote?id=${estimateId}&mode=revision`}
+            data-testid="revision-builder-link">
+            Revise scope →
+          </a>
+          <a className="btn" href={`/invoicing/job/${estimateId}`}
             data-testid="money-view-link">
             Money view →
           </a>

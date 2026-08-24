@@ -1408,7 +1408,23 @@ export default function QuoteBuilder({
               CAPTURE
             </a>
           )}
-          {locked && <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">Accepted · locked</span>}
+          {locked && (
+            <>
+              <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">Accepted · locked</span>
+              {/* The accepted estimate is the signed truth; changes happen in
+                  the revision builder over the working scope (addendum A2). */}
+              {quoteId && (
+                <a
+                  href={`/quote?id=${quoteId}&mode=revision`}
+                  className="rounded-md bg-amber-500 px-3 py-2 text-sm font-medium text-black hover:bg-amber-400"
+                  data-testid="open-revision"
+                  title="Edit the working scope — the diff becomes signed variations"
+                >
+                  Revise scope
+                </a>
+              )}
+            </>
+          )}
           {revision && (
             <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700" data-testid="revision-badge">
               Revision · working scope
