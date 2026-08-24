@@ -1,3 +1,34 @@
+# 25 Aug 2026 — HANDOFF TO THE STEP 6 SESSION (costs)
+
+State: main @ e84f432, deployed, live-verified. Migrations 20261111–20261121
+ALL RUN on prod and C1 (109 files, in sync). Working tree clean. The
+invoicing/payments/portal surfaces are DONE through Step 5 + Tom's follow-up
+batches — do not rebuild them; Step 6 fills the gaps they deliberately left:
+
+- **Scope (brief §6.4/6.5/§8.6):** vendors + job_costs (photo/PDF upload,
+  recorded→approved→paid, estimate pass-through linking), materials Airtable
+  sync (`sync_material_costs`, upsert by airtable_record_id, auto-match by
+  order-ref/address, unmatched queue with one-tap assign), Costs tab
+  est-vs-actual bars + margin preview, Payables tab rows for approved-unpaid
+  job costs + the materials unmatched-queue badge.
+- **Where the UI hooks in:** /invoicing Dashboard.tsx Payables tab (tiles +
+  rows pattern established — contractor invoices already live there, with the
+  job's PC stage on each row); the job money view's Costs tab
+  (app/invoicing/job/[estimateId]/MoneyView.tsx — "Materials · other trades"
+  card is the placeholder); derive.ts is where every screen figure must come
+  from (payablesTiles is the sibling pattern).
+- **House rules that bit this build:** migrations idempotent + end with a
+  read-back select; Tom pastes prod SQL (give it paste-ready with expected
+  read-back values; code must deploy inert-but-safe first); C1 harness =
+  scripts/c1/* (apply-migrations, seed, reapply-one for edited files,
+  run-e2e.sh); loop-fixture teardown must delete any new RESTRICT-FK rows;
+  Playwright beforeAll/afterAll are per-describe — hoist shared fixtures.
+- **Coordination:** the Step 5/invoicing session may still be open in another
+  tab. ONE session per working tree — if both are active, coordinate via
+  SendMessage before editing (parity-batch lesson).
+
+---
+
 # 24 Aug 2026 (later) — ADDENDUM A1–A4 + STEP 5 SHIPPED (one session, gates green)
 
 Tom ruled the addendum's four §4 flags at their defaults (drawn-sig wording
