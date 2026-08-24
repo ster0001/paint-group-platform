@@ -1154,3 +1154,24 @@ both surfaces → issue (DB refuses edits after) → bank payment → surfaces
 update → 25% claim server-computed → amend → banner with both resolution
 paths writing events — 6/6 against the live schema, plus the sign-off and
 full-loop suites re-run green.
+
+## Invoicing Step 3 — PDF, send pipeline, customer token view (24 Aug 2026)
+
+One document, three faces: `/i/[token]` renders the customer's invoice as a
+white professional A4 sheet on a dark shell; the print stylesheet IS the PDF
+(the pipeline in `lib/invoicing/pdf.ts` drives headless Chromium at
+`/i/[token]?print=1`, so screen, paper and file can never disagree); staff
+download via `/invoicing/inv/[id]/pdf` (heal-if-missing → signed URL). PDFs
+live in the private `invoice-docs` bucket, written with the service key and
+read only through short-lived signed URLs; `invoice_attach_pdf` /
+`payment_attach_receipt_pdf` write the path exactly once (regeneration is
+refused in the RPC, the trigger and the pipeline — three layers). Receipts
+render from `lib/invoicing/receiptHtml.ts` behind `after()` so recording a
+payment never waits for Chromium. Sending rides the existing lib/messaging
+provider interface (⚑16): configured → Resend email with pay link + bank
+details in ENGLISH tone; not configured → the log driver, and issuing
+proceeds regardless. `invoice_by_token` (migration 20261114) returns exactly
+one invoice's customer-safe payload — drafts only for staff preview,
+unknown tokens are nothing; customer visits write `viewed` (staff previews
+and the PDF printer are recognised and skipped). ATO tax-invoice fields per
+§6.7 are on the document; ⚑11/⚑12 entity + bank come from Settings.

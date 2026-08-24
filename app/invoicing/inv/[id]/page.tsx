@@ -71,6 +71,7 @@ export default async function InvoiceDocPage({
       kind={invoice.kind}
       status={invoice.status}
       number={invoice.number}
+      token={invoice.token}
       isDraft={invoice.status === "draft"}
       totals={{
         subtotalExCents: invoice.subtotal_ex_cents,

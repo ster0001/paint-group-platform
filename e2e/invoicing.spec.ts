@@ -85,8 +85,16 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
 
   test.afterAll(async () => {
     if (!db || !estimateId) return;
-    // A2 teardown order: invoices first (RESTRICT); service_role may delete
-    // issued rows — that is the one sanctioned exemption in the delete guard.
+    // Stored PDFs first (best-effort), then the A2 teardown order: invoices
+    // before estimates (RESTRICT); service_role may delete issued rows —
+    // that is the one sanctioned exemption in the delete guard.
+    const { data: invRows } = await db.from("invoices").select("id").eq("estimate_id", estimateId);
+    for (const r of (invRows ?? []) as { id: string }[]) {
+      const { data: files } = await db.storage.from("invoice-docs").list(r.id);
+      if (files?.length) {
+        await db.storage.from("invoice-docs").remove(files.map((f) => `${r.id}/${f.name}`));
+      }
+    }
     await db.from("invoices").delete().eq("estimate_id", estimateId);
     await db.from("work_orders").delete().eq("estimate_id", estimateId);
     await db.from("follow_ups").delete().eq("estimate_id", estimateId);
@@ -120,8 +128,10 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
   test("issue allocates the number, and the database refuses edits after it", async ({ page }) => {
     await signIn(page, staff!, /estimates/);
     await openMoneyView(page);
-    await page.getByTestId("deposit-draft-card").getByRole("button", { name: "Issue as-is" }).click();
-    await expect(page.getByTestId("deposit-draft-card")).toHaveCount(0, { timeout: 15_000 });
+    await page.getByTestId("deposit-draft-card").getByRole("button", { name: "Issue & send" }).click();
+    // Issue now also renders the PDF (a Chromium print of the token page) and
+    // attempts the email — give the whole pipeline room on a cold dev server.
+    await expect(page.getByTestId("deposit-draft-card")).toHaveCount(0, { timeout: 90_000 });
 
     const { data: issued } = await db!.from("invoices")
       .select("number, status, due_on").eq("id", depositInvoiceId!).single();
@@ -253,5 +263,75 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
       .select("override, status, price_cents").eq("work_order_id", (wo as { id: string }).id).single();
     expect((variation as { override: boolean }).override).toBe(true);
     expect((variation as { status: string }).status).toBe("customer_approved");
+  });
+
+  // ---- Step 3: PDF, token view, view tracking ------------------------------
+
+  async function step3Ready() {
+    const probe = await db!.rpc("invoice_by_token", { p_token: "probe-nonsense-token" });
+    return !(probe.error && /could not find|does not exist|schema cache/i.test(probe.error.message));
+  }
+
+  test("the token link renders exactly one invoice, and only issued ones", async ({ browser }) => {
+    test.skip(!(await step3Ready()), "needs migration 20261114 (invoice pdf + token) applied");
+
+    const { data } = await db!.from("invoices")
+      .select("id, token, number, status, kind").eq("estimate_id", estimateId!);
+    const rows = data as { id: string; token: string; number: string | null; status: string; kind: string }[];
+    const deposit = rows.find((r) => r.kind === "deposit")!;
+    const others = rows.filter((r) => r.id !== deposit.id && r.number);
+
+    // A fresh, signed-out browser — the customer.
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await page.goto(`/i/${deposit.token}`);
+    await expect(page.getByTestId("invoice-sheet")).toBeVisible();
+    await expect(page.getByText("TAX INVOICE")).toBeVisible();
+    await expect(page.getByTestId("invoice-number")).toHaveText(deposit.number!);
+    await expect(page.getByTestId("total-inc")).toHaveText("$1,850.00");
+    await expect(page.getByTestId("gst-amount")).toHaveText("$168.18");
+
+    // Exactly ONE invoice's payload: no other invoice's number, and none of
+    // the codebase's internal money fields, anywhere in the response.
+    const content = await page.content();
+    for (const o of others) expect(content).not.toContain(o.number!);
+    for (const leak of ["marginCents", "margin_cents", "contractorPaymentCents", "contractor_delta_cents"]) {
+      expect(content).not.toContain(leak);
+    }
+
+    // The customer visit wrote the viewed event.
+    const { data: events } = await db!.from("invoice_events")
+      .select("type, actor_kind").eq("invoice_id", deposit.id).eq("type", "viewed");
+    expect((events ?? []).length).toBeGreaterThanOrEqual(1);
+
+    // An unknown token is a plain 404, never a 403.
+    await page.goto("/i/this-token-does-not-exist");
+    await expect(page.getByText("This invoice link isn't active")).toBeVisible();
+    await ctx.close();
+  });
+
+  test("the PDF exists, downloads, and is a real PDF", async ({ page }) => {
+    test.skip(!(await step3Ready()), "needs migration 20261114 (invoice pdf + token) applied");
+    test.setTimeout(180_000);
+
+    await signIn(page, staff!, /estimates/);
+    const res = await page.request.get(`/invoicing/inv/${depositInvoiceId}/pdf`, { timeout: 120_000 });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.body();
+    expect(body.subarray(0, 4).toString()).toBe("%PDF");
+    expect(body.length).toBeGreaterThan(10_000);
+
+    // Immutable: the stored path never changes once written.
+    const { data: first } = await db!.from("invoices").select("pdf_path").eq("id", depositInvoiceId!).single();
+    const res2 = await page.request.get(`/invoicing/inv/${depositInvoiceId}/pdf`);
+    expect(res2.ok()).toBeTruthy();
+    const { data: second } = await db!.from("invoices").select("pdf_path").eq("id", depositInvoiceId!).single();
+    expect((second as { pdf_path: string }).pdf_path).toBe((first as { pdf_path: string }).pdf_path);
+
+    // A second attach attempt is refused by the database, not by politeness.
+    const again = await db!.rpc("invoice_attach_pdf", {
+      p_invoice_id: depositInvoiceId!, p_path: "somewhere/else.pdf",
+    });
+    expect(String(again.data)).toBe("error:pdf_immutable");
   });
 });

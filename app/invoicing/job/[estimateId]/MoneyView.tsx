@@ -8,7 +8,7 @@ import { requestPreviewCents } from "@/lib/invoicing/derive";
 import { gstFromIncCents } from "@/lib/invoicing/gst";
 import {
   invoiceInFullAction,
-  issueInvoiceAction,
+  issueAndSendAction,
   recordPaymentAction,
   requestPaymentAction,
   deleteDraftAction,
@@ -26,6 +26,7 @@ import { fmt0, fmt2, fmtSigned2 } from "../../format";
 
 export type InvoiceCardProp = {
   invoiceId: string;
+  token: string;
   num: string;
   statusLabel: string;
   chip: "paid" | "awaiting" | "sent" | "overdue" | "draft";
@@ -147,8 +148,8 @@ export default function MoneyView({
             <div className="payacts">
               <Link className="mini cy" href={`/invoicing/inv/${draftDeposit.invoiceId}`}>Open the draft</Link>
               <button className="mini" disabled={busy}
-                onClick={() => run(() => issueInvoiceAction({ invoiceId: draftDeposit.invoiceId, estimateId }))}>
-                Issue as-is
+                onClick={() => run(() => issueAndSendAction({ invoiceId: draftDeposit.invoiceId, estimateId }))}>
+                Issue &amp; send
               </button>
             </div>
           </div>
@@ -191,21 +192,27 @@ export default function MoneyView({
               <Link className="mini cy" href={`/invoicing/inv/${c.invoiceId}`}>Open</Link>
               {c.isDraft && (
                 <>
-                  <button className="mini" disabled={busy} onClick={() => run(() => issueInvoiceAction({ invoiceId: c.invoiceId, estimateId }))}>Issue</button>
+                  <button className="mini" disabled={busy} onClick={() => run(() => issueAndSendAction({ invoiceId: c.invoiceId, estimateId }))}>Issue &amp; send</button>
                   <button className="mini" disabled={busy} onClick={() => { if (confirm("Delete this draft? Drafts are the only deletable invoices.")) run(() => deleteDraftAction({ invoiceId: c.invoiceId, estimateId })); }}>Delete</button>
                 </>
               )}
               {c.isOpen && (
                 <>
                   <button className="mini" disabled={busy} onClick={() => { setSheet({ record: c }); setPayDollars((c.balanceCents / 100).toFixed(2)); }}>Record payment</button>
-                  <button className="mini" title="Pay links go live in Step 3 (send pipeline)" disabled>Copy pay link</button>
+                  <button className="mini" onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/i/${c.token}`)
+                      .then(() => setFlash("Pay link copied — paste it anywhere."))
+                      .catch(() => setFlash(`Pay link: ${window.location.origin}/i/${c.token}`));
+                  }}>Copy pay link</button>
                   <button className="mini" disabled={busy} onClick={() => {
                     const reason = prompt("Void this invoice — what's the reason? (The number is burnt, not reused.)");
                     if (reason?.trim()) run(() => voidInvoiceAction({ invoiceId: c.invoiceId, estimateId, reason: reason.trim() }));
                   }}>Void</button>
                 </>
               )}
-              {!c.isDraft && <button className="mini" title="PDFs land in Step 3" disabled>PDF</button>}
+              {!c.isDraft && (
+                <a className="mini" href={`/invoicing/inv/${c.invoiceId}/pdf`} target="_blank" rel="noreferrer">PDF</a>
+              )}
             </div>
           </div>
         ))}

@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
   addLineAction,
-  issueInvoiceAction,
+  issueAndSendAction,
   recordDriftAsVariationAction,
   recordPaymentAction,
   reconcileAdjustmentAction,
   removeLineAction,
+  resendInvoiceAction,
   setDraftTotalAction,
   updateLineAction,
   voidInvoiceAction,
@@ -38,13 +39,14 @@ export type DocLine = {
 export type DocPayment = { label: string; sub: string; amountCents: number };
 
 export default function InvoiceDoc({
-  invoiceId, estimateId, kind, status, number, isDraft, totals, meta, entity, bank, lines, payments, prevNumbers,
+  invoiceId, estimateId, kind, status, number, token, isDraft, totals, meta, entity, bank, lines, payments, prevNumbers,
 }: {
   invoiceId: string;
   estimateId: string;
   kind: string;
   status: string;
   number: string | null;
+  token: string;
   isDraft: boolean;
   totals: {
     subtotalExCents: number; gstCents: number; totalIncCents: number;
@@ -282,22 +284,37 @@ export default function InvoiceDoc({
       </div>
 
       <div className="secacts">
-        <button className="mini" disabled title="The customer token view lands in Step 3">Preview as customer</button>
-        <button className="mini" disabled title="Pay links go live with the send pipeline (Step 3)">Copy pay link</button>
-        <button className="mini" disabled title="PDF generates at issue from Step 3">PDF</button>
+        <a className="mini" href={`/i/${token}?preview=1`} target="_blank" rel="noreferrer">Preview as customer</a>
+        <button className="mini" disabled={isDraft} title={isDraft ? "The link goes live at issue" : undefined}
+          onClick={() => {
+            navigator.clipboard.writeText(`${window.location.origin}/i/${token}`)
+              .then(() => setFlash("Pay link copied — paste it anywhere."))
+              .catch(() => setFlash(`Pay link: ${window.location.origin}/i/${token}`));
+          }}>
+          Copy pay link
+        </button>
+        {isDraft ? (
+          <button className="mini" disabled title="The PDF generates at issue and never changes after">PDF</button>
+        ) : (
+          <a className="mini" href={`/invoicing/inv/${invoiceId}/pdf`} target="_blank" rel="noreferrer">PDF</a>
+        )}
+        {!isDraft && ["issued", "sent", "viewed", "partially_paid"].includes(status) && (
+          <button className="mini" disabled={busy} onClick={() => run(() => resendInvoiceAction({ invoiceId, estimateId }))}>
+            Send again
+          </button>
+        )}
       </div>
 
       <div className="note">
-        Once issued: number allocated · document locked at the database · edits become void-and-reissue or credit note.<br />
-        send · PDF · customer link arrive in Step 3
+        Once issued: number allocated · PDF generated &amp; locked · edits become void-and-reissue or credit note.
       </div>
 
       <div className="actions">
         <Link className="btn ghost" href={`/invoicing/job/${estimateId}`}>Back to the job</Link>
         {isDraft ? (
           <button className="btn primary" disabled={busy}
-            onClick={() => { if (confirm("Issue this invoice? The number is allocated and the document locks.")) run(() => issueInvoiceAction({ invoiceId, estimateId })); }}>
-            Issue…
+            onClick={() => { if (confirm("Issue this invoice and send it to the customer? The number is allocated, the PDF is generated and the document locks.")) run(() => issueAndSendAction({ invoiceId, estimateId })); }}>
+            Issue &amp; send…
           </button>
         ) : ["issued", "sent", "viewed", "partially_paid"].includes(status) ? (
           <button className="btn ghost" disabled={busy} onClick={() => {

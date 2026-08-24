@@ -1,8 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { ensureInvoicePdf, ensureReceiptPdf } from "@/lib/invoicing/pdf";
+import { sendInvoiceEmail, sendReceiptEmail } from "@/lib/invoicing/sendInvoice";
 
 /**
  * Invoicing actions — thin, zod-validated translations over the Step 1/2
@@ -123,7 +127,7 @@ export async function recordPaymentAction(raw: unknown): Promise<InvoicingResult
     })
     .safeParse(raw);
   if (!p.success) return { ok: false, message: "Check the amount and try again." };
-  return call(
+  const result = await call(
     "invoice_record_payment",
     {
       p_invoice_id: p.data.invoiceId,
@@ -132,8 +136,79 @@ export async function recordPaymentAction(raw: unknown): Promise<InvoicingResult
       p_reference: p.data.reference,
     },
     { estimateId: p.data.estimateId, invoiceId: p.data.invoiceId },
-    "Payment recorded.",
+    "Payment recorded — receipt on its way.",
   );
+  if (result.ok) {
+    // Receipt PDF + email ride behind the response (§6.7) — recording a
+    // payment on the phone must not wait for Chromium.
+    const invoiceId = p.data.invoiceId;
+    after(async () => {
+      const service = createServiceClient();
+      if (!service) return;
+      const { data } = await service
+        .from("payments").select("id").eq("invoice_id", invoiceId)
+        .order("created_at", { ascending: false }).limit(1).maybeSingle();
+      const paymentId = (data as { id: string } | null)?.id;
+      if (!paymentId) return;
+      await ensureReceiptPdf(paymentId);
+      await sendReceiptEmail(service, paymentId);
+    });
+  }
+  return result;
+}
+
+/**
+ * The mockup's primary: Issue & send… — allocate the number, lock the
+ * document, render the PDF (a print of the customer page), email the
+ * customer their link. Each stage degrades with a plain-English message
+ * rather than blocking the one before it.
+ */
+export async function issueAndSendAction(raw: unknown): Promise<InvoicingResult> {
+  const p = invoiceRef.safeParse(raw);
+  if (!p.success) return { ok: false, message: "Something went wrong." };
+
+  const issued = await call(
+    "invoice_issue",
+    { p_invoice_id: p.data.invoiceId },
+    { estimateId: p.data.estimateId, invoiceId: p.data.invoiceId },
+  );
+  if (!issued.ok) return issued;
+
+  return finishSend(p.data.invoiceId, p.data.estimateId, "Issued");
+}
+
+/** Re-send an already-issued invoice (records a resend event). */
+export async function resendInvoiceAction(raw: unknown): Promise<InvoicingResult> {
+  const p = invoiceRef.safeParse(raw);
+  if (!p.success) return { ok: false, message: "Something went wrong." };
+  return finishSend(p.data.invoiceId, p.data.estimateId, "Ready");
+}
+
+async function finishSend(
+  invoiceId: string,
+  estimateId: string,
+  verb: string,
+): Promise<InvoicingResult> {
+  const pdfPath = await ensureInvoicePdf(invoiceId);
+  const service = createServiceClient();
+  const outcome = service
+    ? await sendInvoiceEmail(service, invoiceId)
+    : ({ status: "error", message: "service unavailable" } as const);
+
+  if (outcome.status === "sent") {
+    await call("invoice_send", { p_invoice_id: invoiceId, p_channel: "email" },
+      { estimateId, invoiceId });
+    revalidateAll(estimateId, invoiceId);
+    return { ok: true, message: `${verb} and emailed to ${outcome.to}.${pdfPath ? "" : " (PDF still generating — try the PDF button shortly.)"}` };
+  }
+  revalidateAll(estimateId, invoiceId);
+  if (outcome.status === "no_recipient") {
+    return { ok: true, message: `${verb}. No customer email on file — copy the pay link and send it yourself.` };
+  }
+  if (outcome.status === "not_configured") {
+    return { ok: true, message: `${verb}. Email sending isn't switched on yet — copy the pay link and send it yourself.` };
+  }
+  return { ok: true, message: `${verb}, but the email failed to send — copy the pay link and send it yourself.` };
 }
 
 export async function voidInvoiceAction(raw: unknown): Promise<InvoicingResult> {

@@ -43,6 +43,7 @@ export default async function JobMoneyPage({
       const pay = job.payments.find((p) => p.invoice_id === r.id && p.status === "succeeded");
       return {
         invoiceId: r.id,
+        token: r.token,
         num: `${r.number ?? "Draft"} · ${KIND_LABEL[r.kind]}${r.status === "draft" ? " (unnumbered)" : ""}`,
         statusLabel: overdue
           ? `Overdue · was due ${shortDay(r.due_on)}`
