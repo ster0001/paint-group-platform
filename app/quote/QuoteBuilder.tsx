@@ -1557,6 +1557,7 @@ export default function QuoteBuilder({
               validUntil={validUntil}
               sentAt={sentAt}
               preview
+              docLabel={revision ? "Invoice" : "Estimate"}
             />
           </div>
         </div>

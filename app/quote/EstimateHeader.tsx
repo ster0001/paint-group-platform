@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { type CompanyProfile, type Contact, type JobAddress, EMPTY_CONTACT, EMPTY_JOB } from "./company";
+import { contactFieldProblems } from "@/lib/validation/contact";
 
 const contactName = (c: Contact) =>
   [c.first_name, c.last_name].filter(Boolean).join(" ") || c.company || "";
@@ -174,7 +175,16 @@ function ContactModal({ contacts, initial, onClose, onSave }: { contacts: Contac
   const [msg, setMsg] = useState("");
   const set = (patch: Partial<Contact>) => setC((x) => ({ ...x, ...patch }));
 
+  /** Tom (24 Aug): half-entered mobiles/emails never save — they're what
+   * makes a text or an invoice email silently go nowhere later. */
+  function refuseBadFields(): boolean {
+    const problem = contactFieldProblems(c);
+    if (problem) { setMsg(problem); return true; }
+    return false;
+  }
+
   async function saveToContacts() {
+    if (refuseBadFields()) return;
     setSaving(true); setMsg("");
     try {
       const supabase = createClient();
@@ -205,7 +215,7 @@ function ContactModal({ contacts, initial, onClose, onSave }: { contacts: Contac
         <>
           {msg && <span className="mr-auto text-xs text-red-600">{msg}</span>}
           <button onClick={onClose} className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50">Cancel</button>
-          <button onClick={() => onSave(c)} className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50">Use on estimate</button>
+          <button onClick={() => { if (!refuseBadFields()) onSave(c); }} className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50">Use on estimate</button>
           <button onClick={saveToContacts} disabled={saving} className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50">
             {saving ? "Saving…" : "Save to Contacts"}
           </button>

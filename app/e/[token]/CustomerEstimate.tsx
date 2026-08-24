@@ -51,7 +51,7 @@ export type CustomerChanges = {
 export default function CustomerEstimate({
   snapshot: snap, token, status = "sent", acceptedName = null,
   validUntil = null, sentAt = null, selectedOptionsInit = null, preview = false,
-  changes = null,
+  changes = null, docLabel = "Estimate",
 }: {
   snapshot: CustomerSnapshot;
   token?: string;
@@ -63,6 +63,9 @@ export default function CustomerEstimate({
   preview?: boolean;
   /** Signed / awaiting variations + adjusted total (accepted jobs only). */
   changes?: CustomerChanges | null;
+  /** "Invoice" when the revision builder previews the final invoice (Tom,
+   * 24 Aug close-off) — the document's own name, shown in the eyebrow. */
+  docLabel?: "Estimate" | "Invoice";
 }) {
   const gstRate = (snap.gstRatePct ?? 10) / 100;
   const interactive = !preview && !!token; // real customer page can write; builder preview cannot
@@ -317,7 +320,7 @@ export default function CustomerEstimate({
         {/* HERO */}
         <div className="hero cutin">
           <p className="eyebrow">
-            Estimate <b>{est}</b> · Prepared {dateFmt(sentAt)}{snap.company.estimatorName ? ` · Prepared by ${snap.company.estimatorName}` : ""}
+            {docLabel} <b>{est}</b> · Prepared {dateFmt(sentAt)}{snap.company.estimatorName ? ` · Prepared by ${snap.company.estimatorName}` : ""}
           </p>
           <h1>{snap.jobTitle}</h1>
           <p className="address">{snap.jobAddress || snap.company.addressLine1}{snap.contactName ? ` · For ${snap.contactName}` : ""}</p>
@@ -651,7 +654,7 @@ export default function CustomerEstimate({
         </div>
 
         <footer className="doc">
-          {snap.company.name} · Melbourne · ABN {snap.company.abn} · {est} valid for 60 days from {dateFmt(sentAt)}.
+          {snap.company.name} · Melbourne · ABN {snap.company.abn} · {est}{docLabel === "Estimate" ? ` valid for 60 days from ${dateFmt(sentAt)}` : ""}.
           This quote covers the scope above; any variation is quoted and approved by you in writing before work proceeds.
           Fully insured — {snap.proof.liability} public liability. Member, Master Painters Association.
         </footer>

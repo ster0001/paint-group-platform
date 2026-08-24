@@ -253,6 +253,8 @@ export async function sendVariationForSignatureAction(raw: unknown): Promise<Sen
   const parsed = z.object({
     variationId: uuid.optional(),
     token: z.string().min(24).max(200).optional(),
+    // Tom (24 Aug close-off): the sender chooses the channel.
+    via: z.enum(["email", "sms", "both"]).default("both"),
   }).refine((d) => d.variationId || d.token).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };
 
@@ -287,9 +289,19 @@ export async function sendVariationForSignatureAction(raw: unknown): Promise<Sen
     ? `a change that takes ${money} off your job total`
     : `a change adding ${money} to your job total`;
 
+  const via = parsed.data.via;
+  const wantEmail = via !== "sms";
+  const wantSms = via !== "email";
   const result: SendVariationResult = { ok: false };
 
-  if (contact?.email) {
+  if (wantEmail && !contact?.email && via === "email") {
+    return { ok: false, message: "No email on the estimate's contact — add one, or text it instead." };
+  }
+  if (wantSms && !contact?.phone && via === "sms") {
+    return { ok: false, message: "No mobile on the estimate's contact — add one, or email it instead." };
+  }
+
+  if (wantEmail && contact?.email) {
     if (!emailConfigured()) {
       console.log(`[variation-send:log-driver] to=${contact.email} link=${link}`);
       result.email = { status: "not_configured" };
@@ -315,7 +327,7 @@ export async function sendVariationForSignatureAction(raw: unknown): Promise<Sen
     }
   }
 
-  if (contact?.phone) {
+  if (wantSms && contact?.phone) {
     const to = normalisePhoneAU(contact.phone);
     if (!smsConfigured()) {
       console.log(`[variation-send:log-driver] sms=${contact.phone} link=${link}`);
@@ -331,7 +343,7 @@ export async function sendVariationForSignatureAction(raw: unknown): Promise<Sen
     }
   }
 
-  if (!contact?.email && !contact?.phone) {
+  if (!result.email && !result.sms) {
     return { ok: false, message: "No email or mobile on the estimate's contact — copy the link instead." };
   }
   result.ok = result.email?.status === "sent" || result.sms?.status === "sent"

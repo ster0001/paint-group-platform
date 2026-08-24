@@ -175,6 +175,14 @@ test.describe("the revision builder — diff → signed variations", () => {
     await page.goto(`/quote?id=${estimateId}`);
     await page.getByTestId("open-revision").click();
     await expect(page.getByTestId("revision-badge")).toBeVisible();
+
+    // View invoice: the customer-doc preview, headed as an INVOICE (Tom,
+    // 24 Aug close-off) and built live from the working scope.
+    await page.getByTestId("view-invoice").click();
+    await expect(page.getByTestId("invoice-preview")).toBeVisible();
+    await expect(page.getByTestId("invoice-preview")).toContainText(/Invoice\s+EST-/);
+    await page.getByTestId("back-to-revision").click();
+    await expect(page.getByTestId("revision-panel")).toBeVisible();
   });
 
   test("remove the pergola, add the garage → two engine-priced drafts", async ({ page }) => {

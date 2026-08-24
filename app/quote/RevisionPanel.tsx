@@ -48,11 +48,11 @@ export default function RevisionPanel({
   const [sending, setSending] = useState<string | null>(null);
   const [sentIds, setSentIds] = useState<string[]>([]);
 
-  async function sendLink(token: string) {
-    setSending(token);
+  async function sendLink(token: string, via: "email" | "sms" | "both") {
+    setSending(token + via);
     setMessage(null);
     try {
-      const result = await sendVariationForSignatureAction({ token });
+      const result = await sendVariationForSignatureAction({ token, via });
       if (result.ok) {
         setSentIds((s) => [...s, token]);
         const bits = [
@@ -198,15 +198,22 @@ export default function RevisionPanel({
                 >
                   {copied === d.token ? "Copied ✓" : "Copy signing link"}
                 </button>
-                <button
-                  type="button"
-                  className="rounded bg-cyan-500/90 px-2 py-0.5 text-[11px] font-semibold text-black hover:bg-cyan-400 disabled:opacity-50"
-                  onClick={() => sendLink(d.token)}
-                  disabled={sending === d.token}
-                  data-testid={`send-link-${d.key.replace(/[^a-z0-9]/gi, "-")}`}
-                >
-                  {sending === d.token ? "Sending…" : sentIds.includes(d.token) ? "Sent ✓ — send again" : "Email & text to customer"}
-                </button>
+                {/* The sender chooses the channel (Tom, 24 Aug close-off). */}
+                <span className="inline-flex overflow-hidden rounded border border-cyan-500/60 text-[11px] font-semibold">
+                  {([["email", "Email"], ["sms", "Text"], ["both", "Both"]] as const).map(([via, label]) => (
+                    <button
+                      key={via}
+                      type="button"
+                      className="bg-cyan-500/90 px-2 py-0.5 text-black hover:bg-cyan-400 disabled:opacity-50 border-r border-cyan-700/40 last:border-r-0"
+                      onClick={() => sendLink(d.token, via)}
+                      disabled={sending !== null}
+                      data-testid={`send-${via}-${d.key.replace(/[^a-z0-9]/gi, "-")}`}
+                    >
+                      {sending === d.token + via ? "…" : label}
+                    </button>
+                  ))}
+                </span>
+                {sentIds.includes(d.token) && <span className="text-[11px] text-emerald-400">Sent ✓</span>}
               </li>
             ))}
           </ul>

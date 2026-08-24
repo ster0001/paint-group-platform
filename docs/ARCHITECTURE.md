@@ -1370,3 +1370,16 @@ for the bank reference AND the payment date**, and the paid state (with
 remittance) reads straight back in the contractor's portal. e2e:
 contractor-invoicing 12/12 (claims journey incl. bounded fixed claim,
 remainder final, dated payment); revision-builder 8/8 (the /invoices door).
+
+## Close-off batch (24 Aug 2026, night)
+
+Variation signing links now send by CHOICE — Email / Text / Both segmented
+buttons on each link row (`via` on `sendVariationForSignatureAction`; a
+channel with no contact detail names itself instead of silently skipping).
+Contact hygiene: `lib/validation/contact.ts` — a mobile only saves as a full
+Australian mobile (04xx/+614), an email only as a whole address; enforced on
+BOTH ContactModal exits (Save to Contacts and Use on estimate), empty stays
+allowed. The revision builder's INVOICE tab now renders the customer document
+headed "Invoice EST-…" (CustomerEstimate `docLabel` prop — eyebrow + footer
+drop the 60-day validity line), so what staff preview is the invoice the
+customer will see, live from the working scope.
