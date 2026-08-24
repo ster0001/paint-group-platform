@@ -44,6 +44,8 @@ import type { WOPhoto } from "@/lib/workorder/photos";
 import { acceptAttr, checkUpload } from "@/lib/uploads/validate";
 import { reportIfError, errorMessage } from "@/lib/monitoring/report";
 import RevisionPanel, { type ExistingRevisionVariation } from "./RevisionPanel";
+import InvoiceSheet, { type SheetLine } from "@/app/i/[token]/InvoiceSheet";
+import "@/app/i/[token]/invoice.css";
 import { saveWorkingScopeAction } from "./revisionActions";
 import { diffRevision, type RevisionState } from "@/lib/revision/diff";
 
@@ -1544,22 +1546,78 @@ export default function QuoteBuilder({
               </button>
             )}
           </div>
-          <div className="cv overflow-hidden rounded-xl border border-gray-200" data-testid={revision ? "invoice-preview" : undefined}>
+          {revision ? (() => {
+            /* THE INVOICE, previewed (Tom, 25 Aug): the same white A4 sheet as
+               /i/[token] — whose Chromium print IS the PDF — fed LIVE from the
+               working scope. Same component, so preview, page and paper agree. */
+            const snap = buildCustomerDoc(shareToken ?? "PREVIEW00");
+            const plain = (h: string) => h.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+            const asLine = (title2: string, html: string, cents: number): SheetLine => ({
+              description: plain(html) ? `${title2} — ${plain(html)}` : title2,
+              amount_ex_cents: cents, source: "estimate_snapshot", qty: null, approved_on: null,
+            });
+            const sheetLines: SheetLine[] = [
+              ...snap.areas.map((a) => asLine(a.title, a.descriptionHtml, a.priceCents)),
+              ...snap.lineItems.map((l) => asLine(l.title, l.descriptionHtml, l.priceCents)),
+            ];
+            const linesSum = sheetLines.reduce((n, l) => n + l.amount_ex_cents, 0);
+            const sundriesResidual = snap.baseSubtotalCents - linesSum;
+            if (sundriesResidual > 0) {
+              sheetLines.push({ description: "Sundries & consumables", amount_ex_cents: sundriesResidual, source: "estimate_snapshot", qty: null, approved_on: null });
+            }
+            if (totals.discountCents > 0) {
+              sheetLines.push({ description: "Discount", amount_ex_cents: -totals.discountCents, source: "adjustment", qty: null, approved_on: null });
+            }
+            const signedCount = revisionVariations.filter(
+              (v) => v.status === "customer_approved" || v.status === "contractor_accepted").length;
+            const unsigned = revisionDiff?.changes.length ?? 0;
+            return (
+              <div className="invoice-view" data-testid="invoice-preview">
+                <div className="sheet-wrap">
+                  <InvoiceSheet
+                    doc={{
+                      number: null, kind: "final", status: "draft",
+                      issued_on: null, due_on: null,
+                      subtotal_ex_cents: totals.netSubtotal,
+                      gst_cents: totals.gst,
+                      total_inc_cents: totals.total,
+                      billed_to: snap.contactName,
+                      job_address: snap.jobAddress,
+                      job_title: snap.jobTitle,
+                      lines: sheetLines, payments: [], paid_cents: 0,
+                      adjusted_contract_cents: null,
+                      previously_invoiced_cents: null, previous_numbers: null,
+                    }}
+                    entity={{
+                      tradingName: company.name,
+                      address: [company.addressLine1, company.addressLine2].filter(Boolean).join(", "),
+                      abn: company.abn,
+                    }}
+                    bank={{ accountName: company.bankName, bank: company.bank, bsb: company.bsb, acc: company.acc }}
+                    extraNote={
+                      <div className="status-note" data-testid="live-preview-note">
+                        Live from the working scope — every edit updates these figures.
+                        {signedCount > 0 ? ` ${signedCount} signed change${signedCount === 1 ? "" : "s"} built in.` : ""}
+                        {unsigned > 0 ? ` ${unsigned} change${unsigned === 1 ? "" : "s"} shown here still need${unsigned === 1 ? "s" : ""} the customer's signature before reaching their invoice.` : ""}
+                      </div>
+                    }
+                  />
+                </div>
+              </div>
+            );
+          })() : (
+          <div className="cv overflow-hidden rounded-xl border border-gray-200">
             {/* Published snapshot when there is one — this is literally the
                 customer's copy. Only an unsent estimate falls back to a live
-                build, because there is nothing published yet. REVISION mode is
-                the exception the other way: it always builds LIVE from the
-                working scope — that is the whole point of the preview. */}
+                build, because there is nothing published yet. */}
             <CustomerEstimate
-              snapshot={revision
-                ? buildCustomerDoc(shareToken ?? "PREVIEW00")
-                : (sentSnapshot as ReturnType<typeof buildCustomerDoc> | null) ?? buildCustomerDoc(shareToken ?? "PREVIEW00")}
+              snapshot={(sentSnapshot as ReturnType<typeof buildCustomerDoc> | null) ?? buildCustomerDoc(shareToken ?? "PREVIEW00")}
               validUntil={validUntil}
               sentAt={sentAt}
               preview
-              docLabel={revision ? "Invoice" : "Estimate"}
             />
           </div>
+          )}
         </div>
       )}
 

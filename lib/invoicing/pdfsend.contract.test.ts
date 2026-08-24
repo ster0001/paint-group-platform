@@ -11,6 +11,9 @@ const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
 const MIG = read("supabase/migrations/20261114000000_invoice_pdf_token.sql");
 const PDF = read("lib/invoicing/pdf.ts");
 const PAGE = read("app/i/[token]/page.tsx");
+// The document itself moved into the SHARED sheet (also fed by the revision
+// builder's live preview) — the ATO essentials live there now.
+const SHEET = read("app/i/[token]/InvoiceSheet.tsx");
 
 describe("regeneration after issue is impossible in code, not just unlinked", () => {
   it("the attach RPC writes pdf_path exactly once", () => {
@@ -50,10 +53,12 @@ describe("⚑16 — sending degrades to the log driver, never blocks issuing", (
     expect(SEND).toContain('return { status: "not_configured", to };');
   });
   it("ATO print essentials are on the customer document", () => {
-    expect(PAGE).toContain("TAX INVOICE");
-    expect(PAGE).toContain("ABN {entity.abn}");
-    expect(PAGE).toMatch(/GST<\/span>/);
-    expect(PAGE).toContain("Total (inc GST)");
-    expect(PAGE).toContain("Invoice to");
+    expect(SHEET).toContain("TAX INVOICE");
+    expect(SHEET).toContain("ABN {entity.abn}");
+    expect(SHEET).toMatch(/GST<\/span>/);
+    expect(SHEET).toContain("Total (inc GST)");
+    expect(SHEET).toContain("Invoice to");
+    // …and the token page still renders that exact component (the PDF prints it).
+    expect(PAGE).toContain("<InvoiceSheet");
   });
 });

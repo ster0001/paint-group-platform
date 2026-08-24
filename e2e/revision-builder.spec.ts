@@ -181,12 +181,15 @@ test.describe("the revision builder — diff → signed variations", () => {
     await page.getByTestId("view-invoice").click();
     const preview = page.getByTestId("invoice-preview");
     await expect(preview).toBeVisible();
-    await expect(preview).toContainText(/Invoice\s+EST-/);
-    // Invoice dress: no acceptance machinery, no quote-speak anywhere.
-    await expect(preview).toContainText("Your invoice · incl. GST");
+    // THE white A4 sheet — the same component /i/[token] prints as the PDF —
+    // fed live from the working scope. No estimate anything.
+    await expect(preview.getByTestId("invoice-sheet")).toBeVisible();
+    await expect(preview).toContainText("TAX INVOICE");
+    await expect(preview.getByTestId("invoice-number")).toHaveText("DRAFT");
+    await expect(preview).toContainText("Live from the working scope");
+    await expect(preview).toContainText("How to pay — bank transfer");
+    await expect(preview.getByTestId("total-inc")).toBeVisible();
     await expect(preview).not.toContainText("Accept estimate");
-    await expect(preview).not.toContainText("Valid 60 days");
-    await expect(preview).not.toContainText("What happens when you accept");
     await page.getByTestId("back-to-revision").click();
     await expect(page.getByTestId("revision-panel")).toBeVisible();
   });
