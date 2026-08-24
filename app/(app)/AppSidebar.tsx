@@ -17,7 +17,7 @@ const NAV = [
   // explicitly; the scheduling timeline is its first tab rather than a separate
   // entry here.
   { href: "/pc", label: "Projects", icon: "◉" },
-  { href: "/invoices", label: "Invoices", icon: "🧾" },
+  { href: "/invoicing", label: "Invoicing", icon: "🧾" },
   { href: "/contacts", label: "Contacts", icon: "👤" },
   { href: "/contractors", label: "Contractors", icon: "🎨" },
   { href: "/settings", label: "Settings", icon: "⚙️" },
