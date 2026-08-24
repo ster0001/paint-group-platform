@@ -1,3 +1,48 @@
+# 24 Aug 2026 (later) — ADDENDUM A1–A4 + STEP 5 SHIPPED (one session, gates green)
+
+Tom ruled the addendum's four §4 flags at their defaults (drawn-sig wording
+drafted + flagged for the legal batch · sign-first release · PC-manual
+deductions · no auto-email), then A1–A4 built and shipped:
+
+- **A1** (migration `20261116`, RUN LIVE, read-backs matched): variation
+  approval = DRAWN signature (`wo_customer_sign_variation`; one-tap approve
+  refuses), shared `app/components/SignaturePad`, accepted estimates DB-frozen
+  (`estimates_frozen` trigger), `wo_working_scopes` (immutable baseline),
+  strike machinery (`removed_from_scope` — tick refuses, gate skips, reseed
+  keeps), acknowledge + `wo_set_variation_deduction`.
+- **A2** (`20261117`, RUN LIVE): QuoteBuilder `mode="revision"` over the
+  working scope, priced on the estimate's OWN rate card; `lib/revision/diff.ts`
+  chains whole-estimate re-prices so Σ deltas ≡ working − accepted to the
+  cent; `wo_draft_revision_variation` (one live draft per block, re-draft
+  updates in place, signed variations subtract from re-drafts).
+- **A3** (`20261118`, RUN LIVE): contractor acknowledge for credits (no veto;
+  started work routes the deduction to the PC — card on the job page + /pc
+  queue), strike-through on portal/console/job-sheet, `lib/workorder/
+  contractorPay.ts` = the one adjusted-pay rule.
+- **A4 PROOF** — `e2e/revision-reconcile.spec.ts`: ledger = engine working
+  total exactly, final invoice = ledger with each signed variation its own
+  GST-backed-out line, drift 0, estimate row byte-identical. All five new
+  suites green on C1; A1–A4 pushed to main @ 50bcdf9 after Tom's read-backs.
+
+**Step 5 — contractor invoicing v2** (migration `20261119`, RUN LIVE by Tom;
+code @ 7aa02cb): sign-off AUTO-DRAFTS the contractor invoice (offer + accepted
+additions − deductions; `contractor_invoice_amounts` twins
+lib/workorder/contractorPay, contract-tested); INC-ANCHORED GST pinned at
+submit (Tax Invoice vs Invoice heading — ⚑ accountant); portal Money =
+review + one-tap submit (validated: entity, 11-digit ABN, bank, ⚑10
+pending-deduction refusal; CI- number at submit); dashboard Payables tab =
+tiles + inline Approve / Mark paid (bank ref) → REM- number + remittance PDF
+emailed behind after(); RCTI toggle on the contractors page (⚑9 — approve
+straight from draft once the agreement is recorded). e2e
+`contractor-invoicing.spec.ts` 7/7 on C1 + 45 regression across the sign-off
+tails; unit 858. Tom's eyeball script: `docs/manual-tests/invoicing-step5.md`.
+
+⚠ Standing: `setval('invoice_no_seq', …)` before the first real invoice.
+ci_no_seq/remittance_no_seq are fresh on prod (test numbers burned on C1 only).
+NEXT: Step 6 (costs) → Step 7 (⛔ until acceptance-to-paid-workflow.md rules).
+
+---
+
 # 24 Aug 2026 — INVOICING IS LIVE ON PRODUCTION (main fast-forwarded to ceb6af9)
 
 Tom put the live Stripe values into Vercel (sk_live + webhook signing secret,
