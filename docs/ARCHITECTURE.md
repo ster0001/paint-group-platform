@@ -1275,3 +1275,20 @@ the finish gate mean live scope. The one pay rule lives in
 credits, manual deduction winning; only `contractor_accepted` counts) and the
 invoicing job money view's Costs tab reads it. e2e:
 `e2e/revision-contractor.spec.ts` (5 scenarios AS CONTRACTOR/PC).
+
+## Invoice-builder addendum A4 — the reconciliation proof (24 Aug 2026)
+
+`e2e/revision-reconcile.spec.ts` is the addendum's acceptance, run in real
+roles and real UIs on the C1 stack: accept → revision (one add, one credit)
+drafted from the real builder → both signed on /v with the drawn pad →
+contractor accepts + acknowledges → then the arithmetic: the ledger's
+adjusted contract equals `priceEstimateTotals(workingScope)` TO THE CENT
+(accepted + Σ signed variations = the engine's working total, by the diff
+chain's construction); `invoice_create_final` drafts to exactly that figure,
+inc-anchored GST, each signed variation its own line at
+`variationLineExCents(price)` with the credit sign flipped, all lines summing
+to the document's ex total; `invoice_final_drift_staff` answers 0; contractor
+deltas are hours × the stamped rate and `contractorAdjustedCents` nets them;
+and the accepted estimate row is byte-identical before and after the whole
+journey. No figure in the spec is typed — every expectation comes from
+lib/pricing, lib/invoicing and lib/workorder, the modules production uses.
