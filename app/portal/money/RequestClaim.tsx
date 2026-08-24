@@ -22,9 +22,14 @@ export type ClaimableJob = {
  * The preview is display-only — the server recomputes and bounds; the claim
  * is born submitted and the PDF renders behind the response.
  */
-export default function RequestClaim({ jobs }: { jobs: ClaimableJob[] }) {
+export default function RequestClaim({ jobs, defaultOpen = false, heading = "Invoice Paint Group" }: {
+  jobs: ClaimableJob[];
+  /** Open the form immediately (the per-job card on the job screen). */
+  defaultOpen?: boolean;
+  heading?: string;
+}) {
   const claimable = jobs.filter((j) => j.adjustedCents - j.invoicedCents > 0);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen && claimable.length > 0);
   const [jobId, setJobId] = useState(claimable[0]?.workOrderId ?? "");
   const [mode, setMode] = useState<"25" | "50" | "custom" | "fixed">("25");
   const [customPct, setCustomPct] = useState("");
@@ -49,7 +54,21 @@ export default function RequestClaim({ jobs }: { jobs: ClaimableJob[] }) {
 
   const overRemaining = mode === "fixed" && previewCents != null && previewCents > remaining;
 
-  if (claimable.length === 0) return null;
+  // The card ALWAYS shows (Tom, 25 Aug: "the payments tab still isn't
+  // working" was this card hiding itself) — with the honest reason when
+  // there's nothing to claim.
+  if (claimable.length === 0) {
+    return (
+      <div className="card" data-testid="request-claim">
+        <div className="tick-head"><b>{heading}</b></div>
+        <p className="hint" style={{ padding: 0 }} data-testid="claim-empty">
+          Nothing left to invoice right now — your jobs are either fully
+          invoiced or don&rsquo;t have an agreed amount recorded yet. The moment a
+          job of yours has money owing, the <b>+ New invoice</b> button appears here.
+        </p>
+      </div>
+    );
+  }
 
   function submit() {
     if (!job || previewCents == null) return;
@@ -73,7 +92,7 @@ export default function RequestClaim({ jobs }: { jobs: ClaimableJob[] }) {
   return (
     <div className="card" data-testid="request-claim">
       <div className="tick-head">
-        <b>Invoice Paint Group</b>
+        <b>{heading}</b>
         {!open && (
           <button type="button" className="var-add" onClick={() => setOpen(true)} data-testid="open-claim">
             + New invoice

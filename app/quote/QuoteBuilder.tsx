@@ -1625,6 +1625,7 @@ export default function QuoteBuilder({
       {!folderEl && !customerView && !workOrderView && (
         <div className="mt-6">
           <EstimateHeader
+            docTitle={revision ? "Invoice" : "Estimate"}
             company={company}
             contacts={contacts}
             contact={contact}

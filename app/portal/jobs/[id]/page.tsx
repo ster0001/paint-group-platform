@@ -7,6 +7,8 @@ import WorkOrderDoc from "@/app/w/WorkOrderDoc";
 import RescheduleRequest from "./RescheduleRequest";
 import TickList from "@/app/components/wo/TickList";
 import Variations, { type VariationView } from "./Variations";
+import RequestClaim, { type ClaimableJob } from "@/app/portal/money/RequestClaim";
+import { contractorVariationsCents, type PayVariation } from "@/lib/workorder/contractorPay";
 import PrepChecklist, { type PrepItem } from "./PrepChecklist";
 import FinishDate from "./FinishDate";
 import ColourMatchCard from "@/app/components/wo/ColourMatchCard";
@@ -77,7 +79,7 @@ export default async function PortalJobPage({
       .eq("work_order_id", id).order("sort", { ascending: true }),
     supabase.from("wo_photos")
       .select("area, kind").eq("work_order_id", id).in("kind", ["before", "completion"]),
-    supabase.from("work_orders").select("stage, walkthrough_required, colours").eq("id", id).maybeSingle(),
+    supabase.from("work_orders").select("stage, walkthrough_required, colours, wo_ref, contractor_payment_cents").eq("id", id).maybeSingle(),
     supabase.from("wo_walkthroughs")
       .select("kind, scheduled_date, status").eq("work_order_id", id)
       .eq("status", "booked"),
@@ -114,6 +116,10 @@ export default async function PortalJobPage({
   });
   const prepItems: PrepItem[] = ((prepRows as PrepRow[] | null) ?? []).map(toPrepItem);
 
+  const { data: ciTotals } = await supabase
+    .from("contractor_invoices")
+    .select("total_inc_cents").eq("work_order_id", id).neq("status", "draft");
+
   const { data: variationRows } = await supabase
     .from("wo_variations")
     .select("id, category, comment, status, contractor_delta_cents, est_hours, released_at, credit, needs_manual_deduction, deduction_cents, deduction_note, contractor_acknowledged_at")
@@ -136,6 +142,23 @@ export default async function PortalJobPage({
     deductionNote: v.deduction_note ?? "",
     acknowledged: v.contractor_acknowledged_at !== null,
   }));
+
+  // "Create invoice" from the job itself (Tom, 25 Aug): the same claim card
+  // the Money tab carries, scoped to THIS job's remaining money.
+  const woMoney = woRow as { wo_ref?: string; contractor_payment_cents?: number | null } | null;
+  const payVars: PayVariation[] = ((variationRows as {
+    status: string; credit: boolean; contractor_delta_cents: number | null;
+    deduction_cents: number | null; needs_manual_deduction: boolean;
+  }[] | null) ?? []);
+  const claimJob: ClaimableJob = {
+    workOrderId: id,
+    woRef: woMoney?.wo_ref ?? "",
+    title: job.doc?.jobTitle || job.doc?.jobAddress || woMoney?.wo_ref || "This job",
+    adjustedCents: Math.max(0, (woMoney?.contractor_payment_cents ?? 0) + contractorVariationsCents(payVars)),
+    invoicedCents: ((ciTotals as { total_inc_cents: number }[] | null) ?? [])
+      .reduce((sum, c) => sum + c.total_inc_cents, 0),
+    deductionPending: payVars.some((v) => v.credit && v.needs_manual_deduction && v.deduction_cents == null),
+  };
 
   const surfaces: SurfaceRow[] = ((surfaceRows as
     { id: string; heading: string; label: string; state: SurfaceRow["state"]; rectification: boolean; removed_from_scope: boolean }[] | null) ?? [])
@@ -362,6 +385,9 @@ export default async function PortalJobPage({
       {job.committed && (
         <div style={{ padding: "0 16px" }}>
           <Variations workOrderId={id} variations={variations} />
+          <div style={{ marginTop: 12 }}>
+            <RequestClaim jobs={[claimJob]} heading="Invoice this job" />
+          </div>
         </div>
       )}
 

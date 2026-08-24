@@ -34,11 +34,12 @@ export default async function MoneyPage() {
       .select("id, number, status, total_inc_cents, due_on, created_at, auto_draft_source, claim_pct, work_orders(wo_ref, wo_snapshot)")
       .order("created_at", { ascending: false })
       .limit(50),
-    // Their own jobs (RLS-scoped) — what a claim can be raised against.
+    // Their own jobs (RLS-scoped) — ANY job with money left is claimable,
+    // closed ones included (a job signed off before auto-drafting existed
+    // still deserves its invoice).
     supabase
       .from("work_orders")
       .select("id, wo_ref, stage, contractor_payment_cents, wo_snapshot")
-      .not("stage", "eq", "closed")
       .order("start_date", { ascending: true }),
   ]);
   const invoices = ((rows ?? []) as unknown as {
@@ -52,7 +53,7 @@ export default async function MoneyPage() {
   const wos = ((woRows ?? []) as {
     id: string; wo_ref: string; stage: string; contractor_payment_cents: number | null;
     wo_snapshot: { jobTitle?: string; jobAddress?: string } | null;
-  }[]).filter((w) => ["pre_start", "in_progress", "completion_prep", "qa", "walkthrough"].includes(w.stage));
+  }[]);
   const woIds = wos.map((w) => w.id);
   const [{ data: varRows }, { data: ciTotals }] = await Promise.all([
     woIds.length

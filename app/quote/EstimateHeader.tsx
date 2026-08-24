@@ -18,6 +18,7 @@ export default function EstimateHeader({
   estimateId,
   dateStr,
   readOnly = false,
+  docTitle = "Estimate",
 }: {
   company: CompanyProfile;
   contacts: Contact[];
@@ -28,6 +29,8 @@ export default function EstimateHeader({
   estimateId: string;
   dateStr: string;
   readOnly?: boolean;
+  /** "Invoice" in revision mode (Tom, 25 Aug — the word above the estimator). */
+  docTitle?: "Estimate" | "Invoice";
 }) {
   const [modal, setModal] = useState<null | "contact" | "job">(null);
 
@@ -54,7 +57,7 @@ export default function EstimateHeader({
         </div>
 
         <div className="text-right">
-          <div className="text-3xl font-semibold tracking-tight text-gray-900">Estimate</div>
+          <div className="text-3xl font-semibold tracking-tight text-gray-900">{docTitle}</div>
           <div className="mt-4 text-sm text-gray-600">
             <div className="font-medium text-gray-900">{company.estimatorName}</div>
             <div>{company.estimatorTitle}</div>
@@ -102,7 +105,7 @@ export default function EstimateHeader({
         </Card>
 
         <div>
-          <div className="text-xs uppercase tracking-wide text-gray-400">Estimate ID</div>
+          <div className="text-xs uppercase tracking-wide text-gray-400">{docTitle} ID</div>
           <div className="mt-1 text-gray-700">{estimateId}</div>
         </div>
         <div>

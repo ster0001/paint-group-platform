@@ -255,8 +255,14 @@ export default function CustomerEstimate({
           ? <img className="brandlogo" src={snap.company.logoUrl} alt={snap.company.name} />
           : <div className="wordmark">PAINT<span>—</span>GROUP</div>}
         <div className="topmeta">
-          <span className="validity">{est} · valid until {dateFmt(validUntil)}</span>
-          {statusChip}
+          {invoiceMode ? (
+            <span className="validity">{est}</span>
+          ) : (
+            <>
+              <span className="validity">{est} · valid until {dateFmt(validUntil)}</span>
+              {statusChip}
+            </>
+          )}
         </div>
       </header>
 
