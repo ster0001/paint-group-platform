@@ -1,3 +1,40 @@
+# 24 Aug 2026 (evening) — Invoicing Step 3 COMPLETE: PDF · send · token view (branch `feat/invoicing-payments`)
+
+Migration `20261114_invoice_pdf_token.sql` RUN LIVE (Tom, read-backs good). e2e
+`invoicing.spec.ts` now 8/8 against live: the six Step-2 tests plus (7) the token
+link renders exactly one invoice — number/GST/total asserted, other invoices'
+numbers and internal money fields absent from the response, viewed event written,
+unknown token → 404 — and (8) the PDF downloads as a real %PDF via
+/invoicing/inv/[id]/pdf, the stored path never changes, and a second attach is
+refused by the DB (`error:pdf_immutable`).
+
+How it fits together: `/i/[token]` is the customer document (white professional
+A4 sheet on a dark shell; ATO tax-invoice fields; bank box with the invoice
+number as reference; ENGLISH copy). THE PDF IS A CHROMIUM PRINT OF THAT PAGE
+(?print=1) — one template, three faces. `lib/invoicing/pdf.ts` resolves
+Chromium (@sparticuz/chromium on Vercel · local Chrome · playwright fallback in
+dev), uploads to the private `invoice-docs` bucket, attaches once. Receipts
+(`receiptHtml.ts`) render behind next/server `after()` on payment and email
+best-effort. `sendInvoice.ts` rides lib/messaging — ⚑16 log driver when
+unconfigured; issue never blocks on email. Issue & send is the one primary
+action everywhere; Copy pay link + PDF + Preview-as-customer (staff-only draft
+preview via the same token page) are live.
+
+Sample PDF generated from a real pipeline run and sent to Tom (mockup-grade,
+white-paper clean; duplicate less-previously-invoiced line and the dev-tools
+badge were caught and fixed in the render pass).
+
+⚠ DEPLOY PREREQ: set `NEXT_PUBLIC_SITE_URL=https://paint-group-platform.vercel.app`
+in Vercel env or production PDFs/emails will point at localhost.
+⚠ Test-phase INV numbers 0001–0014 burned on the live sequence — before real
+use Tom runs `select setval('public.invoice_no_seq', <last real number>);`.
+
+Next: Step 4 (Stripe) — ⛔ WAITS for the C1 test Supabase project (Tom's ruling:
+its own session; schema sync, seed, CI, documented reset; Stripe test keys only
+there). Step 5 (contractor invoicing) can go before C1 if preferred.
+
+---
+
 # 24 Aug 2026 (later) — Invoicing Step 2: the three §7 screens, live (branch `feat/invoicing-payments`)
 
 Migrations 20261111/12/13 ALL RUN LIVE (read-backs confirmed in session). Diff for

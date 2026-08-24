@@ -130,7 +130,14 @@ export default async function CustomerInvoicePage({
   const isFinal = doc.kind === "final";
   const contractLines = doc.lines.filter((l) => l.source === "estimate_snapshot");
   const variationLines = doc.lines.filter((l) => l.source === "variation");
-  const otherLines = doc.lines.filter((l) => l.source === "manual" || l.source === "adjustment");
+  // The balancing "less previously invoiced" adjustment exists so the draft's
+  // lines sum to the anchored subtotal — but the customer document tells that
+  // story ONCE, in the totals block, exactly as the mockup reads. Genuine
+  // adjustments (rounding, one-offs) still show.
+  const otherLines = doc.lines.filter(
+    (l) => (l.source === "manual" || l.source === "adjustment")
+      && !l.description.startsWith("Less previously invoiced"),
+  );
   const surchargeGst = doc.payments.reduce(
     (a, p) => a + (p.surcharge_cents > 0 ? fromIncTotal(p.surcharge_cents).gstCents : 0), 0);
   void surchargeGst;
