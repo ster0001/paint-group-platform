@@ -2,6 +2,9 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { fromIncTotal } from "@/lib/invoicing/gst";
+import { stripeConfigured } from "@/lib/invoicing/stripe";
+import { surchargeCents, surchargeFromSettings } from "@/lib/invoicing/surcharge";
+import PayPanel from "./PayPanel";
 import Toolbar from "./Toolbar";
 import "./invoice.css";
 
@@ -86,10 +89,10 @@ export default async function CustomerInvoicePage({
   searchParams,
 }: {
   params: Promise<{ token: string }>;
-  searchParams: Promise<{ print?: string; preview?: string }>;
+  searchParams: Promise<{ print?: string; preview?: string; pay?: string }>;
 }) {
   const { token } = await params;
-  const { print } = await searchParams;
+  const { print, pay } = await searchParams;
   const supabase = await createClient();
 
   const { data, error } = await supabase.rpc("invoice_by_token", { p_token: token });
@@ -127,6 +130,20 @@ export default async function CustomerInvoicePage({
   const bank = doc.bank ?? {};
   const balance = doc.total_inc_cents - doc.paid_cents;
   const open = ["issued", "sent", "viewed", "partially_paid"].includes(doc.status);
+
+  // Card payments (§5): the surcharge is server-computed and DISCLOSED here,
+  // before any checkout. No Stripe key configured → bank transfer only.
+  const stripeOn = stripeConfigured() && open && balance > 0 && !printMode;
+  let cardSurchargeCents = 0;
+  if (stripeOn) {
+    const service = createServiceClient();
+    const { data: invSetting } = service
+      ? await service.from("settings").select("value").eq("key", "invoicing").maybeSingle()
+      : { data: null };
+    const { pctBps, fixedCents } = surchargeFromSettings(invSetting?.value as Record<string, unknown> | null);
+    cardSurchargeCents = surchargeCents(balance, pctBps, fixedCents);
+  }
+  const payState = pay === "success" ? "success" : pay === "cancelled" ? "cancelled" : null;
   const isFinal = doc.kind === "final";
   const contractLines = doc.lines.filter((l) => l.source === "estimate_snapshot");
   const variationLines = doc.lines.filter((l) => l.source === "variation");
@@ -241,6 +258,15 @@ export default async function CustomerInvoicePage({
                 {bank.acc && <div className="row"><span>Account</span><b>{bank.acc}</b></div>}
                 <div className="ref">Please use <b>{doc.number ?? "your invoice number"}</b> as the payment reference.</div>
               </div>
+            )}
+            {(stripeOn || payState === "success") && !printMode && (
+              <PayPanel
+                token={token}
+                balanceCents={balance}
+                surchargeCents={cardSurchargeCents}
+                payState={payState}
+                initialPaidCents={doc.paid_cents}
+              />
             )}
             <div className="totals">
               {isFinal && doc.adjusted_contract_cents != null && (

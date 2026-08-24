@@ -119,13 +119,15 @@ export default function SettingsForm({ initial }: { initial: CompanyProfile }) {
         {field("email", "Email")}
       </div>
 
+      {/* Banking moved to the Invoicing folder (24 Aug 2026) — one editor,
+          one source of truth. Its save writes BOTH company_profile (the
+          estimate header) and invoicing_bank (invoices, receipts, the
+          customer payment page), so the documents can never disagree. */}
       <h3 className="mt-5 text-sm font-semibold">Banking</h3>
-      <div className="mt-2 grid grid-cols-2 gap-3">
-        {field("bankName", "Account name")}
-        {field("bank", "Bank")}
-        {field("bsb", "BSB")}
-        {field("acc", "Account number")}
-      </div>
+      <p className="mt-1 text-xs text-gray-400">
+        Bank details are edited in the <b>Invoicing</b> folder below — one place, and every
+        document (estimates, invoices, receipts, the customer payment page) stays in step.
+      </p>
 
       <div className="mt-5 flex items-center gap-3">
         <button onClick={save} disabled={saving} className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50">

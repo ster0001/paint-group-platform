@@ -114,6 +114,23 @@
 .invoice-view .paybox .row b { color: var(--text); font-weight: 600; font-family: var(--mono); font-size: 11.5px; }
 .invoice-view .paybox .ref { margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--rule); color: var(--soft); }
 .invoice-view .paybox .ref b { color: var(--text); font-family: var(--mono); }
+.invoice-view .paycard {
+  flex: 1 1 300px; border: 1.5px solid var(--accent); border-radius: 10px;
+  padding: 16px 18px; font-size: 12.5px;
+}
+.invoice-view .paycard.ok { border-color: var(--emerald); background: #ecf7f0; }
+.invoice-view .paycard h3 {
+  font-family: var(--mono); font-size: 8.5px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--accent); margin-bottom: 8px;
+}
+.invoice-view .paycard.ok h3 { color: var(--emerald); }
+.invoice-view .paycard p { color: var(--soft); line-height: 1.55; margin-bottom: 8px; }
+.invoice-view .paybtn {
+  appearance: none; border: 0; cursor: pointer; width: 100%;
+  background: var(--accent); color: #fff; font-family: var(--sans);
+  font-size: 14px; font-weight: 700; padding: 12px 0; border-radius: 9px;
+}
+.invoice-view .paycard .fine { font-size: 11px; color: var(--faint); margin: 8px 0 0; }
 .invoice-view .totals { flex: 0 1 300px; margin-left: auto; min-width: 260px; }
 .invoice-view .trow { display: flex; justify-content: space-between; gap: 14px; padding: 4px 0; font-size: 12.5px; color: var(--soft); }
 .invoice-view .trow b { color: var(--text); font-weight: 600; font-family: var(--mono); font-size: 12px; white-space: nowrap; flex: none; }
@@ -137,7 +154,9 @@
   .invoice-view .sheet-wrap { padding: 0; }
   .invoice-view .sheet { box-shadow: none; border-radius: 0; max-width: none; padding: 0; }
   nextjs-portal { display: none; } /* the dev-tools badge must never print */
+  .invoice-view .no-print { display: none; }
 }
+.invoice-view.print-mode .no-print { display: none; }
 .invoice-view.print-mode { background: #fff; }
 .invoice-view.print-mode .chrome { display: none; }
 .invoice-view.print-mode .sheet-wrap { padding: 0; }

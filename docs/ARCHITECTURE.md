@@ -1175,3 +1175,30 @@ one invoice's customer-safe payload — drafts only for staff preview,
 unknown tokens are nothing; customer visits write `viewed` (staff previews
 and the PDF printer are recognised and skipped). ATO tax-invoice fields per
 §6.7 are on the document; ⚑11/⚑12 entity + bank come from Settings.
+
+## Invoicing Step 4 — Stripe (24 Aug 2026)
+
+§5 exactly, over plain REST (the Resend/Twilio pattern — no SDK, no PCI
+surface): the customer's "Pay now" POSTs to `/i/[token]/checkout`, which
+mints a FRESH Checkout Session per click against the invoice's exact current
+balance plus the ⚑4 surcharge as its own disclosed line
+(`lib/invoicing/stripe.ts`, rate from Settings via
+`lib/invoicing/surcharge.ts`). The webhook
+(`app/api/webhooks/stripe/route.ts`) is the SOLE writer of card-payment
+success: signature verified first (`lib/invoicing/stripeSig.ts`, real-HMAC
+unit tests), then the three-state idempotency door (`stripe_event_insert`:
+new/retry/done — a dispatch crash before "processed" reprocesses on Stripe's
+retry instead of being waved through as a duplicate), then the
+service_role-gated RPCs of migration `20261115`: `record_stripe_payment`
+(intent-unique, receipt allocated, status derived), `payment_set_stripe_fee`
+(balance-transaction fee behind after()), `record_stripe_refund` (payment
+flips, invoice status deliberately untouched — refunds never silently
+un-pay; the event carries needs_credit_note), `record_stripe_failure`
+(feed only). The return page polls the read-only `/i/[token]/status` and
+never claims success the database can't back. No keys configured → the card
+path vanishes cleanly (bank transfer only, 503s with friendly copy) — and
+per Tom's C1 ruling, test keys and the test-card e2e live only in the
+dedicated test project. Settings gained an Invoicing folder (entity, bank,
+money defaults); banking now has ONE editor that writes both
+company_profile (estimate header) and invoicing_bank (invoices) in
+lock-step.

@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { serviceClient } from "./fixtures/woLoop";
+import { rpcAs, serviceClient } from "./fixtures/woLoop";
 import { credentials, missingCreds, signIn } from "./helpers";
 
 /**
@@ -333,5 +333,40 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
       p_invoice_id: depositInvoiceId!, p_path: "somewhere/else.pdf",
     });
     expect(String(again.data)).toBe("error:pdf_immutable");
+  });
+
+  // ---- Step 4: Stripe, degraded mode -------------------------------------
+  // Without STRIPE_SECRET_KEY (per Tom's C1 ruling, test keys live only in
+  // the dedicated test project) the card path must vanish CLEANLY: bank
+  // transfer only, a friendly refusal on the checkout route, and a webhook
+  // that answers 503 rather than pretending. Test-card e2e runs on C1.
+
+  test("without Stripe keys the card path degrades to bank-transfer only", async ({ browser }) => {
+    test.skip(Boolean(process.env.STRIPE_SECRET_KEY),
+      "Stripe keys are configured — the degraded-mode assertions don't apply");
+
+    // Issue the progress draft so there is an OPEN invoice with a balance —
+    // the strongest case: payable, and still bank-transfer only.
+    const { data: prog } = await db!.from("invoices")
+      .select("id, token").eq("estimate_id", estimateId!).eq("kind", "progress").single();
+    const progress = prog as { id: string; token: string };
+    const issued = await rpcAs(staff!, "invoice_issue", { p_invoice_id: progress.id });
+    expect(String(issued)).toContain("ok");
+    const token = progress.token;
+
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await page.goto(`/i/${token}`);
+    await expect(page.getByTestId("invoice-sheet")).toBeVisible();
+    await expect(page.getByText("How to pay — bank transfer")).toBeVisible();
+    await expect(page.getByTestId("pay-panel")).toHaveCount(0);
+
+    const checkout = await page.request.post(`/i/${token}/checkout`);
+    expect(checkout.status()).toBe(503);
+    expect(await checkout.text()).toContain("bank transfer");
+
+    const webhook = await page.request.post("/api/webhooks/stripe", { data: "{}" });
+    expect(webhook.status()).toBe(503);
+    await ctx.close();
   });
 });

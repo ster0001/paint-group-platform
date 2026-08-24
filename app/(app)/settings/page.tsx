@@ -10,6 +10,7 @@ import TemplatesManager, { type TemplateMeta } from "./TemplatesManager";
 import InclusionTemplatesManager from "./InclusionTemplatesManager";
 import TermsEditor, { TERMS_KEY } from "./TermsEditor";
 import MessagingSettings from "./MessagingSettings";
+import InvoicingSettings from "./InvoicingSettings";
 import { MESSAGING_KEY, type MessagingSettings as MessagingValues } from "@/lib/messaging/config";
 import ProductsManager, { type ProductRow } from "./ProductsManager";
 import ColoursManager, { type ColourRow } from "./ColoursManager";
@@ -140,6 +141,14 @@ export default async function SettingsPage() {
 
       <SettingsFolder title="Messaging" subtitle="Email + text wording used when sending an estimate, and the text-messaging switch">
         <MessagingSettings initial={messaging} />
+      </SettingsFolder>
+
+      <SettingsFolder title="Invoicing" subtitle="Business identity, bank details and money defaults — shown on every invoice and the customer payment page">
+        <InvoicingSettings
+          initialEntity={(allSettings.find((r) => r.key === "invoicing_entity")?.value as Record<string, string> | undefined) ?? null}
+          initialBank={(allSettings.find((r) => r.key === "invoicing_bank")?.value as Record<string, string> | undefined) ?? null}
+          initialCore={(allSettings.find((r) => r.key === "invoicing")?.value as Record<string, number> | undefined) ?? null}
+        />
       </SettingsFolder>
 
       <SettingsFolder title="Line items" subtitle="Add, edit or remove line-item templates and their descriptions" count={lineItems.length} defaultOpen>
