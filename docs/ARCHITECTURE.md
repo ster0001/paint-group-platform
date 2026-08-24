@@ -1344,3 +1344,29 @@ read; /v's approved state auto-redirects (4s) to `/e/<token>#changes` and /e
 renders "Changes to your job" — each signed change, sign-links for pending
 ones, and the ledger's updated total to the cent. e2e: revision-builder 7/7
 (the new customer-journey test walks /v → /e for real).
+
+## Two money tabs + contractor payment claims (24 Aug 2026, follow-up #2)
+
+Navigation: **Invoicing** (`/invoices`, estimates-tab layout — one row per job,
+the ADDRESS opens the revision builder, every invoice's status chips on the
+row, filters active/all/draft/awaiting/overdue/paid) and **Payments**
+(`/invoicing`, the renamed ledger dashboard, now desktop-width `.invx .wrap`
+1080px; phones keep the fluid column). Invoicing left the PC Command nav.
+
+Contractor claims (migration `20261121`): `contractor_invoice_request` lets a
+contractor invoice AT ANY TIME — percent of adjusted pay or fixed dollars,
+SQL-bounded to what remains uninvoiced, born SUBMITTED with the same
+validation as the one-tap submit; the sign-off FINAL now drafts only the
+REMAINDER (`previously_invoiced_cents` on its face; submit/approve recompute
+the same way). Every submitted contractor invoice renders a PDF under THEIR
+entity, billed to Paint Group (`contractorInvoiceHtml.ts` →
+`ensureContractorInvoicePdf`, attach-once, heal-on-view routes
+`/portal/money/[id]/pdf` + staff `/invoicing/ci/[id]/pdf`). Portal Money tab:
+"Invoice Paint Group" card (job picker, 25/50/custom % chips or $, live
+remaining preview) + Download-PDF buttons; the detail page shows claims as
+their own line and "less previously invoiced" on finals. Payables rows carry
+the job's PC stage, a claim tag, and the Invoice PDF button; **Mark paid asks
+for the bank reference AND the payment date**, and the paid state (with
+remittance) reads straight back in the contractor's portal. e2e:
+contractor-invoicing 12/12 (claims journey incl. bounded fixed claim,
+remainder final, dated payment); revision-builder 8/8 (the /invoices door).

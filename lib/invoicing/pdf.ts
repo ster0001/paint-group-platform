@@ -3,6 +3,8 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { reportError } from "@/lib/monitoring/report";
 import { buildReceiptHtml } from "./receiptHtml";
 import { buildRemittanceHtml, type RemittanceDeduction } from "./remittanceHtml";
+import { buildContractorInvoiceHtml } from "./contractorInvoiceHtml";
+import { ciDocumentHeading } from "./ciStateMachine";
 
 /**
  * SERVER ONLY — the §6.7 PDF pipeline.
@@ -176,6 +178,72 @@ export async function ensureReceiptPdf(paymentId: string): Promise<string | null
     return path;
   } catch (e) {
     reportError(e, { where: "ensureReceiptPdf", extra: { paymentId } });
+    return null;
+  }
+}
+
+/** The contractor's OWN invoice PDF (their entity, billed to Paint Group) —
+ * generated once a row is submitted, attach-once, heal-if-missing on view. */
+export async function ensureContractorInvoicePdf(contractorInvoiceId: string): Promise<string | null> {
+  const service = createServiceClient();
+  if (!service) return null;
+
+  const { data } = await service
+    .from("contractor_invoices")
+    .select("id, number, status, submitted_at, due_on, invoice_pdf_path, entity_snapshot, " +
+      "auto_draft_source, claim_pct, offer_cents, variation_delta_cents, deduction_lines, " +
+      "previously_invoiced_cents, subtotal_ex_cents, gst_cents, total_inc_cents, " +
+      "gst_registered_at_submit, work_orders(wo_ref, wo_snapshot)")
+    .eq("id", contractorInvoiceId)
+    .maybeSingle();
+  const ci = data as {
+    id: string; number: string | null; status: string; submitted_at: string | null;
+    due_on: string | null; invoice_pdf_path: string | null;
+    entity_snapshot: Record<string, string>; auto_draft_source: string;
+    claim_pct: number | null; offer_cents: number; variation_delta_cents: number;
+    deduction_lines: { label?: string; cents?: number; note?: string }[];
+    previously_invoiced_cents: number; subtotal_ex_cents: number; gst_cents: number;
+    total_inc_cents: number; gst_registered_at_submit: boolean | null;
+    work_orders: { wo_ref: string; wo_snapshot: { jobTitle?: string; jobAddress?: string } | null } | null;
+  } | null;
+  if (!ci || ci.status === "draft" || !ci.number) return null;
+  if (ci.invoice_pdf_path) return ci.invoice_pdf_path;
+
+  try {
+    const { data: settings } = await service
+      .from("settings").select("value").eq("key", "invoicing_entity").maybeSingle();
+
+    const html = buildContractorInvoiceHtml({
+      heading: ciDocumentHeading(ci.gst_registered_at_submit),
+      number: ci.number,
+      submittedOn: ci.submitted_at ? ci.submitted_at.slice(0, 10) : null,
+      dueOn: ci.due_on,
+      contractor: ci.entity_snapshot ?? {},
+      billTo: ((settings as { value?: Record<string, string> } | null)?.value) ?? {},
+      woRef: ci.work_orders?.wo_ref ?? "",
+      jobTitle: ci.work_orders?.wo_snapshot?.jobTitle ?? ci.work_orders?.wo_snapshot?.jobAddress ?? "",
+      source: ci.auto_draft_source,
+      claimPct: ci.claim_pct,
+      offerCents: ci.offer_cents,
+      additionsCents: ci.variation_delta_cents,
+      deductionLines: Array.isArray(ci.deduction_lines) ? ci.deduction_lines : [],
+      previouslyInvoicedCents: ci.previously_invoiced_cents,
+      subtotalExCents: ci.subtotal_ex_cents,
+      gstCents: ci.gst_cents,
+      totalIncCents: ci.total_inc_cents,
+    });
+    const pdf = await renderHtmlToPdf(html);
+    const path = `${ci.id}/${ci.number}.pdf`;
+    const up = await service.storage.from(BUCKET).upload(path, pdf, {
+      contentType: "application/pdf",
+      upsert: false,
+    });
+    if (up.error && !/already exists/i.test(up.error.message)) throw new Error(up.error.message);
+    const attach = await service.rpc("contractor_invoice_attach_pdf", { p_id: ci.id, p_path: path });
+    if (attach.error) throw new Error(attach.error.message);
+    return path;
+  } catch (e) {
+    reportError(e, { where: "ensureContractorInvoicePdf", extra: { contractorInvoiceId } });
     return null;
   }
 }

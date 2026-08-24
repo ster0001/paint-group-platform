@@ -39,6 +39,9 @@ export type PayableRowProp = {
   amtCents: number;
   dueLabel: string;
   rcti: boolean;
+  /** The job's stage from PC control — the Payables row carries it (Tom, 24 Aug). */
+  stageLabel: string;
+  hasPdf: boolean;
 };
 
 const FILTERS: { key: string; label: string }[] = [
@@ -82,12 +85,22 @@ export default function Dashboard({
   }
 
   function markCiPaid(ciId: string) {
-    // Recording, not moving, money — the reference is the bank's, typed here.
+    // Recording, not moving, money — the reference and the DATE it left the
+    // bank, typed here (Tom, 24 Aug: record the payment date).
     const reference = window.prompt("Bank reference for this payment (shown on the remittance):");
     if (reference === null) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const paidOn = window.prompt("Payment date (yyyy-mm-dd):", today);
+    if (paidOn === null) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(paidOn.trim())) {
+      setPayMessage("That date needs to be yyyy-mm-dd — nothing was recorded.");
+      return;
+    }
     setPayMessage(null);
     startPay(async () => {
-      const result = await markContractorInvoicePaidAction({ contractorInvoiceId: ciId, reference });
+      const result = await markContractorInvoicePaidAction({
+        contractorInvoiceId: ciId, reference, paidOn: paidOn.trim(),
+      });
       setPayMessage(result.message ?? null);
       if (result.ok) router.refresh();
     });
@@ -111,8 +124,8 @@ export default function Dashboard({
     <div className="wrap">
       <header>
         <div className="crumb"><Link href="/pc"><span className="chev">‹</span> PC Command</Link></div>
-        <h1>Invoicing</h1>
-        <div className="sub">All jobs · receivables &amp; payables</div>
+        <h1>Payments</h1>
+        <div className="sub">All jobs · receivables &amp; payables · <Link href="/invoices">invoice list →</Link></div>
       </header>
 
       <div className="tiles">
@@ -224,7 +237,10 @@ export default function Dashboard({
                   {p.rcti && <span className="chip draft" style={{ marginLeft: 8 }}>RCTI</span>}
                 </div>
                 <div className="ref">{p.ref}</div>
-                <div className={`age ${p.status === "submitted" ? "amber" : p.status === "approved" ? "cyan" : p.status === "paid" ? "emerald" : ""}`}>{p.dueLabel}</div>
+                <div className={`age ${p.status === "submitted" ? "amber" : p.status === "approved" ? "cyan" : p.status === "paid" ? "emerald" : ""}`}>
+                  {p.dueLabel}
+                  {p.stageLabel ? <span style={{ opacity: 0.75 }}> · job: {p.stageLabel}</span> : null}
+                </div>
               </div>
               <div className="right">
                 <div className="amt">{fmt2(p.amtCents)}</div>
@@ -240,6 +256,12 @@ export default function Dashboard({
                       onClick={() => markCiPaid(p.ciId)} data-testid={`pay-ci-${p.ciId}`}>
                       Mark paid
                     </button>
+                  )}
+                  {p.hasPdf && (
+                    <a className="mini" href={`/invoicing/ci/${p.ciId}/pdf`} target="_blank" rel="noreferrer"
+                      data-testid={`pdf-ci-${p.ciId}`} style={{ textDecoration: "none" }}>
+                      Invoice PDF
+                    </a>
                   )}
                 </div>
               </div>

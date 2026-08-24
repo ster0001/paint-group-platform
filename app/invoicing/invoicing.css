@@ -14,7 +14,10 @@
   -webkit-font-smoothing:antialiased; min-height:100vh;
 }
 .invx *{box-sizing:border-box;margin:0;padding:0}
-.invx .wrap{max-width:480px;margin:0 auto;padding-bottom:104px}
+.invx .wrap{max-width:1080px;margin:0 auto;padding:0 20px 104px}
+/* Desktop-first (Tom, 24 Aug): the Payments screens breathe at full width;
+   phones still get the single column via the same fluid rules. */
+@media (max-width:720px){.invx .wrap{padding:0 0 104px}}
 .invx .mono{font-family:var(--mono)}
 .invx a{color:inherit;text-decoration:none}
 

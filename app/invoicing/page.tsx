@@ -11,6 +11,7 @@ import {
   type DeriveInvoice,
 } from "@/lib/invoicing/derive";
 import { loadDashboard, toDerive, toDerivePayments, type EventRow, type InvoiceRow } from "./data";
+import { STAGE_LANES, visibleStage, type WoStage } from "@/lib/workorder/stages";
 import { fmt2, KIND_LABEL, shortDay } from "./format";
 import Dashboard, { type ActivityProp, type PayableRowProp, type RowProp } from "./Dashboard";
 
@@ -169,16 +170,22 @@ export default async function InvoicingDashboardPage({
         : due < 0 ? `Approved · ${-due} day${due === -1 ? "" : "s"} past terms`
         : due === 0 ? "Approved · due today"
         : `Approved · due in ${due} day${due === 1 ? "" : "s"}`;
+      const stage = c.work_orders?.stage as WoStage | undefined;
       return {
         ciId: c.id,
         estimateId: c.work_orders?.estimate_id ?? null,
         company: c.contractors?.company_name ?? "Contractor",
-        ref: [c.number ?? "Draft (unnumbered)", c.work_orders?.wo_ref, c.work_orders?.job_address]
-          .filter(Boolean).join(" · "),
+        ref: [
+          c.number ?? "Draft (unnumbered)",
+          c.auto_draft_source === "claim" ? `claim${c.claim_pct ? ` ${Number(c.claim_pct)}%` : ""}` : null,
+          c.work_orders?.wo_ref, c.work_orders?.job_address,
+        ].filter(Boolean).join(" · "),
         status: c.status as PayableRowProp["status"],
         amtCents: c.total_inc_cents,
         dueLabel,
         rcti: c.rcti,
+        stageLabel: stage ? STAGE_LANES[visibleStage(stage)].title : "",
+        hasPdf: Boolean(c.invoice_pdf_path),
       };
     })
     .sort((a, b) => (CI_SORT[a.status] ?? 9) - (CI_SORT[b.status] ?? 9));

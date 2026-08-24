@@ -32,7 +32,7 @@ export default async function ContractorInvoicePage({ params }: { params: Promis
 
   const { data } = await supabase
     .from("contractor_invoices")
-    .select("id, number, status, offer_cents, variation_delta_cents, deduction_lines, subtotal_ex_cents, gst_cents, total_inc_cents, due_on, submitted_at, approved_at, paid_at, bank_reference, remittance_number, remittance_pdf_path, gst_registered_at_submit, entity_snapshot, rcti, work_order_id, work_orders(wo_ref, contractor_payment_cents, wo_snapshot)")
+    .select("id, number, status, offer_cents, variation_delta_cents, deduction_lines, subtotal_ex_cents, gst_cents, total_inc_cents, due_on, submitted_at, approved_at, paid_at, bank_reference, remittance_number, remittance_pdf_path, gst_registered_at_submit, entity_snapshot, rcti, work_order_id, auto_draft_source, claim_pct, previously_invoiced_cents, invoice_pdf_path, work_orders(wo_ref, contractor_payment_cents, wo_snapshot)")
     .eq("id", id).maybeSingle();
   const ci = data as {
     id: string; number: string | null; status: string;
@@ -42,6 +42,8 @@ export default async function ContractorInvoicePage({ params }: { params: Promis
     paid_at: string | null; bank_reference: string; remittance_number: string | null;
     remittance_pdf_path: string | null; gst_registered_at_submit: boolean | null;
     entity_snapshot: Record<string, string>; rcti: boolean; work_order_id: string;
+    auto_draft_source: string; claim_pct: number | null;
+    previously_invoiced_cents: number; invoice_pdf_path: string | null;
     work_orders: { wo_ref: string; contractor_payment_cents: number | null; wo_snapshot: { jobTitle?: string; jobAddress?: string } | null } | null;
   } | null;
   if (!ci) notFound();
@@ -85,7 +87,19 @@ export default async function ContractorInvoicePage({ params }: { params: Promis
     );
   }
   const deductionCents = deductions.reduce((s, d) => s + (d.cents ?? 0), 0);
-  const total = draft ? Math.max(0, offer + additions - deductionCents) : ci.total_inc_cents;
+  // A final only claims what earlier invoices haven't (claims live here too).
+  let prevInvoiced = ci.previously_invoiced_cents ?? 0;
+  if (draft) {
+    const { data: siblings } = await supabase
+      .from("contractor_invoices").select("total_inc_cents")
+      .eq("work_order_id", ci.work_order_id).neq("status", "draft");
+    prevInvoiced = ((siblings ?? []) as { total_inc_cents: number }[])
+      .reduce((s, r) => s + r.total_inc_cents, 0);
+  }
+  const isClaim = ci.auto_draft_source === "claim";
+  const total = draft
+    ? Math.max(0, offer + additions - deductionCents - prevInvoiced)
+    : ci.total_inc_cents;
   const gstRegistered = draft ? (contractor?.gst_registered ?? false) : (ci.gst_registered_at_submit ?? false);
   const gst = draft ? (gstRegistered ? gstFromIncCents(total) : 0) : ci.gst_cents;
   const heading = ciDocumentHeading(gstRegistered);
@@ -122,6 +136,16 @@ export default async function ContractorInvoicePage({ params }: { params: Promis
         </div>
 
         <div style={{ marginTop: 12, fontSize: "13px" }}>
+          {isClaim ? (
+            <div style={{ display: "flex", padding: "8px 0", borderBottom: "1px solid var(--line)" }} data-testid="ci-claim-line">
+              <span>
+                Progress payment claim — {ci.work_orders?.wo_ref}
+                {ci.claim_pct ? ` (${Number(ci.claim_pct)}% of contract)` : ""}
+              </span>
+              <b style={{ marginLeft: "auto", fontFamily: "var(--mono, monospace)" }}>{money(ci.total_inc_cents)}</b>
+            </div>
+          ) : (
+          <>
           <div style={{ display: "flex", padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
             <span>Contract work — {ci.work_orders?.wo_ref}</span>
             <b style={{ marginLeft: "auto", fontFamily: "var(--mono, monospace)" }}>{money(offer)}</b>
@@ -142,6 +166,14 @@ export default async function ContractorInvoicePage({ params }: { params: Promis
               <b style={{ marginLeft: "auto", fontFamily: "var(--mono, monospace)", color: "var(--clay)" }}>−{money(d.cents ?? 0)}</b>
             </div>
           ))}
+          {prevInvoiced > 0 && (
+            <div style={{ display: "flex", padding: "8px 0", borderBottom: "1px solid var(--line)" }} data-testid="ci-prev-invoiced">
+              <span>Less previously invoiced</span>
+              <b style={{ marginLeft: "auto", fontFamily: "var(--mono, monospace)", color: "var(--clay)" }}>−{money(prevInvoiced)}</b>
+            </div>
+          )}
+          </>
+          )}
           <div style={{ display: "flex", padding: "10px 0 2px", fontSize: "15px" }}>
             <b>Total</b>
             <b style={{ marginLeft: "auto", fontFamily: "var(--mono, monospace)" }} data-testid="ci-total">{money(total)}</b>
@@ -156,6 +188,13 @@ export default async function ContractorInvoicePage({ params }: { params: Promis
 
         {ci.due_on && ci.status !== "paid" && (
           <p className="hint" style={{ marginTop: 10 }}>Payment due {dateFmt(ci.due_on)}.</p>
+        )}
+
+        {ci.status !== "draft" && (
+          <a className="btn gh" href={`/portal/money/${ci.id}/pdf`} target="_blank" rel="noreferrer"
+            data-testid="ci-pdf-link" style={{ marginTop: 10 }}>
+            Download invoice PDF
+          </a>
         )}
 
         {draft && (

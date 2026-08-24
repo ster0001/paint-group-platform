@@ -94,9 +94,10 @@ export type ContractorInvoiceRow = {
   id: string; number: string | null; status: string;
   total_inc_cents: number; due_on: string | null;
   submitted_at: string | null; approved_at: string | null; paid_at: string | null;
-  rcti: boolean;
+  rcti: boolean; auto_draft_source: string; claim_pct: number | null;
+  invoice_pdf_path: string | null;
   contractors: { company_name: string | null } | null;
-  work_orders: { wo_ref: string; estimate_id: string; job_address: string | null } | null;
+  work_orders: { wo_ref: string; estimate_id: string; stage: string; job_address: string | null } | null;
 };
 
 /** Everything the dashboard needs, four round trips. */
@@ -121,7 +122,7 @@ export async function loadDashboard(supabase: SupabaseClient) {
       .limit(60),
     // Step 5: the Payables tab — contractor invoices across every job.
     supabase.from("contractor_invoices")
-      .select("id, number, status, total_inc_cents, due_on, submitted_at, approved_at, paid_at, rcti, contractors(company_name), work_orders(wo_ref, estimate_id, job_address:wo_snapshot->>jobAddress)")
+      .select("id, number, status, total_inc_cents, due_on, submitted_at, approved_at, paid_at, rcti, auto_draft_source, claim_pct, invoice_pdf_path, contractors(company_name), work_orders(wo_ref, estimate_id, stage, job_address:wo_snapshot->>jobAddress)")
       .order("created_at", { ascending: false })
       .limit(200),
   ]);

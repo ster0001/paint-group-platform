@@ -16,7 +16,8 @@ const TABS = [
   { href: "/pc", label: "Dashboard" },
   { href: "/pc/flow", label: "Project Progress" },
   { href: "/pc/updates", label: "Updates" },
-  { href: "/invoicing", label: "Invoicing" },
+  // Invoicing left PC Command (Tom, 24 Aug) — it lives in the sidebar as its
+  // own tab; job pages still deep-link to their own money view.
 ];
 
 export default function PcNav() {

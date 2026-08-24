@@ -157,8 +157,14 @@ test.describe("the revision builder — diff → signed variations", () => {
     frozenRow = data as Record<string, unknown>;
   });
 
-  test("every door leads here: money view, locked builder", async ({ page }) => {
+  test("every door leads here: invoices tab, money view, locked builder", async ({ page }) => {
     await signIn(page, staff!, /\/estimates/);
+
+    // The Invoicing tab (estimates-style list): the job's ADDRESS is the door.
+    await page.goto("/invoices");
+    await expect(page.getByTestId(`job-${estimateId}`)).toContainText("deposit · draft");
+    await page.getByTestId(`revise-${estimateId}`).click();
+    await expect(page.getByTestId("revision-badge")).toBeVisible();
 
     // From the job's money view…
     await page.goto(`/invoicing/job/${estimateId}`);

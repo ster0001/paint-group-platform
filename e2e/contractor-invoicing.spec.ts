@@ -32,6 +32,7 @@ const TOTAL = OFFER + ADDITION - CLEAN_CREDIT - MANUAL_DEDUCTION; // 247,000
 let fixture: LoopFixture | null = null;   // the main job
 let fixtureB: LoopFixture | null = null;  // GST + pending-deduction job
 let fixtureC: LoopFixture | null = null;  // RCTI job
+let fixtureD: LoopFixture | null = null;  // payment-claims job
 let contractorId = "";
 let ciId = "";
 let ciBId = "";
@@ -52,20 +53,18 @@ async function seedVariation(db2: SupabaseClient, workOrderId: string, over: Rec
 
 test.describe.configure({ mode: "serial" });
 
-test.describe("contractor invoicing v2 — draft, submit, approve, pay", () => {
-  test.skip(!db, "set SUPABASE_SERVICE_ROLE_KEY to build the fixtures");
-  test.skip(!staff, missingCreds("STAFF"));
-  test.skip(!contractor, missingCreds("CONTRACTOR"));
-
-  test.beforeAll(async () => {
+test.beforeAll(async () => {
+  if (!db || !staff || !contractor) return;
     contractorId = (await contractorIdForEmail(db!, contractor!.email))!;
     fixture = await createLoopFixture(db!, contractorId, [{ heading: "Left", labels: ["Walls"] }]);
     fixtureB = await createLoopFixture(db!, contractorId, [{ heading: "Rear", labels: ["Walls"] }]);
     fixtureC = await createLoopFixture(db!, contractorId, [{ heading: "Side", labels: ["Walls"] }]);
+    fixtureD = await createLoopFixture(db!, contractorId, [{ heading: "Front", labels: ["Walls"] }]);
 
     await db!.from("work_orders").update({ contractor_payment_cents: OFFER }).eq("id", fixture!.workOrderId);
     await db!.from("work_orders").update({ contractor_payment_cents: 100_000 }).eq("id", fixtureB!.workOrderId);
     await db!.from("work_orders").update({ contractor_payment_cents: 80_000 }).eq("id", fixtureC!.workOrderId);
+    await db!.from("work_orders").update({ contractor_payment_cents: 200_000 }).eq("id", fixtureD!.workOrderId);
 
     // The main job's variation history, already settled both sides:
     await seedVariation(db!, fixture!.workOrderId, {
@@ -89,16 +88,24 @@ test.describe("contractor invoicing v2 — draft, submit, approve, pay", () => {
     }).eq("id", contractorId);
   });
 
-  test.afterAll(async () => {
+test.afterAll(async () => {
+  if (!db || !staff || !contractor) return;
     await destroyLoopFixture(db!, fixture);
     await destroyLoopFixture(db!, fixtureB);
     await destroyLoopFixture(db!, fixtureC);
+    await destroyLoopFixture(db!, fixtureD);
     // Leave the shared contractor usable for other suites.
     await db!.from("contractors").update({
       abn: "12 345 678 901", address: "1 Test St, Melbourne", gst_registered: false,
       rcti_agreement_signed_at: null,
     }).eq("id", contractorId);
   });
+
+
+test.describe("contractor invoicing v2 — draft, submit, approve, pay", () => {
+  test.skip(!db, "set SUPABASE_SERVICE_ROLE_KEY to build the fixtures");
+  test.skip(!staff, missingCreds("STAFF"));
+  test.skip(!contractor, missingCreds("CONTRACTOR"));
 
   test("the auto-draft reconciles to offer + variations − deductions, to the cent", async () => {
     const { data, error } = await db!.rpc("contractor_invoice_draft", { p_work_order_id: fixture!.workOrderId });
@@ -231,7 +238,9 @@ test.describe("contractor invoicing v2 — draft, submit, approve, pay", () => {
     await page.getByTestId(`approve-ci-${ciId}`).click();
     await expect(page.getByTestId(`pay-ci-${ciId}`)).toBeVisible({ timeout: 15_000 });
 
-    page.once("dialog", (d) => d.accept("EFT-20260824-01"));
+    // Two prompts now: the bank reference, then the payment date.
+    const answers = ["EFT-20260824-01", new Date().toISOString().slice(0, 10)];
+    page.on("dialog", (d) => d.accept(answers.shift() ?? ""));
     await page.getByTestId(`pay-ci-${ciId}`).click();
     await expect(page.getByTestId(`payable-${ciId}`)).toContainText("Paid", { timeout: 15_000 });
 
@@ -277,5 +286,106 @@ test.describe("contractor invoicing v2 — draft, submit, approve, pay", () => {
     expect(row.status).toBe("approved");
     expect(row.number).toMatch(/^CI-\d{4,}$/); // issued on the contractor's behalf
     expect(row.submitted_at).not.toBeNull();
+  });
+});
+
+test.describe("payment claims — invoice at any time (Tom, 24 Aug)", () => {
+  test.skip(!db, "set SUPABASE_SERVICE_ROLE_KEY to build the fixtures");
+  test.skip(!staff, missingCreds("STAFF"));
+  test.skip(!contractor, missingCreds("CONTRACTOR"));
+
+  let claimId = "";
+
+  test("a 25% claim from the Money tab — born submitted, bounded, numbered", async ({ page }) => {
+    await signIn(page, contractor!, /\/portal/);
+    await page.goto("/portal/money");
+
+    await page.getByTestId("open-claim").click();
+    await page.getByTestId("claim-pct-25").click();
+    // Preview is the engine's arithmetic: 25% of the $2,000 offer.
+    await expect(page.getByTestId("send-claim")).toContainText("$500.00");
+    await page.getByTestId("send-claim").click();
+    await expect(page.getByTestId("claim-message")).toContainText("Invoice sent", { timeout: 15_000 });
+
+    const { data: rows } = await db!.from("contractor_invoices")
+      .select("id, status, number, total_inc_cents, claim_pct, auto_draft_source, gst_cents")
+      .eq("work_order_id", fixtureD!.workOrderId);
+    const claims = rows as {
+      id: string; status: string; number: string | null; total_inc_cents: number;
+      claim_pct: number | null; auto_draft_source: string; gst_cents: number;
+    }[];
+    expect(claims).toHaveLength(1);
+    claimId = claims[0].id;
+    expect(claims[0].status).toBe("submitted");
+    expect(claims[0].auto_draft_source).toBe("claim");
+    expect(claims[0].total_inc_cents).toBe(50_000);
+    expect(Number(claims[0].claim_pct)).toBe(25);
+    expect(claims[0].number).toMatch(/^CI-\d{4,}$/);
+  });
+
+  test("the claim's PDF renders under the contractor's own details", async ({ page }) => {
+    await expect.poll(async () => {
+      const { data } = await db!.from("contractor_invoices")
+        .select("invoice_pdf_path").eq("id", claimId).single();
+      return (data as { invoice_pdf_path: string | null }).invoice_pdf_path;
+    }, { timeout: 30_000, intervals: [1_000] }).not.toBeNull();
+
+    await signIn(page, contractor!, /\/portal/);
+    const pdf = await page.request.get(`/portal/money/${claimId}/pdf`);
+    expect(pdf.status()).toBe(200);
+    expect(pdf.headers()["content-type"] ?? "").toContain("pdf");
+  });
+
+  test("a fixed claim can never exceed what's left to invoice", async () => {
+    // $2,000 contract − $500 claimed = $1,500 left; $1,600 is refused.
+    expect(await rpcAs(contractor!, "contractor_invoice_request", {
+      p_work_order_id: fixtureD!.workOrderId, p_mode: "fixed", p_value: 1600,
+    })).toBe("error:exceeds_remaining");
+  });
+
+  test("the sign-off final drafts only the remainder", async () => {
+    const { data } = await db!.rpc("contractor_invoice_draft", { p_work_order_id: fixtureD!.workOrderId });
+    expect(String(data)).toMatch(/^ok:/);
+    const { data: final } = await db!.from("contractor_invoices")
+      .select("previously_invoiced_cents, total_inc_cents, auto_draft_source")
+      .eq("work_order_id", fixtureD!.workOrderId).eq("status", "draft").single();
+    expect(final).toEqual({
+      previously_invoiced_cents: 50_000,
+      total_inc_cents: 150_000,
+      auto_draft_source: "signoff",
+    });
+  });
+
+  test("payables shows the claim with the job's PC stage; paid with a DATE lands in the portal", async ({ page }) => {
+    await signIn(page, staff!, /\/estimates/);
+    await page.goto("/invoicing?tab=pay");
+
+    const row = page.getByTestId(`payable-${claimId}`);
+    await expect(row).toBeVisible();
+    await expect(row).toContainText("claim 25%");
+    await expect(row).toContainText("job: In progress"); // the PC stage, on the row
+    await expect(page.getByTestId(`pdf-ci-${claimId}`)).toBeVisible();
+
+    await page.getByTestId(`approve-ci-${claimId}`).click();
+    await expect(page.getByTestId(`pay-ci-${claimId}`)).toBeVisible({ timeout: 15_000 });
+
+    // Two prompts: bank reference, then the payment DATE.
+    const answers = ["EFT-CLAIM-01", "2026-08-20"];
+    page.on("dialog", (d) => d.accept(answers.shift() ?? ""));
+    await page.getByTestId(`pay-ci-${claimId}`).click();
+    await expect(row).toContainText("Paid", { timeout: 15_000 });
+
+    const { data: ci } = await db!.from("contractor_invoices")
+      .select("status, bank_reference, paid_at, remittance_number").eq("id", claimId).single();
+    const paid = ci as { status: string; bank_reference: string; paid_at: string; remittance_number: string | null };
+    expect(paid.status).toBe("paid");
+    expect(paid.bank_reference).toBe("EFT-CLAIM-01");
+    expect(paid.paid_at.slice(0, 10)).toBe("2026-08-20"); // the recorded date, not today
+    expect(paid.remittance_number).toMatch(/^REM-/);
+
+    // …and the contractor's Money tab reads Paid.
+    await signIn(page, contractor!, /\/portal/);
+    await page.goto(`/portal/money/${claimId}`);
+    await expect(page.getByTestId("ci-status")).toContainText("Paid");
   });
 });
