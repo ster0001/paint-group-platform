@@ -124,6 +124,27 @@ test.describe("Stripe test-card flow — C1 only", () => {
     await page.getByRole("button", { name: /Pay .* by card/ }).click();
     await page.waitForURL(/checkout\.stripe\.com/, { timeout: 60_000 });
     await page.locator("#email").fill("c1-test@example.com");
+    // The card fields only render once "Card" is picked from the payment
+    // methods — a custom control, so try each plausible handle until the
+    // card-number field actually exists. Then Link's "save my information"
+    // goes off, or it demands a phone number.
+    const cardPicks = [
+      page.locator('input[type="radio"][value="card"]'),
+      page.getByRole("radio", { name: /card/i }),
+      page.locator('[data-testid*="card"][role="button"], [data-testid="card-accordion-item"]'),
+      page.getByText("Card", { exact: true }),
+    ];
+    for (const pick of cardPicks) {
+      if ((await pick.count()) === 0) continue;
+      await pick.first().click({ force: true }).catch(() => {});
+      const visible = await page.locator("#cardNumber").isVisible().catch(() => false);
+      if (visible) break;
+      await page.waitForTimeout(1_500);
+      if (await page.locator("#cardNumber").isVisible().catch(() => false)) break;
+    }
+    await expect(page.locator("#cardNumber")).toBeVisible({ timeout: 20_000 });
+    const saveInfo = page.locator('input[type="checkbox"]:checked');
+    if (await saveInfo.count()) await saveInfo.first().uncheck({ force: true }).catch(() => {});
     await page.locator("#cardNumber").fill("4242 4242 4242 4242");
     await page.locator("#cardExpiry").fill("12 / 34");
     await page.locator("#cardCvc").fill("123");

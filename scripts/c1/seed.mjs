@@ -60,7 +60,7 @@ if (contractorId) {
   const { data: existing } = await service.from("contractors").select("id").eq("profile_id", contractorId).maybeSingle();
   if (!existing) {
     const { error } = await service.from("contractors").insert({
-      profile_id: contractorId, name: "C1 Contractor", company_name: "C1 Painting Co", active: true,
+      profile_id: contractorId, company_name: "C1 Painting Co", active: true,
     });
     if (error) console.log(`~ contractors row: ${error.message} (fine if columns differ — fix forward)`);
     else console.log("+ contractors row created");
@@ -73,7 +73,7 @@ if (staffId) {
   if (!anyCustomer) {
     const { data: profile } = await service.from("profiles").select("id").eq("role", "customer").limit(1).maybeSingle();
     if (profile) {
-      const { error } = await service.from("customers").insert({ profile_id: profile.id, name: "C1 Customer" });
+      const { error } = await service.from("customers").insert({ profile_id: profile.id });
       if (error) console.log(`~ customers row: ${error.message}`);
       else console.log("+ customers row created");
     }

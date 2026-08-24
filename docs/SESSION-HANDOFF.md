@@ -1,3 +1,38 @@
+# 24 Aug 2026 (later still) — C1 LIVE and the Stripe money suite GREEN 6/6
+
+Tom created the test project (qarfyjrzgdeoqbnbbxfp, Sydney). All 103 repo
+migrations applied to it FIRST TRY (zero fix-forwards — the one-file-per-change
+discipline held). Seeds in (3 logins + contractors/customers rows). Connection
+note: the SESSION pooler (5432) kept refusing the reset DB password; the
+TRANSACTION pooler (6543) took it — C1_DATABASE_URL uses 6543.
+
+`./scripts/c1/run-e2e.sh` = production build + `next start` on :3101 (Next 16
+allows one dev server per dir, and Tom's :3000 stays untouched).
+
+e2e/stripe-live.spec.ts — 6/6 with REAL Stripe test-mode (his account is a
+SANDBOX — no "Test mode" toggle in new Stripe UI):
+  1. 4242 pay-in-full: hosted checkout showed invoice + disclosed surcharge
+     ($1,850.00 + $31.75); redirect wrote NOTHING; self-signed webhook recorded
+     payment (surcharge split, RCT receipt), invoice → paid; customer page
+     flipped to "Payment received" by itself.
+  2. Duplicate delivery → once. 3. Fee captured. 4. Abandoned session inert.
+  5. Refund flips payment, invoice stays paid + needs_credit_note event.
+  6. Forged signature → 400.
+Checkout automation traps: the Card payment-method is a CUSTOM radio (click
+ladder with force + wait for #cardNumber), and Link's "save my information"
+checkbox must be unchecked or it demands a phone number.
+
+STEP 4 IS FULLY PROVEN. To take cards live, Tom (only Tom, in his own hands):
+sk_live secret key + webhook signing secret → Vercel env, endpoint
+https://paint-group-platform.vercel.app/api/webhooks/stripe (events:
+checkout.session.completed, charge.refunded, payment_intent.payment_failed),
+confirm NEXT_PUBLIC_SITE_URL, redeploy. Steps in docs/testing/c1-test-project.md.
+
+Remaining in the brief: Step 5 (contractor invoicing v2) → Step 6 (costs) →
+Step 7 (⛔ until acceptance-to-paid-workflow.md's 5 flags are ruled + APPROVED).
+
+---
+
 # 24 Aug 2026 (night) — Step 4 CLOSED: migration 20261115 live, gates proven on production
 
 Tom ran `20261115_stripe_payments.sql` (read-backs good). Live probes after:
