@@ -1129,3 +1129,28 @@ machinery, which moves the adjusted contract so the document reconciles. The
 PC console links in (nav tab + per-job "Money view →"), and
 `e2e/invoicing.spec.ts` walks accept → deposit → issue → pay in a real
 browser as staff, including the database-level immutability proof.
+
+## Invoicing Step 2 — the three money screens (24 Aug 2026)
+
+The §7 surfaces are live at three altitudes over one ledger: `/invoicing`
+(the business-wide dashboard — pulse tiles, filterable receivable rows with
+payment-stage dots, aged buckets, cross-job activity feed; filters are query
+params), `/invoicing/job/[estimateId]` (one job's money view — stage rail,
+money strip, Payments/Invoices/Costs tabs, the request-payment sheet and
+invoice-in-full), and `/invoicing/inv/[id]` (the document editor — the
+editor IS the customer-facing document; drafts edit through server
+round-trips, the amber reconciliation banner shows any drift from the
+ledger with two one-tap resolutions, and issue locks it). Every figure is
+derived in `lib/invoicing/derive.ts` (goldens pinned on the mockup's own
+numbers) or the `invoice_ledger_staff` RPC; components format and never
+compute. Draft editing is migration `20261113` (line RPCs recompute totals
+server-side; `invoice_set_draft_total` for inc-anchored amends;
+`invoice_record_drift_as_variation` writes a staff-override wo_variation so
+the ledger moves by exactly the drift; the same file hardens
+`invoice_draft_final` against object-shaped selected_options). The PC WO
+view's money strip links to the money view and the console rail carries
+"Invoicing". Proven by `e2e/invoicing.spec.ts` — accept → deposit draft on
+both surfaces → issue (DB refuses edits after) → bank payment → surfaces
+update → 25% claim server-computed → amend → banner with both resolution
+paths writing events — 6/6 against the live schema, plus the sign-off and
+full-loop suites re-run green.

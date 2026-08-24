@@ -206,6 +206,9 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
     await openMoneyView(page);
     page.once("dialog", (d) => d.accept()); // confirm invoice-in-full
     await page.getByRole("button", { name: "Invoice in full" }).click();
+    // The draft lands in the Invoices tab — switch to it before looking.
+    await expect(page.getByText("Final invoice drafted from the ledger.")).toBeVisible({ timeout: 15_000 });
+    await page.getByRole("navigation").getByRole("button", { name: "Invoices" }).click();
     await expect(page.getByTestId("invoice-card-final")).toBeVisible({ timeout: 15_000 });
     await page.getByTestId("invoice-card-final").getByRole("link", { name: "Open" }).click();
     await expect(page.getByTestId("recon-line")).toContainText("Reconciles to the job ledger");

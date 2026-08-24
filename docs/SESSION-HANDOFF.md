@@ -1,5 +1,38 @@
 # 24 Aug 2026 (later) — Invoicing Step 2: the three §7 screens, live (branch `feat/invoicing-payments`)
 
+Migrations 20261111/12/13 ALL RUN LIVE (read-backs confirmed in session). Diff for
+Step 1 approved by Tom; rulings 5/6/7 landed (variation price labelled inc-GST +
+golden test; builder deposit reads Settings; write-off audit trail confirmed).
+
+Built 1:1 from the three mockups, phone-first, staff-gated (`app/invoicing/`):
+- **/invoicing** — tiles (outstanding/overdue/due-week/collected+spark), filter
+  chips with counts as query params, chase-order rows with stage dots (row → doc,
+  address → job), aged buckets, Activity feed; Payables = labelled empty state.
+- **/invoicing/job/[estimateId]** — stage rail, money strip (ledger RPC),
+  Payments/Invoices/Costs tabs, request-payment sheet (%, custom, fixed — intent
+  only), invoice-in-full, record-payment (bounded, RCT receipts), void, delete
+  draft. PC WO money strip links here; PcNav gained "Invoicing".
+- **/invoicing/inv/[id]** — the document editor: seeded lines w/ variation
+  approval dates, line edit/add/remove (server recompute), deposit/progress
+  "Amend the amount", the reconciliation banner (drift server-computed;
+  record-as-variation moves the ledger, one-off adjustment records the decision),
+  Issue locks. Send/PDF/token = Step 3 (buttons visible, disabled).
+- lib/invoicing/derive.ts (+107 goldens now across the module) — ALL screen
+  figures derive there or in the ledger RPC.
+
+Gate: 780 unit · e2e `invoicing.spec.ts` 6/6 AS STAFF against live (incl. DB
+immutability + both banner paths) · wo-signoff 12/12 · wo-full-loop 13/13 ·
+A2 inherit 2/2 · build clean. Phone screenshots verified against the mockups
+(the legacy $0 stub on 2 Beech Rise correctly raises the banner).
+
+Next: Step 3 (PDF, issue-&-send pipeline behind the ⚑16 provider interface,
+token view). Step 4 (Stripe) WAITS for the C1 test project per Tom's ruling.
+Tom's eyeball script: docs/manual-tests/invoicing-step2.md.
+
+---
+
+# 24 Aug 2026 (later) — Invoicing Step 2: the three §7 screens, live (branch `feat/invoicing-payments`)
+
 **ONE paste queued:** `20261113_invoice_draft_editing.sql` (§7.3 editor RPCs + the
 reconciliation paths + a selected_options hardening of invoice_draft_final).
 Script + read-backs: `docs/manual-tests/invoicing-step2.md`. The screens are live
