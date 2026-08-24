@@ -33,6 +33,7 @@
     design/reference/invoice-view-mockup.html                (per-job money view mockup)
     design/reference/invoicing-dashboard-mockup.html         (business-wide invoicing dashboard mockup)
     design/reference/invoice-document-mockup.html            (the invoice document editor/viewer mockup)
+    design/reference/cost-capture-mockup.html                (intake queue · snap receipt · contractor expenses)
     CLAUDE.md
 
 **Kickoff ritual (law):** commit these files, then confirm the list back in the session before writing code. Missing file = STOP and report.
@@ -63,6 +64,12 @@ Every one becomes a **Settings value with the stated default**; open ⚑s go in 
 | 16 | ⚑ Email (and SMS) provider — invoices must be *sent*, and no provider has been chosen platform-wide | Step 3 builds the send pipeline behind an interface; provider decision blocks live sending only |
 | 17 | Write-off / bad-debt authority | Tom only; requires a reason; writes an event |
 | 18 | MYOB CSV mapping (account codes for sales, GST, surcharge income, card fees, contractor costs, materials, pass-through costs) | ⚑ get the chart-of-accounts codes from the bookkeeper before Step 7 |
+| 19 | Auto-confirm exact order-ref intake matches (no human tap)? | OFF for the first month; the intake accuracy readout (§6.5) decides |
+| 20 | When to retire the Zapier/Airtable materials path | After one clean month of bills@ — Tom flips the switch |
+| 21 | Order-reference scheme on supplier accounts | `PG-<job number>` on every order, added when trade accounts are pointed at bills@ |
+| 22 | ⚑ GST treatment of contractor expense reimbursements (registered vs not) | At-cost, itemised on the invoice and remittance; accountant confirms before the first payment run |
+| 23 | Contractor claimable categories + pre-approval threshold | materials top-up, sundries, parking, tip fees, other · $100 · both Settings |
+| 24 | Who may confirm intake documents | Any staff; approval of the resulting payable stays PC/Tom |
 
 ---
 
@@ -118,21 +125,49 @@ All money integer cents, ex-GST and GST stored separately. RLS three ways (staff
                        paid_at, bank_reference, remittance_pdf_path, rcti bool
     contractors        + abn, gst_registered bool (validated at onboarding),
                        rcti_agreement_signed_at
-    vendors            name, abn, gst_registered, default_category
+    vendors            name, abn, gst_registered, default_category,
+                       sender_domains text[] (vendor memory — first confirmed
+                       email links the sender; every later one prefills),
+                       extraction_hints jsonb (per-vendor reading notes, e.g.
+                       {"invoice_no_label": "Docket #"} — staff-set, injected
+                       into the extraction prompt for that vendor only)
     job_costs          job_id, vendor_id, category: scaffold | render | carpentry |
                        rubbish | equipment_hire | permit | traffic_mgmt | other,
                        description, amount_ex_cents, gst_cents, doc_path
                        (photo/PDF of their invoice — remediated upload path),
                        estimate_line_ref (nullable → links to the pass-through
                        line it was estimated against), status: recorded |
-                       approved | paid, paid_at, recorded_by
+                       approved | paid, paid_at, recorded_by,
+                       paid_with: company_card | personal | account,
+                       reimburse_to (staff member, nullable — personal
+                       payments feed the reimbursement queue), intake_id
     material_costs     job_id (nullable = unmatched queue), supplier, brand,
                        order_ref, address_text, amount_cents, invoice_date,
                        source: airtable | email | manual,
                        airtable_record_id (unique — idempotent sync),
-                       matched_by: auto | manual, matched_at
+                       matched_by: auto | manual, matched_at, intake_id
+    cost_intake        source: email | photo | contractor | airtable | manual,
+                       raw_doc_path (original email/PDF/photo — remediated
+                       upload path), message_id (unique — email idempotency),
+                       extracted jsonb {supplier, abn, invoice_no, invoice_date,
+                       subtotal_ex_cents, gst_cents, total_cents, job_hints[]}
+                       + per-field confidence, proposed_vendor_id,
+                       proposed_job_id, match_reason: order_ref | address |
+                       vendor_memory | none, status: pending | confirmed |
+                       rejected | duplicate, confirmed_by/at, resulting_row
+                       — proposed vs confirmed is kept per row: that delta IS
+                       the accuracy readout (§6.5) and the evidence for ⚑19
+    contractor_expenses wo_id, contractor_id, category (⚑23 Settings list),
+                       amount_cents, gst_cents, receipt_path (REQUIRED — no
+                       photo, no claim), note, preapproval_id (nullable),
+                       status: draft | submitted | approved | rejected | paid,
+                       invoice_line_ref (set when it rides their invoice)
+    expense_preapprovals wo_id, contractor_id, description, cap_cents,
+                       status: requested | approved | declined, decided_by/at
     settings           + keys for every §2 value + entity details + bank details
-                       + stripe key references (env, never DB)
+                       + stripe key references (env, never DB) + bills@ inbound
+                       config + expense threshold & claimable categories +
+                       duplicate window + intake auto-confirm toggle (⚑19)
 
 ### 3.2 Invoice state machine (RPC-enforced)
 
@@ -181,7 +216,22 @@ Drafts are **fully editable documents** — the §7.3 editor is the only mutatio
 
 **6.4 Off-platform trades** (scaffolders, renderers, carpenters, rubbish, equipment) — `vendors` + `job_costs` (§3.1). Snap a photo of their invoice or attach the PDF, pick vendor + category, amounts ex-GST + GST, link to the estimate pass-through line it was quoted against. Linked costs give est-vs-actual per pass-through; **unlinked costs are the scope-creep signal** on the Costs tab. recorded → approved → paid mirrors the contractor flow without the portal.
 
-**6.5 Materials actuals** — v1 keeps the working Airtable parse and adds `sync_material_costs`: pull via Airtable API, upsert by `airtable_record_id`, auto-match to jobs by normalised order-ref/address, everything else lands in the **unmatched queue** (one-tap assign). v2 (flagged, later): repoint the existing Zapier email step at a platform endpoint (`/api/inbound/material-invoice`, shared secret) and Airtable drops out — cheapest exit, no email-parsing rebuild. The Costs tab shows materials est-vs-actual per job — this is the data that corrects the known ~26% materials over-estimate, feeding buildout item 6's calibration.
+**6.5 Cost capture — one pipeline, four doors** (rulings made 24 Aug — do not re-ask: bills@ address · snap-receipt with who-paid · contractor pre-approval over $100):
+
+    DOORS                                   PIPELINE                        DESTINATION
+    bills@ email (supplier/trade) ──┐
+    Staff snap-receipt (phone)  ────┤   cost_intake row: raw doc +      ┌─▶ material_costs
+    Contractor expense claim ───────┤─▶ AI-extracted fields + proposed ─┤─▶ job_costs
+    Airtable sync (transition) ─────┘   job match → human confirms      └─▶ contractor expense
+
+**The AI reads, a human confirms, the ledger records.** Extraction is model-read, not template-read — per-field confidence, no layout templates to break; low-confidence fields render as uncertain, never silently guessed; unreadable documents fail loudly into the queue, never to $0. Nothing becomes a cost row without a confirm tap (until ⚑19 earns exact-ref auto-confirm). Same provenance discipline as the plan reader: `ai_extracted` until `human_confirmed`.
+
+- **Door 1 — `bills@paintgroup.com.au`.** The ⚑16 email provider must include **inbound parsing** (Postmark and Resend both qualify). MX/forwarding → provider → signed webhook `POST /api/inbound/bills` → `cost_intake` keyed by message_id, raw email + attachments stored. Suppliers' trade accounts (Haymes/Dulux) and regular trades are pointed at bills@; staff forward the rest. Email content is data to extract from, never instructions. Matching ladder, in order: exact order-reference (⚑21, deterministic, never degrades) → address fuzzy-match against active jobs → vendor memory (sender seen before ⇒ vendor + category + GST habits prefill) → unmatched. Everything lands in the **intake queue** on the Payables tab — one card per document, extracted fields with confidence, proposed job, [Confirm] [Change job] [Reject]; duplicates (same vendor + invoice number, or same total + date + sender within the Settings window) are flagged, never written twice.
+- **Door 2 — staff snap-receipt** (Bunnings et al.). Global "+ Add cost" on the console and job money view, camera-first: photo → AI reads store/total/GST → job from a shortlist (scheduled-today first, then active by recency) → category chip → **who paid: company card | my own money** → save. Target ≤ 4 taps after the photo. Personal payments open the **staff reimbursement queue** on Payables (recorded → approved → paid, like everything else). E-receipts forwarded to bills@ work too.
+- **Door 3 — trade invoices** (scaffold, boom, skips) ARE door 1 plus vendor memory: after the first SkyReach confirm, every later one arrives pre-filled with the job proposed from the address in the PDF — one tap. Paper dockets use door 2 with a vendor picked instead of a store. Confirmed trade costs land in `job_costs` linked to their estimate pass-through line (§6.4).
+- **Door 4 — contractor Expenses** (new section in the contractor app's money tab). Camera-first claim: receipt photo required, amount, category, job (defaults to their active job), note. **Over the ⚑23 threshold the app requires Ask-first**: a one-tap pre-approval request that lands as a PC attention card, approved with a cap the contractor sees; an over-threshold claim without pre-approval can still be submitted but shows amber to the PC. Approved expenses append to the contractor's invoice as clearly-labelled **at-cost reimbursement lines** (itemised on the remittance, ⚑22 GST treatment) — one payment run, no second rail — and they land on the job's Costs tab as job costs, counted in est-vs-actual.
+- **What learns (and nothing else):** order refs propagate → exact-match share grows; vendor memory (sender_domains + default_category + extraction_hints) prefills; every intake row stores proposed vs confirmed, and an **accuracy readout** on the intake-queue header (last 30 days: % exact-ref · % confirmed-unchanged · % corrected) is the evidence that rules ⚑19. No invisible self-training — every match is inspectable.
+- **Transition:** Airtable sync writes through the same pipeline (`airtable_record_id` idempotent) with cross-door duplicate detection; the Zap retires per ⚑20. Materials est-vs-actual per job stays the calibration feed that corrects the known ~26% materials over-estimate.
 
 **6.6 Payments tab** — §7 layout. Deposit auto-drafts on acceptance (amendable), Request payment (% or $ → draft → preview → issue → send), Invoice in full (remaining balance), Record manual payment, per-invoice actions (send / copy pay link / download PDF / void), activity feed from `invoice_events`.
 
@@ -223,11 +273,29 @@ Lives as the money view of a job — reachable from the PC console work-order vi
 
 ### 7.2 The invoicing dashboard (mockup: `invoicing-dashboard-mockup.html`)
 
-The business-wide money screen — its own route (`/invoicing`), reachable from the PC console. Where PC Command answers "what needs me today", this answers **"where is every dollar, and what stage is it at"**. Same shell language: headline tiles, then **tabs: Receivables · Payables · Activity**. Phone-first.
+The business-wide money screen — its own route (`/invoicing`), reachable from the PC console. Where PC Command answers "what needs me today", this answers **"where is every dollar, and what stage is it at"**. Same shell language: headline tiles, then **tabs: Dashboard · Receivables · Payables · Activity**. Phone-first. Dashboard is the default tab.
 
 - **Pulse tiles (4)** — **Outstanding** (Σ balances on issued+ invoices, all jobs) · **Overdue** (clay, with count) · **Due this week** · **Collected this fortnight** (emerald, with sparkline from payment events). All derived; the PC Command money tile deep-links here.
+- **Dashboard tab (first, default)** — the money attention queue: what needs a human, ranked, one primary action per card — NOT a feed of everything (Activity is that). Cards derive from the same queries as everything else and **auto-clear the moment the underlying condition resolves**. Triggers and severity:
+
+  | Trigger | Severity | Primary action |
+  |---|---|---|
+  | Invoice overdue (any kind) | critical (clay), oldest first | Approve chase (draft ready) + tel: link |
+  | Deposit unpaid within N days of job start (⚑7, N=3) or overdue | critical | Send reminder / Call |
+  | Payable overdue — approved contractor invoice or job cost past due | critical | Mark paid |
+  | Final invoice drafted at sign-off but unissued >24h ("money on the table") | warning (amber) | Check & issue |
+  | Variation sent to customer, **not viewed** within 24h | warning | Resend via SMS |
+  | Variation **viewed but unapproved** >24h | warning | Nudge customer |
+  | Contractor invoice submitted, awaiting approval | warning | Approve |
+  | Deposit draft unissued >24h after acceptance | warning | Review & issue |
+  | Refund landed | warning | Raise credit note? |
+  | Payment received today | info (cyan), clears on the nightly sweep | View |
+  | Cost intake queue non-empty (bills@/receipts awaiting confirm) | info | Review queue |
+  | Contractor pre-approval requested (over-threshold expense) | warning | Approve / decline |
+
+  Ranking is the PC Command rule: critical oldest-first → warning oldest-first → info. The variation view/sent states read the existing variation token-link tracking (same machinery as estimate/invoice view events). **One source rule:** these money cards and the PC Command attention queue share one query module (`lib/invoicing/attention.ts`) — PC Command shows the money-domain subset inline; the two surfaces must render from the same rows so they can never disagree. The tile counts derive from the same query.
 - **Receivables tab** — filter chips **All · Overdue · Awaiting · Partially paid · Draft · Paid**, counts on each. One row per invoice across every job: job address, invoice number + kind, amount and balance, status chip (standard colours), and the ageing figure ("6 days overdue" clay / "due in 2 days" amber / "viewed yesterday" cyan). Default sort = the chase order: overdue oldest-first, then due-soonest. Each row also carries the job's **payment-stage dots** (deposit/progress/final — filled emerald as paid) so the stage of the whole job is readable without opening it. Tap-through = that job's money view (§7.1). Below the list, the **aged receivables bar**: current / 1–7 / 8–14 / 15–30 / 30+ days, amounts per bucket, clay weighting as the buckets age.
-- **Payables tab** — the other direction of money, same shape: tiles for **To approve** (submitted contractor invoices) and **To pay** (approved, by due date per ⚑8); then rows for contractor invoices (Approve / Mark paid actions inline), approved-unpaid job costs, and the materials unmatched-queue badge. Nothing here moves money — it records and reminds (per the rulings).
+- **Payables tab** — the other direction of money, same shape: tiles for **To approve** (submitted contractor invoices) and **To pay** (approved, by due date per ⚑8); then the **intake queue** (§6.5 — one card per pending document, with the accuracy readout in its header), rows for contractor invoices (Approve / Mark paid actions inline), approved-unpaid job costs, contractor expense claims awaiting approval, and the **staff reimbursement queue**. Nothing here moves money — it records and reminds (per the rulings).
 - **Activity tab** — the cross-job `invoice_events` feed (payments in, invoices sent/viewed, nudges, refunds), newest first. This is where "did anything land today?" gets answered without opening MYOB.
 - **Rules** — every figure from `lib/invoicing` aggregations; filters are query params (shareable); the dashboard renders from the same derived `overdue` logic as the chase ladder so the two can never disagree; RLS scopes it staff-only.
 
@@ -270,11 +338,14 @@ One phase per Claude Code session. Gate green before moving on; migrations betwe
     §4.2), invoice-in-full, record manual payment (bounded per §4.2), void
     with reason.
     §7.2 from design/reference/invoicing-dashboard-mockup.html: /invoicing
-    route, four pulse tiles, Receivables tab (filter chips with counts, chase-
-    order sort, payment-stage dots per row, aged buckets bar, tap-through per
-    the §7 navigation map) and the Activity tab. Payables tab renders as a
-    labelled empty state until Steps 5-6 fill it. Filters as query params.
-    Staff-only RLS.
+    route, four pulse tiles, Dashboard tab (the money attention queue —
+    lib/invoicing/attention.ts, triggers/ranking per the §7.2 table; cards
+    whose triggers depend on later steps — payables, refunds, materials —
+    simply don't fire yet) as the default tab, Receivables tab (filter chips
+    with counts, chase-order sort, payment-stage dots per row, aged buckets
+    bar, tap-through per the §7 navigation map) and the Activity tab.
+    Payables tab renders as a labelled empty state until Steps 5-6 fill it.
+    Filters as query params. Staff-only RLS.
     §7.3 from design/reference/invoice-document-mockup.html: the draft invoice
     document editor — lines seeded from snapshot + variations grouped by
     elevation with substrate descriptions, edit/remove/add-line with server-
@@ -287,7 +358,7 @@ One phase per Claude Code session. Gate green before moving on; migrations betwe
     issue → record bank payment → progress bar, strip, tiles and aged buckets
     all update from data alone.
 
-**Accept:** visual parity with all three mockups on a phone · zero client-computed money (grep clean) · deposit draft appears on acceptance without a page-specific write · dashboard totals reconcile to the sum of job ledgers on the e2e data · dashboard overdue derives from the same lib function the chase ladder will use · an edit that moves a draft off the ledger always raises the reconciliation banner, and both resolution paths write events.
+**Accept:** visual parity with all three mockups on a phone · zero client-computed money (grep clean) · deposit draft appears on acceptance without a page-specific write · dashboard totals reconcile to the sum of job ledgers on the e2e data · dashboard overdue derives from the same lib function the chase ladder will use · an edit that moves a draft off the ledger always raises the reconciliation banner, and both resolution paths write events · every live Dashboard trigger produces exactly one card, and resolving the condition clears it without a manual dismiss.
 
 ### Step 3 — PDF, issue & send pipeline, token view
 
@@ -327,19 +398,57 @@ One phase per Claude Code session. Gate green before moving on; migrations betwe
 
 **Accept:** drafted amount reconciles to offer + variations to the cent · unregistered contractor cannot produce a document saying Tax Invoice · deduction lines visible to the contractor pre-submit.
 
-### Step 6 — Costs: trades + materials
+### Step 6 — Cost capture (three sessions: 6a / 6b / 6c)
 
-    vendors + job_costs per §6.4 with doc upload (remediated path), estimate
-    pass-through linking, recorded→approved→paid. Materials: Airtable sync
-    (upsert by record id), auto-match by order-ref/address, unmatched queue
-    with one-tap assign, manual entry. Costs tab completed: three groups,
+Builds §6.4 + §6.5 to `design/reference/cost-capture-mockup.html`. One session each; gate green between them.
+
+**6a — Pipeline + intake queue**
+
+    Build the cost_intake pipeline per §6.5: migrations (cost_intake +
+    vendors/job_costs/material_costs extensions per §3.1), the
+    /api/inbound/bills webhook (signature verify, message_id idempotency,
+    raw storage via the remediated upload path), extraction behind an
+    interface (rule-based fields + AI extraction — AI proposes only, per-field
+    confidence, extraction_hints injected per vendor), the matching ladder
+    (order-ref → address → vendor memory → unmatched), the intake queue UI on
+    the Payables tab with the accuracy readout header, the duplicate guard,
+    and the Airtable transition sync writing through the same pipeline.
+    vendors + job_costs manual entry per §6.4 (doc upload, pass-through
+    linking, recorded→approved→paid) land here too. Build against the email
+    provider's webhook simulator if ⚑16 is still open.
+    E2e: an emailed PDF lands → proposes → confirms into job_costs with the
+    doc attached; the same email replayed is a no-op; an unreadable
+    attachment queues as "couldn't read this", never $0; a second invoice
+    with the same vendor+number flags duplicate.
+
+**Accept (6a):** no cost row exists without a source document attached · AI values never final without human confirm (⚑19 OFF) · replay-safe on both email and Airtable doors · Costs tab shows source chips that tap through to the original document.
+
+**6b — Snap receipt + reimbursements**
+
+    The "+ Add cost" camera-first flow per §6.5 door 2: photo → extraction →
+    job shortlist → category → who-paid → save, ≤ 4 taps after the photo on
+    a phone viewport. Personal payments create reimbursement-queue rows on
+    Payables (recorded→approved→paid). Costs tab completed: three groups,
     est-vs-actual bars, unlinked-cost amber chips, margin preview line.
-    Payables tab completed: approved-unpaid job costs rows + materials
-    unmatched-queue badge.
-    E2e AS STAFF: record a scaffold cost against its pass-through line, sync
-    materials, match one from the queue, Costs tab reconciles.
+    E2e AS STAFF on a phone viewport: receipt → job → save; personal payment
+    appears in the reimbursement queue and pays out with an event trail.
 
-**Accept:** sync is idempotent (run twice = no dupes) · unmatched never silently attaches · est-vs-actual derives from links, not typed figures.
+**Accept (6b):** ≤ 4 taps after the photo proven in the e2e · who-paid recorded on every receipt cost · est-vs-actual derives from links, not typed figures.
+
+**6c — Contractor expenses**
+
+    The Expenses section in the contractor portal money tab per §6.5 door 4:
+    camera-first claim (receipt REQUIRED), category from ⚑23 Settings, job
+    default, submitted/approved/rejected/paid states; Ask-first pre-approval
+    over the threshold (request → PC attention card → approve with cap →
+    visible in the contractor app); over-threshold claims without
+    pre-approval submit but flag amber. Approved expenses append to the
+    contractor invoice as at-cost reimbursement lines (itemised on the
+    remittance, ⚑22) and land on the job's Costs tab as job costs.
+    E2e AS THE CONTRACTOR (claim under threshold; ask-first over it) and
+    AS PC (approve both; see the line on the invoice + the cost on the job).
+
+**Accept (6c):** no claim exists without a receipt photo · over-threshold without pre-approval is visible amber, never silent · reimbursement lines reconcile to approved claims to the cent · approved claims appear in job est-vs-actual.
 
 ### Step 7 — Chase ladder, console cards, MYOB export, full loop
     ⛔ Requires acceptance-to-paid-workflow.md approved & committed (§0.2).
@@ -367,7 +476,7 @@ One phase per Claude Code session. Gate green before moving on; migrations betwe
 4. A variation appears on exactly one issued invoice, enforced by the database.
 5. Contractor, customer and staff each see only their view (RLS + `view=` param, proven by tests); the customer path works by token link before the identity layer lands.
 6. Both screens are their mockups, breathing real data, on a phone: the job money view, and the /invoicing dashboard whose tiles, filters and aged buckets reconcile to the sum of the job ledgers. The WO console's money strip and "deposit paid" tile read this module and deep-link here.
-7. All §2 ⚑s are Settings values; the open ones (2, 4, 5, 9, 11, 16, 18 at minimum) are listed in the final PR body addressed to Tom.
+7. All §2 ⚑s are Settings values; the open ones (2, 4, 5, 9, 11, 16, 18, 19–22 at minimum) are listed in the final PR body addressed to Tom.
 8. Job P&L (buildout item 6) can be built from this module's tables without another migration touching money.
 
 — End of brief. If anything here contradicts `acceptance-to-paid-workflow.md` on chase-ladder semantics, that file wins; this file wins on data model and build order. Report the contradiction either way.

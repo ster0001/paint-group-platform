@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cost capture — cost-capture-mockup</title>
+<link rel="preconnect" href="https://api.fontshare.com">
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@500,600,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0B0D; --graphite:#12161A; --raised:#171C21; --line:#242B32;
+    --text:#EDF0F2; --muted:#8C959D;
+    --cyan:#3BD8E9; --on-cyan:#03272D; --paint:#2FB9CB;
+    --amber:#E0A83C; --emerald:#2FA46B; --clay:#B3574A;
+    --sans:'Switzer',system-ui,-apple-system,sans-serif;
+    --mono:'Martian Mono',ui-monospace,SFMono-Regular,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--ink);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+  body{max-width:480px;margin:0 auto;padding-bottom:48px}
+  .mono{font-family:var(--mono)}
+  header{padding:18px 16px 0}
+  .crumb{color:var(--muted);font-size:13px;font-weight:500}
+  .crumb span{color:var(--cyan)}
+  h1{font-size:21px;font-weight:700;letter-spacing:-.02em;margin-top:8px}
+  .sub{color:var(--muted);font-size:13px;margin-top:2px;font-weight:500}
+  nav{position:sticky;top:0;z-index:5;display:flex;gap:4px;margin-top:16px;padding:10px 16px;background:linear-gradient(var(--ink) 75%,transparent);backdrop-filter:blur(6px)}
+  nav button{flex:1;appearance:none;border:1px solid var(--line);background:var(--graphite);color:var(--muted);
+    font-family:var(--sans);font-size:12px;font-weight:600;padding:9px 2px;border-radius:10px;cursor:pointer}
+  nav button.on{background:var(--cyan);border-color:var(--cyan);color:var(--on-cyan)}
+  section{display:none;padding:6px 16px 0}
+  section.on{display:block}
+  .card{border:1px solid var(--line);border-radius:14px;background:var(--graphite);padding:14px;margin-top:12px}
+  h3{font-size:15px;font-weight:600;letter-spacing:-.01em}
+  .hint{color:var(--muted);font-size:12.5px;line-height:1.5;font-weight:500}
+  .chip{display:inline-block;font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;
+    padding:4px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+  .chip.src{color:var(--paint);border-color:rgba(47,185,203,.4)}
+  .chip.conf{color:var(--emerald);border-color:rgba(47,164,107,.4)}
+  .chip.low{color:var(--amber);border-color:rgba(224,168,60,.45)}
+  .chip.dup{color:var(--clay);border-color:rgba(179,87,74,.5)}
+  .mini{appearance:none;border:1px solid var(--line);background:var(--ink);color:var(--text);
+    font-family:var(--sans);font-size:12.5px;font-weight:600;padding:8px 12px;border-radius:9px;cursor:pointer}
+  .mini.cy{border-color:rgba(59,216,233,.4);color:var(--cyan)}
+  .acts{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  .kv{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-top:10px}
+  .kv .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .kv .v{font-family:var(--mono);font-size:12px;margin-top:3px}
+  .match{display:flex;gap:8px;align-items:center;margin-top:11px;border:1px dashed rgba(59,216,233,.4);
+    border-radius:10px;padding:9px 11px;font-size:12.5px;font-weight:600}
+  .match .why{font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px;font-weight:400}
+  .note{margin:24px 16px 0;color:var(--muted);font-size:11px;font-family:var(--mono);text-align:center;line-height:1.6}
+  /* snap receipt */
+  .cam{border:1px dashed var(--line);border-radius:14px;margin-top:12px;aspect-ratio:3/2;display:flex;
+    align-items:center;justify-content:center;flex-direction:column;gap:8px;color:var(--muted);background:var(--graphite)}
+  .cam .shutter{width:54px;height:54px;border-radius:50%;background:var(--cyan);border:4px solid var(--on-cyan);outline:2px solid var(--cyan)}
+  .chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+  .pchip{appearance:none;border:1px solid var(--line);background:var(--graphite);color:var(--text);
+    font-family:var(--sans);font-size:12.5px;font-weight:600;padding:8px 12px;border-radius:999px;cursor:pointer}
+  .pchip.on{background:var(--cyan);border-color:var(--cyan);color:var(--on-cyan)}
+  .lbl{font-family:var(--mono);font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-top:14px}
+  .btn{width:100%;appearance:none;border:0;border-radius:12px;padding:14px 0;font-family:var(--sans);
+    font-size:14.5px;font-weight:700;cursor:pointer;background:var(--cyan);color:var(--on-cyan);margin-top:16px}
+  /* contractor expenses */
+  .exp{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)}
+  .exp:last-of-type{border-bottom:0}
+  .exp .m{font-size:13.5px;font-weight:600}
+  .exp .s{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:3px}
+  .exp .amt{font-family:var(--mono);font-size:13px;font-weight:600;flex:none}
+  .st{font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;border-radius:999px;padding:3px 8px;border:1px solid var(--line)}
+  .st.paid{color:var(--emerald);border-color:rgba(47,164,107,.4)}
+  .st.appr{color:var(--cyan);border-color:rgba(59,216,233,.4)}
+  .st.sub{color:var(--amber);border-color:rgba(224,168,60,.45)}
+  .ask{border:1px solid rgba(224,168,60,.4);border-radius:12px;padding:12px 13px;margin-top:12px;background:var(--graphite)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="crumb"><span>‹</span> Invoicing · Payables</div>
+  <h1>Cost capture</h1>
+  <div class="sub">Three doors, one pipeline · sample data</div>
+</header>
+
+<nav>
+  <button class="on" data-tab="intake">Intake queue</button>
+  <button data-tab="snap">Snap receipt</button>
+  <button data-tab="exp">Contractor</button>
+</nav>
+
+<!-- ============ INTAKE QUEUE (bills@) ============ -->
+<section id="intake" class="on">
+  <div class="hint" style="padding:4px 2px 0">Everything sent or forwarded to <span class="mono" style="color:var(--text)">bills@paintgroup.com.au</span> lands here, read and matched. Confirm writes the cost with the document attached.</div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h3>Haymes Paint — invoice</h3>
+      <span class="chip src">bills@ · PDF</span>
+    </div>
+    <div class="kv">
+      <div><div class="k">Invoice no.</div><div class="v">HP-88214</div></div>
+      <div><div class="k">Date</div><div class="v">22 Aug</div></div>
+      <div><div class="k">Total inc GST</div><div class="v">$412.80</div></div>
+      <div><div class="k">GST</div><div class="v">$37.53</div></div>
+    </div>
+    <div class="match">
+      <div>→ 12 Ellerslie Grove, Elsternwick
+        <div class="why">matched on order ref PG-0087 · confidence high <span class="chip conf" style="margin-left:6px">97%</span></div>
+      </div>
+    </div>
+    <div class="acts"><button class="mini cy">Confirm</button><button class="mini">Change job</button><button class="mini">View PDF</button></div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h3>SkyReach Hire — scaffold</h3>
+      <span class="chip src">bills@ · known vendor</span>
+    </div>
+    <div class="kv">
+      <div><div class="k">Invoice no.</div><div class="v">SR-2291</div></div>
+      <div><div class="k">Category</div><div class="v">scaffold (memory)</div></div>
+      <div><div class="k">Total inc GST</div><div class="v">$1,450.00</div></div>
+      <div><div class="k">GST</div><div class="v">$131.82</div></div>
+    </div>
+    <div class="match">
+      <div>→ 4 Barkly St, Brunswick
+        <div class="why">address found in PDF · confidence medium <span class="chip low" style="margin-left:6px">78%</span> · links to estimate pass-through: Scaffold $1,400</div>
+      </div>
+    </div>
+    <div class="acts"><button class="mini cy">Confirm</button><button class="mini">Change job</button><button class="mini">View PDF</button></div>
+  </div>
+
+  <div class="card" style="border-color:rgba(179,87,74,.45)">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h3>Dulux — invoice</h3>
+      <span class="chip dup">Possible duplicate</span>
+    </div>
+    <div class="hint" style="margin-top:8px">Same invoice number D-77120 confirmed 3 days ago via Airtable sync. No cost was written.</div>
+    <div class="acts"><button class="mini">Compare</button><button class="mini">Dismiss</button></div>
+  </div>
+</section>
+
+<!-- ============ SNAP RECEIPT (staff) ============ -->
+<section id="snap">
+  <div class="cam">
+    <div class="shutter"></div>
+    <div class="hint">Point at the receipt — store, total and GST read automatically</div>
+  </div>
+
+  <div class="card">
+    <div class="kv">
+      <div><div class="k">Store</div><div class="v">Bunnings Oakleigh</div></div>
+      <div><div class="k">Total inc GST</div><div class="v">$86.43</div></div>
+    </div>
+    <div class="lbl">Job</div>
+    <div class="chips">
+      <button class="pchip on">12 Ellerslie Gr</button>
+      <button class="pchip">4 Barkly St</button>
+      <button class="pchip">90 Tennyson St</button>
+      <button class="pchip">Search…</button>
+    </div>
+    <div class="lbl">Category</div>
+    <div class="chips">
+      <button class="pchip on">Sundries</button>
+      <button class="pchip">Materials</button>
+      <button class="pchip">Equipment</button>
+      <button class="pchip">Other</button>
+    </div>
+    <div class="lbl">Who paid</div>
+    <div class="chips">
+      <button class="pchip on">Company card</button>
+      <button class="pchip">My own money — reimburse me</button>
+    </div>
+    <button class="btn">Save against 12 Ellerslie Grove</button>
+    <div class="hint" style="margin-top:10px;text-align:center">Four taps after the photo. "My own money" joins the reimbursement queue on Payables.</div>
+  </div>
+</section>
+
+<!-- ============ CONTRACTOR EXPENSES (portal money tab) ============ -->
+<section id="exp">
+  <div class="hint" style="padding:4px 2px 0">Contractor app · Money → Expenses. Receipt photo required — no photo, no claim. Approved expenses are repaid on your next invoice, listed separately.</div>
+
+  <div class="ask">
+    <h3 style="font-size:14px">Buying something over $100?</h3>
+    <div class="hint" style="margin-top:5px">Ask first — one tap, and Felipe gets it straight away. Approval shows here with the agreed amount.</div>
+    <div class="acts"><button class="mini cy">Ask before buying</button></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-bottom:4px">Your claims — 12 Ellerslie Grove</h3>
+    <div class="exp">
+      <div><div class="m">Sanding discs & sugar soap</div><div class="s">Sundries · receipt ✓ · claimed Tue</div></div>
+      <div style="display:flex;gap:8px;align-items:center"><span class="st paid">Paid</span><span class="amt">$42.10</span></div>
+    </div>
+    <div class="exp">
+      <div><div class="m">Tip fees — rubbish run</div><div class="s">Tip fees · receipt ✓ · claimed yesterday</div></div>
+      <div style="display:flex;gap:8px;align-items:center"><span class="st appr">Approved</span><span class="amt">$68.00</span></div>
+    </div>
+    <div class="exp">
+      <div><div class="m">Extra undercoat, 10L</div><div class="s">Materials top-up · receipt ✓ · pre-approved $180 cap</div></div>
+      <div style="display:flex;gap:8px;align-items:center"><span class="st sub">Submitted</span><span class="amt">$164.50</span></div>
+    </div>
+    <button class="btn">＋ Claim an expense</button>
+    <div class="hint" style="margin-top:10px;text-align:center">Camera opens first. Amount, category and job take three taps.</div>
+  </div>
+</section>
+
+<div class="note">design/reference/cost-capture-mockup.html · all figures sample · AI proposes, a person confirms, the ledger records</div>
+
+<script>
+  document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{
+    document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+    document.querySelectorAll('section').forEach(s=>s.classList.toggle('on',s.id===b.dataset.tab));
+    window.scrollTo({top:0});
+  }));
+</script>
+</body>
+</html>
