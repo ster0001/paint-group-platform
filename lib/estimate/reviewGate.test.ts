@@ -13,6 +13,7 @@ const item = (over: Partial<Record<string, unknown>>) => ({
 const ctx: PricingContext = {
   rateItems: [
     item({ code: "Walls" }),
+    item({ code: "Weatherboard", category: "Exterior", charge_out_cents: 10000 }),
     item({ code: "Ceilings", sub_category: "Ceilings", rate_2_coat: 10 }),
     item({ code: "Flat Door and Frame (1 Side)", unit: "Hours Per Item", sub_category: "Doors", rate_2_coat: 0.75 }),
     item({ code: "Standard Cornices", unit: "Lineal Metres", sub_category: "Cornices", rate_2_coat: 20 }),
@@ -63,6 +64,46 @@ describe("reviewGate", () => {
     expect(items[0].impactCents).toBe(Math.round(0.75 * 4 * 8500));
     expect(items[1].impactCents).toBe(2 * 8500);
     expect(items[0].impactCents + items[1].impactCents).toBeGreaterThan(REVIEW_GATE_CENTS);
+  });
+
+  it("a MEASURED exterior side (L x H, no W — it never has one) raises nothing", () => {
+    // The 25 Aug bug: the L-and-W check flagged every priced exterior side
+    // as "no measurements - priced at $0" forever.
+    const { items } = reviewGate(
+      [{ id: 1, kind: "area", name: "Exterior - Front", type: "Exterior", areaType: "surface", L: 12, W: 0, H: 2.6, surfaces: [surface("Weatherboard")] } as never],
+      ctx, adj, TYP,
+    );
+    expect(items).toHaveLength(0);
+  });
+
+  it("an unmeasured exterior side flags at a typical elevation, not a bedroom", () => {
+    const { items } = reviewGate(
+      [{ id: 1, kind: "area", name: "Exterior - Rear", type: "Exterior", areaType: "surface", L: 0, W: 0, H: 0, surfaces: [surface("Weatherboard")] } as never],
+      ctx, adj, TYP,
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0].basis).toContain("elevation");
+    // 10 x 2.6 m x 8 m²/h-rate... impact = qty x hours x charge — just pin > 0
+    expect(items[0].impactCents).toBeGreaterThan(0);
+  });
+
+  it("a width-measurement deferral self-heals once the width is entered", () => {
+    const deferral = {
+      room: "Exterior - Front", areaId: 1, kind: "exterior_width", what: "wall + trim measurements",
+      count: 1, needs: "width measurement required - measure this elevation on site and enter it in the builder",
+    };
+    // Width entered → the note is stale → gone.
+    const healed = reviewGate(
+      [{ id: 1, kind: "area", name: "Exterior - Front", type: "Exterior", areaType: "surface", L: 12, W: 0, H: 2.6, surfaces: [surface("Weatherboard")] } as never],
+      ctx, adj, TYP, [deferral],
+    );
+    expect(healed.items).toHaveLength(0);
+    // Width still missing → the note stands (and the $0 flag joins it).
+    const standing = reviewGate(
+      [{ id: 1, kind: "area", name: "Exterior - Front", type: "Exterior", areaType: "surface", L: 0, W: 0, H: 2.6, surfaces: [surface("Weatherboard")] } as never],
+      ctx, adj, TYP, [deferral],
+    );
+    expect(standing.items.some((i) => /width measurement/.test(i.needs))).toBe(true);
   });
 
   it("option areas are excluded - they are outside the total", () => {

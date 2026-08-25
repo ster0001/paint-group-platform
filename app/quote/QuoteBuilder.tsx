@@ -976,6 +976,10 @@ export default function QuoteBuilder({
   function computePaints(): SnapshotPaint[] {
     const used = new Map<string, Map<string, Set<string>>>(); // product → surfaceLabel → area titles
     const colourByProduct = new Map<string, { name: string; hex: string }>(); // first resolved colour per product
+    // Tom (25 Aug): every colour on the job is LISTED on its paint card, with
+    // its areas — and a colour-matched substrate says so to the customer.
+    // product → "name|hex|match" → { colour, match, areas }
+    const coloursByProduct = new Map<string, Map<string, { name: string; hex: string; match: boolean; areas: Set<string> }>>();
     for (const b of blocks) {
       if (b.kind !== "area" || b.isOption) continue; // only included areas
       const areaTitle = b.name || "Area";
@@ -990,6 +994,14 @@ export default function QuoteBuilder({
         bySurf.get(label)!.add(areaTitle);
         const col = colourFor(b.type, s);
         if (col.name && !colourByProduct.get(pname)?.name) colourByProduct.set(pname, col);
+        const match = Boolean(colourMatches[materialKey(b.type, s.code)]?.required);
+        if (col.name || match) {
+          if (!coloursByProduct.has(pname)) coloursByProduct.set(pname, new Map());
+          const groups = coloursByProduct.get(pname)!;
+          const gkey = `${col.name}|${col.hex}|${match ? 1 : 0}`;
+          if (!groups.has(gkey)) groups.set(gkey, { name: col.name, hex: col.hex, match, areas: new Set() });
+          groups.get(gkey)!.areas.add(areaTitle);
+        }
       }
     }
     const paints: SnapshotPaint[] = [];
@@ -1020,6 +1032,9 @@ export default function QuoteBuilder({
         customerVisible: visible,
         isPrep: /prep|primer/i.test(category),
         usage: usage.slice(0, 3),
+        colours: [...(coloursByProduct.get(pname)?.values() ?? [])].map((g) => ({
+          name: g.name, hex: g.hex, match: g.match, areas: [...g.areas].slice(0, 6),
+        })),
       });
     }
     paints.sort((a, z) => (a.isPrep ? 1 : 0) - (z.isPrep ? 1 : 0));

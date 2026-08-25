@@ -27,7 +27,11 @@ export type ReviewItem = {
   basis: string;
 };
 
-export type AiDeferred = { room: string; what: string; count: number; needs: string };
+export type AiDeferred = {
+  room: string; what: string; count: number; needs: string;
+  /** Carried by wizard-born deferrals; lets the gate self-heal stale ones. */
+  areaId?: number | null; kind?: string;
+};
 
 /** Default threshold - cents. Overridable via the settings row if one exists. */
 export const REVIEW_GATE_CENTS = 15000;
@@ -61,12 +65,21 @@ export function reviewGate(
     if (b.kind !== "area" || b.isOption) continue;
     const surfaces = b.surfaces ?? [];
 
-    // Unmeasured room: it prices at ZERO today, which is exactly the danger.
-    // Impact = what it would price at the room type's typical size.
-    if ((!b.L || !b.W) && surfaces.length > 0) {
-      const typ = typicalSizes[b.roomType ?? ""] ?? typicalSizes["bedroom"] ?? { L: 3.5, W: 3.25 };
+    // Unmeasured area: it prices at ZERO today, which is exactly the danger.
+    // Measured is TYPE-AWARE — an exterior elevation is width x height (L x H,
+    // it has no W at all), a room is L x W. The old L-and-W check flagged
+    // every fully-measured exterior side as "$0" forever (found 25 Aug). And
+    // the claim must be TRUE: an area that already prices above zero is never
+    // "currently priced at $0", whatever its dimension fields say.
+    const isExterior = (b.type ?? "") === "Exterior";
+    const unmeasured = isExterior ? !b.L || !b.H : !b.L || !b.W;
+    if (unmeasured && surfaces.length > 0 &&
+        priceArea(b as unknown as AreaInput, ctx, adj) === 0) {
+      const typ = isExterior
+        ? { L: 10, W: 0 }
+        : typicalSizes[b.roomType ?? ""] ?? typicalSizes["bedroom"] ?? { L: 3.5, W: 3.25 };
       const impact = priceArea(
-        { ...(b as unknown as AreaInput), L: typ.L, W: typ.W, H: b.H || 2.4 },
+        { ...(b as unknown as AreaInput), L: typ.L, W: typ.W, H: b.H || (isExterior ? 2.6 : 2.4) },
         ctx, adj,
       );
       items.push({
@@ -74,7 +87,9 @@ export function reviewGate(
         label: b.name ?? "Unnamed area",
         needs: "no measurements - currently priced at $0",
         impactCents: impact,
-        basis: `typical ${b.roomType ?? "room"} ${typ.L}x${typ.W} m`,
+        basis: isExterior
+          ? "typical elevation 10x2.6 m"
+          : `typical ${b.roomType ?? "room"} ${typ.L}x${typ.W} m`,
       });
     }
 
@@ -96,6 +111,15 @@ export function reviewGate(
   // a human picks the style. Impact = count at the CHEAPEST plausible rate,
   // so the gate understates rather than inflates.
   for (const d of aiDeferred) {
+    // Self-heal (found 25 Aug): a wizard "width measurement required" deferral
+    // is RESOLVED the moment the width is entered in the builder — the stored
+    // list never updates itself, so the gate checks the live block instead of
+    // trusting the note forever.
+    if (d.kind === "exterior_width" || /width measurement required/i.test(d.needs)) {
+      const target = blocks.find((b) =>
+        (d.areaId != null && b.id === d.areaId) || (b.name ?? "") === d.room);
+      if (target && (target.L ?? 0) > 0) continue;
+    }
     let code: string | null = null;
     if (/door/i.test(d.what)) code = "Flat Door and Frame (1 Side)";
     else if (/window/i.test(d.what)) {

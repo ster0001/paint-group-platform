@@ -886,12 +886,23 @@ function PaintCard({ p }: { p: SnapshotPaint }) {
         {p.usage.length > 0 && (
           <div className="pc-uses">{p.usage.map((u, i) => <span key={i}>{u}</span>)}</div>
         )}
-        {p.colourName && (
+        {(p.colours?.length ?? 0) > 0 ? (
+          // Every colour on the job, with its areas — and "colour matched"
+          // spelled out where we're matching an existing colour (Tom, 25 Aug).
+          p.colours!.map((c, i) => (
+            <div className="pc-colour" key={i}>
+              <span className="pc-swatch" style={{ background: c.hex || "#cfcfcf" }} />
+              {c.name ? `Colour: ${c.name}` : "Colour matched to your existing colour"}
+              {c.name && c.match ? " — colour matched" : ""}
+              {c.areas.length > 0 && <small style={{ color: "inherit", opacity: 0.75 }}> · {c.areas.join(" · ")}</small>}
+            </div>
+          ))
+        ) : p.colourName ? (
           <div className="pc-colour">
             <span className="pc-swatch" style={{ background: p.colourHex || "#cfcfcf" }} />
             Colour: {p.colourName}
           </div>
-        )}
+        ) : null}
         {p.customerVisible && p.blurb && <p className="pc-why">{p.blurb}</p>}
         {p.customerVisible && (p.properties.length > 0 || colourPending) && (
           <p className="pc-props">

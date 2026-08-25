@@ -42,6 +42,10 @@ export type SnapshotPaint = {
   customerVisible: boolean; // false -> name + usage chips only
   isPrep: boolean; // Prep & primers -> grouped under a subheading
   usage: string[]; // usage chips e.g. ["Walls · 4 areas"]
+  /** Every colour this product carries on the job, with its areas; match =
+   *  we're colour-matching (to a supplied code or the existing colour).
+   *  Optional — snapshots sent before 25 Aug 2026 don't carry it. */
+  colours?: { name: string; hex: string; match: boolean; areas: string[] }[];
 };
 
 export type CustomerSnapshot = {

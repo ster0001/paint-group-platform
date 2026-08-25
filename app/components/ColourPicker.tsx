@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 export type ColourValue = { name: string; hex: string };
@@ -25,6 +25,24 @@ export default function ColourPicker({ value, onChange, compact }: {
   const [brand, setBrand] = useState("all");
   const [adding, setAdding] = useState(false);
   const [nn, setNn] = useState(""); const [nh, setNh] = useState("#");
+  const rootRef = useRef<HTMLSpanElement>(null);
+
+  // The popup closes like any dropdown: click anywhere outside it, or Escape.
+  // (It used to close ONLY on picking a colour or re-clicking the swatch —
+  // clicking the Colour match checkbox next to it left it stuck open.)
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open || loaded) return;
@@ -50,7 +68,7 @@ export default function ColourPicker({ value, onChange, compact }: {
   }
 
   return (
-    <span style={{ position: "relative", display: "inline-block" }}>
+    <span ref={rootRef} style={{ position: "relative", display: "inline-block" }}>
       <button type="button" onClick={() => setOpen((o) => !o)}
         style={{ display: "inline-flex", alignItems: "center", gap: 7, border: "1px solid #cbd5e1", borderRadius: 7, padding: compact ? "3px 8px" : "5px 10px", background: "#fff", cursor: "pointer", font: "inherit", fontSize: 13, color: "#111", maxWidth: 220 }}>
         <span style={{ width: 15, height: 15, borderRadius: 4, flexShrink: 0, border: "1px solid rgba(0,0,0,.15)", background: value?.hex || "repeating-conic-gradient(#ddd 0 25%, #fff 0 50%) 50% / 8px 8px" }} />
