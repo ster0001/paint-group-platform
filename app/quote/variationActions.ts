@@ -1,10 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { chargeOutCents } from "@/lib/pricing/estimate";
 import type { RateItem } from "@/lib/pricing/types";
+import { sendVariationForSignatureAction } from "./revisionActions";
+import { reportError } from "@/lib/monitoring/report";
 
 /**
  * Variation pricing — the office's side.
@@ -113,7 +116,23 @@ export async function priceVariationAction(raw: unknown): Promise<VariationResul
   if (error) return { ok: false, message: error.message };
 
   const result = interpret(data, "priced");
-  if (result.ok) { revalidatePath("/quote"); revalidatePath("/portal/jobs"); }
+  if (result.ok) {
+    revalidatePath("/quote");
+    revalidatePath("/portal/jobs");
+    // Tom's ruling (25 Aug): the moment a variation is priced — which is the
+    // moment its signing link goes live — the customer gets it BY EMAIL,
+    // without anyone remembering to send it. Same rails as everything else
+    // (best-effort behind the response; re-pricing re-sends the same stable
+    // link, which is fine). SMS stays a deliberate tap in the builder panel.
+    after(async () => {
+      try {
+        const sent = await sendVariationForSignatureAction({ variationId, via: "email" });
+        if (!sent.ok) console.log(`[variation-auto-email] not sent: ${sent.message ?? sent.email?.status ?? "unknown"}`);
+      } catch (e) {
+        reportError(e, { where: "variation.autoEmail", extra: { variationId } });
+      }
+    });
+  }
   return result;
 }
 
