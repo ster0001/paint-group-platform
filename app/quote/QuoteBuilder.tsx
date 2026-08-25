@@ -1416,6 +1416,19 @@ export default function QuoteBuilder({
               </button>
             ))}
           </div>
+          {/* The property's money: add, request or delete payment requests
+              (Tom, 25 Aug — every way into a job offers its Payments tab). */}
+          {initial?.id && (
+            <a
+              href={`/invoicing/job/${initial.id}`}
+              className="rounded-md border border-line2 px-3 py-2 text-[11px] font-medium tracking-wider text-gray-300 hover:bg-white/5"
+              style={{ fontFamily: "var(--font-mono, monospace)" }}
+              title="Payments, invoices and costs for this job"
+              data-testid="payments-tab"
+            >
+              PAYMENTS
+            </a>
+          )}
           {/* On-site room-loop capture - a different way IN to this same estimate. */}
           {initial?.id && !locked && !revision && (
             <a

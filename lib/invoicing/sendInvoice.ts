@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { emailConfigured, sendEmail } from "@/lib/messaging/send";
+import { emailConfigured, sendEmail, sendSms, smsConfigured } from "@/lib/messaging/send";
+import { normalisePhoneAU } from "@/lib/messaging/config";
 import { reportError } from "@/lib/monitoring/report";
 import { siteUrl } from "./pdf";
 
@@ -94,6 +95,9 @@ export function buildInvoiceEmailHtml(opts: {
 export async function sendInvoiceEmail(
   service: SupabaseClient,
   invoiceId: string,
+  /** Optional personal note from the sender (Tom, 25 Aug) — it leads the
+   *  email; the standard amount/due/link paragraph always follows. */
+  personalMessage?: string,
 ): Promise<InvoiceSendOutcome> {
   const { data } = await service
     .from("invoices")
@@ -125,12 +129,13 @@ export async function sendInvoiceEmail(
   };
   const link = `${siteUrl()}/i/${inv.token}`;
   const firstName = (inv.estimates?.accepted_name ?? "").split(" ")[0] || "there";
-  const intro =
-    `Hello ${firstName},\n\n` +
+  const standard =
     `Please find your invoice ${inv.number} for ${KIND_PHRASE[inv.kind] ?? "your painting work"}` +
     `${inv.estimates?.job_address ? ` at ${inv.estimates.job_address}` : ""}.\n\n` +
     `The amount due is ${money(inv.total_inc_cents)}${inv.due_on ? `, payable by ${longDay(inv.due_on)}` : ""}. ` +
     `You can view the full invoice, download a PDF copy and find our payment details using the button below.`;
+  const note = (personalMessage ?? "").trim();
+  const intro = `Hello ${firstName},\n\n${note ? `${note}\n\n` : ""}${standard}`;
 
   const html = buildInvoiceEmailHtml({
     companyName: (entity.tradingName as string) || "Paint Group",
@@ -151,6 +156,49 @@ export async function sendInvoiceEmail(
   if (result.status === "sent") return { status: "sent", to };
   if (result.status === "not_configured") return { status: "not_configured", to };
   reportError(new Error(result.message), { where: "sendInvoiceEmail", extra: { invoiceId } });
+  return { status: "error", message: result.message };
+}
+
+/**
+ * Text the invoice link (Tom, 25 Aug: the sender chooses how the customer
+ * receives it — email, text or both). Recipient = the estimate contact's
+ * mobile (builder_state, AU-normalised). Short by design; the link carries
+ * the document. Optional personal note leads the text.
+ */
+export async function sendInvoiceSms(
+  service: SupabaseClient,
+  invoiceId: string,
+  personalMessage?: string,
+): Promise<InvoiceSendOutcome> {
+  const { data } = await service
+    .from("invoices")
+    .select("id, number, status, total_inc_cents, token, estimates(accepted_name, contact_phone:builder_state->contact->>phone)")
+    .eq("id", invoiceId)
+    .maybeSingle();
+  const inv = data as {
+    id: string; number: string | null; status: string; total_inc_cents: number; token: string;
+    estimates: { accepted_name: string | null; contact_phone: string | null } | null;
+  } | null;
+  if (!inv || inv.status === "draft" || !inv.number) return { status: "error", message: "not issued" };
+
+  const phone = normalisePhoneAU(inv.estimates?.contact_phone ?? "");
+  if (!phone) return { status: "no_recipient" };
+
+  const link = `${siteUrl()}/i/${inv.token}`;
+  const firstName = (inv.estimates?.accepted_name ?? "").split(" ")[0] || "there";
+  const note = (personalMessage ?? "").trim();
+  const body =
+    `Hi ${firstName}, ${note ? `${note} — ` : ""}your invoice ${inv.number} for ${money(inv.total_inc_cents)} ` +
+    `from Paint Group is ready: ${link}`;
+
+  if (!smsConfigured()) {
+    console.log(`[invoice-sms:log-driver] to=${phone} body="${body.slice(0, 120)}"`);
+    return { status: "not_configured", to: phone };
+  }
+  const result = await sendSms({ to: phone, body });
+  if (result.status === "sent") return { status: "sent", to: phone };
+  if (result.status === "not_configured") return { status: "not_configured", to: phone };
+  reportError(new Error(result.message), { where: "sendInvoiceSms", extra: { invoiceId } });
   return { status: "error", message: result.message };
 }
 

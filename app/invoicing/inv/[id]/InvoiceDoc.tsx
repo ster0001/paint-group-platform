@@ -16,6 +16,7 @@ import {
   type InvoicingResult,
 } from "../../actions";
 import { fmt2, fmtSigned2, KIND_LABEL, kindLabelWithContext, STATUS_LABEL } from "../../format";
+import SendInvoiceSheet from "../../SendInvoiceSheet";
 
 /**
  * §7.3 client — the document editor. Every edit submits INTENT to a server
@@ -66,6 +67,7 @@ export default function InvoiceDoc({
   const [desc, setDesc] = useState("");
   const [dollars, setDollars] = useState("");
   const [paySheet, setPaySheet] = useState(false);
+  const [sendSheet, setSendSheet] = useState<null | "issue" | "resend">(null);
   const [payMethod, setPayMethod] = useState<"bank_transfer" | "cash" | "other">("bank_transfer");
   const [payDollars, setPayDollars] = useState("");
   const [payRef, setPayRef] = useState("");
@@ -74,7 +76,7 @@ export default function InvoiceDoc({
     startTransition(async () => {
       const r = await fn();
       setFlash(r.ok ? (r.message ?? null) : r.message);
-      if (r.ok) { setEditing(null); setPaySheet(false); router.refresh(); }
+      if (r.ok) { setEditing(null); setPaySheet(false); setSendSheet(null); router.refresh(); }
     });
 
   const contract = lines.filter((l) => l.source === "estimate_snapshot");
@@ -298,7 +300,7 @@ export default function InvoiceDoc({
           <a className="mini" href={`/invoicing/inv/${invoiceId}/pdf`} target="_blank" rel="noreferrer">PDF</a>
         )}
         {!isDraft && ["issued", "sent", "viewed", "partially_paid"].includes(status) && (
-          <button className="mini" disabled={busy} onClick={() => run(() => resendInvoiceAction({ invoiceId, estimateId }))}>
+          <button className="mini" disabled={busy} onClick={() => setSendSheet("resend")}>
             Send again
           </button>
         )}
@@ -312,7 +314,7 @@ export default function InvoiceDoc({
         <Link className="btn ghost" href={`/invoicing/job/${estimateId}`}>Back to the job</Link>
         {isDraft ? (
           <button className="btn primary" disabled={busy}
-            onClick={() => { if (confirm("Issue this invoice and send it to the customer? The number is allocated, the PDF is generated and the document locks.")) run(() => issueAndSendAction({ invoiceId, estimateId })); }}>
+            onClick={() => { if (confirm("Issue this invoice and send it to the customer? The number is allocated, the PDF is generated and the document locks.")) setSendSheet("issue"); }}>
             Issue &amp; send…
           </button>
         ) : ["issued", "sent", "viewed", "partially_paid"].includes(status) ? (
@@ -326,6 +328,16 @@ export default function InvoiceDoc({
       </div>
 
       {/* record payment sheet */}
+      <SendInvoiceSheet
+        open={sendSheet !== null}
+        verb={sendSheet === "resend" ? "Send again" : "Issue & send"}
+        busy={busy}
+        onClose={() => setSendSheet(null)}
+        onSend={({ message, via }) =>
+          run(() => (sendSheet === "resend"
+            ? resendInvoiceAction({ invoiceId, estimateId, message, via })
+            : issueAndSendAction({ invoiceId, estimateId, message, via })))}
+      />
       <div className="scrim" onClick={() => setPaySheet(false)} style={paySheet ? { opacity: 1, pointerEvents: "auto" } : undefined} />
       <div className="sheet" role="dialog" aria-label="Record a payment" style={paySheet ? { transform: "none" } : undefined}>
         <h3>Record a payment</h3>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { melbourneDate } from "@/lib/workorder/console";
 import { invoiceBalanceCents, invoiceIsOverdue } from "@/lib/invoicing/derive";
+import { kindLabelWithContext } from "@/app/invoicing/format";
 import { loadDashboard, toDerive, toDerivePayments } from "@/app/invoicing/data";
 
 export const dynamic = "force-dynamic";
@@ -51,6 +52,8 @@ export default async function InvoicesPage({
     address: string;
     invoices: { id: string; label: string; status: string; overdue: boolean; balanceCents: number }[];
     balanceCents: number;
+    /** The job's contract figure (Tom, 25 Aug: the TOTAL is always visible). */
+    contractCents: number;
     hasActive: boolean;
   };
   const byJob = new Map<string, JobRow>();
@@ -59,14 +62,18 @@ export default async function InvoicesPage({
     const overdue = invoiceIsOverdue(d, dPays, today);
     const balance = invoiceBalanceCents(d, dPays);
     const open = !["paid", "void", "written_off"].includes(r.status);
+    const contractCents = Number(r.estimates?.accepted_total_cents ?? 0);
     const job = byJob.get(r.estimate_id) ?? {
       estimateId: r.estimate_id,
       address: r.estimates?.job_address || r.estimates?.title || "Untitled job",
-      invoices: [], balanceCents: 0, hasActive: false,
+      invoices: [], balanceCents: 0, contractCents, hasActive: false,
     };
     job.invoices.push({
       id: r.id,
-      label: `${r.number ?? "Draft"} · ${r.kind}`,
+      // Every chip carries its own TOTAL, and a deposit says what fraction of
+      // the contract it is — "$788.61 · Deposit" alone read as a mis-priced
+      // job (Tom, 25 Aug).
+      label: `${r.number ?? "Draft"} · ${kindLabelWithContext(r.kind, r.total_inc_cents, contractCents)} · ${money(r.total_inc_cents)}`,
       status: overdue ? "overdue" : r.status,
       overdue,
       balanceCents: balance,
@@ -118,6 +125,7 @@ export default async function InvoicesPage({
               <tr className="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-400">
                 <th className="px-4 py-3">Job</th>
                 <th className="px-4 py-3">Invoices</th>
+                <th className="px-4 py-3 text-right">Job total</th>
                 <th className="px-4 py-3 text-right">Open balance</th>
                 <th className="px-4 py-3" />
               </tr>
@@ -126,11 +134,13 @@ export default async function InvoicesPage({
               {rows.map((job) => (
                 <tr key={job.estimateId} className="border-b border-gray-100 last:border-0 hover:bg-gray-50" data-testid={`job-${job.estimateId}`}>
                   <td className="px-4 py-3">
-                    {/* The address IS the door to the revision builder. */}
+                    {/* Tom (25 Aug): clicking the property opens its PAYMENTS
+                        view — add, request or delete payment requests there.
+                        The revision builder keeps its own door on the row. */}
                     <Link
-                      href={`/quote?id=${job.estimateId}&mode=revision`}
+                      href={`/invoicing/job/${job.estimateId}`}
                       className="font-medium text-gray-900 hover:underline"
-                      data-testid={`revise-${job.estimateId}`}
+                      data-testid={`payments-${job.estimateId}`}
                     >
                       {job.address}
                     </Link>
@@ -144,12 +154,16 @@ export default async function InvoicesPage({
                       ))}
                     </div>
                   </td>
+                  <td className="px-4 py-3 text-right font-mono text-[13px]" data-testid={`total-${job.estimateId}`}>
+                    {job.contractCents > 0 ? money(job.contractCents) : "—"}
+                  </td>
                   <td className="px-4 py-3 text-right font-mono text-[13px]">
                     {job.balanceCents > 0 ? money(job.balanceCents) : "—"}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Link href={`/invoicing/job/${job.estimateId}`} className="text-xs font-medium text-gray-500 hover:text-gray-900 hover:underline">
-                      Money view →
+                    <Link href={`/quote?id=${job.estimateId}&mode=revision`} className="text-xs font-medium text-gray-500 hover:text-gray-900 hover:underline"
+                      data-testid={`revise-${job.estimateId}`}>
+                      Revise scope →
                     </Link>
                   </td>
                 </tr>

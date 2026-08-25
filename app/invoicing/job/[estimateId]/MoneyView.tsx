@@ -17,6 +17,7 @@ import {
 } from "../../actions";
 import { fmt0, fmt2, fmtSigned2 } from "../../format";
 import AddCostSheet from "./AddCostSheet";
+import SendInvoiceSheet from "../../SendInvoiceSheet";
 
 export type JobCostItemProp = {
   id: string;
@@ -92,6 +93,7 @@ export default function MoneyView({
   const [tab, setTab] = useState<"payments" | "invoices" | "costs">("payments");
   const [sheet, setSheet] = useState<null | "request" | { record: InvoiceCardProp }>(null);
   const [addCost, setAddCost] = useState(false);
+  const [sendFor, setSendFor] = useState<string | null>(null); // invoiceId
   const [busy, startTransition] = useTransition();
   const [flash, setFlash] = useState<string | null>(null);
 
@@ -196,7 +198,7 @@ export default function MoneyView({
             <div className="payacts">
               <Link className="mini cy" href={`/invoicing/inv/${draftDeposit.invoiceId}`}>Open the draft</Link>
               <button className="mini" disabled={busy}
-                onClick={() => run(() => issueAndSendAction({ invoiceId: draftDeposit.invoiceId, estimateId }))}>
+                onClick={() => setSendFor(draftDeposit.invoiceId)}>
                 Issue &amp; send
               </button>
             </div>
@@ -240,7 +242,7 @@ export default function MoneyView({
               <Link className="mini cy" href={`/invoicing/inv/${c.invoiceId}`}>Open</Link>
               {c.isDraft && (
                 <>
-                  <button className="mini" disabled={busy} onClick={() => run(() => issueAndSendAction({ invoiceId: c.invoiceId, estimateId }))}>Issue &amp; send</button>
+                  <button className="mini" disabled={busy} onClick={() => setSendFor(c.invoiceId)}>Issue &amp; send</button>
                   <button className="mini" disabled={busy} onClick={() => { if (confirm("Delete this draft? Drafts are the only deletable invoices.")) run(() => deleteDraftAction({ invoiceId: c.invoiceId, estimateId })); }}>Delete</button>
                 </>
               )}
@@ -338,6 +340,17 @@ export default function MoneyView({
       </div>
 
       {/* sheets */}
+      <SendInvoiceSheet
+        open={sendFor !== null}
+        verb="Issue & send"
+        busy={busy}
+        onClose={() => setSendFor(null)}
+        onSend={({ message, via }) => {
+          const invoiceId = sendFor!;
+          run(() => issueAndSendAction({ invoiceId, estimateId, message, via }));
+          setSendFor(null);
+        }}
+      />
       {woId && <AddCostSheet estimateId={estimateId} woId={woId} open={addCost} onClose={() => setAddCost(false)} />}
       <div className="scrim" onClick={() => setSheet(null)} style={sheet ? { opacity: 1, pointerEvents: "auto" } : undefined} />
 

@@ -6,7 +6,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { ensureInvoicePdf, ensureReceiptPdf, ensureRemittancePdf, signedDocUrl } from "@/lib/invoicing/pdf";
-import { sendInvoiceEmail, sendReceiptEmail, sendRemittanceEmail } from "@/lib/invoicing/sendInvoice";
+import { sendInvoiceEmail, sendInvoiceSms, sendReceiptEmail, sendRemittanceEmail } from "@/lib/invoicing/sendInvoice";
 import { COST_DOCS_BUCKET, isOwnReceiptPath } from "@/lib/costs/store";
 import { sniffKind } from "@/lib/extract/normalise";
 
@@ -176,8 +176,15 @@ export async function recordPaymentAction(raw: unknown): Promise<InvoicingResult
  * customer their link. Each stage degrades with a plain-English message
  * rather than blocking the one before it.
  */
+// Tom (25 Aug): the sender adds a personal note and chooses the channel —
+// email, text or both — exactly like sending an estimate.
+const sendOptions = z.object({
+  message: z.string().trim().max(2000).default(""),
+  via: z.enum(["email", "sms", "both"]).default("email"),
+});
+
 export async function issueAndSendAction(raw: unknown): Promise<InvoicingResult> {
-  const p = invoiceRef.safeParse(raw);
+  const p = invoiceRef.merge(sendOptions.partial()).safeParse(raw);
   if (!p.success) return { ok: false, message: "Something went wrong." };
 
   const issued = await call(
@@ -187,41 +194,58 @@ export async function issueAndSendAction(raw: unknown): Promise<InvoicingResult>
   );
   if (!issued.ok) return issued;
 
-  return finishSend(p.data.invoiceId, p.data.estimateId, "Issued");
+  return finishSend(p.data.invoiceId, p.data.estimateId, "Issued", p.data.message ?? "", p.data.via ?? "email");
 }
 
 /** Re-send an already-issued invoice (records a resend event). */
 export async function resendInvoiceAction(raw: unknown): Promise<InvoicingResult> {
-  const p = invoiceRef.safeParse(raw);
+  const p = invoiceRef.merge(sendOptions.partial()).safeParse(raw);
   if (!p.success) return { ok: false, message: "Something went wrong." };
-  return finishSend(p.data.invoiceId, p.data.estimateId, "Ready");
+  return finishSend(p.data.invoiceId, p.data.estimateId, "Ready", p.data.message ?? "", p.data.via ?? "email");
 }
 
 async function finishSend(
   invoiceId: string,
   estimateId: string,
   verb: string,
+  personalMessage: string,
+  via: "email" | "sms" | "both",
 ): Promise<InvoicingResult> {
   const pdfPath = await ensureInvoicePdf(invoiceId);
   const service = createServiceClient();
-  const outcome = service
-    ? await sendInvoiceEmail(service, invoiceId)
-    : ({ status: "error", message: "service unavailable" } as const);
-
-  if (outcome.status === "sent") {
-    await call("invoice_send", { p_invoice_id: invoiceId, p_channel: "email" },
-      { estimateId, invoiceId });
+  if (!service) {
     revalidateAll(estimateId, invoiceId);
-    return { ok: true, message: `${verb} and emailed to ${outcome.to}.${pdfPath ? "" : " (PDF still generating — try the PDF button shortly.)"}` };
+    return { ok: true, message: `${verb}, but sending is unavailable — copy the pay link and send it yourself.` };
   }
+
+  const bits: string[] = [];
+  let anySent = false;
+
+  if (via !== "sms") {
+    const outcome = await sendInvoiceEmail(service, invoiceId, personalMessage);
+    if (outcome.status === "sent") {
+      anySent = true;
+      await call("invoice_send", { p_invoice_id: invoiceId, p_channel: "email" }, { estimateId, invoiceId });
+      bits.push(`emailed to ${outcome.to}`);
+    } else if (outcome.status === "no_recipient") bits.push("no customer email on file");
+    else if (outcome.status === "not_configured") bits.push("email sending isn't switched on");
+    else bits.push("the email failed to send");
+  }
+  if (via !== "email") {
+    const outcome = await sendInvoiceSms(service, invoiceId, personalMessage);
+    if (outcome.status === "sent") {
+      anySent = true;
+      await call("invoice_send", { p_invoice_id: invoiceId, p_channel: "sms" }, { estimateId, invoiceId });
+      bits.push(`texted to ${outcome.to}`);
+    } else if (outcome.status === "no_recipient") bits.push("no mobile on file");
+    else if (outcome.status === "not_configured") bits.push("texting isn't switched on");
+    else bits.push("the text failed to send");
+  }
+
   revalidateAll(estimateId, invoiceId);
-  if (outcome.status === "no_recipient") {
-    return { ok: true, message: `${verb}. No customer email on file — copy the pay link and send it yourself.` };
-  }
-  if (outcome.status === "not_configured") {
-    return { ok: true, message: `${verb}. Email sending isn't switched on yet — copy the pay link and send it yourself.` };
-  }
-  return { ok: true, message: `${verb}, but the email failed to send — copy the pay link and send it yourself.` };
+  const tail = pdfPath ? "" : " (PDF still generating — try the PDF button shortly.)";
+  if (anySent) return { ok: true, message: `${verb} and ${bits.join(", ")}.${tail}` };
+  return { ok: true, message: `${verb}, but nothing went out (${bits.join("; ")}) — copy the pay link and send it yourself.` };
 }
 
 export async function voidInvoiceAction(raw: unknown): Promise<InvoicingResult> {
