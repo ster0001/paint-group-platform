@@ -669,15 +669,17 @@ function PageProperty({
       </p>
 
       {!isCustomer && (
-        // A1: the name field autocompletes the address (server-proxied Places,
-        // AU + Melbourne bias). Picking one names the estimate from it and
-        // stores the structured address; plain typing still just works.
+        // A1: the field captures the FULL job address (server-proxied Places,
+        // AU + Melbourne bias). Tom's ruling 25 Aug: the job NAME is always
+        // the first line of the job address — picking a suggestion stores the
+        // structured address and names the job from its street line. Plain
+        // typing still just works.
         <AddressField
-          placeholder="Job name or address (shows on the estimates list)"
-          value={state.title}
+          placeholder="Job address — start typing and pick it"
+          value={state.address ? state.address.formatted : state.title}
           onText={(text) => set({ title: text, address: null })}
           onPick={(a) => set({
-            title: [a.street, a.suburb].filter(Boolean).join(", ") || a.formatted,
+            title: a.street || a.formatted,
             address: a,
           })}
         />

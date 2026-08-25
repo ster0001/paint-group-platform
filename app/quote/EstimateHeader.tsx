@@ -178,6 +178,22 @@ function ContactModal({ contacts, initial, onClose, onSave }: { contacts: Contac
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
   const set = (patch: Partial<Contact>) => setC((x) => ({ ...x, ...patch }));
+  // The same address lookup as the job modal and the wizard — one brain.
+  const { suggestions, open, setOpen, lookup, resolve } = useAddressLookup();
+
+  async function pickAddress(s: AddressSuggestion) {
+    const resolved = await resolve(s);
+    if (resolved) {
+      set({
+        address: resolved.address.street,
+        city: resolved.address.suburb,
+        state: resolved.address.state,
+        postal: resolved.address.postcode,
+      });
+    } else {
+      set({ address: `${s.main}, ${s.secondary}` });
+    }
+  }
 
   /** Tom (24 Aug): half-entered mobiles/emails never save — they're what
    * makes a text or an invoice email silently go nowhere later. */
@@ -251,7 +267,36 @@ function ContactModal({ contacts, initial, onClose, onSave }: { contacts: Contac
         <Field label="Phone" value={c.phone} onChange={(v) => set({ phone: v })} />
         <Field label="Email" value={c.email} onChange={(v) => set({ email: v })} type="email" />
         <div />
-        <Field label="Address" value={c.address} onChange={(v) => set({ address: v })} />
+        <div className="relative col-span-2">
+          <label className="block text-xs">
+            <span className="text-gray-500">Address</span>
+            <input
+              value={c.address}
+              autoComplete="off"
+              placeholder="Start typing the street address…"
+              data-testid="contact-address-input"
+              onChange={(e) => { set({ address: e.target.value }); lookup(e.target.value); }}
+              onBlur={() => setTimeout(() => setOpen(false), 150)}
+              onFocus={() => { if (suggestions.length) setOpen(true); }}
+              className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+            />
+          </label>
+          {open && (
+            <div className="absolute left-0 right-0 top-full z-10 mt-1 overflow-hidden rounded-md border border-gray-200 bg-white shadow-lg">
+              {suggestions.map((s) => (
+                <button
+                  key={s.placeId}
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
+                  onMouseDown={(e) => { e.preventDefault(); void pickAddress(s); }}
+                >
+                  <b>{s.main}</b>
+                  {s.secondary && <span className="text-gray-500"> {s.secondary}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <Field label="City" value={c.city} onChange={(v) => set({ city: v })} />
         <Field label="State" value={c.state} onChange={(v) => set({ state: v })} />
         <Field label="Postcode" value={c.postal} onChange={(v) => set({ postal: v })} />
