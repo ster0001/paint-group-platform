@@ -39,6 +39,7 @@ export default function WalkthroughCard({
   const router = useRouter();
   const dateRef = useRef<HTMLInputElement>(null);
   const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [signing, setSigning] = useState(false);
@@ -130,14 +131,17 @@ export default function WalkthroughCard({
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
             <input ref={dateRef} type="date" value={date} onChange={(e) => setDate(e.target.value)}
               style={{ fontSize: 13 }} data-testid="walkthrough-date" />
+            <input type="time" value={time} onChange={(e) => setTime(e.target.value)}
+              style={{ fontSize: 13 }} data-testid="walkthrough-time"
+              title="The time confirmed with the client — reminders hang off this later" />
             <button type="button" className="btn dim" onClick={openCalendar} data-testid="walkthrough-pick-date"
               title="Open the calendar">📅 Pick a date</button>
             <button className="btn" disabled={pending} data-testid="book-final"
-              onClick={() => run(() => bookWalkthrough({ workOrderId, kind: "final", date: date || null, note: "" }))}>
+              onClick={() => run(() => bookWalkthrough({ workOrderId, kind: "final", date: date || null, time: time || null, note: "" }))}>
               {final ? "Rebook final" : "Book final"}
             </button>
             <button className="btn dim" disabled={pending}
-              onClick={() => run(() => bookWalkthrough({ workOrderId, kind: "pre", date: date || null, note: "" }))}>
+              onClick={() => run(() => bookWalkthrough({ workOrderId, kind: "pre", date: date || null, time: time || null, note: "" }))}>
               Book pre
             </button>
           </div>

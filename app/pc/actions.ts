@@ -457,12 +457,15 @@ export async function bookWalkthrough(raw: unknown): Promise<PcResult> {
     kind: z.enum(["pre", "final"]),
     // Omitted for a final = the booking's last day on site, decided in SQL.
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null),
+    // Confirmed with the client at booking (Tom, 25 Aug) — feeds the
+    // reminder automations later.
+    time: z.string().regex(/^\d{2}:\d{2}$/).nullable().default(null),
     note: z.string().max(500).default(""),
   }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };
   const v = parsed.data;
   const r = await call("wo_book_walkthrough",
-    { p_work_order_id: v.workOrderId, p_kind: v.kind, p_date: v.date, p_note: v.note },
+    { p_work_order_id: v.workOrderId, p_kind: v.kind, p_date: v.date, p_time: v.time, p_note: v.note },
     v.kind === "final" ? "Final walkthrough booked." : "Pre-walkthrough booked.");
   if (!r.ok && r.message === "no date") {
     return { ok: false, message: "No accepted booking to take a date from — pick the day yourself." };

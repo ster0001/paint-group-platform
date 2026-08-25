@@ -62,3 +62,17 @@ also fires within 2 days of the booked finish while still in progress). When
 you book it and leave the date blank, **the date defaults to the booking's
 last day on site** (`booking_offers.end_date`). So: booked by you, prompted
 by the console, defaulting to the final site day.
+
+## 4. Second migration — walkthrough time (added later on 25 Aug)
+
+Paste `supabase/migrations/20261125000000_walkthrough_time.sql` → Run.
+
+**Read-backs — expect:** `scheduled_time | time without time zone`, and exactly
+ONE `wo_book_walkthrough` with `pronargs = 5`, `prosecdef = true`.
+
+**Eyeball:** drag a job onto the schedule → the booking sheet now has
+**"Final walkthrough — confirm the date & time with the client"** (date
+defaults to the last day on site; add the agreed time). Sending the offer
+books the walkthrough — the pin on the board shows the time (e.g. "WALK
+15:30"), and the PC job page's Walkthrough card has a time box too. These
+date+times are what the client/contractor reminder automations will hang off.

@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { msRemaining, isReschedule, formatDMY, type BookingOffer } from "@/lib/scheduling/offers";
 import { addDays, dayDiff, todayIso } from "@/lib/scheduling/dates";
 import { sendOfferAction, reassignOfferAction, moveBookingAction, blockOutAction, addBookingNote, deleteBookingNote, type ActionResult } from "./actions";
+import { bookWalkthrough } from "../actions";
 import type { Block, BoardWalkthrough, Lane, TrayJob } from "@/lib/scheduling/board";
 import "./schedule.css";
 
@@ -245,6 +246,10 @@ export default function ScheduleBoard({
     [frame, cacheLaneRects, updateTarget],
   );
 
+  // Final walkthrough, CONFIRMED WITH THE CLIENT at booking (Tom, 25 Aug) —
+  // date defaults to the last day on site; the time is theirs to agree.
+  const [walkDate, setWalkDate] = useState("");
+  const [walkTime, setWalkTime] = useState("");
   const [pendingDrop, setPendingDrop] = useState<null | {
     kind: "tray" | "block";
     job?: TrayJob;
@@ -450,10 +455,24 @@ export default function ScheduleBoard({
       walkthroughRequired: !offerNoWalk,
     });
     if (handle(r, "Offer sent — the contractor has 24 hours to respond.")) {
+      // The walkthrough confirmed with the client rides the booking (Tom,
+      // 25 Aug). Best-effort: a refusal never unwinds the offer.
+      const wDate = walkDate || addDays(pendingDrop.startDate, pendingDrop.spanDays - 1);
+      if (!offerNoWalk && wDate) {
+        void bookWalkthrough({
+          workOrderId: pendingDrop.job.workOrderId,
+          kind: "final",
+          date: wDate,
+          time: walkTime || null,
+          note: "Confirmed with the client at booking",
+        });
+      }
       setPendingDrop(null);
       setOfferNote("");   // never carry one job's note onto the next offer
       setOfferQa(false);
       setOfferNoWalk(false);
+      setWalkDate("");
+      setWalkTime("");
     }
     setBusy(false);
   }
@@ -957,11 +976,11 @@ export default function ScheduleBoard({
                             className="wtpin"
                             href={`/pc/wo/${w.workOrderId}`}
                             style={{ left: `calc(var(--day-w) * ${off} + 3px)` }}
-                            title={`${w.kind === "final" ? "Final" : "Pre"} walkthrough · ${w.title} · ${w.woRef}`}
+                            title={`${w.kind === "final" ? "Final" : "Pre"} walkthrough${w.time ? ` ${w.time}` : ""} · ${w.title} · ${w.woRef}`}
                             onPointerDown={(e) => e.stopPropagation()}
                             data-testid={`walkthrough-pin-${w.id}`}
                           >
-                            {w.kind === "final" ? "WALK ✓" : "PRE"}
+                            {w.kind === "final" ? `WALK${w.time ? ` ${w.time}` : " ✓"}` : "PRE"}
                           </a>
                         );
                       })}
@@ -1095,6 +1114,26 @@ export default function ScheduleBoard({
                     data-testid="offer-no-walkthrough" />
                   Walkthrough not required — closes straight after the job (and any quality check)
                 </label>
+                {!offerNoWalk && (
+                  <div style={{ marginTop: 10 }}>
+                    <span className="l" style={{ display: "block", marginBottom: 6 }}>
+                      Final walkthrough — confirm the date &amp; time with the client
+                    </span>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <input type="date" data-testid="walkthrough-date"
+                        value={walkDate || addDays(pendingDrop.startDate, pendingDrop.spanDays - 1)}
+                        onChange={(e) => setWalkDate(e.target.value)}
+                        style={{ flex: 1, background: "var(--panel, #11151c)", color: "var(--text)", border: "1px solid var(--line)", borderRadius: 8, padding: "8px 10px", fontSize: 13 }} />
+                      <input type="time" data-testid="walkthrough-time"
+                        value={walkTime}
+                        onChange={(e) => setWalkTime(e.target.value)}
+                        style={{ width: 110, background: "var(--panel, #11151c)", color: "var(--text)", border: "1px solid var(--line)", borderRadius: 8, padding: "8px 10px", fontSize: 13 }} />
+                    </div>
+                    <span style={{ fontSize: 11, color: "var(--muted)" }}>
+                      Defaults to the last day on site. Booked with the offer — reminders for the client and contractor hang off this later.
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 

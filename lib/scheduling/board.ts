@@ -48,6 +48,8 @@ export type BoardWalkthrough = {
   workOrderId: string;
   contractorId: string;
   date: string;
+  /** "HH:MM" when confirmed with the client (Tom, 25 Aug); null = day only. */
+  time: string | null;
   kind: "pre" | "final";
   woRef: string;
   title: string;
@@ -185,7 +187,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
       // §4b: booked walkthroughs pin onto the assigned contractor's lane.
       supabase
         .from("wo_walkthroughs")
-        .select("id, work_order_id, kind, scheduled_date")
+        .select("id, work_order_id, kind, scheduled_date, scheduled_time")
         .eq("status", "booked")
         .gte("scheduled_date", from)
         .lte("scheduled_date", to),
@@ -431,6 +433,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
   const walkthroughs: BoardWalkthrough[] = [];
   for (const w of ((walkthroughRows ?? []) as {
     id: string; work_order_id: string; kind: string; scheduled_date: string;
+    scheduled_time: string | null;
   }[])) {
     const wo = woById.get(w.work_order_id);
     // No assigned contractor = no lane to pin it on; the PC card still shows it.
@@ -441,6 +444,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
       workOrderId: w.work_order_id,
       contractorId: wo.contractor_id,
       date: w.scheduled_date,
+      time: w.scheduled_time ? w.scheduled_time.slice(0, 5) : null,
       kind: w.kind === "pre" ? "pre" : "final",
       woRef: wo.wo_ref,
       title: doc?.jobTitle || wo.wo_ref,
