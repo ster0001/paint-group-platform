@@ -19,9 +19,11 @@ const bodySchema = z.object({
   sessionToken: z.string().min(8).max(64),
 });
 
-/** Melbourne CBD, 150 km — covers the metro + surrounds Paint Group works. */
+/** Melbourne CBD, 50 km — Google's HARD CAP on circle bias radius. The
+ *  original 150 km made Google refuse EVERY request with a 400 (found live
+ *  25 Aug: the field had silently degraded to plain typing since launch). */
 const MELBOURNE_BIAS = {
-  circle: { center: { latitude: -37.8136, longitude: 144.9631 }, radius: 150_000 },
+  circle: { center: { latitude: -37.8136, longitude: 144.9631 }, radius: 50_000 },
 };
 
 export async function POST(request: Request) {

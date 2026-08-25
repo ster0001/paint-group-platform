@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { type CompanyProfile, type Contact, type JobAddress, EMPTY_CONTACT, EMPTY_JOB } from "./company";
 import { contactFieldProblems } from "@/lib/validation/contact";
+import { useAddressLookup, type AddressSuggestion } from "@/app/components/useAddressLookup";
 
 const contactName = (c: Contact) =>
   [c.first_name, c.last_name].filter(Boolean).join(" ") || c.company || "";
@@ -262,6 +263,23 @@ function ContactModal({ contacts, initial, onClose, onSave }: { contacts: Contac
 function JobModal({ initial, contact, onClose, onSave }: { initial: JobAddress; contact: Contact | null; onClose: () => void; onSave: (j: JobAddress) => void }) {
   const [j, setJ] = useState<JobAddress>(initial);
   const set = (patch: Partial<JobAddress>) => setJ((x) => ({ ...x, ...patch }));
+  // The same address lookup as the wizard (one brain, two skins) — pick a
+  // suggestion and every field fills; keep typing and it's a plain input.
+  const { suggestions, open, setOpen, lookup, resolve } = useAddressLookup();
+
+  async function pick(s: AddressSuggestion) {
+    const resolved = await resolve(s);
+    if (resolved) {
+      setJ({
+        address: resolved.address.street,
+        city: resolved.address.suburb,
+        state: resolved.address.state,
+        postal: resolved.address.postcode,
+      });
+    } else {
+      set({ address: `${s.main}, ${s.secondary}` });
+    }
+  }
   return (
     <Modal
       title="Edit Job Address"
@@ -282,7 +300,36 @@ function JobModal({ initial, contact, onClose, onSave }: { initial: JobAddress; 
         </button>
       )}
       <div className="grid grid-cols-2 gap-3">
-        <div className="col-span-2"><Field label="Address" value={j.address} onChange={(v) => set({ address: v })} /></div>
+        <div className="relative col-span-2">
+          <label className="block text-xs">
+            <span className="text-gray-500">Address</span>
+            <input
+              value={j.address}
+              autoComplete="off"
+              placeholder="Start typing the street address…"
+              data-testid="job-address-input"
+              onChange={(e) => { set({ address: e.target.value }); lookup(e.target.value); }}
+              onBlur={() => setTimeout(() => setOpen(false), 150)}
+              onFocus={() => { if (suggestions.length) setOpen(true); }}
+              className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+            />
+          </label>
+          {open && (
+            <div className="absolute left-0 right-0 top-full z-10 mt-1 overflow-hidden rounded-md border border-gray-200 bg-white shadow-lg">
+              {suggestions.map((s) => (
+                <button
+                  key={s.placeId}
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
+                  onMouseDown={(e) => { e.preventDefault(); void pick(s); }}
+                >
+                  <b>{s.main}</b>
+                  {s.secondary && <span className="text-gray-500"> {s.secondary}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <Field label="City" value={j.city} onChange={(v) => set({ city: v })} />
         <Field label="State" value={j.state} onChange={(v) => set({ state: v })} />
         <Field label="Postcode" value={j.postal} onChange={(v) => set({ postal: v })} />
