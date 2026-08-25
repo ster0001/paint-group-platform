@@ -1409,3 +1409,19 @@ assign) with the source document attached and proposed-vs-confirmed kept —
 the accuracy readout on the queue header is the evidence for ⚑A1
 (auto-confirm, seeded OFF and inert). Settings → Cost intake carries the
 window/threshold/toggle. e2e: `cost-intake.spec.ts` 9/9 on C1.
+
+## 25 Aug 2026 — the small-things batch (Tom's list)
+Contractor portal: live offers on Home with the 24h countdown; OfferBar pins
+clock + accept/decline atop an offered job; server-side suburb-only redaction
+now covers the job TITLE and the offers payload; Money→Invoicing; claimable
+jobs fall back to wo_snapshot.contractorPaymentCents; StartJob card moves
+pre_start→in_progress via wo_contractor_start (migration 20261124, gate
+unchanged). PC: attention cards dismissible (wo_dismiss_card → card_dismissed
+events, filtered in buildQueue); accepted-job card fires day zero; reschedule
+proposals raise a queue card; schedule detail opens /pc/wo/[id]; checklist
+ticks optimistic. Variations: PC card's primary is the revision builder,
+quick-price secondary; priced variations email/text the signing link from the
+card; pricing auto-emails. Customer updates: UpdateComposer on the PC job page
+(text + up to 8 photos) delivers email+SMS with the /e token link via
+lib/workorder/sendUpdate; the Updates tab delivers too. WO snapshots carry
+`inclusions`. Customer invoice sheet says "Payment request" for progress kind.
