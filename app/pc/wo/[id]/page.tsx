@@ -504,6 +504,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
               {!v.credit && (
                 <PriceVariation
                   id={v.id}
+                  estimateId={estimateId}
                   status={v.status}
                   released={v.released_at !== null}
                   estHours={v.est_hours === null ? null : Number(v.est_hours)}

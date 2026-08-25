@@ -221,11 +221,14 @@ describe("each trigger produces exactly one card", () => {
     expect(card.severity).toBe("warning");   // not yet critical
   });
 
-  it("gives a job accepted this morning the day's grace", () => {
+  it("shows a job accepted this morning IMMEDIATELY — as info, not a failure (Tom, 25 Aug)", () => {
     const q = buildQueue(base({
       workOrders: [wo({ stage: "offered", acceptedAt: hoursAgo(4), issued: true })],
     }));
-    expect(q.filter((c) => c.key.startsWith("unbooked:"))).toEqual([]);
+    const cards = q.filter((c) => c.key.startsWith("unbooked:"));
+    expect(cards).toHaveLength(1);
+    expect(cards[0].severity).toBe("info");
+    expect(cards[0].detail).toContain("today");
   });
 
   it("does not chase a job that already has an offer out with someone", () => {

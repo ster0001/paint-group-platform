@@ -48,7 +48,7 @@ export type ConsoleInput = {
     ticksDone: number;
     ticksTotal: number;
   }[];
-  offers: { id?: string; workOrderId: string; state: string; expiresAt: string; contractorName: string }[];
+  offers: { id?: string; workOrderId: string; state: string; expiresAt: string; contractorName: string; proposedStart?: string | null; approvalDueAt?: string | null }[];
   variations: {
     id: string; workOrderId: string; status: string; createdAt: string; pricedAt: string | null;
     /** A3 — credits whose pay deduction routes to the PC when work had started. */
@@ -76,6 +76,8 @@ export type ConsoleInput = {
   walkthroughBooked?: string[];
   /** Latest approved/sent customer update per job (ISO time). */
   lastUpdateAt?: Record<string, string>;
+  /** Card keys a person has closed off (Tom, 25 Aug) — dropped from the queue. */
+  dismissedKeys?: readonly string[];
   settings: {
     coloursWarnDays: number; variationCustomerSilentHours: number;
     /** Days without a customer update before the desk says so (default 3). */
@@ -217,13 +219,13 @@ export function buildQueue(input: ConsoleInput): QueueCard[] {
 
     const waitingHours = hoursBetween(w.acceptedAt, now);
     const days = Math.floor(waitingHours / 24);
-    // A day's grace: a job accepted this morning is not yet a failure.
-    if (days < 1) continue;
-
-    const since = days === 1 ? "yesterday" : `${days} days ago`;
+    // Tom (25 Aug): an accepted job shows on the dashboard IMMEDIATELY —
+    // info on day one (a nudge, not a failure), warning after a day,
+    // critical at three.
+    const since = days < 1 ? "today" : days === 1 ? "yesterday" : `${days} days ago`;
     cards.push({
       key: `unbooked:${w.id}`,
-      severity: days >= 3 ? "critical" : "warning",
+      severity: days >= 3 ? "critical" : days >= 1 ? "warning" : "info",
       title: w.issued ? "Accepted, still not booked in" : "Accepted — work order not issued yet",
       detail: w.issued
         ? `They accepted ${since} and have not been given a date. Ring them and book it in.`
@@ -236,6 +238,29 @@ export function buildQueue(input: ConsoleInput): QueueCard[] {
         // Opening the BUILDER is what issues a draft work order, and it is keyed
         // by estimate — the work-order id would 404 there.
         : { label: "Open it once", kind: "ring", href: `/quote?id=${w.estimateId}&view=workorder&from=/pc` },
+    });
+  }
+
+  // 1c. A contractor proposed a new start date (Tom, 25 Aug). This used to
+  // surface only in the schedule board's approvals tray — now it interrupts
+  // the desk like everything else that needs a decision. The 24h approval
+  // clock started when they asked (approval_due_at − 24h).
+  for (const o of input.offers) {
+    if (o.state !== "proposed" || !o.proposedStart) continue;
+    const w = byId.get(o.workOrderId);
+    if (!w) continue;
+    const requestedAt = o.approvalDueAt
+      ? new Date(new Date(o.approvalDueAt).getTime() - 24 * 3_600_000)
+      : now;
+    cards.push({
+      key: `reschedule:${o.id ?? o.workOrderId}`,
+      severity: "warning",
+      title: `${o.contractorName} wants a new start — ${o.proposedStart}`,
+      detail: "Approve the new date or keep the original. It decides itself in 24 hours if nobody answers.",
+      ref: label(w.id),
+      workOrderId: w.id,
+      ageHours: Math.max(0, hoursBetween(requestedAt, now)),
+      action: { label: "Decide on the board", kind: "ring", href: "/pc/schedule" },
     });
   }
 
@@ -485,7 +510,10 @@ export function buildQueue(input: ConsoleInput): QueueCard[] {
     });
   }
 
-  return rankQueue(cards);
+  // Cards a person has closed off stay closed (Tom, 25 Aug) — the dismissal
+  // is data too, so this filter is still "the data decides".
+  const dismissed = new Set(input.dismissedKeys ?? []);
+  return rankQueue(cards.filter((c) => !dismissed.has(c.key)));
 }
 
 /** §6.2 — critical oldest-first, then warning oldest-first, then info. */

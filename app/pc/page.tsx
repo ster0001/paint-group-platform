@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { loadConsole } from "@/lib/workorder/consoleData";
 import { buildQueue, headline, pulseTiles, sparkline } from "@/lib/workorder/console";
+import DismissCard from "./DismissCard";
 import ReofferDialog from "./ReofferDialog";
 import CollectionDone from "./CollectionDone";
 import PhotoGrid from "@/app/components/wo/PhotoGrid";
@@ -131,6 +132,7 @@ export default async function DashboardPage() {
                 <p>{card.detail}</p>
               </div>
               <span className="tm">{age(card.ageHours)}</span>
+              <DismissCard workOrderId={card.workOrderId} cardKey={card.key} />
               {card.action.kind === "reoffer" && card.offerId ? (
                 <span data-testid={`action-${card.key}`}>
                   <ReofferDialog

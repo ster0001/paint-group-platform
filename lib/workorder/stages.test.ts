@@ -13,7 +13,7 @@ import {
 
 // The canonical seed moved when 'system' was allowed to start a job on its
 // date; the mirror is diffed against wherever the list currently lives.
-const MIGRATION = "supabase/migrations/20261110000000_wo_no_walkthrough_colour_match.sql";
+const MIGRATION = "supabase/migrations/20261124000000_pc_dismiss_and_contractor_start.sql";
 const MACHINE = "supabase/migrations/20260926000000_wo_loop_stage_machine.sql";
 
 describe("the transition matrix", () => {
@@ -81,8 +81,10 @@ describe("the transition matrix", () => {
 });
 
 describe("who may ask for a move", () => {
-  it("never lets a contractor start their own job or sign it off", () => {
-    expect(nextStages("pre_start", "contractor")).toEqual([]);
+  it("lets a contractor START their job (Tom, 25 Aug) — but never sign it off", () => {
+    // Only the one forward edge: the gate (all required pre-start items
+    // ticked) still holds in SQL; releasing a booking stays office-only.
+    expect(nextStages("pre_start", "contractor").map((t) => t.to)).toEqual(["in_progress"]);
     expect(nextStages("walkthrough", "contractor")).toEqual([]);
   });
 

@@ -513,3 +513,15 @@ export async function confirmPrepStaff(raw: unknown): Promise<PcResult & { to?: 
   if (s.startsWith("error:gate:")) return { ok: false, message: humaniseGate(s.slice("error:gate:".length)) };
   return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") };
 }
+
+
+/** Tom (25 Aug): close off an actioned card. Permanent per card key —
+ *  the dismissal is itself data (a wo_event), never a UI-only hide. */
+export async function dismissCard(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ workOrderId: uuid, cardKey: z.string().min(1).max(120) }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  return call("wo_dismiss_card", {
+    p_work_order_id: parsed.data.workOrderId,
+    p_key: parsed.data.cardKey,
+  }, "Closed off.");
+}

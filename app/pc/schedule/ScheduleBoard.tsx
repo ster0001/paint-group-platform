@@ -1160,15 +1160,26 @@ export default function ScheduleBoard({
               </>
             )}
 
-            {detail.estimateId && (
+            {/* Tom (25 Aug): open the job WHERE IT IS — the PC stage view,
+                not the builder's work-order tab. */}
+            {detail.workOrderId ? (
               <a
                 className="btn gh"
-                href={detail.estimateId ? `/quote?id=${detail.estimateId}&view=workorder` : "#"}
+                href={`/pc/wo/${detail.workOrderId}`}
+                style={{ display: "block", textAlign: "center", textDecoration: "none" }}
+                data-testid="open-pc-job"
+              >
+                Open the job — stage view
+              </a>
+            ) : detail.estimateId ? (
+              <a
+                className="btn gh"
+                href={`/quote?id=${detail.estimateId}&view=workorder`}
                 style={{ display: "block", textAlign: "center", textDecoration: "none" }}
               >
                 Open the work order
               </a>
-            )}
+            ) : null}
             <button className="btn gh" onClick={() => setDetail(null)}>Close</button>
           </>
         )}

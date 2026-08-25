@@ -38,7 +38,7 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
         // The queue and tiles filter closed out where they should.
         .or(`stage.neq.closed,stage_entered_at.gte.${new Date(now.getTime() - 30 * 86_400_000).toISOString()}`),
       supabase.from("booking_offers")
-        .select("id, work_order_id, state, expires_at, contractors(company_name)")
+        .select("id, work_order_id, state, expires_at, proposed_start_date, approval_due_at, contractors(company_name)")
         // 'expired' and 'declined' too: the sweep flips a breached offer to
         // expired within minutes, and a job nobody is coming to is precisely
         // what the console has to surface.
@@ -126,6 +126,13 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
 
   const loop = (settings.data as { value?: Record<string, unknown> } | null)?.value ?? {};
 
+  // Cards a person closed off (Tom, 25 Aug) — permanent per key.
+  const { data: dismissedRows } = await supabase
+    .from("wo_events").select("meta").eq("type", "card_dismissed");
+  const dismissedKeys = ((dismissedRows ?? []) as { meta: { key?: string } | null }[])
+    .map((r) => r.meta?.key)
+    .filter((k): k is string => Boolean(k));
+
   const ticksByDay: Record<string, number> = {};
   for (const t of (ticks.data ?? []) as { created_at: string }[]) {
     const day = melbourneDate(new Date(t.created_at));
@@ -136,11 +143,14 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
     input: {
       now,
       workOrders,
+      dismissedKeys,
       offers: ((offers.data ?? []) as unknown as {
         id: string; work_order_id: string; state: string; expires_at: string;
+        proposed_start_date: string | null; approval_due_at: string | null;
         contractors: { company_name: string } | null;
       }[]).map((o) => ({
         id: o.id, workOrderId: o.work_order_id, state: o.state, expiresAt: o.expires_at,
+        proposedStart: o.proposed_start_date, approvalDueAt: o.approval_due_at,
         contractorName: o.contractors?.company_name ?? "The contractor",
       })),
       variations: ((variations.data ?? []) as {

@@ -40,10 +40,16 @@ export default function PrepChecklist({ items }: { items: PrepItem[] }) {
 
   function tick(item: PrepItem) {
     setMessage(null);
+    // OPTIMISTIC (Tom, 25 Aug): the box flips the instant it's tapped and
+    // reverts only if the server refuses — a painter clicks through the list
+    // at their own speed, not the network's.
+    patch(item.id, { done: !item.done });
     startTransition(async () => {
       const result = await tickPrepItem({ itemId: item.id, done: !item.done });
-      if (result.ok) patch(item.id, { done: !item.done });
-      else setMessage(result.message);
+      if (!result.ok) {
+        patch(item.id, { done: item.done });
+        setMessage(result.message);
+      }
     });
   }
 
@@ -89,7 +95,7 @@ export default function PrepChecklist({ items }: { items: PrepItem[] }) {
         if (item.kind === "tick") {
           return (
             <button key={item.id} type="button" className={`prep ${item.done ? "on" : ""}`}
-              onClick={() => tick(item)} disabled={pending} data-testid={`prep-${item.id}`}>
+              onClick={() => tick(item)} data-testid={`prep-${item.id}`}>
               <span className="prep-box" aria-hidden="true">{item.done ? "✓" : ""}</span>
               <span className="prep-body">
                 <b>{item.label}</b>

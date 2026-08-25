@@ -59,10 +59,16 @@ export default function Checklist({
         : "This ticks itself once the quality checks are scheduled.");
       return;
     }
+    // OPTIMISTIC (Tom, 25 Aug: "the lag when ticking") — the box flips the
+    // instant it's tapped and reverts only if the server refuses. Ticks no
+    // longer freeze the rest of the list either.
+    patch(item.id, { done: !item.done });
     startTransition(async () => {
       const result = await tickChecklistItem({ itemId: item.id, done: !item.done });
-      if (result.ok) patch(item.id, { done: !item.done });
-      else setMessage(result.message);
+      if (!result.ok) {
+        patch(item.id, { done: item.done });
+        setMessage(result.message);
+      }
     });
   }
 
@@ -111,7 +117,7 @@ export default function Checklist({
               type="button"
               className={`chk ${item.done ? "on" : ""} ${item.auto ? "auto" : ""}`}
               onClick={() => tick(item)}
-              disabled={pending}
+              disabled={false}
               data-testid={`chk-${item.id}`}
             >
               <span className="chk-box" aria-hidden="true">{item.done ? "✓" : ""}</span>

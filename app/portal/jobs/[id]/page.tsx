@@ -6,6 +6,7 @@ import { getContractorJob } from "@/lib/contractor/jobs";
 import WorkOrderDoc from "@/app/w/WorkOrderDoc";
 import RescheduleRequest from "./RescheduleRequest";
 import OfferBar from "./OfferBar";
+import StartJob from "./StartJob";
 import TickList from "@/app/components/wo/TickList";
 import Variations, { type VariationView } from "./Variations";
 import RequestClaim, { type ClaimableJob } from "@/app/portal/money/RequestClaim";
@@ -110,6 +111,12 @@ export default async function PortalJobPage({
   // The pre-start colours question: a No opens the colour-match work for the painter.
   const { data: coloursItem } = await supabase.from("wo_checklist_items").select("answer")
     .eq("work_order_id", id).eq("phase", "pre_start").eq("item_key", "colours").maybeSingle();
+  // How many required pre-start items are still unticked — the contractor's
+  // Start button unlocks at zero (the SQL gate re-checks on the actual start).
+  const { data: preStartOpen } = await supabase.from("wo_checklist_items")
+    .select("id, done_at, required")
+    .eq("work_order_id", id).eq("phase", "pre_start").eq("required", true).is("done_at", null);
+  const preStartLeft = (preStartOpen ?? []).length;
   const coloursNo = (coloursItem as { answer?: string | null } | null)?.answer === "no";
 
   type PrepRow = {
@@ -270,6 +277,9 @@ export default async function PortalJobPage({
       </div>
       {/* Tom (25 Aug): once the job has STARTED, the reschedule bar goes —
           moving a live job is a phone call, not a button. */}
+      {stage === "pre_start" && job.committed && (
+        <StartJob workOrderId={id} blockedCount={preStartLeft} />
+      )}
       {booking && ["offered", "pre_start"].includes(stage ?? "") && (
         <RescheduleRequest
           offerId={booking.id}

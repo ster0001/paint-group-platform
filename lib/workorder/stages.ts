@@ -41,7 +41,7 @@ export type WoTransition = {
 export const TRANSITIONS: readonly WoTransition[] = [
   { from: "offered", to: "pre_start", label: "contractor accepted the offer", actors: ["system", "staff"] },
   { from: "pre_start", to: "offered", label: "booking released — back to the tray", actors: ["system", "staff"] },
-  { from: "pre_start", to: "in_progress", label: "pre-start checklist complete", actors: ["system", "staff"] },
+  { from: "pre_start", to: "in_progress", label: "pre-start checklist complete", actors: ["system", "staff", "contractor"] },
   { from: "in_progress", to: "completion_prep", label: "all surfaces done — prep begins", actors: ["system", "staff", "contractor"] },
   { from: "completion_prep", to: "qa", label: "prep confirmed — quality check due", actors: ["system", "staff", "contractor"] },
   { from: "completion_prep", to: "walkthrough", label: "prep confirmed — evidence pack delivered", actors: ["system", "staff", "contractor"] },
