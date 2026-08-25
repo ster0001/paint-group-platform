@@ -41,6 +41,26 @@ describe("the matching ladder — strict order, never a guess", () => {
     expect(m.reason).toBe("address");
   });
 
+  it("2a. extra words in the reference don't stop the match (Tom: the reference IS the job address)", () => {
+    const jobs: MatchJob[] = [
+      ...JOBS,
+      { woId: "wo-5", jobNo: 92, woRef: "WO-LL55MM66", address: "7 Leslie St, Brighton VIC" },
+    ];
+    const m = matchJob({ order_ref: "SMITH - LESLIE ST JOB" }, "", "", jobs, VENDORS);
+    expect(m.woId).toBe("wo-5");
+    expect(m.reason).toBe("address");
+  });
+
+  it("2a. the unique best-scoring job wins when streets partially collide", () => {
+    const jobs: MatchJob[] = [
+      ...JOBS,
+      { woId: "wo-5", jobNo: 92, woRef: "WO-LL55MM66", address: "7 Leslie St, Brighton" },
+      { woId: "wo-6", jobNo: 93, woRef: "WO-NN77PP88", address: "9 Leslie St, Elsternwick" },
+    ];
+    const m = matchJob({ order_ref: "LESLIE ST ELSTERNWICK" }, "", "", jobs, VENDORS);
+    expect(m.woId).toBe("wo-6");
+  });
+
   it("2a. a street-only reference shared by two jobs proposes nothing from that rung", () => {
     const jobs: MatchJob[] = [
       ...JOBS,

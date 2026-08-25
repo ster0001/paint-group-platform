@@ -19,7 +19,7 @@ import { sniffKind } from "@/lib/extract/normalise";
 import type { ExtractedBill } from "./intake";
 
 export const BILL_MODEL = "claude-opus-4-5";
-export const BILL_PROMPT_VERSION = "bill-2026-08-25-a";
+export const BILL_PROMPT_VERSION = "bill-2026-08-25-b";
 
 /** Opus 4.5 list pricing, cents per million tokens (mirrors lib/extract). */
 const COST_IN_PER_MTOK = 500;
@@ -37,6 +37,11 @@ Australian documents write day-first (22/08/2026 = 2026-08-22).
 job_hints: every job/order/PO reference string and every street address that
 could tie this document to a job (e.g. "PG-0087", "12 Ellerslie Grove
 Elsternwick"). Copy them verbatim.
+
+The supplier's reference / order / job field almost always contains the JOB
+SITE ADDRESS (that is this company's ordering practice) — copy it verbatim
+into order_ref AND job_hints. For address_text, prefer the job-site address
+over the supplier's own address or a store/warehouse delivery address.
 
 Confidence is per field, 0..1, and honest: a printed labelled figure is 0.9+,
 an inference from context 0.5 or below.

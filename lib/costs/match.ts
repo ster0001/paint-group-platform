@@ -89,23 +89,27 @@ export function matchJob(
     if (hit) return { woId: hit.woId, vendorId: memoryVendor?.id ?? null, reason: "order_ref" };
   }
 
-  // 2a. The supplier's REFERENCE field as an address (current practice puts
-  //     the job street there, often without a number — "LESLIE ST" on a real
-  //     Haymes invoice). A short deliberate field may match on street name
-  //     alone, but only when exactly ONE job carries that street.
+  // 2a. The supplier's REFERENCE field IS the job address (Tom's ruling,
+  //     25 Aug — current practice puts the site address there, often street
+  //     only: "LESLIE ST" on a real Haymes invoice). Jobs are scored by how
+  //     many reference words appear in their address; a number in the
+  //     reference must agree. The unique best-scoring job wins — a tie is
+  //     ambiguity, and the ladder never guesses between jobs.
   for (const cand of [extracted.order_ref, ...(extracted.job_hints ?? [])]) {
-    if (!cand || cand.length > 40) continue;
+    if (!cand || cand.length > 60) continue;
     const c = addressTokens(cand);
     if (c.words.length === 0) continue;
-    const hits = jobs.filter((j) => {
-      const jt = addressTokens(j.address);
-      const wordHit = c.words.every((w) => jt.words.includes(w));
-      if (!wordHit) return false;
-      // When the reference DOES carry a number, it must agree.
-      return c.numbers.length === 0 || c.numbers.some((n) => jt.numbers.includes(n));
-    });
-    if (hits.length === 1) {
-      return { woId: hits[0].woId, vendorId: memoryVendor?.id ?? null, reason: "address" };
+    const scored = jobs
+      .map((j) => {
+        const jt = addressTokens(j.address);
+        const overlap = c.words.filter((w) => jt.words.includes(w)).length;
+        const numberOk = c.numbers.length === 0 || c.numbers.some((n) => jt.numbers.includes(n));
+        return { j, overlap, numberOk };
+      })
+      .filter((s) => s.overlap > 0 && s.numberOk)
+      .sort((a, b) => b.overlap - a.overlap);
+    if (scored.length > 0 && (scored.length === 1 || scored[0].overlap > scored[1].overlap)) {
+      return { woId: scored[0].j.woId, vendorId: memoryVendor?.id ?? null, reason: "address" };
     }
   }
 
