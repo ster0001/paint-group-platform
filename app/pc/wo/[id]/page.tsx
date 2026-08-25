@@ -5,6 +5,7 @@ import { progressByHeading, progressOf, seedRowsFromDoc, type SurfaceRow } from 
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
 import { VARIATION_STEPS, stepIndex, type VariationStatus } from "@/lib/workorder/variations";
 import PriceVariation from "./PriceVariation";
+import UpdateComposer from "./UpdateComposer";
 import Checklist, { type ChecklistItem } from "./Checklist";
 import WalkthroughCard from "./WalkthroughCard";
 import QaCheck, { type QaCheckView } from "./QaCheck";
@@ -528,13 +529,17 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             </div>
           ))}
 
-          {update && (
+          {/* Push an update to the client from RIGHT HERE (Tom, 25 Aug) —
+              prefilled with the sweep's draft when one is waiting. */}
+          <UpdateComposer
+            workOrderId={id}
+            draftText={update?.status === "drafted" ? (update.final_text ?? update.draft_text) : ""}
+            photos={photos.map((p) => ({ id: p.id, url: p.url, caption: p.caption ?? "" }))}
+          />
+          {update && update.status !== "drafted" && (
             <div className="card" data-testid="latest-update">
               <h3>Latest update <em>{update.status}</em></h3>
               <div className="draft">{update.final_text ?? update.draft_text}</div>
-              {update.status === "drafted" && (
-                <p className="note">Waiting on you — review it on the Updates tab.</p>
-              )}
             </div>
           )}
 

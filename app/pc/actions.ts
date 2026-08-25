@@ -7,6 +7,10 @@ import { WO_STAGES } from "@/lib/workorder/stages";
 import { seedRowsFromDoc } from "@/lib/workorder/surfaces";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
 import { humaniseGate } from "@/lib/workorder/gateText";
+import { after } from "next/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { deliverCustomerUpdate } from "@/lib/workorder/sendUpdate";
+import { melbourneDate } from "@/lib/workorder/console";
 
 /**
  * The console's own actions — the three PC surfaces the earlier steps deferred
@@ -75,7 +79,63 @@ export async function approveAndSendUpdate(raw: unknown): Promise<PcResult> {
 
   const approved = await approveUpdate(parsed.data);
   if (!approved.ok) return approved;
-  return call("wo_send_update", { p_update_id: parsed.data.updateId }, "Sent.");
+  const sent = await call("wo_send_update", { p_update_id: parsed.data.updateId }, "Sent — email and text on their way.");
+  if (sent.ok) {
+    // The record is written; DELIVERY rides behind the response (Tom, 25 Aug:
+    // updates were recorded as sent but nobody ever received anything).
+    const updateId = parsed.data.updateId;
+    after(async () => {
+      const service = createServiceClient();
+      if (service) await deliverCustomerUpdate(service, updateId, [], "both");
+    });
+  }
+  return sent;
+}
+
+/**
+ * Tom (25 Aug): push an update to the client straight from the job page —
+ * the text and the chosen site photos, emailed and texted with the link to
+ * their own job page. Draft → approve → send through the existing RPCs
+ * (nothing unapproved can ever go), then delivery behind the response.
+ */
+export async function sendCustomerUpdateAction(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({
+    workOrderId: uuid,
+    body: z.string().trim().min(1).max(4000),
+    photoIds: z.array(uuid).max(8).default([]),
+  }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Write the update first." };
+
+  const supabase = await createClient();
+  const today = melbourneDate(new Date());
+  const drafted = await supabase.rpc("wo_draft_update", {
+    p_work_order_id: parsed.data.workOrderId,
+    p_for_date: today,
+    p_text: parsed.data.body,
+  });
+  const draftedStr = String(drafted.data ?? "");
+  if (drafted.error || !draftedStr.startsWith("ok:")) {
+    return { ok: false, message: drafted.error?.message ?? draftedStr.replace("error:", "").replace(/_/g, " ") };
+  }
+  const updateId = draftedStr.slice(3);
+
+  const approved = await supabase.rpc("wo_approve_update", {
+    p_update_id: updateId, p_final_text: parsed.data.body,
+  });
+  if (approved.error || !String(approved.data ?? "").startsWith("ok")) {
+    return { ok: false, message: "Couldn't approve the update — is it already sent for today?" };
+  }
+
+  const sent = await call("wo_send_update", { p_update_id: updateId },
+    "Update sent — email and text with the photos are on their way.");
+  if (sent.ok) {
+    const photoIds = parsed.data.photoIds;
+    after(async () => {
+      const service = createServiceClient();
+      if (service) await deliverCustomerUpdate(service, updateId, photoIds, "both");
+    });
+  }
+  return sent;
 }
 
 /**
