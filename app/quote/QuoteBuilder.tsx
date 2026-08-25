@@ -1173,6 +1173,7 @@ export default function QuoteBuilder({
       contractorPaymentCents: totals.contractorOffer,
       materials, areas: areasDoc,
       exclusions: exclusions.map((t) => t.trim()).filter(Boolean),
+      inclusions: inclusions.map((t) => t.trim()).filter(Boolean),
       company: { name: company.name, phone: company.phone, logoUrl: company.logoUrl },
       idealPainters,
     };

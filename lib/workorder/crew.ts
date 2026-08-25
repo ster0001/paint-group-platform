@@ -75,6 +75,7 @@ export function crewDoc(doc: WorkOrderDoc): WorkOrderDoc {
     materials: (doc.materials ?? []).map(crewMaterial),
     areas: (doc.areas ?? []).map(crewArea),
     exclusions: doc.exclusions ?? [],
+    inclusions: doc.inclusions ?? [],
     company: {
       name: doc.company?.name ?? "",
       phone: doc.company?.phone ?? "",

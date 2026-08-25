@@ -122,7 +122,7 @@ export async function sendInvoiceEmail(
 
   const KIND_PHRASE: Record<string, string> = {
     deposit: "the deposit for your painting work",
-    progress: "a progress claim for your painting work",
+    progress: "a payment request for your painting work",
     final: "the final invoice for your completed painting work",
     variation: "an approved variation on your painting work",
     standalone: "your painting work",

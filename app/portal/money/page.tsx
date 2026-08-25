@@ -52,7 +52,7 @@ export default async function MoneyPage() {
   // what's already invoiced — display only; the RPC recomputes and bounds.
   const wos = ((woRows ?? []) as {
     id: string; wo_ref: string; stage: string; contractor_payment_cents: number | null;
-    wo_snapshot: { jobTitle?: string; jobAddress?: string } | null;
+    wo_snapshot: { jobTitle?: string; jobAddress?: string; contractorPaymentCents?: number } | null;
   }[]);
   const woIds = wos.map((w) => w.id);
   const [{ data: varRows }, { data: ciTotals }] = await Promise.all([
@@ -77,7 +77,10 @@ export default async function MoneyPage() {
       workOrderId: w.id,
       woRef: w.wo_ref,
       title: w.wo_snapshot?.jobTitle || w.wo_snapshot?.jobAddress || w.wo_ref,
-      adjustedCents: Math.max(0, (w.contractor_payment_cents ?? 0) + contractorVariationsCents(vars)),
+      // NULL contractor_payment_cents (pre-Step-5 jobs) falls back to the
+      // snapshot's offer figure — an accepted job with an agreed amount must
+      // never read as "nothing to invoice" (Tom, 25 Aug; the Josef data gap).
+      adjustedCents: Math.max(0, Number(w.contractor_payment_cents ?? w.wo_snapshot?.contractorPaymentCents ?? 0) + contractorVariationsCents(vars)),
       invoicedCents: ((ciTotals ?? []) as { work_order_id: string; total_inc_cents: number }[])
         .filter((c) => c.work_order_id === w.id)
         .reduce((s, c) => s + c.total_inc_cents, 0),
@@ -87,7 +90,7 @@ export default async function MoneyPage() {
 
   return (
     <div className="wrap">
-      <h1>Money</h1>
+      <h1>Invoicing</h1>
       <p className="slab">Your invoices to Paint Group — drafted for you at sign-off</p>
 
       {missing.length > 0 && (

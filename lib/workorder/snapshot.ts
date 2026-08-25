@@ -67,6 +67,9 @@ export type WorkOrderDoc = {
   materials: WOMaterial[];
   areas: WOArea[];
   exclusions: string[];
+  /** "What's included" bullets (Tom, 25 Aug) — optional: snapshots issued
+   *  before then don't carry it and render exclusions-only as before. */
+  inclusions?: string[];
   company: { name: string; phone: string; logoUrl: string };
   /**
    * The estimator's ideal crew size (Job settings). The scheduler divides the

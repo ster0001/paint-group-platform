@@ -117,7 +117,7 @@ export default async function ContractorInvoicePage({ params }: { params: Promis
 
   return (
     <div className="wrap">
-      <Link href="/portal/money" className="btn dim" style={{ marginBottom: 10 }}>← Money</Link>
+      <Link href="/portal/money" className="btn dim" style={{ marginBottom: 10 }}>← Invoicing</Link>
       <h1>{ci.number ?? "Draft invoice"}</h1>
       <p className="slab">{title} · {ci.work_orders?.wo_ref}</p>
 

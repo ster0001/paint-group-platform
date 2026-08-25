@@ -42,7 +42,7 @@ export default async function RequestsPage() {
         slab="Respond within the countdown — offers expire"
         icon="◔"
         heading="No offers yet"
-        body="When Paint Group offers you a job it appears here with the dates, hours allowance, your price and a 24-hour clock to accept, propose a new date, or decline. Until you accept, you'll only see the suburb — never the customer's full address."
+        body="When Paint Group offers you a job it appears here with the dates, calculated labour hours, your price and a 24-hour clock to accept, propose a new date, or decline. Until you accept, you'll only see the suburb — never the customer's full address."
         soon="Waiting on your first offer"
       />
     );

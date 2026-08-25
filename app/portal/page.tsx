@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { requireContractor } from "@/lib/contractor/session";
+import { listContractorOffers } from "@/lib/contractor/offers";
+import { effectiveState, isLive } from "@/lib/scheduling/offers";
+import OfferCard from "./requests/OfferCard";
 import { listContractorJobs, JOB_STATUS_CHIP, shortDate } from "@/lib/contractor/jobs";
 import { missingProfileFields, daysUntil, docState } from "@/lib/contractor/model";
 import { loadContractorDocs, docsErrorMessage } from "@/lib/contractor/docs";
@@ -37,6 +40,10 @@ export default async function PortalHome() {
 
   const { docs, error: docsError } = await loadContractorDocs(contractor.id);
   const jobs = await listContractorJobs(contractor.id);
+  // Live offers land on the FRONT page with their countdown (Tom, 25 Aug) —
+  // a 24-hour clock shouldn't hide behind the Requests tab.
+  const liveOffers = (await listContractorOffers(contractor.id))
+    .filter((o) => isLive(effectiveState(o.offer)));
 
   const insurance = docs.find((d) => d.kind === "insurance" && docState(d) === "valid");
   const insuranceDays = daysUntil(insurance?.expires_on ?? null);
@@ -120,6 +127,16 @@ export default async function PortalHome() {
                 </span>
               )}
             </Link>
+          ))}
+        </div>
+      )}
+
+      {liveOffers.length > 0 && (
+        <div style={{ marginTop: 14 }} data-testid="home-offers">
+          <h3 style={{ margin: "0 0 8px" }}>Needs your answer</h3>
+          {liveOffers.map((o) => (
+            <OfferCard key={o.offer.id} offer={o.offer} woRef={o.woRef} doc={o.doc}
+              workOrderId={o.offer.work_order_id} myBlocks={[]} myJobDays={[]} />
           ))}
         </div>
       )}

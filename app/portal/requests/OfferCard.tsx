@@ -137,7 +137,7 @@ export default function OfferCard({
       </div>
       {hours != null && (
         <div className="frow">
-          <span className="l">Hours allowance</span>
+          <span className="l">Calculated labour hours</span>
           <span className="v">{Number(hours).toFixed(1)} H</span>
         </div>
       )}

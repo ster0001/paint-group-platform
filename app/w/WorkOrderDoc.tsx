@@ -319,6 +319,14 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
           </section>
         )}
 
+        {/* INCLUSIONS — what the job covers (Tom, 25 Aug) */}
+        {(doc.inclusions?.length ?? 0) > 0 && (
+          <section>
+            <h2>Included</h2>
+            <ul className="excl">{doc.inclusions!.map((t, i) => <li key={i}>{t}</li>)}</ul>
+          </section>
+        )}
+
         {/* EXCLUSIONS — what NOT to do */}
         {doc.exclusions.length > 0 && (
           <section>

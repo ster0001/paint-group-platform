@@ -70,6 +70,9 @@ export function toJob(r: Row, committed: boolean): ContractorJob {
     out = {
       ...out,
       jobAddress: suburbOnly(out.jobAddress),
+      // The TITLE usually IS the street address (Tom, 25 Aug — the full
+      // address was reaching the contractor through it before acceptance).
+      jobTitle: suburbOnly(out.jobAddress),
       contactFirstName: "",
       contactPhone: "",
     };

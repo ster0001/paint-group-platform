@@ -5,6 +5,7 @@ import { requireContractor } from "@/lib/contractor/session";
 import { getContractorJob } from "@/lib/contractor/jobs";
 import WorkOrderDoc from "@/app/w/WorkOrderDoc";
 import RescheduleRequest from "./RescheduleRequest";
+import OfferBar from "./OfferBar";
 import TickList from "@/app/components/wo/TickList";
 import Variations, { type VariationView } from "./Variations";
 import RequestClaim, { type ClaimableJob } from "@/app/portal/money/RequestClaim";
@@ -51,15 +52,22 @@ export default async function PortalJobPage({
     () => {},
   );
 
-  // The booking behind this job, so an accepted one can be asked to move.
+  // The booking behind this job: an accepted one can be asked to move, and a
+  // still-OFFERED one pins its clock + accept/decline to the top (Tom, 25 Aug).
   const { data: offerRows } = await supabase
     .from("booking_offers")
     .select(OFFER_COLUMNS)
     .eq("work_order_id", id)
-    .in("state", ["accepted", "proposed"])
+    .in("state", ["offered", "accepted", "proposed"])
     .order("offered_at", { ascending: false })
     .limit(1);
-  const booking = ((offerRows as BookingOffer[] | null) ?? [])[0] ?? null;
+  const booking0 = ((offerRows as BookingOffer[] | null) ?? [])[0] ?? null;
+  const liveOffer =
+    booking0 && booking0.state === "offered" &&
+    (!booking0.expires_at || new Date(booking0.expires_at).getTime() > Date.now())
+      ? booking0
+      : null;
+  const booking = booking0 && booking0.state !== "offered" ? booking0 : null;
 
   const { data: u } = await supabase
     .from("contractor_unavailability")
@@ -154,7 +162,7 @@ export default async function PortalJobPage({
     workOrderId: id,
     woRef: woMoney?.wo_ref ?? "",
     title: job.doc?.jobTitle || job.doc?.jobAddress || woMoney?.wo_ref || "This job",
-    adjustedCents: Math.max(0, (woMoney?.contractor_payment_cents ?? 0) + contractorVariationsCents(payVars)),
+    adjustedCents: Math.max(0, Number(woMoney?.contractor_payment_cents ?? job.doc?.contractorPaymentCents ?? 0) + contractorVariationsCents(payVars)),
     invoicedCents: ((ciTotals as { total_inc_cents: number }[] | null) ?? [])
       .reduce((sum, c) => sum + c.total_inc_cents, 0),
     deductionPending: payVars.some((v) => v.credit && v.needs_manual_deduction && v.deduction_cents == null),
@@ -238,6 +246,10 @@ export default async function PortalJobPage({
           className="backlink" data-testid="job-back">
           ← {from === "requests" ? "Offers" : from === "calendar" ? "Calendar" : "Jobs"}
         </Link>
+        {liveOffer && (
+          <OfferBar offerId={liveOffer.id} expiresAt={liveOffer.expires_at}
+            priceCents={liveOffer.payment_cents ?? null} />
+        )}
         {!job.committed && (
           <div className="card amberish" style={{ marginTop: 4 }}>
             <span className="chip amb">Suburb only</span>
@@ -256,7 +268,9 @@ export default async function PortalJobPage({
           </div>
         )}
       </div>
-      {booking && (
+      {/* Tom (25 Aug): once the job has STARTED, the reschedule bar goes —
+          moving a live job is a phone call, not a button. */}
+      {booking && ["offered", "pre_start"].includes(stage ?? "") && (
         <RescheduleRequest
           offerId={booking.id}
           currentStart={booking.prior_start_date ?? booking.start_date}

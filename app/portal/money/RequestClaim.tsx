@@ -30,7 +30,9 @@ export default function RequestClaim({ jobs, defaultOpen = false, heading = "Inv
 }) {
   const claimable = jobs.filter((j) => j.adjustedCents - j.invoicedCents > 0);
   const [open, setOpen] = useState(defaultOpen && claimable.length > 0);
-  const [jobId, setJobId] = useState(claimable[0]?.workOrderId ?? "");
+  // Tom (25 Aug): with more than one claimable job, the job is PICKED, never
+  // assumed — an invoice must not default onto the wrong address.
+  const [jobId, setJobId] = useState(claimable.length === 1 ? claimable[0].workOrderId : "");
   const [mode, setMode] = useState<"25" | "50" | "custom" | "fixed">("25");
   const [customPct, setCustomPct] = useState("");
   const [dollars, setDollars] = useState("");
@@ -38,7 +40,7 @@ export default function RequestClaim({ jobs, defaultOpen = false, heading = "Inv
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
-  const job = claimable.find((j) => j.workOrderId === jobId) ?? claimable[0];
+  const job = claimable.find((j) => j.workOrderId === jobId) ?? (claimable.length === 1 ? claimable[0] : null);
   const remaining = job ? job.adjustedCents - job.invoicedCents : 0;
 
   const previewCents = useMemo(() => {
@@ -101,15 +103,16 @@ export default function RequestClaim({ jobs, defaultOpen = false, heading = "Inv
       </div>
       {message && <p className="hint" role="status" data-testid="claim-message" style={{ padding: 0 }}>{message}</p>}
 
-      {open && job && (
+      {open && (
         <div style={{ marginTop: 10 }}>
           {claimable.length > 1 && (
             <select
-              value={job.workOrderId}
+              value={job?.workOrderId ?? ""}
               onChange={(e) => setJobId(e.target.value)}
               data-testid="claim-job"
               style={{ width: "100%", marginBottom: 10, background: "var(--ink)", color: "var(--text)", border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", fontSize: 14 }}
             >
+              <option value="" disabled>— pick the job this invoice is for —</option>
               {claimable.map((j) => (
                 <option key={j.workOrderId} value={j.workOrderId}>
                   {j.title} · {j.woRef}
@@ -117,11 +120,17 @@ export default function RequestClaim({ jobs, defaultOpen = false, heading = "Inv
               ))}
             </select>
           )}
-          <p className="hint" style={{ padding: 0, margin: "0 0 8px" }}>
-            {job.title} — contract {money(job.adjustedCents)}
-            {job.invoicedCents > 0 ? ` · already invoiced ${money(job.invoicedCents)}` : ""}
-            {" · "}<b>{money(remaining)} left to invoice</b>
-          </p>
+          {job ? (
+            <p className="hint" style={{ padding: 0, margin: "0 0 8px" }}>
+              {job.title} — contract {money(job.adjustedCents)}
+              {job.invoicedCents > 0 ? ` · already invoiced ${money(job.invoicedCents)}` : ""}
+              {" · "}<b>{money(remaining)} left to invoice</b>
+            </p>
+          ) : (
+            <p className="hint" style={{ padding: 0, margin: "0 0 8px" }}>
+              Pick the job above first — the invoice attaches to it.
+            </p>
+          )}
 
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {(["25", "50"] as const).map((p) => (

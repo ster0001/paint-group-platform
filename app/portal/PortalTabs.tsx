@@ -7,7 +7,7 @@ const TABS = [
   { href: "/portal", label: "HOME", icon: "⌂" },
   { href: "/portal/requests", label: "REQUESTS", icon: "◔" },
   { href: "/portal/jobs", label: "JOBS", icon: "▤" },
-  { href: "/portal/money", label: "MONEY", icon: "$" },
+  { href: "/portal/money", label: "INVOICING", icon: "$" },
   { href: "/portal/calendar", label: "CALENDAR", icon: "▦" },
 ];
 

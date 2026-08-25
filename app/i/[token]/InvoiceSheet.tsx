@@ -62,7 +62,7 @@ const shortDay = (iso: string | null) =>
 
 export const KIND_HEADING: Record<string, string> = {
   deposit: "Deposit",
-  progress: "Progress claim",
+  progress: "Payment request", // Tom, 25 Aug: customer-facing wording
   final: "Final invoice",
   variation: "Variation",
   standalone: "Invoice",
