@@ -89,8 +89,28 @@ export function matchJob(
     if (hit) return { woId: hit.woId, vendorId: memoryVendor?.id ?? null, reason: "order_ref" };
   }
 
-  // 2. Address — the extracted address first, the whole text as fallback;
-  //    exactly one job may claim it, or nothing is proposed.
+  // 2a. The supplier's REFERENCE field as an address (current practice puts
+  //     the job street there, often without a number — "LESLIE ST" on a real
+  //     Haymes invoice). A short deliberate field may match on street name
+  //     alone, but only when exactly ONE job carries that street.
+  for (const cand of [extracted.order_ref, ...(extracted.job_hints ?? [])]) {
+    if (!cand || cand.length > 40) continue;
+    const c = addressTokens(cand);
+    if (c.words.length === 0) continue;
+    const hits = jobs.filter((j) => {
+      const jt = addressTokens(j.address);
+      const wordHit = c.words.every((w) => jt.words.includes(w));
+      if (!wordHit) return false;
+      // When the reference DOES carry a number, it must agree.
+      return c.numbers.length === 0 || c.numbers.some((n) => jt.numbers.includes(n));
+    });
+    if (hits.length === 1) {
+      return { woId: hits[0].woId, vendorId: memoryVendor?.id ?? null, reason: "address" };
+    }
+  }
+
+  // 2b. Address — the extracted address first, the whole text as fallback;
+  //     exactly one job may claim it, or nothing is proposed.
   for (const candidate of [extracted.address_text ?? "", fullText]) {
     if (!candidate.trim()) continue;
     const hits = jobs.filter((j) => addressHits(candidate, j.address));

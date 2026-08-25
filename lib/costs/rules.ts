@@ -54,6 +54,22 @@ export function parseAuDate(raw: string): string | undefined {
   return undefined;
 }
 
+/**
+ * The sender that MATTERS. Staff forward supplier emails to bills@, so the
+ * envelope sender is often our own forwarder (info@…, a billing gmail) —
+ * learning THAT into vendor memory would prefill the wrong vendor on every
+ * forwarded email. For a forwarded message, dig the original sender out of
+ * the quoted "From:" line; otherwise the envelope sender stands.
+ */
+export function effectiveSender(fromEmail: string, subject: string, text: string): string {
+  const forwarded = /^\s*(fwd?|fw):/i.test(subject) || /forwarded message/i.test(text);
+  if (!forwarded) return fromEmail.toLowerCase();
+  const m =
+    text.match(/from:\s*[^<\n]*<\s*([\w.+'-]+@[\w.-]+\.[a-z]{2,})\s*>/i) ??
+    text.match(/from:\s*([\w.+'-]+@[\w.-]+\.[a-z]{2,})/i);
+  return (m?.[1] ?? fromEmail).toLowerCase();
+}
+
 /** Every PG-<n> job reference in the text (⚑A3/⚑21), plus WO-XXXXXXXX refs. */
 export function orderRefsIn(text: string): string[] {
   const refs = new Set<string>();

@@ -31,6 +31,36 @@ describe("the matching ladder — strict order, never a guess", () => {
     expect(m.woId).toBeNull();
   });
 
+  it("2a. a street-only reference field matches its single job (the Haymes LESLIE ST shape)", () => {
+    const jobs: MatchJob[] = [
+      ...JOBS,
+      { woId: "wo-5", jobNo: 92, woRef: "WO-LL55MM66", address: "7 Leslie St, Brighton VIC" },
+    ];
+    const m = matchJob({ order_ref: "LESLIE ST", job_hints: ["LESLIE ST"] }, "", "", jobs, VENDORS);
+    expect(m.woId).toBe("wo-5");
+    expect(m.reason).toBe("address");
+  });
+
+  it("2a. a street-only reference shared by two jobs proposes nothing from that rung", () => {
+    const jobs: MatchJob[] = [
+      ...JOBS,
+      { woId: "wo-5", jobNo: 92, woRef: "WO-LL55MM66", address: "7 Leslie St, Brighton" },
+      { woId: "wo-6", jobNo: 93, woRef: "WO-NN77PP88", address: "22 Leslie St, Brighton" },
+    ];
+    const m = matchJob({ order_ref: "LESLIE ST" }, "", "", jobs, VENDORS);
+    expect(m.woId).toBeNull();
+  });
+
+  it("2a. a numbered reference must agree on the number", () => {
+    const jobs: MatchJob[] = [
+      ...JOBS,
+      { woId: "wo-5", jobNo: 92, woRef: "WO-LL55MM66", address: "7 Leslie St, Brighton" },
+      { woId: "wo-6", jobNo: 93, woRef: "WO-NN77PP88", address: "22 Leslie St, Brighton" },
+    ];
+    const m = matchJob({ order_ref: "22 LESLIE ST" }, "", "", jobs, VENDORS);
+    expect(m.woId).toBe("wo-6");
+  });
+
   it("2. address match needs number AND street, exactly one job", () => {
     const m = matchJob(
       { address_text: "Deliver to 12 Ellerslie Grove Elsternwick" },

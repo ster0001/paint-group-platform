@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isReadable, mergeExtractions, orderRefsIn, parseAuDate, ruleExtract } from "./rules";
+import { effectiveSender, isReadable, mergeExtractions, orderRefsIn, parseAuDate, ruleExtract } from "./rules";
 
 const HAYMES_EMAIL = `Tax Invoice
 
@@ -57,6 +57,34 @@ describe("parseAuDate — day first, always", () => {
   it("refuses nonsense", () => {
     expect(parseAuDate("32/13/2026")).toBeUndefined();
     expect(parseAuDate("no date here")).toBeUndefined();
+  });
+});
+
+describe("effectiveSender — the forwarder is never the vendor", () => {
+  const FWD_TEXT = `---------- Forwarded message ---------
+From: HPS Moorabbin <accounts@haymespaint.com.au>
+Date: Mon, 25 Aug 2026
+Subject: TAX INVOICE - 21697049
+
+Please find attached.`;
+
+  it("digs the original sender out of a forwarded block", () => {
+    expect(effectiveSender("info@paintgroup.com.au", "Fwd: TAX INVOICE - 21697049", FWD_TEXT))
+      .toBe("accounts@haymespaint.com.au");
+  });
+  it("handles a bare From: address and the Fw: spelling", () => {
+    expect(effectiveSender("x@gmail.com", "FW: invoice", "From: billing@skyreach.com.au\nHi")).toBe(
+      "billing@skyreach.com.au",
+    );
+  });
+  it("a direct email keeps its envelope sender", () => {
+    expect(effectiveSender("Accounts@Haymespaint.com.au", "TAX INVOICE 123", "no quoting here"))
+      .toBe("accounts@haymespaint.com.au");
+  });
+  it("a forwarded email with no quoted From falls back to the forwarder", () => {
+    expect(effectiveSender("info@paintgroup.com.au", "Fwd: hello", "nothing quoted")).toBe(
+      "info@paintgroup.com.au",
+    );
   });
 });
 

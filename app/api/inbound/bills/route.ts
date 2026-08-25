@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { billsInboundConfigured, verifyInboundSignature } from "@/lib/costs/inboundSig";
-import { parseInboundEmail } from "@/lib/costs/inbound";
+import { htmlToText, parseInboundEmail } from "@/lib/costs/inbound";
+import { fetchAttachmentBytes, fetchReceivedEmailBody, resendConfigured } from "@/lib/costs/resendInbound";
+import { effectiveSender } from "@/lib/costs/rules";
 import { billsDocPath, storeCostDoc } from "@/lib/costs/store";
 import { runIntakePipeline } from "@/lib/costs/pipeline";
 import { sniffKind } from "@/lib/extract/normalise";
@@ -51,6 +53,23 @@ export async function POST(req: Request) {
   const service = createServiceClient();
   if (!service) return new NextResponse("Service unavailable.", { status: 503 });
 
+  // Resend's webhook is metadata-only (verified 25 Aug): the body text and
+  // attachment bytes live behind their API. Hydrate before anything is
+  // stored, so the record is complete and extraction has something to read.
+  if (!email.text.trim() && email.emailId && resendConfigured()) {
+    const body = await fetchReceivedEmailBody(email.emailId);
+    if (body) email.text = body.text.trim() ? body.text : htmlToText(body.html);
+  }
+  for (const att of email.attachments) {
+    if (!att.bytes && att.id && email.emailId && resendConfigured()) {
+      att.bytes = await fetchAttachmentBytes(email.emailId, att.id);
+    }
+  }
+
+  // Staff forward supplier mail to bills@ — the sender that matters is the
+  // original supplier, dug out of the forwarded block, never our forwarder.
+  const sender = effectiveSender(email.fromEmail, email.subject, email.text);
+
   // Store the raw email + attachments FIRST — the document is the record;
   // an intake row must never exist without its source attached.
   const month = melbourneDate(new Date()).slice(0, 7);
@@ -89,7 +108,7 @@ export async function POST(req: Request) {
     p_message_id: email.messageId,
     p_source: "email",
     p_raw_doc_path: docPath,
-    p_from_email: email.fromEmail,
+    p_from_email: sender,
     p_subject: email.subject,
   });
   if (inserted.error) {
@@ -116,7 +135,7 @@ export async function POST(req: Request) {
         intakeId,
         docBytes,
         bodyText: email.text,
-        fromEmail: email.fromEmail,
+        fromEmail: sender,
         subject: email.subject,
       });
     } catch (e) {
