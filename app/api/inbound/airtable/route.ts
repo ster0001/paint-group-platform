@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase/service";
 import { loadMatchContext } from "@/lib/costs/pipeline";
 import { matchJob } from "@/lib/costs/match";
-import { orderRefsIn } from "@/lib/costs/rules";
+import { orderRefsIn, parseAuDate } from "@/lib/costs/rules";
 import { safeDocKey, storeCostDoc } from "@/lib/costs/store";
 import { melbourneDate } from "@/lib/workorder/console";
 import { reportError } from "@/lib/monitoring/report";
@@ -19,17 +19,36 @@ export const dynamic = "force-dynamic";
  * Retired by Tom after bills@ runs clean for a month.
  */
 
-const recordSchema = z.object({
-  record_id: z.string().min(1).max(200),
-  supplier: z.string().max(200).default(""),
-  brand: z.string().max(200).default(""),
-  order_ref: z.string().max(300).default(""),
-  address: z.string().max(300).default(""),
-  amount_cents: z.number().int().positive().max(100_000_000),
-  invoice_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-});
+// Zapier-tolerant: numbers arrive as text ("412.80"), money as dollars, and
+// dates in whatever shape the Airtable field holds. `amount` (dollars) or
+// `amount_cents` — one is required; dates fall back to the AU day-first
+// reader and an unreadable date is dropped, never a reason to lose the record.
+const recordSchema = z
+  .object({
+    record_id: z.string().min(1).max(200),
+    supplier: z.string().max(200).default(""),
+    brand: z.string().max(200).default(""),
+    order_ref: z.string().max(300).default(""),
+    address: z.string().max(300).default(""),
+    amount_cents: z.coerce.number().int().positive().max(100_000_000).optional(),
+    amount: z.coerce.number().positive().max(1_000_000).optional(), // dollars
+    invoice_date: z.string().max(40).optional(),
+  })
+  .refine((r) => r.amount_cents != null || r.amount != null, {
+    message: "amount or amount_cents required",
+  });
 
 const bodySchema = z.union([recordSchema, z.array(recordSchema).min(1).max(50)]);
+
+function centsOf(rec: z.infer<typeof recordSchema>): number {
+  return rec.amount_cents ?? Math.round((rec.amount ?? 0) * 100);
+}
+
+function isoDateOf(raw: string | undefined): string | null {
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  return parseAuDate(raw) ?? null;
+}
 
 export async function POST(req: Request) {
   const secret = process.env.AIRTABLE_SYNC_SECRET;
@@ -73,8 +92,8 @@ export async function POST(req: Request) {
           supplier: rec.supplier,
           order_ref: orderRefsIn(rec.order_ref)[0],
           address_text: rec.address || rec.order_ref,
-          total_cents: rec.amount_cents,
-          invoice_date: rec.invoice_date,
+          total_cents: centsOf(rec),
+          invoice_date: isoDateOf(rec.invoice_date) ?? undefined,
           job_hints: orderRefsIn(rec.order_ref),
         },
         `${rec.order_ref}\n${rec.address}`,
@@ -89,8 +108,8 @@ export async function POST(req: Request) {
         p_brand: rec.brand,
         p_order_ref: rec.order_ref,
         p_address: rec.address,
-        p_amount_cents: rec.amount_cents,
-        p_invoice_date: rec.invoice_date ?? null,
+        p_amount_cents: centsOf(rec),
+        p_invoice_date: isoDateOf(rec.invoice_date),
         p_raw_doc_path: docPath,
         p_proposed_wo: proposal.woId,
         p_match_reason: proposal.reason,
