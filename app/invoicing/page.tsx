@@ -14,7 +14,7 @@ import { loadCostCapture, loadDashboard, toDerive, toDerivePayments, type EventR
 import { STAGE_LANES, visibleStage, type WoStage } from "@/lib/workorder/stages";
 import { accuracyReadout, jobCode, queueRows, SOURCE_LABEL, type ExtractedBill, type IntakeRow, type IntakeSource } from "@/lib/costs/intake";
 import { COST_DOCS_BUCKET } from "@/lib/costs/store";
-import { fmt2, KIND_LABEL, shortDay } from "./format";
+import { fmt2, KIND_LABEL, kindLabelWithContext, shortDay } from "./format";
 import Dashboard, { type ActivityProp, type PayableRowProp, type RowProp } from "./Dashboard";
 import type { CostPayableRowProp, IntakeCardProp, JobPickProp, UnmatchedMaterialProp } from "./PayablesCosts";
 
@@ -128,7 +128,9 @@ export default async function InvoicingDashboardPage({
 
     const refBits = [
       r.number ?? "Draft (unnumbered)",
-      KIND_LABEL[r.kind],
+      // "$788.61 · Deposit" read as a mis-priced job (Tom, 25 Aug) — a
+      // deposit row now names its fraction and the contract it's against.
+      kindLabelWithContext(r.kind, r.total_inc_cents, r.estimates?.accepted_total_cents),
       r.status === "paid" ? fmt2(r.total_inc_cents) : `balance ${fmt2(balance)}`,
     ];
     // Chase-order sort key: overdue oldest first, then due soonest, then

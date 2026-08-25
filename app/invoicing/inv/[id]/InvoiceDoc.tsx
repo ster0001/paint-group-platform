@@ -15,7 +15,7 @@ import {
   voidInvoiceAction,
   type InvoicingResult,
 } from "../../actions";
-import { fmt2, fmtSigned2, KIND_LABEL, STATUS_LABEL } from "../../format";
+import { fmt2, fmtSigned2, KIND_LABEL, kindLabelWithContext, STATUS_LABEL } from "../../format";
 
 /**
  * §7.3 client — the document editor. Every edit submits INTENT to a server
@@ -136,7 +136,7 @@ export default function InvoiceDoc({
           <Link href={`/invoicing/job/${estimateId}`}>{meta.address || "Job"} · Money view</Link>
         </div>
         <h1>
-          {KIND_LABEL[kind]} invoice
+          {kindLabelWithContext(kind, totals.totalIncCents, totals.adjustedCents)} invoice
           <span className={`chip ${isDraft ? "draft" : status === "paid" ? "paid" : status === "void" ? "overdue" : "sent"}`} style={{ marginLeft: 8 }}>
             {isDraft ? "Draft — check before sending" : STATUS_LABEL[status]}
           </span>

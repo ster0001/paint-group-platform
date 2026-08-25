@@ -23,7 +23,10 @@ export type InvoiceRow = {
   created_at: string;
   token: string;
   voided_reason: string;
-  estimates?: { title: string | null; accepted_name: string | null; job_address: string | null } | null;
+  estimates?: {
+    title: string | null; accepted_name: string | null; job_address: string | null;
+    accepted_total_cents?: number | null;
+  } | null;
 };
 
 export type PaymentRow = {
@@ -217,7 +220,7 @@ export async function loadJobCosts(supabase: SupabaseClient, woId: string) {
 export async function loadDashboard(supabase: SupabaseClient) {
   const { data: invoices } = await supabase
     .from("invoices")
-    .select(`${INVOICE_SELECT}, estimates(title, accepted_name, job_address:sent_snapshot->>jobAddress)`)
+    .select(`${INVOICE_SELECT}, estimates(title, accepted_name, accepted_total_cents, job_address:sent_snapshot->>jobAddress)`)
     .order("created_at", { ascending: false })
     .limit(400);
   const rows = (invoices ?? []) as unknown as InvoiceRow[];

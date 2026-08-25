@@ -39,3 +39,22 @@ export const STATUS_LABEL: Record<string, string> = {
   void: "Void",
   written_off: "Written off",
 };
+
+/**
+ * The label a deposit invoice DESERVES (Tom, 25 Aug: a row reading
+ * "$788.61 · Deposit" was mistaken for a mis-priced job total). Given the
+ * job's contract figure, a deposit says what fraction of what it is —
+ * "Deposit — 10% of $7,886.11"; every other kind keeps its plain label.
+ * Display only; both cents figures come from the ledger.
+ */
+export function kindLabelWithContext(
+  kind: string,
+  totalIncCents: number,
+  contractIncCents: number | null | undefined,
+): string {
+  const base = KIND_LABEL[kind] ?? kind;
+  if (kind !== "deposit" || !contractIncCents || contractIncCents <= 0 || totalIncCents <= 0) return base;
+  const pct = Math.round((totalIncCents / contractIncCents) * 100);
+  if (pct <= 0 || pct >= 100) return base;
+  return `${base} — ${pct}% of ${fmt2(contractIncCents)}`;
+}

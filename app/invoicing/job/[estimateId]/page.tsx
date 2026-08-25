@@ -11,7 +11,7 @@ import { loadJobCosts, loadJobMoney, toDerive, toDerivePayments } from "../../da
 import { contractorVariationsCents } from "@/lib/workorder/contractorPay";
 import { SOURCE_LABEL, type IntakeSource } from "@/lib/costs/intake";
 import { COST_DOCS_BUCKET } from "@/lib/costs/store";
-import { fmt2, KIND_LABEL, shortDay, STATUS_LABEL } from "../../format";
+import { fmt2, KIND_LABEL, kindLabelWithContext, shortDay, STATUS_LABEL } from "../../format";
 import MoneyView, {
   type InvoiceCardProp, type FeedProp, type JobCostItemProp, type MaterialItemProp,
 } from "./MoneyView";
@@ -49,7 +49,7 @@ export default async function JobMoneyPage({
       return {
         invoiceId: r.id,
         token: r.token,
-        num: `${r.number ?? "Draft"} · ${KIND_LABEL[r.kind]}${r.status === "draft" ? " (unnumbered)" : ""}`,
+        num: `${r.number ?? "Draft"} · ${kindLabelWithContext(r.kind, r.total_inc_cents, Number(job.ledger?.adjusted_contract_cents ?? 0))}${r.status === "draft" ? " (unnumbered)" : ""}`,
         statusLabel: overdue
           ? `Overdue · was due ${shortDay(r.due_on)}`
           : r.status === "draft" ? "Draft"
