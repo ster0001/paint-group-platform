@@ -5,6 +5,8 @@ import { billsInboundConfigured, verifyInboundSignature } from "@/lib/costs/inbo
 import { htmlToText, parseInboundEmail } from "@/lib/costs/inbound";
 import { fetchAttachmentBytes, fetchReceivedEmailBody, resendConfigured } from "@/lib/costs/resendInbound";
 import { effectiveSender } from "@/lib/costs/rules";
+import { candidateDocLinks } from "@/lib/costs/links";
+import { fetchLinkedDoc } from "@/lib/costs/fetchDoc";
 import { billsDocPath, storeCostDoc } from "@/lib/costs/store";
 import { runIntakePipeline } from "@/lib/costs/pipeline";
 import { sniffKind } from "@/lib/extract/normalise";
@@ -58,11 +60,29 @@ export async function POST(req: Request) {
   // stored, so the record is complete and extraction has something to read.
   if (!email.text.trim() && email.emailId && resendConfigured()) {
     const body = await fetchReceivedEmailBody(email.emailId);
-    if (body) email.text = body.text.trim() ? body.text : htmlToText(body.html);
+    if (body) {
+      email.text = body.text.trim() ? body.text : htmlToText(body.html);
+      email.html = body.html;
+    }
   }
   for (const att of email.attachments) {
     if (!att.bytes && att.id && email.emailId && resendConfigured()) {
       att.bytes = await fetchAttachmentBytes(email.emailId, att.id);
+    }
+  }
+
+  // The Dulux shape: no attachment, just "click here to view your invoice".
+  // Follow the best-ranked document links (https-only, SSRF-guarded, bytes
+  // must sniff as a document) and treat the result as the attachment.
+  if (!email.attachments.some((a) => a.bytes) && (email.html || email.text)) {
+    const linked = await fetchLinkedDoc(candidateDocLinks(email.html, email.text));
+    if (linked) {
+      email.attachments.push({
+        filename: linked.filename,
+        contentType: linked.contentType,
+        bytes: linked.bytes,
+        id: null,
+      });
     }
   }
 

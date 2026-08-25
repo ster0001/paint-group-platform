@@ -48,6 +48,8 @@ export type InboundEmail = {
   fromEmail: string;
   subject: string;
   text: string;
+  /** Raw html body when the provider carries one — link extraction reads it. */
+  html: string;
   attachments: InboundAttachment[];
   /** The raw payload, stored verbatim as the provenance document. */
   raw: unknown;
@@ -83,6 +85,7 @@ export function parseInboundEmail(payload: unknown, fallbackId: string): Inbound
     fromEmail: fromAddress(email.from),
     subject: email.subject,
     text: email.text || stripHtml(email.html ?? ""),
+    html: email.html ?? "",
     attachments,
     raw: payload,
   };

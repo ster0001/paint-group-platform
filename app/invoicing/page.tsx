@@ -244,6 +244,9 @@ export default async function InvoicingDashboardPage({
         { k: "Date", v: e.invoice_date ? shortDay(e.invoice_date) : "—" },
         { k: "Total inc GST", v: e.total_cents ? fmt2(e.total_cents) : "—" },
         { k: "GST", v: e.gst_cents ? fmt2(e.gst_cents) : "—" },
+        // Tom's ruling 25 Aug: the supplier's reference IS the job address —
+        // show it so the proposed match can be sanity-checked at a glance.
+        { k: "Reference", v: e.order_ref || "—" },
       ],
       failed,
       duplicate: q.status === "duplicate",

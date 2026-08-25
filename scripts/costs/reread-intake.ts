@@ -80,10 +80,24 @@ async function main() {
 
       if (!email.text.trim() && email.emailId) {
         const body = await fetchReceivedEmailBody(email.emailId);
-        if (body) email.text = body.text.trim() ? body.text : htmlToText(body.html);
+        if (body) {
+          email.text = body.text.trim() ? body.text : htmlToText(body.html);
+          email.html = body.html;
+        }
       }
 
       const month = new Date(row.created_at).toISOString().slice(0, 7);
+      if (!email.attachments.some((a) => a.bytes || a.id) && (email.html || email.text)) {
+        const { candidateDocLinks } = await import("../../lib/costs/links");
+        const { fetchLinkedDoc } = await import("../../lib/costs/fetchDoc");
+        const linked = await fetchLinkedDoc(candidateDocLinks(email.html, email.text));
+        if (linked) {
+          email.attachments.push({
+            filename: linked.filename, contentType: linked.contentType,
+            bytes: linked.bytes, id: null,
+          });
+        }
+      }
       let docPath = rawPath;
       let docBytes: Uint8Array | null = null;
       for (const att of email.attachments) {
