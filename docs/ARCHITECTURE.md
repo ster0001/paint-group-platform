@@ -1425,3 +1425,21 @@ card; pricing auto-emails. Customer updates: UpdateComposer on the PC job page
 (text + up to 8 photos) delivers email+SMS with the /e token link via
 lib/workorder/sendUpdate; the Updates tab delivers too. WO snapshots carry
 `inclusions`. Customer invoice sheet says "Payment request" for progress kind.
+
+## 26 Aug 2026 — Portal 3a-1: the customer identity layer (accounts)
+Migration `20261128_customer_accounts`: `accounts` (residential|trade,
+email-unique on lower(email), flags jsonb) + `account_users` (verified logins
+only — never created from an unverified wizard email) + `properties` joined
+to accounts (customer_id now legacy-optional; per-account dedupe on
+`address_norm`); `estimates.account_id` / `invoices.account_id` FKs, all
+RESTRICT. Every invoice inherits its estimate's account via a BEFORE INSERT
+trigger (structural S2 fix — no insert site can forget). RLS: staff all;
+members SELECT accounts/membership/properties; estimates and invoices stay
+customer-unreadable (margins live in builder_state — rendered views only,
+the standing role-view rule). `lib/accounts/identity.ts` owns the two
+identity keys (normalised email, address dedupe key); `lib/accounts/link.ts`
+find-or-creates account+property (schema-missing = inert no-op); the wizard
+submit route links every customer save. Backfill:
+`scripts/portal/backfill-accounts.mjs` (dry-run default, report-and-confirm).
+Proof: `e2e/account-rls.spec.ts` 7/7 on C1 through real customer sessions.
+Resolves the linking half of `docs/briefs/customer-identity-link.md`.

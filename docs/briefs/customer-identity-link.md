@@ -1,6 +1,7 @@
 # The customer identity layer does not exist
 
-**Status:** open, unscheduled · **Raised:** 23 Aug 2026, out of A2 (invoicing batch 1)
+**Status:** RESOLVED (linking layer built) — 26 Aug 2026, portal session 3a-1; see the resolution note at the end. Remaining: run the backfill (Tom confirms buckets), then the NOT NULL constraints land.
+**Raised:** 23 Aug 2026, out of A2 (invoicing batch 1)
 **Not an invoicing bug.** Invoicing is only where it surfaced first.
 
 ---
@@ -93,3 +94,36 @@ Not done now because with 1 linked row there is nothing to protect yet.
 - `docs/audit-2026-08-23.md` — S1, S2 (this is the root cause under S2)
 - `supabase/migrations/20261026000000_invoices_customer_link.sql` — A2
 - `docs/briefs/post-wizard-buildout-order.md` — items 3 and 4 depend on this
+
+---
+
+## Resolution note — 26 Aug 2026 (portal session 3a-1)
+
+**The identity layer is the account chain**: `accounts` (residential|trade,
+found by lower(email)) → `properties` (per-account, deduped by normalised
+address) → estimates/invoices via `account_id` (RESTRICT). Migration
+`20261128000000_customer_accounts.sql`. The legacy `customers` table (3 rows)
+is kept but retired from duty; `properties.customer_id` is now optional.
+
+**The audit's open question, answered on live data (26 Aug):** it is a
+LINKING job on *both* paths now, not data loss.
+
+| | |
+|---|---|
+| estimates | 73 (1 with the old customer_id; 0 with property) |
+| linkable via `wizard_leads` email | 46 |
+| staff-path estimates with `builder_state.contact` email/phone | 5 of 27 no-lead rows — **including all 4 estimates that carry the 6 live invoices** (the Contact card closed the 23 Aug gap) |
+| truly unreachable | ~22, mostly test/driver rows — reported by the backfill script, never guessed |
+
+**What answers each product question:** an anonymous user becomes an account
+at first estimate save (email capture); a token-URL customer's account exists
+from that save — a *login* on it is granted only by the verified magic-link
+flow (3a-2), never by an unverified email typed into the wizard;
+`account_type` lives on accounts; staff-created estimates link through the
+builder's Contact card email (backfill now, builder-side auto-link is a 3a
+follow-up).
+
+**Still open, deliberately:** `invoices.account_id`/`estimates.account_id`
+NOT NULL waits until the backfill (`scripts/portal/backfill-accounts.mjs`,
+report-and-confirm) is verified; `estimates.customer_id` (legacy) left
+SET NULL — nothing new writes it.

@@ -1,3 +1,33 @@
+# 26 Aug 2026 (eve) — PORTAL 3a-1 SHIPPED (the identity layer: accounts)
+
+Phase 3 (customer portal) opened: brief + experience map v2 + warranty draft
++ approved mockup committed (kickoff ritual done, all read-order files
+present). Session 3a-1 built the accounts → properties → estimates/invoices
+chain — the resolution of customer-identity-link.md.
+
+- Migration `20261128000000_customer_accounts.sql` — applied + proven on C1,
+  **AWAITS TOM ON PROD** (paste script + expected read-backs:
+  `docs/manual-tests/portal-3a1-identity.md`). Deployed code is
+  inert-but-safe until it runs (the wizard link step no-ops on the missing
+  schema).
+- Design rulings (documented in the migration header): account_users only
+  from VERIFIED auth (3a-2 magic link) — an unverified wizard email links
+  the ESTIMATE, never a login; NO member select on estimates/invoices
+  (margins in builder_state — rendered views only); invoice→account
+  inheritance is a BEFORE INSERT trigger so no insert site can forget.
+- `lib/accounts/` (identity keys + find-or-create), wizard submit links every
+  customer save, `scripts/portal/backfill-accounts.mjs` (dry-run default,
+  report-and-confirm; NOT NULL constraints land after Tom confirms).
+- Gates: unit 953/953 · `e2e/account-rls.spec.ts` 7/7 on C1 through real
+  customer sessions · customer-journey suite re-run (see below).
+- Audit question answered on live data: linking, not data loss — 46/73
+  estimates via wizard_leads; all 4 invoice-bearing estimates reachable via
+  builder_state.contact; ~22 unreachable test/driver rows.
+- NEXT: 3a-2 (magic-link auth + portal shell + state-aware Home; e2e:
+  wizard → save → portal with zero registration screens).
+
+---
+
 # 25 Aug 2026 (PM) — STEP 6a SHIPPED (cost capture: pipeline + intake queue)
 
 Built to the NEW briefs (`claude-code-brief-cost-capture.md` supersedes Step

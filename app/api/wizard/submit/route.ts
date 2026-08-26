@@ -22,6 +22,7 @@ import {
   policyFromSettings, serviceAreaFromSettings, settingValue,
 } from "@/lib/wizard/policy";
 import { reportError } from "@/lib/monitoring/report";
+import { ensureAccountAndProperty } from "@/lib/accounts/link";
 
 /**
  * POST /api/wizard/submit — W2: wizard completion + extraction result merge
@@ -503,6 +504,33 @@ export async function POST(request: Request) {
       suburb: state.customer?.suburb ?? null, postcode: state.customer?.postcode ?? null,
       job_type: state.jobType, outcome: leadOutcome, reasons: decision.reasons,
     }).then((r) => { if (r.error) reportError(r.error, { where: "wizard.leads.insert", bestEffort: true }); });
+
+    // 3a-1: the save is the account seed — find-or-create the account by the
+    // captured email (plus the property when a real street address was
+    // picked) and link the estimate into the chain. Best-effort: an identity
+    // hiccup must never cost a customer their estimate. Links the ESTIMATE
+    // only — membership waits for the verified magic-link flow (3a-2).
+    try {
+      const linked = await ensureAccountAndProperty(db, {
+        email,
+        address: state.address
+          ? {
+              street: state.address.street,
+              suburb: state.address.suburb,
+              state: state.address.state,
+              postcode: state.address.postcode,
+            }
+          : undefined,
+      });
+      if (linked.accountId) {
+        const link = await db.from("estimates")
+          .update({ account_id: linked.accountId, property_id: linked.propertyId })
+          .eq("id", estimateId);
+        if (link.error) reportError(link.error, { where: "wizard.account.link", bestEffort: true });
+      }
+    } catch (err) {
+      reportError(err, { where: "wizard.account.ensure", bestEffort: true });
+    }
   }
 
   // One key per storey the draft actually has, so capture's storey switcher
