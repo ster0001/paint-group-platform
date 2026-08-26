@@ -19,6 +19,10 @@ import ColoursManager, { type ColourRow } from "./ColoursManager";
 import PresentationsManager, { type PresentationRow } from "./PresentationsManager";
 import { DEFAULT_INCLUSION_TEMPLATES, DEFAULT_EXCLUSION_TEMPLATES, INCLUSION_TEMPLATES_KEY, EXCLUSION_TEMPLATES_KEY, type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import { SCOPE_VERSION } from "@/lib/extract/scope";
+import AccountingSettings from "./AccountingSettings";
+import { MYOB_ACCOUNTS_KEY, MYOB_CONNECTION_KEY, myobStatus, type MyobAccountMap, type MyobCompanyFile, type MyobConnection } from "@/lib/myob/config";
+import { myobEnv } from "@/lib/myob/oauth";
+import { freshConnection, listAccounts, listCompanyFiles, type MyobAccount } from "@/lib/myob/client";
 
 export const dynamic = "force-dynamic";
 
@@ -102,6 +106,28 @@ export default async function SettingsPage() {
     .filter((r) => /window/i.test(`${r.sub_category ?? ""} ${r.code ?? ""}`) && /\b(small|large)\b/i.test(r.code ?? ""))
     .map((r) => r.code as string);
   const messaging = (allSettings.find((r) => r.key === MESSAGING_KEY)?.value as Partial<MessagingValues> | undefined) ?? null;
+
+  // MYOB — status from the stored connection; when connected, the chart of
+  // accounts is read live so the mapping dropdowns are MYOB's own list.
+  // Everything is tolerant: an unreachable MYOB never breaks Settings.
+  const myobConnRaw = (allSettings.find((r) => r.key === MYOB_CONNECTION_KEY)?.value as Partial<MyobConnection> | undefined) ?? null;
+  const myobConn = myobConnRaw?.refreshToken ? (myobConnRaw as MyobConnection) : null;
+  const myobState = myobStatus(Boolean(myobEnv()), myobConn);
+  let myobFiles: MyobCompanyFile[] = [];
+  let myobAccounts: MyobAccount[] = [];
+  let myobAccountsError: string | null = null;
+  if (myobState.state === "pick_business" || myobState.state === "connected") {
+    try {
+      const live = await freshConnection(supabase, Date.now());
+      if (live) {
+        if (myobState.state === "pick_business") myobFiles = await listCompanyFiles(live);
+        else myobAccounts = await listAccounts(live);
+      }
+    } catch (e) {
+      myobAccountsError = e instanceof Error ? e.message : "MYOB didn't answer";
+    }
+  }
+  const myobMap = ((allSettings.find((r) => r.key === MYOB_ACCOUNTS_KEY)?.value as { accounts?: MyobAccountMap } | undefined)?.accounts) ?? {};
   const terms = typeof allSettings.find((r) => r.key === TERMS_KEY)?.value === "string" ? (allSettings.find((r) => r.key === TERMS_KEY)!.value as string) : "";
   const templatesRow = allSettings.find((r) => r.key === "estimate_templates");
   const templates: TemplateMeta[] = (Array.isArray(templatesRow?.value) ? (templatesRow!.value as TemplateMeta[]) : [])
@@ -150,6 +176,16 @@ export default async function SettingsPage() {
           initialEntity={(allSettings.find((r) => r.key === "invoicing_entity")?.value as Record<string, string> | undefined) ?? null}
           initialBank={(allSettings.find((r) => r.key === "invoicing_bank")?.value as Record<string, string> | undefined) ?? null}
           initialCore={(allSettings.find((r) => r.key === "invoicing")?.value as Record<string, number> | undefined) ?? null}
+        />
+      </SettingsFolder>
+
+      <SettingsFolder title="Accounting — MYOB" subtitle="Connect MYOB Business and choose which ledger accounts the platform's money posts to">
+        <AccountingSettings
+          status={myobState}
+          files={myobFiles}
+          accounts={myobAccounts}
+          initialMap={myobMap}
+          accountsError={myobAccountsError}
         />
       </SettingsFolder>
 
