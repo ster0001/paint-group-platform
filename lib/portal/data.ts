@@ -166,6 +166,116 @@ export async function getPortalMoney(accountIds: string[]): Promise<PortalMoney>
   };
 }
 
+import type { TimelineInput } from "./timeline";
+import { signPortalPhotos, type PortalPhoto } from "./photos";
+
+export type PortalProject = {
+  estimateId: string;
+  title: string;
+  stage: string;
+  startDate: string | null;
+  endDate: string | null;
+  painterFirstName: string | null;
+  timeline: Omit<TimelineInput, "todayYmd">;
+  photosById: Map<string, PortalPhoto>;
+};
+
+const PROJECT_STAGE_ORDER = ["walkthrough", "in_progress", "qa", "completion_prep", "pre_start", "offered", "closed"];
+
+/** The account's current project — the WO the customer would call "my job".
+ * All reads via the service client scoped to PROVEN account ids; only
+ * customer-safe columns are selected (no pay, no margins, no QA workings —
+ * a FAILED check is never fetched, so it cannot render). */
+export async function getPortalProject(accountIds: string[]): Promise<PortalProject | null> {
+  if (!accountIds.length) return null;
+  const svc = createServiceClient();
+  if (!svc) return null;
+
+  const { data: ests } = await svc
+    .from("estimates").select("id, title").in("account_id", accountIds);
+  const estById = new Map((ests ?? []).map((e) => [e.id as string, e]));
+  if (!estById.size) return null;
+
+  const { data: wos } = await svc
+    .from("work_orders")
+    .select("id, estimate_id, stage, start_date, end_date, contractor_id, issued_at")
+    .in("estimate_id", [...estById.keys()])
+    .not("issued_at", "is", null);
+  const sorted = (wos ?? []).sort(
+    (a, b) => PROJECT_STAGE_ORDER.indexOf(a.stage as string) - PROJECT_STAGE_ORDER.indexOf(b.stage as string),
+  );
+  const wo = sorted[0];
+  if (!wo) return null;
+
+  const [surfaces, updates, photos, variations, qa, walkthrough, signoff, events, deposit, painter] =
+    await Promise.all([
+      svc.from("wo_surfaces").select("heading, label, state, sort").eq("work_order_id", wo.id),
+      svc.from("wo_updates").select("for_date, final_text, draft_text, sent_at")
+        .eq("work_order_id", wo.id).eq("status", "sent").not("sent_at", "is", null),
+      svc.from("wo_photos").select("id, kind, area, caption, storage_path, created_at")
+        .eq("work_order_id", wo.id).in("kind", ["before", "progress", "completion"])
+        .order("created_at", { ascending: false }).limit(60),
+      svc.from("wo_variations")
+        .select("id, status, category, comment, price_cents, customer_token, customer_responded_at, created_at")
+        .eq("work_order_id", wo.id),
+      svc.from("wo_qa_checks").select("checked_at").eq("work_order_id", wo.id)
+        .eq("result", "pass").order("checked_at", { ascending: false }).limit(1),
+      svc.from("wo_walkthroughs").select("scheduled_date").eq("work_order_id", wo.id)
+        .eq("kind", "final").eq("status", "booked").order("scheduled_date").limit(1),
+      svc.from("wo_signoff").select("signed_at").eq("work_order_id", wo.id).maybeSingle(),
+      svc.from("wo_events").select("type, to_stage, created_at").eq("work_order_id", wo.id)
+        .eq("type", "stage_changed").in("to_stage", ["in_progress", "walkthrough"])
+        .order("created_at", { ascending: true }),
+      svc.from("invoices").select("id, kind, status, total_inc_cents, payments(paid_on, status, amount_cents)")
+        .eq("estimate_id", wo.estimate_id).eq("kind", "deposit").limit(1),
+      wo.contractor_id
+        ? svc.from("contractors").select("profile_id, profiles(name)").eq("id", wo.contractor_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+
+  const photoRows = (photos.data ?? []) as Array<{
+    id: string; kind: string; area: string; caption: string; storage_path: string; created_at: string;
+  }>;
+  const photosById = await signPortalPhotos(svc, photoRows);
+
+  const underway = (events.data ?? []).find((e) => e.to_stage === "in_progress");
+  const ready = (events.data ?? []).find((e) => e.to_stage === "walkthrough");
+
+  const dep = (deposit.data ?? [])[0] as
+    | { total_inc_cents: number; payments?: Array<{ paid_on: string | null; status: string; amount_cents: number }> }
+    | undefined;
+  const depPaid = dep?.payments?.find((p) => p.status === "succeeded" && p.paid_on);
+
+  const painterRow = painter.data as { profiles?: { name?: string | null } | null } | null;
+  const painterName = painterRow?.profiles?.name?.trim().split(/\s+/)[0] ?? null;
+
+  return {
+    estimateId: wo.estimate_id as string,
+    title: (estById.get(wo.estimate_id as string)?.title as string | null)?.trim() || "Your project",
+    stage: wo.stage as string,
+    startDate: (wo.start_date as string | null) ?? null,
+    endDate: (wo.end_date as string | null) ?? null,
+    painterFirstName: painterName,
+    timeline: {
+      surfaces: (surfaces.data ?? []) as TimelineInput["surfaces"],
+      updates: ((updates.data ?? []) as Array<{ for_date: string; final_text: string | null; draft_text: string; sent_at: string }>)
+        .map((u) => ({ for_date: u.for_date, text: u.final_text?.trim() || u.draft_text, sent_at: u.sent_at })),
+      photos: photoRows
+        .filter((p) => photosById.has(p.id))
+        .map((p) => ({ id: p.id, kind: p.kind, area: p.area, caption: p.caption, created_at: p.created_at })),
+      variations: (variations.data ?? []) as TimelineInput["variations"],
+      underwayAt: (underway?.created_at as string | undefined) ?? null,
+      readyAt: (ready?.created_at as string | undefined) ?? null,
+      qaPassedAt: ((qa.data ?? [])[0]?.checked_at as string | undefined) ?? null,
+      walkthroughFor: ((walkthrough.data ?? [])[0]?.scheduled_date as string | undefined) ?? null,
+      signedAt: ((signoff.data as { signed_at: string | null } | null)?.signed_at ?? null),
+      depositPaidOn: depPaid?.paid_on ?? null,
+      depositCents: depPaid ? dep!.total_inc_cents : null,
+    },
+    photosById,
+  };
+}
+
 /** Today as yyyy-mm-dd IN MELBOURNE — never toISOString (the CLAUDE.md
  * date rule: before 10am it silently reports yesterday). */
 export function melbourneTodayYmd(now = new Date()): string {

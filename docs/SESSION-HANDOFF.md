@@ -1,3 +1,26 @@
+# 27 Aug 2026 (evening) — PORTAL 3a-4 SHIPPED (the Project Timeline)
+
+/account/project is the day-by-day feed, NO migration. lib/portal/
+timeline.ts (pure, 8 tests): sent-only updates, Melbourne-day photo
+grouping onto the day's leading card, milestones, variation cards → /v,
+rollups in the four customer words. QA ruling encoded at the QUERY level
+(pass milestone only; fails + qa-kind photos never fetched). Photos =
+640/1600px storage-transform renditions behind signed URLs (probe proved
+transforms live: 17KB vs 124KB) — originals never reach the feed.
+getPortalProject = stage-precedence job pick + safe columns; painter
+first-name only. PhotoGrid = grid + lightbox client component.
+
+- Gates: portal-timeline e2e 1/1 on live (the whole visibility law in one
+  spec) · unit 989 · tsc/lint clean · phone screenshot eyeballed + sent.
+- Traps hit: boundary.test bans +10:00 literals (use UTC-noon day
+  anchors); react-hooks/immutability bans render-time mutation (derive
+  day headings up front).
+- NEXT: 3a-5 (colour register + Documents + warranty card — needs the
+  Settings → Documents company-doc store w/ expiry amber, DRAFT watermark
+  on warranty terms until Tom marks approved).
+
+---
+
 # 27 Aug 2026 (later) — PORTAL 3a-3 SHIPPED (Money in the portal)
 
 /account/money is real — read-only over invoicing's rows, NO migration.

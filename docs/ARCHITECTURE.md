@@ -1481,3 +1481,19 @@ surface (PDF + pay — one component, no fork); receipts get
 account chain, 404 otherwise, ensureReceiptPdf + signed URL).
 account.css gained a real print stylesheet (white paper, no chrome).
 Proof: e2e/portal-money.spec.ts 3/3 live + 9 unit tests on the view-model.
+
+## 27 Aug 2026 — Portal 3a-4: the Project Timeline
+/account/project renders the job from WO-loop data (no migration).
+lib/portal/timeline.ts = the pure feed builder: SENT updates only, photos
+grouped to their Melbourne day and attached to that day's leading card,
+milestones (deposit/underway/qa-pass/walkthrough/ready/signed), variation
+cards reusing the /v token flow, area rollups in the four customer words.
+Rulings encoded: QA renders only as a pass milestone (fails and qa-kind
+photos are never fetched — Tom, 23 Aug); declined variations stay on
+record kindly; no +10:00 literals (UTC-noon day anchors). Photos:
+lib/portal/photos.ts signs 640px/1600px RENDITIONS via storage transforms
+(verified live: ~14% of original bytes) — a phone feed never downloads an
+original (§10.3). getPortalProject picks the customer's current WO by
+stage precedence and reads safe columns only; painter surfaces as first
+name. PhotoGrid client component = grid + full-screen lightbox. Proof:
+e2e/portal-timeline.spec.ts on live + 8 unit tests.
