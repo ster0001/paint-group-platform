@@ -1,3 +1,25 @@
+# 27 Aug 2026 (later) — PORTAL 3a-3 SHIPPED (Money in the portal)
+
+/account/money is real — read-only over invoicing's rows, NO migration.
+lib/portal/money.ts = pure customer view-model (issued+ only; drafts/void/
+written_off never render; chips via lib/invoicing/derive so customer and
+staff dashboards share one overdue/paid rule; GST inc-anchored; remainder
+= accepted − issued as "Balance on completion · Not due yet"). Rows link
+to the EXISTING /i/[token] surface (PDF + Stripe — no fork); receipts get
+/account/receipt/[paymentId] (ownership through the account chain, 404
+otherwise). Print stylesheet across the portal. Estimates keep opening
+via /e (the mount decision: portal lists, /e renders — one component).
+
+- Gates: portal-money e2e 3/3 live · portal-shell 4/4 re-run · unit 981 ·
+  screenshots eyeballed (money view lands on the mockup's exact figures).
+- e2e/fixtures/portal.ts = shared portal fixtures (magicLinkFor,
+  destroyAccountChain — deletes payments→invoices→estimates in FK order).
+- NEXT: 3a-4 (project timeline from wo_events: photos via signed
+  thumbnails, per-area rollups in customer words, PC-approved updates,
+  who's-on-your-job, variation cards).
+
+---
+
 # 27 Aug 2026 — PORTAL 3a-2 SHIPPED (magic-link auth + the portal shell)
 
 `/account` is live in code — NO migration this session. Passwordless

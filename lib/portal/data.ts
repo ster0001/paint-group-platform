@@ -119,6 +119,53 @@ export async function getPortalJobs(accountIds: string[]): Promise<PortalJobs> {
   return { estimates: (estimates ?? []) as PortalEstimate[], workOrders };
 }
 
+import type { MoneyEstimate, MoneyInvoice, MoneyPayment } from "./money";
+
+export type PortalMoney = {
+  estimates: MoneyEstimate[];
+  invoices: MoneyInvoice[];
+  payments: MoneyPayment[];
+};
+
+/** Customer-safe money rows for proven account ids: issued-side invoice
+ * fields and succeeded-payment receipt fields only. Surcharge splits,
+ * Stripe internals and staff workings never leave the server. */
+export async function getPortalMoney(accountIds: string[]): Promise<PortalMoney> {
+  if (!accountIds.length) return { estimates: [], invoices: [], payments: [] };
+  const svc = createServiceClient();
+  if (!svc) return { estimates: [], invoices: [], payments: [] };
+
+  const { data: estimates } = await svc
+    .from("estimates")
+    .select("id, title, status, accepted_total_cents")
+    .in("account_id", accountIds)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  const estIds = (estimates ?? []).map((e) => e.id as string);
+  if (!estIds.length) return { estimates: [], invoices: [], payments: [] };
+
+  const { data: invoices } = await svc
+    .from("invoices")
+    .select("id, estimate_id, kind, status, number, token, issued_on, due_on, total_inc_cents, gst_cents")
+    .in("estimate_id", estIds);
+
+  const invIds = (invoices ?? []).map((i) => i.id as string);
+  let payments: MoneyPayment[] = [];
+  if (invIds.length) {
+    const { data: pays } = await svc
+      .from("payments")
+      .select("id, invoice_id, amount_cents, status, paid_on, receipt_number")
+      .in("invoice_id", invIds);
+    payments = (pays ?? []) as MoneyPayment[];
+  }
+  return {
+    estimates: (estimates ?? []) as MoneyEstimate[],
+    invoices: (invoices ?? []) as MoneyInvoice[],
+    payments,
+  };
+}
+
 /** Today as yyyy-mm-dd IN MELBOURNE — never toISOString (the CLAUDE.md
  * date rule: before 10am it silently reports yesterday). */
 export function melbourneTodayYmd(now = new Date()): string {

@@ -154,7 +154,15 @@
 .acct .auth-wrap { flex: 1; display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; }
 .acct .auth-card { width: 100%; max-width: 430px; }
 
+/* Print works for every document (§7): white paper, dark ink, no chrome. */
 @media print {
-  .acct { background: #fff; color: #111; }
-  .acct .tabbar, .acct .call-chip, .acct .btn { display: none; }
+  .acct { background: #fff; color: #111; font-size: 12pt; }
+  .acct .tabbar, .acct .call-chip, .acct .btn, .acct .btn-row, .acct .avatar { display: none !important; }
+  .acct .hdr { position: static; border-color: #ddd; }
+  .acct .card, .acct .job { background: #fff; border-color: #ccc; break-inside: avoid; }
+  .acct .card.raised { background: #fff; }
+  .acct .sub, .acct .note, .acct .greet, .acct h2 { color: #444; }
+  .acct .chip { border: 1px solid #999; color: #333 !important; background: #fff !important; }
+  .acct .scroll { padding: 0; max-width: none; }
+  .acct a { color: #111; }
 }

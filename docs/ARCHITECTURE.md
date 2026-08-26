@@ -1465,3 +1465,19 @@ staff-RLS'd. Customer logins land on /account; /dashboard redirects.
 Wizard saves email a sign-in link (real addresses only — `isTestEmail`
 guard protects deliverability). Proof: `e2e/portal-shell.spec.ts` 4/4 live
 — wizard → save → magic link → portal with no registration form anywhere.
+
+## 27 Aug 2026 — Portal 3a-3: Money in the portal
+The /account/money tab renders the invoicing phase's rows read-only (no
+migration): lib/portal/money.ts is the pure customer view-model — visible
+statuses only (issued/sent/viewed/partially_paid/paid; drafts, voids and
+write-offs never render), chips derived through lib/invoicing/derive (the
+one-source rule with the staff dashboard), GST via the inc-anchored
+gstFromIncCents, per-job "balance on completion" remainder = accepted
+contract − issued. Reads ride lib/portal/data.getPortalMoney (service
+client scoped to proven account ids, safe columns only — no surcharge or
+Stripe internals). Invoice rows deep-link to the existing /i/[token]
+surface (PDF + pay — one component, no fork); receipts get
+/account/receipt/[paymentId] (ownership via payment→invoice→estimate→
+account chain, 404 otherwise, ensureReceiptPdf + signed URL).
+account.css gained a real print stylesheet (white paper, no chrome).
+Proof: e2e/portal-money.spec.ts 3/3 live + 9 unit tests on the view-model.

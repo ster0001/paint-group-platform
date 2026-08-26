@@ -1,6 +1,7 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { serviceClient } from "./fixtures/woLoop";
+import { assertNoPasswordField, deleteUserByEmail, destroyAccountChain, magicLinkFor } from "./fixtures/portal";
 import { driveNoPlanWizard } from "./customer-journey/drive";
 
 /**
@@ -13,58 +14,6 @@ import { driveNoPlanWizard } from "./customer-journey/drive";
  */
 
 const db: SupabaseClient | null = serviceClient();
-
-async function assertNoPasswordField(page: Page) {
-  expect(await page.locator("input[type=password]").count(), "no password field may ever appear").toBe(0);
-}
-
-/** Mint OUR magic-link URL for an email, exactly as lib/portal/auth does —
- * the e2e stands in for the inbox. */
-async function magicLinkFor(sb: SupabaseClient, email: string): Promise<string> {
-  let link = await sb.auth.admin.generateLink({ type: "magiclink", email });
-  if (link.error) {
-    const created = await sb.auth.admin.createUser({ email });
-    if (created.error && !/already/i.test(created.error.message)) throw new Error(created.error.message);
-    link = await sb.auth.admin.generateLink({ type: "magiclink", email });
-  }
-  if (link.error || !link.data?.properties?.hashed_token) {
-    throw new Error(`generateLink: ${link.error?.message ?? "no token"}`);
-  }
-  return `/account/auth?token_hash=${encodeURIComponent(link.data.properties.hashed_token)}`;
-}
-
-async function deleteUserByEmail(sb: SupabaseClient, email: string) {
-  const wanted = email.toLowerCase();
-  for (let pageNo = 1; pageNo <= 10; pageNo++) {
-    const { data } = await sb.auth.admin.listUsers({ page: pageNo, perPage: 200 });
-    const user = data?.users?.find((u) => (u.email ?? "").toLowerCase() === wanted);
-    if (user) {
-      await sb.auth.admin.deleteUser(user.id);
-      return;
-    }
-    if (!data?.users || data.users.length < 200) return;
-  }
-}
-
-async function destroyAccountChain(sb: SupabaseClient, email: string) {
-  const { data: acct } = await sb.from("accounts").select("id").eq("email", email.toLowerCase()).maybeSingle();
-  if (!acct) return;
-  const accountId = (acct as { id: string }).id;
-  const { data: ests } = await sb.from("estimates").select("id").eq("account_id", accountId);
-  const estIds = (ests ?? []).map((e) => (e as { id: string }).id);
-  if (estIds.length) {
-    await sb.from("invoices").delete().in("estimate_id", estIds);
-    const { data: leads } = await sb.from("wizard_leads").select("id, user_id").in("estimate_id", estIds);
-    await sb.from("wizard_leads").delete().in("estimate_id", estIds);
-    await sb.from("estimates").delete().in("id", estIds);
-    for (const lead of (leads ?? []) as Array<{ user_id: string | null }>) {
-      if (lead.user_id) await sb.auth.admin.deleteUser(lead.user_id).catch(() => undefined);
-    }
-  }
-  await sb.from("properties").delete().eq("account_id", accountId);
-  await sb.from("account_users").delete().eq("account_id", accountId);
-  await sb.from("accounts").delete().eq("id", accountId);
-}
 
 test.describe("portal auth + shell (3a-2)", () => {
   test.skip(!db, "set SUPABASE_SERVICE_ROLE_KEY to run the portal shell suite");
