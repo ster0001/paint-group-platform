@@ -130,6 +130,9 @@ export async function destroyLoopFixture(db: SupabaseClient, fixture: LoopFixtur
   // Job costs (Step 6a): work_order_id is ON DELETE RESTRICT too. Materials
   // and intake rows only set-null, but leaving them is still a leak.
   await db.from("job_costs").delete().eq("work_order_id", fixture.workOrderId);
+  // 6c: both RESTRICT-FK'd to the work order.
+  await db.from("contractor_expenses").delete().eq("work_order_id", fixture.workOrderId);
+  await db.from("expense_preapprovals").delete().eq("work_order_id", fixture.workOrderId);
   await db.from("material_costs").delete().eq("work_order_id", fixture.workOrderId);
   await db.from("cost_intake").delete().or(
     `proposed_wo_id.eq.${fixture.workOrderId},confirmed_wo_id.eq.${fixture.workOrderId}`,

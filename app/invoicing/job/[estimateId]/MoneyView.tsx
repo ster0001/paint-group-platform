@@ -87,6 +87,8 @@ export default function MoneyView({
     ci?: { number: string | null; status: string } | null;
     rows?: JobCostItemProp[];
     materials?: MaterialItemProp[];
+    /** Approved/paid contractor expense reimbursements (6c) — job costs too. */
+    expenses?: { id: string; label: string; amtCents: number; status: string }[];
   };
 }) {
   const router = useRouter();
@@ -319,6 +321,17 @@ export default function MoneyView({
               </b>
             </div>
           ))}
+          {(costs.expenses ?? []).length > 0 && (
+            <>
+              <div className="k" style={{ margin: "10px 0 4px" }}>Contractor expense reimbursements</div>
+              {(costs.expenses ?? []).map((e) => (
+                <div className="kv" key={e.id} data-testid={`expense-cost-${e.id}`}>
+                  <span>{e.label} <span className="chip draft" style={{ marginLeft: 6 }}>{e.status}</span></span>
+                  <b>{fmt2(e.amtCents)}</b>
+                </div>
+              ))}
+            </>
+          )}
           <div className="hint" style={{ marginTop: 8 }}>Est-vs-actual bars arrive with 6b.</div>
           {woId && (
             <button className="mini cy" style={{ marginTop: 10 }} onClick={() => setAddCost(true)} data-testid="add-cost-button">

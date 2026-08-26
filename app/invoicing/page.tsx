@@ -16,7 +16,7 @@ import { accuracyReadout, jobCode, queueRows, SOURCE_LABEL, type ExtractedBill, 
 import { COST_DOCS_BUCKET } from "@/lib/costs/store";
 import { fmt2, KIND_LABEL, kindLabelWithContext, shortDay } from "./format";
 import Dashboard, { type ActivityProp, type PayableRowProp, type RowProp } from "./Dashboard";
-import type { CostPayableRowProp, IntakeCardProp, JobPickProp, UnmatchedMaterialProp } from "./PayablesCosts";
+import type { CostPayableRowProp, ExpenseClaimProp, IntakeCardProp, JobPickProp, PreapprovalProp, UnmatchedMaterialProp } from "./PayablesCosts";
 
 export const dynamic = "force-dynamic";
 
@@ -212,6 +212,7 @@ export default async function InvoicingDashboardPage({
   const docPaths = [
     ...queue.map((q) => q.raw_doc_path),
     ...capture.jobCosts.map((c) => c.doc_path),
+    ...capture.expenses.map((e) => e.receipt_path),
   ].filter((p): p is string => Boolean(p));
   const docUrlByPath = new Map<string, string>();
   if (docPaths.length) {
@@ -292,6 +293,30 @@ export default async function InvoicingDashboardPage({
       docUrl: c.doc_path ? docUrlByPath.get(c.doc_path) ?? null : null,
     }));
 
+  const expenseClaims: ExpenseClaimProp[] = capture.expenses.map((e) => ({
+    id: e.id,
+    contractor: e.contractors?.company_name || "Contractor",
+    ref: [
+      e.category.replaceAll("_", " "),
+      jobCode(e.work_orders?.job_no ?? null) || null,
+      e.work_orders?.job_address ?? null,
+    ].filter(Boolean).join(" · "),
+    amtCents: e.amount_cents,
+    overThreshold: e.over_threshold_unapproved,
+    note: e.note,
+    receiptUrl: docUrlByPath.get(e.receipt_path) ?? null,
+  }));
+  const preapprovalCards: PreapprovalProp[] = capture.preapprovals.map((p) => ({
+    id: p.id,
+    contractor: p.contractors?.company_name || "Contractor",
+    ref: [
+      jobCode(p.work_orders?.job_no ?? null) || null,
+      p.work_orders?.job_address ?? null,
+    ].filter(Boolean).join(" · "),
+    description: p.description,
+    estCents: p.est_cents,
+  }));
+
   const accuracy = accuracyReadout(
     capture.intake.map((r) => ({
       status: r.status as IntakeRow["status"],
@@ -313,7 +338,7 @@ export default async function InvoicingDashboardPage({
       initialTab={tab ?? "recv"}
       payables={payables}
       payableRows={payableRows}
-      costs={{ cards, jobs: jobsForPick, unmatched, costRows, accuracy }}
+      costs={{ cards, jobs: jobsForPick, unmatched, costRows, accuracy, expenseClaims, preapprovals: preapprovalCards }}
     />
   );
 }

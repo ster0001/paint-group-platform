@@ -4,6 +4,8 @@ import { missingProfileFields } from "@/lib/contractor/model";
 import { createClient } from "@/lib/supabase/server";
 import { contractorVariationsCents, type PayVariation } from "@/lib/workorder/contractorPay";
 import RequestClaim, { type ClaimableJob } from "./RequestClaim";
+import Expenses, { type ExpenseJob, type ExpenseRow, type Preapproval } from "./Expenses";
+import { DEFAULT_EXPENSE_THRESHOLD_CENTS } from "@/lib/costs/intake";
 
 export const dynamic = "force-dynamic";
 
@@ -88,6 +90,44 @@ export default async function MoneyPage() {
     };
   });
 
+  // 6c: their expenses + pre-approvals + the Settings threshold/categories —
+  // tolerant like everything else (empty until migration 20261127 runs).
+  const [{ data: expenseRows }, { data: preRows }, { data: ciSettings }] = await Promise.all([
+    supabase.from("contractor_expenses")
+      .select("id, work_order_id, category, amount_cents, status, over_threshold_unapproved, note, created_at")
+      .order("created_at", { ascending: false }).limit(50),
+    supabase.from("expense_preapprovals")
+      .select("id, work_order_id, description, est_cents, cap_cents, status")
+      .order("created_at", { ascending: false }).limit(20),
+    supabase.from("settings").select("value").eq("key", "cost_intake").maybeSingle(),
+  ]);
+  const titleByWo = new Map(wos.map((w) => [w.id, w.wo_snapshot?.jobTitle || w.wo_snapshot?.jobAddress || w.wo_ref]));
+  const expenses: ExpenseRow[] = ((expenseRows ?? []) as {
+    id: string; work_order_id: string; category: string; amount_cents: number;
+    status: ExpenseRow["status"]; over_threshold_unapproved: boolean; note: string; created_at: string;
+  }[]).map((e) => ({
+    id: e.id, jobTitle: titleByWo.get(e.work_order_id) ?? "Job", category: e.category,
+    amountCents: e.amount_cents, status: e.status, overThreshold: e.over_threshold_unapproved,
+    note: e.note, createdAt: e.created_at,
+  }));
+  const preapprovals: Preapproval[] = ((preRows ?? []) as {
+    id: string; work_order_id: string; description: string; est_cents: number;
+    cap_cents: number | null; status: string;
+  }[]).map((p) => ({
+    id: p.id, jobTitle: titleByWo.get(p.work_order_id) ?? "Job",
+    description: p.description, estCents: p.est_cents, capCents: p.cap_cents, status: p.status,
+  }));
+  const ciValue = ((ciSettings as { value?: Record<string, unknown> } | null)?.value) ?? {};
+  const categories = Array.isArray(ciValue.claimableCategories)
+    ? (ciValue.claimableCategories as string[])
+    : ["materials_topup", "sundries", "parking", "tip_fees", "other"];
+  const thresholdCents = typeof ciValue.expenseThresholdCents === "number"
+    ? ciValue.expenseThresholdCents
+    : DEFAULT_EXPENSE_THRESHOLD_CENTS;
+  const expenseJobs: ExpenseJob[] = wos.map((w) => ({
+    workOrderId: w.id, title: titleByWo.get(w.id) ?? w.wo_ref,
+  }));
+
   return (
     <div className="wrap">
       <h1>Invoicing</h1>
@@ -105,6 +145,11 @@ export default async function MoneyPage() {
       )}
 
       {missing.length === 0 && <RequestClaim jobs={claimJobs} />}
+
+      {expenseJobs.length > 0 && (
+        <Expenses jobs={expenseJobs} expenses={expenses} preapprovals={preapprovals}
+          categories={categories} thresholdCents={thresholdCents} />
+      )}
 
       {invoices.map((ci) => {
         const chip = CHIP[ci.status] ?? { cls: "amb", label: ci.status };

@@ -7,8 +7,8 @@ import type { DashboardTiles, PayablesTiles } from "@/lib/invoicing/derive";
 import { fmt0, fmt2 } from "./format";
 import { approveContractorInvoiceAction, markContractorInvoicePaidAction } from "./actions";
 import PayablesCosts, {
-  type AccuracyProp, type CostPayableRowProp, type IntakeCardProp,
-  type JobPickProp, type UnmatchedMaterialProp,
+  type AccuracyProp, type CostPayableRowProp, type ExpenseClaimProp, type IntakeCardProp,
+  type JobPickProp, type PreapprovalProp, type UnmatchedMaterialProp,
 } from "./PayablesCosts";
 
 /**
@@ -78,6 +78,8 @@ export default function Dashboard({
     unmatched: UnmatchedMaterialProp[];
     costRows: CostPayableRowProp[];
     accuracy: AccuracyProp;
+    expenseClaims?: ExpenseClaimProp[];
+    preapprovals?: PreapprovalProp[];
   } | null;
 }) {
   const router = useRouter();
@@ -238,7 +240,8 @@ export default function Dashboard({
         {/* Step 6a — the intake queue + job costs + unmatched materials */}
         {costs && (
           <PayablesCosts cards={costs.cards} jobs={costs.jobs} unmatched={costs.unmatched}
-            costRows={costs.costRows} accuracy={costs.accuracy} />
+            costRows={costs.costRows} accuracy={costs.accuracy}
+            expenseClaims={costs.expenseClaims} preapprovals={costs.preapprovals} />
         )}
 
         {payMessage && <div className="hint" role="status" data-testid="payables-message" style={{ margin: "8px 0" }}>{payMessage}</div>}

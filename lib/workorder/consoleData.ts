@@ -126,6 +126,20 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
 
   const loop = (settings.data as { value?: Record<string, unknown> } | null)?.value ?? {};
 
+  // 6c ask-first requests (tolerant — table lands with migration 20261127).
+  const { data: askRows } = await supabase
+    .from("expense_preapprovals")
+    .select("id, work_order_id, description, est_cents, created_at, contractors(company_name)")
+    .eq("status", "requested");
+  const expenseAsks = ((askRows ?? []) as unknown as {
+    id: string; work_order_id: string; description: string; est_cents: number;
+    created_at: string; contractors: { company_name: string | null } | null;
+  }[]).map((a) => ({
+    id: a.id, workOrderId: a.work_order_id, description: a.description,
+    estCents: a.est_cents, createdAt: a.created_at,
+    contractorName: a.contractors?.company_name ?? "The contractor",
+  }));
+
   // Cards a person closed off (Tom, 25 Aug) — permanent per key.
   const { data: dismissedRows } = await supabase
     .from("wo_events").select("meta").eq("type", "card_dismissed");
@@ -144,6 +158,7 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
       now,
       workOrders,
       dismissedKeys,
+      expenseAsks,
       offers: ((offers.data ?? []) as unknown as {
         id: string; work_order_id: string; state: string; expires_at: string;
         proposed_start_date: string | null; approval_due_at: string | null;

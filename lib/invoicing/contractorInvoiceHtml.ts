@@ -33,6 +33,9 @@ export function buildContractorInvoiceHtml(opts: {
   customLines?: { label?: string; cents?: number }[];
   /** Their chosen invoice date (falls back to the submitted date). */
   invoiceDate?: string | null;
+  /** Approved expense reimbursements riding this invoice — at cost,
+   *  clearly labelled, itemised on the remittance too (6c, ⚑A4). */
+  reimbursementLines?: { label?: string; cents?: number }[];
   offerCents: number;
   additionsCents: number;
   deductionLines: CiPdfDeduction[];
@@ -62,6 +65,11 @@ export function buildContractorInvoiceHtml(opts: {
         ...deductions.map((d) => `<tr><td>Less — ${esc(d.label ?? "scope removed")}${d.note ? `<small>${esc(d.note)}</small>` : ""}</td><td class="r mono">−${money(d.cents ?? 0)}</td></tr>`),
         opts.previouslyInvoicedCents > 0 ? `<tr><td>Less previously invoiced</td><td class="r mono">−${money(opts.previouslyInvoicedCents)}</td></tr>` : "",
       ].join("");
+
+  const reimb = (opts.reimbursementLines ?? []).filter((l) => (l.cents ?? 0) > 0);
+  const reimbRows = reimb.map((l) =>
+    `<tr><td>${esc(l.label ?? "Reimbursement")}<small>at cost — approved expense</small></td><td class="r mono">${money(l.cents ?? 0)}</td></tr>`,
+  ).join("");
 
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
@@ -123,7 +131,7 @@ export function buildContractorInvoiceHtml(opts: {
 
   <table>
     <thead><tr><th>Description</th><th class="r">Amount</th></tr></thead>
-    <tbody>${lines}</tbody>
+    <tbody>${lines}${reimbRows}</tbody>
   </table>
 
   <div class="totals">

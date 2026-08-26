@@ -99,7 +99,7 @@ export default async function JobMoneyPage({
   const acceptedDeltaCents = contractorVariationsCents(job.variations);
 
   const woId = job.wo?.id ?? null;
-  const jobCostData = woId ? await loadJobCosts(supabase, woId) : { jobCosts: [], materials: [] };
+  const jobCostData = woId ? await loadJobCosts(supabase, woId) : { jobCosts: [], materials: [], expenses: [] };
   const costDocPaths = jobCostData.jobCosts
     .map((c) => c.doc_path)
     .filter((p): p is string => Boolean(p));
@@ -149,7 +149,15 @@ export default async function JobMoneyPage({
       }}
       cards={cards}
       feed={feed}
-      costs={{ offerCents, acceptedDeltaCents, ci: job.contractorInvoice, rows: costRows, materials: materialRows }}
+      costs={{
+        offerCents, acceptedDeltaCents, ci: job.contractorInvoice, rows: costRows, materials: materialRows,
+        expenses: jobCostData.expenses.map((e) => ({
+          id: e.id,
+          label: [e.category.replaceAll("_", " "), e.note || null].filter(Boolean).join(" — "),
+          amtCents: e.amount_cents,
+          status: e.status,
+        })),
+      }}
     />
   );
 }

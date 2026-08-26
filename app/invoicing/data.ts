@@ -134,6 +134,7 @@ export type JobCostRow = {
   estimate_line_ref: string | null;
   status: string;
   paid_with: string;
+  reimburse_to?: string | null;
   invoice_no: string;
   invoice_date: string | null;
   intake_id: string | null;
@@ -169,14 +170,50 @@ export type JobPickRow = {
  * and columns don't exist, and every query degrades to an empty list so the
  * deployed code stays inert-but-safe (house law).
  */
+export type ContractorExpenseRow = {
+  id: string;
+  work_order_id: string;
+  category: string;
+  amount_cents: number;
+  gst_cents: number;
+  receipt_path: string;
+  note: string;
+  status: string;
+  over_threshold_unapproved: boolean;
+  created_at: string;
+  contractors: { company_name: string | null } | null;
+  work_orders: { estimate_id: string; job_no: number | null; job_address: string | null } | null;
+};
+
+export type PreapprovalRow = {
+  id: string;
+  work_order_id: string;
+  description: string;
+  est_cents: number;
+  status: string;
+  created_at: string;
+  contractors: { company_name: string | null } | null;
+  work_orders: { estimate_id: string; job_no: number | null; job_address: string | null } | null;
+};
+
 export async function loadCostCapture(supabase: SupabaseClient) {
+  const [expenses, preapprovals] = await Promise.all([
+    supabase.from("contractor_expenses")
+      .select("id, work_order_id, category, amount_cents, gst_cents, receipt_path, note, status, over_threshold_unapproved, created_at, contractors(company_name), work_orders(estimate_id, job_no, job_address:wo_snapshot->>jobAddress)")
+      .eq("status", "submitted")
+      .order("created_at", { ascending: true }),
+    supabase.from("expense_preapprovals")
+      .select("id, work_order_id, description, est_cents, status, created_at, contractors(company_name), work_orders(estimate_id, job_no, job_address:wo_snapshot->>jobAddress)")
+      .eq("status", "requested")
+      .order("created_at", { ascending: true }),
+  ]);
   const [intake, jobCosts, unmatched, jobs] = await Promise.all([
     supabase.from("cost_intake")
       .select("id, source, raw_doc_path, from_email, subject, extracted, extract_status, proposed_vendor_id, proposed_wo_id, match_reason, status, duplicate_of, confirmed_wo_id, confirmed_at, created_at")
       .order("created_at", { ascending: false })
       .limit(200),
     supabase.from("job_costs")
-      .select("id, work_order_id, category, description, amount_ex_cents, gst_cents, doc_path, estimate_line_ref, status, paid_with, invoice_no, invoice_date, intake_id, created_at, vendors(name), work_orders(estimate_id, wo_ref, job_no, job_address:wo_snapshot->>jobAddress)")
+      .select("id, work_order_id, category, description, amount_ex_cents, gst_cents, doc_path, estimate_line_ref, status, paid_with, reimburse_to, invoice_no, invoice_date, intake_id, created_at, vendors(name), work_orders(estimate_id, wo_ref, job_no, job_address:wo_snapshot->>jobAddress)")
       .order("created_at", { ascending: false })
       .limit(200),
     supabase.from("material_costs")
@@ -191,6 +228,8 @@ export async function loadCostCapture(supabase: SupabaseClient) {
       .limit(100),
   ]);
   return {
+    expenses: (expenses.error ? [] : expenses.data ?? []) as unknown as ContractorExpenseRow[],
+    preapprovals: (preapprovals.error ? [] : preapprovals.data ?? []) as unknown as PreapprovalRow[],
     intake: (intake.error ? [] : intake.data ?? []) as unknown as IntakeDbRow[],
     jobCosts: (jobCosts.error ? [] : jobCosts.data ?? []) as unknown as JobCostRow[],
     unmatchedMaterials: (unmatched.error ? [] : unmatched.data ?? []) as unknown as MaterialCostRow[],
@@ -200,7 +239,7 @@ export async function loadCostCapture(supabase: SupabaseClient) {
 
 /** One job's costs (§7.1 Costs tab) — tolerant like loadCostCapture. */
 export async function loadJobCosts(supabase: SupabaseClient, woId: string) {
-  const [jobCosts, materials] = await Promise.all([
+  const [jobCosts, materials, expenses] = await Promise.all([
     supabase.from("job_costs")
       .select("id, work_order_id, category, description, amount_ex_cents, gst_cents, doc_path, estimate_line_ref, status, paid_with, invoice_no, invoice_date, intake_id, created_at, vendors(name)")
       .eq("work_order_id", woId)
@@ -209,10 +248,19 @@ export async function loadJobCosts(supabase: SupabaseClient, woId: string) {
       .select("id, work_order_id, supplier, brand, order_ref, address_text, amount_cents, invoice_date, source, intake_id, created_at")
       .eq("work_order_id", woId)
       .order("created_at", { ascending: true }),
+    supabase.from("contractor_expenses")
+      .select("id, category, amount_cents, gst_cents, note, status, created_at")
+      .eq("work_order_id", woId)
+      .in("status", ["approved", "paid"])
+      .order("created_at", { ascending: true }),
   ]);
   return {
     jobCosts: (jobCosts.error ? [] : jobCosts.data ?? []) as unknown as (Omit<JobCostRow, "work_orders">)[],
     materials: (materials.error ? [] : materials.data ?? []) as unknown as MaterialCostRow[],
+    expenses: (expenses.error ? [] : expenses.data ?? []) as unknown as {
+      id: string; category: string; amount_cents: number; gst_cents: number;
+      note: string; status: string; created_at: string;
+    }[],
   };
 }
 

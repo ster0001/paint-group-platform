@@ -30,6 +30,9 @@ export function buildRemittanceHtml(opts: {
   woRef: string;
   jobTitle: string;
   entity: Record<string, string>;
+  /** Approved expense reimbursements this payment covered — itemised at
+   *  cost (6c, ⚑A4: GST treatment with the accountant). */
+  reimbursementLines?: { label?: string; cents?: number }[];
 }): string {
   const date = opts.paidOn
     ? new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
@@ -106,6 +109,7 @@ export function buildRemittanceHtml(opts: {
       <tr><td>Contract work — ${esc(opts.woRef)}</td><td class="r mono">${money(opts.offerCents)}</td></tr>
       ${opts.additionsCents > 0 ? `<tr><td>Approved variations</td><td class="r mono">${money(opts.additionsCents)}</td></tr>` : ""}
       ${deductions.map((d) => `<tr><td>Less — ${esc(d.label ?? "scope removed")}${d.note ? `<small>${esc(d.note)}</small>` : ""}</td><td class="r mono">−${money(d.cents ?? 0)}</td></tr>`).join("")}
+      ${(opts.reimbursementLines ?? []).filter((l) => (l.cents ?? 0) > 0).map((l) => `<tr><td>${esc(l.label ?? "Reimbursement")}<small>at cost — approved expense</small></td><td class="r mono">${money(l.cents ?? 0)}</td></tr>`).join("")}
     </tbody>
   </table>
 

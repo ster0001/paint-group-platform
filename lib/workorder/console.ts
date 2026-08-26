@@ -78,6 +78,8 @@ export type ConsoleInput = {
   lastUpdateAt?: Record<string, string>;
   /** Card keys a person has closed off (Tom, 25 Aug) — dropped from the queue. */
   dismissedKeys?: readonly string[];
+  /** 6c ask-first: contractor purchase requests awaiting a decision. */
+  expenseAsks?: { id: string; workOrderId: string; contractorName: string; description: string; estCents: number; createdAt: string }[];
   settings: {
     coloursWarnDays: number; variationCustomerSilentHours: number;
     /** Days without a customer update before the desk says so (default 3). */
@@ -261,6 +263,22 @@ export function buildQueue(input: ConsoleInput): QueueCard[] {
       workOrderId: w.id,
       ageHours: Math.max(0, hoursBetween(requestedAt, now)),
       action: { label: "Decide on the board", kind: "ring", href: "/pc/schedule" },
+    });
+  }
+
+  // 1d. Ask-first (6c): a contractor wants to buy something over the
+  // threshold — a one-tap decision, and they're standing in the aisle.
+  for (const a of input.expenseAsks ?? []) {
+    const w = byId.get(a.workOrderId);
+    cards.push({
+      key: `expense-ask:${a.id}`,
+      severity: "warning",
+      title: `${a.contractorName} wants to buy — about $${Math.round(a.estCents / 100)}`,
+      detail: `${a.description}. Approve with a cap or decline on the Payables tab.`,
+      ref: w ? label(w.id) : a.workOrderId,
+      workOrderId: a.workOrderId,
+      ageHours: Math.max(0, hoursBetween(a.createdAt, now)),
+      action: { label: "Decide", kind: "price", href: "/invoicing?tab=pay" },
     });
   }
 

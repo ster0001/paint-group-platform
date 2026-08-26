@@ -193,7 +193,7 @@ export async function ensureContractorInvoicePdf(contractorInvoiceId: string): P
     .select("id, number, status, submitted_at, due_on, invoice_pdf_path, entity_snapshot, " +
       "auto_draft_source, claim_pct, offer_cents, variation_delta_cents, deduction_lines, " +
       "previously_invoiced_cents, subtotal_ex_cents, gst_cents, total_inc_cents, " +
-      "gst_registered_at_submit, lines, invoice_date, work_orders(wo_ref, wo_snapshot)")
+      "gst_registered_at_submit, lines, invoice_date, reimbursement_lines, work_orders(wo_ref, wo_snapshot)")
     .eq("id", contractorInvoiceId)
     .maybeSingle();
   const ci = data as {
@@ -205,6 +205,7 @@ export async function ensureContractorInvoicePdf(contractorInvoiceId: string): P
     previously_invoiced_cents: number; subtotal_ex_cents: number; gst_cents: number;
     total_inc_cents: number; gst_registered_at_submit: boolean | null;
     lines?: { label?: string; cents?: number }[] | null; invoice_date?: string | null;
+    reimbursement_lines?: { label?: string; cents?: number }[] | null;
     work_orders: { wo_ref: string; wo_snapshot: { jobTitle?: string; jobAddress?: string } | null } | null;
   } | null;
   if (!ci || ci.status === "draft" || !ci.number) return null;
@@ -227,6 +228,7 @@ export async function ensureContractorInvoicePdf(contractorInvoiceId: string): P
       claimPct: ci.claim_pct,
       customLines: Array.isArray(ci.lines) ? ci.lines : [],
       invoiceDate: ci.invoice_date ?? null,
+      reimbursementLines: Array.isArray(ci.reimbursement_lines) ? ci.reimbursement_lines : [],
       offerCents: ci.offer_cents,
       additionsCents: ci.variation_delta_cents,
       deductionLines: Array.isArray(ci.deduction_lines) ? ci.deduction_lines : [],
@@ -261,7 +263,7 @@ export async function ensureRemittancePdf(contractorInvoiceId: string): Promise<
     .from("contractor_invoices")
     .select("id, number, status, remittance_number, remittance_pdf_path, bank_reference, paid_at, " +
       "offer_cents, variation_delta_cents, deduction_lines, gst_cents, total_inc_cents, entity_snapshot, " +
-      "work_orders(wo_ref, wo_snapshot)")
+      "reimbursement_lines, work_orders(wo_ref, wo_snapshot)")
     .eq("id", contractorInvoiceId)
     .maybeSingle();
   const ci = data as {
@@ -270,6 +272,7 @@ export async function ensureRemittancePdf(contractorInvoiceId: string): Promise<
     offer_cents: number; variation_delta_cents: number; deduction_lines: RemittanceDeduction[];
     gst_cents: number; total_inc_cents: number;
     entity_snapshot: Record<string, string>;
+    reimbursement_lines?: { label?: string; cents?: number }[] | null;
     work_orders: { wo_ref: string; wo_snapshot: { jobTitle?: string } | null } | null;
   } | null;
   if (!ci || ci.status !== "paid" || !ci.remittance_number) return null;
@@ -293,6 +296,7 @@ export async function ensureRemittancePdf(contractorInvoiceId: string): Promise<
       woRef: ci.work_orders?.wo_ref ?? "",
       jobTitle: ci.work_orders?.wo_snapshot?.jobTitle ?? "",
       entity: ((settings as { value?: Record<string, string> } | null)?.value) ?? {},
+      reimbursementLines: Array.isArray(ci.reimbursement_lines) ? ci.reimbursement_lines : [],
     });
     const pdf = await renderHtmlToPdf(html);
     const path = `${ci.id}/${ci.remittance_number}.pdf`;

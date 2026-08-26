@@ -570,3 +570,33 @@ export async function assignMaterialCostAction(raw: unknown): Promise<InvoicingR
     "Matched — the cost now sits on its job.",
   );
 }
+
+// ---- 6c: contractor expenses + ask-first (staff side) ----------------------
+
+export async function decideExpenseAction(raw: unknown): Promise<InvoicingResult> {
+  const p = z.object({ expenseId: uuid, approve: z.boolean() }).safeParse(raw);
+  if (!p.success) return { ok: false, message: "Couldn't find that claim." };
+  return call(
+    "contractor_expense_decide",
+    { p_id: p.data.expenseId, p_approve: p.data.approve },
+    {},
+    p.data.approve
+      ? "Approved — it rides the contractor's next invoice as a reimbursement line."
+      : "Rejected — the contractor sees why in their app.",
+  );
+}
+
+export async function decidePreapprovalAction(raw: unknown): Promise<InvoicingResult> {
+  const p = z.object({
+    preapprovalId: uuid,
+    approve: z.boolean(),
+    capCents: z.number().int().positive().max(100_000_000).optional(),
+  }).safeParse(raw);
+  if (!p.success) return { ok: false, message: "Couldn't find that request." };
+  return call(
+    "expense_preapproval_decide",
+    { p_id: p.data.preapprovalId, p_approve: p.data.approve, p_cap_cents: p.data.capCents ?? null },
+    {},
+    p.data.approve ? "Approved — the contractor sees the agreed cap straight away." : "Declined.",
+  );
+}

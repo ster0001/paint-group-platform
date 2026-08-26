@@ -8,6 +8,8 @@ import {
   assignMaterialCostAction,
   approveJobCostAction,
   confirmIntakeAction,
+  decideExpenseAction,
+  decidePreapprovalAction,
   markJobCostPaidAction,
   rejectIntakeAction,
   type InvoicingResult,
@@ -61,6 +63,24 @@ export type CostPayableRowProp = {
   docUrl: string | null;
 };
 
+export type ExpenseClaimProp = {
+  id: string;
+  contractor: string;
+  ref: string; // "Sundries · $68.00 · PG-0005 · address"
+  amtCents: number;
+  overThreshold: boolean;
+  note: string;
+  receiptUrl: string | null;
+};
+
+export type PreapprovalProp = {
+  id: string;
+  contractor: string;
+  ref: string;
+  description: string;
+  estCents: number;
+};
+
 export type AccuracyProp = {
   decided: number;
   exactRefPct: number | null;
@@ -81,13 +101,15 @@ const CATEGORIES: { key: string; label: string }[] = [
 ];
 
 export default function PayablesCosts({
-  cards, jobs, unmatched, costRows, accuracy,
+  cards, jobs, unmatched, costRows, accuracy, expenseClaims = [], preapprovals = [],
 }: {
   cards: IntakeCardProp[];
   jobs: JobPickProp[];
   unmatched: UnmatchedMaterialProp[];
   costRows: CostPayableRowProp[];
   accuracy: AccuracyProp;
+  expenseClaims?: ExpenseClaimProp[];
+  preapprovals?: PreapprovalProp[];
 }) {
   const router = useRouter();
   const [busy, start] = useTransition();
@@ -289,6 +311,62 @@ export default function PayablesCosts({
                   Assign to job
                 </button>
               )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ============ ask-first requests (6c) ============ */}
+      {preapprovals.length > 0 && (
+        <div className="card" data-testid="preapprovals">
+          <div className="row"><h3>Ask-first — over-threshold purchases</h3><span className="chip submitted">{preapprovals.length}</span></div>
+          {preapprovals.map((p) => (
+            <div key={p.id} style={{ borderTop: "1px solid var(--line)", padding: "10px 0" }} data-testid={`preapproval-${p.id}`}>
+              <div style={{ fontSize: 13.5, fontWeight: 600 }}>{p.contractor} — {p.description}</div>
+              <div className="hint mono" style={{ fontSize: 10 }}>{p.ref} · about {fmt2(p.estCents)}</div>
+              <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                <button className="mini cy" disabled={busy} data-testid={`approve-pre-${p.id}`}
+                  onClick={() => {
+                    const cap = window.prompt("Approve up to how much? (dollars)", (p.estCents / 100).toFixed(2));
+                    if (cap === null) return;
+                    const cents = Math.round(Number(cap) * 100);
+                    if (!(cents > 0)) { setMessage("Enter a dollar cap."); return; }
+                    run(() => decidePreapprovalAction({ preapprovalId: p.id, approve: true, capCents: cents }));
+                  }}>
+                  Approve…
+                </button>
+                <button className="mini" disabled={busy} data-testid={`decline-pre-${p.id}`}
+                  onClick={() => run(() => decidePreapprovalAction({ preapprovalId: p.id, approve: false }))}>
+                  Decline
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ============ contractor expense claims (6c) ============ */}
+      {expenseClaims.length > 0 && (
+        <div className="card" data-testid="expense-claims">
+          <div className="row"><h3>Contractor expense claims</h3><span className="chip submitted">{expenseClaims.length}</span></div>
+          {expenseClaims.map((e) => (
+            <div key={e.id} style={{ borderTop: "1px solid var(--line)", padding: "10px 0" }} data-testid={`expense-claim-${e.id}`}>
+              <div style={{ fontSize: 13.5, fontWeight: 600 }}>
+                {e.contractor} · {fmt2(e.amtCents)}
+                {e.overThreshold && <span className="chip submitted" style={{ marginLeft: 6 }}>over threshold, no pre-approval</span>}
+              </div>
+              <div className="hint mono" style={{ fontSize: 10 }}>{e.ref}{e.note ? ` · ${e.note}` : ""}</div>
+              <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                <button className="mini cy" disabled={busy} data-testid={`approve-exp-${e.id}`}
+                  onClick={() => run(() => decideExpenseAction({ expenseId: e.id, approve: true }))}>
+                  Approve
+                </button>
+                <button className="mini" disabled={busy} data-testid={`reject-exp-${e.id}`}
+                  onClick={() => run(() => decideExpenseAction({ expenseId: e.id, approve: false }))}>
+                  Reject
+                </button>
+                {e.receiptUrl && <a className="mini" href={e.receiptUrl} target="_blank" rel="noreferrer">Receipt</a>}
+              </div>
             </div>
           ))}
         </div>
