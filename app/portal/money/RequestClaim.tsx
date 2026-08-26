@@ -33,9 +33,13 @@ export default function RequestClaim({ jobs, defaultOpen = false, heading = "Inv
   // Tom (25 Aug): with more than one claimable job, the job is PICKED, never
   // assumed — an invoice must not default onto the wrong address.
   const [jobId, setJobId] = useState(claimable.length === 1 ? claimable[0].workOrderId : "");
-  const [mode, setMode] = useState<"25" | "50" | "custom" | "fixed">("25");
+  const [mode, setMode] = useState<"25" | "50" | "custom" | "fixed" | "items">("25");
   const [customPct, setCustomPct] = useState("");
   const [dollars, setDollars] = useState("");
+  // Their own line items + invoice date (Tom, 25 Aug) — the invoice is THEIRS:
+  // they control what it says; the server only bounds the money.
+  const [items, setItems] = useState<{ label: string; dollars: string }[]>([{ label: "", dollars: "" }]);
+  const [invDate, setInvDate] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -45,6 +49,11 @@ export default function RequestClaim({ jobs, defaultOpen = false, heading = "Inv
 
   const previewCents = useMemo(() => {
     if (!job) return null;
+    if (mode === "items") {
+      const sum = items.reduce((n, r) => n + (Number(r.dollars) > 0 ? Math.round(Number(r.dollars) * 100) : 0), 0);
+      const complete = items.length > 0 && items.every((r) => r.label.trim() && Number(r.dollars) > 0);
+      return complete && sum > 0 ? sum : null;
+    }
     if (mode === "fixed") {
       const d = Number(dollars);
       return Number.isFinite(d) && d > 0 ? Math.round(d * 100) : null;
@@ -52,9 +61,9 @@ export default function RequestClaim({ jobs, defaultOpen = false, heading = "Inv
     const pct = mode === "custom" ? Number(customPct) : Number(mode);
     if (!Number.isFinite(pct) || pct <= 0 || pct > 100) return null;
     return Math.min(Math.round((job.adjustedCents * pct) / 100), remaining);
-  }, [job, mode, customPct, dollars, remaining]);
+  }, [job, mode, customPct, dollars, items, remaining]);
 
-  const overRemaining = mode === "fixed" && previewCents != null && previewCents > remaining;
+  const overRemaining = (mode === "fixed" || mode === "items") && previewCents != null && previewCents > remaining;
 
   // The card ALWAYS shows (Tom, 25 Aug: "the payments tab still isn't
   // working" was this card hiding itself) — with the honest reason when
@@ -76,11 +85,15 @@ export default function RequestClaim({ jobs, defaultOpen = false, heading = "Inv
     if (!job || previewCents == null) return;
     setMessage(null);
     startTransition(async () => {
-      const pct = mode === "custom" ? Number(customPct) : mode === "fixed" ? null : Number(mode);
+      const pct = mode === "custom" ? Number(customPct) : mode === "fixed" || mode === "items" ? null : Number(mode);
       const result = await requestClaimAction({
         workOrderId: job.workOrderId,
-        mode: mode === "fixed" ? "fixed" : "percent",
-        value: mode === "fixed" ? Number(dollars) : pct!,
+        mode: mode === "fixed" || mode === "items" ? "fixed" : "percent",
+        value: mode === "items" ? (previewCents ?? 0) / 100 : mode === "fixed" ? Number(dollars) : pct!,
+        lines: mode === "items"
+          ? items.map((r) => ({ label: r.label.trim(), cents: Math.round(Number(r.dollars) * 100) }))
+          : undefined,
+        invoiceDate: invDate || undefined,
       });
       if (result.ok) {
         setOpen(false);
@@ -147,6 +160,10 @@ export default function RequestClaim({ jobs, defaultOpen = false, heading = "Inv
               className={`btn ${mode === "fixed" ? "cy" : "gh"}`} data-testid="claim-fixed">
               $ amount
             </button>
+            <button type="button" onClick={() => setMode("items")}
+              className={`btn ${mode === "items" ? "cy" : "gh"}`} data-testid="claim-items">
+              Line items
+            </button>
           </div>
 
           {mode === "custom" && (
@@ -161,6 +178,40 @@ export default function RequestClaim({ jobs, defaultOpen = false, heading = "Inv
               data-testid="claim-dollars"
               style={{ width: "100%", marginTop: 8, background: "var(--ink)", color: "var(--text)", border: "1px solid var(--line)", borderRadius: 10, padding: "10px 12px", fontSize: 14 }} />
           )}
+
+          {mode === "items" && (
+            <div style={{ marginTop: 8 }} data-testid="claim-lines">
+              {items.map((r, i) => (
+                <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                  <input type="text" placeholder="What for — the line as it reads on your invoice"
+                    value={r.label} maxLength={200}
+                    onChange={(e) => setItems((xs) => xs.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))}
+                    style={{ flex: 1, background: "var(--ink)", color: "var(--text)", border: "1px solid var(--line)", borderRadius: 10, padding: "9px 11px", fontSize: 13 }} />
+                  <input type="number" inputMode="decimal" min="0.01" step="0.01" placeholder="$"
+                    value={r.dollars}
+                    onChange={(e) => setItems((xs) => xs.map((x, j) => (j === i ? { ...x, dollars: e.target.value } : x)))}
+                    style={{ width: 100, background: "var(--ink)", color: "var(--text)", border: "1px solid var(--line)", borderRadius: 10, padding: "9px 11px", fontSize: 13 }} />
+                  {items.length > 1 && (
+                    <button type="button" className="btn gh" aria-label="Remove line"
+                      onClick={() => setItems((xs) => xs.filter((_, j) => j !== i))}>✕</button>
+                  )}
+                </div>
+              ))}
+              {items.length < 12 && (
+                <button type="button" className="btn gh" style={{ width: "100%" }}
+                  onClick={() => setItems((xs) => [...xs, { label: "", dollars: "" }])} data-testid="claim-add-line">
+                  + Add a line
+                </button>
+              )}
+            </div>
+          )}
+
+          <label className="hint" style={{ display: "block", padding: 0, margin: "10px 0 0" }}>
+            Invoice date (yours — defaults to today)
+            <input type="date" value={invDate} onChange={(e) => setInvDate(e.target.value)}
+              data-testid="claim-date"
+              style={{ display: "block", width: "100%", marginTop: 4, background: "var(--ink)", color: "var(--text)", border: "1px solid var(--line)", borderRadius: 10, padding: "9px 11px", fontSize: 13 }} />
+          </label>
 
           <button type="button" className="btn cy" disabled={pending || previewCents == null || overRemaining}
             onClick={submit} data-testid="send-claim" style={{ marginTop: 10, width: "100%" }}>

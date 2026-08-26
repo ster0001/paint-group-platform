@@ -67,6 +67,13 @@ const claimInput = z.object({
   mode: z.enum(["percent", "fixed"]),
   // percent 1–100, or DOLLARS for fixed — intent either way; the RPC bounds it.
   value: z.number().positive().max(1_000_000),
+  // The contractor's OWN line items + invoice date (Tom, 25 Aug). The RPC
+  // verifies the lines sum to the claimed figure and bounds the date.
+  lines: z.array(z.object({
+    label: z.string().trim().min(1).max(200),
+    cents: z.number().int().positive().max(100_000_000),
+  })).max(12).optional(),
+  invoiceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 export async function requestClaimAction(raw: unknown): Promise<ClaimResult> {
@@ -78,6 +85,8 @@ export async function requestClaimAction(raw: unknown): Promise<ClaimResult> {
     p_work_order_id: parsed.data.workOrderId,
     p_mode: parsed.data.mode,
     p_value: parsed.data.value,
+    p_lines: parsed.data.lines ?? null,
+    p_invoice_date: parsed.data.invoiceDate ?? null,
   });
   if (error) return { ok: false, message: "Couldn't send that just now — try again." };
 

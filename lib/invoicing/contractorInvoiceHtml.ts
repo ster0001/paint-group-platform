@@ -27,6 +27,12 @@ export function buildContractorInvoiceHtml(opts: {
   jobTitle: string;
   source: string; // 'signoff' | 'claim'
   claimPct: number | null;
+  /** The contractor's OWN line items (Tom, 25 Aug) — when present on a
+   *  claim they replace the single computed line; they always sum to the
+   *  claim total (server-enforced at submit). */
+  customLines?: { label?: string; cents?: number }[];
+  /** Their chosen invoice date (falls back to the submitted date). */
+  invoiceDate?: string | null;
   offerCents: number;
   additionsCents: number;
   deductionLines: CiPdfDeduction[];
@@ -43,8 +49,13 @@ export function buildContractorInvoiceHtml(opts: {
   const deductions = (opts.deductionLines ?? []).filter((d) => (d.cents ?? 0) > 0);
   const isClaim = opts.source === "claim";
 
+  const customLines = (opts.customLines ?? []).filter((l) => (l.cents ?? 0) > 0);
   const lines = isClaim
-    ? `<tr><td>Progress payment claim — ${esc(opts.woRef)}${opts.claimPct ? ` (${Number(opts.claimPct)}% of contract)` : ""}${opts.jobTitle ? `<small>${esc(opts.jobTitle)}</small>` : ""}</td><td class="r mono">${money(opts.totalIncCents)}</td></tr>`
+    ? customLines.length > 0
+      ? customLines.map((l) =>
+          `<tr><td>${esc(l.label ?? "Work performed")}<small>${esc(opts.woRef)}${opts.jobTitle ? ` · ${esc(opts.jobTitle)}` : ""}</small></td><td class="r mono">${money(l.cents ?? 0)}</td></tr>`,
+        ).join("")
+      : `<tr><td>Progress payment claim — ${esc(opts.woRef)}${opts.claimPct ? ` (${Number(opts.claimPct)}% of contract)` : ""}${opts.jobTitle ? `<small>${esc(opts.jobTitle)}</small>` : ""}</td><td class="r mono">${money(opts.totalIncCents)}</td></tr>`
     : [
         `<tr><td>Contract work — ${esc(opts.woRef)}${opts.jobTitle ? `<small>${esc(opts.jobTitle)}</small>` : ""}</td><td class="r mono">${money(opts.offerCents)}</td></tr>`,
         opts.additionsCents > 0 ? `<tr><td>Approved variations</td><td class="r mono">${money(opts.additionsCents)}</td></tr>` : "",
@@ -100,7 +111,7 @@ export function buildContractorInvoiceHtml(opts: {
     <div class="doctype">
       <h1>${esc(opts.heading)}</h1>
       <div class="num mono">${esc(opts.number)}</div>
-      <div class="date">${esc(fmtDate(opts.submittedOn))}</div>
+      <div class="date">${esc(fmtDate(opts.invoiceDate ?? opts.submittedOn))}</div>
     </div>
   </div>
 

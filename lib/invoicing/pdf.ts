@@ -193,7 +193,7 @@ export async function ensureContractorInvoicePdf(contractorInvoiceId: string): P
     .select("id, number, status, submitted_at, due_on, invoice_pdf_path, entity_snapshot, " +
       "auto_draft_source, claim_pct, offer_cents, variation_delta_cents, deduction_lines, " +
       "previously_invoiced_cents, subtotal_ex_cents, gst_cents, total_inc_cents, " +
-      "gst_registered_at_submit, work_orders(wo_ref, wo_snapshot)")
+      "gst_registered_at_submit, lines, invoice_date, work_orders(wo_ref, wo_snapshot)")
     .eq("id", contractorInvoiceId)
     .maybeSingle();
   const ci = data as {
@@ -204,6 +204,7 @@ export async function ensureContractorInvoicePdf(contractorInvoiceId: string): P
     deduction_lines: { label?: string; cents?: number; note?: string }[];
     previously_invoiced_cents: number; subtotal_ex_cents: number; gst_cents: number;
     total_inc_cents: number; gst_registered_at_submit: boolean | null;
+    lines?: { label?: string; cents?: number }[] | null; invoice_date?: string | null;
     work_orders: { wo_ref: string; wo_snapshot: { jobTitle?: string; jobAddress?: string } | null } | null;
   } | null;
   if (!ci || ci.status === "draft" || !ci.number) return null;
@@ -224,6 +225,8 @@ export async function ensureContractorInvoicePdf(contractorInvoiceId: string): P
       jobTitle: ci.work_orders?.wo_snapshot?.jobTitle ?? ci.work_orders?.wo_snapshot?.jobAddress ?? "",
       source: ci.auto_draft_source,
       claimPct: ci.claim_pct,
+      customLines: Array.isArray(ci.lines) ? ci.lines : [],
+      invoiceDate: ci.invoice_date ?? null,
       offerCents: ci.offer_cents,
       additionsCents: ci.variation_delta_cents,
       deductionLines: Array.isArray(ci.deduction_lines) ? ci.deduction_lines : [],
