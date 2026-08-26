@@ -36,17 +36,19 @@ function schemaMissing(error: { code?: string } | null): boolean {
   return !!error?.code && MISSING_SCHEMA.has(error.code);
 }
 
-export async function ensureAccountAndProperty(
+/** Find-or-create the account for a normalised email. The single account
+ * identity rule — the wizard save, the backfill and the verified magic-link
+ * login all resolve an email to an account through here. */
+export async function ensureAccount(
   db: SupabaseClient,
-  input: EnsureAccountInput,
-): Promise<EnsureAccountResult> {
+  input: Omit<EnsureAccountInput, "address">,
+): Promise<{ accountId: string | null; migrationPending?: boolean }> {
   const email = normaliseEmail(input.email);
-  if (!email || !email.includes("@")) return { accountId: null, propertyId: null };
+  if (!email || !email.includes("@")) return { accountId: null };
 
-  // ---- account: find by normalised email, create when new ------------------
   const found = await db.from("accounts").select("id").eq("email", email).maybeSingle();
   if (found.error) {
-    if (schemaMissing(found.error)) return { accountId: null, propertyId: null, migrationPending: true };
+    if (schemaMissing(found.error)) return { accountId: null, migrationPending: true };
     throw new Error(`account lookup failed: ${found.error.message}`);
   }
   let accountId = (found.data as { id: string } | null)?.id ?? null;
@@ -70,13 +72,25 @@ export async function ensureAccountAndProperty(
         const again = await db.from("accounts").select("id, created_at").eq("email", email).maybeSingle();
         accountId = (again.data as { id: string } | null)?.id ?? null;
       } else if (schemaMissing(inserted.error)) {
-        return { accountId: null, propertyId: null, migrationPending: true };
+        return { accountId: null, migrationPending: true };
       }
       if (!accountId) throw new Error(`account create failed: ${inserted.error.message}`);
     } else {
       accountId = (inserted.data as { id: string }).id;
     }
   }
+  return { accountId };
+}
+
+export async function ensureAccountAndProperty(
+  db: SupabaseClient,
+  input: EnsureAccountInput,
+): Promise<EnsureAccountResult> {
+  const ensured = await ensureAccount(db, input);
+  if (!ensured.accountId) {
+    return { accountId: null, propertyId: null, migrationPending: ensured.migrationPending };
+  }
+  const accountId = ensured.accountId;
 
   // ---- property: only a real street address earns one ----------------------
   const key = addressKey(input.address ?? {});

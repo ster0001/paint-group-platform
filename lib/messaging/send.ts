@@ -103,6 +103,8 @@ export function buildEstimateEmailHtml(opts: {
   estimatorTitle?: string;
   estimatorPhone?: string;
   companyPhone?: string;
+  /** Button text — defaults to the original estimate wording. */
+  buttonLabel?: string;
 }): string {
   const introHtml = opts.intro
     .split(/\n{2,}/)
@@ -129,7 +131,7 @@ export function buildEstimateEmailHtml(opts: {
           <tr><td style="border-radius:8px;background:#059669;">
             <a href="${esc(opts.link)}" target="_blank"
                style="display:inline-block;padding:13px 28px;font-size:16px;font-weight:600;color:#ffffff;text-decoration:none;">
-              Open your estimate
+              ${esc(opts.buttonLabel ?? "Open your estimate")}
             </a>
           </td></tr>
         </table>

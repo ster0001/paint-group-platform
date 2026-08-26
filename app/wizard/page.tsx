@@ -23,7 +23,7 @@ export default async function WizardPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  if (profile?.role !== "staff") redirect("/dashboard");
+  if (profile?.role !== "staff") redirect("/account");
 
   // Room types that actually have scope rules — the editor's add-room chips.
   // Rate items drive page 2's substrate lists (A2): names only reach the

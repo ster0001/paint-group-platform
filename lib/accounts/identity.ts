@@ -12,6 +12,14 @@ export function normaliseEmail(raw: string | null | undefined): string {
   return (raw ?? "").trim().toLowerCase();
 }
 
+/** Emails our own test suites and seeds use. The wizard still creates their
+ * accounts (that IS the feature under test) but never emails them — a
+ * bounced send to a throwaway address hurts real deliverability. The
+ * backfill script mirrors this rule to keep debris out of the books. */
+export function isTestEmail(email: string): boolean {
+  return /@example\.com$/.test(email) || /^pg\./.test(email) || /e2e|playwright|\+test/.test(email);
+}
+
 export type AddressParts = {
   street?: string | null;
   suburb?: string | null;

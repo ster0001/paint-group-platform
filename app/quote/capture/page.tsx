@@ -27,7 +27,7 @@ export default async function CapturePage({
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  if (profile?.role !== "staff") redirect("/dashboard");
+  if (profile?.role !== "staff") redirect("/account");
 
   const { id } = await searchParams;
   if (!id) redirect("/estimates");

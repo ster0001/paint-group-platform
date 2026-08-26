@@ -11,6 +11,8 @@ export type DriveOptions = {
   /** Page-4 "what gets painted with each door"; omit to leave the default
    * ("Door + frame", which is what every pre-21-Aug estimate means). */
   doorScope?: "Door only" | "Door + frame" | "+ architrave";
+  /** Email for the gate; defaults to a throwaway e2e address. */
+  email?: string;
 };
 
 /**
@@ -50,7 +52,7 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
   await next(); // → paint
   await next(); // → email gate
   const email = page.locator("input[type=email]");
-  if (await email.count()) await email.fill(`e2e-journey-${Date.now()}@example.com`);
+  if (await email.count()) await email.fill(opts.email ?? `e2e-journey-${Date.now()}@example.com`);
   await page.getByRole("button", { name: "See my estimate" }).click();
 
   await expect(page.locator(".wz-r")).toBeVisible({ timeout: 90_000 });

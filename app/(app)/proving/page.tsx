@@ -31,7 +31,7 @@ export default async function ProvingPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  if (profile?.role !== "staff") redirect("/dashboard");
+  if (profile?.role !== "staff") redirect("/account");
 
   const [{ data: estimates }, ctx] = await Promise.all([
     supabase

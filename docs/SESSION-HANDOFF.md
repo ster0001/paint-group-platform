@@ -1,3 +1,38 @@
+# 27 Aug 2026 — PORTAL 3a-2 SHIPPED (magic-link auth + the portal shell)
+
+`/account` is live in code — NO migration this session. Passwordless
+sign-in: lib/portal/auth.ts mints the Supabase magic-link token
+server-side and emails OUR /account/auth?token_hash link via Resend
+(lib/messaging) — Supabase SMTP and the redirect allowlist are not
+involved. The verified click is what joins the login to its account
+(ensureMembership; first login = owner). Shell per the approved mockup:
+account.css scoped .acct, call chip on every page, bottom tabs phone /
+sidebar desktop in one responsive stylesheet, state-aware Home
+(lib/portal/home.ts, pure precedence fn) with one primary action, honest
+stubs for Project/Colours/Money/Messages (3a-3…3a-5 fill them).
+lib/portal/data.ts = the read layer (session RLS for the chain; service
+client scoped to proven account ids for estimates/WOs, safe columns only;
+company contact via service — settings is staff-RLS'd, found by
+screenshot-driving the real screen). Customer logins land /account;
+/dashboard redirects (same-day retirement).
+
+- Gates: portal-shell e2e 4/4 LIVE (wizard → save → magic link → portal,
+  no registration form/password anywhere; membership only at the verified
+  click) · unit 971/971 · journey sanity re-run green · screenshots
+  phone+desktop sent to Tom (e2e/_look-portal.spec.ts is the rig).
+- Wizard saves now email "Your estimate is saved" + sign-in button —
+  real addresses only (isTestEmail guard; test suites are never emailed,
+  protecting Resend deliverability).
+- Known follow-ups: durable cross-instance rate limit on link sends
+  (in-memory 3/hr/address today); journey-suite teardown leaves empty
+  test ACCOUNTS behind (estimates are torn down; accounts flagged by
+  isTestEmail — sweep later); ⚑10 portal name default "Your Paint Group
+  account".
+- NEXT: 3a-3 (estimate + money views inside the portal — read-only over
+  invoicing's objects, honest empty states, white print stylesheet).
+
+---
+
 # 26 Aug 2026 (eve) — PORTAL 3a-1 SHIPPED (the identity layer: accounts)
 
 Phase 3 (customer portal) opened: brief + experience map v2 + warranty draft

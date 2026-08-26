@@ -18,7 +18,7 @@ export default async function QuoteLayout({ children }: { children: React.ReactN
     .select("role, name")
     .eq("id", user.id)
     .single();
-  if (profile?.role !== "staff") redirect("/dashboard");
+  if (profile?.role !== "staff") redirect("/account");
 
   const { data: companyRow } = await supabase.from("settings").select("value").eq("key", "company_profile").maybeSingle();
   const logoUrl = (companyRow?.value as { logoUrl?: string } | null)?.logoUrl ?? "";

@@ -21,7 +21,7 @@ export default async function ScopeComponentsPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  if (profile?.role !== "staff") redirect("/dashboard");
+  if (profile?.role !== "staff") redirect("/account");
 
   // select("*") so the page keeps working before the Step 3 migration adds
   // the tile columns - missing fields are synthesised below and a banner says

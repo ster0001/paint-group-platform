@@ -81,7 +81,7 @@ export async function getContractorSession(): Promise<ContractorSession> {
   const loaded = await loadSession();
   if (loaded.kind === "anon") redirect("/login");
   if (loaded.kind === "staff") redirect("/estimates");
-  if (loaded.kind === "other") redirect("/dashboard");
+  if (loaded.kind === "other") redirect("/account");
   return loaded.session;
 }
 

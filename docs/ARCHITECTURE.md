@@ -1443,3 +1443,25 @@ submit route links every customer save. Backfill:
 `scripts/portal/backfill-accounts.mjs` (dry-run default, report-and-confirm).
 Proof: `e2e/account-rls.spec.ts` 7/7 on C1 through real customer sessions.
 Resolves the linking half of `docs/briefs/customer-identity-link.md`.
+
+## 27 Aug 2026 — Portal 3a-2: magic-link sign-in + the portal shell
+`/account` is the customer portal (no migration). Sign-in is passwordless
+(⚑3): `lib/portal/auth.ts` mints a Supabase magic-link token server-side
+and emails OUR link (/account/auth?token_hash=…) through lib/messaging —
+no Supabase SMTP or redirect-allowlist dependency; `/account/auth`
+verifies (verifyOtp) and only THEN joins the login to its account
+(`ensureMembership` — first login = owner; the 3a-1 verified-auth ruling).
+Shell: `app/account/` — scoped `account.css` from the approved mockup
+(call chip in the header of every page, bottom tabs phone / sidebar
+desktop via one responsive stylesheet, base type ≥18px), state-aware Home
+(`lib/portal/home.ts`, pure + unit-tested precedence: walkthrough >
+underway > booked > ready > saved > welcome) with exactly one primary
+action, honest not-yet stubs for Project/Colours/Money/Messages.
+`lib/portal/data.ts`: memberships/accounts/properties via the caller's
+session (RLS is the authority); estimates/work_orders via the service
+client scoped to proven account ids, customer-safe columns only; company
+contact (name/phone/logo only) via service because `settings` is
+staff-RLS'd. Customer logins land on /account; /dashboard redirects.
+Wizard saves email a sign-in link (real addresses only — `isTestEmail`
+guard protects deliverability). Proof: `e2e/portal-shell.spec.ts` 4/4 live
+— wizard → save → magic link → portal with no registration form anywhere.

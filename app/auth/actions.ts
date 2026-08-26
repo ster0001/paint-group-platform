@@ -28,11 +28,11 @@ export async function signup(formData: FormData) {
 }
 
 // Where a signed-in user belongs, by role. Staff get the estimating app,
-// contractors get the portal, everyone else the customer dashboard.
+// contractors get the portal, everyone else the customer account (3a-2).
 export async function homeForRole(role: string | null | undefined) {
   if (role === "staff") return "/estimates";
   if (role === "contractor") return "/portal";
-  return "/dashboard";
+  return "/account";
 }
 
 // Sign in an existing account.

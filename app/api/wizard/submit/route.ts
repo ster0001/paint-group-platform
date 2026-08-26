@@ -23,6 +23,8 @@ import {
 } from "@/lib/wizard/policy";
 import { reportError } from "@/lib/monitoring/report";
 import { ensureAccountAndProperty } from "@/lib/accounts/link";
+import { isTestEmail } from "@/lib/accounts/identity";
+import { sendMagicLink } from "@/lib/portal/auth";
 
 /**
  * POST /api/wizard/submit — W2: wizard completion + extraction result merge
@@ -527,6 +529,27 @@ export async function POST(request: Request) {
           .update({ account_id: linked.accountId, property_id: linked.propertyId })
           .eq("id", estimateId);
         if (link.error) reportError(link.error, { where: "wizard.account.link", bestEffort: true });
+
+        // 3a-2, the A1 promise: "Your estimate is saved. We've sent a link to
+        // your email — use it any time to come back to your project." Only on
+        // outcomes a customer can act on; best-effort — a mail hiccup never
+        // costs the save. Hard stops and handoffs stay staff-led.
+        if (decision.outcome === "reveal" && !isTestEmail(email)) {
+          // Awaited: a fire-and-forget promise can be dropped when the
+          // serverless invocation ends with the response.
+          await sendMagicLink({
+            email,
+            next: "/account",
+            subject: "Your estimate is saved",
+            intro: decision.walkthroughRequired
+              ? "Your estimate is saved in your Paint Group account.\n\nThe button below signs you straight in — no password needed. We'll confirm your price with a free visit whenever suits you.\n\nThe sign-in link lasts an hour; you can always ask for a fresh one from the account page."
+              : "Your estimate is saved in your Paint Group account.\n\nThe button below signs you straight in — no password needed. Come back any time to look it over or pick things up where you left off.\n\nThe sign-in link lasts an hour; you can always ask for a fresh one from the account page.",
+            buttonLabel: "Open my account",
+          }).catch((err: unknown) => {
+            reportError(err, { where: "wizard.account.savedEmail", bestEffort: true });
+            return null;
+          });
+        }
       }
     } catch (err) {
       reportError(err, { where: "wizard.account.ensure", bestEffort: true });

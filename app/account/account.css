@@ -1,0 +1,160 @@
+/* Customer portal — scoped shell styles (.acct), adapted 1:1 from
+   design/reference/customer-portal-mockup.html. Same components phone and
+   desktop: responsive CSS, never two builds. Base type runs ≥18px (the
+   60-year-old rules, brief §7) — the mockup's proportions, sized up. */
+
+.acct {
+  --ink: #0a0b0d;
+  --graphite: #12161a;
+  --raised: #171c21;
+  --line: #242b32;
+  --text: #edf0f2;
+  --muted: #8c959d;
+  --cyan: #3bd8e9;
+  --oncyan: #03272d;
+  --paint: #2fb9cb;
+  --amber: #e0a83c;
+  --emerald: #2fa46b;
+  --clay: #b3574a;
+  --sans: "Switzer", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --mono: "Martian Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  background: var(--ink);
+  color: var(--text);
+  font-family: var(--sans);
+  font-weight: 500;
+  font-size: 18px;
+  letter-spacing: -0.01em;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+.acct *, .acct *::before, .acct *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+.acct button { font-family: inherit; color: inherit; background: none; border: none; cursor: pointer; letter-spacing: inherit; font-size: inherit; }
+.acct a { color: inherit; text-decoration: none; }
+
+/* ===== header ===== */
+.acct .hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 18px 12px; border-bottom: 1px solid var(--line);
+  background: var(--ink); position: sticky; top: 0; z-index: 40;
+}
+.acct .brand { font-weight: 700; font-size: 16px; letter-spacing: 0.02em; }
+.acct .brand .dot { color: var(--cyan); }
+.acct .hdr-right { display: flex; align-items: center; gap: 10px; }
+.acct .call-chip {
+  display: flex; align-items: center; gap: 7px; background: var(--graphite);
+  border: 1px solid var(--line); border-radius: 999px; padding: 9px 13px;
+  font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--text); white-space: nowrap;
+}
+.acct .call-chip svg { width: 14px; height: 14px; stroke: var(--cyan); fill: none; stroke-width: 2; }
+.acct .avatar {
+  width: 36px; height: 36px; border-radius: 50%; background: var(--raised);
+  border: 1px solid var(--line); display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; color: var(--cyan); flex: none;
+}
+.acct .trade-tag {
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--amber); border: 1px solid rgba(224, 168, 60, 0.35); border-radius: 5px;
+  padding: 3px 6px; white-space: nowrap;
+}
+
+/* ===== content ===== */
+.acct .app { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.acct .scroll { flex: 1; padding: 20px 16px 118px; max-width: 560px; width: 100%; margin: 0 auto; }
+.acct .greet { font-size: 16px; color: var(--muted); margin-bottom: 4px; }
+.acct h1 { font-size: 27px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; margin: 0 0 18px; }
+.acct h2 {
+  font-size: 13px; font-family: var(--mono); font-weight: 500; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--muted); margin: 26px 0 12px;
+}
+.acct .card { background: var(--graphite); border: 1px solid var(--line); border-radius: 20px; padding: 18px; margin-bottom: 12px; }
+.acct .card.raised { background: var(--raised); }
+.acct .card h3 { font-size: 18px; font-weight: 700; letter-spacing: -0.015em; margin: 0 0 4px; }
+.acct .sub { font-size: 16.5px; color: var(--muted); line-height: 1.5; }
+.acct .big { font-size: 21px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.25; }
+.acct .money { font-family: var(--mono); font-weight: 600; }
+.acct .note { font-size: 13px; color: var(--muted); line-height: 1.55; font-family: var(--mono); letter-spacing: 0.01em; }
+
+.acct .btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+  padding: 17px; border-radius: 16px; font-size: 17.5px; font-weight: 700;
+  letter-spacing: -0.01em; transition: transform 0.15s ease; text-align: center;
+}
+.acct .btn:active { transform: scale(0.98); }
+.acct .btn-cyan { background: var(--cyan); color: var(--oncyan); }
+.acct .btn-ghost { background: var(--raised); border: 1px solid var(--line); color: var(--text); }
+.acct .btn-row { display: flex; gap: 10px; margin-top: 14px; }
+.acct .btn-row .btn { margin: 0; }
+
+.acct .chip {
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 0.06em;
+  text-transform: uppercase; border-radius: 7px; padding: 5px 9px;
+}
+.acct .chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.acct .chip.cyan { color: var(--cyan); background: rgba(59, 216, 233, 0.09); }
+.acct .chip.amber { color: var(--amber); background: rgba(224, 168, 60, 0.1); }
+.acct .chip.emerald { color: var(--emerald); background: rgba(47, 164, 107, 0.1); }
+.acct .chip.clay { color: var(--clay); background: rgba(179, 87, 74, 0.12); }
+.acct .chip.mut { color: var(--muted); background: rgba(140, 149, 157, 0.1); }
+.acct .chip.nodot::before { display: none; }
+
+.acct .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.acct .hr { height: 1px; background: var(--line); margin: 14px 0; }
+
+.acct .pbar { height: 7px; background: var(--raised); border: 1px solid var(--line); border-radius: 99px; overflow: hidden; margin-top: 10px; }
+.acct .pbar i { display: block; height: 100%; background: linear-gradient(90deg, var(--paint), var(--cyan)); border-radius: 99px; }
+
+/* job / estimate rows */
+.acct .job {
+  display: block; width: 100%; text-align: left; background: var(--graphite);
+  border: 1px solid var(--line); border-radius: 18px; padding: 16px; margin-bottom: 10px;
+}
+.acct .job .addr { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+.acct .job .meta { font-size: 14.5px; color: var(--muted); margin-top: 4px; }
+
+/* ===== forms (login) ===== */
+.acct .field {
+  width: 100%; background: var(--raised); border: 1px solid var(--line); border-radius: 14px;
+  color: var(--text); font-family: inherit; font-size: 18px; padding: 15px 16px; outline: none;
+}
+.acct .field:focus { border-color: var(--cyan); }
+.acct label { display: block; font-size: 15px; color: var(--muted); margin: 0 0 8px; }
+
+/* ===== tab bar ===== */
+.acct .tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; background: rgba(10, 11, 13, 0.94);
+  backdrop-filter: blur(14px); border-top: 1px solid var(--line); display: flex;
+  padding: 8px 6px calc(10px + env(safe-area-inset-bottom)); z-index: 50;
+}
+.acct .tab {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 7px 2px; border-radius: 12px; color: var(--muted); font-size: 11.5px; font-weight: 600;
+}
+.acct .tab svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.acct .tab.on { color: var(--cyan); }
+
+/* ===== desktop: same components, sidebar layout ===== */
+@media (min-width: 900px) {
+  .acct .app { display: grid; grid-template-columns: 236px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .acct .hdr { grid-column: 1 / -1; }
+  .acct .tabbar {
+    position: sticky; top: 69px; align-self: start; height: calc(100dvh - 69px);
+    flex-direction: column; justify-content: flex-start; gap: 4px; border-top: none;
+    border-right: 1px solid var(--line); padding: 20px 12px; background: var(--ink); backdrop-filter: none;
+  }
+  .acct .tab { flex: 0 0 auto; flex-direction: row; justify-content: flex-start; gap: 12px; font-size: 15px; padding: 12px 14px; width: 100%; }
+  .acct .tab.on { background: var(--graphite); }
+  .acct .scroll { padding: 36px 44px 80px; max-width: 760px; margin: 0; }
+  .acct h1 { font-size: 32px; margin-bottom: 24px; }
+}
+
+/* login has no tab bar — give the page breathing room instead */
+.acct .auth-wrap { flex: 1; display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; }
+.acct .auth-card { width: 100%; max-width: 430px; }
+
+@media print {
+  .acct { background: #fff; color: #111; }
+  .acct .tabbar, .acct .call-chip, .acct .btn { display: none; }
+}
