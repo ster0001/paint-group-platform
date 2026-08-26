@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Paint Group — Customer Portal Mockup</title>
+<link rel="preconnect" href="https://api.fontshare.com">
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@500,600,700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0A0B0D; --graphite:#12161A; --raised:#171C21; --line:#242B32;
+  --text:#EDF0F2; --muted:#8C959D; --cyan:#3BD8E9; --oncyan:#03272D;
+  --paint:#2FB9CB; --amber:#E0A83C; --emerald:#2FA46B; --clay:#B3574A;
+  --sans:'Switzer',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  --mono:'Martian Mono',ui-monospace,'SF Mono',Menlo,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{scroll-behavior:smooth}
+body{background:#05060a;color:var(--text);font-family:var(--sans);font-weight:500;letter-spacing:-0.01em;min-height:100dvh}
+button{font-family:inherit;color:inherit;background:none;border:none;cursor:pointer;letter-spacing:inherit}
+
+/* ===== persona switcher (demo chrome, sits outside the "product") ===== */
+.demo-bar{position:sticky;top:0;z-index:60;background:rgba(5,6,10,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding:10px 14px;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap}
+.demo-bar .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.seg{display:flex;background:var(--graphite);border:1px solid var(--line);border-radius:999px;padding:3px}
+.seg button{padding:9px 16px;border-radius:999px;font-size:14px;font-weight:600;color:var(--muted);transition:all .25s ease}
+.seg button.on{background:var(--cyan);color:var(--oncyan)}
+
+/* ===== phone shell ===== */
+.stage{display:flex;justify-content:center;padding:0}
+.phone{width:100%;max-width:430px;min-height:calc(100dvh - 53px);background:var(--ink);position:relative;display:flex;flex-direction:column}
+@media(min-width:520px){
+  .stage{padding:28px 0 48px}
+  .phone{border:1px solid var(--line);border-radius:36px;min-height:860px;max-height:900px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+}
+
+/* ===== app header ===== */
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;border-bottom:1px solid var(--line);background:var(--ink);position:sticky;top:0;z-index:40}
+@media(min-width:520px){.hdr{position:relative}}
+.brand{font-weight:700;font-size:15px;letter-spacing:.02em}
+.brand .dot{color:var(--cyan)}
+.hdr-right{display:flex;align-items:center;gap:10px}
+.call-chip{display:flex;align-items:center;gap:7px;background:var(--graphite);border:1px solid var(--line);border-radius:999px;padding:8px 12px;font-family:var(--mono);font-size:11px;font-weight:500;color:var(--text);text-decoration:none;white-space:nowrap}
+.call-chip svg{width:13px;height:13px;stroke:var(--cyan)}
+.avatar{width:34px;height:34px;border-radius:50%;background:var(--raised);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--cyan)}
+.trade-tag{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--amber);border:1px solid rgba(224,168,60,.35);border-radius:5px;padding:3px 6px;white-space:nowrap}
+
+/* ===== content area ===== */
+.app{display:flex;flex-direction:column;flex:1;min-height:0}
+.app.hidden{display:none!important}
+.scroll{flex:1;overflow-y:auto;padding:18px 16px 110px;scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+.view{display:none;animation:fadeUp .35s ease}
+.view.on{display:block}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+.greet{font-size:15px;color:var(--muted);margin-bottom:4px}
+h1{font-size:26px;font-weight:700;letter-spacing:-0.02em;line-height:1.15;margin-bottom:18px}
+h2{font-size:13px;font-family:var(--mono);font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:26px 0 12px}
+.card{background:var(--graphite);border:1px solid var(--line);border-radius:20px;padding:18px;margin-bottom:12px}
+.card.raised{background:var(--raised)}
+.card h3{font-size:17px;font-weight:700;letter-spacing:-0.015em;margin-bottom:4px}
+.sub{font-size:14.5px;color:var(--muted);line-height:1.5}
+.big{font-size:20px;font-weight:700;letter-spacing:-0.02em;line-height:1.25}
+.money{font-family:var(--mono);font-weight:600}
+
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:17px;border-radius:16px;font-size:16.5px;font-weight:700;letter-spacing:-0.01em;transition:transform .15s ease}
+.btn:active{transform:scale(.98)}
+.btn-cyan{background:var(--cyan);color:var(--oncyan)}
+.btn-ghost{background:var(--raised);border:1px solid var(--line);color:var(--text)}
+.btn-sm{width:auto;padding:10px 16px;font-size:14px;border-radius:12px}
+.btn-row{display:flex;gap:10px;margin-top:14px}
+.btn-row .btn{margin:0}
+
+.chip{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;border-radius:7px;padding:5px 9px}
+.chip::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.chip.cyan{color:var(--cyan);background:rgba(59,216,233,.09)}
+.chip.amber{color:var(--amber);background:rgba(224,168,60,.1)}
+.chip.emerald{color:var(--emerald);background:rgba(47,164,107,.1)}
+.chip.clay{color:var(--clay);background:rgba(179,87,74,.12)}
+.chip.mut{color:var(--muted);background:rgba(140,149,157,.1)}
+.chip.nodot::before{display:none}
+
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.hr{height:1px;background:var(--line);margin:14px 0}
+
+/* progress */
+.pbar{height:7px;background:var(--raised);border:1px solid var(--line);border-radius:99px;overflow:hidden;margin-top:10px}
+.pbar i{display:block;height:100%;background:linear-gradient(90deg,var(--paint),var(--cyan));border-radius:99px;width:0;transition:width 1.2s cubic-bezier(.22,1,.36,1)}
+
+/* photos (placeholder art) */
+.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.photo{position:relative;border-radius:14px;overflow:hidden;aspect-ratio:4/3;border:1px solid var(--line)}
+.photo.wide{grid-column:1/-1;aspect-ratio:16/8}
+.photo .cap{position:absolute;left:8px;bottom:8px;background:rgba(5,6,10,.72);backdrop-filter:blur(6px);border-radius:7px;padding:4px 8px;font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;color:var(--text)}
+.photo .cam{position:absolute;right:8px;top:8px;opacity:.5}
+.photo .cam svg{width:14px;height:14px;stroke:#fff}
+/* gradient scenes */
+.ph-hall1{background:linear-gradient(165deg,#4a5038 0%,#3a3f46 45%,#2a2e34 100%)}
+.ph-a{background:linear-gradient(160deg,#565d66 0%,#454b53 40%,#31363d 100%)}
+.ph-b{background:linear-gradient(200deg,#6a7078 0%,#4e545c 55%,#33383f 100%)}
+.ph-c{background:linear-gradient(150deg,#7d7568 0%,#5d574e 50%,#3a362f 100%)}
+.ph-d{background:linear-gradient(170deg,#8b857a 0%,#6b665d 45%,#413d36 100%)}
+.ph-fresh{background:linear-gradient(155deg,#e9e5da 0%,#cfcabc 55%,#a9a496 100%)}
+.ph-fresh2{background:linear-gradient(195deg,#efece3 0%,#d6d2c6 50%,#b0ab9e 100%)}
+.photo .band{position:absolute;left:0;right:0;top:22%;height:34%;background:rgba(255,255,255,.07)}
+.photo .tape{position:absolute;left:0;right:0;top:20%;height:3px;background:rgba(59,216,233,.5)}
+
+/* timeline */
+.tl{position:relative;padding-left:26px}
+.tl::before{content:"";position:absolute;left:8px;top:6px;bottom:6px;width:2px;background:var(--line);border-radius:2px}
+.tl-item{position:relative;margin-bottom:22px}
+.tl-item::before{content:"";position:absolute;left:-24px;top:5px;width:12px;height:12px;border-radius:50%;background:var(--raised);border:2px solid var(--muted)}
+.tl-item.live::before{background:var(--cyan);border-color:var(--cyan);box-shadow:0 0 0 5px rgba(59,216,233,.15)}
+.tl-item.done::before{background:var(--emerald);border-color:var(--emerald)}
+.tl-date{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.tl-item .card{margin-bottom:0}
+
+/* people */
+.person{display:flex;align-items:center;gap:12px;padding:10px 0}
+.pface{width:46px;height:46px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;border:1px solid var(--line)}
+.pface.m{background:linear-gradient(140deg,#274b52,#173036);color:var(--cyan)}
+.pface.d{background:linear-gradient(140deg,#3a3324,#2a2418);color:var(--amber)}
+.pname{font-size:16px;font-weight:700}
+.prole{font-size:13px;color:var(--muted)}
+
+/* area progress list */
+.area{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--line);gap:10px}
+.area:last-child{border-bottom:none}
+.area .nm{font-size:15.5px;font-weight:600}
+
+/* swatches */
+.sw-row{display:flex;align-items:center;gap:13px;padding:12px 0;border-bottom:1px solid var(--line)}
+.sw-row:last-child{border-bottom:none}
+.sw{width:44px;height:44px;border-radius:12px;flex:none;border:1px solid rgba(255,255,255,.14);box-shadow:inset 0 -6px 12px rgba(0,0,0,.12)}
+.sw-nm{font-size:15.5px;font-weight:700}
+.sw-meta{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:3px;letter-spacing:.03em}
+
+/* invoices */
+.inv{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 0;border-bottom:1px solid var(--line)}
+.inv:last-child{border-bottom:none}
+.inv .ref{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.06em;margin-bottom:4px}
+.inv .ttl{font-size:15.5px;font-weight:700}
+.inv .amt{font-family:var(--mono);font-size:15px;font-weight:600;text-align:right}
+.pdf{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--cyan);margin-top:6px}
+.pdf svg{width:11px;height:11px;stroke:var(--cyan)}
+
+/* messages */
+.msg{display:flex;gap:11px;margin-bottom:14px}
+.msg .mface{width:36px;height:36px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+.mface.pg{background:linear-gradient(140deg,#274b52,#173036);color:var(--cyan)}
+.mface.me{background:var(--raised);border:1px solid var(--line);color:var(--muted)}
+.mface.ai{background:linear-gradient(140deg,#20353a,#141f24);color:var(--paint);border:1px solid rgba(47,185,203,.3)}
+.bubble{background:var(--graphite);border:1px solid var(--line);border-radius:16px;border-top-left-radius:5px;padding:13px 15px;font-size:14.5px;line-height:1.5;flex:1}
+.msg.mine{flex-direction:row-reverse}
+.msg.mine .bubble{border-radius:16px;border-top-right-radius:5px;background:var(--raised)}
+.mmeta{font-family:var(--mono);font-size:9.5px;color:var(--muted);letter-spacing:.06em;margin-top:7px}
+
+/* stat tiles (commercial) */
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}
+.tile{background:var(--graphite);border:1px solid var(--line);border-radius:18px;padding:16px}
+.tile .num{font-family:var(--mono);font-size:24px;font-weight:600;letter-spacing:-0.02em}
+.tile .num.cy{color:var(--cyan)}.tile .num.am{color:var(--amber)}.tile .num.em{color:var(--emerald)}
+.tile .lb{font-size:12.5px;color:var(--muted);margin-top:5px;line-height:1.3}
+
+/* job / property cards */
+.job{display:block;width:100%;text-align:left;background:var(--graphite);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:10px;transition:border-color .2s}
+.job:active{border-color:var(--cyan)}
+.job .addr{font-size:16px;font-weight:700;letter-spacing:-0.01em}
+.job .meta{font-size:13px;color:var(--muted);margin-top:4px}
+.attn{border-left:3px solid var(--amber)}
+
+/* tab bar */
+.tabbar{position:absolute;left:0;right:0;bottom:0;background:rgba(10,11,13,.94);backdrop-filter:blur(14px);border-top:1px solid var(--line);display:flex;padding:8px 6px calc(10px + env(safe-area-inset-bottom))}
+@media(max-width:519px){.tabbar{position:fixed;max-width:430px;margin:0 auto}}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 2px;border-radius:12px;color:var(--muted);font-size:11px;font-weight:600}
+.tab svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.tab.on{color:var(--cyan)}
+.tab .bdg{position:absolute;margin-left:26px;margin-top:-2px;width:8px;height:8px;border-radius:50%;background:var(--amber)}
+
+/* ===== column wrappers (invisible on phone) ===== */
+.colA,.colB{display:contents}
+
+/* ===== desktop mode ===== */
+@media(max-width:899px){#segView{display:none}}
+body.desk .stage{padding:24px 20px 48px}
+body.desk .phone{max-width:1200px;width:100%;min-height:700px;height:calc(100dvh - 160px);max-height:940px;border-radius:22px}
+body.desk .app{display:grid;grid-template-columns:236px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+body.desk .hdr{grid-column:1/-1;position:relative;padding:18px 26px 14px}
+body.desk .tabbar{position:static;grid-column:1;grid-row:2;flex-direction:column;justify-content:flex-start;gap:4px;border-top:none;border-right:1px solid var(--line);padding:20px 12px;background:var(--ink);backdrop-filter:none;max-width:none;margin:0}
+body.desk .tab{flex:0 0 auto;flex-direction:row;justify-content:flex-start;gap:12px;font-size:14.5px;padding:12px 14px;width:100%}
+body.desk .tab.on{background:var(--graphite)}
+body.desk .tab .bdg{position:static;margin:0 0 0 auto;order:9}
+body.desk .scroll{grid-column:2;grid-row:2;padding:36px 44px 80px}
+body.desk h1{font-size:32px;margin-bottom:24px}
+body.desk .view.on{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:0 30px;align-content:start;max-width:1060px;grid-auto-flow:row dense}
+body.desk .view.on>*{grid-column:1/-1;min-width:0}
+body.desk .colA,body.desk .colB{display:block}
+body.desk .view.on>.colA{grid-column:1}
+body.desk .view.on>.colB{grid-column:2;align-self:start;position:sticky;top:2px}
+body.desk .colA>h2:first-child,body.desk .colB>h2:first-child{margin-top:0}
+body.desk .colB>.card:first-child{margin-top:0!important}
+body.desk .tiles{grid-template-columns:repeat(4,1fr)}
+body.desk .view.on>.btn{max-width:360px}
+
+.note{font-size:12.5px;color:var(--muted);line-height:1.55;font-family:var(--mono);letter-spacing:.01em}
+.foot-note{max-width:430px;margin:0 auto;padding:18px 20px 40px;font-family:var(--mono);font-size:10.5px;line-height:1.7;color:#5c646b}
+.flag{color:var(--amber)}
+</style>
+</head>
+<body>
+
+<div class="demo-bar">
+  <span class="lbl">Viewing the portal as</span>
+  <div class="seg">
+    <button id="segRes" class="on" onclick="persona('res')">Margaret · Homeowner</button>
+    <button id="segCom" onclick="persona('com')">Sarah · Harcourts (Trade)</button>
+  </div>
+  <div class="seg" id="segView">
+    <button id="segPhone" class="on" onclick="viewMode('phone')">Phone</button>
+    <button id="segDesk" onclick="viewMode('desk')">Desktop</button>
+  </div>
+</div>
+
+<div class="stage">
+<div class="phone">
+<!-- ============ RESIDENTIAL APP ============ -->
+<div id="appRes" class="app">
+
+  <div class="hdr">
+    <div class="brand">PAINT GROUP<span class="dot">.</span></div>
+    <div class="hdr-right">
+      <a class="call-chip" href="#" onclick="return false"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.5 2.1L8 10a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7a2 2 0 0 1 1.7 2z"/></svg>(03) 9000 0000</a>
+      <div class="avatar">M</div>
+    </div>
+  </div>
+
+  <div class="scroll">
+
+    <!-- ===== HOME ===== -->
+    <div class="view on" id="res-home">
+      <div class="greet">Good afternoon, Margaret</div>
+      <h1>Your painting is underway at 12&nbsp;Acacia&nbsp;Street</h1>
+
+      <div class="colA">
+      <div class="card raised">
+        <div class="row" style="margin-bottom:8px">
+          <span class="chip cyan">Day 3 of 6</span>
+          <span class="chip amber nodot">2 new photos today</span>
+        </div>
+        <div class="big">The hallway has its first coat — and it's looking lovely.</div>
+        <div class="pbar"><i data-w="45%"></i></div>
+        <div class="row" style="margin-top:8px">
+          <span class="note">Started Wed 19 Aug</span><span class="note">Finishing Tue 26 Aug</span>
+        </div>
+        <div style="margin-top:16px"><button class="btn btn-cyan" onclick="go('res','project')">See today's progress</button></div>
+      </div>
+
+      <h2>Who's at your home</h2>
+      <div class="card">
+        <div class="person">
+          <div class="pface m">MC</div>
+          <div><div class="pname">Marco</div><div class="prole">Your painter · on site 7.30am – 3.30pm</div></div>
+        </div>
+        <div class="hr" style="margin:4px 0"></div>
+        <div class="person">
+          <div class="pface d">DA</div>
+          <div><div class="pname">Dan</div><div class="prole">Your project coordinator — checks every day's work</div></div>
+        </div>
+      </div>
+      </div>
+
+      <div class="colB">
+      <h2>Coming up</h2>
+      <div class="card">
+        <div class="row">
+          <div><h3>Tomorrow — the lounge</h3><div class="sub">Marco will prepare the lounge ceiling and walls, ready for Domino on the feature wall.</div></div>
+        </div>
+      </div>
+
+      <h2>Prefer to talk?</h2>
+      <div class="card">
+        <div class="sub" style="margin-bottom:14px">You can always ring us on <b style="color:var(--text)">(03) 9000 0000</b> — or ask us to call you, and we will.</div>
+        <button class="btn btn-ghost">Request a call back</button>
+      </div>
+      </div>
+    </div>
+
+    <!-- ===== PROJECT TIMELINE ===== -->
+    <div class="view" id="res-project">
+      <div class="greet">12 Acacia Street</div>
+      <h1>Your project, day by day</h1>
+
+      <div class="colB">
+      <div class="card" style="margin-bottom:22px">
+        <h3 style="margin-bottom:6px">Where everything is up to</h3>
+        <div class="area"><span class="nm">Hallway &amp; stairs</span><span class="chip cyan">First coat</span></div>
+        <div class="area"><span class="nm">Lounge</span><span class="chip amber">Prep tomorrow</span></div>
+        <div class="area"><span class="nm">Kitchen</span><span class="chip mut">Not started</span></div>
+        <div class="area"><span class="nm">Front door</span><span class="chip mut">Not started</span></div>
+        <div class="area"><span class="nm">Ceilings throughout</span><span class="chip amber">In progress</span></div>
+      </div>
+      </div>
+
+      <div class="colA">
+      <div class="tl">
+        <div class="tl-item live">
+          <div class="tl-date">Today · Friday 21 August</div>
+          <div class="card">
+            <h3>First coat on in the hallway</h3>
+            <div class="sub">Marco cut in the edges this morning and rolled the hallway walls in Natural White. It needs to dry overnight, then the final coat goes on. Tomorrow he starts preparing the lounge.</div>
+            <div class="pgrid">
+              <div class="photo ph-fresh"><span class="tape"></span><span class="cap">Hallway — first coat</span><span class="cam"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span></div>
+              <div class="photo ph-fresh2"><span class="cap">Stairwell — cutting in</span></div>
+            </div>
+            <div class="mmeta" style="margin-top:10px">Update checked and sent by Dan · 4.12pm</div>
+          </div>
+        </div>
+
+        <div class="tl-item done">
+          <div class="tl-date">Yesterday · Thursday 20 August</div>
+          <div class="card">
+            <h3>Hallway fully prepared</h3>
+            <div class="sub">Cracks filled and sanded back, all trim masked, surfaces washed down. Dan visited at midday and checked the prep before any paint goes near the walls.</div>
+            <div class="pgrid">
+              <div class="photo ph-a"><span class="band"></span><span class="cap">Walls sanded &amp; filled</span></div>
+              <div class="photo ph-b"><span class="cap">Trim masked up</span></div>
+            </div>
+            <div class="row" style="margin-top:12px"><span class="chip emerald">Quality check passed</span></div>
+          </div>
+        </div>
+
+        <div class="tl-item done">
+          <div class="tl-date">Wednesday 19 August</div>
+          <div class="card">
+            <h3>We're underway</h3>
+            <div class="sub">Marco arrived at 7.30, laid drop sheets through the hallway and covered your furniture. Before anything else, he photographed every room — so you and we both have a record of how things started.</div>
+            <div class="pgrid">
+              <div class="photo ph-c"><span class="cap">Before — hallway</span></div>
+              <div class="photo ph-d"><span class="cap">Before — lounge</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tl-item done">
+          <div class="tl-date">Tuesday 18 August</div>
+          <div class="card">
+            <h3>Your colours were confirmed</h3>
+            <div class="sub">Natural White through the hallway, Domino on the lounge feature wall. The full list is saved under <b style="color:var(--text)">My colours</b> — it stays there for good.</div>
+          </div>
+        </div>
+
+        <div class="tl-item done">
+          <div class="tl-date">Thursday 13 August</div>
+          <div class="card">
+            <div class="row">
+              <div><h3>Deposit received — you're booked</h3><div class="sub">Thank you. Receipt saved under Money.</div></div>
+              <div class="money" style="font-size:15px">$2,535.00</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tl-item done">
+          <div class="tl-date">Monday 10 August</div>
+          <div class="card">
+            <div class="row">
+              <div><h3>You accepted your estimate</h3><div class="sub">Interior painting, five areas.</div></div>
+              <div class="money" style="font-size:15px">$8,450.00</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      </div>
+    </div>
+
+    <!-- ===== COLOURS ===== -->
+    <div class="view" id="res-colours">
+      <div class="greet">12 Acacia Street</div>
+      <h1>My colours</h1>
+      <div class="colA">
+      <div class="card raised">
+        <div class="sub">Every colour on your walls, kept here for good. Come back in six months — or six years — and it will still be waiting for you.</div>
+      </div>
+
+      <h2>Hallway &amp; stairs</h2>
+      <div class="card">
+        <div class="sw-row"><div class="sw" style="background:#F2EFE6"></div><div><div class="sw-nm">Dulux Natural White</div><div class="sw-meta">WALLS · LOW SHEEN · 2 COATS</div></div></div>
+        <div class="sw-row"><div class="sw" style="background:#EDEEEA"></div><div><div class="sw-nm">Dulux Lexicon Quarter</div><div class="sw-meta">TRIM, DOORS &amp; SKIRTING · SEMI-GLOSS</div></div></div>
+      </div>
+
+      <h2>Lounge</h2>
+      <div class="card">
+        <div class="sw-row"><div class="sw" style="background:#3A3B3D"></div><div><div class="sw-nm">Dulux Domino</div><div class="sw-meta">FEATURE WALL · LOW SHEEN</div></div></div>
+        <div class="sw-row"><div class="sw" style="background:#F2EFE6"></div><div><div class="sw-nm">Dulux Natural White</div><div class="sw-meta">REMAINING WALLS · LOW SHEEN</div></div></div>
+      </div>
+
+      </div>
+
+      <div class="colB">
+      <h2>Ceilings throughout</h2>
+      <div class="card">
+        <div class="sw-row"><div class="sw" style="background:#F7F7F4"></div><div><div class="sw-nm">Dulux Ceiling White</div><div class="sw-meta">ALL CEILINGS · FLAT</div></div></div>
+      </div>
+
+      <h2>Front door</h2>
+      <div class="card">
+        <div class="sw-row"><div class="sw" style="background:#55585C"></div><div><div class="sw-nm">Dulux Monument</div><div class="sw-meta">EXTERIOR ACRYLIC · GLOSS</div></div></div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-ghost">Download as PDF</button>
+        <button class="btn btn-ghost">Need touch-up paint?</button>
+      </div>
+      </div>
+    </div>
+
+    <!-- ===== MONEY ===== -->
+    <div class="view" id="res-money">
+      <div class="greet">12 Acacia Street</div>
+      <h1>Money</h1>
+      <div class="colA">
+      <div class="card raised">
+        <div class="row">
+          <div><div class="sub">Your project total</div><div class="money" style="font-size:26px;margin-top:4px">$8,450.00</div><div class="note" style="margin-top:6px">Includes GST of $768.18</div></div>
+          <span class="chip emerald">On track</span>
+        </div>
+      </div>
+
+      <h2>Invoices &amp; receipts</h2>
+      <div class="card">
+        <div class="inv">
+          <div>
+            <div class="ref">INV-2041 · 13 AUG 2026</div>
+            <div class="ttl">Deposit</div>
+            <a class="pdf" href="#" onclick="return false"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>DOWNLOAD PDF</a>
+          </div>
+          <div style="text-align:right"><div class="amt">$2,535.00</div><div style="margin-top:6px"><span class="chip emerald">Paid</span></div></div>
+        </div>
+        <div class="inv">
+          <div>
+            <div class="ref">FINAL INVOICE</div>
+            <div class="ttl">Balance on completion</div>
+            <div class="note" style="margin-top:6px">Only due once you've walked through and signed off.</div>
+          </div>
+          <div style="text-align:right"><div class="amt">$5,915.00</div><div style="margin-top:6px"><span class="chip mut">Not due yet</span></div></div>
+        </div>
+      </div>
+      </div>
+
+      <div class="colB">
+      <div class="card">
+        <div class="sub">A question about an invoice? Ring us on <b style="color:var(--text)">(03) 9000 0000</b> — we'll sort it out together.</div>
+      </div>
+      </div>
+    </div>
+
+    <!-- ===== MESSAGES ===== -->
+    <div class="view" id="res-messages">
+      <div class="greet">12 Acacia Street</div>
+      <h1>Messages</h1>
+
+      <div class="colA">
+      <div class="msg">
+        <div class="mface pg">PG</div>
+        <div class="bubble">First coat on in the hallway today — two photos in your project timeline. Marco starts the lounge tomorrow.<div class="mmeta">PAINT GROUP · TODAY 4.12PM</div></div>
+      </div>
+
+      <div class="msg mine">
+        <div class="mface me">M</div>
+        <div class="bubble">Will the paint smell be strong overnight?<div class="mmeta">YOU · YESTERDAY 6.40PM</div></div>
+      </div>
+
+      <div class="msg">
+        <div class="mface ai">AI</div>
+        <div class="bubble">We use low-odour, water-based paints indoors, so any smell is mild and usually gone within a day. Leaving a window ajar in the hallway overnight will clear it faster. Would you like Dan to give you a ring about it?<div class="mmeta">PAINT GROUP ASSISTANT · YESTERDAY 6.41PM</div></div>
+      </div>
+
+      <div class="msg">
+        <div class="mface pg">DA</div>
+        <div class="bubble">Hi Margaret, Dan here — just confirming what the assistant said. We're using Dulux Wash&amp;Wear low-odour throughout. You won't have any trouble sleeping. See you Friday!<div class="mmeta">DAN · YESTERDAY 7.05PM</div></div>
+      </div>
+
+      <div class="msg">
+        <div class="mface pg">PG</div>
+        <div class="bubble">Your colours are confirmed and saved under My colours. Marco and the team will see you Wednesday at 7.30am.<div class="mmeta">PAINT GROUP · MON 18 AUG</div></div>
+      </div>
+
+      </div>
+
+      <div class="colB">
+      <div class="card" style="margin-top:20px">
+        <div class="sub" style="margin-bottom:14px">Every email and message from us lives here, next to your project — so nothing gets lost.</div>
+        <div class="btn-row" style="margin-top:0">
+          <button class="btn btn-cyan btn-sm" style="flex:1">Ask a question</button>
+          <button class="btn btn-ghost btn-sm" style="flex:1">Request a call back</button>
+        </div>
+      </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- residential tab bar -->
+  <div class="tabbar" id="tabsRes">
+    <button class="tab on" data-v="home" onclick="go('res','home')"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>Home</button>
+    <button class="tab" data-v="project" onclick="go('res','project')"><span class="bdg"></span><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 15-4.5-4.5L8 19"/></svg>My project</button>
+    <button class="tab" data-v="colours" onclick="go('res','colours')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="8.5" cy="9.5" r="1.4"/><circle cx="14.5" cy="7.8" r="1.4"/><circle cx="16.5" cy="13" r="1.4"/><path d="M12 21a3.5 3.5 0 0 0 0-7h-1.4a1.8 1.8 0 0 1 0-3.6"/></svg>My colours</button>
+    <button class="tab" data-v="money" onclick="go('res','money')"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Money</button>
+    <button class="tab" data-v="messages" onclick="go('res','messages')"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.9 8.9 0 0 1-3.9-.9L3 20l1-4.9a8.4 8.4 0 1 1 17-3.6z"/></svg>Messages</button>
+  </div>
+</div>
+
+<!-- ============ COMMERCIAL APP ============ -->
+<div id="appCom" class="app hidden">
+
+  <div class="hdr">
+    <div>
+      <div class="brand">PAINT GROUP<span class="dot">.</span></div>
+      <div style="display:flex;align-items:center;gap:7px;margin-top:5px">
+        <span style="font-size:12px;color:var(--muted);font-weight:600">Harcourts Northcote</span>
+        <span class="trade-tag">Trade account</span>
+      </div>
+    </div>
+    <div class="hdr-right">
+      <a class="call-chip" href="#" onclick="return false"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.5 2.1L8 10a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7a2 2 0 0 1 1.7 2z"/></svg>(03) 9000 0000</a>
+      <div class="avatar">S</div>
+    </div>
+  </div>
+
+  <div class="scroll">
+
+    <!-- ===== COMMERCIAL HOME ===== -->
+    <div class="view on" id="com-home">
+      <div class="greet">Good afternoon, Sarah</div>
+      <h1>Your properties, at a glance</h1>
+
+      <div class="tiles">
+        <div class="tile"><div class="num cy" data-count="4">0</div><div class="lb">Jobs underway</div></div>
+        <div class="tile"><div class="num am" data-count="2">0</div><div class="lb">Waiting on you</div></div>
+        <div class="tile"><div class="num" data-count="2">0</div><div class="lb">Draft estimates</div></div>
+        <div class="tile"><div class="num em" data-money="18940">$0</div><div class="lb">Invoiced this month, inc GST</div></div>
+      </div>
+
+      <button class="btn btn-cyan" style="margin:8px 0 4px" onclick="go('com','estimate')">Start a new estimate</button>
+
+      <div class="colA">
+      <h2>Needs your attention</h2>
+      <div class="job attn">
+        <div class="row">
+          <div>
+            <div class="addr">8/22 Clarke St, Northcote</div>
+            <div class="meta">Variation to approve — water-damaged ceiling patch, photos attached</div>
+          </div>
+          <div class="money" style="font-size:14px">$340.00</div>
+        </div>
+        <div class="btn-row"><button class="btn btn-cyan btn-sm">Review &amp; approve</button></div>
+      </div>
+      <div class="job attn">
+        <div class="row">
+          <div>
+            <div class="addr">45 Union Rd, Thornbury</div>
+            <div class="meta">Painting finished — book your walkthrough &amp; sign-off</div>
+          </div>
+        </div>
+        <div class="btn-row"><button class="btn btn-cyan btn-sm">Book walkthrough</button></div>
+      </div>
+
+      </div>
+
+      <div class="colB">
+      <h2>Jobs underway</h2>
+      <div class="job">
+        <div class="row"><div class="addr">8/22 Clarke St, Northcote</div><span class="chip cyan">Day 2 of 4</span></div>
+        <div class="meta">End-of-lease repaint · new photos today</div>
+        <div class="pbar"><i data-w="40%"></i></div>
+      </div>
+      <div class="job">
+        <div class="row"><div class="addr">45 Union Rd, Thornbury</div><span class="chip amber">Sign-off</span></div>
+        <div class="meta">Full interior · awaiting your walkthrough</div>
+        <div class="pbar"><i data-w="96%"></i></div>
+      </div>
+      <div class="job">
+        <div class="row"><div class="addr">12 Emmaline St, Northcote</div><span class="chip mut">Starts Mon</span></div>
+        <div class="meta">Exterior weatherboard · crew confirmed</div>
+      </div>
+      <div class="job">
+        <div class="row"><div class="addr">3/117 High St, Preston</div><span class="chip amber">Estimate ready</span></div>
+        <div class="meta">Awaiting your acceptance — <span class="money" style="font-size:12px">$4,120.00</span> inc GST</div>
+      </div>
+      </div>
+    </div>
+
+    <!-- ===== PROPERTIES ===== -->
+    <div class="view" id="com-props">
+      <div class="greet">Harcourts Northcote</div>
+      <h1>Properties</h1>
+      <div class="card" style="padding:13px 16px;display:flex;align-items:center;gap:10px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8C959D" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <span style="color:var(--muted);font-size:15px">Search by address…</span>
+      </div>
+
+      <div class="colA">
+      <div class="job">
+        <div class="row"><div class="addr">7/9 Beavers Rd, Northcote</div><span class="chip emerald">Completed Jul 26</span></div>
+        <div class="meta">2 jobs with us · paint register on file · 2-yr warranty to Jul 2028</div>
+        <div class="btn-row">
+          <button class="btn btn-ghost btn-sm" style="flex:1" onclick="toggleReg()">View paint register</button>
+          <button class="btn btn-cyan btn-sm" style="flex:1">Rebook — same spec</button>
+        </div>
+        <div id="reg" style="display:none;margin-top:14px;border-top:1px solid var(--line);padding-top:6px">
+          <div class="sw-row"><div class="sw" style="background:#E8E6E1"></div><div><div class="sw-nm">Haymes Greyology 1</div><div class="sw-meta">ALL WALLS · LOW SHEEN · APPLIED JUL 2026</div></div></div>
+          <div class="sw-row"><div class="sw" style="background:#F4F3EF"></div><div><div class="sw-nm">Haymes Ultra White</div><div class="sw-meta">TRIM &amp; DOORS · SEMI-GLOSS</div></div></div>
+          <div class="sw-row"><div class="sw" style="background:#F7F7F4"></div><div><div class="sw-nm">Haymes Ceiling White</div><div class="sw-meta">CEILINGS · FLAT</div></div></div>
+          <a class="pdf" href="#" onclick="return false" style="margin-top:10px"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>DOWNLOAD REGISTER PDF</a>
+        </div>
+      </div>
+
+      <div class="job">
+        <div class="row"><div class="addr">6/31 Westgarth St, Northcote</div><span class="chip emerald">Completed Mar 26</span></div>
+        <div class="meta">End-of-lease repaint, Mar 2026 · <span class="money" style="font-size:12px">$3,980.00</span> · register on file</div>
+        <div class="btn-row"><button class="btn btn-cyan btn-sm" style="flex:1" onclick="go('com','estimate')">Rebook — same spec as March</button></div>
+      </div>
+
+      </div>
+
+      <div class="colB">
+      <div class="job">
+        <div class="row"><div class="addr">8/22 Clarke St, Northcote</div><span class="chip cyan">Job underway</span></div>
+        <div class="meta">Register will be saved automatically at sign-off</div>
+      </div>
+
+      <div class="job">
+        <div class="row"><div class="addr">45 Union Rd, Thornbury</div><span class="chip amber">Sign-off</span></div>
+        <div class="meta">1 job with us · walkthrough to book</div>
+      </div>
+
+      <div class="card" style="margin-top:8px">
+        <div class="sub">Every property you paint with us keeps a permanent register — colours, brands and finishes, searchable by address, ready to hand to the next property manager.</div>
+      </div>
+      </div>
+    </div>
+
+    <!-- ===== NEW ESTIMATE ===== -->
+    <div class="view" id="com-estimate">
+      <div class="greet">Harcourts Northcote</div>
+      <h1>New estimate</h1>
+      <div class="colA">
+      <div class="card raised">
+        <div class="row" style="margin-bottom:6px">
+          <h3>Trade account</h3><span class="chip cyan nodot">Unlimited estimates</span>
+        </div>
+        <div class="sub">Quote any property in a couple of minutes — floorplans always on, no limits.</div>
+      </div>
+
+      <h2>Fastest — repeat a previous job</h2>
+      <div class="job">
+        <div class="addr">6/31 Westgarth St — same spec as March</div>
+        <div class="meta">End-of-lease repaint · Level 3 finish · whole interior · was <span class="money" style="font-size:12px">$3,980.00</span></div>
+        <div class="btn-row"><button class="btn btn-cyan btn-sm" style="flex:1">Requote this in one tap</button></div>
+      </div>
+
+      <h2>Start from a saved spec</h2>
+      <div class="card">
+        <div class="area"><span class="nm">End-of-lease refresh</span><span class="chip mut nodot">Level 3 · interior</span></div>
+        <div class="area"><span class="nm">Full interior repaint</span><span class="chip mut nodot">Walls, trim, ceilings</span></div>
+        <div class="area"><span class="nm">External timber &amp; fences</span><span class="chip mut nodot">Exterior</span></div>
+      </div>
+
+      </div>
+
+      <div class="colB">
+      <h2>Or from scratch</h2>
+      <button class="btn btn-ghost">Choose a saved property</button>
+      <button class="btn btn-cyan" style="margin-top:10px">New property — start the wizard</button>
+
+      <h2>Your drafts</h2>
+      <div class="job">
+        <div class="row"><div class="addr">14 Herbert St, Northcote</div><span class="chip amber nodot">Draft</span></div>
+        <div class="meta">Interior · 3 areas added · last edited yesterday</div>
+      </div>
+      <div class="job">
+        <div class="row"><div class="addr">2/88 Victoria Rd, Northcote</div><span class="chip amber nodot">Draft</span></div>
+        <div class="meta">Exterior · facade photos uploaded</div>
+      </div>
+      </div>
+    </div>
+
+    <!-- ===== COMMERCIAL MONEY ===== -->
+    <div class="view" id="com-money">
+      <div class="greet">Harcourts Northcote</div>
+      <h1>Money</h1>
+      <div class="colA">
+      <div class="card raised">
+        <div class="row">
+          <div>
+            <div class="sub">Invoiced this month</div>
+            <div class="money" style="font-size:26px;margin-top:4px">$18,940.00</div>
+            <div class="note" style="margin-top:6px">Inc GST · 14-day terms <span class="flag">⚑</span></div>
+          </div>
+          <button class="btn btn-ghost btn-sm">August statement (PDF)</button>
+        </div>
+      </div>
+
+      <h2>Invoices — all properties</h2>
+      <div class="card">
+        <div class="inv">
+          <div>
+            <div class="ref">INV-2044 · 45 UNION RD</div>
+            <div class="ttl">Full interior — final</div>
+            <a class="pdf" href="#" onclick="return false"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>PDF</a>
+          </div>
+          <div style="text-align:right"><div class="amt">$7,260.00</div><div style="margin-top:6px"><span class="chip amber">Due 29 Aug</span></div></div>
+        </div>
+        <div class="inv">
+          <div>
+            <div class="ref">INV-2039 · 7/9 BEAVERS RD</div>
+            <div class="ttl">End-of-lease repaint</div>
+            <a class="pdf" href="#" onclick="return false"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>PDF</a>
+          </div>
+          <div style="text-align:right"><div class="amt">$4,380.00</div><div style="margin-top:6px"><span class="chip emerald">Paid 11 Aug</span></div></div>
+        </div>
+        <div class="inv">
+          <div>
+            <div class="ref">INV-2035 · 6/31 WESTGARTH ST</div>
+            <div class="ttl">Touch-up visit</div>
+            <a class="pdf" href="#" onclick="return false"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>PDF</a>
+          </div>
+          <div style="text-align:right"><div class="amt">$540.00</div><div style="margin-top:6px"><span class="chip emerald">Paid 4 Aug</span></div></div>
+        </div>
+      </div>
+
+      </div>
+
+      <div class="colB">
+      <div class="card">
+        <div class="sub">Need a statement for your trust account, or different terms? Ring us on <b style="color:var(--text)">(03) 9000 0000</b>.</div>
+      </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- commercial tab bar -->
+  <div class="tabbar" id="tabsCom">
+    <button class="tab on" data-v="home" onclick="go('com','home')"><span class="bdg"></span><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>Home</button>
+    <button class="tab" data-v="props" onclick="go('com','props')"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="8" height="14"/><rect x="13" y="3" width="8" height="18"/><path d="M6 11h2M6 15h2M16 7h2M16 11h2M16 15h2"/></svg>Properties</button>
+    <button class="tab" data-v="estimate" onclick="go('com','estimate')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>New estimate</button>
+    <button class="tab" data-v="money" onclick="go('com','money')"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Money</button>
+  </div>
+</div>
+</div>
+</div>
+
+<div class="foot-note">
+  Interactive mockup · sample data only. Photos are placeholders — real portal shows the contractor's actual job photos.
+  <span class="flag">⚑ Placeholders pending your decisions:</span> phone number, deposit 30%, trade payment terms 14 days, portal name.
+  All amounts AUD, inclusive of GST.
+</div>
+
+<script>
+var current = {res:'home', com:'home'};
+var curP = 'res';
+
+function persona(p){
+  curP = p;
+  document.getElementById('segRes').classList.toggle('on', p==='res');
+  document.getElementById('segCom').classList.toggle('on', p==='com');
+  document.getElementById('appRes').classList.toggle('hidden', p!=='res');
+  document.getElementById('appCom').classList.toggle('hidden', p!=='com');
+  animate(p);
+}
+
+function viewMode(m){
+  document.body.classList.toggle('desk', m==='desk');
+  document.getElementById('segPhone').classList.toggle('on', m==='phone');
+  document.getElementById('segDesk').classList.toggle('on', m==='desk');
+  animate(curP);
+}
+
+function go(p, v){
+  current[p] = v;
+  var prefix = p==='res' ? 'res-' : 'com-';
+  var views = document.querySelectorAll('#app'+(p==='res'?'Res':'Com')+' .view');
+  views.forEach(function(el){ el.classList.toggle('on', el.id === prefix+v); });
+  var tabs = document.querySelectorAll('#tabs'+(p==='res'?'Res':'Com')+' .tab');
+  tabs.forEach(function(t){ t.classList.toggle('on', t.getAttribute('data-v')===v); });
+  var scroller = document.querySelector('#app'+(p==='res'?'Res':'Com')+' .scroll');
+  if(scroller) scroller.scrollTop = 0;
+  animate(p);
+}
+
+function toggleReg(){
+  var r = document.getElementById('reg');
+  r.style.display = r.style.display==='none' ? 'block' : 'none';
+}
+
+/* progress bars + count-ups animate when their persona is shown */
+function animate(p){
+  var root = document.getElementById(p==='res'?'appRes':'appCom');
+  root.querySelectorAll('.pbar i').forEach(function(bar){
+    bar.style.width = '0';
+    requestAnimationFrame(function(){ requestAnimationFrame(function(){
+      bar.style.width = bar.getAttribute('data-w');
+    });});
+  });
+  root.querySelectorAll('[data-count]').forEach(function(el){ countUp(el, parseInt(el.getAttribute('data-count'),10), false); });
+  root.querySelectorAll('[data-money]').forEach(function(el){ countUp(el, parseInt(el.getAttribute('data-money'),10), true); });
+}
+
+function countUp(el, target, money){
+  var t0 = null, dur = 900;
+  function frame(ts){
+    if(!t0) t0 = ts;
+    var k = Math.min((ts-t0)/dur, 1);
+    k = 1 - Math.pow(1-k, 3);
+    var val = Math.round(target*k);
+    el.textContent = money ? '$'+val.toLocaleString('en-AU') : val;
+    if(k<1) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+if(window.innerWidth >= 1000){ viewMode('desk'); } else { animate('res'); }
+</script>
+</body>
+</html>
