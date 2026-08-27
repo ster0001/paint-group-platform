@@ -3,6 +3,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { SCOPE_VERSION } from "@/lib/extract/scope";
 import { substrateOptionsFromRates, type SubstrateGroups } from "@/lib/estimate/substrates";
 import WizardApp from "../wizard/WizardApp";
+import { wizardStateSchema, type WizardState } from "@/lib/wizard/state";
 
 /**
  * /estimate — Step 8's CUSTOMER wizard.
@@ -23,9 +24,9 @@ export const metadata = {
 export default async function CustomerWizardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ property?: string }>;
+  searchParams: Promise<{ property?: string; rebook?: string }>;
 }) {
-  const { property: propertyParam } = await searchParams;
+  const { property: propertyParam, rebook: rebookParam } = await searchParams;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   let isStaff = false;
@@ -100,12 +101,45 @@ export default async function CustomerWizardPage({
     );
   }
 
+  // 3a-7: one-tap rebook — a member requotes a PRIOR JOB OF THEIR OWN. The
+  // ownership check runs the account chain (estimate → account ∈ caller's
+  // memberships, read via RLS); the stored answers are re-validated through
+  // the zod schema and stripped of every file/run reference before they seed
+  // the wizard. Anything that fails simply falls back to a fresh walk.
+  let prefillState: WizardState | undefined;
+  if (memberEmail && rebookParam && /^[0-9a-f-]{36}$/.test(rebookParam) && svc) {
+    const { data: memberships } = await supabase.from("account_users").select("account_id");
+    const owned = new Set((memberships ?? []).map((m) => m.account_id as string));
+    const { data: prior } = await svc
+      .from("estimates")
+      .select("account_id, wizard_state:builder_state->wizard->state")
+      .eq("id", rebookParam)
+      .maybeSingle();
+    if (prior?.account_id && owned.has(prior.account_id as string) && prior.wizard_state) {
+      const parsed = wizardStateSchema.safeParse(prior.wizard_state);
+      if (parsed.success) {
+        // The old job's plan readings and photos belong to the old job —
+        // strip every reference, then RE-VALIDATE: a state that only made
+        // sense with its floorplan attached fails here and the customer
+        // simply gets a fresh walk with the address prefilled.
+        const stripped = wizardStateSchema.safeParse({
+          ...parsed.data,
+          planRunIds: [],
+          facadeRunIds: [],
+          conditionSourceIds: [],
+        });
+        if (stripped.success) prefillState = stripped.data;
+      }
+    }
+  }
+
   return (
     <WizardApp
       roomTypes={roomTypes}
       substrates={substrates}
       mode="customer"
       prefill={memberEmail ? { email: memberEmail, address: prefillAddress } : undefined}
+      prefillState={prefillState}
     />
   );
 }

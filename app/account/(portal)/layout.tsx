@@ -49,7 +49,7 @@ export default async function PortalShellLayout({ children }: { children: React.
           <div className="avatar" aria-hidden>{initial}</div>
         </div>
       </header>
-      <AccountTabs />
+      <AccountTabs trade={trade} />
       <main className="scroll">{children}</main>
     </div>
   );

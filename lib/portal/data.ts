@@ -372,6 +372,66 @@ export async function getPortalAftercare(accountIds: string[]): Promise<PortalAf
   };
 }
 
+import type { PortfolioVariation } from "./portfolio";
+
+/** Variations awaiting the client across the account's jobs — customer-safe
+ * fields only, scoped through the WO→estimate→account chain. */
+export async function getPortalVariations(accountIds: string[]): Promise<PortfolioVariation[]> {
+  if (!accountIds.length) return [];
+  const svc = createServiceClient();
+  if (!svc) return [];
+  const { data } = await svc
+    .from("wo_variations")
+    .select("id, status, price_cents, customer_token, customer_responded_at, work_orders!inner(estimate_id, estimates!inner(account_id))")
+    .in("work_orders.estimates.account_id", accountIds);
+  return ((data ?? []) as unknown as Array<{
+    id: string; status: string; price_cents: number | null; customer_token: string | null;
+    customer_responded_at: string | null; work_orders: { estimate_id: string } | null;
+  }>)
+    .filter((v) => v.work_orders?.estimate_id)
+    .map((v) => ({
+      id: v.id, estimate_id: v.work_orders!.estimate_id, status: v.status,
+      price_cents: v.price_cents, customer_token: v.customer_token,
+      customer_responded_at: v.customer_responded_at,
+    }));
+}
+
+export type RebookCandidate = {
+  id: string;
+  property_id: string | null;
+  title: string | null;
+  status: string;
+  total_cents: number | null;
+  created_at: string;
+  /** True when the estimate carries its wizard answers — the one-tap rebook
+   * can seed the whole walk, not just the address. */
+  hasWizard: boolean;
+};
+
+/** Prior jobs a trade account can requote — newest first. Only the wizard
+ * marker leaves the row; builder_state itself (margins included) never
+ * reaches a customer payload. */
+export async function getRebookCandidates(accountIds: string[]): Promise<RebookCandidate[]> {
+  if (!accountIds.length) return [];
+  const svc = createServiceClient();
+  if (!svc) return [];
+  const { data } = await svc
+    .from("estimates")
+    .select("id, property_id, title, status, total_cents, created_at, wizard_version:builder_state->wizard->version")
+    .in("account_id", accountIds)
+    .order("created_at", { ascending: false })
+    .limit(30);
+  return ((data ?? []) as Array<Record<string, unknown>>).map((e) => ({
+    id: e.id as string,
+    property_id: (e.property_id as string | null) ?? null,
+    title: (e.title as string | null) ?? null,
+    status: e.status as string,
+    total_cents: (e.total_cents as number | null) ?? null,
+    created_at: e.created_at as string,
+    hasWizard: e.wizard_version != null,
+  }));
+}
+
 /** Today as yyyy-mm-dd IN MELBOURNE — never toISOString (the CLAUDE.md
  * date rule: before 10am it silently reports yesterday). */
 export function melbourneTodayYmd(now = new Date()): string {

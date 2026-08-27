@@ -16,12 +16,38 @@ export default async function MoneyPage() {
   if (!ctx) redirect("/account/login");
 
   const { estimates, invoices, payments } = await getPortalMoney(ctx.accounts.map((a) => a.id));
-  const jobs = buildMoneyView(estimates, invoices, payments, melbourneTodayYmd());
+  const today = melbourneTodayYmd();
+  const jobs = buildMoneyView(estimates, invoices, payments, today);
   const phone = ctx.companyPhone;
+
+  // 3a-7: the trade header — this month's total across every property, with
+  // the statement a trust account can file. ⚑5: terms are display-only.
+  const trade = ctx.accounts.some((a) => a.account_type === "trade");
+  const month = today.slice(0, 7);
+  const monthCents = trade
+    ? invoices
+        .filter((i) => ["issued", "sent", "viewed", "partially_paid", "paid"].includes(i.status) && (i.issued_on ?? "").startsWith(month))
+        .reduce((s, i) => s + i.total_inc_cents, 0)
+    : 0;
 
   return (
     <div>
       <h1>Money</h1>
+
+      {trade && (
+        <div className="card raised">
+          <div className="row">
+            <div>
+              <div className="sub">Invoiced this month</div>
+              <div className="money" style={{ fontSize: 26, marginTop: 4 }}>{moneyFmt(monthCents)}</div>
+              <div className="note" style={{ marginTop: 6 }}>Inc GST · 14-day terms ⚑</div>
+            </div>
+            <Link className="btn btn-ghost" style={{ width: "auto", padding: "12px 16px", fontSize: 14 }} href={`/account/statement/${month}`}>
+              Monthly statement (PDF)
+            </Link>
+          </div>
+        </div>
+      )}
 
       {jobs.length === 0 && (
         <div className="card raised">

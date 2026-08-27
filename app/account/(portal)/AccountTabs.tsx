@@ -43,11 +43,34 @@ const TABS = [
   },
 ];
 
-export default function AccountTabs() {
+// The trade tab set (§6, the mockup's commercial persona): the portfolio
+// replaces the single-job story; colours/documents stay reachable from
+// Properties and Home. Same shell, same components — different emphasis.
+const TRADE_TABS = [
+  TABS[0],
+  {
+    href: "/account/properties",
+    label: "Properties",
+    icon: (
+      <svg viewBox="0 0 24 24"><rect x="3" y="7" width="8" height="14" /><rect x="13" y="3" width="8" height="18" /><path d="M6 11h2M6 15h2M16 7h2M16 11h2M16 15h2" /></svg>
+    ),
+  },
+  {
+    href: "/account/new-estimate",
+    label: "New estimate",
+    icon: (
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 8v8M8 12h8" /></svg>
+    ),
+  },
+  TABS[3],
+];
+
+export default function AccountTabs({ trade = false }: { trade?: boolean }) {
   const pathname = usePathname();
+  const tabs = trade ? TRADE_TABS : TABS;
   return (
     <nav className="tabbar" aria-label="Your account">
-      {TABS.map((t) => {
+      {tabs.map((t) => {
         const on = t.href === "/account" ? pathname === "/account" : pathname.startsWith(t.href);
         return (
           <Link key={t.href} href={t.href} className={`tab${on ? " on" : ""}`} aria-current={on ? "page" : undefined}>

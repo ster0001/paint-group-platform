@@ -1533,3 +1533,20 @@ AddressField, portal-styled wz-* classes); Home gains the property
 switcher at 2+ (filters by estimates.property_id), the builder card and
 the add-address link. Proof: portal-builder e2e 3/3 live + the no-fork
 contract test.
+
+## 27 Aug 2026 — Portal 3a-7: the commercial workspace
+No migration — trade is aggregation over the same customer-safe rows
+(§6). lib/portal/portfolio.ts = the pure view-model (tiles, attention
+queue reusing the shared overdue rule, underway bars).
+AccountTabs/Home branch on account_type: trade gets Home(portfolio)/
+Properties/New estimate/Money. Properties carries register + warranty
+lines and the one-tap rebook; /estimate gained `rebook=` — ownership via
+the account chain, the prior wizard state re-validated through
+wizardStateSchema AFTER stripping every file/run reference (a state that
+only made sense with its floorplan falls back to address-only), then
+seeds WizardApp via `prefillState` (surfaces kept, no defaults reset).
+getRebookCandidates exposes only a wizard-presence marker — builder_state
+never reaches the client. Money: trade header + /account/statement/[month]
+(white printable statement; ⚑5 display-only 14-day terms). Settings →
+Trade accounts (⚑2 office-side granting + the ⚑1 unblocked flag).
+Proof: portal-commercial e2e 4/4 live incl. the seeded rebook.

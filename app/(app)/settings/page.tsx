@@ -17,6 +17,7 @@ import { MESSAGING_KEY, type MessagingSettings as MessagingValues } from "@/lib/
 import ProductsManager, { type ProductRow } from "./ProductsManager";
 import ColoursManager, { type ColourRow } from "./ColoursManager";
 import DocumentsManager, { type CompanyDocRow } from "./DocumentsManager";
+import TradeAccountsManager from "./TradeAccountsManager";
 import PresentationsManager, { type PresentationRow } from "./PresentationsManager";
 import { DEFAULT_INCLUSION_TEMPLATES, DEFAULT_EXCLUSION_TEMPLATES, INCLUSION_TEMPLATES_KEY, EXCLUSION_TEMPLATES_KEY, type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import { SCOPE_VERSION } from "@/lib/extract/scope";
@@ -257,6 +258,10 @@ export default async function SettingsPage() {
 
       <SettingsFolder title="Colours" subtitle="Visual colour library for the colour picker — brand swatches + add your own" count={colours.length}>
         <ColoursManager initial={colours} />
+      </SettingsFolder>
+
+      <SettingsFolder title="Trade accounts" subtitle="Grant a customer the trade workspace (unlimited estimates, portfolio view) or unblock one account's limits — office-side only, never self-serve">
+        <TradeAccountsManager />
       </SettingsFolder>
 
       <SettingsFolder title="Documents" subtitle="Credentials on display in every customer portal — insurance certificates with expiry, plus the warranty-terms approval switch" count={companyDocs.length}>

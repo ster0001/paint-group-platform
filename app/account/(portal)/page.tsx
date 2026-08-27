@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getPortalContext, getPortalJobs, melbourneGreeting, melbourneTodayYmd } from "@/lib/portal/data";
 import { homeState } from "@/lib/portal/home";
 import { signout } from "@/app/auth/actions";
+import PortfolioHome from "./PortfolioHome";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,11 @@ export default async function AccountHomePage({
   const { property: propertyParam } = await searchParams;
   const ctx = await getPortalContext();
   if (!ctx) redirect("/account/login");
+
+  // A trade account gets the portfolio (§6) — same shell, aggregated story.
+  if (ctx.accounts.some((a) => a.account_type === "trade")) {
+    return <PortfolioHome ctx={ctx} />;
+  }
 
   const all = await getPortalJobs(ctx.accounts.map((a) => a.id));
   const selected = ctx.properties.find((p) => p.id === propertyParam)?.id ?? null;

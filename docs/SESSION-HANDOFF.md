@@ -1,3 +1,28 @@
+# 27 Aug 2026 (later) — PORTAL 3a-7 SHIPPED (the commercial workspace)
+
+NO SQL. Trade = aggregation, never schema: lib/portal/portfolio.ts
+(tiles/attention/underway, 5 unit tests) over the same safe reads +
+getPortalVariations (WO→estimate→account chain) + getRebookCandidates
+(wizard-presence marker only). Trade tabs Home/Properties/New estimate/
+Money; PortfolioHome; Properties w/ register+warranty lines + ONE-TAP
+REBOOK: /estimate?rebook= → ownership via account chain → prior wizard
+state parsed, STRIPPED of file/run refs, RE-VALIDATED (plan-dependent
+states fall back to address-only) → WizardApp prefillState (keeps prior
+surfaces). Money trade header + /account/statement/[month] (⚑5 display
+"14-day terms" only). Settings → Trade accounts (⚑2 grant + ⚑1
+unblocked). Saved-spec TEMPLATES deliberately deferred (rebook covers
+the promise) — note for a later batch.
+
+- Gates: portal-commercial 4/4 live (incl. rebook seeding: basics screen
+  + prior answers + no email field) · builder/shell/journey regressions
+  12/12 · unit 1008 · trade-Home screenshot sent.
+- NEXT: 3a-8 the volume gate (seed C1: ~25k accounts / 60k jobs / 500k
+  photo rows ⚑14; measure portal home + timeline p95 ~500ms, wizard save
+  <1s; RLS query plans on hot paths; full-loop e2e both personas, phone
+  + desktop; fix regressions before reporting).
+
+---
+
 # 27 Aug 2026 (night) — PORTAL 3a-6 SHIPPED (embedded builder + multi-property)
 
 NO SQL. The portal's "Get a new estimate" IS /estimate (no fork —

@@ -54,7 +54,7 @@ const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
 const snapshotFalse = () => false;
 
-export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill }: {
+export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState }: {
   roomTypes: string[];
   /** A2: the offered surface lists, derived server-side from the rate card. */
   substrates: SubstrateGroups;
@@ -67,22 +67,29 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     email: string;
     address: { street: string; suburb: string; state: string; postcode: string; formatted: string } | null;
   };
+  /** 3a-7: one-tap rebook (§6 W3) — a prior job's SANITISED wizard answers
+   * as the starting point, so the walk only asks what's changed. The server
+   * strips file/run references before it hands this over. */
+  prefillState?: WizardState;
 }) {
   const [state, setState] = useState<WizardState>(() => {
+    const seed = prefillState ?? defaultWizardState();
     const base = mode === "customer"
       ? {
-          ...defaultWizardState(),
+          ...seed,
           mode: "customer" as const,
           customer: {
-            ...defaultCustomer(),
-            email: prefill?.email ?? "",
-            suburb: prefill?.address?.suburb ?? "",
-            postcode: prefill?.address?.postcode ?? "",
+            ...(seed.customer ?? defaultCustomer()),
+            email: prefill?.email ?? seed.customer?.email ?? "",
+            suburb: prefill?.address?.suburb ?? seed.customer?.suburb ?? "",
+            postcode: prefill?.address?.postcode ?? seed.customer?.postcode ?? "",
           },
-          address: prefill?.address ?? null,
+          address: prefill?.address ?? seed.address,
         }
-      : defaultWizardState();
-    return { ...base, surfaces: defaultSurfacesFor(base.jobType, substrates) };
+      : seed;
+    return prefillState
+      ? base // the rebook keeps the prior job's chosen surfaces
+      : { ...base, surfaces: defaultSurfacesFor(base.jobType, substrates) };
   });
   const [page, setPage] = useState(1);
   const [screen, setScreen] = useState<Screen>("pages");
