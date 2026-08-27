@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { signState, verifyState } from "./oauth";
-import { allDaySpan, buildEventInput, eventHash } from "./sync";
+import { toEventBody } from "./client";
+import { daySpan, buildEventInput, eventHash } from "./sync";
 import type { Row } from "@/lib/contractor/jobs";
 
 // Vitest runs under TZ=Australia/Melbourne (vitest.config) — deliberately east
@@ -30,30 +31,39 @@ const row = (over: Partial<Row> = {}): Row => ({
   ...over,
 });
 
-describe("allDaySpan", () => {
-  it("makes the Google end date exclusive: 7–21 Sep is sent as end 22 Sep", () => {
-    const span = allDaySpan({ startDate: "2026-09-07", endDate: "2026-09-21", doc: null });
-    expect(span).toEqual({ startDate: "2026-09-07", endDateExclusive: "2026-09-22" });
+describe("daySpan", () => {
+  it("counts booked days inclusively: 7–21 Sep is 15 days", () => {
+    const span = daySpan({ startDate: "2026-09-07", endDate: "2026-09-21", doc: null });
+    expect(span).toEqual({ startDate: "2026-09-07", days: 15 });
   });
 
   it("a single-day booking spans exactly one day", () => {
-    const span = allDaySpan({ startDate: "2026-09-07", endDate: "2026-09-07", doc: null });
-    expect(span).toEqual({ startDate: "2026-09-07", endDateExclusive: "2026-09-08" });
+    const span = daySpan({ startDate: "2026-09-07", endDate: "2026-09-07", doc: null });
+    expect(span).toEqual({ startDate: "2026-09-07", days: 1 });
   });
 
   it("falls back to estimated hours when no end date is booked (20h → 3 days)", () => {
     const doc = snapshot() as never;
-    const span = allDaySpan({ startDate: "2026-09-07", endDate: null, doc });
-    expect(span).toEqual({ startDate: "2026-09-07", endDateExclusive: "2026-09-10" });
-  });
-
-  it("crosses a month boundary without shifting a day", () => {
-    const span = allDaySpan({ startDate: "2026-08-31", endDate: "2026-09-01", doc: null });
-    expect(span).toEqual({ startDate: "2026-08-31", endDateExclusive: "2026-09-02" });
+    const span = daySpan({ startDate: "2026-09-07", endDate: null, doc });
+    expect(span).toEqual({ startDate: "2026-09-07", days: 3 });
   });
 
   it("returns null without a start date", () => {
-    expect(allDaySpan({ startDate: null, endDate: null, doc: null })).toBeNull();
+    expect(daySpan({ startDate: null, endDate: null, doc: null })).toBeNull();
+  });
+});
+
+describe("toEventBody — the 07:30–15:30 site-hours rule", () => {
+  it("renders each booked day as a 07:30–15:30 Melbourne block, recurring daily", () => {
+    const body = toEventBody({ summary: "Job", startDate: "2026-09-07", days: 15 });
+    expect(body.start).toEqual({ dateTime: "2026-09-07T07:30:00", timeZone: "Australia/Melbourne" });
+    expect(body.end).toEqual({ dateTime: "2026-09-07T15:30:00", timeZone: "Australia/Melbourne" });
+    expect(body.recurrence).toEqual(["RRULE:FREQ=DAILY;COUNT=15"]);
+  });
+
+  it("a one-day job carries an EMPTY recurrence so a patch can clear an old rule", () => {
+    const body = toEventBody({ summary: "Job", startDate: "2026-09-07", days: 1 });
+    expect(body.recurrence).toEqual([]);
   });
 });
 

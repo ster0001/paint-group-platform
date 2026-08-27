@@ -110,30 +110,22 @@ export async function gcalStatus(contractorId: string): Promise<GcalStatus> {
 // ---------------------------------------------------------------------------
 
 /**
- * All-day span for a booking. Same day count as the portal calendar (spanOf),
- * and Google's all-day end date is EXCLUSIVE, so a 7–21 Sep job is sent as
- * start 7 Sep / end 22 Sep.
- *
- * Date arithmetic sticks to the project rule (lib/scheduling/dates.ts): parse
- * as T00:00:00Z and step with setUTCDate — never local time, never a bare
- * toISOString() of a local date, or every event shifts a day east of
- * Greenwich.
+ * Which days a booking occupies: same day count as the portal calendar
+ * (spanOf), rendered in Google as `days` consecutive 07:30–15:30 blocks —
+ * fixed site hours (Tom, 27 Aug), never all-day banners.
  */
-export function allDaySpan(job: Pick<Parameters<typeof spanOf>[0], "startDate" | "endDate" | "doc">): {
+export function daySpan(job: Pick<Parameters<typeof spanOf>[0], "startDate" | "endDate" | "doc">): {
   startDate: string;
-  endDateExclusive: string;
+  days: number;
 } | null {
   if (!job.startDate) return null;
-  const days = spanOf(job);
-  const end = new Date(`${job.startDate}T00:00:00Z`);
-  end.setUTCDate(end.getUTCDate() + days); // exclusive end = start + span
-  return { startDate: job.startDate, endDateExclusive: end.toISOString().slice(0, 10) };
+  return { startDate: job.startDate, days: spanOf(job) };
 }
 
 export function buildEventInput(row: WoRow, siteUrl: string | null): GcalEventInput | null {
   const snap = row.wo_snapshot as WorkOrderDoc | null;
   const doc = snap && (snap as Partial<WorkOrderDoc>).version === 1 ? snap : null;
-  const span = allDaySpan({ startDate: row.start_date, endDate: row.end_date ?? null, doc });
+  const span = daySpan({ startDate: row.start_date, endDate: row.end_date ?? null, doc });
   if (!span) return null;
 
   const lines = [`Work order ${row.wo_ref}`];
@@ -147,7 +139,7 @@ export function buildEventInput(row: WoRow, siteUrl: string | null): GcalEventIn
     location: doc?.jobAddress || undefined,
     description: lines.join("\n"),
     startDate: span.startDate,
-    endDateExclusive: span.endDateExclusive,
+    days: span.days,
   };
 }
 

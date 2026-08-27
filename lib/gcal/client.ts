@@ -31,29 +31,36 @@ async function call<T>(accessToken: string, method: string, path: string, body?:
   return json;
 }
 
+// Site hours (Tom, 27 Aug): every booked day is one 07:30–15:30 block, in
+// Melbourne time so daylight saving never shifts a start.
+export const GCAL_TIMEZONE = "Australia/Melbourne";
+export const GCAL_DAY_START = "07:30:00";
+export const GCAL_DAY_END = "15:30:00";
+
 /**
- * An all-day event block. Google's all-day `end.date` is EXCLUSIVE — a job
- * running 7–21 Sep is sent with end 22 Sep. lib/gcal/sync.ts owns that rule
- * (and its test); this layer sends exactly what it's given.
+ * A booking: `days` consecutive 07:30–15:30 blocks starting on `startDate`.
+ * Multi-day jobs ride one recurring event (RRULE COUNT=days) rather than a
+ * single banner spanning nights.
  */
 export type GcalEventInput = {
   summary: string;
   location?: string;
   description?: string;
-  startDate: string; // YYYY-MM-DD inclusive
-  endDateExclusive: string; // YYYY-MM-DD exclusive
+  startDate: string; // YYYY-MM-DD, first booked day
+  days: number; // >= 1
 };
 
-function toEventBody(e: GcalEventInput) {
+/** Exported for gcal.test.ts — the recurrence rule is worth pinning. */
+export function toEventBody(e: GcalEventInput) {
   return {
     summary: e.summary,
     location: e.location,
     description: e.description,
-    start: { date: e.startDate },
-    end: { date: e.endDateExclusive },
-    // Reminders would fire at midnight for all-day events — off by default;
-    // the painter can set their own on the calendar.
-    reminders: { useDefault: false },
+    start: { dateTime: `${e.startDate}T${GCAL_DAY_START}`, timeZone: GCAL_TIMEZONE },
+    end: { dateTime: `${e.startDate}T${GCAL_DAY_END}`, timeZone: GCAL_TIMEZONE },
+    // Always present so a PATCH can shrink a multi-day booking back to one day.
+    recurrence: e.days > 1 ? [`RRULE:FREQ=DAILY;COUNT=${e.days}`] : [],
+    // Reminders deliberately not set: the painter's own calendar defaults apply.
   };
 }
 
@@ -89,12 +96,14 @@ export async function patchEvent(
   eventId: string,
   event: GcalEventInput,
 ): Promise<void> {
-  await call(
-    accessToken,
-    "PATCH",
-    `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
-    toEventBody(event),
-  );
+  const body = toEventBody(event);
+  await call(accessToken, "PATCH", `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`, {
+    ...body,
+    // PATCH merges: an event that was all-day keeps its `date` unless it is
+    // explicitly nulled, and date + dateTime together is "Invalid start time".
+    start: { ...body.start, date: null },
+    end: { ...body.end, date: null },
+  });
 }
 
 /** Tolerates already-gone events — deleting twice is success, not failure. */
