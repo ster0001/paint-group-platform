@@ -15,9 +15,10 @@ Each step, then what you should see.
    — NOT "see all your calendars". Allow → you land back on Calendar with a
    green Connected card showing the Google email.
 3. **Backfill.** Open calendar.google.com for that account. A "Paint Group
-   Jobs" calendar exists, holding an all-day event for each accepted booking
-   Josef already had — spanning the booked days, address in the location,
-   description has the WO ref + a portal link. No dollar figures anywhere.
+   Jobs" calendar exists, holding a 07:30–15:30 (Melbourne) block on every
+   booked day of each accepted booking Josef already had — address in the
+   location, description has the WO ref + a portal link. No dollar figures
+   anywhere.
 4. **Accept → appears.** As staff, offer Josef a job (schedule board drag →
    confirm). As Josef, accept it in the portal. Within a few seconds the job
    is in Google. An offer merely SENT must NOT appear — only accepted ones.

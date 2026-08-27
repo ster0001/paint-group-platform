@@ -4,8 +4,8 @@ The contractor portal's Calendar tab has a **Connect Google Calendar** card.
 When a painter connects, the platform creates a **"Paint Group Jobs"** calendar
 inside their own Google Calendar and keeps it up to date automatically:
 
-- **accept an offer** → the job appears (all-day event across the booked days,
-  with the address, contact and a link back to the portal job)
+- **accept an offer** → the job appears (a 07:30–15:30 block on every booked
+  day, with the address, contact and a link back to the portal job)
 - **booking moved / reschedule approved** → the event moves
 - **booking cancelled or reassigned** → the event disappears
 
