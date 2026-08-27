@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { pingGcalSync } from "@/lib/gcal/ping";
 import { formatCountdown, msRemaining } from "@/lib/scheduling/offers";
 
 /**
@@ -51,6 +52,7 @@ export default function OfferBar({ offerId, expiresAt, priceCents }: {
         router.refresh();
         return;
       }
+      pingGcalSync(); // accepted/declined changes what belongs in Google Calendar
       router.refresh();
     } catch {
       setErr("Couldn't record that — check your connection and try again.");

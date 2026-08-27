@@ -4,10 +4,16 @@ import { listContractorJobs } from "@/lib/contractor/jobs";
 import CalendarGrid, { type PortalBlock, type PortalJobDay } from "./CalendarGrid";
 import Placeholder from "../Placeholder";
 import { jobDaysFor } from "@/lib/contractor/jobDays";
+import { gcalStatus } from "@/lib/gcal/sync";
+import GoogleSyncCard from "./GoogleSyncCard";
 
 export const dynamic = "force-dynamic";
 
-export default async function CalendarPage() {
+export default async function CalendarPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ gcal?: string }>;
+}) {
   const { contractor } = await requireContractor();
 
   if (!contractor) {
@@ -66,6 +72,7 @@ export default async function CalendarPage() {
         immediately. Booked days can&rsquo;t be blocked here — give the office a call
         if something&rsquo;s changed.
       </p>
+      <GoogleSyncCard status={await gcalStatus(contractor.id)} flash={(await searchParams).gcal} />
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { pingGcalSync } from "@/lib/gcal/ping";
 import {
   DECLINE_REASONS,
   effectiveState,
@@ -96,6 +97,7 @@ export default function OfferCard({
         return;
       }
       setSheet(null);
+      pingGcalSync(); // accepted/declined changes what belongs in Google Calendar
       router.refresh();
     } catch (e) {
       const m = typeof e === "object" && e !== null && "message" in e ? String((e as { message: string }).message) : String(e);

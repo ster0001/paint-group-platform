@@ -1,8 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { reconcileForOffer } from "@/lib/gcal/sync";
 import {
   sendOfferInput,
   withdrawOfferInput,
@@ -140,25 +142,32 @@ export async function reassignOfferAction(raw: unknown): Promise<ActionResult> {
   const parsed = reassignOfferInput.safeParse(raw);
   if (!parsed.success) return invalid(parsed.error);
   const v = parsed.data;
-  return run("reassign_offer", {
+  const r = await run("reassign_offer", {
     p_offer_id: v.offerId,
     p_new_contractor_id: v.newContractorId,
     p_start: v.startDate,
     p_end: v.endDate ?? null,
     p_expected_state: v.expectedState,
   });
+  // The OLD contractor may lose an accepted booking here — take it off their
+  // Google Calendar after the response goes out.
+  if (r.ok) after(() => reconcileForOffer(v.offerId));
+  return r;
 }
 
 export async function moveBookingAction(raw: unknown): Promise<ActionResult> {
   const parsed = moveBookingInput.safeParse(raw);
   if (!parsed.success) return invalid(parsed.error);
   const v = parsed.data;
-  return run("move_booking", {
+  const r = await run("move_booking", {
     p_offer_id: v.offerId,
     p_start: v.startDate,
     p_end: v.endDate ?? null,
     p_expected_state: v.expectedState,
   });
+  // An accepted booking's dates moved — update the contractor's Google event.
+  if (r.ok) after(() => reconcileForOffer(v.offerId));
+  return r;
 }
 
 /**

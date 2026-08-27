@@ -1592,3 +1592,24 @@ scripts/portal/seed-demo-customer.mjs: the showcase customer on live
 day-3-of-6 live job with photos/updates/variation, paid deposit +
 receipt, closed job with register + warranty. Idempotent; demo photos
 are generated PNGs under demo/.
+
+## 27 Aug 2026 — Google Calendar sync for contractors (lib/gcal)
+Portal → Calendar gains a "Connect Google Calendar" card (OAuth, modelled
+on the MYOB dance in lib/myob). Scope is calendar.app.created ONLY: the
+app creates a "Paint Group Jobs" calendar in the painter's account and can
+never read their personal events. Tokens live in contractor_gcal_connections
+(migration 20261201000000; RLS with NO policies + grants revoked —
+service-client-only, like warranty_issues), pushed-event ids in
+contractor_gcal_events. There is no "push one change" path: every trigger
+calls reconcileContractorCalendar (lib/gcal/sync.ts), which diffs ACCEPTED
+bookings (committedIds — the same rule that gates addresses, so unaccepted
+offers with trigger-written start_dates never leak into Google) against the
+pushed set and inserts/patches/deletes the difference; spans mirror spanOf
+so Google matches the portal calendar. Triggers: client pingGcalSync
+(lib/gcal/ping.ts, fire-and-forget POST /api/gcal/sync) after the
+browser→RPC transitions (OfferCard, OfferBar, ScheduleBoard cancel/resolve
+— staff pass the offerId and the server resolves both contractors a
+reassign touches — and quote OfferPanel resolve); after() hooks in
+moveBooking/reassignOffer actions and setFinishDate; the nightly wo-sweep
+reconciles everyone connected as the backstop. Setup: docs/gcal-setup.md;
+manual script docs/manual-tests/gcal-sync.md; unit tests lib/gcal/gcal.test.ts.

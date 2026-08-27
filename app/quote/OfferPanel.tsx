@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { reportIfError } from "@/lib/monitoring/report";
+import { pingGcalSync } from "@/lib/gcal/ping";
 import { withdrawOfferAction, sendOfferAction } from "@/app/pc/schedule/actions";
 import {
   OFFER_COLUMNS,
@@ -150,7 +151,10 @@ export default function OfferPanel({
     const { data, error } = await supabase.rpc("resolve_proposed_offer", { p_offer_id: id, p_approve: approve });
     if (error) setErr(error.message);
     else if (String(data).startsWith("error:")) setErr(String(data));
-    else setMsg(approve ? "New date approved — the job is booked." : "Proposal declined; the job is back in the pool.");
+    else {
+      setMsg(approve ? "New date approved — the job is booked." : "Proposal declined; the job is back in the pool.");
+      pingGcalSync({ offerId: id }); // booking changed → contractor's Google Calendar
+    }
     await load();
     setBusy(false);
   }

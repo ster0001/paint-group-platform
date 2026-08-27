@@ -1,8 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { reconcileForWorkOrder } from "@/lib/gcal/sync";
 
 export type PrepResult = { ok: true } | { ok: false; message: string };
 
@@ -195,7 +197,13 @@ export async function setFinishDate(raw: unknown): Promise<PrepResult> {
   });
   if (error) return { ok: false, message: "Couldn't move the date — check your signal and try again." };
   const s = String(data ?? "");
-  if (s.startsWith("ok:")) { revalidatePath("/portal/jobs"); revalidatePath("/portal/calendar"); return { ok: true }; }
+  if (s.startsWith("ok:")) {
+    revalidatePath("/portal/jobs");
+    revalidatePath("/portal/calendar");
+    // The booking's end date moved — reflect it in their Google Calendar.
+    after(() => reconcileForWorkOrder(parsed.data.workOrderId));
+    return { ok: true };
+  }
   if (s === "error:before_start") return { ok: false, message: "That's before the job starts — pick a later day." };
   if (s === "error:no_booking") return { ok: false, message: "This job isn't booked in yet — the office books it first." };
   if (s === "error:not_yours") return { ok: false, message: "That job isn't yours." };

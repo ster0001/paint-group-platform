@@ -4,6 +4,7 @@ import { composeUpdate, type TickEvent } from "@/lib/workorder/updates";
 import { melbourneDate, melbourneDayStartUtc } from "@/lib/workorder/console";
 import { reportError } from "@/lib/monitoring/report";
 import { sendPreStartChecklists } from "@/lib/workorder/preStart";
+import { reconcileAllConnected } from "@/lib/gcal/sync";
 
 /**
  * The daily sweep: draft today's customer updates, flag the silent sites, and
@@ -148,12 +149,19 @@ async function sweep() {
     if (r === "ok:walkthrough") qaRouted += 1;
   }
 
+  // Google Calendar backstop: the per-action pings do the timely work; this
+  // reconcile catches any ping that was lost (closed tab, Google outage).
+  let gcal = { contractors: 0, errors: 0 };
+  try { gcal = await reconcileAllConnected(); } catch (e) { reportError(e, { where: "wo-sweep.gcal" }); }
+
   return {
     ok: true as const, date: today, drafted,
     flagged: flagged ?? 0, started: started ?? 0, lapsed: lapsed ?? 0,
     qaScheduled,
     qaRouted,
     preStartSent,
+    gcalContractors: gcal.contractors,
+    gcalErrors: gcal.errors,
   };
 }
 

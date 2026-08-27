@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { pingGcalSync } from "@/lib/gcal/ping";
 import { msRemaining, isReschedule, formatDMY, type BookingOffer } from "@/lib/scheduling/offers";
 import { addDays, dayDiff, todayIso } from "@/lib/scheduling/dates";
 import { sendOfferAction, reassignOfferAction, moveBookingAction, blockOutAction, addBookingNote, deleteBookingNote, type ActionResult } from "./actions";
@@ -530,6 +531,7 @@ export default function ScheduleBoard({
         declined: "Refused — the job is back in the unscheduled tray.",
       };
       flash(msg[String(data)] ?? "Done.");
+      pingGcalSync({ offerId }); // date moved / booking released → contractor's Google Calendar
       router.refresh();
     }
     setBusy(false);
@@ -544,6 +546,7 @@ export default function ScheduleBoard({
     else {
       setDetail(null);
       flash("Cancelled — the job is back in the unscheduled tray.");
+      pingGcalSync({ offerId }); // remove the event from the contractor's Google Calendar
       router.refresh();
     }
     setBusy(false);
