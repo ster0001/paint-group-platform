@@ -1,3 +1,28 @@
+# 27 Aug 2026 (final) — cert on display, warranty CERTIFICATE, demo customer (main @ 87f8478, PUSHED/DEPLOYED)
+
+Everything through the phase-3a close-out is LIVE. This last batch:
+- Tom's real $20M certificate of currency uploaded to company-docs and on
+  display (expires 2026-09-30 — PC console goes AMBER ~31 Aug; upload the
+  renewal in Settings → Documents when it arrives).
+- /account/warranty/[woId] = the per-job warranty CERTIFICATE (holder,
+  property, dates, cover summary, ACL text, ENLVN ABN footer; DRAFT
+  watermark until the Settings warranty_terms tick; Download as PDF =
+  print pattern). Linked from each Documents warranty card. Tom wants the
+  certificate + full warranty "recreated nicely as a downloadable pdf" —
+  the certificate page IS that v1; his §3 warranty ⚑ decisions + lawyer
+  still pending before the watermark comes off.
+- Demo customer for touring: /login as pg.alice.customer@gmail.com /
+  painttest123 → /account ("Margaret Attwood": 2 properties, day-3 live
+  job w/ photos/updates/$340 variation, paid deposit + receipt, closed
+  job w/ register + warranty). Reseed:
+  `node scripts/portal/seed-demo-customer.mjs` (idempotent, wipes by
+  alice's account email; demo photos under wo-photos/demo/).
+- Tom's next stated intent: FURTHER EDITS to the customer portal in a new
+  session. Read [[customer-portal]] memory first — it holds every ruling
+  and trap from sessions 3a-1…3a-8.
+
+---
+
 # 27 Aug 2026 (close) — PORTAL 3a-8 SHIPPED: the volume gate. PHASE 3a BUILD COMPLETE.
 
 Migration `20261130_member_policies_indexed` — applied+proven on C1,
