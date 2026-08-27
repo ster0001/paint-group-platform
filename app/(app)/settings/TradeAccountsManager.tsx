@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { createTradeAccountAction } from "./tradeActions";
 
@@ -30,6 +30,22 @@ export default function TradeAccountsManager() {
   const [msg, setMsg] = useState("");
   const [createMsg, setCreateMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [creating, setCreating] = useState(false);
+  // The standing list — every current trade account, loaded up front so
+  // seeing and removing access never needs a search (Tom, 28 Aug).
+  const [tradeRows, setTradeRows] = useState<AccountRow[]>([]);
+
+  const loadTrade = useCallback(async () => {
+    const { data } = await createClient()
+      .from("accounts")
+      .select("id, email, name, account_type, flags")
+      .eq("account_type", "trade")
+      .order("created_at", { ascending: false });
+    setTradeRows((data ?? []) as AccountRow[]);
+  }, []);
+  // loadTrade awaits the query before any setState — a subscribe-style
+  // fetch, not a synchronous render loop (the estimate-chat pattern).
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { loadTrade(); }, [loadTrade]);
 
   const createAccount = async (form: HTMLFormElement) => {
     setCreateMsg(null);
@@ -41,6 +57,7 @@ export default function TradeAccountsManager() {
       return;
     }
     form.reset();
+    loadTrade();
     setCreateMsg({
       ok: true,
       text: result.status === "created"
@@ -68,9 +85,10 @@ export default function TradeAccountsManager() {
     const { error } = await createClient().from("accounts").update({ account_type: type }).eq("id", row.id);
     if (error) { setMsg(`Couldn't update: ${error.message}`); return; }
     setRows((r) => r.map((x) => (x.id === row.id ? { ...x, account_type: type } : x)));
+    loadTrade();
     setMsg(type === "trade"
       ? `${row.email} is a trade account now — unlimited estimates, portfolio view. Worth a call to tell them.`
-      : `${row.email} is back to residential.`);
+      : `${row.email} is back to residential — they keep their login and their history, just without the trade workspace.`);
   };
 
   const setUnlimited = async (row: AccountRow, unlimited: boolean) => {
@@ -78,7 +96,32 @@ export default function TradeAccountsManager() {
     const { error } = await createClient().from("accounts").update({ flags }).eq("id", row.id);
     if (error) { setMsg(`Couldn't update: ${error.message}`); return; }
     setRows((r) => r.map((x) => (x.id === row.id ? { ...x, flags } : x)));
+    setTradeRows((r) => r.map((x) => (x.id === row.id ? { ...x, flags } : x)));
   };
+
+  const accountRow = (row: AccountRow) => (
+    <li key={row.id} className="flex flex-wrap items-center gap-3 p-3 text-sm">
+      <span className="min-w-0 flex-1 truncate">
+        <b>{row.email}</b>{row.name ? ` · ${row.name}` : ""}
+      </span>
+      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${row.account_type === "trade" ? "bg-amber-100 text-amber-800" : "bg-gray-100 text-gray-600"}`}>
+        {row.account_type}
+      </span>
+      {row.account_type === "trade" ? (
+        <button className="text-gray-500 hover:underline" onClick={() => setType(row, "residential")}>Remove trade access</button>
+      ) : (
+        <button className="font-medium text-emerald-700 hover:underline" onClick={() => setType(row, "trade")}>Grant trade</button>
+      )}
+      <label className="flex items-center gap-1 text-gray-600">
+        <input
+          type="checkbox"
+          checked={row.flags?.unlimited === true}
+          onChange={(e) => setUnlimited(row, e.target.checked)}
+        />
+        unblocked
+      </label>
+    </li>
+  );
 
   return (
     <div className="space-y-3">
@@ -105,6 +148,20 @@ export default function TradeAccountsManager() {
         )}
       </form>
 
+      {/* The current trade accounts, always on show — seeing who has trade
+          access (and removing it) must never require knowing an email. */}
+      <div>
+        <div className="text-sm font-semibold">Current trade accounts</div>
+        {tradeRows.length === 0 ? (
+          <p className="mt-1 text-sm text-gray-500">None yet — create one above, or grant an existing customer below.</p>
+        ) : (
+          <ul className="mt-2 divide-y divide-gray-100 rounded-lg border border-gray-200" data-testid="trade-list">
+            {tradeRows.map(accountRow)}
+          </ul>
+        )}
+      </div>
+
+      <div className="text-sm font-semibold" style={{ marginTop: 8 }}>Grant an existing customer</div>
       <div className="flex gap-2">
         <input
           className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
@@ -118,31 +175,11 @@ export default function TradeAccountsManager() {
         </button>
       </div>
       {msg && <div className="text-sm text-gray-600">{msg}</div>}
-      <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200">
-        {rows.map((row) => (
-          <li key={row.id} className="flex flex-wrap items-center gap-3 p-3 text-sm">
-            <span className="min-w-0 flex-1 truncate">
-              <b>{row.email}</b>{row.name ? ` · ${row.name}` : ""}
-            </span>
-            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${row.account_type === "trade" ? "bg-amber-100 text-amber-800" : "bg-gray-100 text-gray-600"}`}>
-              {row.account_type}
-            </span>
-            {row.account_type === "trade" ? (
-              <button className="text-gray-500 hover:underline" onClick={() => setType(row, "residential")}>Make residential</button>
-            ) : (
-              <button className="font-medium text-emerald-700 hover:underline" onClick={() => setType(row, "trade")}>Grant trade</button>
-            )}
-            <label className="flex items-center gap-1 text-gray-600">
-              <input
-                type="checkbox"
-                checked={row.flags?.unlimited === true}
-                onChange={(e) => setUnlimited(row, e.target.checked)}
-              />
-              unblocked
-            </label>
-          </li>
-        ))}
-      </ul>
+      {rows.length > 0 && (
+        <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200">
+          {rows.map(accountRow)}
+        </ul>
+      )}
     </div>
   );
 }
