@@ -9,6 +9,9 @@ import { buildChatEmailHtml, buildEstimateEmailHtml, emailConfigured, sendEmail,
 import { DEFAULT_COMPANY, type CompanyProfile, type Contact } from "./company";
 import type { ActionResult } from "@/app/pc/schedule/actions";
 import { z } from "zod";
+import { ensureAccountAndProperty } from "@/lib/accounts/link";
+import { isTestEmail } from "@/lib/accounts/identity";
+import { reportError } from "@/lib/monitoring/report";
 
 const replyInput = z.object({
   estimateId: z.string().uuid(),
@@ -265,4 +268,66 @@ export async function replyToEstimateChatAction(raw: unknown): Promise<ChatReply
   }
 
   return { ok: true, state: "sent", delivery: outcome };
+}
+
+// ---------------------------------------------------------------------------
+// 3a close-out · staff-path account linking. The wizard links its saves;
+// this links the BUILDER'S: whenever a staff save carries a contact email,
+// the estimate joins the account chain through the same one identity rule
+// (lib/accounts) — no more backfill re-runs. Best-effort by design: a save
+// must never fail because linking hiccuped. Runs under the STAFF session —
+// accounts/properties staff RLS is the authority.
+const linkAccountInput = z.object({ estimateId: z.string().uuid() });
+
+export async function linkEstimateAccountAction(raw: unknown): Promise<{ linked: boolean }> {
+  const v = linkAccountInput.safeParse(raw);
+  if (!v.success) return { linked: false };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { linked: false };
+
+  const { data: est } = await supabase
+    .from("estimates")
+    .select("id, account_id, property_id, builder_state")
+    .eq("id", v.data.estimateId)
+    .maybeSingle();
+  if (!est) return { linked: false };
+
+  const bs = (est.builder_state ?? {}) as {
+    contact?: { email?: string; phone?: string; first_name?: string; last_name?: string; company?: string };
+    jobAddress?: { address?: string; city?: string; state?: string; postal?: string };
+  };
+  const email = bs.contact?.email?.trim().toLowerCase() ?? "";
+  if (!email || !email.includes("@") || isTestEmail(email)) return { linked: false };
+
+  try {
+    const name =
+      [bs.contact?.first_name, bs.contact?.last_name].filter(Boolean).join(" ").trim() ||
+      bs.contact?.company?.trim() || null;
+    const { accountId, propertyId } = await ensureAccountAndProperty(supabase, {
+      email,
+      name,
+      phone: bs.contact?.phone ?? null,
+      address: bs.jobAddress?.address
+        ? { street: bs.jobAddress.address, suburb: bs.jobAddress.city ?? "", state: bs.jobAddress.state ?? "", postcode: bs.jobAddress.postal ?? "" }
+        : undefined,
+    });
+    if (!accountId) return { linked: false };
+    if (est.account_id === accountId && (propertyId == null || est.property_id === propertyId)) {
+      return { linked: true }; // already current
+    }
+    const { error } = await supabase
+      .from("estimates")
+      .update({ account_id: accountId, property_id: propertyId ?? est.property_id })
+      .eq("id", est.id);
+    if (error) {
+      // Accepted estimates are frozen — a refused relink is fine to leave.
+      reportError(error, { where: "builder.accountLink", bestEffort: true });
+      return { linked: false };
+    }
+    return { linked: true };
+  } catch (err) {
+    reportError(err, { where: "builder.accountLink", bestEffort: true });
+    return { linked: false };
+  }
 }

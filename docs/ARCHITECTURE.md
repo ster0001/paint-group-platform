@@ -1568,3 +1568,14 @@ runner sits ~50ms from Sydney; strict assert behind VOLUME_GATE_STRICT).
 RLS plans all hot paths <10ms (scripts/portal/volume-plans.mjs).
 e2e/portal-full-loop.spec.ts = the whole journey, both personas, phone +
 desktop. Report: docs/manual-tests/portal-3a8-volume-gate.md.
+
+## 27 Aug 2026 — Phase 3a close-out: staff saves join the account chain
+linkEstimateAccountAction (app/quote/actions.ts): after a successful
+builder save with a contact email, the estimate joins the customer's
+account through the same lib/accounts identity rule the wizard uses —
+fire-and-forget, staff-session RLS, test emails refused, frozen-estimate
+refusals tolerated. Called from QuoteBuilder.save(). With this, every
+path creates/joins accounts on its own (wizard, portal builder, staff
+builder, verified login) and backfill re-runs are history. Proof:
+e2e/builder-account-link.spec.ts as staff on live. 20261130 policy
+migration RUN LIVE (account-rls 7/7 re-proven on prod).

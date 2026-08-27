@@ -33,7 +33,7 @@ import { roundUpLitres, type WorkOrderDoc as WODoc, type WOMaterial, type WOArea
 import type { WoStage } from "@/lib/workorder/stages";
 import { finishFromModifier } from "@/lib/workorder/finish";
 import OfferPanel from "./OfferPanel";
-import { replyToEstimateChatAction, sendEstimateAction, type DeliveryOutcome } from "./actions";
+import { linkEstimateAccountAction, replyToEstimateChatAction, sendEstimateAction, type DeliveryOutcome } from "./actions";
 import SendDialog, { type SendDelivery } from "./SendDialog";
 import { reviewGate, REVIEW_GATE_CENTS, type AiDeferred } from "@/lib/estimate/reviewGate";
 import { DEFAULT_MESSAGING, MESSAGING_KEY, type MessagingSettings } from "@/lib/messaging/config";
@@ -782,6 +782,11 @@ export default function QuoteBuilder({
       // Republished — keep the on-screen estimate in step without a reload.
       setSentSnapshot(base.sent_snapshot);
       setSaveMsg("Saved ✓");
+      // 3a: a contact email joins the estimate to its customer account —
+      // fire-and-forget; a save never waits on (or fails with) the link.
+      if (id && contact?.email) {
+        void linkEstimateAccountAction({ estimateId: id }).catch(() => undefined);
+      }
       return { id, token };
     } catch (e) {
       setSaveMsg(e instanceof Error ? e.message : "Save failed");
