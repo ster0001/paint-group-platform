@@ -25,6 +25,7 @@ import { reportError } from "@/lib/monitoring/report";
 import { ensureAccountAndProperty } from "@/lib/accounts/link";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { sendMagicLink } from "@/lib/portal/auth";
+import { bypassesWizardLimits } from "@/lib/portal/limits";
 
 /**
  * POST /api/wizard/submit — W2: wizard completion + extraction result merge
@@ -84,8 +85,21 @@ export async function POST(request: Request) {
   const ipHash = createHash("sha256")
     .update(`${request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"}::${process.env.WIZARD_IP_SALT ?? "pg-wizard"}`)
     .digest("hex").slice(0, 32);
-  const email = state.customer?.email.trim().toLowerCase() ?? "";
-  if (actor.kind === "customer") {
+  // 3a-6: a verified session email ALWAYS wins over whatever the client
+  // typed — the magic link proved that inbox; a form field proves nothing.
+  const email = (actor.kind === "customer" && actor.verifiedEmail)
+    ? actor.verifiedEmail
+    : state.customer?.email.trim().toLowerCase() ?? "";
+  // The account's gates (§3): trade = unlimited; flags.unlimited = the
+  // office unblock. Looked up by the identity email; missing table or no
+  // account = standard limits.
+  let limitAccount: { account_type: "residential" | "trade"; flags: Record<string, unknown> | null } | null = null;
+  if (actor.kind === "customer" && email) {
+    const { data: acctRow } = await db.from("accounts")
+      .select("account_type, flags").eq("email", email).maybeSingle();
+    limitAccount = (acctRow as typeof limitAccount) ?? null;
+  }
+  if (actor.kind === "customer" && !bypassesWizardLimits(limitAccount)) {
     const { data: limitRow } = await db.from("settings").select("value").eq("key", "wizard_limits").maybeSingle();
     const limits = (limitRow?.value ?? {}) as { maxEstimatesPerVisitor?: number; holdMessage?: string };
     const max = typeof limits.maxEstimatesPerVisitor === "number" ? limits.maxEstimatesPerVisitor : 2;
@@ -534,7 +548,9 @@ export async function POST(request: Request) {
         // your email — use it any time to come back to your project." Only on
         // outcomes a customer can act on; best-effort — a mail hiccup never
         // costs the save. Hard stops and handoffs stay staff-led.
-        if (decision.outcome === "reveal" && !isTestEmail(email)) {
+        // A signed-in member is already in their account — no sign-in link
+        // needed; the estimate simply appears on their Home.
+        if (decision.outcome === "reveal" && !isTestEmail(email) && !actor.verifiedEmail) {
           // Awaited: a fire-and-forget promise can be dropped when the
           // serverless invocation ends with the response.
           await sendMagicLink({

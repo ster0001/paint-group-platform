@@ -1,3 +1,48 @@
+# 27 Aug 2026 (night) — PORTAL 3a-6 SHIPPED (embedded builder + multi-property)
+
+NO SQL. The portal's "Get a new estimate" IS /estimate (no fork —
+lib/portal/builder.contract.test.ts fails any second mount). Signed-in
+customers: getWizardActor admits role=customer w/ real email as customer
+actor + verifiedEmail; WizardApp `prefill` prop (email → gate page gone,
+lastPage 5; address from property via caller-RLS read); submit trusts
+session email over typed, skips saved-email for members, and
+bypassesWizardLimits (trade unlimited / flags.unlimited office unblock /
+residential standard ⚑12 account-wide). Members bypass wizard_public
+holding (B4 ruling, documented). Multi-property: ensureProperty =
+the one dedupe rule (extracted from ensureAccountAndProperty);
+/account/addresses/new (shared AddressField w/ .acct wz-* styles);
+Home switcher at 2+ properties (?property= filter), builder card.
+
+- Gates: portal-builder 3/3 live (prefilled no-email run lands on SAME
+  account+property; stranger no-prefill; add-address switcher + dedupe)
+  · portal-shell 4/4 + journey interior-loop/document-model re-run green
+  · unit 1003 · switcher screenshot sent.
+- Fixture lesson: test properties must use the REAL addressKey in
+  address_norm or wizard saves fork a duplicate property.
+- ⚠ Recurring shell quirk this session: the harness cwd sometimes gains a
+  trailing space → npm ENOENT; fix = explicit `cd` to the absolute path.
+- NEXT: 3a-7 commercial workspace (portfolio Home tiles + attention
+  queue, per-property registers, one-tap rebook, saved specs,
+  consolidated Money + statement PDF ⚑5 display-only 14-day terms,
+  trade granting office-side ⚑2).
+
+---
+
+# 27 Aug 2026 (night) — pc-console spec repaired (the 3a-5 pre-existing red)
+
+The two variation quick-price tests in e2e/pc-console.spec.ts were STALE, not
+a regression: the 25 Aug ruling made "Price it in the builder — working scope"
+the variation card's primary action, with the hours-only quick price behind a
+"Quick price — hours only" toggle, and the priced message now reads "the
+signing link has been emailed". The spec still filled `hours-<id>` directly
+(never rendered → timeout; the second test cascaded because nothing got
+priced). Fix in the SPEC only: assert the builder link's exact
+`/quote?id=<estimate>&mode=revision` href (the ruling, encoded), click the
+toggle, then price; message assertion updated. Console code untouched.
+Gates: pc-console 10/10 on C1 · unit 996/996.
+
+---
+
 # 27 Aug 2026 (late) — PORTAL 3a-5 SHIPPED (colours, Documents, warranty)
 
 Migration `20261129_portal_documents` (company_documents + private

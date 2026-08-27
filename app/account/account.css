@@ -150,6 +150,25 @@
 .acct .pname { font-size: 17px; font-weight: 700; }
 .acct .prole { font-size: 14px; color: var(--muted); }
 
+/* The shared AddressField (app/wizard) renders wz-* classes — styled here
+   for the portal so the component itself never forks. */
+.acct .wz-field {
+  width: 100%; background: var(--raised); border: 1px solid var(--line); border-radius: 14px;
+  color: var(--text); font-family: inherit; font-size: 18px; padding: 15px 16px; outline: none;
+}
+.acct .wz-field:focus { border-color: var(--cyan); }
+.acct .wz-suggest {
+  position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 30;
+  background: var(--graphite); border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+}
+.acct .wz-suggest-row {
+  display: block; width: 100%; text-align: left; padding: 12px 14px; font-size: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.acct .wz-suggest-row:last-child { border-bottom: none; }
+.acct .wz-suggest-row:hover { background: var(--raised); }
+.acct .wz-suggest-row span { color: var(--muted); font-size: 14px; }
+
 /* ===== swatches (My colours) ===== */
 .acct .sw-row { display: flex; align-items: center; gap: 13px; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .acct .sw-row:last-child { border-bottom: none; }

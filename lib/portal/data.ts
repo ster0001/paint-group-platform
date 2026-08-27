@@ -102,7 +102,7 @@ export async function getPortalJobs(accountIds: string[]): Promise<PortalJobs> {
 
   const { data: estimates } = await svc
     .from("estimates")
-    .select("id, title, status, source, total_cents, share_token, sent_at, created_at")
+    .select("id, title, status, source, total_cents, share_token, sent_at, created_at, property_id")
     .in("account_id", accountIds)
     .order("created_at", { ascending: false })
     .limit(50);

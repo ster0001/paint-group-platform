@@ -1515,3 +1515,21 @@ form (lib/uploads validation, photos to wo-photos/warranty/), credential
 downloads via /account/document/[id] (active-only, signed URLs, 404
 otherwise), completion-report link (/s token), and the full §2 terms
 DRAFT-watermarked until approved. Proof: portal-aftercare 3/3 on C1.
+
+## 27 Aug 2026 — Portal 3a-6: the embedded builder + multi-property
+No migration, no fork: the portal links to /estimate — the ONE wizard —
+with a `prefill` prop (email from the verified session, address from the
+chosen property, read through the caller's RLS). getWizardActor now
+admits signed-in customers (role customer + real email) as the customer
+actor with `verifiedEmail`; the submit route trusts the session email
+over the typed one, skips the saved-email for members, and consults the
+account's gates: lib/portal/limits.bypassesWizardLimits (trade unlimited
+— decided; flags.unlimited = office unblock ⚑1; residential standard,
+⚑12 account-wide). The email gate page is absent for members (lastPage
+5); signed-in members also bypass the wizard_public holding page (B4).
+Multi-property: ensureProperty extracted as the one dedupe rule (shared
+by wizard save + the add-address action); /account/addresses/new (shared
+AddressField, portal-styled wz-* classes); Home gains the property
+switcher at 2+ (filters by estimates.property_id), the builder card and
+the add-address link. Proof: portal-builder e2e 3/3 live + the no-fork
+contract test.

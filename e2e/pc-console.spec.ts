@@ -125,11 +125,17 @@ test.describe("PC Command", () => {
     await signIn(page, staff!, /\/estimates/);
     await page.goto(`/pc/wo/${fixture!.workOrderId}`);
 
+    // Tom's ruling (25 Aug): the revision builder is the primary path, and the
+    // hours-only quick price sits behind a toggle as the secondary one.
+    await expect(page.getByTestId(`price-in-builder-${variationId}`))
+      .toHaveAttribute("href", `/quote?id=${fixture!.estimateId}&mode=revision`);
+    await page.getByTestId(`quick-price-toggle-${variationId}`).click();
+
     await page.getByTestId(`hours-${variationId}`).fill("3");
     await expect(page.getByTestId(`preview-${variationId}`)).toContainText("$180.00");
 
     await page.getByTestId(`price-${variationId}`).click();
-    await expect(page.getByTestId(`variation-msg-${variationId}`)).toContainText("customer has it now");
+    await expect(page.getByTestId(`variation-msg-${variationId}`)).toContainText("signing link has been emailed");
 
     const { data } = await db!.from("wo_variations")
       .select("status, price_cents, contractor_delta_cents, contractor_rate_cents")

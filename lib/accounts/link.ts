@@ -92,9 +92,20 @@ export async function ensureAccountAndProperty(
   }
   const accountId = ensured.accountId;
 
-  // ---- property: only a real street address earns one ----------------------
-  const key = addressKey(input.address ?? {});
-  if (!key) return { accountId, propertyId: null };
+  const { propertyId, migrationPending } = await ensureProperty(db, accountId, input.address ?? {});
+  return { accountId, propertyId, migrationPending };
+}
+
+/** Find-or-create a property under an account — the one address-dedupe rule,
+ * shared by the wizard save and the portal's add-address flow (3a-6). */
+export async function ensureProperty(
+  db: SupabaseClient,
+  accountId: string,
+  address: AddressParts & { state?: string | null },
+): Promise<{ propertyId: string | null; migrationPending?: boolean }> {
+  // Only a real street address earns a property.
+  const key = addressKey(address);
+  if (!key) return { propertyId: null };
 
   const foundProp = await db
     .from("properties")
@@ -103,7 +114,7 @@ export async function ensureAccountAndProperty(
     .eq("address_norm", key)
     .maybeSingle();
   if (foundProp.error) {
-    if (schemaMissing(foundProp.error)) return { accountId, propertyId: null, migrationPending: true };
+    if (schemaMissing(foundProp.error)) return { propertyId: null, migrationPending: true };
     throw new Error(`property lookup failed: ${foundProp.error.message}`);
   }
   let propertyId = (foundProp.data as { id: string } | null)?.id ?? null;
@@ -113,10 +124,10 @@ export async function ensureAccountAndProperty(
       .from("properties")
       .insert({
         account_id: accountId,
-        address: input.address?.street?.trim() || null,
-        suburb: input.address?.suburb?.trim() || null,
-        state: input.address?.state?.trim() || null,
-        postcode: input.address?.postcode?.trim() || null,
+        address: address.street?.trim() || null,
+        suburb: address.suburb?.trim() || null,
+        state: address.state?.trim() || null,
+        postcode: address.postcode?.trim() || null,
         address_norm: key,
       })
       .select("id")
@@ -137,6 +148,5 @@ export async function ensureAccountAndProperty(
       propertyId = (inserted.data as { id: string }).id;
     }
   }
-
-  return { accountId, propertyId };
+  return { propertyId };
 }

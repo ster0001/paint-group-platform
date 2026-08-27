@@ -20,13 +20,44 @@ export const metadata = {
   robots: { index: false, follow: false }, // flipped at Step 10
 };
 
-export default async function CustomerWizardPage() {
+export default async function CustomerWizardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ property?: string }>;
+}) {
+  const { property: propertyParam } = await searchParams;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   let isStaff = false;
+  let memberEmail: string | null = null;
   if (user) {
     const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
     isStaff = profile?.role === "staff";
+    // 3a-6: a signed-in portal customer (magic-link login, real email) uses
+    // the SAME wizard — their verified session is the identity, so the
+    // email gate disappears and their account's gates apply server-side.
+    const anonymous = (user as { is_anonymous?: boolean }).is_anonymous === true;
+    if (!anonymous && profile?.role === "customer" && user.email) memberEmail = user.email;
+  }
+
+  // Prefill from a chosen property: read through the CALLER'S session — RLS
+  // (properties_member_select) is the ownership check.
+  let prefillAddress: { street: string; suburb: string; state: string; postcode: string; formatted: string } | null = null;
+  if (memberEmail && propertyParam && /^[0-9a-f-]{36}$/.test(propertyParam)) {
+    const { data: prop } = await supabase
+      .from("properties")
+      .select("address, suburb, state, postcode")
+      .eq("id", propertyParam)
+      .maybeSingle();
+    if (prop?.address) {
+      prefillAddress = {
+        street: prop.address as string,
+        suburb: (prop.suburb as string | null) ?? "",
+        state: (prop.state as string | null) ?? "",
+        postcode: (prop.postcode as string | null) ?? "",
+        formatted: [prop.address, prop.suburb, prop.postcode].filter(Boolean).join(", "),
+      };
+    }
   }
 
   // Reference data: an anonymous visitor has no table access, deliberately —
@@ -51,7 +82,10 @@ export default async function CustomerWizardPage() {
     substrates = substrateOptionsFromRates(rateItems ?? []);
   }
 
-  if (!enabled && !isStaff) {
+  // Existing customers (signed-in members) keep their builder even while the
+  // public gate is shut — B4: the portal wizard IS the public wizard, and a
+  // customer we already serve is not the audience the launch gate protects.
+  if (!enabled && !isStaff && !memberEmail) {
     return (
       <>
         <header className="wz-top"><div className="wz-wm">PAINT<span>—</span>GROUP</div></header>
@@ -66,5 +100,12 @@ export default async function CustomerWizardPage() {
     );
   }
 
-  return <WizardApp roomTypes={roomTypes} substrates={substrates} mode="customer" />;
+  return (
+    <WizardApp
+      roomTypes={roomTypes}
+      substrates={substrates}
+      mode="customer"
+      prefill={memberEmail ? { email: memberEmail, address: prefillAddress } : undefined}
+    />
+  );
 }

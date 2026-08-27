@@ -16,6 +16,7 @@ export type PortalEstimate = {
   share_token: string | null;
   sent_at: string | null;
   created_at: string;
+  property_id?: string | null;
 };
 
 export type PortalWorkOrder = {

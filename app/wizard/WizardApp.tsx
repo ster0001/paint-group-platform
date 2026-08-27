@@ -54,22 +54,42 @@ const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
 const snapshotFalse = () => false;
 
-export default function WizardApp({ roomTypes, substrates, mode = "internal" }: {
+export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill }: {
   roomTypes: string[];
   /** A2: the offered surface lists, derived server-side from the rate card. */
   substrates: SubstrateGroups;
   mode?: "internal" | "customer";
+  /** 3a-6: a signed-in portal customer arrives known — email from their
+   * verified session (the gate page disappears), address from the chosen
+   * property. Same component, same flow; a returning customer just starts
+   * closer to a price. */
+  prefill?: {
+    email: string;
+    address: { street: string; suburb: string; state: string; postcode: string; formatted: string } | null;
+  };
 }) {
   const [state, setState] = useState<WizardState>(() => {
     const base = mode === "customer"
-      ? { ...defaultWizardState(), mode: "customer" as const, customer: defaultCustomer() }
+      ? {
+          ...defaultWizardState(),
+          mode: "customer" as const,
+          customer: {
+            ...defaultCustomer(),
+            email: prefill?.email ?? "",
+            suburb: prefill?.address?.suburb ?? "",
+            postcode: prefill?.address?.postcode ?? "",
+          },
+          address: prefill?.address ?? null,
+        }
       : defaultWizardState();
     return { ...base, surfaces: defaultSurfacesFor(base.jobType, substrates) };
   });
   const [page, setPage] = useState(1);
   const [screen, setScreen] = useState<Screen>("pages");
   const isCustomer = mode === "customer";
-  const lastPage = isCustomer ? 6 : 5; // customers get the email gate
+  // The email gate exists to capture identity — a signed-in customer already
+  // proved theirs, so the page simply isn't there for them.
+  const lastPage = isCustomer && !prefill?.email ? 6 : 5;
   const [outcome, setOutcome] = useState<CustomerOutcome | null>(null);
   const [customerResult, setCustomerResult] = useState<(CustomerPayload & { estimateId: string; planUrl: string | null; photoWarnings?: string[] }) | null>(null);
 

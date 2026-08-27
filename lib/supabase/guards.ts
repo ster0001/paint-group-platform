@@ -7,17 +7,22 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
  *
  *   staff     a signed-in user whose profile role is "staff" — full access,
  *             RLS does the real enforcement.
- *   customer  an ANONYMOUS-auth visitor in the customer wizard (Step 8).
- *             They hold a real auth.uid() but zero direct table access;
- *             routes act for them through the service client with explicit
- *             ownership checks.
+ *   customer  a wizard customer: either an ANONYMOUS-auth visitor (Step 8)
+ *             or, since 3a-6, a SIGNED-IN portal customer (magic-link login,
+ *             profile role "customer") using the embedded builder. Both hold
+ *             a real auth.uid() and zero direct wizard-table access; routes
+ *             act for them through the service client with explicit
+ *             created_by ownership checks, which cover both identically.
+ *             `verifiedEmail` is set ONLY for the signed-in kind — a
+ *             clicked magic link proved that inbox; a typed email proves
+ *             nothing.
  *
- * Everything else is nobody.
+ * Everything else (contractors included) is nobody.
  */
 
 export type WizardActor =
   | { kind: "staff"; user: User }
-  | { kind: "customer"; user: User }
+  | { kind: "customer"; user: User; verifiedEmail: string | null }
   | { kind: "none" };
 
 export async function getWizardActor(supabase: SupabaseClient): Promise<WizardActor> {
@@ -25,12 +30,13 @@ export async function getWizardActor(supabase: SupabaseClient): Promise<WizardAc
   if (!user) return { kind: "none" };
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
   if (profile?.role === "staff") return { kind: "staff", user };
-  // An anonymous-auth visitor has no profile row; a signed-in customer or
-  // contractor has one with a non-staff role. Only true anonymous wizard
-  // sessions count as the customer actor — an authenticated contractor
-  // poking the wizard routes is "none".
   const anonymous = (user as User & { is_anonymous?: boolean }).is_anonymous === true;
-  if (anonymous) return { kind: "customer", user };
+  if (anonymous) return { kind: "customer", user, verifiedEmail: null };
+  // 3a-6: a signed-in portal customer runs the SAME wizard as the public —
+  // their session email is the identity, so the email gate can be skipped.
+  if (profile?.role === "customer" && user.email) {
+    return { kind: "customer", user, verifiedEmail: user.email.toLowerCase() };
+  }
   return { kind: "none" };
 }
 
