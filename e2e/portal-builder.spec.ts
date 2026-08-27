@@ -88,7 +88,24 @@ test.describe("portal builder (3a-6)", () => {
     await expect(page.getByPlaceholder("Postcode")).toHaveValue("3163");
 
     // The whole flow, with no email field anywhere (the gate page is gone).
+    // The save's server time doubles as the ⚑14 wizard-save measurement on
+    // the live stack (C1 has no wizard seed data).
+    let saveMs = 0;
+    page.on("requestfinished", (req) => {
+      if (req.url().includes("/api/wizard/submit")) {
+        const t = req.timing();
+        saveMs = t.responseEnd - t.requestStart;
+      }
+    });
     await drive(page);
+    if (saveMs > 0) {
+      console.log("WIZARD SAVE (live):", Math.round(saveMs), "ms");
+      const { writeFileSync, readFileSync, existsSync, mkdirSync } = await import("node:fs");
+      mkdirSync("test-results", { recursive: true });
+      const path = "test-results/volume-gate.json";
+      const prev = existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {};
+      writeFileSync(path, JSON.stringify({ ...prev, wizardSaveLiveMs: Math.round(saveMs) }, null, 2));
+    }
     expect(await page.locator("input[type=email]").count()).toBe(0);
 
     // The estimate landed on the same account AND property, identified by

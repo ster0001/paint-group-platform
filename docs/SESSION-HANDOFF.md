@@ -1,3 +1,26 @@
+# 27 Aug 2026 (close) — PORTAL 3a-8 SHIPPED: the volume gate. PHASE 3a BUILD COMPLETE.
+
+Migration `20261130_member_policies_indexed` — applied+proven on C1,
+AWAITS TOM ON PROD (the per-row-policy fix matters there too; read-back
+in the file). Seeder scripts/portal/seed-volume.mjs (C1 only, tripwired,
+vol-marked, --reseed). Measurements + findings + fixes:
+docs/manual-tests/portal-3a8-volume-gate.md (Home p95 1012→324ms ✓;
+timeline 1483→648, median 457 — co-location analysis for ⚑14; RLS member
+policies 559/1006ms → 3–7ms; waterfalls collapsed; photo signing
+render-driven via /account/photo/[id]; pagination swept). RLS plans all
+hot paths <10ms (scripts/portal/volume-plans.mjs <uid>). Full-loop e2e
+both personas + viewports (portal-full-loop.spec.ts 2/2). FINAL BATTERY:
+all portal suites 17/17 on live + account-rls/aftercare/volume on C1.
+
+Still with Tom: paste 20261130 · upload liability cert (Settings →
+Documents) · warranty terms legal review before removing the DRAFT tick ·
+⚑14 blessing of the measured figures (or a Sydney-runner strict run) ·
+⚑5 trade payment terms before commercial launch. Deferred by design:
+saved-spec templates; warranty-issue "mark handled" UI (staff table edit
+meanwhile); retargeting/comms-hub (phases 4–5).
+
+---
+
 # 27 Aug 2026 (later) — PORTAL 3a-7 SHIPPED (the commercial workspace)
 
 NO SQL. Trade = aggregation, never schema: lib/portal/portfolio.ts

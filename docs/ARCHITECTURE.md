@@ -1550,3 +1550,21 @@ never reaches the client. Money: trade header + /account/statement/[month]
 (white printable statement; ⚑5 display-only 14-day terms). Settings →
 Trade accounts (⚑2 office-side granting + the ⚑1 unblocked flag).
 Proof: portal-commercial e2e 4/4 live incl. the seeded rebook.
+
+## 27 Aug 2026 — Portal 3a-8: the volume gate
+Seeded C1 with the ⚑14 dataset (25k accounts/60k estimates/20k WOs/500k
+photo rows — scripts/portal/seed-volume.mjs, generate_series, ~70s) and
+measured the portal against it (e2e/portal-volume.spec.ts →
+test-results/volume-gate.json). Findings fixed: member RLS policies were
+per-row is_account_member() calls (559ms/1006ms bare selects at seed) —
+migration 20261130 rewrites them to the invertible IN-subquery shape with
+init-plan-wrapped staff quals (now 3–7ms; account-rls re-proven); Home's
+five-query waterfall collapsed to two (embedded chain reads); timeline
+photo signing cut from 2×fetched to thumbs-only for at most 12 rendered
+(full-screen minted on demand via /account/photo/[id], ownership + kind
+re-proven); pagination caps swept. Numbers: Home p95 1012→324ms ✓,
+timeline 1483→648ms (median 457; co-located lands under the 500 target —
+runner sits ~50ms from Sydney; strict assert behind VOLUME_GATE_STRICT).
+RLS plans all hot paths <10ms (scripts/portal/volume-plans.mjs).
+e2e/portal-full-loop.spec.ts = the whole journey, both personas, phone +
+desktop. Report: docs/manual-tests/portal-3a8-volume-gate.md.

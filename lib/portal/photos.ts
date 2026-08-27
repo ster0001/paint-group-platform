@@ -30,6 +30,9 @@ const THUMB_WIDTH = 640;
 const FULL_WIDTH = 1600;
 const TTL_SECONDS = 3600;
 
+/** Sign THUMBS only — one storage call per photo, not two (the volume
+ * gate's finding). Full-screen goes through /account/photo/[id], which
+ * re-checks ownership and mints the large rendition on demand. */
 export async function signPortalPhotos(
   svc: SupabaseClient,
   rows: readonly PortalPhotoRow[],
@@ -39,16 +42,13 @@ export async function signPortalPhotos(
   await Promise.all(
     rows.filter((r) => r.storage_path).map(async (r) => {
       try {
-        const [thumb, full] = await Promise.all([
-          bucket.createSignedUrl(r.storage_path, TTL_SECONDS, { transform: { width: THUMB_WIDTH } }),
-          bucket.createSignedUrl(r.storage_path, TTL_SECONDS, { transform: { width: FULL_WIDTH } }),
-        ]);
+        const thumb = await bucket.createSignedUrl(r.storage_path, TTL_SECONDS, { transform: { width: THUMB_WIDTH } });
         const thumbUrl = thumb.data?.signedUrl;
-        const fullUrl = full.data?.signedUrl ?? thumbUrl;
         if (!thumbUrl) return;
         out.set(r.id, {
           id: r.id, kind: r.kind, area: r.area, caption: r.caption,
-          thumbUrl, fullUrl: fullUrl!,
+          thumbUrl,
+          fullUrl: `/account/photo/${r.id}`,
         });
       } catch (err) {
         reportError(err, { where: "portal.photos.sign", bestEffort: true });
@@ -56,4 +56,11 @@ export async function signPortalPhotos(
     }),
   );
   return out;
+}
+
+/** The large rendition for the on-demand route. */
+export async function signFullPhoto(svc: SupabaseClient, storagePath: string): Promise<string | null> {
+  const { data } = await svc.storage.from("wo-photos")
+    .createSignedUrl(storagePath, TTL_SECONDS, { transform: { width: FULL_WIDTH } });
+  return data?.signedUrl ?? null;
 }

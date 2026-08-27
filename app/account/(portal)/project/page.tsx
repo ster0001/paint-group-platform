@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getPortalContext, getPortalProject, melbourneTodayYmd } from "@/lib/portal/data";
+import { getPortalContext, getPortalProject, melbourneTodayYmd, signPhotosByIds } from "@/lib/portal/data";
 import { areaRollups, buildTimeline, dayHeading } from "@/lib/portal/timeline";
 import { dayOfJob } from "@/lib/portal/home";
 import { moneyFmt } from "@/lib/portal/money";
@@ -31,13 +31,21 @@ export default async function ProjectPage() {
 
   const today = melbourneTodayYmd();
   const items = buildTimeline({ ...project.timeline, todayYmd: today });
+  // Sign only what renders: at most 4 photos per card and 12 on the first
+  // screen of the feed (volume law §10.3 — each signature is a storage call).
+  let signBudget = 12;
+  for (const item of items) {
+    item.photoIds = item.photoIds.slice(0, Math.min(4, signBudget));
+    signBudget -= item.photoIds.length;
+  }
+  const photosById = await signPhotosByIds(project.photoRows, items.flatMap((i) => i.photoIds));
   const rollups = areaRollups(project.timeline.surfaces);
   const dayChip = dayOfJob(project.startDate, project.endDate, today);
   const showCrew = ["in_progress", "qa", "completion_prep", "walkthrough"].includes(project.stage);
 
   const gridFor = (photoIds: string[]): GridPhoto[] =>
     photoIds
-      .map((id) => project.photosById.get(id))
+      .map((id) => photosById.get(id))
       .filter((p): p is NonNullable<typeof p> => !!p)
       .map((p) => ({ id: p.id, thumbUrl: p.thumbUrl, fullUrl: p.fullUrl, caption: p.caption, area: p.area }));
 

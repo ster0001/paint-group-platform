@@ -57,22 +57,24 @@ export async function getPortalContext(): Promise<PortalContext | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || !user.email) return null;
 
+  // ONE round trip for the whole owned chain (volume gate finding: the
+  // membership → accounts → properties waterfall was three). RLS applies to
+  // every embedded level — the caller still only sees what they own.
   const [{ data: memberships }, { data: profile }, company] = await Promise.all([
-    supabase.from("account_users").select("account_id, role"),
+    supabase
+      .from("account_users")
+      .select("account_id, role, accounts(id, account_type, email, name, phone, properties(id, account_id, address, suburb, postcode))"),
     supabase.from("profiles").select("name").eq("id", user.id).maybeSingle(),
     getCompanyContact(),
   ]);
 
-  const accountIds = (memberships ?? []).map((m) => m.account_id as string);
-  let accounts: PortalAccount[] = [];
-  let properties: PortalProperty[] = [];
-  if (accountIds.length) {
-    const [a, p] = await Promise.all([
-      supabase.from("accounts").select("id, account_type, email, name, phone").in("id", accountIds),
-      supabase.from("properties").select("id, account_id, address, suburb, postcode").in("account_id", accountIds),
-    ]);
-    accounts = (a.data ?? []) as PortalAccount[];
-    properties = (p.data ?? []) as PortalProperty[];
+  const accounts: PortalAccount[] = [];
+  const properties: PortalProperty[] = [];
+  for (const m of (memberships ?? []) as unknown as Array<{ accounts: (PortalAccount & { properties?: PortalProperty[] }) | null }>) {
+    if (!m.accounts) continue;
+    const { properties: props, ...account } = m.accounts;
+    accounts.push(account);
+    for (const p of props ?? []) properties.push(p);
   }
 
   const name = accounts[0]?.name || (profile?.name as string | null) || null;
@@ -100,23 +102,23 @@ export async function getPortalJobs(accountIds: string[]): Promise<PortalJobs> {
   const svc = createServiceClient();
   if (!svc) return { estimates: [], workOrders: [] };
 
+  // One round trip: the work order rides its estimate (volume gate finding).
   const { data: estimates } = await svc
     .from("estimates")
-    .select("id, title, status, source, total_cents, share_token, sent_at, created_at, property_id")
+    .select("id, title, status, source, total_cents, share_token, sent_at, created_at, property_id, work_orders(estimate_id, stage, start_date, end_date)")
     .in("account_id", accountIds)
     .order("created_at", { ascending: false })
     .limit(50);
 
-  const ids = (estimates ?? []).map((e) => e.id as string);
-  let workOrders: PortalWorkOrder[] = [];
-  if (ids.length) {
-    const { data: wos } = await svc
-      .from("work_orders")
-      .select("estimate_id, stage, start_date, end_date")
-      .in("estimate_id", ids);
-    workOrders = (wos ?? []) as PortalWorkOrder[];
+  const rows = (estimates ?? []) as Array<PortalEstimate & { work_orders?: PortalWorkOrder | PortalWorkOrder[] | null }>;
+  const workOrders: PortalWorkOrder[] = [];
+  for (const row of rows) {
+    const wo = row.work_orders;
+    if (Array.isArray(wo)) workOrders.push(...wo);
+    else if (wo) workOrders.push(wo);
+    delete row.work_orders;
   }
-  return { estimates: (estimates ?? []) as PortalEstimate[], workOrders };
+  return { estimates: rows as PortalEstimate[], workOrders };
 }
 
 import type { MoneyEstimate, MoneyInvoice, MoneyPayment } from "./money";
@@ -177,8 +179,21 @@ export type PortalProject = {
   endDate: string | null;
   painterFirstName: string | null;
   timeline: Omit<TimelineInput, "todayYmd">;
-  photosById: Map<string, PortalPhoto>;
+  /** Unsigned rows — the page signs ONLY the ids it will render (the volume
+   * gate's finding: signing every fetched photo doubled the timeline p95). */
+  photoRows: Array<{ id: string; kind: string; area: string; caption: string; storage_path: string }>;
 };
+
+/** Sign exactly the photos a page will render. */
+export async function signPhotosByIds(
+  rows: PortalProject["photoRows"],
+  ids: readonly string[],
+): Promise<Map<string, PortalPhoto>> {
+  const svc = createServiceClient();
+  if (!svc) return new Map();
+  const wanted = new Set(ids);
+  return signPortalPhotos(svc, rows.filter((r) => wanted.has(r.id)));
+}
 
 const PROJECT_STAGE_ORDER = ["walkthrough", "in_progress", "qa", "completion_prep", "pre_start", "offered", "closed"];
 
@@ -192,7 +207,8 @@ export async function getPortalProject(accountIds: string[]): Promise<PortalProj
   if (!svc) return null;
 
   const { data: ests } = await svc
-    .from("estimates").select("id, title").in("account_id", accountIds);
+    .from("estimates").select("id, title").in("account_id", accountIds)
+    .order("created_at", { ascending: false }).limit(100);
   const estById = new Map((ests ?? []).map((e) => [e.id as string, e]));
   if (!estById.size) return null;
 
@@ -214,7 +230,7 @@ export async function getPortalProject(accountIds: string[]): Promise<PortalProj
         .eq("work_order_id", wo.id).eq("status", "sent").not("sent_at", "is", null),
       svc.from("wo_photos").select("id, kind, area, caption, storage_path, created_at")
         .eq("work_order_id", wo.id).in("kind", ["before", "progress", "completion"])
-        .order("created_at", { ascending: false }).limit(60),
+        .order("created_at", { ascending: false }).limit(40),
       svc.from("wo_variations")
         .select("id, status, category, comment, price_cents, customer_token, customer_responded_at, created_at")
         .eq("work_order_id", wo.id),
@@ -236,7 +252,6 @@ export async function getPortalProject(accountIds: string[]): Promise<PortalProj
   const photoRows = (photos.data ?? []) as Array<{
     id: string; kind: string; area: string; caption: string; storage_path: string; created_at: string;
   }>;
-  const photosById = await signPortalPhotos(svc, photoRows);
 
   const underway = (events.data ?? []).find((e) => e.to_stage === "in_progress");
   const ready = (events.data ?? []).find((e) => e.to_stage === "walkthrough");
@@ -261,7 +276,6 @@ export async function getPortalProject(accountIds: string[]): Promise<PortalProj
       updates: ((updates.data ?? []) as Array<{ for_date: string; final_text: string | null; draft_text: string; sent_at: string }>)
         .map((u) => ({ for_date: u.for_date, text: u.final_text?.trim() || u.draft_text, sent_at: u.sent_at })),
       photos: photoRows
-        .filter((p) => photosById.has(p.id))
         .map((p) => ({ id: p.id, kind: p.kind, area: p.area, caption: p.caption, created_at: p.created_at })),
       variations: (variations.data ?? []) as TimelineInput["variations"],
       underwayAt: (underway?.created_at as string | undefined) ?? null,
@@ -272,7 +286,7 @@ export async function getPortalProject(accountIds: string[]): Promise<PortalProj
       depositPaidOn: depPaid?.paid_on ?? null,
       depositCents: depPaid ? dep!.total_inc_cents : null,
     },
-    photosById,
+    photoRows: photoRows.map(({ id, kind, area, caption, storage_path }) => ({ id, kind, area, caption, storage_path })),
   };
 }
 
@@ -309,7 +323,8 @@ export async function getPortalAftercare(accountIds: string[]): Promise<PortalAf
   if (!svc) return empty;
 
   const { data: ests } = await svc
-    .from("estimates").select("id, title").in("account_id", accountIds);
+    .from("estimates").select("id, title").in("account_id", accountIds)
+    .order("created_at", { ascending: false }).limit(100);
   const estById = new Map((ests ?? []).map((e) => [e.id as string, (e.title as string | null)?.trim() || "Your project"]));
 
   const [wosRes, docsRes, termsRes, issuesRes] = await Promise.all([
@@ -317,6 +332,7 @@ export async function getPortalAftercare(accountIds: string[]): Promise<PortalAf
       ? svc.from("work_orders")
           .select("id, estimate_id, stage, wo_snapshot, colours")
           .in("estimate_id", [...estById.keys()]).not("issued_at", "is", null)
+          .order("issued_at", { ascending: false }).limit(100)
       : Promise.resolve({ data: [] }),
     svc.from("company_documents").select("id, title, kind, expires_on")
       .eq("active", true).order("created_at", { ascending: false }),
@@ -383,7 +399,9 @@ export async function getPortalVariations(accountIds: string[]): Promise<Portfol
   const { data } = await svc
     .from("wo_variations")
     .select("id, status, price_cents, customer_token, customer_responded_at, work_orders!inner(estimate_id, estimates!inner(account_id))")
-    .in("work_orders.estimates.account_id", accountIds);
+    .in("work_orders.estimates.account_id", accountIds)
+    .order("created_at", { ascending: false })
+    .limit(200);
   return ((data ?? []) as unknown as Array<{
     id: string; status: string; price_cents: number | null; customer_token: string | null;
     customer_responded_at: string | null; work_orders: { estimate_id: string } | null;
