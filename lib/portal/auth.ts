@@ -83,7 +83,7 @@ export async function sendMagicLink(opts: {
 
   const { data: companyRow } = await svc
     .from("settings").select("value").eq("key", "company_profile").maybeSingle();
-  const company = (companyRow?.value ?? {}) as { name?: string; phone?: string; logoUrl?: string };
+  const company = (companyRow?.value ?? {}) as { name?: string; phone?: string; logoUrl?: string; logoUrlLight?: string };
   const companyName = company.name || "Paint Group";
 
   const intro =
@@ -97,7 +97,9 @@ export async function sendMagicLink(opts: {
       intro,
       link,
       companyName,
-      logoUrl: company.logoUrl,
+      // Email renders on a white background — the LIGHT-background logo
+      // (Settings "Logo for light backgrounds"), same rule as estimate sends.
+      logoUrl: company.logoUrlLight || company.logoUrl,
       companyPhone: company.phone,
       buttonLabel: opts.buttonLabel ?? "Open my account",
     }),
