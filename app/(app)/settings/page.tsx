@@ -260,7 +260,7 @@ export default async function SettingsPage() {
         <ColoursManager initial={colours} />
       </SettingsFolder>
 
-      <SettingsFolder title="Trade accounts" subtitle="Grant a customer the trade workspace (unlimited estimates, portfolio view) or unblock one account's limits — office-side only, never self-serve">
+      <SettingsFolder title="Trade accounts" subtitle="Create a trade login (email + starting password) or grant an existing customer the trade workspace — office-side only, never self-serve">
         <TradeAccountsManager />
       </SettingsFolder>
 

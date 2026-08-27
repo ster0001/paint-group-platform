@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { createTradeAccountAction } from "./tradeActions";
 
 /**
  * 3a-7 · Trade granting is office-side only (⚑2): no self-serve form
@@ -9,6 +10,10 @@ import { createClient } from "@/lib/supabase/client";
  * granting is itself a sales touchpoint ("we've set you up with a trade
  * account"). The unlimited flag (⚑1's unblock) lifts limits WITHOUT making
  * an account trade.
+ *
+ * 28 Aug (Tom): trade accounts can also be CREATED here from scratch —
+ * email + starting password, handed over by the office. They change the
+ * password in their portal profile; the emailed link works too.
  */
 
 type AccountRow = {
@@ -23,6 +28,26 @@ export default function TradeAccountsManager() {
   const [query, setQuery] = useState("");
   const [rows, setRows] = useState<AccountRow[]>([]);
   const [msg, setMsg] = useState("");
+  const [createMsg, setCreateMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const createAccount = async (form: HTMLFormElement) => {
+    setCreateMsg(null);
+    setCreating(true);
+    const result = await createTradeAccountAction(new FormData(form)).catch(() => null);
+    setCreating(false);
+    if (!result || result.status === "error") {
+      setCreateMsg({ ok: false, text: result?.status === "error" ? result.message : "That didn't save — try again." });
+      return;
+    }
+    form.reset();
+    setCreateMsg({
+      ok: true,
+      text: result.status === "created"
+        ? `Done — ${result.email} can sign in at /account with that password (they can change it in their profile). Worth a call to hand it over.`
+        : `${result.email} already had a login, so their password is untouched — the account is trade now and they sign in as before.`,
+    });
+  };
 
   const search = async () => {
     setMsg("");
@@ -36,7 +61,7 @@ export default function TradeAccountsManager() {
       .limit(10);
     if (error) { setMsg(`Couldn't search: ${error.message}`); return; }
     setRows((data ?? []) as AccountRow[]);
-    if (!data?.length) setMsg("No account with that email yet — they get one the first time they save an estimate.");
+    if (!data?.length) setMsg("No account with that email yet — create one with the form above, or they get one the first time they save an estimate.");
   };
 
   const setType = async (row: AccountRow, type: "residential" | "trade") => {
@@ -57,6 +82,29 @@ export default function TradeAccountsManager() {
 
   return (
     <div className="space-y-3">
+      <form
+        className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3"
+        onSubmit={(e) => { e.preventDefault(); createAccount(e.currentTarget); }}
+      >
+        <div className="text-sm font-semibold">Create a trade account</div>
+        <p className="text-xs text-gray-500">
+          Sets up their login here in the office — email is the username. Hand the password over
+          yourself; they can change it any time in their portal profile.
+        </p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <input className="rounded-md border border-gray-300 px-3 py-2 text-sm" name="email" type="email" required placeholder="Email (their username)" autoComplete="off" />
+          <input className="rounded-md border border-gray-300 px-3 py-2 text-sm" name="name" placeholder="Company / contact name" />
+          <input className="rounded-md border border-gray-300 px-3 py-2 text-sm" name="phone" placeholder="Phone (optional)" />
+          <input className="rounded-md border border-gray-300 px-3 py-2 text-sm" name="password" type="text" required minLength={8} placeholder="Starting password (8+ characters)" autoComplete="off" />
+        </div>
+        <button className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accentink" type="submit" disabled={creating}>
+          {creating ? "Creating…" : "Create trade account"}
+        </button>
+        {createMsg && (
+          <div className={`text-sm ${createMsg.ok ? "text-emerald-700" : "text-red-600"}`}>{createMsg.text}</div>
+        )}
+      </form>
+
       <div className="flex gap-2">
         <input
           className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"

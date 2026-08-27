@@ -60,6 +60,21 @@ export default async function ProjectPage() {
       <div className="greet">{project.title}</div>
       <h1>Your project, day by day</h1>
 
+      {project.reportToken && (
+        <div className="card raised" style={{ marginBottom: 22 }} data-testid="project-completion-report">
+          <div className="row">
+            <div>
+              <h3 style={{ fontSize: 18, fontWeight: 700 }}>Your completion report</h3>
+              <p className="sub" style={{ marginTop: 4 }}>
+                Signed off and yours for good — everything delivered, area by area, with your warranty dates.
+              </p>
+            </div>
+            <a className="btn btn-ghost" style={{ width: "auto", padding: "12px 18px", fontSize: 15 }}
+              href={`/s/${project.reportToken}`}>Open</a>
+          </div>
+        </div>
+      )}
+
       {rollups.length > 0 && (
         <div className="card" style={{ marginBottom: 22 }}>
           <div className="row" style={{ marginBottom: 6 }}>

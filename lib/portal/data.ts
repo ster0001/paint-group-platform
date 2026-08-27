@@ -178,6 +178,8 @@ export type PortalProject = {
   startDate: string | null;
   endDate: string | null;
   painterFirstName: string | null;
+  /** The signed completion report's /s token — null until signed off. */
+  reportToken: string | null;
   timeline: Omit<TimelineInput, "todayYmd">;
   /** Unsigned rows — the page signs ONLY the ids it will render (the volume
    * gate's finding: signing every fetched photo doubled the timeline p95). */
@@ -238,7 +240,7 @@ export async function getPortalProject(accountIds: string[]): Promise<PortalProj
         .eq("result", "pass").order("checked_at", { ascending: false }).limit(1),
       svc.from("wo_walkthroughs").select("scheduled_date").eq("work_order_id", wo.id)
         .eq("kind", "final").eq("status", "booked").order("scheduled_date").limit(1),
-      svc.from("wo_signoff").select("signed_at").eq("work_order_id", wo.id).maybeSingle(),
+      svc.from("wo_signoff").select("signed_at, customer_token").eq("work_order_id", wo.id).maybeSingle(),
       svc.from("wo_events").select("type, to_stage, created_at").eq("work_order_id", wo.id)
         .eq("type", "stage_changed").in("to_stage", ["in_progress", "walkthrough"])
         .order("created_at", { ascending: true }),
@@ -271,6 +273,10 @@ export async function getPortalProject(accountIds: string[]): Promise<PortalProj
     startDate: (wo.start_date as string | null) ?? null,
     endDate: (wo.end_date as string | null) ?? null,
     painterFirstName: painterName,
+    reportToken: (() => {
+      const so = signoff.data as { signed_at: string | null; customer_token: string | null } | null;
+      return so?.signed_at ? so.customer_token : null;
+    })(),
     timeline: {
       surfaces: (surfaces.data ?? []) as TimelineInput["surfaces"],
       updates: ((updates.data ?? []) as Array<{ for_date: string; final_text: string | null; draft_text: string; sent_at: string }>)

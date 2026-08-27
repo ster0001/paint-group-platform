@@ -34,6 +34,8 @@ export async function sendEmail(opts: {
   subject: string;
   html: string;
   replyTo?: string;
+  /** Resend attachment shape: content is BASE64 of the file bytes. */
+  attachments?: { filename: string; content: string }[];
 }): Promise<DeliveryResult> {
   if (!emailConfigured()) return { status: "not_configured" };
   try {
@@ -49,6 +51,7 @@ export async function sendEmail(opts: {
         subject: opts.subject,
         html: opts.html,
         ...(opts.replyTo ? { reply_to: opts.replyTo } : {}),
+        ...(opts.attachments?.length ? { attachments: opts.attachments } : {}),
       }),
     });
     if (!res.ok) {

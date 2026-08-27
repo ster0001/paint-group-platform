@@ -7,6 +7,7 @@
  * walkthrough page, which IS the record and needs no second copy to drift.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Report } from "@/app/s/[token]/CompletionReport";
 import { buildEstimateEmailHtml, sendEmail } from "@/lib/messaging/send";
 import { reportError } from "@/lib/monitoring/report";
 
@@ -80,7 +81,38 @@ export async function sendSignedReportEmail(db: SupabaseClient, customerToken: s
       logoUrl: company.logoUrlLight || company.logoUrl,
       companyPhone: company.phone,
     });
-    const result = await sendEmail({ to: email, subject: msg.subject, html: msg.html });
+
+    // The PDF copy (Tom, 28 Aug): the frozen report rendered as a white A4
+    // document and attached. STRICTLY best-effort — a Chromium hiccup must
+    // never cost the customer their sign-off email, so any failure here
+    // simply sends the email link-only, exactly as before.
+    let attachments: { filename: string; content: string }[] | undefined;
+    try {
+      const { data: rep } = await db.rpc("wo_report_by_token", { p_token: customerToken });
+      const r = ((rep as Array<{ report: Report; warranty_ends: string | null; warranty_years: number | null }> | null) ?? [])[0];
+      if (r?.report) {
+        const { buildCompletionReportHtml } = await import("./reportHtml");
+        const { renderHtmlToPdf } = await import("@/lib/invoicing/pdf");
+        const pdf = await renderHtmlToPdf(buildCompletionReportHtml({
+          report: r.report,
+          jobTitle: snap?.jobTitle || "Your painting job",
+          warrantyEnds: r.warranty_ends,
+          warrantyYears: r.warranty_years,
+          companyName: snap?.company?.name || "Paint Group",
+          companyPhone: company.phone,
+          logoUrl: company.logoUrlLight || company.logoUrl,
+          reportUrl: `${origin}/s/${customerToken}`,
+        }));
+        attachments = [{
+          filename: `${r.report.wo_ref || "completion"}-completion-report.pdf`,
+          content: pdf.toString("base64"),
+        }];
+      }
+    } catch (e) {
+      reportError(e, { where: "signEmail.pdf", bestEffort: true });
+    }
+
+    const result = await sendEmail({ to: email, subject: msg.subject, html: msg.html, attachments });
     if (result.status === "error") reportError(new Error(result.message), { where: "signEmail.send" });
   } catch (e) {
     reportError(e, { where: "signEmail" });
