@@ -1579,3 +1579,16 @@ path creates/joins accounts on its own (wizard, portal builder, staff
 builder, verified login) and backfill re-runs are history. Proof:
 e2e/builder-account-link.spec.ts as staff on live. 20261130 policy
 migration RUN LIVE (account-rls 7/7 re-proven on prod).
+
+## 27 Aug 2026 — Warranty certificate + cert on display + demo customer
+/account/warranty/[woId]: the per-job warranty CERTIFICATE (holder,
+property, sign-off and expiry dates, plain-language cover summary, ACL
+statement, entity ABN/address footer; DRAFT-watermarked until approved;
+Download as PDF via the print pattern), linked from the Documents
+warranty card. Tom's real $20M certificate of currency uploaded to
+company-docs (expires 2026-09-30 — the console goes amber ~31 Aug).
+scripts/portal/seed-demo-customer.mjs: the showcase customer on live
+(pg.alice.customer@gmail.com → /login → /account): two properties, a
+day-3-of-6 live job with photos/updates/variation, paid deposit +
+receipt, closed job with register + warranty. Idempotent; demo photos
+are generated PNGs under demo/.

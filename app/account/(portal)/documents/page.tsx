@@ -101,6 +101,11 @@ export default async function DocumentsPage({
               This warranty is in addition to your rights under the Australian Consumer Law,
               which no business can take away.
             </p>
+            <div className="btn-row">
+              <a className="btn btn-ghost" style={{ padding: 12, fontSize: 15 }} href={`/account/warranty/${job.workOrderId}`}>
+                Warranty certificate (PDF)
+              </a>
+            </div>
           </div>
 
           <div className="card">
