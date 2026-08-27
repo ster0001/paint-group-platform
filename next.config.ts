@@ -12,6 +12,15 @@ const nextConfig: NextConfig = {
   // binary that must load from node_modules at runtime, and playwright-core
   // is a dev-only fallback that must not be resolved at build time.
   serverExternalPackages: ["puppeteer-core", "@sparticuz/chromium", "playwright-core"],
+  // …but externalizing is only half of it on Vercel: the bin/ payload (the
+  // ~66MB brotli-packed browser) is opened with fs reads at runtime, which
+  // output file tracing cannot see — so it was never uploaded and EVERY
+  // pdf render on prod died with "input directory …/bin does not exist"
+  // (found 27 Aug via the /api/debug/pdf probe; every pdf_path was null).
+  // Force the whole bin folder into every function that might render.
+  outputFileTracingIncludes: {
+    "/**": ["./node_modules/@sparticuz/chromium/bin/**"],
+  },
 };
 
 export default nextConfig;

@@ -4,6 +4,9 @@ import { getPortalContext } from "@/lib/portal/data";
 import { createServiceClient } from "@/lib/supabase/service";
 import { ensureReceiptPdf, signedDocUrl } from "@/lib/invoicing/pdf";
 
+// Cold-start Chromium + render can pass 10s — give the pdf paths room.
+export const maxDuration = 60;
+
 /**
  * 3a-3 · One-tap receipt PDF for the signed-in customer. Ownership is
  * proven through the chain — payment → invoice → estimate.account_id must

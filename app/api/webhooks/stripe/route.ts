@@ -7,6 +7,9 @@ import { ensureReceiptPdf } from "@/lib/invoicing/pdf";
 import { sendReceiptEmail } from "@/lib/invoicing/sendInvoice";
 import { reportError } from "@/lib/monitoring/report";
 
+// Cold-start Chromium + render can pass 10s — give the pdf paths room.
+export const maxDuration = 60;
+
 /**
  * The Stripe webhook — THE sole writer of card-payment success (§5.3). The
  * redirect page only ever reads. Order of operations per §5.2: verify the

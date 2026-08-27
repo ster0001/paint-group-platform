@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { ensureContractorInvoicePdf, signedDocUrl } from "@/lib/invoicing/pdf";
 
 export const dynamic = "force-dynamic";
+// Cold-start Chromium + render can pass 10s — give the pdf paths room.
+export const maxDuration = 60;
 
 /** Staff copy of a contractor's invoice PDF (the Payables row's PDF button). */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {

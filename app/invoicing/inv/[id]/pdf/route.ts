@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { ensureInvoicePdf, signedDocUrl } from "@/lib/invoicing/pdf";
 
 export const dynamic = "force-dynamic";
+// Cold-start Chromium + render can pass 10s — give the pdf paths room.
+export const maxDuration = 60;
 
 /**
  * Staff PDF download: heal-if-missing, then redirect to a short-lived signed
