@@ -61,11 +61,15 @@ export const wizardStateSchema = z.object({
   /** A1: the structured address when a Places suggestion was picked —
    * flows to builder_state.jobAddress at submit. Plain typing leaves it null. */
   address: z.object({
-    street: z.string().max(120),
-    suburb: z.string().max(80),
-    state: z.string().max(10),
-    postcode: z.string().max(10),
-    formatted: z.string().max(250),
+    street: z.string().max(120, "That street address looks too long."),
+    suburb: z.string().max(80, "That suburb looks too long."),
+    // 28 Aug: a pre-radius-cap UK Places pick ("East Riding of Yorkshire")
+    // stored a 24-char state and every later submit failed with raw
+    // zod-speak. Producers clamp via clampAddress(); the messages here
+    // name the field for anything that still slips through.
+    state: z.string().max(10, "The state looks too long — the short form, e.g. VIC."),
+    postcode: z.string().max(10, "The postcode looks too long — just the 4 digits, e.g. 3167."),
+    formatted: z.string().max(250, "That address looks too long."),
   }).nullable().default(null),
   listingUrl: z.string().max(500).default(""),
   /** Extraction runs already started from page-1 uploads (one per page). */
@@ -211,6 +215,23 @@ export const wizardStateSchema = z.object({
     }
   }
 });
+
+/** Clamp a structured address to the schema's caps. Every producer that
+ * SEEDS the wizard from stored or third-party data (property prefill,
+ * Places details) runs through this — a stored oddity must never make the
+ * wizard unsubmittable (the East-Riding-of-Yorkshire lesson, 28 Aug). */
+export function clampAddress<T extends {
+  street: string; suburb: string; state: string; postcode: string; formatted: string;
+}>(a: T): T {
+  return {
+    ...a,
+    street: a.street.trim().slice(0, 120),
+    suburb: a.suburb.trim().slice(0, 80),
+    state: a.state.trim().slice(0, 10),
+    postcode: a.postcode.trim().slice(0, 10),
+    formatted: a.formatted.trim().slice(0, 250),
+  };
+}
 
 export type WizardState = z.infer<typeof wizardStateSchema>;
 export type WizardBasics = z.infer<typeof basicsSchema>;

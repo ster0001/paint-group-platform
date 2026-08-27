@@ -42,9 +42,8 @@ async function driveExteriorWizard(page: Page) {
   const email = page.locator("input[type=email]");
   if (await email.count()) await email.fill(`e2e-sides-${Date.now()}@example.com`);
   await page.getByRole("button", { name: "See my estimate" }).click();
-  await expect(page.locator(".wz-r")).toBeVisible({ timeout: 90_000 });
-  await page.getByRole("link", { name: /Open the editor/i }).click();
-  await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 20_000 });
+  // 28 Aug: the wizard lands straight in the sides editor.
+  await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
   await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
 }
 

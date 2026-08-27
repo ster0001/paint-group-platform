@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ceilingHeightFrom,
+  clampAddress,
   coatsFor,
   defaultWizardState,
   pageForPath,
@@ -105,6 +106,20 @@ describe("helpers", () => {
     expect(pageForPath(["condition", "darkToLightSurfaces"])).toBe(3);
     expect(pageForPath(["details", "damageTier"])).toBe(4);
     expect(pageForPath(["paint", "trimsOilBased"])).toBe(5);
+  });
+
+  it("clampAddress keeps any stored address submittable (the East-Riding lesson)", () => {
+    const clamped = clampAddress({
+      street: "2 Beech Rise", suburb: "Paull, Hull",
+      state: "East Riding of Yorkshire", postcode: "HU128QF  ",
+      formatted: "x".repeat(400),
+    });
+    expect(clamped.state.length).toBeLessThanOrEqual(10);
+    expect(clamped.postcode).toBe("HU128QF");
+    expect(clamped.formatted.length).toBeLessThanOrEqual(250);
+    // Clamped output always passes the schema's address rules.
+    const parsed = wizardStateSchema.safeParse({ ...valid(), address: clamped });
+    expect(parsed.success).toBe(true);
   });
 });
 

@@ -18,11 +18,8 @@ import { MONEY_RANGE, driveNoPlanWizard } from "./drive";
  */
 
 async function assertContractHolds(page: Page) {
-  // Result screen: the range is a real range, immediately.
-  await expect(page.locator(".wz-r")).toHaveText(MONEY_RANGE);
-
-  await page.getByRole("link", { name: /Open the editor/i }).click();
-  const range = page.locator(".sc-r");
+  // 28 Aug: no interstitial — the editor's range is a real range, immediately.
+  const range = page.locator(".sc-r").first();
   await expect(range).toHaveText(MONEY_RANGE, { timeout: 20_000 });
 
   // THE regression: the first edit after load must keep the range rendered

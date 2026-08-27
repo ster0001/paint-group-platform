@@ -537,6 +537,14 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
       </div>
 
       <main className="sc-wrap">
+        {/* R1.3 lives HERE now the interstitial result screen is gone
+            (Tom, 28 Aug): anything the reads couldn't settle is an amber
+            trace the customer sees — never silence. */}
+        {initial.confirmOnSite.length > 0 && (
+          <p className="wz-note wz-confirmonsite" style={{ margin: "14px 0 0" }}>
+            {initial.confirmOnSite.map((n, i) => <span key={i}>⚑ {n}<br /></span>)}
+          </p>
+        )}
         <div className="sc-cols">
         <div className="sc-cards">
           {rooms.map((room) => {

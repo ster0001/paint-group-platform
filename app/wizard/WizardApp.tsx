@@ -24,7 +24,7 @@ import {
   SESSION_SLOW_TEXT,
   type SessionPhase,
 } from "@/lib/wizard/session";
-import type { CustomerPayload, WizardEditorPayload } from "@/lib/wizard/view";
+import type { WizardEditorPayload } from "@/lib/wizard/view";
 import AddressField from "./AddressField";
 import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
 import Wordmark from "./Wordmark";
@@ -101,7 +101,6 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   // proved theirs, so the page simply isn't there for them.
   const lastPage = isCustomer && !prefill?.email ? 6 : 5;
   const [outcome, setOutcome] = useState<CustomerOutcome | null>(null);
-  const [customerResult, setCustomerResult] = useState<(CustomerPayload & { estimateId: string; planUrl: string | null; photoWarnings?: string[] }) | null>(null);
 
   // A customer needs an identity before they can upload or submit —
   // an anonymous Supabase session, promoted to an account if they save.
@@ -376,8 +375,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     // 1. Let every background read finish.
     await Promise.all(readsRef.current);
     setProcLine(2);
-    // 2. Damage photos feed the defect reader on the primary run.
-    const photoIssues = await analyseDamagePhotos();
+    // 2. Damage photos feed the defect reader on the primary run — its
+    // findings ride the estimate as review deferrals (the editor shows them).
+    await analyseDamagePhotos();
     // 3. The listing cross-check rides the primary run too.
     if (state.listingUrl.trim() && primaryRunRef.current) {
       await fetch(`/api/extract/${primaryRunRef.current}/listing`, {
@@ -430,14 +430,12 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       return;
     }
     if (isCustomer) {
-      // R1.3: photo-analysis failures reach the CUSTOMER too — they used to
-      // be attached on the staff branch only, so a customer whose photos
-      // failed was told nothing at all.
-      setCustomerResult({
-        ...(j as CustomerPayload & { estimateId: string; planUrl: string | null }),
-        photoWarnings: photoIssues,
-      });
-      setScreen("editor");
+      // Tom (28 Aug): no interstitial result screen — a revealed estimate
+      // goes STRAIGHT to the confirm-loop editor, same landing as staff
+      // (R1.1 parity). Guardrail outcomes still render CustomerResult
+      // above; photo-analysis issues ride the estimate as review
+      // deferrals, which the editor surfaces itself.
+      router.push(`/estimate/scope?id=${(j as { estimateId: string }).estimateId}`);
       return;
     }
     // Tom (20 Aug): staff land in the NEW confirm-loop editor — the same
@@ -506,8 +504,10 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   /** Why Continue is unavailable, kept apart from what it is unavailable FOR. */
   const nav = continueState({ uploading, sessionPhase });
 
-  if (screen === "editor" && isCustomer && (outcome || customerResult)) {
-    return <CustomerResult outcome={outcome} reveal={customerResult} roomTypes={roomTypes} logoUrl={logoUrl} />;
+  // Reveals route straight to /estimate/scope now (Tom, 28 Aug) — this
+  // screen only renders the guardrail outcomes.
+  if (screen === "editor" && isCustomer && outcome) {
+    return <CustomerResult outcome={outcome} reveal={null} roomTypes={roomTypes} logoUrl={logoUrl} />;
   }
 
   return (

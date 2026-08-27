@@ -39,7 +39,7 @@ test("the plan panel is big enough to read, and opens bigger still", async ({ pa
   await answer("Heritage listed", "No");
   await answer("What kind of property", "House");
   for (let i = 0; i < 6; i++) {
-    if (await page.locator(".wz-r").count()) break;
+    if (await page.locator(".sc-r").count()) break;
     const email = page.locator("input[type=email]");
     if (await email.count()) await email.fill(`e2e-plan-${Date.now()}@example.com`);
     await page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ }).first().click();
@@ -47,8 +47,8 @@ test("the plan panel is big enough to read, and opens bigger still", async ({ pa
     if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
     await page.waitForTimeout(600);
   }
-  await expect(page.locator(".wz-r")).toBeVisible({ timeout: 120_000 });
-  await page.getByRole("link", { name: /Open the editor/i }).click();
+  // 28 Aug: the wizard lands straight in the editor.
+  await expect(page.locator(".sc-r").first()).toBeVisible({ timeout: 120_000 });
   await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 30_000 });
 
   // ---- the pinned column, at a readable size --------------------------------

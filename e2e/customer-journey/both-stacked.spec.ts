@@ -40,8 +40,8 @@ test("Both job: interior cards then sides, combined progress, single visit CTA",
   const email = page.locator("input[type=email]");
   if (await email.count()) await email.fill(`e2e-both-${Date.now()}@example.com`);
   await page.getByRole("button", { name: "See my estimate" }).click();
-  await expect(page.locator(".wz-r")).toBeVisible({ timeout: 90_000 });
-  await page.getByRole("link", { name: /Open the editor/i }).click();
+  // 28 Aug: the wizard lands straight in the confirm-loop editor.
+  await expect(page.locator(".sc-r").first()).toBeVisible({ timeout: 90_000 });
   await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
 
   // BOTH structures on one page: interior room cards AND the four sides.

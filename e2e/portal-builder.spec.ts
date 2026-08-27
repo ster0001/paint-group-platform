@@ -37,7 +37,8 @@ async function drive(page: Page) {
   await answer(/built before 1970/, "No");
   await next(); // → paint (page 5 — the LAST page for a signed-in customer)
   await next(); // "See my estimate" — submits with no email gate in sight
-  await expect(page.locator(".wz-r")).toBeVisible({ timeout: 90_000 });
+  // 28 Aug: the wizard lands straight in the confirm-loop editor.
+  await expect(page.locator(".sc-r").first()).toBeVisible({ timeout: 90_000 });
 }
 
 test.describe("portal builder (3a-6)", () => {

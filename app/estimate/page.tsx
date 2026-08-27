@@ -5,7 +5,7 @@ import { substrateOptionsFromRates, type SubstrateGroups } from "@/lib/estimate/
 import WizardApp from "../wizard/WizardApp";
 import Wordmark from "../wizard/Wordmark";
 import { getCompanyContact } from "@/lib/portal/data";
-import { wizardStateSchema, type WizardState } from "@/lib/wizard/state";
+import { clampAddress, wizardStateSchema, type WizardState } from "@/lib/wizard/state";
 
 /**
  * /estimate — Step 8's CUSTOMER wizard.
@@ -55,13 +55,16 @@ export default async function CustomerWizardPage({
       .eq("id", propertyParam)
       .maybeSingle();
     if (prop?.address) {
-      prefillAddress = {
+      // Clamped: stored rows can carry oddities (a pre-radius-cap Places
+      // pick left a 24-char UK state) — a prefill must never seed a state
+      // the wizard's own schema then refuses to submit.
+      prefillAddress = clampAddress({
         street: prop.address as string,
         suburb: (prop.suburb as string | null) ?? "",
         state: (prop.state as string | null) ?? "",
         postcode: (prop.postcode as string | null) ?? "",
         formatted: [prop.address, prop.suburb, prop.postcode].filter(Boolean).join(", "),
-      };
+      });
     }
   }
 

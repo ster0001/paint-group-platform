@@ -95,7 +95,8 @@ test.describe("R1.3 document model", () => {
     const email = page.locator("input[type=email]");
     if (await email.count()) await email.fill(`e2e-docmodel-${Date.now()}@example.com`);
     await page.getByRole("button", { name: "See my estimate" }).click();
-    await expect(page.locator(".wz-r")).toBeVisible({ timeout: 90_000 });
+    // 28 Aug: straight into the editor — the amber trace lives there now.
+    await expect(page.locator(".sc-r").first()).toBeVisible({ timeout: 90_000 });
 
     // The customer is TOLD what happened to their photos — an amber trace,
     // never silence. Either the analysed-prep path or the flagged-for-review

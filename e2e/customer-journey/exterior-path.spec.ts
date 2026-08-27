@@ -72,7 +72,8 @@ test("R2 exterior journey: five exterior pages, no interior questions, priced by
   const email = page.locator("input[type=email]");
   if (await email.count()) await email.fill(`e2e-exterior-${Date.now()}@example.com`);
   await page.getByRole("button", { name: "See my estimate" }).click();
-  await expect(page.locator(".wz-r")).toBeVisible({ timeout: 90_000 });
-  await expect(page.locator(".wz-r")).toHaveText(MONEY_RANGE);
+  // 28 Aug: the wizard lands straight in the editor.
+  await expect(page.locator(".sc-r").first()).toBeVisible({ timeout: 90_000 });
+  await expect(page.locator(".sc-r").first()).toHaveText(MONEY_RANGE);
   await expect(page.locator(".wz-rooms")).toContainText(/Front/i);
 });

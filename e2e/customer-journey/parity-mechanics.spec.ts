@@ -70,8 +70,8 @@ test("exterior: geometry chips + flag flip the tier; toasts carry $ amounts", as
   const email = page.locator("input[type=email]");
   if (await email.count()) await email.fill(`e2e-mech-${Date.now()}@example.com`);
   await page.getByRole("button", { name: "See my estimate" }).click();
-  await expect(page.locator(".wz-r")).toBeVisible({ timeout: 90_000 });
-  await page.getByRole("link", { name: /Open the editor/i }).click();
+  // 28 Aug: the wizard lands straight in the confirm-loop editor.
+  await expect(page.locator(".sc-r").first()).toBeVisible({ timeout: 90_000 });
   await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
 
   // Geometry chips read from the answers; the flag button is right there.

@@ -49,9 +49,8 @@ test("capture: exterior sides loop", async ({ page }) => {
   const email = page.locator("input[type=email]");
   if (await email.count()) await email.fill(`e2e-shots-${Date.now()}@example.com`);
   await page.getByRole("button", { name: "See my estimate" }).click();
-  await expect(page.locator(".wz-r")).toBeVisible({ timeout: 90_000 });
-  await page.getByRole("link", { name: /Open the editor/i }).click();
-  await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
+  // 28 Aug: the wizard lands straight in the editor.
+  await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 90_000 });
   await shot(page, "exterior-01-sides-start");
   const front = page.locator(".sd-card", { hasText: "Front" }).first();
   await front.locator(".sd-hd").click();

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getWizardActor } from "@/lib/supabase/guards";
 import { serviceAreaFromSettings } from "@/lib/wizard/policy";
+import { clampAddress } from "@/lib/wizard/state";
 
 /**
  * A1: resolve a selected suggestion into the structured address, and run the
@@ -53,13 +54,16 @@ export async function POST(request: Request) {
     const comps = j.addressComponents ?? [];
     const streetNumber = part(comps, "street_number");
     const route = part(comps, "route");
-    const address = {
+    // Clamped to the wizard schema's caps: shortText has no short form for
+    // some regions (UK counties), and a picked address must always survive
+    // the wizard's own validation.
+    const address = clampAddress({
       street: [streetNumber, route].filter(Boolean).join(" "),
       suburb: part(comps, "locality"),
       state: part(comps, "administrative_area_level_1", true),
       postcode: part(comps, "postal_code"),
       formatted: j.formattedAddress ?? "",
-    };
+    });
 
     // Service-area check, same rule as the policy engine: an empty configured
     // list means "unconfigured — allow" (never block on missing setup).

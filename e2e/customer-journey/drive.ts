@@ -55,14 +55,18 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
   if (await email.count()) await email.fill(opts.email ?? `e2e-journey-${Date.now()}@example.com`);
   await page.getByRole("button", { name: "See my estimate" }).click();
 
-  await expect(page.locator(".wz-r")).toBeVisible({ timeout: 90_000 });
+  // 28 Aug (Tom): no interstitial result screen — a revealed estimate lands
+  // straight in the confirm-loop editor.
+  await expect(page.locator(".sc-r").first()).toHaveText(MONEY_RANGE, { timeout: 90_000 });
 }
 
-/** From the result screen into the scope editor — and WAIT for hydration
- * (P1: pre-hydration clicks are inert by design; the gate makes that a
- * visible state and gives tests an honest go-signal). */
+/** Ensure the scope editor is open and hydrated (P1: pre-hydration clicks
+ * are inert by design; the gate gives tests an honest go-signal). The
+ * wizard lands here directly now — the link click remains only for callers
+ * arriving from an older surface that still shows it. */
 export async function openScopeEditor(page: Page) {
-  await page.getByRole("link", { name: /Open the editor/i }).click();
-  await expect(page.locator(".sc-r")).toHaveText(MONEY_RANGE, { timeout: 20_000 });
+  const link = page.getByRole("link", { name: /Open the editor/i });
+  if (await link.count()) await link.click();
+  await expect(page.locator(".sc-r").first()).toHaveText(MONEY_RANGE, { timeout: 20_000 });
   await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
 }
