@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { reportIfError } from "@/lib/monitoring/report";
 import type { CustomerSnapshot, SnapshotPaint } from "@/lib/customer/snapshot";
@@ -51,7 +51,7 @@ export type CustomerChanges = {
 export default function CustomerEstimate({
   snapshot: snap, token, status = "sent", acceptedName = null,
   validUntil = null, sentAt = null, selectedOptionsInit = null, preview = false,
-  changes = null, docLabel = "Estimate",
+  changes = null, docLabel = "Estimate", fromPortal = false,
 }: {
   snapshot: CustomerSnapshot;
   token?: string;
@@ -66,6 +66,8 @@ export default function CustomerEstimate({
   /** "Invoice" when the revision builder previews the final invoice (Tom,
    * 24 Aug close-off) — the document's own name, shown in the eyebrow. */
   docLabel?: "Estimate" | "Invoice";
+  /** True when the customer arrived from their portal — shows a way back. */
+  fromPortal?: boolean;
 }) {
   const gstRate = (snap.gstRatePct ?? 10) / 100;
   // Invoice dress (Tom, 24 Aug close-off): the revision preview is the
@@ -81,10 +83,10 @@ export default function CustomerEstimate({
   const [done, setDone] = useState<null | "accepted" | "declined">(
     status === "accepted" ? "accepted" : status === "declined" ? "declined" : null,
   );
-  // A staff reply links the customer to #chat — open the chat straight away.
-  const [panel, setPanel] = useState<null | "accept" | "decline" | "ask" | "chat">(
-    () => (typeof window !== "undefined" && window.location.hash === "#chat" ? "chat" : null),
-  );
+  // A staff reply links the customer to #chat — the effect below opens the
+  // chat after mount (an initializer that reads location.hash renders
+  // differently on the server and fails hydration).
+  const [panel, setPanel] = useState<null | "accept" | "decline" | "ask" | "chat">(null);
   const [thread, setThread] = useState<{ id: string; direction: "staff" | "customer"; body: string; author_name: string | null; created_at: string }[]>([]);
   const [chatDraft, setChatDraft] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
@@ -94,8 +96,6 @@ export default function CustomerEstimate({
   const [declinePick, setDeclinePick] = useState("");
   const [question, setQuestion] = useState("");
   const [asked, setAsked] = useState(false);
-  const [portalEmail, setPortalEmail] = useState("");
-  const [portalMsg, setPortalMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
@@ -205,6 +205,8 @@ export default function CustomerEstimate({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadThread();
     if (typeof window !== "undefined" && window.location.hash === "#chat") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPanel("chat");
       setTimeout(() => document.getElementById("chatbox")?.scrollIntoView({ behavior: "smooth" }), 200);
     }
     const iv = setInterval(loadThread, 15000); // keep the conversation live
@@ -223,21 +225,35 @@ export default function CustomerEstimate({
     await loadThread();
   }
 
-  async function openPortal() {
-    setPortalMsg("");
-    const email = portalEmail.trim().toLowerCase();
-    if (!email) return;
-    if (snap.contactEmail && email !== snap.contactEmail.toLowerCase()) {
-      setPortalMsg("That email isn't the one on this estimate — please use the address we sent it to.");
-      return;
-    }
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { shouldCreateUser: true, emailRedirectTo: `${window.location.origin}/e/${token}` },
-    });
-    setPortalMsg(error ? error.message : "Check your email for a secure sign-in link.");
-  }
+  // One chat, reused before AND after the decision — the same thread the
+  // portal's Messages tab reads, so the conversation never has two homes.
+  const chatUi = (
+    <div className="panelbox" id="chatbox">
+      <h3>Chat with us</h3>
+      <div className="chatthread">
+        {thread.length === 0
+          ? <p className="sub" style={{ margin: "4px 0 10px" }}>Ask us anything about your estimate — we&apos;ll reply here and let you know by text and email.</p>
+          : thread.map((m) => (
+              <div key={m.id} className={`chatrow ${m.direction === "customer" ? "mine" : "theirs"}`}>
+                <div className="chatbubble">
+                  <div className="chatbody">{m.body}</div>
+                  <div className="chatmeta">{m.direction === "staff" ? (m.author_name || "Paint Group") : "You"} · {relTime(m.created_at)}</div>
+                </div>
+              </div>
+            ))}
+      </div>
+      <label className="field">
+        <textarea
+          rows={3} value={chatDraft}
+          onChange={(e) => setChatDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); sendMessage(); } }}
+          placeholder="Type your message…"
+        />
+      </label>
+      <button className="btn btn-primary" onClick={sendMessage} disabled={chatBusy || chatDraft.trim() === ""}>{chatBusy ? "Sending…" : "Send message"}</button>
+      {err && <p className="errline">{err}</p>}
+    </div>
+  );
 
   const statusChip = done === "accepted"
     ? <span className="status accepted">Accepted</span>
@@ -250,6 +266,9 @@ export default function CustomerEstimate({
   return (
     <>
       <header className="topbar">
+        {fromPortal && (
+          <a className="backlink print-hide" href="/account">← My account</a>
+        )}
         {snap.company.logoUrl
           // eslint-disable-next-line @next/next/no-img-element
           ? <img className="brandlogo" src={snap.company.logoUrl} alt={snap.company.name} />
@@ -356,15 +375,6 @@ export default function CustomerEstimate({
             </div>
           )}
 
-          {interactive && (
-            <>
-              <div className="portal print-hide">
-                <input type="email" placeholder="Your email — open in your customer portal" value={portalEmail} onChange={(e) => setPortalEmail(e.target.value)} />
-                <button className="btn btn-ghost" onClick={openPortal}>Open portal</button>
-              </div>
-              {portalMsg && <p className="viewnote">{portalMsg}</p>}
-            </>
-          )}
         </div>
 
         {/* COLOUR CONSULTATION — reassurance callout */}
@@ -573,33 +583,7 @@ export default function CustomerEstimate({
                 </button>
               </div>
 
-              {panel === "chat" && (
-                <div className="panelbox" id="chatbox">
-                  <h3>Chat with us</h3>
-                  <div className="chatthread">
-                    {thread.length === 0
-                      ? <p className="sub" style={{ margin: "4px 0 10px" }}>Ask us anything about your estimate — we&apos;ll reply here and let you know by text and email.</p>
-                      : thread.map((m) => (
-                          <div key={m.id} className={`chatrow ${m.direction === "customer" ? "mine" : "theirs"}`}>
-                            <div className="chatbubble">
-                              <div className="chatbody">{m.body}</div>
-                              <div className="chatmeta">{m.direction === "staff" ? (m.author_name || "Paint Group") : "You"} · {relTime(m.created_at)}</div>
-                            </div>
-                          </div>
-                        ))}
-                  </div>
-                  <label className="field">
-                    <textarea
-                      rows={3} value={chatDraft}
-                      onChange={(e) => setChatDraft(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); sendMessage(); } }}
-                      placeholder="Type your message…"
-                    />
-                  </label>
-                  <button className="btn btn-primary" onClick={sendMessage} disabled={chatBusy || chatDraft.trim() === ""}>{chatBusy ? "Sending…" : "Send message"}</button>
-                  {err && <p className="errline">{err}</p>}
-                </div>
-              )}
+              {panel === "chat" && chatUi}
 
               {panel === "accept" && (
                 <div className="panelbox">
@@ -647,6 +631,24 @@ export default function CustomerEstimate({
               <p className="tinylinks print-hide">
                 Not the right time? <a href="tel:0388409414">Ask us to hold your price</a> · <button onClick={() => setPanel(panel === "decline" ? null : "decline")}>Politely decline</button>
               </p>
+            </div>
+          </section>
+        )}
+
+        {/* CHAT AFTER THE DECISION — the conversation doesn't end at accept.
+            Same thread the portal's Messages tab reads (one messenger rule). */}
+        {done && interactive && !invoiceMode && (
+          <section id="accept" className="print-hide">
+            <div className="acceptpanel cutin">
+              <h2>Questions about your job?</h2>
+              <p className="sub">Message us here any time — the conversation also lives in your account under Messages.</p>
+              <div className="finebtns print-hide">
+                <button className="btn btn-ghost" onClick={() => setPanel(panel === "chat" ? null : "chat")}>
+                  {thread.length ? "Open chat" : "Message us"}
+                  {thread.some((m) => m.direction === "staff") && panel !== "chat" ? " ●" : ""}
+                </button>
+              </div>
+              {panel === "chat" && chatUi}
             </div>
           </section>
         )}

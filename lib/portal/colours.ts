@@ -8,6 +8,12 @@
  *   2. the live work_orders.colours map (painter-supplied match codes).
  * Where the colour is still TBC the register says so honestly (amber) —
  * nothing invented, ever.
+ *
+ * Confirmation is A PERSON'S TICK (Tom, 23 Aug): the WO's pre-start
+ * "Colour schedule finalised" checklist item, passed in as
+ * `coloursFinalised`. The per-product colourStatus in the snapshot is the
+ * older mechanism and still honoured, but nobody drives it day to day —
+ * reading it alone left confirmed jobs stuck on "to be confirmed".
  */
 
 export type RegisterSnapshotArea = {
@@ -42,6 +48,7 @@ export function buildRegister(
   areas: readonly RegisterSnapshotArea[],
   materials: readonly RegisterMaterial[],
   live: RegisterLiveColours,
+  coloursFinalised = false,
 ): RegisterArea[] {
   const byProduct = new Map(materials.map((m) => [m.product, m]));
   return areas
@@ -49,8 +56,14 @@ export function buildRegister(
       const rows: RegisterRow[] = [];
       for (const s of area.surfaces) {
         const material = byProduct.get(s.product);
-        const match = live?.[s.product]?.match;
-        const confirmed = material && material.colourStatus === "confirmed" && material.colourName;
+        const entry = live?.[s.product];
+        const match = entry?.match;
+        // A product with no colour NAME anywhere stays TBC even when the
+        // schedule tick is done — the register never invents a colour.
+        const confirmed = material && material.colourName
+          && (coloursFinalised
+            || material.colourStatus === "confirmed"
+            || entry?.status === "confirmed");
         const row: RegisterRow = {
           surface: s.label,
           product: s.product,

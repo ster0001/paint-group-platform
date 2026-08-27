@@ -28,14 +28,17 @@ export default async function WizardPage() {
   // Room types that actually have scope rules — the editor's add-room chips.
   // Rate items drive page 2's substrate lists (A2): names only reach the
   // client, never the rates themselves.
-  const [{ data: rules }, { data: rateItems }] = await Promise.all([
+  const [{ data: rules }, { data: rateItems }, { data: profileRow }] = await Promise.all([
     supabase.from("room_type_scope_rules").select("room_type").eq("version", SCOPE_VERSION),
     supabase.from("rate_items").select("code, category"),
+    // Staff session reads settings under its own RLS — the header logo.
+    supabase.from("settings").select("value").eq("key", "company_profile").maybeSingle(),
   ]);
+  const logoUrl = ((profileRow?.value ?? {}) as { logoUrl?: string }).logoUrl || null;
   const roomTypes = [...new Set((rules ?? []).map((r) => r.room_type as string))]
     .filter((t) => !["exterior", "unknown", "excluded", "exterior_excluded"].includes(t))
     .sort();
   const substrates = substrateOptionsFromRates(rateItems ?? []);
 
-  return <WizardApp roomTypes={roomTypes} substrates={substrates} />;
+  return <WizardApp roomTypes={roomTypes} substrates={substrates} logoUrl={logoUrl} />;
 }

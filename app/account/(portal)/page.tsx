@@ -95,7 +95,7 @@ export default async function AccountHomePage({
               </>
             );
             return open ? (
-              <Link key={e.id} href={`/e/${e.share_token}`} className="job">{body}</Link>
+              <Link key={e.id} href={`/e/${e.share_token}?portal=1`} className="job">{body}</Link>
             ) : (
               <div key={e.id} className="job">{body}</div>
             );

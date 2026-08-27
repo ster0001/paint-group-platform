@@ -17,7 +17,7 @@ export default async function ColoursPage() {
 
   const { jobs } = await getPortalAftercare(ctx.accounts.map((a) => a.id));
   const registers = jobs
-    .map((job) => ({ job, register: buildRegister(job.areas, job.materials, job.liveColours) }))
+    .map((job) => ({ job, register: buildRegister(job.areas, job.materials, job.liveColours, job.coloursFinalised) }))
     .filter((r) => r.register.length > 0);
 
   if (registers.length === 0) {
@@ -44,8 +44,9 @@ export default async function ColoursPage() {
       {registers.map(({ job, register }) => (
         <section key={job.workOrderId}>
           {registers.length > 1 && <h2>{job.title}</h2>}
-          {register.map((area) => (
-            <div key={area.title}>
+          {register.map((area, areaIdx) => (
+            // Two rooms can share a title ("Bedroom") — the key needs the index.
+            <div key={`${area.title}-${areaIdx}`}>
               <h2>{area.title}</h2>
               <div className="card">
                 {area.rows.map((row, i) => {

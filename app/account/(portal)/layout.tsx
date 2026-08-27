@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getPortalContext } from "@/lib/portal/data";
 import { ensureMembership } from "@/lib/portal/auth";
@@ -31,7 +32,10 @@ export default async function PortalShellLayout({ children }: { children: React.
     <div className="app">
       <header className="hdr">
         <div>
-          <div className="brand">PAINT GROUP<span className="dot">.</span></div>
+          {ctx.logoUrl
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img className="brandlogo" src={ctx.logoUrl} alt={ctx.companyName} />
+            : <div className="brand">PAINT GROUP<span className="dot">.</span></div>}
           {trade && (
             <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 5 }}>
               {orgName && <span style={{ fontSize: 13, color: "var(--muted)", fontWeight: 600 }}>{orgName}</span>}
@@ -46,7 +50,7 @@ export default async function PortalShellLayout({ children }: { children: React.
               {phone}
             </a>
           )}
-          <div className="avatar" aria-hidden>{initial}</div>
+          <Link href="/account/profile" className="avatar" aria-label="My profile">{initial}</Link>
         </div>
       </header>
       <AccountTabs trade={trade} />

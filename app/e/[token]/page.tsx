@@ -8,8 +8,15 @@ export const dynamic = "force-dynamic";
 // Public, token-only. Fetches the SENT snapshot via a security-definer RPC —
 // the anon key never gets a `select * from estimates` path, and only the
 // customer-safe snapshot is ever returned.
-export default async function Page({ params }: { params: Promise<{ token: string }> }) {
+export default async function Page({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ token: string }>;
+  searchParams: Promise<{ portal?: string }>;
+}) {
   const { token } = await params;
+  const { portal } = await searchParams;
   const supabase = await createClient();
 
   const { data, error } = await supabase.rpc("get_estimate_by_token", { p_token: token });
@@ -40,6 +47,7 @@ export default async function Page({ params }: { params: Promise<{ token: string
       sentAt={row.sent_at}
       selectedOptionsInit={row.selected_options}
       changes={changes}
+      fromPortal={portal === "1"}
     />
   );
 }

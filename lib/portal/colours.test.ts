@@ -39,6 +39,37 @@ describe("buildRegister — the permanent paint register", () => {
     expect(reg.map((a) => a.title)).toEqual(["Hallway & stairs", "Lounge"]);
   });
 
+  it("the WO's colour-schedule tick confirms named colours the per-product status left as tbc", () => {
+    // The Devoy St shape (27 Aug): the snapshot carries the colour name but
+    // its status stayed "tbc" because confirmation is the checklist tick now.
+    const reg = buildRegister(
+      [{ title: "Exterior", surfaces: [{ label: "Gutters", product: "Weathershield", coats: 2 }] }],
+      [{ product: "Weathershield", colourName: "Ironstone", colourHex: "#464B52", colourStatus: "tbc" }],
+      null,
+      true,
+    );
+    expect(reg[0].rows[0]).toMatchObject({ colourName: "Ironstone", colourHex: "#464B52" });
+  });
+
+  it("the tick never invents a colour for a product with no name anywhere", () => {
+    const reg = buildRegister(
+      [{ title: "A", surfaces: [{ label: "Walls", product: "P", coats: 2 }] }],
+      [{ product: "P", colourName: "", colourHex: "", colourStatus: "tbc" }],
+      null,
+      true,
+    );
+    expect(reg[0].rows[0].colourName).toBeNull();
+  });
+
+  it("a live per-product confirmed status still confirms without the tick", () => {
+    const reg = buildRegister(
+      [{ title: "A", surfaces: [{ label: "Walls", product: "P", coats: 2 }] }],
+      [{ product: "P", colourName: "Ironstone", colourHex: "#464B52", colourStatus: "tbc" }],
+      { P: { status: "confirmed" } },
+    );
+    expect(reg[0].rows[0].colourName).toBe("Ironstone");
+  });
+
   it("an unconfirmed material never invents a colour from the hex alone", () => {
     const reg = buildRegister(
       [{ title: "A", surfaces: [{ label: "Walls", product: "P", coats: 2 }] }],

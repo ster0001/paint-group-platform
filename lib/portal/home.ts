@@ -141,7 +141,8 @@ export function homeState(
       headline: `Your estimate is ready${sent.total_cents ? ` — ${money(sent.total_cents)} inc GST` : ""}`,
       sub: "Take your time with it. Any questions at all, we're a phone call away.",
       chip: null,
-      cta: { label: "See my estimate", href: `/e/${sent.share_token}` },
+      // ?portal=1 renders the "← My account" way back on the estimate page.
+      cta: { label: "See my estimate", href: `/e/${sent.share_token}?portal=1` },
       estimateId: sent.id,
     };
   }

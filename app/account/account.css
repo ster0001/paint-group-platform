@@ -41,6 +41,7 @@
 }
 .acct .brand { font-weight: 700; font-size: 16px; letter-spacing: 0.02em; }
 .acct .brand .dot { color: var(--cyan); }
+.acct .brandlogo { display: block; max-height: 30px; max-width: 160px; object-fit: contain; }
 .acct .hdr-right { display: flex; align-items: center; gap: 10px; }
 .acct .call-chip {
   display: flex; align-items: center; gap: 7px; background: var(--graphite);
@@ -204,6 +205,20 @@
 }
 .acct .field:focus { border-color: var(--cyan); }
 .acct label { display: block; font-size: 15px; color: var(--muted); margin: 0 0 8px; }
+.acct textarea.field { resize: vertical; min-height: 84px; line-height: 1.45; }
+
+/* ===== messages ===== */
+.acct .msgs { display: flex; flex-direction: column; gap: 10px; margin-bottom: 4px; }
+.acct .msg { max-width: 85%; }
+.acct .msg.mine { align-self: flex-end; text-align: right; }
+.acct .msg.theirs { align-self: flex-start; }
+.acct .msg-body {
+  display: inline-block; text-align: left; white-space: pre-wrap; overflow-wrap: anywhere;
+  background: var(--graphite); border: 1px solid var(--line);
+  border-radius: 16px; padding: 11px 14px; font-size: 15.5px; line-height: 1.45;
+}
+.acct .msg.mine .msg-body { background: rgba(59, 216, 233, 0.09); border-color: rgba(59, 216, 233, 0.3); }
+.acct .msg-meta { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 4px; }
 
 /* ===== tab bar ===== */
 .acct .tabbar {

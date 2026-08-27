@@ -6,6 +6,7 @@ import PlanViewer from "./PlanViewer";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import type { CustomerPayload } from "@/lib/wizard/view";
 import { assertCustomerShape } from "@/lib/wizard/contract";
+import Wordmark from "./Wordmark";
 
 /**
  * Step 8: what the customer sees after submitting — either a guardrail
@@ -38,10 +39,11 @@ const OUTCOME_HEADINGS: Record<CustomerOutcome["outcome"], string> = {
   rate_limited: "Looks like you're busy",
 };
 
-export default function CustomerResult({ outcome, reveal, roomTypes }: {
+export default function CustomerResult({ outcome, reveal, roomTypes, logoUrl }: {
   outcome: CustomerOutcome | null;
   reveal: Reveal | null;
   roomTypes: string[];
+  logoUrl?: string | null;
 }) {
   const [payload, setPayload] = useState<CustomerPayload | null>(reveal);
   const [openRoom, setOpenRoom] = useState<number | null>(null);
@@ -56,7 +58,7 @@ export default function CustomerResult({ outcome, reveal, roomTypes }: {
     const o = outcome ?? { outcome: "handoff" as const, message: "We'll be in touch shortly." };
     return (
       <>
-        <header className="wz-top"><div className="wz-wm">PAINT<span>—</span>GROUP</div></header>
+        <header className="wz-top"><Wordmark logoUrl={logoUrl} /></header>
         <div className="wz-wrap" style={{ textAlign: "center", paddingTop: 70 }}>
           <h1>{OUTCOME_HEADINGS[o.outcome]}</h1>
           <p className="wz-sub" style={{ marginTop: 14 }}>{o.message}</p>
@@ -115,7 +117,7 @@ export default function CustomerResult({ outcome, reveal, roomTypes }: {
 
   return (
     <>
-      <header className="wz-top"><div className="wz-wm">PAINT<span>—</span>GROUP</div></header>
+      <header className="wz-top"><Wordmark logoUrl={logoUrl} /></header>
 
       <div className={`wz-ed ${reveal.planUrl ? "" : "noplan"}`}>
         <div className="wz-scorebar">

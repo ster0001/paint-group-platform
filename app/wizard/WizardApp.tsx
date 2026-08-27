@@ -27,6 +27,7 @@ import {
 import type { CustomerPayload, WizardEditorPayload } from "@/lib/wizard/view";
 import AddressField from "./AddressField";
 import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
+import Wordmark from "./Wordmark";
 
 /**
  * W1: the five paginated pages, exactly per the workflow doc — Property →
@@ -54,11 +55,13 @@ const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
 const snapshotFalse = () => false;
 
-export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState }: {
+export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl }: {
   roomTypes: string[];
   /** A2: the offered surface lists, derived server-side from the rate card. */
   substrates: SubstrateGroups;
   mode?: "internal" | "customer";
+  /** The Settings logo (logo 1) for the header — wordmark when unset. */
+  logoUrl?: string | null;
   /** 3a-6: a signed-in portal customer arrives known — email from their
    * verified session (the gate page disappears), address from the chosen
    * property. Same component, same flow; a returning customer just starts
@@ -504,7 +507,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const nav = continueState({ uploading, sessionPhase });
 
   if (screen === "editor" && isCustomer && (outcome || customerResult)) {
-    return <CustomerResult outcome={outcome} reveal={customerResult} roomTypes={roomTypes} />;
+    return <CustomerResult outcome={outcome} reveal={customerResult} roomTypes={roomTypes} logoUrl={logoUrl} />;
   }
 
   return (
@@ -515,7 +518,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     // check queues on it) instead of vanishing; data-ready is the spec hook.
     <div className={ready ? undefined : "wz-waking"} data-ready={ready ? "1" : undefined}>
       <header className="wz-top">
-        <div className="wz-wm">PAINT<span>—</span>GROUP</div>
+        <Wordmark logoUrl={logoUrl} />
         <div className="wz-dots">
           {Array.from({ length: lastPage }, (_, i) => i + 1).map((d) => (
             <i key={d} className={d < page || screen === "processing" ? "done" : d === page ? "on" : ""} />

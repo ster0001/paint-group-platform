@@ -48,7 +48,7 @@ describe("homeState — one headline, one primary action, by precedence", () => 
     );
     expect(s.key).toBe("estimate_ready");
     expect(s.headline).toContain("$8,450.00");
-    expect(s.cta.href).toBe("/e/tok123");
+    expect(s.cta.href).toBe("/e/tok123?portal=1");
   });
 
   it("accepted with a pre-start work order reads as booked", () => {

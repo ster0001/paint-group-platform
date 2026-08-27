@@ -12,6 +12,8 @@ import {
 import { wizardStateSchema } from "@/lib/wizard/state";
 import ScopeEditor from "./ScopeEditor";
 import SidesEditor from "./SidesEditor";
+import Wordmark from "@/app/wizard/Wordmark";
+import { getCompanyContact } from "@/lib/portal/data";
 import { defaultSidesLoop, extrasPrices, sidesView, visitReason, type SidesLoopMeta } from "@/lib/wizard/sides";
 import { defaultInteriorLoop, interiorDwTotals, interiorProgress, roomLoopViews, type InteriorLoopMeta } from "@/lib/wizard/rooms-loop";
 import { loopConfirmState } from "@/lib/wizard/confirm-state";
@@ -35,10 +37,11 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
-function Holding({ line }: { line: string }) {
+async function Holding({ line }: { line: string }) {
+  const company = await getCompanyContact();
   return (
     <div className="wz">
-      <header className="wz-top"><div className="wz-wm">PAINT<span>—</span>GROUP</div></header>
+      <header className="wz-top"><Wordmark logoUrl={company.logoUrl} /></header>
       <div className="wz-wrap" style={{ textAlign: "center", paddingTop: 80 }}>
         <h1>{line}</h1>
       </div>
@@ -110,6 +113,7 @@ export default async function ScopeEditorPage({
   }
 
   const customer = customerPayload(payload, blocks, decision, bandsFromSettings(settingValue(ctx.settings, "wizard_bands")));
+  const headerLogoUrl = ((settingValue(ctx.settings, "company_profile") ?? {}) as { logoUrl?: string }).logoUrl || null;
   const roomTypes = [...new Set(rules.map((r) => r.room_type))]
     .filter((t) => !["exterior", "exterior_elevation", "unknown", "excluded", "exterior_excluded"].includes(t))
     .sort();
@@ -182,6 +186,7 @@ export default async function ScopeEditorPage({
         roomTypes={roomTypes}
         liveRange={editorFlags.liveRange !== false}
         docs={docs}
+        logoUrl={headerLogoUrl}
       />
     </div>
   );

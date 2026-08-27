@@ -3,6 +3,8 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { SCOPE_VERSION } from "@/lib/extract/scope";
 import { substrateOptionsFromRates, type SubstrateGroups } from "@/lib/estimate/substrates";
 import WizardApp from "../wizard/WizardApp";
+import Wordmark from "../wizard/Wordmark";
+import { getCompanyContact } from "@/lib/portal/data";
 import { wizardStateSchema, type WizardState } from "@/lib/wizard/state";
 
 /**
@@ -28,6 +30,8 @@ export default async function CustomerWizardPage({
 }) {
   const { property: propertyParam, rebook: rebookParam } = await searchParams;
   const supabase = await createClient();
+  // The Settings logo for the header (public-safe display fields only).
+  const company = await getCompanyContact();
   const { data: { user } } = await supabase.auth.getUser();
   let isStaff = false;
   let memberEmail: string | null = null;
@@ -89,7 +93,7 @@ export default async function CustomerWizardPage({
   if (!enabled && !isStaff && !memberEmail) {
     return (
       <>
-        <header className="wz-top"><div className="wz-wm">PAINT<span>—</span>GROUP</div></header>
+        <header className="wz-top"><Wordmark logoUrl={company.logoUrl} /></header>
         <div className="wz-wrap" style={{ textAlign: "center", paddingTop: 80 }}>
           <h1>Online estimates are nearly here</h1>
           <p className="wz-sub" style={{ marginTop: 14 }}>
@@ -138,6 +142,7 @@ export default async function CustomerWizardPage({
       roomTypes={roomTypes}
       substrates={substrates}
       mode="customer"
+      logoUrl={company.logoUrl}
       prefill={memberEmail ? { email: memberEmail, address: prefillAddress } : undefined}
       prefillState={prefillState}
     />

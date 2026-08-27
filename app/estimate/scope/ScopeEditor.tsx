@@ -26,6 +26,7 @@ type Ladder = { tier: "self_serve" | "visit"; visitSlots: string[] };
  */
 
 import type { InteriorLoopMeta, RoomLoopView } from "@/lib/wizard/rooms-loop";
+import Wordmark from "@/app/wizard/Wordmark";
 
 /** R3: the interior confirm-loop state that rides every customer response. */
 export type InteriorLoopView = {
@@ -71,7 +72,7 @@ const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
 const snapshotFalse = () => false;
 
-export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, roomTypes, liveRange, docs = { plan: null, photos: [] } }: {
+export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null }: {
   estimateId: string;
   initial: CustomerPayload;
   initialRooms: CustomerScopeRoom[];
@@ -85,6 +86,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   liveRange: boolean;
   /** R5: the plan and photos this customer uploaded, pinned beside the loop. */
   docs?: EstimateDocuments;
+  logoUrl?: string | null;
 }) {
   const [payload, setPayload] = useState<CustomerPayload>(initial);
   const [rooms, setRooms] = useState<CustomerScopeRoom[]>(initialRooms);
@@ -486,7 +488,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
           a glance away. */}
       <div className="sc-freeze">
         <header className="wz-top">
-          <div className="wz-wm">PAINT<span>—</span>GROUP</div>
+          <Wordmark logoUrl={logoUrl} />
           {iloop && (
             <span className={`sd-status ${combined!.allDone ? "ok" : ""}`}>
               {combined!.allDone ? "ESTIMATE CONFIRMED ✓" : initialSides ? "IN REVIEW · INSIDE THEN OUTSIDE" : "IN REVIEW · CONFIRM EACH ROOM"}

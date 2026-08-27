@@ -18,6 +18,7 @@
 .wz .wz-top { position: sticky; top: 0; z-index: 40; display: flex; align-items: center; justify-content: space-between; padding: 13px 20px; background: rgba(10,11,13,.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
 .wz .wz-wm { font-family: var(--wz-mono); font-size: 12px; font-weight: 700; letter-spacing: .22em; color: var(--text); }
 .wz .wz-wm span { color: var(--cyan); }
+.wz .wz-logo { display: block; max-height: 26px; max-width: 150px; object-fit: contain; }
 .wz .wz-exit { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; font-size: 12px; padding: 5px 11px; cursor: pointer; text-decoration: none; }
 .wz .wz-exit:hover { border-color: var(--muted); color: var(--text); }
 .wz .wz-dots { display: flex; gap: 7px; align-items: center; }

@@ -300,6 +300,9 @@ export type AftercareJob = {
   areas: RegisterSnapshotArea[];
   materials: RegisterMaterial[];
   liveColours: RegisterLiveColours;
+  /** The pre-start "Colour schedule finalised" tick — the person's yes that
+   * IS colour confirmation on the WO loop (the per-product status is legacy). */
+  coloursFinalised: boolean;
   warranty: { startsOn: string; endsOn: string; years: number } | null;
   /** The signed report's token link, once signed. */
   reportToken: string | null;
@@ -349,14 +352,23 @@ export async function getPortalAftercare(accountIds: string[]): Promise<PortalAf
 
   let warranties: Array<{ work_order_id: string; starts_on: string; ends_on: string; years: number }> = [];
   let signoffs: Array<{ work_order_id: string; signed_at: string | null; customer_token: string | null }> = [];
+  const coloursTicked = new Set<string>();
   if (woRows.length) {
     const woIds = woRows.map((w) => w.id);
-    const [w, s] = await Promise.all([
+    const [w, s, ticks] = await Promise.all([
       svc.from("warranties").select("work_order_id, starts_on, ends_on, years").in("work_order_id", woIds),
       svc.from("wo_signoff").select("work_order_id, signed_at, customer_token").in("work_order_id", woIds),
+      // The colours box is a person's tick (Tom, 23 Aug) — same rule the PC
+      // console reads. Matched by item_key with the label as the fallback
+      // for rows created before item_key existed.
+      svc.from("wo_checklist_items").select("work_order_id, item_key, label")
+        .in("work_order_id", woIds).eq("phase", "pre_start").not("done_at", "is", null),
     ]);
     warranties = (w.data ?? []) as typeof warranties;
     signoffs = (s.data ?? []) as typeof signoffs;
+    for (const t of (ticks.data ?? []) as Array<{ work_order_id: string; item_key: string | null; label: string | null }>) {
+      if (t.item_key === "colours" || t.label === "Colour schedule finalised") coloursTicked.add(t.work_order_id);
+    }
   }
 
   const jobs: AftercareJob[] = woRows.map((w) => {
@@ -370,6 +382,7 @@ export async function getPortalAftercare(accountIds: string[]): Promise<PortalAf
       areas: w.wo_snapshot?.areas ?? [],
       materials: w.wo_snapshot?.materials ?? [],
       liveColours: w.colours ?? null,
+      coloursFinalised: coloursTicked.has(w.id),
       warranty: warranty
         ? { startsOn: warranty.starts_on, endsOn: warranty.ends_on, years: warranty.years }
         : null,
