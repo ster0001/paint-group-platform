@@ -234,6 +234,12 @@ export async function reconcileContractorCalendar(contractorId: string): Promise
       if (!event) continue;
       const hash = eventHash(event);
       const existing = mapped.get(row.id);
+      // Claim the mapping FIRST — whatever is left in `mapped` after this loop
+      // gets deleted from Google as no-longer-booked. An early `continue`
+      // below must never leave a live booking in that pile: that exact slip
+      // deleted two real events on 28 Aug (the unchanged-hash path skipped
+      // the claim, so every up-to-date event was swept as stale).
+      mapped.delete(row.id);
 
       if (existing && existing.calendar_id === calendarId) {
         if (existing.content_hash === hash) continue;
@@ -267,7 +273,6 @@ export async function reconcileContractorCalendar(contractorId: string): Promise
         if (error) throw new Error(`gcal sync save map: ${error.message}`);
         created++;
       }
-      mapped.delete(row.id);
     }
 
     // Whatever is left in the map is no longer an accepted booking of this
