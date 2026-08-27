@@ -7,24 +7,32 @@
  * walkthrough page, which IS the record and needs no second copy to drift.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { sendEmail } from "@/lib/messaging/send";
+import { buildEstimateEmailHtml, sendEmail } from "@/lib/messaging/send";
 import { reportError } from "@/lib/monitoring/report";
 
 export function signedReportEmail(vars: {
   firstName: string; jobTitle: string; signedName: string; link: string; company: string;
+  /** The LIGHT-background logo — email renders on white (the standing rule). */
+  logoUrl?: string;
+  companyPhone?: string;
 }): { subject: string; html: string } {
   const hi = vars.firstName ? `Hi ${vars.firstName},` : "Hello,";
+  const intro = [
+    hi,
+    `Thanks — the work at ${vars.jobTitle} has been signed off${vars.signedName ? ` by ${vars.signedName}` : ""}.`,
+    "Your completion report and warranty details are yours to keep — open them any time from the button below. They also live under Documents in your account.",
+    "Anything you notice later is covered by your two-year warranty — just reply to this email.",
+  ].join("\n\n");
   return {
     subject: `Your completion report — ${vars.jobTitle}`,
-    html: [
-      `<p>${hi}</p>`,
-      `<p>Thanks — the work at <b>${vars.jobTitle}</b> has been signed off` +
-        (vars.signedName ? ` by ${vars.signedName}` : "") + `.</p>`,
-      `<p>Your completion report and warranty details are here, any time you want them:</p>`,
-      `<p><a href="${vars.link}">${vars.link}</a></p>`,
-      `<p>Anything you notice later is covered by your two-year warranty — just reply to this email.</p>`,
-      `<p>${vars.company}</p>`,
-    ].join("\n"),
+    html: buildEstimateEmailHtml({
+      intro,
+      link: vars.link,
+      companyName: vars.company,
+      logoUrl: vars.logoUrl,
+      companyPhone: vars.companyPhone,
+      buttonLabel: "Open my completion report",
+    }),
   };
 }
 
@@ -60,12 +68,17 @@ export async function sendSignedReportEmail(db: SupabaseClient, customerToken: s
     if (!email) return;   // no address on file — nothing to send, not an error
 
     const snap = (wo as { wo_snapshot?: { jobTitle?: string; company?: { name?: string } } } | null)?.wo_snapshot;
+    const { data: companyRow } = await db
+      .from("settings").select("value").eq("key", "company_profile").maybeSingle();
+    const company = (companyRow?.value ?? {}) as { phone?: string; logoUrl?: string; logoUrlLight?: string };
     const msg = signedReportEmail({
       firstName: contact?.first_name ?? (est?.accepted_name ?? "").trim().split(/\s+/)[0] ?? "",
       jobTitle: snap?.jobTitle || "your painting job",
       signedName: String(s.signed_name ?? ""),
       link: `${origin}/s/${customerToken}`,
       company: snap?.company?.name || "Paint Group",
+      logoUrl: company.logoUrlLight || company.logoUrl,
+      companyPhone: company.phone,
     });
     const result = await sendEmail({ to: email, subject: msg.subject, html: msg.html });
     if (result.status === "error") reportError(new Error(result.message), { where: "signEmail.send" });
