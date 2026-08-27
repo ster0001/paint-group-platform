@@ -223,9 +223,15 @@ export default function Expenses({ jobs, expenses, preapprovals, categories, thr
       {/* The claim form */}
       {open === "claim" ? (
         <div style={{ marginTop: 10, borderTop: "1px solid var(--line)", paddingTop: 10 }}>
+          {/* The native file input was invisible on the dark theme (the
+              portal.css named-input-types trap) — a visible button drives a
+              hidden input instead. capture-friendly: phones offer the camera. */}
           <input ref={fileRef} type="file" accept="application/pdf,image/jpeg,image/png,image/webp,image/heic"
-            onChange={onPickFile} data-testid="expense-file" />
-          {fileName && <div className="hint" style={{ padding: 0, fontSize: 11 }}>{fileName} ✓</div>}
+            onChange={onPickFile} data-testid="expense-file" style={{ display: "none" }} />
+          <button type="button" className="btn gh" style={{ width: "100%" }}
+            onClick={() => fileRef.current?.click()} data-testid="expense-attach">
+            {fileName ? `Receipt attached: ${fileName} ✓ — tap to change` : "📎 Attach the receipt — photo or PDF"}
+          </button>
           {jobs.length > 1 && (
             <select value={woId} onChange={(e) => setWoId(e.target.value)} {...input()} data-testid="expense-job">
               <option value="" disabled>— which job? —</option>

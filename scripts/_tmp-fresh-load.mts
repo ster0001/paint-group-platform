@@ -1,0 +1,14 @@
+import { chromium } from "playwright-core";
+const BASE = "https://paint-group-platform.vercel.app";
+const browser = await chromium.launch();
+const page = await browser.newPage();
+await page.goto(`${BASE}/login`);
+await page.fill('input[type="email"]', "pg.josef.contractor@gmail.com");
+await page.fill('input[type="password"]', "painttest123");
+await page.getByRole("button", { name: "Sign in", exact: true }).click();
+await page.waitForURL(/portal/, { timeout: 30000 });
+await page.goto(`${BASE}/portal/money`);
+await page.waitForSelector('[data-testid="request-claim"]', { timeout: 20000 });
+const body = await page.locator("body").innerText();
+console.log("fresh load CI numbers:", (body.match(/CI-\d+/g) ?? []).join(","));
+await browser.close();

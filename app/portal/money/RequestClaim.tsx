@@ -96,9 +96,10 @@ export default function RequestClaim({ jobs, defaultOpen = false, heading = "Inv
         invoiceDate: invDate || undefined,
       });
       if (result.ok) {
-        setOpen(false);
-        setDollars(""); setCustomPct("");
-        setMessage("Invoice sent — it's with the office, and your PDF is a tap away below.");
+        // Straight to the invoice they just sent — concrete proof it landed.
+        // (Tom, 27 Aug: a success message + a list that refreshes late read
+        // as "nothing happened"; the invoice page can't be missed.)
+        router.push(`/portal/money/${result.id}`);
         router.refresh();
       } else setMessage(result.message);
     });

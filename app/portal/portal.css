@@ -238,6 +238,14 @@
 .pt input::placeholder,
 .pt textarea::placeholder { color: #5c646b; }
 .pt input[type="date"] { color-scheme: dark; }
+/* File inputs render with the browser's default colours unless told
+ * otherwise — on this dark theme that made the expense receipt picker
+ * effectively invisible (the named-types trap again). */
+.pt input[type="file"] { color: var(--text); font-size: 13px; }
+.pt input[type="file"]::file-selector-button {
+  background: var(--ink); color: var(--text); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 12px; margin-right: 10px; font: inherit; cursor: pointer;
+}
 .pt .crewrow { display: flex; align-items: center; gap: 8px; }
 .pt .crewrow input { width: 84px; text-align: center; font-family: var(--mono); }
 .pt .crewrow button {
