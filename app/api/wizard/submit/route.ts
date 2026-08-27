@@ -93,12 +93,20 @@ export async function POST(request: Request) {
   // The account's gates (§3): trade = unlimited; flags.unlimited = the
   // office unblock. Looked up by the identity email; missing table or no
   // account = standard limits.
-  let limitAccount: { account_type: "residential" | "trade"; flags: Record<string, unknown> | null } | null = null;
+  type LimitAccountRow = { account_type: "residential" | "trade"; flags: Record<string, unknown> | null };
+  let limitAccount: LimitAccountRow | null = null;
   if (actor.kind === "customer" && email) {
     const { data: acctRow } = await db.from("accounts")
       .select("account_type, flags").eq("email", email).maybeSingle();
-    limitAccount = (acctRow as typeof limitAccount) ?? null;
+    // A named type, not `typeof limitAccount` — the typeof form re-reads the
+    // NARROWED type (null at that point) and poisons every later use to never.
+    limitAccount = (acctRow as LimitAccountRow | null) ?? null;
   }
+  // Trade actors (account_type only — the flags.unlimited unblock lifts
+  // LIMITS, never the commercial handoff) price commercial work on the
+  // visit tier instead of handing off (28 Aug: the commercial portal was
+  // handing its own vetted users off).
+  const tradeActor = limitAccount?.account_type === "trade";
   if (actor.kind === "customer" && !bypassesWizardLimits(limitAccount)) {
     const { data: limitRow } = await db.from("settings").select("value").eq("key", "wizard_limits").maybeSingle();
     const limits = (limitRow?.value ?? {}) as { maxEstimatesPerVisitor?: number; holdMessage?: string };
@@ -463,6 +471,7 @@ export async function POST(request: Request) {
     wantsExterior,
     policy,
     serviceArea,
+    tradeActor,
   );
 
   // The proving-window baseline (Step 9): the wizard's ORIGINAL numbers,

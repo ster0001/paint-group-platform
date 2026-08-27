@@ -230,7 +230,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { data: estimate } = await db
     .from("estimates")
-    .select("id, status, source, created_by, requires_site_check, builder_state")
+    .select("id, status, source, created_by, requires_site_check, builder_state, account_id")
     .eq("id", id)
     .maybeSingle();
   if (!estimate) return NextResponse.json({ error: "No such estimate." }, { status: 404 });
@@ -832,6 +832,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const answers = snap.success
       ? answersFromState(snap.data)
       : answersFromState({ jobType: "interior", details: { damageTier: 1 }, customer: null });
+    // Same trade relaxation as submit + the scope page, decided from the
+    // estimate's own linked account — one rule, three evaluation sites.
+    let tradeActor = false;
+    const estAccountId = (estimate as { account_id?: string | null }).account_id;
+    if (estAccountId) {
+      const { data: acct } = await db.from("accounts").select("account_type").eq("id", estAccountId).maybeSingle();
+      tradeActor = (acct as { account_type?: string } | null)?.account_type === "trade";
+    }
     const decision = evaluateGuardrails(
       answers,
       payload.totals.totalCents,
@@ -839,6 +847,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       siteCheck, // live — this very action may have flagged the visit tier
       policyFromSettings(settingValue(ctx.settings, "wizard_policy")),
       serviceAreaFromSettings(settingValue(ctx.settings, "service_area")),
+      tradeActor,
     );
     // Same rule as submit: a blocking outcome means NO price crosses the
     // wire - edits can move a job across a guardrail (e.g. under the floor)

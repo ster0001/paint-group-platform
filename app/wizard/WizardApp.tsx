@@ -737,12 +737,12 @@ function PageProperty({
           )}
         <div style={{ display: "flex", gap: 10 }}>
           <input
-            className="wz-field" placeholder="Suburb"
+            className="wz-field" placeholder="Suburb" maxLength={80}
             value={state.customer.suburb}
             onChange={(e) => set({ customer: { ...state.customer!, suburb: e.target.value } })}
           />
           <input
-            className="wz-field" placeholder="Postcode" inputMode="numeric" style={{ maxWidth: 130 }}
+            className="wz-field" placeholder="Postcode" inputMode="numeric" maxLength={10} style={{ maxWidth: 130 }}
             value={state.customer.postcode}
             onChange={(e) => set({ customer: { ...state.customer!, postcode: e.target.value } })}
           />

@@ -113,6 +113,38 @@ describe("guardrails — handoffs", () => {
   });
 });
 
+describe("guardrails — trade actors (28 Aug: the commercial portal handed its own user off)", () => {
+  const trade = (over: Parameters<typeof clean>[0], total = 1_000_000) =>
+    evaluateGuardrails(clean(over), total, 95, false, DEFAULT_POLICY, [], true);
+
+  it("commercial / body-corp / heritage price on the VISIT tier instead of handing off", () => {
+    for (const over of [
+      { propertyKind: "commercial" as const },
+      { bodyCorporate: "yes" as const },
+      { heritageListed: "yes" as const },
+    ]) {
+      const d = trade(over);
+      expect(d.outcome).toBe("reveal");
+      expect(d.walkthroughRequired).toBe(true); // a person still signs it off
+      expect(d.canAccept).toBe(false);
+    }
+  });
+
+  it("the flags stay in reasons — staff still see what the job is", () => {
+    expect(trade({ propertyKind: "commercial" }).reasons).toContain("commercial_property");
+  });
+
+  it("safety never relaxes: asbestos unsure still hands off, asbestos yes still hard-stops", () => {
+    expect(trade({ asbestosSuspected: "unsure" }).outcome).toBe("handoff");
+    expect(trade({ asbestosSuspected: "yes" }).outcome).toBe("hard_stop");
+    expect(trade({ builtPre1970: "yes", damageTier: 2 }).outcome).toBe("hard_stop");
+  });
+
+  it("non-trade behaviour is untouched by the new parameter's default", () => {
+    expect(evaluateGuardrails(clean({ propertyKind: "commercial" }), 1_000_000, 95, false).outcome).toBe("handoff");
+  });
+});
+
 describe("guardrails — floor and walkthrough policy", () => {
   it("under the $2k floor is a polite minimum message", () => {
     const d = evaluateGuardrails(clean(), 150_000, 95, false);

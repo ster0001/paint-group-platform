@@ -66,7 +66,7 @@ export default async function ScopeEditorPage({
 
   const { data: estimate } = await db
     .from("estimates")
-    .select("id, status, source, created_by, requires_site_check, builder_state")
+    .select("id, status, source, created_by, requires_site_check, builder_state, account_id")
     .eq("id", id)
     .maybeSingle();
   const own = actor.kind !== "customer" || (
@@ -100,6 +100,15 @@ export default async function ScopeEditorPage({
   const answers = snap.success
     ? answersFromState(snap.data)
     : answersFromState({ jobType: "interior", details: { damageTier: 1 }, customer: null });
+  // The same trade relaxation the submit route applied — decided from the
+  // estimate's OWN account (linked at save), so the editor and the submit
+  // can never disagree about the handoff tier.
+  let tradeActor = false;
+  const accountId = (estimate as { account_id?: string | null }).account_id;
+  if (accountId) {
+    const { data: acct } = await db.from("accounts").select("account_type").eq("id", accountId).maybeSingle();
+    tradeActor = (acct as { account_type?: string } | null)?.account_type === "trade";
+  }
   const decision = evaluateGuardrails(
     answers,
     payload.totals.totalCents,
@@ -107,6 +116,7 @@ export default async function ScopeEditorPage({
     (estimate as { requires_site_check?: boolean | null }).requires_site_check === true,
     policyFromSettings(settingValue(ctx.settings, "wizard_policy")),
     serviceAreaFromSettings(settingValue(ctx.settings, "service_area")),
+    tradeActor,
   );
   if (decision.outcome !== "reveal") {
     return <Holding line="This one needs a person — we'll be in touch to sort it properly." />;
@@ -158,6 +168,7 @@ export default async function ScopeEditorPage({
             visitSlots: offeredVisitSlots(editorFlags),
           }}
           docs={docs}
+          logoUrl={headerLogoUrl}
         />
       </div>
     );

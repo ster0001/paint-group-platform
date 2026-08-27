@@ -39,8 +39,10 @@ const basicsSchema = z.object({
 /** Step 8: the customer's property answers — the guardrails' raw material. */
 const customerSchema = z.object({
   email: z.string().email().max(200).or(z.literal("")).default(""),
-  suburb: z.string().max(80).default(""),
-  postcode: z.string().max(10).default(""),
+  suburb: z.string().max(80, "The suburb looks too long — just the suburb name, please.").default(""),
+  // The zod default read "Too big: expected string to have <=10 characters"
+  // on the wizard page with no hint WHICH field (Tom, 28 Aug) — name it.
+  postcode: z.string().max(10, "The postcode looks too long — just the 4 digits, e.g. 3167.").default(""),
   propertyKind: z.enum(["house", "townhouse", "unit_apartment", "commercial"]),
   heritageListed: z.enum(["yes", "no", "unsure"]),
   bodyCorporate: z.enum(["yes", "no", "unsure"]),

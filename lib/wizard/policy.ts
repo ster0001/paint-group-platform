@@ -182,6 +182,14 @@ export function evaluateGuardrails(
   requiresSiteCheck: boolean,
   policy: WizardPolicySettings = DEFAULT_POLICY,
   serviceAreaPostcodes: string[] = [],
+  /** True when the submitter is a signed-in TRADE account (office-granted).
+   * The commercial / body-corp / heritage handoff exists to stop ANONYMOUS
+   * visitors self-serving jobs a human must scope — a vetted trade customer
+   * building commercial estimates is the customer that tier was never meant
+   * for (Tom, 28 Aug: the commercial portal handed its own user off). Those
+   * three become soft flags on the visit tier instead. The asbestos and
+   * lead-paint rules are SAFETY rules and never relax for anyone. */
+  tradeActor = false,
 ): GuardrailDecision {
   const reasons: string[] = [];
 
@@ -211,8 +219,15 @@ export function evaluateGuardrails(
   if (a.asbestosSuspected === "unsure") reasons.push("asbestos_unsure");
   if (a.builtPre1970 === "unsure" && a.damageTier >= 3) reasons.push("lead_paint_possible");
   // "heritage_unsure" alone is not worth losing the lead over when everything
-  // else is clean — only definite answers hand off on their own.
-  const hardReasons = reasons.filter((r) => r !== "heritage_unsure");
+  // else is clean — only definite answers hand off on their own. For a trade
+  // actor, commercial/body-corp/heritage are soft too (see the parameter
+  // note); asbestos_unsure and lead_paint_possible stay hard for everyone.
+  const softForActor = new Set(
+    tradeActor
+      ? ["heritage_unsure", "heritage_listed", "commercial_property", "body_corporate"]
+      : ["heritage_unsure"],
+  );
+  const hardReasons = reasons.filter((r) => !softForActor.has(r));
   if (hardReasons.length) {
     return { outcome: "handoff", reasons, walkthroughRequired: true, canAccept: false };
   }
@@ -237,6 +252,11 @@ export function evaluateGuardrails(
   const softReasons = reasons; // e.g. heritage_unsure — noted for staff, not blocking
   let walkthrough = requiresSiteCheck;
   if (requiresSiteCheck) softReasons.push("site_check_required");
+  // A trade job that would have handed off still takes the VISIT tier — the
+  // price shows as a range, but a person signs it off before acceptance.
+  if (tradeActor && reasons.some((r) => r === "commercial_property" || r === "body_corporate" || r === "heritage_listed")) {
+    walkthrough = true;
+  }
   const isExteriorish = a.jobType !== "interior";
   if (a.jobType === "both") {
     walkthrough = true; softReasons.push("mixed_scope");

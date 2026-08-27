@@ -67,7 +67,7 @@ const WALL_ADDABLE = [
   { code: "Weatherboards", label: "Weatherboard cladding" },
 ];
 
-export default function SidesEditor({ estimateId, initial, initialSides, initialExterior, initialLadder, embedded = false, onState, docs = { plan: null, photos: [] } }: {
+export default function SidesEditor({ estimateId, initial, initialSides, initialExterior, initialLadder, embedded = false, onState, docs = { plan: null, photos: [] }, logoUrl = null }: {
   estimateId: string;
   initial: CustomerPayload;
   initialSides: SidesView;
@@ -76,6 +76,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
   /** R5: the photos/plan on file — the embedded (Both-job) case leaves this
    * to the parent ScopeEditor so a stacked page shows ONE plan, not two. */
   docs?: EstimateDocuments;
+  logoUrl?: string | null;
   /** Batch 4: Both-jobs render the sides stack INSIDE the interior editor —
    * embedded mode drops SidesEditor's own chrome (header/range/CTA) and
    * reports progress + range upward so the host owns one combined loop. */
@@ -590,7 +591,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
       {!embedded && (
       <header className="sd-top">
         <div className="sd-row">
-          <div className="sd-wm">PAINT<span>—</span>GROUP</div>
+          {logoUrl ? <img className="wz-logo" src={logoUrl} alt="Paint Group" /> : <div className="sd-wm">PAINT<span>—</span>GROUP</div>}
           <span className={`sd-status ${allDone ? "ok" : ""}`}>{allDone ? "ESTIMATE CONFIRMED ✓" : "IN REVIEW · CONFIRM EACH SIDE"}</span>
         </div>
         <div className="sd-progwrap">
