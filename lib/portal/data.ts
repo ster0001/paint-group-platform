@@ -276,6 +276,102 @@ export async function getPortalProject(accountIds: string[]): Promise<PortalProj
   };
 }
 
+import type { RegisterLiveColours, RegisterMaterial, RegisterSnapshotArea } from "./colours";
+
+export type AftercareJob = {
+  estimateId: string;
+  workOrderId: string;
+  title: string;
+  stage: string;
+  areas: RegisterSnapshotArea[];
+  materials: RegisterMaterial[];
+  liveColours: RegisterLiveColours;
+  warranty: { startsOn: string; endsOn: string; years: number } | null;
+  /** The signed report's token link, once signed. */
+  reportToken: string | null;
+  signedAt: string | null;
+};
+
+export type PortalAftercare = {
+  jobs: AftercareJob[];
+  documents: Array<{ id: string; title: string; kind: string; expiresOn: string | null }>;
+  issues: Array<{ id: string; workOrderId: string; note: string; status: string; createdAt: string }>;
+  warrantyApproved: boolean;
+};
+
+/** Colours, warranty and documents data for proven account ids. The WO
+ * snapshot is the contractor-safe document (no customer pricing by
+ * construction) — only its areas/materials shapes are lifted out here. */
+export async function getPortalAftercare(accountIds: string[]): Promise<PortalAftercare> {
+  const empty: PortalAftercare = { jobs: [], documents: [], issues: [], warrantyApproved: false };
+  if (!accountIds.length) return empty;
+  const svc = createServiceClient();
+  if (!svc) return empty;
+
+  const { data: ests } = await svc
+    .from("estimates").select("id, title").in("account_id", accountIds);
+  const estById = new Map((ests ?? []).map((e) => [e.id as string, (e.title as string | null)?.trim() || "Your project"]));
+
+  const [wosRes, docsRes, termsRes, issuesRes] = await Promise.all([
+    estById.size
+      ? svc.from("work_orders")
+          .select("id, estimate_id, stage, wo_snapshot, colours")
+          .in("estimate_id", [...estById.keys()]).not("issued_at", "is", null)
+      : Promise.resolve({ data: [] }),
+    svc.from("company_documents").select("id, title, kind, expires_on")
+      .eq("active", true).order("created_at", { ascending: false }),
+    svc.from("settings").select("value").eq("key", "warranty_terms").maybeSingle(),
+    svc.from("warranty_issues").select("id, work_order_id, note, status, created_at")
+      .in("account_id", accountIds).order("created_at", { ascending: false }),
+  ]);
+
+  const woRows = (wosRes.data ?? []) as Array<{
+    id: string; estimate_id: string; stage: string;
+    wo_snapshot: { areas?: RegisterSnapshotArea[]; materials?: RegisterMaterial[] } | null;
+    colours: RegisterLiveColours;
+  }>;
+
+  let warranties: Array<{ work_order_id: string; starts_on: string; ends_on: string; years: number }> = [];
+  let signoffs: Array<{ work_order_id: string; signed_at: string | null; customer_token: string | null }> = [];
+  if (woRows.length) {
+    const woIds = woRows.map((w) => w.id);
+    const [w, s] = await Promise.all([
+      svc.from("warranties").select("work_order_id, starts_on, ends_on, years").in("work_order_id", woIds),
+      svc.from("wo_signoff").select("work_order_id, signed_at, customer_token").in("work_order_id", woIds),
+    ]);
+    warranties = (w.data ?? []) as typeof warranties;
+    signoffs = (s.data ?? []) as typeof signoffs;
+  }
+
+  const jobs: AftercareJob[] = woRows.map((w) => {
+    const warranty = warranties.find((x) => x.work_order_id === w.id);
+    const signoff = signoffs.find((x) => x.work_order_id === w.id);
+    return {
+      estimateId: w.estimate_id,
+      workOrderId: w.id,
+      title: estById.get(w.estimate_id) ?? "Your project",
+      stage: w.stage,
+      areas: w.wo_snapshot?.areas ?? [],
+      materials: w.wo_snapshot?.materials ?? [],
+      liveColours: w.colours ?? null,
+      warranty: warranty
+        ? { startsOn: warranty.starts_on, endsOn: warranty.ends_on, years: warranty.years }
+        : null,
+      reportToken: signoff?.signed_at ? signoff.customer_token : null,
+      signedAt: signoff?.signed_at ?? null,
+    };
+  });
+
+  return {
+    jobs,
+    documents: ((docsRes.data ?? []) as Array<{ id: string; title: string; kind: string; expires_on: string | null }>)
+      .map((d) => ({ id: d.id, title: d.title, kind: d.kind, expiresOn: d.expires_on })),
+    issues: ((issuesRes.data ?? []) as Array<{ id: string; work_order_id: string; note: string; status: string; created_at: string }>)
+      .map((i) => ({ id: i.id, workOrderId: i.work_order_id, note: i.note, status: i.status, createdAt: i.created_at })),
+    warrantyApproved: Boolean((termsRes.data?.value as { approved?: boolean } | null)?.approved),
+  };
+}
+
 /** Today as yyyy-mm-dd IN MELBOURNE — never toISOString (the CLAUDE.md
  * date rule: before 10am it silently reports yesterday). */
 export function melbourneTodayYmd(now = new Date()): string {

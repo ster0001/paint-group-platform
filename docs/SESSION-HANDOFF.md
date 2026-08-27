@@ -1,3 +1,36 @@
+# 27 Aug 2026 (late) — PORTAL 3a-5 SHIPPED (colours, Documents, warranty)
+
+Migration `20261129_portal_documents` (company_documents + private
+company-docs bucket + warranty_issues) — applied + proven on C1, AWAITS
+TOM ON PROD (paste script: docs/manual-tests/portal-3a5-aftercare.md).
+Inert-but-safe until run (aftercare queries degrade to empty; portal
+suite probe-skips).
+
+- Settings → Documents (DocumentsManager): certs w/ expiry + active
+  toggle + the warranty-terms approval tick (settings key warranty_terms
+  — DRAFT watermark until ticked).
+- PC console: expiringDocs amber banner (≤30 days, ⚑13) + warranty-issue
+  warning cards (buildQueue, clears on status=handled — no manual UI to
+  mark handled yet beyond SQL/staff table edit; small follow-up).
+- Portal: /account/colours = the register (lib/portal/colours.ts —
+  snapshot areas × materials × live match codes, TBC honest);
+  /account/documents = warranty card (warranties dates + countdown),
+  report-an-issue (photo-first → warranty_issues via service after
+  account-chain check), credential downloads (/account/document/[id],
+  active-only, anon=404), completion-report /s link, full §2 terms
+  (transfer clause renders "being finalised" — §8 undecided).
+- Gates: portal-aftercare 3/3 on C1 · portal-shell 4/4 live (stranger
+  test updated: Home now carries a .job-classed Documents link) · console
+  warranty card unit 2 · unit 996 · colours+documents screenshots sent.
+- ⚠ PRE-EXISTING red found: pc-console.spec.ts 2 tests (variation
+  quick-price) fail on C1 even at base commit — task chip spawned; NOT
+  from this session.
+- NEXT: 3a-6 (embedded estimate builder + multi-property: same wizard
+  components, prefill from property, logged-in skips email gate, AI
+  gates by account_type ⚑12 account-wide default, add-address flow).
+
+---
+
 # 27 Aug 2026 (evening) — PORTAL 3a-4 SHIPPED (the Project Timeline)
 
 /account/project is the day-by-day feed, NO migration. lib/portal/

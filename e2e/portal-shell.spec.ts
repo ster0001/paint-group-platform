@@ -97,6 +97,10 @@ test.describe("portal auth + shell (3a-2)", () => {
     await page.goto(await magicLinkFor(sb, strangerEmail));
     await expect(page).toHaveURL(/\/account$/);
     await expect(page.locator("h1")).toHaveText(/Welcome — let's get you a price/);
-    await expect(page.locator(".job")).toHaveCount(0);
+    // The only .job row is the account's own Documents link — no estimates,
+    // and certainly nobody else's.
+    await expect(page.locator(".job")).toHaveCount(1);
+    await expect(page.locator(".job")).toContainText("Your documents");
+    expect(await page.getByText(/Murrumbeena/).count()).toBe(0);
   });
 });

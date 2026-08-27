@@ -13,6 +13,8 @@ export type ConsoleData = {
   input: ConsoleInput;
   signedOffThisWeek: number;
   ticksByDay: Record<string, number>;
+  /** ⚑13: active company documents within 30 days of expiry (or past it). */
+  expiringDocs: Array<{ id: string; title: string; expires_on: string; daysLeft: number }>;
 };
 
 type WoRow = {
@@ -140,6 +142,25 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
     contractorName: a.contractors?.company_name ?? "The contractor",
   }));
 
+  // 3a-5: open warranty issues (tolerant — table lands with 20261129) and
+  // company documents whose expiry is near (⚑13's amber flag).
+  const [{ data: issueRows }, { data: docRows }] = await Promise.all([
+    supabase.from("warranty_issues")
+      .select("id, work_order_id, note, photo_paths, created_at").eq("status", "open"),
+    supabase.from("company_documents")
+      .select("id, title, expires_on").eq("active", true).not("expires_on", "is", null),
+  ]);
+  const warrantyIssues = ((issueRows ?? []) as {
+    id: string; work_order_id: string; note: string; photo_paths: string[] | null; created_at: string;
+  }[]).map((i) => ({
+    id: i.id, workOrderId: i.work_order_id, note: i.note,
+    photoCount: i.photo_paths?.length ?? 0, createdAt: i.created_at,
+  }));
+  const expiringDocs = ((docRows ?? []) as { id: string; title: string; expires_on: string }[])
+    .map((d) => ({ ...d, daysLeft: Math.floor((Date.parse(d.expires_on) - now.getTime()) / 86_400_000) }))
+    .filter((d) => d.daysLeft <= 30)
+    .sort((a, b) => a.daysLeft - b.daysLeft);
+
   // Cards a person closed off (Tom, 25 Aug) — permanent per key.
   const { data: dismissedRows } = await supabase
     .from("wo_events").select("meta").eq("type", "card_dismissed");
@@ -159,6 +180,7 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
       workOrders,
       dismissedKeys,
       expenseAsks,
+      warrantyIssues,
       offers: ((offers.data ?? []) as unknown as {
         id: string; work_order_id: string; state: string; expires_at: string;
         proposed_start_date: string | null; approval_due_at: string | null;
@@ -221,5 +243,9 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
     },
     signedOffThisWeek: (closed.data ?? []).length,
     ticksByDay,
+    // ⚑13: certificates within 30 days of expiry (or past it) — the console
+    // page shows these as an amber banner so a lapsed cert can never be the
+    // one on display.
+    expiringDocs,
   };
 }

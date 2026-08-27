@@ -67,6 +67,17 @@ export default async function AccountHomePage() {
         </>
       )}
 
+      <h2>Documents &amp; warranty</h2>
+      <Link href="/account/documents" className="job">
+        <div className="row">
+          <div>
+            <div className="addr">Your documents</div>
+            <div className="meta">Warranty card, our insurance certificates, completion reports</div>
+          </div>
+          <span className="chip mut nodot">Open</span>
+        </div>
+      </Link>
+
       <h2>Prefer to talk?</h2>
       <div className="card">
         <p className="sub" style={{ marginBottom: ctx.companyPhone ? 14 : 0 }}>

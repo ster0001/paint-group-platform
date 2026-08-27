@@ -1497,3 +1497,21 @@ original (§10.3). getPortalProject picks the customer's current WO by
 stage precedence and reads safe columns only; painter surfaces as first
 name. PhotoGrid client component = grid + full-screen lightbox. Proof:
 e2e/portal-timeline.spec.ts on live + 8 unit tests.
+
+## 27 Aug 2026 — Portal 3a-5: colours register, Documents, warranty
+Migration 20261129: company_documents (+ private company-docs bucket,
+staff-only storage policies) and warranty_issues (photo-first reports;
+account_id RESTRICT; written only by the server action after an
+account-chain ownership check). Settings → Documents (DocumentsManager):
+upload certs with expiry, active toggle, and the warranty-terms approval
+flag (settings key warranty_terms). PC console: loadConsole returns
+expiringDocs (≤30 days) rendered as an amber banner (⚑13), and open
+warranty_issues become warning cards (buildQueue warranty-issue:<id>,
+clearing when handled). Portal: /account/colours = the permanent register
+(lib/portal/colours.ts — snapshot areas × materials × live match codes;
+TBC honest, never invented; print = the PDF), /account/documents = live
+warranty card per job (warranties table dates + countdown), report-issue
+form (lib/uploads validation, photos to wo-photos/warranty/), credential
+downloads via /account/document/[id] (active-only, signed URLs, 404
+otherwise), completion-report link (/s token), and the full §2 terms
+DRAFT-watermarked until approved. Proof: portal-aftercare 3/3 on C1.

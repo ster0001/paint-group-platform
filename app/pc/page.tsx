@@ -22,7 +22,7 @@ const age = (hours: number) =>
 
 export default async function DashboardPage() {
   const supabase = await createClient();
-  const { input, signedOffThisWeek, ticksByDay } = await loadConsole(supabase);
+  const { input, signedOffThisWeek, ticksByDay, expiringDocs } = await loadConsole(supabase);
 
   const queue = buildQueue(input);
 
@@ -84,6 +84,22 @@ export default async function DashboardPage() {
           no stale boards.
         </p>
       </div>
+
+      {(expiringDocs ?? []).length > 0 && (
+        <div style={{
+          border: "1px solid rgba(224,168,60,.5)", background: "rgba(224,168,60,.08)",
+          borderRadius: 14, padding: "12px 16px", margin: "14px 0", fontSize: 14,
+        }}>
+          {(expiringDocs ?? []).map((d) => (
+            <div key={d.id} style={{ color: "var(--amber, #E0A83C)" }}>
+              ⚑ {d.title} {d.daysLeft < 0
+                ? `EXPIRED ${-d.daysLeft} day${d.daysLeft === -1 ? "" : "s"} ago`
+                : `expires in ${d.daysLeft} day${d.daysLeft === 1 ? "" : "s"}`} — customers can
+              see this certificate. Replace it in Settings → Documents.
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="pulse">
         <div className="tile">

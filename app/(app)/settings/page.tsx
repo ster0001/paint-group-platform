@@ -16,6 +16,7 @@ import { COST_INTAKE_KEY } from "@/lib/costs/intake";
 import { MESSAGING_KEY, type MessagingSettings as MessagingValues } from "@/lib/messaging/config";
 import ProductsManager, { type ProductRow } from "./ProductsManager";
 import ColoursManager, { type ColourRow } from "./ColoursManager";
+import DocumentsManager, { type CompanyDocRow } from "./DocumentsManager";
 import PresentationsManager, { type PresentationRow } from "./PresentationsManager";
 import { DEFAULT_INCLUSION_TEMPLATES, DEFAULT_EXCLUSION_TEMPLATES, INCLUSION_TEMPLATES_KEY, EXCLUSION_TEMPLATES_KEY, type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import { SCOPE_VERSION } from "@/lib/extract/scope";
@@ -69,6 +70,17 @@ export default async function SettingsPage() {
     (products as Array<{ name?: string | null }>).map((p) => (p.name ?? "").trim()).filter(Boolean),
   )].sort();
   const colours = (coloursRes.data as ColourRow[] | null) ?? [];
+  // 3a-5: company documents + the warranty approval flag. Tolerant reads —
+  // both degrade to empty until migration 20261129 runs.
+  const [companyDocsRes] = await Promise.all([
+    supabase.from("company_documents")
+      .select("id, title, kind, storage_path, expires_on, active")
+      .order("created_at", { ascending: false }),
+  ]);
+  const companyDocs = (companyDocsRes.data as CompanyDocRow[] | null) ?? [];
+  const warrantyApproved = Boolean(
+    ((settingsRes.data ?? []).find((r) => r.key === "warranty_terms")?.value as { approved?: boolean } | undefined)?.approved,
+  );
   const presentations = (presentationsRes.data as PresentationRow[] | null) ?? [];
   const usage: Record<string, number> = {};
   for (const e of ((estPresRes.data as { presentation_id: string | null }[] | null) ?? [])) if (e.presentation_id) usage[e.presentation_id] = (usage[e.presentation_id] ?? 0) + 1;
@@ -245,6 +257,10 @@ export default async function SettingsPage() {
 
       <SettingsFolder title="Colours" subtitle="Visual colour library for the colour picker — brand swatches + add your own" count={colours.length}>
         <ColoursManager initial={colours} />
+      </SettingsFolder>
+
+      <SettingsFolder title="Documents" subtitle="Credentials on display in every customer portal — insurance certificates with expiry, plus the warranty-terms approval switch" count={companyDocs.length}>
+        <DocumentsManager initialDocs={companyDocs} warrantyApproved={warrantyApproved} />
       </SettingsFolder>
 
       <SettingsFolder title="Presentations" subtitle="Capability/proof blocks injected into the estimate when ticked — video, before/after, reviews, capability" count={presentations.length}>

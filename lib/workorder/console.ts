@@ -55,6 +55,8 @@ export type ConsoleInput = {
     credit?: boolean; needsManualDeduction?: boolean; deductionCents?: number | null;
   }[];
   updates: { id: string; workOrderId: string; status: string; createdAt: string }[];
+  /** 3a-5: open "Report an issue" submissions from the customer portal. */
+  warrantyIssues?: { id: string; workOrderId: string; note: string; photoCount: number; createdAt: string }[];
   signoffs: {
     workOrderId: string; evidencePackSentAt: string | null; signedAt: string | null;
     extensionRequestedAt: string | null; extensionApprovedAt: string | null;
@@ -468,6 +470,22 @@ export function buildQueue(input: ConsoleInput): QueueCard[] {
       workOrderId: w.id,
       ageHours: hours - everyDays * 24,
       action: { label: "Write update", kind: "review", href: "/pc/updates" },
+    });
+  }
+
+  // 5f (3a-5). Warranty issue reported — the portal's photo-first form.
+  // One card per open row; marking it handled clears the card.
+  for (const issue of input.warrantyIssues ?? []) {
+    const snippet = issue.note.length > 90 ? `${issue.note.slice(0, 90)}…` : issue.note;
+    cards.push({
+      key: `warranty-issue:${issue.id}`,
+      severity: "warning",
+      title: "Warranty issue reported",
+      detail: `${snippet || "No description"} — reported through the portal${issue.photoCount ? ` with ${issue.photoCount} photo${issue.photoCount === 1 ? "" : "s"}` : ""}.`,
+      ref: label(issue.workOrderId),
+      workOrderId: issue.workOrderId,
+      ageHours: hoursBetween(issue.createdAt, now),
+      action: { label: "Look at it", kind: "warranty", href: `/pc/wo/${issue.workOrderId}` },
     });
   }
 

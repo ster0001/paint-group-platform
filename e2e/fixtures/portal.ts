@@ -58,5 +58,8 @@ export async function destroyAccountChain(sb: SupabaseClient, email: string) {
   }
   await sb.from("properties").delete().eq("account_id", accountId);
   await sb.from("account_users").delete().eq("account_id", accountId);
+  // 3a-5: warranty_issues.account_id is RESTRICT — clear them or the account
+  // delete fails silently and the fixture leaks.
+  await sb.from("warranty_issues").delete().eq("account_id", accountId);
   await sb.from("accounts").delete().eq("id", accountId);
 }
