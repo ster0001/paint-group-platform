@@ -2909,3 +2909,53 @@ selects `where is_active` is order-dependent, and a seed that installs reference
 data *after* those migrations silently loses their effect. Any future rate-card
 load has the same trap. Loading the card first, then replaying the migrations
 that touch it, is the only order that converges.
+
+
+## F1-02 follow-on 3 · The suite hits Supabase's anonymous sign-in burst limit
+
+With the data, flags and catalogue all correct, the journey suite gets deep into
+the run and then fails with the signature it started with:
+
+```
+<button disabled title="Connecting…" class="wz-btn wz-bp">Continue</button>
+```
+
+This one is **not** a seeding gap. It is a rate limit, and it has been diagnosed
+here before — `docs/SESSION-HANDOFF.md:1002`:
+
+> pending-indicator green on isolated rerun (its full-run failure was **the anon
+> sign-in burst limit at test #18**, root-caused via the disabled Continue
+> button)
+
+Every customer-journey spec establishes a fresh anonymous session, because
+CLAUDE.md requires the journey to run *as an anonymous customer*. Supabase caps
+anonymous sign-ins per hour per IP. A serial run of ~19 specs walks straight
+into it, and the app degrades exactly as designed — the Continue button stays
+disabled while the session never arrives — so the failure looks like a hang
+rather than a 429.
+
+**This is the fourth precondition in this batch to announce itself as a
+timeout.** The pattern is now the finding: every environmental limit in this
+stack expresses itself as *nothing happening*, and each one costs a full suite
+run to identify. A wizard that surfaced "couldn't start a session (rate
+limited)" instead of an indefinite "Connecting…" would have made all four
+diagnoses immediate — which is A4-04's four-states point, arriving with a price
+tag attached.
+
+**Options, in order of preference:**
+
+1. **Raise the anonymous sign-in rate limit on the C1 project** — Supabase
+   dashboard → Authentication → Rate Limits. The test project has no real users
+   and no abuse surface; the production limit should stay where it is.
+2. Reuse one anonymous session across specs that do not specifically test
+   session establishment. Faster, but weakens the "as an anonymous customer"
+   guarantee the law asks for.
+3. Retry with backoff on 429 in the wizard's session helper. Correct for
+   production too — a real customer on a shared IP (an apartment block, an
+   office) can hit this — but it is product work, not test setup.
+
+(1) unblocks CI today. (3) is worth its own ticket regardless: a paying customer
+who cannot start an estimate because a neighbour just did is a real, if rare,
+failure.
+
+*Outstanding:* Tom's action for (1).
