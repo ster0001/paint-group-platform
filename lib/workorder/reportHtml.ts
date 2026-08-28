@@ -13,13 +13,12 @@
  */
 
 import type { Report } from "@/app/s/[token]/CompletionReport";
+import { money } from "@/lib/format/money";
 
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-const money = (cents: number) =>
-  "$" + (cents / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const dateFmt = (d: string) =>
   new Date(d).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" });

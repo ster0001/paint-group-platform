@@ -1,3 +1,4 @@
+import { moneyAbs as money } from "@/lib/format/money";
 /**
  * The contractor's invoice TO Paint Group — rendered under THEIR company
  * details (entity snapshot pinned at submission), headed "TAX INVOICE" only
@@ -11,8 +12,6 @@ function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-const money = (cents: number) =>
-  "$" + (Math.abs(cents) / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export type CiPdfDeduction = { label?: string; cents?: number; note?: string };
 

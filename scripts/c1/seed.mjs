@@ -307,10 +307,23 @@ async function readback() {
   const cap = lim?.value?.maxEstimatesPerVisitor;
   if (typeof cap === "number" && cap < 50) missing.push(`wizard_limits.maxEstimatesPerVisitor (${cap} — the suite needs headroom)`);
 
+  // Anonymous sign-in is not a row, and checking only rows is how this readback
+  // passed while the suite could not start. CLAUDE.md's testing law is "as an
+  // ANONYMOUS customer" — if this is off, every customer-journey spec sits on a
+  // disabled Continue button reading "Connecting…" until it times out.
+  //
+  // It is a project setting, not data: Supabase dashboard → Authentication →
+  // Sign In / Providers → Anonymous sign-ins. No SQL can fix it, which is
+  // exactly why it needs naming here rather than being discovered from a
+  // three-minute timeout.
+  const anon = createClient(url, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+  const { error: anonErr } = await anon.auth.signInAnonymously();
+  if (anonErr) missing.push(`ANONYMOUS SIGN-IN is off (${anonErr.message}) — enable it in the Supabase dashboard, Authentication → Sign In / Providers`);
+
   if (missing.length === 0) {
-    console.log("\nReadback: every table the wizard needs has rows ✅");
+    console.log("\nReadback: every table the wizard needs has rows, and anonymous sign-in works ✅");
   } else {
-    console.log(`\nReadback: STILL EMPTY — ${missing.join(", ")}`);
+    console.log(`\nReadback: NOT READY —\n  - ${missing.join("\n  - ")}`);
     console.log("e2e/customer-journey will TIME OUT against this project, not fail fast.");
     process.exitCode = 1;
   }

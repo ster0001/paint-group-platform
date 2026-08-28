@@ -202,8 +202,7 @@ export const JOB_STATUS_CHIP: Record<string, { cls: string; label: string }> = {
   complete: { cls: "gry", label: "Completed" },
 };
 
-export const money = (cents: number | null | undefined) =>
-  cents == null ? "—" : "$" + (cents / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 });
+export { money0OrDash as money } from "@/lib/format/money";
 
 export const shortDate = (iso: string | null) =>
   iso

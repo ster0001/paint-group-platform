@@ -2792,3 +2792,78 @@ server is up; it does not prove it is *your* server.
 
 *Cost:* fixed, minutes. Worth copying wherever a script starts a server and
 then waits for a port.
+
+
+---
+
+# F3-01 · The four money documents have no tests at all — High
+
+Found while migrating A2-03's formatters, by asking whether a green suite
+actually exercised the files just changed. It did not.
+
+| Module | Produces | Test files importing it |
+|---|---|---:|
+| `lib/invoicing/receiptHtml.ts` | the customer's **receipt** | **0** |
+| `lib/invoicing/contractorInvoiceHtml.ts` | the **contractor invoice / RCTI** | **0** |
+| `lib/invoicing/remittanceHtml.ts` | the **remittance advice** | **0** |
+| `lib/workorder/reportHtml.ts` | the **completion report** | **0** |
+
+These are the documents the business sends out. They are rendered to PDF
+(`lib/invoicing/pdf.ts`), stored, and emailed. Every figure on them is money,
+and nothing asserts any of it.
+
+The 1,047-test suite passes whatever these produce. `npm test` going green
+after a change to them is not evidence about them — which is the same trap as
+A1-06 (skips), A2-04 (a contract test greping migration text) and A4-01 (a test
+asserting the default path against itself). It is the recurring shape of this
+codebase's test estate: **checks that verify something adjacent to the thing
+they appear to verify.**
+
+*Why it survived:* the invoicing suite tests `lib/invoicing/ledger.ts`, `gst.ts`,
+`variation.ts` and the state machines — the *arithmetic*. The rendering layer
+between correct arithmetic and the customer's eye is untested, and that is
+where A2-03's 36 divergent formatters lived.
+
+*Fix:* snapshot-style tests over each builder with a fixed fixture, asserting
+the money lines and the totals. They are pure functions of their input — no
+database, no clock — so they are cheap to test and there is no reason they
+weren't.
+
+*Cost:* 0.5 session. Do it **with** A2-03's migration, not after: those tests
+are what would catch a formatter swapped for the wrong variant.
+
+
+## F1-02 follow-on · Anonymous sign-in is disabled on the test project
+
+The seeded data got the wizard rendering — Step 1 of 5 appears, the address and
+basics load, the room rules resolve. The suite still fails, one layer further
+in:
+
+```
+<button disabled title="Connecting…" class="wz-btn wz-bp">Continue</button>
+```
+
+Confirmed directly:
+
+```
+TEST project anonymous sign-in: ❌ 422 Anonymous sign-ins are disabled
+```
+
+CLAUDE.md's testing law is *"as an ANONYMOUS customer"*, so every
+customer-journey spec begins by establishing an anonymous session. Without it
+they sit on that disabled button until they time out.
+
+**This is a project setting, not data.** Supabase dashboard → Authentication →
+Sign In / Providers → **Anonymous sign-ins**. No SQL or seed script can set it,
+which is precisely why it needed naming rather than being inferred from a
+three-minute timeout — the third time in this batch a precondition announced
+itself as a hang instead of a message.
+
+The readback in `scripts/c1/seed.mjs` now attempts an anonymous sign-in and
+names this exact remedy when it fails, alongside `C1_SEED_VERIFY_ONLY=1` for
+asking "is the test project ready?" without writing anything. Checking only
+rows is what let it pass while the suite could not start.
+
+**Outstanding — Tom's action, one toggle.** Until then the CI e2e job stays
+scoped to `wo-rls`, `account-rls` and `ledger-parity`, and CLAUDE.md's
+customer-journey law remains unenforceable in CI.

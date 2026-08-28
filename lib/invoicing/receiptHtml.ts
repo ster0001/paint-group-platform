@@ -6,13 +6,12 @@
  */
 
 import { fromIncTotal } from "./gst";
+import { money } from "@/lib/format/money";
 
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-const money = (cents: number) =>
-  "$" + (cents / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const METHOD_LABEL: Record<string, string> = {
   stripe_card: "Card (online)",

@@ -3,6 +3,7 @@ import { emailConfigured, sendEmail, sendSms, smsConfigured } from "@/lib/messag
 import { normalisePhoneAU } from "@/lib/messaging/config";
 import { reportError } from "@/lib/monitoring/report";
 import { siteUrl } from "./pdf";
+import { money } from "@/lib/format/money";
 
 /**
  * SERVER ONLY — the invoice send pipeline, behind the platform's existing
@@ -22,8 +23,6 @@ function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-const money = (cents: number) =>
-  "$" + (cents / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const longDay = (iso: string | null) =>
   iso

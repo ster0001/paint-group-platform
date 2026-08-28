@@ -1,3 +1,4 @@
+import { moneyAbs as money } from "@/lib/format/money";
 /**
  * The remittance advice — Paint Group telling the contractor "we've paid you":
  * amount, date, bank reference, and the make-up of the figure (offer +
@@ -11,8 +12,6 @@ function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-const money = (cents: number) =>
-  "$" + (Math.abs(cents) / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export type RemittanceDeduction = { label?: string; cents?: number; note?: string; manual?: boolean };
 
