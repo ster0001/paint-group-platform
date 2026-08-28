@@ -216,6 +216,34 @@ async function seedRateCard() {
     const after = await client.query(
       "select count(*)::int n from rate_items ri join rate_cards rc on rc.id = ri.rate_card_id where rc.is_active");
     console.log(`+ rate card v7 loaded (${after.rows[0].n} active items)`);
+
+    // ORDERING TRAP. Five migrations add or reprice rate items, and every one
+    // of them selects its target with `join rate_cards c on c.is_active`. They
+    // ran long before this script loaded v7, when the active card was the
+    // 3-item stub above — so they matched almost nothing and their rows were
+    // never created. The card ends up looking complete (48 items) while the
+    // Extras, Cabinetry, Allowances and half the Cladding rows are simply
+    // absent.
+    //
+    // That is not cosmetic: lib/wizard/add-catalogue.ts derives the customer's
+    // add-panel chips FROM THE CARD, so a missing row is a chip that never
+    // appears, and the journey spec waiting for it times out after four
+    // minutes. It cost a full suite run to find.
+    //
+    // Re-applying them here, with v7 active, is the fix. All five are written
+    // idempotent (the repo's rule), so this converges.
+    for (const f of ["20260919000000_brick_substrate.sql",
+                     "20260920000000_cabinetry_rates.sql",
+                     "20260921000000_exterior_extras_rates.sql",
+                     "20260922000000_real_extras_prices.sql",
+                     "20260925000000_unpainted_brick.sql"]) {
+      try {
+        await client.query(readFileSync(resolve(process.cwd(), "supabase/migrations", f), "utf8"));
+      } catch (e) { console.log(`~ re-apply ${f}: ${e.message.split("\n")[0]}`); }
+    }
+    const full = await client.query(
+      "select count(*)::int n from rate_items ri join rate_cards rc on rc.id = ri.rate_card_id where rc.is_active");
+    console.log(`+ rate-item migrations re-applied onto v7 (${full.rows[0].n} items)`);
     // Two active cards would make pricing pick one arbitrarily. The stub this
     // script may have created earlier must stand down.
     const act = await client.query("select count(*)::int n from rate_cards where is_active");
@@ -289,6 +317,10 @@ async function readback() {
   const need = {
     room_type_defaults: 1, room_type_scope_rules: 1, measurement_units: 1,
     defect_prep_rates: 1, sundries: 1, modifiers: 1, products: 1,
+    // 55+ means the rate-item migrations landed on v7. A bare v7 is 48, which
+    // renders a wizard whose add panel is missing whole categories — the exact
+    // state that timed out a journey run.
+    rate_items: 55,
   };
   const missing = [];
   for (const [table, min] of Object.entries(need)) {

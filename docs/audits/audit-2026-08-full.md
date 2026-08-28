@@ -2867,3 +2867,45 @@ rows is what let it pass while the suite could not start.
 **Outstanding — Tom's action, one toggle.** Until then the CI e2e job stays
 scoped to `wo-rls`, `account-rls` and `ledger-parity`, and CLAUDE.md's
 customer-journey law remains unenforceable in CI.
+
+
+## F1-02 follow-on 2 · The rate card was seeded, but half of it never arrived
+
+The seeded card reported 48 items and looked complete. It was missing whole
+categories — Extras, Cabinetry, Allowances, and half of Cladding.
+
+**Why.** Five migrations add or reprice rate items, and every one selects its
+target with `join public.rate_cards c on c.is_active`:
+
+```
+20260919000000_brick_substrate.sql      20260922000000_real_extras_prices.sql
+20260920000000_cabinetry_rates.sql      20260925000000_unpainted_brick.sql
+20260921000000_exterior_extras_rates.sql
+```
+
+They ran long before the seed loaded v7, when the active card was the 3-item
+C1 stub. So they matched almost nothing, their rows were never created, and
+nothing complained — an insert that matches no rows is not an error.
+
+**Why it mattered.** `lib/wizard/add-catalogue.ts` derives the customer's
+add-panel chips FROM THE CARD, deliberately: *"a row that is not on the card is
+offered NOWHERE (never a silent $0)."* A missing row is therefore a chip that
+never renders, and the journey spec waiting for `+ Air vent` timed out after
+four minutes. **It cost a full suite run to find something a row count answers
+instantly** — the same shape as the wizard_public default, and the third
+ordering trap in this batch.
+
+**Fix.** `scripts/c1/seed.mjs` re-applies those five after loading v7, when the
+right card is finally active. All five are idempotent, per the repo's rule, so
+this converges. The readback now requires **≥55 active rate items**: a bare v7
+is 48, which renders a wizard whose add panel is missing whole categories —
+present, plausible, and wrong.
+
+Item count after the fix: **60**, with Extras (6), Cabinetry (3), Allowances (2)
+and Cladding (6) all restored.
+
+**The general lesson, which is worth more than the fix:** a migration that
+selects `where is_active` is order-dependent, and a seed that installs reference
+data *after* those migrations silently loses their effect. Any future rate-card
+load has the same trap. Loading the card first, then replaying the migrations
+that touch it, is the only order that converges.
