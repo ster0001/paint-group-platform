@@ -37,6 +37,17 @@ import pg from "pg";
 import { loadTestEnv, refuseProduction } from "./env.mjs";
 
 loadTestEnv();
+
+/**
+ * `C1_SEED_VERIFY_ONLY=1` runs the readback WITHOUT writing anything — "is the
+ * test project ready?" as a question rather than an action.
+ *
+ * It also makes the readback testable. Without it the seed fixes the state and
+ * then checks it, so the check can never fail and proves nothing — which is
+ * how the first version of this readback passed while wizard_public was
+ * {enabled:false}.
+ */
+const VERIFY_ONLY = process.env.C1_SEED_VERIFY_ONLY === "1";
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !key) {
@@ -211,7 +222,7 @@ async function seedRateCard() {
     if (act.rows[0].n > 1) console.log(`~ WARNING: ${act.rows[0].n} active rate cards — pricing is ambiguous`);
   } finally { await client.end(); }
 }
-await seedRateCard();
+if (VERIFY_ONLY) console.log("~ verify-only: not seeding"); else await seedRateCard();
 
 // ---------------------------------------------------------------------------
 // The wizard's room rules, units and the wizard_public flag (F1-02).
@@ -240,7 +251,33 @@ function seedWizardReference() {
     console.log(`~ wizard reference failed: ${(e.stdout || e.message || "").toString().split("\n").slice(-3).join(" ")}`);
   }
 }
-seedWizardReference();
+if (!VERIFY_ONLY) seedWizardReference();
+
+// ---------------------------------------------------------------------------
+// The extraction seed writes the LAUNCH-SAFE defaults — wizard_public
+// {enabled:false} and maxEstimatesPerVisitor 2 — which are right for
+// production and wrong here. A test stack whose public wizard is off serves
+// every customer-journey spec the holding page ("Online estimates are nearly
+// here"), and they time out waiting for a wizard that will never render. The
+// visitor cap matters too: the suite drives many journeys from one identity
+// and would be refused after the second.
+//
+// This is the C1 project. Nothing here is customer-facing.
+// ---------------------------------------------------------------------------
+async function openTheWizard() {
+  const pub = await service.from("settings")
+    .upsert({ key: "wizard_public", value: { enabled: true } }, { onConflict: "key" });
+  if (pub.error) { console.log(`~ wizard_public: ${pub.error.message}`); return; }
+
+  const { data: lim } = await service.from("settings").select("value").eq("key", "wizard_limits").maybeSingle();
+  const limits = { ...(lim?.value ?? {}), maxEstimatesPerVisitor: 500 };
+  const l = await service.from("settings")
+    .upsert({ key: "wizard_limits", value: limits }, { onConflict: "key" });
+  console.log(l.error
+    ? `~ wizard_limits: ${l.error.message}`
+    : "+ wizard opened for testing (public ON, visitor cap 500)");
+}
+if (!VERIFY_ONLY) await openTheWizard();
 
 // ---------------------------------------------------------------------------
 // Readback. A seed that reports success without checking is how the wizard
@@ -258,8 +295,17 @@ async function readback() {
     const { count } = await service.from(table).select("id", { count: "exact", head: true });
     if ((count ?? 0) < min) missing.push(`${table} (${count ?? 0})`);
   }
-  const { data: pub } = await service.from("settings").select("key").eq("key", "wizard_public").maybeSingle();
-  if (!pub) missing.push("settings.wizard_public");
+  // Presence is not the question — VALUE is. The first version of this check
+  // asked only whether the key existed, and passed while wizard_public was
+  // {enabled:false}, which serves every journey spec the holding page. A check
+  // that verifies the wrong thing is worse than no check: it reports success.
+  const { data: pub } = await service.from("settings").select("value").eq("key", "wizard_public").maybeSingle();
+  if (!pub) missing.push("settings.wizard_public (absent)");
+  else if (pub.value?.enabled !== true) missing.push(`settings.wizard_public (enabled=${pub.value?.enabled})`);
+
+  const { data: lim } = await service.from("settings").select("value").eq("key", "wizard_limits").maybeSingle();
+  const cap = lim?.value?.maxEstimatesPerVisitor;
+  if (typeof cap === "number" && cap < 50) missing.push(`wizard_limits.maxEstimatesPerVisitor (${cap} — the suite needs headroom)`);
 
   if (missing.length === 0) {
     console.log("\nReadback: every table the wizard needs has rows ✅");
