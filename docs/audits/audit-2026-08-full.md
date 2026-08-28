@@ -1528,7 +1528,7 @@ failure; point a monitor at it alongside A4-03.
 | ID | Severity | Finding | Est. |
 |---|---|---|---|
 | A4-01 | High | Contractor payment basis untested — **FIXED in F0, mutation now caught** | done |
-| A4-03 | High | No error monitor wired; nothing alerts a human | 0.5 |
+| A4-03 | High | No error monitor — **FIXED (provider-agnostic)** | done |
 | A4-02 | Med | Golden fixtures pin the rate card but not business settings | 0.5 |
 | A4-04 | Low | 5 of 75 async components with no failure surface | 0.25 |
 | A4-05 | Low | Health check is a page, not a JSON endpoint | 0.25 |
@@ -3011,3 +3011,61 @@ cannot save at all · and the real Settings screen adds a row, saves, shows
 The second is the one that matters. A happy-path save proves the RPC works;
 only a deliberate mid-batch failure proves it is atomic, and atomicity is the
 entire reason it exists.
+
+
+---
+
+# A4-03 · FIXED — errors now reach a human
+
+`reportError` had been the one reporting seam since the first audit, adopted by
+37 files. It wrote to `console` and stopped, which on Vercel is a log nobody
+reads.
+
+**§8.6 is still open, so this picks no vendor.** `lib/monitoring/deliver.ts`
+posts a compact JSON payload to `ERROR_WEBHOOK_URL` — a Slack or Discord
+incoming webhook, a collector, anything that speaks HTTP. No dependency, no
+lock-in, five minutes to point somewhere real. When a provider is chosen, that
+one file is where it plugs in; the 37 call sites do not change.
+
+**Unset, nothing happens** — console only, exactly as before. So this is inert
+until Tom points it somewhere, which is the right default for a change landing
+without its decision made.
+
+## The three properties that make it safe to have at all
+
+A monitor that breaks the thing it monitors is worse than none.
+
+| Property | How |
+|---|---|
+| Never throws | try/catch plus `.catch(() => {})` on the promise |
+| Never blocks | fire-and-forget, 2-second `AbortController` timeout |
+| Never carries PII or money | keys matching email/phone/address/name/token/bsb/amount/cents/price are redacted; values stringified and capped at 200 chars |
+
+The third one is the audit answering itself. A4 recorded that the PII rule was
+*"written down and nothing enforces it"* — `ErrorContext.extra` says "never put
+customer PII or money in here" and nothing checked. Now something does, as a
+second line behind the documented rule, because a documented rule and an
+enforced one are different things.
+
+## Verified
+
+12 tests, and the two guards mutation-checked rather than assumed:
+
+| Mutation | Result |
+|---|---|
+| Remove the redaction | ✅ 1 failed |
+| Remove the try/catch | ✅ 1 failed |
+
+Including a test that an id (`estimateId`) survives while an email does not —
+an id identifies a row, not a person, and over-redacting would make the reports
+useless.
+
+## Still Tom's
+
+**§8.6** — provider and budget. This satisfies §7's criterion (*monitoring that
+alerts a human*) with a webhook, which is enough to stop failures being silent.
+A real provider adds grouping, release tagging, source maps and history, and
+remains worth doing.
+
+*Do not point `ERROR_WEBHOOK_URL` at a public channel* — reports carry a code
+path and an error message.

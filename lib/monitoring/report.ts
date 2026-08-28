@@ -6,8 +6,10 @@
  * every non-fatal failure in the app calls `reportError`, and wiring a real
  * monitor later is a change to THIS FILE only, not to twenty call sites.
  *
- * To wire Sentry up: install `@sentry/nextjs`, add the DSN to the environment,
- * and call `Sentry.captureException(error, { extra })` in the marked spot below.
+ * A4-03: it now DELIVERS as well as logs. Set `ERROR_WEBHOOK_URL` to a Slack or
+ * Discord incoming webhook (or any HTTP collector) and failures reach a person.
+ * That is deliberately provider-agnostic — §8.6 is still open — and
+ * `lib/monitoring/deliver.ts` is the single file a real provider plugs into.
  *
  * Why this exists at all: the audit found nine silent catches. Most were
  * deliberately best-effort — view tracking, expiry sweeps — and those are fine
@@ -15,6 +17,8 @@
  * missing migration can break a feature for weeks with nothing to see. A
  * best-effort call should still leave a trace.
  */
+
+import { deliver } from "./deliver";
 
 export type ErrorContext = {
   /** Where it happened, in words a person can search for: "estimate.signature". */
@@ -44,8 +48,16 @@ export function reportError(error: unknown, context: ErrorContext): void {
     if (context.bestEffort) console.warn(line, context.extra ?? "");
     else console.error(line, context.extra ?? "", error);
 
-    // ---- wire the error monitor in here -----------------------------------
-    // Sentry.captureException(error, { tags: { where: context.where }, extra: context.extra });
+    // ---- and out to a human (A4-03) ---------------------------------------
+    // No-op until ERROR_WEBHOOK_URL is set, so this changes nothing until it is
+    // pointed somewhere. When §8.6 picks a provider, lib/monitoring/deliver.ts
+    // is the one file that changes — the 37 call sites do not.
+    deliver({
+      where: context.where,
+      message: errorMessage(error),
+      bestEffort: Boolean(context.bestEffort),
+      extra: context.extra ?? {},
+    });
   } catch {
     // Reporting failed. There is nowhere left to report that to.
   }
