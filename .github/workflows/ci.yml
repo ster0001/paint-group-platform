@@ -29,6 +29,14 @@ jobs:
           cache: npm
       - run: npm ci
 
+      # Next GENERATES the route/layout types (LayoutProps, PageProps) into
+      # .next/types. A clean checkout has none, so tsc fails with "Cannot find
+      # name 'LayoutProps'" — which is exactly how CI run #1 failed while the
+      # same command passed locally, on a working tree that still had .next
+      # from an earlier build. typegen does it without a full build.
+      - name: Generate Next route types
+        run: npx next typegen
+
       - name: Typecheck
         run: npx tsc --noEmit
 
