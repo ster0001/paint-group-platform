@@ -1753,7 +1753,7 @@ Both gaps are recorded rather than glossed; neither is a claim of a problem.
 
 | ID | Severity | Finding | Est. |
 |---|---|---|---|
-| A5-02 | High | `wo_photos` newest-24 seq-scans 500k rows — **migration written in F0, awaiting paste** | done |
+| A5-02 | High | `wo_photos` newest-24 seq-scans 500k rows — **LIVE IN PRODUCTION 28 Aug**, `indisvalid=true` | done |
 | A5-01 | High | PC console reads `work_orders` + `wo_events` unbounded — ~1.4s DB time | 1 |
 | A5-03 | High | Nightly sweep does one RPC per job — 2,000 sequential calls today | 1 |
 | A5-04 | Med | No pagination anywhere; `.range()` in zero files | 2 |
@@ -1999,7 +1999,7 @@ exists, so the upgrade has a gate to prove itself against.
 
 | ID | Severity | Finding | Est. |
 |---|---|---|---|
-| A6-01 | High | Real BSB/account and a personal mobile hard-coded in `company.ts` — **FIXED in F0** | done |
+| A6-01 | High | Real BSB/account and a personal mobile hard-coded in `company.ts` — **FIXED in F0**; production `company_profile` verified complete (15/15 keys) 28 Aug | done |
 | A6-04 | High | No evidence a restore has ever been performed — **ask Tom** | 0.5 |
 | A6-02 | Med | Tenancy retrofit: 83 tables, 141 policies, 177 RPCs — **~14 sessions** | 14 |
 | A6-03 | Med | Australian assumptions: GST, zone, locale, 50 km bias | folds in |
@@ -2343,7 +2343,7 @@ Branch `fix/f1-ci-gates`. The batch everything else depends on.
 | A1-06 | Missing credentials now **fail** CI instead of skipping |
 | A1-07 | Production tripwire on **every** e2e entry point |
 | A1-03 | Test project at head — **120 / 120** |
-| A5-02 | Index applied and measured — **590× faster** |
+| A5-02 | Index applied and measured — **590× faster**; live in production 28 Aug |
 | **new** | F1-01: the suite's first confirmed flaky test, found and fixed |
 
 ## F0-01 — the three lint errors
@@ -2425,6 +2425,13 @@ secrets are in.
 | Execution | 134.7ms warm / 1,704ms cold | **0.229ms** |
 
 Index size 3.4 MB, `indisvalid = true`.
+
+**Applied to production 28 August 2026**, readback confirmed `is_valid = true`.
+Note for the 68 index candidates in F7: the Supabase SQL editor sends a
+selection as ONE multi-statement query, which Postgres wraps in an implicit
+transaction — so `CONCURRENTLY` must be executed on its own, separately from
+its readback. The same trap broke `apply-migrations.mjs` until it was taught to
+send statements individually.
 
 ## Tooling: `-- @no-transaction` migrations
 
