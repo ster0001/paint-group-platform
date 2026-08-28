@@ -2547,3 +2547,92 @@ restored afterwards; restoration verified, spec green again.
   adopt it is a separate decision, not one this batch should take.
 - It runs in the **e2e** CI job, so it needs the repository secrets. Until those
   are added it does not guard anything.
+
+
+---
+
+# F1-02 · The test project is provisioned for money, not for the wizard — High
+
+Found 28 August by CI run #6 — the first run where the e2e job could actually
+execute.
+
+## What happened
+
+The e2e job ran `e2e/customer-journey` alongside the RLS and parity specs.
+`account-rls` passed 7/7, then `batch-edits.spec.ts` sat at a **3-minute
+timeout per test**. 49 tests on a single worker; the run was cancelled after
+~10 minutes rather than let it burn an hour.
+
+## Why
+
+The C1 test project was stood up for the **invoicing/money** suite —
+`run-e2e.sh` still defaults to `stripe-live.spec.ts`. The wizard's reference
+data was never seeded there:
+
+| | Test project |
+|---|---:|
+| `wizard_public` setting | **absent** |
+| `sundries` | **0** |
+| `measurement_units` | **0** |
+| `room_type_defaults` | **0** |
+| `room_type_scope_rules` | **0** |
+| `defect_prep_rates` | **0** |
+| `rate_items` | 3 |
+| `modifiers` | 1 |
+
+The wizard cannot render a room without room types, scope rules or units, so
+the specs wait for elements that will never appear.
+
+## Why this matters more than a slow job
+
+CLAUDE.md's testing law is explicit:
+
+> every fix/feature PR STARTS by writing the failing e2e spec … **as an
+> anonymous customer** … The customer-journey suite (`e2e/customer-journey/`)
+> must be green before any merge.
+
+**That law cannot currently be enforced anywhere except Tom's machine**, which
+runs against the production project. The suite that the standards single out as
+mandatory is the one suite CI cannot run — and nobody knew, because until run
+#6 the e2e job had never got past its secrets guard.
+
+That is the audit's own thesis playing out: A1-06 said a green e2e result meant
+little; the sharper version is that the *most important* specs were not running
+at all.
+
+## Sub-finding: the skip guards are inconsistent
+
+`response-contract.spec.ts:61` skips cleanly when the wizard is unavailable:
+
+```ts
+test.skip(held > 0, "wizard_public is off — enable it (or run as staff) …");
+```
+
+`batch-edits.spec.ts` has no such guard and times out instead. Within one suite,
+the same missing precondition produces a graceful skip in one file and a
+3-minute hang in another. Both behaviours are wrong under CI, but the hang is
+worse — it costs an hour to learn what a row count answers instantly.
+
+## Fix
+
+1. Extend `scripts/c1/seed.mjs` to seed the wizard's reference data —
+   `room_type_defaults`, `room_type_scope_rules`, `measurement_units`,
+   `sundries`, `defect_prep_rates`, a fuller `rate_items` — and to set
+   `wizard_public`. The rate card already has a generator
+   (`supabase/seed/generate-ratecard-seed.mjs`); this is extending an existing
+   path, not inventing one.
+2. Add a precondition check in the customer-journey suite that **fails fast**
+   with the missing table named, rather than timing out.
+3. Only then add `e2e/customer-journey` back to the CI list — after running it
+   on the C1 stack, which is precisely the step I skipped.
+
+*Severity High:* the standards' mandatory suite is unenforceable in CI until
+this lands.
+*Cost:* 1 session.
+
+## Meanwhile
+
+The CI e2e job now runs only what has been **verified** on the C1 stack:
+`wo-rls.spec.ts`, `account-rls.spec.ts`, `ledger-parity.spec.ts`. That is
+cross-role isolation and the money ledger — worth having, and honestly labelled
+as less than the law requires.
