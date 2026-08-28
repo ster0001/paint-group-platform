@@ -32,6 +32,31 @@ if (!url) {
 }
 refuseProduction(url);
 
+/**
+ * Split a `-- @no-transaction` migration into individual statements.
+ *
+ * Deliberately simple, because such a file is deliberately simple: an index
+ * build plus its readback. Anything with a `$$` body (a function, a do block)
+ * is refused rather than split wrongly — those belong in a normal
+ * transactional migration anyway.
+ */
+function splitStatements(sql) {
+  if (sql.includes("$$")) {
+    throw new Error(
+      "a @no-transaction migration must not contain a $$ body — " +
+        "put functions and do-blocks in a normal (transactional) migration",
+    );
+  }
+  const withoutComments = sql
+    .split("\n")
+    .filter((l) => !/^\s*--/.test(l))
+    .join("\n");
+  return withoutComments
+    .split(";")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
 const MIG = resolve(process.cwd(), "supabase/migrations");
 const files = readdirSync(MIG).filter((f) => f.endsWith(".sql")).sort();
 
@@ -48,12 +73,34 @@ let ran = 0;
 for (const file of files) {
   if (applied.has(file)) continue;
   const sql = readFileSync(join(MIG, file), "utf8");
-  process.stdout.write(`applying ${file} … `);
+
+  // Some statements CANNOT run inside a transaction — CREATE INDEX
+  // CONCURRENTLY is the one that matters here, and it matters a lot: the
+  // non-concurrent form takes an ACCESS EXCLUSIVE lock, which on wo_photos
+  // (500k rows, 143 MB) would block every write for the duration of the
+  // build. A migration opts out by declaring it on its first lines:
+  //
+  //   -- @no-transaction
+  //
+  // Such a file gets no rollback, so keep it to ONE statement that is safe to
+  // re-run — `create index concurrently if not exists`. A failed CONCURRENTLY
+  // build leaves an INVALID index behind; the migration's own readback is
+  // what catches that, which is why they end with one.
+  const noTx = /^\s*--\s*@no-transaction\b/m.test(sql.slice(0, 2000));
+  process.stdout.write(`applying ${file}${noTx ? " (no transaction)" : ""} … `);
   try {
-    await client.query("begin");
-    await client.query(sql);
-    await client.query("insert into public._c1_migrations (filename) values ($1)", [file]);
-    await client.query("commit");
+    if (noTx) {
+      // A multi-statement string is ONE simple query, and Postgres wraps those
+      // in an implicit transaction — which is the very thing CONCURRENTLY
+      // refuses. So send each statement on its own.
+      for (const stmt of splitStatements(sql)) await client.query(stmt);
+      await client.query("insert into public._c1_migrations (filename) values ($1)", [file]);
+    } else {
+      await client.query("begin");
+      await client.query(sql);
+      await client.query("insert into public._c1_migrations (filename) values ($1)", [file]);
+      await client.query("commit");
+    }
     console.log("ok");
     ran += 1;
   } catch (e) {

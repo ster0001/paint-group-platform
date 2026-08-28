@@ -1,0 +1,128 @@
+# CI — the gate the August 2026 audit found missing entirely (A1-05).
+#
+# Two jobs:
+#   gate  typecheck + lint + unit tests. No secrets, runs everywhere, fast.
+#   e2e   the real browser against the TEST Supabase project. Needs secrets.
+#
+# `gate` is the one to mark "required" in branch protection today. Add `e2e`
+# as required once its secrets are in (see the job's guard step).
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: typecheck · lint · unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      # CLAUDE.md: "lint and typecheck must pass before any commit". Errors are
+      # zero and must stay zero. The warning cap is a RATCHET, not a target —
+      # it was 23 when CI landed (F1). Lower it when you clear some; never
+      # raise it. Raising it is how 23 becomes 200.
+      - name: Lint (0 errors, warnings ratcheted at 23)
+        run: npx eslint --max-warnings 23
+
+      - name: Unit tests
+        run: npm test
+
+      # The money paths are meant to be mutation-tested (audit P6). This is the
+      # cheap standing version: break a pricing constant, prove the suite
+      # notices. If this step ever PASSES, the pricing suite has stopped
+      # testing pricing.
+      - name: Mutation canary — pricing must be defended
+        run: |
+          cp lib/pricing/engine.ts /tmp/engine.bak
+          sed -i 's/1 + 0\.75 \* (coats - 1)/1 + 0.70 * (coats - 1)/' lib/pricing/engine.ts
+          if npx vitest run lib/pricing >/dev/null 2>&1; then
+            cp /tmp/engine.bak lib/pricing/engine.ts
+            echo "::error::Mutating the marginal-coat rule did not fail any test."
+            echo "The pricing suite is not testing what it claims. See docs/audits/audit-2026-08-full.md (P6)."
+            exit 1
+          fi
+          cp /tmp/engine.bak lib/pricing/engine.ts
+          echo "Pricing mutation was caught — suite is live."
+
+  e2e:
+    name: e2e (test project)
+    runs-on: ubuntu-latest
+    needs: gate
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+
+      # Fail with instructions rather than skipping. A skipped e2e job that
+      # reports green is exactly the failure mode A1-06 describes: 160
+      # conditional skips meant a passing run could assert almost nothing.
+      - name: Check the e2e secrets are configured
+        env:
+          URL: ${{ secrets.E2E_SUPABASE_URL }}
+        run: |
+          if [ -z "$URL" ]; then
+            echo "::error::e2e secrets are not configured, so this job cannot run."
+            echo "Add these repository secrets — TEST project only, never production:"
+            echo "  E2E_SUPABASE_URL  E2E_SUPABASE_ANON_KEY  E2E_SERVICE_ROLE_KEY"
+            echo "  E2E_STAFF_EMAIL  E2E_STAFF_PASSWORD"
+            echo "  E2E_CONTRACTOR_EMAIL  E2E_CONTRACTOR_PASSWORD"
+            echo "  E2E_CUSTOMER_EMAIL  E2E_CUSTOMER_PASSWORD"
+            echo "Values are in .env.test.local. Until then, remove 'e2e' from"
+            echo "required checks — do NOT make this job skip silently."
+            exit 1
+          fi
+
+      - run: npx playwright install --with-deps chromium
+
+      - name: Build (test stack env baked in, as a deploy would)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SITE_URL: http://localhost:3101
+        run: npm run build
+
+      - name: Customer journey + role RLS
+        env:
+          CI: "1"
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
+          E2E_STAFF_EMAIL: ${{ secrets.E2E_STAFF_EMAIL }}
+          E2E_STAFF_PASSWORD: ${{ secrets.E2E_STAFF_PASSWORD }}
+          E2E_CONTRACTOR_EMAIL: ${{ secrets.E2E_CONTRACTOR_EMAIL }}
+          E2E_CONTRACTOR_PASSWORD: ${{ secrets.E2E_CONTRACTOR_PASSWORD }}
+          E2E_CUSTOMER_EMAIL: ${{ secrets.E2E_CUSTOMER_EMAIL }}
+          E2E_CUSTOMER_PASSWORD: ${{ secrets.E2E_CUSTOMER_PASSWORD }}
+          E2E_BASE_URL: http://localhost:3101
+          NEXT_PUBLIC_SITE_URL: http://localhost:3101
+        # CI=1 makes e2e/global-setup.ts turn a missing credential into a failed
+        # run instead of a silent skip, and it still refuses production.
+        run: |
+          npx next start -p 3101 &
+          for i in $(seq 1 60); do curl -sf -o /dev/null http://localhost:3101/login && break; sleep 1; done
+          npx playwright test e2e/customer-journey e2e/wo-rls.spec.ts e2e/account-rls.spec.ts
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7

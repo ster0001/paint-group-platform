@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { requestClaimAction } from "./actions";
 
@@ -22,6 +22,42 @@ export type ClaimableJob = {
  * The preview is display-only — the server recomputes and bounds; the claim
  * is born submitted and the PDF renders behind the response.
  */
+/**
+ * What this claim would come to, in cents — or null while the form is not yet
+ * answerable. Pure: same inputs, same number, no clock and no state.
+ *
+ * It lives outside the component because the React Compiler could not preserve
+ * the `useMemo` this replaces: `job` is derived during render, so the compiler
+ * refused to optimise the whole component (F1, lint error 3 of 3). A plain
+ * function needs no memo — the compiler handles it — and the arithmetic stops
+ * sitting inside a component, which is the direction A2-01 wants anyway.
+ *
+ * The server still bounds the money. This only decides what the contractor
+ * sees before they submit.
+ */
+function claimPreviewCents(
+  job: { adjustedCents: number } | null,
+  mode: string,
+  items: readonly { label: string; dollars: string }[],
+  dollars: string,
+  customPct: string,
+  remaining: number,
+): number | null {
+  if (!job) return null;
+  if (mode === "items") {
+    const sum = items.reduce((n, r) => n + (Number(r.dollars) > 0 ? Math.round(Number(r.dollars) * 100) : 0), 0);
+    const complete = items.length > 0 && items.every((r) => r.label.trim() && Number(r.dollars) > 0);
+    return complete && sum > 0 ? sum : null;
+  }
+  if (mode === "fixed") {
+    const d = Number(dollars);
+    return Number.isFinite(d) && d > 0 ? Math.round(d * 100) : null;
+  }
+  const pct = mode === "custom" ? Number(customPct) : Number(mode);
+  if (!Number.isFinite(pct) || pct <= 0 || pct > 100) return null;
+  return Math.min(Math.round((job.adjustedCents * pct) / 100), remaining);
+}
+
 export default function RequestClaim({ jobs, defaultOpen = false, heading = "Invoice Paint Group" }: {
   jobs: ClaimableJob[];
   /** Open the form immediately (the per-job card on the job screen). */
@@ -47,21 +83,7 @@ export default function RequestClaim({ jobs, defaultOpen = false, heading = "Inv
   const job = claimable.find((j) => j.workOrderId === jobId) ?? (claimable.length === 1 ? claimable[0] : null);
   const remaining = job ? job.adjustedCents - job.invoicedCents : 0;
 
-  const previewCents = useMemo(() => {
-    if (!job) return null;
-    if (mode === "items") {
-      const sum = items.reduce((n, r) => n + (Number(r.dollars) > 0 ? Math.round(Number(r.dollars) * 100) : 0), 0);
-      const complete = items.length > 0 && items.every((r) => r.label.trim() && Number(r.dollars) > 0);
-      return complete && sum > 0 ? sum : null;
-    }
-    if (mode === "fixed") {
-      const d = Number(dollars);
-      return Number.isFinite(d) && d > 0 ? Math.round(d * 100) : null;
-    }
-    const pct = mode === "custom" ? Number(customPct) : Number(mode);
-    if (!Number.isFinite(pct) || pct <= 0 || pct > 100) return null;
-    return Math.min(Math.round((job.adjustedCents * pct) / 100), remaining);
-  }, [job, mode, customPct, dollars, items, remaining]);
+  const previewCents = claimPreviewCents(job, mode, items, dollars, customPct, remaining);
 
   const overRemaining = (mode === "fixed" || mode === "items") && previewCents != null && previewCents > remaining;
 

@@ -512,7 +512,7 @@ and the service key cannot tell you.
 | ID | Severity | Finding | Disposition | Est. |
 |---|---|---|---|---|
 | A1-05 | High | No CI at all | fix | 1 |
-| A1-06 | High | 160 conditional e2e skips; green ≠ executed | fix | 1–1.5 |
+| A1-06 | High | 160 conditional e2e skips — **FIXED in F1 (CI fails loudly)** | fix | 1–1.5 |
 | A1-01 | Medium | `QuoteBuilder.tsx` 3,272 lines | split (after A2) | 2–3 |
 | A1-02 | Medium | 8 tables no code touches | **ask Tom** + prod row check | 0.5 |
 | A1-03 | Medium | Test project behind head (2 gcal tables) | fix | 0.25 |
@@ -2080,11 +2080,11 @@ A4-01 is the only untested money path in the system. Both are effectively free.
 ### F1 · CI and the gates — 2.5 sessions ⭐ highest leverage
 | ID | Sev | Finding |
 |---|---|---|
-| A1-05 | High | No CI at all — nothing blocks a merge |
-| A1-06 | High | 160 conditional e2e skips; green ≠ executed |
-| A1-07 | Med | `npm run test:e2e` has no production tripwire |
-| A1-03 | Med | Test project behind head (`20261201000000_gcal_sync.sql`) |
-| A4-01 | High | Contractor payment basis untested |
+| A1-05 | High | No CI at all — **FIXED in F1** |
+| A1-06 | High | 160 conditional e2e skips — **FIXED in F1 (CI fails loudly)** |
+| A1-07 | Med | No production tripwire — **FIXED in F1 (globalSetup)** |
+| A1-03 | Med | Test project behind head — **FIXED in F1 (120/120)** |
+| A4-01 | High | Contractor payment basis untested — **FIXED in F0** |
 
 *Everything below is unsafe to attempt before this batch lands.* §5 says so and
 A5's experience confirms it: a green e2e line meant little until the skip count
@@ -2328,3 +2328,114 @@ during render, which is a real bug class, not a style nit.
 
 *Fix:* in **F1**, before the CI workflow lands.
 *Cost:* 0.5 session.
+
+
+---
+
+# F1 — CI and the gates (28 August 2026)
+
+Branch `fix/f1-ci-gates`. The batch everything else depends on.
+
+| Finding | Outcome |
+|---|---|
+| F0-01 | Lint errors **3 → 0** |
+| A1-05 | `.github/workflows/ci.yml` — typecheck, lint, unit, mutation canary, e2e |
+| A1-06 | Missing credentials now **fail** CI instead of skipping |
+| A1-07 | Production tripwire on **every** e2e entry point |
+| A1-03 | Test project at head — **120 / 120** |
+| A5-02 | Index applied and measured — **590× faster** |
+| **new** | F1-01: the suite's first confirmed flaky test, found and fixed |
+
+## F0-01 — the three lint errors
+
+| File | Rule | Fix |
+|---|---|---|
+| `app/portal/jobs/[id]/page.tsx:68` | `react-hooks/purity` — `Date.now()` in render | `requestNowMs()` |
+| `app/(app)/settings/page.tsx:134` | same | `requestNowMs()` |
+| `app/portal/money/RequestClaim.tsx:64` | `react-hooks/preserve-manual-memoization` | manual `useMemo` removed |
+
+New: `lib/time/requestClock.ts`. `React.cache()` makes the clock **stable for
+one request**, so every caller in a render sees the same instant — an offer
+cannot be live at the top of a page and expired at the bottom. That satisfies
+the purity rule properly rather than hiding the call from the linter.
+
+`RequestClaim.tsx`'s `useMemo` depended on `job`, derived during render, so the
+compiler refused to optimise the whole component. The arithmetic moved to a
+module-level pure function — no memo needed, and money maths leaves a component,
+which is where A2-01 wants it anyway.
+
+## F1-01 · The first confirmed flaky test — fixed
+
+`lib/gcal/gcal.test.ts` failed once during this batch. It was not caused by any
+F1 change — nothing here touches gcal.
+
+```ts
+expect(verifyState("secret", state.slice(0, -1) + "0")).toBe(false);
+```
+
+The MAC is hex. When it already ended in `"0"`, the "tampered" state was
+byte-identical to the original, and `verifyState` was **right** to accept it.
+A test bug, not a product bug — the signing code is sound.
+
+Measured before fixing: **3 failures in 20 runs**. After: **0 in 30**.
+
+This is the finding A4 recorded as *not assessable* — "flakiness is a property
+of repeated runs, and with no CI there are no repeated runs to look at." It
+surfaced the moment the suite was run in anger. Once CI runs the suite on every
+push, this class stops hiding.
+
+## The CI gate
+
+`gate` (no secrets, blocks merge today): typecheck · `eslint --max-warnings 23`
+· `npm test` · **mutation canary**.
+
+The canary breaks the marginal-coat rule and requires the pricing suite to
+notice. **If that step ever passes, the pricing suite has stopped testing
+pricing.** It is the standing, cheap version of P6's mutation check, and it was
+verified both ways locally.
+
+The warning cap of 23 is a **ratchet, not a target** — lower it when warnings
+are cleared, never raise it.
+
+`e2e` (needs secrets): builds with the test stack's env and runs the
+customer-journey suite plus both RLS specs, with `CI=1` so a missing credential
+is a failure.
+
+### ⚠ Tom: the `e2e` job fails until its secrets exist
+
+Deliberate. A job that skipped itself and reported green is precisely A1-06.
+Add these repository secrets from `.env.test.local` — **test project only**:
+
+```
+E2E_SUPABASE_URL  E2E_SUPABASE_ANON_KEY  E2E_SERVICE_ROLE_KEY
+E2E_STAFF_EMAIL  E2E_STAFF_PASSWORD
+E2E_CONTRACTOR_EMAIL  E2E_CONTRACTOR_PASSWORD
+E2E_CUSTOMER_EMAIL  E2E_CUSTOMER_PASSWORD
+```
+
+Mark **`gate`** required in branch protection now; add **`e2e`** once the
+secrets are in.
+
+## A5-02 — measured, not assumed
+
+| | Before | After |
+|---|---|---|
+| Plan | Parallel Seq Scan, 500,000 rows | Index Scan |
+| Buffers | 8,622 | **4** |
+| Execution | 134.7ms warm / 1,704ms cold | **0.229ms** |
+
+Index size 3.4 MB, `indisvalid = true`.
+
+## Tooling: `-- @no-transaction` migrations
+
+`CREATE INDEX CONCURRENTLY` cannot run in a transaction, and the applier wrapped
+every file in one. Dropping `CONCURRENTLY` was the wrong answer — the plain form
+takes an ACCESS EXCLUSIVE lock, which on `wo_photos` (500k rows, 143 MB) blocks
+every photo write while it builds.
+
+`scripts/c1/apply-migrations.mjs` now honours a `-- @no-transaction` marker on
+the first lines of a file, sending each statement separately (a multi-statement
+simple query is itself an implicit transaction — the first fix was not enough).
+Files containing `$$` are refused rather than split wrongly.
+
+**F7 has 68 more index candidates.** They will all want this.

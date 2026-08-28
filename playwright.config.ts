@@ -15,10 +15,15 @@ import { defineConfig, devices } from "@playwright/test";
  *   E2E_STAFF_EMAIL      / E2E_STAFF_PASSWORD        a staff login
  *
  * A spec whose credentials are missing SKIPS with a message rather than failing,
- * so a partial setup gives a partial result instead of a wall of red.
+ * so a partial setup gives a partial result instead of a wall of red — LOCALLY.
+ * Under CI that behaviour is a lie (a green run that asserted nothing), so
+ * e2e/global-setup.ts turns a missing credential into a failed run instead.
+ * It also refuses to start if the target is the production project.
  */
 export default defineConfig({
   testDir: "./e2e",
+  // Production tripwire + the CI credential assertion (audit A1-06 / A1-07).
+  globalSetup: "./e2e/global-setup.ts",
   fullyParallel: false, // they share one database; keep them in order
   forbidOnly: Boolean(process.env.CI),
   retries: 0,

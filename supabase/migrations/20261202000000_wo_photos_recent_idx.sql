@@ -1,3 +1,4 @@
+-- @no-transaction
 -- =====================================================================
 -- A5-02 · The board's "newest photos across every job" query was reading
 -- the whole photo table.
@@ -23,9 +24,13 @@
 --   134ms warm, 1,704ms cold — the single most expensive operation on the
 --   busiest staff screen, growing linearly with the fastest-growing table.
 --
--- CONCURRENTLY so it cannot lock the table on a live database. That means
--- this statement CANNOT run inside a transaction block — run this file on
--- its own, not wrapped in begin/commit.
+-- CONCURRENTLY so it cannot lock the table on a live database. The
+-- non-concurrent form takes an ACCESS EXCLUSIVE lock, which on this table
+-- would block every photo write while it builds.
+--
+-- CONCURRENTLY cannot run inside a transaction block, hence the
+-- `-- @no-transaction` marker on line 1, which scripts/c1/apply-migrations.mjs
+-- honours. Pasting by hand: run this file on its own, NOT inside begin/commit.
 -- =====================================================================
 
 create index concurrently if not exists wo_photos_recent_idx
