@@ -29,7 +29,7 @@ describe("renderTemplate", () => {
 
 describe("normalisePhoneAU", () => {
   it("converts a local mobile with spaces", () => {
-    expect(normalisePhoneAU("0422 453 136")).toBe("+61422453136");
+    expect(normalisePhoneAU("0491 570 006")).toBe("+61491570006");
   });
   it("passes through E.164", () => {
     expect(normalisePhoneAU("+61422453136")).toBe("+61422453136");

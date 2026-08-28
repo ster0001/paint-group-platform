@@ -30,22 +30,44 @@ export type Contact = {
 };
 export type JobAddress = { address: string; city: string; state: string; postal: string };
 
+/**
+ * The SHAPE of a company profile, not a company.
+ *
+ * A6-01 (audit 2026-08-28): this constant used to carry Paint Group's real
+ * ABN, street address, bank name, BSB, account number and the director's
+ * personal mobile — committed to the repo, against two CLAUDE.md rules
+ * ("bank/payment details ... displayed masked" and "no secrets, keys, or real
+ * customer data in the repo").
+ *
+ * The real values live in `settings.company_profile`, which every reader
+ * already spreads OVER this object:
+ *
+ *   { ...DEFAULT_COMPANY, ...(settings.company_profile ?? {}) }
+ *
+ * so behaviour is unchanged once that row is populated — and a licensee gets
+ * their own letterhead by writing their own row, not by editing this file
+ * (A6-02, tenancy ruling (b)).
+ *
+ * PREREQUISITE: `settings.company_profile` must be fully populated before this
+ * ships, or the estimate and invoice letterheads render blank. See
+ * docs/manual-tests/f0-company-settings.md.
+ */
 export const DEFAULT_COMPANY: CompanyProfile = {
-  name: "Paint Group",
-  addressLine1: "25/25-35 Bunney Road",
-  addressLine2: "Oakleigh South, VIC 3167",
-  phone: "03 8840 9414",
-  abn: "41 639 780 108",
+  name: "",
+  addressLine1: "",
+  addressLine2: "",
+  phone: "",
+  abn: "",
   logoUrl: "",
   logoUrlLight: "",
-  estimatorName: "Tom Roman",
-  estimatorTitle: "Director",
-  estimatorPhone: "0422 453 136",
-  email: "info@paintgroup.com.au",
-  bankName: "ENLVN Pty Ltd",
-  bsb: "063-143",
-  acc: "1064 4591",
-  bank: "Commonwealth Bank",
+  estimatorName: "",
+  estimatorTitle: "",
+  estimatorPhone: "",
+  email: "",
+  bankName: "",
+  bsb: "",
+  acc: "",
+  bank: "",
 };
 export const EMPTY_CONTACT: Contact = {
   first_name: "", last_name: "", company: "", email: "", phone: "", address: "", city: "", state: "", postal: "",
