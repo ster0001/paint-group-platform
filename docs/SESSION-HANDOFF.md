@@ -1,4 +1,52 @@
+# ⚑ Live settings of record — production
+
+**Why this section exists.** On 28 August 2026 a seed script wrote to production
+by accident (F1-03) and overwrote five `settings` rows. Two were recoverable
+because a single line buried at :1015 of this file happened to record them:
+
+> `wizard_public` ON (noindex). `wizard_limits.maxEstimatesPerVisitor=500`
+> (proving window — DROP TO 2 AT LAUNCH)
+
+The other three were not recorded anywhere, so nobody can say whether they
+changed. **That asymmetry is the whole argument for this section.** A restore is
+only as good as the record you restore from, and a record buried in a session
+narrative is one nobody thinks to search.
+
+Keep this table current whenever a live setting is deliberately changed. It
+costs one line and it is the difference between a five-minute fix and a guess.
+
+| Key | Live value | Set because | Confirmed |
+|---|---|---|---|
+| `wizard_public` | `{"enabled": true}` | Proving window; noindex. Drop to `false` only if the public route is pulled. | 28 Aug 2026 |
+| `wizard_limits.maxEstimatesPerVisitor` | `500` | Proving window. **DROP TO 2 AT LAUNCH.** | 28 Aug 2026 |
+| `wizard_limits.holdMessage` | *not captured* | — | — |
+| `service_area.postcodes` | *not captured* — currently `[]` | An empty list means the area check is not configured, which is allowed. Unknown whether it was ever populated. | — |
+| `wizard_bands` | *not captured* — currently the seed defaults | `{tightMin:90, tightPct:4, midMin:70, midPct:8, widePct:15}` | — |
+| `wizard_policy` | *not captured* — currently the seed defaults | `{minAccuracyPctToAccept:80, smallJobMinAccuracyPct:90, smallJobThresholdCents:700000, walkthroughAlwaysAboveCents:1500000}` | — |
+
+**To fill the gaps**, run this against production and paste the output into the
+table above:
+
+```sql
+select key, jsonb_pretty(value) from public.settings
+ where key in ('wizard_public','wizard_limits','wizard_bands','wizard_policy',
+               'service_area','invoicing','invoicing_entity','invoicing_bank','wo_loop')
+ order by key;
+```
+
+If a row reads as the seed default and you never set it deliberately, write
+"seed default" rather than leaving it blank — "unknown" and "default" are
+different states, and only one of them needs restoring.
+
+**Seed scripts can no longer do this by accident.** All five that write now go
+through `scripts/seed-target.mjs`: production is refused unless
+`SEED_ALLOW_PRODUCTION=1`, and every run prints the project it resolved before
+it writes anything.
+
+---
+
 # 27 Aug 2026 (final) — cert on display, warranty CERTIFICATE, demo customer (main @ 87f8478, PUSHED/DEPLOYED)
+
 
 Everything through the phase-3a close-out is LIVE. This last batch:
 - Tom's real $20M certificate of currency uploaded to company-docs and on

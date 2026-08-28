@@ -1613,3 +1613,44 @@ reassign touches — and quote OfferPanel resolve); after() hooks in
 moveBooking/reassignOffer actions and setFinishDate; the nightly wo-sweep
 reconciles everyone connected as the backstop. Setup: docs/gcal-setup.md;
 manual script docs/manual-tests/gcal-sync.md; unit tests lib/gcal/gcal.test.ts.
+
+## Audit remediation — F0/F1 (28 August 2026)
+
+The August 2026 full audit (`docs/audits/audit-2026-08-full.md`, P0–P10) and its
+first fix batches. Four things entered the architecture rather than merely
+changing code.
+
+**CI is now the gate.** `.github/workflows/ci.yml` runs typecheck, `eslint
+--max-warnings 23` (a ratchet — lower it, never raise it), the unit suite, and a
+**mutation canary** that breaks the marginal-coat rule and requires the pricing
+suite to notice. If that step ever passes, pricing has stopped testing pricing.
+A second job runs the e2e specs verified on the C1 stack. `main` requires the
+first job to pass.
+
+**One clock per request.** `lib/time/requestClock.ts` wraps `Date.now()` in
+`React.cache()`, so every caller inside one server render sees the same instant.
+Server components were reading the clock inline while deciding whether an offer
+had expired — an offer could be live at the top of a page and expired at the
+bottom. Client components take the time as a prop; the server stays the one
+clock.
+
+**One money formatter.** `lib/format/money.ts` replaces 36 divergent
+definitions. Two behaviours are deliberate and differ from what it replaces: both
+fraction-digit ends are pinned (two of the 36 allowed a third decimal), and the
+minus sign goes *outside* the dollar sign — all 36 rendered `$-1,234.56`, which
+is wrong everywhere money is written down and showed on credits and contractor
+deductions.
+
+**Seed scripts declare their target.** `scripts/seed-target.mjs` is now the only
+way a seed script resolves a database. `process.env` wins, `.env.local` is the
+fallback, production is refused without `SEED_ALLOW_PRODUCTION=1`, and the
+resolved project ref is printed before anything is written. Five scripts
+previously hard-coded production and wrote to it — three of them creating auth
+users, which is the likeliest source of production's test-data contamination
+(A3-09). See F1-03.
+
+Two guards worth knowing about because they fail loudly on purpose:
+`e2e/global-setup.ts` refuses to run the e2e suite against the production ref
+and, under CI, turns a missing credential into a failed run rather than a silent
+skip; and `scripts/c1/seed.mjs` ends with a readback that names any table the
+wizard needs that is still empty. That readback is what caught F1-03.
