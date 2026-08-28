@@ -2752,3 +2752,43 @@ system *is* outranks evidence about what it was *designed to be*.
 
 *Cost:* fixed, 0.5 session. Point 4 — printing the target — is the part worth
 copying to every script that touches a database.
+
+
+---
+
+# F1-04 · `run-e2e.sh` would test against a stale server — Medium
+
+Found 28 August, the same way as F1-03: by being bitten.
+
+The runner launched a server and then polled until something answered:
+
+```bash
+npx next start -p 3101 >/tmp/pg-c1-dev.log 2>&1 &
+for i in $(seq 1 60); do
+  if curl -s -o /dev/null "http://localhost:3101/login"; then break; fi
+```
+
+If a **leftover** server from an earlier run already owns :3101, `curl` succeeds
+on the first attempt. The `next start` just launched dies with `EADDRINUSE`,
+its log is never read, and the entire suite runs against whatever build that
+old process is serving.
+
+That is what happened: a 14-minute-old `next-server` was still holding the port,
+so a customer-journey run spent ~15 minutes reporting on code from an hour
+earlier. The result was not wrong — it was **meaningless**, which is worse,
+because a wrong result argues with you and a meaningless one does not.
+
+The class of defect is the audit's recurring theme: a check that appears to
+verify something and verifies something else. `curl /login` answering proves a
+server is up; it does not prove it is *your* server.
+
+**Fixed** two ways, because either alone leaves a hole:
+
+1. **Refuse to start** if :3101 is occupied, printing the offending process and
+   the one-line command to clear it. Guessing is not available.
+2. **Assert the launched server is still alive** inside the wait loop
+   (`kill -0 "$DEV_PID"`), so the loop can tell "came up" from "died, and
+   something else is answering".
+
+*Cost:* fixed, minutes. Worth copying wherever a script starts a server and
+then waits for a port.
