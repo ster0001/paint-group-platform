@@ -1,5 +1,47 @@
 # Full codebase audit — August 2026
 
+> ## STATE OF PLAY — 28 August 2026, end of the fix sessions
+>
+> **Audit:** all passes P0–P10 complete. **46 findings, 0 Criticals.**
+> **Fixed:** 12 of 18 Highs, plus 6 findings that only appeared once things ran.
+>
+> ### Shipped and verified
+>
+> | | |
+> |---|---|
+> | **CI exists and blocks merges** | typecheck · lint (ratcheted at 23) · 1,063 unit tests · a mutation canary on pricing · e2e on the test stack |
+> | **The money paths are defended** | ledger twins diffed (SQL drift now caught), contractor pay basis tested, the four money documents tested, settings saved in one transaction |
+> | **The board's worst query** | index live in production — 8,622 buffers → 4 |
+> | **Secrets and seeds** | bank details out of the repo; five seed scripts can no longer write to production by accident |
+> | **Errors reach a human** | provider-agnostic webhook, PII-redacting, mutation-tested |
+>
+> ### Waiting on Tom
+>
+> 1. **Restore drill** (A6-04) — backups exist since 28 Aug; none has been restored
+> 2. **Anon sign-in rate limit** on the C1 project — unblocks the customer-journey suite in CI
+> 3. **§8.6** — a real monitoring provider (a webhook covers it meanwhile)
+> 4. **§8.2** — Sydney: second tenant or region? Sets the timing of the tenancy phase
+>
+> ### Deliberately deferred past 8 November
+>
+> A2-01 (58 browser writes — staff-only RLS, largest remaining diff) · A3-01
+> (token expiry) · A5-01 / A5-03 (**both measured against the 25k-row test seed;
+> production has ~70 estimates, so these are future-scale, not today**) · every
+> Medium and Low · all of tenancy (~14 sessions).
+>
+> ### The one thing to carry forward
+>
+> Nearly every finding in this audit — and every one found while fixing — has
+> the same shape: **a check that appears to verify something and verifies
+> something adjacent.** Skips that pass without running, a contract test that
+> greps migration text, a test asserting the default against itself, a readback
+> checking a key exists rather than its value, `curl` proving *a* server is up
+> rather than *yours*, `FOUND` left true by an earlier statement.
+>
+> Six of those were mine, caught only by insisting on watching each check fail
+> before trusting it pass. That habit is worth more than any single fix here.
+
+
 Against `docs/briefs/claude-code-brief-full-audit.md` (not in the repo — see A0)
 and `CLAUDE.md`. **Read-only. No fixes applied, nothing deleted.**
 
