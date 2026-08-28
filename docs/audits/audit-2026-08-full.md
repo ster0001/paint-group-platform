@@ -1951,20 +1951,51 @@ That is A1-03 pinned to a single file — the gcal migration, live in production
 never applied to test. The mechanism works; it was simply not re-run after the
 27–28 August gcal work.
 
-### A6-04 · No evidence of a backup or a restore drill — High
+### A6-04 · Backups now provisioned; restore still untested — High
 
-Supabase takes managed backups on paid plans, so backups very likely exist. What
-does not exist anywhere in the repo is evidence that **a restore has ever been
-performed**. The brief is blunt about why that matters: *"An untested backup is
-a hope."*
+**Updated 28 August 2026.** Two facts, and only one of them has changed.
 
-Nothing here can settle it — it is an account-console fact, not a code fact.
+| | Status |
+|---|---|
+| Backups exist | ✅ **Supabase plan upgraded 28 Aug specifically for this** |
+| A restore has been performed | ❌ **never** — confirmed by Tom |
 
-*Ask Tom:* what is the backup schedule and retention on the production project,
-and has a restore ever been run end to end? If not, the drill is: restore
-production to a scratch project, run the orphan queries from P5 against it, and
-write down how long it took.
-*Cost:* 0.5 session once answered.
+The upgrade closes the half that was missing infrastructure, and it was the
+half that needed money rather than time. What remains needs neither: it needs
+someone to actually try it once.
+
+The brief's phrasing is the whole point — *"An untested backup is a hope."* A
+backup that has never been restored is an assumption about file formats,
+extension compatibility, row-level security definitions, storage objects and
+auth users, none of which has been checked. Restores fail for dull reasons, and
+the moment you discover which one is not the moment you need the data.
+
+**The drill — half a session, and it closes this finding for good:**
+
+1. Supabase → production → Database → Backups. **Record the schedule and
+   retention window** in this document; a retention period nobody can quote is
+   not a plan.
+2. Restore the most recent backup into a **new scratch project**. Never over
+   production, and never into the C1 test project — that one has to stay a
+   known quantity.
+3. Against the restored copy, run the orphan queries from P5 and the table
+   inventory from P0. They should match production's shape. This is what proves
+   the restore is *usable*, not merely that it completed.
+4. Check the things a backup most often misses: `auth.users`, storage bucket
+   **objects** (not just the bucket rows), and whether the 177 SECURITY DEFINER
+   functions came back with their `search_path` settings intact.
+5. **Write down how long it took**, end to end.
+
+Step 5 is the actual deliverable. "We have backups" is a hope; "we restored one
+on 28 August, it took 40 minutes, and here is what we checked" is a recovery
+plan — and it is what a licensing buyer's technical due diligence asks for by
+name (§8.8).
+
+*Severity stays High until step 5 exists.* Not because the risk is unchanged —
+it is materially lower than this morning — but because the finding is about
+*evidence*, and there is not yet any.
+
+*Cost:* 0.5 session.
 
 ### A6-05 · No rollback plan — Medium
 
@@ -2000,7 +2031,7 @@ exists, so the upgrade has a gate to prove itself against.
 | ID | Severity | Finding | Est. |
 |---|---|---|---|
 | A6-01 | High | Real BSB/account and a personal mobile hard-coded in `company.ts` — **FIXED in F0**; production `company_profile` verified complete (15/15 keys) 28 Aug | done |
-| A6-04 | High | No evidence a restore has ever been performed — **ask Tom** | 0.5 |
+| A6-04 | High | Backups now provisioned (28 Aug); **restore still untested** | 0.5 |
 | A6-02 | Med | Tenancy retrofit: 83 tables, 141 policies, 177 RPCs — **~14 sessions** | 14 |
 | A6-03 | Med | Australian assumptions: GST, zone, locale, 50 km bias | folds in |
 | A6-05 | Med | No rollback plan for a bad migration | 0.25 |
@@ -2095,7 +2126,7 @@ was read alongside it.
 |---|---|---|
 | A3-01 | High | Estimate, invoice, WO and crew tokens never expire |
 | A6-01 | High | Real BSB/account + personal mobile in `company.ts` |
-| A6-04 | High | No evidence a restore has ever been performed — **ask Tom** |
+| A6-04 | High | Backups provisioned 28 Aug; restore still untested |
 | A3-02 | Med | No magic-byte validation on uploads |
 | A3-03 | Med | Estimate property photos in a world-readable bucket |
 | A3-05 | Low | 3 server actions take untrusted input without zod |
@@ -2229,7 +2260,7 @@ not due-diligence material.
 ## Three questions still with Tom
 
 1. **§8.6** — error-monitoring provider and budget. Blocks A4-03.
-2. **A6-04** — backup schedule, retention, and has a restore ever been run?
+2. **A6-04** — backups provisioned 28 Aug ✅; the restore drill and its retention window are still outstanding.
 3. **A1-10** — which design files are the "v4/v5 hero" and the "flat-table PC console"?
 
 Plus **§8.3** (pause feature work during fixes, or interleave?), **§8.5**
