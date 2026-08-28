@@ -1,5 +1,6 @@
 "use client";
 
+import { saveSettingsRows } from "./rowActions";
 import { Fragment, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { acceptAttr, checkUpload } from "@/lib/uploads/validate";
@@ -76,30 +77,41 @@ export default function EditableTable({
     setBusy(true);
     setMsg("");
     setRowErr({});
-    const supabase = createClient();
-    let saved = 0;
-    const failures: Record<string | number, string> = {};
-    for (const r of toSave) {
-      try {
-        if (r.__new) {
-          const { data, error } = await supabase.from(table).insert(payload(r)).select().single();
-          if (error) throw error;
-          const nrow = moneyToDollars(data as Row);
-          setRows((rs) => rs.map((x) => (rid(x) === rid(r) ? nrow : x)));
-        } else {
-          const { error } = await supabase.from(table).update(payload(r)).eq("id", r.id!);
-          if (error) throw error;
-        }
-        saved++;
-      } catch (e) {
-        failures[rid(r)] = e instanceof Error ? e.message : "Save failed";
-      }
-    }
+
+    // A2-02: ONE call, one transaction. This used to loop here — an insert or
+    // update per dirty row, each its own round trip — so a failure partway left
+    // the rate card half saved with no rollback. Either every row lands or none
+    // does, and the server boundary validates before the database sees it.
+    const result = await saveSettingsRows({
+      table,
+      rows: toSave.map((r) => {
+        const p = payload(r) as Record<string, unknown>;
+        // A new row carries no id; an existing one must, so the RPC can tell
+        // insert from update.
+        if (!r.__new && r.id) p.id = r.id;
+        return p;
+      }),
+    });
+
     setBusy(false);
-    setRowErr(failures);
-    setDirty(new Set(Object.keys(failures).map((k) => (Number.isNaN(Number(k)) ? k : Number(k)))));
-    const failCount = Object.keys(failures).length;
-    setMsg(failCount ? `Saved ${saved}, ${failCount} failed — see the rows marked in red.` : `Saved ${saved} ✓`);
+
+    if (!result.ok) {
+      // The whole batch failed, so every dirty row is still dirty — marking one
+      // row red would misrepresent what happened.
+      setMsg(`Nothing was saved — ${result.error}`);
+      return;
+    }
+
+    // Give the newly inserted rows their ids so a second save updates rather
+    // than inserting again.
+    const newIds = [...result.newIds];
+    setRows((rs) => rs.map((x) => {
+      if (!toSave.some((t) => rid(t) === rid(x)) || !x.__new) return x;
+      const id = newIds.shift();
+      return id ? { ...x, id, __new: false } : x;
+    }));
+    setDirty(new Set());
+    setMsg(`Saved ${result.inserted + result.updated} ✓`);
   }
 
   // Upload a photo to the shared public `estimate-media` bucket and stash its URL

@@ -902,7 +902,7 @@ about — holds.
 | ID | Severity | Finding | Est. |
 |---|---|---|---|
 | A2-01 | High | 58 direct browser→DB table mutations across 22 files | 2 |
-| A2-02 | High | Rate card saved by a sequential client loop, not a transaction | 1 |
+| A2-02 | High | Rate card saved by a sequential client loop — **FIXED** | done |
 | A2-03 | High | 20 `money()` formatters that disagree; the shared one exists | 0.5 |
 | A2-04 | High | Ledger tests test a twin nothing calls — **FIXED in F3** | done |
 | A2-05 | Med | GST computed in 3 places outside the utility; two hard-code `/11` | 0.5 |
@@ -2169,7 +2169,7 @@ A2-04 first — it is the one that makes the others' tests trustworthy.
 | ID | Sev | Finding |
 |---|---|---|
 | A2-01 | High | 58 direct browser→DB table mutations across 22 files |
-| A2-02 | High | Rate card saved by a sequential client loop, not a transaction |
+| A2-02 | High | Rate card saved by a sequential client loop — **FIXED** |
 | A2-08 | Med | 16 of 24 oversized files need splitting |
 | A1-01 | Med | `QuoteBuilder.tsx` — 3,272 lines, 12 components, 71 `useState` |
 
@@ -2959,3 +2959,55 @@ who cannot start an estimate because a neighbour just did is a real, if rare,
 failure.
 
 *Outstanding:* Tom's action for (1).
+
+
+---
+
+# A2-02 · FIXED — the settings tables save in one transaction
+
+`supabase/migrations/20261203000000_settings_rows_save_rpc.sql` +
+`app/(app)/settings/rowActions.ts` + `e2e/settings-save-atomic.spec.ts`.
+
+One RPC takes the whole dirty set and applies it in a single transaction:
+either every row lands or none does. `EditableTable`'s browser insert/update
+loop is gone — **0 direct table writes remain in that component** (one
+single-row delete stays, which belongs to A2-01).
+
+The table name still comes from the client, which is only safe because it is
+checked against a fixed allowlist and then used through `format(%I)`, never
+concatenated. The server action validates against the same list independently:
+a boundary that trusts the far side to validate is not a boundary.
+
+## Two real bugs the tests caught in my own function
+
+Both would have shipped, and neither is visible by reading the code.
+
+**1. `FOUND` is not set by `EXECUTE`.** The update path used
+`if not found then raise 'row_not_found'`, and `FOUND` was still `true` from an
+earlier `SELECT INTO` — so updating an id that does not exist reported
+**success**. The atomicity test caught it: the batch returned
+`{"updated":1,"inserted":1}` where it should have raised. Fixed with
+`GET DIAGNOSTICS v_count = ROW_COUNT`.
+
+That matters beyond tidiness: an id that no longer exists means someone is
+editing a row another session deleted, and silently skipping it is how two
+people's edits disagree.
+
+**2. Values must be cast to the column's declared type.** Extracting with `#>>`
+yields `text`, and Postgres will not implicitly cast text to an enum, a uuid or
+a numeric. `area_names.type` is an enum and the first version failed on it. The
+fix looks the type up per column via `format_type`, which also means an
+**unknown key raises instead of being silently dropped** — a price that fails to
+save while the screen says `Saved ✓` is the exact class of bug this RPC exists
+to remove.
+
+## Verified
+
+Five specs, in CI: a clean batch inserts every row · **a failure mid-batch saves
+NOTHING** · the table name is an allowlist not a parameter · a non-staff caller
+cannot save at all · and the real Settings screen adds a row, saves, shows
+`Saved ✓`, and the row is actually there.
+
+The second is the one that matters. A happy-path save proves the RPC works;
+only a deliberate mid-batch failure proves it is atomic, and atomicity is the
+entire reason it exists.
