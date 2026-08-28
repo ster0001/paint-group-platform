@@ -30,10 +30,32 @@ function parseEnvFile(path: string): Record<string, string> {
   return out;
 }
 
-/** The production project ref, from .env.local. Absent in CI — that is fine. */
-function productionRef(): string | null {
-  const url = parseEnvFile(resolve(process.cwd(), ".env.local")).NEXT_PUBLIC_SUPABASE_URL ?? "";
-  return url.match(/https:\/\/([a-z0-9]+)\.supabase\.co/)?.[1] ?? null;
+/**
+ * The production project ref, hard-coded.
+ *
+ * The tripwire used to read this out of .env.local. That works on Tom's
+ * machine and is USELESS in CI, where .env.local does not exist — so the
+ * check silently passed exactly where the blast radius is largest.
+ *
+ * It matters more since the CI secrets carry the test project's values under
+ * the same names the app uses (NEXT_PUBLIC_SUPABASE_URL and friends). The day
+ * someone adds a deploy workflow with PRODUCTION values under those names,
+ * this constant is the only thing standing between a suite that creates,
+ * mutates and deletes rows and the real customer database.
+ *
+ * Not a secret: this ref is in the public URL of every logo and product photo
+ * the estimate pages serve. Writing it down costs nothing and buys a guard
+ * that works everywhere.
+ */
+const PRODUCTION_REF = "llmrvgdequpmzzuaxdhq";
+
+/** Any ref that must never be a target: the constant above, plus whatever
+ *  .env.local names locally (so a project rename is caught before the constant
+ *  is updated). */
+function forbiddenRefs(): string[] {
+  const local = parseEnvFile(resolve(process.cwd(), ".env.local")).NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const fromFile = local.match(/https:\/\/([a-z0-9]+)\.supabase\.co/)?.[1];
+  return [PRODUCTION_REF, ...(fromFile ? [fromFile] : [])];
 }
 
 const REQUIRED_IN_CI = [
@@ -49,13 +71,14 @@ export default function globalSetup(): void {
   const target = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 
   // ---- A1-07: never production -------------------------------------------
-  const prod = productionRef();
-  if (prod && target.includes(prod)) {
+  const hit = forbiddenRefs().find((ref) => target.includes(ref));
+  if (hit) {
     throw new Error(
-      `REFUSED: e2e is pointed at the PRODUCTION Supabase project (${prod}).\n` +
+      `REFUSED: e2e is pointed at the PRODUCTION Supabase project (${hit}).\n` +
         "These specs create, mutate and delete rows. Run them on the test stack:\n" +
         "  ./scripts/c1/run-e2e.sh [spec…]\n" +
-        "or export the test project's values before calling playwright directly.",
+        "or export the test project's values before calling playwright directly.\n" +
+        "In CI: check which project the repository secrets point at.",
     );
   }
   if (!target) {

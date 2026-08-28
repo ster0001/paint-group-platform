@@ -82,14 +82,22 @@ jobs:
       # Fail with instructions rather than skipping. A skipped e2e job that
       # reports green is exactly the failure mode A1-06 describes: 160
       # conditional skips meant a passing run could assert almost nothing.
+      #
+      # These secrets carry the TEST project's values under the same names the
+      # app uses. That is convenient but means a future deploy workflow adding
+      # PRODUCTION values under these names would silently point the e2e suite
+      # — which mutates and deletes rows — at production. e2e/global-setup.ts
+      # refuses the known production ref outright for exactly this reason; do
+      # not remove that check on the grounds that "the tripwire reads
+      # .env.local", because .env.local does not exist in CI.
       - name: Check the e2e secrets are configured
         env:
-          URL: ${{ secrets.E2E_SUPABASE_URL }}
+          URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
         run: |
           if [ -z "$URL" ]; then
             echo "::error::e2e secrets are not configured, so this job cannot run."
             echo "Add these repository secrets — TEST project only, never production:"
-            echo "  E2E_SUPABASE_URL  E2E_SUPABASE_ANON_KEY  E2E_SERVICE_ROLE_KEY"
+            echo "  NEXT_PUBLIC_SUPABASE_URL  NEXT_PUBLIC_SUPABASE_ANON_KEY  SUPABASE_SERVICE_ROLE_KEY"
             echo "  E2E_STAFF_EMAIL  E2E_STAFF_PASSWORD"
             echo "  E2E_CONTRACTOR_EMAIL  E2E_CONTRACTOR_PASSWORD"
             echo "  E2E_CUSTOMER_EMAIL  E2E_CUSTOMER_PASSWORD"
@@ -102,17 +110,17 @@ jobs:
 
       - name: Build (test stack env baked in, as a deploy would)
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_SITE_URL: http://localhost:3101
         run: npm run build
 
       - name: Customer journey · role RLS · ledger parity
         env:
           CI: "1"
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           E2E_STAFF_EMAIL: ${{ secrets.E2E_STAFF_EMAIL }}
           E2E_STAFF_PASSWORD: ${{ secrets.E2E_STAFF_PASSWORD }}
           E2E_CONTRACTOR_EMAIL: ${{ secrets.E2E_CONTRACTOR_EMAIL }}

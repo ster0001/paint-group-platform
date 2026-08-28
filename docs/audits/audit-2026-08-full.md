@@ -650,11 +650,19 @@ all six mount points.
 
 ---
 
-### A2-03 · Twenty separate `money()` formatters — High
+### A2-03 · Thirty-six separate money formatters — High
 
-§P3 lists *"money formatting and GST — one utility"*. There are **20
-independent definitions**, and a shared utility already exists that 19 of them
+§P3 lists *"money formatting and GST — one utility"*. There are **36
+independent definitions**, and a shared utility already exists that 35 of them
 ignore.
+
+**Corrected 28 August.** The audit first reported 20. That grep matched only
+`const money =` and missed the `fmt0`/`fmt2` variants, the `export const money`
+in `lib/contractor/jobs.ts`, and the server-side HTML builders
+(`reportHtml.ts`, `receiptHtml.ts`, `remittanceHtml.ts`,
+`contractorInvoiceHtml.ts`, `sendInvoice.ts`). The real figure is 36, and two
+of them use `minimumFractionDigits: 2` with **no maximum** — Intl then permits a
+third decimal, so a cents figure can render as `$1,234.567`.
 
 `app/invoicing/format.ts` is the real one — `fmt0`, `fmt2`, `fmtSigned2`,
 `shortDay` — with a correct note about bare `yyyy-mm-dd` being a Melbourne
