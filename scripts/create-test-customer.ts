@@ -15,6 +15,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { resolveSeedTarget } from "./seed-target.mjs";
 
 const SEED = {
   email: "pg.melissa.customer@gmail.com",
@@ -37,6 +38,11 @@ function loadEnv() {
 
 async function main() {
   loadEnv();
+  // F1-03: loadEnv() does not overwrite exported values, so the test project
+  // was always reachable — what was missing is the refusal. This script CREATES
+  // AUTH USERS, and pointing it at production is the likeliest source of A3-09
+  // (638 of 648 production users being driver output).
+  resolveSeedTarget("create-test-customer");
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   const service = process.env.SUPABASE_SERVICE_ROLE_KEY;

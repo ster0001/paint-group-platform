@@ -2636,3 +2636,119 @@ The CI e2e job now runs only what has been **verified** on the C1 stack:
 `wo-rls.spec.ts`, `account-rls.spec.ts`, `ledger-parity.spec.ts`. That is
 cross-role isolation and the money ledger — worth having, and honestly labelled
 as less than the law requires.
+
+---
+
+# F1-03 · Five seed scripts wrote to production by construction — High
+
+Found on 28 August 2026 by causing it. This is written up as an incident rather
+than a tidy finding, because the sequence matters more than the defect.
+
+## What happened
+
+While fixing F1-02 (seeding the test project), I ran
+`scripts/seed-extraction-settings.ts` with the test project's values exported.
+It wrote to **production**.
+
+The script resolved its connection like this:
+
+```ts
+const env = Object.fromEntries(
+  readFileSync(new URL("../.env.local", import.meta.url), "utf8") …
+);
+const sb = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+```
+
+`.env.local` is production, hard-coded, and `process.env` was never consulted.
+The `SEED_STAFF_EMAIL` / `SEED_STAFF_PASSWORD` variables the script *does* read
+select the **login**, not the project — a distinction that is easy to miss and
+was not written down anywhere.
+
+## Impact, and how it was caught
+
+The script upserts five settings keys with hard-coded values. Two were live
+configuration:
+
+| Key | Production value before | What the script wrote |
+|---|---|---|
+| `wizard_public` | `{"enabled": true}` — the proving window | `{"enabled": false}` |
+| `wizard_limits.maxEstimatesPerVisitor` | `500` — the proving window | `2` |
+
+So the public customer wizard was **switched off**, and any customer reaching it
+would have been blocked after two estimates. `service_area`, `wizard_bands` and
+`wizard_policy` were also overwritten with the script's defaults; their prior
+values are not recorded anywhere, so whether they changed is unknown.
+
+Reference rows at version 3 (`room_type_scope_rules`, `room_name_aliases`,
+`defect_prep_rates`, `measurement_units`, `room_type_defaults`) were upserted.
+Almost certainly a no-op — this committed script is what produced production's
+version-3 data — unless those rows had been hand-edited since.
+
+**It was caught by the readback added to `scripts/c1/seed.mjs` in the same
+session**, which reported the test project's tables still empty immediately
+after the seed claimed success. Without that check the discrepancy would have
+gone unnoticed, because the script's own output said it had worked. That is
+CLAUDE.md's migration lesson — *"a migration running is not the same as its
+statements applying"* — arriving unbidden in a different guise.
+
+The correct values were restored the same day, evidenced from
+`docs/SESSION-HANDOFF.md:1015`:
+
+> Live DB state: … `wizard_public` ON (noindex).
+> `wizard_limits.maxEstimatesPerVisitor=500` (proving window — DROP TO 2 AT LAUNCH).
+
+## It is not one script — and it explains A3-09
+
+Five scripts resolved their target from `.env.local` and write:
+
+| Script | Write call sites | Creates auth users |
+|---|---:|---|
+| `scripts/portal/seed-demo-customer.mjs` | 23 | yes |
+| `scripts/seed-demo-loop.ts` | 14 | — |
+| `scripts/create-test-contractors.ts` | 3 | **yes** |
+| `scripts/seed-extraction-settings.ts` | 2 | — |
+| `scripts/create-test-customer.ts` | 2 | **yes** |
+
+Three of them create accounts, and all five pointed at production by default.
+
+**This is almost certainly the mechanism behind A3-09** — *"638 of 648 users and
+47 of 70 estimates are driver output"*. The audit recorded that as a data-hygiene
+problem to be cleaned up. It is better understood as a *tooling* problem: the
+test data did not leak into production, these scripts put it there, and cleaning
+the rows without fixing the scripts would have let it happen again.
+
+## Fix
+
+New `scripts/seed-target.mjs`. Every one of the five now calls
+`resolveSeedTarget(name)`, which:
+
+1. takes the target from `process.env` first — export the test project and that
+   *is* the target;
+2. falls back to `.env.local`, preserving what a bare run has always meant;
+3. **refuses production unless `SEED_ALLOW_PRODUCTION=1`**, printing what it
+   refused, why, and both ways forward;
+4. prints the resolved project ref on every run, so the target is visible
+   before anything is written rather than inferred afterwards.
+
+Deliberately seeding production is still possible — it is sometimes the actual
+job — but it cannot happen because a script's connection logic silently
+disagreed with its caller's intent.
+
+Verified in both directions: a bare run of each of the five is refused by name;
+with `.env.test.local` exported, `seed-extraction-settings` reports
+`→ qarfyjrzgdeoqbnbbxfp [from the environment]` and seeds correctly.
+
+## What I would have done differently
+
+Read the script's connection logic before running it. The failure was not
+subtle — five lines at the top of the file — and I had written a finding about
+this exact pattern (a tripwire reading `.env.local`) less than an hour earlier.
+
+The compounding error was worse than the first. When Tom correctly restored
+`wizard_public`, I questioned it on the strength of code comments
+(*"stays OFF until Step 10's launch"*) without first searching for a record of
+the **live** state, which existed and was unambiguous. Evidence about what a
+system *is* outranks evidence about what it was *designed to be*.
+
+*Cost:* fixed, 0.5 session. Point 4 — printing the target — is the part worth
+copying to every script that touches a database.

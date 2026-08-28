@@ -8,12 +8,32 @@
  * E2E_CONTRACTOR_* / E2E_CUSTOMER_* from .env.test.local), so every existing
  * spec runs unchanged against the test stack. Idempotent — safe to re-run.
  *
- * Reference data (settings incl. invoicing keys, the WO transition matrix,
- * checklists, rate-card scaffolding) all arrives via the migrations
- * themselves — this script only adds what migrations deliberately don't:
- * people.
+ * Reference data for the WO/invoicing suites (settings incl. invoicing keys,
+ * the WO transition matrix, checklists) arrives via the migrations themselves.
+ *
+ * The WIZARD's reference data does NOT, and for a long time nothing here
+ * noticed. F1-02 (audit 2026-08-28): CI ran e2e/customer-journey against this
+ * project and batch-edits.spec.ts sat at a 3-minute timeout per test, because
+ * room_type_defaults, room_type_scope_rules, measurement_units,
+ * defect_prep_rates and sundries were all EMPTY and the `wizard_public`
+ * setting was absent. The wizard cannot render a room without them, so the
+ * specs waited for elements that were never coming.
+ *
+ * This project was stood up for the invoicing suite — run-e2e.sh still
+ * defaults to stripe-live.spec.ts — so nobody had reason to notice. The two
+ * steps below close it, and both DELEGATE to the existing single sources
+ * rather than copying their data:
+ *
+ *   supabase/seed/ratecard_v7.sql          the rate card, sundries, products
+ *   scripts/seed-extraction-settings.ts    room rules, units, wizard_public
+ *
+ * Idempotent — safe to re-run.
  */
 import { createClient } from "@supabase/supabase-js";
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import pg from "pg";
 import { loadTestEnv, refuseProduction } from "./env.mjs";
 
 loadTestEnv();
@@ -165,5 +185,90 @@ if (staffId) {
     }
   } else console.log("= customers row exists");
 }
+
+// ---------------------------------------------------------------------------
+// The rate card (F1-02). Delegated to supabase/seed/ratecard_v7.sql, which is
+// versioned and safe to re-run — it creates rate-card v7 only if absent and
+// never edits an existing version.
+// ---------------------------------------------------------------------------
+async function seedRateCard() {
+  const dbUrl = process.env.C1_DATABASE_URL;
+  if (!dbUrl) { console.log("~ rate card: C1_DATABASE_URL missing, skipped"); return; }
+  refuseProduction(dbUrl);
+  const client = new pg.Client({ connectionString: dbUrl, ssl: { rejectUnauthorized: false } });
+  await client.connect();
+  try {
+    const { rows } = await client.query(
+      "select count(*)::int n from rate_items ri join rate_cards rc on rc.id = ri.rate_card_id where rc.is_active");
+    if (rows[0].n >= 40) { console.log(`= rate card loaded (${rows[0].n} active items)`); return; }
+    await client.query(readFileSync(resolve(process.cwd(), "supabase/seed/ratecard_v7.sql"), "utf8"));
+    const after = await client.query(
+      "select count(*)::int n from rate_items ri join rate_cards rc on rc.id = ri.rate_card_id where rc.is_active");
+    console.log(`+ rate card v7 loaded (${after.rows[0].n} active items)`);
+    // Two active cards would make pricing pick one arbitrarily. The stub this
+    // script may have created earlier must stand down.
+    const act = await client.query("select count(*)::int n from rate_cards where is_active");
+    if (act.rows[0].n > 1) console.log(`~ WARNING: ${act.rows[0].n} active rate cards — pricing is ambiguous`);
+  } finally { await client.end(); }
+}
+await seedRateCard();
+
+// ---------------------------------------------------------------------------
+// The wizard's room rules, units and the wizard_public flag (F1-02).
+// Delegated to scripts/seed-extraction-settings.ts so the rules live in ONE
+// place — that file carries the evidence for each rule (which of the 11 real
+// PaintScout jobs it came from), and duplicating it here would lose that.
+// ---------------------------------------------------------------------------
+function seedWizardReference() {
+  if (!process.env.E2E_STAFF_EMAIL || !process.env.E2E_STAFF_PASSWORD) {
+    console.log("~ wizard reference: no staff credentials, skipped");
+    return;
+  }
+  try {
+    const out = execFileSync("npx", ["tsx", "scripts/seed-extraction-settings.ts"], {
+      env: {
+        ...process.env,
+        SEED_STAFF_EMAIL: process.env.E2E_STAFF_EMAIL,
+        SEED_STAFF_PASSWORD: process.env.E2E_STAFF_PASSWORD,
+      },
+      encoding: "utf8",
+    });
+    const lines = out.trim().split("\n").filter((l) => /rows at version|seeded/.test(l));
+    console.log("+ wizard reference seeded:");
+    for (const l of lines) console.log(`    ${l.trim()}`);
+  } catch (e) {
+    console.log(`~ wizard reference failed: ${(e.stdout || e.message || "").toString().split("\n").slice(-3).join(" ")}`);
+  }
+}
+seedWizardReference();
+
+// ---------------------------------------------------------------------------
+// Readback. A seed that reports success without checking is how the wizard
+// tables stayed empty through six build steps — the same lesson CLAUDE.md
+// draws about migrations ("a migration running is not the same as its
+// statements applying"). Name what is still missing.
+// ---------------------------------------------------------------------------
+async function readback() {
+  const need = {
+    room_type_defaults: 1, room_type_scope_rules: 1, measurement_units: 1,
+    defect_prep_rates: 1, sundries: 1, modifiers: 1, products: 1,
+  };
+  const missing = [];
+  for (const [table, min] of Object.entries(need)) {
+    const { count } = await service.from(table).select("id", { count: "exact", head: true });
+    if ((count ?? 0) < min) missing.push(`${table} (${count ?? 0})`);
+  }
+  const { data: pub } = await service.from("settings").select("key").eq("key", "wizard_public").maybeSingle();
+  if (!pub) missing.push("settings.wizard_public");
+
+  if (missing.length === 0) {
+    console.log("\nReadback: every table the wizard needs has rows ✅");
+  } else {
+    console.log(`\nReadback: STILL EMPTY — ${missing.join(", ")}`);
+    console.log("e2e/customer-journey will TIME OUT against this project, not fail fast.");
+    process.exitCode = 1;
+  }
+}
+await readback();
 
 console.log("\nSeed complete.");

@@ -4,14 +4,15 @@
  * (password painttest123, sign in at /login → lands on /account).
  * Idempotent: re-running wipes and rebuilds the demo story.
  */
-import { readFileSync } from "node:fs";
 import zlib from "node:zlib";
 import { createClient } from "@supabase/supabase-js";
+import { resolveSeedTarget } from "../seed-target.mjs";
 
-const env = Object.fromEntries(readFileSync(".env.local", "utf8").split("\n")
-  .filter((l) => l.includes("=") && !l.startsWith("#"))
-  .map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]));
-const db = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+// F1-03: this used to read .env.local directly and ignore the environment —
+// 23 write call sites, including account creation, straight into production.
+const target = resolveSeedTarget("seed-demo-customer");
+
+const db = createClient(target.url, target.serviceKey, { auth: { persistSession: false } });
 
 const EMAIL = "pg.alice.customer@gmail.com";
 

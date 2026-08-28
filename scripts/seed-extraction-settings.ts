@@ -10,7 +10,12 @@
  *   npx tsx scripts/seed-extraction-settings.ts
  *
  * Needs SEED_STAFF_EMAIL / SEED_STAFF_PASSWORD in the environment — these
- * tables are staff-write, and there is no service-role key in this project.
+ * tables are staff-write.
+ *
+ * TARGET: process.env first, else .env.local. Production is REFUSED unless
+ * SEED_ALLOW_PRODUCTION=1 — see scripts/seed-target.mjs and F1-03. Note the
+ * staff credentials select the LOGIN, never the project; that distinction is
+ * exactly what went wrong on 28 Aug.
  *
  * ---------------------------------------------------------------------------
  * WHERE THE ROOM RULES COME FROM
@@ -35,14 +40,15 @@
  * ---------------------------------------------------------------------------
  */
 import { createClient } from "@supabase/supabase-js";
-import { readFileSync } from "node:fs";
+import { resolveSeedTarget } from "./seed-target.mjs";
 
-const env = Object.fromEntries(
-  readFileSync(new URL("../.env.local", import.meta.url), "utf8")
-    .split("\n")
-    .filter((l) => l.includes("=") && !l.trim().startsWith("#"))
-    .map((l) => [l.slice(0, l.indexOf("=")).trim(), l.slice(l.indexOf("=") + 1).trim()]),
-);
+// F1-03: this used to read ../.env.local directly and IGNORE the environment,
+// so exporting the test project's values did nothing and the script wrote to
+// PRODUCTION regardless. On 28 Aug that turned wizard_public off and reset
+// wizard_limits.maxEstimatesPerVisitor from 500 to 2 on the live site.
+// resolveSeedTarget takes process.env first and refuses production unless
+// SEED_ALLOW_PRODUCTION=1.
+const target = resolveSeedTarget("seed-extraction-settings");
 
 const VERSION = 3;
 
@@ -264,7 +270,7 @@ async function main() {
     process.exit(1);
   }
 
-  const sb = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  const sb = createClient(target.url, target.anonKey);
   const { error: authErr } = await sb.auth.signInWithPassword({ email, password });
   if (authErr) { console.error("sign-in failed:", authErr.message); process.exit(1); }
 

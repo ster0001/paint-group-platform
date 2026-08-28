@@ -19,6 +19,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { resolveSeedTarget } from "./seed-target.mjs";
 
 type Seed = {
   email: string;
@@ -83,6 +84,8 @@ function loadEnv() {
 
 async function main() {
   loadEnv();
+  // F1-03: this script CREATES AUTH USERS. Refuse production unless asked.
+  resolveSeedTarget("create-test-contractors");
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
