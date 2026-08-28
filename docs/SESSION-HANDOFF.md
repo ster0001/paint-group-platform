@@ -441,8 +441,8 @@ Sequence to switch cards on, per Tom's C1 ruling:
 Tom's question answered in-session: no "API build" needed on his side — two
 dashboard values pasted into Vercel, that's the whole link.
 
-Also closed this session: Settings → Invoicing folder live and verified (BSB
-063-143 / ACC 1064-4591 showing); banking single-sourced (one save writes
+Also closed this session: Settings → Invoicing folder live and verified (BSB and account rendering
+from settings — values redacted from this doc, A6-01); banking single-sourced (one save writes
 company_profile + invoicing_bank; live rows aligned — company_profile's acc
 had a space, now normalised).
 

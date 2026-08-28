@@ -25,6 +25,7 @@ import AccountingSettings from "./AccountingSettings";
 import { MYOB_ACCOUNTS_KEY, MYOB_CONNECTION_KEY, myobStatus, type MyobAccountMap, type MyobCompanyFile, type MyobConnection } from "@/lib/myob/config";
 import { myobEnv } from "@/lib/myob/oauth";
 import { freshConnection, listAccounts, listCompanyFiles, type MyobAccount } from "@/lib/myob/client";
+import { requestNowMs } from "@/lib/time/requestClock";
 
 export const dynamic = "force-dynamic";
 
@@ -131,7 +132,7 @@ export default async function SettingsPage() {
   let myobAccountsError: string | null = null;
   if (myobState.state === "pick_business" || myobState.state === "connected") {
     try {
-      const live = await freshConnection(supabase, Date.now());
+      const live = await freshConnection(supabase, requestNowMs());
       if (live) {
         if (myobState.state === "pick_business") myobFiles = await listCompanyFiles(live);
         else myobAccounts = await listAccounts(live);

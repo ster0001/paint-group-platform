@@ -24,6 +24,7 @@ import { OFFER_COLUMNS, type BookingOffer } from "@/lib/scheduling/offers";
 import type { PortalBlock, PortalJobDay } from "@/app/portal/calendar/CalendarGrid";
 import { jobDaysFor } from "@/lib/contractor/jobDays";
 import { suburbOnly } from "@/lib/scheduling/offers";
+import { requestNowMs } from "@/lib/time/requestClock";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +66,7 @@ export default async function PortalJobPage({
   const booking0 = ((offerRows as BookingOffer[] | null) ?? [])[0] ?? null;
   const liveOffer =
     booking0 && booking0.state === "offered" &&
-    (!booking0.expires_at || new Date(booking0.expires_at).getTime() > Date.now())
+    (!booking0.expires_at || new Date(booking0.expires_at).getTime() > requestNowMs())
       ? booking0
       : null;
   const booking = booking0 && booking0.state !== "offered" ? booking0 : null;

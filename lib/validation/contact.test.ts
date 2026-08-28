@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { contactFieldProblems, isAuMobile, isFullEmail } from "./contact";
 
 test("AU mobiles: 04… and +614… in, everything else out", () => {
-  assert.ok(isAuMobile("0422 453 136"));
-  assert.ok(isAuMobile("0422453136"));
-  assert.ok(isAuMobile("+61 422 453 136"));
+  assert.ok(isAuMobile("0491 570 006"));
+  assert.ok(isAuMobile("0491570006"));
+  assert.ok(isAuMobile("+61 491 570 006"));
   assert.ok(isAuMobile("61422453136"));
   assert.ok(!isAuMobile("0422 453 13"));    // one digit short
   assert.ok(!isAuMobile("03 8840 9414"));   // a landline is not a mobile

@@ -108,7 +108,13 @@ describe("oauth state", () => {
   it("round-trips and refuses tampering", () => {
     const state = signState("secret");
     expect(verifyState("secret", state)).toBe(true);
-    expect(verifyState("secret", state.slice(0, -1) + "0")).toBe(false);
+    // Flip the last character to one it certainly is not. Appending a literal
+    // "0" was a 1-in-16 flake: the MAC is hex, so when it already ended in "0"
+    // the "tampered" state was byte-identical to the original and verifyState
+    // was right to accept it. Measured at 3 failures in 20 runs before this
+    // fix (F1, audit 2026-08-28) — the suite's only confirmed flake.
+    const last = state.at(-1)!;
+    expect(verifyState("secret", state.slice(0, -1) + (last === "0" ? "1" : "0"))).toBe(false);
     expect(verifyState("other-secret", state)).toBe(false);
     expect(verifyState("secret", null)).toBe(false);
     expect(verifyState("secret", "no-dot")).toBe(false);

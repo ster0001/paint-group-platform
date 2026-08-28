@@ -220,6 +220,61 @@ test("the contractor offer follows ALL hours, prep included", () => {
   assert.ok(t.contractorHours >= 2, "prep hours are included in the offer");
 });
 
+// ---- the offer percentage itself (A4-01) ----------------------------------
+//
+// The test above multiplies by a literal 1, which is also the `?? 1` fallback
+// resolveRates uses when the setting is absent. So it asserts the default path
+// against itself: deleting `* rates.offerPct` from estimate.ts left all 22
+// tests in this file green (audit 2026-08-28, mutation 3). These pin the
+// factor itself — the number every contractor is paid.
+
+/** The shared ctx with one setting changed, so the offer % is not its default. */
+const ctxWithOffer = (pct: number | null): PricingContext => ({
+  ...ctx,
+  settings: [
+    ...ctx.settings.filter((s) => s.key !== "Contractor offer — % of estimated hours"),
+    ...(pct === null ? [] : [{ key: "Contractor offer — % of estimated hours", value: { value: pct } }]),
+  ],
+});
+
+test("the offer percentage scales the contractor's pay", () => {
+  const job = [area({ surfaces: [surface({ prepHr: 2 })] })];
+  const full = priceEstimateTotals(job, ctxWithOffer(1), adj);
+  const part = priceEstimateTotals(job, ctxWithOffer(0.55), adj);
+
+  // Same work, same hours — only the percentage differs.
+  assert.equal(part.contractorHours, full.contractorHours);
+  assert.equal(part.contractorOfferCents, Math.round(part.contractorHours * 6000 * 0.55));
+  // And it is genuinely a different number, so the assertion above can fail.
+  assert.ok(part.contractorOfferCents < full.contractorOfferCents,
+    "55% must pay less than 100% — if these are equal the factor is not applied");
+});
+
+test("a missing offer setting falls back to 100%, and that is not the same as configuring it", () => {
+  const job = [area({ surfaces: [surface({ prepHr: 2 })] })];
+  const absent = priceEstimateTotals(job, ctxWithOffer(null), adj);
+  const explicit = priceEstimateTotals(job, ctxWithOffer(1), adj);
+  const reduced = priceEstimateTotals(job, ctxWithOffer(0.8), adj);
+
+  assert.equal(absent.contractorOfferCents, explicit.contractorOfferCents,
+    "no setting means 100% — the ?? 1 fallback");
+  assert.notEqual(absent.contractorOfferCents, reduced.contractorOfferCents,
+    "the fallback must be distinguishable from a configured percentage");
+});
+
+test("the offer percentage moves margin but never the customer's price", () => {
+  const job = [area({ surfaces: [surface({ prepHr: 2 })] })];
+  const full = priceEstimateTotals(job, ctxWithOffer(1), adj);
+  const part = priceEstimateTotals(job, ctxWithOffer(0.55), adj);
+
+  // What we charge is untouched — the offer is what we PAY.
+  assert.equal(part.totalCents, full.totalCents);
+  assert.equal(part.subtotalCents, full.subtotalCents);
+  // Paying the contractor less leaves more margin, to the cent.
+  assert.equal(part.marginCents - full.marginCents,
+    full.contractorOfferCents - part.contractorOfferCents);
+});
+
 test("margin is net subtotal less contractor pay and materials COST, not materials price", () => {
   const t = priceEstimateTotals(oneWall, ctx, adj);
   assert.equal(t.marginCents, t.netSubtotalCents - t.contractorOfferCents - t.materialsCostCents);

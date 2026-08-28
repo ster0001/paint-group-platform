@@ -83,7 +83,7 @@ export function renderTemplate(template: string, vars: TemplateVars): string {
 
 /**
  * Normalise an Australian phone number to E.164 for SMS.
- * "0422 453 136" → "+61422453136"; already-international numbers pass through.
+ * "0491 570 006" → "+61491570006"; already-international numbers pass through.
  * Returns null when the number can't be made sendable.
  */
 export function normalisePhoneAU(raw: string): string | null {
