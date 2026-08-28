@@ -896,7 +896,7 @@ about — holds.
 | A2-01 | High | 58 direct browser→DB table mutations across 22 files | 2 |
 | A2-02 | High | Rate card saved by a sequential client loop, not a transaction | 1 |
 | A2-03 | High | 20 `money()` formatters that disagree; the shared one exists | 0.5 |
-| A2-04 | High | Ledger tests test a twin nothing calls; no behavioural diff | 1 |
+| A2-04 | High | Ledger tests test a twin nothing calls — **FIXED in F3** | done |
 | A2-05 | Med | GST computed in 3 places outside the utility; two hard-code `/11` | 0.5 |
 | A2-06 | Med | No single date/timezone utility; 19 direct zone references | 0.5 |
 | A2-08 | Med | 16 of 24 oversized files need splitting | 6–8 |
@@ -2103,7 +2103,7 @@ was read alongside it.
 ### F3 · Single-source violations — 2.5 sessions
 | ID | Sev | Finding |
 |---|---|---|
-| A2-04 | High | Ledger tests test a twin nothing calls; no behavioural diff |
+| A2-04 | High | Ledger tests test a twin nothing calls — **FIXED in F3** |
 | A2-03 | High | 20 `money()` formatters that disagree |
 | A2-05 | Med | GST computed in 3 places outside the utility |
 | A2-06 | Med | No single date/timezone utility; 19 zone references |
@@ -2446,3 +2446,65 @@ simple query is itself an implicit transaction — the first fix was not enough)
 Files containing `$$` are refused rather than split wrongly.
 
 **F7 has 68 more index candidates.** They will all want this.
+
+
+---
+
+# F3 (part) — A2-04 the ledger twins are now diffed (28 August 2026)
+
+Branch `fix/f3-ledger-diff`. New spec: `e2e/ledger-parity.spec.ts`, wired into
+the CI e2e job.
+
+## What it does
+
+One fixture exercising every branch where the two implementations could
+disagree, then: read the rows back → compute the ledger in **TS** → call
+`invoice_ledger_staff` through a **real staff session** → require all six
+figures to match.
+
+| Branch | Fixture covers |
+|---|---|
+| Variations that count | `customer_approved` +50,000 · `contractor_accepted` credit −20,000 |
+| Variations that do not | `raised` · `priced` · `declined` · `cancelled` · an unpriced approved one |
+| Invoices excluded | `draft` · `void` |
+| Invoices included | `issued` `sent` `viewed` `partially_paid` `paid` **`written_off`** |
+| Credit notes | −25,000 against the issued invoice |
+| Payments that count | `succeeded` only — `failed`, `pending`, `refunded` present and ignored |
+
+Every expected figure is distinct, so a wrong one names itself.
+
+**Parity alone would be a weak test** — it passes if both sides are wrong in the
+same way, which a hand-pasted migration makes entirely possible. So the spec
+asserts three things: the twins agree, **both equal the expected figures**, and
+every figure is integer cents on both sides.
+
+The SQL side is reached through a staff login, never the service key —
+`invoice_ledger` is revoked from `authenticated` and only the `_staff` wrapper
+is granted, so this exercises the real path.
+
+## Proof it catches drift — mutation-tested both ways
+
+A passing test proves it runs, not that it would notice. Three mutations:
+
+| Mutation | Result |
+|---|---|
+| **TS**: `invoicedCents` counts drafts | ✅ `invoiced_cents: ledger.ts says 835000, invoice_ledger says 735000` |
+| **TS**: credits add instead of subtract | ✅ `variations_cents: ledger.ts says 70000, invoice_ledger says 30000` |
+| **SQL**: `invoice_ledger` lets `void` count | ✅ `invoiced_cents: ledger.ts says 735000, invoice_ledger says 935000` |
+
+The third is the one that matters. **SQL drift was previously invisible** —
+`schema.contract.test.ts` greps the migration *file*, so changing the live
+function changed behaviour and failed nothing. Now it fails a test, and the
+failure message names both implementations and both numbers.
+
+The live function was captured with `pg_get_functiondef` before mutating and
+restored afterwards; restoration verified, spec green again.
+
+## What this does not do
+
+- It does not make `ledger()` a caller-visible module. **The TS twin still has
+  zero callers in the app** — screens read the SQL RPC. That is fine, and now
+  it is *safe*, because drift fails a test. Whether to delete the TS twin or
+  adopt it is a separate decision, not one this batch should take.
+- It runs in the **e2e** CI job, so it needs the repository secrets. Until those
+  are added it does not guard anything.

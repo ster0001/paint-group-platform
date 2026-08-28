@@ -99,7 +99,7 @@ jobs:
           NEXT_PUBLIC_SITE_URL: http://localhost:3101
         run: npm run build
 
-      - name: Customer journey + role RLS
+      - name: Customer journey · role RLS · ledger parity
         env:
           CI: "1"
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
@@ -118,7 +118,7 @@ jobs:
         run: |
           npx next start -p 3101 &
           for i in $(seq 1 60); do curl -sf -o /dev/null http://localhost:3101/login && break; sleep 1; done
-          npx playwright test e2e/customer-journey e2e/wo-rls.spec.ts e2e/account-rls.spec.ts
+          npx playwright test e2e/customer-journey e2e/wo-rls.spec.ts e2e/account-rls.spec.ts e2e/ledger-parity.spec.ts
 
       - uses: actions/upload-artifact@v4
         if: failure()
