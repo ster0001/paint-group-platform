@@ -1,5 +1,6 @@
 "use client";
 
+import { money0OrDash as money } from "@/lib/format/money";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -18,8 +19,6 @@ import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
 import FinishChip from "@/app/components/FinishChip";
 import CalendarGrid, { type PortalBlock, type PortalJobDay } from "@/app/portal/calendar/CalendarGrid";
 
-const money = (c: number | null) =>
-  c == null ? "—" : "$" + (c / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 });
 
 const todayIso = () => {
   const d = new Date();

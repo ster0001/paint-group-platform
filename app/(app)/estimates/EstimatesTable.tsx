@@ -1,5 +1,6 @@
 "use client";
 
+import { moneyOrDash as money } from "@/lib/format/money";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -29,8 +30,6 @@ export type EstimateRow = {
   created_at: string;
 };
 
-const money = (c: number | null) =>
-  c == null ? "—" : "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2 });
 
 export default function EstimatesTable({ estimates }: { estimates: EstimateRow[] }) {
   const router = useRouter();

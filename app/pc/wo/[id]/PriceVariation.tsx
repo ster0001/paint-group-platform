@@ -1,5 +1,6 @@
 "use client";
 
+import { money } from "@/lib/format/money";
 import { useState, useTransition } from "react";
 import { priceVariationAction } from "@/app/quote/variationActions";
 import { sendVariationForSignatureAction } from "@/app/quote/revisionActions";
@@ -7,7 +8,6 @@ import { releaseVariation } from "../../actions";
 import { contractorDeltaCents } from "@/lib/workorder/variations";
 import type { VariationStatus } from "@/lib/workorder/variations";
 
-const money = (c: number) => "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2 });
 
 /**
  * Pricing a variation, from the console.

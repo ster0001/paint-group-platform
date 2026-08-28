@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { money } from "@/lib/format/money";
 import { requireContractor } from "@/lib/contractor/session";
 import { missingProfileFields } from "@/lib/contractor/model";
 import { createClient } from "@/lib/supabase/server";
@@ -9,8 +10,6 @@ import { DEFAULT_EXPENSE_THRESHOLD_CENTS } from "@/lib/costs/intake";
 
 export const dynamic = "force-dynamic";
 
-const money = (c: number) =>
-  "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const CHIP: Record<string, { cls: string; label: string }> = {
   draft: { cls: "amb", label: "Ready to submit" },

@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { moneyAbs as money } from "@/lib/format/money";
 import { createClient } from "@/lib/supabase/server";
 import VariationDecision from "./VariationDecision";
 import "@/app/e/customer.css";
@@ -6,8 +7,6 @@ import "./variation.css";
 
 export const dynamic = "force-dynamic";
 
-const money = (c: number) =>
-  "$" + (Math.abs(c) / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 type PricedLine = { label?: string; cents?: number };
 

@@ -1,5 +1,7 @@
 "use client";
 
+import { money0 } from "@/lib/format/money";
+
 /**
  * One captured room's summary card - the AreaPicker hub tile (staff mode) and
  * the customer editor's room card (customer mode). Same component, one `mode`
@@ -31,10 +33,9 @@ export default function RoomCard({
   mode: "staff" | "customer";
   onOpen?: () => void;
 }) {
-  const money =
-    room.totalCents != null
-      ? `$${(room.totalCents / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 })}`
-      : null;
+  // null rather than a dash: this caller omits the element entirely when a
+  // room is unpriced, which is not the same as showing "—".
+  const money = room.totalCents != null ? money0(room.totalCents) : null;
 
   return (
     <button

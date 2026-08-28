@@ -1,5 +1,6 @@
 "use client";
 
+import { money0 as money } from "@/lib/format/money";
 import { useMemo, useRef, useState } from "react";
 import RoomCard from "@/app/components/scope/RoomCard";
 import PlanViewer from "./PlanViewer";
@@ -30,8 +31,6 @@ type Props = {
   roomTypes: string[];
 };
 
-const money = (cents: number) =>
-  `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
 function roomWarnings(r: WizardRoomView): string[] {
   const w: string[] = [];

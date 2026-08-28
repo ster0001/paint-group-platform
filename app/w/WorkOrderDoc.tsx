@@ -1,5 +1,6 @@
 "use client";
 
+import { money } from "@/lib/format/money";
 import type { WorkOrderDoc as Doc } from "@/lib/workorder/snapshot";
 import { WO_STATUS_LABEL } from "@/lib/workorder/snapshot";
 import { FINISH_LEVELS, FINISH_ORDER } from "@/lib/workorder/finish";
@@ -12,7 +13,6 @@ import { bookingCaption, bookingDates, bookingDays, bookingLabel, bookingTone, t
 import FinishChip from "@/app/components/FinishChip";
 import "./workorder.css";
 
-const money = (c: number) => "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const dateFmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" }) : "TBC");
 
 // Staff-edit handlers. When omitted, the document is read-only (contractor view).

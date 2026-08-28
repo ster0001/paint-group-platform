@@ -1,13 +1,13 @@
 /** Display-edge money/date formatting for the invoicing screens. Formatting
  *  only — every figure arrives in cents, already computed by lib/invoicing. */
 
-export const fmt0 = (cents: number) =>
-  "$" + Math.round(cents / 100).toLocaleString("en-AU");
-
-export const fmt2 = (cents: number) =>
-  "$" + (cents / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-export const fmtSigned2 = (cents: number) => (cents < 0 ? "−" + fmt2(-cents) : fmt2(cents));
+// A2-03: these WERE the shared formatter — the only one, ignored by 35 other
+// definitions. They are now thin aliases over lib/format/money so the invoicing
+// screens keep the names they use while there is one implementation. Note fmt2
+// gains correct sign placement: it used to render "$-1,234.56".
+export { money0 as fmt0, money as fmt2, moneySigned as fmtSigned2 } from "@/lib/format/money";
+// …and imported for this file's own use: a re-export creates no local binding.
+import { money as fmt2 } from "@/lib/format/money";
 
 // A bare yyyy-mm-dd is already a Melbourne calendar day — format it as-is (in
 // UTC so no zone shifts it); only real timestamps are converted to Melbourne.

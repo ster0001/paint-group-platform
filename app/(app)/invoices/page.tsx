@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { money } from "@/lib/format/money";
 import { createClient } from "@/lib/supabase/server";
 import { melbourneDate } from "@/lib/workorder/console";
 import { invoiceBalanceCents, invoiceIsOverdue } from "@/lib/invoicing/derive";
@@ -18,8 +19,6 @@ export const dynamic = "force-dynamic";
 const FILTERS = ["active", "all", "draft", "awaiting", "overdue", "paid"] as const;
 type Filter = (typeof FILTERS)[number];
 
-const money = (c: number) =>
-  "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const CHIP: Record<string, string> = {
   draft: "bg-amber-100 text-amber-800",

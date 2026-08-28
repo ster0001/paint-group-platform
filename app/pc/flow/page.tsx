@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { money0 as money } from "@/lib/format/money";
 import { createClient } from "@/lib/supabase/server";
 import { loadConsole } from "@/lib/workorder/consoleData";
 import { buildQueue } from "@/lib/workorder/console";
@@ -6,7 +7,6 @@ import { STAGE_LANES, VISIBLE_STAGES, visibleStage } from "@/lib/workorder/stage
 
 export const dynamic = "force-dynamic";
 
-const money = (c: number) => "$" + Math.round(c / 100).toLocaleString("en-AU");
 
 /**
  * The seven-lane pipeline. A card sits in the lane the model says it sits in —

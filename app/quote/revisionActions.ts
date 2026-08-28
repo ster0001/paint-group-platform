@@ -1,5 +1,6 @@
 "use server";
 
+import { moneyAbs } from "@/lib/format/money";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -283,7 +284,10 @@ export async function sendVariationForSignatureAction(raw: unknown): Promise<Sen
   const company = ((settingsRows?.[0] as { value?: { name?: string; email?: string } } | undefined)?.value) ?? {};
 
   const link = `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://paint-group-platform.vercel.app"}/v/${variation.customer_token}`;
-  const money = "$" + (Math.abs(variation.price_cents ?? 0) / 100).toLocaleString("en-AU", { minimumFractionDigits: 2 });
+  // A2-03: this was minimumFractionDigits with NO maximum, so Intl was free to
+  // render a third decimal — in a message sent to a customer. moneyAbs pins
+  // both ends; the surrounding wording already says which direction it goes.
+  const money = moneyAbs(variation.price_cents ?? 0);
   const first = contact?.first_name || "there";
   const what = variation.credit
     ? `a change that takes ${money} off your job total`

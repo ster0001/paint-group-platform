@@ -1,11 +1,10 @@
 "use client";
 
+import { money } from "@/lib/format/money";
 import { useRef, useState, useTransition } from "react";
 import { acceptVariationAction, acknowledgeVariationAction, raiseVariationAction } from "./variationActions";
 import { VARIATION_CATEGORIES, type VariationStatus } from "@/lib/workorder/variations";
 
-const money = (c: number) =>
-  "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export type VariationView = {
   id: string;

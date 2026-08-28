@@ -1,11 +1,10 @@
 "use client";
 
+import { money } from "@/lib/format/money";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { requestClaimAction } from "./actions";
 
-const money = (c: number) =>
-  "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export type ClaimableJob = {
   workOrderId: string;

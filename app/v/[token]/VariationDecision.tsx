@@ -1,11 +1,10 @@
 "use client";
 
+import { moneyAbs as money } from "@/lib/format/money";
 import { useEffect, useState, useTransition } from "react";
 import SignaturePad from "@/app/components/SignaturePad";
 import { respondToVariationAction, signVariationAction } from "./actions";
 
-const money = (c: number) =>
-  "$" + (Math.abs(c) / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const dateFmt = (iso: string) =>
   new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });

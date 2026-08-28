@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { money } from "@/lib/format/money";
+
 /**
  * THE invoice document — the white A4 tax-invoice sheet. One component for
  * every surface that shows it: the customer token page /i/[token] (whose
@@ -45,8 +47,6 @@ export type SheetDoc = {
   previous_numbers: string | null;
 };
 
-const money = (cents: number) =>
-  "$" + (cents / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const longDay = (iso: string | null) =>
   iso

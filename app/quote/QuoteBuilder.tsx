@@ -1,5 +1,6 @@
 "use client";
 
+import { money0 as fmt0, amount as money } from "@/lib/format/money";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   priceSurface,
@@ -153,7 +154,6 @@ type SurfaceCalc = {
 };
 
 const fmt = (c: number) => "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmt0 = (c: number) => "$" + Math.round(c / 100).toLocaleString("en-AU");
 // Unguessable base62 token for the customer link, minted once per estimate.
 const genShareToken = () =>
   Array.from(crypto.getRandomValues(new Uint8Array(28)), (n) => "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"[n % 62]).join("");
@@ -2593,7 +2593,7 @@ function AreaCard({
     { hrs: 0, prep: 0, paint: 0, mat: 0, labour: 0, price: 0 },
   );
   const nc = "px-2 py-2 text-right tabular-nums";
-  const money = (cents: number) => (cents / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // No dollar sign here — the column carries it. `amount` is that variant.
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4">
       {/* back bar */}

@@ -1,5 +1,6 @@
 "use client";
 
+import { moneyAbs as money } from "@/lib/format/money";
 import { useState } from "react";
 import type { RevisionDiff } from "@/lib/revision/diff";
 import {
@@ -8,8 +9,6 @@ import {
   type DraftedVariation,
 } from "./revisionActions";
 
-const money = (c: number) =>
-  "$" + (Math.abs(c) / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const signed = (c: number) => (c < 0 ? "− " : "+ ") + money(c);
 
 export type ExistingRevisionVariation = {

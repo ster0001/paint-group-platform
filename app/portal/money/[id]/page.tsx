@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { moneyAbs as money } from "@/lib/format/money";
 import Link from "next/link";
 import { requireContractor } from "@/lib/contractor/session";
 import { missingProfileFields } from "@/lib/contractor/model";
@@ -10,8 +11,6 @@ import SubmitInvoice from "./SubmitInvoice";
 
 export const dynamic = "force-dynamic";
 
-const money = (c: number) =>
-  "$" + (Math.abs(c) / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const dateFmt = (iso: string | null) =>
   iso ? new Date(iso.slice(0, 10) + "T00:00:00").toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" }) : "";
 

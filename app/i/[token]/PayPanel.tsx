@@ -1,5 +1,6 @@
 "use client";
 
+import { money } from "@/lib/format/money";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -14,8 +15,6 @@ import { useRouter } from "next/navigation";
  * arrive by email — it does not guess.
  */
 
-const money = (cents: number) =>
-  "$" + (cents / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function PayPanel({
   token, balanceCents, surchargeCents, payState, initialPaidCents,

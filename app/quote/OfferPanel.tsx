@@ -1,5 +1,6 @@
 "use client";
 
+import { money0OrDash as money } from "@/lib/format/money";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { reportIfError } from "@/lib/monitoring/report";
@@ -16,8 +17,6 @@ import {
   type BookingOffer,
 } from "@/lib/scheduling/offers";
 
-const money = (c: number | null) =>
-  c == null ? "—" : "$" + (c / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 });
 
 const fmt = (d: string | null) => formatDMY(d);
 

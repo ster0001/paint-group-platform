@@ -1,5 +1,6 @@
 "use client";
 
+import { money0OrDash as money } from "@/lib/format/money";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -11,7 +12,6 @@ import { bookWalkthrough } from "../actions";
 import type { Block, BoardWalkthrough, Lane, TrayJob } from "@/lib/scheduling/board";
 import "./schedule.css";
 
-const money = (c: number | null) => (c == null ? "—" : "$" + (c / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 }));
 
 // Calendar-date arithmetic lives in lib/scheduling/dates.ts — see the note there
 // about the timezone bug these helpers exist to prevent.

@@ -1,4 +1,5 @@
 import PhotoGrid from "@/app/components/wo/PhotoGrid";
+import { money } from "@/lib/format/money";
 import type { WOPhoto } from "@/lib/workorder/photos";
 
 /**
@@ -29,8 +30,6 @@ export type Report = {
   photos: { kind: string; area: string | null; path: string }[];
 };
 
-const money = (c: number) =>
-  "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const dateFmt = (d: string) =>
   new Date(d).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" });

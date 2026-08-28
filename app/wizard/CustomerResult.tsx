@@ -1,5 +1,6 @@
 "use client";
 
+import { money0 as money } from "@/lib/format/money";
 import { useState } from "react";
 import RoomCard from "@/app/components/scope/RoomCard";
 import PlanViewer from "./PlanViewer";
@@ -29,7 +30,6 @@ type Reveal = CustomerPayload & {
   photoWarnings?: string[];
 };
 
-const money = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
 const OUTCOME_HEADINGS: Record<CustomerOutcome["outcome"], string> = {
   hard_stop: "This one needs a proper look first",

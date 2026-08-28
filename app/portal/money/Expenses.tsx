@@ -1,5 +1,6 @@
 "use client";
 
+import { money } from "@/lib/format/money";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
@@ -14,8 +15,6 @@ import { requestPreapprovalAction, submitExpenseAction } from "./expenseActions"
  * invoice as clearly-labelled reimbursement lines.
  */
 
-const money = (c: number) =>
-  "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export type ExpenseRow = {
   id: string;

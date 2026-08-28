@@ -8,6 +8,7 @@
  * Next room, queued and retried when offline. The sync state is always
  * visible in the header.
  */
+import { money0 as money } from "@/lib/format/money";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import SurfaceTileBox, { type TileState } from "@/app/components/scope/SurfaceTileBox";
 import RoomCard from "@/app/components/scope/RoomCard";
@@ -51,7 +52,6 @@ type Screen = { kind: "picker" } | { kind: "capture"; localId: string } | { kind
 type SyncState = "synced" | "saving" | "offline";
 type Totals = { subtotalCents: number; totalCents: number; contractorHours: number; marginCents: number };
 
-const money = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
 export default function CaptureApp({
   estimateId, estimateTitle, rules, presets, defectRates, rateItems = [], jobMod = 1, windowSizes = { small: 0.8, large: 1.2 }, initialStoreyHeights, derivedStoreyHeights = null, initialRooms, prepPack = null,

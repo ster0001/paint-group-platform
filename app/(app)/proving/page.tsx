@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { money0 as money } from "@/lib/format/money";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
@@ -18,7 +19,6 @@ import { provingRow, provingSummary, type ProvingRow, type WizardSnapshot } from
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Proving window · Paint Group", robots: { index: false, follow: false } };
 
-const money = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 const signed = (cents: number) => `${cents >= 0 ? "+" : "−"}${money(Math.abs(cents))}`;
 
 type EstimateRow = {

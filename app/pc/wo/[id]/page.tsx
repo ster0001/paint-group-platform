@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { money0 as money } from "@/lib/format/money";
 import { createClient } from "@/lib/supabase/server";
 import { STAGE_LANES, WO_STAGES, type WoStage, VISIBLE_STAGES, visibleStage } from "@/lib/workorder/stages";
 import { progressByHeading, progressOf, seedRowsFromDoc, type SurfaceRow } from "@/lib/workorder/surfaces";
@@ -21,7 +22,6 @@ import SetDeduction from "./SetDeduction";
 
 export const dynamic = "force-dynamic";
 
-const money = (c: number) => "$" + (c / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 });
 
 export default async function PcWorkOrderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

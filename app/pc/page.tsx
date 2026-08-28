@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { money0 as money } from "@/lib/format/money";
 import { createClient } from "@/lib/supabase/server";
 import { loadConsole } from "@/lib/workorder/consoleData";
 import { buildQueue, headline, pulseTiles, sparkline } from "@/lib/workorder/console";
@@ -10,7 +11,6 @@ import { signPhotos, type WOPhoto, type WOPhotoRow } from "@/lib/workorder/photo
 
 export const dynamic = "force-dynamic";
 
-const money = (c: number) => "$" + Math.round(c / 100).toLocaleString("en-AU");
 
 const ICON: Record<string, string> = {
   reoffer: "⚑", call: "◌", price: "◐", open: "◔", ring: "◷",
