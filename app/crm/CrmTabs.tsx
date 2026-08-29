@@ -11,7 +11,7 @@ import { usePathname } from "next/navigation";
 const TABS = [
   { key: "pipeline", label: "Pipeline", href: "/crm/pipeline", soon: null },
   { key: "customer", label: "Customer", href: "/crm", soon: null },
-  { key: "segments", label: "Segments", href: null, soon: "2.5" },
+  { key: "segments", label: "Segments", href: "/crm/segments", soon: null },
   { key: "campaigns", label: "Campaigns", href: null, soon: "3.1" },
   { key: "sources", label: "Lead sources", href: "/crm/sources", soon: null },
 ] as const;
