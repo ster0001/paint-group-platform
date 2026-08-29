@@ -76,6 +76,15 @@ describe("renderEmail", () => {
     expect(html.length).toBeGreaterThan(1000);
   });
 
+  it("is fluid, so it fits a phone and a preview pane without clipping", () => {
+    // Found in the studio: a fixed 600px body was cut off in the preview
+    // column, and would be cut off on a narrow phone too. The width attribute
+    // stays for Outlook; the style is what every other client reads.
+    const html = renderEmail(template());
+    expect(html).toContain("width:100%;max-width:600px");
+    expect(html).not.toContain('style="width:600px');
+  });
+
   it("uses the company's own logo and name when it has them", () => {
     const html = renderEmail(template(), { ...{
       ink: "#000", text: "#111", muted: "#666", line: "#eee", paper: "#fff", wash: "#f5f5f5",

@@ -250,7 +250,7 @@ export function renderEmail(t: Template, brand: Brand = BRAND): string {
 <div style="display:none;font-size:1px;color:${b.wash};line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">${esc(t.preheader)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${b.wash};">
 <tr><td align="center" style="padding:24px 12px;">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background:${b.paper};border-radius:14px;overflow:hidden;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background:${b.paper};border-radius:14px;overflow:hidden;">
   <tr><td style="padding:24px 32px 0;">
     ${b.logoUrl
       ? `<img src="${esc(b.logoUrl)}" alt="${esc(company)}" height="26" style="display:block;height:26px;width:auto;border:0;" />`
