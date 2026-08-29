@@ -73,6 +73,13 @@ describe("buildTimeline", () => {
     expect(row.detail).toBe("");
   });
 
+  it("reads a temperature change as a sentence, not a field dump", () => {
+    const [first] = buildTimeline([ev({ type: "temperature_set", payload: { temperature: "hot", previous: null } })]);
+    expect(`${first.label} ${first.detail}`).toBe("Marked Hot");
+    const [changed] = buildTimeline([ev({ type: "temperature_set", payload: { temperature: "warm", previous: "hot" } })]);
+    expect(changed.detail).toBe("Warm — was hot");
+  });
+
   it("keeps a note's own words as its detail", () => {
     const [row] = buildTimeline([ev({ payload: { body: "Wants it finished before her parents visit in October." } })]);
     expect(row.label).toBe("Note");

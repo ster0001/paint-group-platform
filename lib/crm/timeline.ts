@@ -98,7 +98,12 @@ const RENDER: Record<CrmEventType, { label: string; kind: TimelineRow["kind"]; d
   followup_set: { label: "Follow-up set", kind: "activity",
     detail: (p) => join(whenWords(str(p.dueAt)), str(p.note)) },
   temperature_set: { label: "Marked", kind: "activity",
-    detail: (p) => str(p.previous) ? `${str(p.temperature)} — was ${str(p.previous)}` : str(p.temperature) },
+    detail: (p) => {
+      const now = str(p.temperature);
+      if (!now) return "";
+      const shown = now[0].toUpperCase() + now.slice(1);
+      return str(p.previous) ? `${shown} — was ${str(p.previous)}` : shown;
+    } },
   snoozed: { label: "Snoozed", kind: "activity",
     detail: (p) => join(whenWords(str(p.until)), str(p.reason)) },
 
