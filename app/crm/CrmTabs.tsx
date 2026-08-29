@@ -8,13 +8,15 @@ import { usePathname } from "next/navigation";
  * does not navigate — a dead link into a blank screen teaches the office not to
  * trust the tab rail.
  */
-const TABS = [
+type Tab = { key: string; label: string; href: string | null; soon: string | null };
+
+const TABS: Tab[] = [
   { key: "pipeline", label: "Pipeline", href: "/crm/pipeline", soon: null },
   { key: "customer", label: "Customer", href: "/crm", soon: null },
   { key: "segments", label: "Segments", href: "/crm/segments", soon: null },
-  { key: "campaigns", label: "Campaigns", href: null, soon: "3.1" },
+  { key: "campaigns", label: "Campaigns", href: "/crm/campaigns", soon: null },
   { key: "sources", label: "Lead sources", href: "/crm/sources", soon: null },
-] as const;
+];
 
 export default function CrmTabs() {
   const path = usePathname();

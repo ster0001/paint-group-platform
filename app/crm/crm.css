@@ -157,3 +157,26 @@
 .crm .rvalue{background:var(--graphite);border:1px solid rgba(59,216,233,.3);border-radius:8px;padding:5px 10px;color:var(--cyan)}
 .crm .relative{font-size:11.5px;color:var(--muted);margin:12px 0 0;line-height:1.5}
 .crm a.chip{display:inline-block}
+
+/* ---- campaign studio ------------------------------------------------------ */
+.crm .studio{display:grid;grid-template-columns:1fr;gap:18px}
+@media (min-width:1000px){ .crm .studio{grid-template-columns:minmax(0,1fr) 480px;align-items:start} }
+.crm .studioside{min-width:0}
+.crm .studiopreview{position:sticky;top:104px}
+.crm .preview{width:100%;height:min(72vh,760px);border:1px solid var(--line);border-radius:var(--r);background:#F6F8F9}
+.crm select.field{appearance:none;background:var(--graphite) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%238C959D'/></svg>") no-repeat right 12px center}
+.crm textarea.field{resize:vertical;line-height:1.5;font-family:var(--sans)}
+.crm .bfield{display:block;margin-top:9px}
+.crm .bfield>span{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}
+.crm .bfield .field{width:100%}
+.crm .bhint{font-size:11.5px;color:var(--muted);line-height:1.5;margin:6px 0 0}
+.crm .bcard{background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:11px 12px 13px;margin-bottom:9px}
+.crm .bhead{display:flex;align-items:center;gap:6px}
+.crm .bkind{flex:1;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.crm .bbtn{width:26px;height:26px;border:1px solid var(--line);border-radius:7px;color:var(--muted);font-size:13px;line-height:1}
+.crm .bbtn:hover:not(:disabled){border-color:var(--cyan);color:var(--cyan)}
+.crm .bbtn:disabled{opacity:.35;cursor:default}
+.crm .aitoggle{display:block;width:100%;margin-top:14px;padding:11px;border:1px dashed rgba(59,216,233,.45);border-radius:12px;color:var(--cyan);font-size:13px;font-weight:600;background:rgba(59,216,233,.05)}
+.crm .panel.ai{border-color:rgba(59,216,233,.35)}
+.crm .partial ul{margin:6px 0 0;padding-left:18px}
+.crm .partial li{margin:3px 0}
