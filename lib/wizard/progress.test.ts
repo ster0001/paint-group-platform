@@ -36,7 +36,7 @@ describe("progressPct", () => {
       exterior: {
         storeys: "single", substrates: ["render"],
         painting: { body: true, windowsDoors: true, roofline: true, garage: false },
-        condition: "good", access: [], accessEquipment: [],
+        condition: "good", access: [],
         extras: { deck: false, fence: false, fenceMetres: null, pergola: false, balustrade: false },
       } as never,
       paint: { brands: ["dulux"] } as never,
@@ -55,7 +55,7 @@ describe("progressPct", () => {
       exterior: {
         storeys: "single", substrates: ["render"],
         painting: { body: true, windowsDoors: false, roofline: false, garage: false },
-        condition: "good", access: [], accessEquipment: [],
+        condition: "good", access: [],
         extras: {},
       } as never,
       paint: { brands: ["dulux"] } as never,

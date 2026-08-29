@@ -73,7 +73,6 @@ export function progressPct(state: Partial<WizardState>): number {
     ask(Boolean(ext?.storeys));
     ask(Boolean(ext?.painting && Object.values(ext.painting).some(Boolean)));
     ask(ext?.condition != null);
-    ask(Boolean(ext?.access) || (ext?.accessEquipment?.length ?? 0) > 0);
   }
 
   // Paint preferences, on every path — the last thing before the reveal.
