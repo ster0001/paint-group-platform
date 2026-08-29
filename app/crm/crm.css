@@ -1,0 +1,182 @@
+/* The CRM — crm-board-mockup.html's chrome, 1:1. Same tokens as PC Command and
+   the wizard, because it is one product: cyan #3BD8E9 = confirmed/active, amber
+   = waiting on you, clay = overdue or hot, emerald = done. */
+.crm {
+  --ink:#0A0B0D; --graphite:#12161A; --raised:#171C21; --line:#242B32;
+  --text:#EDF0F2; --muted:#8C959D;
+  --cyan:#3BD8E9; --on-cyan:#03272D; --paint:#2FB9CB;
+  --amber:#E0A83C; --emerald:#2FA46B; --clay:#B3574A;
+  --r:14px;
+  --sans:'Switzer','Hanken Grotesk',ui-sans-serif,-apple-system,'Segoe UI',system-ui,sans-serif;
+  --mono:'Martian Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  min-height:100vh; background:var(--ink); color:var(--text);
+  font-family:var(--sans); font-weight:500; letter-spacing:-0.011em;
+  -webkit-font-smoothing:antialiased;
+}
+.crm .mono{font-family:var(--mono);font-weight:500;letter-spacing:-.04em}
+.crm button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.crm a{color:inherit;text-decoration:none}
+.crm :focus-visible{outline:2px solid var(--cyan);outline-offset:2px;border-radius:6px}
+
+/* ---- chrome --------------------------------------------------------------- */
+.crm .top{position:sticky;top:0;z-index:40;background:rgba(10,11,13,.92);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.crm .topbar{display:flex;align-items:center;gap:12px;padding:14px 16px 10px;max-width:1100px;margin:0 auto}
+.crm .mark{width:26px;height:26px;border-radius:8px;background:var(--cyan);display:grid;place-items:center;flex:none}
+.crm .mark span{color:var(--on-cyan);font-size:13px;font-weight:700;letter-spacing:-.05em}
+.crm .brand{font-size:15px;font-weight:600;letter-spacing:-.02em}
+.crm .brand em{font-style:normal;color:var(--muted);font-weight:500}
+.crm .who{margin-left:auto;font-size:11px;color:var(--muted)}
+.crm .tabs{display:flex;gap:4px;padding:0 12px 10px;overflow-x:auto;scrollbar-width:none;max-width:1100px;margin:0 auto}
+.crm .tabs::-webkit-scrollbar{display:none}
+.crm .tab{white-space:nowrap;font-size:12.5px;font-weight:600;color:var(--muted);padding:7px 12px;border-radius:999px;border:1px solid transparent}
+.crm .tab[aria-selected="true"]{color:var(--text);background:var(--raised);border-color:var(--line)}
+.crm .tab[aria-disabled="true"]{opacity:.42;cursor:default}
+.crm .tab i{font-style:normal;font-size:9px;letter-spacing:.1em;color:var(--muted);margin-left:5px;text-transform:uppercase}
+
+.crm .wrap{max-width:1100px;margin:0 auto;padding:16px 16px 96px}
+.crm .eyebrow{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.crm h2{font-size:21px;font-weight:600;letter-spacing:-.03em;margin:6px 0 2px}
+.crm .sub{font-size:12.5px;color:var(--muted);line-height:1.5;margin:0 0 16px}
+
+/* ---- the customer list ---------------------------------------------------- */
+.crm .people{display:grid;gap:9px;grid-template-columns:repeat(auto-fill,minmax(268px,1fr))}
+.crm .person{background:var(--raised);border:1px solid var(--line);border-radius:var(--r);padding:12px;display:block;transition:border-color .15s}
+.crm .person:hover{border-color:#2f3a44}
+.crm .cname{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600;letter-spacing:-.02em}
+.crm .dot{width:6px;height:6px;border-radius:50%;flex:none}
+.crm .dot.hot{background:var(--clay)} .crm .dot.warm{background:var(--amber)} .crm .dot.cold{background:#4a5560}
+.crm .cmeta{display:block;font-size:11.5px;color:var(--muted);margin-top:3px}
+.crm .cfoot{display:flex;align-items:baseline;gap:8px;margin-top:9px}
+.crm .cval{font-size:13px;font-weight:600}
+.crm .cwhen{font-size:10.5px;color:var(--muted);margin-left:auto}
+.crm .empty{border:1px dashed var(--line);border-radius:var(--r);padding:22px;color:var(--muted);font-size:13px;text-align:center}
+
+/* ---- one customer --------------------------------------------------------- */
+.crm .back{font-size:11.5px;color:var(--muted);display:inline-block;margin-bottom:12px}
+.crm .head{display:flex;align-items:center;gap:11px;margin-bottom:14px}
+.crm .avatar{width:38px;height:38px;border-radius:11px;background:var(--raised);border:1px solid var(--line);display:grid;place-items:center;font-size:12px;font-weight:700;flex:none}
+.crm .hname{display:block;font-size:17px;font-weight:600;letter-spacing:-.02em}
+.crm .haddr{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
+
+.crm .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px;margin-bottom:16px}
+.crm .stat{background:var(--raised);border:1px solid var(--line);border-radius:var(--r);padding:11px 13px}
+.crm .stat b{display:block;font-size:16px;font-weight:600;letter-spacing:-.02em}
+.crm .stat span{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.crm .stat em{font-style:normal;font-size:11px;color:var(--muted);display:block;margin-top:2px}
+
+/* ---- log something -------------------------------------------------------- */
+.crm .panel{background:var(--raised);border:1px solid var(--line);border-radius:var(--r);padding:13px;margin-bottom:16px}
+.crm .plabel{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:0 0 9px}
+.crm .chips{display:flex;flex-wrap:wrap;gap:7px}
+.crm .chip{font-size:12.5px;padding:8px 13px;border-radius:999px;border:1px solid var(--line);color:var(--text);background:var(--graphite);transition:border-color .15s,color .15s}
+.crm .chip:hover{border-color:var(--cyan);color:var(--cyan)}
+.crm .chip.on{border-color:var(--cyan);color:var(--cyan)}
+.crm .chip.hot.on{border-color:var(--clay);color:var(--clay)}
+.crm .chip.warm.on{border-color:var(--amber);color:var(--amber)}
+.crm .chip.cold.on{border-color:#6b7681;color:#9aa4ad}
+.crm .chip:disabled{opacity:.5;cursor:wait}
+.crm .row{display:flex;gap:7px;margin-top:9px;flex-wrap:wrap}
+.crm .field{flex:1;min-width:200px;background:var(--graphite);border:1px solid var(--line);border-radius:10px;padding:9px 12px;color:var(--text);font:inherit;font-size:13px}
+.crm .field::placeholder{color:#5d666e}
+.crm .go{background:var(--cyan);color:var(--on-cyan);border-radius:10px;padding:9px 16px;font-size:13px;font-weight:600}
+.crm .go:disabled{opacity:.55;cursor:wait}
+.crm .said{font-size:12px;color:var(--cyan);margin-top:9px}
+.crm .said.bad{color:var(--clay)}
+
+/* ---- the timeline --------------------------------------------------------- */
+.crm .tl{display:flex;flex-direction:column}
+.crm .ev{display:grid;grid-template-columns:12px 1fr;gap:11px;padding:11px 0;border-top:1px solid var(--line)}
+.crm .ev:first-child{border-top:0}
+.crm .pip{width:7px;height:7px;border-radius:50%;background:var(--line);margin-top:6px}
+.crm .ev.activity .pip{background:var(--cyan)}
+.crm .ev.customer .pip{background:var(--amber)}
+.crm .ev.campaign .pip{background:var(--paint)}
+.crm .ev.system .pip{background:#4a5560}
+.crm .evhead{display:flex;align-items:baseline;gap:9px}
+.crm .evlabel{flex:1;font-size:13px;font-weight:600;letter-spacing:-.015em}
+.crm .evwhen{font-size:10px;color:var(--muted);margin-left:auto;white-space:nowrap;font-family:var(--mono)}
+.crm .evdetail{font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:2px}
+
+.crm .foot{font-size:11px;color:var(--muted);text-align:center;padding:26px 16px 0;line-height:1.6}
+
+/* ---- the board ------------------------------------------------------------ */
+.crm .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px;margin:0 0 16px}
+.crm .tile{background:var(--raised);border:1px solid var(--line);border-radius:var(--r);padding:11px 13px}
+.crm .tile b{display:block;font-size:20px;font-weight:600;letter-spacing:-.03em}
+.crm .tile span{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+
+.crm .lanescroll{display:flex;gap:12px;overflow-x:auto;padding:0 0 8px;scroll-snap-type:x mandatory;scrollbar-width:none}
+.crm .lanescroll::-webkit-scrollbar{display:none}
+.crm .lane{flex:0 0 268px;scroll-snap-align:start}
+.crm .lanehead{display:flex;align-items:baseline;gap:8px;padding:0 2px 9px}
+.crm .lanename{font-size:12px;font-weight:600}
+.crm .lanecount{font-size:10px;color:var(--muted);margin-left:auto}
+.crm .lanebar{height:2px;border-radius:2px;background:var(--line);margin-bottom:10px}
+.crm .lanebar i{display:block;height:100%;border-radius:2px;background:var(--cyan)}
+.crm .laneempty{font-size:11.5px;color:#4d565f;padding:2px}
+
+.crm .card{background:var(--raised);border:1px solid var(--line);border-radius:var(--r);padding:12px;margin-bottom:9px;position:relative;overflow:hidden;display:block;transition:border-color .15s}
+.crm .card:hover{border-color:#2f3a44}
+.crm .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:transparent}
+.crm .card.warnamber::before{background:var(--amber)}
+.crm .card.warnclay::before{background:var(--clay)}
+.crm .cchips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.crm .cchip{font-style:normal;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 8px}
+.crm .cchip.warn{color:var(--amber);border-color:rgba(224,168,60,.4)}
+.crm .cchip.bad{color:var(--clay);border-color:rgba(179,87,74,.45)}
+.crm .cnote{display:block;font-size:11.5px;color:var(--muted);line-height:1.45;margin-top:8px;font-style:italic}
+.crm .swipe{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#4d565f;margin:6px 0 0}
+/* Seven lanes need ~1950px. Below that the board scrolls sideways, so the hint
+   STAYS — hiding it on desktop left three lanes off-screen with nothing saying
+   so, which is how a board quietly loses a third of the pipeline. Above it,
+   every lane fits at once and the hint goes. */
+@media (min-width:1960px){
+  .crm .lanescroll{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));overflow:visible}
+  .crm .lane{flex:auto}
+  .crm .swipe{display:none}
+}
+
+/* ---- lead sources --------------------------------------------------------- */
+.crm .partial{font-size:11.5px;color:var(--amber);border:1px solid rgba(224,168,60,.35);border-radius:12px;padding:10px 13px;margin:0 0 14px;line-height:1.5}
+.crm .table{background:var(--raised);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.crm .trow{display:grid;grid-template-columns:1fr 80px 80px 120px;gap:8px;padding:11px 14px;border-top:1px solid var(--line);font-size:13px;align-items:baseline}
+.crm .trow:first-child{border-top:0}
+.crm .trow .num{text-align:right}
+.crm .thead{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.crm .tfoot{background:var(--graphite);font-weight:600}
+@media (max-width:560px){ .crm .trow{grid-template-columns:1fr 54px 54px 88px;font-size:12px;padding:10px} }
+
+/* ---- segments ------------------------------------------------------------- */
+.crm .segname{font-size:16px;font-weight:600;letter-spacing:-.02em;margin:0}
+.crm .segdesc{font-size:12.5px;color:var(--muted);margin:3px 0 12px;line-height:1.5}
+.crm .rules{display:flex;flex-direction:column;gap:7px}
+.crm .rule{display:flex;flex-wrap:wrap;align-items:baseline;gap:7px;font-size:13px}
+.crm .and{font-style:normal;font-size:11px;color:var(--muted);width:26px}
+.crm .rfield{background:var(--graphite);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-weight:600}
+.crm .rop{font-size:12px;color:var(--muted)}
+.crm .rvalue{background:var(--graphite);border:1px solid rgba(59,216,233,.3);border-radius:8px;padding:5px 10px;color:var(--cyan)}
+.crm .relative{font-size:11.5px;color:var(--muted);margin:12px 0 0;line-height:1.5}
+.crm a.chip{display:inline-block}
+
+/* ---- campaign studio ------------------------------------------------------ */
+.crm .studio{display:grid;grid-template-columns:1fr;gap:18px}
+@media (min-width:1000px){ .crm .studio{grid-template-columns:minmax(0,1fr) 480px;align-items:start} }
+.crm .studioside{min-width:0}
+.crm .studiopreview{position:sticky;top:104px}
+.crm .preview{width:100%;height:min(72vh,760px);border:1px solid var(--line);border-radius:var(--r);background:#F6F8F9}
+.crm select.field{appearance:none;background:var(--graphite) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%238C959D'/></svg>") no-repeat right 12px center}
+.crm textarea.field{resize:vertical;line-height:1.5;font-family:var(--sans)}
+.crm .bfield{display:block;margin-top:9px}
+.crm .bfield>span{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}
+.crm .bfield .field{width:100%}
+.crm .bhint{font-size:11.5px;color:var(--muted);line-height:1.5;margin:6px 0 0}
+.crm .bcard{background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:11px 12px 13px;margin-bottom:9px}
+.crm .bhead{display:flex;align-items:center;gap:6px}
+.crm .bkind{flex:1;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.crm .bbtn{width:26px;height:26px;border:1px solid var(--line);border-radius:7px;color:var(--muted);font-size:13px;line-height:1}
+.crm .bbtn:hover:not(:disabled){border-color:var(--cyan);color:var(--cyan)}
+.crm .bbtn:disabled{opacity:.35;cursor:default}
+.crm .aitoggle{display:block;width:100%;margin-top:14px;padding:11px;border:1px dashed rgba(59,216,233,.45);border-radius:12px;color:var(--cyan);font-size:13px;font-weight:600;background:rgba(59,216,233,.05)}
+.crm .panel.ai{border-color:rgba(59,216,233,.35)}
+.crm .partial ul{margin:6px 0 0;padding-left:18px}
+.crm .partial li{margin:3px 0}

@@ -23,6 +23,9 @@ const NAV = [
   { href: "/invoices", label: "Invoicing", icon: "🧾" },
   { href: "/invoicing", label: "Payments", icon: "💳" },
   { href: "/contacts", label: "Contacts", icon: "👤" },
+  // The CRM lives outside this shell (its own dark chrome, like /pc), so it
+  // needs its link here or it is a screen nobody can find.
+  { href: "/crm", label: "CRM", icon: "📣" },
   { href: "/contractors", label: "Contractors", icon: "🎨" },
   { href: "/settings", label: "Settings", icon: "⚙️" },
 ];

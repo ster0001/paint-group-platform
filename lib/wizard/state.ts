@@ -111,6 +111,21 @@ export const wizardStateSchema = z.object({
     damagePhotoCount: z.number().int().min(0).max(24).default(0),
   }),
 
+  /**
+   * The STAFF path's contact details (Tom, 29 Aug: "always ask for name, phone
+   * and email").
+   *
+   * The gap this closes: the internal wizard captured no way to reach anyone,
+   * so 15 of 25 live estimates were addresses with prices and no person —
+   * unreachable by the CRM, uncampaignable, and unlinkable to an account.
+   * Customer mode keeps using `customer`, which already has an email.
+   */
+  contact: z.object({
+    name: z.string().trim().max(120).default(""),
+    email: z.string().trim().max(160).default(""),
+    phone: z.string().trim().max(40).default(""),
+  }).default({ name: "", email: "", phone: "" }),
+
   paint: z.object({
     brands: z.array(z.enum(["dulux", "haymes", "taubmans"])).default([]),
     /** After a brand is picked: do they know the colours, or want advice?
@@ -277,6 +292,7 @@ export function defaultWizardState(): WizardState {
       damageNote: "",
       damagePhotoCount: 0,
     },
+    contact: { name: "", email: "", phone: "" },
     paint: { brands: [], colourHelp: null, waterBasedOnly: false, trimsOilBased: null },
     exterior: null,
   };
