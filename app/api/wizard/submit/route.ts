@@ -94,9 +94,13 @@ export async function POST(request: Request) {
     .digest("hex").slice(0, 32);
   // 3a-6: a verified session email ALWAYS wins over whatever the client
   // typed — the magic link proved that inbox; a form field proves nothing.
+  // On the staff path the contact block is the identity; on the customer path
+  // it is their own verified email, then whatever they typed.
   const email = (actor.kind === "customer" && actor.verifiedEmail)
     ? actor.verifiedEmail
-    : state.customer?.email.trim().toLowerCase() ?? "";
+    : (state.customer?.email.trim().toLowerCase()
+       || state.contact.email.trim().toLowerCase()
+       || "");
   // The account's gates (§3): trade = unlimited; flags.unlimited = the
   // office unblock. Looked up by the identity email; missing table or no
   // account = standard limits.
@@ -545,6 +549,10 @@ export async function POST(request: Request) {
     try {
       const linked = await ensureAccountAndProperty(db, {
         email,
+        // The staff path now always has these; the customer path fills them in
+        // later from the portal.
+        name: state.contact.name.trim() || null,
+        phone: state.contact.phone.trim() || null,
         address: state.address
           ? {
               street: state.address.street,

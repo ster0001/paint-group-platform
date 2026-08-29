@@ -152,3 +152,23 @@ it("junk listing text neither validates nor waives the facade photos", () => {
   const r = wizardStateSchema.safeParse(s);
   expect(r.success).toBe(false);
 });
+
+// ---- Tom, 29 Aug: the staff path always asks who it is for -----------------
+
+describe("the staff contact block", () => {
+  it("defaults to empty, and survives an older saved state", () => {
+    expect(defaultWizardState().contact).toEqual({ name: "", email: "", phone: "" });
+    const legacy: Record<string, unknown> = { ...valid() };
+    delete legacy.contact;
+    const r = wizardStateSchema.safeParse(legacy);
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.contact).toEqual({ name: "", email: "", phone: "" });
+  });
+
+  it("carries the details the account is built from", () => {
+    const s = { ...valid(), contact: { name: "Bianca Rossi", email: "bianca@example.com", phone: "0412 345 678" } };
+    const r = wizardStateSchema.safeParse(s);
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.contact.email).toBe("bianca@example.com");
+  });
+});

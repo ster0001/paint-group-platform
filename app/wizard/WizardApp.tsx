@@ -459,6 +459,15 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
 
   function pageBlocker(): string | null {
     if (page === 1) {
+      // The contact block is the first thing on the page, so it is the first
+      // thing checked — being told about a field you cannot see is how a gate
+      // reads as broken.
+      if (!isCustomer) {
+        const c = state.contact;
+        if (!c.name.trim()) return "Whose job is it? A name, please.";
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email.trim())) return "An email for them — it's how the estimate reaches them.";
+        if (c.phone.replace(/[^0-9]/g, "").length < 8) return "A phone number too, so someone can ring them.";
+      }
       const wantsInterior = state.jobType !== "exterior";
       if (isCustomer && (!state.customer || state.customer.suburb.trim() === "" || state.customer.postcode.trim() === "")) {
         return "Where's the property? Suburb and postcode, please.";
@@ -701,6 +710,28 @@ function PageProperty({
     <>
       <p className="wz-kick">Step 1 of 5 · The property</p>
       <h1>Let&rsquo;s look at the place</h1>
+
+      {/* Tom, 29 Aug: "always ask for name, phone and email". Before anything
+          else, because an estimate with no way to reach anyone can never join
+          the customer record — which is how 15 of the first 25 ended up as an
+          address with a price on it and nobody attached. */}
+      {!isCustomer && (
+        <div className="wz-contact">
+          <p className="wz-qhead">Who is it for?</p>
+          <div className="wz-crow">
+            <input className="wz-field" placeholder="Name" value={state.contact.name}
+              onChange={(e) => set({ contact: { ...state.contact, name: e.target.value } })} />
+            <input className="wz-field" type="email" placeholder="Email" value={state.contact.email}
+              onChange={(e) => set({ contact: { ...state.contact, email: e.target.value } })} />
+            <input className="wz-field" placeholder="Phone" inputMode="tel" value={state.contact.phone}
+              onChange={(e) => set({ contact: { ...state.contact, phone: e.target.value } })} />
+          </div>
+          <p className="wz-chint">
+            All three, every time — it&rsquo;s what puts the job on their record instead of leaving it
+            an address with a price on it.
+          </p>
+        </div>
+      )}
       <p className="wz-sub">
         {state.jobType === "exterior"
           ? <>Paste the real-estate listing if there is one — we&rsquo;ll read the photos and address. Or add two or three photos of the outside.</>
