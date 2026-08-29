@@ -5,7 +5,7 @@ import {
   BLOCK_MENU, blankBlock, renderEmail, templateWarnings,
   type Block, type BlockKind, type Template,
 } from "@/lib/campaigns/blocks";
-import { approveTemplate, saveTemplate, writeWithAi } from "../actions";
+import { approveTemplate, saveTemplate, writeWithAi } from "../../actions";
 
 /**
  * The studio (session 3.5).

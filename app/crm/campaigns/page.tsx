@@ -1,71 +1,69 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { STANDING_SEGMENTS } from "@/lib/crm/segments";
-import NewTemplate from "./NewTemplate";
+import SubNav from "../SubNav";
+import NewCampaign from "./NewCampaign";
 
 export const dynamic = "force-dynamic";
 
 /**
- * The campaign studio's front door (session 3.2/3.5).
- *
- * Templates only, deliberately. Enrolment, the sweep, the guard chain and
- * sending are the next session — and until they exist, nothing here can reach
- * a customer, which is exactly the state the brief asks for ("auto-send ships
- * OFF", "draft-only").
+ * Campaigns (session 3.1). A campaign is a list, an email per step, and the
+ * waits between them. No campaign ships built in — Tom, 29 Aug: "unsure which
+ * campaign we will run first, that's the point of having this."
  */
 export default async function CampaignsPage() {
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from("campaign_templates")
-    .select("id, name, subject, segment_key, approved_at, updated_at, blocks")
+    .from("campaigns")
+    .select("id, name, segment_key, status, steps, auto_send, updated_at")
     .order("updated_at", { ascending: false })
     .limit(100);
 
-  // The table arrives with migration 20261208. Until it runs, say so plainly
-  // rather than showing an error nobody can act on.
-  const migrationPending = !!error && /relation .* does not exist/i.test(error.message);
+  const migrationPending = !!error && /does not exist/i.test(error.message);
   const rows = (data ?? []) as Array<{
-    id: string; name: string; subject: string; segment_key: string | null;
-    approved_at: string | null; updated_at: string; blocks: unknown[];
+    id: string; name: string; segment_key: string; status: string;
+    steps: unknown[]; auto_send: boolean; updated_at: string;
   }>;
 
   return (
     <>
-      <h2>Campaign studio</h2>
+      <h2>Campaigns</h2>
+      <SubNav />
       <p className="sub">
-        Write it yourself or have it drafted, then read it before anyone else does.
-        Nothing here can send — sending arrives with its own guard chain.
+        A list, an email, and how long to wait. Nothing sends on its own — every message waits for
+        someone to read it, and the dry run tells you exactly who would get it before you turn it on.
       </p>
 
       {migrationPending ? (
         <p className="partial">
-          The templates table hasn&rsquo;t been created yet. Run migration
-          <b> 20261208_campaign_templates</b> and this fills in.
+          The campaign tables haven&rsquo;t been created yet. Run migration <b>20261209_campaign_engine</b>.
         </p>
       ) : (
         <>
-          <NewTemplate segments={STANDING_SEGMENTS.map((s) => ({ key: s.key, name: s.name }))} />
+          <NewCampaign segments={STANDING_SEGMENTS.map((s) => ({ key: s.key, name: s.name }))} />
 
           {rows.length === 0 ? (
-            <p className="empty">No emails yet. Start one above — it takes about a minute with the writer.</p>
+            <p className="empty">
+              No campaigns yet. Start one above — you can build it, dry-run it, and leave it as a draft
+              for as long as you like.
+            </p>
           ) : (
             <div className="people">
-              {rows.map((t) => {
-                const segment = STANDING_SEGMENTS.find((s) => s.key === t.segment_key);
+              {rows.map((c) => {
+                const segment = STANDING_SEGMENTS.find((s) => s.key === c.segment_key);
+                const steps = Array.isArray(c.steps) ? c.steps.length : 0;
                 return (
-                  <Link key={t.id} className="person" href={`/crm/campaigns/${t.id}`}>
+                  <Link key={c.id} className="person" href={`/crm/campaigns/c/${c.id}`}>
                     <span className="cname">
-                      <i className={`dot ${t.approved_at ? "cold" : "warm"}`} aria-hidden="true" />
-                      {t.name}
+                      <i className={`dot ${c.status === "live" ? "warm" : "cold"}`} aria-hidden="true" />
+                      {c.name}
                     </span>
-                    <span className="cmeta">{t.subject || "No subject yet"}</span>
+                    <span className="cmeta">To: {segment?.name ?? c.segment_key}</span>
                     <span className="cfoot">
-                      <b className="cval" style={{ fontSize: 12 }}>
-                        {Array.isArray(t.blocks) ? t.blocks.length : 0} block{Array.isArray(t.blocks) && t.blocks.length === 1 ? "" : "s"}
-                      </b>
-                      <span className="cwhen mono">{t.approved_at ? "approved" : "draft"}</span>
+                      <b className="cval" style={{ fontSize: 12 }}>{steps} step{steps === 1 ? "" : "s"}</b>
+                      <span className="cwhen mono">{c.status}</span>
                     </span>
-                    {segment && <span className="cnote">To: {segment.name}</span>}
+                    {c.auto_send && <span className="cnote">Auto-send is ON</span>}
                   </Link>
                 );
               })}

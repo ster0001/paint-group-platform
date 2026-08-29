@@ -195,6 +195,16 @@ export const STANDING_SEGMENTS: Segment[] = [
     ],
   },
   {
+    key: "everyone_quoted",
+    name: "Everyone we've quoted",
+    description: "Anyone who has ever been given a price, minus the people it would be wrong to write to.",
+    standing: true,
+    criteria: [
+      { field: "quoted", op: "is", value: true },
+      { field: "status", op: "is_not", value: ["unsubscribed"] },
+    ],
+  },
+  {
     key: "quoted_never_booked",
     name: "Quoted, never booked",
     description: "Sent an estimate, never accepted it, and gone quiet for six months.",

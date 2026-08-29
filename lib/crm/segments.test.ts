@@ -92,6 +92,20 @@ describe("the 'quoted, never booked' list", () => {
   });
 });
 
+describe("the 'everyone we've quoted' list", () => {
+  it("is the broad list — quoted, and not unsubscribed", () => {
+    // The one list that is allowed to be broad. It still refuses the person
+    // who asked not to be written to, because that refusal is absolute.
+    const seg = STANDING_SEGMENTS.find((s) => s.key === "everyone_quoted")!;
+    const quoted = subject({ accountId: "q", everQuoted: true });
+    const busy = subject({ accountId: "busy", everQuoted: true, hasOpenWork: true });
+    const gone = subject({ accountId: "gone", everQuoted: true, unsubscribed: true });
+    const never = subject({ accountId: "never", everQuoted: false });
+    expect(evaluateSegment([quoted, busy, gone, never], seg, NOW).map((s) => s.accountId))
+      .toEqual(["q", "busy"]);
+  });
+});
+
 describe("previewSegment", () => {
   it("counts, samples and values the list", () => {
     const subjects = [

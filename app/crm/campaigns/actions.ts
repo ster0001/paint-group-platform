@@ -22,7 +22,7 @@ export async function createTemplate(name: string, segmentKey: string | null): P
     .select("id")
     .single();
   if (error) return { ok: false, message: error.message };
-  revalidatePath("/crm/campaigns");
+  revalidatePath("/crm/campaigns/emails");
   return { ok: true, message: "Started.", data: { id: data.id as string } };
 }
 
@@ -49,8 +49,8 @@ export async function saveTemplate(id: string, name: string, template: Template)
     approved_by: null,
   }).eq("id", id);
   if (error) return { ok: false, message: error.message };
-  revalidatePath(`/crm/campaigns/${id}`);
-  revalidatePath("/crm/campaigns");
+  revalidatePath(`/crm/campaigns/emails/${id}`);
+  revalidatePath("/crm/campaigns/emails");
   return { ok: true, message: "Saved." };
 }
 
@@ -62,7 +62,7 @@ export async function approveTemplate(id: string): Promise<StudioResult> {
     .update({ approved_at: new Date().toISOString(), approved_by: user?.id ?? null })
     .eq("id", id);
   if (error) return { ok: false, message: error.message };
-  revalidatePath(`/crm/campaigns/${id}`);
+  revalidatePath(`/crm/campaigns/emails/${id}`);
   return { ok: true, message: "Marked as read and approved. Nothing sends yet — sending is the next session." };
 }
 
@@ -71,7 +71,7 @@ export async function deleteTemplate(id: string): Promise<StudioResult> {
   const supabase = await createClient();
   const { error } = await supabase.from("campaign_templates").delete().eq("id", id);
   if (error) return { ok: false, message: error.message };
-  revalidatePath("/crm/campaigns");
+  revalidatePath("/crm/campaigns/emails");
   return { ok: true, message: "Deleted." };
 }
 

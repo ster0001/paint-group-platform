@@ -32,7 +32,7 @@ export default async function TemplatePage({ params }: { params: Promise<{ id: s
 
   return (
     <>
-      <Link className="back" href="/crm/campaigns">← Campaign studio</Link>
+      <Link className="back" href="/crm/campaigns/emails">← Emails</Link>
       <Studio
         id={row.id as string}
         initialName={row.name as string}

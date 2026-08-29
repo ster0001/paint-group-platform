@@ -31,7 +31,7 @@ export default function NewTemplate({ segments }: { segments: Array<{ key: strin
           onClick={() => start(async () => {
             const r = await createTemplate(name, segment || null);
             if (!r.ok) { setError(r.message); return; }
-            router.push(`/crm/campaigns/${r.data!.id}`);
+            router.push(`/crm/campaigns/emails/${r.data!.id}`);
           })}
         >
           {busy ? "Starting…" : "Start writing"}
