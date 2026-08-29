@@ -13,7 +13,7 @@ const TABS = [
   { key: "customer", label: "Customer", href: "/crm", soon: null },
   { key: "segments", label: "Segments", href: null, soon: "2.5" },
   { key: "campaigns", label: "Campaigns", href: null, soon: "3.1" },
-  { key: "sources", label: "Lead sources", href: null, soon: "2.4" },
+  { key: "sources", label: "Lead sources", href: "/crm/sources", soon: null },
 ] as const;
 
 export default function CrmTabs() {

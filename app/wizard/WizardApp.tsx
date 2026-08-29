@@ -15,6 +15,7 @@ import {
   type WizardSurfaceKey,
 } from "@/lib/wizard/state";
 import { defaultSurfacesFor, type SubstrateGroups } from "@/lib/estimate/substrates";
+import { captureTouch, readAttribution } from "@/lib/crm/attributionClient";
 import {
   busyReason,
   continueState,
@@ -138,6 +139,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
 
   const router = useRouter();
   const set = (patch: Partial<WizardState>) => setState((s) => ({ ...s, ...patch }));
+
+  // 2.4 · record the arrival once, on mount. First touch writes itself only
+  // the first time; last touch moves every visit. Wrapped in the helper, which
+  // never throws — a marketing tag must not be able to break an estimate.
+  useEffect(() => { captureTouch(); }, []);
 
   useEffect(() => {
     if (!isCustomer) return;
@@ -413,7 +419,10 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     const res = await fetch("/api/wizard/submit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ state: submitState }),
+      // 2.4: where this visitor came from rides with the submit. Captured on
+      // arrival and read here rather than posted separately, so attribution
+      // lands in the same transaction as the estimate or not at all.
+      body: JSON.stringify({ state: submitState, attribution: readAttribution() }),
     });
     const j = await res.json().catch(() => ({}));
 

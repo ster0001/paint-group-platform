@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { needsYouToday, stageFor, THRESHOLDS, type AccountFacts } from "./stage";
+import { isWon, needsYouToday, stageFor, THRESHOLDS, type AccountFacts } from "./stage";
 
 const NOW = new Date("2026-08-29T10:00:00+10:00");
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 86_400_000).toISOString();
@@ -191,5 +191,17 @@ describe("needsYouToday", () => {
     expect(needsYouToday(stageFor(facts({
       estimates: [estimate({ status: "sent", sent_at: daysAgo(1) })],
     }), NOW))).toBe(false);
+  });
+});
+
+describe("isWon", () => {
+  it("trusts the status, because accepted_at is not always stamped", () => {
+    // Live data, 29 Aug 2026: two accepted estimates carry a null accepted_at.
+    // Filtering on the timestamp lost both, and told the report that customer
+    // had won nothing.
+    expect(isWon({ status: "accepted", accepted_at: null })).toBe(true);
+    expect(isWon({ status: "sent", accepted_at: "2026-08-01T00:00:00Z" })).toBe(true);
+    expect(isWon({ status: "draft", accepted_at: null })).toBe(false);
+    expect(isWon({ status: "declined", accepted_at: null })).toBe(false);
   });
 });

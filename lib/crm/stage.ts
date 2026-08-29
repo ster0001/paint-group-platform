@@ -235,6 +235,19 @@ export function stageFor(facts: AccountFacts, now: Date = new Date()): StageResu
   });
 }
 
+/**
+ * Won, and what for.
+ *
+ * `accepted_at` is not reliably stamped — two of the live accepted estimates
+ * carry status 'accepted' with a null timestamp, from a path that never set
+ * it. A report that filters on the timestamp alone silently loses those jobs
+ * and tells the office a customer brought in nothing. So the STATUS is the
+ * authority on whether it was won; the timestamp is only used for dating it.
+ */
+export function isWon(e: Pick<EstimateFact, "status" | "accepted_at">): boolean {
+  return e.status === "accepted" || e.accepted_at != null;
+}
+
 /** Every open lane — the board's "34 open" is the count across these. */
 export const OPEN_LANES: LaneKey[] = LANES.map((l) => l.key).filter((k) => k !== "past_customer");
 

@@ -135,3 +135,13 @@
   .crm .lane{flex:auto}
   .crm .swipe{display:none}
 }
+
+/* ---- lead sources --------------------------------------------------------- */
+.crm .partial{font-size:11.5px;color:var(--amber);border:1px solid rgba(224,168,60,.35);border-radius:12px;padding:10px 13px;margin:0 0 14px;line-height:1.5}
+.crm .table{background:var(--raised);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.crm .trow{display:grid;grid-template-columns:1fr 80px 80px 120px;gap:8px;padding:11px 14px;border-top:1px solid var(--line);font-size:13px;align-items:baseline}
+.crm .trow:first-child{border-top:0}
+.crm .trow .num{text-align:right}
+.crm .thead{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.crm .tfoot{background:var(--graphite);font-weight:600}
+@media (max-width:560px){ .crm .trow{grid-template-columns:1fr 54px 54px 88px;font-size:12px;padding:10px} }
