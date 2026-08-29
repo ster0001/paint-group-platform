@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { templateSchema, type Template } from "@/lib/campaigns/blocks";
 import { generateEmail } from "@/lib/campaigns/ai";
+import { sendCampaignEmail } from "@/lib/campaigns/send";
 import { STANDING_SEGMENTS } from "@/lib/crm/segments";
 
 export type StudioResult<T = undefined> =
@@ -118,4 +119,53 @@ export async function writeWithAi(input: {
       : "Draft written.",
     data: { template: result.template, warnings: result.warnings },
   };
+}
+
+/**
+ * Send this draft to one address, as a test.
+ *
+ * The only path in the whole module that puts an email on the wire, and it can
+ * only ever reach the person asking: the address is the signed-in staff
+ * member's own, never typed in. A "send test to anyone" box is a send button
+ * with a thin disguise.
+ */
+export async function sendTestEmail(id: string): Promise<StudioResult<{ to: string }>> {
+  if (!uuid.safeParse(id).success) return { ok: false, message: "That isn't a template." };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const to = user?.email ?? "";
+  if (!to) return { ok: false, message: "You have no email address on your login." };
+
+  const [{ data: row }, { data: profileRow }] = await Promise.all([
+    supabase.from("campaign_templates").select("subject, preheader, blocks").eq("id", id).maybeSingle(),
+    supabase.from("settings").select("value").eq("key", "company_profile").maybeSingle(),
+  ]);
+  if (!row) return { ok: false, message: "That template is gone." };
+
+  const parsed = templateSchema.safeParse({
+    subject: row.subject ?? "",
+    preheader: row.preheader ?? "",
+    blocks: Array.isArray(row.blocks) ? row.blocks : [],
+  });
+  if (!parsed.success) return { ok: false, message: "Save the draft first — it isn't valid yet." };
+  if (parsed.data.blocks.length === 0) return { ok: false, message: "There's nothing in it to send." };
+  if (!parsed.data.subject.trim()) return { ok: false, message: "It needs a subject line first." };
+
+  const company = (profileRow?.value ?? {}) as { name?: string; logoUrl?: string };
+
+  // A test carries the STAFF member's own account id in the unsubscribe link,
+  // if they have one — so clicking it in a test unsubscribes the tester and
+  // nobody else. With no account, the link is inert.
+  const { data: account } = await supabase.from("accounts").select("id").eq("email", to.toLowerCase()).maybeSingle();
+
+  const result = await sendCampaignEmail({
+    to,
+    accountId: (account?.id as string) ?? "00000000-0000-0000-0000-000000000000",
+    template: parsed.data,
+    brand: { companyName: company.name || "Paint Group", logoUrl: company.logoUrl || null },
+    isTest: true,
+  });
+  if (!result.ok) return { ok: false, message: result.error };
+  return { ok: true, message: `Sent to ${to}. It'll say [TEST] in the subject.`, data: { to } };
 }

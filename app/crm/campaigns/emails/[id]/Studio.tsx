@@ -5,7 +5,7 @@ import {
   BLOCK_MENU, blankBlock, renderEmail, templateWarnings,
   type Block, type BlockKind, type Template,
 } from "@/lib/campaigns/blocks";
-import { approveTemplate, saveTemplate, writeWithAi } from "../../actions";
+import { approveTemplate, saveTemplate, sendTestEmail, writeWithAi } from "../../actions";
 
 /**
  * The studio (session 3.5).
@@ -215,6 +215,11 @@ export default function Studio({ id, initialName, initialTemplate, approvedAt, s
         <div className="row" style={{ marginTop: 16 }}>
           <button className="go" disabled={busy} onClick={() => start(async () => setSaid(await saveTemplate(id, name, t)))}>
             {busy ? "Saving…" : "Save"}
+          </button>
+          <button className="chip" disabled={busy} onClick={() => start(async () => {
+            setSaid(await sendTestEmail(id));
+          })}>
+            Send a test to me
           </button>
           <button className="chip" disabled={busy} onClick={() => start(async () => {
             const r = await approveTemplate(id);
