@@ -185,3 +185,174 @@ export async function dryRunCampaign(id: string): Promise<CampaignResult<DryRunR
     },
   };
 }
+
+// ---- the approval queue ------------------------------------------------------
+
+export type QueueRow = {
+  id: string;
+  accountName: string;
+  email: string;
+  campaign: string;
+  templateName: string;
+  templateId: string | null;
+  subject: string;
+  step: number;
+  state: string;
+  reason: string | null;
+  verdict: string;
+  sendable: boolean;
+};
+
+/**
+ * Run the sweep by hand.
+ *
+ * The cron does this on weekday mornings; the button exists so somebody can
+ * see the result now rather than tomorrow. Identical code either way.
+ */
+export async function sweepNow(): Promise<CampaignResult<{ queued: number; matched: number }>> {
+  const supabase = await createClient();
+  const { runSweep } = await import("@/lib/campaigns/runSweep");
+  const outcomes = await runSweep(supabase as never, new Date());
+  const queued = outcomes.reduce((n, o) => n + o.queued, 0);
+  const matched = outcomes.reduce((n, o) => n + o.matched, 0);
+  const errors = outcomes.flatMap((o) => o.errors);
+  revalidatePath("/crm/campaigns/queue");
+  if (errors.length) return { ok: false, message: errors[0] };
+  return {
+    ok: true,
+    message: outcomes.length === 0
+      ? "No live campaigns, so nothing to sweep."
+      : `${matched} matched, ${queued} newly queued.`,
+    data: { queued, matched },
+  };
+}
+
+/**
+ * Approve one message and send it.
+ *
+ * The guard chain runs again HERE, against the customer as they are in this
+ * second — not as they were when the sweep queued them. Someone who accepted a
+ * quote an hour ago gets nothing, and that is the entire point of approving at
+ * send time rather than at enrolment.
+ */
+export async function approveAndSend(messageId: string): Promise<CampaignResult> {
+  if (!uuid.safeParse(messageId).success) return { ok: false, message: "That isn't a message." };
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const { data: msg } = await supabase.from("campaign_messages")
+    .select("id, account_id, template_id, step, state, send_key, enrolment_id")
+    .eq("id", messageId).maybeSingle();
+  if (!msg) return { ok: false, message: "That message is gone." };
+  if (msg.state === "sent") return { ok: false, message: "Already sent." };
+
+  const [{ data: account }, { data: template }, { data: profileRow }] = await Promise.all([
+    supabase.from("accounts")
+      .select("id, name, email, snoozed_until, marketing_unsubscribed_at, marketing_undeliverable_at")
+      .eq("id", msg.account_id).maybeSingle(),
+    supabase.from("campaign_templates")
+      .select("id, name, subject, preheader, blocks, approved_at").eq("id", msg.template_id ?? "").maybeSingle(),
+    supabase.from("settings").select("value").eq("key", "company_profile").maybeSingle(),
+  ]);
+  if (!account) return { ok: false, message: "That customer is gone." };
+  if (!template) return { ok: false, message: "The email for this step is missing." };
+
+  const { templateSchema: schema } = await import("@/lib/campaigns/blocks");
+  const parsed = schema.safeParse({
+    subject: template.subject ?? "", preheader: template.preheader ?? "",
+    blocks: Array.isArray(template.blocks) ? template.blocks : [],
+  });
+  if (!parsed.success || parsed.data.blocks.length === 0) {
+    return { ok: false, message: "That email isn't finished." };
+  }
+
+  // Re-ask every question, now.
+  const { loadSubjects } = await import("@/lib/crm/loadSubjects");
+  const { evaluateSegment, STANDING_SEGMENTS } = await import("@/lib/crm/segments");
+  const { guardSend, DEFAULT_POLICY } = await import("@/lib/campaigns/guard");
+
+  const now = new Date();
+  const subjects = await loadSubjects(supabase, now);
+  const subject = subjects.find((s) => s.accountId === msg.account_id);
+
+  const { data: enrolment } = await supabase.from("campaign_enrolments")
+    .select("campaign_id, enrolled_at").eq("id", msg.enrolment_id).maybeSingle();
+  const { data: campaign } = await supabase.from("campaigns")
+    .select("key, name, segment_key").eq("id", enrolment?.campaign_id ?? "").maybeSingle();
+  const segment = STANDING_SEGMENTS.find((s) => s.key === campaign?.segment_key);
+  const stillInSegment = segment && subject
+    ? evaluateSegment([subject], segment, now).length === 1
+    : false;
+
+  const melbourneHour = Number(new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", hour: "numeric", hour12: false }).format(now));
+  const melbourneDay = new Date(now.toLocaleString("en-US", { timeZone: "Australia/Melbourne" })).getDay();
+
+  const verdict = guardSend(
+    { sendKey: msg.send_key as string, accountId: msg.account_id as string,
+      campaignKey: campaign?.key ?? "", channel: "email",
+      enrolledAt: (enrolment?.enrolled_at as string) ?? now.toISOString() },
+    {
+      unsubscribed: account.marketing_unsubscribed_at != null,
+      stillInSegment,
+      hasOpenWork: subject?.hasOpenWork ?? false,
+      acceptedSince: subject?.acceptedAt ?? null,
+      snoozedUntil: account.snoozed_until as string | null,
+      lastMarketingAt: subject?.lastMarketingAt ?? null,
+      undeliverable: account.marketing_undeliverable_at != null,
+    },
+    // A person is approving it right now, so that box is ticked; every other
+    // check still has to pass.
+    { templateApproved: template.approved_at != null, humanApproved: true, alreadySent: msg.state === "sent" },
+    DEFAULT_POLICY, now, melbourneHour, melbourneDay,
+  );
+
+  if (!verdict.send) {
+    await supabase.from("campaign_messages")
+      .update({ state: verdict.hold ? "held" : "stopped", reason: verdict.reason }).eq("id", messageId);
+    revalidatePath("/crm/campaigns/queue");
+    return { ok: false, message: verdict.hold ? `Held — ${verdict.reason}` : `Not sent — ${verdict.reason}` };
+  }
+
+  const { sendCampaignEmail } = await import("@/lib/campaigns/send");
+  const company = (profileRow?.value ?? {}) as { name?: string; logoUrl?: string };
+  const sent = await sendCampaignEmail({
+    to: account.email as string,
+    accountId: account.id as string,
+    template: parsed.data,
+    brand: { companyName: company.name || "Paint Group", logoUrl: company.logoUrl || null },
+  });
+  if (!sent.ok) {
+    await supabase.from("campaign_messages").update({ state: "failed", reason: sent.error }).eq("id", messageId);
+    revalidatePath("/crm/campaigns/queue");
+    return { ok: false, message: sent.error };
+  }
+
+  await supabase.from("campaign_messages").update({
+    state: "sent", sent_at: now.toISOString(), reason: null,
+    approved_at: now.toISOString(), approved_by: user?.id ?? null,
+  }).eq("id", messageId);
+
+  // The timeline must show it, or the office will not know it happened.
+  const { buildEvent, dedupeKey } = await import("@/lib/crm/events");
+  await supabase.rpc("crm_log_event", buildEvent({
+    type: "campaign_message_sent",
+    accountId: account.id as string,
+    source: "staff",
+    payload: { campaignKey: campaign?.key ?? "campaign", step: (msg.step as number) ?? 1, channel: "email" },
+    dedupeKey: dedupeKey("sent", msg.send_key as string),
+  }));
+
+  revalidatePath("/crm/campaigns/queue");
+  return { ok: true, message: `Sent to ${account.email}.` };
+}
+
+export async function cancelMessage(messageId: string, reason: string): Promise<CampaignResult> {
+  if (!uuid.safeParse(messageId).success) return { ok: false, message: "That isn't a message." };
+  const supabase = await createClient();
+  const { error } = await supabase.from("campaign_messages")
+    .update({ state: "stopped", reason: reason.trim() || "Cancelled by the office." }).eq("id", messageId);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/crm/campaigns/queue");
+  return { ok: true, message: "Cancelled — it won't go." };
+}

@@ -12,10 +12,12 @@ import { usePathname } from "next/navigation";
 export default function SubNav() {
   const path = usePathname();
   const onEmails = path.startsWith("/crm/campaigns/emails");
+  const onQueue = path.startsWith("/crm/campaigns/queue");
   return (
     <div className="chips" style={{ marginBottom: 14 }}>
-      <Link href="/crm/campaigns" className={`chip ${onEmails ? "" : "on"}`}>Campaigns</Link>
+      <Link href="/crm/campaigns" className={`chip ${!onEmails && !onQueue ? "on" : ""}`}>Campaigns</Link>
       <Link href="/crm/campaigns/emails" className={`chip ${onEmails ? "on" : ""}`}>Emails</Link>
+      <Link href="/crm/campaigns/queue" className={`chip ${onQueue ? "on" : ""}`}>Waiting for you</Link>
     </div>
   );
 }
