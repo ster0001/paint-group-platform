@@ -27,12 +27,17 @@ export type SendPolicy = {
   autoSend: boolean;
 };
 
-/** ⚑ C10/C11 are open decisions. These are defensible defaults, in one place,
- *  so a ruling is a one-line change and not a hunt. Business hours, weekdays,
- *  one marketing message a fortnight. */
+/**
+ * Ruled by Tom, 29 Aug 2026:
+ *   C10 — one marketing message per customer per MONTH. A repaint cycle is
+ *         measured in years, so monthly is already frequent relative to how
+ *         often someone needs a painter.
+ *   C11 — weekdays, 9am to 6pm. An email landing at 9pm reads as automated,
+ *         which undoes the personal tone the whole studio is built for.
+ */
 export const DEFAULT_POLICY: SendPolicy = {
   maxPerCustomer: 1,
-  frequencyWindowDays: 14,
+  frequencyWindowDays: 30,
   quietHoursStart: 9,
   quietHoursEnd: 18,
   permittedDays: [1, 2, 3, 4, 5],

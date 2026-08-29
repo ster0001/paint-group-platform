@@ -74,7 +74,22 @@ describe("the guard chain", () => {
     const v = verdict(customer({ lastMarketingAt: daysAgo(3) }), message(), policy({ frequencyWindowDays: 14 }));
     expect(v).toMatchObject({ send: false, hold: true });
     if (!v.send) expect(v.reason).toMatch(/3 days ago — 11 to go/);
-    expect(verdict(customer({ lastMarketingAt: daysAgo(15) }))).toEqual({ send: true });
+    expect(verdict(customer({ lastMarketingAt: daysAgo(15) }), message(), policy({ frequencyWindowDays: 14 })))
+      .toEqual({ send: true });
+  });
+
+  it("is one message a month by default — Tom's C10 ruling", () => {
+    expect(DEFAULT_POLICY.frequencyWindowDays).toBe(30);
+    expect(verdict(customer({ lastMarketingAt: daysAgo(20) }))).toMatchObject({ send: false, hold: true });
+    expect(verdict(customer({ lastMarketingAt: daysAgo(31) }))).toEqual({ send: true });
+  });
+
+  it("sends on weekdays between 9 and 6 — Tom's C11 ruling", () => {
+    expect(DEFAULT_POLICY.permittedDays).toEqual([1, 2, 3, 4, 5]);
+    expect(DEFAULT_POLICY.quietHoursStart).toBe(9);
+    expect(DEFAULT_POLICY.quietHoursEnd).toBe(18);
+    expect(guardSend(candidate(), customer(), message(), policy(), NOW, 18, DAY)).toMatchObject({ hold: true });
+    expect(guardSend(candidate(), customer(), message(), policy(), NOW, 12, 6)).toMatchObject({ hold: true });
   });
 
   it("holds outside sending hours and off sending days", () => {

@@ -29,6 +29,27 @@ references public.tenants(id) default public.current_tenant()`, and its RLS
 policies filter on it. A migration that adds a table without one is a
 stop-and-report.
 
+### C10 · Frequency — one marketing message per customer per MONTH (Tom, 29 Aug)
+
+Not per fortnight. A repaint cycle is measured in years, so monthly is already
+frequent relative to how often somebody needs a painter, and it makes two
+campaigns matching the same person harmless. Lives in `DEFAULT_POLICY`
+(lib/campaigns/guard.ts), enforced by the guard chain as a HOLD, not a cancel —
+they will be due later.
+
+### C11 · Timing — weekdays, 9am to 6pm (Tom, 29 Aug)
+
+An email landing at 9pm reads as automated, which undoes the personal tone the
+whole studio is built for. Also a hold: the message waits for the morning.
+
+### C12 · Which campaign runs first — deliberately NOT decided (Tom, 29 Aug)
+
+Tom: "Unsure which campaign we will run first, that's the point of having this."
+So no campaign is baked into the product. The engine takes any segment plus any
+template and any number of steps, and the builder must let the office create one
+without a developer. A pre-baked "first campaign" would have been a guess
+wearing the authority of a feature.
+
 ### M9 · Referrals — the referrer sends the introduction themselves
 
 Carried from the brief. **No send-to-a-friend form is to be built**, not behind
@@ -103,3 +124,8 @@ fiction.
   revision 1, so Phase 2 has no source. Requested from Tom 29 Aug.
 - **C9 · marketing consent** — needs legal. Blocks auto-send, not the build.
 - **C17 · email + SMS provider** — settle with the cost-capture inbound parsing.
+  Recommendation on the table: a SEPARATE Resend account/domain for marketing.
+  Spam complaints on a shared domain damage the deliverability of estimates and
+  invoices — the emails that actually make money.
+- **C7 · repaint-cycle intervals** — needed before any warranty or repaint
+  campaign can state a number.
