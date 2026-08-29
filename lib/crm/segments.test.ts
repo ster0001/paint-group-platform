@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  evaluateSegment, previewSegment, STANDING_SEGMENTS, toSubject,
+  criteriaSchema, evaluateSegment, previewSegment, STANDING_SEGMENTS, toSubject,
   type Segment, type SegmentSubject,
 } from "./segments";
 
@@ -9,7 +9,7 @@ const monthsAgo = (m: number) => new Date(NOW.getTime() - m * 30.4375 * 86_400_0
 
 const subject = (over: Partial<SegmentSubject> = {}): SegmentSubject => ({
   accountId: "a1", name: "Ben & Alice Turner", suburb: "Surrey Hills",
-  jobTypes: [], lastCompletedAt: null, wonCents: 0, lastContactAt: null, everQuoted: true,
+  jobTypes: [], lastCompletedAt: null, wonCents: 0, lastContactAt: null, everQuoted: true, draft: null,
   temperature: null, unsubscribed: false, hasOpenWork: false, snoozed: false,
   ...over,
 });
@@ -181,5 +181,90 @@ describe("toSubject", () => {
     }, NOW);
     expect(s.wonCents).toBe(845_000);
     expect(s.jobTypes).toEqual(["interior"]);
+  });
+});
+
+// ---- Tom, 30 Aug: journey criteria — the funnels are ordinary rules now ----
+
+describe("the journey criteria", () => {
+  const dropout = (over: Partial<NonNullable<SegmentSubject["draft"]>> = {}) => subject({
+    accountId: "drop", everQuoted: false, wonCents: 0,
+    draft: { progressPct: 40, uploaded: false, visits: 1, lastSeenAt: NOW.toISOString(), ...over },
+  });
+
+  it("finds the under-80% drop-out who left more than a day ago", () => {
+    // Funnel one: "need a hand with your estimate?"
+    const s = seg([
+      { field: "abandoned_draft", op: "is", value: true },
+      { field: "draft_progress", op: "less_than", pct: 80 },
+      { field: "draft_age", op: "more_than", hours: 24 },
+    ]);
+    const stale = dropout({ lastSeenAt: new Date(NOW.getTime() - 30 * 3_600_000).toISOString() });
+    const fresh = dropout();   // left just now — too soon to chase
+    const finished = subject({ accountId: "done", draft: null });
+    expect(evaluateSegment([stale, fresh, finished], s, NOW).map((x) => x.accountId)).toEqual(["drop"]);
+  });
+
+  it("finds the 80%+ near-finisher — the other funnel", () => {
+    const s = seg([
+      { field: "abandoned_draft", op: "is", value: true },
+      { field: "draft_progress", op: "more_than", pct: 80 },
+    ]);
+    const near = dropout({ progressPct: 83 });
+    const early = dropout({ progressPct: 20 });
+    expect(evaluateSegment([near, early], s, NOW).map((x) => x.accountId)).toEqual(["drop"]);
+  });
+
+  it("reads uploads and return visits as their own rules", () => {
+    const uploaded = seg([{ field: "draft_uploaded", op: "is", value: true }]);
+    const returned = seg([{ field: "draft_visits", op: "more_than", count: 1 }]);
+    const engaged = dropout({ uploaded: true, visits: 3 });
+    const idle = dropout();
+    expect(evaluateSegment([engaged, idle], uploaded, NOW)).toHaveLength(1);
+    expect(evaluateSegment([engaged, idle], returned, NOW)).toHaveLength(1);
+  });
+
+  it("a draft rule can never match someone with no draft", () => {
+    const person = subject({ draft: null });
+    for (const c of [
+      { field: "draft_progress", op: "less_than", pct: 80 },
+      { field: "draft_age", op: "more_than", hours: 1 },
+      { field: "draft_uploaded", op: "is", value: true },
+      { field: "draft_visits", op: "more_than", count: 1 },
+    ] as const) {
+      expect(evaluateSegment([person], seg([c]), NOW)).toEqual([]);
+    }
+  });
+
+  it("'no unfinished estimate' matches the people who finished or never started", () => {
+    const s = seg([{ field: "abandoned_draft", op: "is", value: false }]);
+    expect(evaluateSegment([subject({ draft: null }), dropout()], s, NOW)).toHaveLength(1);
+  });
+});
+
+describe("criteriaSchema — criteria now arrive from the database and the builder", () => {
+  it("accepts every standing list's rules — the seeds cannot drift from the evaluator", () => {
+    for (const s of STANDING_SEGMENTS) {
+      expect(criteriaSchema.safeParse(s.criteria).success).toBe(true);
+    }
+  });
+
+  it("refuses a rule the evaluator would not recognise", () => {
+    // A criterion that parses but never matches anything is a list that
+    // quietly widens or narrows; failing loudly at the edge is the contract.
+    expect(criteriaSchema.safeParse([{ field: "shoe_size", op: "is", value: 9 }]).success).toBe(false);
+    expect(criteriaSchema.safeParse([{ field: "draft_progress", op: "between", pct: 80 }]).success).toBe(false);
+    expect(criteriaSchema.safeParse([]).success).toBe(false);
+  });
+
+  it("round-trips the builder's own blanks", () => {
+    const blanks = [
+      { field: "is_customer", op: "is", value: true },
+      { field: "abandoned_draft", op: "is", value: true },
+      { field: "draft_age", op: "more_than", hours: 24 },
+      { field: "job_value", op: "between", minCents: 0, maxCents: 3_000_000 },
+      { field: "status", op: "is_not", value: ["unsubscribed", "open_work"] },
+    ];
+    expect(criteriaSchema.safeParse(blanks).success).toBe(true);
   });
 });

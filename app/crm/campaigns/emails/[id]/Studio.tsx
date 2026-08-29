@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import {
   BLOCK_MENU, blankBlock, renderEmail, templateWarnings,
   type Block, type BlockKind, type Template,
 } from "@/lib/campaigns/blocks";
-import { approveTemplate, saveTemplate, sendTestEmail, writeWithAi } from "../../actions";
+import { approveTemplate, saveTemplate, sendTestEmail, uploadCampaignPhoto, writeWithAi } from "../../actions";
 
 /**
  * The studio (session 3.5).
@@ -59,6 +59,23 @@ export default function Studio({ id, initialName, initialTemplate, approvedAt, s
   const remove = (i: number) => setT((cur) => ({ ...cur, blocks: cur.blocks.filter((_, n) => n !== i) }));
   const add = (kind: BlockKind) => setT((cur) => ({ ...cur, blocks: [...cur.blocks, blankBlock(kind)] }));
 
+  /** A photo field is a URL field with an Upload button beside it — pick a
+   *  file, it lands in the public bucket, the URL fills itself. */
+  const photoField = (label: string, value: string, onChange: (v: string) => void) => (
+    <div className="bfield">
+      <span>{label}</span>
+      <div className="row" style={{ marginTop: 0 }}>
+        <input className="field" value={value} placeholder="Upload a photo, or paste a link"
+          onChange={(e) => onChange(e.target.value)} />
+        <UploadButton onDone={onChange} onSaid={setSaid} />
+      </div>
+      {/^https?:\/\/.{4,}/.test(value) && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={value} alt="" style={{ marginTop: 6, maxHeight: 72, borderRadius: 8, display: "block" }} />
+      )}
+    </div>
+  );
+
   const field = (label: string, value: string, onChange: (v: string) => void, long = false) => (
     <label className="bfield">
       <span>{label}</span>
@@ -73,15 +90,16 @@ export default function Studio({ id, initialName, initialTemplate, approvedAt, s
       case "hero": return (<>
         {field("Headline", b.headline, (v) => patch(i, { headline: v }))}
         {field("Underneath", b.sub, (v) => patch(i, { sub: v }))}
+        {photoField("Top photo — optional", b.imageUrl ?? "", (v) => patch(i, { imageUrl: v || null }))}
       </>);
       case "text": return field("Words", b.body, (v) => patch(i, { body: v }), true);
       case "photo": return (<>
-        {field("Photo link", b.imageUrl, (v) => patch(i, { imageUrl: v }))}
+        {photoField("Photo", b.imageUrl, (v) => patch(i, { imageUrl: v }))}
         {field("Caption", b.caption, (v) => patch(i, { caption: v }))}
       </>);
       case "beforeAfter": return (<>
-        {field("Before photo", b.beforeUrl, (v) => patch(i, { beforeUrl: v }))}
-        {field("After photo", b.afterUrl, (v) => patch(i, { afterUrl: v }))}
+        {photoField("Before photo", b.beforeUrl, (v) => patch(i, { beforeUrl: v }))}
+        {photoField("After photo", b.afterUrl, (v) => patch(i, { afterUrl: v }))}
         {field("Caption", b.caption, (v) => patch(i, { caption: v }))}
       </>);
       case "bullets": return (<>
@@ -103,7 +121,30 @@ export default function Studio({ id, initialName, initialTemplate, approvedAt, s
       </>);
       case "button": return (<>
         {field("Button says", b.label, (v) => patch(i, { label: v }))}
-        {field("Goes to", b.url, (v) => patch(i, { url: v }))}
+        <label className="bfield">
+          <span>Where it goes</span>
+          <select
+            className="field"
+            value={b.url === "{{estimate}}" ? "{{estimate}}" : b.url === "{{account}}" ? "{{account}}" : "custom"}
+            onChange={(e) => {
+              const v = e.target.value;
+              patch(i, { url: v === "custom" ? "https://" : v });
+            }}
+          >
+            <option value="{{estimate}}">Their estimate — each person&rsquo;s own</option>
+            <option value="{{account}}">Their account</option>
+            <option value="custom">A link I&rsquo;ll paste</option>
+          </select>
+        </label>
+        {b.url !== "{{estimate}}" && b.url !== "{{account}}" &&
+          field("The link", b.url, (v) => patch(i, { url: v }))}
+        {(b.url === "{{estimate}}" || b.url === "{{account}}") && (
+          <p className="bhint">
+            Filled in per person at send time{b.url === "{{estimate}}"
+              ? " — their newest sent estimate, or their account page if nothing has been sent yet."
+              : "."}
+          </p>
+        )}
         {field("Small print under it", b.note, (v) => patch(i, { note: v }))}
       </>);
       case "offer": return (<>
@@ -240,5 +281,34 @@ export default function Studio({ id, initialName, initialTemplate, approvedAt, s
         </p>
       </div>
     </div>
+  );
+}
+
+/** Pick a file → the bucket → the URL, with the busy state on the button. */
+function UploadButton({ onDone, onSaid }: {
+  onDone: (url: string) => void;
+  onSaid: (m: { ok: boolean; message: string }) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, start] = useTransition();
+  return (
+    <>
+      <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          const fd = new FormData();
+          fd.set("file", file);
+          start(async () => {
+            const r = await uploadCampaignPhoto(fd);
+            onSaid(r);
+            if (r.ok && r.data) onDone(r.data.url);
+            if (inputRef.current) inputRef.current.value = "";
+          });
+        }} />
+      <button className="chip" disabled={busy} onClick={() => inputRef.current?.click()}>
+        {busy ? "Uploading…" : "Upload"}
+      </button>
+    </>
   );
 }

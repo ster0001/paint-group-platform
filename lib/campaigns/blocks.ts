@@ -69,7 +69,16 @@ export const blockSchemas = {
   button: z.object({
     kind: z.literal("button"),
     label: text(60),
-    url: z.string().url().max(500),
+    /**
+     * A real URL, or one of two per-recipient tokens the sender resolves:
+     * {{estimate}} — their own estimate page; {{account}} — their account.
+     * Tokens rather than typed links, because the writer cannot know 63
+     * different share tokens, and should never have to.
+     */
+    url: z.string().max(500).refine(
+      (u) => /^https?:\/\//.test(u) || u === "{{estimate}}" || u === "{{account}}",
+      "A web address, or a their-estimate / their-account link",
+    ),
     /** Sub-label under the button: "Takes two minutes", "No obligation". */
     note: text(120).default(""),
   }),

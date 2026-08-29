@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { STANDING_SEGMENTS } from "@/lib/crm/segments";
+import { loadSegments } from "@/lib/crm/segmentsStore";
 import SubNav from "../SubNav";
 import NewCampaign from "./NewCampaign";
 
@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function CampaignsPage() {
   const supabase = await createClient();
+  const segments = await loadSegments(supabase);
   const { data, error } = await supabase
     .from("campaigns")
     .select("id, name, segment_key, status, steps, auto_send, updated_at")
@@ -40,7 +41,7 @@ export default async function CampaignsPage() {
         </p>
       ) : (
         <>
-          <NewCampaign segments={STANDING_SEGMENTS.map((s) => ({ key: s.key, name: s.name }))} />
+          <NewCampaign segments={segments.map((s) => ({ key: s.key, name: s.name }))} />
 
           {rows.length === 0 ? (
             <p className="empty">
@@ -50,7 +51,7 @@ export default async function CampaignsPage() {
           ) : (
             <div className="people">
               {rows.map((c) => {
-                const segment = STANDING_SEGMENTS.find((s) => s.key === c.segment_key);
+                const segment = segments.find((s) => s.key === c.segment_key);
                 const steps = Array.isArray(c.steps) ? c.steps.length : 0;
                 return (
                   <Link key={c.id} className="person" href={`/crm/campaigns/c/${c.id}`}>

@@ -1,167 +1,57 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { describeCriterion, previewSegment, STANDING_SEGMENTS, toSubject, type SegmentSubject } from "@/lib/crm/segments";
+import { evaluateSegment } from "@/lib/crm/segments";
+import { loadSegments } from "@/lib/crm/segmentsStore";
+import { loadSubjects } from "@/lib/crm/loadSubjects";
 
 export const dynamic = "force-dynamic";
 
-const money = (c: number) => "$" + Math.round(c / 100).toLocaleString("en-AU");
-const compact = (c: number) => (c >= 100_000_00 ? `$${Math.round(c / 100_000) / 10}k` : money(c));
-
 /**
- * Segments (session 2.5) — the mockup's Segments tab.
- *
- * Standing lists only for now: they are the ones the campaigns depend on, and
- * a saved custom list needs a table, which needs the campaign session's
- * migration anyway. Each shows its criteria as the form rows the mockup draws,
- * with the live count and a sample underneath — nothing is ever sent to a list
- * nobody has looked at.
+ * The lists — all of them yours now (Tom, 30 Aug). The three that shipped with
+ * the product are ordinary editable rows like any other; a new one is built in
+ * the app, not in a deploy.
  */
-export default async function SegmentsPage({ searchParams }: { searchParams: Promise<{ s?: string }> }) {
-  const { s: chosenKey } = await searchParams;
-  const segment = STANDING_SEGMENTS.find((s) => s.key === chosenKey) ?? STANDING_SEGMENTS[0];
-
+export default async function SegmentsPage() {
   const supabase = await createClient();
-  const [{ data: accounts }, { data: estimates }, { data: workOrders }, { data: events }, { data: props }] =
-    await Promise.all([
-      supabase.from("accounts").select("id, name, email, temperature, snoozed_until").limit(2000),
-      // jobType comes from the WIZARD's answer inside builder_state. The
-      // estimates.job_kind column is residential/commercial — it is
-      // "residential" on all 25 live rows and says nothing about which
-      // surfaces were painted, which is what a cross-sell list is asking.
-      // ⚑ At volume this path-read wants materialising; noted for the gate.
-      supabase.from("estimates")
-        .select("id, account_id, status, accepted_at, accepted_total_cents, total_cents, created_at, sent_at, jobType:builder_state->wizard->state->jobType")
-        .not("account_id", "is", null).limit(3000),
-      supabase.from("work_orders").select("estimate_id, status, end_date").limit(2000),
-      supabase.from("crm_events").select("account_id, occurred_at")
-        .not("account_id", "is", null).order("occurred_at", { ascending: false }).limit(3000),
-      supabase.from("properties").select("account_id, suburb").limit(2000),
-    ]);
+  const [segments, subjects] = await Promise.all([
+    loadSegments(supabase),
+    loadSubjects(supabase),
+  ]);
 
-  const estByAccount = new Map<string, NonNullable<typeof estimates>>();
-  for (const e of estimates ?? []) {
-    const list = estByAccount.get(e.account_id as string) ?? [];
-    list.push(e);
-    estByAccount.set(e.account_id as string, list as NonNullable<typeof estimates>);
-  }
-  const accountOfEstimate = new Map((estimates ?? []).map((e) => [e.id as string, e.account_id as string]));
-  const woByAccount = new Map<string, Array<{ status: string; end_date: string | null }>>();
-  for (const w of workOrders ?? []) {
-    const acc = accountOfEstimate.get(w.estimate_id as string);
-    if (!acc) continue;
-    const list = woByAccount.get(acc) ?? [];
-    list.push({ status: w.status as string, end_date: w.end_date as string | null });
-    woByAccount.set(acc, list);
-  }
-  const lastEventAt = new Map<string, string>();
-  for (const e of events ?? []) {
-    const acc = e.account_id as string;
-    if (!lastEventAt.has(acc)) lastEventAt.set(acc, e.occurred_at as string);
-  }
-  const suburbOf = new Map((props ?? []).map((p) => [p.account_id as string, p.suburb as string | null]));
-
-  const subjects: SegmentSubject[] = (accounts ?? []).map((a) => toSubject({
-    accountId: a.id as string,
-    name: (a.name as string) || (a.email as string),
-    suburb: suburbOf.get(a.id as string) ?? null,
-    temperature: a.temperature as string | null,
-    snoozedUntil: a.snoozed_until as string | null,
-    estimates: (estByAccount.get(a.id as string) ?? []).map((e) => ({
-      status: e.status as string,
-      accepted_at: e.accepted_at as string | null,
-      jobType: e.jobType as string | null,
-      total_cents: e.total_cents as number | null,
-      accepted_total_cents: e.accepted_total_cents as number | null,
-      created_at: e.created_at as string | null,
-      sent_at: e.sent_at as string | null,
-    })),
-    workOrders: woByAccount.get(a.id as string) ?? [],
-    lastEventAt: lastEventAt.get(a.id as string) ?? null,
-  }));
-
-  const preview = previewSegment(subjects, segment);
-  // A customer whose jobs pre-date the wizard has no recorded surface, so a
-  // job-type rule can never match them. Saying so stops a 0 being read as
-  // "nobody qualifies" when it means "we don't know yet".
-  const asksJobType = segment.criteria.some((c) => c.field === "job_type" || c.field === "has_job_type");
-  const noJobType = subjects.filter((s) => s.wonCents > 0 && s.jobTypes.length === 0).length;
+  const counts = new Map(segments.map((s) => [
+    s.key,
+    s.criteria.length === 0 ? null : evaluateSegment(subjects, s).length,
+  ]));
 
   return (
     <>
-      <h2>Segments</h2>
+      <h2>Lists</h2>
       <p className="sub">
-        Build a list once. Every campaign, count and report reads the same one — so what you preview
-        here is exactly who gets the message.
+        Build a list once and every campaign, count and report reads the same one. The rules can ask
+        who they are, what they&rsquo;ve had done, and where they are in their journey — including an
+        unfinished estimate and how far through it they got.
       </p>
 
-      <div className="chips" style={{ marginBottom: 16 }}>
-        {STANDING_SEGMENTS.map((s) => (
-          <Link key={s.key} href={`/crm/segments?s=${s.key}`} className={`chip ${s.key === segment.key ? "on" : ""}`}>
-            {s.name}
-          </Link>
-        ))}
-      </div>
+      <Link href="/crm/segments/new" className="go" style={{ display: "inline-block", marginBottom: 16 }}>
+        + New list
+      </Link>
 
-      <div className="panel">
-        <p className="plabel">Segment</p>
-        <p className="segname">{segment.name}</p>
-        <p className="segdesc">{segment.description}</p>
-
-        <div className="rules">
-          {segment.criteria.map((c, i) => {
-            const d = describeCriterion(c);
-            return (
-              <div className="rule" key={i}>
-                {i > 0 && <i className="and">and</i>}
-                <span className="rfield">{d.field}</span>
-                <span className="rop">{d.op}</span>
-                <span className="rvalue">{d.value}</span>
-              </div>
-            );
-          })}
-        </div>
-        <p className="relative">Dates are always relative, so this list stays right without anyone editing it.</p>
-      </div>
-
-      {asksJobType && noJobType > 0 && (
-        <p className="partial">
-          {noJobType} customer{noJobType === 1 ? " has" : "s have"} finished work with no interior/exterior
-          recorded — jobs quoted before the wizard captured it. They cannot match a job-type rule,
-          so this count is of what we know, not of everyone.
-        </p>
-      )}
-
-      <div className="stats">
-        <div className="stat">
-          <span>Match today</span>
-          <b>{preview.count}</b>
-          <em>{preview.count === 1 ? "customer" : "customers"}</em>
-        </div>
-        <div className="stat">
-          <span>Worth roughly</span>
-          <b>{preview.worthCents == null ? "—" : compact(preview.worthCents)}</b>
-          <em>{preview.averageCents == null
-            ? "no finished jobs to average yet"
-            : `at ${money(preview.averageCents)}, your average job`}</em>
-        </div>
-      </div>
-
-      {preview.count === 0 ? (
-        <p className="empty">
-          Nobody matches this list today. That is the list being honest, not broken —
-          it will fill as jobs finish and time passes.
-        </p>
+      {segments.length === 0 ? (
+        <p className="empty">No lists yet — run migration 20261211 to seed the starters, or build your first above.</p>
       ) : (
         <div className="people">
-          {preview.sample.map((s) => (
-            <Link key={s.accountId} className="person" href={`/crm?id=${s.accountId}`}>
+          {segments.map((s) => (
+            <Link key={s.key} className="person" href={`/crm/segments/${s.key}`}>
               <span className="cname">{s.name}</span>
-              <span className="cmeta">{s.detail || "No property on file"}</span>
+              <span className="cmeta">{s.description || `${s.criteria.length} rule${s.criteria.length === 1 ? "" : "s"}`}</span>
+              <span className="cfoot">
+                <b className="cval" style={{ fontSize: 12 }}>
+                  {counts.get(s.key) == null ? "needs a re-save" : `${counts.get(s.key)} match today`}
+                </b>
+                <span className="cwhen mono">{s.standing ? "starter" : "yours"}</span>
+              </span>
             </Link>
           ))}
-          {preview.count > preview.sample.length && (
-            <p className="empty">+ {preview.count - preview.sample.length} more</p>
-          )}
         </div>
       )}
     </>

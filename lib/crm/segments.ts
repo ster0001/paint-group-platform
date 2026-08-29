@@ -14,6 +14,7 @@
  *     built once stays right without anyone editing it.
  */
 
+import { z } from "zod";
 import { isWon } from "./stage";
 
 export type Comparison = "is" | "is_not" | "more_than" | "less_than" | "between";
@@ -32,7 +33,41 @@ export type Criterion =
   | { field: "last_contact"; op: "more_than" | "less_than"; months: number }
   | { field: "suburb"; op: "is"; value: string[] }
   | { field: "temperature"; op: "is"; value: Array<"hot" | "warm" | "cold"> }
-  | { field: "status"; op: "is_not"; value: Array<"unsubscribed" | "open_work" | "snoozed"> };
+  | { field: "status"; op: "is_not"; value: Array<"unsubscribed" | "open_work" | "snoozed"> }
+  /**
+   * C15 · how far through their journey a FUTURE customer is. These read the
+   * autosaved wizard draft, so the funnels Tom described — "need a hand?",
+   * "still looking for a painter?" — are ordinary criteria, not special code.
+   */
+  | { field: "abandoned_draft"; op: "is"; value: boolean }
+  | { field: "draft_progress"; op: "more_than" | "less_than"; pct: number }
+  | { field: "draft_age"; op: "more_than" | "less_than"; hours: number }
+  | { field: "draft_uploaded"; op: "is"; value: boolean }
+  | { field: "draft_visits"; op: "more_than"; count: number };
+
+/**
+ * The same union, as a runtime check. Criteria now arrive from the segments
+ * TABLE and the builder UI, and a malformed row must fail loudly at the edge —
+ * a criterion the evaluator silently ignores is a list that quietly widens.
+ */
+export const criterionSchema: z.ZodType<Criterion> = z.discriminatedUnion("field", [
+  z.object({ field: z.literal("job_type"), op: z.enum(["is", "is_not"]), value: z.enum(["interior", "exterior", "both"]) }),
+  z.object({ field: z.literal("has_job_type"), op: z.literal("is_not"), value: z.enum(["interior", "exterior"]) }),
+  z.object({ field: z.literal("completed"), op: z.enum(["more_than", "less_than"]), months: z.number().min(0).max(600) }),
+  z.object({ field: z.literal("job_value"), op: z.literal("between"), minCents: z.number().min(0), maxCents: z.number().min(0) }),
+  z.object({ field: z.literal("last_contact"), op: z.enum(["more_than", "less_than"]), months: z.number().min(0).max(600) }),
+  z.object({ field: z.literal("suburb"), op: z.literal("is"), value: z.array(z.string().min(1).max(80)).min(1).max(50) }),
+  z.object({ field: z.literal("temperature"), op: z.literal("is"), value: z.array(z.enum(["hot", "warm", "cold"])).min(1) }),
+  z.object({ field: z.literal("status"), op: z.literal("is_not"), value: z.array(z.enum(["unsubscribed", "open_work", "snoozed"])).min(1) }),
+  z.object({ field: z.literal("quoted"), op: z.literal("is"), value: z.boolean() }),
+  z.object({ field: z.literal("is_customer"), op: z.literal("is"), value: z.boolean() }),
+  z.object({ field: z.literal("abandoned_draft"), op: z.literal("is"), value: z.boolean() }),
+  z.object({ field: z.literal("draft_progress"), op: z.enum(["more_than", "less_than"]), pct: z.number().min(0).max(100) }),
+  z.object({ field: z.literal("draft_age"), op: z.enum(["more_than", "less_than"]), hours: z.number().min(0).max(24 * 365) }),
+  z.object({ field: z.literal("draft_uploaded"), op: z.literal("is"), value: z.boolean() }),
+  z.object({ field: z.literal("draft_visits"), op: z.literal("more_than"), count: z.number().int().min(1).max(50) }),
+]);
+export const criteriaSchema = z.array(criterionSchema).min(1).max(20);
 
 export type Segment = {
   key: string;
@@ -59,6 +94,9 @@ export type SegmentSubject = {
   lastContactAt: string | null;
   /** Has ever been sent or shown a price. */
   everQuoted: boolean;
+  /** The OPEN autosaved wizard run, when one exists — a future customer who
+   *  started an estimate and has not finished it. Null otherwise. */
+  draft: { progressPct: number; uploaded: boolean; visits: number; lastSeenAt: string } | null;
   temperature: "hot" | "warm" | "cold" | null;
   unsubscribed: boolean;
   hasOpenWork: boolean;
@@ -93,6 +131,21 @@ export function matchesCriterion(s: SegmentSubject, c: Criterion, now: Date): bo
       return s.wonCents >= c.minCents && s.wonCents <= c.maxCents;
     case "is_customer":
       return (s.wonCents > 0) === c.value;
+    case "abandoned_draft":
+      return (s.draft != null) === c.value;
+    case "draft_progress": {
+      if (!s.draft) return false;
+      return c.op === "more_than" ? s.draft.progressPct > c.pct : s.draft.progressPct < c.pct;
+    }
+    case "draft_age": {
+      if (!s.draft) return false;
+      const hours = (now.getTime() - new Date(s.draft.lastSeenAt).getTime()) / 3_600_000;
+      return c.op === "more_than" ? hours > c.hours : hours < c.hours;
+    }
+    case "draft_uploaded":
+      return s.draft != null && s.draft.uploaded === c.value;
+    case "draft_visits":
+      return s.draft != null && s.draft.visits > c.count;
     case "quoted":
       // "Never won" is not the same as "was quoted and said no". Without this,
       // an account that only exists — no estimate at all — lands in a list
@@ -224,6 +277,14 @@ export function describeCriterion(c: Criterion): { field: string; op: string; va
     case "job_value": return { field: "Job value", op: "between", value: `${money(c.minCents)} – ${money(c.maxCents)}` };
     case "quoted": return { field: "Was quoted", op: "is", value: c.value ? "yes" : "no" };
     case "is_customer": return { field: "Has had work done", op: "is", value: c.value ? "yes" : "no" };
+    case "abandoned_draft": return { field: "Unfinished estimate", op: "is", value: c.value ? "yes" : "no" };
+    case "draft_progress": return { field: "Estimate progress", op: c.op === "more_than" ? "more than" : "less than", value: `${c.pct}% answered` };
+    case "draft_age": return {
+      field: "Left it", op: c.op === "more_than" ? "more than" : "less than",
+      value: c.hours % 24 === 0 && c.hours >= 24 ? `${c.hours / 24} day${c.hours === 24 ? "" : "s"} ago` : `${c.hours} hours ago`,
+    };
+    case "draft_uploaded": return { field: "Uploaded a plan or photos", op: "is", value: c.value ? "yes" : "no" };
+    case "draft_visits": return { field: "Separate visits", op: "more than", value: String(c.count) };
     case "last_contact": return { field: "Last contact", op: c.op === "more_than" ? "more than" : "less than", value: `${years(c.months)} ago` };
     case "suburb": return { field: "Suburb", op: "is", value: c.value.join(", ") };
     case "temperature": return { field: "Temperature", op: "is", value: c.value.join(", ") };
@@ -256,6 +317,7 @@ export function toSubject(input: {
   }>;
   workOrders: Array<{ status: string; end_date: string | null }>;
   lastEventAt: string | null;
+  draft?: { progressPct: number; uploaded: boolean; visits: number; lastSeenAt: string } | null;
 }, now: Date = new Date()): SegmentSubject {
   const wonEstimates = input.estimates.filter((e) => isWon({ status: e.status, accepted_at: e.accepted_at }));
   const jobTypes = new Set<"interior" | "exterior">();
@@ -285,6 +347,7 @@ export function toSubject(input: {
     wonCents: wonEstimates.reduce((n, e) => n + (e.accepted_total_cents ?? e.total_cents ?? 0), 0),
     lastContactAt: dates[0] ?? null,
     everQuoted: input.estimates.length > 0,
+    draft: input.draft ?? null,
     temperature: (input.temperature as SegmentSubject["temperature"]) ?? null,
     unsubscribed: input.unsubscribed ?? false,
     hasOpenWork: input.workOrders.some((w) => w.status === "issued" || w.status === "in_progress"),

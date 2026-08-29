@@ -13,6 +13,7 @@
  */
 
 import { createHmac, timingSafeEqual } from "node:crypto";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { renderEmail, renderPlainText, type Brand, type Template } from "./blocks";
 
 export const MARKETING_FROM = "hello@mail.paintgroup.com.au";
@@ -65,6 +66,10 @@ export type SendInput = {
   brand?: Partial<Brand>;
   /** The account this is going to, so the unsubscribe link is theirs. */
   accountId: string;
+  /** Per-recipient link targets for the {{estimate}} / {{account}} button
+   *  tokens. Resolved by the caller (it has the database); absent tokens fall
+   *  back to the account page, which is always safe to land on. */
+  links?: { estimateUrl?: string | null; accountUrl?: string | null };
   /** Prefixes the subject in a test so nobody mistakes it for the real thing. */
   isTest?: boolean;
   baseUrl?: string;
@@ -82,10 +87,17 @@ export async function sendCampaignEmail(input: SendInput): Promise<SendResult> {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.to)) return { ok: false, error: "That isn't an email address." };
 
   const link = unsubscribeUrl(input.accountId, input.baseUrl);
-  const html = renderEmail(input.template, { ...defaultBrand(), ...input.brand } as Brand)
-    .replaceAll("{{unsubscribe}}", link);
-  const text = renderPlainText(input.template, { ...defaultBrand(), ...input.brand } as Brand)
-    .replaceAll("{{unsubscribe}}", link);
+  const base = (input.baseUrl || process.env.NEXT_PUBLIC_SITE_URL || "https://paintgroup.com.au").replace(/\/$/, "");
+  const accountUrl = input.links?.accountUrl || `${base}/account`;
+  // No estimate to link? The account page is where their saved work lives, so
+  // the button still lands somewhere true rather than 404ing.
+  const estimateUrl = input.links?.estimateUrl || accountUrl;
+  const fill = (v: string) => v
+    .replaceAll("{{unsubscribe}}", link)
+    .replaceAll("{{estimate}}", estimateUrl)
+    .replaceAll("{{account}}", accountUrl);
+  const html = fill(renderEmail(input.template, { ...defaultBrand(), ...input.brand } as Brand));
+  const text = fill(renderPlainText(input.template, { ...defaultBrand(), ...input.brand } as Brand));
 
   const subject = input.isTest ? `[TEST] ${input.template.subject}` : input.template.subject;
 
@@ -115,6 +127,32 @@ export async function sendCampaignEmail(input: SendInput): Promise<SendResult> {
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "The mail service is unreachable." };
   }
+}
+
+/**
+ * Where this customer's buttons should go.
+ *
+ * {{estimate}}: their newest SENT estimate's share link — /e/[token] gates on
+ * sent_at, so linking an unsent one would show "not active". Nothing sent
+ * falls back to the account page.
+ */
+export async function resolveRecipientLinks(
+  db: SupabaseClient,
+  accountId: string,
+  baseUrl?: string,
+): Promise<{ estimateUrl: string | null; accountUrl: string }> {
+  const base = (baseUrl || process.env.NEXT_PUBLIC_SITE_URL || "https://paintgroup.com.au").replace(/\/$/, "");
+  const { data } = await db.from("estimates")
+    .select("share_token, sent_at")
+    .eq("account_id", accountId)
+    .not("sent_at", "is", null)
+    .order("sent_at", { ascending: false })
+    .limit(1);
+  const token = data?.[0]?.share_token as string | undefined;
+  return {
+    estimateUrl: token ? `${base}/e/${token}` : null,
+    accountUrl: `${base}/account`,
+  };
 }
 
 function defaultBrand(): Brand {

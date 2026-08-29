@@ -142,3 +142,22 @@ describe("templateSchema", () => {
     expect(templateSchema.safeParse(many).success).toBe(false);
   });
 });
+
+describe("per-recipient button links", () => {
+  it("accepts the two tokens and real URLs, refuses anything else", () => {
+    const button = (url: string) => blockSchema.safeParse({ kind: "button", label: "Open", url, note: "" });
+    expect(button("{{estimate}}").success).toBe(true);
+    expect(button("{{account}}").success).toBe(true);
+    expect(button("https://paintgroup.com.au/estimate").success).toBe(true);
+    // A token typo must not slip through as a literal href.
+    expect(button("{{estimte}}").success).toBe(false);
+    expect(button("javascript:alert(1)").success).toBe(false);
+  });
+
+  it("renders the token into the href for the sender to fill", () => {
+    const html = renderEmail(template({
+      blocks: [{ kind: "button", label: "Open my estimate", url: "{{estimate}}", note: "" }],
+    }));
+    expect(html).toContain('href="{{estimate}}"');
+  });
+});

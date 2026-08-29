@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { STANDING_SEGMENTS } from "@/lib/crm/segments";
+import { loadSegments } from "@/lib/crm/segmentsStore";
 import NewTemplate from "../NewTemplate";
 import SubNav from "../../SubNav";
 
@@ -16,6 +16,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function EmailsPage() {
   const supabase = await createClient();
+  const segments = await loadSegments(supabase);
   const { data, error } = await supabase
     .from("campaign_templates")
     .select("id, name, subject, segment_key, approved_at, updated_at, blocks")
@@ -46,14 +47,14 @@ export default async function EmailsPage() {
         </p>
       ) : (
         <>
-          <NewTemplate segments={STANDING_SEGMENTS.map((s) => ({ key: s.key, name: s.name }))} />
+          <NewTemplate segments={segments.map((s) => ({ key: s.key, name: s.name }))} />
 
           {rows.length === 0 ? (
             <p className="empty">No emails yet. Start one above — it takes about a minute with the writer.</p>
           ) : (
             <div className="people">
               {rows.map((t) => {
-                const segment = STANDING_SEGMENTS.find((s) => s.key === t.segment_key);
+                const segment = segments.find((s) => s.key === t.segment_key);
                 return (
                   <Link key={t.id} className="person" href={`/crm/campaigns/emails/${t.id}`}>
                     <span className="cname">

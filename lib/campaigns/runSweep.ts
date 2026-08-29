@@ -11,7 +11,8 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { evaluateSegment, STANDING_SEGMENTS } from "@/lib/crm/segments";
+import { evaluateSegment } from "@/lib/crm/segments";
+import { loadSegments } from "@/lib/crm/segmentsStore";
 import { loadSubjects } from "@/lib/crm/loadSubjects";
 import { planSweep, type CampaignDefinition } from "./sweep";
 
@@ -32,11 +33,12 @@ export async function runSweep(db: SupabaseClient, now: Date = new Date()): Prom
   // One load for every campaign — the customer picture does not change
   // between them, and reloading it per campaign is how a sweep gets slow.
   const subjects = await loadSubjects(db, now);
+  const segments = await loadSegments(db);
   const out: SweepOutcome[] = [];
 
   for (const c of campaigns) {
     const outcome: SweepOutcome = { campaign: c.name as string, matched: 0, enrolled: 0, queued: 0, skipped: 0, errors: [] };
-    const segment = STANDING_SEGMENTS.find((s) => s.key === c.segment_key);
+    const segment = segments.find((s) => s.key === c.segment_key);
     if (!segment) { outcome.errors.push(`No such list: ${c.segment_key}`); out.push(outcome); continue; }
 
     const matching = evaluateSegment(subjects, segment, now);

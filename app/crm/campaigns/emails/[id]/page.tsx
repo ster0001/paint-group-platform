@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { templateSchema, type Template } from "@/lib/campaigns/blocks";
-import { STANDING_SEGMENTS } from "@/lib/crm/segments";
+import { getSegment } from "@/lib/crm/segmentsStore";
 import Studio from "./Studio";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +28,7 @@ export default async function TemplatePage({ params }: { params: Promise<{ id: s
     blocks: Array.isArray(row.blocks) ? row.blocks : [],
   });
   const template: Template = parsed.success ? parsed.data : { subject: row.subject ?? "", preheader: "", blocks: [] };
-  const segment = STANDING_SEGMENTS.find((s) => s.key === row.segment_key);
+  const segment = row.segment_key ? await getSegment(supabase, row.segment_key as string) : null;
 
   return (
     <>

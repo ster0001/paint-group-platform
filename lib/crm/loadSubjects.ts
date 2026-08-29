@@ -38,7 +38,7 @@ export type LoadedSubject = SegmentSubject & {
 };
 
 export async function loadSubjects(db: Client, now: Date = new Date()): Promise<LoadedSubject[]> {
-  const [accounts, estimates, workOrders, events, props, sent] = await Promise.all([
+  const [accounts, estimates, workOrders, events, props, sent, drafts] = await Promise.all([
     db.from("accounts").select(
       "id, name, email, temperature, snoozed_until, marketing_unsubscribed_at, marketing_undeliverable_at",
     ).limit(2000),
@@ -52,6 +52,13 @@ export async function loadSubjects(db: Client, now: Date = new Date()): Promise<
     // What marketing has already gone out, for the frequency check.
     db.from("campaign_messages").select("account_id, sent_at").not("sent_at", "is", null)
       .order("sent_at", { ascending: false }).limit(3000),
+    // C15: the open autosaved wizard runs — the future customers the drop-out
+    // funnels are for. Only unconverted drafts with an account attached: a
+    // draft with no account has nobody to email, so it cannot be on a list.
+    db.from("wizard_drafts")
+      .select("account_id, progress_pct, uploaded, visits, last_seen_at, converted_at")
+      .not("account_id", "is", null)
+      .order("last_seen_at", { ascending: false }).limit(2000),
   ]);
 
   const rows = <T,>(r: { data: T[] | null }) => r.data ?? [];
@@ -79,6 +86,21 @@ export async function loadSubjects(db: Client, now: Date = new Date()): Promise<
     return m;
   };
   const lastEventAt = firstOf(rows(events), "account_id", "occurred_at");
+  // Only OPEN drafts reach subjects — the wizard route filters converted rows
+  // out of nothing here, so it is done explicitly: a converted draft is a
+  // customer's history, not a person to chase. Newest open draft wins.
+  const draftOf = new Map<string, { progressPct: number; uploaded: boolean; visits: number; lastSeenAt: string }>();
+  for (const d of rows(drafts)) {
+    if (d.converted_at != null) continue;
+    const acc = d.account_id as string;
+    if (draftOf.has(acc)) continue;
+    draftOf.set(acc, {
+      progressPct: (d.progress_pct as number) ?? 0,
+      uploaded: d.uploaded === true,
+      visits: (d.visits as number) ?? 1,
+      lastSeenAt: (d.last_seen_at as string) ?? "",
+    });
+  }
   const lastMarketingAt = firstOf(rows(sent), "account_id", "sent_at");
   const suburbOf = new Map(rows(props).map((p) => [p.account_id as string, p.suburb as string | null]));
 
@@ -103,6 +125,7 @@ export async function loadSubjects(db: Client, now: Date = new Date()): Promise<
       estimates: est,
       workOrders: woByAccount.get(id) ?? [],
       lastEventAt: lastEventAt.get(id) ?? null,
+      draft: draftOf.get(id) ?? null,
     }, now);
 
     return {

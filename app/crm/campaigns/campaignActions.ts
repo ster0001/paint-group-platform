@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { loadSubjects } from "@/lib/crm/loadSubjects";
-import { evaluateSegment, STANDING_SEGMENTS } from "@/lib/crm/segments";
+import { evaluateSegment } from "@/lib/crm/segments";
+import { getSegment } from "@/lib/crm/segmentsStore";
 import { planSweep, type CampaignDefinition } from "@/lib/campaigns/sweep";
 import { DEFAULT_POLICY, dryRun, type MessageState, type SendCandidate } from "@/lib/campaigns/guard";
 
@@ -24,9 +25,10 @@ const stepSchema = z.object({
 export async function createCampaign(name: string, segmentKey: string): Promise<CampaignResult<{ id: string }>> {
   const clean = name.trim();
   if (clean.length < 3) return { ok: false, message: "Give it a name you'll recognise in six months." };
-  if (!STANDING_SEGMENTS.some((s) => s.key === segmentKey)) return { ok: false, message: "Pick a list for it to go to." };
 
   const supabase = await createClient();
+  if (!(await getSegment(supabase, segmentKey))) return { ok: false, message: "Pick a list for it to go to." };
+
   const { data: { user } } = await supabase.auth.getUser();
   const key = clean.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40)
     + "-" + Math.random().toString(36).slice(2, 6);
@@ -93,7 +95,7 @@ export async function dryRunCampaign(id: string): Promise<CampaignResult<DryRunR
     .select("id, key, name, segment_key, status, steps, auto_send").eq("id", id).maybeSingle();
   if (!campaign) return { ok: false, message: "That campaign is gone." };
 
-  const segment = STANDING_SEGMENTS.find((s) => s.key === campaign.segment_key);
+  const segment = await getSegment(supabase, campaign.segment_key as string);
   if (!segment) return { ok: false, message: "Its list no longer exists." };
 
   const now = new Date();
@@ -269,7 +271,8 @@ export async function approveAndSend(messageId: string): Promise<CampaignResult>
 
   // Re-ask every question, now.
   const { loadSubjects } = await import("@/lib/crm/loadSubjects");
-  const { evaluateSegment, STANDING_SEGMENTS } = await import("@/lib/crm/segments");
+  const { evaluateSegment } = await import("@/lib/crm/segments");
+  const { getSegment: lookupSegment } = await import("@/lib/crm/segmentsStore");
   const { guardSend, DEFAULT_POLICY } = await import("@/lib/campaigns/guard");
 
   const now = new Date();
@@ -280,7 +283,7 @@ export async function approveAndSend(messageId: string): Promise<CampaignResult>
     .select("campaign_id, enrolled_at").eq("id", msg.enrolment_id).maybeSingle();
   const { data: campaign } = await supabase.from("campaigns")
     .select("key, name, segment_key").eq("id", enrolment?.campaign_id ?? "").maybeSingle();
-  const segment = STANDING_SEGMENTS.find((s) => s.key === campaign?.segment_key);
+  const segment = campaign?.segment_key ? await lookupSegment(supabase, campaign.segment_key as string) : null;
   const stillInSegment = segment && subject
     ? evaluateSegment([subject], segment, now).length === 1
     : false;
@@ -314,13 +317,15 @@ export async function approveAndSend(messageId: string): Promise<CampaignResult>
     return { ok: false, message: verdict.hold ? `Held — ${verdict.reason}` : `Not sent — ${verdict.reason}` };
   }
 
-  const { sendCampaignEmail } = await import("@/lib/campaigns/send");
+  const { sendCampaignEmail, resolveRecipientLinks } = await import("@/lib/campaigns/send");
   const company = (profileRow?.value ?? {}) as { name?: string; logoUrl?: string };
   const sent = await sendCampaignEmail({
     to: account.email as string,
     accountId: account.id as string,
     template: parsed.data,
     brand: { companyName: company.name || "Paint Group", logoUrl: company.logoUrl || null },
+    // {{estimate}} / {{account}} buttons land on THIS person's pages.
+    links: await resolveRecipientLinks(supabase, account.id as string),
   });
   if (!sent.ok) {
     await supabase.from("campaign_messages").update({ state: "failed", reason: sent.error }).eq("id", messageId);

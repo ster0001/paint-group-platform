@@ -5,8 +5,8 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { templateSchema, type Template } from "@/lib/campaigns/blocks";
 import { generateEmail } from "@/lib/campaigns/ai";
-import { sendCampaignEmail } from "@/lib/campaigns/send";
-import { STANDING_SEGMENTS } from "@/lib/crm/segments";
+import { resolveRecipientLinks, sendCampaignEmail } from "@/lib/campaigns/send";
+import { getSegment } from "@/lib/crm/segmentsStore";
 
 export type StudioResult<T = undefined> =
   | { ok: true; message: string; data?: T }
@@ -98,7 +98,7 @@ export async function writeWithAi(input: {
   const { data: profileRow } = await supabase.from("settings").select("value").eq("key", "company_profile").maybeSingle();
   const companyName = ((profileRow?.value ?? {}) as { name?: string }).name || "Paint Group";
 
-  const segment = STANDING_SEGMENTS.find((s) => s.key === input.segmentKey);
+  const segment = input.segmentKey ? await getSegment(supabase, input.segmentKey) : null;
   const audience = segment ? `${segment.name} — ${segment.description}` : "Past and prospective customers.";
 
   const result = await generateEmail({
@@ -165,7 +165,39 @@ export async function sendTestEmail(id: string): Promise<StudioResult<{ to: stri
     template: parsed.data,
     brand: { companyName: company.name || "Paint Group", logoUrl: company.logoUrl || null },
     isTest: true,
+    // A test resolves the tokens against the TESTER, so the buttons in the
+    // test email are clickable and honest about where they'd go.
+    links: account?.id ? await resolveRecipientLinks(supabase, account.id as string) : undefined,
   });
   if (!result.ok) return { ok: false, message: result.error };
   return { ok: true, message: `Sent to ${to}. It'll say [TEST] in the subject.`, data: { to } };
+}
+
+/**
+ * A photo INTO the email, from a file rather than a URL (Tom, 30 Aug: "it only
+ * allows to add photos from html, I want to be able to upload photos here").
+ *
+ * Lands in the public campaign-media bucket, because email clients fetch
+ * images with no credentials — a private bucket renders as broken squares in
+ * every inbox. Staff-session upload, so the storage policy does the gating.
+ */
+export async function uploadCampaignPhoto(formData: FormData): Promise<StudioResult<{ url: string }>> {
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return { ok: false, message: "Choose a photo first." };
+  if (file.size > 10 * 1024 * 1024) return { ok: false, message: "Under 10 MB, please — an email photo bigger than that is a mistake either way." };
+  if (!/^image\/(jpeg|png|webp|gif)$/.test(file.type)) return { ok: false, message: "A photo — JPG, PNG, WebP or GIF." };
+
+  const supabase = await createClient();
+  const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : file.type === "image/gif" ? "gif" : "jpg";
+  const path = `${new Date().toISOString().slice(0, 7)}/${crypto.randomUUID()}.${ext}`;
+
+  const { error } = await supabase.storage.from("campaign-media")
+    .upload(path, file, { contentType: file.type, cacheControl: "31536000" });
+  if (error) {
+    return { ok: false, message: /bucket/i.test(error.message)
+      ? "The campaign-media bucket isn't there yet — run migration 20261211."
+      : error.message };
+  }
+  const { data } = supabase.storage.from("campaign-media").getPublicUrl(path);
+  return { ok: true, message: "Photo in.", data: { url: data.publicUrl } };
 }
