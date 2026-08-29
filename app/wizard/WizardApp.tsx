@@ -140,6 +140,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const router = useRouter();
   const set = (patch: Partial<WizardState>) => setState((s) => ({ ...s, ...patch }));
 
+  /** C15: the contact sub-step sits at the top of page 2 for customers. It is
+   *  a sub-step rather than a page so the dots do not gain a sixth spot for
+   *  something that takes ten seconds. Once past, it never returns. */
+  const [contactDone, setContactDone] = useState(false);
+
   // 2.4 · record the arrival once, on mount. First touch writes itself only
   // the first time; last touch moves every visit. Wrapped in the helper, which
   // never throws — a marketing tag must not be able to break an estimate.
@@ -452,8 +457,50 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     // editor screen. Margin and deep surgery stay in /quote; photo issues
     // ride the estimate as review deferrals either way.
     const landed = j as SubmitResult;
+    // The draft is no longer a drop-out: mark it converted so no funnel ever
+    // chases somebody who actually finished.
+    if (isCustomer) {
+      void fetch("/api/wizard/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ state, converted: true, estimateId: landed.estimateId, page: lastPage, lastPage }),
+        keepalive: true,
+      }).catch(() => {});
+    }
     router.push(`/estimate/scope?id=${landed.estimateId}`);
   }
+
+  /**
+   * C15 · autosave.
+   *
+   * Every change, coalesced into one write a few seconds later — a keystroke
+   * per request would be both wasteful and slower than the person typing.
+   * Deliberately fire-and-forget: a failed save must never interrupt somebody
+   * filling in a form, so nothing here is awaited and nothing is shown.
+   *
+   * Only once there is an email. Before that there is no way to reach them, so
+   * a row would be a half-finished form nobody can act on.
+   */
+  const savedRef = useRef("");
+  useEffect(() => {
+    if (!isCustomer) return;
+    const email = state.contact.email.trim() || state.customer?.email.trim() || "";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+
+    const body = JSON.stringify({ state, page, lastPage });
+    if (body === savedRef.current) return;
+
+    const t = setTimeout(() => {
+      savedRef.current = body;
+      void fetch("/api/wizard/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+        keepalive: true,
+      }).catch(() => {});
+    }, 2500);
+    return () => clearTimeout(t);
+  }, [state, isCustomer]);
 
   // ---- client-side page gates (server re-validates everything) --------------
 
@@ -480,8 +527,14 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         return "Exterior needs the listing, or two to three facade photos — front and each visible side.";
       }
     }
+    if (page === 2 && isCustomer && !contactDone) {
+      const c = state.contact;
+      if (!c.name.trim()) return "Your name, so we know who we're talking to.";
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email.trim())) return "An email — it's where your estimate is saved.";
+      if (c.phone.replace(/[^0-9]/g, "").length < 8) return "A phone number, in case we need to ask you something.";
+    }
     if (page === 6 && isCustomer) {
-      const email = state.customer?.email.trim() ?? "";
+      const email = state.customer?.email.trim() ?? state.contact.email.trim();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "A valid email, so your estimate has somewhere to live.";
     }
     // R2: the exterior pages' own gates.
@@ -508,6 +561,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     const blocked = pageBlocker();
     if (blocked) { setError(blocked); return; }
     setError(null);
+    // The contact sub-step advances within page 2, not past it.
+    if (page === 2 && isCustomer && !contactDone) { setContactDone(true); window.scrollTo({ top: 0 }); return; }
     if (page < lastPage) { setPage(page + 1); window.scrollTo({ top: 0 }); return; }
     void runSubmit();
   }
@@ -581,7 +636,12 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             {/* R2: the wizard BRANCHES at job type — a pure-exterior customer
                 gets the exterior question set and never sees ceiling heights,
                 interior door styles or the interior damage intake. */}
-            {page === 2 && (state.jobType === "exterior"
+            {/* C15: the customer gives their details at the START of the
+                questions, not at the end. Two reasons, and the second is the
+                important one: the estimate can be saved as they go, and if
+                they leave halfway there is somebody to talk to. */}
+            {page === 2 && isCustomer && !contactDone && <PageContact state={state} set={set} />}
+            {page === 2 && (isCustomer && !contactDone ? null : state.jobType === "exterior"
               ? <PageExteriorHouse state={state} set={set} substrates={substrates} />
               : <PageSurfaces state={state} set={set} substrates={substrates} />)}
             {page === 3 && (state.jobType === "exterior"
@@ -1291,6 +1351,40 @@ function useExt(state: WizardState, set: (p: Partial<WizardState>) => void) {
     set({ exterior: next, surfaces: exteriorSurfaceKeys(next) });
   };
   return { ext, setExt };
+}
+
+/**
+ * C15 · the customer's contact step, at the start of the questions.
+ *
+ * Asked here rather than at the end for one reason: from this point the
+ * estimate saves itself, so leaving halfway costs them nothing and leaves us
+ * somebody to help. The wording says that, because asking for a phone number
+ * three questions in needs to earn itself.
+ */
+function PageContact({ state, set }: { state: WizardState; set: (p: Partial<WizardState>) => void }) {
+  const c = state.contact;
+  return (
+    <>
+      <p className="wz-kick">Step 2 of 5 · You</p>
+      <h1>Before the questions — who are we quoting for?</h1>
+      <p className="wz-sub">
+        From here your estimate saves itself as you go. Leave it halfway, come back tomorrow,
+        it&rsquo;ll be waiting — and if you get stuck, we can pick up where you left off.
+      </p>
+      <div className="wz-crow">
+        <input className="wz-field" placeholder="Your name" value={c.name}
+          onChange={(e) => set({ contact: { ...c, name: e.target.value } })} />
+        <input className="wz-field" type="email" placeholder="Email" value={c.email}
+          onChange={(e) => set({ contact: { ...c, email: e.target.value } })} />
+        <input className="wz-field" placeholder="Phone" inputMode="tel" value={c.phone}
+          onChange={(e) => set({ contact: { ...c, phone: e.target.value } })} />
+      </div>
+      <p className="wz-chint">
+        We use the phone only if there&rsquo;s something we can&rsquo;t work out from your answers.
+        No newsletters, and you can stop hearing from us in one click, any time.
+      </p>
+    </>
+  );
 }
 
 function PageExteriorHouse({ state, set, substrates }: {

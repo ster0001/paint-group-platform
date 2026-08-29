@@ -37,13 +37,29 @@ export type DraftSignals = {
 };
 
 /**
- * The percentage.
+ * How far through they are.
  *
- * Counts the questions that actually exist on this person's path — an exterior
- * run is not scored against interior questions it was never asked. Otherwise a
- * finished exterior job reads as half-done forever.
+ * PAGE first, when the wizard tells us: it is the only measure that matches
+ * what the person actually did. Counting answered fields overstates badly,
+ * because half the state carries sensible defaults — ceiling height, door
+ * style, damage tier all read as "answered" before anyone has seen the
+ * question. Live proof: somebody who had just ticked three surfaces scored 91%.
+ *
+ * The answer count stays as the fallback for a draft with no page recorded,
+ * and it counts only questions this person's path actually asks — an exterior
+ * run is not scored against interior questions, or a finished exterior job
+ * reads as half-done forever.
  */
-export function progressPct(state: Partial<WizardState>): number {
+export function progressPct(state: Partial<WizardState>, page?: number, lastPage?: number): number {
+  if (page != null && lastPage != null && lastPage > 0) {
+    // On page 2 means page 1 is behind them. Reaching the last page without
+    // submitting is 80% of five — which is the shape Tom described.
+    return Math.max(0, Math.min(100, Math.round(((page - 1) / lastPage) * 100)));
+  }
+  return answeredPct(state);
+}
+
+function answeredPct(state: Partial<WizardState>): number {
   const asked: boolean[] = [];
   const ask = (answered: boolean) => asked.push(answered);
 

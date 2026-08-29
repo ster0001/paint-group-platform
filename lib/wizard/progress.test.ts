@@ -14,6 +14,20 @@ describe("progressPct", () => {
     expect(progressPct({})).toBe(0);
   });
 
+  it("uses the page they reached, because defaults make answers lie", () => {
+    // Found live: someone who had ticked three surfaces on step 2 scored 91%,
+    // because ceiling height, door style and damage tier all carry defaults
+    // and read as answered before the question is ever shown.
+    expect(progressPct({}, 2, 5)).toBe(20);
+    expect(progressPct({}, 3, 5)).toBe(40);
+    expect(progressPct({}, 5, 5)).toBe(80);
+    expect(progressPct({}, 1, 5)).toBe(0);
+  });
+
+  it("falls back to counting answers when no page is recorded", () => {
+    expect(progressPct({ jobType: "interior", noPlan: true })).toBeGreaterThan(0);
+  });
+
   it("climbs as they answer", () => {
     const early = progressPct({ jobType: "interior", noPlan: true });
     const later = progressPct({
@@ -62,6 +76,26 @@ describe("progressPct", () => {
     });
     expect(full).toBeLessThanOrEqual(100);
     expect(full).toBeGreaterThan(0);
+  });
+});
+
+describe("the signals survive whatever a half-finished form looks like", () => {
+  it("never throws on a raw, part-answered object", () => {
+    // The autosave hands these functions the state as it is mid-typing — no
+    // schema, no defaults, sometimes nonsense. The route cannot loosen the
+    // schema first: wizardStateSchema has refinements, so .partial() throws
+    // at runtime while TypeScript accepts it. That was a 500 on every save.
+    const junk: unknown[] = [
+      {}, { jobType: "exterior" }, { exterior: null }, { details: null },
+      { surfaces: null }, { paint: {} }, { contact: {} },
+      { jobType: "both", exterior: { painting: null } },
+    ];
+    for (const j of junk) {
+      expect(() => progressPct(j as never)).not.toThrow();
+      expect(() => uploadedSomething(j as never)).not.toThrow();
+      expect(progressPct(j as never)).toBeGreaterThanOrEqual(0);
+      expect(progressPct(j as never)).toBeLessThanOrEqual(100);
+    }
   });
 });
 
