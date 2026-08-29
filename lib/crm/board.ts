@@ -7,6 +7,7 @@
  * a query buried in a component.
  */
 
+import { draftCallVerdict, leftAgo } from "@/lib/wizard/progress";
 import { LANES, needsYouToday, OPEN_LANES, stageFor, type AccountFacts, type LaneKey, type StageResult } from "./stage";
 
 export type BoardInput = {
@@ -20,6 +21,10 @@ export type BoardInput = {
   source: string | null;
   /** The most recent note, for the card's quoted line. */
   note: string | null;
+  phone: string | null;
+  /** C15: the open autosaved wizard run — a drop-out. The card wears its
+   *  signals, and the call prompt fires off them. */
+  draft: { progressPct: number; uploaded: boolean; visits: number; estValueCents: number | null; lastSeenAt: string } | null;
   facts: AccountFacts;
 };
 
@@ -31,6 +36,11 @@ export type BoardCard = {
   source: string | null;
   note: string | null;
   because: string;
+  phone: string | null;
+  /** "Uploaded a plan or photos · 85% answered" — why this one is worth
+   *  ringing. Empty when it is not. */
+  callWhy: string[];
+  wantsCall: boolean;
   temperature: string | null;
   stage: StageResult["stage"];
   flags: StageResult["flags"];
@@ -75,6 +85,13 @@ function chipsFor(r: StageResult, snoozedUntil: string | null, now: Date): strin
 export function buildBoard(input: BoardInput[], now: Date = new Date()): Board {
   const cards: BoardCard[] = input.map((i) => {
     const r = stageFor(i.facts, now);
+    // A live job outranks a sales call — nobody rings a customer mid-job to
+    // ask about an estimate they abandoned.
+    const verdict = i.draft && r.stage !== "job_on"
+      ? draftCallVerdict(i.draft, i.draft.lastSeenAt, now)
+      : null;
+    const chips = chipsFor(r, i.facts.snoozedUntil, now);
+    if (verdict?.call) chips.unshift("Worth a call now");
     return {
       accountId: i.accountId,
       name: i.name,
@@ -82,12 +99,20 @@ export function buildBoard(input: BoardInput[], now: Date = new Date()): Board {
       valueCents: i.valueCents,
       source: i.source,
       note: i.note,
-      because: r.because,
+      // A drop-out's second line is its draft, not its (non-existent) quotes:
+      // "85% answered · left 2 hours ago" is what makes someone pick up the
+      // phone, and it is the mockup's own wording for this lane.
+      because: i.draft
+        ? `${i.draft.progressPct}% answered · left ${leftAgo(i.draft.lastSeenAt, now)}`
+        : r.because,
+      phone: i.phone,
+      callWhy: verdict?.why ?? [],
+      wantsCall: verdict?.call ?? false,
       temperature: i.facts.temperature,
       stage: r.stage,
       flags: r.flags,
-      needsYou: needsYouToday(r),
-      chips: chipsFor(r, i.facts.snoozedUntil, now),
+      needsYou: needsYouToday(r) || (verdict?.call ?? false),
+      chips,
     };
   });
 

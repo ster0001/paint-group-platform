@@ -135,6 +135,36 @@ export function shouldCall(
   return { call: worthIt && effort && recent, why };
 }
 
+/**
+ * The verdict for an autosaved DRAFT, which usually has no price: the wizard
+ * prices at submit, and a drop-out by definition stopped before it.
+ *
+ * So two rules, by which facts exist:
+ *   · value KNOWN — Tom's full rule ($7,500 worth-the-hour threshold, plus
+ *     effort, plus recency), exactly as shouldCall applies it.
+ *   · value UNKNOWN — Tom's original words for funnel two: "if they answered
+ *     more than 80% of the estimator wizard and haven't booked an appointment
+ *     — instant prompt for a call." An upload counts the same as 80%, because
+ *     nobody photographs their own house idly. Recency still gates: past 72
+ *     hours it is an email, not a call.
+ */
+export function draftCallVerdict(
+  signals: DraftSignals,
+  lastSeenAt: string | Date,
+  now: Date = new Date(),
+): CallVerdict {
+  if (signals.estValueCents != null) return shouldCall(signals, lastSeenAt, now);
+
+  const hours = (now.getTime() - new Date(lastSeenAt).getTime()) / 3_600_000;
+  const why: string[] = [];
+  if (signals.uploaded) why.push("Uploaded a plan or photos");
+  if (signals.progressPct >= 80) why.push(`${signals.progressPct}% answered`);
+  if (signals.visits > 1) why.push(`Came back ${signals.visits} times`);
+
+  const effort = signals.uploaded || signals.progressPct >= 80;
+  return { call: effort && hours <= CALL_WINDOW_HOURS, why };
+}
+
 /** "left 40 minutes ago" — the line that makes the card urgent. */
 export function leftAgo(lastSeenAt: string | Date, now: Date = new Date()): string {
   const mins = Math.max(0, Math.round((now.getTime() - new Date(lastSeenAt).getTime()) / 60_000));

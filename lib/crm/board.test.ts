@@ -12,6 +12,8 @@ const person = (over: Omit<Partial<BoardInput>, "facts"> & { facts?: Partial<Acc
   valueCents: over.valueCents ?? 842_000,
   source: over.source ?? null,
   note: over.note ?? null,
+  phone: over.phone ?? null,
+  draft: over.draft ?? null,
   facts: {
     estimates: [], workOrders: [], events: [],
     temperature: null, snoozedUntil: null, followupDueAt: null,
@@ -109,5 +111,44 @@ describe("buildBoard", () => {
     expect(b.tiles.winRatePct).toBe(67);
 
     expect(buildBoard([person({ facts: { estimates: [sentEstimate(2)] } })], NOW).tiles.winRatePct).toBeNull();
+  });
+});
+
+describe("drop-outs on the board (C15)", () => {
+  const draft = (over: Partial<NonNullable<BoardInput["draft"]>> = {}) => ({
+    progressPct: 85, uploaded: true, visits: 1, estValueCents: null,
+    lastSeenAt: daysAgo(0.1), ...over,
+  });
+
+  it("a drop-out's card reads like the mockup's, and asks for the call", () => {
+    const b = buildBoard([person({ accountId: "drop", valueCents: null, facts: {}, draft: draft(), phone: "0455 221 908" })], NOW);
+    const card = b.lanes.find((l) => l.key === "enquiry_unfinished")!.cards[0];
+    expect(card.because).toMatch(/85% answered · left .* ago/);
+    expect(card.chips).toContain("Worth a call now");
+    expect(card.callWhy.join(" ")).toMatch(/Uploaded a plan/);
+    expect(card.phone).toBe("0455 221 908");
+    expect(card.needsYou).toBe(true);
+    expect(b.needsYou).toBe(1);
+  });
+
+  it("an under-engaged drop-out sits in the lane without shouting", () => {
+    const b = buildBoard([person({ accountId: "early", facts: {}, draft: draft({ progressPct: 20, uploaded: false }) })], NOW);
+    const card = b.lanes.find((l) => l.key === "enquiry_unfinished")!.cards[0];
+    expect(card.chips).not.toContain("Worth a call now");
+    expect(card.because).toMatch(/20% answered/);
+    expect(card.needsYou).toBe(false);
+  });
+
+  it("never asks for a sales call on someone with a job running", () => {
+    const b = buildBoard([person({
+      accountId: "busy",
+      facts: {
+        estimates: [sentEstimate(6, { accepted_at: daysAgo(5), status: "accepted" })],
+        workOrders: [{ status: "in_progress", start_date: daysAgo(2), end_date: daysAgo(-3) }],
+      },
+      draft: draft(),
+    })], NOW);
+    const card = b.lanes.find((l) => l.key === "job_on")!.cards[0];
+    expect(card.chips).not.toContain("Worth a call now");
   });
 });

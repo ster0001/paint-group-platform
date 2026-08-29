@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CALL_THRESHOLD_CENTS, leftAgo, progressPct, shouldCall, uploadedSomething } from "./progress";
+import { CALL_THRESHOLD_CENTS, draftCallVerdict, leftAgo, progressPct, shouldCall, uploadedSomething } from "./progress";
 import { defaultWizardState } from "./state";
 
 const NOW = new Date("2026-08-30T10:00:00+10:00");
@@ -157,5 +157,35 @@ describe("leftAgo", () => {
     expect(leftAgo(hoursAgo(0.67), NOW)).toBe("40 minutes ago");
     expect(leftAgo(hoursAgo(3), NOW)).toBe("3 hours ago");
     expect(leftAgo(hoursAgo(50), NOW)).toBe("2 days ago");
+  });
+});
+
+describe("draftCallVerdict — a draft usually has no price", () => {
+  it("with no value, Tom's own 80% rule decides", () => {
+    // His words for funnel two: "answered more than 80% … instant prompt for
+    // a call". The wizard prices at submit, so a drop-out has no value to
+    // gate on — the $7,500 rule waits for a value to exist.
+    const near = { progressPct: 85, uploaded: false, visits: 1, estValueCents: null };
+    const early = { progressPct: 30, uploaded: false, visits: 1, estValueCents: null };
+    expect(draftCallVerdict(near, hoursAgo(2), NOW).call).toBe(true);
+    expect(draftCallVerdict(early, hoursAgo(2), NOW).call).toBe(false);
+  });
+
+  it("an upload counts the same as 80% — nobody photographs their house idly", () => {
+    const uploaded = { progressPct: 30, uploaded: true, visits: 1, estValueCents: null };
+    expect(draftCallVerdict(uploaded, hoursAgo(2), NOW).call).toBe(true);
+    expect(draftCallVerdict(uploaded, hoursAgo(2), NOW).why).toContain("Uploaded a plan or photos");
+  });
+
+  it("goes quiet after 72 hours — that is an email, not a call", () => {
+    const near = { progressPct: 90, uploaded: true, visits: 2, estValueCents: null };
+    expect(draftCallVerdict(near, hoursAgo(80), NOW).call).toBe(false);
+  });
+
+  it("with a value known, the full $7,500 rule takes over", () => {
+    const smallJob = { progressPct: 95, uploaded: true, visits: 2, estValueCents: 90_000 };
+    expect(draftCallVerdict(smallJob, hoursAgo(2), NOW).call).toBe(false);
+    const bigJob = { ...smallJob, estValueCents: CALL_THRESHOLD_CENTS };
+    expect(draftCallVerdict(bigJob, hoursAgo(2), NOW).call).toBe(true);
   });
 });

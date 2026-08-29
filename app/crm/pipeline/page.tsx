@@ -18,10 +18,10 @@ const compact = (c: number) => (c >= 100_000_00 ? `$${Math.round(c / 100_000) / 
 export default async function PipelinePage() {
   const supabase = await createClient();
 
-  const [{ data: accounts }, { data: estimates }, { data: workOrders }, { data: events }, { data: props }] =
+  const [{ data: accounts }, { data: estimates }, { data: workOrders }, { data: events }, { data: props }, { data: drafts }] =
     await Promise.all([
       supabase.from("accounts")
-        .select("id, name, email, account_type, temperature, snoozed_until, followup_due_at").limit(500),
+        .select("id, name, email, phone, account_type, temperature, snoozed_until, followup_due_at").limit(500),
       supabase.from("estimates")
         .select("id, account_id, status, total_cents, created_at, sent_at, viewed_at, accepted_at, declined_at, title, job_kind")
         .not("account_id", "is", null).limit(2000),
@@ -33,6 +33,11 @@ export default async function PipelinePage() {
         .not("account_id", "is", null)
         .order("occurred_at", { ascending: false }).limit(2000),
       supabase.from("properties").select("account_id, suburb").limit(1000),
+      // C15: the open drafts — the drop-outs this lane exists for.
+      supabase.from("wizard_drafts")
+        .select("account_id, progress_pct, uploaded, visits, est_value_cents, last_seen_at, converted_at")
+        .not("account_id", "is", null)
+        .order("last_seen_at", { ascending: false }).limit(1000),
     ]);
 
   type Est = NonNullable<typeof estimates>[number];
@@ -59,6 +64,19 @@ export default async function PipelinePage() {
     evByAccount.set(e.account_id as string, list);
   }
   const suburbOf = new Map((props ?? []).map((p) => [p.account_id as string, p.suburb as string | null]));
+  const draftOf = new Map<string, { progressPct: number; uploaded: boolean; visits: number; estValueCents: number | null; lastSeenAt: string }>();
+  for (const d of drafts ?? []) {
+    if (d.converted_at != null) continue;   // finished: a customer, not a drop-out
+    const acc = d.account_id as string;
+    if (draftOf.has(acc)) continue;         // newest open draft wins
+    draftOf.set(acc, {
+      progressPct: (d.progress_pct as number) ?? 0,
+      uploaded: d.uploaded === true,
+      visits: (d.visits as number) ?? 1,
+      estValueCents: (d.est_value_cents as number | null) ?? null,
+      lastSeenAt: (d.last_seen_at as string) ?? "",
+    });
+  }
 
   const input: BoardInput[] = (accounts ?? []).map((a) => {
     const est = estByAccount.get(a.id as string) ?? [];
@@ -74,6 +92,8 @@ export default async function PipelinePage() {
       valueCents: (live?.total_cents as number | null) ?? null,
       source: (evs.find((e) => e.type === "first_touch_recorded")?.payload?.source as string) ?? null,
       note: (evs.find((e) => e.type === "note_added")?.payload?.body as string) ?? null,
+      phone: (a.phone as string | null) ?? null,
+      draft: draftOf.get(a.id as string) ?? null,
       facts: {
         estimates: est.map((e) => ({
           id: e.id as string, status: e.status as string, total_cents: e.total_cents as number | null,
@@ -138,9 +158,14 @@ export default async function PipelinePage() {
                 {(c.chips.length > 0 || c.source) && (
                   <span className="cchips">
                     {c.chips.map((chip) => (
-                      <i key={chip} className={`cchip ${chip === "Follow-up overdue" ? "bad" : "warn"}`}>{chip}</i>
+                      <i key={chip} className={`cchip ${chip === "Follow-up overdue" || chip === "Worth a call now" ? "bad" : "warn"}`}>{chip}</i>
                     ))}
                     {c.source && <i className="cchip">{c.source}</i>}
+                  </span>
+                )}
+                {c.wantsCall && (
+                  <span className="cnote" style={{ fontStyle: "normal" }}>
+                    {c.callWhy.join(" · ")}{c.phone ? ` — ${c.phone}` : ""}
                   </span>
                 )}
                 {c.note && <span className="cnote">&ldquo;{c.note}&rdquo;</span>}
