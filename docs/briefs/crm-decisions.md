@@ -64,6 +64,31 @@ excludes.
 Historic leads and lost quotes stay in the database for the pipeline and the
 reports. They are simply never a marketing audience.
 
+### C15 · The wizard drop-out funnel (Tom, 30 Aug)
+
+**When the funnel starts.** Name, phone and email are asked DURING the question
+stage, not at the end. The moment an email exists the person has an account (the
+magic-link flow), the part-finished estimate is autosaved, and abandoning it
+starts the funnel. ⚑ Prerequisite, not yet built: today `wizard_leads` is only
+written at SUBMIT, so somebody who leaves mid-wizard leaves no row, no email and
+nothing to send to. Everything below waits on that capture, and it only starts
+collecting from the day it ships — last month's drop-outs are unrecoverable.
+
+**Two funnels, split by how far they got.**
+- Part-answered: "Need a hand with your estimate?" → reminder offering a call or
+  an estimator visit → "Still looking for a painter?" with a yes/no.
+- 80%+ answered, no appointment: a card in the CRM prompting a phone call, then
+  an email offering help. ⚑ The "warm" criteria are UNSETTLED — see below.
+
+**Timings are not hard-coded.** Tom: "timings can be built in the builder, we
+can split test them based on different criteria". Step waits are already
+editable per campaign; A/B variants are a later build.
+
+**The "no" reasons, ruled:** Went with someone else · Too expensive · Was just
+planning · Change of circumstances · Something else. Plus free text. These
+answers are the most valuable thing the CRM will collect — treat the wording as
+final and do not paraphrase it in the UI.
+
 ### C12 · Which campaign runs first — deliberately NOT decided (Tom, 29 Aug)
 
 Tom: "Unsure which campaign we will run first, that's the point of having this."
