@@ -515,3 +515,10 @@
 .wz .pp-full .wz-planframe { flex: 1; max-height: none; min-height: 0; background: transparent; }
 .wz .pp-full .wz-planframe img { height: 100%; width: 100%; object-fit: contain; }
 @media (max-width: 560px) { .wz .pp-full { padding: 10px; } }
+
+/* ---- staff contact block (29 Aug) ----------------------------------------- */
+.wz .wz-contact { margin: 0 0 18px; padding: 14px; border: 1px solid var(--line); border-left: 2px solid var(--cyan); border-radius: 0 12px 12px 0; background: var(--panel2); }
+.wz .wz-contact .wz-qhead { margin-top: 0; }
+.wz .wz-crow { display: grid; grid-template-columns: 1fr; gap: 8px; }
+@media (min-width: 620px) { .wz .wz-crow { grid-template-columns: 1.1fr 1.4fr 1fr; } }
+.wz .wz-chint { font-size: 12px; color: var(--muted); margin: 8px 0 0; line-height: 1.5; }

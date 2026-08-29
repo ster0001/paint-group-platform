@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { attributionSchema } from "@/lib/crm/attribution";
+import { buildEvent, dedupeKey } from "@/lib/crm/events";
 import { createHash } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -45,7 +47,12 @@ import { bypassesWizardLimits } from "@/lib/portal/limits";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const bodySchema = z.object({ state: wizardStateSchema });
+const bodySchema = z.object({
+  state: wizardStateSchema,
+  /** 2.4: where this visitor came from, captured in the browser on arrival.
+   *  Optional and best-effort — an estimate never fails over attribution. */
+  attribution: attributionSchema.nullable().optional(),
+});
 
 export async function POST(request: Request) {
   // Identity FIRST — never parse or process a body for a caller we'd refuse.
@@ -87,9 +94,13 @@ export async function POST(request: Request) {
     .digest("hex").slice(0, 32);
   // 3a-6: a verified session email ALWAYS wins over whatever the client
   // typed — the magic link proved that inbox; a form field proves nothing.
+  // On the staff path the contact block is the identity; on the customer path
+  // it is their own verified email, then whatever they typed.
   const email = (actor.kind === "customer" && actor.verifiedEmail)
     ? actor.verifiedEmail
-    : state.customer?.email.trim().toLowerCase() ?? "";
+    : (state.customer?.email.trim().toLowerCase()
+       || state.contact.email.trim().toLowerCase()
+       || "");
   // The account's gates (§3): trade = unlimited; flags.unlimited = the
   // office unblock. Looked up by the identity email; missing table or no
   // account = standard limits.
@@ -538,6 +549,10 @@ export async function POST(request: Request) {
     try {
       const linked = await ensureAccountAndProperty(db, {
         email,
+        // The staff path now always has these; the customer path fills them in
+        // later from the portal.
+        name: state.contact.name.trim() || null,
+        phone: state.contact.phone.trim() || null,
         address: state.address
           ? {
               street: state.address.street,
@@ -552,6 +567,29 @@ export async function POST(request: Request) {
           .update({ account_id: linked.accountId, property_id: linked.propertyId })
           .eq("id", estimateId);
         if (link.error) reportError(link.error, { where: "wizard.account.link", bestEffort: true });
+
+        // 2.4 · first touch, written ONCE per account. The dedupe key is the
+        // account, so a customer's second and third estimates never overwrite
+        // where they originally came from — that is the whole point of first
+        // touch. Best-effort: attribution never costs anyone their estimate.
+        const first = parsed.data.attribution?.first ?? null;
+        if (first) {
+          try {
+            const args = buildEvent({
+              type: "first_touch_recorded",
+              accountId: linked.accountId,
+              estimateId,
+              source: "system",
+              occurredAt: first.at,
+              payload: { source: first.source, detail: [first.detail, first.path].filter(Boolean).join(" · ").slice(0, 200) },
+              dedupeKey: dedupeKey("first_touch", linked.accountId),
+            });
+            const logged = await db.rpc("crm_log_event", args);
+            if (logged.error) reportError(logged.error, { where: "wizard.attribution.firstTouch", bestEffort: true });
+          } catch (e) {
+            reportError(e, { where: "wizard.attribution.build", bestEffort: true });
+          }
+        }
 
         // 3a-2, the A1 promise: "Your estimate is saved. We've sent a link to
         // your email — use it any time to come back to your project." Only on
