@@ -67,42 +67,40 @@ describe("evaluateSegment", () => {
 describe("the standing segments", () => {
   it("finds interior customers with no exterior job — the cross-sell list", () => {
     const target = subject({ accountId: "cross", jobTypes: ["interior"], wonCents: 678_000, lastCompletedAt: monthsAgo(19) });
-    const both = subject({ accountId: "both", jobTypes: ["interior", "exterior"] });
-    const busy = subject({ accountId: "busy", jobTypes: ["interior"], hasOpenWork: true });
+    const both = subject({ accountId: "both", jobTypes: ["interior", "exterior"], wonCents: 500_000 });
+    const busy = subject({ accountId: "busy", jobTypes: ["interior"], wonCents: 500_000, hasOpenWork: true });
     const seg = STANDING_SEGMENTS.find((s) => s.key === "interior_no_exterior")!;
     expect(evaluateSegment([target, both, busy], seg, NOW).map((s) => s.accountId)).toEqual(["cross"]);
   });
 
   it("finds exteriors due a repaint, and leaves the recent ones alone", () => {
-    const due = subject({ accountId: "due", jobTypes: ["exterior"], lastCompletedAt: monthsAgo(96), lastContactAt: monthsAgo(20) });
-    const spokenTo = subject({ accountId: "spoken", jobTypes: ["exterior"], lastCompletedAt: monthsAgo(96), lastContactAt: monthsAgo(2) });
+    const due = subject({ accountId: "due", jobTypes: ["exterior"], wonCents: 1_310_000, lastCompletedAt: monthsAgo(96), lastContactAt: monthsAgo(20) });
+    const spokenTo = subject({ accountId: "spoken", jobTypes: ["exterior"], wonCents: 900_000, lastCompletedAt: monthsAgo(96), lastContactAt: monthsAgo(2) });
     const seg = STANDING_SEGMENTS.find((s) => s.key === "exteriors_due_repaint")!;
     expect(evaluateSegment([due, spokenTo], seg, NOW).map((s) => s.accountId)).toEqual(["due"]);
   });
 });
 
-describe("the 'quoted, never booked' list", () => {
-  it("leaves out an account that was never quoted at all", () => {
-    // A bare account — created, never priced — is not someone who saw a
-    // number and said no. Found in the live sample, 29 Aug.
-    const seg = STANDING_SEGMENTS.find((s) => s.key === "quoted_never_booked")!;
-    const bare = subject({ accountId: "bare", everQuoted: false, lastContactAt: null });
-    const real = subject({ accountId: "real", everQuoted: true, lastContactAt: monthsAgo(9) });
-    expect(evaluateSegment([bare, real], seg, NOW).map((s) => s.accountId)).toEqual(["real"]);
+describe("Tom's ruling: a past customer accepted a quote", () => {
+  it("the broad list is customers, not everyone we ever priced", () => {
+    // Tom, 30 Aug: "past customers are only the ones who accepted a quote —
+    // we won't target customers who have submitted a quote request or that we
+    // have quoted and lost."
+    const seg = STANDING_SEGMENTS.find((s) => s.key === "past_customers")!;
+    const customer = subject({ accountId: "won", everQuoted: true, wonCents: 640_000 });
+    const lost = subject({ accountId: "lost", everQuoted: true, wonCents: 0 });
+    const enquiry = subject({ accountId: "enquiry", everQuoted: false, wonCents: 0 });
+    const gone = subject({ accountId: "gone", everQuoted: true, wonCents: 900_000, unsubscribed: true });
+    expect(evaluateSegment([customer, lost, enquiry, gone], seg, NOW).map((s) => s.accountId))
+      .toEqual(["won"]);
   });
-});
 
-describe("the 'everyone we've quoted' list", () => {
-  it("is the broad list — quoted, and not unsubscribed", () => {
-    // The one list that is allowed to be broad. It still refuses the person
-    // who asked not to be written to, because that refusal is absolute.
-    const seg = STANDING_SEGMENTS.find((s) => s.key === "everyone_quoted")!;
-    const quoted = subject({ accountId: "q", everQuoted: true });
-    const busy = subject({ accountId: "busy", everQuoted: true, hasOpenWork: true });
-    const gone = subject({ accountId: "gone", everQuoted: true, unsubscribed: true });
-    const never = subject({ accountId: "never", everQuoted: false });
-    expect(evaluateSegment([quoted, busy, gone, never], seg, NOW).map((s) => s.accountId))
-      .toEqual(["q", "busy"]);
+  it("no standing list can reach someone who never had work done", () => {
+    // The rule, enforced across every list at once rather than one at a time.
+    const lost = subject({ accountId: "lost", everQuoted: true, wonCents: 0, jobTypes: ["interior"] });
+    for (const seg of STANDING_SEGMENTS) {
+      expect(evaluateSegment([lost], seg, NOW)).toEqual([]);
+    }
   });
 });
 
@@ -122,13 +120,13 @@ describe("previewSegment", () => {
   });
 
   it("says nothing rather than zero when nobody has ever bought", () => {
-    const p = previewSegment([subject({ jobTypes: ["interior"] })], STANDING_SEGMENTS[0], NOW);
+    const p = previewSegment([subject({ jobTypes: ["interior"], wonCents: 0 })], STANDING_SEGMENTS[0], NOW);
     expect(p.averageCents).toBeNull();
     expect(p.worthCents).toBeNull();
   });
 
   it("caps the sample the way the mockup shows it", () => {
-    const many = Array.from({ length: 63 }, (_, i) => subject({ accountId: `a${i}`, jobTypes: ["interior"] }));
+    const many = Array.from({ length: 63 }, (_, i) => subject({ accountId: `a${i}`, jobTypes: ["interior"], wonCents: 600_000 }));
     expect(previewSegment(many, STANDING_SEGMENTS[0], NOW).count).toBe(63);
     expect(previewSegment(many, STANDING_SEGMENTS[0], NOW).sample).toHaveLength(20);
   });
@@ -144,7 +142,9 @@ describe("toSubject", () => {
       workOrders: [], lastEventAt: null,
     }, NOW);
     expect(s.lastContactAt).not.toBeNull();
-    const quiet = STANDING_SEGMENTS.find((x) => x.key === "quoted_never_booked")!;
+    // A "gone quiet for six months" rule must not catch someone quoted this
+    // week, whatever list it belongs to.
+    const quiet = seg([{ field: "last_contact", op: "more_than", months: 6 }]);
     expect(evaluateSegment([s], quiet, NOW)).toHaveLength(0);
   });
 

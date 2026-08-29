@@ -42,6 +42,28 @@ they will be due later.
 An email landing at 9pm reads as automated, which undoes the personal tone the
 whole studio is built for. Also a hold: the message waits for the morning.
 
+### C9a · Who counts as a past customer — ACCEPTED ONLY (Tom, 30 Aug)
+
+> "Past customers are only the ones who accepted a quote. We won't target
+> customers who have submitted a quote request or that we have quoted and lost."
+
+A narrower rule than the law requires, chosen deliberately, and it settles most
+of the consent question by avoiding it: everyone on a marketing list has had
+work done and paid for it, which is the clearest existing business relationship
+there is.
+
+**Enforced in code, not in a policy document.** `is_customer` is a segment
+criterion (won work > $0), every standing list carries it, and a test asserts
+that NO standing list can reach someone who never had work done — so a future
+list cannot quietly break the rule.
+
+Consequences: the `everyone_quoted` list became `past_customers`, and
+`quoted_never_booked` was DELETED — it targeted exactly the people this ruling
+excludes.
+
+Historic leads and lost quotes stay in the database for the pipeline and the
+reports. They are simply never a marketing audience.
+
 ### C12 · Which campaign runs first — deliberately NOT decided (Tom, 29 Aug)
 
 Tom: "Unsure which campaign we will run first, that's the point of having this."

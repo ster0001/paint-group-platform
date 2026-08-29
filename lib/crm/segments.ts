@@ -26,6 +26,9 @@ export type Criterion =
   | { field: "completed"; op: "more_than" | "less_than"; months: number }
   | { field: "job_value"; op: "between"; minCents: number; maxCents: number }
   | { field: "quoted"; op: "is"; value: boolean }
+  /** Tom's ruling, 30 Aug: a "past customer" is someone who ACCEPTED a quote.
+   *  Not someone who asked for one, and not someone we quoted and lost. */
+  | { field: "is_customer"; op: "is"; value: boolean }
   | { field: "last_contact"; op: "more_than" | "less_than"; months: number }
   | { field: "suburb"; op: "is"; value: string[] }
   | { field: "temperature"; op: "is"; value: Array<"hot" | "warm" | "cold"> }
@@ -88,6 +91,8 @@ export function matchesCriterion(s: SegmentSubject, c: Criterion, now: Date): bo
     }
     case "job_value":
       return s.wonCents >= c.minCents && s.wonCents <= c.maxCents;
+    case "is_customer":
+      return (s.wonCents > 0) === c.value;
     case "quoted":
       // "Never won" is not the same as "was quoted and said no". Without this,
       // an account that only exists — no estimate at all — lands in a list
@@ -177,6 +182,7 @@ export const STANDING_SEGMENTS: Segment[] = [
     description: "You painted their inside. Nobody has ever quoted their outside.",
     standing: true,
     criteria: [
+      { field: "is_customer", op: "is", value: true },
       { field: "job_type", op: "is", value: "interior" },
       { field: "has_job_type", op: "is_not", value: "exterior" },
       { field: "status", op: "is_not", value: ["unsubscribed", "open_work"] },
@@ -188,6 +194,7 @@ export const STANDING_SEGMENTS: Segment[] = [
     description: "Exterior work finished more than seven years ago, and quiet for a year.",
     standing: true,
     criteria: [
+      { field: "is_customer", op: "is", value: true },
       { field: "job_type", op: "is", value: "exterior" },
       { field: "completed", op: "more_than", months: 84 },
       { field: "last_contact", op: "more_than", months: 12 },
@@ -195,25 +202,13 @@ export const STANDING_SEGMENTS: Segment[] = [
     ],
   },
   {
-    key: "everyone_quoted",
-    name: "Everyone we've quoted",
-    description: "Anyone who has ever been given a price, minus the people it would be wrong to write to.",
+    key: "past_customers",
+    name: "Past customers",
+    description: "People who accepted a quote and had the work done. Not people we quoted and lost.",
     standing: true,
     criteria: [
-      { field: "quoted", op: "is", value: true },
+      { field: "is_customer", op: "is", value: true },
       { field: "status", op: "is_not", value: ["unsubscribed"] },
-    ],
-  },
-  {
-    key: "quoted_never_booked",
-    name: "Quoted, never booked",
-    description: "Sent an estimate, never accepted it, and gone quiet for six months.",
-    standing: true,
-    criteria: [
-      { field: "quoted", op: "is", value: true },
-      { field: "job_value", op: "between", minCents: 0, maxCents: 0 },
-      { field: "last_contact", op: "more_than", months: 6 },
-      { field: "status", op: "is_not", value: ["unsubscribed", "open_work", "snoozed"] },
     ],
   },
 ];
@@ -228,6 +223,7 @@ export function describeCriterion(c: Criterion): { field: string; op: string; va
     case "completed": return { field: "Completed", op: c.op === "more_than" ? "more than" : "less than", value: `${years(c.months)} ago` };
     case "job_value": return { field: "Job value", op: "between", value: `${money(c.minCents)} – ${money(c.maxCents)}` };
     case "quoted": return { field: "Was quoted", op: "is", value: c.value ? "yes" : "no" };
+    case "is_customer": return { field: "Has had work done", op: "is", value: c.value ? "yes" : "no" };
     case "last_contact": return { field: "Last contact", op: c.op === "more_than" ? "more than" : "less than", value: `${years(c.months)} ago` };
     case "suburb": return { field: "Suburb", op: "is", value: c.value.join(", ") };
     case "temperature": return { field: "Temperature", op: "is", value: c.value.join(", ") };
