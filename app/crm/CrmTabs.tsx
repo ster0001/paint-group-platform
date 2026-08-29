@@ -9,7 +9,7 @@ import { usePathname } from "next/navigation";
  * trust the tab rail.
  */
 const TABS = [
-  { key: "pipeline", label: "Pipeline", href: null, soon: "2.3" },
+  { key: "pipeline", label: "Pipeline", href: "/crm/pipeline", soon: null },
   { key: "customer", label: "Customer", href: "/crm", soon: null },
   { key: "segments", label: "Segments", href: null, soon: "2.5" },
   { key: "campaigns", label: "Campaigns", href: null, soon: "3.1" },

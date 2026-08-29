@@ -98,3 +98,40 @@
 .crm .evdetail{font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:2px}
 
 .crm .foot{font-size:11px;color:var(--muted);text-align:center;padding:26px 16px 0;line-height:1.6}
+
+/* ---- the board ------------------------------------------------------------ */
+.crm .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px;margin:0 0 16px}
+.crm .tile{background:var(--raised);border:1px solid var(--line);border-radius:var(--r);padding:11px 13px}
+.crm .tile b{display:block;font-size:20px;font-weight:600;letter-spacing:-.03em}
+.crm .tile span{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+
+.crm .lanescroll{display:flex;gap:12px;overflow-x:auto;padding:0 0 8px;scroll-snap-type:x mandatory;scrollbar-width:none}
+.crm .lanescroll::-webkit-scrollbar{display:none}
+.crm .lane{flex:0 0 268px;scroll-snap-align:start}
+.crm .lanehead{display:flex;align-items:baseline;gap:8px;padding:0 2px 9px}
+.crm .lanename{font-size:12px;font-weight:600}
+.crm .lanecount{font-size:10px;color:var(--muted);margin-left:auto}
+.crm .lanebar{height:2px;border-radius:2px;background:var(--line);margin-bottom:10px}
+.crm .lanebar i{display:block;height:100%;border-radius:2px;background:var(--cyan)}
+.crm .laneempty{font-size:11.5px;color:#4d565f;padding:2px}
+
+.crm .card{background:var(--raised);border:1px solid var(--line);border-radius:var(--r);padding:12px;margin-bottom:9px;position:relative;overflow:hidden;display:block;transition:border-color .15s}
+.crm .card:hover{border-color:#2f3a44}
+.crm .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:transparent}
+.crm .card.warnamber::before{background:var(--amber)}
+.crm .card.warnclay::before{background:var(--clay)}
+.crm .cchips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.crm .cchip{font-style:normal;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 8px}
+.crm .cchip.warn{color:var(--amber);border-color:rgba(224,168,60,.4)}
+.crm .cchip.bad{color:var(--clay);border-color:rgba(179,87,74,.45)}
+.crm .cnote{display:block;font-size:11.5px;color:var(--muted);line-height:1.45;margin-top:8px;font-style:italic}
+.crm .swipe{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#4d565f;margin:6px 0 0}
+/* Seven lanes need ~1950px. Below that the board scrolls sideways, so the hint
+   STAYS — hiding it on desktop left three lanes off-screen with nothing saying
+   so, which is how a board quietly loses a third of the pipeline. Above it,
+   every lane fits at once and the hint goes. */
+@media (min-width:1960px){
+  .crm .lanescroll{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));overflow:visible}
+  .crm .lane{flex:auto}
+  .crm .swipe{display:none}
+}
