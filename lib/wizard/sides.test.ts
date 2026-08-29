@@ -20,7 +20,7 @@ import type { RateItem } from "../pricing/types.ts";
 import {
   ALLOWANCE_CODES, addCatalogItem, applySideDims, defaultSidesLoop, extrasPrices, findSide,
   hasExtrasItem, rateFor, removeSideCustom, removeSideLine, toggleExtrasItem, visitReason,
-  addSideCustom, addWallSurface, addSideSurface, wallSumPct,
+  addSideCustom, addWallSurface, addSideSurface, wallOptionsFromRates, wallSumPct,
   type LooseBlock, type SidesLoopMeta,
 } from "./sides.ts";
 
@@ -248,4 +248,31 @@ test("unpainted brick is a wall surface, and lands on the card's 3 coats", () =>
   const blocks = ok(addWallSurface([sideBlock()], "front", "Brick (Unpainted)", () => next++, 3));
   const brick = findSide(blocks, "front")!.surfaces!.find((s) => s.code === "Brick (Unpainted)")!;
   assert.equal(brick.coats, 3, "sealer plus two topcoats");
+});
+
+
+/**
+ * Tom, 29 Aug 2026: tilt slab / concrete is a wall substrate of its own,
+ * priced as a clone of render (migration 20261204). The add panel offers it
+ * only once that row is on the live card — the same "a tick that cannot price
+ * is never offered" rule that held unpainted brick back.
+ */
+test("wall options come from the live card, so concrete waits for its rate row", () => {
+  const before = wallOptionsFromRates([
+    { code: "Weatherboards", category: "Exterior" },
+    { code: "Render", category: "Exterior" },
+    { code: "Walls", category: "Interior" },
+  ]);
+  assert.deepEqual(before.map((w) => w.code), ["Weatherboards", "Render"]);
+
+  const after = wallOptionsFromRates([
+    { code: "Weatherboards", category: "Exterior" },
+    { code: "Render", category: "Exterior" },
+    { code: "Concrete / Tilt Slab", category: "Exterior" },
+  ]);
+  assert.deepEqual(after.map((w) => w.code), ["Weatherboards", "Render", "Concrete / Tilt Slab"]);
+  assert.equal(after.find((w) => w.code === "Concrete / Tilt Slab")?.label, "Tilt slab / concrete");
+
+  // An interior row of the same name would not open an exterior wall chip.
+  assert.deepEqual(wallOptionsFromRates([{ code: "Render", category: "Interior" }]), []);
 });

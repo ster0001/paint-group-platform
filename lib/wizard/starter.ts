@@ -236,11 +236,12 @@ function extSurface(id: number, code: string): DraftSurfaceLike {
 type DraftSurfaceLike = DraftArea["surfaces"][number];
 
 /** The scaffold's cladding line: the first cladding substrate the user
- * ticked (weatherboards → render → brick), else weatherboards as the
- * conventional default — a placeholder to swap in the builder either way. */
+ * ticked (weatherboards → render → tilt slab → brick), else weatherboards as
+ * the conventional default — a placeholder to swap in the builder either way. */
 function scaffoldCladdingCode(ticked: ReadonlySet<string>): string {
   if (ticked.has("weatherboards")) return "Weatherboards";
   if (ticked.has("render")) return "Render";
+  if (ticked.has("concrete")) return "Concrete / Tilt Slab";
   if (ticked.has("brick")) return "Brick";
   return "Weatherboards";
 }

@@ -399,7 +399,7 @@ export type CustomerExteriorView = {
 };
 
 const EXT_GROUPS: Array<{ group: ExteriorGroup["group"]; label: string; keys: string[] }> = [
-  { group: "body", label: "THE BODY", keys: ["weatherboards", "render", "brick", "brick_unpainted"] },
+  { group: "body", label: "THE BODY", keys: ["weatherboards", "render", "concrete", "brick", "brick_unpainted"] },
   { group: "trims", label: "TRIMS & OPENINGS", keys: ["exterior_windows", "exterior_doors", "garage_doors"] },
   { group: "roofline", label: "THE ROOFLINE", keys: ["fascias", "gutters", "eaves", "downpipes"] },
   { group: "extras", label: "EXTRAS", keys: ["deck", "fence", "pergola", "balustrade"] },
@@ -500,7 +500,7 @@ export function applyExteriorToggle(
   const already = extIdx.some(({ b }) => (b.surfaces ?? []).some((s) => substrateKeyForRateCode(String(s.code ?? "")) === key));
   if (already) return { ok: false, error: "That surface is already on." };
   const CODE: Record<string, string> = {
-    weatherboards: "Weatherboards", render: "Render", brick: "Brick",
+    weatherboards: "Weatherboards", render: "Render", concrete: "Concrete / Tilt Slab", brick: "Brick",
     brick_unpainted: "Brick (Unpainted)",
     fascias: "Fascias", gutters: "Gutters", eaves: "Eaves", downpipes: "Downpipes",
     exterior_windows: "Fixed / Picture Window", exterior_doors: "Front Door",

@@ -144,9 +144,11 @@ export const wizardStateSchema = z.object({
    */
   exterior: z.object({
     storeys: z.enum(["single", "double"]).default("single"),
-    /** "What's the house made of?" — multi; a mix = several ticked. SEEDS
-     * the editor's wall tiles (only these substrates render per side). */
-    substrates: z.array(z.enum(["weatherboards", "render", "brick"])).min(1).default(["weatherboards"]),
+    /** "What's the building made of?" — multi; a mix = several ticked. SEEDS
+     * the editor's wall tiles (only these substrates render per side).
+     * `concrete` (tilt slab / precast panel) prices as a clone of render —
+     * see lib/estimate/substrates.ts and migration 20261204. */
+    substrates: z.array(z.enum(["weatherboards", "render", "concrete", "brick"])).min(1).default(["weatherboards"]),
     /** What are we painting — roofline pre-ticked per the standard scope. */
     painting: z.object({
       body: z.boolean().default(true),
@@ -157,6 +159,11 @@ export const wizardStateSchema = z.object({
     /** peeling + pre-1970 = the lead hard stop (policy.ts). */
     condition: z.enum(["good", "weathered", "peeling"]).nullable().default(null),
     access: z.array(z.enum(["steep", "tight", "high"])).default([]),
+    /** Tom, 29 Aug: special access equipment the job will need. NOTHING for
+     * hire, delivery or setup of this gear is priced in the wizard — the
+     * screen says so as soon as one is ticked, the estimator confirms it, and
+     * a ticked item makes the job non-straightforward (requires_site_check). */
+    accessEquipment: z.array(z.enum(["scissor_lift", "boom_lift", "scaffold"])).default([]),
     extras: z.object({
       deck: z.boolean().default(false),
       fence: z.boolean().default(false),
@@ -300,6 +307,7 @@ export function defaultExterior(): WizardExterior {
     painting: { body: true, windowsDoors: true, roofline: true, garage: false },
     condition: null,
     access: [],
+    accessEquipment: [],
     extras: { deck: false, fence: false, fenceMetres: null, pergola: false, balustrade: false },
   };
 }

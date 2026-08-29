@@ -14,7 +14,7 @@ import ScopeEditor from "./ScopeEditor";
 import SidesEditor from "./SidesEditor";
 import Wordmark from "@/app/wizard/Wordmark";
 import { getCompanyContact } from "@/lib/portal/data";
-import { defaultSidesLoop, extrasPrices, sidesView, visitReason, type SidesLoopMeta } from "@/lib/wizard/sides";
+import { defaultSidesLoop, extrasPrices, sidesView, visitReason, wallOptionsFromRates, type SidesLoopMeta } from "@/lib/wizard/sides";
 import { defaultInteriorLoop, interiorDwTotals, interiorProgress, roomLoopViews, type InteriorLoopMeta } from "@/lib/wizard/rooms-loop";
 import { loopConfirmState } from "@/lib/wizard/confirm-state";
 import { estimateDocuments } from "@/lib/wizard/documents";
@@ -144,7 +144,7 @@ export default async function ScopeEditorPage({
   const interiorRooms = customerScopeRooms(blocks, rules);
   const sides = sidesView(blocks, sidesMeta, extrasPrices(ctx.rateItems),
     snap.success ? (snap.data.exterior?.storeys ?? null) : null,
-    exteriorAddOptions(ctx.rateItems));
+    exteriorAddOptions(ctx.rateItems), wallOptionsFromRates(ctx.rateItems));
   // Batch 4: an estimate with exterior blocks but NO sides structure
   // predates the rebuild — the old editor is deleted, so it gets a polite
   // restart message, never a broken surface. (Tom's ruling: archive +

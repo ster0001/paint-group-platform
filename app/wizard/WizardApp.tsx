@@ -487,7 +487,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     // R2: the exterior pages' own gates.
     if (state.jobType === "exterior") {
       const ext = state.exterior;
-      if (page === 2 && (ext?.substrates.length ?? 0) === 0) return "What's the house made of? Tick at least one.";
+      if (page === 2 && (ext?.substrates.length ?? 0) === 0) return "What's the building made of? Tick at least one.";
       if (page === 3 && ext && !Object.values(ext.painting).some(Boolean)) return "Tick at least one thing we're painting.";
       if (page === 4 && ext?.condition == null) return "How's the paintwork holding up?";
       return null;
@@ -582,7 +582,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 gets the exterior question set and never sees ceiling heights,
                 interior door styles or the interior damage intake. */}
             {page === 2 && (state.jobType === "exterior"
-              ? <PageExteriorHouse state={state} set={set} />
+              ? <PageExteriorHouse state={state} set={set} substrates={substrates} />
               : <PageSurfaces state={state} set={set} substrates={substrates} />)}
             {page === 3 && (state.jobType === "exterior"
               ? <PageExteriorScope state={state} set={set} />
@@ -1293,9 +1293,14 @@ function useExt(state: WizardState, set: (p: Partial<WizardState>) => void) {
   return { ext, setExt };
 }
 
-function PageExteriorHouse({ state, set }: { state: WizardState; set: (p: Partial<WizardState>) => void }) {
+function PageExteriorHouse({ state, set, substrates }: {
+  state: WizardState; set: (p: Partial<WizardState>) => void; substrates: SubstrateGroups;
+}) {
   const { ext, setExt } = useExt(state, set);
-  const sub = (k: "weatherboards" | "render" | "brick", label: string) => (
+  // A tick that cannot price is never offered: tilt slab / concrete appears
+  // only once its rate row exists on the active card (migration 20261204).
+  const offersConcrete = substrates.exterior.some((o) => o.key === "concrete");
+  const sub = (k: WizardExterior["substrates"][number], label: string) => (
     <button
       key={k}
       className={`wz-tile ${ext.substrates.includes(k) ? "on" : ""}`}
@@ -1319,17 +1324,20 @@ function PageExteriorHouse({ state, set }: { state: WizardState; set: (p: Partia
         <button className={`wz-pk ${ext.storeys === "single" ? "on" : ""}`} onClick={() => setExt({ storeys: "single" })}>
           <svg viewBox="0 0 60 64"><polygon points="8,28 30,12 52,28" fill="#1F262C" stroke="#39424B" /><rect x="12" y="28" width="36" height="24" fill="#12161A" stroke="#39424B" /><rect x="26" y="38" width="8" height="14" fill="#152A31" stroke="#2FB9CB" /></svg>
           <small>Single storey</small>
+          <em className="wz-pksub">up to 4 metres</em>
         </button>
         <button className={`wz-pk ${ext.storeys === "double" ? "on" : ""}`} onClick={() => setExt({ storeys: "double" })}>
           <svg viewBox="0 0 60 64"><polygon points="8,20 30,6 52,20" fill="#1F262C" stroke="#39424B" /><rect x="12" y="20" width="36" height="36" fill="#12161A" stroke="#39424B" /><line x1="12" y1="38" x2="48" y2="38" stroke="#39424B" /><rect x="26" y="44" width="8" height="12" fill="#152A31" stroke="#2FB9CB" /></svg>
           <small>Double storey</small>
+          <em className="wz-pksub">over 4 metres</em>
         </button>
       </div>
 
-      <p className="wz-qhead">What&rsquo;s the house made of? <small style={{ color: "var(--muted)", fontWeight: 400 }}>— a mix? Tick everything that&rsquo;s there</small></p>
+      <p className="wz-qhead">What&rsquo;s the building made of? <small style={{ color: "var(--muted)", fontWeight: 400 }}>— a mix? Tick everything that&rsquo;s there</small></p>
       <div className="wz-tiles">
         {sub("weatherboards", "Weatherboard")}
         {sub("render", "Render")}
+        {offersConcrete && sub("concrete", "Tilt slab / concrete")}
         {sub("brick", "Painted brick")}
       </div>
       <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 10 }}>
@@ -1374,6 +1382,19 @@ function PageExteriorCondition({ state, set, isCustomer }: {
   const cond = (v: NonNullable<WizardExterior["condition"]>, b: string, s: string) => (
     <button key={v} className={`wz-card ${ext.condition === v ? "on" : ""}`} onClick={() => setExt({ condition: v })}>
       <b>{b}</b><span>{s}</span>
+    </button>
+  );
+  const gear = (v: WizardExterior["accessEquipment"][number], label: string) => (
+    <button
+      key={v}
+      className={`wz-chip ${ext.accessEquipment.includes(v) ? "on" : ""}`}
+      onClick={() => setExt({
+        accessEquipment: ext.accessEquipment.includes(v)
+          ? ext.accessEquipment.filter((x) => x !== v)
+          : [...ext.accessEquipment, v],
+      })}
+    >
+      {label}
     </button>
   );
   const acc = (v: WizardExterior["access"][number], label: string) => (
@@ -1425,9 +1446,47 @@ function PageExteriorCondition({ state, set, isCustomer }: {
           None of these ✓
         </button>
       </div>
+
+      {/* Tom, 29 Aug: the gear question — and the promise that goes with it.
+          Hire, delivery and setup of access equipment are NOT priced here;
+          the estimator confirms them with the customer. */}
+      <p className="wz-qhead">Any special access equipment required? <small style={{ color: "var(--muted)", fontWeight: 400 }}>— tick any that apply</small></p>
+      <div className="wz-chips">
+        {gear("scissor_lift", "Scissor lift")}
+        {gear("boom_lift", "Boom lift")}
+        {gear("scaffold", "Scaffold / platform")}
+        <button
+          className={`wz-chip ${ext.accessEquipment.length === 0 ? "on" : ""}`}
+          onClick={() => setExt({ accessEquipment: [] })}
+        >
+          None needed ✓
+        </button>
+      </div>
+      {ext.accessEquipment.length > 0 && (
+        <div className="wz-follow">
+          <p className="wz-q">No access equipment costs are included in this estimate.</p>
+          <p style={{ fontSize: 13.5, color: "var(--muted)", margin: 0 }}>
+            Hire, delivery and set-up of {gearPhrase(ext.accessEquipment)} sit outside the price you&rsquo;ll see
+            here — your estimator will confirm what&rsquo;s needed, and what it costs, with you.
+          </p>
+        </div>
+      )}
     </>
   );
 }
+
+/** "a scissor lift and a scaffold / platform" — the ticked gear, read aloud. */
+function gearPhrase(keys: WizardExterior["accessEquipment"]): string {
+  const names = keys.map((k) => GEAR_LABEL[k].toLowerCase());
+  if (names.length === 1) return `a ${names[0]}`;
+  return `a ${names.slice(0, -1).join(", a ")} and a ${names[names.length - 1]}`;
+}
+
+const GEAR_LABEL: Record<WizardExterior["accessEquipment"][number], string> = {
+  scissor_lift: "Scissor lift",
+  boom_lift: "Boom lift",
+  scaffold: "Scaffold / platform",
+};
 
 function PageExteriorExtras({ state, set }: { state: WizardState; set: (p: Partial<WizardState>) => void }) {
   const { ext, setExt } = useExt(state, set);

@@ -37,6 +37,12 @@ export const SUBSTRATE_DEFS = [
   // ---- exterior -----------------------------------------------------------
   { key: "weatherboards", label: "Weatherboards", codes: ["Weatherboards"], defaultOn: true },
   { key: "render", label: "Render", codes: ["Render", "Stucco"], defaultOn: true },
+  /** Tilt slab / precast concrete panel. Tom, 29 Aug: "add another substrate
+   * for tilt slab/concrete… duplicate render" — same preparation and coats as
+   * render, so its rate row is a clone of Render (migration 20261204). It
+   * carries its OWN name so the builder never renames the customer's answer
+   * (the winder-window lesson). Not offered until that migration runs. */
+  { key: "concrete", label: "Tilt slab / concrete", codes: ["Concrete / Tilt Slab"], defaultOn: false },
   { key: "brick", label: "Brick (painted)", codes: ["Brick"], defaultOn: true },
   /** Bare brick that has never been painted: sealer plus two topcoats, which
    * is why its rate row carries default_coats 3 (migration 20260925). Not
