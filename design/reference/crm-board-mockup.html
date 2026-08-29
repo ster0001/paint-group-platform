@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0A0B0D">
+<title>Paint Group — CRM</title>
+<link rel="preconnect" href="https://api.fontshare.com">
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0A0B0D; --graphite:#12161A; --raised:#171C21; --line:#242B32;
+  --text:#EDF0F2; --muted:#8C959D;
+  --cyan:#3BD8E9; --on-cyan:#03272D; --paint:#2FB9CB;
+  --amber:#E0A83C; --emerald:#2FA46B; --clay:#B3574A;
+  --r:14px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  background:var(--ink); color:var(--text);
+  font-family:'Switzer',system-ui,-apple-system,sans-serif;
+  font-weight:500; letter-spacing:-0.011em;
+  -webkit-font-smoothing:antialiased;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.mono{font-family:'Martian Mono',ui-monospace,monospace;font-weight:500;letter-spacing:-0.04em}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;border-radius:6px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ── chrome ─────────────────────────────── */
+.top{position:sticky;top:0;z-index:40;background:rgba(10,11,13,.92);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.topbar{display:flex;align-items:center;gap:12px;padding:14px 16px 10px}
+.mark{width:26px;height:26px;border-radius:8px;background:var(--cyan);display:grid;place-items:center;flex:none}
+.mark span{color:var(--on-cyan);font-size:13px;font-weight:700;letter-spacing:-.05em}
+.brand{font-size:15px;font-weight:600;letter-spacing:-.02em}
+.brand em{font-style:normal;color:var(--muted);font-weight:500}
+.who{margin-left:auto;font-size:11px;color:var(--muted)}
+.tabs{display:flex;gap:4px;padding:0 12px 10px;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{white-space:nowrap;font-size:12.5px;font-weight:600;color:var(--muted);padding:7px 12px;border-radius:999px;border:1px solid transparent}
+.tab[aria-selected="true"]{color:var(--text);background:var(--raised);border-color:var(--line)}
+.view{display:none;padding:16px 0 96px}
+.view.on{display:block}
+.pad{padding:0 16px}
+.eyebrow{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
+h2{font-size:21px;font-weight:600;letter-spacing:-.03em;margin:6px 0 2px}
+.sub{font-size:12.5px;color:var(--muted);line-height:1.5;margin:0 0 16px}
+
+/* ── board ──────────────────────────────── */
+.lanescroll{display:flex;gap:12px;overflow-x:auto;padding:0 16px 8px;scroll-snap-type:x mandatory;scrollbar-width:none}
+.lanescroll::-webkit-scrollbar{display:none}
+.lane{flex:0 0 268px;scroll-snap-align:start}
+.lanehead{display:flex;align-items:baseline;gap:8px;padding:0 2px 9px}
+.lanename{font-size:12px;font-weight:600}
+.lanecount{font-size:10px;color:var(--muted);margin-left:auto}
+.lanebar{height:2px;border-radius:2px;background:var(--line);margin-bottom:10px}
+.lanebar i{display:block;height:100%;border-radius:2px;background:var(--cyan)}
+.card{background:var(--raised);border:1px solid var(--line);border-radius:var(--r);padding:12px;margin-bottom:9px;position:relative;overflow:hidden;text-align:left;width:100%;display:block;transition:border-color .15s,transform .15s}
+.card:active{transform:scale(.99)}
+.card:hover{border-color:#2f3a44}
+.card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:transparent}
+.card.warnamber::before{background:var(--amber)}
+.card.warnclay::before{background:var(--clay)}
+.card.fresh{box-shadow:0 0 0 1px rgba(59,216,233,.28), 0 0 18px -6px rgba(59,216,233,.5)}
+.cname{font-size:13.5px;font-weight:600;letter-spacing:-.02em;display:flex;align-items:center;gap:6px}
+.dot{width:6px;height:6px;border-radius:50%;flex:none}
+.dot.hot{background:var(--clay)} .dot.warm{background:var(--amber)} .dot.cold{background:#4a5560}
+.cmeta{font-size:11px;color:var(--muted);margin-top:3px}
+.crow{display:flex;align-items:center;justify-content:space-between;margin-top:10px;gap:8px}
+.money{font-size:12.5px;font-weight:600}
+.age{font-size:10px;color:var(--muted)}
+.age.amber{color:var(--amber)} .age.clay{color:var(--clay)}
+.chips{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px}
+.chip{font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;padding:3px 7px;border-radius:6px;border:1px solid var(--line);color:var(--muted)}
+.chip.cy{color:var(--cyan);border-color:rgba(59,216,233,.3)}
+.chip.am{color:var(--amber);border-color:rgba(224,168,60,.3)}
+.chip.em{color:var(--emerald);border-color:rgba(47,164,107,.3)}
+.note{font-size:11px;color:var(--muted);margin-top:9px;padding-top:9px;border-top:1px solid var(--line);line-height:1.45}
+.note b{color:var(--text);font-weight:600}
+
+/* ── generic panels ─────────────────────── */
+.panel{background:var(--graphite);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:12px}
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-bottom:16px}
+.tile{background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:12px}
+.tilenum{font-size:22px;font-weight:600;letter-spacing:-.04em;line-height:1}
+.tilelab{font-size:10.5px;color:var(--muted);margin-top:5px}
+.tile.a .tilenum{color:var(--amber)} .tile.c .tilenum{color:var(--clay)} .tile.e .tilenum{color:var(--emerald)}
+
+/* ── timeline ───────────────────────────── */
+.person{display:flex;gap:12px;align-items:flex-start;margin-bottom:14px}
+.av{width:42px;height:42px;border-radius:12px;background:linear-gradient(150deg,#20272e,#12161A);border:1px solid var(--line);display:grid;place-items:center;font-size:13px;font-weight:600;flex:none}
+.pname{font-size:17px;font-weight:600;letter-spacing:-.03em}
+.psub{font-size:11.5px;color:var(--muted);margin-top:2px}
+.stagebar{display:flex;align-items:center;gap:8px;background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:11px 12px;margin-bottom:12px}
+.stagebar .k{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.stagebar .v{font-size:12.5px;font-weight:600;color:var(--cyan)}
+.derived{margin-left:auto;font-size:9.5px;color:var(--muted);border:1px solid var(--line);padding:3px 7px;border-radius:6px}
+.acts{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:6px}
+.act{background:var(--raised);border:1px solid var(--line);border-radius:11px;padding:11px 10px;font-size:12px;font-weight:600;text-align:left;transition:border-color .15s}
+.act:hover{border-color:var(--cyan)}
+.act small{display:block;font-size:10px;color:var(--muted);font-weight:500;margin-top:2px}
+.tl{position:relative;padding-left:22px;margin-top:16px}
+.tl::before{content:"";position:absolute;left:5px;top:6px;bottom:6px;width:1px;background:var(--line)}
+.ev{position:relative;padding:0 0 18px}
+.ev::before{content:"";position:absolute;left:-20px;top:5px;width:7px;height:7px;border-radius:50%;background:var(--line);border:2px solid var(--ink)}
+.ev.sys::before{background:var(--muted)}
+.ev.staff::before{background:var(--cyan)}
+.ev.money::before{background:var(--emerald)}
+.ev.cust::before{background:var(--amber)}
+.evtop{display:flex;align-items:baseline;gap:8px}
+.evtitle{font-size:12.5px;font-weight:600}
+.evtime{font-size:9.5px;color:var(--muted);margin-left:auto;white-space:nowrap}
+.evbody{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.5}
+.evsrc{font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);opacity:.75}
+
+/* ── segments ───────────────────────────── */
+.crit{display:flex;align-items:center;gap:8px;background:var(--raised);border:1px solid var(--line);border-radius:10px;padding:10px 11px;margin-bottom:7px;font-size:12px}
+.crit .f{color:var(--muted);min-width:96px;font-size:11px}
+.crit .o{color:var(--cyan);font-weight:600}
+.joiner{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:2px 0 7px 4px}
+.count{display:flex;align-items:baseline;gap:10px;padding:14px;background:var(--raised);border:1px solid rgba(59,216,233,.25);border-radius:12px;margin-top:12px}
+.count b{font-size:30px;font-weight:600;letter-spacing:-.04em;color:var(--cyan);line-height:1}
+.count span{font-size:11.5px;color:var(--muted);line-height:1.4}
+.samples{margin-top:10px;display:flex;flex-direction:column;gap:1px;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+.srow{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--raised);font-size:12px}
+.srow .sm{margin-left:auto;font-size:11px;color:var(--muted)}
+
+/* ── campaign queue ─────────────────────── */
+.msg{background:var(--graphite);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:11px}
+.msghead{display:flex;align-items:center;gap:8px;padding:11px 13px;border-bottom:1px solid var(--line)}
+.msgto{font-size:12.5px;font-weight:600}
+.msgch{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-left:auto}
+.why{padding:9px 13px;background:rgba(59,216,233,.05);border-bottom:1px solid var(--line);font-size:11px;color:var(--muted);line-height:1.5}
+.why b{color:var(--cyan);font-weight:600}
+.msgbody{padding:13px;font-size:12.5px;line-height:1.6;color:#d7dde1}
+.msgbody .subj{font-weight:600;color:var(--text);margin-bottom:7px;font-size:12.5px}
+.msgacts{display:flex;gap:7px;padding:0 13px 13px}
+.btn{flex:1;padding:10px;border-radius:10px;font-size:12px;font-weight:600;border:1px solid var(--line);text-align:center}
+.btn.pri{background:var(--cyan);color:var(--on-cyan);border-color:var(--cyan)}
+.btn.qui{color:var(--muted)}
+.guard{display:flex;gap:8px;align-items:flex-start;background:var(--raised);border:1px solid rgba(179,87,74,.35);border-radius:12px;padding:12px;margin-bottom:12px;font-size:11.5px;line-height:1.5;color:var(--muted)}
+.guard b{color:var(--clay);display:block;font-size:12px;margin-bottom:3px;font-weight:600}
+.switch{display:flex;align-items:center;gap:10px;padding:12px;background:var(--raised);border:1px solid var(--line);border-radius:12px;margin-bottom:14px}
+.switch .lab{font-size:12px;font-weight:600}
+.switch .hint{font-size:10.5px;color:var(--muted);margin-top:2px}
+.tog{margin-left:auto;width:40px;height:23px;border-radius:999px;background:#2a333c;border:1px solid var(--line);position:relative;flex:none}
+.tog i{position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:50%;background:var(--muted)}
+.tog.on{background:rgba(59,216,233,.2);border-color:var(--cyan)}
+.tog.on i{left:auto;right:2px;background:var(--cyan)}
+
+/* ── sources ────────────────────────────── */
+.srctable{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.srchead,.srcrow{display:grid;grid-template-columns:1.5fr .6fr .6fr .9fr;gap:8px;padding:10px 12px;align-items:center}
+.srchead{background:var(--raised);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.srcrow{border-top:1px solid var(--line);font-size:12px;background:var(--graphite)}
+.srcname{display:flex;align-items:center;gap:8px;font-weight:600;font-size:12px}
+.pip{width:3px;height:16px;border-radius:2px;flex:none}
+.num{font-size:11.5px}
+.rev{text-align:right;font-size:11.5px;font-weight:600}
+.wr{font-size:11.5px}
+.partial{margin-top:10px;font-size:10.5px;color:var(--amber);line-height:1.5;border:1px solid rgba(224,168,60,.28);border-radius:10px;padding:10px}
+
+.hintbar{font-size:10.5px;color:var(--muted);padding:10px 16px 0;line-height:1.5}
+.legend{display:flex;gap:12px;flex-wrap:wrap;padding:12px 16px 0;font-size:10px;color:var(--muted)}
+.legend i{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px;vertical-align:middle}
+@media(min-width:760px){
+  .tiles{grid-template-columns:repeat(4,1fr)}
+  .acts{grid-template-columns:repeat(4,1fr)}
+  .pad,.tabs,.topbar{max-width:1080px;margin-inline:auto}
+  .lanescroll{max-width:1080px;margin-inline:auto}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="topbar">
+    <div class="mark"><span>PG</span></div>
+    <div class="brand">Paint Group <em>· CRM</em></div>
+    <div class="who mono">Tom</div>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-v="board">Pipeline</button>
+    <button class="tab" role="tab" aria-selected="false" data-v="person">Customer</button>
+    <button class="tab" role="tab" aria-selected="false" data-v="seg">Segments</button>
+    <button class="tab" role="tab" aria-selected="false" data-v="camp">Campaigns</button>
+    <button class="tab" role="tab" aria-selected="false" data-v="src">Lead sources</button>
+  </nav>
+</header>
+
+<!-- ══ PIPELINE ══ -->
+<section class="view on" id="board">
+  <div class="pad">
+    <div class="eyebrow">Thursday 28 August</div>
+    <h2>34 open, 11 need you today</h2>
+    <p class="sub">Cards move on their own when the facts change. Nothing here is dragged.</p>
+  </div>
+
+  <div class="pad">
+    <div class="tiles">
+      <div class="tile c"><div class="tilenum mono">4</div><div class="tilelab">Overdue follow-up</div></div>
+      <div class="tile a"><div class="tilenum mono">7</div><div class="tilelab">Going cold</div></div>
+      <div class="tile"><div class="tilenum mono">$186k</div><div class="tilelab">Open estimate value</div></div>
+      <div class="tile e"><div class="tilenum mono">48%</div><div class="tilelab">Win rate, 90 days</div></div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span><i style="background:var(--clay)"></i>Hot</span>
+    <span><i style="background:var(--amber)"></i>Warm</span>
+    <span><i style="background:#4a5560"></i>Cold</span>
+    <span><i style="background:var(--cyan);box-shadow:0 0 8px var(--cyan)"></i>New activity</span>
+  </div>
+  <div class="hintbar">Swipe across the lanes →</div>
+
+  <div class="lanescroll">
+
+    <div class="lane">
+      <div class="lanehead"><span class="lanename">Enquiry unfinished</span><span class="lanecount mono">6</span></div>
+      <div class="lanebar"><i style="width:18%"></i></div>
+
+      <button class="card warnamber" data-open="1">
+        <div class="cname"><span class="dot warm"></span>Renata Alves</div>
+        <div class="cmeta">Northcote · Interior, 2 rooms</div>
+        <div class="crow"><span class="money mono">~$3,250</span><span class="age amber">Left at step 6 · 2d</span></div>
+        <div class="chips"><span class="chip cy">Paid Google</span><span class="chip">Email captured</span></div>
+      </button>
+
+      <button class="card">
+        <div class="cname"><span class="dot cold"></span>Unnamed visitor</div>
+        <div class="cmeta">Reservoir · Exterior</div>
+        <div class="crow"><span class="money mono">—</span><span class="age">No email · 5d</span></div>
+        <div class="chips"><span class="chip">Facebook</span></div>
+      </button>
+
+      <button class="card">
+        <div class="cname"><span class="dot cold"></span>James Whitfield</div>
+        <div class="cmeta">Preston · Interior, whole house</div>
+        <div class="crow"><span class="money mono">~$11,400</span><span class="age">Left at photos · 8d</span></div>
+        <div class="chips"><span class="chip">Organic search</span></div>
+      </button>
+    </div>
+
+    <div class="lane">
+      <div class="lanehead"><span class="lanename">Estimate sent</span><span class="lanecount mono">9</span></div>
+      <div class="lanebar"><i style="width:36%"></i></div>
+
+      <button class="card warnamber">
+        <div class="cname"><span class="dot hot"></span>Sarah Mitchell</div>
+        <div class="cmeta">Camberwell · Interior, Victorian</div>
+        <div class="crow"><span class="money mono">$8,420</span><span class="age amber">Opened 3× · 4d</span></div>
+        <div class="chips"><span class="chip am">Chase due</span><span class="chip cy">Referral</span></div>
+        <div class="note">Asked about <b>low-odour paint</b> on the portal chat. Not answered yet.</div>
+      </button>
+
+      <button class="card">
+        <div class="cname"><span class="dot warm"></span>Anh Nguyen</div>
+        <div class="cmeta">Footscray · Interior, 3 bed</div>
+        <div class="crow"><span class="money mono">$6,980</span><span class="age">Not opened · 1d</span></div>
+        <div class="chips"><span class="chip">Paid Google</span></div>
+      </button>
+
+      <button class="card warnclay">
+        <div class="cname"><span class="dot warm"></span>Grant Fowler</div>
+        <div class="cmeta">Bentleigh · Exterior weatherboard</div>
+        <div class="crow"><span class="money mono">$16,300</span><span class="age clay">Snoozed until yesterday</span></div>
+        <div class="chips"><span class="chip am">Follow-up overdue</span></div>
+        <div class="note">You noted: <b>“Deciding after their kitchen is done — call late Aug.”</b></div>
+      </button>
+    </div>
+
+    <div class="lane">
+      <div class="lanehead"><span class="lanename">Visit booked</span><span class="lanecount mono">4</span></div>
+      <div class="lanebar"><i style="width:52%"></i></div>
+
+      <button class="card fresh">
+        <div class="cname"><span class="dot hot"></span>David Chen</div>
+        <div class="cmeta">Brighton East · Exterior, double storey</div>
+        <div class="crow"><span class="money mono">$14,900</span><span class="age">Visit Fri 9:30am</span></div>
+        <div class="chips"><span class="chip cy">Confirmed</span><span class="chip">Referral</span></div>
+      </button>
+
+      <button class="card">
+        <div class="cname"><span class="dot warm"></span>Ashwood Court OC</div>
+        <div class="cmeta">Glen Waverley · Body corporate, 14 units</div>
+        <div class="crow"><span class="money mono">$46,800</span><span class="age">Visit Mon 8:00am</span></div>
+        <div class="chips"><span class="chip">Trade account</span><span class="chip">B2B partner</span></div>
+      </button>
+    </div>
+
+    <div class="lane">
+      <div class="lanehead"><span class="lanename">Visit done, no reply</span><span class="lanecount mono">3</span></div>
+      <div class="lanebar"><i style="width:64%"></i></div>
+
+      <button class="card warnclay">
+        <div class="cname"><span class="dot hot"></span>Michael O'Donnell</div>
+        <div class="cmeta">Kew · Heritage restoration</div>
+        <div class="crow"><span class="money mono">$22,100</span><span class="age clay">9 days silent</span></div>
+        <div class="chips"><span class="chip am">Second attempt due</span></div>
+        <div class="note">Two calls, one voicemail. Last note: <b>“Wife wants to see colour samples first.”</b></div>
+      </button>
+    </div>
+
+    <div class="lane">
+      <div class="lanehead"><span class="lanename">Negotiating</span><span class="lanecount mono">2</span></div>
+      <div class="lanebar"><i style="width:76%"></i></div>
+
+      <button class="card">
+        <div class="cname"><span class="dot hot"></span>Bianca Rossi</div>
+        <div class="cmeta">Ivanhoe · Interior + exterior</div>
+        <div class="crow"><span class="money mono">$19,750</span><span class="age">Revision 2 sent · 1d</span></div>
+        <div class="chips"><span class="chip cy">Revised estimate</span></div>
+      </button>
+    </div>
+
+    <div class="lane">
+      <div class="lanehead"><span class="lanename">Job on</span><span class="lanecount mono">5</span></div>
+      <div class="lanebar"><i style="width:88%"></i></div>
+
+      <button class="card">
+        <div class="cname">Karen Delaney</div>
+        <div class="cmeta">Hawthorn · Interior, 4 rooms</div>
+        <div class="crow"><span class="money mono">$9,240</span><span class="age">Day 3 of 5</span></div>
+        <div class="chips"><span class="chip em">On schedule</span><span class="chip">Felipe</span></div>
+      </button>
+    </div>
+
+    <div class="lane">
+      <div class="lanehead"><span class="lanename">Past customers</span><span class="lanecount mono">312</span></div>
+      <div class="lanebar"><i style="width:100%"></i></div>
+
+      <button class="card">
+        <div class="cname">Priya Raman</div>
+        <div class="cmeta">Malvern East · Interior, completed Jan 2025</div>
+        <div class="crow"><span class="money mono">$6,780</span><span class="age">19 months ago</span></div>
+        <div class="chips"><span class="chip cy">Repaint prompt due Nov</span></div>
+      </button>
+
+      <button class="card">
+        <div class="cname">Ben & Alice Turner</div>
+        <div class="cmeta">Surrey Hills · Exterior, completed Mar 2024</div>
+        <div class="crow"><span class="money mono">$13,100</span><span class="age">2yr warranty ends Mar</span></div>
+        <div class="chips"><span class="chip am">Warranty check-in queued</span></div>
+      </button>
+    </div>
+
+  </div>
+</section>
+
+<!-- ══ CUSTOMER ══ -->
+<section class="view" id="person">
+  <div class="pad">
+    <div class="person">
+      <div class="av">SM</div>
+      <div>
+        <div class="pname">Sarah Mitchell</div>
+        <div class="psub">14 Rowland Street, Camberwell VIC 3124 · Residential · 1 property</div>
+      </div>
+    </div>
+
+    <div class="stagebar">
+      <div>
+        <div class="k">Stage</div>
+        <div class="v">Estimate sent · opened</div>
+      </div>
+      <div class="derived">Worked out from the record</div>
+    </div>
+
+    <div class="tiles">
+      <div class="tile"><div class="tilenum mono">$8,420</div><div class="tilelab">Estimate, inc. GST</div></div>
+      <div class="tile a"><div class="tilenum mono">4d</div><div class="tilelab">Since it was sent</div></div>
+    </div>
+
+    <div class="eyebrow" style="margin-bottom:8px">Log something</div>
+    <div class="acts">
+      <button class="act">Called — no answer<small>Logs now</small></button>
+      <button class="act">Left message<small>Logs now</small></button>
+      <button class="act">Spoke to customer<small>Add a note</small></button>
+      <button class="act">Note<small>Free text</small></button>
+    </div>
+    <div class="acts" style="margin-top:8px;grid-template-columns:1fr 1fr">
+      <button class="act">Follow up on…<small>Sets a reminder</small></button>
+      <button class="act">Mark hot / warm / cold<small>Currently hot</small></button>
+    </div>
+
+    <div class="eyebrow" style="margin:22px 0 0">Everything, in order</div>
+    <div class="tl">
+
+      <div class="ev staff">
+        <div class="evtop"><span class="evtitle">Called — no answer</span><span class="evtime mono">Today 08:42</span></div>
+        <div class="evbody">Tom · no voicemail left</div>
+      </div>
+
+      <div class="ev cust">
+        <div class="evtop"><span class="evtitle">Chat on the website</span><span class="evtime mono">Yest 20:15</span></div>
+        <div class="evbody">6 messages. Asked whether you use low-odour paint with a baby in the house, and whether the hallway could be done separately. Resolved by the assistant, no handover. <span class="evsrc">Read transcript</span></div>
+      </div>
+
+      <div class="ev sys">
+        <div class="evtop"><span class="evtitle">Estimate opened</span><span class="evtime mono">Yest 20:04</span></div>
+        <div class="evbody">Third time. 6 minutes on the page, opened the room breakdown.</div>
+      </div>
+
+      <div class="ev staff">
+        <div class="evtop"><span class="evtitle">Note</span><span class="evtime mono">26 Aug 16:30</span></div>
+        <div class="evbody">Wants it finished before her parents visit in October. Flexible on start date, not on finish.</div>
+      </div>
+
+      <div class="ev sys">
+        <div class="evtop"><span class="evtitle">Estimate sent</span><span class="evtime mono">24 Aug 11:20</span></div>
+        <div class="evbody">$8,420 inc. GST · SMS + email · valid 60 days</div>
+      </div>
+
+      <div class="ev sys">
+        <div class="evtop"><span class="evtitle">Estimate built</span><span class="evtime mono">24 Aug 09:55</span></div>
+        <div class="evbody">Interior, Victorian terrace. 5 rooms, hallway, 14 doors. Confidence 91%.</div>
+      </div>
+
+      <div class="ev cust">
+        <div class="evtop"><span class="evtitle">Finished the estimate wizard</span><span class="evtime mono">23 Aug 21:40</span></div>
+        <div class="evbody">18 minutes, floorplan uploaded, 9 condition photos.</div>
+      </div>
+
+      <div class="ev sys">
+        <div class="evtop"><span class="evtitle">First visit to the website</span><span class="evtime mono">23 Aug 21:22</span></div>
+        <div class="evbody">Referral — from Priya Raman (Malvern East, completed Jan 2025). <span class="evsrc">First touch</span></div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ══ SEGMENTS ══ -->
+<section class="view" id="seg">
+  <div class="pad">
+    <div class="eyebrow">Segment</div>
+    <h2>Exteriors due a repaint</h2>
+    <p class="sub">Build a list once. Every campaign, count and report reads the same one.</p>
+
+    <div class="panel">
+      <div class="crit"><span class="f">Job type</span><span class="o">is</span><span>Exterior</span></div>
+      <div class="joiner">and</div>
+      <div class="crit"><span class="f">Completed</span><span class="o">more than</span><span>7 years ago</span></div>
+      <div class="joiner">and</div>
+      <div class="crit"><span class="f">Job value</span><span class="o">between</span><span class="mono" style="font-size:11.5px">$8,000 – $30,000</span></div>
+      <div class="joiner">and</div>
+      <div class="crit"><span class="f">Last contact</span><span class="o">more than</span><span>12 months ago</span></div>
+      <div class="joiner">and</div>
+      <div class="crit"><span class="f">Suburb</span><span class="o">within</span><span>25 km of base</span></div>
+      <div class="joiner">and not</div>
+      <div class="crit"><span class="f">Status</span><span class="o">is</span><span>Unsubscribed, or has open work</span></div>
+
+      <div class="count">
+        <b class="mono">63</b>
+        <span>customers match today.<br>Worth roughly <span class="mono" style="color:var(--text)">$847k</span> at your average exterior job.</span>
+      </div>
+
+      <div class="samples">
+        <div class="srow">Ben &amp; Alice Turner<span class="sm">Surrey Hills · Mar 2018</span></div>
+        <div class="srow">Hannah Beck<span class="sm">Balwyn · Nov 2017</span></div>
+        <div class="srow">Rob Sinclair<span class="sm">Ashburton · Jun 2018</span></div>
+        <div class="srow" style="color:var(--muted)">+ 60 more</div>
+      </div>
+      <p class="sub" style="margin:12px 0 0">Dates are always relative, so this list stays right without anyone editing it.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══ CAMPAIGNS ══ -->
+<section class="view" id="camp">
+  <div class="pad">
+    <div class="eyebrow">Waiting for you</div>
+    <h2>3 messages to approve</h2>
+    <p class="sub">Nothing leaves until you say so.</p>
+
+    <div class="switch">
+      <div>
+        <div class="lab">Send automatically</div>
+        <div class="hint">Off. Every message is approved by hand.</div>
+      </div>
+      <div class="tog"><i></i></div>
+    </div>
+
+    <div class="guard">
+      <div>
+        <b>2 messages stopped before sending</b>
+        Anh Nguyen accepted her estimate this morning, so the “still thinking it over?” message was cancelled. Grant Fowler has had 3 messages this month and is at his limit until 12 September.
+      </div>
+    </div>
+
+    <div class="msg">
+      <div class="msghead"><span class="msgto">Sarah Mitchell</span><span class="msgch mono">SMS</span></div>
+      <div class="why">In <b>Estimate opened, no reply — 4 days</b>. Opened it three times and asked a question on chat last night.</div>
+      <div class="msgbody">Hi Sarah — Tom from Paint Group. I saw your question about low-odour paint: yes, we use it as standard for interiors, and it's fine with a baby in the house. Happy to talk through the hallway separately too. Would a quick call tomorrow suit?</div>
+      <div class="msgacts"><button class="btn pri">Approve &amp; send</button><button class="btn">Edit</button><button class="btn qui">Cancel</button></div>
+    </div>
+
+    <div class="msg">
+      <div class="msghead"><span class="msgto">Ben &amp; Alice Turner</span><span class="msgch mono">Email</span></div>
+      <div class="why">In <b>Warranty year 2</b>. Exterior signed off March 2024, warranty ends March 2026.</div>
+      <div class="msgbody">
+        <div class="subj">Your two-year warranty check</div>
+        We painted the exterior of your home in March 2024, and your two-year workmanship warranty runs until March 2026. If anything has moved, lifted or marked since then, now is the right time to tell us — we'll come and look at no charge. Your colours are all on file if you'd like them again.
+      </div>
+      <div class="msgacts"><button class="btn pri">Approve &amp; send</button><button class="btn">Edit</button><button class="btn qui">Cancel</button></div>
+    </div>
+
+    <div class="msg">
+      <div class="msghead"><span class="msgto">Renata Alves</span><span class="msgch mono">Email</span></div>
+      <div class="why">In <b>Unfinished estimate — 48 hours</b>. Reached step 6, gave an email, no estimate saved.</div>
+      <div class="msgbody">
+        <div class="subj">Your estimate is still saved</div>
+        You started an estimate for two rooms in Northcote on Tuesday and stopped partway. It's still there — pick it up where you left off, and it takes about four minutes. If something was unclear, reply and tell us which bit; that's usually the fastest way through.
+      </div>
+      <div class="msgacts"><button class="btn pri">Approve &amp; send</button><button class="btn">Edit</button><button class="btn qui">Cancel</button></div>
+    </div>
+
+    <div class="panel" style="margin-top:16px">
+      <div class="eyebrow" style="margin-bottom:10px">Live campaigns</div>
+      <div class="srow" style="background:none;padding:9px 0;border-bottom:1px solid var(--line)">Unfinished estimate<span class="sm">2 steps · 6 enrolled</span></div>
+      <div class="srow" style="background:none;padding:9px 0;border-bottom:1px solid var(--line)">Estimate opened, no reply<span class="sm">3 steps · 9 enrolled</span></div>
+      <div class="srow" style="background:none;padding:9px 0;border-bottom:1px solid var(--line)">Visit done, no reply<span class="sm">2 steps · 3 enrolled</span></div>
+      <div class="srow" style="background:none;padding:9px 0;border-bottom:1px solid var(--line)">Warranty year 1 &amp; 2<span class="sm">2 steps · 84 enrolled</span></div>
+      <div class="srow" style="background:none;padding:9px 0">Exteriors due a repaint<span class="sm">Paused · 63 in segment</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ SOURCES ══ -->
+<section class="view" id="src">
+  <div class="pad">
+    <div class="eyebrow">Last 90 days</div>
+    <h2>Where the work comes from</h2>
+    <p class="sub">First touch. Every enquiry is tagged on arrival, or asked directly if it can't be.</p>
+
+    <div class="srctable">
+      <div class="srchead"><span>Source</span><span>Leads</span><span>Won</span><span>Revenue</span></div>
+
+      <div class="srcrow">
+        <span class="srcname"><i class="pip" style="background:var(--cyan)"></i>Referral</span>
+        <span class="num mono">31</span><span class="wr mono">19</span><span class="rev mono">$168,400</span>
+      </div>
+      <div class="srcrow">
+        <span class="srcname"><i class="pip" style="background:var(--paint)"></i>Paid Google</span>
+        <span class="num mono">88</span><span class="wr mono">27</span><span class="rev mono">$141,900</span>
+      </div>
+      <div class="srcrow">
+        <span class="srcname"><i class="pip" style="background:var(--emerald)"></i>Organic search</span>
+        <span class="num mono">46</span><span class="wr mono">18</span><span class="rev mono">$96,200</span>
+      </div>
+      <div class="srcrow">
+        <span class="srcname"><i class="pip" style="background:var(--amber)"></i>B2B partner</span>
+        <span class="num mono">9</span><span class="wr mono">6</span><span class="rev mono">$88,700</span>
+      </div>
+      <div class="srcrow">
+        <span class="srcname"><i class="pip" style="background:var(--clay)"></i>Facebook</span>
+        <span class="num mono">54</span><span class="wr mono">8</span><span class="rev mono">$31,300</span>
+      </div>
+      <div class="srcrow">
+        <span class="srcname"><i class="pip" style="background:#4a5560"></i>Unknown</span>
+        <span class="num mono">12</span><span class="wr mono">3</span><span class="rev mono">$14,800</span>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px">
+      <div class="eyebrow" style="margin-bottom:9px">Worth knowing</div>
+      <p class="sub" style="margin:0">Facebook brings the second-most leads and the least money — 15% converts against 61% for referrals. Referrals are a third of your revenue from a quarter of the enquiries.</p>
+    </div>
+
+    <div class="partial">Figures start from the new website's launch date. Anything before that is partial and isn't counted here.</div>
+  </div>
+</section>
+
+<script>
+const tabs=[...document.querySelectorAll('.tab')];
+tabs.forEach(t=>t.addEventListener('click',()=>{
+  tabs.forEach(x=>x.setAttribute('aria-selected',x===t));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id===t.dataset.v));
+  window.scrollTo({top:0,behavior:'instant'});
+}));
+document.querySelectorAll('.card').forEach(c=>c.addEventListener('click',()=>{
+  tabs.forEach(x=>x.setAttribute('aria-selected',x.dataset.v==='person'));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='person'));
+  window.scrollTo({top:0,behavior:'instant'});
+}));
+document.querySelector('.tog').addEventListener('click',e=>e.currentTarget.classList.toggle('on'));
+</script>
+</body>
+</html>
