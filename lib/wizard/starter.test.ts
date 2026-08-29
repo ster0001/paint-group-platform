@@ -179,4 +179,12 @@ describe("starterExteriorNodes (#2)", () => {
     const ids = areas.flatMap((a) => [a.id, ...a.surfaces.map((s) => s.id)]);
     expect(new Set(ids).size).toBe(ids.length);
   });
+
+  it("a tilt slab / concrete tick lays the concrete cladding line, not render", () => {
+    let id = 100;
+    const { areas } = starterExteriorNodes(() => id++, new Set(["concrete", "fascias"]));
+    const codes = areas[0].surfaces.map((s) => s.code);
+    expect(codes).toContain("Concrete / Tilt Slab");
+    expect(codes).not.toContain("Render");
+  });
 });

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   ceilingHeightFrom,
+  defaultExterior,
+  exteriorSurfaceKeys,
   clampAddress,
   coatsFor,
   defaultWizardState,
@@ -151,4 +153,39 @@ it("junk listing text neither validates nor waives the facade photos", () => {
   const s = { ...valid(), jobType: "exterior" as const, listingUrl: "no idea", facadeRunIds: [] };
   const r = wizardStateSchema.safeParse(s);
   expect(r.success).toBe(false);
+});
+
+// ---- Tom, 29 Aug 2026: tilt slab / concrete + the access-equipment question -
+
+describe("the exterior question set (29 Aug additions)", () => {
+  const ext = (over: Record<string, unknown> = {}) => ({
+    ...valid(), jobType: "exterior" as const,
+    listingUrl: "https://www.realestate.com.au/property-house-vic-1",
+    exterior: { ...defaultExterior(), condition: "good" as const, ...over },
+  });
+
+  it("accepts tilt slab / concrete as a wall substrate, and it reaches the tick list", () => {
+    const s = ext({ substrates: ["concrete"] });
+    expect(wizardStateSchema.safeParse(s).success).toBe(true);
+    expect(exteriorSurfaceKeys(s.exterior)).toContain("concrete");
+  });
+
+  it("carries the ticked access equipment, and defaults to none", () => {
+    expect(defaultExterior().accessEquipment).toEqual([]);
+    const s = ext({ accessEquipment: ["scissor_lift", "scaffold"] });
+    const r = wizardStateSchema.safeParse(s);
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.exterior?.accessEquipment).toEqual(["scissor_lift", "scaffold"]);
+    // Gear we do not offer is refused rather than silently dropped.
+    expect(wizardStateSchema.safeParse(ext({ accessEquipment: ["crane"] })).success).toBe(false);
+  });
+
+  it("an older saved state with no accessEquipment still parses (empty)", () => {
+    const s = ext();
+    const legacy: Record<string, unknown> = { ...s.exterior };
+    delete legacy.accessEquipment;
+    const r = wizardStateSchema.safeParse({ ...s, exterior: legacy });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.exterior?.accessEquipment).toEqual([]);
+  });
 });

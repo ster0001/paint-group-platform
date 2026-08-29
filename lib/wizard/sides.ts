@@ -40,12 +40,28 @@ export const SIDE_LABEL: Record<SideKey, string> = {
 export const WALL_CODES: ReadonlyArray<{ code: string; label: string }> = [
   { code: "Weatherboards", label: "Weatherboard cladding" },
   { code: "Render", label: "Render" },
+  // Tilt slab / precast concrete panel — priced as a clone of render
+  // (migration 20261204), named for what the customer actually has.
+  { code: "Concrete / Tilt Slab", label: "Tilt slab / concrete" },
   { code: "Stucco", label: "Stucco" },
   { code: "Brick", label: "Painted brick" },
   // Bare brick — sealer plus two topcoats. Its rate row carries
   // default_coats 3 (migration 20260925); the line reads the card.
   { code: "Brick (Unpainted)", label: "Unpainted brick (3 coats)" },
 ];
+
+/**
+ * The wall substrates the LIVE card can actually price. A tick that cannot
+ * price is never offered (the substrate-registry rule), which is what keeps
+ * "Tilt slab / concrete" out of the add panel until migration 20261204 has
+ * run — and what kept unpainted brick out before 20260925.
+ */
+export function wallOptionsFromRates(
+  rateItems: ReadonlyArray<{ code: string | null; category: string | null }>,
+): Array<{ code: string; label: string }> {
+  const priced = new Set(rateItems.filter((r) => r.category === "Exterior").map((r) => r.code ?? ""));
+  return WALL_CODES.filter((w) => priced.has(w.code)).map((w) => ({ ...w }));
+}
 
 /** S/M/L window factors — mirror of the interior multipliers (Settings own
  * the numbers; these are the locked defaults). */
@@ -556,6 +572,8 @@ export type SidesView = {
   sweepItems: Array<{ code: string; label: string; priceCents: number; on: boolean }>;
   /** R5: every exterior surface the live card can price, offered per side. */
   addable: Array<{ key: string; label: string; group: string }>;
+  /** The wall substrates the live card can price — the add panel's wall chips. */
+  wallOptions: Array<{ code: string; label: string }>;
 };
 
 export function sidesView(
@@ -563,6 +581,7 @@ export function sidesView(
   prices: Record<string, number> = {},
   storeys: "single" | "double" | null = null,
   addable: Array<{ key: string; label: string; group: string }> = [],
+  wallOptions: Array<{ code: string; label: string }> = WALL_CODES.map((w) => ({ ...w })),
 ): SidesView | null {
   if (!SIDE_KEYS.some((k) => findSide(blocks, k))) return null;
   const sides: SideView[] = [];
@@ -617,5 +636,6 @@ export function sidesView(
     sweepItems: SWEEP_PRICED_CODES.filter((c) => prices[c.code] != null)
       .map((c) => ({ ...c, priceCents: prices[c.code], on: hasExtrasItem(blocks, c.code) })),
     addable,
+    wallOptions,
   };
 }

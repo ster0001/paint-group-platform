@@ -19,6 +19,7 @@ import {
   addCatalogItem, addSideCustom, addSideSurface, addWallSurface, addWindowGroup, applySideCount, applySideDims,
   applySideInclude, applySideSizeOk, applyWallShare, applyWindowSize, confirmSide, defaultSidesLoop,
   extrasPrices, hasExtrasItem, rateFor, removeSideCustom, removeSideLine, sidesView, toggleExtrasItem, visitReason,
+  wallOptionsFromRates,
   type SidesLoopMeta,
 } from "@/lib/wizard/sides";
 import {
@@ -904,7 +905,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       sides: sidesView(blocks, sidesMeta, extrasPrices(ctx.rateItems),
         (() => { const sn = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
                  return sn.success ? (sn.data.exterior?.storeys ?? null) : null; })(),
-        exteriorAddOptions(ctx.rateItems)),
+        exteriorAddOptions(ctx.rateItems), wallOptionsFromRates(ctx.rateItems)),
       // R3: the interior confirm loop — rooms joined by areaId, plus the
       // totals check and sweep state. Cupboard questions are data-driven off
       // the live rate card.

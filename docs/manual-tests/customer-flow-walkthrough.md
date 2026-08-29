@@ -48,7 +48,7 @@ that's R1.1, and it's why testing as yourself is finally trustworthy).
 1. `/estimate` → tap **Exterior**. There must be NO floorplan upload and NO
    "no floorplan" link anywhere — paste a listing URL (or add 2 facade
    photos). Suburb/postcode/heritage/kind as above. → *Continue.*
-2. Page 2: **single/double storey** pictures + **"What's the house made
+2. Page 2: **single/double storey** pictures + **"What's the building made
    of?"** (weatherboard pre-ticked). → page 3: **"What are we painting?"**
    with the roofline PRE-TICKED — and NO "how far around" question (sides
    replace it). → page 4: condition cards + built-before-1970 + access

@@ -59,14 +59,6 @@ function Chip({ on, label, onClick }: { on: boolean; label: string; onClick: () 
   return <button className={`sd-chip ${on ? "on" : ""}`} onClick={onClick}>{label}</button>;
 }
 
-const WALL_ADDABLE = [
-  { code: "Render", label: "Render" },
-  { code: "Brick", label: "Painted brick" },
-  { code: "Brick (Unpainted)", label: "Unpainted brick (3 coats)" },
-  { code: "Stucco", label: "Stucco" },
-  { code: "Weatherboards", label: "Weatherboard cladding" },
-];
-
 export default function SidesEditor({ estimateId, initial, initialSides, initialExterior, initialLadder, embedded = false, onState, docs = { plan: null, photos: [] }, logoUrl = null }: {
   estimateId: string;
   initial: CustomerPayload;
@@ -436,7 +428,9 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                     <div className="sd-addpanel">
                       <p className="sd-pl">EVERYTHING WE PAINT — TAP TO ADD TO {s.label.toUpperCase()}</p>
                       <div className="sd-chips">
-                        {WALL_ADDABLE.filter((w) => !s.walls.some((x) => x.code === w.code)).map((w) => (
+                        {/* The wall chips come from the view now, so only a
+                            substrate the live card can price is ever offered. */}
+                        {sides.wallOptions.filter((w) => !s.walls.some((x) => x.code === w.code)).map((w) => (
                           <button
                             key={w.code}
                             className="sd-chip"
@@ -633,42 +627,51 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
         </div>
 
         <div className="sd-grid">
-          {!embedded && <PlanPanel docs={docs} variant="column" />}
-          <div className="sd-visual">
-            <p className="sd-t">YOUR HOME FROM ABOVE · TAP A SIDE</p>
-            <svg viewBox="0 0 300 240" className="sd-house">
-              <rect x="62" y="52" width="176" height="136" fill="#12161A" stroke="#242B32" />
-              <line className={edgeClass("back")} x1="66" y1="52" x2="234" y2="52" onClick={() => setOpen("back")} />
-              <line className={edgeClass("left")} x1="62" y1="56" x2="62" y2="184" onClick={() => setOpen("left")} />
-              <line className={edgeClass("right")} x1="238" y1="56" x2="238" y2="184" onClick={() => setOpen("right")} />
-              <line className={edgeClass("front")} x1="66" y1="188" x2="234" y2="188" onClick={() => setOpen("front")} />
-              <rect x="138" y="180" width="24" height="8" fill="#152A31" stroke="#3BD8E9" strokeWidth="1" />
-              <text x="124" y="212">FRONT · STREET</text>
-              <text x="132" y="42">BACK</text>
-              <text x="14" y="124">LEFT</text>
-              <text x="248" y="124">RIGHT</text>
-            </svg>
-            {sides.geo && (
-              <div className="sd-geo">
-                {sides.geo.storeys && (
-                  <span className="sd-g">{sides.geo.storeys === "double" ? "DOUBLE" : "SINGLE"} STOREY · <i>FROM YOUR ANSWERS</i></span>
-                )}
-                {sides.geo.substrates.slice(0, 2).map((sub) => (
-                  <span className="sd-g" key={sub}>{sub.toUpperCase()} · <i>FROM YOUR ANSWERS</i></span>
-                ))}
-                <button
-                  onClick={() => act({ action: "flag_geometry" }, {
-                    done: "Flagged — geometry is ours to verify, so your estimator will confirm this on site.",
-                  })}
-                >
-                  Not right? Tell us
-                </button>
+          {/* The rail: the plan/photos on file and the house-from-above, one
+              column that stays put. R5 added the PlanPanel as a THIRD child of
+              a two-column grid, which pushed the side cards onto row 2 in the
+              360px column — Tom, 29 Aug: "the box in the bottom left hand
+              corner is way too small… this needs to fill the full page".
+              Wrapping the two together gives the cards the whole wide column
+              back. */}
+          <div className="sd-rail">
+            {!embedded && <PlanPanel docs={docs} variant="column" />}
+            <div className="sd-visual">
+              <p className="sd-t">YOUR HOME FROM ABOVE · TAP A SIDE</p>
+              <svg viewBox="0 0 300 240" className="sd-house">
+                <rect x="62" y="52" width="176" height="136" fill="#12161A" stroke="#242B32" />
+                <line className={edgeClass("back")} x1="66" y1="52" x2="234" y2="52" onClick={() => setOpen("back")} />
+                <line className={edgeClass("left")} x1="62" y1="56" x2="62" y2="184" onClick={() => setOpen("left")} />
+                <line className={edgeClass("right")} x1="238" y1="56" x2="238" y2="184" onClick={() => setOpen("right")} />
+                <line className={edgeClass("front")} x1="66" y1="188" x2="234" y2="188" onClick={() => setOpen("front")} />
+                <rect x="138" y="180" width="24" height="8" fill="#152A31" stroke="#3BD8E9" strokeWidth="1" />
+                <text x="124" y="212">FRONT · STREET</text>
+                <text x="132" y="42">BACK</text>
+                <text x="14" y="124">LEFT</text>
+                <text x="248" y="124">RIGHT</text>
+              </svg>
+              {sides.geo && (
+                <div className="sd-geo">
+                  {sides.geo.storeys && (
+                    <span className="sd-g">{sides.geo.storeys === "double" ? "DOUBLE" : "SINGLE"} STOREY · <i>FROM YOUR ANSWERS</i></span>
+                  )}
+                  {sides.geo.substrates.slice(0, 2).map((sub) => (
+                    <span className="sd-g" key={sub}>{sub.toUpperCase()} · <i>FROM YOUR ANSWERS</i></span>
+                  ))}
+                  <button
+                    onClick={() => act({ action: "flag_geometry" }, {
+                      done: "Flagged — geometry is ours to verify, so your estimator will confirm this on site.",
+                    })}
+                  >
+                    Not right? Tell us
+                  </button>
+                </div>
+              )}
+              <div className="sd-legend">
+                <span><i style={{ background: "var(--amber)" }} />TO CONFIRM</span>
+                <span><i style={{ background: "var(--cyan)" }} />CONFIRMED</span>
+                <span><i style={{ background: "#39424B" }} />NOT PAINTING</span>
               </div>
-            )}
-            <div className="sd-legend">
-              <span><i style={{ background: "var(--amber)" }} />TO CONFIRM</span>
-              <span><i style={{ background: "var(--cyan)" }} />CONFIRMED</span>
-              <span><i style={{ background: "#39424B" }} />NOT PAINTING</span>
             </div>
           </div>
 

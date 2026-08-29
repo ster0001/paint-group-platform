@@ -24,12 +24,13 @@ describe("substrate registry ↔ rate card alignment", () => {
   const items = goldenRateItems();
   const codes = new Set(items.map((i) => i.code));
 
-  it("every registry code exists in the rate card (the two brick rows excepted until their migrations run)", () => {
+  it("every registry code exists in the rate card (the rows added by later migrations excepted)", () => {
     const missing = SUBSTRATE_DEFS.flatMap((d) => d.codes).filter((c) => !codes.has(c));
-    // 'Brick' arrives with 20260919, 'Brick (Unpainted)' with 20260925 —
-    // the golden card predates both. A substrate whose code the loaded card
-    // doesn't carry is simply not offered, which is the point of the test.
-    expect(missing).toEqual(["Brick", "Brick (Unpainted)"]);
+    // 'Brick' arrives with 20260919, 'Brick (Unpainted)' with 20260925 and
+    // 'Concrete / Tilt Slab' with 20261204 — the golden card predates all
+    // three. A substrate whose code the loaded card doesn't carry is simply
+    // not offered, which is the point of the test.
+    expect(missing).toEqual(["Concrete / Tilt Slab", "Brick", "Brick (Unpainted)"]);
   });
 
   it("no two substrates claim the same rate code", () => {

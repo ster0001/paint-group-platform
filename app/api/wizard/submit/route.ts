@@ -420,6 +420,18 @@ export async function POST(request: Request) {
         count: 1, needs: "access affects setup time — allow for it at review",
       });
     }
+    // Tom, 29 Aug: special access equipment is NOT priced by the wizard —
+    // the customer is told so on the screen, and the estimator prices the
+    // hire, delivery and set-up after confirming what the job needs.
+    for (const gear of ext.accessEquipment) {
+      merged.deferred.push({
+        room: "Exterior", areaId: null,
+        what: gear === "scissor_lift" ? "scissor lift access"
+          : gear === "boom_lift" ? "boom lift access" : "scaffold / platform access",
+        count: 1,
+        needs: "customer says this equipment is needed — NOT priced in the estimate; confirm hire, delivery and set-up with them",
+      });
+    }
     if (ext.extras.fence) {
       if (ext.extras.fenceMetres != null) {
         const priced = applyFenceLength(merged.areas as unknown as Parameters<typeof applyFenceLength>[0], ext.extras.fenceMetres);
@@ -628,6 +640,9 @@ export async function POST(request: Request) {
       || state.jobType === "both"
       || state.exterior.storeys === "double"
       || state.exterior.condition === "peeling"
+      // Gear the wizard cannot price (scissor/boom lift, scaffold) — the
+      // estimator confirms access before any price is fixed.
+      || state.exterior.accessEquipment.length > 0
     )
       ? db.from("estimates").update({ requires_site_check: true }).eq("id", estimateId)
           .then((r) => { if (r.error) reportError(r.error, { where: "wizard.submit.requiresSiteCheck", bestEffort: true, extra: { estimateId } }); })

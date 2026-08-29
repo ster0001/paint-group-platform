@@ -6,7 +6,7 @@ import { MONEY_RANGE } from "./drive";
  * questions"). The wizard BRANCHES at job type:
  *
  *   p1 address + listing/facade photos (no floorplan field — R1.3)
- *   p2 storeys + what's the house made of (seeds the editor's wall tiles)
+ *   p2 storeys + what's the building made of (seeds the editor's wall tiles)
  *   p3 what are we painting (roofline PRE-TICKED; NO "how far around" —
  *      side selection in the editor replaces it)
  *   p4 condition (peeling + pre-1970 → lead hard stop) + access
@@ -41,8 +41,11 @@ test("R2 exterior journey: five exterior pages, no interior questions, priced by
 
   // Page 2 — the house: storeys + substrate. Never the interior tick list.
   await next();
-  await expect(page.getByText(/What.s the house made of/i)).toBeVisible();
+  await expect(page.getByText(/What.s the building made of/i)).toBeVisible();
   await expect(page.locator(".wz-step")).toContainText(/storey/i);
+  // Tom, 29 Aug: each storey answer says the height it means.
+  await expect(page.locator(".wz-step")).toContainText(/up to 4 metres/i);
+  await expect(page.locator(".wz-step")).toContainText(/over 4 metres/i);
   // Weatherboard rides pre-ticked from the default; the answer seeds the
   // editor's wall tiles.
   await expect(page.locator(".wz-tile.on", { hasText: "Weatherboard" })).toBeVisible();
@@ -61,6 +64,13 @@ test("R2 exterior journey: five exterior pages, no interior questions, priced by
   await page.getByRole("button", { name: /Good overall/i }).click();
   await answer(/built before 1970/, "No");
   await page.getByRole("button", { name: /None of these/i }).click();
+  // Tom, 29 Aug: special access equipment — asked here, and the moment one is
+  // ticked the screen promises that none of it is priced in this session.
+  await expect(page.getByText(/special access equipment/i)).toBeVisible();
+  await expect(page.getByText(/No access equipment costs/i)).toHaveCount(0);
+  await page.getByRole("button", { name: /Scissor lift/i }).click();
+  await expect(page.getByText(/No access equipment costs are included/i)).toBeVisible();
+  await expect(page.getByText(/your estimator will confirm/i)).toBeVisible();
 
   // Page 5 — extras + paint prefs.
   await next();
