@@ -224,7 +224,39 @@ export async function getPortalProject(accountIds: string[]): Promise<PortalProj
   );
   const wo = sorted[0];
   if (!wo) return null;
+  return projectForWo(svc, wo, (estById.get(wo.estimate_id as string)?.title as string | null) ?? null);
+}
 
+/**
+ * The same project payload for ONE work order, ownership already proven by
+ * the caller. Trade portal v2 session 4: the property-scoped timeline route
+ * verifies estimate.account_id + property_id, then reads through here — one
+ * fetch for both portals, never a fork.
+ */
+export async function getPortalProjectByWorkOrder(
+  accountIds: string[],
+  workOrderId: string,
+): Promise<{ project: PortalProject; propertyId: string | null } | null> {
+  if (!accountIds.length) return null;
+  const svc = createServiceClient();
+  if (!svc) return null;
+  const { data: wo } = await svc
+    .from("work_orders")
+    .select("id, estimate_id, stage, start_date, end_date, contractor_id, issued_at")
+    .eq("id", workOrderId).not("issued_at", "is", null).maybeSingle();
+  if (!wo) return null;
+  const { data: est } = await svc
+    .from("estimates").select("id, title, account_id, property_id").eq("id", wo.estimate_id).maybeSingle();
+  if (!est || !accountIds.includes(est.account_id as string)) return null;
+  const project = await projectForWo(svc, wo, (est.title as string | null) ?? null);
+  return { project, propertyId: (est.property_id as string | null) ?? null };
+}
+
+async function projectForWo(
+  svc: NonNullable<ReturnType<typeof createServiceClient>>,
+  wo: { id: string; estimate_id: string; stage: string; start_date: string | null; end_date: string | null; contractor_id: string | null },
+  title: string | null,
+): Promise<PortalProject> {
   const [surfaces, updates, photos, variations, qa, walkthrough, signoff, events, deposit, painter] =
     await Promise.all([
       svc.from("wo_surfaces").select("heading, label, state, sort").eq("work_order_id", wo.id),
@@ -268,7 +300,7 @@ export async function getPortalProject(accountIds: string[]): Promise<PortalProj
 
   return {
     estimateId: wo.estimate_id as string,
-    title: (estById.get(wo.estimate_id as string)?.title as string | null)?.trim() || "Your project",
+    title: title?.trim() || "Your project",
     stage: wo.stage as string,
     startDate: (wo.start_date as string | null) ?? null,
     endDate: (wo.end_date as string | null) ?? null,

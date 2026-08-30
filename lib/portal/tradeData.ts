@@ -83,6 +83,85 @@ export async function getTradePortfolio(ctx: PortalContext, view: "trade"): Prom
   });
 }
 
+// ---- timeline: the extra events trade users see (§5.3) ----------------------
+
+export type TradeTimelineEvent = {
+  key: string; at: string; title: string; body: string;
+  chip: { cls: "cyan" | "amber" | "emerald" | "clay" | "mut"; label: string } | null;
+  photoIds: string[]; cta: { label: string; href: string } | null; amountCents: number | null;
+};
+
+/**
+ * "Colours confirmed & paint ordered" (the pre-start colours YES),
+ * "Painter confirmed" (the accepted booking offer), and the external-
+ * approval trail (sent / opened / decided — rows arrive with session 5's
+ * send flow; the rendering is live already). First names only, ever.
+ */
+export async function getTradeTimelineEvents(workOrderId: string, estimateId: string): Promise<TradeTimelineEvent[]> {
+  const svc = createServiceClient();
+  if (!svc) return [];
+  const [coloursRes, offerRes, approvalsRes] = await Promise.all([
+    svc.from("wo_checklist_items").select("done_at")
+      .eq("work_order_id", workOrderId).eq("item_key", "colours").eq("answer", "yes")
+      .not("done_at", "is", null).maybeSingle(),
+    svc.from("booking_offers").select("responded_at, contractors(profiles(name))")
+      .eq("work_order_id", workOrderId).eq("state", "accepted")
+      .order("responded_at", { ascending: false }).limit(1).maybeSingle(),
+    svc.from("external_approvals")
+      .select("id, approver_name, signer_name, sent_at, viewed_at, decided_at, decision")
+      .eq("estimate_id", estimateId),
+  ]);
+
+  const out: TradeTimelineEvent[] = [];
+  const coloursAt = (coloursRes.data as { done_at: string | null } | null)?.done_at;
+  if (coloursAt) {
+    out.push({
+      key: "trade:colours", at: coloursAt,
+      title: "Colours confirmed & paint ordered",
+      body: "The colour schedule is locked in. Every colour lives on this property's Colours tab.",
+      chip: null, photoIds: [], cta: null, amountCents: null,
+    });
+  }
+  const offer = offerRes.data as
+    | { responded_at: string | null; contractors?: { profiles?: { name?: string | null } | { name?: string | null }[] | null } | null }
+    | null;
+  if (offer?.responded_at) {
+    const prof = offer.contractors?.profiles;
+    const name = (Array.isArray(prof) ? prof[0]?.name : prof?.name)?.trim().split(/\s+/)[0] ?? null;
+    out.push({
+      key: "trade:painter", at: offer.responded_at,
+      title: "Painter confirmed",
+      body: name ? `${name} accepted the booking.` : "Your painter accepted the booking.",
+      chip: null, photoIds: [], cta: null, amountCents: null,
+    });
+  }
+  for (const a of (approvalsRes.data ?? []) as Array<{
+    id: string; approver_name: string; signer_name: string | null;
+    sent_at: string | null; viewed_at: string | null; decided_at: string | null; decision: string | null;
+  }>) {
+    const first = a.approver_name.trim().split(/\s+/)[0];
+    if (a.sent_at) out.push({
+      key: `trade:approval-sent:${a.id}`, at: a.sent_at,
+      title: `Sent to ${first} to approve`,
+      body: "They received a direct link to review and decide.",
+      chip: null, photoIds: [], cta: null, amountCents: null,
+    });
+    if (a.viewed_at) out.push({
+      key: `trade:approval-viewed:${a.id}`, at: a.viewed_at,
+      title: `Opened by ${first}`, body: "The estimate has been viewed.",
+      chip: null, photoIds: [], cta: null, amountCents: null,
+    });
+    if (a.decided_at && a.decision) out.push({
+      key: `trade:approval-decided:${a.id}`, at: a.decided_at,
+      title: a.decision === "approved" ? `Approved by ${a.signer_name?.trim() || first}` : `Declined by ${first}`,
+      body: a.decision === "approved" ? "Signed and accepted through their link." : "Declined through their link.",
+      chip: a.decision === "approved" ? { cls: "emerald", label: "Approved" } : { cls: "clay", label: "Declined" },
+      photoIds: [], cta: null, amountCents: null,
+    });
+  }
+  return out;
+}
+
 // ---- property detail --------------------------------------------------------
 
 export type PropertyColourCard = {

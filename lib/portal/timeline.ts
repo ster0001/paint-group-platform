@@ -45,6 +45,11 @@ export type TimelineInput = {
   depositPaidOn: string | null; // yyyy-mm-dd
   depositCents: number | null;
   todayYmd: string;
+  /** Trade portal v2 §5.3 — extra events for trade viewers (colours
+   * confirmed, painter confirmed, external approvals). Same feed, same
+   * grouping; residential callers simply omit this, so their output is
+   * bit-identical to before (the snapshot test pins that). */
+  tradeEvents?: Array<Omit<TimelineItem, "dayYmd" | "live">>;
 };
 
 export type TimelineItem = {
@@ -270,6 +275,8 @@ export function buildTimeline(input: TimelineInput): TimelineItem[] {
       });
     }
   }
+
+  for (const t of input.tradeEvents ?? []) push(t);
 
   return items.sort((a, b) => b.at.localeCompare(a.at));
 }
