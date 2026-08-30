@@ -42,10 +42,10 @@ jobs:
 
       # CLAUDE.md: "lint and typecheck must pass before any commit". Errors are
       # zero and must stay zero. The warning cap is a RATCHET, not a target —
-      # it was 23 when CI landed (F1). Lower it when you clear some; never
-      # raise it. Raising it is how 23 becomes 200.
-      - name: Lint (0 errors, warnings ratcheted at 23)
-        run: npx eslint --max-warnings 23
+      # 23 when CI landed (F1), 11 after the 30 Aug clear-out. Lower it when
+      # you clear some; never raise it. Raising it is how 11 becomes 200.
+      - name: Lint (0 errors, warnings ratcheted at 11)
+        run: npx eslint --max-warnings 11
 
       - name: Unit tests
         run: npm test

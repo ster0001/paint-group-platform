@@ -2,7 +2,6 @@ import { test } from "vitest";
 import assert from "node:assert/strict";
 import {
   coatMultiplier,
-  hoursPerUnit,
   productionHours,
   materialLitres,
   priceEstimate,

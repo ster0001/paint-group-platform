@@ -93,7 +93,7 @@ function unitLines(units: UnitRow[]): string {
   return rows.map((u) => `  ${u.unit_key.padEnd(20)} ${u.size_mm} mm (±${u.tolerance_pct}%) — ${u.label}`).join("\n");
 }
 
-const ELEVATION_TOOL = (units: UnitRow[]) => ({
+const ELEVATION_TOOL = (_units: UnitRow[]) => ({
   name: "report_elevation",
   description: "Report the cladding and trims of this house elevation. Every metre needs a nameable reference — no reference, no number.",
   input_schema: {

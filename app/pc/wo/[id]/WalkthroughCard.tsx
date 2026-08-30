@@ -67,7 +67,7 @@ export default function WalkthroughCard({
     const el = dateRef.current;
     if (!el) return;
     const withPicker = el as HTMLInputElement & { showPicker?: () => void };
-    try { withPicker.showPicker ? withPicker.showPicker() : el.focus(); } catch { el.focus(); }
+    try { if (withPicker.showPicker) withPicker.showPicker(); else el.focus(); } catch { el.focus(); }
   }
 
   return (

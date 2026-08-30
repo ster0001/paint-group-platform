@@ -11,7 +11,7 @@ import { loadJobCosts, loadJobMoney, toDerive, toDerivePayments } from "../../da
 import { contractorVariationsCents } from "@/lib/workorder/contractorPay";
 import { SOURCE_LABEL, type IntakeSource } from "@/lib/costs/intake";
 import { COST_DOCS_BUCKET } from "@/lib/costs/store";
-import { fmt2, KIND_LABEL, kindLabelWithContext, shortDay, STATUS_LABEL } from "../../format";
+import { fmt2, kindLabelWithContext, shortDay, STATUS_LABEL } from "../../format";
 import MoneyView, {
   type InvoiceCardProp, type FeedProp, type JobCostItemProp, type MaterialItemProp,
 } from "./MoneyView";

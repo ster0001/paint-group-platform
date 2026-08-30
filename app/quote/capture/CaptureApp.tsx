@@ -100,7 +100,6 @@ export default function CaptureApp({
     void loadCaptureState(estimateId).then((s) => {
       if (s && (s.rooms.length > 0 || s.pendingSync.length > 0)) setRestoreOffer(s);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estimateId]);
 
   const updateDrafts = useCallback((next: RoomDraft[], pending = pendingSync) => {

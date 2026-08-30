@@ -192,7 +192,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // Everything below that reads a single action reads the LAST one: it is the
   // action whose toast the customer is waiting on, and the only shape that
   // ever arrives alone (a terminal action is never batched).
-  const act = actions[actions.length - 1];
   if (actions.length > 1 && actions.some((a) => UNBATCHABLE.has(a.action))) {
     return NextResponse.json({ error: "That step has to be sent on its own." }, { status: 400 });
   }

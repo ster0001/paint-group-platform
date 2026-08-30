@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { fromIncTotal } from "@/lib/invoicing/gst";
 import { stripeConfigured } from "@/lib/invoicing/stripe";
 import { surchargeCents, surchargeFromSettings } from "@/lib/invoicing/surcharge";
 import PayPanel from "./PayPanel";

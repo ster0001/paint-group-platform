@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { STAGE_LANES, WO_STAGES, type WoStage, VISIBLE_STAGES, visibleStage } from "@/lib/workorder/stages";
+import { STAGE_LANES, type WoStage, VISIBLE_STAGES, visibleStage } from "@/lib/workorder/stages";
 import { progressByHeading, progressOf, seedRowsFromDoc, type SurfaceRow } from "@/lib/workorder/surfaces";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
 import { VARIATION_STEPS, stepIndex, type VariationStatus } from "@/lib/workorder/variations";

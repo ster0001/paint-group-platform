@@ -15,7 +15,7 @@ import {
   voidInvoiceAction,
   type InvoicingResult,
 } from "../../actions";
-import { fmt2, fmtSigned2, KIND_LABEL, kindLabelWithContext, STATUS_LABEL } from "../../format";
+import { fmt2, fmtSigned2, kindLabelWithContext, STATUS_LABEL } from "../../format";
 import SendInvoiceSheet from "../../SendInvoiceSheet";
 
 /**

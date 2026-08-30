@@ -205,7 +205,6 @@ export default function CustomerEstimate({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadThread();
     if (typeof window !== "undefined" && window.location.hash === "#chat") {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPanel("chat");
       setTimeout(() => document.getElementById("chatbox")?.scrollIntoView({ behavior: "smooth" }), 200);
     }

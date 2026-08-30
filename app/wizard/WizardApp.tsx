@@ -508,7 +508,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       }).catch(() => {});
     }, 2500);
     return () => clearTimeout(t);
-  }, [state, isCustomer]);
+  }, [state, page, lastPage, isCustomer]);
 
   // ---- client-side page gates (server re-validates everything) --------------
 

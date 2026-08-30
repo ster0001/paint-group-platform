@@ -18,7 +18,6 @@
  */
 import {
   priceEstimateTotals,
-  type Adjustments,
   type AreaInput,
   type BlockInput,
   type PricingContext,

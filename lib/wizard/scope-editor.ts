@@ -513,7 +513,7 @@ export function applyExteriorToggle(
   // in-scope elevation so the estimator fills real numbers per side.
   const isExtra = ["deck", "fence", "pergola", "balustrade", "garage_doors"].includes(key);
   const targets = isExtra ? [extIdx[0]] : extIdx.filter(({ b }) => b.isOption !== true);
-  for (const { b, i } of targets) {
+  for (const { i } of targets) {
     const line = makeDraftSurface(nextId(), code, substrateLabel(key as SubstrateKey), 1, "customer_stated", 0.75, ["exterior_envelope"]);
     out[i] = { ...out[i], surfaces: [...(out[i].surfaces ?? []), line as unknown as Record<string, unknown>] };
   }

@@ -69,7 +69,7 @@ export const KIND_HEADING: Record<string, string> = {
 };
 
 export default function InvoiceSheet({
-  doc, entity, bank, printMode = false, payPanel = null, extraNote = null,
+  doc, entity, bank, printMode: _printMode = false, payPanel = null, extraNote = null,
 }: {
   doc: SheetDoc;
   entity: Record<string, string>;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildPortfolio, type PortfolioVariation } from "./portfolio";
 import type { PortalEstimate, PortalWorkOrder } from "./home";
-import type { MoneyInvoice, MoneyPayment } from "./money";
+import type { MoneyInvoice } from "./money";
 
 const TODAY = "2026-08-27";
 

@@ -711,7 +711,6 @@ export default function QuoteBuilder({
       hourlyRateOverride, contractorRateOverride,
     } as RevisionState;
     return diffRevision(revisionBaseline as RevisionState, currentState, pricingCtx);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revision, revisionBaseline, blocks, modSel, materials, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, pricingCtx]);
 
   const marginPct = totals.subtotal > 0 ? (totals.margin / totals.subtotal) * 100 : 0;
@@ -855,7 +854,6 @@ export default function QuoteBuilder({
     if (rightTab !== "chat" || !quoteId) return;
     const t = setInterval(loadActivity, 15000);
     return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rightTab, quoteId]);
 
   async function sendChatReply() {
