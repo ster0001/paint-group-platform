@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { driveNoPlanWizard, openScopeEditor } from "./drive";
+import { driveNoPlanWizard, openScopeEditor, fillContactStep } from "./drive";
 
 /**
  * Tom's 21 Aug batch, driven on the real screen.
@@ -99,7 +99,8 @@ test("exterior: every item can be taken off, and there is no accept-online butto
     const err = page.locator(".wz-err");
     if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
   };
-  await next(); // → the house
+  await next(); // → page 2: the contact sub-step first
+  await fillContactStep(page); // …then the house
   await next(); // → what are we painting
   await next(); // → condition + access
   await page.getByRole("button", { name: /Good overall/i }).click();

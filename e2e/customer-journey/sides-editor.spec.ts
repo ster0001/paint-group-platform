@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { MONEY_RANGE } from "./drive";
+import { MONEY_RANGE, fillContactStep } from "./drive";
 
 /**
  * R2b — the exterior confirm-loop editor, BY SIDES (rebuild addendum §0;
@@ -32,7 +32,8 @@ async function driveExteriorWizard(page: Page) {
     const err = page.locator(".wz-err");
     if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
   };
-  await next(); // → house
+  await next(); // → page 2: the contact sub-step first
+  await fillContactStep(page); // …then the house
   await next(); // → scope
   await next(); // → condition
   await page.getByRole("button", { name: /Good overall/i }).click();

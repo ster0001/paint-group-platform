@@ -87,3 +87,18 @@ export async function openScopeEditor(page: Page) {
   await expect(page.locator(".sc-r").first()).toHaveText(MONEY_RANGE, { timeout: 20_000 });
   await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
 }
+
+/**
+ * The C15 contact sub-step, for specs that drive the wizard with their own
+ * inline steps rather than driveNoPlanWizard. Call it right after the first
+ * Continue: fills the block when it is present, no-ops when it is not (staff
+ * runs, older surfaces).
+ */
+export async function fillContactStep(page: Page, email?: string) {
+  const contact = page.locator(".wz-crow input");
+  if (!(await contact.count())) return;
+  await contact.nth(0).fill("E2E Journey");
+  await contact.nth(1).fill(email ?? `e2e-journey-${Date.now()}@example.com`);
+  await contact.nth(2).fill("0400 000 111");
+  await page.getByRole("button", { name: /Continue/ }).first().click();
+}

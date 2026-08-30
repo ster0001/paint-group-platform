@@ -4,6 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import type { WizardState } from "@/lib/wizard/state";
 import { progressPct, uploadedSomething } from "@/lib/wizard/progress";
+import { estimateDraftValue, type DraftRefData } from "@/lib/wizard/draftValue";
+import { loadPricingContext } from "@/lib/pricing/context";
+import { SCOPE_VERSION } from "@/lib/extract/scope";
 import { ensureAccount } from "@/lib/accounts/link";
 import { normaliseEmail, isTestEmail } from "@/lib/accounts/identity";
 import { reportError } from "@/lib/monitoring/report";
@@ -95,6 +98,30 @@ export async function POST(req: Request) {
     }
   }
 
+  // C15 step 3 · what this run is roughly worth, priced by the submit
+  // route's own functions. Only when the answers already satisfy the full
+  // schema — a dollar figure built on guesses puts calls on the wrong desks —
+  // and never allowed to break the save: est_value_cents simply stays null.
+  let estValueCents: number | null = null;
+  try {
+    const [ctx, { data: rulesRows }, { data: aliasRows }, { data: defectRows }, { data: typicalRows }] =
+      await Promise.all([
+        loadPricingContext(db),
+        db.from("room_type_scope_rules").select("room_type, surface_type, is_option, requires_confirm, notes").eq("version", SCOPE_VERSION),
+        db.from("room_name_aliases").select("alias, room_type").eq("version", SCOPE_VERSION),
+        db.from("defect_prep_rates").select("defect_type, unit, hours_sev1, hours_sev2, hours_sev3").eq("version", SCOPE_VERSION),
+        db.from("room_type_defaults").select("room_type, typical_length_m, typical_width_m").eq("version", 3),
+      ]);
+    const refs = {
+      rules: rulesRows ?? [], aliases: aliasRows ?? [],
+      defectRates: defectRows ?? [], typicals: typicalRows ?? [],
+    } as DraftRefData;
+    const value = estimateDraftValue(state, refs, ctx);
+    if ("totalCents" in value) estValueCents = value.totalCents;
+  } catch (e) {
+    reportError(e, { where: "wizard.draft.value", bestEffort: true });
+  }
+
   const now = new Date().toISOString();
   const row = {
     user_id: user.id,
@@ -108,6 +135,7 @@ export async function POST(req: Request) {
     state,
     progress_pct: progressPct(forSignals, parsed.data.page, parsed.data.lastPage),
     uploaded: uploadedSomething(forSignals),
+    ...(estValueCents != null ? { est_value_cents: estValueCents } : {}),
     last_seen_at: now,
     ...(parsed.data.converted ? { converted_at: now, estimate_id: parsed.data.estimateId ?? null } : {}),
   };

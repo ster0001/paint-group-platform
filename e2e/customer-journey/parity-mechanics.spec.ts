@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { MONEY_RANGE, driveNoPlanWizard, openScopeEditor } from "./drive";
+import { MONEY_RANGE, driveNoPlanWizard, fillContactStep, openScopeEditor } from "./drive";
 
 /**
  * Parity PR — loop mechanics (Inventory A3, B4/B5, C1 + exterior $ toasts):
@@ -63,7 +63,9 @@ test("exterior: geometry chips + flag flip the tier; toasts carry $ amounts", as
   await answer("Heritage listed", "No");
   await answer("What kind of property", "House");
   const next = async () => page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ }).first().click();
-  await next(); await next(); await next();
+  await next();
+  await fillContactStep(page);   // C15: page 2 opens with who-is-it-for
+  await next(); await next();
   await page.getByRole("button", { name: /Good overall/i }).click();
   await answer(/built before 1970/, "No");
   await next(); await next();

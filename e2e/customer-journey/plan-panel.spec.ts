@@ -38,8 +38,15 @@ test("the plan panel is big enough to read, and opens bigger still", async ({ pa
   };
   await answer("Heritage listed", "No");
   await answer("What kind of property", "House");
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 7; i++) {
     if (await page.locator(".sc-r").count()) break;
+    // C15: the contact sub-step sits inside page 2 — fill it when it appears.
+    const contact = page.locator(".wz-crow input");
+    if (await contact.count()) {
+      await contact.nth(0).fill("E2E Plan Panel");
+      await contact.nth(1).fill(`e2e-plan-${Date.now()}@example.com`);
+      await contact.nth(2).fill("0400 000 111");
+    }
     const email = page.locator("input[type=email]");
     if (await email.count()) await email.fill(`e2e-plan-${Date.now()}@example.com`);
     await page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ }).first().click();

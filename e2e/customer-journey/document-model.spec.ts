@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { fillContactStep } from "./drive";
 
 /**
  * R1.3 — the document model (diagnostic #2 and #3).
@@ -80,7 +81,8 @@ test.describe("R1.3 document model", () => {
       const err = page.locator(".wz-err");
       if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
     };
-    await next(); // surfaces
+    await next(); // → page 2: contact sub-step first
+    await fillContactStep(page); // …then surfaces
     await next(); // condition
     await next(); // details
     await answer(/built before 1970/, "No");

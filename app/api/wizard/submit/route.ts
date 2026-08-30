@@ -16,8 +16,8 @@ import type { DefectRate } from "@/lib/capture/commit";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { applyWizardAnswers, filterSurfacesByTicks } from "@/lib/wizard/merge";
 import { ceilingHeightFrom, wizardStateSchema, type WizardSurfaceKey } from "@/lib/wizard/state";
-import { backfillTypicalSizes, exteriorExtrasNodes, markStarterProvenance, starterExteriorNodes, starterExtraction, starterRoomList, type TypicalSizeRow } from "@/lib/wizard/starter";
-import { applyFenceLength } from "@/lib/wizard/scope-editor";
+import { backfillTypicalSizes, markStarterProvenance, starterExtraction, starterRoomList, type TypicalSizeRow } from "@/lib/wizard/starter";
+import { applyExteriorAnswers } from "@/lib/wizard/exteriorAnswers";
 import { customerPayload, editorPayload } from "@/lib/wizard/view";
 import {
   GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails,
@@ -373,91 +373,11 @@ export async function POST(request: Request) {
     }
   }
 
-  // Feature #2: an exterior/both job that measured NO exterior surfaces (no
-  // facade photos, or a floorplan with no cladding read) still needs the
-  // exterior scaffold — otherwise the estimator sees interior only. Lay out
-  // the four elevations, unmeasured and flagged, to fill in.
-  const hasExteriorNodes = merged.areas.some((a) => a.type === "Exterior");
-  if (wantsExterior && !hasExteriorNodes) {
-    const scaffold = starterExteriorNodes(() => nextId++, tickedSurfaces);
-    merged.areas.push(...scaffold.areas);
-    merged.deferred = merged.deferred.filter((d) => d.what !== "exterior envelope");
-    merged.deferred.push(...scaffold.deferred);
-  }
-
-  // A2: ticked whole-job extras (deck, fence, pergola…) are never measured by
-  // an elevation read — they always arrive as $0 placeholders to measure.
-  if (wantsExterior) {
-    const extras = exteriorExtrasNodes(() => nextId++, tickedSurfaces);
-    merged.areas.push(...extras.areas);
-    merged.deferred.push(...extras.deferred);
-  }
-
-  // R2: apply the exterior ANSWERS to the elevation nodes. Storeys give every
-  // side its height; unmeasured sides take typical lengths (12 m front/back,
-  // 14 m sides — the confirm-loop editor's L×H question settles them, tagged
-  // assumed until then). Condition and access become review deferrals; a
-  // stated fence length prices the fence line.
-  if (wantsExterior && state.exterior) {
-    const ext = state.exterior;
-    const sideH = ext.storeys === "double" ? 5.2 : 2.6;
-    for (const a of merged.areas) {
-      if (a.type !== "Exterior" || a.areaType !== "surface") continue;
-      if (!(Number(a.H) > 0)) {
-        a.H = sideH;
-        if (!a.assumedFields.includes("H")) a.assumedFields = [...a.assumedFields, "H"];
-      }
-      if (!(Number(a.L) > 0)) {
-        a.L = /front|rear|back/i.test(a.name) ? 12 : 14;
-        if (!a.assumedFields.includes("L")) a.assumedFields = [...a.assumedFields, "L"];
-      }
-    }
-    if (ext.condition === "weathered") {
-      merged.deferred.push({
-        room: "Exterior", areaId: null, what: "weathered paintwork", count: 1,
-        needs: "extra preparation allowed for — confirm the prep scope at review",
-      });
-    }
-    if (ext.condition === "peeling") {
-      merged.deferred.push({
-        room: "Exterior", areaId: null, what: "peeling & flaking paint", count: 1,
-        needs: "needs eyes on it before a fixed price — prep scope and (pre-1970) a lead-safe check on the visit",
-      });
-    }
-    for (const acc of ext.access) {
-      merged.deferred.push({
-        room: "Exterior", areaId: null,
-        what: acc === "steep" ? "steep block" : acc === "tight" ? "tight side access" : "double-height entry",
-        count: 1, needs: "access affects setup time — allow for it at review",
-      });
-    }
-    // Tom, 29 Aug: special access equipment is NOT priced by the wizard —
-    // the customer is told so on the screen, and the estimator prices the
-    // hire, delivery and set-up after confirming what the job needs.
-    for (const gear of ext.accessEquipment) {
-      merged.deferred.push({
-        room: "Exterior", areaId: null,
-        what: gear === "scissor_lift" ? "scissor lift access"
-          : gear === "boom_lift" ? "boom lift access" : "scaffold / platform access",
-        count: 1,
-        needs: "customer says this equipment is needed — NOT priced in the estimate; confirm hire, delivery and set-up with them",
-      });
-    }
-    if (ext.extras.fence) {
-      if (ext.extras.fenceMetres != null) {
-        const priced = applyFenceLength(merged.areas as unknown as Parameters<typeof applyFenceLength>[0], ext.extras.fenceMetres);
-        if (priced.ok) {
-          merged.areas = priced.blocks as unknown as typeof merged.areas;
-          merged.deferred = merged.deferred.filter((d) => !/fence/i.test(d.what));
-        }
-      } else {
-        merged.deferred.push({
-          room: "Exterior", areaId: null, what: "fence length", count: 1,
-          needs: "customer isn't sure of the fence length — measure it on site",
-        });
-      }
-    }
-  }
+  // The exterior scaffold + answers, shared with the DRAFT pricer (C15 step
+  // 3): lib/wizard/exteriorAnswers.ts is the one place "storeys give every
+  // side its height" lives, so a drop-out is valued by the same rules as the
+  // estimate they would have received.
+  applyExteriorAnswers(merged, effectiveState, () => nextId++, tickedSurfaces);
 
   const builderState: Record<string, unknown> = {
     blocks: merged.areas,

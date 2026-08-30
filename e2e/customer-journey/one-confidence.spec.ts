@@ -4,43 +4,43 @@ import { driveNoPlanWizard } from "./drive";
 /**
  * R1.4 — ONE confidence function (diagnostic #5, the 90%-vs-41% split).
  *
- * The bug this encodes: the header ring came from accuracy.ts while every
- * room card used a separate fixed lookup that ignored the height penalty,
- * deferred items and missing surfaces — cards said 90% while the ring said
- * 41%. Now one provenance-weighted function feeds header, cards and the
- * range band, and a no-plan/no-photo estimate is capped (~65%) until a real
- * confirmation arrives — honest-low always beats fake-high.
+ * The bug this encodes: the header ring and the room cards once came from
+ * DIFFERENT functions — cards said 90% while the ring said 41%. The unifying
+ * function is pinned in lib/wizard's accuracy tests; what a CUSTOMER can see
+ * has since changed shape (28 Aug: reveals land in the scope editor, which
+ * shows one header score and per-room confirm STATES, not per-card
+ * percentages). So this spec pins the two promises the current surface makes:
+ *
+ *   · a no-plan, nothing-confirmed estimate is CAPPED — honest-low (~65%)
+ *     always beats fake-high;
+ *   · confirming a room moves the one score UP, because the ramp is the
+ *     reason a customer bothers confirming at all (the R5 frozen-18% bug).
  */
 
 async function headerPct(page: Page): Promise<number> {
-  return parseInt((await page.locator(".wz-num").innerText()).replace("%", ""), 10);
-}
-async function cardPcts(page: Page): Promise<number[]> {
-  const texts = await page.locator(".wz-rooms .wz-room span", { hasText: /^\d+%$/ }).allInnerTexts();
-  return texts.map((t) => parseInt(t, 10));
+  return parseInt((await page.locator(".sc-num").innerText()).replace("%", ""), 10);
 }
 
-test("R1.4 header and room cards agree; confirming moves both; no-plan is capped", async ({ page }) => {
+test("R1.4 one score: no-plan capped, and confirming a room ramps it", async ({ page }) => {
   test.setTimeout(180_000);
   await driveNoPlanWizard(page);
 
   // Honesty cap: a starter-list estimate (nothing extracted, nothing
-  // confirmed) can never exceed 65%.
+  // confirmed) can never open above 65%.
   const header0 = await headerPct(page);
-  expect(header0).toBeLessThanOrEqual(65);
+  expect(header0, "an unconfirmed no-plan estimate must open capped").toBeLessThanOrEqual(65);
 
-  // The regression: every card must come from the same function — with all
-  // rooms assumed from typicals, no card may report near-certainty.
-  const cards0 = await cardPcts(page);
-  expect(cards0.length).toBeGreaterThan(0);
-  for (const c of cards0) expect(c).toBeLessThanOrEqual(65);
+  // Confirm the first room: the size question first — its button reads
+  // "Looks right" — then the room's confirm button.
+  await page.locator(".sc-rc").first().click();
+  await page.getByRole("button", { name: "Looks right" }).first().click();
+  const confirm = page.getByRole("button", { name: /^Confirm / }).first();
+  await expect(confirm).toBeEnabled({ timeout: 15_000 });
+  await confirm.click();
+  await expect(page.getByRole("button", { name: /Confirmed ✓/ }).first()).toBeVisible({ timeout: 20_000 });
 
-  // Confirming one room's size moves BOTH its card and the header, together.
-  await page.locator(".wz-rooms .wz-room").first().locator("button").first().click();
-  await page.getByRole("button", { name: "Confirm size" }).click();
-  await expect(page.locator(".wz-prov", { hasText: /CONFIRMED/ }).first()).toBeVisible({ timeout: 15_000 });
-  const header1 = await headerPct(page);
-  const cards1 = await cardPcts(page);
-  expect(header1).toBeGreaterThan(header0);
-  expect(Math.max(...cards1)).toBeGreaterThan(Math.max(...cards0));
+  // The ramp: the score a customer worked for must move.
+  await expect(async () => {
+    expect(await headerPct(page)).toBeGreaterThan(header0);
+  }).toPass({ timeout: 20_000 });
 });

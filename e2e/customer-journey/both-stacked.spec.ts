@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { MONEY_RANGE } from "./drive";
+import { MONEY_RANGE, fillContactStep } from "./drive";
 
 /**
  * Batch 4 — "Both" jobs get the STACKED editor (Tom's ruling on the parity
@@ -31,7 +31,8 @@ test("Both job: interior cards then sides, combined progress, single visit CTA",
     const err = page.locator(".wz-err");
     if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
   };
-  await next(); // surfaces (Inside + Outside)
+  await next(); // → page 2, which OPENS with the contact sub-step
+  await fillContactStep(page); // …then surfaces (Inside + Outside)
   await next(); // condition
   await next(); // details
   await answer(/built before 1970/, "No");
