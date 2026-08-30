@@ -130,6 +130,22 @@ test("the product-keyed collapse is visible: two rooms, one product, one snapsho
   expect(new Set(rows.map((r) => r.colour_name)).size).toBe(1);
 });
 
+test("linkSupersedence: rows from the SAME job never supersede each other", () => {
+  // One job, one area, two wall colours (feature wall) — both stay current.
+  const sameJob = [
+    { area_label: "Living room", surface_type: "wall", jobOrder: 1 },
+    { area_label: "Living room", surface_type: "wall", jobOrder: 1 },
+  ];
+  expect(linkSupersedence(sameJob)).toEqual([null, null]);
+  // A newer job supersedes BOTH of the older job's rows in the group.
+  const twoJobs = [
+    { area_label: "Living room", surface_type: "wall", jobOrder: 1 },
+    { area_label: "Living room", surface_type: "wall", jobOrder: 1 },
+    { area_label: "Living room", surface_type: "wall", jobOrder: 2 },
+  ];
+  expect(linkSupersedence(twoJobs)).toEqual([2, 2, null]);
+});
+
 test("linkSupersedence chains same-group rows oldest → newest, leaves other groups alone", () => {
   const rows = [
     { area_label: "Walls — all rooms", surface_type: "wall", jobOrder: 1 },

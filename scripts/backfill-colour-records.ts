@@ -51,9 +51,13 @@ function parseEnvFile(path: string): Record<string, string> {
   return out;
 }
 
-const testEnv = parseEnvFile(resolve(process.cwd(), ".env.test.local"));
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL || testEnv.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY || testEnv.SUPABASE_SERVICE_ROLE_KEY;
+// --prod targets production by reading .env.local directly (keys never ride
+// the command line) — still refused below unless SEED_ALLOW_PRODUCTION=1.
+const PROD_FLAG = process.argv.includes("--prod");
+const flagEnv = PROD_FLAG ? parseEnvFile(resolve(process.cwd(), ".env.local")) : {};
+const testEnv = PROD_FLAG ? {} : parseEnvFile(resolve(process.cwd(), ".env.test.local"));
+const url = flagEnv.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || testEnv.NEXT_PUBLIC_SUPABASE_URL;
+const key = flagEnv.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || testEnv.SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !key) {
   console.error("No target: set NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY or provide .env.test.local");
   process.exit(1);
