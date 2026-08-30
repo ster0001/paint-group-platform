@@ -307,6 +307,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   // ---- submit ---------------------------------------------------------------
 
   async function runSubmit() {
+    draftHaltRef.current = true;   // no autosave may race the conversion
+
     setScreen("processing");
     setError(null);
     try {
@@ -482,8 +484,13 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    * a row would be a half-finished form nobody can act on.
    */
   const savedRef = useRef("");
+  /** Set at the moment submit starts. The pending debounce otherwise fires
+   *  DURING the processing screen and races the server's conversion — the
+   *  probe run left an orphan "open" draft at 83% that way. */
+  const draftHaltRef = useRef(false);
   useEffect(() => {
     if (!isCustomer) return;
+    if (draftHaltRef.current) return;
     const email = state.contact.email.trim() || state.customer?.email.trim() || "";
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
 
@@ -491,6 +498,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     if (body === savedRef.current) return;
 
     const t = setTimeout(() => {
+      if (draftHaltRef.current) return;
       savedRef.current = body;
       void fetch("/api/wizard/draft", {
         method: "POST",

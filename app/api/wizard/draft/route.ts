@@ -126,6 +126,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ saved: true, id: existing.id });
     }
 
+    // The race the probe run caught: submit converts the draft server-side,
+    // then a trailing autosave (or the client's own convert echo) arrives and
+    // finds no open row — and would found a NEW one, resurrecting a person
+    // who just finished onto the drop-out list. A conversion in the last few
+    // minutes means these stragglers belong to the finished run.
+    if (!parsed.data.converted) {
+      const { data: justDone } = await db.from("wizard_drafts")
+        .select("id, converted_at").eq("user_id", user.id)
+        .not("converted_at", "is", null)
+        .order("converted_at", { ascending: false }).limit(1).maybeSingle();
+      if (justDone?.converted_at
+          && Date.now() - new Date(justDone.converted_at as string).getTime() < 10 * 60_000) {
+        return NextResponse.json({ saved: false, why: "just finished" });
+      }
+    }
+
     const { data: inserted, error } = await db.from("wizard_drafts")
       .insert({ ...row, started_at: now }).select("id").single();
     if (error) { reportError(error, { where: "wizard.draft.insert", bestEffort: true }); return quietly("insert"); }

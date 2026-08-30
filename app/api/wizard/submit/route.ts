@@ -664,6 +664,18 @@ export async function POST(request: Request) {
       ? db.from("estimates").update({ storey_heights: storeyHeights }).eq("id", estimateId)
           .then(() => undefined, () => undefined)
       : Promise.resolve(),
+    // C15 · the draft is no longer a drop-out — settled HERE, server-side,
+    // not only from the browser. The client also posts converted:true after
+    // the response, but a customer who closes the tab during the processing
+    // screen never hears the response: their estimate exists while their
+    // draft stays "abandoned", and the funnel would chase somebody who
+    // finished. Found live on the very first real run (Tom's own, 30 Aug:
+    // estimate 00:44:40, draft untouched after 00:44:41, converted never set).
+    db.from("wizard_drafts")
+      .update({ converted_at: new Date().toISOString(), estimate_id: estimateId })
+      .eq("user_id", user.id)
+      .is("converted_at", null)
+      .then((r) => { if (r.error) reportError(r.error, { where: "wizard.submit.draftConvert", bestEffort: true }); }),
     // v2 ladder ruling: a STRAIGHTFORWARD exterior (single storey, condition
     // good/weathered, the exterior question set answered) may self-serve
     // under its cap — so only a NON-straightforward exterior carries
