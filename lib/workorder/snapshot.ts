@@ -7,6 +7,10 @@ export type WOSurfaceStatus = "not_started" | "in_progress" | "complete";
 
 export type WOMaterial = {
   product: string;
+  /** Stable row identity: `${product}||${colourName}`, bare product while the
+   * colour is TBC. Keys work_orders.colours entries; absent on documents
+   * frozen before the product×colour split (read those by bare product). */
+  colourKey?: string;
   photoUrl: string;
   litres: number | null; // purchasable litres; null when coverage unknown
   coverageMissing: boolean; // true → show staff warning, never a fabricated figure
@@ -28,6 +32,12 @@ export type WOSurface = {
   label: string;
   coats: number;
   product: string;
+  /** Per-surface colour truth (ruling 1, 30 Aug): the resolved estimate
+   * colour rides EVERY surface so area×surface-type grouping downstream never
+   * re-derives it through the product. Absent on pre-split documents. */
+  colourName?: string;
+  colourHex?: string;
+  colourKey?: string;
   prep: string; // plain-English prep note
   hours: number | null; // hours allowance
   status: WOSurfaceStatus; // read-only in v1

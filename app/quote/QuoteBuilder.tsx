@@ -30,6 +30,7 @@ import { type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import WorkOrderDoc, { type WOEdit } from "@/app/w/WorkOrderDoc";
 import ColourPicker from "@/app/components/ColourPicker";
 import { roundUpLitres, type WorkOrderDoc as WODoc, type WOMaterial, type WOArea } from "@/lib/workorder/snapshot";
+import { aggregateMaterials, lookupColourEntry, materialColourKey, type MaterialSurfaceRow } from "@/lib/workorder/materials";
 import type { WoStage } from "@/lib/workorder/stages";
 import { finishFromModifier } from "@/lib/workorder/finish";
 import OfferPanel from "./OfferPanel";
@@ -1105,11 +1106,10 @@ export default function QuoteBuilder({
   // Build the work-order (job sheet) document live from the current estimate.
   // Contractor-safe: no customer pricing/margin, no surname/email.
   function computeWorkOrderDoc(): WODoc {
-    const matMap = new Map<string, { vol: number; photo: string }>();
-    const colourByProduct = new Map<string, { name: string; hex: string }>();
-    // A product's colour match: the first substrate (material key) that uses
-    // the product and is flagged wins — one product, one match on the sheet.
-    const matchByProduct = new Map<string, ColourMatch>();
+    // Materials aggregate per PRODUCT × COLOUR (ruling 1, 30 Aug): two rooms
+    // in different colours with the same product are two order lines. The
+    // per-surface truth also rides each doc surface (colourName/colourKey).
+    const matRows: MaterialSurfaceRow[] = [];
     const areasDoc: WOArea[] = [];
     // The job's contractor-facing standard, derived from the priced level of
     // finish. Null when the estimate's level has no PG equivalent.
@@ -1121,18 +1121,23 @@ export default function QuoteBuilder({
         if (!s.code || s.hidden) continue;
         const pname = productNameFor(b.type, s) || "";
         const calc = surfaceCalc(b, s);
+        const col = pname ? colourFor(b.type, s) : { name: "", hex: "" };
         if (pname) {
-          const cur = matMap.get(pname) ?? { vol: 0, photo: productByName.get(pname)?.photo_url ?? productByName.get(pname)?.image_url ?? "" };
-          cur.vol += calc.volume;
-          matMap.set(pname, cur);
-          const col = colourFor(b.type, s);
-          if (col.name && !colourByProduct.get(pname)?.name) colourByProduct.set(pname, col);
           const cm = colourMatches[materialKey(b.type, s.code)];
-          if (cm?.required && !matchByProduct.has(pname)) matchByProduct.set(pname, cm);
+          matRows.push({
+            product: pname,
+            volume: calc.volume,
+            photoUrl: productByName.get(pname)?.photo_url ?? productByName.get(pname)?.image_url ?? "",
+            colourName: col.name,
+            colourHex: col.hex,
+            match: cm?.required ? { code: cm.code ?? "", brand: cm.brand ?? "", canSize: cm.canSize ?? "" } : null,
+          });
         }
         const key = `${b.id}:${s.id}`;
         surfaces.push({
           key, label: s.clientLabel || s.code, coats: s.coats, product: pname,
+          colourName: col.name, colourHex: col.hex,
+          colourKey: pname ? materialColourKey(pname, col.name) : undefined,
           prep: s.crewNote || "",
           hours: woHours[key] ?? Number((calc.paintingHr + calc.prepHr).toFixed(2)),
           status: "not_started",
@@ -1152,16 +1157,10 @@ export default function QuoteBuilder({
         finishOverridden: Boolean(areaOverride && areaOverride !== jobFinishCode),
       });
     }
-    const materials: WOMaterial[] = [...matMap.entries()].map(([product, { vol, photo }]) => {
-      const missing = !(vol > 0); // no coverage data → never fabricate a litre figure
-      const col = colourByProduct.get(product) ?? { name: "", hex: "" }; // colour comes from the estimate
-      const status = woColours[product]?.status ?? "tbc"; // confirmed/TBC stays on the work order
-      const cm = matchByProduct.get(product) ?? null;
-      return {
-        product, photoUrl: photo, litres: missing ? null : roundUpLitres(vol), coverageMissing: missing,
-        colourName: col.name, colourHex: col.hex, colourStatus: status,
-        colourMatch: cm ? { required: true, code: cm.code ?? "", brand: cm.brand ?? "", canSize: cm.canSize ?? "" } : null,
-      };
+    const materials: WOMaterial[] = aggregateMaterials(matRows, {
+      roundUpLitres,
+      // confirmed/TBC stays on the work order; legacy rows keyed by bare product
+      statusFor: (key, product) => lookupColourEntry(woColours, key, product)?.status ?? "tbc",
     });
     return {
       version: 1,
@@ -1193,10 +1192,13 @@ export default function QuoteBuilder({
     onStart: (d) => { setWoStartDate(d); patchWorkOrder({ start_date: d }); },
     onAccess: (n) => { setWoAccessNotes(n); patchWorkOrder({ access_notes: n }); },
     onCrewNotes: (n) => { setWoCrewNotes(n); patchWorkOrder({ crew_notes: n }); },
-    onColour: (product, patch) => {
+    // Keyed by the material row's colourKey (product×colour) since ruling 1;
+    // legacy work orders carry bare-product keys and read through the same
+    // fallback, but every WRITE lands on the row's own key.
+    onColour: (colourKey, patch) => {
       setWoColours((m) => {
-        const cur = m[product] ?? { name: "", hex: "", status: "tbc" as const };
-        const next = { ...m, [product]: { name: patch.name ?? cur.name, hex: patch.hex ?? cur.hex, status: patch.status ?? cur.status } };
+        const cur = m[colourKey] ?? { name: "", hex: "", status: "tbc" as const };
+        const next = { ...m, [colourKey]: { name: patch.name ?? cur.name, hex: patch.hex ?? cur.hex, status: patch.status ?? cur.status } };
         patchWorkOrder({ colours: next });
         return next;
       });

@@ -18,11 +18,14 @@
 
 export type RegisterSnapshotArea = {
   title: string;
-  surfaces: Array<{ label: string; product: string; coats: number }>;
+  /** colourKey present on documents frozen after the product×colour split
+   * (ruling 1, 30 Aug) — it joins a surface to ITS colour's material row. */
+  surfaces: Array<{ label: string; product: string; coats: number; colourKey?: string }>;
 };
 
 export type RegisterMaterial = {
   product: string;
+  colourKey?: string;
   colourName: string;
   colourHex: string;
   colourStatus: string; // tbc | confirmed
@@ -50,13 +53,18 @@ export function buildRegister(
   live: RegisterLiveColours,
   coloursFinalised = false,
 ): RegisterArea[] {
-  const byProduct = new Map(materials.map((m) => [m.product, m]));
+  // Post-split documents carry several material rows per product (one per
+  // colour), joined by colourKey; pre-split ones fall back to first-per-
+  // product, which was the old behaviour exactly.
+  const byKey = new Map(materials.map((m) => [m.colourKey ?? m.product, m]));
+  const byProduct = new Map<string, RegisterMaterial>();
+  for (const m of materials) if (!byProduct.has(m.product)) byProduct.set(m.product, m);
   return areas
     .map((area) => {
       const rows: RegisterRow[] = [];
       for (const s of area.surfaces) {
-        const material = byProduct.get(s.product);
-        const entry = live?.[s.product];
+        const material = (s.colourKey ? byKey.get(s.colourKey) : undefined) ?? byProduct.get(s.product);
+        const entry = live?.[s.colourKey ?? s.product] ?? live?.[s.product];
         const match = entry?.match;
         // A product with no colour NAME anywhere stays TBC even when the
         // schedule tick is done — the register never invents a colour.

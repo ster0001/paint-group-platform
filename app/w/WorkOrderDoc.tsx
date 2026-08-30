@@ -23,7 +23,9 @@ export type WOEdit = {
   onStart: (date: string | null) => void;
   onAccess: (notes: string) => void;
   onCrewNotes: (notes: string) => void;
-  onColour: (product: string, patch: { name?: string; hex?: string; status?: "tbc" | "confirmed" }) => void;
+  /** Keyed by the material row's colourKey (product×colour); legacy rows
+   * pass their bare product name — same fallback the reads use. */
+  onColour: (colourKey: string, patch: { name?: string; hex?: string; status?: "tbc" | "confirmed" }) => void;
   onHours: (surfaceKey: string, hours: number | null) => void;
   /** null = this area follows the job's level. */
   onAreaFinish: (areaId: string, code: string | null) => void;
@@ -149,7 +151,7 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
           <section>
             <h2>Materials &amp; colours</h2>
             {doc.materials.map((m, i) => (
-              <div className="mat" key={i}>
+              <div className="mat" key={m.colourKey ?? `${m.product}-${i}`}>
                 <div className="mat-tin">
                   {m.photoUrl
                     // eslint-disable-next-line @next/next/no-img-element
@@ -162,7 +164,7 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
                     {m.colourHex && <span className="swatch" style={{ background: m.colourHex }} />}
                     <span>{m.colourName || "Colour to be confirmed"}</span>
                     {edit ? (
-                      <button type="button" className={`cchip ${m.colourStatus}`} onClick={() => edit.onColour(m.product, { status: m.colourStatus === "confirmed" ? "tbc" : "confirmed" })}>
+                      <button type="button" className={`cchip ${m.colourStatus}`} onClick={() => edit.onColour(m.colourKey ?? m.product, { status: m.colourStatus === "confirmed" ? "tbc" : "confirmed" })}>
                         {m.colourStatus === "confirmed" ? "Confirmed" : "TBC"}
                       </button>
                     ) : (
