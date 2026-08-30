@@ -569,8 +569,15 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     const blocked = pageBlocker();
     if (blocked) { setError(blocked); return; }
     setError(null);
-    // The contact sub-step advances within page 2, not past it.
-    if (page === 2 && isCustomer && !contactDone) { setContactDone(true); window.scrollTo({ top: 0 }); return; }
+    // The contact sub-step advances within page 2, not past it. The email
+    // given here IS the email — the send gate at the end prefis from it, so
+    // nobody types their address twice in one form.
+    if (page === 2 && isCustomer && !contactDone) {
+      if (state.customer && !state.customer.email.trim() && state.contact.email.trim()) {
+        set({ customer: { ...state.customer, email: state.contact.email.trim() } });
+      }
+      setContactDone(true); window.scrollTo({ top: 0 }); return;
+    }
     if (page < lastPage) { setPage(page + 1); window.scrollTo({ top: 0 }); return; }
     void runSubmit();
   }
