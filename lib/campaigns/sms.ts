@@ -62,6 +62,26 @@ export function smsParts(body: string): { chars: number; parts: number; unicode:
 }
 
 /**
+ * The typographic characters phones type for you, downgraded to their GSM
+ * twins. One em dash or curly quote silently flips the whole message to
+ * UCS-2 — 70-character parts instead of 160 — which is a 3× Twilio bill for
+ * zero change in meaning. Found live: the studio's own suggested wording cost
+ * 3 texts instead of 2 until this existed. Deliberately tiny: only characters
+ * whose replacement reads identically. An emoji is a CHOICE and stays.
+ */
+const GSM_TWINS: Array<[RegExp, string]> = [
+  [/[\u2018\u2019\u02BC]/g, "'"],   // curly apostrophes
+  [/[\u201C\u201D]/g, '"'],          // curly quotes
+  [/[\u2013\u2014]/g, "-"],          // en / em dash
+  [/\u2026/g, "..."],                 // ellipsis
+  [/\u00A0/g, " "],                   // non-breaking space
+];
+
+export function gsmNormalise(body: string): string {
+  return GSM_TWINS.reduce((out, [re, to]) => out.replace(re, to), body);
+}
+
+/**
  * The body as it will actually leave: tokens filled, sender named, opt-out
  * present. Idempotent about the opt-out — a writer who typed it themselves
  * doesn't get it twice.
@@ -71,7 +91,7 @@ export function renderSms(
   opts: { estimateUrl?: string | null; accountUrl: string; companyName?: string },
 ): string {
   const estimate = opts.estimateUrl || opts.accountUrl;
-  let out = body
+  let out = gsmNormalise(body)
     .replaceAll("{{estimate}}", estimate)
     .replaceAll("{{account}}", opts.accountUrl)
     .replaceAll("{{unsubscribe}}", "")   // an email token; STOP is the SMS answer

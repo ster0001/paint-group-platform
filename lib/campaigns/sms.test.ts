@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderSms, smsParts, toE164Au } from "./sms";
+import { gsmNormalise, renderSms, smsParts, toE164Au } from "./sms";
 
 describe("toE164Au — numbers as people type them", () => {
   it("normalises the usual shapes", () => {
@@ -67,5 +67,22 @@ describe("renderSms — what actually leaves", () => {
     const out = renderSms("Bye {{unsubscribe}}", links);
     expect(out).not.toContain("{{unsubscribe}}");
     expect(out).not.toContain("undefined");
+  });
+});
+
+describe("gsmNormalise — the 3× bill nobody meant to pay", () => {
+  it("downgrades typographic twins and leaves meaning alone", () => {
+    // Found live: an em dash in the studio's own suggested wording flipped
+    // the message to UCS-2 and 183 chars became 3 texts instead of 2.
+    expect(gsmNormalise("Hi — it's \u201Csaved\u201D\u2026")).toBe("Hi - it's \"saved\"...");
+  });
+
+  it("keeps an emoji — that one is a choice, not an accident", () => {
+    expect(gsmNormalise("Fresh coat 🎨")).toBe("Fresh coat 🎨");
+  });
+
+  it("renderSms applies it, so the rendered message is the cheap one", () => {
+    const out = renderSms("Ready — here: {{account}}", { accountUrl: "https://pg.au/account" });
+    expect(smsParts(out).unicode).toBe(false);
   });
 });
