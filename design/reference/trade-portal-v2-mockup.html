@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Paint Group — Trade portal v2 mockup</title>
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@500,600,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0A0B0D;--graphite:#12161A;--raised:#171C21;--line:#242B32;
+  --text:#EDF0F2;--muted:#8C959D;--cyan:#3BD8E9;--on-cyan:#03272D;--paint:#2FB9CB;
+  --amber:#E0A83C;--emerald:#2FA46B;--clay:#B3574A;
+  --sans:'Switzer',system-ui,-apple-system,sans-serif;--mono:'Martian Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--ink);color:var(--text);font-family:var(--sans);font-weight:500;-webkit-font-smoothing:antialiased}
+body{max-width:430px;margin:0 auto;min-height:100vh;padding-bottom:84px;position:relative}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.mono{font-family:var(--mono);font-size:11px;letter-spacing:.02em}
+.eyebrow{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+h1{font-size:26px;font-weight:600;letter-spacing:-.03em;line-height:1.1}
+h2{font-size:18px;font-weight:600;letter-spacing:-.02em}
+h3{font-size:15px;font-weight:600;letter-spacing:-.01em}
+p{font-size:14px;line-height:1.45}
+.muted{color:var(--muted)}
+.screen{display:none;padding:0 16px}
+.screen.active{display:block}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 6px;position:sticky;top:0;background:linear-gradient(var(--ink) 80%,transparent);z-index:5}
+.brand{display:flex;align-items:center;gap:8px}
+.brand .dot{width:10px;height:10px;border-radius:2px;background:var(--cyan)}
+.brand span{font-weight:700;letter-spacing:-.02em;font-size:15px}
+.persona{display:flex;gap:4px;background:var(--graphite);border:1px solid var(--line);border-radius:999px;padding:3px}
+.persona button{padding:5px 9px;border-radius:999px;font-size:11px;font-weight:600;color:var(--muted)}
+.persona button.on{background:var(--raised);color:var(--text)}
+.card{background:var(--graphite);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px}
+.card.raised{background:var(--raised)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;font-family:var(--mono);font-size:10px;letter-spacing:.04em;border:1px solid var(--line);color:var(--muted)}
+.chip.cyan{border-color:transparent;background:rgba(59,216,233,.14);color:var(--cyan)}
+.chip.amber{border-color:transparent;background:rgba(224,168,60,.14);color:var(--amber)}
+.chip.green{border-color:transparent;background:rgba(47,164,107,.14);color:var(--emerald)}
+.chip.clay{border-color:transparent;background:rgba(179,87,74,.16);color:#E08D80}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 16px;border-radius:12px;font-weight:600;font-size:14px;letter-spacing:-.01em;border:1px solid var(--line);background:var(--raised);width:100%}
+.btn.primary{background:var(--cyan);color:var(--on-cyan);border-color:var(--cyan)}
+.btn.sm{width:auto;padding:8px 12px;font-size:13px}
+.btn:focus-visible,button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+
+/* pulse tiles */
+.pulse{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:14px 0}
+.pulse button{background:var(--graphite);border:1px solid var(--line);border-radius:12px;padding:10px 6px;text-align:center}
+.pulse .n{font-family:var(--mono);font-size:20px;font-weight:600;display:block}
+.pulse .l{font-size:10px;color:var(--muted);display:block;margin-top:3px;line-height:1.2}
+.pulse .amber .n{color:var(--amber)} .pulse .cyan .n{color:var(--cyan)} .pulse .clay .n{color:#E08D80}
+
+/* signature: property swatch strip */
+.swatches{display:flex;height:6px;border-radius:3px;overflow:hidden;margin:10px 0 8px;background:var(--line)}
+.swatches i{display:block;flex:1}
+.prop{cursor:pointer}
+.prop .addr{font-size:16px;font-weight:600;letter-spacing:-.02em}
+.prop .sub{font-size:12px;color:var(--muted);margin-top:2px;font-family:var(--mono)}
+.progress{height:3px;background:var(--line);border-radius:2px;overflow:hidden;margin-top:10px}
+.progress b{display:block;height:100%;background:var(--cyan)}
+.progress.amber b{background:var(--amber)}
+.progress.green b{background:var(--emerald)}
+
+/* attention queue */
+.att{display:flex;gap:10px;align-items:flex-start;padding:12px 0;border-top:1px solid var(--line)}
+.att:first-of-type{border-top:0;padding-top:4px}
+.att .bar{width:3px;align-self:stretch;border-radius:2px;background:var(--amber);flex:none}
+.att .bar.clay{background:var(--clay)} .att .bar.cyan{background:var(--cyan)}
+.att p{font-size:13px}
+.att .act{margin-top:6px}
+
+/* tabs */
+.tabs{display:flex;gap:4px;background:var(--graphite);border:1px solid var(--line);border-radius:12px;padding:4px;margin:12px 0}
+.tabs button{flex:1;padding:8px 0;border-radius:9px;font-size:13px;font-weight:600;color:var(--muted)}
+.tabs button.on{background:var(--raised);color:var(--text)}
+.pane{display:none}.pane.on{display:block}
+
+/* colour card */
+.colour{display:flex;gap:12px;align-items:stretch;background:var(--graphite);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:8px}
+.colour .chip-swatch{width:64px;flex:none;position:relative}
+.colour .chip-swatch em{position:absolute;bottom:6px;left:6px;right:6px;font-family:var(--mono);font-style:normal;font-size:9px;color:rgba(0,0,0,.65);background:rgba(255,255,255,.65);border-radius:4px;padding:2px 4px;text-align:center}
+.colour .body{padding:11px 12px 11px 0;flex:1}
+.colour .area{font-size:14px;font-weight:600;letter-spacing:-.01em}
+.colour .meta{font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-top:4px;line-height:1.6}
+.colour .meta b{color:var(--text);font-weight:600}
+
+/* timeline */
+.rail{display:flex;gap:4px;margin:12px 0 4px}
+.rail span{flex:1;height:4px;border-radius:2px;background:var(--line)}
+.rail span.done{background:var(--emerald)} .rail span.now{background:var(--cyan)}
+.raillabels{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px}
+.day{margin:16px 0 6px}
+.ev{display:grid;grid-template-columns:18px 1fr;gap:10px;padding-bottom:16px;position:relative}
+.ev:before{content:"";position:absolute;left:8px;top:18px;bottom:0;width:2px;background:var(--line)}
+.ev:last-child:before{display:none}
+.ev .pin{width:18px;height:18px;border-radius:50%;background:var(--raised);border:2px solid var(--line);margin-top:2px}
+.ev .pin.cyan{border-color:var(--cyan);background:var(--cyan)} .ev .pin.green{border-color:var(--emerald)} .ev .pin.amber{border-color:var(--amber)}
+.ev h4{font-size:14px;font-weight:600;letter-spacing:-.01em}
+.ev .t{font-family:var(--mono);font-size:10px;color:var(--muted);margin:2px 0 4px}
+.ev p{font-size:13px;color:#C9D0D5}
+.photos{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.photos div{aspect-ratio:1;border-radius:8px;border:1px solid var(--line);display:flex;align-items:flex-end;padding:6px;font-family:var(--mono);font-size:9px;color:var(--muted)}
+.ph1{background:linear-gradient(160deg,#2a3239,#141a1f)} .ph2{background:linear-gradient(160deg,#3a3f3b,#1a1d1b)} .ph3{background:linear-gradient(160deg,#20303a,#0f181e)}
+
+/* money */
+.money{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.money .card{margin:0}
+.money .v{font-family:var(--mono);font-size:17px;font-weight:600;display:block;margin-top:4px}
+.inv{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-top:1px solid var(--line)}
+.inv .ref{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.inv .amt{font-family:var(--mono);font-size:13px;font-weight:600}
+
+/* approval */
+.lines{border-top:1px solid var(--line);margin-top:10px}
+.lines div{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}
+.lines .mono{font-size:12px}
+.total{display:flex;justify-content:space-between;padding:12px 0 4px;font-weight:600}
+.total .mono{font-size:15px;font-weight:600}
+
+/* bottom nav */
+.nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:rgba(10,11,13,.92);backdrop-filter:blur(10px);border-top:1px solid var(--line);display:flex;padding:8px 8px calc(8px + env(safe-area-inset-bottom))}
+.nav button{flex:1;padding:8px 4px;border-radius:10px;font-size:11px;font-weight:600;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px}
+.nav button.on{color:var(--cyan)}
+.nav svg{width:20px;height:20px}
+.note{font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.6;border:1px dashed var(--line);border-radius:10px;padding:10px;margin:14px 0}
+.back{font-size:13px;color:var(--muted);display:inline-flex;gap:6px;align-items:center;margin:8px 0}
+.talk{display:flex;align-items:center;gap:10px;background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:6px}
+.talk .av{width:34px;height:34px;border-radius:50%;background:linear-gradient(145deg,#2FB9CB,#1b5f68);flex:none}
+.talk p{font-size:12.5px}
+@media (prefers-reduced-motion:no-preference){.screen.active{animation:in .18s ease-out}@keyframes in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span class="dot"></span><span>Paint Group</span></div>
+  <div class="persona" role="tablist" aria-label="View as">
+    <button class="on" data-p="re" onclick="setPersona('re')">Agency</button>
+    <button data-p="fm" onclick="setPersona('fm')">Facilities</button>
+    <button data-p="ins" onclick="setPersona('ins')">Insurer</button>
+  </div>
+</div>
+
+<!-- ============ PORTFOLIO ============ -->
+<section class="screen active" id="s-home">
+  <div class="eyebrow" id="orgType">Property management</div>
+  <h1 id="orgName">Harbourside Property Management</h1>
+  <p class="muted" style="margin-top:6px">Sunday 30 August · 3 jobs on site this week</p>
+
+  <div class="pulse">
+    <button class="cyan"><span class="n">3</span><span class="l">On site now</span></button>
+    <button class="amber"><span class="n">2</span><span class="l">Need your approval</span></button>
+    <button><span class="n">1</span><span class="l">Ready to sign off</span></button>
+    <button class="clay"><span class="n">1</span><span class="l">Invoice overdue</span></button>
+  </div>
+
+  <div class="card">
+    <div class="row" style="margin-bottom:6px"><h3>Needs you</h3><span class="chip">4</span></div>
+    <div class="att"><span class="bar"></span><div><p><b>14 Beaumont St, Elwood</b> — estimate ready for approval, <span class="mono">$4,840.00 inc GST</span></p><div class="act"><button class="btn sm" onclick="go('s-approve')">Review estimate</button></div></div></div>
+    <div class="att"><span class="bar"></span><div><p><b>Unit 7/22 Ormond Rd</b> — variation raised: rot found in laundry window sill, <span class="mono">+$180.00 inc GST</span></p><div class="act"><button class="btn sm">Review variation</button></div></div></div>
+    <div class="att"><span class="bar cyan"></span><div><p><b>3 Tennyson St</b> — final walkthrough booked for Tue 1 Sep, 3:30 pm. Felipe will walk it with your tenant.</p></div></div>
+    <div class="att"><span class="bar clay"></span><div><p><b>9 Mitford St</b> — final invoice <span class="mono">PG-3172</span> is 9 days overdue, <span class="mono">$2,310.00</span></p><div class="act"><button class="btn sm">View invoice</button></div></div></div>
+  </div>
+
+  <div class="row" style="margin:18px 0 10px"><h2>Properties</h2><span class="chip" id="propCount">12 properties</span></div>
+
+  <div class="card prop" onclick="go('s-prop')">
+    <div class="row"><span class="addr">14 Beaumont St, Elwood</span><span class="chip amber">Awaiting you</span></div>
+    <div class="sub"><span class="reflabel">Owner</span>: T. &amp; M. Nguyen · Job PG-3181</div>
+    <div class="swatches"><i style="background:#E9E4D8"></i><i style="background:#DCD5C4"></i><i style="background:#F4F2EC"></i><i style="background:#3B3F44"></i><i style="background:#B7B3A8"></i></div>
+    <p class="muted" style="font-size:12px">Interior repaint between tenancies · estimate sent 28 Aug</p>
+    <div class="progress amber"><b style="width:12%"></b></div>
+  </div>
+
+  <div class="card prop" onclick="go('s-prop')">
+    <div class="row"><span class="addr">Unit 7/22 Ormond Rd, Elwood</span><span class="chip cyan">On site · day 2 of 4</span></div>
+    <div class="sub"><span class="reflabel">Owner</span>: Elwood Holdings Pty Ltd · Job PG-3176</div>
+    <div class="swatches"><i style="background:#F1EDE4"></i><i style="background:#F1EDE4"></i><i style="background:#FFFFFF"></i><i style="background:#2A2E33"></i></div>
+    <p class="muted" style="font-size:12px">Full interior · walls prepped, first coat in bedrooms</p>
+    <div class="progress"><b style="width:46%"></b></div>
+  </div>
+
+  <div class="card prop" onclick="go('s-prop')">
+    <div class="row"><span class="addr">3 Tennyson St, Elwood</span><span class="chip green">Ready to sign off</span></div>
+    <div class="sub"><span class="reflabel">Owner</span>: R. Castellano · Job PG-3169</div>
+    <div class="swatches"><i style="background:#D9D2C1"></i><i style="background:#EFEAE0"></i><i style="background:#F7F5F0"></i><i style="background:#5A6066"></i><i style="background:#8A6F5A"></i><i style="background:#C8C2B5"></i></div>
+    <p class="muted" style="font-size:12px">Exterior weatherboard · all surfaces done, QA passed</p>
+    <div class="progress green"><b style="width:92%"></b></div>
+  </div>
+
+  <div class="card prop" onclick="go('s-prop')">
+    <div class="row"><span class="addr">9 Mitford St, St Kilda</span><span class="chip clay">Invoice overdue</span></div>
+    <div class="sub"><span class="reflabel">Owner</span>: K. Adebayo · Job PG-3141 · signed off 12 Aug</div>
+    <div class="swatches"><i style="background:#EDE8DC"></i><i style="background:#EDE8DC"></i><i style="background:#F9F8F4"></i><i style="background:#C9CCD0"></i></div>
+    <p class="muted" style="font-size:12px">Complete · warranty to 12 Aug 2028</p>
+    <div class="progress green"><b style="width:100%"></b></div>
+  </div>
+
+  <div class="card prop" onclick="go('s-prop')">
+    <div class="row"><span class="addr">28 Broadway, Elwood</span><span class="chip">No active work</span></div>
+    <div class="sub">Last painted Nov 2025 · 2 jobs on record</div>
+    <div class="swatches"><i style="background:#E6E1D5"></i><i style="background:#F2EFE8"></i><i style="background:#F2EFE8"></i><i style="background:#3D4147"></i></div>
+    <p class="muted" style="font-size:12px">Colour card on file · tap to request a touch-up or new estimate</p>
+  </div>
+
+  <button class="btn" style="margin-top:4px">+ Add a property</button>
+  <div class="note">MOCKUP NOTE · The swatch strip on every property card is that property's real colour record (walls · trims · ceilings · doors). It makes a 40-property portfolio scannable and tells the client at a glance that we hold their colours. Progress bar reads from work-order surface ticks, not a typed status.</div>
+</section>
+
+<!-- ============ PROPERTY ============ -->
+<section class="screen" id="s-prop">
+  <button class="back" onclick="go('s-home')">‹ All properties</button>
+  <div class="eyebrow">Property</div>
+  <h1>Unit 7/22 Ormond Rd, Elwood</h1>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+    <span class="chip" id="refChip1">Owner · Elwood Holdings Pty Ltd</span>
+    <span class="chip" id="refChip2">Your ref · EH-0448</span>
+    <span class="chip cyan">On site · day 2 of 4</span>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="on" onclick="tab(this,'p-progress')">Progress</button>
+    <button onclick="tab(this,'p-colours')">Colours</button>
+    <button onclick="tab(this,'p-money')">Money</button>
+    <button onclick="tab(this,'p-docs')">Documents</button>
+  </div>
+
+  <!-- Progress -->
+  <div class="pane on" id="p-progress">
+    <div class="card raised">
+      <div class="row"><h3>Job PG-3176 · Full interior</h3><span class="chip">Fixed price</span></div>
+      <div class="rail"><span class="done"></span><span class="done"></span><span class="now"></span><span></span><span></span><span></span></div>
+      <div class="raillabels"><span>Offer</span><span>Pre-start</span><span>On site</span><span>QA</span><span>Walkthrough</span><span>Closed</span></div>
+      <p style="font-size:13px">Painter: <b>Marco Vella</b> · Start Thu 27 Aug · Expected finish Mon 31 Aug</p>
+      <p class="muted" style="font-size:12px;margin-top:4px">Surfaces done: 11 of 24</p>
+    </div>
+    <button class="btn" onclick="go('s-timeline')">Open full timeline →</button>
+    <div class="talk"><span class="av"></span><p>Questions about this job? Message your project coordinator, <b>Sarah</b>, or call <b>03 9000 0000</b>.</p></div>
+    <div class="card" style="margin-top:12px">
+      <h3 style="margin-bottom:8px">Job history at this property</h3>
+      <div class="inv"><div><b style="font-size:13px">Full interior repaint</b><div class="ref">PG-3176 · in progress</div></div><span class="chip cyan">Now</span></div>
+      <div class="inv"><div><b style="font-size:13px">Bathroom ceiling mould treatment &amp; repaint</b><div class="ref">PG-2917 · Mar 2025</div></div><button class="btn sm">Report</button></div>
+      <div class="inv"><div><b style="font-size:13px">Front door &amp; frame</b><div class="ref">PG-2540 · Sep 2024</div></div><button class="btn sm">Report</button></div>
+    </div>
+  </div>
+
+  <!-- Colours -->
+  <div class="pane" id="p-colours">
+    <div class="row" style="margin-bottom:10px">
+      <p class="muted" style="font-size:12.5px">The colour card for this property. Updated the moment each surface is finished on site.</p>
+    </div>
+    <div class="colour">
+      <div class="chip-swatch" style="background:#F1EDE4"><em>SW1 P4</em></div>
+      <div class="body">
+        <div class="row"><span class="area">Walls — all rooms</span><span class="chip green">Applied</span></div>
+        <div class="meta"><b>Dulux Natural White</b> · low sheen<br>Wash &amp; Wear · 2 coats · 27–29 Aug 2026</div>
+      </div>
+    </div>
+    <div class="colour">
+      <div class="chip-swatch" style="background:#FFFFFF"><em>SW1 P8</em></div>
+      <div class="body">
+        <div class="row"><span class="area">Ceilings</span><span class="chip green">Applied</span></div>
+        <div class="meta"><b>Dulux Ceiling White</b> · flat<br>Ceiling White · 2 coats · 27 Aug 2026</div>
+      </div>
+    </div>
+    <div class="colour">
+      <div class="chip-swatch" style="background:#F1EDE4"><em>SW1 P4</em></div>
+      <div class="body">
+        <div class="row"><span class="area">Trims, skirting &amp; architraves</span><span class="chip amber">In progress</span></div>
+        <div class="meta"><b>Dulux Natural White</b> · semi gloss<br>Aquanamel · 2 coats · applying now</div>
+      </div>
+    </div>
+    <div class="colour">
+      <div class="chip-swatch" style="background:#2A2E33"><em>SN4 G8</em></div>
+      <div class="body">
+        <div class="row"><span class="area">Front door (exterior face)</span><span class="chip">Scheduled</span></div>
+        <div class="meta"><b>Dulux Domino</b> · gloss<br>Weathershield · 2 coats · Mon 31 Aug</div>
+      </div>
+    </div>
+    <div class="colour" style="opacity:.75">
+      <div class="chip-swatch" style="background:#E4E0D6"><em>2025</em></div>
+      <div class="body">
+        <div class="row"><span class="area">Bathroom ceiling</span><span class="chip">Previous · Mar 2025</span></div>
+        <div class="meta"><b>Dulux Ceiling White</b> · flat, anti-mould<br>Superseded by PG-3176 ceilings</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+      <button class="btn">Download colour card (PDF)</button>
+      <button class="btn">Request a touch-up</button>
+    </div>
+    <div class="note">MOCKUP NOTE · One card per surface group, keyed to the PROPERTY not the account. Colours arrive from the finalised colour schedule (pre-start checklist) and flip to Applied from the painter's DONE tick. Older records stay as history, never overwritten. Touch-up request pre-fills the wizard with these products.</div>
+  </div>
+
+  <!-- Money -->
+  <div class="pane" id="p-money">
+    <div class="money">
+      <div class="card"><span class="eyebrow">This job</span><span class="v">$6,930.00</span><span class="muted" style="font-size:11px">inc GST · fixed</span></div>
+      <div class="card"><span class="eyebrow">Paid so far</span><span class="v" style="color:var(--emerald)">$693.00</span><span class="muted" style="font-size:11px">deposit · 24 Aug</span></div>
+    </div>
+    <div class="card" style="margin-top:10px">
+      <h3 style="margin-bottom:4px">Invoices — this property</h3>
+      <div class="inv"><div><b style="font-size:13px">Deposit</b><div class="ref">PG-3176-01 · paid by bank transfer</div></div><span class="amt" style="color:var(--emerald)">$693.00</span></div>
+      <div class="inv"><div><b style="font-size:13px">Final — on sign-off</b><div class="ref">PG-3176-02 · not yet issued · 14-day terms</div></div><span class="amt muted">$6,237.00</span></div>
+      <div class="inv"><div><b style="font-size:13px">Bathroom ceiling</b><div class="ref">PG-2917-01 · paid 28 Mar 2025</div></div><span class="amt" style="color:var(--emerald)">$1,485.00</span></div>
+    </div>
+    <button class="btn">Statement for this property (PDF)</button>
+    <div class="note">MOCKUP NOTE · Property managers reconcile against OWNER ledgers, so every invoice carries the owner and the client's own reference. Portfolio-wide receivables live under the Money tab in the bottom nav.</div>
+  </div>
+
+  <!-- Documents -->
+  <div class="pane" id="p-docs">
+    <div class="card">
+      <div class="inv" style="border-top:0;padding-top:0"><div><b style="font-size:13px">Completion report — PG-2917</b><div class="ref">PDF · signed 28 Mar 2025 · before/after photos</div></div><button class="btn sm">Open</button></div>
+      <div class="inv"><div><b style="font-size:13px">Warranty certificate — PG-2917</b><div class="ref">2-year workmanship · to 28 Mar 2027</div></div><button class="btn sm">Open</button></div>
+      <div class="inv"><div><b style="font-size:13px">Estimate — PG-3176</b><div class="ref">Approved 22 Aug 2026 by J. Whitfield</div></div><button class="btn sm">Open</button></div>
+      <div class="inv"><div><b style="font-size:13px">SWMS — PG-3176</b><div class="ref">Site-specific · issued 26 Aug</div></div><button class="btn sm">Open</button></div>
+    </div>
+    <h3 style="margin:14px 0 8px">About Paint Group</h3>
+    <div class="card">
+      <div class="inv" style="border-top:0;padding-top:0"><div><b style="font-size:13px">Public liability — $20M</b><div class="ref">Certificate of currency · valid to 30 Jun 2027</div></div><button class="btn sm">Open</button></div>
+      <div class="inv"><div><b style="font-size:13px">WorkCover</b><div class="ref">Valid to 30 Jun 2027</div></div><button class="btn sm">Open</button></div>
+      <div class="inv"><div><b style="font-size:13px">Workmanship warranty terms</b><div class="ref">2 years from sign-off</div></div><button class="btn sm">Open</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TIMELINE ============ -->
+<section class="screen" id="s-timeline">
+  <button class="back" onclick="go('s-prop')">‹ Unit 7/22 Ormond Rd</button>
+  <div class="eyebrow">Job PG-3176 · Timeline</div>
+  <h1>Full interior repaint</h1>
+  <div class="rail"><span class="done"></span><span class="done"></span><span class="now"></span><span></span><span></span><span></span></div>
+  <div class="raillabels"><span>Offer</span><span>Pre-start</span><span>On site</span><span>QA</span><span>Walkthrough</span><span>Closed</span></div>
+
+  <div class="eyebrow day">Today · Sat 29 Aug</div>
+  <div class="ev"><span class="pin cyan"></span><div><h4>Daily update from site</h4><div class="t">4:52 pm · approved by Sarah (PC)</div><p>Bedrooms 1 and 2 have their first coat on walls and ceilings. Living room and hallway were sanded and filled ready for Monday. Marco is on track to finish Monday afternoon.</p>
+    <div class="photos"><div class="ph1">Bed 1 · first coat</div><div class="ph2">Hallway · prepped</div><div class="ph3">Living · filled</div></div></div></div>
+  <div class="ev"><span class="pin green"></span><div><h4>Surfaces finished today</h4><div class="t">Bedroom 1 ceiling · Bedroom 2 ceiling · Bedroom 1 walls</div><p>Colour card updated with the products used.</p></div></div>
+
+  <div class="eyebrow day">Fri 28 Aug</div>
+  <div class="ev"><span class="pin amber"></span><div><h4>Variation approved</h4><div class="t">11:20 am · approved by you · +$180.00 inc GST</div><p>Minor timber rot in the laundry window sill, found during prep. Cut out, filled and primed before painting.</p></div></div>
+  <div class="ev"><span class="pin"></span><div><h4>Before photos logged</h4><div class="t">7:40 am · 14 photos</div><p>Marco photographed every room before the first tool went on a wall.</p></div></div>
+
+  <div class="eyebrow day">Thu 27 Aug</div>
+  <div class="ev"><span class="pin green"></span><div><h4>Work started</h4><div class="t">7:15 am · key collected from your office</div><p>Floors and fixtures protected, furniture moved to the centre of each room.</p></div></div>
+
+  <div class="eyebrow day">Wed 26 Aug</div>
+  <div class="ev"><span class="pin green"></span><div><h4>Colours confirmed &amp; paint ordered</h4><div class="t">Pre-start checklist complete</div><p>Natural White walls and trims, Ceiling White ceilings, Domino front door. See the Colours tab.</p></div></div>
+  <div class="ev"><span class="pin green"></span><div><h4>Painter confirmed</h4><div class="t">Mon 24 Aug · Marco Vella accepted the booking</div><p>Marco has completed 31 jobs for Paint Group at 5.0 stars.</p></div></div>
+  <div class="ev"><span class="pin green"></span><div><h4>Estimate approved</h4><div class="t">Sat 22 Aug · by J. Whitfield · deposit $693.00 paid</div></div></div>
+
+  <div class="note">MOCKUP NOTE · This is the SAME timeline component residential customers get — same events, same PC-approved daily update, same photo gating. Only the scope changes: read through the organisation's membership of the property. No separate build.</div>
+</section>
+
+<!-- ============ APPROVE ============ -->
+<section class="screen" id="s-approve">
+  <button class="back" onclick="go('s-home')">‹ Needs you</button>
+  <div class="eyebrow">14 Beaumont St, Elwood · Estimate PG-3181</div>
+  <h1>Interior repaint between tenancies</h1>
+  <p class="muted" style="margin-top:6px">Estimated by Tom after the site visit on Thu 27 Aug. Valid for 60 days.</p>
+
+  <div class="card" style="margin-top:14px">
+    <div class="row"><h3>What's included</h3><span class="chip">Level 3 finish</span></div>
+    <div class="lines">
+      <div><span>Walls — 3 bedrooms, living, hallway</span><span class="mono">$2,310.00</span></div>
+      <div><span>Ceilings — throughout</span><span class="mono">$980.00</span></div>
+      <div><span>Trims, doors &amp; frames</span><span class="mono">$1,150.00</span></div>
+      <div><span>Prep — fill nail holes, sand, spot prime</span><span class="mono">$280.00</span></div>
+      <div><span>Sundries &amp; protection</span><span class="mono">$120.00</span></div>
+    </div>
+    <div class="total"><span>Total inc GST</span><span class="mono">$4,840.00</span></div>
+    <p class="muted" style="font-size:12px">Includes $440.00 GST · 10% deposit on approval · balance on sign-off, 14-day terms</p>
+  </div>
+
+  <div class="card raised">
+    <h3 style="margin-bottom:6px">Colours</h3>
+    <p style="font-size:13px">Repeat the colour card on file for this property — Dulux Natural White walls and trims, Ceiling White ceilings. Change this at any time before the pre-start check.</p>
+  </div>
+
+  <div id="approveOwner">
+    <button class="btn primary" style="margin-bottom:8px">Approve on behalf of the owner</button>
+    <button class="btn">Send to owner to approve</button>
+    <p class="muted" style="font-size:12px;margin-top:8px">If you send it on, the owner gets a link to approve directly. You'll see when they've opened it and what they decided.</p>
+  </div>
+  <button class="btn" style="margin-top:8px;color:var(--muted)">Ask a question or request a change</button>
+
+  <div class="note">MOCKUP NOTE · Third-party approver (landlord / client / claims assessor) is the single biggest difference between trade and residential. ⚑ Whether the agency may approve on the owner's behalf is a business rule per organisation, not a default.</div>
+</section>
+
+<!-- ============ MONEY (portfolio) ============ -->
+<section class="screen" id="s-money">
+  <div class="eyebrow">All properties</div>
+  <h1>Money</h1>
+  <div class="money" style="margin-top:14px">
+    <div class="card"><span class="eyebrow">Outstanding</span><span class="v">$8,547.00</span><span class="muted" style="font-size:11px">3 invoices</span></div>
+    <div class="card"><span class="eyebrow">Overdue</span><span class="v" style="color:#E08D80">$2,310.00</span><span class="muted" style="font-size:11px">1 invoice · 9 days</span></div>
+  </div>
+  <div class="card" style="margin-top:10px">
+    <div class="inv" style="border-top:0;padding-top:0"><div><b style="font-size:13px">9 Mitford St</b><div class="ref">PG-3172 · final · due 21 Aug · <span id="refInline">Owner K. Adebayo</span></div></div><span class="amt" style="color:#E08D80">$2,310.00</span></div>
+    <div class="inv"><div><b style="font-size:13px">Unit 7/22 Ormond Rd</b><div class="ref">PG-3176-02 · final · issues on sign-off</div></div><span class="amt muted">$6,237.00</span></div>
+    <div class="inv"><div><b style="font-size:13px">3 Tennyson St</b><div class="ref">PG-3169-02 · final · issues on sign-off</div></div><span class="amt muted">$5,940.00</span></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button class="btn">Statement (PDF)</button><button class="btn">Export CSV</button></div>
+  <div class="note">MOCKUP NOTE · Trade accounts pay on terms (⚑ terms per account), so the portfolio money view is a receivables statement grouped by property with the client's own references on every line — built for the person doing owner statements or claim reconciliation, not the person who chose the colour.</div>
+</section>
+
+<!-- ============ TEAM ============ -->
+<section class="screen" id="s-team">
+  <div class="eyebrow">Organisation</div>
+  <h1 id="orgName2">Harbourside Property Management</h1>
+  <div class="card" style="margin-top:14px">
+    <h3 style="margin-bottom:4px">People</h3>
+    <div class="inv" style="border-top:0"><div><b style="font-size:13px">Jess Whitfield</b><div class="ref">Admin · approves &amp; sees money · all properties</div></div><span class="chip cyan">You</span></div>
+    <div class="inv"><div><b style="font-size:13px">Dan Okafor</b><div class="ref">Property manager · 6 properties · approves to $5,000</div></div><span class="chip">Active</span></div>
+    <div class="inv"><div><b style="font-size:13px">accounts@harbourside.com.au</b><div class="ref">Finance · invoices only · no job detail</div></div><span class="chip">Active</span></div>
+  </div>
+  <button class="btn">+ Invite someone</button>
+  <div class="card" style="margin-top:12px">
+    <h3 style="margin-bottom:8px">Updates</h3>
+    <p style="font-size:13px">Daily site updates → email digest at 5 pm<br>Approvals needed → email + SMS straight away<br>Invoices → finance address only</p>
+  </div>
+  <div class="note">MOCKUP NOTE · Seats, per-user property scope, approval limits and who gets which notifications. ⚑ Whether approval limits are enforced or advisory.</div>
+</section>
+
+<nav class="nav">
+  <button class="on" data-s="s-home" onclick="go('s-home')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Portfolio</button>
+  <button data-s="s-money" onclick="go('s-money')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>Money</button>
+  <button data-s="s-team" onclick="go('s-team')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-5-6.3"/></svg>Team</button>
+  <button data-s="s-help" onclick="alert('Live chat / call — AI agent first, human handover always one tap away.')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v11H9l-5 4z"/></svg>Talk to us</button>
+</nav>
+
+<script>
+function go(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('on', b.dataset.s===id || (id==='s-prop'||id==='s-timeline'||id==='s-approve')&&b.dataset.s==='s-home'));
+  window.scrollTo({top:0});
+}
+function tab(btn,id){
+  btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on')); btn.classList.add('on');
+  btn.parentElement.parentElement.querySelectorAll('.pane').forEach(p=>p.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+}
+const personas={
+  re:{type:'Property management',name:'Harbourside Property Management',ref:'Owner',count:'12 properties',c1:'Owner · Elwood Holdings Pty Ltd',c2:'Your ref · EH-0448',inline:'Owner K. Adebayo',owner:true},
+  fm:{type:'Facilities management',name:'Bayside Aged Care — Facilities',ref:'Site',count:'6 sites',c1:'Site · Elwood Village, Block B',c2:'PO · BAC-2026-0712',inline:'PO BAC-2026-0691',owner:false},
+  ins:{type:'Insurance repairs',name:'Southern Cross Claims',ref:'Claim',count:'9 open claims',c1:'Claim · SC-44810-M',c2:'Assessor · P. Ryan',inline:'Claim SC-44502-M',owner:false}
+};
+function setPersona(k){
+  const p=personas[k];
+  document.querySelectorAll('.persona button').forEach(b=>b.classList.toggle('on',b.dataset.p===k));
+  orgType.textContent=p.type; orgName.textContent=p.name; orgName2.textContent=p.name;
+  propCount.textContent=p.count; refChip1.textContent=p.c1; refChip2.textContent=p.c2; refInline.textContent=p.inline;
+  document.querySelectorAll('.reflabel').forEach(e=>e.textContent=p.ref);
+  approveOwner.innerHTML = p.owner
+    ? '<button class="btn primary" style="margin-bottom:8px">Approve on behalf of the owner</button><button class="btn">Send to owner to approve</button><p class="muted" style="font-size:12px;margin-top:8px">If you send it on, the owner gets a link to approve directly. You\'ll see when they\'ve opened it and what they decided.</p>'
+    : (k==='fm'
+      ? '<button class="btn primary" style="margin-bottom:8px">Approve with PO number</button><button class="btn">Send to a colleague to approve</button>'
+      : '<button class="btn primary" style="margin-bottom:8px">Approve against claim</button><button class="btn">Send to assessor to approve</button><p class="muted" style="font-size:12px;margin-top:8px">The scope, before photos and completion report all carry the claim number.</p>');
+}
+</script>
+</body>
+</html>
