@@ -39,8 +39,16 @@ test("R2 exterior journey: five exterior pages, no interior questions, priced by
     if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
   };
 
-  // Page 2 — the house: storeys + substrate. Never the interior tick list.
+  // Page 2 opens with the C15 contact sub-step — the autosave needs somebody
+  // to save FOR — then the house questions.
   await next();
+  const contact = page.locator(".wz-crow input");
+  if (await contact.count()) {
+    await contact.nth(0).fill("E2E Exterior");
+    await contact.nth(1).fill(`e2e-exterior-${Date.now()}@example.com`);
+    await contact.nth(2).fill("0400 000 222");
+    await next();
+  }
   await expect(page.getByText(/What.s the building made of/i)).toBeVisible();
   await expect(page.locator(".wz-step")).toContainText(/storey/i);
   // Tom, 29 Aug: each storey answer says the height it means.
@@ -85,5 +93,7 @@ test("R2 exterior journey: five exterior pages, no interior questions, priced by
   // 28 Aug: the wizard lands straight in the editor.
   await expect(page.locator(".sc-r").first()).toBeVisible({ timeout: 90_000 });
   await expect(page.locator(".sc-r").first()).toHaveText(MONEY_RANGE);
-  await expect(page.locator(".wz-rooms")).toContainText(/Front/i);
+  // The sides editor renders sd-* cards, not the interior loop's wz-rooms —
+  // the stale selector failed a journey that had actually succeeded.
+  await expect(page.getByText(/Front — street side/).first()).toBeVisible();
 });

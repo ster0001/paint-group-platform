@@ -13,6 +13,10 @@ export type DriveOptions = {
   doorScope?: "Door only" | "Door + frame" | "+ architrave";
   /** Email for the gate; defaults to a throwaway e2e address. */
   email?: string;
+  /** Linger after the contact step so the 2.5s autosave debounce fires.
+   *  Playwright outruns it — no human answers four pages in two seconds —
+   *  so a spec asserting on the DRAFT must pace like a person. */
+  settleAfterContactMs?: number;
 };
 
 /**
@@ -50,6 +54,7 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
     await contact.nth(0).fill("E2E Journey");
     await contact.nth(1).fill(opts.email ?? `e2e-journey-${Date.now()}@example.com`);
     await contact.nth(2).fill("0400 000 111");
+    if (opts.settleAfterContactMs) await page.waitForTimeout(opts.settleAfterContactMs);
     await next(); // → surfaces
   }
   await next(); // → condition

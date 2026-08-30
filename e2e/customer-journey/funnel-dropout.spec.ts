@@ -50,7 +50,7 @@ test.describe("the wizard drop-out funnel", () => {
 
     // One answer past the contact, then walk away. The autosave debounces at
     // 2.5s, so wait past it before calling the person saved.
-    await expect(page.locator(".wz-qhead").first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: /What.s being painted/ })).toBeVisible();
     await page.waitForTimeout(4_000);
 
     const { data: draft } = await db!.from("wizard_drafts")
@@ -65,7 +65,16 @@ test.describe("the wizard drop-out funnel", () => {
   });
 
   test("finishing converts the draft server-side, and nothing re-opens it", async ({ page }) => {
-    await driveNoPlanWizard(page, { email: finishEmail });
+    // Every autosave verdict, so a silent saved:false has a paper trail.
+    const saves: string[] = [];
+    page.on("response", async (r) => {
+      if (r.url().includes("/api/wizard/draft")) {
+        saves.push(`${r.status()} ${await r.text().catch(() => "?")}`);
+      }
+    });
+    // Paced like a person: the autosave debounces 2.5s behind the keyboard,
+    // and a spec that outruns it tests a customer who cannot exist.
+    await driveNoPlanWizard(page, { email: finishEmail, settleAfterContactMs: 3_500 });
 
     // The trailing-autosave race fired ~2.5s after the last answer; give it
     // room to lose before asserting the state it used to corrupt.
@@ -74,7 +83,9 @@ test.describe("the wizard drop-out funnel", () => {
     const { data: drafts } = await db!.from("wizard_drafts")
       .select("progress_pct, converted_at, estimate_id")
       .eq("email", finishEmail);
-    expect(drafts!.length, "one run, one draft — the race must not mint a second").toBe(1);
+    expect(drafts!.length,
+      `one run, one draft — the race must not mint a second (draft POSTs: ${JSON.stringify(saves)})`,
+    ).toBe(1);
     expect(drafts![0].converted_at, "the SERVER converts; the client is a backup").not.toBeNull();
     expect(drafts![0].estimate_id, "a converted draft names the estimate it became").not.toBeNull();
   });
