@@ -61,9 +61,9 @@ export async function sendSignedReportEmail(db: SupabaseClient, customerToken: s
     if (!shouldSendSignEmail(setting?.value, String(s.signed_kind ?? ""))) return;
 
     const { data: wo } = await db.from("work_orders")
-      .select("wo_snapshot, estimates(builder_state, accepted_name)")
+      .select("wo_snapshot, estimates(id, property_id, builder_state, accepted_name)")
       .eq("id", s.work_order_id).maybeSingle();
-    const est = (wo as { estimates?: { builder_state?: unknown; accepted_name?: string | null } } | null)?.estimates;
+    const est = (wo as { estimates?: { id?: string; property_id?: string | null; builder_state?: unknown; accepted_name?: string | null } } | null)?.estimates;
     const contact = (est?.builder_state as { contact?: { email?: string; first_name?: string } } | null)?.contact;
     const email = contact?.email?.trim();
     if (!email) return;   // no address on file — nothing to send, not an error
@@ -86,6 +86,15 @@ export async function sendSignedReportEmail(db: SupabaseClient, customerToken: s
     // document and attached. STRICTLY best-effort — a Chromium hiccup must
     // never cost the customer their sign-off email, so any failure here
     // simply sends the email link-only, exactly as before.
+    // The property's references print on the report (trade portal v2 §5.4).
+    let referencesLine: string | null = null;
+    if (est?.property_id) {
+      const { data: refs } = await db.from("property_references")
+        .select("label, value").eq("property_id", est.property_id).order("sort");
+      const rows = (refs ?? []) as Array<{ label: string; value: string }>;
+      referencesLine = rows.length ? rows.map((r) => `${r.label} · ${r.value}`).join("  ·  ") : null;
+    }
+
     let attachments: { filename: string; content: string }[] | undefined;
     try {
       const { data: rep } = await db.rpc("wo_report_by_token", { p_token: customerToken });
@@ -102,6 +111,7 @@ export async function sendSignedReportEmail(db: SupabaseClient, customerToken: s
           companyPhone: company.phone,
           logoUrl: company.logoUrlLight || company.logoUrl,
           reportUrl: `${origin}/s/${customerToken}`,
+          referencesLine,
         }));
         attachments = [{
           filename: `${r.report.wo_ref || "completion"}-completion-report.pdf`,
@@ -114,6 +124,33 @@ export async function sendSignedReportEmail(db: SupabaseClient, customerToken: s
 
     const result = await sendEmail({ to: email, subject: msg.subject, html: msg.html, attachments });
     if (result.status === "error") reportError(new Error(result.message), { where: "signEmail.send" });
+
+    // ⚑6 (31 Aug): where the property carries an Assessor reference and we
+    // know the assessor's email (from the external-approval link they were
+    // sent), the completion report goes to them too. Best-effort, always.
+    try {
+      if (est?.property_id && est?.id) {
+        const { data: assessorRef } = await db.from("property_references")
+          .select("id").eq("property_id", est.property_id).ilike("label", "assessor").limit(1).maybeSingle();
+        if (assessorRef) {
+          const { data: appr } = await db.from("external_approvals")
+            .select("approver_email, approver_name").eq("estimate_id", est.id)
+            .neq("approver_email", "").order("sent_at", { ascending: false }).limit(1).maybeSingle();
+          const assessorEmail = (appr as { approver_email?: string } | null)?.approver_email?.trim();
+          const { isTestEmail } = await import("@/lib/accounts/identity");
+          if (assessorEmail && assessorEmail !== email && !isTestEmail(assessorEmail)) {
+            await sendEmail({
+              to: assessorEmail,
+              subject: `Completion report — ${snap?.jobTitle || "painting works"}`,
+              html: msg.html,
+              attachments,
+            });
+          }
+        }
+      }
+    } catch (e) {
+      reportError(e, { where: "signEmail.assessor", bestEffort: true });
+    }
   } catch (e) {
     reportError(e, { where: "signEmail" });
   }

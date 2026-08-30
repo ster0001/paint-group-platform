@@ -37,6 +37,10 @@ export default async function Page({
     }
   }
 
+  // Trade portal v2 §5.4: the property's references print on the document.
+  const { referencesLineForEstimateToken } = await import("@/lib/portal/approvalData");
+  const referencesLine = await referencesLineForEstimateToken(token).catch(() => null);
+
   return (
     <CustomerEstimate
       snapshot={row.snapshot}
@@ -48,6 +52,7 @@ export default async function Page({
       selectedOptionsInit={row.selected_options}
       changes={changes}
       fromPortal={portal === "1"}
+      referencesLine={referencesLine}
     />
   );
 }

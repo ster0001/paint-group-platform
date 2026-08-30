@@ -35,6 +35,8 @@ export function buildCompletionReportHtml(opts: {
   logoUrl?: string;
   /** The customer's own online report (photos live there). */
   reportUrl: string;
+  /** Trade portal v2 §5.4: the property's references (Owner / PO / Claim). */
+  referencesLine?: string | null;
 }): string {
   const r = opts.report;
   const byHeading = new Map<string, Report["surfaces"]>();
@@ -110,6 +112,7 @@ export function buildCompletionReportHtml(opts: {
   </div>
 
   <h1>${esc(opts.jobTitle)}</h1>
+  ${opts.referencesLine ? `<p class="signedline">${esc(opts.referencesLine)}</p>` : ""}
   <p class="signedline">Signed off by ${esc(r.signed_name)} on ${esc(dateFmt(r.signed_at))}.</p>
 
   <div class="warranty">

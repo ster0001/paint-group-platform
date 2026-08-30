@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { createTradeAccountAction } from "./tradeActions";
+import TradeOrgSettings from "./TradeOrgSettings";
 
 /**
  * 3a-7 · Trade granting is office-side only (⚑2): no self-serve form
@@ -120,6 +121,7 @@ export default function TradeAccountsManager() {
         />
         unblocked
       </label>
+      {row.account_type === "trade" && <TradeOrgSettings accountId={row.id} />}
     </li>
   );
 

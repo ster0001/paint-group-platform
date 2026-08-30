@@ -9,6 +9,7 @@
  */
 import { createServiceClient } from "@/lib/supabase/service";
 import { getPortalJobs, getPortalMoney, getPortalVariations, melbourneTodayYmd, type PortalContext } from "./data";
+import { moneyFmt } from "./money";
 import {
   buildTradePortfolio,
   type TPColourSwatch,
@@ -27,10 +28,12 @@ export async function getTradePortfolio(ctx: PortalContext, view: "trade"): Prom
   const accountIds = ctx.accounts.map((a) => a.id);
   const propertyIds = ctx.properties.map((p) => p.id);
 
-  const [{ estimates }, money, variations, refsRes, coloursRes] = await Promise.all([
+  const [{ estimates }, money, variations, pendingRes, refsRes, coloursRes] = await Promise.all([
     getPortalJobs(accountIds),
     getPortalMoney(accountIds),
     getPortalVariations(accountIds),
+    svc.from("external_approvals").select("estimate_id, approver_name")
+      .in("account_id", accountIds).is("decided_at", null),
     propertyIds.length
       ? svc.from("property_references").select("property_id, label, value, sort").in("property_id", propertyIds)
       : Promise.resolve({ data: [] }),
@@ -79,6 +82,7 @@ export async function getTradePortfolio(ctx: PortalContext, view: "trade"): Prom
     invoices: money.invoices,
     payments: money.payments,
     variations,
+    pendingApprovals: (pendingRes.data ?? []) as Array<{ estimate_id: string; approver_name: string }>,
     todayYmd: melbourneTodayYmd(),
   });
 }
@@ -97,10 +101,15 @@ export type TradeTimelineEvent = {
  * approval trail (sent / opened / decided — rows arrive with session 5's
  * send flow; the rendering is live already). First names only, ever.
  */
-export async function getTradeTimelineEvents(workOrderId: string, estimateId: string): Promise<TradeTimelineEvent[]> {
+export async function getTradeTimelineEvents(
+  workOrderId: string,
+  estimateId: string,
+  viewerRole?: string,
+): Promise<TradeTimelineEvent[]> {
   const svc = createServiceClient();
   if (!svc) return [];
-  const [coloursRes, offerRes, approvalsRes] = await Promise.all([
+  const isOrgAdmin = viewerRole === "admin" || viewerRole === "owner";
+  const [coloursRes, offerRes, approvalsRes, overLimitRes] = await Promise.all([
     svc.from("wo_checklist_items").select("done_at")
       .eq("work_order_id", workOrderId).eq("item_key", "colours").eq("answer", "yes")
       .not("done_at", "is", null).maybeSingle(),
@@ -110,6 +119,11 @@ export async function getTradeTimelineEvents(workOrderId: string, estimateId: st
     svc.from("external_approvals")
       .select("id, approver_name, signer_name, sent_at, viewed_at, decided_at, decision")
       .eq("estimate_id", estimateId),
+    // ⚑2's record — surfaced to the org's admins only.
+    isOrgAdmin
+      ? svc.from("wo_events").select("id, created_at, meta")
+          .eq("work_order_id", workOrderId).eq("type", "approved_over_limit")
+      : Promise.resolve({ data: [] }),
   ]);
 
   const out: TradeTimelineEvent[] = [];
@@ -156,6 +170,16 @@ export async function getTradeTimelineEvents(workOrderId: string, estimateId: st
       title: a.decision === "approved" ? `Approved by ${a.signer_name?.trim() || first}` : `Declined by ${first}`,
       body: a.decision === "approved" ? "Signed and accepted through their link." : "Declined through their link.",
       chip: a.decision === "approved" ? { cls: "emerald", label: "Approved" } : { cls: "clay", label: "Declined" },
+      photoIds: [], cta: null, amountCents: null,
+    });
+  }
+  for (const ev of (overLimitRes.data ?? []) as Array<{ id: string; created_at: string; meta: { limitCents?: number; totalCents?: number; by?: string } }>) {
+    const m = ev.meta ?? {};
+    out.push({
+      key: `trade:over-limit:${ev.id}`, at: ev.created_at,
+      title: "Approved over limit",
+      body: `${m.by ?? "A team member"} approved ${typeof m.totalCents === "number" ? moneyFmt(m.totalCents) : "this estimate"} — above their ${typeof m.limitCents === "number" ? moneyFmt(m.limitCents) : ""} approval limit.`.replace(/\s+/g, " "),
+      chip: { cls: "amber", label: "Over limit" },
       photoIds: [], cta: null, amountCents: null,
     });
   }

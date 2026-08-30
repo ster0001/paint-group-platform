@@ -27,7 +27,13 @@ export default async function TradeJobTimelinePage({ params }: { params: Promise
   const result = await getPortalProjectByWorkOrder(ctx.accounts.map((a) => a.id), woId);
   if (!result || result.propertyId !== id) notFound();
 
-  const tradeEvents = await getTradeTimelineEvents(woId, result.project.estimateId);
+  // The viewer's role decides whether admin-only events (over-limit
+  // approvals, ⚑2) appear — explicit, never inferred from the page.
+  const { roleForAccount } = await import("@/lib/portal/approvalData");
+  const membership = ctx.accounts.length
+    ? await roleForAccount(ctx.userId, ctx.accounts.find((a) => a.account_type === "trade")?.id ?? ctx.accounts[0].id)
+    : null;
+  const tradeEvents = await getTradeTimelineEvents(woId, result.project.estimateId, membership?.role);
   const address = [property.address, property.suburb].filter(Boolean).join(", ") || "this property";
 
   return (

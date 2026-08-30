@@ -109,6 +109,8 @@ export function buildTradePortfolio(input: {
   invoices: MoneyInvoice[];
   payments: MoneyPayment[];
   variations: PortfolioVariation[];
+  /** Undecided external approvals, by estimate (session 5). */
+  pendingApprovals?: Array<{ estimate_id: string; approver_name: string }>;
   todayYmd: string;
 }): TradePortfolio {
   const { todayYmd } = input;
@@ -131,14 +133,18 @@ export function buildTradePortfolio(input: {
 
   // ---- Needs you (the 3a-7 shape; property addresses lead) ----------------
   const attention: AttentionItem[] = [];
+  const pendingByEstimate = new Map((input.pendingApprovals ?? []).map((p) => [p.estimate_id, p.approver_name]));
   for (const e of input.estimates) {
     if (e.status !== "sent" || !e.share_token) continue;
+    const sentTo = pendingByEstimate.get(e.id);
     attention.push({
       key: `estimate:${e.id}`,
       address: addrForEstimate(e.id),
-      meta: `Estimate ready for your approval${e.total_cents ? ` · ${moneyFmt(e.total_cents)} inc GST` : ""}`,
+      meta: sentTo
+        ? `Sent to ${sentTo} to approve — awaiting their decision`
+        : `Estimate ready for your approval${e.total_cents ? ` · ${moneyFmt(e.total_cents)} inc GST` : ""}`,
       amountCents: null,
-      cta: { label: "Review estimate", href: `/e/${e.share_token}` },
+      cta: { label: sentTo ? "See status" : "Review estimate", href: `/account/approvals/${e.id}` },
     });
   }
   for (const v of input.variations) {

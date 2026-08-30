@@ -51,7 +51,7 @@ export type CustomerChanges = {
 export default function CustomerEstimate({
   snapshot: snap, token, status = "sent", acceptedName = null,
   validUntil = null, sentAt = null, selectedOptionsInit = null, preview = false,
-  changes = null, docLabel = "Estimate", fromPortal = false,
+  changes = null, docLabel = "Estimate", fromPortal = false, referencesLine = null,
 }: {
   snapshot: CustomerSnapshot;
   token?: string;
@@ -68,6 +68,9 @@ export default function CustomerEstimate({
   docLabel?: "Estimate" | "Invoice";
   /** True when the customer arrived from their portal — shows a way back. */
   fromPortal?: boolean;
+  /** Trade portal v2 §5.4: the property's references (Owner / PO / Claim),
+   * printed on the document — screen and PDF alike. */
+  referencesLine?: string | null;
 }) {
   const gstRate = (snap.gstRatePct ?? 10) / 100;
   // Invoice dress (Tom, 24 Aug close-off): the revision preview is the
@@ -351,6 +354,7 @@ export default function CustomerEstimate({
           </p>
           <h1>{snap.jobTitle}</h1>
           <p className="address">{snap.jobAddress || snap.company.addressLine1}{snap.contactName ? ` · For ${snap.contactName}` : ""}</p>
+          {referencesLine && <p className="address" data-testid="references-line">{referencesLine}</p>}
 
           <div className="pricecard">
             <div>
