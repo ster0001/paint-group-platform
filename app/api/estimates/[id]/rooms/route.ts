@@ -47,6 +47,12 @@ const roomSchema = z.object({
   extraWallSegmentsM: z.array(z.number().min(0).max(60)).max(12).default([]),
   perimeterOverrideM: z.number().min(0).max(400).nullable().default(null),
   selections: z.record(z.string(), z.number().int().min(0).max(99)).default({}),
+  /**
+   * 30 Aug quarter-tap walls marker — MUST be named here or zod strips it
+   * (this schema strips what it doesn't name), and the commit would then
+   * "upgrade" a deliberate 25% wall selection back to 100%.
+   */
+  wallsQuartered: z.boolean().optional(),
   exclusions: z.array(z.string()).max(40).default([]),
   prepHours: z.record(z.string(), z.number().min(0).max(100)).default({}),
   coats: z.record(z.string(), z.number().int().min(1).max(4)).default({}),

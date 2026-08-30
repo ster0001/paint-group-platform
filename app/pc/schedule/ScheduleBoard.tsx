@@ -130,7 +130,9 @@ export default function ScheduleBoard({
   useEffect(() => {
     if (start === from && range === rangeDays) return;
     const t = setTimeout(() => {
-      router.replace(`/schedule?from=${start}&days=${range}`, { scroll: false });
+      // /pc/schedule, NOT the old /schedule — that path is now a redirect that
+      // DROPS the query, so jumping or paging blanked the board (Tom, 30 Aug).
+      router.replace(`/pc/schedule?from=${start}&days=${range}`, { scroll: false });
     }, 250); // debounce: dragging the range buttons shouldn't fire a fetch each time
     return () => clearTimeout(t);
   }, [start, range, from, rangeDays, router]);

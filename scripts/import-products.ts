@@ -39,7 +39,7 @@ const ALIAS_TO_EXISTING: Record<string, string> = {
   "W&W Super Hide": "Dulux Wash and Wear Super Hide",
   "Dulux Professional": "Dulux Professional Wall",
   "Expressions Ceiling White": "Haymes Expressions Ceiling",
-  "Trim Plus (internal name)": "Haymes Trim Plus Semi Gloss",
+  "Trim Plus (internal name)": "Haymes Trim Plus",
   "Weathershield": "Dulux Weathershield",
   "Solarscreen": "Berger Solarscreen",
   "Acratex": "Dulux AcraTex",

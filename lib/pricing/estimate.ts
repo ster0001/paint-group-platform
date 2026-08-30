@@ -76,6 +76,9 @@ export type LineInput = {
   cost: number;
   woHours: number;
   isOption?: boolean;
+  /** 3rd-party cost (carpentry, scaffolding): the customer pays us and we pay
+   * the supplier, so both sides sit OUTSIDE the gross margin on our own work. */
+  subcontractorExpense?: boolean;
 };
 
 export type BlockInput = AreaInput | LineInput;
@@ -134,6 +137,11 @@ export type EstimateTotals = {
   contractorOfferCents: number;
   materialsCostCents: number;
   marginCents: number;
+  /** 3rd-party (subcontractor) lines: what the customer is charged for them
+   * and what they cost us. Both sit outside marginCents — the margin is the
+   * gross margin on OUR work only. */
+  thirdPartyPriceCents: number;
+  thirdPartyCostCents: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -370,6 +378,8 @@ export function priceEstimateTotals(
   let subtotal = 0;
   let contractorHours = 0;
   let materialsCost = 0;
+  let thirdPartyPrice = 0;
+  let thirdPartyCost = 0;
   let anyInt = false;
   let anyExt = false;
 
@@ -389,7 +399,14 @@ export function priceEstimateTotals(
       const c = priceLine(b);
       subtotal += c.priceCents;
       contractorHours += c.hours;
-      materialsCost += c.costCents;
+      // A 3rd-party line is a pass-through: its cost is NOT a gross-margin
+      // cost, and its charge is netted back out of the margin below.
+      if (b.subcontractorExpense) {
+        thirdPartyPrice += c.priceCents;
+        thirdPartyCost += c.costCents;
+      } else {
+        materialsCost += c.costCents;
+      }
     }
   }
 
@@ -409,7 +426,9 @@ export function priceEstimateTotals(
   const effContractorHourlyCents =
     rates.contractorRateOverride != null ? Math.round(rates.contractorRateOverride * 100) : rates.contractorHourlyCents;
   const contractorOfferCents = Math.round(contractorHours * effContractorHourlyCents * rates.offerPct);
-  const marginCents = netSubtotalCents - contractorOfferCents - materialsCost;
+  // Gross margin on OUR work: 3rd-party lines drop out on both sides — their
+  // charge is removed from the revenue and their cost never entered the costs.
+  const marginCents = netSubtotalCents - thirdPartyPrice - contractorOfferCents - materialsCost;
 
   return {
     subtotalCents: subtotal,
@@ -422,6 +441,8 @@ export function priceEstimateTotals(
     contractorOfferCents,
     materialsCostCents: materialsCost,
     marginCents,
+    thirdPartyPriceCents: thirdPartyPrice,
+    thirdPartyCostCents: thirdPartyCost,
   };
 }
 

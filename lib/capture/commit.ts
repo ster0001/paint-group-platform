@@ -58,8 +58,38 @@ export type RoomDraft = {
    * timber. Hours the estimator types on site, plus where — see ALLOWANCE_DEFS.
    */
   allowances?: Record<string, { hours: number; note: string }>;
+  /**
+   * 30 Aug: EVERY Walls tile now taps in quarters (100/75/50/25%). Before
+   * that, only wet-area walls and exterior cladding did — an interior Walls
+   * selection of 1 meant "on" (100%), which after the change would silently
+   * read as 25%. This marker says the draft was written under the new
+   * semantics; a draft without it is normalised by normalizeWallQuarters().
+   */
+  wallsQuartered?: boolean;
   status: "capturing" | "complete";
 };
+
+/** The room types whose Walls tile ALREADY tapped in quarters before 30 Aug. */
+const LEGACY_QUARTERED_ROOMS = new Set(["bathroom", "wc", "laundry"]);
+
+/**
+ * Upgrade a pre-30-Aug draft to quarter-tap wall semantics. Interior non-wet
+ * walls stored 1 for "the whole room's walls" — that must become 4, or every
+ * restored draft would reprice at 25%. Wet rooms and exterior planes already
+ * counted quarters, so their selections pass through untouched.
+ */
+export function normalizeWallQuarters(draft: RoomDraft): RoomDraft {
+  if (draft.wallsQuartered) return draft;
+  const legacyQuarters =
+    LEGACY_QUARTERED_ROOMS.has(draft.roomType) || draft.roomType.startsWith("exterior");
+  const selections = { ...draft.selections };
+  if (!legacyQuarters) {
+    for (const key of Object.keys(selections)) {
+      if (key.endsWith(":Walls") && selections[key] === 1) selections[key] = 4;
+    }
+  }
+  return { ...draft, selections, wallsQuartered: true };
+}
 
 /**
  * The two hour-and-a-note allowances (Tom, 23 Aug).
@@ -157,6 +187,7 @@ export function emptyDraft(localId: string, name: string, roomType: string, stor
     extraWallSegmentsM: [], perimeterOverrideM: null,
     selections: {}, exclusions: [], prepHours: {}, coats: {}, crewNotes: {},
     defects: {}, labels: {}, extraTiles: [], hoursOverride: {}, sizes: {}, allowances: {},
+    wallsQuartered: true,
     status: "capturing",
   };
 }
@@ -208,6 +239,9 @@ export function draftToAreaNode(
   nextId: () => number,
   opts: { exterior?: boolean; defectRates?: DefectRate[] } = {},
 ): BuilderAreaNode {
+  // A legacy draft (offline queue, stored captureDraft) may still carry
+  // binary wall selections — upgrade before any fraction math sees them.
+  draft = normalizeWallQuarters(draft);
   const defectRates = opts.defectRates ?? [];
   const geo: RoomGeometry = {
     lengthM: draft.lengthM, widthM: draft.widthM, heightM: draft.heightM,

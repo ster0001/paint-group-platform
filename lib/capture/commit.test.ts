@@ -73,7 +73,7 @@ describe("capture -> builder parity", () => {
     const draft = emptyDraft("r1", "Bedroom 2", "bedroom", "ground", 2.4);
     draft.lengthM = 4.2; draft.widthM = 3.6;
     draft.selections = {
-      [tileId("Walls")]: 1,
+      [tileId("Walls")]: 4,
       [tileId("Ceiling")]: 1,
       [tileId("Cornices")]: 1,
       [tileId("Skirting Boards")]: 1,
@@ -120,7 +120,7 @@ describe("capture -> builder parity", () => {
   it("an L-shaped room's extra segment flows through qtyOverride for walls and measureL for lineal runs", () => {
     const draft = emptyDraft("r3", "Lounge", "bedroom", "ground", 2.4);
     draft.lengthM = 4; draft.widthM = 3; draft.extraWallSegmentsM = [2];
-    draft.selections = { [tileId("Walls")]: 1, [tileId("Skirting Boards")]: 1 };
+    draft.selections = { [tileId("Walls")]: 4, [tileId("Skirting Boards")]: 1 };
     let id = 1;
     const node = draftToAreaNode(draft, bedroomTiles, () => id++);
     const walls = node.surfaces.find((s) => s.code === "Walls")!;
@@ -136,7 +136,7 @@ describe("capture -> builder parity", () => {
   it("excluded and untapped tiles produce nothing; prep, coats and notes ride the row", () => {
     const draft = emptyDraft("r4", "Kitchen", "bedroom", "ground", 2.4);
     draft.lengthM = 4; draft.widthM = 3;
-    draft.selections = { [tileId("Walls")]: 1, [tileId("Ceiling")]: 1 };
+    draft.selections = { [tileId("Walls")]: 4, [tileId("Ceiling")]: 1 };
     draft.exclusions = [tileId("Ceiling")];
     draft.prepHours = { [tileId("Walls")]: 1.5 };
     draft.coats = { [tileId("Walls")]: 3 };
@@ -159,7 +159,7 @@ describe("capture -> builder parity", () => {
 
     const draft = emptyDraft("r6", "Lounge", "bedroom", "ground", 2.4);
     draft.lengthM = 4; draft.widthM = 3;
-    draft.selections = { [tileId("Walls")]: 1 };
+    draft.selections = { [tileId("Walls")]: 4 };
     draft.prepHours = { [tileId("Walls")]: 0.5 };
     draft.crewNotes = { [tileId("Walls")]: "south wall" };
     draft.defects = { [tileId("Walls")]: [{ type: "peeling", severity: 2, qty: 3 }, { type: "holes_dents", severity: 1, qty: 2 }] };
@@ -177,7 +177,7 @@ describe("capture -> builder parity", () => {
   it("without a rates table defects cost nothing and parity is untouched", () => {
     const draft = emptyDraft("r7", "Bed", "bedroom", "ground", 2.4);
     draft.lengthM = 4; draft.widthM = 3;
-    draft.selections = { [tileId("Walls")]: 1 };
+    draft.selections = { [tileId("Walls")]: 4 };
     draft.defects = { [tileId("Walls")]: [{ type: "peeling", severity: 3, qty: 10 }] };
     let id = 1;
     const node = draftToAreaNode(draft, bedroomTiles, () => id++);
@@ -187,7 +187,7 @@ describe("capture -> builder parity", () => {
   it("re-committing a room keeps its area id so the builder edits in place", () => {
     const draft = emptyDraft("r5", "Bed 3", "bedroom", "ground", 2.4);
     draft.areaId = 42; draft.lengthM = 3; draft.widthM = 3;
-    draft.selections = { [tileId("Walls")]: 1 };
+    draft.selections = { [tileId("Walls")]: 4 };
     let id = 900;
     const node = draftToAreaNode(draft, bedroomTiles, () => id++);
     expect(node.id).toBe(42);
@@ -225,6 +225,31 @@ describe("capture -> builder parity", () => {
     expect(node.captureDraft.labels).toEqual(draft.labels);
     expect(node.captureDraft.hoursOverride).toEqual(draft.hoursOverride);
     expect(node.captureDraft.status).toBe("complete");
+  });
+
+  it("interior walls tap in quarters: 3 taps of 4 prices 75% of the wall area", () => {
+    const full = emptyDraft("rq1", "Bedroom", "bedroom", "ground", 2.4);
+    full.lengthM = 4; full.widthM = 3;
+    full.selections = { [tileId("Walls")]: 4 };
+    const part = { ...full, localId: "rq2", selections: { [tileId("Walls")]: 3 } };
+    let id = 1;
+    const fullWalls = draftToAreaNode(full, bedroomTiles, () => id++).surfaces[0];
+    const partWalls = draftToAreaNode(part, bedroomTiles, () => id++).surfaces[0];
+    expect(fullWalls.qtyOverride).toBeNull(); // full surface derives normally
+    expect(partWalls.qtyOverride).toBeCloseTo((2 * (4 + 3) * 2.4) * 0.75);
+    expect(partWalls.internalLabel).toContain("(75%)");
+  });
+
+  it("a legacy draft's binary wall selection is normalised, not read as 25%", () => {
+    // Pre-30-Aug drafts (no wallsQuartered marker) stored 1 for "all walls".
+    const draft = emptyDraft("rl1", "Bedroom", "bedroom", "ground", 2.4);
+    draft.lengthM = 4; draft.widthM = 3;
+    draft.selections = { [tileId("Walls")]: 1 };
+    delete draft.wallsQuartered;
+    let id = 1;
+    const walls = draftToAreaNode(draft, bedroomTiles, () => id++).surfaces[0];
+    expect(walls.qtyOverride).toBeNull(); // full surface, no 25% haircut
+    expect(walls.internalLabel).not.toContain("%");
   });
 });
 

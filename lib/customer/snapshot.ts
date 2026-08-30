@@ -87,7 +87,7 @@ export type CustomerSnapshot = {
   discountFixedCents: number; // flat discount in cents (when mode = fixed)
   proof: {
     rating: string; // "5.0"
-    reviews: string; // "85+"
+    reviews: string; // "93+"
     liability: string; // "$20M"
     warranty: string; // "2-year"
     accreditations: string[];
@@ -96,7 +96,7 @@ export type CustomerSnapshot = {
 
 export const DEFAULT_PROOF: CustomerSnapshot["proof"] = {
   rating: "5.0",
-  reviews: "85+",
+  reviews: "93+",
   liability: "$20M",
   warranty: "2-year",
   accreditations: ["Master Painters Accredited"],

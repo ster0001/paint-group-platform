@@ -119,7 +119,10 @@ const SCOPE: Record<string, Rule[]> = {
     ["Door & Frame", false, false, "photo only"],
     ["Cornices", false, false, "never standard - photo only"],
     ["Cabinets", true, true, "OPTION - never generated silently"],
-    // No skirting and no splashback: not one of 4 real kitchens had them.
+    // Skirting: 0 of 4 real kitchens had it, so never generated — but Tom
+    // (30 Aug) wants it OFFERABLE in capture, so it rides as an option.
+    // Splashback stays absent entirely.
+    ["Skirting Boards", true, false, "OPTION - Tom 30 Aug: offer in capture; evidence said 0/4 kitchens"],
   ],
   laundry: [
     ["Walls", false, false, "4 lines / 2 rooms"],

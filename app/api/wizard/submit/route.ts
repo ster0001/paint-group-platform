@@ -437,9 +437,14 @@ export async function POST(request: Request) {
   // Customer mode with a blocking outcome: the estimate is STILL created
   // (staff follow the lead up with the data in hand) but no price crosses
   // the wire — the guardrail response carries only the outcome.
+  // The estimate's name everywhere (list, builder, customer doc) is the FIRST
+  // LINE of the address — "12 Acacia Street", never "Oakleigh South 3167"
+  // (Tom, 30 Aug). Suburb + postcode is only the fallback when no street was
+  // given (plain typing without a Places pick stores no structured address).
+  const streetLine = state.address?.street.trim() || state.address?.formatted.split(",")[0]?.trim() || "";
   const title = isCustomerMode
-    ? [state.customer?.suburb, state.customer?.postcode].filter(Boolean).join(" ") || "Customer enquiry"
-    : state.title.trim() || "Wizard estimate";
+    ? streetLine || [state.customer?.suburb, state.customer?.postcode].filter(Boolean).join(" ") || "Customer enquiry"
+    : state.title.trim() || streetLine || "Wizard estimate";
   let sourceTag = isCustomerMode ? "customer_intake" : "wizard";
   const baseRow: Record<string, unknown> = {
     title, status: "draft", builder_state: builderState, source: sourceTag,

@@ -698,6 +698,8 @@ export default function QuoteBuilder({
       contractorOffer: t.contractorOfferCents,
       materialsCost: t.materialsCostCents,
       margin: t.marginCents,
+      thirdPartyPrice: t.thirdPartyPriceCents,
+      thirdPartyCost: t.thirdPartyCostCents,
     };
   }, [blocks, pricingCtx, adjustments]);
 
@@ -713,7 +715,9 @@ export default function QuoteBuilder({
     return diffRevision(revisionBaseline as RevisionState, currentState, pricingCtx);
   }, [revision, revisionBaseline, blocks, modSel, materials, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, pricingCtx]);
 
-  const marginPct = totals.subtotal > 0 ? (totals.margin / totals.subtotal) * 100 : 0;
+  // Margin % over our own work — 3rd-party charges are outside the gross margin.
+  const marginBase = totals.subtotal - totals.thirdPartyPrice;
+  const marginPct = marginBase > 0 ? (totals.margin / marginBase) * 100 : 0;
   const salesRateCents = totals.contractorHours > 0 ? Math.round(totals.subtotal / totals.contractorHours) : 0;
 
   async function save(): Promise<{ id: string | null; token: string | null }> {
@@ -1844,6 +1848,13 @@ export default function QuoteBuilder({
                               onChange={(e) => setMaterials((m) => ({ ...m, [r.key]: e.target.value }))}
                             >
                               {globalName === "" && <option value="">— choose a product —</option>}
+                              {/* A default_product that's not in the catalogue must still
+                                  DISPLAY as itself — a <select> with no matching option
+                                  silently shows the first product, which is how every trim
+                                  once read "Dulux Wash and Wear" (Tom, 30 Aug). */}
+                              {globalName !== "" && !opts.some((p) => p.name === globalName) && (
+                                <option value={globalName}>{globalName} (not in catalogue)</option>
+                              )}
                               {opts.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
                             </select>
                             {globalName && (
@@ -2056,6 +2067,12 @@ export default function QuoteBuilder({
             <dl className="mt-3 space-y-1.5 text-sm">
               <Row label={`Contractor (${totals.contractorHours.toFixed(1)} hr)`} value={"−" + fmt(totals.contractorOffer)} dark />
               <Row label="Materials cost" value={"−" + fmt(totals.materialsCost)} dark />
+              {(totals.thirdPartyCost > 0 || totals.thirdPartyPrice > 0) && (
+                <div className="flex justify-between border-t border-white/10 pt-1.5" title="3rd-party lines (carpentry, scaffolding etc.) sit outside the gross margin — we're invoiced by the supplier and paid by the customer for them.">
+                  <span className="text-gray-400">3rd party cost <span className="text-[10px]">· outside margin</span></span>
+                  <span className="text-gray-400">−{fmt(totals.thirdPartyCost)}</span>
+                </div>
+              )}
               <div className="flex items-baseline justify-between border-t border-white/15 pt-2">
                 <span className="text-sm font-semibold">Margin</span>
                 <span className={`text-lg font-bold ${totals.margin >= 0 ? "text-green-400" : "text-red-400"}`}>
@@ -3156,8 +3173,8 @@ function LineCard({
           <label className="flex items-center gap-1.5 text-gray-600">
             <input type="checkbox" checked={l.hidden} onChange={(e) => onPatch({ hidden: e.target.checked })} /> Hidden from customer
           </label>
-          <label className="flex items-center gap-1.5 text-gray-600" title="Carpentry, scaffolding etc. supplied by a 3rd party — tracked so we're invoiced and paid to balance the books.">
-            <input type="checkbox" checked={l.subcontractorExpense} onChange={(e) => onPatch({ subcontractorExpense: e.target.checked })} /> Subcontractor expense
+          <label className="flex items-center gap-1.5 text-gray-600" title="Carpentry, scaffolding etc. supplied by a 3rd party — tracked so we're invoiced and paid to balance the books. Shown separately in the Margin box and kept out of the gross margin.">
+            <input type="checkbox" checked={l.subcontractorExpense} onChange={(e) => onPatch({ subcontractorExpense: e.target.checked })} /> 3rd party cost
           </label>
           <button type="button" onClick={() => onPatch({ detailsOpen: !l.detailsOpen })} className="font-medium text-gray-500 hover:text-gray-800">
             {l.detailsOpen ? "▾ Crew note & photos" : "▸ Crew note & photos"}

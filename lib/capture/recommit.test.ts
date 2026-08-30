@@ -85,7 +85,7 @@ function captureDraftFor(block: ReturnType<typeof wizardBlock>) {
   d.lengthM = block.L;
   d.widthM = block.W;
   // The lossy rebuild's selections, as CaptureApp derives them from surfaces.
-  d.selections = { "bedroom:Walls": 1, "bedroom:Ceiling": 1, "bedroom:Door & Frame:flat": 2 };
+  d.selections = { "bedroom:Walls": 4, "bedroom:Ceiling": 1, "bedroom:Door & Frame:flat": 2 };
   return d;
 }
 

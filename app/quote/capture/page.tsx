@@ -98,10 +98,19 @@ export default async function CapturePage({
       perimeterM: Number(b.perimeterM) || null,
     }));
 
+  // Exterior-only job: capture opens on the exterior vocabulary and the
+  // height prompt asks for the BUILDING's wall height, not a ceiling.
+  const areaBlocks = blocks.filter((b) => b.kind === "area");
+  const wizardJobType = (state.wizard as { jobType?: string } | undefined)?.jobType;
+  const exteriorOnly =
+    wizardJobType === "exterior" ||
+    (areaBlocks.length > 0 && areaBlocks.every((b) => b.type === "Exterior"));
+
   return (
     <CaptureApp
       estimateId={estimate.id}
       estimateTitle={estimate.title ?? "Untitled estimate"}
+      exteriorOnly={exteriorOnly}
       prepPack={(state.prepPack as import("./CaptureApp").PrepPack | undefined) ?? null}
       rules={rules}
       presets={presets}

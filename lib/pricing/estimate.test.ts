@@ -165,6 +165,25 @@ test("quantity and custom lines keep their cost — this is the pass-through pat
 
 const oneWall = [area({ surfaces: [surface()] })];
 
+test("a 3rd-party line sits outside the gross margin on both sides", () => {
+  const line = { kind: "line" as const, type: "Interior" as const, mode: "custom" as const, hours: 0, rate: 0, qty: 0, unitPrice: 0, custom: 2500, cost: 2000, woHours: 0 };
+  const base = priceEstimateTotals(oneWall, ctx, adj);
+  const asMaterials = priceEstimateTotals([...oneWall, line], ctx, adj);
+  const asThirdParty = priceEstimateTotals([...oneWall, { ...line, subcontractorExpense: true }], ctx, adj);
+
+  // The customer is charged the same either way.
+  assert.equal(asThirdParty.subtotalCents, asMaterials.subtotalCents);
+  // Flagged: the cost leaves the gross-margin costs and is reported separately…
+  assert.equal(asThirdParty.materialsCostCents, base.materialsCostCents);
+  assert.equal(asThirdParty.thirdPartyCostCents, 200000);
+  assert.equal(asThirdParty.thirdPartyPriceCents, 250000);
+  // …and the margin is the margin on OUR work alone (charge netted out too).
+  assert.equal(asThirdParty.marginCents, base.marginCents);
+  // Unflagged lines keep the old behaviour and report no 3rd-party figures.
+  assert.equal(asMaterials.thirdPartyCostCents, 0);
+  assert.equal(asMaterials.marginCents, base.marginCents + 250000 - 200000);
+});
+
 test("GST rounds half away from zero (JavaScript Math.round), not banker's rounding", () => {
   // 0.5 cents must round UP, which banker's rounding would send to the even number.
   assert.equal(Math.round(2.5), 3);

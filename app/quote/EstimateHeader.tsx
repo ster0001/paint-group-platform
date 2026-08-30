@@ -40,9 +40,11 @@ export default function EstimateHeader({
       {/* top: company + Estimate */}
       <div className="flex items-start justify-between gap-6">
         <div className="text-sm text-gray-600">
-          {company.logoUrl ? (
+          {/* This card is white, so use the dark-text (light-background) logo —
+              the main logoUrl is white lettering for the dark customer view. */}
+          {company.logoUrlLight || company.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={company.logoUrl} alt={company.name} className="mb-3 h-12 object-contain" />
+            <img src={company.logoUrlLight || company.logoUrl} alt={company.name} className="mb-3 h-12 object-contain" />
           ) : (
             <div className="mb-2 text-lg font-bold tracking-tight text-gray-900">{company.name}</div>
           )}

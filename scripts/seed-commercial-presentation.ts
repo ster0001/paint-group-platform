@@ -47,7 +47,7 @@ const BLOCKS = [
     kind: "review_set", position: 2, enabled: true,
     content: {
       title: "What commercial clients say",
-      footer_line: "5.0 ★ from 85+ Google reviews — these three mention commercial exterior work.",
+      footer_line: "5.0 ★ from 93+ 5-star reviews — these three mention commercial exterior work.",
       reviews: [
         { body: "Painted our entire ==warehouse exterior== over two weekends. Zero disruption to dispatch, site left spotless every morning.", reviewer_title: "Operations Manager", company_name: "Logistics", source: "Google review" },
         { body: "Best ==commercial painters== we've used across our sites. SWMS and inductions handled before we asked. Program ran to the day.", reviewer_title: "Facilities Manager", company_name: "Retail group", source: "Google review" },

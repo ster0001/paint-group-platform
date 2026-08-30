@@ -21,7 +21,6 @@ export type TileRule = {
   notes: string | null;
 };
 
-export const WET_ROOM_TYPES = new Set(["bathroom", "wc", "laundry"]);
 
 export type SurfaceTile = {
   id: string;
@@ -44,9 +43,9 @@ export type SurfaceTile = {
   /** Stairwell-style tiles that demand an explicit confirm before pricing. */
   requiresConfirm: boolean;
   sortOrder: number;
-  /** Wet-area walls: taps cycle 25/50/75/100% instead of on/off. */
+  /** Walls (interior and cladding): taps cycle quarters instead of on/off. */
   fractional?: boolean;
-  /** Exterior cladding: taps cycle DOWN — 100/75/50/25% then off. */
+  /** Fractional taps cycle DOWN — 100/75/50/25% then off. */
   descending?: boolean;
 };
 
@@ -135,7 +134,11 @@ export function tilesForRoomType(roomType: string, rules: TileRule[]): SurfaceTi
       countable: r.countable,
       requiresConfirm: r.requires_confirm,
       sortOrder: r.sort_order,
-      fractional: r.surface_type === "Walls" && WET_ROOM_TYPES.has(r.room_type),
+      // Every Walls tile taps through 100 → 75 → 50 → 25% → off (Tom, 30 Aug:
+      // partial repaints aren't a wet-area special). Descending because a room
+      // is usually ALL walls and sometimes some of them.
+      fractional: r.surface_type === "Walls",
+      descending: r.surface_type === "Walls",
     }))
     .sort(
       (a, b) =>

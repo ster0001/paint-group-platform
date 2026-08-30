@@ -550,7 +550,7 @@ export default function CustomerEstimate({
         <section>
           <h2>Why Melburnians choose us</h2>
           <div className="trust">
-            <div className="tcard"><div className="tval gold">{snap.proof.rating} ★</div><div className="tlab">from {snap.proof.reviews} Google reviews</div></div>
+            <div className="tcard"><div className="tval gold">{snap.proof.rating} ★</div><div className="tlab">from {snap.proof.reviews} 5-star reviews</div></div>
             <div className="tcard"><div className="tval cyan">{snap.proof.liability}</div><div className="tlab">public liability insurance</div></div>
             <div className="tcard"><div className="tval gold">Master Painters</div><div className="tlab">accredited member</div></div>
           </div>

@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import SurfaceTileBox, { type TileState } from "@/app/components/scope/SurfaceTileBox";
 import RoomCard from "@/app/components/scope/RoomCard";
-import { ALLOWANCE_DEFS, emptyDraft, defectHours, DEFECT_LABELS, type DefectObservation, type DefectRate, type RoomDraft } from "@/lib/capture/commit";
+import { ALLOWANCE_DEFS, emptyDraft, defectHours, normalizeWallQuarters, DEFECT_LABELS, type DefectObservation, type DefectRate, type RoomDraft } from "@/lib/capture/commit";
 import { expandCaptureTiles, heightForStorey, tilesForRoomType, DEFAULT_STOREY_HEIGHTS, type SurfaceTile, type TileRule } from "@/lib/capture/presets";
 import { perimeterM, perimeterPlausibility, resolveQuantity } from "@/lib/capture/quantities";
 import { hoursPerUnit } from "@/lib/pricing/engine";
@@ -54,10 +54,13 @@ type Totals = { subtotalCents: number; totalCents: number; contractorHours: numb
 const money = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
 export default function CaptureApp({
-  estimateId, estimateTitle, rules, presets, defectRates, rateItems = [], jobMod = 1, windowSizes = { small: 0.8, large: 1.2 }, initialStoreyHeights, derivedStoreyHeights = null, initialRooms, prepPack = null,
+  estimateId, estimateTitle, rules, presets, defectRates, rateItems = [], jobMod = 1, windowSizes = { small: 0.8, large: 1.2 }, initialStoreyHeights, derivedStoreyHeights = null, initialRooms, prepPack = null, exteriorOnly = false,
 }: {
   estimateId: string;
   estimateTitle: string;
+  /** Exterior-only job: open on the exterior vocabulary and ask for the
+   * BUILDING's wall height per storey, not a "ceiling" height. */
+  exteriorOnly?: boolean;
   rules: TileRule[];
   presets: NamePreset[];
   defectRates: DefectRate[];
@@ -79,7 +82,7 @@ export default function CaptureApp({
   prepPack?: PrepPack | null;
 }) {
   const [screen, setScreen] = useState<Screen>({ kind: "picker" });
-  const [vocab, setVocab] = useState<"interior" | "exterior">("interior");
+  const [vocab, setVocab] = useState<"interior" | "exterior">(exteriorOnly ? "exterior" : "interior");
   const [storeyHeights, setStoreyHeights] = useState<Record<string, number>>(initialStoreyHeights ?? derivedStoreyHeights ?? DEFAULT_STOREY_HEIGHTS);
   const [heightsConfirmed, setHeightsConfirmed] = useState(initialStoreyHeights != null);
   const [currentStorey, setCurrentStorey] = useState("ground");
@@ -193,7 +196,9 @@ export default function CaptureApp({
     // Nodes committed since the captureDraft field carry their exact draft -
     // restore it losslessly (duplicates, fractions, overrides, labels intact).
     if (room.captureDraft) {
-      const restored = { ...room.captureDraft, localId: crypto.randomUUID(), areaId: room.areaId };
+      // normalizeWallQuarters: a pre-30-Aug draft's binary wall selections
+      // must not reopen as 25%.
+      const restored = { ...normalizeWallQuarters(room.captureDraft), localId: crypto.randomUUID(), areaId: room.areaId };
       updateDrafts([...drafts, restored]);
       setScreen({ kind: "capture", localId: restored.localId });
       return;
@@ -263,7 +268,7 @@ export default function CaptureApp({
             <button
               className="rounded bg-gray-900 px-3 py-1 text-white"
               onClick={() => {
-                setDrafts(restoreOffer.rooms);
+                setDrafts(restoreOffer.rooms.map(normalizeWallQuarters));
                 setPendingSync(restoreOffer.pendingSync);
                 setStoreyHeights(restoreOffer.storeyHeights);
                 setCurrentStorey(restoreOffer.currentStorey);
@@ -279,6 +284,7 @@ export default function CaptureApp({
       {!heightsConfirmed && (
         <StoreyHeightPrompt
           heights={storeyHeights}
+          exterior={exteriorOnly}
           onConfirm={(h) => { setStoreyHeights(h); setHeightsConfirmed(true); persist(drafts, pendingSync, h, currentStorey); }}
         />
       )}
@@ -339,12 +345,16 @@ export default function CaptureApp({
 
 // ---------------------------------------------------------------------------
 
-function StoreyHeightPrompt({ heights, onConfirm }: { heights: Record<string, number>; onConfirm: (h: Record<string, number>) => void }) {
+function StoreyHeightPrompt({ heights, exterior = false, onConfirm }: { heights: Record<string, number>; exterior?: boolean; onConfirm: (h: Record<string, number>) => void }) {
   const [rows, setRows] = useState<Array<[string, number]>>(Object.entries(heights));
   return (
     <div className="rounded-lg border border-gray-300 p-4">
-      <h2 className="text-sm font-semibold">Ceiling heights</h2>
-      <p className="mt-1 text-xs text-gray-500">Set once per storey — every room inherits it, and a room can still override.</p>
+      <h2 className="text-sm font-semibold">{exterior ? "Building height" : "Ceiling heights"}</h2>
+      <p className="mt-1 text-xs text-gray-500">
+        {exterior
+          ? "Set once per storey — the height of the building's walls for that storey (ground to eaves for a single storey), not an interior ceiling. Every elevation inherits it, and any side can still override."
+          : "Set once per storey — every room inherits it, and a room can still override."}
+      </p>
       <div className="mt-3 space-y-2">
         {rows.map(([name, h], i) => (
           <div key={i} className="flex items-center gap-2">
@@ -475,8 +485,8 @@ function CaptureScreen({
   const set = (patch: Partial<RoomDraft>) => onChange({ ...draft, ...patch });
   const tap = (t: SurfaceTile) => {
     const cur = draft.selections[t.id] ?? 0;
-    // Wet-area walls cycle UP 25 -> 100% -> off; exterior cladding cycles
-    // DOWN 100 -> 75 -> 50 -> 25% -> off (first tap = the whole elevation).
+    // Walls (interior and cladding) cycle DOWN 100 -> 75 -> 50 -> 25% -> off:
+    // first tap = the whole surface, further taps shave quarters off.
     const next = t.descending ? (cur === 0 ? 4 : cur - 1)
       : t.fractional ? (cur >= 4 ? 0 : cur + 1)
       : t.countable ? cur + 1 : cur > 0 ? 0 : 1;
@@ -545,6 +555,10 @@ function CaptureScreen({
             )}
           </label>
         </div>
+        {/* Room-only geometry: an elevation is one plane, so perimeter and
+            ceiling area would just be noise (Tom, 30 Aug: exterior must never
+            talk about ceilings). */}
+        {!isElevation && (
         <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-600">
           <label className="flex items-center gap-1">
             perimeter
@@ -564,6 +578,7 @@ function CaptureScreen({
             </span>
           ))}
         </div>
+        )}
         {warnings.length > 0 && (
           <div className="mt-2 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">{warnings.join(" · ")}</div>
         )}
