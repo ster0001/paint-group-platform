@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { SURFACE_STATES } from "@/lib/workorder/surfaces";
+import { applyColourRecordsForTick } from "@/lib/colourRecords/transitions";
 
 /**
  * Ticking a surface — from the painter's phone OR the office.
@@ -36,6 +37,11 @@ export async function tickSurfaceAction(raw: unknown): Promise<TickResult> {
 
   const s = String(data ?? "");
   if (s.startsWith("ok:")) {
+    if (parsed.data.to === "done") {
+      // Best-effort (the seedSurfaces precedent): the property's colour
+      // record follows the tick, but a record hiccup never blocks the tick.
+      try { await applyColourRecordsForTick(parsed.data.surfaceId, null); } catch { /* deliberate */ }
+    }
     revalidatePath("/portal/jobs");
     revalidatePath("/pc");
     return { ok: true, state: s.slice(3) };

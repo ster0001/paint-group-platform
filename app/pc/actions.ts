@@ -7,6 +7,7 @@ import { WO_STAGES } from "@/lib/workorder/stages";
 import { seedRowsFromDoc } from "@/lib/workorder/surfaces";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
 import { humaniseGate } from "@/lib/workorder/gateText";
+import { onChecklistAnswered } from "@/lib/colourRecords/transitions";
 import { after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { deliverCustomerUpdate } from "@/lib/workorder/sendUpdate";
@@ -434,7 +435,12 @@ export async function answerChecklistItem(raw: unknown): Promise<PcResult> {
   });
   if (error) return { ok: false, message: error.message };
   const s = String(data ?? "");
-  if (s.startsWith("ok:")) { revalidatePath("/pc"); revalidatePath("/pc/flow"); return { ok: true }; }
+  if (s.startsWith("ok:")) {
+    // A YES on the colours question builds the property's planned colour
+    // records — best-effort, never blocking the answer itself.
+    try { await onChecklistAnswered(parsed.data.itemId, parsed.data.answer); } catch { /* deliberate */ }
+    revalidatePath("/pc"); revalidatePath("/pc/flow"); return { ok: true };
+  }
   if (s === "error:list_required") return { ok: false, message: "List what needs collecting, then save." };
   return { ok: false, message: s.replace("error:", "").replace(/_/g, " ") };
 }

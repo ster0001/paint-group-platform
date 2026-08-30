@@ -16,9 +16,18 @@ export default async function ColoursPage() {
   if (!ctx) redirect("/account/login");
 
   const { jobs } = await getPortalAftercare(ctx.accounts.map((a) => a.id));
+  // TBC is never a register row (ruling 3, 30 Aug): unconfirmed colours show
+  // as one honest amber card per job, not as placeholder swatches.
   const registers = jobs
-    .map((job) => ({ job, register: buildRegister(job.areas, job.materials, job.liveColours, job.coloursFinalised) }))
-    .filter((r) => r.register.length > 0);
+    .map((job) => {
+      const full = buildRegister(job.areas, job.materials, job.liveColours, job.coloursFinalised);
+      const register = full
+        .map((a) => ({ ...a, rows: a.rows.filter((r) => r.colourName) }))
+        .filter((a) => a.rows.length > 0);
+      const hasTbc = full.some((a) => a.rows.some((r) => !r.colourName));
+      return { job, register, hasTbc };
+    })
+    .filter((r) => r.register.length > 0 || r.hasTbc);
 
   if (registers.length === 0) {
     return (
@@ -41,9 +50,18 @@ export default async function ColoursPage() {
         </p>
       </div>
 
-      {registers.map(({ job, register }) => (
+      {registers.map(({ job, register, hasTbc }) => (
         <section key={job.workOrderId}>
           {registers.length > 1 && <h2>{job.title}</h2>}
+          {hasTbc && (
+            <div className="card" data-testid="colours-tbc-card">
+              <span className="chip amber nodot">Colours to be confirmed</span>
+              <p className="sub" style={{ marginTop: 8 }}>
+                Some colours for this job are still being decided. They&apos;ll appear
+                here the moment they&apos;re confirmed.
+              </p>
+            </div>
+          )}
           {register.map((area, areaIdx) => (
             // Two rooms can share a title ("Bedroom") — the key needs the index.
             <div key={`${area.title}-${areaIdx}`}>

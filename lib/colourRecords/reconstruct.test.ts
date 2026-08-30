@@ -115,6 +115,31 @@ test("a prepped-but-not-done tick contributes no date", () => {
   expect(rows[0].applied_from).toBeNull();
 });
 
+test("post-split documents: per-surface colour beats the material's, live colourKey entry beats both", () => {
+  const rows = reconstructRows(base({
+    areas: [
+      {
+        title: "Living room",
+        surfaces: [{ label: "Walls", product: "P", coats: 2, colourName: "Natural White", colourHex: "#F1EDE4", colourKey: "P||Natural White" }],
+      },
+      {
+        title: "Study",
+        surfaces: [{ label: "Walls", product: "P", coats: 2, colourName: "Domino", colourHex: "#2A2E33", colourKey: "P||Domino" }],
+      },
+    ],
+    materials: [
+      { product: "P", colourKey: "P||Natural White", colourName: "Natural White", colourHex: "#F1EDE4" },
+      { product: "P", colourKey: "P||Domino", colourName: "Domino", colourHex: "#2A2E33" },
+    ],
+    // The job sheet renamed the study's colour at the consult — its keyed
+    // entry wins for that surface only.
+    liveColours: { "P||Domino": { name: "Monument", hex: "#3B3F44", status: "confirmed" } },
+  }));
+  expect(rows).toHaveLength(2);
+  expect(rows.find((r) => r.area_label === "Living room")!.colour_name).toBe("Natural White");
+  expect(rows.find((r) => r.area_label === "Study")!.colour_name).toBe("Monument");
+});
+
 test("the product-keyed collapse is visible: two rooms, one product, one snapshot colour → one colour (lossy)", () => {
   // This is exactly what ruling 1 fixes at source in session 2. The backfill
   // cannot recover the second room's colour; this test documents that the

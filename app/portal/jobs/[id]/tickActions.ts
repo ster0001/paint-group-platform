@@ -5,6 +5,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { reconcileForWorkOrder } from "@/lib/gcal/sync";
+import { onChecklistAnswered } from "@/lib/colourRecords/transitions";
 
 export type PrepResult = { ok: true } | { ok: false; message: string };
 
@@ -52,6 +53,9 @@ export async function answerPrepItem(raw: unknown): Promise<PrepResult> {
 
   const s = String(data ?? "");
   if (s.startsWith("ok:")) {
+    // A YES on the colours question builds the property's planned colour
+    // records — best-effort, never blocking the answer itself.
+    try { await onChecklistAnswered(parsed.data.itemId, parsed.data.answer); } catch { /* deliberate */ }
     revalidatePath("/portal/jobs");
     return { ok: true };
   }
