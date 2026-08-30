@@ -176,3 +176,8 @@ fiction.
   invoices — the emails that actually make money.
 - **C7 · repaint-cycle intervals** — needed before any warranty or repaint
   campaign can state a number.
+- **SMS STOP replies (30 Aug)** — marketing texts carry "Reply STOP to opt
+  out" and Twilio receives the reply, but nothing yet writes it to
+  marketing_unsubscribed_at. Needs an inbound Twilio webhook; until it exists,
+  a STOP must be honoured by hand (the customer page's unsubscribe). The
+  guard already refuses anyone marked unsubscribed, on both channels.
