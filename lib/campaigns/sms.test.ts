@@ -7,6 +7,9 @@ describe("toE164Au — numbers as people type them", () => {
     expect(toE164Au("+61 455 221 908")).toBe("+61455221908");
     expect(toE164Au("61455221908")).toBe("+61455221908");
     expect(toE164Au("0455-221-908")).toBe("+61455221908");
+    // The dropped leading zero — a spreadsheet ate it on a real account, and
+    // that account's replies could never have matched.
+    expect(toE164Au("422453136")).toBe("+61422453136");
   });
 
   it("refuses landlines and junk rather than letting Twilio fail cryptically", () => {

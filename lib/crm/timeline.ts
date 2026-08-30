@@ -114,6 +114,7 @@ const RENDER: Record<CrmEventType, { label: string; kind: TimelineRow["kind"]; d
     detail: (p) => join(str(p.phone), str(p.note)) },
   cta_clicked: { label: "Clicked a campaign link", kind: "customer",
     detail: (p) => str(p.campaignKey) },
+  sms_reply: { label: "Texted back", kind: "customer", detail: (p) => str(p.body) },
 
   // ---- campaigns ----------------------------------------------------------
   campaign_enrolled: { label: "Added to a campaign", kind: "campaign", detail: (p) => str(p.campaignKey) },

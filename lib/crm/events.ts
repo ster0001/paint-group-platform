@@ -60,6 +60,8 @@ export const CRM_EVENT_SCHEMAS = {
   // ---- the customer reaching in ------------------------------------------
   website_chat: z.object({ excerpt: shortText.optional(), answered: z.boolean().default(false) }),
   callback_requested: z.object({ phone: z.string().max(30).optional(), note: shortText.optional() }),
+  /** A text they sent back — surfaced on the timeline, answered by a human. */
+  sms_reply: z.object({ body: shortText }),
   cta_clicked: z.object({ campaignKey: z.string().max(60), linkKey: z.string().max(60).optional() }),
 
   // ---- campaigns ----------------------------------------------------------

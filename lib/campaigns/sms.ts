@@ -43,6 +43,9 @@ export function toE164Au(raw: string | null | undefined): string | null {
   let n = digits;
   if (n.startsWith("+")) n = n.slice(1);
   if (n.startsWith("61")) n = "0" + n.slice(2);
+  // The dropped leading zero — spreadsheets eat it, and a live account had
+  // exactly this ("422453136"). Nine digits starting with 4 is unambiguous.
+  if (/^4\d{8}$/.test(n)) n = "0" + n;
   // Mobiles only: 04xx xxx xxx. A landline cannot receive an SMS reliably,
   // and "delivered to a fax machine" is not a campaign anyone meant to run.
   if (!/^04\d{8}$/.test(n)) return null;
