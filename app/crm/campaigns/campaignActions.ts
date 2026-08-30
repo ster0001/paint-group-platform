@@ -244,30 +244,47 @@ export async function approveAndSend(messageId: string): Promise<CampaignResult>
   const { data: { user } } = await supabase.auth.getUser();
 
   const { data: msg } = await supabase.from("campaign_messages")
-    .select("id, account_id, template_id, step, state, send_key, enrolment_id")
+    .select("id, account_id, template_id, step, state, send_key, enrolment_id, channel")
     .eq("id", messageId).maybeSingle();
   if (!msg) return { ok: false, message: "That message is gone." };
   if (msg.state === "sent") return { ok: false, message: "Already sent." };
 
-  const [{ data: account }, { data: template }, { data: profileRow }] = await Promise.all([
+  const isSms = (msg.channel as string) === "sms";
+  const [{ data: account }, tpl, { data: profileRow }] = await Promise.all([
     supabase.from("accounts")
-      .select("id, name, email, snoozed_until, marketing_unsubscribed_at, marketing_undeliverable_at")
+      .select("id, name, email, phone, snoozed_until, marketing_unsubscribed_at, marketing_undeliverable_at")
       .eq("id", msg.account_id).maybeSingle(),
     supabase.from("campaign_templates")
-      .select("id, name, subject, preheader, blocks, approved_at").eq("id", msg.template_id ?? "").maybeSingle(),
+      .select("id, name, subject, preheader, blocks, approved_at, kind, sms_body").eq("id", msg.template_id ?? "").maybeSingle(),
     supabase.from("settings").select("value").eq("key", "company_profile").maybeSingle(),
   ]);
+  // Pre-migration-20261212: the SMS columns aren't there, but approving an
+  // EMAIL must keep working while they wait.
+  const template = tpl.data ?? (tpl.error && /kind|sms_body/.test(tpl.error.message)
+    ? (await supabase.from("campaign_templates")
+        .select("id, name, subject, preheader, blocks, approved_at").eq("id", msg.template_id ?? "").maybeSingle()).data
+    : null);
   if (!account) return { ok: false, message: "That customer is gone." };
-  if (!template) return { ok: false, message: "The email for this step is missing." };
+  if (!template) return { ok: false, message: `The ${isSms ? "text" : "email"} for this step is missing.` };
+  // A queued text pointed at an email template (or vice versa) is a wiring
+  // mistake — refuse loudly rather than send the wrong shape.
+  const templateKind = (template as { kind?: string }).kind === "sms" ? "sms" : "email";
+  if ((templateKind === "sms") !== isSms) {
+    return { ok: false, message: "This step's channel and its template don't match — fix the campaign's step." };
+  }
 
   const { templateSchema: schema } = await import("@/lib/campaigns/blocks");
-  const parsed = schema.safeParse({
-    subject: template.subject ?? "", preheader: template.preheader ?? "",
-    blocks: Array.isArray(template.blocks) ? template.blocks : [],
-  });
-  if (!parsed.success || parsed.data.blocks.length === 0) {
+  const parsed = isSms
+    ? null
+    : schema.safeParse({
+        subject: template.subject ?? "", preheader: template.preheader ?? "",
+        blocks: Array.isArray(template.blocks) ? template.blocks : [],
+      });
+  if (!isSms && (!parsed?.success || parsed.data.blocks.length === 0)) {
     return { ok: false, message: "That email isn't finished." };
   }
+  const smsBody = String((template as { sms_body?: string }).sms_body ?? "").trim();
+  if (isSms && !smsBody) return { ok: false, message: "That text has nothing in it." };
 
   // Re-ask every question, now.
   const { loadSubjects } = await import("@/lib/crm/loadSubjects");
@@ -293,7 +310,7 @@ export async function approveAndSend(messageId: string): Promise<CampaignResult>
 
   const verdict = guardSend(
     { sendKey: msg.send_key as string, accountId: msg.account_id as string,
-      campaignKey: campaign?.key ?? "", channel: "email",
+      campaignKey: campaign?.key ?? "", channel: isSms ? "sms" : "email",
       enrolledAt: (enrolment?.enrolled_at as string) ?? now.toISOString() },
     {
       unsubscribed: account.marketing_unsubscribed_at != null,
@@ -319,14 +336,31 @@ export async function approveAndSend(messageId: string): Promise<CampaignResult>
 
   const { sendCampaignEmail, resolveRecipientLinks } = await import("@/lib/campaigns/send");
   const company = (profileRow?.value ?? {}) as { name?: string; logoUrl?: string };
-  const sent = await sendCampaignEmail({
-    to: account.email as string,
-    accountId: account.id as string,
-    template: parsed.data,
-    brand: { companyName: company.name || "Paint Group", logoUrl: company.logoUrl || null },
-    // {{estimate}} / {{account}} buttons land on THIS person's pages.
-    links: await resolveRecipientLinks(supabase, account.id as string),
-  });
+  // {{estimate}} / {{account}} land on THIS person's pages, either channel.
+  const links = await resolveRecipientLinks(supabase, account.id as string);
+  let sent: { ok: true; id: string } | { ok: false; error: string };
+  if (isSms) {
+    const { sendCampaignSms } = await import("@/lib/campaigns/sms");
+    sent = await sendCampaignSms({
+      toRawPhone: account.phone as string | null,
+      body: smsBody,
+      links: { estimateUrl: links.estimateUrl, accountUrl: links.accountUrl },
+      companyName: company.name || "Paint Group",
+    });
+  } else if (parsed?.success) {
+    sent = await sendCampaignEmail({
+      to: account.email as string,
+      accountId: account.id as string,
+      template: parsed.data,
+      brand: { companyName: company.name || "Paint Group", logoUrl: company.logoUrl || null },
+      links,
+    });
+  } else {
+    // Unreachable — the email path already returned on a failed parse — but
+    // the compiler cannot see across the early return, and a typed dead end
+    // beats a non-null assertion.
+    sent = { ok: false, error: "That email isn't finished." };
+  }
   if (!sent.ok) {
     await supabase.from("campaign_messages").update({ state: "failed", reason: sent.error }).eq("id", messageId);
     revalidatePath("/crm/campaigns/queue");
@@ -344,12 +378,12 @@ export async function approveAndSend(messageId: string): Promise<CampaignResult>
     type: "campaign_message_sent",
     accountId: account.id as string,
     source: "staff",
-    payload: { campaignKey: campaign?.key ?? "campaign", step: (msg.step as number) ?? 1, channel: "email" },
+    payload: { campaignKey: campaign?.key ?? "campaign", step: (msg.step as number) ?? 1, channel: isSms ? "sms" : "email" },
     dedupeKey: dedupeKey("sent", msg.send_key as string),
   }));
 
   revalidatePath("/crm/campaigns/queue");
-  return { ok: true, message: `Sent to ${account.email}.` };
+  return { ok: true, message: `Sent to ${isSms ? (account.phone as string) : (account.email as string)}.` };
 }
 
 export async function cancelMessage(messageId: string, reason: string): Promise<CampaignResult> {

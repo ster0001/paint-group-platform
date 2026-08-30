@@ -14,17 +14,86 @@ export type StudioResult<T = undefined> =
 
 const uuid = z.string().uuid();
 
-export async function createTemplate(name: string, segmentKey: string | null): Promise<StudioResult<{ id: string }>> {
+export async function createTemplate(
+  name: string,
+  segmentKey: string | null,
+  kind: "email" | "sms" = "email",
+): Promise<StudioResult<{ id: string }>> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const { data, error } = await supabase
     .from("campaign_templates")
-    .insert({ name: name.trim() || "Untitled email", segment_key: segmentKey, created_by: user?.id ?? null })
+    .insert({
+      name: name.trim() || (kind === "sms" ? "Untitled text" : "Untitled email"),
+      segment_key: segmentKey, created_by: user?.id ?? null,
+      ...(kind === "sms" ? { kind: "sms" } : {}),
+    })
     .select("id")
     .single();
-  if (error) return { ok: false, message: error.message };
+  if (error) {
+    return { ok: false, message: kind === "sms" && /kind/.test(error.message)
+      ? "Text templates need migration 20261212 — run it and try again."
+      : error.message };
+  }
   revalidatePath("/crm/campaigns/emails");
   return { ok: true, message: "Started.", data: { id: data.id as string } };
+}
+
+/**
+ * Saving a TEXT template. Same approval hinge as email: any edit clears
+ * approved_at, because a text somebody read and then changed is unread.
+ */
+export async function saveSmsTemplate(id: string, name: string, body: string): Promise<StudioResult> {
+  if (!uuid.safeParse(id).success) return { ok: false, message: "That isn't a template." };
+  const { SMS_MAX_CHARS } = await import("@/lib/campaigns/sms");
+  const clean = body.trim();
+  if (clean.length > SMS_MAX_CHARS) {
+    return { ok: false, message: `Too long for a text — keep it under ${SMS_MAX_CHARS} characters, or write it as an email.` };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.from("campaign_templates").update({
+    name: name.trim() || "Untitled text",
+    sms_body: clean,
+    approved_at: null,
+    approved_by: null,
+  }).eq("id", id);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath(`/crm/campaigns/emails/${id}`);
+  revalidatePath("/crm/campaigns/emails");
+  return { ok: true, message: "Saved." };
+}
+
+/**
+ * A test text goes to the BUSINESS'S OWN phone from Settings — the same rule
+ * as the email test only reaching the signed-in tester: a "text any number"
+ * box is a send button with a thin disguise.
+ */
+export async function sendTestSms(id: string): Promise<StudioResult<{ to: string }>> {
+  if (!uuid.safeParse(id).success) return { ok: false, message: "That isn't a template." };
+  const supabase = await createClient();
+  const [{ data: row }, { data: profileRow }] = await Promise.all([
+    supabase.from("campaign_templates").select("sms_body").eq("id", id).maybeSingle(),
+    supabase.from("settings").select("value").eq("key", "company_profile").maybeSingle(),
+  ]);
+  if (!row) return { ok: false, message: "That template is gone." };
+  const body = String(row.sms_body ?? "").trim();
+  if (!body) return { ok: false, message: "There's nothing in it to send." };
+
+  const company = (profileRow?.value ?? {}) as { name?: string; phone?: string };
+  const { sendCampaignSms, toE164Au } = await import("@/lib/campaigns/sms");
+  const to = toE164Au(company.phone);
+  if (!to) {
+    return { ok: false, message: "Settings → company profile needs a MOBILE number (04xx) for test texts — the company phone on file isn't one." };
+  }
+  const base = (process.env.NEXT_PUBLIC_SITE_URL || "https://paintgroup.com.au").replace(/\/$/, "");
+  const result = await sendCampaignSms({
+    toRawPhone: company.phone,
+    body: `[TEST] ${body}`,
+    links: { estimateUrl: null, accountUrl: `${base}/account` },
+    companyName: company.name || "Paint Group",
+  });
+  if (!result.ok) return { ok: false, message: result.error };
+  return { ok: true, message: `Sent to ${to} — the company mobile.`, data: { to } };
 }
 
 /**

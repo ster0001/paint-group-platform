@@ -187,3 +187,7 @@
 .crm .rop-select{max-width:150px;min-width:0;width:auto}
 .crm .rule.redit .bbtn{margin-left:auto}
 .crm a.go{text-decoration:none}
+
+/* ---- the SMS preview ------------------------------------------------------- */
+.crm .smsbubblewrap{background:var(--raised);border:1px solid var(--line);border-radius:var(--r);padding:22px 18px;display:flex;justify-content:flex-start}
+.crm .smsbubble{max-width:290px;background:#3a3d43;color:#fff;border-radius:18px 18px 18px 5px;padding:11px 14px;font-size:14px;line-height:1.45;white-space:pre-wrap;word-break:break-word}

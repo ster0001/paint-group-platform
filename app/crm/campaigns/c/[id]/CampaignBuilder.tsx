@@ -17,7 +17,7 @@ export default function CampaignBuilder({ id, initial, segments, templates }: {
   id: string;
   initial: { name: string; segmentKey: string; status: "draft" | "live" | "paused"; steps: Step[]; autoSend: boolean };
   segments: Array<{ key: string; name: string; description: string }>;
-  templates: Array<{ id: string; name: string; approved: boolean }>;
+  templates: Array<{ id: string; name: string; approved: boolean; kind: "email" | "sms" }>;
 }) {
   const [name, setName] = useState(initial.name);
   const [segmentKey, setSegmentKey] = useState(initial.segmentKey);
@@ -66,14 +66,30 @@ export default function CampaignBuilder({ id, initial, segments, templates }: {
             )}
           </div>
           <label className="bfield">
-            <span>Send this email</span>
+            <span>Send as</span>
+            <select className="field" value={s.channel}
+              onChange={(e) => {
+                const channel = e.target.value as "email" | "sms";
+                // A channel change orphans a template of the other kind — clear
+                // it rather than quietly sending an email body as a text.
+                patch(i, { channel, templateId: null });
+              }}>
+              <option value="email">Email</option>
+              <option value="sms">Text message</option>
+            </select>
+          </label>
+          <label className="bfield">
+            <span>{s.channel === "sms" ? "Send this text" : "Send this email"}</span>
             <select className="field" value={s.templateId ?? ""} onChange={(e) => patch(i, { templateId: e.target.value || null })}>
               <option value="">— nothing chosen —</option>
-              {templates.map((t) => (
+              {templates.filter((t) => t.kind === s.channel).map((t) => (
                 <option key={t.id} value={t.id}>{t.name}{t.approved ? "" : " (not approved)"}</option>
               ))}
             </select>
           </label>
+          {s.channel === "sms" && templates.filter((t) => t.kind === "sms").length === 0 && (
+            <p className="bhint">No texts written yet — start one under Emails &amp; texts.</p>
+          )}
           <label className="bfield">
             <span>{i === 0 ? "Wait before the first one (days)" : "Wait after the previous step (days)"}</span>
             <input className="field" inputMode="numeric" value={String(s.waitDays)}

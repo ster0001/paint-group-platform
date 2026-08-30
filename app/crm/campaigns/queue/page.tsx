@@ -18,7 +18,7 @@ export default async function QueuePage() {
 
   const { data, error } = await supabase
     .from("campaign_messages")
-    .select("id, account_id, template_id, step, state, reason, due_at, sent_at, enrolment_id")
+    .select("id, account_id, template_id, step, state, reason, due_at, sent_at, enrolment_id, channel")
     .in("state", ["queued", "held", "stopped", "sent", "failed"])
     .order("due_at", { ascending: true })
     .limit(200);
@@ -61,6 +61,7 @@ export default async function QueuePage() {
       subject: (t?.subject as string) ?? "",
       templateApproved: t?.approved_at != null,
       step: (r.step as number) ?? 1,
+      channel: (r.channel as string) === "sms" ? "sms" : "email",
       state: r.state as string,
       reason: (r.reason as string) ?? null,
     };

@@ -7,7 +7,7 @@ import { approveAndSend, cancelMessage, sweepNow } from "../campaignActions";
 type Item = {
   id: string; accountName: string; email: string; campaign: string;
   templateName: string; templateId: string | null; subject: string;
-  templateApproved: boolean; step: number; state: string; reason: string | null;
+  templateApproved: boolean; step: number; channel: string; state: string; reason: string | null;
 };
 
 export default function Queue({ waiting, done }: { waiting: Item[]; done: Item[] }) {
@@ -35,7 +35,7 @@ export default function Queue({ waiting, done }: { waiting: Item[]; done: Item[]
       {waiting.map((m) => (
         <div className="bcard" key={m.id}>
           <div className="bhead">
-            <span className="bkind">{m.campaign} · step {m.step}</span>
+            <span className="bkind">{m.campaign} · step {m.step}{m.channel === "sms" ? " · text" : ""}</span>
             <span className="cchip">{m.state === "held" ? "waiting" : "to approve"}</span>
           </div>
           <p className="segname" style={{ fontSize: 14 }}>{m.accountName}</p>

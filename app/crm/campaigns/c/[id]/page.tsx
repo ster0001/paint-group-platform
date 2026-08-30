@@ -11,10 +11,14 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
   const supabase = await createClient();
 
   const segments = await loadSegments(supabase);
-  const [{ data: campaign }, { data: templates }] = await Promise.all([
+  const [{ data: campaign }, tpl] = await Promise.all([
     supabase.from("campaigns").select("id, name, segment_key, status, steps, auto_send").eq("id", id).maybeSingle(),
-    supabase.from("campaign_templates").select("id, name, approved_at").order("updated_at", { ascending: false }).limit(100),
+    supabase.from("campaign_templates").select("id, name, approved_at, kind").order("updated_at", { ascending: false }).limit(100),
   ]);
+  // Pre-migration-20261212: no kind column yet — every template is an email.
+  const templates = tpl.data ?? (tpl.error && /kind/.test(tpl.error.message)
+    ? (await supabase.from("campaign_templates").select("id, name, approved_at").order("updated_at", { ascending: false }).limit(100)).data
+    : null);
   if (!campaign) notFound();
 
   return (
@@ -34,6 +38,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
         segments={segments.map((s) => ({ key: s.key, name: s.name, description: s.description }))}
         templates={(templates ?? []).map((t) => ({
           id: t.id as string, name: t.name as string, approved: t.approved_at != null,
+          kind: ((t as { kind?: string }).kind === "sms" ? "sms" : "email") as "email" | "sms",
         }))}
       />
     </>

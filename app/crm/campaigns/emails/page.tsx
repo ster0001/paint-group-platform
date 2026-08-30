@@ -17,11 +17,23 @@ export const dynamic = "force-dynamic";
 export default async function EmailsPage() {
   const supabase = await createClient();
   const segments = await loadSegments(supabase);
-  const { data, error } = await supabase
+  // Loosely typed on purpose: the fallback select below returns fewer columns.
+  let data: Record<string, unknown>[] | null;
+  let error: { message: string } | null;
+  ({ data, error } = await supabase
     .from("campaign_templates")
-    .select("id, name, subject, segment_key, approved_at, updated_at, blocks")
+    .select("id, name, subject, segment_key, approved_at, updated_at, blocks, kind, sms_body")
     .order("updated_at", { ascending: false })
-    .limit(100);
+    .limit(100));
+  // Before migration 20261212 the SMS columns don't exist; emails must not
+  // break while waiting for them.
+  if (error && /kind|sms_body/.test(error.message)) {
+    ({ data, error } = await supabase
+      .from("campaign_templates")
+      .select("id, name, subject, segment_key, approved_at, updated_at, blocks")
+      .order("updated_at", { ascending: false })
+      .limit(100));
+  }
 
   // The table arrives with migration 20261208. Until it runs, say so plainly
   // rather than showing an error nobody can act on.
@@ -29,15 +41,16 @@ export default async function EmailsPage() {
   const rows = (data ?? []) as Array<{
     id: string; name: string; subject: string; segment_key: string | null;
     approved_at: string | null; updated_at: string; blocks: unknown[];
+    kind?: string; sms_body?: string;
   }>;
 
   return (
     <>
-      <h2>Emails</h2>
+      <h2>Emails &amp; texts</h2>
       <SubNav />
       <p className="sub">
         Write it yourself or have it drafted, then read it before anyone else does.
-        An email is written once and used by any campaign.
+        Written once, used by any campaign — a step sends either an email or a text.
       </p>
 
       {migrationPending ? (
@@ -61,10 +74,14 @@ export default async function EmailsPage() {
                       <i className={`dot ${t.approved_at ? "cold" : "warm"}`} aria-hidden="true" />
                       {t.name}
                     </span>
-                    <span className="cmeta">{t.subject || "No subject yet"}</span>
+                    <span className="cmeta">
+                      {t.kind === "sms" ? (t.sms_body?.slice(0, 60) || "Nothing written yet") : (t.subject || "No subject yet")}
+                    </span>
                     <span className="cfoot">
                       <b className="cval" style={{ fontSize: 12 }}>
-                        {Array.isArray(t.blocks) ? t.blocks.length : 0} block{Array.isArray(t.blocks) && t.blocks.length === 1 ? "" : "s"}
+                        {t.kind === "sms"
+                          ? "text message"
+                          : `${Array.isArray(t.blocks) ? t.blocks.length : 0} block${Array.isArray(t.blocks) && t.blocks.length === 1 ? "" : "s"}`}
                       </b>
                       <span className="cwhen mono">{t.approved_at ? "approved" : "draft"}</span>
                     </span>
