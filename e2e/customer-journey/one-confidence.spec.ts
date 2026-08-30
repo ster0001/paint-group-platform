@@ -30,17 +30,25 @@ test("R1.4 one score: no-plan capped, and confirming a room ramps it", async ({ 
   const header0 = await headerPct(page);
   expect(header0, "an unconfirmed no-plan estimate must open capped").toBeLessThanOrEqual(65);
 
-  // Confirm the first room: the size question first — its button reads
-  // "Looks right" — then the room's confirm button.
-  await page.locator(".sc-rc").first().click();
-  await page.getByRole("button", { name: "Looks right" }).first().click();
-  const confirm = page.getByRole("button", { name: /^Confirm / }).first();
+  // Confirm the first room. The loop asks its REQUIRED questions in order:
+  // the size ("Looks right"), then whatever this room type carries — a
+  // cupboard/robe question on bedrooms, a doors/windows check — each with a
+  // "No" that is a real answer. Confirm refuses until all are answered, so
+  // the spec answers what the card actually asks rather than assuming.
+  const card = page.locator(".sc-rc").first();
+  await card.click();
+  await card.getByRole("button", { name: "Looks right" }).click();
+  const no = card.getByRole("button", { name: /^No\b/ });
+  for (let i = 0; i < (await no.count()); i++) await no.nth(i).click();
+  const confirm = card.getByRole("button", { name: /^Confirm / });
   await expect(confirm).toBeEnabled({ timeout: 15_000 });
   await confirm.click();
-  await expect(page.getByRole("button", { name: /Confirmed ✓/ }).first()).toBeVisible({ timeout: 20_000 });
 
-  // The ramp: the score a customer worked for must move.
+  // Outcome, not chrome: a confirmed card collapses, taking its button with
+  // it — waiting for a "Confirmed ✓" label races the collapse. What must be
+  // true afterwards is the card wearing its done state and the score moving.
+  await expect(page.locator(".sc-rc.done").first()).toBeVisible({ timeout: 25_000 });
   await expect(async () => {
     expect(await headerPct(page)).toBeGreaterThan(header0);
-  }).toPass({ timeout: 20_000 });
+  }).toPass({ timeout: 25_000 });
 });
