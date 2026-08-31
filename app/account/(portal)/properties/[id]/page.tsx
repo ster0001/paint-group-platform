@@ -4,7 +4,6 @@ import { getPortalContext } from "@/lib/portal/data";
 import { getTradeProperty } from "@/lib/portal/tradeData";
 import { moneyFmt } from "@/lib/portal/money";
 import PropertyTabs from "./PropertyTabs";
-import PrintButton from "../../PrintButton";
 
 export const dynamic = "force-dynamic";
 
@@ -26,11 +25,17 @@ const COLOUR_CHIP: Record<string, { cls: string; label: string }> = {
   superseded: { cls: "mut", label: "Previous" },
 };
 
-export default async function TradePropertyPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function TradePropertyPage({ params, searchParams }: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const { id } = await params;
+  const { tab } = await searchParams;
   const ctx = await getPortalContext();
   if (!ctx) redirect("/account/login");
   if (!ctx.accounts.some((a) => a.account_type === "trade")) redirect("/account");
+  const { viewerTradeRole } = await import("@/lib/portal/approvalData");
+  if ((await viewerTradeRole(ctx)) === "finance") redirect("/account/money"); // money and nothing else
 
   const d = await getTradeProperty(ctx, id, "trade");
   if (!d) notFound();
@@ -162,7 +167,9 @@ export default async function TradePropertyPage({ params }: { params: Promise<{ 
         </p>
       )}
       <div className="btn-row" style={{ marginTop: 12 }}>
-        <PrintButton label="Download colour card (PDF)" />
+        <a className="btn btn-ghost" href={`/account/properties/${d.property.id}/colour-card`} data-testid="colour-card-pdf">
+          Download colour card (PDF)
+        </a>
         <Link className="btn btn-ghost" href="/account/new-estimate">Request a touch-up</Link>
       </div>
     </>
@@ -241,7 +248,7 @@ export default async function TradePropertyPage({ params }: { params: Promise<{ 
           </span>
         ))}
       </div>
-      <PropertyTabs progress={progress} colours={colours} money={money} documents={documents} />
+      <PropertyTabs progress={progress} colours={colours} money={money} documents={documents} initialTab={tab} />
     </div>
   );
 }

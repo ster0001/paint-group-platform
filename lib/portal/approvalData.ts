@@ -51,6 +51,13 @@ export async function roleForAccount(userId: string, accountId: string): Promise
   };
 }
 
+/** The viewer's role on their trade account — null when not a trade member. */
+export async function viewerTradeRole(ctx: PortalContext): Promise<TradeRole | null> {
+  const trade = ctx.accounts.find((a) => a.account_type === "trade");
+  if (!trade) return null;
+  return (await roleForAccount(ctx.userId, trade.id))?.role ?? null;
+}
+
 export async function getApprovalEstimate(ctx: PortalContext, estimateId: string): Promise<ApprovalEstimate | null> {
   const svc = createServiceClient();
   if (!svc) return null;

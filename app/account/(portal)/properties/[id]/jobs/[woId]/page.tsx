@@ -33,6 +33,7 @@ export default async function TradeJobTimelinePage({ params }: { params: Promise
   const membership = ctx.accounts.length
     ? await roleForAccount(ctx.userId, ctx.accounts.find((a) => a.account_type === "trade")?.id ?? ctx.accounts[0].id)
     : null;
+  if (membership?.role === "finance") redirect("/account/money"); // money and nothing else (§5.6)
   const tradeEvents = await getTradeTimelineEvents(woId, result.project.estimateId, membership?.role);
   const address = [property.address, property.suburb].filter(Boolean).join(", ") || "this property";
 

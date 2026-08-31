@@ -18,6 +18,7 @@ import ProductsManager, { type ProductRow } from "./ProductsManager";
 import ColoursManager, { type ColourRow } from "./ColoursManager";
 import DocumentsManager, { type CompanyDocRow } from "./DocumentsManager";
 import TradeAccountsManager from "./TradeAccountsManager";
+import ColourCardSettings from "./ColourCardSettings";
 import PresentationsManager, { type PresentationRow } from "./PresentationsManager";
 import { DEFAULT_INCLUSION_TEMPLATES, DEFAULT_EXCLUSION_TEMPLATES, INCLUSION_TEMPLATES_KEY, EXCLUSION_TEMPLATES_KEY, type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import { SCOPE_VERSION } from "@/lib/extract/scope";
@@ -263,6 +264,9 @@ export default async function SettingsPage() {
 
       <SettingsFolder title="Trade accounts" subtitle="Create a trade login (email + starting password) or grant an existing customer the trade workspace — office-side only, never self-serve">
         <TradeAccountsManager />
+        <div className="mt-4 border-t border-gray-200 pt-4">
+          <ColourCardSettings />
+        </div>
       </SettingsFolder>
 
       <SettingsFolder title="Documents" subtitle="Credentials on display in every customer portal — insurance certificates with expiry, plus the warranty-terms approval switch" count={companyDocs.length}>

@@ -25,6 +25,15 @@ export default async function PortalShellLayout({ children }: { children: React.
 
   const trade = ctx.accounts.some((a) => a.account_type === "trade");
   const orgName = trade ? (ctx.accounts.find((a) => a.account_type === "trade")?.name ?? null) : null;
+  // Session 6: a finance seat sees money and nothing else (§5.6) — the tab
+  // bar narrows here, and the pages themselves redirect too.
+  let financeOnly = false;
+  if (trade) {
+    const { roleForAccount } = await import("@/lib/portal/approvalData");
+    const tradeAccountId = ctx.accounts.find((a) => a.account_type === "trade")!.id;
+    const membership = await roleForAccount(ctx.userId, tradeAccountId);
+    financeOnly = membership?.role === "finance";
+  }
   const initial = (ctx.firstName ?? ctx.email)[0]?.toUpperCase() ?? "?";
   const phone = ctx.companyPhone;
 
@@ -53,7 +62,7 @@ export default async function PortalShellLayout({ children }: { children: React.
           <Link href="/account/profile" className="avatar" aria-label="My profile">{initial}</Link>
         </div>
       </header>
-      <AccountTabs trade={trade} />
+      <AccountTabs trade={trade} financeOnly={financeOnly} />
       <main className="scroll">{children}</main>
     </div>
   );

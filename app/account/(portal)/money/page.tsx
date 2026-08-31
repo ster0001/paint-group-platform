@@ -15,6 +15,19 @@ export default async function MoneyPage() {
   const ctx = await getPortalContext();
   if (!ctx) redirect("/account/login");
 
+  // Trade portal v2 session 6: trade accounts get the §5.6 portfolio money
+  // view — receivables per property, references on every line, statement +
+  // CSV. Residential keeps the 3a-3 page below, untouched.
+  if (ctx.accounts.some((a) => a.account_type === "trade")) {
+    const { getTradeMoney } = await import("@/lib/portal/tradeData");
+    const view = await getTradeMoney(ctx, "trade");
+    if (view) {
+      const { default: TradeMoneyScreen } = await import("./TradeMoneyScreen");
+      const orgName = ctx.accounts.find((a) => a.account_type === "trade")?.name?.trim() || "Your organisation";
+      return <TradeMoneyScreen view={view} orgName={orgName} />;
+    }
+  }
+
   const { estimates, invoices, payments } = await getPortalMoney(ctx.accounts.map((a) => a.id));
   const today = melbourneTodayYmd();
   const jobs = buildMoneyView(estimates, invoices, payments, today);

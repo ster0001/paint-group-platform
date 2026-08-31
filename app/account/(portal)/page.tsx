@@ -26,8 +26,11 @@ export default async function AccountHomePage({
   const ctx = await getPortalContext();
   if (!ctx) redirect("/account/login");
 
-  // A trade account gets the property-spine portfolio (trade portal v2 §5.1).
+  // A trade account gets the property-spine portfolio (trade portal v2 §5.1);
+  // a finance seat lands on the money view and nothing else (§5.6).
   if (ctx.accounts.some((a) => a.account_type === "trade")) {
+    const { viewerTradeRole } = await import("@/lib/portal/approvalData");
+    if ((await viewerTradeRole(ctx)) === "finance") redirect("/account/money");
     return <TradePortfolioHome ctx={ctx} />;
   }
 

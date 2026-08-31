@@ -87,6 +87,33 @@ export async function getTradePortfolio(ctx: PortalContext, view: "trade"): Prom
   });
 }
 
+// ---- portfolio money (§5.6) -------------------------------------------------
+
+import { buildTradeMoney, type TradeMoneyView } from "./tradeMoney";
+
+export async function getTradeMoney(ctx: PortalContext, view: "trade"): Promise<TradeMoneyView | null> {
+  if (view !== "trade") return null;
+  const svc = createServiceClient();
+  if (!svc) return null;
+  const accountIds = ctx.accounts.map((a) => a.id);
+  const propertyIds = ctx.properties.map((p) => p.id);
+  const [money, estRes, refsRes] = await Promise.all([
+    getPortalMoney(accountIds),
+    svc.from("estimates").select("id, property_id").in("account_id", accountIds),
+    propertyIds.length
+      ? svc.from("property_references").select("property_id, label, value, sort").in("property_id", propertyIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+  return buildTradeMoney({
+    properties: ctx.properties,
+    references: (refsRes.data ?? []) as Array<{ property_id: string; label: string; value: string; sort: number }>,
+    estimates: (estRes.data ?? []) as Array<{ id: string; property_id: string | null }>,
+    invoices: money.invoices,
+    payments: money.payments,
+    todayYmd: melbourneTodayYmd(),
+  });
+}
+
 // ---- timeline: the extra events trade users see (§5.3) ----------------------
 
 export type TradeTimelineEvent = {

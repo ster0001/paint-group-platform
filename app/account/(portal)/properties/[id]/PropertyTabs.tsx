@@ -9,10 +9,13 @@ import { useState, type ReactNode } from "react";
  */
 const TABS = ["Progress", "Colours", "Money", "Documents"] as const;
 
-export default function PropertyTabs({ progress, colours, money, documents }: {
+export default function PropertyTabs({ progress, colours, money, documents, initialTab }: {
   progress: ReactNode; colours: ReactNode; money: ReactNode; documents: ReactNode;
+  /** ?tab= deep links (the colour card PDF's touch-up link lands on Colours). */
+  initialTab?: string;
 }) {
-  const [on, setOn] = useState<(typeof TABS)[number]>("Progress");
+  const initial = TABS.find((t) => t.toLowerCase() === initialTab?.toLowerCase()) ?? "Progress";
+  const [on, setOn] = useState<(typeof TABS)[number]>(initial);
   const panes = { Progress: progress, Colours: colours, Money: money, Documents: documents };
   return (
     <>

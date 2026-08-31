@@ -63,11 +63,21 @@ const TRADE_TABS = [
     ),
   },
   TABS[3],
+  {
+    href: "/account/team",
+    label: "Team",
+    icon: (
+      <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-5-6.3" /></svg>
+    ),
+  },
 ];
 
-export default function AccountTabs({ trade = false }: { trade?: boolean }) {
+// A finance seat's whole portal is the money view (§5.6).
+const FINANCE_TABS = [TABS[3]];
+
+export default function AccountTabs({ trade = false, financeOnly = false }: { trade?: boolean; financeOnly?: boolean }) {
   const pathname = usePathname();
-  const tabs = trade ? TRADE_TABS : TABS;
+  const tabs = financeOnly ? FINANCE_TABS : trade ? TRADE_TABS : TABS;
   return (
     <nav className="tabbar" aria-label="Your account">
       {tabs.map((t) => {
