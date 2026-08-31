@@ -255,3 +255,32 @@ describe("applyDoorScope", () => {
     expect(surfaces.find((s) => s.code === "Architrave (1 Side)")?.count).toBe(6);
   });
 });
+
+// ---- walls share (Tom, 31 Aug) ---------------------------------------------
+import { applyWallsShare, customerRoomView } from "./scope-editor";
+
+it("walls share: sets sharePct on the walls line, 100 clears it, tile reads it back", () => {
+  const blocks = [{
+    id: 1, kind: "area", name: "Living room", roomType: "living", L: 5, W: 4, H: 2.7,
+    surfaces: [
+      { id: 2, code: "Walls", label: "Walls", count: 1 },
+      { id: 3, code: "Ceiling", label: "Ceiling", count: 1 },
+    ],
+  }] as never[];
+  const half = applyWallsShare(blocks, 1, 50);
+  if (!half.ok) throw new Error(half.error);
+  const walls = (half.blocks[0] as { surfaces: Array<{ code: string; sharePct?: number }> }).surfaces
+    .find((s) => s.code === "Walls")!;
+  expect(walls.sharePct).toBe(50);
+  const view = customerRoomView(half.blocks[0] as never, []);
+  expect(view.tiles.find((t) => t.key === "walls")?.wallsPct).toBe(50);
+
+  const full = applyWallsShare(half.blocks as never[], 1, 100);
+  if (!full.ok) throw new Error(full.error);
+  const cleared = (full.blocks[0] as { surfaces: Array<{ code: string; sharePct?: number }> }).surfaces
+    .find((s) => s.code === "Walls")!;
+  expect(cleared.sharePct).toBeUndefined();
+
+  expect(applyWallsShare(blocks, 1, 33 as never).ok).toBe(false);
+  expect(applyWallsShare(blocks, 99, 50).ok).toBe(false);
+});

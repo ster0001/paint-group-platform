@@ -40,6 +40,12 @@ export type SurfaceInput = {
   hidden?: boolean;
   measureL?: number | null;
   measureH?: number | null;
+  /** Fraction of the naturally-derived quantity, in whole percent (25/50/
+   * 75/100). Tom, 31 Aug: rooms need "half the walls" without a manual
+   * measurement — the share scales the DERIVED figure only, so it stays
+   * live when dims or heights are later confirmed. Explicit measures and
+   * qtyOverride are absolute and are never scaled. */
+  sharePct?: number | null;
   qtyOverride?: number | null;
   rateOverride?: number | null;
   paintingHrOverride?: number | null;
@@ -263,17 +269,20 @@ export function computeQuantity(item: RateItem | undefined, area: AreaInput, s: 
   } else if (s.measureL != null && s.measureH != null) {
     return s.measureL * s.measureH;
   }
+  // The share applies to DERIVED quantities only (overrides above are
+  // absolute): 50% walls stays 50% after a height or dims confirm.
+  const share = s.sharePct != null && s.sharePct > 0 && s.sharePct < 100 ? s.sharePct / 100 : 1;
   const flat = /ceiling|floor|roof|soffit/i.test(item.sub_category ?? "");
   const { L, W, H } = area;
   if (area.areaType === "surface") {
     // one plane: length × height, or just length for lineal work
-    if (item.unit === "Lineal Metres") return L || 0;
-    return L && H ? L * H : 0;
+    if (item.unit === "Lineal Metres") return (L || 0) * share;
+    return L && H ? L * H * share : 0;
   }
   // a room: walls = perimeter × height, flat surfaces = L × W, lineal = perimeter
-  if (item.unit === "Lineal Metres") return L && W ? 2 * (L + W) : 0;
-  if (flat) return L && W ? L * W : 0;
-  return L && W && H ? 2 * (L + W) * H : 0;
+  if (item.unit === "Lineal Metres") return L && W ? 2 * (L + W) * share : 0;
+  if (flat) return L && W ? L * W * share : 0;
+  return L && W && H ? 2 * (L + W) * H * share : 0;
 }
 
 // ---------------------------------------------------------------------------

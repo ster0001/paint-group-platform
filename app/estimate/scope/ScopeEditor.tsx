@@ -62,11 +62,16 @@ const endsBatch = (body: Record<string, unknown>) =>
 
 /** The door tile's "what comes with each door" segment: value, the label on
  * the button, and how the toast says it back. */
-const DOOR_SCOPE_SEG: Array<["door" | "frame" | "architrave", string, string]> = [
+// Tom, 31 Aug: architraves and frames are one thing to a customer — the
+// third option is gone, and legacy "architrave" answers render as + frame
+// (their priced architrave line stays visible in the room).
+const DOOR_SCOPE_SEG: Array<["door" | "frame", string, string]> = [
   ["door", "Door", "the door only"],
   ["frame", "+ frame", "the door and its frame"],
-  ["architrave", "+ arch.", "the door, frame and architrave"],
 ];
+
+/** Walls share (Tom, 31 Aug): how much of the room's walls gets painted. */
+const WALLS_SEG: Array<[number, string]> = [[100, "All"], [75, "75%"], [50, "50%"], [25, "25%"]];
 
 const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
@@ -656,12 +661,34 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                           {DOOR_SCOPE_SEG.map(([v, short, said]) => (
                             <button
                               key={v}
-                              className={`dsg ${sel(`ds:${room.areaId}`, t.doorScope === v, v) ? "on" : ""}`}
+                              className={`dsg ${sel(`ds:${room.areaId}`, t.doorScope === v || (v === "frame" && t.doorScope === "architrave"), v) ? "on" : ""}`}
                               onClick={() => act(
                                 { action: "room_door_scope", areaId: room.areaId, scope: v },
                                 `ds:${room.areaId}`,
                                 (d) => `${room.name}: ${said}${liveRange && Math.abs(d) >= 100 ? ` — about ${d > 0 ? "+" : "−"}${fmt(Math.abs(d))}` : ""}`,
                                 [`ds:${room.areaId}`, v],
+                              )}
+                            >
+                              {short}
+                            </button>
+                          ))}
+                        </span>
+                      )}
+                      {tileOn(room, t) && t.wallsPct != null && (
+                        // Tom, 31 Aug: "I can't adjust the % of the walls for
+                        // any of the rooms" — now every Walls tile can.
+                        <span className="sd-wseg" onClick={(e) => e.stopPropagation()}>
+                          <i>How much</i>
+                          {WALLS_SEG.map(([pct, short]) => (
+                            <button
+                              key={pct}
+                              className={`dsg ${sel(`ws:${room.areaId}`, t.wallsPct === pct, String(pct)) ? "on" : ""}`}
+                              data-testid={`walls-share-${room.areaId}-${pct}`}
+                              onClick={() => act(
+                                { action: "walls_share", areaId: room.areaId, pct },
+                                `ws:${room.areaId}`,
+                                (d) => `${room.name}: ${pct === 100 ? "all the walls" : `${pct}% of the walls`}${liveRange && Math.abs(d) >= 100 ? ` — about ${d > 0 ? "+" : "−"}${fmt(Math.abs(d))}` : ""}`,
+                                [`ws:${room.areaId}`, String(pct)],
                               )}
                             >
                               {short}

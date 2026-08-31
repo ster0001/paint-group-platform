@@ -62,7 +62,7 @@ const TRADE_TABS = [
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 8v8M8 12h8" /></svg>
     ),
   },
-  TABS[3],
+  { ...TABS[3], label: "Invoicing" },
   {
     href: "/account/team",
     label: "Team",
@@ -73,7 +73,7 @@ const TRADE_TABS = [
 ];
 
 // A finance seat's whole portal is the money view (§5.6).
-const FINANCE_TABS = [TABS[3]];
+const FINANCE_TABS = [{ ...TABS[3], label: "Invoicing" }];
 
 export default function AccountTabs({ trade = false, financeOnly = false }: { trade?: boolean; financeOnly?: boolean }) {
   const pathname = usePathname();

@@ -33,23 +33,23 @@ The seed is idempotent (re-run it any time to reset the walk states); `serve.sh`
 
 **2 · Property** (mockup screen 2 ↔ tap Unit 7/22 Ormond Rd)
 7. Header: address + reference chips (Owner · Elwood Holdings, Your ref · EH-0448).
-8. Progress: six-stage rail, start/expected finish, surfaces done, "Open full timeline", job history.
+8. Progress: the stage rail (QA folds into On site — internal, never customer-facing), start/expected finish, surfaces done, "Open full timeline", job history.
 9. Colours: cards per record — swatch + code, area, status chips, Hallway = Natural White; Previous section dimmed; **Download colour card (PDF)** (check the where-to-buy line once you've set it in Settings → Trade accounts) and Request a touch-up.
 10. Money: this-job total, paid so far, the property's invoices.
 11. Documents: per-property, then About Paint Group (your $20M cert et al.).
 
 **3 · Timeline** (mockup screen 3 ↔ Progress → "Open full timeline")
-12. Same feed as residential — day groups, photos, PC-approved updates — plus "Colours confirmed & paint ordered" and "Painter confirmed" events where the data exists.
+12. Same feed as residential minus the QA milestone — day groups, photos (seeded on the Ormond job), PC-approved updates — plus "Colours confirmed & paint ordered" and "Painter confirmed" events where the data exists.
 
 **4 · Approve** (mockup screen 4 ↔ Needs you → "Review estimate" at 14 Beaumont St)
 13. References + total + terms line; colours block ("repeat the colour card on file"); **Approve on behalf of the owner** · Send to the owner to approve · Ask a question. Don't tap Approve if you want to keep the walk state — re-run the seed after.
 14. Switch personas: facilities shows "Approve with PO number" + the PO field; insurer shows "Approve against the claim" / "Send to the assessor".
 
-**5 · Money** (mockup screen 5 ↔ Money tab)
+**5 · Invoicing** (mockup screen 5 ↔ Invoicing tab)
 15. Outstanding / overdue tiles; receivables grouped by property, references on every line; Statement (PDF); Export CSV.
 
 **6 · Team** (mockup screen 6 ↔ Team tab as the agency)
-16. People with role, scope, approval limit; per-person Updates routing; invite form; the digest explainer.
+16. People with role and approval limit (seats are org-wide — per-property scoping was removed 31 Aug); per-person Updates routing; invite form; the digest explainer.
 17. Log in as `pg.demo.finance@` — lands on Money, one tab, property pages bounce.
 
 ## Org framing is editable, not hardcoded (your session-7 note)

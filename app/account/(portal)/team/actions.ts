@@ -20,10 +20,12 @@ async function adminContext() {
   return { ctx, accountId: trade.id };
 }
 
+// Tom, 31 Aug: per-property scoping is gone from Team — every seat sees the
+// whole organisation. (The property_scope column and its RLS arms remain in
+// the schema; nothing writes them from here any more.)
 const inviteInput = z.object({
   email: z.string().trim().email().max(200),
   role: z.enum(["admin", "approver", "viewer", "finance"]),
-  propertyIds: z.array(z.string().uuid()).max(200).default([]),
   approvalLimitDollars: z.number().int().min(0).max(10_000_000).nullable().default(null),
 });
 
@@ -60,14 +62,13 @@ export async function inviteTeamMember(raw: unknown): Promise<TeamResult> {
     account_id: admin.accountId,
     profile_id: userId,
     role: parsed.data.role,
-    property_scope: parsed.data.propertyIds.length ? parsed.data.propertyIds : null,
     approval_limit_cents: parsed.data.approvalLimitDollars != null ? parsed.data.approvalLimitDollars * 100 : null,
   };
   const ins = await svc.from("account_users").insert(membership);
   if (ins.error) {
     // Already a member → the invite updates their seat instead.
     const upd = await svc.from("account_users").update({
-      role: membership.role, property_scope: membership.property_scope,
+      role: membership.role,
       approval_limit_cents: membership.approval_limit_cents,
     }).eq("account_id", admin.accountId).eq("profile_id", userId);
     if (upd.error) return { ok: false, message: "Couldn't save that seat." };

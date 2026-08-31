@@ -187,7 +187,7 @@ test.describe("trade money + team + digest (trade portal v2, session 6)", () => 
     await page.goto("/account");
     await page.waitForURL(/\/account\/money/); // home redirects straight to money
     // One tab only.
-    await expect(page.locator(".tabbar a, nav a").filter({ hasText: "Money" })).toHaveCount(1);
+    await expect(page.locator(".tabbar a, nav a").filter({ hasText: "Invoicing" })).toHaveCount(1);
     await expect(page.locator(".tabbar a, nav a").filter({ hasText: "Properties" })).toHaveCount(0);
     // Job-detail surfaces bounce or refuse.
     await page.goto(`/account/properties/${propA}`);
@@ -203,7 +203,6 @@ test.describe("trade money + team + digest (trade portal v2, session 6)", () => 
     await page.goto("/account/team");
     await page.getByTestId("invite-email").fill(invitee);
     await page.getByTestId("invite-role").selectOption("viewer");
-    await page.getByTestId(`invite-scope-${propA}`).check();
     await page.getByTestId("invite-go").click();
     await expect(page.getByText("Invited ✓", { exact: false })).toBeVisible();
 
@@ -214,7 +213,8 @@ test.describe("trade money + team + digest (trade portal v2, session 6)", () => 
     const { data: seat } = await sb.from("account_users")
       .select("role, property_scope").eq("account_id", accountId).eq("profile_id", user!.id).single();
     expect(seat?.role).toBe("viewer");
-    expect(seat?.property_scope).toEqual([propA]);
+    // Tom, 31 Aug: seats are org-wide — invites never write a property scope.
+    expect(seat?.property_scope).toBeNull();
   });
 
   test("digest: scope decides the content, quiet scopes get nothing", async ({ page }) => {

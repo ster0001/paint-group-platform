@@ -15,7 +15,6 @@ export type TeamMember = {
   name: string;
   email: string;
   role: string;
-  scopeLabel: string;
   limitLabel: string | null;
   isYou: boolean;
   digest: "default" | "on" | "off";
@@ -25,12 +24,11 @@ export type TeamMember = {
   invoicesEmail: string;
 };
 
-export function InviteForm({ properties }: { properties: Array<{ id: string; address: string }> }) {
+export function InviteForm() {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("approver");
-  const [scope, setScope] = useState<string[]>([]);
   const [limit, setLimit] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -38,11 +36,10 @@ export function InviteForm({ properties }: { properties: Array<{ id: string; add
     setMsg(null);
     const r = await inviteTeamMember({
       email, role,
-      propertyIds: scope,
       approvalLimitDollars: limit === "" ? null : Number(limit),
     });
     setMsg(r.ok ? "Invited ✓ — they've been emailed a sign-in link." : r.message);
-    if (r.ok) { setEmail(""); setScope([]); setLimit(""); router.refresh(); }
+    if (r.ok) { setEmail(""); setLimit(""); router.refresh(); }
   });
 
   return (
@@ -61,19 +58,6 @@ export function InviteForm({ properties }: { properties: Array<{ id: string; add
           <option value="finance">Finance — invoices and statements only</option>
         </select>
       </label>
-      {role !== "finance" && properties.length > 1 && (
-        <div style={{ margin: "0 0 10px" }}>
-          <span className="sub" style={{ fontSize: 13 }}>Properties (none ticked = all of them)</span>
-          {properties.map((p) => (
-            <label key={p.id} style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6, fontSize: 14 }}>
-              <input type="checkbox" checked={scope.includes(p.id)}
-                onChange={(e) => setScope((s) => e.target.checked ? [...s, p.id] : s.filter((x) => x !== p.id))}
-                data-testid={`invite-scope-${p.id}`} />
-              {p.address}
-            </label>
-          ))}
-        </div>
-      )}
       {(role === "approver" || role === "admin") && (
         <label>Approval limit, $ <span className="sub" style={{ fontSize: 12 }}>(blank = no limit; going over just warns)</span>
           <input className="field" type="number" min={0} value={limit} onChange={(e) => setLimit(e.target.value)}

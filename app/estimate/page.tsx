@@ -45,6 +45,17 @@ export default async function CustomerWizardPage({
     if (!anonymous && profile?.role === "customer" && user.email) memberEmail = user.email;
   }
 
+  // Tom, 31 Aug: a member's account already knows who they are — name and
+  // phone ride the prefill so the contact sub-step never shows for them.
+  let memberName: string | null = null;
+  let memberPhone: string | null = null;
+  if (memberEmail) {
+    const { data: acct } = await supabase
+      .from("accounts").select("name, phone").eq("email", memberEmail.toLowerCase()).maybeSingle();
+    memberName = (acct?.name as string | null)?.trim() || null;
+    memberPhone = (acct?.phone as string | null)?.trim() || null;
+  }
+
   // Prefill from a chosen property: read through the CALLER'S session — RLS
   // (properties_member_select) is the ownership check.
   let prefillAddress: { street: string; suburb: string; state: string; postcode: string; formatted: string } | null = null;
@@ -146,7 +157,12 @@ export default async function CustomerWizardPage({
       substrates={substrates}
       mode="customer"
       logoUrl={company.logoUrl}
-      prefill={memberEmail ? { email: memberEmail, address: prefillAddress } : undefined}
+      prefill={memberEmail ? {
+        email: memberEmail,
+        name: memberName ?? undefined,
+        phone: memberPhone ?? undefined,
+        address: prefillAddress,
+      } : undefined}
       prefillState={prefillState}
     />
   );

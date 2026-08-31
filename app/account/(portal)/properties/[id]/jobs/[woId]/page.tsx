@@ -37,9 +37,16 @@ export default async function TradeJobTimelinePage({ params }: { params: Promise
   const tradeEvents = await getTradeTimelineEvents(woId, result.project.estimateId, membership?.role);
   const address = [property.address, property.suburb].filter(Boolean).join(", ") || "this property";
 
+  // Tom, 31 Aug: QA never renders on the trade timeline — the check is an
+  // internal gate, not a customer event. Residential keeps its milestone.
+  const project = {
+    ...result.project,
+    timeline: { ...result.project.timeline, qaPassedAt: null },
+  };
+
   return (
     <JobTimeline
-      project={result.project}
+      project={project}
       companyPhone={ctx.companyPhone}
       backLink={{ href: `/account/properties/${id}`, label: address }}
       tradeEvents={tradeEvents}

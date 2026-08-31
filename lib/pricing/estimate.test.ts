@@ -323,3 +323,18 @@ test("deposit is a rounded percentage of the GST-inclusive total", () => {
   assert.equal(depositCents(323485, 50), 161743, "half of $3,234.85 rounds to $1,617.43");
   assert.equal(depositCents(1, 50), 1, "rounds half away from zero");
 });
+
+// ---- walls share (Tom, 31 Aug) ---------------------------------------------
+test("sharePct scales derived quantities only — overrides stay absolute", () => {
+  const wallsItem = { unit: "M2", sub_category: "Walls", category: "Interior" } as never;
+  const room = { areaType: "room", L: 5, W: 4, H: 2.5 } as never;
+  const base = { count: 1 } as never;
+  const natural = computeQuantity(wallsItem, room, base);
+  assert.equal(natural, 2 * (5 + 4) * 2.5);
+  assert.equal(computeQuantity(wallsItem, room, { count: 1, sharePct: 50 } as never), natural / 2);
+  assert.equal(computeQuantity(wallsItem, room, { count: 1, sharePct: 25 } as never), natural / 4);
+  assert.equal(computeQuantity(wallsItem, room, { count: 1, sharePct: 100 } as never), natural);
+  // Absolute figures are never scaled.
+  assert.equal(computeQuantity(wallsItem, room, { count: 1, sharePct: 50, qtyOverride: 30 } as never), 30);
+  assert.equal(computeQuantity(wallsItem, room, { count: 1, sharePct: 50, measureL: 6, measureH: 2 } as never), 12);
+});

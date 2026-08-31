@@ -34,6 +34,8 @@ export type CustomerTile = {
   surfaceId?: number;
   /** Doors only: what's included with each door in THIS room. */
   doorScope?: DoorScope;
+  /** Walls only (Tom, 31 Aug): how much of the room's walls — 100/75/50/25. */
+  wallsPct?: number;
 };
 
 export type CustomerScopeRoom = {
@@ -114,17 +116,20 @@ export function customerRoomView(block: LooseBlock, rules: ScopeRule[]): Custome
     let on = false;
     let count = 0;
     let styleToConfirm = false;
+    let sharePct: number | undefined;
     for (const s of surfaces) {
       const k = substrateKeyForRateCode(String(s.code ?? ""));
       if (k === key) {
         on = true;
         count += Number(s.count) || 1;
+        const sp = Number((s as { sharePct?: unknown }).sharePct);
+        if ([25, 50, 75].includes(sp)) sharePct = sp;
         // ai_assumed + assumed style = priced at the default rate (R1.2).
         const assumed = Array.isArray(s.assumedFields) ? (s.assumedFields as string[]) : [];
         if (s.origin === "ai_assumed" && assumed.includes("style")) styleToConfirm = true;
       }
     }
-    return { on, count: Math.max(1, count), styleToConfirm };
+    return { on, count: Math.max(1, count), styleToConfirm, sharePct };
   };
 
   const scope = roomDoorScope(block);
@@ -142,6 +147,7 @@ export function customerRoomView(block: LooseBlock, rules: ScopeRule[]): Custome
       ...(countable ? { count: st.count } : {}),
       ...(st.styleToConfirm ? { styleToConfirm: true } : {}),
       ...(key === "doors" ? { doorScope: scope } : {}),
+      ...(key === "walls" && st.on ? { wallsPct: st.sharePct ?? 100 } : {}),
       countable,
       // A core surface is never buried in the tail: the whole point is that
       // it is visible and one tap away in every room.
@@ -272,6 +278,35 @@ export function applyToggle(
     const withArch = applyDoorScope(out, areaId, "architrave", nextId);
     if (withArch.ok) return withArch;
   }
+  return { ok: true, blocks: out };
+}
+
+/** Walls share for one room (Tom, 31 Aug): 100/75/50/25% of the room's
+ * walls. Rides `sharePct` on the walls line — lib/pricing scales the
+ * DERIVED perimeter×height, so the share survives later dims/height
+ * confirms. 100 clears the field (natural quantity). */
+export function applyWallsShare(
+  blocks: LooseBlock[],
+  areaId: number,
+  pct: number,
+): ScopeToggleResult {
+  if (![25, 50, 75, 100].includes(pct)) return { ok: false, error: "Shares are 25 / 50 / 75 / 100%." };
+  const idx = blocks.findIndex((b) => b.kind === "area" && Number(b.id) === areaId);
+  if (idx < 0) return { ok: false, error: "No such room." };
+  const block = { ...blocks[idx] };
+  const surfaces = Array.isArray(block.surfaces) ? [...block.surfaces] : [];
+  let found = false;
+  block.surfaces = surfaces.map((s) => {
+    if (substrateKeyForRateCode(String(s.code ?? "")) !== "walls") return s;
+    found = true;
+    const next = { ...s };
+    if (pct === 100) delete next.sharePct;
+    else next.sharePct = pct;
+    return next;
+  });
+  if (!found) return { ok: false, error: "Walls aren't on this room." };
+  const out = [...blocks];
+  out[idx] = block;
   return { ok: true, blocks: out };
 }
 

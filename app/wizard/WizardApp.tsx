@@ -69,6 +69,10 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    * closer to a price. */
   prefill?: {
     email: string;
+    /** Trade members (Tom, 31 Aug): the account already knows who they are —
+     * name and phone prefill and the contact sub-step never shows. */
+    name?: string;
+    phone?: string;
     address: { street: string; suburb: string; state: string; postcode: string; formatted: string } | null;
   };
   /** 3a-7: one-tap rebook (§6 W3) — a prior job's SANITISED wizard answers
@@ -89,6 +93,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             postcode: prefill?.address?.postcode ?? seed.customer?.postcode ?? "",
           },
           address: prefill?.address ?? seed.address,
+          contact: {
+            name: prefill?.name ?? seed.contact?.name ?? "",
+            email: prefill?.email ?? seed.contact?.email ?? "",
+            phone: prefill?.phone ?? seed.contact?.phone ?? "",
+          },
         }
       : seed;
     return prefillState
@@ -143,7 +152,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   /** C15: the contact sub-step sits at the top of page 2 for customers. It is
    *  a sub-step rather than a page so the dots do not gain a sixth spot for
    *  something that takes ten seconds. Once past, it never returns. */
-  const [contactDone, setContactDone] = useState(false);
+  const [contactDone, setContactDone] = useState(
+    // A signed-in member whose account already carries all three details is
+    // never asked again (Tom, 31 Aug).
+    Boolean(prefill?.email && prefill?.name?.trim() && (prefill?.phone ?? "").replace(/[^0-9]/g, "").length >= 8),
+  );
 
   // 2.4 · record the arrival once, on mount. First touch writes itself only
   // the first time; last touch moves every visit. Wrapped in the helper, which
@@ -1169,9 +1182,8 @@ function PageDetails({ state, set, damageInputRef, hasPlanRuns, isCustomer = fal
         options={[
           { v: "door" as const, label: "Door only" },
           { v: "frame" as const, label: "Door + frame" },
-          { v: "architrave" as const, label: "+ architrave" },
         ]}
-        value={d.doorScope ?? "frame"}
+        value={(d.doorScope ?? "frame") === "architrave" ? "frame" : (d.doorScope ?? "frame")}
         onPick={(v) => set({ details: { ...d, doorScope: v } })}
       />
 

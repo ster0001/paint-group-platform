@@ -14,9 +14,11 @@ export const dynamic = "force-dynamic";
  * ids too — don't confirm existence).
  */
 
-const RAIL = ["Offer", "Pre-start", "On site", "QA", "Walkthrough", "Closed"] as const;
+// Tom, 31 Aug: QA is OURS — it never renders as a customer-facing stage.
+// The quality check folds into On site, exactly like completion_prep.
+const RAIL = ["Offer", "Pre-start", "On site", "Walkthrough", "Closed"] as const;
 const STAGE_IDX: Record<string, number> = {
-  offered: 0, pre_start: 1, in_progress: 2, completion_prep: 2, qa: 3, walkthrough: 4, closed: 5,
+  offered: 0, pre_start: 1, in_progress: 2, completion_prep: 2, qa: 2, walkthrough: 3, closed: 4,
 };
 
 const COLOUR_CHIP: Record<string, { cls: string; label: string }> = {

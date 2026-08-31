@@ -78,6 +78,10 @@ async function destroyOrg(email) {
     if (estIds.length) {
       const { data: wos } = await db.from("work_orders").select("id").in("estimate_id", estIds);
       for (const w of wos ?? []) {
+        const { data: objs } = await db.storage.from("wo-photos").list(`demo-trade/${w.id}`);
+        if (objs?.length) await db.storage.from("wo-photos").remove(objs.map((o) => `demo-trade/${w.id}/${o.name}`));
+        await db.from("wo_photos").delete().eq("work_order_id", w.id);
+        await db.from("wo_updates").delete().eq("work_order_id", w.id);
         await db.from("wo_surfaces").delete().eq("work_order_id", w.id);
         await db.from("wo_checklist_items").delete().eq("work_order_id", w.id);
         await db.from("wo_events").delete().eq("work_order_id", w.id);
@@ -199,7 +203,49 @@ await makeColours(beaumont, [
 ]);
 
 const ormond = await makeProperty(agency, "Unit 7/22 Ormond Rd", "Elwood", "3184", [["Owner", "Elwood Holdings Pty Ltd"], ["Your ref", "EH-0448"]]);
-await makeJob(agency, ormond, "Full interior", { woStage: "in_progress", start: day(-1), end: day(2), surfaces: { done: 11, total: 24 } });
+const ormondJob = await makeJob(agency, ormond, "Full interior", { woStage: "in_progress", start: day(-1), end: day(2), surfaces: { done: 11, total: 24 } });
+
+// The living timeline (Tom, 31 Aug: "it looks very bland without images"):
+// generated site photos, a PC-approved daily update, and the colours-
+// confirmed event — the same records a real job writes.
+{
+  const woId = ormondJob.woId;
+  const { chromium } = await import("playwright");
+  const browser = await chromium.launch();
+  const pg = await browser.newPage({ viewport: { width: 640, height: 480 } });
+  const scenes = [
+    ["before", "Bedroom 1 · before", "linear-gradient(160deg,#b8b1a2,#d8d2c4 55%,#8f887b)"],
+    ["progress", "Bedroom 1 · first coat on", "linear-gradient(160deg,#e4dfd3,#f2efe7 55%,#c9c3b5)"],
+    ["progress", "Hallway · prepped & sanded", "linear-gradient(200deg,#cfc9bd,#e7e2d6 50%,#a29b8e)"],
+  ];
+  let i = 0;
+  for (const [kind, label, bg] of scenes) {
+    await pg.setContent(`<div style="width:640px;height:480px;background:${bg};position:relative;font-family:-apple-system,sans-serif">
+      <div style="position:absolute;top:52px;left:44px;right:44px;height:240px;border:2px dashed rgba(0,0,0,.14);border-radius:10px"></div>
+      <div style="position:absolute;top:120px;left:0;right:0;text-align:center;color:rgba(0,0,0,.28);font-size:15px">demo site photo</div>
+      <div style="position:absolute;left:0;right:0;bottom:0;height:76px;background:linear-gradient(transparent,rgba(0,0,0,.5))"></div>
+      <div style="position:absolute;left:16px;bottom:14px;color:#fff;font-size:19px">${label}</div>
+    </div>`);
+    const png = await pg.screenshot({ type: "png" });
+    const path = `demo-trade/${woId}/${i++}.png`;
+    await must(db.storage.from("wo-photos").upload(path, png, { contentType: "image/png", upsert: true }), "photo upload");
+    await must(db.from("wo_photos").insert({
+      work_order_id: woId, kind, area: label.split(" ·")[0], caption: label, storage_path: path,
+    }), "photo row");
+  }
+  await browser.close();
+  await must(db.from("wo_updates").insert({
+    work_order_id: woId, for_date: day(0),
+    draft_text: "Bedrooms 1 and 2 have their first coat on walls and ceilings. The hallway is sanded and filled ready for tomorrow. On track to finish as planned.",
+    final_text: "Bedrooms 1 and 2 have their first coat on walls and ceilings. The hallway is sanded and filled ready for tomorrow. On track to finish as planned.",
+    status: "sent", sent_at: new Date().toISOString(),
+  }), "daily update");
+  await must(db.from("wo_checklist_items").insert({
+    work_order_id: woId, phase: "pre_start", label: "Colour schedule finalised",
+    detail: "", required: true, sort: 1, kind: "yes_no", item_key: "colours",
+    answer: "yes", done_at: new Date(Date.now() - 2 * 86400e3).toISOString(),
+  }), "colours item");
+}
 await makeColours(ormond, [
   { area: "Walls — all rooms", type: "wall", name: "Natural White", hex: "#f1ede4", code: "SW1 P4", on: day(-1) },
   { area: "Ceilings", type: "ceiling", name: "Ceiling White", hex: "#ffffff", code: "SW1 P8", product: "Ceiling White", sheen: "flat", on: day(-1) },

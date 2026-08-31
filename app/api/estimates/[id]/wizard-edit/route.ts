@@ -11,7 +11,7 @@ import { applyWizardAnswers } from "@/lib/wizard/merge";
 import { wizardStateSchema } from "@/lib/wizard/state";
 import { markStarterProvenance, starterExtraction, type TypicalSizeRow } from "@/lib/wizard/starter";
 import {
-  applyCount, applyDoorScope, applyExtent, applyExteriorToggle, applyFenceLength, applyRename, applyToggle,
+  applyCount, applyDoorScope, applyExtent, applyExteriorToggle, applyFenceLength, applyRename, applyToggle, applyWallsShare,
   customerExteriorView, customerScopeRooms, offeredVisitSlots,
 } from "@/lib/wizard/scope-editor";
 import {
@@ -88,6 +88,8 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("rename_room"), areaId: z.number().int().positive(), name: z.string().min(1).max(60) }),
   /** What comes with each door in one room — door · door+frame · +architrave. */
   z.object({ action: z.literal("room_door_scope"), areaId: z.number().int().positive(), scope: z.enum(["door", "frame", "architrave"]) }),
+  /** Tom, 31 Aug: how much of the room's walls — 100/75/50/25%. */
+  z.object({ action: z.literal("walls_share"), areaId: z.number().int().positive(), pct: z.union([z.literal(25), z.literal(50), z.literal(75), z.literal(100)]) }),
   /** Free text → an amber estimator note. NEVER silently priced. */
   z.object({ action: z.literal("add_note"), areaId: z.number().int().positive().nullable().default(null), note: z.string().min(1).max(500) }),
   /** "Not right? Tell us" — flags the job non-straightforward. */
@@ -395,7 +397,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     // ---- Part B: customer scope actions — pure helpers, then reprice --------
     if (act.action === "toggle_surface" || act.action === "set_count" || act.action === "rename_room"
-      || act.action === "room_door_scope") {
+      || act.action === "room_door_scope" || act.action === "walls_share") {
       const snap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
       const snapshot = snap.success ? snap.data : null;
       let next = Math.max(0, ...blocks.flatMap((b) => [
@@ -406,6 +408,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         act.action === "toggle_surface" ? applyToggle(blocks, act.areaId, act.key, act.on, snapshot, () => next++)
         : act.action === "set_count" ? applyCount(blocks, act.areaId, act.key, act.count)
         : act.action === "room_door_scope" ? applyDoorScope(blocks, act.areaId, act.scope, () => next++)
+        : act.action === "walls_share" ? applyWallsShare(blocks, act.areaId, act.pct)
         : applyRename(blocks, act.areaId, act.name);
       if (!result.ok) return { error: result.error, status: 400 };
       blocks = result.blocks as LooseBlock[];
