@@ -18,15 +18,36 @@
  *   pg.demo.volume@example.com      — Volume Portfolio Org: 40 properties
  *     with references + colour records (the <1.5 s render acceptance).
  */
+import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import { loadTestEnv, refuseProduction } from "../c1/env.mjs";
 
-loadTestEnv();
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!url || !key) { console.error("Missing test-stack env — see .env.test.local"); process.exit(1); }
-refuseProduction(url);
-console.log(`Seeding trade demo on ${url.match(/https:\/\/([a-z0-9]+)\./)?.[1]}`);
+// --prod seeds the LIVE project as a showcase (the Margaret precedent):
+// reads .env.local itself, still gated on SEED_ALLOW_PRODUCTION=1, titles
+// prefixed [DEMO] so staff dashboards read honestly, and the volume org is
+// skipped. --destroy removes the demo orgs from whichever target.
+const PROD = process.argv.includes("--prod");
+const DESTROY = process.argv.includes("--destroy");
+let url, key;
+if (PROD) {
+  if (process.env.SEED_ALLOW_PRODUCTION !== "1") {
+    console.error("REFUSED: --prod needs SEED_ALLOW_PRODUCTION=1 — Tom runs this himself.");
+    process.exit(1);
+  }
+  const env = Object.fromEntries(readFileSync(new URL("../../.env.local", import.meta.url), "utf8")
+    .split("\n").filter((l) => l.includes("=") && !l.startsWith("#"))
+    .map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1).replace(/^["']|["']$/g, "")]));
+  url = env.NEXT_PUBLIC_SUPABASE_URL;
+  key = env.SUPABASE_SERVICE_ROLE_KEY;
+} else {
+  loadTestEnv();
+  url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (url) refuseProduction(url);
+}
+if (!url || !key) { console.error(PROD ? "Missing env in .env.local" : "Missing test-stack env — see .env.test.local"); process.exit(1); }
+const T = PROD ? "[DEMO] " : ""; // staff dashboards must read honestly in prod
+console.log(`${DESTROY ? "Removing" : "Seeding"} trade demo on ${url.match(/https:\/\/([a-z0-9]+)\./)?.[1]}${PROD ? "  ⚠ PRODUCTION" : ""}`);
 
 const db = createClient(url, key, { auth: { persistSession: false } });
 const PASSWORD = "painttest123";
@@ -129,7 +150,7 @@ async function makeColours(propertyId, rows) {
 
 async function makeJob(accountId, propertyId, title, { status = "accepted", woStage = null, start = null, end = null, surfaces = null, sent = null } = {}) {
   const est = await must(db.from("estimates").insert({
-    title, status, source: "manual", level_of_finish: 3,
+    title: `${T}${title}`, status, source: "manual", level_of_finish: 3,
     account_id: accountId, property_id: propertyId,
     total_cents: 693000, share_token: status === "sent" ? `demo${Math.random().toString(36).slice(2, 14)}` : null,
     sent_at: sent, builder_state: {},
@@ -156,6 +177,14 @@ async function makeJob(accountId, propertyId, title, { status = "accepted", woSt
     }
   }
   return { estimateId: est.id, woId };
+}
+
+const DEMO_EMAILS = ["pg.demo.agency@example.com", "pg.demo.facilities@example.com", "pg.demo.insurer@example.com", "pg.demo.volume@example.com"];
+if (DESTROY) {
+  for (const email of DEMO_EMAILS) await destroyOrg(email);
+  await destroyOrgUserOnly("pg.demo.finance@example.com");
+  console.log("Demo orgs removed.");
+  process.exit(0);
 }
 
 // ---- the agency (the mockup walk) -------------------------------------------
@@ -249,7 +278,8 @@ for (let i = 0; i < 7; i++) {
   else await makeJob(insurer, pid, "Claim repaint", { woStage: "closed" });
 }
 
-// ---- the 40-property volume org (render-time acceptance) --------------------
+// ---- the 40-property volume org (render-time acceptance; TEST ONLY) ---------
+if (!PROD) {
 const volume = await makeOrg({ email: "pg.demo.volume@example.com", name: "Volume Portfolio Org", orgKind: "real_estate" });
 for (let i = 0; i < 40; i++) {
   const pid = await makeProperty(volume, `${100 + i} Portfolio Rd`, "Preston", "3072", [["Owner", `Owner ${i + 1}`], ["Your ref", `VP-${1000 + i}`]]);
@@ -267,6 +297,8 @@ for (let i = 0; i < 40; i++) {
   } else {
     await makeJob(volume, pid, `Repaint ${100 + i} Portfolio Rd`, { woStage: "closed" });
   }
+}
+
 }
 
 console.log("\nSeeded:");
