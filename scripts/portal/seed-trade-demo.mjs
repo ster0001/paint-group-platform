@@ -80,6 +80,15 @@ async function destroyOrg(email) {
   if (u) await db.auth.admin.deleteUser(u.id);
 }
 
+async function destroyOrgUserOnly(email) {
+  const { data: users } = await db.auth.admin.listUsers({ perPage: 1000 });
+  const u = users?.users?.find((x) => x.email === email);
+  if (u) {
+    await db.from("account_users").delete().eq("profile_id", u.id);
+    await db.auth.admin.deleteUser(u.id);
+  }
+}
+
 async function makeOrg({ email, name, orgKind }) {
   await destroyOrg(email);
   const user = await must(await db.auth.admin.createUser({ email, password: PASSWORD, email_confirm: true }), "user");
@@ -189,11 +198,33 @@ await makeColours(mitford, [
   { area: "Trims", type: "trim", name: "Vivid White", hex: "#f9f8f4", on: day(-19) },
 ]);
 
+// The 10-second colour question: "what colour is the hallway at 22 Ormond Rd?"
+await makeColours(ormond, [
+  { area: "Hallway", type: "wall", name: "Natural White", hex: "#f1ede4", code: "SW1 P4", on: day(-1) },
+]);
+
 const broadway = await makeProperty(agency, "28 Broadway", "Elwood", "3184", []);
 await makeColours(broadway, [
   { area: "Walls — all rooms", type: "wall", name: "Hog Bristle Quarter", hex: "#e6e1d5", on: day(-280), lossy: true },
   { area: "Trims", type: "trim", name: "Vivid White", hex: "#f2efe8", on: day(-280), lossy: true },
 ]);
+
+// 7 more quiet properties with colour cards on file → 12 in all (brief §7).
+for (let i = 0; i < 7; i++) {
+  const pid = await makeProperty(agency, `${41 + i} Ruskin St`, "Elwood", "3184", [["Owner", `Owner ${i + 1}`]]);
+  await makeColours(pid, [
+    { area: "Walls — all rooms", type: "wall", name: "Hog Bristle Quarter", hex: "#e6e1d5", on: day(-120 - i * 10), lossy: true },
+    { area: "Trims", type: "trim", name: "Vivid White", hex: "#f2efe8", on: day(-120 - i * 10), lossy: true },
+  ]);
+  await makeJob(agency, pid, `Repaint ${41 + i} Ruskin St`, { woStage: "closed" });
+}
+
+// A finance seat on the agency — the money-only login for the walkthrough.
+{
+  await destroyOrgUserOnly("pg.demo.finance@example.com");
+  const fin = await must(await db.auth.admin.createUser({ email: "pg.demo.finance@example.com", password: PASSWORD, email_confirm: true }), "finance user");
+  await must(db.from("account_users").insert({ account_id: agency, profile_id: fin.user.id, role: "finance" }), "finance seat");
+}
 
 // ---- facilities + insurer (the persona label proof) -------------------------
 const facilities = await makeOrg({ email: "pg.demo.facilities@example.com", name: "Bayside Aged Care — Facilities", orgKind: "facilities" });
@@ -201,11 +232,22 @@ const blockB = await makeProperty(facilities, "Elwood Village, Block B", "Elwood
 await makeJob(facilities, blockB, "Corridor repaint — Block B", { woStage: "in_progress", start: day(-1), end: day(3), surfaces: { done: 5, total: 18 } });
 await makeColours(blockB, [{ area: "Corridor walls", type: "wall", name: "Whisper White", hex: "#f2f0ea", on: day(-1) }]);
 await makeProperty(facilities, "Elwood Village, Block C", "Elwood", "3184", [["Site", "Elwood Village, Block C"], ["PO", "BAC-2026-0731"]]);
+for (let i = 0; i < 4; i++) {
+  const pid = await makeProperty(facilities, `Elwood Village, Block ${"DEFG"[i]}`, "Elwood", "3184", [["Site", `Elwood Village, Block ${"DEFG"[i]}`], ["PO", `BAC-2026-07${40 + i}`]]);
+  if (i === 0) await makeJob(facilities, pid, "Common-area repaint", { status: "sent", sent: new Date().toISOString() });
+  else await makeJob(facilities, pid, `Block ${"DEFG"[i]} maintenance repaint`, { woStage: "closed" });
+}
 
 const insurer = await makeOrg({ email: "pg.demo.insurer@example.com", name: "Southern Cross Claims", orgKind: "insurance" });
 const claim1 = await makeProperty(insurer, "41 Foam St", "Elwood", "3184", [["Claim", "SC-44810-M"], ["Assessor", "P. Ryan"]]);
 await makeJob(insurer, claim1, "Water damage — ceiling & walls", { woStage: "pre_start", start: day(4) });
 await makeProperty(insurer, "8 Docker St", "Richmond", "3121", [["Claim", "SC-44502-M"], ["Assessor", "P. Ryan"]]);
+for (let i = 0; i < 7; i++) {
+  const pid = await makeProperty(insurer, `${12 + i} Ashworth Ave`, "Brighton", "3186", [["Claim", `SC-448${20 + i}-M`], ["Assessor", "P. Ryan"]]);
+  if (i === 0) await makeJob(insurer, pid, "Storm damage — ceilings", { woStage: "in_progress", start: day(-1), end: day(2), surfaces: { done: 4, total: 12 } });
+  else if (i < 3) await makeJob(insurer, pid, "Water damage repaint", { status: "sent", sent: new Date().toISOString() });
+  else await makeJob(insurer, pid, "Claim repaint", { woStage: "closed" });
+}
 
 // ---- the 40-property volume org (render-time acceptance) --------------------
 const volume = await makeOrg({ email: "pg.demo.volume@example.com", name: "Volume Portfolio Org", orgKind: "real_estate" });
@@ -231,4 +273,5 @@ console.log("\nSeeded:");
 console.log("  pg.demo.agency@example.com      / painttest123  (Harbourside — the mockup walk)");
 console.log("  pg.demo.facilities@example.com  / painttest123  (Site/PO labels)");
 console.log("  pg.demo.insurer@example.com     / painttest123  (Claim/Assessor labels)");
+console.log("  pg.demo.finance@example.com     / painttest123  (finance seat on Harbourside — money only)");
 console.log("  pg.demo.volume@example.com      / painttest123  (40 properties — perf)");
