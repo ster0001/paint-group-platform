@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { evaluateSegment } from "@/lib/crm/segments";
 import { loadSegments } from "@/lib/crm/segmentsStore";
 import { loadSubjects } from "@/lib/crm/loadSubjects";
+import SubNav from "../SubNav";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,7 @@ export default async function SegmentsPage() {
 
   return (
     <>
+      <SubNav />
       <h2>Lists</h2>
       <p className="sub">
         Build a list once and every campaign, count and report reads the same one. The rules can ask

@@ -7,6 +7,7 @@ These rules are mandatory for all work in this repo. If a task conflicts with a 
 - Shared estimate components take a `mode` prop (staff | customer). Never fork a component into two diverging copies.
 - Contractor-facing HTML must never contain customer pricing, margin, or customer contact details beyond first name + phone. This is enforced in the server render, not by CSS hiding.
 - State machines (estimate status, booking offers, job stages) are Postgres enums with transitions changed only through dedicated server functions that validate the current state. No route sets a status column directly.
+- **One work queue** (CRM shell brief §1, standing rule for every future module): a module that needs to tell a person something emits a work item through `lib/crm/work-queue.ts` — one source function plus a registry entry. It does not build its own outstanding-work list, badge, inbox or queue; two implementations of "what needs attention" is a single-source violation. Work items are DERIVED from facts, never stored — a `work_items` table fails review.
 
 ## Security
 - RLS enabled on EVERY table, no exceptions, including new ones. Every migration that creates a table includes its policies in the same file.

@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { sourceReport, type SourceKey } from "@/lib/crm/attribution";
 import { isWon } from "@/lib/crm/stage";
+import SubNav from "../SubNav";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +55,7 @@ export default async function SourcesPage() {
 
   return (
     <>
+      <SubNav />
       <h2>Where the work comes from</h2>
       <p className="sub">
         First touch. Every enquiry is tagged on arrival — the advert, the search, the referral link —

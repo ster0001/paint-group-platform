@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import CrmTabs from "./CrmTabs";
+import { getWorkQueue } from "./queue";
 import "./crm.css";
 
 export const dynamic = "force-dynamic";
@@ -11,11 +12,12 @@ export const metadata = {
 };
 
 /**
- * The CRM shell — crm-board-mockup.html's top bar and tab rail.
+ * The CRM shell — crm-workflow-simplified-mockup.html's chrome.
  *
- * Five tabs, because five is what the mockup has and a customer who appears
- * later shouldn't move. Only the ones whose session has shipped are live; the
- * rest are visibly "soon" rather than dead links, so nobody taps into a blank.
+ * Four tabs (shell brief §1); everything else is a view of one of them. On a
+ * normal morning only Today should need opening — if something regularly
+ * reaches a person through another tab first, that's a routing defect, not a
+ * preference.
  */
 export default async function CrmLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -29,6 +31,12 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
     timeZone: "Australia/Melbourne", weekday: "long", day: "numeric", month: "long",
   }).format(new Date());
 
+  // The badge is overdue + due-today — "waiting on them" is not a number to
+  // nag anyone with. Shares this render's queue with the Today page via
+  // React cache, then refreshes through /crm/api/badge on navigation.
+  const queue = await getWorkQueue();
+  const badge = queue.counts.byBucket.overdue + queue.counts.byBucket.today;
+
   return (
     <div className="crm">
       <div className="top">
@@ -37,7 +45,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           <span className="brand">Paint Group <em>· CRM</em></span>
           <span className="who">{profile?.name || user.email}</span>
         </div>
-        <CrmTabs />
+        <CrmTabs initialCount={badge} />
       </div>
       <div className="wrap">
         <p className="eyebrow">{today}</p>

@@ -106,6 +106,8 @@ const RENDER: Record<CrmEventType, { label: string; kind: TimelineRow["kind"]; d
     } },
   snoozed: { label: "Snoozed", kind: "activity",
     detail: (p) => join(whenWords(str(p.until)), str(p.reason)) },
+  work_item_dismissed: { label: "Waved away from Today", kind: "activity",
+    detail: (p) => join(str(p.until) ? whenWords(str(p.until)) : "for good", str(p.reason)) },
 
   // ---- the customer reaching in -------------------------------------------
   website_chat: { label: "Chat on the website", kind: "customer",

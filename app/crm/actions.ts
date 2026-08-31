@@ -51,7 +51,7 @@ export async function logActivity(accountId: string, action: LoggableAction, tex
   const { error } = await supabase.rpc("crm_log_event", args);
   if (error) return { ok: false, message: error.message };
 
-  revalidatePath("/crm");
+  revalidatePath("/crm", "layout");
   return { ok: true, message: WORDING[action] };
 }
 
@@ -60,7 +60,7 @@ export async function setTemperature(accountId: string, temperature: "hot" | "wa
   const supabase = await createClient();
   const { error } = await supabase.rpc("crm_set_temperature", { p_account_id: accountId, p_temperature: temperature });
   if (error) return { ok: false, message: error.message };
-  revalidatePath("/crm");
+  revalidatePath("/crm", "layout");
   return { ok: true, message: `Marked ${temperature}.` };
 }
 
@@ -73,8 +73,42 @@ export async function snooze(accountId: string, days: number, reason: string): P
   const supabase = await createClient();
   const { error } = await supabase.rpc("crm_snooze", { p_account_id: accountId, p_until: until, p_reason: reason.trim() || null });
   if (error) return { ok: false, message: error.message };
-  revalidatePath("/crm");
+  revalidatePath("/crm", "layout");
   return { ok: true, message: `Out of the way for ${days} day${days === 1 ? "" : "s"}.` };
+}
+
+/**
+ * Wave a work item away (shell brief §3.7). Derived items can't be "completed"
+ * — the fact completes them — but some legitimately need to go: a duplicate
+ * callback, a rule that fired on something that doesn't apply. The reason is
+ * required and lands on the timeline; `days` null = permanently for this
+ * instance of the fact.
+ */
+export async function dismissWorkItem(
+  itemKey: string,
+  accountId: string | null,
+  days: number | null,
+  reason: string,
+): Promise<CrmResult> {
+  if (accountId != null && !uuid.safeParse(accountId).success) return { ok: false, message: "That isn't a customer id." };
+  if (!reason.trim()) return { ok: false, message: "Say why — repeated dismissals are how we find a wrong rule." };
+  if (days != null && (!Number.isFinite(days) || days < 1 || days > 365)) return { ok: false, message: "Snooze between 1 and 365 days." };
+  const until = days == null ? null : new Date(Date.now() + days * 86_400_000).toISOString();
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("crm_dismiss_work_item", {
+    p_item_key: itemKey, p_reason: reason.trim(), p_account_id: accountId, p_until: until,
+  });
+  if (error) {
+    return {
+      ok: false,
+      message: /does not exist|schema cache/i.test(error.message)
+        ? "Dismissals need migration 20261217 run first."
+        : error.message,
+    };
+  }
+  revalidatePath("/crm", "layout");
+  return { ok: true, message: days == null ? "Gone — and it's on the record why." : `Back in ${days} day${days === 1 ? "" : "s"}.` };
 }
 
 export async function setFollowup(accountId: string, days: number, note: string): Promise<CrmResult> {
@@ -85,6 +119,6 @@ export async function setFollowup(accountId: string, days: number, note: string)
   const supabase = await createClient();
   const { error } = await supabase.rpc("crm_set_followup", { p_account_id: accountId, p_due_at: due, p_note: note.trim() || null });
   if (error) return { ok: false, message: error.message };
-  revalidatePath("/crm");
+  revalidatePath("/crm", "layout");
   return { ok: true, message: days === 0 ? "Reminder set for today." : `Reminder set for ${days} day${days === 1 ? "" : "s"} away.` };
 }

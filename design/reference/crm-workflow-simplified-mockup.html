@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0A0B0D">
+<title>Paint Group — CRM workflow</title>
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0A0B0D;--graphite:#12161A;--raised:#171C21;--line:#242B32;--text:#EDF0F2;--muted:#8C959D;
+--cyan:#3BD8E9;--on-cyan:#03272D;--paint:#2FB9CB;--amber:#E0A83C;--emerald:#2FA46B;--clay:#B3574A;--r:14px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0}
+body{background:var(--ink);color:var(--text);font-family:'Switzer',system-ui,sans-serif;font-weight:500;letter-spacing:-.011em;-webkit-font-smoothing:antialiased;padding-bottom:96px}
+.mono{font-family:'Martian Mono',ui-monospace,monospace;font-weight:500;letter-spacing:-.04em}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:left}
+:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;border-radius:6px}
+.wrap{max-width:700px;margin:0 auto;padding:0 16px}
+
+/* map banner */
+.map{background:var(--graphite);border-bottom:1px solid var(--line);padding:14px 0}
+.mapin{max-width:700px;margin:0 auto;padding:0 16px}
+.maplab{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:9px}
+.flow{display:flex;align-items:stretch;gap:7px;overflow-x:auto;scrollbar-width:none}
+.flow::-webkit-scrollbar{display:none}
+.node{flex:0 0 auto;background:var(--raised);border:1px solid var(--line);border-radius:10px;padding:9px 11px;min-width:104px}
+.node .t{font-size:11.5px;font-weight:600}
+.node .s{font-size:9.5px;color:var(--muted);margin-top:2px;line-height:1.35}
+.node.hub{border-color:var(--cyan);background:rgba(59,216,233,.07)}
+.node.hub .t{color:var(--cyan)}
+.arrow{align-self:center;color:var(--muted);font-size:11px;flex:none}
+
+/* nav */
+.top{position:sticky;top:0;z-index:40;background:rgba(10,11,13,.94);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.tabs{max-width:700px;margin:0 auto;display:flex;gap:4px;padding:11px 16px}
+.tab{flex:1;text-align:center;font-size:12.5px;font-weight:600;color:var(--muted);padding:8px 6px;border-radius:10px;border:1px solid transparent}
+.tab[aria-selected="true"]{color:var(--text);background:var(--raised);border-color:var(--line)}
+.tab .b{display:inline-block;margin-left:5px;background:var(--clay);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:999px;vertical-align:middle}
+.view{display:none;padding-top:18px}
+.view.on{display:block}
+
+h2{font-size:21px;font-weight:600;letter-spacing:-.03em;margin:0}
+.sub{font-size:12.5px;color:var(--muted);margin:5px 0 0;line-height:1.5}
+.slab{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:9px;margin-top:22px}
+.slab i{flex:1;height:1px;background:var(--line)}
+.slab .c{color:var(--muted);opacity:.7}
+.slab.bad{color:var(--clay)}
+
+/* work items */
+.item{display:flex;gap:11px;align-items:flex-start;background:var(--graphite);border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:8px;width:100%;position:relative;overflow:hidden}
+.item::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--line)}
+.item.od::before{background:var(--clay)}
+.item.due::before{background:var(--amber)}
+.item.ok::before{background:var(--cyan)}
+.ico{width:28px;height:28px;border-radius:8px;background:var(--raised);border:1px solid var(--line);display:grid;place-items:center;font-size:12px;flex:none}
+.imain{min-width:0;flex:1}
+.it{font-size:13px;font-weight:600}
+.ib{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.45}
+.iw{font-size:9.5px;color:var(--muted);white-space:nowrap;margin-left:auto;flex:none}
+.iw.bad{color:var(--clay)}
+.src{font-size:9px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);padding:2px 5px;border-radius:5px;margin-right:6px}
+.done{font-size:11px;color:var(--cyan);font-weight:600;margin-top:8px;display:inline-block}
+
+/* filter row */
+.frow{display:flex;gap:6px;margin-top:14px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.frow::-webkit-scrollbar{display:none}
+.f{white-space:nowrap;font-size:11.5px;font-weight:600;padding:7px 12px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.f.on{background:var(--raised);color:var(--text);border-color:#33404b}
+.f .n{opacity:.6;margin-left:5px;font-size:10.5px}
+
+/* toolbar */
+.bar{display:flex;align-items:center;gap:9px;margin-top:14px}
+.seg{display:flex;background:var(--raised);border:1px solid var(--line);border-radius:10px;padding:3px}
+.seg button{font-size:11.5px;font-weight:600;padding:6px 12px;border-radius:7px;color:var(--muted)}
+.seg button.on{background:var(--graphite);color:var(--text)}
+.sortbtn{margin-left:auto;font-size:11.5px;font-weight:600;color:var(--cyan);border:1px solid rgba(59,216,233,.3);padding:8px 12px;border-radius:10px}
+.sortmenu{margin-top:8px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.sopt{display:flex;align-items:center;gap:10px;padding:11px 13px;background:var(--graphite);border-bottom:1px solid var(--line);font-size:12.5px;width:100%}
+.sopt:last-child{border-bottom:0}
+.sopt.on{background:var(--raised)}
+.sopt .tick{margin-left:auto;color:var(--cyan);font-size:12px}
+.sopt small{display:block;font-size:10.5px;color:var(--muted);margin-top:2px;font-weight:500}
+
+/* rows */
+.list{margin-top:12px;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.row{display:flex;align-items:center;gap:12px;padding:12px 13px;background:var(--graphite);border-bottom:1px solid var(--line);width:100%}
+.row:last-child{border-bottom:0}
+.row:hover{background:var(--raised)}
+.av{width:34px;height:34px;border-radius:10px;background:var(--raised);border:1px solid var(--line);display:grid;place-items:center;font-size:11.5px;font-weight:600;flex:none}
+.rn{font-size:13px;font-weight:600}
+.rs{font-size:11px;color:var(--muted);margin-top:3px}
+.rr{margin-left:auto;text-align:right;flex:none}
+.pill{font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;padding:3px 7px;border-radius:6px;border:1px solid var(--line);color:var(--muted)}
+.pill.cy{color:var(--cyan);border-color:rgba(59,216,233,.3)}
+.pill.am{color:var(--amber);border-color:rgba(224,168,60,.3)}
+.rv{font-size:11.5px;font-weight:600;margin-top:5px}
+.age{font-size:10px;color:var(--muted);margin-top:4px}
+.age.bad{color:var(--clay)}
+
+/* campaigns */
+.auto{background:var(--graphite);border:1px solid var(--line);border-radius:12px;padding:13px;margin-top:8px;display:flex;gap:12px;align-items:flex-start}
+.tog{width:38px;height:22px;border-radius:999px;background:#2a333c;border:1px solid var(--line);position:relative;flex:none;margin-top:2px}
+.tog i{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--muted)}
+.tog.on{background:rgba(47,164,107,.2);border-color:var(--emerald)}
+.tog.on i{left:auto;right:2px;background:var(--emerald)}
+.an{font-size:13px;font-weight:600}
+.ad{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.45}
+.stats{display:flex;gap:14px;margin-top:9px;font-size:10.5px;color:var(--muted)}
+.stats b{color:var(--text);font-weight:600;font-family:'Martian Mono',monospace;letter-spacing:-.04em}
+.newbtn{width:100%;border:1px dashed rgba(59,216,233,.35);border-radius:12px;padding:14px;text-align:center;font-size:12.5px;font-weight:600;color:var(--cyan);margin-top:9px}
+.bcast{background:var(--graphite);border:1px solid var(--line);border-radius:12px;padding:13px;margin-top:8px}
+.bhead{display:flex;align-items:baseline;gap:9px}
+.bn{font-size:13px;font-weight:600}
+.bstat{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;padding:3px 7px;border-radius:6px;margin-left:auto}
+.bstat.draft{color:var(--muted);border:1px solid var(--line)}
+.bstat.sched{color:var(--amber);border:1px solid rgba(224,168,60,.3)}
+.bstat.sent{color:var(--emerald);border:1px solid rgba(47,164,107,.3)}
+.bmeta{font-size:11px;color:var(--muted);margin-top:5px;line-height:1.45}
+.res{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:11px}
+.rc{background:var(--raised);padding:9px 8px}
+.rc .n{font-size:13.5px;font-weight:600;letter-spacing:-.03em}
+.rc .l{font-size:9px;color:var(--muted);margin-top:3px}
+.rc.g .n{color:var(--emerald)}
+
+.note{font-size:11px;color:var(--muted);line-height:1.55;background:var(--raised);border:1px solid var(--line);border-radius:11px;padding:12px;margin-top:14px}
+.note b{color:var(--cyan);font-weight:600}
+.foot{font-size:10.5px;color:var(--muted);text-align:center;padding:20px 0 0;line-height:1.5}
+</style>
+</head>
+<body>
+
+<!-- WORKFLOW MAP -->
+<div class="map">
+  <div class="mapin">
+    <div class="maplab">How it fits together</div>
+    <div class="flow">
+      <div class="node"><div class="t">Wizard</div><div class="s">Estimate built</div></div>
+      <span class="arrow">→</span>
+      <div class="node"><div class="t">Customer</div><div class="s">Record + timeline</div></div>
+      <span class="arrow">→</span>
+      <div class="node hub"><div class="t">Today</div><div class="s">Everything needing a human</div></div>
+      <span class="arrow">→</span>
+      <div class="node"><div class="t">Act</div><div class="s">Reply · call · quote · book</div></div>
+      <span class="arrow">↺</span>
+      <div class="node"><div class="t">Campaigns</div><div class="s">When no one acts</div></div>
+    </div>
+  </div>
+</div>
+
+<header class="top">
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-v="today">Today<span class="b">11</span></button>
+    <button class="tab" role="tab" aria-selected="false" data-v="cust">Customers</button>
+    <button class="tab" role="tab" aria-selected="false" data-v="camp">Campaigns</button>
+    <button class="tab" role="tab" aria-selected="false" data-v="diary">Diary</button>
+  </div>
+</header>
+
+<!-- ══ TODAY ══ -->
+<section class="view on" id="today">
+  <div class="wrap">
+    <h2>11 things need you</h2>
+    <p class="sub">Messages, callbacks, follow-ups and approvals — one queue, whatever they came from.</p>
+
+    <div class="frow">
+      <button class="f on">All<span class="n">11</span></button>
+      <button class="f">Messages<span class="n">4</span></button>
+      <button class="f">Follow-ups<span class="n">3</span></button>
+      <button class="f">Approvals<span class="n">2</span></button>
+      <button class="f">Money<span class="n">2</span></button>
+    </div>
+
+    <div class="slab bad">Overdue <span class="c">3</span><i></i></div>
+
+    <button class="item od">
+      <div class="ico">✉</div>
+      <div class="imain">
+        <div class="it"><span class="src">Chat</span>Sarah Mitchell asked a question</div>
+        <div class="ib">Low-odour paint with a baby in the house, and whether the hallway can be done separately.</div>
+        <span class="done">Reply →</span>
+      </div>
+      <div class="iw bad">14 hrs</div>
+    </button>
+
+    <button class="item od">
+      <div class="ico">↻</div>
+      <div class="imain">
+        <div class="it"><span class="src">Follow-up</span>Grant Fowler — snooze expired</div>
+        <div class="ib">You noted: “Deciding after their kitchen is done — call late Aug.” $16,300 exterior.</div>
+        <span class="done">Call →</span>
+      </div>
+      <div class="iw bad">Yesterday</div>
+    </button>
+
+    <button class="item od">
+      <div class="ico">☎</div>
+      <div class="imain">
+        <div class="it"><span class="src">Callback</span>Renata Alves requested a call</div>
+        <div class="ib">Northcote, two rooms. Asked for afternoon. Phone-close — no visit needed.</div>
+        <span class="done">Call →</span>
+      </div>
+      <div class="iw bad">26 hrs</div>
+    </button>
+
+    <div class="slab">Due today <span class="c">5</span><i></i></div>
+
+    <button class="item due">
+      <div class="ico">✉</div>
+      <div class="imain">
+        <div class="it"><span class="src">Email</span>Ashwood Court OC — scope breakdown</div>
+        <div class="ib">Committee wants the quote split by block. They meet on the 12th, need it by the 10th.</div>
+        <span class="done">Reply →</span>
+      </div>
+      <div class="iw">1 day</div>
+    </button>
+
+    <button class="item due">
+      <div class="ico">↻</div>
+      <div class="imain">
+        <div class="it"><span class="src">Follow-up</span>Michael O'Donnell — 9 days silent</div>
+        <div class="ib">Visit done, $22,100 heritage. Wife wants colour samples first. Two calls, one voicemail.</div>
+        <span class="done">Call →</span>
+      </div>
+      <div class="iw">9 days</div>
+    </button>
+
+    <button class="item due">
+      <div class="ico">✦</div>
+      <div class="imain">
+        <div class="it"><span class="src">Approve</span>2 campaign messages waiting</div>
+        <div class="ib">Warranty check-in to Ben &amp; Alice Turner · unfinished-estimate nudge to Renata Alves.</div>
+        <span class="done">Review both →</span>
+      </div>
+      <div class="iw">Queued</div>
+    </button>
+
+    <button class="item due">
+      <div class="ico">$</div>
+      <div class="imain">
+        <div class="it"><span class="src">Invoice</span>Delaney deposit unpaid</div>
+        <div class="ib">$2,310 of $9,240. Job starts Monday.</div>
+        <span class="done">Chase →</span>
+      </div>
+      <div class="iw">3 days</div>
+    </button>
+
+    <div class="slab">Waiting on them <span class="c">3</span><i></i></div>
+
+    <button class="item ok">
+      <div class="ico">◷</div>
+      <div class="imain">
+        <div class="it">Bianca Rossi — revision 2 sent</div>
+        <div class="ib">$19,750. Sent yesterday, not opened yet. Nudge due in 2 days.</div>
+      </div>
+      <div class="iw">1 day</div>
+    </button>
+
+    <div class="note"><b>One queue, not three.</b> An unanswered message, an overdue snooze, a campaign approval and an unpaid deposit all arrive here. Nothing needing a human lives anywhere else.</div>
+  </div>
+</section>
+
+<!-- ══ CUSTOMERS ══ -->
+<section class="view" id="cust">
+  <div class="wrap">
+    <h2>418 customers</h2>
+    <p class="sub">Same list, two shapes. The board is a view, not a separate place.</p>
+
+    <div class="bar">
+      <div class="seg">
+        <button class="on">List</button>
+        <button>Board</button>
+      </div>
+      <button class="sortbtn" id="sortbtn">Quote date ▾</button>
+    </div>
+
+    <div class="sortmenu" id="sortmenu">
+      <button class="sopt on"><div>Quote date — newest first<small>Chase while it's warm</small></div><span class="tick">✓</span></button>
+      <button class="sopt"><div>Quote date — oldest first<small>Rescue the ones going cold</small></div></button>
+      <button class="sopt"><div>Last activity<small>Who you dealt with most recently</small></div></button>
+      <button class="sopt"><div>Value — highest first<small>Where the money is</small></div></button>
+      <button class="sopt"><div>Longest untouched<small>Who's been forgotten</small></div></button>
+    </div>
+
+    <div class="frow">
+      <button class="f on">All<span class="n">418</span></button>
+      <button class="f">Quote sent<span class="n">9</span></button>
+      <button class="f">Live work<span class="n">34</span></button>
+      <button class="f">Past customers<span class="n">312</span></button>
+      <button class="f">Leads<span class="n">41</span></button>
+      <button class="f">Trade &amp; B2B<span class="n">9</span></button>
+    </div>
+
+    <div class="list">
+      <button class="row">
+        <div class="av">BR</div>
+        <div><div class="rn">Bianca Rossi</div><div class="rs">Ivanhoe · interior + exterior · revision 2</div></div>
+        <div class="rr"><span class="pill cy">Quoted 28 Aug</span><div class="rv mono">$19,750</div><div class="age">1 day</div></div>
+      </button>
+      <button class="row">
+        <div class="av">AN</div>
+        <div><div class="rn">Anh Nguyen</div><div class="rs">Footscray · interior, 3 bed</div></div>
+        <div class="rr"><span class="pill cy">Quoted 28 Aug</span><div class="rv mono">$6,980</div><div class="age">1 day</div></div>
+      </button>
+      <button class="row">
+        <div class="av">SM</div>
+        <div><div class="rn">Sarah Mitchell</div><div class="rs">Camberwell · Victorian terrace · opened 3×</div></div>
+        <div class="rr"><span class="pill cy">Quoted 24 Aug</span><div class="rv mono">$8,420</div><div class="age bad">4 days</div></div>
+      </button>
+      <button class="row">
+        <div class="av">MO</div>
+        <div><div class="rn">Michael O'Donnell</div><div class="rs">Kew · heritage · visit done</div></div>
+        <div class="rr"><span class="pill am">Quoted 19 Aug</span><div class="rv mono">$22,100</div><div class="age bad">9 days</div></div>
+      </button>
+      <button class="row">
+        <div class="av">GF</div>
+        <div><div class="rn">Grant Fowler</div><div class="rs">Bentleigh · exterior weatherboard · snooze expired</div></div>
+        <div class="rr"><span class="pill am">Quoted 11 Aug</span><div class="rv mono">$16,300</div><div class="age bad">17 days</div></div>
+      </button>
+    </div>
+
+    <div class="note"><b>Sorting isn't the same as a follow-up queue.</b> This orders the list. The chasing itself is driven by rules — quoted 3 days with no open, opened three times with no reply — and those land in Today automatically.</div>
+  </div>
+</section>
+
+<!-- ══ CAMPAIGNS ══ -->
+<section class="view" id="camp">
+  <div class="wrap">
+    <h2>Campaigns</h2>
+    <p class="sub">Two different things, kept apart. One runs forever, the other you send once.</p>
+
+    <div class="slab">Always on <span class="c">5 running</span><i></i></div>
+
+    <div class="auto">
+      <div class="tog on"><i></i></div>
+      <div>
+        <div class="an">Unfinished estimate</div>
+        <div class="ad">Left the wizard with an email captured → nudge after 48 hours, again after 5 days.</div>
+        <div class="stats"><span><b>6</b> in it</span><span><b>31</b> nudged</span><span><b>9</b> came back</span><span><b>29%</b> recovered</span></div>
+      </div>
+    </div>
+
+    <div class="auto">
+      <div class="tog on"><i></i></div>
+      <div>
+        <div class="an">Quote sent, gone quiet</div>
+        <div class="ad">Opened but no reply after 4 days → one message. No reply after 10 → a second.</div>
+        <div class="stats"><span><b>9</b> in it</span><span><b>44</b> nudged</span><span><b>12</b> replied</span><span><b>27%</b> revived</span></div>
+      </div>
+    </div>
+
+    <div class="auto">
+      <div class="tog on"><i></i></div>
+      <div>
+        <div class="an">Warranty check-ins</div>
+        <div class="ad">12 and 24 months after sign-off. The 24-month one is your best repeat-work moment.</div>
+        <div class="stats"><span><b>84</b> in it</span><span><b>61</b> sent</span><span><b>7</b> new jobs</span><span><b>$54k</b></span></div>
+      </div>
+    </div>
+
+    <div class="auto">
+      <div class="tog"><i></i></div>
+      <div>
+        <div class="an">Repaint cycle</div>
+        <div class="ad">Interior at 6 years, exterior at 8. Paused until you confirm the intervals.</div>
+        <div class="stats"><span>Off · <b>63</b> would qualify</span></div>
+      </div>
+    </div>
+
+    <button class="newbtn">＋ New automation</button>
+
+    <div class="slab">Broadcasts <span class="c">one-off sends</span><i></i></div>
+
+    <div class="bcast">
+      <div class="bhead"><span class="bn">Spring exterior push</span><span class="bstat draft">Draft</span></div>
+      <div class="bmeta">Interior customers with no exterior quoted · 63 people · premium paint at trade price, before 31 Dec</div>
+      <div class="stats" style="margin-top:9px"><span>3 photo slots · <b>1</b> unfilled</span><span><b>2</b> claims to confirm</span></div>
+    </div>
+
+    <div class="bcast">
+      <div class="bhead"><span class="bn">June exterior reminder</span><span class="bstat sent">Sent 12 Jun</span></div>
+      <div class="bmeta">Exteriors completed 7+ years ago · 58 sent</div>
+      <div class="res">
+        <div class="rc"><div class="n mono">58</div><div class="l">Sent</div></div>
+        <div class="rc"><div class="n mono">41%</div><div class="l">Opened</div></div>
+        <div class="rc"><div class="n mono">9</div><div class="l">Clicked</div></div>
+        <div class="rc g"><div class="n mono">$31k</div><div class="l">Won</div></div>
+      </div>
+    </div>
+
+    <button class="newbtn">＋ New broadcast</button>
+
+    <div class="note"><b>No approval queue here.</b> Approving a message is a daily task, so it sits in Today with everything else. This page is only for setting things up and seeing whether they worked.</div>
+  </div>
+</section>
+
+<!-- ══ DIARY ══ -->
+<section class="view" id="diary">
+  <div class="wrap">
+    <h2>Diary</h2>
+    <p class="sub">Visits and jobs. Where the week actually goes.</p>
+
+    <div class="slab">Tomorrow — Bayside <span class="c">3 stops</span><i></i></div>
+    <button class="item ok">
+      <div class="ico">1</div>
+      <div class="imain"><div class="it">David Chen · Brighton East</div><div class="ib">9:00–11:00 · exterior, double storey · $14,900 indicative</div></div>
+      <div class="iw">18 min</div>
+    </button>
+    <button class="item ok">
+      <div class="ico">2</div>
+      <div class="imain"><div class="it">Helen Voss · Hampton</div><div class="ib">11:30–13:30 · interior, 4 rooms</div></div>
+      <div class="iw">12 min</div>
+    </button>
+    <button class="item ok">
+      <div class="ico">3</div>
+      <div class="imain"><div class="it">Ashwood Court OC · Glen Waverley</div><div class="ib">14:30–16:30 · body corporate, 14 units · $46,800</div></div>
+      <div class="iw">—</div>
+    </button>
+
+    <div class="note"><b>Windows go out tonight.</b> The route is solved once the day is set, then each customer gets their narrowed arrival time by text.</div>
+
+    <div class="slab">Jobs running <span class="c">5</span><i></i></div>
+    <button class="item due">
+      <div class="ico">◐</div>
+      <div class="imain"><div class="it">Karen Delaney · Hawthorn</div><div class="ib">Day 3 of 5 · Felipe · on schedule · deposit unpaid</div></div>
+      <div class="iw">$9,240</div>
+    </button>
+
+    <div class="foot">Four tabs. Everything else is a view of one of them.</div>
+  </div>
+</section>
+
+<script>
+const tabs=[...document.querySelectorAll('.tab')];
+tabs.forEach(t=>t.addEventListener('click',()=>{
+  tabs.forEach(x=>x.setAttribute('aria-selected',x===t));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id===t.dataset.v));
+  window.scrollTo({top:0,behavior:'instant'});
+}));
+document.querySelectorAll('.f,.seg button').forEach(f=>f.addEventListener('click',e=>{
+  [...e.currentTarget.parentElement.children].forEach(s=>s.classList.remove('on'));
+  e.currentTarget.classList.add('on');
+}));
+const sm=document.getElementById('sortmenu');sm.style.display='none';
+document.getElementById('sortbtn').addEventListener('click',()=>{sm.style.display=sm.style.display==='none'?'block':'none'});
+document.querySelectorAll('.sopt').forEach(o=>o.addEventListener('click',()=>{
+  document.querySelectorAll('.sopt').forEach(x=>{x.classList.remove('on');const t=x.querySelector('.tick');if(t)t.remove()});
+  o.classList.add('on');const s=document.createElement('span');s.className='tick';s.textContent='✓';o.appendChild(s);
+  document.getElementById('sortbtn').textContent=o.querySelector('div').childNodes[0].textContent.split('—')[0].trim()+' ▾';
+  sm.style.display='none';
+}));
+document.querySelectorAll('.tog').forEach(t=>t.addEventListener('click',e=>{e.stopPropagation();t.classList.toggle('on')}));
+</script>
+</body>
+</html>

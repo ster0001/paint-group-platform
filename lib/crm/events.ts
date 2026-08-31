@@ -56,6 +56,9 @@ export const CRM_EVENT_SCHEMAS = {
   followup_set: z.object({ dueAt: z.string().datetime(), note: shortText.optional() }),
   temperature_set: z.object({ temperature: z.enum(["hot", "warm", "cold"]), previous: z.enum(["hot", "warm", "cold"]).nullable().default(null) }),
   snoozed: z.object({ until: z.string().datetime(), reason: shortText.optional() }),
+  /** A derived work item waved away (shell brief §3.7). The reason is required
+   *  because repeated dismissals of one kind are how a wrong threshold shows. */
+  work_item_dismissed: z.object({ itemKey: z.string().max(200), reason: shortText, until: z.string().datetime().nullable().default(null) }),
 
   // ---- the customer reaching in ------------------------------------------
   website_chat: z.object({ excerpt: shortText.optional(), answered: z.boolean().default(false) }),

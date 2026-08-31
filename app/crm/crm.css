@@ -191,3 +191,81 @@
 /* ---- the SMS preview ------------------------------------------------------- */
 .crm .smsbubblewrap{background:var(--raised);border:1px solid var(--line);border-radius:var(--r);padding:22px 18px;display:flex;justify-content:flex-start}
 .crm .smsbubble{max-width:290px;background:#3a3d43;color:#fff;border-radius:18px 18px 18px 5px;padding:11px 14px;font-size:14px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+
+/* ---- the four-tab shell (2A.1) -------------------------------------------- */
+.crm .badge{display:inline-block;margin-left:6px;background:var(--clay);color:#fff;font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:999px;vertical-align:middle}
+.crm .chipn{opacity:.55;margin-left:6px;font-size:10.5px}
+
+/* ---- Today: the work queue (2A.6) ----------------------------------------- */
+.crm .slab{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:9px;margin-top:22px}
+.crm .slab i{flex:1;height:1px;background:var(--line)}
+.crm .slab.bad{color:var(--clay)}
+.crm .slabn{opacity:.7}
+.crm .qitem{display:flex;gap:11px;align-items:flex-start;background:var(--graphite);border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:8px;width:100%;position:relative;overflow:hidden;text-decoration:none;color:inherit}
+.crm .qitem::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--line)}
+.crm .qitem.od::before{background:var(--clay)}
+.crm .qitem.due::before{background:var(--amber)}
+.crm .qitem.ok::before{background:var(--cyan)}
+.crm .qico{width:28px;height:28px;border-radius:8px;background:var(--raised);border:1px solid var(--line);display:grid;place-items:center;font-size:12px;flex:none}
+.crm .qmain{min-width:0;flex:1;display:block}
+.crm .qt{display:block;font-size:13px;font-weight:600}
+.crm .qsrc{font-size:9px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);padding:2px 5px;border-radius:5px;margin-right:6px;font-weight:600}
+.crm .qb{display:block;font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.45}
+.crm .qact{display:flex;align-items:center;gap:14px;margin-top:8px;flex-wrap:wrap}
+.crm .qgo{font-size:11px;color:var(--cyan);font-weight:600}
+.crm .qw{font-size:9.5px;color:var(--muted);white-space:nowrap;margin-left:auto;flex:none}
+.crm .qw.bad{color:var(--clay)}
+.crm .qempty{background:var(--graphite);border:1px solid var(--line);border-radius:var(--r);padding:26px 20px;margin-top:16px;display:grid;gap:8px}
+.crm .qempty b{font-size:15px;font-weight:600}
+.crm .qempty span{font-size:12px;color:var(--muted);line-height:1.55}
+.crm .qemptylink{font-size:12px;color:var(--cyan);font-weight:600}
+.crm .qpage{display:flex;align-items:center;gap:14px;justify-content:center;margin-top:16px;font-size:12px}
+.crm .qpage a{color:var(--cyan);font-weight:600}
+.crm .qpage span{color:var(--muted);font-size:10.5px}
+.crm .note{font-size:11px;color:var(--muted);line-height:1.55;background:var(--raised);border:1px solid var(--line);border-radius:11px;padding:12px;margin-top:16px}
+.crm .note b{color:var(--cyan);font-weight:600}
+
+/* dismissal — "Not this one" */
+.crm .qdismiss{font-size:10.5px;color:var(--muted);font-weight:600}
+.crm .qdismiss:hover{color:var(--text)}
+.crm .qdform{display:grid;gap:7px;width:100%;margin-top:2px}
+.crm .qdpresets{display:flex;gap:5px;flex-wrap:wrap}
+.crm .qdpre{font-size:10.5px;font-weight:600;padding:5px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.crm .qdpre.on{color:var(--cyan);border-color:rgba(59,216,233,.4)}
+.crm .qdreason{background:var(--ink);border:1px solid var(--line);border-radius:8px;color:var(--text);font:inherit;font-size:11.5px;padding:7px 9px;width:100%}
+.crm .qdrow{display:flex;gap:10px;align-items:center}
+.crm .qdgo{font-size:11px;font-weight:700;background:var(--cyan);color:var(--on-cyan);padding:6px 12px;border-radius:8px}
+.crm .qdgo:disabled{opacity:.4;cursor:default}
+.crm .qdcancel{font-size:11px;color:var(--muted);font-weight:600}
+.crm .qdmsg{font-size:10.5px;color:var(--amber)}
+
+/* ---- Customers: toolbar, sort, list rows (2A.7) --------------------------- */
+.crm .bar{display:flex;align-items:flex-start;gap:9px;margin-top:4px}
+.crm .seg{display:flex;background:var(--raised);border:1px solid var(--line);border-radius:10px;padding:3px}
+.crm .seg a{font-size:11.5px;font-weight:600;padding:6px 12px;border-radius:7px;color:var(--muted)}
+.crm .seg a.on{background:var(--graphite);color:var(--text)}
+.crm .sortwrap{margin-left:auto;position:relative}
+.crm .sortwrap summary{list-style:none;cursor:pointer}
+.crm .sortwrap summary::-webkit-details-marker{display:none}
+.crm .sortbtn{display:inline-block;font-size:11.5px;font-weight:600;color:var(--cyan);border:1px solid rgba(59,216,233,.3);padding:8px 12px;border-radius:10px}
+.crm .sortmenu{position:absolute;right:0;top:calc(100% + 6px);z-index:30;min-width:260px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--graphite);box-shadow:0 12px 32px rgba(0,0,0,.5)}
+.crm .sopt{display:flex;align-items:center;gap:10px;padding:11px 13px;border-bottom:1px solid var(--line);font-size:12.5px;width:100%}
+.crm .sopt:last-child{border-bottom:0}
+.crm .sopt.on{background:var(--raised)}
+.crm .sopt small{display:block;font-size:10.5px;color:var(--muted);margin-top:2px;font-weight:500}
+.crm .sopt .tick{margin-left:auto;color:var(--cyan);font-size:12px}
+.crm .plist{margin-top:12px;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.crm .prow{display:flex;align-items:center;gap:12px;padding:12px 13px;background:var(--graphite);border-bottom:1px solid var(--line);width:100%}
+.crm .prow:last-child{border-bottom:0}
+.crm .prow:hover{background:var(--raised)}
+.crm .av{width:34px;height:34px;border-radius:10px;background:var(--raised);border:1px solid var(--line);display:grid;place-items:center;font-size:11.5px;font-weight:600;flex:none}
+.crm .pmain{min-width:0;flex:1}
+.crm .rn{display:block;font-size:13px;font-weight:600}
+.crm .rs{display:block;font-size:11px;color:var(--muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.crm .rr{margin-left:auto;text-align:right;flex:none}
+.crm .pill{display:inline-block;font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;padding:3px 7px;border-radius:6px;border:1px solid var(--line);color:var(--muted)}
+.crm .pill.cy{color:var(--cyan);border-color:rgba(59,216,233,.3)}
+.crm .pill.am{color:var(--amber);border-color:rgba(224,168,60,.3)}
+.crm .rv{font-size:11.5px;font-weight:600;margin-top:5px}
+.crm .age{display:block;font-size:10px;color:var(--muted);margin-top:4px}
+.crm .age.bad{color:var(--clay)}
