@@ -1,4 +1,5 @@
 import { login, signup } from "@/app/auth/actions";
+import { requestLinkAction } from "@/app/account/login/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -85,6 +86,29 @@ export default async function LoginPage({
               Create account
             </button>
           </div>
+
+          {/* Tom, 1 Sep: customers lost their way into the portal when the
+              estimate page's email box went (27 Aug batch) — the magic link
+              lives HERE now too. Same server action as /account/login (one
+              implementation, never a fork); formNoValidate so the password
+              field's `required` can't block a passwordless sign-in. */}
+          <div className="relative pt-2">
+            <div className="absolute inset-x-0 top-1/2 border-t border-gray-200" />
+            <p className="relative mx-auto w-fit bg-white px-3 text-center text-xs uppercase tracking-wide text-gray-400">
+              or
+            </p>
+          </div>
+          <button
+            formAction={requestLinkAction}
+            formNoValidate
+            className="w-full rounded-md border border-cyan-600 px-4 py-2 text-sm font-medium text-cyan-700 hover:bg-cyan-50"
+          >
+            ✉️ Email me a sign-in link — no password
+          </button>
+          <p className="!mt-2 text-center text-xs text-gray-500">
+            For customers: type your email above, tap the button, and the link
+            in your inbox opens your customer portal.
+          </p>
         </form>
       </div>
     </main>
