@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { melbourneDate, type ConsoleInput } from "./console";
+import { fetchAllRows as fetchAll } from "@/lib/supabase/fetchAllRows";
 
 /**
  * One load for the whole console.
@@ -26,19 +27,21 @@ type WoRow = {
   estimates: { total_cents: number | null; accepted_at: string | null } | null;
 };
 
+
 export async function loadConsole(supabase: SupabaseClient, now = new Date()): Promise<ConsoleData> {
   const weekAgo = new Date(now.getTime() - 7 * 86_400_000).toISOString();
   const fortnightAgo = new Date(now.getTime() - 14 * 86_400_000).toISOString();
 
-  const [wos, offers, variations, updates, signoffs, flags, closed, ticks, contractors, settings, coloursTicked, collections,
-         qaOpen, walkBooked, sentUpdates] =
+  const [woRows, offers, variations, updates, signoffs, flags, closed, tickRows, contractors, settings, coloursTickedRows, collections,
+         qaOpen, walkBooked, sentUpdateRows] =
     await Promise.all([
-      supabase.from("work_orders")
+      fetchAll<WoRow>((from, to) => supabase.from("work_orders")
         .select("id, estimate_id, wo_ref, stage, contractor_id, start_date, end_date, walkthrough_required, colours, blocked_reason, wo_snapshot, issued_at, estimates(total_cents, accepted_at)")
         // Open jobs, plus anything closed in the last 30 days — so a signed job
         // lands in the board's Closed lane rather than vanishing (Tom, 23 Aug).
         // The queue and tiles filter closed out where they should.
-        .or(`stage.neq.closed,stage_entered_at.gte.${new Date(now.getTime() - 30 * 86_400_000).toISOString()}`),
+        .or(`stage.neq.closed,stage_entered_at.gte.${new Date(now.getTime() - 30 * 86_400_000).toISOString()}`)
+        .order("id").range(from, to)),
       supabase.from("booking_offers")
         .select("id, work_order_id, state, expires_at, proposed_start_date, approval_due_at, contractors(company_name)")
         // 'expired' and 'declined' too: the sweep flips a breached offer to
@@ -55,16 +58,27 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
       supabase.from("wo_signoff")
         .select("work_order_id, evidence_pack_sent_at, signed_at, extension_requested_at, extension_approved_at")
         .is("signed_at", null),
-      supabase.from("wo_events").select("work_order_id, created_at, meta")
-        .eq("type", "quiet_site").gte("created_at", weekAgo),
+      // One flag per quiet job per grace window, but a big enough board can
+      // still outgrow a page in a week.
+      fetchAll<{ work_order_id: string; created_at: string; meta: { days?: number } | null }>(
+        (from, to) => supabase.from("wo_events").select("work_order_id, created_at, meta")
+          .eq("type", "quiet_site").gte("created_at", weekAgo)
+          .order("id").range(from, to)),
       supabase.from("wo_events").select("work_order_id").eq("type", "signed_off").gte("created_at", weekAgo),
-      supabase.from("wo_events").select("created_at").eq("type", "surface_tick").gte("created_at", fortnightAgo),
+      // A busy fortnight can log more than a page of ticks; truncation here
+      // flattens the momentum chart.
+      fetchAll<{ created_at: string }>((from, to) => supabase.from("wo_events")
+        .select("created_at").eq("type", "surface_tick").gte("created_at", fortnightAgo)
+        .order("id").range(from, to)),
       supabase.from("contractors").select("id, company_name"),
       supabase.from("settings").select("value").eq("key", "wo_loop").maybeSingle(),
       // The colours box is a person's tick now (Tom, 23 Aug) — the console's
-      // "Colours TBC" reads THAT, not the phantom per-product status.
-      supabase.from("wo_checklist_items").select("work_order_id")
-        .eq("phase", "pre_start").eq("label", "Colour schedule finalised").not("done_at", "is", null),
+      // "Colours TBC" reads THAT, not the phantom per-product status. Ticked
+      // boxes accumulate for ever, so this pages.
+      fetchAll<{ work_order_id: string }>((from, to) => supabase.from("wo_checklist_items")
+        .select("work_order_id")
+        .eq("phase", "pre_start").eq("label", "Colour schedule finalised").not("done_at", "is", null)
+        .order("id").range(from, to)),
       // Rubbish / equipment yeses nobody has organised yet (Tom, 23 Aug).
       supabase.from("wo_checklist_items")
         .select("id, work_order_id, item_key, answer_note, done_at, work_orders(wo_ref, contractor_id, wo_snapshot)")
@@ -73,17 +87,20 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
       // Tom, 23 Aug: quality checks to do, walkthroughs not booked, updates due.
       supabase.from("wo_qa_checks").select("work_order_id, kind, scheduled_for, created_at").is("result", null),
       supabase.from("wo_walkthroughs").select("work_order_id").eq("kind", "final").eq("status", "booked"),
-      supabase.from("wo_updates").select("work_order_id, approved_at, sent_at, created_at").in("status", ["approved", "sent"]),
+      // Sent updates accumulate for ever, and a truncated set here would
+      // false-flag "update due" on jobs whose last update fell off the page.
+      fetchAll<{ work_order_id: string; approved_at: string | null; sent_at: string | null; created_at: string }>(
+        (from, to) => supabase.from("wo_updates")
+          .select("work_order_id, approved_at, sent_at, created_at").in("status", ["approved", "sent"])
+          .order("id").range(from, to)),
     ]);
 
   const contractorName = new Map(
     ((contractors.data ?? []) as { id: string; company_name: string }[]).map((c) => [c.id, c.company_name]),
   );
 
-  const coloursTickedIds = new Set(
-    ((coloursTicked.data ?? []) as { work_order_id: string }[]).map((r) => r.work_order_id),
-  );
-  const workOrders = ((wos.data ?? []) as unknown as WoRow[]).map((w) => {
+  const coloursTickedIds = new Set(coloursTickedRows.map((r) => r.work_order_id));
+  const workOrders = woRows.map((w) => {
     const colours = w.colours ?? {};
     const values = Object.values(colours);
     return {
@@ -112,17 +129,28 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
     };
   });
 
-  // Tick counts per job, in one more query rather than one per card.
-  const ids = workOrders.map((w) => w.id);
+  // Tick counts per job — a fixed few queries rather than one per card. Only
+  // the OPEN jobs need them (the flow card hides the chip at 0, and a closed
+  // job's progress is over), which keeps this from re-reading every surface
+  // the business has ever painted. The id list is chunked because a thousand
+  // ids in one `in()` overflows the request line, and each chunk pages.
+  const ids = workOrders.filter((w) => w.stage !== "closed").map((w) => w.id);
   if (ids.length > 0) {
-    const { data: surfaces } = await supabase
-      .from("wo_surfaces").select("work_order_id, state").in("work_order_id", ids);
     const byId = new Map(workOrders.map((w) => [w.id, w]));
-    for (const row of (surfaces ?? []) as { work_order_id: string; state: string }[]) {
-      const w = byId.get(row.work_order_id);
-      if (!w) continue;
-      w.ticksTotal += 1;
-      if (row.state === "done") w.ticksDone += 1;
+    const CHUNK = 100;
+    const chunks: string[][] = [];
+    for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK));
+    for (let i = 0; i < chunks.length; i += 5) {
+      const batches = await Promise.all(chunks.slice(i, i + 5).map((chunk) =>
+        fetchAll<{ work_order_id: string; state: string }>((from, to) => supabase
+          .from("wo_surfaces").select("work_order_id, state").in("work_order_id", chunk)
+          .order("id").range(from, to))));
+      for (const row of batches.flat()) {
+        const w = byId.get(row.work_order_id);
+        if (!w) continue;
+        w.ticksTotal += 1;
+        if (row.state === "done") w.ticksDone += 1;
+      }
     }
   }
 
@@ -161,15 +189,16 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
     .filter((d) => d.daysLeft <= 30)
     .sort((a, b) => a.daysLeft - b.daysLeft);
 
-  // Cards a person closed off (Tom, 25 Aug) — permanent per key.
-  const { data: dismissedRows } = await supabase
-    .from("wo_events").select("meta").eq("type", "card_dismissed");
-  const dismissedKeys = ((dismissedRows ?? []) as { meta: { key?: string } | null }[])
+  // Cards a person closed off (Tom, 25 Aug) — permanent per key, so the set
+  // only ever grows; paged so an old dismissal can't fall off and resurface.
+  const dismissedRows = await fetchAll<{ meta: { key?: string } | null }>((from, to) =>
+    supabase.from("wo_events").select("meta").eq("type", "card_dismissed").order("id").range(from, to));
+  const dismissedKeys = dismissedRows
     .map((r) => r.meta?.key)
     .filter((k): k is string => Boolean(k));
 
   const ticksByDay: Record<string, number> = {};
-  for (const t of (ticks.data ?? []) as { created_at: string }[]) {
+  for (const t of tickRows) {
     const day = melbourneDate(new Date(t.created_at));
     ticksByDay[day] = (ticksByDay[day] ?? 0) + 1;
   }
@@ -213,9 +242,7 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
         signedAt: s.signed_at, extensionRequestedAt: s.extension_requested_at,
         extensionApprovedAt: s.extension_approved_at,
       })),
-      quietSites: ((flags.data ?? []) as {
-        work_order_id: string; created_at: string; meta: { days?: number } | null;
-      }[]).map((f) => ({ workOrderId: f.work_order_id, at: f.created_at, days: f.meta?.days ?? 3 })),
+      quietSites: flags.map((f) => ({ workOrderId: f.work_order_id, at: f.created_at, days: f.meta?.days ?? 3 })),
       collections: ((collections.data ?? []) as unknown as {
         id: string; work_order_id: string; item_key: string; answer_note: string | null; done_at: string | null;
         work_orders: { wo_ref: string; contractor_id: string | null; wo_snapshot: { jobTitle?: string } | null } | null;
@@ -229,7 +256,7 @@ export async function loadConsole(supabase: SupabaseClient, now = new Date()): P
       qaChecks: ((qaOpen.data ?? []) as { work_order_id: string; kind: string; scheduled_for: string | null; created_at: string }[])
         .map((c) => ({ workOrderId: c.work_order_id, kind: c.kind, scheduledFor: c.scheduled_for, createdAt: c.created_at })),
       walkthroughBooked: ((walkBooked.data ?? []) as { work_order_id: string }[]).map((w) => w.work_order_id),
-      lastUpdateAt: ((sentUpdates.data ?? []) as { work_order_id: string; approved_at: string | null; sent_at: string | null; created_at: string }[])
+      lastUpdateAt: sentUpdateRows
         .reduce<Record<string, string>>((acc, u) => {
           const at = u.sent_at ?? u.approved_at ?? u.created_at;
           if (!acc[u.work_order_id] || acc[u.work_order_id] < at) acc[u.work_order_id] = at;

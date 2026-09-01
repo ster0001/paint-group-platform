@@ -3,6 +3,22 @@ import { addDays } from "./dates";
 import { reportIfError } from "@/lib/monitoring/report";
 import { OFFER_COLUMNS, effectiveState, isLive, type BookingOffer } from "./offers";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
+
+/**
+ * fetchAllRows, in this module's error idiom: the board SURFACES query
+ * failures on screen rather than rendering empty (see `errors` below), so a
+ * paging failure lands in the same array instead of throwing the page.
+ */
+async function paged<T>(
+  query: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
+): Promise<{ data: T[]; error: string | null }> {
+  try {
+    return { data: await fetchAllRows<T>(query), error: null };
+  } catch (e) {
+    return { data: [], error: e instanceof Error ? e.message : String(e) };
+  }
+}
 
 // Server-side assembly of the scheduling board. Staff-only — RLS on every table
 // already restricts it, but this module is never imported by portal pages.
@@ -126,6 +142,16 @@ export function daysFromHours(hours: number | null | undefined, painters: number
   return Math.max(1, Math.ceil(hours / (8 * crew)));
 }
 
+type WRow = {
+  id: string; estimate_id: string; wo_ref: string; stage: string; status: string; contractor_id: string | null;
+  start_date: string | null; contractor_payment_cents: number | null; wo_snapshot: unknown;
+  issued_at: string | null; estimates: { title: string | null } | null;
+};
+
+type NoteRow = {
+  id: string; work_order_id: string; note: string; author: string | null; created_at: string;
+};
+
 function snapshotOf(v: unknown): WorkOrderDoc | null {
   const s = v as WorkOrderDoc | null;
   return s && (s as Partial<WorkOrderDoc>).version === 1 ? s : null;
@@ -154,19 +180,26 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
         .from("contractors")
         .select("id, tier, active, offerable, company_name, crew_size, profiles ( name )")
         .order("company_name"),
-      // Drafts included on purpose — see TrayJob.needsIssuing.
-      supabase
+      // Drafts included on purpose — see TrayJob.needsIssuing. Open jobs all
+      // come (the tray and pins need them regardless of dates); CLOSED jobs
+      // only when their own dates touch the window — finished work is history
+      // the visible columns may still show, not board state. Paged, because
+      // this was the query that silently lost jobs past PostgREST's row cap.
+      paged<WRow>((f, t) => supabase
         .from("work_orders")
-        .select("id, estimate_id, wo_ref, status, contractor_id, start_date, contractor_payment_cents, wo_snapshot, issued_at, estimates ( title )"),
+        .select("id, estimate_id, wo_ref, stage, status, contractor_id, start_date, contractor_payment_cents, wo_snapshot, issued_at, estimates ( title )")
+        .or(`stage.neq.closed,and(start_date.lte.${addDays(to, 30)},end_date.gte.${addDays(from, -30)})`)
+        .order("id").range(f, t)),
       // Windowed rather than "every offer ever made" (audit S6). The window is
       // widened past the visible range on purpose: a settled offer still
       // supplies the tray's "last declined because…" note, and a proposal
       // awaiting staff must appear in the approvals queue even when its dates
       // sit outside the columns on screen.
-      supabase
+      paged<BookingOffer>((f, t) => supabase
         .from("booking_offers")
         .select(OFFER_COLUMNS)
-        .or(`state.in.(offered,proposed),and(start_date.lte.${addDays(to, 30)},start_date.gte.${addDays(from, -180)})`),
+        .or(`state.in.(offered,proposed),and(start_date.lte.${addDays(to, 30)},start_date.gte.${addDays(from, -180)})`)
+        .order("id").range(f, t)),
       supabase
         .from("contractor_unavailability")
         .select("id, contractor_id, start_date, end_date, reason, source")
@@ -180,10 +213,13 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
       // references auth.users, PostgREST cannot follow a foreign key into the
       // auth schema, and the whole query 400s with PGRST200. Names are resolved
       // in a second query below.
-      supabase
+      // Paged: the chase log accumulates for ever, and a truncated read here
+      // silently dropped the OLDEST-noted jobs' histories.
+      paged<NoteRow>((f, t) => supabase
         .from("wo_booking_notes")
         .select("id, work_order_id, note, author, created_at")
-        .order("created_at", { ascending: false }),
+        .order("created_at", { ascending: false }).order("id")
+        .range(f, t)),
       // §4b: booked walkthroughs pin onto the assigned contractor's lane.
       supabase
         .from("wo_walkthroughs")
@@ -197,13 +233,13 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
   // because there is no work — so say which it is.
   const errors = [
     cErr && `contractors: ${cErr.message}`,
-    wErr && `work orders: ${wErr.message}`,
-    oErr && `offers: ${oErr.message}`,
+    wErr && `work orders: ${wErr}`,
+    oErr && `offers: ${oErr}`,
     uErr && `unavailability: ${uErr.message}`,
     // Surfaced, not swallowed. The first version of this query used a PostgREST
     // embed that 400s, and because only `data` was destructured the notes just
     // silently never appeared — the write had worked, so nothing looked wrong.
-    nErr && `booking notes: ${nErr.message}`,
+    nErr && `booking notes: ${nErr}`,
   ].filter(Boolean) as string[];
 
   type CRow = { id: string; tier: string | null; active: boolean; offerable: boolean; company_name: string | null; crew_size: number | null; profiles: { name: string | null } | null };
@@ -217,15 +253,10 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     crewSize: c.crew_size ?? 1,
   }));
 
-  type WRow = {
-    id: string; estimate_id: string; wo_ref: string; status: string; contractor_id: string | null;
-    start_date: string | null; contractor_payment_cents: number | null; wo_snapshot: unknown;
-    issued_at: string | null; estimates: { title: string | null } | null;
-  };
-  const wos = (workOrders as WRow[] | null) ?? [];
+  const wos = workOrders;
   const woById = new Map(wos.map((w) => [w.id, w]));
 
-  const allOffers = (offers as BookingOffer[] | null) ?? [];
+  const allOffers = offers;
   const blocks: Block[] = [];
 
   // --- offers (live ones only; settled offers are history, not board state) ---
@@ -314,9 +345,7 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
     });
   }
 
-  const noteRows = (bookingNotes ?? []) as unknown as {
-    id: string; work_order_id: string; note: string; author: string | null; created_at: string;
-  }[];
+  const noteRows = bookingNotes;
 
   // Who wrote each one. A separate query because the FK points at auth.users;
   // only the authors actually present are looked up.
@@ -383,6 +412,11 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
   }
 
   const tray: TrayJob[] = wos
+    // "Awaiting dates" means not yet started: unissued, or issued and still at
+    // pre_start. A job past pre_start was necessarily booked to get there —
+    // without this, any mid-flight job whose booking rows are missing (bulk
+    // imports, unwound offers) squats in the tray for ever.
+    .filter((w) => !w.issued_at || w.stage === "pre_start")
     .filter((w) => !acceptedByWo.has(w.id) && !liveWoIds.has(w.id) && !(w.contractor_id && w.start_date))
     .map((w) => {
       const doc = snapshotOf(w.wo_snapshot);

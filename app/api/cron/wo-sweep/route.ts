@@ -5,6 +5,7 @@ import { melbourneDate, melbourneDayStartUtc } from "@/lib/workorder/console";
 import { reportError } from "@/lib/monitoring/report";
 import { sendPreStartChecklists } from "@/lib/workorder/preStart";
 import { reconcileAllConnected } from "@/lib/gcal/sync";
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 
 /**
  * The daily sweep: draft today's customer updates, flag the silent sites, and
@@ -32,6 +33,19 @@ type TickRow = {
   work_order_id: string;
   meta: { heading?: string; label?: string; from?: string; to?: string };
 };
+
+// The backstop RPCs used to run one-at-a-time over EVERY active job — at
+// volume that alone blew the cron budget. Cap the per-run count (newest jobs
+// first: they're the ones the on-view self-heals are least likely to have
+// caught) and run a few in flight at once. Anything the cap defers is picked
+// up by the next sweep or the PC page's self-heal, and the response reports
+// the deferral rather than hiding it.
+const RPC_CAP = 500;
+async function eachLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
+  for (let i = 0; i < items.length; i += limit) {
+    await Promise.all(items.slice(i, i + limit).map(fn));
+  }
+}
 
 function authorised(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
@@ -129,25 +143,35 @@ async function sweep() {
   // QA cadence backstop: schedule checks for any pre-start/in-progress job that
   // should have them and doesn't — the PC page self-heals on view, this catches
   // jobs nobody opened. Idempotent per job.
-  const { data: qaJobs } = await db.from("work_orders")
-    .select("id").in("stage", ["pre_start", "in_progress"]);
+  // Contractor-less jobs are skipped up front: wo_schedule_qa answers ok:0
+  // for them anyway, so calling it is a round trip for nothing.
+  const qaJobs = (await fetchAllRows<{ id: string }>((from, to) => db.from("work_orders")
+    .select("id").in("stage", ["pre_start", "in_progress"])
+    .not("contractor_id", "is", null)
+    .order("stage_entered_at", { ascending: false, nullsFirst: false }).order("id")
+    .range(from, to))).map((r) => r.id);
+  const qaDeferred = Math.max(0, qaJobs.length - RPC_CAP);
   let qaScheduled = 0;
-  for (const j of ((qaJobs ?? []) as { id: string }[])) {
-    const { data: r } = await db.rpc("wo_schedule_qa", { p_work_order_id: j.id });
+  await eachLimit(qaJobs.slice(0, RPC_CAP), 6, async (id) => {
+    const { data: r } = await db.rpc("wo_schedule_qa", { p_work_order_id: id });
     if (typeof r === "string" && r.startsWith("ok:") && r !== "ok:0") qaScheduled += 1;
-  }
+  });
   // A job parked at qa with every check passed goes to the customer on its
   // own (Tom, 23 Aug). The pass routes it; this catches one nobody looked at.
   // The pre-start checklist, N days before the start, where the office opted in.
   let preStartSent = 0;
   try { preStartSent = await sendPreStartChecklists(db, now); } catch (e) { reportError(e, { where: "wo-sweep.preStart" }); }
 
-  const { data: passedJobs } = await db.from("work_orders").select("id").eq("stage", "qa");
+  const passedJobs = (await fetchAllRows<{ id: string }>((from, to) => db.from("work_orders")
+    .select("id").eq("stage", "qa")
+    .order("stage_entered_at", { ascending: false, nullsFirst: false }).order("id")
+    .range(from, to))).map((r) => r.id);
+  const qaRouteDeferred = Math.max(0, passedJobs.length - RPC_CAP);
   let qaRouted = 0;
-  for (const j of ((passedJobs ?? []) as { id: string }[])) {
-    const { data: r } = await db.rpc("wo_qa_route_passed", { p_work_order_id: j.id });
+  await eachLimit(passedJobs.slice(0, RPC_CAP), 6, async (id) => {
+    const { data: r } = await db.rpc("wo_qa_route_passed", { p_work_order_id: id });
     if (r === "ok:walkthrough") qaRouted += 1;
-  }
+  });
 
   // Google Calendar backstop: the per-action pings do the timely work; this
   // reconcile catches any ping that was lost (closed tab, Google outage).
@@ -159,6 +183,10 @@ async function sweep() {
     flagged: flagged ?? 0, started: started ?? 0, lapsed: lapsed ?? 0,
     qaScheduled,
     qaRouted,
+    // Never a silent cap: a deferred count > 0 in the cron log says the
+    // backstop is running behind the business, not that it covered everything.
+    qaDeferred,
+    qaRouteDeferred,
     preStartSent,
     gcalContractors: gcal.contractors,
     gcalErrors: gcal.errors,

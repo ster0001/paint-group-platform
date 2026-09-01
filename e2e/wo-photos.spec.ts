@@ -116,9 +116,11 @@ test.describe("site photos and live ticks", () => {
     const card = page.getByTestId(`variation-${variationId}`);
     await expect(card.getByTestId("wo-photo")).toHaveCount(1);
 
-    // Signed URLs into the private bucket — never a public object URL.
-    const href = await card.getByTestId("wo-photo").first().getAttribute("href");
-    expect(href).toContain("token=");
+    // Signed URLs into the private bucket — never a public object URL. The
+    // tile became a lightbox BUTTON on 22 Aug (e49e183); the signed URL now
+    // lives on the thumbnail image.
+    const src = await card.getByTestId("wo-photo").first().locator("img").getAttribute("src");
+    expect(src).toContain("token=");
   });
 
   test("the dashboard shows what came back from site", async ({ page }) => {

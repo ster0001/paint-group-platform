@@ -5,8 +5,9 @@
  * (the production tripwire refuses anything else), entirely server-side via
  * generate_series so the whole seed is minutes, not hours.
  *
- *   node scripts/portal/seed-volume.mjs           # seed (skips if present)
- *   node scripts/portal/seed-volume.mjs --reseed  # wipe vol-* rows and reseed
+ *   node scripts/portal/seed-volume.mjs             # seed (skips if present)
+ *   node scripts/portal/seed-volume.mjs --reseed    # wipe vol-* rows and reseed
+ *   node scripts/portal/seed-volume.mjs --teardown  # wipe vol-* rows and stop
  *
  * Every seeded row is marked (emails vol-…@volume.example, paths vol/…,
  * tokens vol…) so a wipe can never touch fixture or real test data.
@@ -24,6 +25,7 @@ refuseProduction(url);
 refuseProduction(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "");
 
 const RESEED = process.argv.includes("--reseed");
+const TEARDOWN = process.argv.includes("--teardown");
 const client = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false } });
 
 const SIZES = {
@@ -45,34 +47,42 @@ async function run(label, sql) {
   console.log(`${label.padEnd(34)} ${String(res.rowCount ?? "").padStart(8)}  ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 }
 
+async function wipe() {
+  console.log("Wiping previous volume rows…");
+  await run("wipe payments", "delete from public.payments where invoice_id in (select id from public.invoices where token like 'vol%')");
+  await run("wipe invoices", "delete from public.invoices where token like 'vol%'");
+  await run("wipe photos", "delete from public.wo_photos where storage_path like 'vol/%'");
+  await run("wipe events", "delete from public.wo_events where work_order_id in (select id from public.work_orders where share_token like 'vol%')");
+  await run("wipe surfaces", "delete from public.wo_surfaces where work_order_id in (select id from public.work_orders where share_token like 'vol%')");
+  await run("wipe signoff", "delete from public.wo_signoff where work_order_id in (select id from public.work_orders where share_token like 'vol%')");
+  await run("wipe warranties", "delete from public.warranties where work_order_id in (select id from public.work_orders where share_token like 'vol%')");
+  await run("wipe work orders", "delete from public.work_orders where share_token like 'vol%'");
+  await run("wipe estimates", "delete from public.estimates where account_id in (select id from public.accounts where email like 'vol-%@volume.example')");
+  await run("wipe properties", "delete from public.properties where account_id in (select id from public.accounts where email like 'vol-%@volume.example')");
+  await run("wipe memberships", "delete from public.account_users where account_id in (select id from public.accounts where email like 'vol-%@volume.example')");
+  await run("wipe accounts", "delete from public.accounts where email like 'vol-%@volume.example'");
+}
+
 async function main() {
   await client.connect();
   const who = await client.query("select current_database()");
-  console.log(`Seeding volume dataset into: ${who.rows[0].current_database} (C1)`);
+  console.log(`${TEARDOWN ? "Tearing down" : "Seeding"} volume dataset ${TEARDOWN ? "in" : "into"}: ${who.rows[0].current_database} (C1)`);
 
   const { rows: [{ count: existing }] } = await client.query(
     "select count(*)::int as count from public.accounts where email like 'vol-%@volume.example'",
   );
+  if (TEARDOWN) {
+    if (existing === 0) console.log("Nothing to tear down — no vol accounts present.");
+    else await wipe();
+    await client.end();
+    return;
+  }
   if (existing > 0 && !RESEED) {
     console.log(`Already seeded (${existing} vol accounts). Use --reseed to rebuild.`);
     await client.end();
     return;
   }
-  if (existing > 0) {
-    console.log("Wiping previous volume rows…");
-    await run("wipe payments", "delete from public.payments where invoice_id in (select id from public.invoices where token like 'vol%')");
-    await run("wipe invoices", "delete from public.invoices where token like 'vol%'");
-    await run("wipe photos", "delete from public.wo_photos where storage_path like 'vol/%'");
-    await run("wipe events", "delete from public.wo_events where work_order_id in (select id from public.work_orders where share_token like 'vol%')");
-    await run("wipe surfaces", "delete from public.wo_surfaces where work_order_id in (select id from public.work_orders where share_token like 'vol%')");
-    await run("wipe signoff", "delete from public.wo_signoff where work_order_id in (select id from public.work_orders where share_token like 'vol%')");
-    await run("wipe warranties", "delete from public.warranties where work_order_id in (select id from public.work_orders where share_token like 'vol%')");
-    await run("wipe work orders", "delete from public.work_orders where share_token like 'vol%'");
-    await run("wipe estimates", "delete from public.estimates where account_id in (select id from public.accounts where email like 'vol-%@volume.example')");
-    await run("wipe properties", "delete from public.properties where account_id in (select id from public.accounts where email like 'vol-%@volume.example')");
-    await run("wipe memberships", "delete from public.account_users where account_id in (select id from public.accounts where email like 'vol-%@volume.example')");
-    await run("wipe accounts", "delete from public.accounts where email like 'vol-%@volume.example'");
-  }
+  if (existing > 0) await wipe();
 
   // ---- accounts ------------------------------------------------------------
   await run("accounts", `
@@ -134,10 +144,14 @@ async function main() {
   // ---- work orders on a slice of accepted estimates ------------------------
   await run("work orders", `
     insert into public.work_orders (estimate_id, wo_ref, share_token, stage, status, issued_at,
-                                    start_date, end_date, wo_snapshot)
+                                    stage_entered_at, start_date, end_date, wo_snapshot)
     select e.id, 'WO-VOL' || e.rn, 'volwo' || e.rn,
            (case (e.rn % 10) when 0 then 'in_progress' when 1 then 'walkthrough' else 'closed' end)::public.wo_stage,
            (case (e.rn % 10) when 0 then 'in_progress' when 1 then 'in_progress' else 'complete' end)::public.wo_status,
+           now() - ((e.rn % 300)::int) * interval '1 day',
+           -- stage_entered_at rides issued_at (the 20260926 backfill rule), so a
+           -- volume job "closed" 200 days ago doesn't crowd the console's
+           -- 30-day Closed lane the way a null-or-now() value would.
            now() - ((e.rn % 300)::int) * interval '1 day',
            current_date - (e.rn % 300)::int, current_date - (e.rn % 300)::int + 5,
            '{"version":1,"areas":[]}'::jsonb

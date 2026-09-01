@@ -1,3 +1,89 @@
+# 31 Aug 2026 (later) — the volume-scale fixes: silent 1000-row truncation + unbounded sweep. Migration 20261214 AWAITS TOM ON PROD (paste with 20261213).
+
+The two production-scale bugs the volume battery exposed (previous entry,
+item a) are fixed, and the whole wo-* battery now runs GREEN on C1 with the
+full 3a-8 volume dataset (20k work orders) left in place: 118 passed,
+5 skipped (pre-existing gates), 0 failed. Before: 94/15.
+
+- `lib/supabase/fetchAllRows.ts` — ONE shared pager for PostgREST's silent
+  1000-row response cap. Rule of thumb now in force: any query whose row
+  count grows with the business pages through it (with a stable `.order`);
+  state-bounded queries (open offers, unsigned sign-offs) stay single-shot.
+  Used by loadConsole (work orders, quiet flags, fortnight ticks, colours
+  ticks, dismissals, sent updates), loadBoard (work orders, offers, chase
+  notes) and the sweep's id fetches. It THROWS on a page error rather than
+  returning a partial set; loadBoard wraps it to feed its on-screen
+  `errors` array.
+- loadConsole tick counts: only for OPEN jobs (a closed job's progress is
+  over; the flow chip hides at 0), ids chunked ~100 per `in()` (a thousand
+  ids overflows the request line), 5 chunks in flight.
+- wo-sweep: the QA backstop loops no longer run one RPC per active job
+  serially. Contractor-less jobs skipped up front (wo_schedule_qa answers
+  ok:0 for them anyway), newest-first, capped at 500/run with
+  `qaDeferred`/`qaRouteDeferred` REPORTED in the response (never a silent
+  cap), 6 RPCs in flight.
+- loadBoard (the /pc/schedule loader — the second, separate loader with the
+  same disease): closed jobs now windowed to the visible range the way
+  offers already were; tray restricted to jobs actually awaiting booking
+  (unissued or still pre_start — anything past pre_start was necessarily
+  booked to get there).
+- **`20261214000000_quiet_site_needs_contractor.sql` — QUEUED FOR PROD,
+  paste alongside 20261213.** wo_zero_tick_sweep flagged tickless
+  in_progress jobs with NO contractor as quiet sites (one sweep run minted
+  2,000 flags on the volume data and flooded the console queue). Rule now:
+  no contractor, no quiet-site flag; migration also deletes stray flags and
+  ends with a read-back (`guard_present = true, strays_left = 0` — verified
+  on C1).
+- seed-volume.mjs: `--teardown` flag (wipe vol rows and stop), and volume
+  work orders now carry stage_entered_at = issued_at (the 20260926 backfill
+  rule) so long-closed volume jobs don't crowd the 30-day Closed lane. NO
+  test-only markers leaked into prod code — the app-side changes are the
+  production fixes, and the battery passes WITH the volume rows present.
+
+Gates: wo-* battery 118/118 running on C1 with volume data; unit suite
+green except app/crm/diary/page.tsx (the PARALLEL CRM session's file,
+Melbourne-offset convention — they've fixed it their side); tsc clean.
+
+---
+
+# 31 Aug 2026 — wo_* RLS policies inverted (57014 fix). Migration 20261213 AWAITS TOM ON PROD.
+
+A bare `select id from wo_events limit 5` by an authenticated user with no
+contractor/customer link 57014'd on the C1 volume seed (found by the
+trade-org-rls finance e2e, 30 Aug): the loop tables' policies called the
+SECURITY DEFINER helpers PER ROW — the accounts/properties disease of
+20261130, on the wo_* tables. `20261213000000_wo_policies_indexed.sql`
+(branch feat/trade-portal-v2) is the cure, applied + proven on C1:
+
+- The invertible rewrite needed one more step than 20261130: OR'd per-role
+  policies stay ~3s even inverted (initplan + hashed-subplan probes × 500k
+  rows), so the 8 three-way loop tables collapse to ONE `<t>_read` policy —
+  a single IN over the new OWNER-RIGHTS VIEW `wo_visible_jobs` (reads
+  work_orders as owner the way the definer helpers did, but stays a plain
+  subquery). 57014 → 12–51ms warm; keyed reads never evaluate the subplan.
+- Grants were AUDITED before folding staff FOR-ALL policies into the read
+  policy: those tables give authenticated SELECT only (20261008 revoked
+  writes). Tables with real write grants keep staff FOR-ALL (work_orders,
+  wo_booking_notes, wo_walkthroughs, wo_reports). Rulings preserved:
+  wo_qa_items contractor-only, wo_reports customer-only (role-specific
+  set-returning helpers `wo_my_job_ids_as_*`, not the view).
+- Probe: `node scripts/portal/wo-plans.mjs` (non-member EXPLAINs, warm,
+  100ms bar). Gates: wo-rls 8/8 + trade-org-rls 6/6 on C1.
+- The migration ends with a read-back — expect 18 policies, all
+  inverted=true. Paste it in the PROD SQL editor and read that table.
+
+Also found running the full wo-* battery on C1 (94 passed, 15 failed — ALL
+15 pre-existing/environmental, none from the policy change): (a) the 3a-8
+volume seed breaks the battery — /api/cron/wo-sweep (service client,
+RLS-free) times out over ~4k active volume jobs, and loadConsole has no
+limit so PostgREST's 1000-row cap silently drops fixture jobs from the
+boards (task chip filed; the unbounded sweep + silent console truncation
+are production-scale bugs in their own right); (b) e2e/wo-photos.spec.ts:121
+asserted `href` on a photo tile that became a lightbox BUTTON on 22 Aug
+(e49e183) — failing ever since; assertion moved to the thumbnail img src.
+
+---
+
 # 27 Aug 2026 (final) — cert on display, warranty CERTIFICATE, demo customer (main @ 87f8478, PUSHED/DEPLOYED)
 
 Everything through the phase-3a close-out is LIVE. This last batch:
