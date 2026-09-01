@@ -499,8 +499,10 @@ export function dwTotals(blocks: LooseBlock[]): { windows: number; doors: number
   return { windows, doors };
 }
 
-/** Confirm one side — the loop's gate. Unanswered required questions and a
- * wall mix that isn't 100% both refuse, by name. */
+/** Confirm one side — the loop's gate. Unanswered required questions refuse
+ * by name. Wall shares may total UNDER 100% (Tom, 31 Aug: a wall that's
+ * mostly glass or garage door is painted at 25–75%, and that must save) —
+ * only an over-committed mix (>100%) or an all-zero one refuses. */
 export function confirmSide(blocks: LooseBlock[], key: SideKey): SidesResult {
   return withSide(blocks, key, (b) => {
     const c = customerOf(b);
@@ -508,8 +510,9 @@ export function confirmSide(blocks: LooseBlock[], key: SideKey): SidesResult {
     if (c.include) {
       if (c.size == null) return "The side's size still needs an answer — “not sure” is fine.";
       const sum = wallSumPct(b);
-      if ((b.surfaces ?? []).some(isWallLine) && sum !== 100) {
-        return `The wall surfaces need to add up to 100% — they're at ${sum}% right now.`;
+      if ((b.surfaces ?? []).some(isWallLine)) {
+        if (sum > 100) return `The wall surfaces add up to ${sum}% — they can't total more than 100%.`;
+        if (sum <= 0) return "Give at least one wall surface a share — or “No — skip this side” if none of it is being painted.";
       }
     }
     b.customer = { ...c, confirmed: true };

@@ -33,24 +33,30 @@ test.describe("the wizard drop-out funnel", () => {
     await db.from("wizard_drafts").delete().in("email", [dropEmail, finishEmail]);
   });
 
-  test("abandoning mid-wizard leaves an open draft with the contact on it", async ({ page }) => {
+  // Tom, 31 Aug: the contact page moved to the END of the questions, so the
+  // funnel's earliest reachable drop-out is now someone who typed their
+  // details on the last page and then walked away. (Anyone who leaves before
+  // that page was never reachable — a deliberate trade Tom made.)
+  test("abandoning at the contact page leaves an open draft with the contact on it", async ({ page }) => {
     await page.goto("/estimate");
     await page.getByRole("button", { name: /There isn't a floorplan to hand/ }).click();
     await page.getByPlaceholder("Suburb").fill("Murrumbeena");
     await page.getByPlaceholder("Postcode").fill("3163");
-    await page.getByRole("button", { name: /Continue/ }).first().click();
+    const next = async () => page.getByRole("button", { name: /Continue|Nearly there/ }).first().click();
+    await next(); // surfaces
+    await next(); // condition
+    await next(); // details
+    await next(); // paint
+    await next(); // → the contact page
 
-    // The contact sub-step — the earliest moment a drop-out becomes reachable.
     const contact = page.locator(".wz-crow input");
     await expect(contact.first()).toBeVisible();
     await contact.nth(0).fill("Dana Dropout");
     await contact.nth(1).fill(dropEmail);
     await contact.nth(2).fill("0400 222 333");
-    await page.getByRole("button", { name: /Continue/ }).first().click();
 
-    // One answer past the contact, then walk away. The autosave debounces at
-    // 2.5s, so wait past it before calling the person saved.
-    await expect(page.getByRole("heading", { name: /What.s being painted/ })).toBeVisible();
+    // Type the details, then walk away WITHOUT submitting. The autosave
+    // debounces at 2.5s, so wait past it before calling the person saved.
     await page.waitForTimeout(4_000);
 
     const { data: draft } = await db!.from("wizard_drafts")
@@ -60,8 +66,7 @@ test.describe("the wizard drop-out funnel", () => {
     expect(draft!.name).toBe("Dana Dropout");
     expect(draft!.phone).toContain("0400");
     expect(draft!.converted_at, "an abandoned run is OPEN").toBeNull();
-    expect(draft!.progress_pct).toBeGreaterThan(0);
-    expect(draft!.progress_pct, "one page in must not read as nearly done").toBeLessThan(50);
+    expect(draft!.progress_pct).toBeGreaterThan(50);
   });
 
   test("finishing converts the draft server-side, and nothing re-opens it", async ({ page }) => {

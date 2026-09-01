@@ -81,8 +81,7 @@ test.describe("R1.3 document model", () => {
       const err = page.locator(".wz-err");
       if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
     };
-    await next(); // → page 2: contact sub-step first
-    await fillContactStep(page); // …then surfaces
+    await next(); // → page 2: surfaces
     await next(); // condition
     await next(); // details
     await answer(/built before 1970/, "No");
@@ -93,9 +92,8 @@ test.describe("R1.3 document model", () => {
     ]);
     await chooser.setFiles(`${FIXTURES}/condition-photo.png`);
     await next(); // paint
-    await next(); // email gate
-    const email = page.locator("input[type=email]");
-    if (await email.count()) await email.fill(`e2e-docmodel-${Date.now()}@example.com`);
+    await next(); // → contact, the LAST page (Tom, 31 Aug)
+    await fillContactStep(page, `e2e-docmodel-${Date.now()}@example.com`);
     await page.getByRole("button", { name: "See my estimate" }).click();
     // 28 Aug: straight into the editor — the amber trace lives there now.
     await expect(page.locator(".sc-r").first()).toBeVisible({ timeout: 90_000 });

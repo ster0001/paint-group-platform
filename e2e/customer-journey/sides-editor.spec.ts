@@ -32,16 +32,14 @@ async function driveExteriorWizard(page: Page) {
     const err = page.locator(".wz-err");
     if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
   };
-  await next(); // → page 2: the contact sub-step first
-  await fillContactStep(page); // …then the house
+  await next(); // → page 2: the house
   await next(); // → scope
   await next(); // → condition
   await page.getByRole("button", { name: /Good overall/i }).click();
   await answer(/built before 1970/, "No");
   await next(); // extras+paint
-  await next(); // email
-  const email = page.locator("input[type=email]");
-  if (await email.count()) await email.fill(`e2e-sides-${Date.now()}@example.com`);
+  await next(); // → contact, the LAST page (Tom, 31 Aug)
+  await fillContactStep(page, `e2e-sides-${Date.now()}@example.com`);
   await page.getByRole("button", { name: "See my estimate" }).click();
   // 28 Aug: the wizard lands straight in the sides editor.
   await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
@@ -76,12 +74,8 @@ test("R2b sides loop: amber to cyan, walls must total 100%, skip reads NOT PAINT
   await front.getByRole("button", { name: /Render — wall surface/ }).click();
   await expect(front.locator(".sd-wall")).toHaveCount(2);
   await expect(front.locator(".sd-wallsum")).toContainText("100%");
-  // Confirm the side -> cyan.
-  await front.getByRole("button", { name: /Confirm front/i }).click();
-  await expect(front).toHaveClass(/done/, { timeout: 15_000 });
-  await expect(page.locator(".sd-prog")).toContainText("1 OF 8");
 
-  // A wall mix that is NOT 100% blocks the confirm.
+  // An OVER-committed mix (125%) blocks the confirm, by name.
   //
   // R5.1 REGRESSION GUARD: this sequence — wrong value, refused confirm,
   // corrected value, confirm again — is the one that broke when taps began
@@ -89,15 +83,24 @@ test("R2b sides loop: amber to cyan, walls must total 100%, skip reads NOT PAINT
   // exactly as designed, the batch stopped there, and the CORRECTION was
   // discarded. It failed 2 runs in 3 before a confirm was made to end its
   // batch. If this goes flaky again, look there first, not at the timeouts.
+  const fbWall = front.locator(".sd-wall", { hasText: /Weatherboard/i }).first();
+  await fbWall.locator(".sd-pc", { hasText: "100" }).click(); // 100 + render 25 = 125
+  await front.getByRole("button", { name: /Confirm front/i }).click();
+  await expect(front).not.toHaveClass(/done/);
+  await expect(page.locator(".sd-toast, .sd-wallsum.bad").first()).toBeVisible();
+  await fbWall.locator(".sd-pc", { hasText: "75" }).click(); // back to 100 total
+  await front.getByRole("button", { name: /Confirm front/i }).click();
+  await expect(front).toHaveClass(/done/, { timeout: 15_000 });
+  await expect(page.locator(".sd-prog")).toContainText("1 OF 8");
+
+  // Tom, 31 Aug: an UNDER-100 mix is a normal answer — half this wall is
+  // glass. 50% says what isn't charged and confirms first go.
   const left = page.locator(".sd-card", { hasText: "Left" }).first();
   await left.locator(".sd-hd").click();
   await left.getByRole("button", { name: "Yes", exact: true }).click();
   await left.getByRole("button", { name: /Looks right/ }).click();
   await left.locator(".sd-pc", { hasText: "50" }).first().click();
-  await left.getByRole("button", { name: /Confirm left/i }).click();
-  await expect(left).not.toHaveClass(/done/);
-  await expect(page.locator(".sd-toast, .sd-wallsum.bad").first()).toBeVisible();
-  await left.locator(".sd-pc", { hasText: "100" }).first().click();
+  await expect(left.locator(".sd-wallsum")).toContainText(/Painting 50%/i);
   await left.getByRole("button", { name: /Confirm left/i }).click();
   await expect(left).toHaveClass(/done/, { timeout: 15_000 });
 
@@ -129,9 +132,10 @@ test("R2b sides loop: amber to cyan, walls must total 100%, skip reads NOT PAINT
   await expect(back).toHaveClass(/done/, { timeout: 15_000 });
 
   // The remaining four cards.
+  // Tom, 31 Aug: a ticked extra IS the answer — no "Nothing else" on top.
   const extras = page.locator(".sd-card", { hasText: "Freestanding extras" });
   await extras.locator(".sd-hd").click();
-  await extras.getByRole("button", { name: /Nothing else/ }).click();
+  await extras.getByRole("button", { name: /\+ Deck/ }).click();
   await extras.getByRole("button", { name: /Confirm extras/i }).click();
 
   const cond = page.locator(".sd-card", { hasText: "Condition & access" });
@@ -146,9 +150,14 @@ test("R2b sides loop: amber to cyan, walls must total 100%, skip reads NOT PAINT
   await dw.getByRole("button", { name: /That's right/ }).click();
   await dw.getByRole("button", { name: /Confirm counts/i }).click();
 
+  // Tom, 31 Aug: "+ Something else" opens a box to SAY what — the typed name
+  // answers the sweep, so "No — that's everything" isn't needed on top.
   const sweep = page.locator(".sd-card", { hasText: /anything we haven't listed/i });
   await sweep.locator(".sd-hd").click();
-  await sweep.getByRole("button", { name: /No — that's everything/ }).click();
+  await sweep.getByRole("button", { name: /\+ Something else/ }).click();
+  await sweep.getByPlaceholder(/What else needs painting/).fill("Bungalow");
+  await sweep.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(page.locator(".sd-toast")).toContainText(/Bungalow/i, { timeout: 30_000 });
   await sweep.getByRole("button", { name: /Confirm — nothing missing/i }).click();
 
   // Everything blue: 8 of 8, CTA enabled, range still a range.

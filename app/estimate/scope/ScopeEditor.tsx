@@ -134,6 +134,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   };
   const [ladder, setLadder] = useState<Ladder>(initialLadder ?? { tier: "visit", visitSlots: [] });
   const [slotsOpen, setSlotsOpen] = useState(false);
+  const [sweepOtherOpen, setSweepOtherOpen] = useState(false);
+  const [sweepOtherText, setSweepOtherText] = useState("");
   const [booked, setBooked] = useState<string | null>(null);
   const [busyKeys, setBusyKeys] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<string | null>(null);
@@ -271,6 +273,17 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
     drain();
   }
 
+
+  /** "+ Something else" in the final sweep — the typed name rides the amber
+   * flag, so the estimator prices a "stairwell", never a "Something else". */
+  function addSweepOther() {
+    const name = sweepOtherText.trim().slice(0, 60);
+    if (!name) { say("Give it a name first — a word or two is plenty."); return; }
+    act({ action: "iloop_sweep", add: name }, "sweepadd",
+      () => `Thanks — "${name}" is on the list; your estimator prices it with you before anything is fixed.`);
+    setSweepOtherText("");
+    setSweepOtherOpen(false);
+  }
 
   const deltaText = (label: string, added: boolean) => (delta: number) => {
     const abs = Math.abs(Math.round(delta));
@@ -929,11 +942,24 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                         + {t.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase())}
                       </button>
                     ))}
+                    {/* Tom, 31 Aug: "something else" opens a box to SAY what —
+                        an amber flag with no name tells the estimator nothing. */}
+                    <button className={`sd-chip ${sweepOtherOpen ? "on" : ""}`} onClick={() => setSweepOtherOpen((v) => !v)}>
+                      + Something else
+                    </button>
                     <button className={`sd-chip ${sel("sweep:none", iloop.meta.sweepAns === "none") ? "on" : ""}`}
                       onClick={() => act({ action: "iloop_sweep", ans: "none" }, "sweepnone", undefined, ["sweep:none", "1"])}>
                       No — that&rsquo;s everything ✓
                     </button>
                   </div>
+                  {sweepOtherOpen && (
+                    <div className="sd-mrow" style={{ display: "flex", marginTop: 9, gap: 8 }}>
+                      <input style={{ flex: 1, width: "auto", minWidth: 180 }} placeholder="What else needs painting? Name it — e.g. stairwell, bungalow" maxLength={60}
+                        value={sweepOtherText} onChange={(e) => setSweepOtherText(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") addSweepOther(); }} />
+                      <button className="sd-chip" onClick={addSweepOther}>Add</button>
+                    </div>
+                  )}
                 </div>
                 <button className={`sd-confirm il-confirm ${iloop.meta.done.sweep ? "done" : ""}`}
                   disabled={optimistic["confirm:sweep"] != null}

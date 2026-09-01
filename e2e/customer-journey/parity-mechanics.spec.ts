@@ -64,13 +64,12 @@ test("exterior: geometry chips + flag flip the tier; toasts carry $ amounts", as
   await answer("What kind of property", "House");
   const next = async () => page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ }).first().click();
   await next();
-  await fillContactStep(page);   // C15: page 2 opens with who-is-it-for
   await next(); await next();
   await page.getByRole("button", { name: /Good overall/i }).click();
   await answer(/built before 1970/, "No");
   await next(); await next();
-  const email = page.locator("input[type=email]");
-  if (await email.count()) await email.fill(`e2e-mech-${Date.now()}@example.com`);
+  // The contact page is the LAST page now (Tom, 31 Aug).
+  await fillContactStep(page, `e2e-mech-${Date.now()}@example.com`);
   await page.getByRole("button", { name: "See my estimate" }).click();
   // 28 Aug: the wizard lands straight in the confirm-loop editor.
   await expect(page.locator(".sc-r").first()).toBeVisible({ timeout: 90_000 });

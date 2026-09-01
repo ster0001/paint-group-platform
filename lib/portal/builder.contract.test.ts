@@ -42,7 +42,10 @@ describe("the portal and the public site share ONE wizard", () => {
   it("the signed-in prefill rides props into the same component, not a variant", () => {
     const page = readFileSync(resolve(ROOT, "app/estimate/page.tsx"), "utf8");
     expect(page).toMatch(/prefill=\{memberEmail/);
+    // 31 Aug: the contact page is the LAST page, and a member whose account
+    // already carries name+phone+email (contactDone) never sees it.
     const app = readFileSync(resolve(ROOT, "app/wizard/WizardApp.tsx"), "utf8");
-    expect(app).toMatch(/prefill\?\.email \? 5 : 6|!prefill\?\.email \? 6 : 5/);
+    expect(app).toMatch(/!contactDone \? 6 : 5/);
+    expect(app).toMatch(/prefill\?\.email && prefill\?\.name/);
   });
 });

@@ -92,6 +92,22 @@
 .wz .wz-ln { font-family: var(--wz-mono); font-size: 11px; letter-spacing: .12em; color: var(--muted); margin-bottom: 9px; opacity: .25; transition: opacity .3s; }
 .wz .wz-ln.on { opacity: 1; color: var(--text); }
 
+/* Tom, 31 Aug: the interactive wait — live step ticks, a moving bar, a
+   rotating line about what they're getting. */
+.wz .wz-psteps { display: inline-flex; flex-direction: column; gap: 10px; text-align: left; margin: 0 auto; }
+.wz .wz-pstep { display: flex; align-items: center; gap: 10px; font-family: var(--wz-mono); font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); opacity: .35; transition: opacity .3s, color .3s; margin: 0; }
+.wz .wz-pstep.on { opacity: 1; color: var(--text); }
+.wz .wz-pstep.done { opacity: .85; color: var(--text); }
+.wz .wz-pdot { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--line); font-size: 10px; font-style: normal; color: var(--cyan); flex-shrink: 0; }
+.wz .wz-pstep.on .wz-pdot { border-color: var(--cyan); border-top-color: transparent; animation: wzspin .9s linear infinite; }
+.wz .wz-pstep.done .wz-pdot { border-color: var(--cyan); background: rgba(59,216,233,.1); animation: none; }
+.wz .wz-pbar { max-width: 340px; height: 4px; margin: 26px auto 0; border-radius: 99px; background: var(--line); overflow: hidden; }
+.wz .wz-pbar i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--cyan), #7be4f0); transition: width 1.2s ease; position: relative; }
+.wz .wz-pbar i::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent); animation: wzshimmer 1.6s linear infinite; }
+@keyframes wzshimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+.wz .wz-ptip { max-width: 420px; margin: 22px auto 0; font-size: 13.5px; color: var(--muted); animation: wztipin .5s ease; min-height: 2.6em; }
+@keyframes wztipin { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
 /* editor */
 .wz .wz-ed { max-width: 1060px; margin: 0 auto; padding: 22px 20px 150px; display: grid; grid-template-columns: 400px 1fr; gap: 20px; align-items: start; }
 .wz .wz-ed.noplan { grid-template-columns: 1fr; max-width: 680px; }

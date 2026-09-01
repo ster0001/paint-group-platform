@@ -442,6 +442,17 @@ const EXT_GROUPS: Array<{ group: ExteriorGroup["group"]; label: string; keys: st
 
 const EXT_COUNTABLE = new Set(["exterior_windows", "exterior_doors", "garage_doors"]);
 
+/** The freestanding extras the loop's "Freestanding extras" card offers. */
+export const FREESTANDING_EXTRA_KEYS: ReadonlyArray<string> = ["deck", "fence", "pergola", "balustrade"];
+
+/** Does the tree carry any freestanding extra? A ticked deck IS an answer to
+ * "anything freestanding?" — the customer must never ALSO have to tap
+ * "Nothing else" (Tom, 31 Aug). */
+export function hasFreestandingExtras(blocks: LooseBlock[]): boolean {
+  return blocks.some((b) => isExtArea(b)
+    && (b.surfaces ?? []).some((s) => FREESTANDING_EXTRA_KEYS.includes(substrateKeyForRateCode(String(s.code ?? "")) ?? "")));
+}
+
 const isExtArea = (b: LooseBlock) => b.kind === "area" && b.type === "Exterior";
 const elevationNameOf = (b: LooseBlock) => String(b.name ?? "").replace(/^Exterior\s*[-–]\s*/i, "").toLowerCase();
 

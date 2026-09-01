@@ -18,7 +18,7 @@ import {
 } from "../pricing/estimate.ts";
 import type { RateItem } from "../pricing/types.ts";
 import {
-  ALLOWANCE_CODES, addCatalogItem, applySideDims, defaultSidesLoop, extrasPrices, findSide,
+  ALLOWANCE_CODES, addCatalogItem, applySideDims, applyWallShare, confirmSide, defaultSidesLoop, extrasPrices, findSide,
   hasExtrasItem, rateFor, removeSideCustom, removeSideLine, toggleExtrasItem, visitReason,
   addSideCustom, addWallSurface, addSideSurface, wallOptionsFromRates, wallSumPct,
   type LooseBlock, type SidesLoopMeta,
@@ -275,4 +275,37 @@ test("wall options come from the live card, so concrete waits for its rate row",
 
   // An interior row of the same name would not open an exterior wall chip.
   assert.deepEqual(wallOptionsFromRates([{ code: "Render", category: "Interior" }]), []);
+});
+
+/**
+ * Tom, 31 Aug 2026: "when wall surfaces are less than 100% it won't let you
+ * save the estimate… if there are windows for example, they need to be
+ * excluded." A partial wall share is a normal answer; only an over-committed
+ * mix refuses.
+ */
+test("a side confirms with wall shares under 100% — only over 100% refuses", () => {
+  let blocks: LooseBlock[] = [sideBlock()];
+  blocks = ok(applyWallShare(blocks, "front", 2, 75));
+  const partial = confirmSide(blocks, "front");
+  assert.equal(partial.ok, true, "75% (the rest is glass) confirms");
+  const side = findSide((partial as { ok: true; blocks: LooseBlock[] }).blocks, "front")!;
+  assert.equal(side.customer?.confirmed, true);
+  assert.equal(side.surfaces!.find((s) => s.code === "Weatherboards")!.measureL, 9, "priced at 75% of 12 m");
+
+  // Over-committed still refuses, by name.
+  let over: LooseBlock[] = [sideBlock()];
+  let next = 50;
+  over = ok(addWallSurface(over, "front", "Render", () => next++));
+  over = ok(applyWallShare(over, "front", 2, 100)); // weatherboards back to 100 → 125 total
+  const refused = confirmSide(over, "front") as { ok: false; error: string };
+  assert.equal(refused.ok, false);
+  assert.match(refused.error, /more than 100%/);
+
+  // All-zero refuses too — that's what skipping the side is for.
+  let zero: LooseBlock[] = [sideBlock()];
+  zero = ok(applyWallShare(zero, "front", 2, 25));
+  (findSide(zero, "front")!.surfaces![0] as { sharePct?: number }).sharePct = 0;
+  const empty = confirmSide(zero, "front") as { ok: false; error: string };
+  assert.equal(empty.ok, false);
+  assert.match(empty.error, /at least one wall/i);
 });

@@ -164,6 +164,10 @@ export const wizardStateSchema = z.object({
      * screen says so as soon as one is ticked, the estimator confirms it, and
      * a ticked item makes the job non-straightforward (requires_site_check). */
     accessEquipment: z.array(z.enum(["scissor_lift", "boom_lift", "scaffold"])).default([]),
+    /** Tom, 31 Aug: exterior FROM SCRATCH — no listing, no photos. The
+     * elevations size from the answers (storeys + typical lengths, tagged
+     * assumed) and the confirm loop settles them side by side. */
+    noPhotos: z.boolean().default(false),
     extras: z.object({
       deck: z.boolean().default(false),
       fence: z.boolean().default(false),
@@ -214,15 +218,18 @@ export const wizardStateSchema = z.object({
       ctx.addIssue({ code: "custom", path: ["details", "damageTier"], message: "Damage at this level needs photos, or a short description." });
     }
   }
-  // Exterior without a listing URL requires 2–3 facade photos before quoting
-  // (locked decision; business inputs §3). Only a REAL listing link waives the
-  // photos — free text ("don't have one") must not.
+  // Exterior without a listing URL wants 2–3 facade photos before quoting
+  // (business inputs §3) — UNLESS the customer explicitly chose the
+  // from-scratch path (Tom, 31 Aug: exterior.noPhotos sizes the elevations
+  // from the answers; every exterior is estimator-signed-off anyway). Only a
+  // REAL listing link or that explicit choice waives the photos — free text
+  // ("don't have one") must not.
   const listingOk = isAllowedListingUrl(s.listingUrl);
   if (s.listingUrl.trim() !== "" && !listingOk) {
     ctx.addIssue({ code: "custom", path: ["listingUrl"], message: "That doesn't look like a realestate.com.au or domain.com.au link — paste the listing address, or add facade photos instead." });
   }
-  if (wantsExterior && !listingOk && s.facadeRunIds.length < 2) {
-    ctx.addIssue({ code: "custom", path: ["facadeRunIds"], message: "Exterior needs the listing, or two to three facade photos — front and each visible side." });
+  if (wantsExterior && !listingOk && s.facadeRunIds.length < 2 && s.exterior?.noPhotos !== true) {
+    ctx.addIssue({ code: "custom", path: ["facadeRunIds"], message: "Exterior needs the listing or two to three facade photos — or choose “No photos to hand” and we'll size it from your answers." });
   }
   if (s.paint.waterBasedOnly && s.paint.trimsOilBased == null) {
     ctx.addIssue({ code: "custom", path: ["paint", "trimsOilBased"], message: "Are the trims currently oil-based enamel?" });
@@ -308,6 +315,7 @@ export function defaultExterior(): WizardExterior {
     condition: null,
     access: [],
     accessEquipment: [],
+    noPhotos: false,
     extras: { deck: false, fence: false, fenceMetres: null, pergola: false, balustrade: false },
   };
 }

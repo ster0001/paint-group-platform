@@ -39,16 +39,8 @@ test("R2 exterior journey: five exterior pages, no interior questions, priced by
     if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
   };
 
-  // Page 2 opens with the C15 contact sub-step — the autosave needs somebody
-  // to save FOR — then the house questions.
+  // Page 2 — the house questions (the contact page moved to the END, Tom 31 Aug).
   await next();
-  const contact = page.locator(".wz-crow input");
-  if (await contact.count()) {
-    await contact.nth(0).fill("E2E Exterior");
-    await contact.nth(1).fill(`e2e-exterior-${Date.now()}@example.com`);
-    await contact.nth(2).fill("0400 000 222");
-    await next();
-  }
   await expect(page.getByText(/What.s the building made of/i)).toBeVisible();
   await expect(page.locator(".wz-step")).toContainText(/storey/i);
   // Tom, 29 Aug: each storey answer says the height it means.
@@ -85,10 +77,13 @@ test("R2 exterior journey: five exterior pages, no interior questions, priced by
   await expect(page.getByText(/Anything else out there|extras/i).first()).toBeVisible();
   await expect(page.locator(".wz-step")).toContainText(/Dulux|Haymes/);
 
-  // Email gate → submit → a priced result, organised by sides.
+  // The contact page (the LAST question) → submit → a priced result by sides.
   await next();
-  const email = page.locator("input[type=email]");
-  if (await email.count()) await email.fill(`e2e-exterior-${Date.now()}@example.com`);
+  const contact = page.locator(".wz-crow input");
+  await expect(contact.first()).toBeVisible();
+  await contact.nth(0).fill("E2E Exterior");
+  await contact.nth(1).fill(`e2e-exterior-${Date.now()}@example.com`);
+  await contact.nth(2).fill("0400 000 222");
   await page.getByRole("button", { name: "See my estimate" }).click();
   // 28 Aug: the wizard lands straight in the editor.
   await expect(page.locator(".sc-r").first()).toBeVisible({ timeout: 90_000 });

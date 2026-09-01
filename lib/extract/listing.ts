@@ -68,6 +68,69 @@ export function checkListingUrl(raw: string): ListingCheck {
   return { ok: true, url };
 }
 
+/** Image CDNs the listing portals serve their media from — the plan image we
+ * download must live on one of these or on a listing host itself. */
+const PLAN_IMAGE_HOSTS = [
+  ...ALLOWED_HOSTS,
+  "reastatic.net",        // realestate.com.au media
+  "domainstatic.com.au",  // domain.com.au media
+  "domainstatic.com",
+];
+
+/** Is this an image URL we are willing to download from our own server?
+ * Same SSRF posture as the page fetch: https only, host allow-list. */
+export function checkPlanImageUrl(raw: string): ListingCheck {
+  let url: URL;
+  try {
+    url = new URL(raw.trim());
+  } catch {
+    return { ok: false, message: "Not a web address." };
+  }
+  if (url.protocol !== "https:") return { ok: false, message: "Plan images must be https." };
+  const host = url.hostname.toLowerCase().replace(/^www\./, "");
+  const allowed = PLAN_IMAGE_HOSTS.some((h) => host === h || host.endsWith(`.${h}`));
+  return allowed ? { ok: true, url } : { ok: false, message: `${host} isn't a listing image host we read.` };
+}
+
+/**
+ * Tom, 31 Aug: "attach a realestate listing for interior jobs, and it has to
+ * read the floorplan which is listed in the real estate listing."
+ *
+ * Find the floorplan IMAGE URLs on a listing page. Portals mark floorplans
+ * apart from the gallery — realestate.com.au's media JSON carries a
+ * "floorplans" array, Domain tags media "floorplan" — so the finder looks for
+ * URLs that sit next to a floorplan marker, plus any URL that names itself
+ * one. Candidates only: the caller downloads, byte-checks and ingests through
+ * the SAME pipeline as an uploaded plan; nothing here is trusted as an image.
+ */
+export function findFloorplanImages(html: string): string[] {
+  // JSON blobs escape "/" as "\/" (and sometimes /) — normalise first so
+  // one URL regex serves the markup and the embedded JSON alike.
+  const text = html.replace(/\\u002F/gi, "/").replace(/\\\//g, "/");
+  const found: string[] = [];
+  const URL_RE = /https:\/\/[^\s"'<>\\]+/g;
+
+  // 1. URLs that call themselves a floorplan.
+  for (const m of text.matchAll(URL_RE)) {
+    if (/floor[-_]?plan/i.test(m[0])) found.push(m[0]);
+  }
+
+  // 2. URLs inside a floorplan-labelled JSON neighbourhood: `"floorplans":[…]`
+  //    or `"category":"floorplan"` / `"type":"FLOORPLAN"` within ~300 chars.
+  for (const marker of text.matchAll(/"(?:floorplans?|FLOORPLAN)"/g)) {
+    const at = marker.index ?? 0;
+    const window = text.slice(at, at + 600);
+    for (const m of window.matchAll(URL_RE)) found.push(m[0]);
+  }
+
+  // Images only, allow-listed hosts only, templated sizes resolved.
+  const cleaned = found
+    .map((u) => u.replace(/\{size\}/g, "1144x888").replace(/[),.]+$/, ""))
+    .filter((u) => /\.(?:jpe?g|png|webp|gif)(?:\?|$)/i.test(u) || /reastatic\.net|domainstatic/i.test(u))
+    .filter((u) => checkPlanImageUrl(u).ok);
+  return [...new Set(cleaned)].slice(0, 3);
+}
+
 export type ListingFacts = {
   title: string | null;
   bedrooms: number | null;

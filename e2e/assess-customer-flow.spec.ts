@@ -85,9 +85,16 @@ test("walk the customer flow and record reality", async ({ page }) => {
     } else console.log("NO damage-photo control on page 4");
   }
   await next(); // paint
-  await next(); // email gate (customer mode)
-  const email = page.locator("input[type=email]");
-  if (await email.count()) await email.fill("assess-test@example.com");
+  await next(); // contact page (customer mode — the LAST question since 31 Aug)
+  const contact = page.locator(".wz-crow input");
+  if (await contact.count()) {
+    await contact.nth(0).fill("Assess Tester");
+    await contact.nth(1).fill("assess-test@example.com");
+    await contact.nth(2).fill("0400 000 111");
+  } else {
+    const email = page.locator("input[type=email]");
+    if (await email.count()) await email.fill("assess-test@example.com");
+  }
   await shot(page, "06-before-submit");
   await page.getByRole("button", { name: "See my estimate" }).click();
 

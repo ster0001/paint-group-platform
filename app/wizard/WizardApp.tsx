@@ -56,6 +56,16 @@ const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
 const snapshotFalse = () => false;
 
+/** Rotating lines on the processing screen — something worth reading while
+ * the AI measures and prices (Tom, 31 Aug: make the wait interactive). */
+const PROC_TIPS = [
+  "You'll be able to adjust every room and watch the price move live.",
+  "5.0 ★ from 93+ five-star reviews across Melbourne.",
+  "Free, unlimited colour samples — nothing starts until you love the colours.",
+  "A real estimator checks every estimate before anything is fixed.",
+  "Nothing is booked and nothing is charged until you say so.",
+];
+
 export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl }: {
   roomTypes: string[];
   /** A2: the offered surface lists, derived server-side from the rate card. */
@@ -107,9 +117,6 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const [page, setPage] = useState(1);
   const [screen, setScreen] = useState<Screen>("pages");
   const isCustomer = mode === "customer";
-  // The email gate exists to capture identity — a signed-in customer already
-  // proved theirs, so the page simply isn't there for them.
-  const lastPage = isCustomer && !prefill?.email ? 6 : 5;
   const [outcome, setOutcome] = useState<CustomerOutcome | null>(null);
 
   // A customer needs an identity before they can upload or submit —
@@ -124,6 +131,13 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const [sessionSlow, setSessionSlow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [procLine, setProcLine] = useState(0);
+  /** The processing screen's rotating tip — advances on a timer. */
+  const [procTip, setProcTip] = useState(0);
+  useEffect(() => {
+    if (screen !== "processing") return;
+    const t = setInterval(() => setProcTip((n) => n + 1), 3600);
+    return () => clearInterval(t);
+  }, [screen]);
   const [planFileCount, setPlanFileCount] = useState(0);
   const [facadeFileCount, setFacadeFileCount] = useState(0);
   // The canonical hydration detector (same as the editors): server snapshot
@@ -149,14 +163,13 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const router = useRouter();
   const set = (patch: Partial<WizardState>) => setState((s) => ({ ...s, ...patch }));
 
-  /** C15: the contact sub-step sits at the top of page 2 for customers. It is
-   *  a sub-step rather than a page so the dots do not gain a sixth spot for
-   *  something that takes ten seconds. Once past, it never returns. */
-  const [contactDone, setContactDone] = useState(
-    // A signed-in member whose account already carries all three details is
-    // never asked again (Tom, 31 Aug).
-    Boolean(prefill?.email && prefill?.name?.trim() && (prefill?.phone ?? "").replace(/[^0-9]/g, "").length >= 8),
-  );
+  /** Tom, 31 Aug: name, phone and email are one of the LAST questions — the
+   *  final page before the AI builds the estimate, not a gate at the start.
+   *  A signed-in member whose account already carries all three (every trade
+   *  member, most portal customers) never sees the page at all. */
+  const contactDone =
+    Boolean(prefill?.email && prefill?.name?.trim() && (prefill?.phone ?? "").replace(/[^0-9]/g, "").length >= 8);
+  const lastPage = isCustomer && !contactDone ? 6 : 5;
 
   // 2.4 · record the arrival once, on mount. First touch writes itself only
   // the first time; last touch moves every visit. Wrapped in the helper, which
@@ -297,6 +310,46 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     }
   }
 
+  /** Tom, 31 Aug: read the floorplan straight off the pasted listing. The
+   * server finds + downloads the plan image and stages it; the staged path
+   * then rides the SAME ingest as an uploaded plan. Failures are spoken —
+   * realestate.com.au blocks automated access, and the error says to
+   * screenshot the plan instead. */
+  async function importListingPlan() {
+    const url = state.listingUrl.trim();
+    if (!url) { setError("Paste the listing link first."); return; }
+    setUploading(true);
+    setError(null);
+    setUploadNote("Reading the listing…");
+    try {
+      const res = await fetch("/api/extract/listing-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(j.error ?? "Couldn't read that listing — upload the floorplan instead."); return; }
+      setUploadNote("Reading the floorplan…");
+      const proc = await fetch("/api/extract/floorplan?kind=floorplan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uploads: [{ path: j.path, name: j.name ?? "listing-floorplan" }] }),
+      });
+      const pj = await proc.json().catch(() => ({}));
+      if (!proc.ok) { setError(pj.error ?? "The listing's floorplan couldn't be read — upload it instead."); return; }
+      const ids: string[] = pj.runIds ?? [];
+      primaryRunRef.current = pj.primaryRunId ?? ids[0] ?? null;
+      for (const runId of ids) kickRead(runId);
+      setState((s) => ({ ...s, planRunIds: ids, noPlan: false }));
+      setPlanFileCount(1);
+    } catch {
+      setError("The listing couldn't be read — check your connection, or upload the floorplan instead.");
+    } finally {
+      setUploading(false);
+      setUploadNote(null);
+    }
+  }
+
   async function uploadFacades(files: File[]) {
     if (!files.length) return;
     setError(null);
@@ -326,9 +379,12 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     setError(null);
     try {
       await runSubmitInner();
-    } catch {
+    } catch (e) {
       // A dropped connection must never strand the customer on the spinner -
       // their answers are all still in state, so send them back to retry.
+      // The real exception goes to the console — "connection dropped" once
+      // masked a plain client bug for a whole e2e run.
+      console.error("wizard submit failed", e);
       setScreen("pages");
       setError("The connection dropped while we were working — nothing was lost. Check your internet and tap through again.");
     }
@@ -431,8 +487,14 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     // neutralises the count itself and raises the "damage to price" deferral.
     // (R1.3: photos without a plan run are now kept via /api/extract/photos,
     // so the old client-side zeroing both lied and broke the customer gate.)
+    // The contact email doubles as the property email — synced HERE, not via
+    // setState, because this closure still reads the pre-set state.
+    const customer = state.customer && !state.customer.email.trim() && state.contact.email.trim()
+      ? { ...state.customer, email: state.contact.email.trim() }
+      : state.customer;
     const submitState = {
       ...state,
+      customer,
       planRunIds: footprintRunId ? [...state.planRunIds, footprintRunId] : state.planRunIds,
       conditionSourceIds: conditionSourceIdsRef.current,
     };
@@ -541,22 +603,21 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         return "Where's the property? Suburb and postcode, please.";
       }
       if (wantsInterior && !state.noPlan && state.planRunIds.length === 0) {
-        return "Upload a floorplan, or choose the quick basics instead.";
+        return state.listingUrl.trim()
+          ? "Tap “Read the floorplan from this listing”, upload a floorplan, or choose the quick basics instead."
+          : "Upload a floorplan, or choose the quick basics instead.";
       }
       if (state.noPlan && !state.basics) return "A couple of basics first, please.";
-      if (state.jobType !== "interior" && !state.listingUrl.trim() && state.facadeRunIds.length < 2) {
-        return "Exterior needs the listing, or two to three facade photos — front and each visible side.";
+      if (state.jobType !== "interior" && !state.listingUrl.trim() && state.facadeRunIds.length < 2
+        && !state.exterior?.noPhotos) {
+        return "Exterior needs the listing or two to three facade photos — or tap “No photos to hand” and we'll size it from your answers.";
       }
     }
-    if (page === 2 && isCustomer && !contactDone) {
+    if (page === 6 && isCustomer) {
       const c = state.contact;
       if (!c.name.trim()) return "Your name, so we know who we're talking to.";
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email.trim())) return "An email — it's where your estimate is saved.";
       if (c.phone.replace(/[^0-9]/g, "").length < 8) return "A phone number, in case we need to ask you something.";
-    }
-    if (page === 6 && isCustomer) {
-      const email = state.customer?.email.trim() ?? state.contact.email.trim();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "A valid email, so your estimate has somewhere to live.";
     }
     // R2: the exterior pages' own gates.
     if (state.jobType === "exterior") {
@@ -582,16 +643,12 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     const blocked = pageBlocker();
     if (blocked) { setError(blocked); return; }
     setError(null);
-    // The contact sub-step advances within page 2, not past it. The email
-    // given here IS the email — the send gate at the end prefis from it, so
-    // nobody types their address twice in one form.
-    if (page === 2 && isCustomer && !contactDone) {
-      if (state.customer && !state.customer.email.trim() && state.contact.email.trim()) {
-        set({ customer: { ...state.customer, email: state.contact.email.trim() } });
-      }
-      setContactDone(true); window.scrollTo({ top: 0 }); return;
-    }
     if (page < lastPage) { setPage(page + 1); window.scrollTo({ top: 0 }); return; }
+    // The contact email IS the email — sync it onto the property answers so
+    // the submit schema and the funnel both see it, then build.
+    if (isCustomer && state.customer && !state.customer.email.trim() && state.contact.email.trim()) {
+      set({ customer: { ...state.customer, email: state.contact.email.trim() } });
+    }
     void runSubmit();
   }
 
@@ -629,20 +686,35 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       </header>
 
       {screen === "processing" ? (
+        // Tom, 31 Aug: something to WATCH while the AI works — live step
+        // ticks, a moving bar, and a rotating line about what they're getting.
         <div className="wz-wrap wz-proc">
           <div className="wz-ring" />
-          <p className={`wz-ln ${procLine >= 1 ? "on" : ""}`}>
-            {state.jobType === "exterior" ? "LOOKING OVER THE OUTSIDE…"
-              : state.noPlan || state.planRunIds.length === 0 ? "BUILDING THE ROOM LIST…" : "READING YOUR FLOORPLAN…"}
-          </p>
-          <p className={`wz-ln ${procLine >= 2 ? "on" : ""}`}>
-            {state.jobType === "exterior" ? "SETTING OUT THE ELEVATIONS…"
-              : state.noPlan || state.planRunIds.length === 0 ? "SIZING ROOMS FROM TYPICAL DIMENSIONS…" : "MEASURING THE ROOMS…"}
-          </p>
-          {state.details.damagePhotoCount > 0 && (
-            <p className={`wz-ln ${procLine >= 2 ? "on" : ""}`}>ANALYSING THE DAMAGE PHOTOS…</p>
-          )}
-          <p className={`wz-ln ${procLine >= 3 ? "on" : ""}`}>PRICING EVERY SURFACE…</p>
+          <div className="wz-psteps">
+            {[
+              {
+                at: 1,
+                label: state.jobType === "exterior" ? "Looking over the outside"
+                  : state.noPlan || state.planRunIds.length === 0 ? "Building the room list" : "Reading your floorplan",
+              },
+              {
+                at: 2,
+                label: state.jobType === "exterior" ? "Setting out the elevations"
+                  : state.noPlan || state.planRunIds.length === 0 ? "Sizing rooms from typical dimensions" : "Measuring the rooms",
+              },
+              ...(state.details.damagePhotoCount > 0 ? [{ at: 2, label: "Analysing the damage photos" }] : []),
+              { at: 3, label: "Pricing every surface" },
+            ].map((s, i) => (
+              <p key={i} className={`wz-pstep ${procLine > s.at ? "done" : procLine >= s.at ? "on" : ""}`}>
+                <i className="wz-pdot" aria-hidden>{procLine > s.at ? "✓" : ""}</i>
+                {s.label}
+              </p>
+            ))}
+          </div>
+          <div className="wz-pbar" role="progressbar" aria-label="Building your estimate">
+            <i style={{ width: `${Math.min(92, 14 + procLine * 26)}%` }} />
+          </div>
+          <p className="wz-ptip" key={procTip}>{PROC_TIPS[procTip % PROC_TIPS.length]}</p>
         </div>
       ) : (
         <div className="wz-wrap">
@@ -659,17 +731,16 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 sessionBlocked={sessionPhase !== "ready"}
                 planInputRef={planInputRef} facadeInputRef={facadeInputRef}
                 onPlanFiles={uploadPlans} onFacadeFiles={uploadFacades}
+                onImportListingPlan={importListingPlan}
               />
             )}
             {/* R2: the wizard BRANCHES at job type — a pure-exterior customer
                 gets the exterior question set and never sees ceiling heights,
                 interior door styles or the interior damage intake. */}
-            {/* C15: the customer gives their details at the START of the
-                questions, not at the end. Two reasons, and the second is the
-                important one: the estimate can be saved as they go, and if
-                they leave halfway there is somebody to talk to. */}
-            {page === 2 && isCustomer && !contactDone && <PageContact state={state} set={set} />}
-            {page === 2 && (isCustomer && !contactDone ? null : state.jobType === "exterior"
+            {/* Tom, 31 Aug: contact details moved to the LAST page (below) —
+                the questions come first, the name/phone/email is the final
+                step before the AI builds the estimate. */}
+            {page === 2 && (state.jobType === "exterior"
               ? <PageExteriorHouse state={state} set={set} substrates={substrates} />
               : <PageSurfaces state={state} set={set} substrates={substrates} />)}
             {page === 3 && (state.jobType === "exterior"
@@ -696,19 +767,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             {page === 5 && (state.jobType === "exterior"
               ? <PageExteriorExtras state={state} set={set} />
               : <PagePaint state={state} set={set} />)}
-            {page === 6 && isCustomer && state.customer && (
-              <>
-                <p className="wz-kick">One last thing</p>
-                <h1>Where should we send your estimate?</h1>
-                <p className="wz-sub">You&rsquo;ll see it on screen right now — this saves it so you can come back, tweak it, and share it.</p>
-                <input
-                  className="wz-field" type="email" placeholder="you@email.com"
-                  value={state.customer.email}
-                  onChange={(e) => set({ customer: { ...state.customer!, email: e.target.value } })}
-                />
-                <p style={{ fontSize: 12.5, color: "var(--muted)" }}>No spam, no obligation. Opt out any time.</p>
-              </>
-            )}
+            {page === 6 && isCustomer && <PageContact state={state} set={set} />}
             {uploadNote && <div className="wz-note">{uploadNote}</div>}
             {readIssueCount > 0 && (
               <div className="wz-note">
@@ -769,7 +828,7 @@ function Seg<T extends string>({ options, value, onPick }: {
 // ---- page 1: the property ---------------------------------------------------
 
 function PageProperty({
-  state, set, isCustomer = false, substrates, planFileCount, facadeFileCount, uploading, sessionBlocked = false, planInputRef, facadeInputRef, onPlanFiles, onFacadeFiles,
+  state, set, isCustomer = false, substrates, planFileCount, facadeFileCount, uploading, sessionBlocked = false, planInputRef, facadeInputRef, onPlanFiles, onFacadeFiles, onImportListingPlan,
 }: {
   state: WizardState;
   set: (p: Partial<WizardState>) => void;
@@ -785,6 +844,8 @@ function PageProperty({
   facadeInputRef: React.RefObject<HTMLInputElement | null>;
   onPlanFiles: (files: File[]) => void;
   onFacadeFiles: (files: File[]) => void;
+  /** Read the floorplan off the pasted listing (interior jobs). */
+  onImportListingPlan: () => void;
 }) {
   const basics = state.basics;
   const needsFacades = state.jobType !== "interior" && !state.listingUrl.trim();
@@ -883,6 +944,13 @@ function PageProperty({
         value={state.listingUrl}
         onChange={(e) => set({ listingUrl: e.target.value })}
       />
+      {/* Tom, 31 Aug: an interior job can read the floorplan straight off the
+          listing — one tap here instead of hunting for a file. */}
+      {state.jobType !== "exterior" && state.listingUrl.trim() !== "" && state.planRunIds.length === 0 && !state.noPlan && (
+        <button className="wz-upload" onClick={onImportListingPlan} disabled={blocked}>
+          {uploading ? "Reading the listing…" : "📐 Read the floorplan from this listing"}
+        </button>
+      )}
       {/* R1.3: floorplans are an INTERIOR document — the exterior path has no
           floorplan field anywhere (a floorplan is a picture of the inside). */}
       {state.jobType !== "exterior" && (
@@ -1010,7 +1078,7 @@ function PageProperty({
 
       {needsFacades && (
         <div className="wz-follow">
-          <p className="wz-q">Exterior without a listing needs two or three facade photos — the front and each visible side.</p>
+          <p className="wz-q">Exterior works best with two or three facade photos — the front and each visible side. No photos? You can build it from your answers instead.</p>
           <input
             ref={facadeInputRef} type="file" hidden multiple accept="image/*"
             onChange={(e) => { onFacadeFiles([...(e.target.files ?? [])]); e.target.value = ""; }}
@@ -1024,6 +1092,21 @@ function PageProperty({
               ? `✓ ${facadeFileCount} photo${facadeFileCount === 1 ? "" : "s"} added — add another?`
               : "📷 Add facade photos"}
           </button>
+          {/* Tom, 31 Aug: exterior from scratch — no listing, no photos. The
+              sides size from the answers and get confirmed one by one. */}
+          {facadeFileCount === 0 && (
+            <button
+              className="wz-linkish"
+              onClick={() => {
+                const ext = state.exterior ?? defaultExterior();
+                set({ exterior: { ...ext, noPhotos: !ext.noPhotos } });
+              }}
+            >
+              {state.exterior?.noPhotos
+                ? "✓ No photos — we'll size it from your answers. Tap to undo"
+                : "No photos to hand? We'll size it from your answers"}
+            </button>
+          )}
         </div>
       )}
     </>
@@ -1381,22 +1464,20 @@ function useExt(state: WizardState, set: (p: Partial<WizardState>) => void) {
 }
 
 /**
- * C15 · the customer's contact step, at the start of the questions.
- *
- * Asked here rather than at the end for one reason: from this point the
- * estimate saves itself, so leaving halfway costs them nothing and leaves us
- * somebody to help. The wording says that, because asking for a phone number
- * three questions in needs to earn itself.
+ * The customer's contact step — the LAST page, right before the AI builds
+ * (Tom, 31 Aug: "name, phone and email needs to be one of the last questions
+ * asked before the ai tool starts the search"). Trade and portal members
+ * whose account already carries all three never see it.
  */
 function PageContact({ state, set }: { state: WizardState; set: (p: Partial<WizardState>) => void }) {
   const c = state.contact;
   return (
     <>
-      <p className="wz-kick">Step 2 of 5 · You</p>
-      <h1>Before the questions — who are we quoting for?</h1>
+      <p className="wz-kick">One last thing</p>
+      <h1>Who should we send your estimate to?</h1>
       <p className="wz-sub">
-        From here your estimate saves itself as you go. Leave it halfway, come back tomorrow,
-        it&rsquo;ll be waiting — and if you get stuck, we can pick up where you left off.
+        You&rsquo;ll see it on screen the moment it&rsquo;s built — this saves it to your email so
+        you can come back, tweak it, and share it.
       </p>
       <div className="wz-crow">
         <input className="wz-field" placeholder="Your name" value={c.name}
@@ -1408,7 +1489,7 @@ function PageContact({ state, set }: { state: WizardState; set: (p: Partial<Wiza
       </div>
       <p className="wz-chint">
         We use the phone only if there&rsquo;s something we can&rsquo;t work out from your answers.
-        No newsletters, and you can stop hearing from us in one click, any time.
+        No spam, no obligation — and you can stop hearing from us in one click, any time.
       </p>
     </>
   );

@@ -43,19 +43,20 @@ test("doors carry their frame/architrave answer, core tiles are always there, an
   }
 
   // ---- the door tile says what comes with each door -------------------------
+  // Tom's walk ruling (31 Aug, trade batch 1): frames ARE architraves — the
+  // seg offers exactly "door only" and "+ frame"; the "+ arch." option is
+  // gone (legacy 'architrave' states still render as + frame).
   const doors = grid.locator(".sc-tl.on", { hasText: /^Doors/ }).first();
   await expect(doors).toBeVisible();
   const seg = doors.locator(".sd-wseg");
   await expect(seg).toBeVisible();
   await expect(seg.locator("button.on")).toHaveText("+ frame"); // today's default
-  await seg.getByRole("button", { name: "+ arch." }).click();
-  // The architrave arrives as its OWN visible tile — never a hidden loading.
-  const arch = first.locator(".sc-tl.on", { hasText: /^Architraves/ });
-  await expect(arch).toBeVisible({ timeout: 25_000 });
-  await expect(seg.locator("button.on")).toHaveText("+ arch.");
-  // And back again takes it off.
+  await expect(seg.getByRole("button", { name: "+ arch." })).toHaveCount(0);
+  // Door-only takes the frame off; + frame puts it back — both reprice.
+  await seg.getByRole("button", { name: "Door", exact: true }).click();
+  await expect(seg.locator("button.on")).toHaveText("Door", { timeout: 25_000 });
   await seg.getByRole("button", { name: "+ frame" }).click();
-  await expect(first.locator(".sc-tl.on", { hasText: /^Architraves/ })).toHaveCount(0, { timeout: 25_000 });
+  await expect(seg.locator("button.on")).toHaveText("+ frame", { timeout: 25_000 });
 
   // ---- a Winder answer stays a winder ---------------------------------------
   // The window group tile is labelled from the wizard answer, not from the
@@ -99,17 +100,15 @@ test("exterior: every item can be taken off, and there is no accept-online butto
     const err = page.locator(".wz-err");
     if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
   };
-  await next(); // → page 2: the contact sub-step first
-  await fillContactStep(page); // …then the house
+  await next(); // → page 2: the house
   await next(); // → what are we painting
   await next(); // → condition + access
   await page.getByRole("button", { name: /Good overall/i }).click();
   await answer(/built before 1970/, "No");
   await page.getByRole("button", { name: /None of these/i }).click();
   await next(); // → extras + paint
-  await next(); // → email gate
-  const email = page.locator("input[type=email]");
-  if (await email.count()) await email.fill(`e2e-ext-${Date.now()}@example.com`);
+  await next(); // → contact, the LAST page (Tom, 31 Aug)
+  await fillContactStep(page, `e2e-ext-${Date.now()}@example.com`);
   await page.getByRole("button", { name: "See my estimate" }).click();
   // 28 Aug: the wizard lands straight in the confirm-loop editor.
   await expect(page.locator(".sc-r").first()).toBeVisible({ timeout: 90_000 });
@@ -144,17 +143,16 @@ test("exterior: every item can be taken off, and there is no accept-online butto
   await expect(side.locator(".sd-tl", { hasText: label })).toHaveCount(0);
 });
 
-test("the wizard's '+ architrave' answer reaches the estimate as a real architrave line", async ({ page }) => {
+// Tom's walk ruling (31 Aug, trade batch 1): frames ARE architraves — the
+// "+ architrave" wizard answer is gone. The frame answer must still travel.
+test("the wizard's 'Door + frame' answer reaches the estimate on every door tile", async ({ page }) => {
   test.setTimeout(300_000);
-  await driveNoPlanWizard(page, { doorStyle: "Flat", doorScope: "+ architrave" });
+  await driveNoPlanWizard(page, { doorStyle: "Flat", doorScope: "Door + frame" });
   await openScopeEditor(page);
 
-  // Every room that carries doors carries the architraves that go with them,
-  // as their own visible tile — and the door tile agrees.
   const withDoors = page.locator(".sc-rc[data-room]").filter({ has: page.locator(".sc-tl.on", { hasText: /^Doors/ }) });
   expect(await withDoors.count()).toBeGreaterThan(0);
   const room = withDoors.first();
   await room.scrollIntoViewIfNeeded();
-  await expect(room.locator(".sc-tl.on", { hasText: /^Architraves/ })).toBeVisible();
-  await expect(room.locator(".sc-tl.on", { hasText: /^Doors/ }).locator(".sd-wseg button.on")).toHaveText("+ arch.");
+  await expect(room.locator(".sc-tl.on", { hasText: /^Doors/ }).locator(".sd-wseg button.on")).toHaveText("+ frame");
 });

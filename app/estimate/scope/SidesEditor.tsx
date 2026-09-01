@@ -85,6 +85,8 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
   const [addOpen, setAddOpen] = useState<SideKey | null>(null);
   const [customText, setCustomText] = useState("");
   const [fenceText, setFenceText] = useState("");
+  const [sweepOtherOpen, setSweepOtherOpen] = useState(false);
+  const [sweepOtherText, setSweepOtherText] = useState("");
   const [slotsOpen, setSlotsOpen] = useState(false);
   const [booked, setBooked] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -380,8 +382,12 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                       </div>
                     ))}
                   </div>
-                  <p className={`sd-wallsum ${s.wallSum === 100 ? "" : "bad"}`}>
-                    {s.wallSum === 100 ? "Adds up to 100% ✓" : `Adds up to ${s.wallSum}% — make it 100% before confirming this side`}
+                  {/* Tom, 31 Aug: under 100% is a normal answer — a side can
+                      be part glass or garage door. Only over-committed is bad. */}
+                  <p className={`sd-wallsum ${s.wallSum > 100 ? "bad" : ""}`}>
+                    {s.wallSum === 100 ? "Adds up to 100% ✓"
+                      : s.wallSum > 100 ? `Adds up to ${s.wallSum}% — bring it back to 100% or less before confirming`
+                      : `Painting ${s.wallSum}% of this side's walls ✓ — the rest (windows, glass, garage door) isn't charged`}
                   </p>
                 </div>
 
@@ -561,6 +567,18 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
     const o = optimistic[`cnt:${sideKey}:${t.id}`];
     return o != null ? parseInt(o, 10) : t.count;
   }
+  /** "+ Something else" in the final sweep — the typed name rides the amber
+   * flag, so the estimator prices a "bungalow", never a "Something else". */
+  function addSweepOther() {
+    const name = sweepOtherText.trim().slice(0, 60);
+    if (!name) { say("Give it a name first — a word or two is plenty."); return; }
+    act({ action: "loop_sweep", add: name }, {
+      done: `Thanks — "${name}" is on the list, and we'll confirm it on the site visit.`,
+    });
+    setSweepOtherText("");
+    setSweepOtherOpen(false);
+  }
+
   /** Take one line off a side. The refusal that matters — the last wall —
    * comes back from the server and lands as an ordinary toast. */
   function removeLine(sideKey: SideKey, surfaceId: number, label: string) {
@@ -765,14 +783,26 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                         opt: [`sw:${it.code}`, it.on ? "0" : "1"],
                       })} />
                   ))}
-                  {["Carport", "Something else"].map((n) => (
-                    <Chip key={n} on={false} label={`+ ${n}`}
-                      onClick={() => act({ action: "loop_sweep", add: n }, {
-                        done: `Thanks — we've added ${n.toLowerCase()}, and we'll confirm it on the site visit.`,
-                      })} />
-                  ))}
+                  <Chip on={false} label="+ Carport"
+                    onClick={() => act({ action: "loop_sweep", add: "Carport" }, {
+                      done: "Thanks — we've added the carport, and we'll confirm it on the site visit.",
+                    })} />
+                  {/* Tom, 31 Aug: "something else" opens a box to SAY what —
+                      a flag that just reads "Something else" tells the
+                      estimator nothing. */}
+                  <Chip on={sweepOtherOpen} label="+ Something else"
+                    onClick={() => setSweepOtherOpen((v) => !v)} />
                   <Chip on={sel("sweep:none", m.sweepAns === "none")} label={"No — that's everything ✓"} onClick={() => act({ action: "loop_sweep", ans: "none" }, { opt: ["sweep:none", "1"] })} />
                 </div>
+                {sweepOtherOpen && (
+                  <div className="sd-mrow" style={{ display: "flex", marginTop: 9 }}>
+                    <input style={{ flex: 1, width: "auto", minWidth: 180 }}
+                      placeholder="What else needs painting? Name it — e.g. bungalow, letterbox" maxLength={60}
+                      value={sweepOtherText} onChange={(e) => setSweepOtherText(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") addSweepOther(); }} />
+                    <button onClick={addSweepOther}>Add</button>
+                  </div>
+                )}
               </div>
             ), "Confirm — nothing missing ✓")}
           </div>

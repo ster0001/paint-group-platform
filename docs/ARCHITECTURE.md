@@ -1613,3 +1613,29 @@ reassign touches — and quote OfferPanel resolve); after() hooks in
 moveBooking/reassignOffer actions and setFinishDate; the nightly wo-sweep
 reconciles everyone connected as the backstop. Setup: docs/gcal-setup.md;
 manual script docs/manual-tests/gcal-sync.md; unit tests lib/gcal/gcal.test.ts.
+
+## Wizard batch — Tom's nine items (31 Aug 2026)
+
+The customer wizard's contact page (name/email/phone) is the LAST page before
+the AI builds (WizardApp lastPage; trade/portal members with all three details
+on their account skip it entirely) — NOTE this narrows the drop-out funnel to
+people who reach that page. Condition prices from the FIRST reveal:
+lib/wizard/exteriorAnswers.applyConditionPricing (shared by submit and the
+draft pricer) maps exterior "weathered"→EXT-WEATHERED, ticked access→the
+Access Allowance row, interior damage tier ≥2→COND-POOR, worst multiplier
+winning one Condition slot; the sides loop's Condition card arrives pre-answered
+from the wizard (builder_state.sidesLoop seed). In the sides editor a wall mix
+may total UNDER 100% (part glass/garage — sides.confirmSide refuses only >100%
+or 0), a ticked freestanding extra IS the extras answer
+(scope-editor.hasFreestandingExtras; "Nothing else" no longer demanded on top),
+and both sweeps' "+ Something else" opens a text box whose name rides the amber
+deferral (loop_sweep/iloop_sweep add). Exterior can build FROM SCRATCH
+(exterior.noPhotos in the state schema relaxes the page-1 listing/facades gate;
+elevations size from answers as always). Interior listings can be READ:
+/api/extract/listing-plan fetches an allow-listed listing, finds the floorplan
+image (lib/extract/listing.findFloorplanImages — plan only, the 20 Aug
+no-agency-photos ruling stands), stages it, and the client ingests it through
+/api/extract/floorplan like any upload. The processing screen is a live step
+list + progress bar + rotating tips (PROC_TIPS). vercel.json pins functions to
+syd1 — they ran in US East against a Sydney Supabase, which was most of the
+wizard's per-tap latency. Manual script: docs/manual-tests/wizard-31aug-batch.md.

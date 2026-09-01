@@ -9,8 +9,9 @@ export type DriveOptions = {
   /** Page-4 window style to pick; omit to leave it untouched ("unsure"). */
   windowStyle?: "Casement" | "Sash" | "Colonial" | "Winder";
   /** Page-4 "what gets painted with each door"; omit to leave the default
-   * ("Door + frame", which is what every pre-21-Aug estimate means). */
-  doorScope?: "Door only" | "Door + frame" | "+ architrave";
+   * ("Door + frame", which is what every pre-21-Aug estimate means).
+   * "+ architrave" left with Tom's frames-are-architraves ruling (31 Aug). */
+  doorScope?: "Door only" | "Door + frame";
   /** Email for the gate; defaults to a throwaway e2e address. */
   email?: string;
   /** Linger after the contact step so the 2.5s autosave debounce fires.
@@ -46,17 +47,7 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
     const err = page.locator(".wz-err");
     if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
   };
-  await next(); // → page 2, which for customers OPENS with the contact sub-step
-  // C15: name, email and phone come at the START of the questions now — the
-  // autosave needs somebody to save FOR. The block is absent for staff runs.
-  const contact = page.locator(".wz-crow input");
-  if (await contact.count()) {
-    await contact.nth(0).fill("E2E Journey");
-    await contact.nth(1).fill(opts.email ?? `e2e-journey-${Date.now()}@example.com`);
-    await contact.nth(2).fill("0400 000 111");
-    if (opts.settleAfterContactMs) await page.waitForTimeout(opts.settleAfterContactMs);
-    await next(); // → surfaces
-  }
+  await next(); // → page 2: surfaces
   await next(); // → condition
   await next(); // → details
   if (opts.doorStyle) await page.getByRole("button", { name: opts.doorStyle, exact: true }).click();
@@ -64,12 +55,9 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
   if (opts.doorScope) await page.getByRole("button", { name: opts.doorScope, exact: true }).click();
   await answer(/built before 1970/, "No");
   await next(); // → paint
-  await next(); // → email gate
-  const email = page.locator("input[type=email]");
-  // Prefilled from the contact step now; fill only a blank one (older paths).
-  if (await email.count() && !(await email.inputValue())) {
-    await email.fill(opts.email ?? `e2e-journey-${Date.now()}@example.com`);
-  }
+  await next(); // → the contact page (Tom, 31 Aug: the LAST question)
+  await fillContactStep(page, opts.email);
+  if (opts.settleAfterContactMs) await page.waitForTimeout(opts.settleAfterContactMs);
   await page.getByRole("button", { name: "See my estimate" }).click();
 
   // 28 Aug (Tom): no interstitial result screen — a revealed estimate lands
@@ -89,10 +77,11 @@ export async function openScopeEditor(page: Page) {
 }
 
 /**
- * The C15 contact sub-step, for specs that drive the wizard with their own
- * inline steps rather than driveNoPlanWizard. Call it right after the first
- * Continue: fills the block when it is present, no-ops when it is not (staff
- * runs, older surfaces).
+ * The contact page — since 31 Aug the LAST page before the build (Tom's
+ * ruling), not a sub-step at the start. Fills name/email/phone when the block
+ * is present and no-ops when it is not (staff runs, signed-in members whose
+ * account already carries all three). Never advances — the caller owns the
+ * "See my estimate" click.
  */
 export async function fillContactStep(page: Page, email?: string) {
   const contact = page.locator(".wz-crow input");
@@ -100,5 +89,4 @@ export async function fillContactStep(page: Page, email?: string) {
   await contact.nth(0).fill("E2E Journey");
   await contact.nth(1).fill(email ?? `e2e-journey-${Date.now()}@example.com`);
   await contact.nth(2).fill("0400 000 111");
-  await page.getByRole("button", { name: /Continue/ }).first().click();
 }

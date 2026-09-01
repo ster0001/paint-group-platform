@@ -28,7 +28,9 @@ async function assertContractHolds(page: Page) {
   const onTiles = firstCard.locator(".sc-tl.on");
   const before = await onTiles.count();
   expect(before).toBeGreaterThan(0);
-  await onTiles.first().click();
+  // NOT the Walls tile: since the 31 Aug walls-share seg, a click on its
+  // centre lands on the 25/50/75/100 buttons instead of toggling the tile.
+  await firstCard.locator(".sc-tl.on:not(:has(.sd-wseg))").first().click();
   await expect(onTiles).toHaveCount(before - 1, { timeout: 15_000 });
   await expect(range).toHaveText(MONEY_RANGE);
   await expect(range).not.toContainText(/undefined|NaN/);

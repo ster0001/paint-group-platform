@@ -13,6 +13,7 @@
 
 import { exteriorExtrasNodes, starterExteriorNodes } from "./starter";
 import { applyFenceLength } from "./scope-editor";
+import { ALLOWANCE_CODES, rateFor, toggleExtrasItem, WEATHERED_MODIFIER_CODE, type LooseBlock } from "./sides";
 import type { WizardState, WizardSurfaceKey } from "./state";
 import type { DraftArea } from "@/lib/extract/draft";
 
@@ -67,25 +68,17 @@ export function applyExteriorAnswers(
     }
   }
 
-  if (ext.condition === "weathered") {
-    merged.deferred.push({
-      room: "Exterior", areaId: null, what: "weathered paintwork", count: 1,
-      needs: "extra preparation allowed for — confirm the prep scope at review",
-    });
-  }
+  // Weathered pricing itself moved to applyConditionPricing (Tom, 31 Aug:
+  // condition must be IN the first price, not a jump at the end) — the amber
+  // deferral here is only the fallback when the card can't price it.
   if (ext.condition === "peeling") {
     merged.deferred.push({
       room: "Exterior", areaId: null, what: "peeling & flaking paint", count: 1,
       needs: "needs eyes on it before a fixed price — prep scope and (pre-1970) a lead-safe check on the visit",
     });
   }
-  for (const acc of ext.access) {
-    merged.deferred.push({
-      room: "Exterior", areaId: null,
-      what: acc === "steep" ? "steep block" : acc === "tight" ? "tight side access" : "double-height entry",
-      count: 1, needs: "access affects setup time — allow for it at review",
-    });
-  }
+  // Access allowance pricing lives in applyConditionPricing too — the amber
+  // deferral is its fallback when the card carries no allowance row.
   // Tom, 29 Aug: special access equipment is NOT priced by the wizard — the
   // estimator prices hire, delivery and set-up after confirming the need.
   for (const gear of ext.accessEquipment) {
@@ -111,4 +104,90 @@ export function applyExteriorAnswers(
       });
     }
   }
+}
+
+/** The slice of the pricing context this module needs — structural, so both
+ * the submit route and the draft pricer can hand their ctx straight in. */
+type ConditionCtx = {
+  modifiers: ReadonlyArray<{ code: string; multiplier: number }>;
+  rateItems: ReadonlyArray<{
+    code: string; category: string;
+    rate_2_coat?: number | null; charge_out_cents?: number | null;
+  }>;
+};
+
+/** The builder's interior condition modifier for damage-tier answers. */
+export const INTERIOR_POOR_MODIFIER_CODE = "COND-POOR";
+
+/**
+ * Tom, 31 Aug: the condition answers "adjust the quote quite substantially",
+ * so they must be IN the price from the FIRST reveal — worst case up front,
+ * never a jump when the confirm loop re-asks at the end.
+ *
+ * Prices what the wizard already asked, the same way the loop's Condition
+ * card does (wizard-edit `loop_cond`):
+ *  - exterior "weathered" → the EXT-WEATHERED labour modifier;
+ *  - any ticked exterior access answer → the flat Access Allowance row;
+ *  - interior damage tier ≥ 2 → the builder's Poor condition modifier.
+ * When two condition modifiers apply (a Both job), the WORSE multiplier wins.
+ * A code the live card can't price falls back to the amber deferral — the
+ * pre-31-Aug behaviour, never a silent $0.
+ *
+ * Returns the modSel patch for builder_state; mutates merged.areas (the
+ * allowance line) and merged.deferred (fallbacks) in place.
+ */
+export function applyConditionPricing(
+  merged: MergedBundle,
+  state: WizardState,
+  nextId: () => number,
+  ctx: ConditionCtx,
+): Record<string, string> {
+  const modSel: Record<string, string> = {};
+  const findMod = (code: string) => ctx.modifiers.find((m) => m.code === code) ?? null;
+
+  const candidates: Array<{ code: string; multiplier: number }> = [];
+
+  if ((state.jobType === "exterior" || state.jobType === "both") && state.exterior) {
+    const ext = state.exterior;
+    if (ext.condition === "weathered") {
+      const mod = findMod(WEATHERED_MODIFIER_CODE);
+      if (mod) candidates.push(mod);
+      else merged.deferred.push({
+        room: "Exterior", areaId: null, what: "weathered paintwork", count: 1,
+        needs: "extra preparation allowed for — confirm the prep scope at review",
+      });
+    }
+    if (ext.access.length > 0) {
+      const r = rateFor(ctx.rateItems, ALLOWANCE_CODES.access.code);
+      const res = r
+        ? toggleExtrasItem(
+            merged.areas as unknown as LooseBlock[],
+            ALLOWANCE_CODES.access.code, ALLOWANCE_CODES.access.label, true,
+            nextId, r.chargeOutDollars,
+          )
+        : null;
+      if (res?.ok) merged.areas = res.blocks as unknown as typeof merged.areas;
+      else {
+        for (const acc of ext.access) {
+          merged.deferred.push({
+            room: "Exterior", areaId: null,
+            what: acc === "steep" ? "steep block" : acc === "tight" ? "tight side access" : "double-height entry",
+            count: 1, needs: "access affects setup time — allow for it at review",
+          });
+        }
+      }
+    }
+  }
+
+  if (state.jobType !== "exterior" && state.details.damageTier >= 2) {
+    const mod = findMod(INTERIOR_POOR_MODIFIER_CODE);
+    if (mod) candidates.push(mod);
+    // No fallback deferral: tier ≥ 2 already demands photos, which raise
+    // their own damage-to-price deferral through the defect reader.
+  }
+
+  // One Condition slot in modSel — the worst case wins, per Tom's ruling.
+  const worst = candidates.sort((a, b) => b.multiplier - a.multiplier)[0];
+  if (worst) modSel.Condition = worst.code;
+  return modSel;
 }

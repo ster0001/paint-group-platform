@@ -40,16 +40,17 @@ test("the plan panel is big enough to read, and opens bigger still", async ({ pa
   await answer("What kind of property", "House");
   for (let i = 0; i < 7; i++) {
     if (await page.locator(".sc-r").count()) break;
-    // C15: the contact sub-step sits inside page 2 — fill it when it appears.
+    // The contact page is the LAST page now (Tom, 31 Aug) — fill it when it
+    // appears; the loop's next click is "See my estimate".
     const contact = page.locator(".wz-crow input");
     if (await contact.count()) {
       await contact.nth(0).fill("E2E Plan Panel");
       await contact.nth(1).fill(`e2e-plan-${Date.now()}@example.com`);
       await contact.nth(2).fill("0400 000 111");
     }
-    const email = page.locator("input[type=email]");
-    if (await email.count()) await email.fill(`e2e-plan-${Date.now()}@example.com`);
-    await page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ }).first().click();
+    const nav = page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ });
+    if (!(await nav.count())) break; // submitted — the processing screen has no nav
+    await nav.first().click();
     const err = page.locator(".wz-err");
     if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
     await page.waitForTimeout(600);

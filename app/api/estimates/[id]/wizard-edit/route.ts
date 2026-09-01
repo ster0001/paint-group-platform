@@ -12,7 +12,7 @@ import { wizardStateSchema } from "@/lib/wizard/state";
 import { markStarterProvenance, starterExtraction, type TypicalSizeRow } from "@/lib/wizard/starter";
 import {
   applyCount, applyDoorScope, applyExtent, applyExteriorToggle, applyFenceLength, applyRename, applyToggle, applyWallsShare,
-  customerExteriorView, customerScopeRooms, offeredVisitSlots,
+  customerExteriorView, customerScopeRooms, FREESTANDING_EXTRA_KEYS, hasFreestandingExtras, offeredVisitSlots,
 } from "@/lib/wizard/scope-editor";
 import {
   ALLOWANCE_CODES, SWEEP_PRICED_CODES, WEATHERED_MODIFIER_CODE,
@@ -147,7 +147,7 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("room_custom"), areaId: z.number().int().positive(), name: z.string().min(1).max(120) }),
   z.object({ action: z.literal("confirm_room_loop"), areaId: z.number().int().positive() }),
   z.object({ action: z.literal("iloop_dw"), ok: z.boolean() }),
-  z.object({ action: z.literal("iloop_sweep"), ans: z.enum(["none"]) }),
+  z.object({ action: z.literal("iloop_sweep"), ans: z.enum(["none"]).optional(), add: z.string().min(1).max(60).optional() }),
   z.object({ action: z.literal("room_add_catalogue"), areaId: z.number().int().positive(), code: z.string().min(1).max(60) }),
   z.object({ action: z.literal("room_line_count"), areaId: z.number().int().positive(), surfaceId: z.number().int().positive(), count: z.number().int().min(1).max(20) }),
   z.object({ action: z.literal("room_remove_line"), areaId: z.number().int().positive(), surfaceId: z.number().int().positive() }),
@@ -454,6 +454,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           : applyFenceLength(blocks, act.metres as number);
         if (!result.ok) return { error: result.error, status: 400 };
         blocks = result.blocks as LooseBlock[];
+        // Ticking a freestanding extra IS the answer to the extras card —
+        // "Nothing else" must never be demanded on top of a ticked deck
+        // (Tom, 31 Aug). Unticking the last one re-opens the question.
+        if (act.action === "toggle_exterior" && FREESTANDING_EXTRA_KEYS.includes(act.key)) {
+          sidesMeta = {
+            ...sidesMeta,
+            extrasAns: hasFreestandingExtras(blocks) ? "some"
+              : sidesMeta.extrasAns === "some" ? null : sidesMeta.extrasAns,
+          };
+        }
       }
     }
 
@@ -660,7 +670,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (act.action === "confirm_loop_item") {
       const m = sidesMeta;
       const missing =
-        act.item === "extras" ? m.extrasAns == null && !blocks.some((b) => /Exterior - Extras/i.test(String(b.name ?? "")) && (b.surfaces ?? []).length > 0)
+        // Extras is answered by "Nothing else", by any ticked freestanding
+        // extra, or by a priced line on the Extras block — never demand the
+        // explicit "Nothing else" over a real tick (Tom, 31 Aug).
+        act.item === "extras" ? m.extrasAns == null && !hasFreestandingExtras(blocks)
+          && !blocks.some((b) => /Exterior - Extras/i.test(String(b.name ?? "")) && (b.surfaces ?? []).length > 0)
         : act.item === "cond" ? m.cond.cond == null || m.cond.rot == null || m.cond.acc == null
         : act.item === "dw" ? m.dwOk !== true
         : m.sweepAns == null;
@@ -744,7 +758,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       }
     }
     if (act.action === "iloop_dw") interiorMeta = { ...interiorMeta, dwOk: act.ok ? true : null };
-    if (act.action === "iloop_sweep") interiorMeta = { ...interiorMeta, sweepAns: "none" };
+    if (act.action === "iloop_sweep") {
+      if (act.add) {
+        // Same rule as the exterior sweep: the NAME rides the amber flag, the
+        // job routes to the visit tier — an unpriced area is never accepted.
+        interiorMeta = { ...interiorMeta, sweepAns: "added" };
+        deferred.push({
+          room: "Interior", areaId: null, what: `sweep: "${act.add.trim().slice(0, 50)}"`, count: 1,
+          needs: "named in the final sweep — price it with the customer before send", kind: "custom_surface",
+        });
+        await flagSiteCheck();
+      } else if (act.ans === "none") {
+        interiorMeta = { ...interiorMeta, sweepAns: "none" };
+      }
+    }
     if (act.action === "add_room") {
       // Adding a room IS the sweep's answer — it appears as a new amber card.
       interiorMeta = { ...interiorMeta, sweepAns: "added" };

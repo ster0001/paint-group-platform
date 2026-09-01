@@ -139,7 +139,7 @@ describe("applyRename", () => {
 });
 
 // ---- B2: exterior ----------------------------------------------------------
-import { applyExtent, applyExteriorToggle, applyFenceLength, customerExteriorView } from "./scope-editor";
+import { applyExtent, applyExteriorToggle, applyFenceLength, customerExteriorView, hasFreestandingExtras } from "./scope-editor";
 
 const extArea = (id: number, name: string, codes: string[], isOption = false) => ({
   id, kind: "area", name: `Exterior - ${name}`, type: "Exterior", areaType: "surface",
@@ -283,4 +283,21 @@ it("walls share: sets sharePct on the walls line, 100 clears it, tile reads it b
 
   expect(applyWallsShare(blocks, 1, 33 as never).ok).toBe(false);
   expect(applyWallsShare(blocks, 99, 50).ok).toBe(false);
+});
+
+describe("hasFreestandingExtras (Tom, 31 Aug — a ticked deck IS the extras answer)", () => {
+  it("sees a toggled-on deck, and its removal", () => {
+    let id = 900;
+    expect(hasFreestandingExtras(extBlocks())).toBe(false);
+    const on = applyExteriorToggle(extBlocks(), "deck", true, () => id++);
+    expect(on.ok).toBe(true);
+    if (on.ok) {
+      expect(hasFreestandingExtras(on.blocks)).toBe(true);
+      const off = applyExteriorToggle(on.blocks, "deck", false, () => id++);
+      if (off.ok) expect(hasFreestandingExtras(off.blocks)).toBe(false);
+    }
+  });
+  it("gutters and windows are not freestanding extras", () => {
+    expect(hasFreestandingExtras(extBlocks())).toBe(false);
+  });
 });

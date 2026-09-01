@@ -25,7 +25,7 @@ import {
   type TypicalSizeRow,
 } from "./starter";
 import { applyWizardAnswers } from "./merge";
-import { applyExteriorAnswers, type MergedBundle } from "./exteriorAnswers";
+import { applyConditionPricing, applyExteriorAnswers, type MergedBundle } from "./exteriorAnswers";
 import { editorPayload } from "./view";
 import { buildDraft } from "@/lib/extract/draft";
 import { type Alias, type ScopeRule } from "@/lib/extract/scope";
@@ -84,10 +84,14 @@ export function estimateDraftValue(
 
   if (answered.areas.length === 0) return { skip: "nothing_to_price" };
 
+  // Same condition pricing as submit — a drop-out's value must match the
+  // estimate they would have received (this module's whole reason to exist).
+  const modSel = applyConditionPricing(answered as MergedBundle, state, () => nextId++, ctx);
+
   const payload = editorPayload(
     answered.areas,
     ctx,
-    adjustmentsFrom({}),
+    adjustmentsFrom({ modSel }),
     answered.deferred,
   );
   if (!(payload.totals.totalCents > 0)) return { skip: "nothing_to_price" };

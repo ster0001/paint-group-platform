@@ -31,15 +31,13 @@ test("Both job: interior cards then sides, combined progress, single visit CTA",
     const err = page.locator(".wz-err");
     if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
   };
-  await next(); // → page 2, which OPENS with the contact sub-step
-  await fillContactStep(page); // …then surfaces (Inside + Outside)
+  await next(); // → page 2: surfaces (Inside + Outside)
   await next(); // condition
   await next(); // details
   await answer(/built before 1970/, "No");
   await next(); // paint
-  await next(); // email
-  const email = page.locator("input[type=email]");
-  if (await email.count()) await email.fill(`e2e-both-${Date.now()}@example.com`);
+  await next(); // → contact, the LAST page (Tom, 31 Aug)
+  await fillContactStep(page, `e2e-both-${Date.now()}@example.com`);
   await page.getByRole("button", { name: "See my estimate" }).click();
   // 28 Aug: the wizard lands straight in the confirm-loop editor.
   await expect(page.locator(".sc-r").first()).toBeVisible({ timeout: 90_000 });

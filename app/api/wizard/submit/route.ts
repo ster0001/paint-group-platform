@@ -17,7 +17,8 @@ import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { applyWizardAnswers, filterSurfacesByTicks } from "@/lib/wizard/merge";
 import { ceilingHeightFrom, wizardStateSchema, type WizardSurfaceKey } from "@/lib/wizard/state";
 import { backfillTypicalSizes, markStarterProvenance, starterExtraction, starterRoomList, type TypicalSizeRow } from "@/lib/wizard/starter";
-import { applyExteriorAnswers } from "@/lib/wizard/exteriorAnswers";
+import { applyConditionPricing, applyExteriorAnswers } from "@/lib/wizard/exteriorAnswers";
+import { defaultSidesLoop } from "@/lib/wizard/sides";
 import { customerPayload, editorPayload } from "@/lib/wizard/view";
 import {
   GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails,
@@ -379,9 +380,35 @@ export async function POST(request: Request) {
   // estimate they would have received.
   applyExteriorAnswers(merged, effectiveState, () => nextId++, tickedSurfaces);
 
+  // Tom, 31 Aug: condition answers PRICE from the first reveal — the same
+  // modifier/allowance the loop's Condition card applies, applied up front so
+  // the opening number is the worst case, not a jump at the end.
+  const ctx = await loadPricingContext(db);
+  const conditionModSel = applyConditionPricing(merged, effectiveState, () => nextId++, ctx);
+
+  // The exterior loop's Condition & access card arrives PRE-ANSWERED from the
+  // wizard's own questions (cond + access; rot was never asked, so it stays
+  // the one open question on that card).
+  const ext = effectiveState.exterior;
+  const sidesLoopSeed = (effectiveState.jobType !== "interior" && ext)
+    ? {
+        ...defaultSidesLoop(),
+        cond: {
+          cond: ext.condition ?? null,
+          rot: null,
+          acc: ext.access.length > 0 ? ext.access[0] : "none" as const,
+        },
+        // A deck/fence/pergola ticked in the wizard already answers the
+        // loop's "anything freestanding?" card.
+        ...(Object.values(ext.extras).some((v) => v === true) ? { extrasAns: "some" as const } : {}),
+      }
+    : null;
+
   const builderState: Record<string, unknown> = {
     blocks: merged.areas,
     aiDeferred: merged.deferred,
+    ...(Object.keys(conditionModSel).length ? { modSel: conditionModSel } : {}),
+    ...(sidesLoopSeed ? { sidesLoop: sidesLoopSeed } : {}),
     // A1: a picked Places address flows straight onto the estimate document
     // (the builder's Job Address card), in the builder's own shape.
     ...(state.address ? {
@@ -400,7 +427,6 @@ export async function POST(request: Request) {
   };
 
   // ---- price and judge BEFORE anything is revealed -------------------------
-  const ctx = await loadPricingContext(db);
   const payload = editorPayload(merged.areas, ctx, adjustmentsFrom(builderState), merged.deferred);
 
   const isCustomerMode = state.mode === "customer";
