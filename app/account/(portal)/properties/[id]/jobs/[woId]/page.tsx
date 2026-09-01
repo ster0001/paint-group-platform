@@ -48,6 +48,7 @@ export default async function TradeJobTimelinePage({ params }: { params: Promise
     <JobTimeline
       project={project}
       companyPhone={ctx.companyPhone}
+      coordinatorName={ctx.coordinatorName}
       backLink={{ href: `/account/properties/${id}`, label: address }}
       tradeEvents={tradeEvents}
     />

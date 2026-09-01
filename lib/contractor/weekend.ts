@@ -10,6 +10,19 @@ import type { WeekendAvailability } from "./model";
  * empty map — callers treat "not in the map" as unknown and hide the feature
  * rather than breaking the screen.
  */
+/** The contractor's mobile (20261223) — same best-effort rule: null means
+ *  "column not there yet OR not set", and callers hide the feature. The
+ *  wrapped shape distinguishes pre-migration (available:false) from unset. */
+export async function contractorPhone(
+  db: SupabaseClient,
+  contractorId: string,
+): Promise<{ available: boolean; phone: string | null }> {
+  const { data, error } = await db
+    .from("contractors").select("id, phone").eq("id", contractorId).maybeSingle();
+  if (error) return { available: false, phone: null };
+  return { available: true, phone: ((data as { phone?: string | null } | null)?.phone ?? null) };
+}
+
 export async function weekendAvailability(
   db: SupabaseClient,
   contractorIds: readonly string[],

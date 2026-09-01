@@ -34,6 +34,10 @@ export default function ColourMatchCard({
   const [drafts, setDrafts] = useState<Record<string, { code: string; brand: string; canSize: string }>>({});
 
   const rows = materials
+    // Fuel, consumables and the like have no colour to match (Tom, 1 Sep #2) —
+    // the SQL gate (wo_colour_match_outstanding, 20261226) skips them by the
+    // same name rule so the screen and the gate can't disagree.
+    .filter((m) => !/fuel|consumable/i.test(m.product))
     .map((m) => {
       const needed = m.required || (coloursNo && !m.colourName);
       const code = m.woMatch?.code || m.snapCode;

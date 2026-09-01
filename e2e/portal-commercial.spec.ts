@@ -136,7 +136,7 @@ test.describe("portal commercial (3a-7)", () => {
     await expect(page.locator(".job", { hasText: "Day 2 of 4" })).toBeVisible();
 
     // Trade tabs.
-    for (const label of ["Properties", "New estimate", "Money"]) {
+    for (const label of ["Properties", "New estimate", "Invoicing"]) {
       await expect(page.locator(".tab", { hasText: label })).toBeVisible();
     }
     expect(await page.getByRole("link", { name: "My colours" }).count()).toBe(0);

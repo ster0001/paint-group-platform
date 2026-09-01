@@ -95,14 +95,17 @@ export const wizardStateSchema = z.object({
   }),
 
   details: z.object({
-    /** "Mostly" answers. unsure = nothing generated (Tom's rule, scope.ts). */
-    doorStyle: z.enum(["panel", "flat", "unsure"]),
+    /** "Mostly" answers. unsure = nothing generated (Tom's rule, scope.ts).
+     * na (1 Sep): auto-set when the surface wasn't ticked on page 2 — the
+     * question answers itself "Not applicable". Prices like unsure if the
+     * surface is later added. */
+    doorStyle: z.enum(["panel", "flat", "unsure", "na"]),
     /** What comes with each door — leaf only, leaf + frame, or leaf + frame
      * + architrave (lib/extract/scope.DoorScope). Defaulted, not required:
      * every estimate written before 21 Aug 2026 means "frame", which is what
      * the old code always generated. */
     doorScope: z.enum(["door", "frame", "architrave"]).default("frame"),
-    windowStyle: z.enum(["casement", "sash", "colonial", "winder", "unsure"]),
+    windowStyle: z.enum(["casement", "sash", "colonial", "winder", "unsure", "na"]),
     ceilingHeight: z.enum(["2.4", "2.7", "3.0", "unsure"]),
     /** 0 none · 1 minor · 2 a few areas of concern · 3 desperate need. */
     damageTier: z.number().int().min(0).max(3),
@@ -127,13 +130,19 @@ export const wizardStateSchema = z.object({
   }).default({ name: "", email: "", phone: "" }),
 
   paint: z.object({
-    brands: z.array(z.enum(["dulux", "haymes", "taubmans"])).default([]),
+    /** 1 Sep: Porters + Wattyl added, and "unsure" is its own tile (kept as a
+     * member of the same array so every stored snapshot still parses). */
+    brands: z.array(z.enum(["dulux", "haymes", "taubmans", "porters", "wattyl", "unsure"])).default([]),
     /** After a brand is picked: do they know the colours, or want advice?
-     * null = not answered (the follow-up hasn't been shown / touched). */
+     * null = not answered (the follow-up hasn't been shown / touched).
+     * advice → flagged in the CRM for a colour-advice follow-up (1 Sep). */
     colourHelp: z.enum(["known", "advice"]).nullable().default(null),
     waterBasedOnly: z.boolean().default(false),
     /** Follow-up only when waterBasedOnly is ticked. */
     trimsOilBased: z.enum(["yes", "no", "unsure"]).nullable().default(null),
+    /** 1 Sep: "water based or oil based?" — the UI keeps waterBasedOnly in
+     * step (water → true) so the merge deferrals stay exactly as built. */
+    base: z.enum(["water", "oil", "unsure"]).nullable().default(null),
   }),
 
   /**
@@ -300,7 +309,7 @@ export function defaultWizardState(): WizardState {
       damagePhotoCount: 0,
     },
     contact: { name: "", email: "", phone: "" },
-    paint: { brands: [], colourHelp: null, waterBasedOnly: false, trimsOilBased: null },
+    paint: { brands: [], colourHelp: null, waterBasedOnly: false, trimsOilBased: null, base: null },
     exterior: null,
   };
 }
@@ -375,6 +384,8 @@ export function windowStyleLabel(style: WizardState["details"]["windowStyle"]): 
     case "sash": return "Double hung sash window";
     case "colonial": return "Colonial / bay window";
     case "winder": return "Winder window (awning/casement rate)";
+    // na exists for the unticked-surface auto-answer; if a window line is
+    // somehow generated anyway, "to confirm" stays the honest label.
     default: return "Windows — style to confirm";
   }
 }

@@ -126,7 +126,7 @@ export function buildPortfolio(input: {
       address: addr(e),
       meta: `Invoice ${inv.number ?? ""} is overdue`,
       amountCents: invoiceBalanceCents(d, dPayments),
-      cta: { label: "View & pay", href: inv.token ? `/i/${inv.token}` : "/account/money" },
+      cta: { label: "View & pay", href: inv.token ? `/i/${inv.token}?portal=1` : "/account/money" },
     });
   }
 

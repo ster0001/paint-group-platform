@@ -29,7 +29,7 @@ const TABS = [
   },
   {
     href: "/account/money",
-    label: "Money",
+    label: "Invoicing", // Tom, 1 Sep: "Invoicing", not "Money" (route unchanged)
     icon: (
       <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /></svg>
     ),

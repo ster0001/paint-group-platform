@@ -19,6 +19,8 @@ import WalkthroughStart from "./WalkthroughStart";
 import CrewShare from "./CrewShare";
 import SitePhotos from "./SitePhotos";
 import type { SurfaceRow } from "@/lib/workorder/surfaces";
+import PhotoGrid from "@/app/components/wo/PhotoGrid";
+import { signPhotos, type WOPhoto, type WOPhotoRow } from "@/lib/workorder/photos";
 import type { Booking } from "@/lib/workorder/booking";
 import { OFFER_COLUMNS, type BookingOffer } from "@/lib/scheduling/offers";
 import type { PortalBlock, PortalJobDay } from "@/app/portal/calendar/CalendarGrid";
@@ -94,7 +96,7 @@ export default async function PortalJobPage({
       .select("kind, scheduled_date, status").eq("work_order_id", id)
       .eq("status", "booked"),
     supabase.from("wo_qa_checks")
-      .select("id, result, kind, scheduled_for").eq("work_order_id", id),
+      .select("id, result, kind, scheduled_for, notes, checked_at").eq("work_order_id", id),
     supabase.from("wo_signoff").select("signed_at, signed_name").eq("work_order_id", id).maybeSingle(),
   ]);
 
@@ -209,8 +211,25 @@ export default async function PortalJobPage({
   // routing existed, or a page that never refreshed): the MACHINE moves it on
   // the moment anyone looks — the painter never presses anything customer-
   // facing (Tom, 23 Aug). A pack-gate refusal is shown in its own words.
-  const qaList = ((qaRows ?? []) as { id: string; result: string | null }[]);
+  const qaList = ((qaRows ?? []) as { id: string; result: string | null; notes?: string | null; checked_at?: string | null }[]);
   const qaPassed = qaList.length > 0 && qaList.every((q) => q.result === "pass");
+
+  // A failed check with areas still to put right (Tom, 1 Sep #2): show the
+  // inspector's notes, the missed areas and their photos right on the job.
+  const outstandingRectify = surfaces.filter((s) => s.rectification && !s.removed && s.state !== "done");
+  const failedCheck = outstandingRectify.length > 0
+    ? qaList.filter((q) => q.result === "fail")
+        .sort((a, b) => (b.checked_at ?? "").localeCompare(a.checked_at ?? ""))[0] ?? null
+    : null;
+  let qaFailPhotos: WOPhoto[] = [];
+  if (failedCheck) {
+    const { data: qaPhotoRows } = await supabase
+      .from("wo_photos")
+      .select("id, work_order_id, kind, storage_path, area, caption, created_at, variation_id")
+      .eq("work_order_id", id).eq("kind", "qa")
+      .order("created_at", { ascending: false }).limit(12);
+    qaFailPhotos = await signPhotos(supabase, (qaPhotoRows ?? []) as WOPhotoRow[]);
+  }
   let qaHold: string | null = null;
   if (stage === "qa" && qaPassed) {
     const { data: routed } = await supabase.rpc("wo_qa_route_passed", { p_work_order_id: id });
@@ -305,6 +324,36 @@ export default async function PortalJobPage({
                   ? `Signed off by ${so.signed_name || "the customer"} on ${new Date(so.signed_at).toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" })}. Nice work — nothing more to do here.`
                   : "Signed off and closed. Nice work — nothing more to do here.";
               })()}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* A failed quality check, in full: the inspector's notes, the missed
+          areas and the photos showing exactly where (Tom, 1 Sep #2). The
+          rectification rows themselves are on the tick list below. */}
+      {failedCheck && (
+        <div style={{ padding: "0 16px" }}>
+          <div className="card amberish" data-testid="qa-fail-card">
+            <span className="chip cly">Quality check — areas to put right</span>
+            {failedCheck.notes?.trim() ? (
+              <p style={{ marginTop: 10, fontSize: "13.5px" }}>&ldquo;{failedCheck.notes.trim()}&rdquo;</p>
+            ) : null}
+            <div style={{ marginTop: 8 }}>
+              {outstandingRectify.map((s) => (
+                <div key={s.id} style={{ fontSize: "13px", padding: "4px 0" }}>
+                  <b>{s.heading}</b> — {s.label}
+                </div>
+              ))}
+            </div>
+            {qaFailPhotos.length > 0 && (
+              <div style={{ marginTop: 10 }}>
+                <PhotoGrid photos={qaFailPhotos} tight showKind={false}
+                  empty="" />
+              </div>
+            )}
+            <p className="note" style={{ marginTop: 8 }}>
+              Tick each one off below once it&rsquo;s put right — the check runs again after.
             </p>
           </div>
         </div>

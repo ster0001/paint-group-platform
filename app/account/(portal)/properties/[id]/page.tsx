@@ -199,7 +199,7 @@ export default async function TradePropertyPage({ params, searchParams }: {
               <div className="refline">{inv.number ?? ""}{inv.issuedOn ? ` · issued ${inv.issuedOn}` : ""}</div>
             </div>
             {inv.token
-              ? <a className="money" style={{ fontSize: 13, color: inv.paid ? "var(--emerald)" : undefined }} href={`/i/${inv.token}`}>{moneyFmt(inv.totalIncCents)}</a>
+              ? <a className="money" style={{ fontSize: 13, color: inv.paid ? "var(--emerald)" : undefined }} href={`/i/${inv.token}?portal=1`}>{moneyFmt(inv.totalIncCents)}</a>
               : <span className="money" style={{ fontSize: 13 }}>{moneyFmt(inv.totalIncCents)}</span>}
           </div>
         ))}

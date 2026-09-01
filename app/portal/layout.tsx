@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import "./portal.css";
-import { createClient } from "@/lib/supabase/server";
 import { getContractorSession } from "@/lib/contractor/session";
+import { getCompanyContact } from "@/lib/portal/data";
 import PortalTabs from "./PortalTabs";
 
 export const dynamic = "force-dynamic";
@@ -22,13 +22,10 @@ export default async function PortalLayout({ children }: { children: React.React
   // plain explanation beats a broken-looking app or a silent redirect loop.
   const suspended = Boolean(contractor && !contractor.active);
 
-  const supabase = await createClient();
-  const { data: companyRow } = await supabase
-    .from("settings")
-    .select("value")
-    .eq("key", "company_profile")
-    .maybeSingle();
-  const logoUrl = (companyRow?.value as { logoUrl?: string } | null)?.logoUrl ?? "";
+  // Settings is staff-RLS'd, so a contractor session read always came back
+  // empty and the logo never showed (Tom, 1 Sep: use Settings logo 1). The
+  // customer portal's whitelisted service read is the established door.
+  const { logoUrl } = await getCompanyContact();
 
   return (
     <div className="pt">

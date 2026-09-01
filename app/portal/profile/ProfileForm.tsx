@@ -53,6 +53,7 @@ export default function ProfileForm({
   name,
   email,
   weekend = null,
+  phone = null,
 }: {
   contractor: ContractorRow;
   docs: ContractorDoc[];
@@ -62,6 +63,8 @@ export default function ProfileForm({
   email: string;
   /** Weekend availability — null (pre-migration) hides the card. */
   weekend?: { worksSaturday: boolean; worksSunday: boolean } | null;
+  /** Mobile on file — null (pre-migration 20261223) hides the card. */
+  phone?: { value: string } | null;
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -104,6 +107,31 @@ export default function ProfileForm({
       setCompanyErr(friendly(e));
     } finally {
       setCompanyBusy(false);
+    }
+  }
+
+  // ---- mobile for notifications (Tom, 1 Sep #2) ----------------------------
+  const [phoneValue, setPhoneValue] = useState(phone?.value ?? "");
+  const [phoneBusy, setPhoneBusy] = useState(false);
+  const [phoneMsg, setPhoneMsg] = useState("");
+  const [phoneErr, setPhoneErr] = useState("");
+
+  async function savePhone() {
+    setPhoneBusy(true);
+    setPhoneMsg("");
+    setPhoneErr("");
+    try {
+      const { error } = await supabase
+        .from("contractors")
+        .update({ phone: phoneValue.trim() || null })
+        .eq("id", contractor.id);
+      if (error) throw error;
+      setPhoneMsg("Saved.");
+      router.refresh();
+    } catch (e) {
+      setPhoneErr(friendly(e));
+    } finally {
+      setPhoneBusy(false);
     }
   }
 
@@ -416,6 +444,32 @@ export default function ProfileForm({
           {companyBusy ? "Saving…" : "Save company details"}
         </button>
       </div>
+
+      {/* ---- mobile for notifications ----------------------------------- */}
+      {phone && (
+        <div className="card" data-testid="phone-card">
+          <h3>Your mobile</h3>
+          <p className="hint">
+            Job offers, approved variations and quality-check notes come to this
+            number by text.
+          </p>
+          {phoneErr && <div className="err" style={{ marginTop: 12 }}>{phoneErr}</div>}
+          {phoneMsg && <div className="ok" style={{ marginTop: 12 }}>{phoneMsg}</div>}
+          <label className="fl" htmlFor="contractor_phone">Mobile</label>
+          <input
+            id="contractor_phone"
+            type="tel"
+            value={phoneValue}
+            onChange={(e) => setPhoneValue(e.target.value)}
+            placeholder="04xx xxx xxx"
+            data-testid="contractor-phone"
+          />
+          <button type="button" className="btn" style={{ marginTop: 10 }}
+            onClick={() => void savePhone()} disabled={phoneBusy}>
+            {phoneBusy ? "Saving…" : "Save mobile"}
+          </button>
+        </div>
+      )}
 
       {/* ---- weekend availability --------------------------------------- */}
       {weekendState && (

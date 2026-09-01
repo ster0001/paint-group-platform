@@ -6,6 +6,7 @@ import OfferCard from "./requests/OfferCard";
 import { listContractorJobs, JOB_STATUS_CHIP, shortDate } from "@/lib/contractor/jobs";
 import { missingProfileFields, daysUntil, docState } from "@/lib/contractor/model";
 import { loadContractorDocs, docsErrorMessage } from "@/lib/contractor/docs";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,42 @@ export default async function PortalHome() {
   // a 24-hour clock shouldn't hide behind the Requests tab.
   const liveOffers = (await listContractorOffers(contractor.id))
     .filter((o) => isLive(effectiveState(o.offer)));
+
+  // Front-page work items (Tom, 1 Sep #2): variations waiting on the painter's
+  // approval, and failed quality checks with areas still to put right. Both
+  // batched across the job list (the withSurfaceProgress shape) — RLS scopes
+  // every row to their own jobs.
+  const jobTitle = new Map(jobs.map((j) => [j.id, j.doc?.jobTitle || j.woRef]));
+  const jobIds = jobs.map((j) => j.id);
+  let waitingVariations: { id: string; workOrderId: string; comment: string; credit: boolean }[] = [];
+  const rectifyByJob = new Map<string, number>();
+  if (jobIds.length > 0) {
+    const db = await createClient();
+    const [{ data: vRows }, { data: rectRows }] = await Promise.all([
+      db.from("wo_variations")
+        .select("id, work_order_id, comment, credit, released_at, needs_manual_deduction, deduction_cents")
+        .eq("status", "customer_approved")
+        .in("work_order_id", jobIds),
+      db.from("wo_surfaces")
+        .select("id, work_order_id")
+        .eq("rectification", true)
+        .neq("state", "done")
+        .in("work_order_id", jobIds),
+    ]);
+    waitingVariations = ((vRows ?? []) as {
+      id: string; work_order_id: string; comment: string; credit: boolean;
+      released_at: string | null; needs_manual_deduction: boolean; deduction_cents: number | null;
+    }[])
+      // Mirrors the job page's own rule: additions need the release; a credit
+      // waits only when the office still owes the manual deduction figure.
+      .filter((v) => (v.credit
+        ? !(v.needs_manual_deduction && v.deduction_cents == null)
+        : v.released_at !== null))
+      .map((v) => ({ id: v.id, workOrderId: v.work_order_id, comment: v.comment, credit: v.credit }));
+    for (const r of (rectRows ?? []) as { work_order_id: string }[]) {
+      rectifyByJob.set(r.work_order_id, (rectifyByJob.get(r.work_order_id) ?? 0) + 1);
+    }
+  }
 
   const insurance = docs.find((d) => d.kind === "insurance" && docState(d) === "valid");
   const insuranceDays = daysUntil(insurance?.expires_on ?? null);
@@ -126,6 +163,48 @@ export default async function PortalHome() {
                   <span className="chip amb">{a.chip}</span>
                 </span>
               )}
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {/* Variations the customer has approved, waiting on the painter. */}
+      {waitingVariations.length > 0 && (
+        <div className="card amberish" data-testid="home-variations">
+          <h3>Variations waiting on you</h3>
+          {waitingVariations.map((v) => (
+            <Link key={v.id} href={`/portal/jobs/${v.workOrderId}`} className="act">
+              <i aria-hidden>±</i>
+              <span>
+                {jobTitle.get(v.workOrderId) ?? "Your job"}
+                <br />
+                <span style={{ fontSize: "12px", color: "var(--muted)" }}>{v.comment || "A change to the scope"}</span>
+              </span>
+              <span className="push">
+                <span className="chip amb">{v.credit ? "Acknowledge" : "Approve"}</span>
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {/* Failed quality checks — areas still to put right. */}
+      {rectifyByJob.size > 0 && (
+        <div className="card amberish" data-testid="home-qa-fails">
+          <h3>Quality check — put right</h3>
+          {[...rectifyByJob.entries()].map(([woId, count]) => (
+            <Link key={woId} href={`/portal/jobs/${woId}`} className="act">
+              <i aria-hidden>✕</i>
+              <span>
+                {jobTitle.get(woId) ?? "Your job"}
+                <br />
+                <span style={{ fontSize: "12px", color: "var(--muted)" }}>
+                  {count} area{count === 1 ? "" : "s"} missed — the details and photos are on the job
+                </span>
+              </span>
+              <span className="push">
+                <span className="chip cly">Rectify</span>
+              </span>
             </Link>
           ))}
         </div>

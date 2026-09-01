@@ -1230,6 +1230,20 @@ function PageDetails({ state, set, damageInputRef, hasPlanRuns, isCustomer = fal
   onDamageFiles: (files: File[]) => void;
 }) {
   const d = state.details;
+  // Tom, 1 Sep: doors/windows unticked on page 2 answer their own "mostly"
+  // question — Not applicable, auto-set; ticked, and an auto "na" backs off to
+  // "Not sure". Manual picks always win over the backing-off default.
+  const doorsTicked = state.surfaces.includes("doors");
+  const windowsTicked = state.surfaces.includes("windows");
+  useEffect(() => {
+    const next: Partial<typeof d> = {};
+    if (!doorsTicked && d.doorStyle !== "na") next.doorStyle = "na";
+    if (doorsTicked && d.doorStyle === "na") next.doorStyle = "unsure";
+    if (!windowsTicked && d.windowStyle !== "na") next.windowStyle = "na";
+    if (windowsTicked && d.windowStyle === "na") next.windowStyle = "unsure";
+    if (Object.keys(next).length) set({ details: { ...d, ...next } });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doorsTicked, windowsTicked, d.doorStyle, d.windowStyle]);
   const damage = [
     { v: 0, b: "No damage", s: "Overall good condition." },
     { v: 1, b: "Only minor cracks or defects", s: "The usual hairline cracks and dings." },
@@ -1256,7 +1270,17 @@ function PageDetails({ state, set, damageInputRef, hasPlanRuns, isCustomer = fal
           <svg viewBox="0 0 60 64"><rect x="14" y="4" width="32" height="56" rx="2" fill="#1F262C" stroke="#39424B" /><text x="30" y="40" textAnchor="middle" fill="#8C959D" fontSize="22">?</text></svg>
           <small>Not sure</small>
         </button>
+        <button className={`wz-pk ${d.doorStyle === "na" ? "on" : ""}`} onClick={() => set({ details: { ...d, doorStyle: "na" } })}
+          data-testid="door-style-na">
+          <svg viewBox="0 0 60 64"><rect x="14" y="4" width="32" height="56" rx="2" fill="#1F262C" stroke="#39424B" /><line x1="20" y1="50" x2="40" y2="14" stroke="#8C959D" strokeWidth="2" /></svg>
+          <small>Not applicable</small>
+        </button>
       </div>
+      {!doorsTicked && (
+        <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 6 }}>
+          Doors aren&rsquo;t in your scope, so this is set to Not applicable.
+        </p>
+      )}
 
       {/* Tom, 21 Aug: the estimator only ever listed "doors" and quietly meant
           door-and-frame. The rate card prices all three, so ask. */}
@@ -1304,7 +1328,17 @@ function PageDetails({ state, set, damageInputRef, hasPlanRuns, isCustomer = fal
           <svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#12161A" stroke="#39424B" /><text x="30" y="40" textAnchor="middle" fill="#8C959D" fontSize="22">?</text></svg>
           <small>Not sure</small>
         </button>
+        <button className={`wz-pk ${d.windowStyle === "na" ? "on" : ""}`} onClick={() => set({ details: { ...d, windowStyle: "na" } })}
+          data-testid="window-style-na">
+          <svg viewBox="0 0 60 64"><rect x="10" y="8" width="40" height="48" fill="#12161A" stroke="#39424B" /><line x1="16" y1="50" x2="44" y2="14" stroke="#8C959D" strokeWidth="2" /></svg>
+          <small>Not applicable</small>
+        </button>
       </div>
+      {!windowsTicked && (
+        <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 6 }}>
+          Windows aren&rsquo;t in your scope, so this is set to Not applicable.
+        </p>
+      )}
 
       {isCustomer && state.customer && (
         <>
@@ -1372,15 +1406,24 @@ function PageDetails({ state, set, damageInputRef, hasPlanRuns, isCustomer = fal
 
 function PagePaint({ state, set, embedded = false }: { state: WizardState; set: (p: Partial<WizardState>) => void; embedded?: boolean }) {
   const p = state.paint;
-  const brand = (b: "dulux" | "haymes" | "taubmans") => (
+  // Tom, 1 Sep: five brands + Not sure. "Not sure" is exclusive — picking it
+  // clears the brands, picking a brand clears it.
+  const BRAND_LABEL = { dulux: "Dulux", haymes: "Haymes", taubmans: "Taubmans", porters: "Porters", wattyl: "Wattyl", unsure: "Not sure" } as const;
+  const brand = (b: keyof typeof BRAND_LABEL) => (
     <button
       key={b}
       className={`wz-tile ${p.brands.includes(b) ? "on" : ""}`}
+      data-testid={`brand-${b}`}
       onClick={() => set({
-        paint: { ...p, brands: p.brands.includes(b) ? p.brands.filter((x) => x !== b) : [...p.brands, b] },
+        paint: {
+          ...p,
+          brands: p.brands.includes(b)
+            ? p.brands.filter((x) => x !== b)
+            : b === "unsure" ? ["unsure"] : [...p.brands.filter((x) => x !== "unsure"), b],
+        },
       })}
     >
-      {b[0].toUpperCase() + b.slice(1)}
+      {BRAND_LABEL[b]}
     </button>
   );
   return (
@@ -1393,16 +1436,9 @@ function PagePaint({ state, set, embedded = false }: { state: WizardState; set: 
         </>
       )}
       {embedded && <p className="wz-qhead" style={{ marginTop: 24 }}>Paint preferences <small style={{ color: "var(--muted)", fontWeight: 400 }}>— fine to leave blank</small></p>}
+      <p className="wz-qhead">Which brand of paint would you like to use?</p>
       <div className="wz-tiles">
-        {(["dulux", "haymes", "taubmans"] as const).map(brand)}
-        <button
-          className={`wz-tile ${p.waterBasedOnly ? "on" : ""}`}
-          onClick={() => set({
-            paint: { ...p, waterBasedOnly: !p.waterBasedOnly, trimsOilBased: !p.waterBasedOnly ? (p.trimsOilBased ?? "unsure") : null },
-          })}
-        >
-          Water-based only
-        </button>
+        {(["dulux", "haymes", "taubmans", "porters", "wattyl", "unsure"] as const).map(brand)}
       </div>
 
       {p.brands.length > 0 && (
@@ -1424,8 +1460,45 @@ function PagePaint({ state, set, embedded = false }: { state: WizardState; set: 
               Perfect — we&rsquo;ll bring the fan decks. Our colour consultant can walk the home with you.
             </p>
           )}
+          {p.colourHelp === "known" && (
+            <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 10 }} data-testid="test-pots-note">
+              Great — please let us know if you would like any free test pots to try
+              any of your colour choices.
+            </p>
+          )}
         </div>
       )}
+
+      {/* Tom, 1 Sep: water vs oil is its own question. Picking "water" keeps
+          the old waterBasedOnly flag in step, so the oil-trim prep follow-up
+          and the merge deferrals behave exactly as before. */}
+      <div className="wz-follow">
+        <p className="wz-q">Are you wanting to paint using water based or oil based paints?</p>
+        <div className="wz-chips">
+          {([["water", "Water based"], ["oil", "Oil based"], ["unsure", "Not sure"]] as const).map(([v, label]) => (
+            <button
+              key={v}
+              className={`wz-chip ${p.base === v ? "on" : ""}`}
+              data-testid={`paint-base-${v}`}
+              onClick={() => set({
+                paint: {
+                  ...p,
+                  base: v,
+                  waterBasedOnly: v === "water",
+                  trimsOilBased: v === "water" ? (p.trimsOilBased ?? "unsure") : null,
+                },
+              })}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 10 }}>
+          If we are painting water based over oil based paint, extra coats and
+          preparation will be required.
+        </p>
+      </div>
+
       {p.waterBasedOnly && (
         <div className="wz-follow">
           <p className="wz-q">Are the trims currently painted in oil-based enamel?</p>

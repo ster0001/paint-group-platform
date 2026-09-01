@@ -47,7 +47,11 @@ export default function CompletionReport({
   for (const s of report.surfaces ?? []) {
     byHeading.set(s.heading, [...(byHeading.get(s.heading) ?? []), s]);
   }
-  const shownVariations = (report.variations ?? []).filter((v) => v.status !== "cancelled");
+  // Internal approvals (office pays the painter, client charged $0, never
+  // sent to them — Tom, 1 Sep) freeze as approved with price 0: not theirs.
+  const shownVariations = (report.variations ?? []).filter((v) =>
+    v.status !== "cancelled"
+    && !(v.price_cents === 0 && (v.status === "customer_approved" || v.status === "contractor_accepted")));
 
   return (
     <section className="cv-report" data-testid="completion-report">

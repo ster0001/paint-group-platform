@@ -70,7 +70,7 @@ describe("buildPortfolio — the trade workspace aggregates, never invents", () 
     });
     expect(attention).toHaveLength(1);
     expect(attention[0].amountCents).toBe(60_000);
-    expect(attention[0].cta.href).toBe("/i/t1");
+    expect(attention[0].cta.href).toBe("/i/t1?portal=1");
   });
 
   it("jobs underway carry customer-word chips and a day-based bar", () => {

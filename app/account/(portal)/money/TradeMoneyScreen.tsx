@@ -11,7 +11,7 @@ export default function TradeMoneyScreen({ view, orgName }: { view: TradeMoneyVi
   return (
     <div>
       <div className="greet">{orgName}</div>
-      <h1>Money</h1>
+      <h1>Invoicing</h1>
 
       <div className="tiles" style={{ gridTemplateColumns: "1fr 1fr", marginTop: 14 }}>
         <div className="tile">
@@ -43,7 +43,7 @@ export default function TradeMoneyScreen({ view, orgName }: { view: TradeMoneyVi
               </div>
               <div style={{ textAlign: "right", flex: "none" }}>
                 {r.token
-                  ? <a className="money" style={{ fontSize: 13 }} href={`/i/${r.token}`}>{moneyFmt(r.totalIncCents)}</a>
+                  ? <a className="money" style={{ fontSize: 13 }} href={`/i/${r.token}?portal=1`}>{moneyFmt(r.totalIncCents)}</a>
                   : <span className="money" style={{ fontSize: 13 }}>{moneyFmt(r.totalIncCents)}</span>}
                 <div>
                   <span className={`chip ${r.balanceCents === 0 ? "emerald" : r.overdue ? "clay" : "cyan"} nodot`} style={{ fontSize: 10 }}>

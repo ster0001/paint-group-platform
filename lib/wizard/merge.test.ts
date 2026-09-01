@@ -150,7 +150,7 @@ describe("applyWizardAnswers", () => {
   it("oil trims: crew note on trim lines plus one whole-job deferred item", () => {
     const s = state({
       details: { ...state().details, doorStyle: "panel" },
-      paint: { brands: [], colourHelp: null, waterBasedOnly: true, trimsOilBased: "yes" },
+      paint: { brands: [], colourHelp: null, waterBasedOnly: true, trimsOilBased: "yes", base: "water" },
     });
     const out = applyWizardAnswers(draft(), s, nextId);
     const skirting = out.areas[0].surfaces.find((x) => x.code === "Skirting Boards");

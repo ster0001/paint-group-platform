@@ -212,16 +212,11 @@ export function buildTimeline(input: TimelineInput): TimelineItem[] {
         cta: { label: "Review & approve", href: `/v/${v.customer_token}` },
         amountCents: null,
       });
-    } else if (v.status === "raised") {
-      push({
-        key: `variation:${v.id}`,
-        at: v.created_at,
-        title: "We spotted something",
-        body: `${what}${v.comment ? `: ${v.comment}` : ""}. We're putting a price on it now — nothing happens without your OK.`,
-        chip: { cls: "amber", label: "Being priced" },
-        photoIds: [], cta: null, amountCents: null,
-      });
-    } else if (v.status === "customer_approved" || v.status === "contractor_accepted") {
+    } else if ((v.status === "customer_approved" || v.status === "contractor_accepted") && v.customer_token) {
+      // customer_token gate (Tom, 1 Sep #2): only changes that actually went
+      // to the customer for approval belong on their timeline — a `raised`
+      // variation says nothing (the office may absorb it internally; they
+      // hear when it's priced FOR THEM), and an internal approval never shows.
       push({
         key: `variation:${v.id}`,
         at: v.customer_responded_at ?? v.created_at,

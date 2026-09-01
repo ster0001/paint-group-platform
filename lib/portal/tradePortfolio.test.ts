@@ -103,7 +103,7 @@ test("overdue invoice raises the clay chip and the overdue tile", () => {
   expect(out.pulse.overdue).toBe(1);
   expect(out.cards[0].chip).toEqual({ cls: "clay", label: "Invoice overdue" });
   const overdueItem = out.attention.find((a) => a.key === "invoice:i1")!;
-  expect(overdueItem.cta.href).toBe("/i/invtok");
+  expect(overdueItem.cta.href).toBe("/i/invtok?portal=1");
 });
 
 test("attention leads with the PROPERTY address, not the estimate title", () => {

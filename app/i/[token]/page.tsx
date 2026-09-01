@@ -69,10 +69,10 @@ export default async function CustomerInvoicePage({
   searchParams,
 }: {
   params: Promise<{ token: string }>;
-  searchParams: Promise<{ print?: string; preview?: string; pay?: string }>;
+  searchParams: Promise<{ print?: string; preview?: string; pay?: string; portal?: string }>;
 }) {
   const { token } = await params;
-  const { print, pay } = await searchParams;
+  const { print, pay, portal } = await searchParams;
   const supabase = await createClient();
 
   const { data, error } = await supabase.rpc("invoice_by_token", { p_token: token });
@@ -130,6 +130,9 @@ export default async function CustomerInvoicePage({
     <div className={`invoice-view ${printMode ? "print-mode" : ""}`}>
       {!printMode && (
         <div className="chrome">
+          {/* ?portal=1: reached from the customer's dashboard — the way back
+              (Tom, 1 Sep; the /e page's pattern). */}
+          {portal === "1" && <a href="/account" data-testid="back-to-account">← My account</a>}
           <span className="who">{entity.tradingName || "Paint Group"}</span>
           <span>· {KIND_HEADING[doc.kind] ?? "Invoice"} {doc.number}</span>
           <span className="spacer" />

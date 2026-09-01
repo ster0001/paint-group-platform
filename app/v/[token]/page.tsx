@@ -45,11 +45,27 @@ export default async function VariationPage({ params }: { params: Promise<{ toke
   const row = ((data as Row[] | null) ?? [])[0];
   if (!row) notFound();
 
+  // Where "see your updated invoice" lands (Tom, 1 Sep #2): the DASHBOARD's
+  // invoicing view when this customer has a portal account, the /e changes
+  // section as the fallback for pre-portal rows. Resolved through the service
+  // client — token possession is the authorisation.
+  let dashboardHref: string | null = null;
+  const service = createServiceClient();
+  if (service) {
+    const { data: linkRow } = await service
+      .from("wo_variations")
+      .select("id, work_orders(estimates(account_id))")
+      .eq("id", row.id)
+      .maybeSingle();
+    const accountId = (linkRow as { work_orders?: { estimates?: { account_id?: string | null } | null } | null } | null)
+      ?.work_orders?.estimates?.account_id ?? null;
+    if (accountId) dashboardHref = "/account/money";
+  }
+
   // The photos of what was found, signed through the service client — token
   // possession IS the authorisation, the same rule as the /s report page. The
   // anon session rightly has no wo_photos read of its own.
   let photos: { id: string; url: string; caption: string }[] = [];
-  const service = createServiceClient();
   if (service && row.photo_count > 0) {
     const { data: photoRows } = await service
       .from("wo_photos")
@@ -126,6 +142,7 @@ export default async function VariationPage({ params }: { params: Promise<{ toke
           signedName={row.signed_name}
           signedAt={row.signed_at}
           estimateToken={row.estimate_token}
+          dashboardHref={dashboardHref}
         />
       </div>
     </main>

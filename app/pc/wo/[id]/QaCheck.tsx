@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { recordQa, tickQaItem } from "../../actions";
 
@@ -18,7 +18,7 @@ export type QaCheckView = {
  * of a fail is to record what was wrong and get it back to the painter, on the
  * same tick list they already use.
  */
-export default function QaCheck({ check }: { check: QaCheckView }) {
+export default function QaCheck({ check, workOrderId }: { check: QaCheckView; workOrderId: string }) {
   const router = useRouter();
   const [standards, setStandards] = useState(check.standards);
   const [result, setResult] = useState(check.result);
@@ -28,6 +28,45 @@ export default function QaCheck({ check }: { check: QaCheckView }) {
   const [label, setLabel] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  // Photos of exactly where it failed (Tom, 1 Sep #2) — uploaded as they're
+  // picked, kind 'qa', tagged with the "Where". The painter sees them on the
+  // job's fail card. Multiple allowed.
+  const [failPhotos, setFailPhotos] = useState(0);
+  const [uploading, setUploading] = useState(false);
+  const fileInput = useRef<HTMLInputElement | null>(null);
+
+  async function uploadFailPhoto(file: File) {
+    setUploading(true);
+    setMessage(null);
+    try {
+      const signRes = await fetch("/api/wo/photos", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workOrderId, size: file.size }),
+      });
+      const sign = await signRes.json();
+      if (!signRes.ok) throw new Error(sign.error ?? "upload");
+      const put = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/upload/sign/wo-photos/${sign.path}?token=${sign.token}`,
+        { method: "PUT", body: file },
+      );
+      if (!put.ok) throw new Error("upload");
+      const ingest = await fetch("/api/wo/photos", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workOrderId, path: sign.path, kind: "qa",
+          area: heading.trim() || "Rectification",
+          caption: label.trim() ? `QA fail — ${label.trim().slice(0, 280)}` : "QA fail",
+        }),
+      });
+      const done = await ingest.json();
+      if (!ingest.ok) throw new Error(done.error ?? "upload");
+      setFailPhotos((n) => n + 1);
+    } catch (e) {
+      setMessage(e instanceof Error && e.message !== "upload" ? e.message : "That photo didn't upload — try again.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   const left = standards.filter((s) => !s.done).length;
 
@@ -108,6 +147,20 @@ export default function QaCheck({ check }: { check: QaCheckView }) {
           <textarea className="edit" rows={2} value={label} data-testid={`qa-what-${check.id}`}
             placeholder="What needs putting right — this goes on the painter's tick list"
             onChange={(e) => setLabel(e.target.value)} />
+          {/* No `capture` — camera OR gallery, the painter-side rule. */}
+          <input ref={fileInput} type="file" hidden multiple
+            accept="image/jpeg,image/png,image/webp,image/heic"
+            onChange={(e) => {
+              const files = [...(e.target.files ?? [])];
+              e.target.value = "";
+              void (async () => { for (const f of files) await uploadFailPhoto(f); })();
+            }} />
+          <button type="button" className="btn" disabled={uploading}
+            onClick={() => fileInput.current?.click()} data-testid={`qa-fail-photo-${check.id}`}>
+            {uploading ? "Uploading…"
+              : failPhotos === 0 ? "📷 Photos of where it failed — show the painter"
+              : `📷 ${failPhotos} photo${failPhotos === 1 ? "" : "s"} attached — add another`}
+          </button>
           <div className="row">
             <button type="button" className="btn" disabled={pending || !label.trim()}
               onClick={() => log("fail")} data-testid={`qa-confirm-fail-${check.id}`}>

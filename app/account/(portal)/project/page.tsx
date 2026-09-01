@@ -25,5 +25,5 @@ export default async function ProjectPage() {
     );
   }
 
-  return <JobTimeline project={project} companyPhone={ctx.companyPhone} />;
+  return <JobTimeline project={project} companyPhone={ctx.companyPhone} coordinatorName={ctx.coordinatorName} />;
 }

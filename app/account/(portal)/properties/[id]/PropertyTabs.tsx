@@ -23,7 +23,8 @@ export default function PropertyTabs({ progress, colours, money, documents, init
         {TABS.map((t) => (
           <button key={t} type="button" role="tab" aria-selected={on === t}
             className={on === t ? "on" : ""} onClick={() => setOn(t)} data-testid={`ptab-${t.toLowerCase()}`}>
-            {t}
+            {/* Display label only — keys, testids and ?tab= deep links keep "money". */}
+            {t === "Money" ? "Invoicing" : t}
           </button>
         ))}
       </div>

@@ -176,7 +176,7 @@ export function buildTradePortfolio(input: {
       address: addrForEstimate(inv.estimate_id),
       meta: `Invoice ${inv.number ?? ""} is overdue`.replace("  ", " "),
       amountCents: invoiceBalanceCents(d, dPayments),
-      cta: { label: "View invoice", href: inv.token ? `/i/${inv.token}` : "/account/money" },
+      cta: { label: "View invoice", href: inv.token ? `/i/${inv.token}?portal=1` : "/account/money" },
     });
   }
 

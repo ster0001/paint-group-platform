@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { reconcileForOffer } from "@/lib/gcal/sync";
+import { notifyJobOffer } from "@/lib/contractor/notify";
 import {
   sendOfferInput,
   withdrawOfferInput,
@@ -145,6 +147,11 @@ export async function sendOfferAction(raw: unknown): Promise<ActionResult> {
       p_note: "Confirmed with the client at booking",
     }).then(() => {}, () => {});
   }
+  // "You have a job offer" — text + email to the painter (Tom, 1 Sep #2).
+  if (sent.ok) {
+    const service = createServiceClient();
+    if (service) after(() => notifyJobOffer(service, v.workOrderId, v.contractorId));
+  }
   return sent;
 }
 
@@ -166,8 +173,20 @@ export async function reassignOfferAction(raw: unknown): Promise<ActionResult> {
     p_expected_state: v.expectedState,
   });
   // The OLD contractor may lose an accepted booking here — take it off their
-  // Google Calendar after the response goes out.
-  if (r.ok) after(() => reconcileForOffer(v.offerId));
+  // Google Calendar after the response goes out. The NEW contractor gets the
+  // offer text + email, same as a fresh send.
+  if (r.ok) {
+    after(() => reconcileForOffer(v.offerId));
+    const service = createServiceClient();
+    if (service) {
+      after(async () => {
+        const { data } = await service
+          .from("booking_offers").select("work_order_id").eq("id", v.offerId).maybeSingle();
+        const woId = (data as { work_order_id?: string } | null)?.work_order_id;
+        if (woId) await notifyJobOffer(service, woId, v.newContractorId);
+      });
+    }
+  }
   return r;
 }
 

@@ -162,7 +162,9 @@ test.describe("portal full loop (3a-8)", () => {
       await page.setViewportSize(viewport);
       await page.goto("/account");
       await expect(page.locator("h1")).toHaveText("Your properties, at a glance");
-      await expect(page.locator(".tile").first()).toBeVisible();
+      // b7f89d4 replaced the .tile stat row with the property-spine cards —
+      // the property itself is the stable thing to assert.
+      await expect(page.getByText("12 Acacia Street").first()).toBeVisible();
     }
     await page.goto("/account/properties");
     await expect(page.locator(".job", { hasText: "12 Acacia Street" })).toBeVisible();

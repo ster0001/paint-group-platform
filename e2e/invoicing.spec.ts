@@ -129,6 +129,9 @@ test.describe("invoicing — accept → deposit → issue → pay", () => {
     await signIn(page, staff!, /estimates/);
     await openMoneyView(page);
     await page.getByTestId("deposit-draft-card").getByRole("button", { name: "Issue & send" }).click();
+    // The send sheet (8790fd8, 25 Aug): note + channel, then the real send —
+    // the sheet's own confirm carries the same label, hence .last().
+    await page.getByRole("button", { name: "Issue & send" }).last().click();
     // Issue now also renders the PDF (a Chromium print of the token page) and
     // attempts the email — give the whole pipeline room on a cold dev server.
     await expect(page.getByTestId("deposit-draft-card")).toHaveCount(0, { timeout: 90_000 });

@@ -38,18 +38,23 @@ export type PortalContext = {
   companyName: string;
   companyPhone: string;
   logoUrl: string;
+  coordinatorName: string;
 };
 
-/** The public-safe company contact block (name, phone, logo). Read through
- * the SERVICE client: `settings` is staff-RLS'd, and customers and the
- * anonymous login page still need the phone number — §7: it never hides.
- * Only these three display fields ever leave this function. */
-export async function getCompanyContact(): Promise<{ name: string; phone: string; logoUrl: string }> {
+/** The public-safe company contact block (name, phone, logo, coordinator).
+ * Read through the SERVICE client: `settings` is staff-RLS'd, and customers
+ * and the anonymous login page still need the phone number — §7: it never
+ * hides. Only these four display fields ever leave this function. */
+export async function getCompanyContact(): Promise<{ name: string; phone: string; logoUrl: string; coordinatorName: string }> {
   const svc = createServiceClient();
-  if (!svc) return { name: "Paint Group", phone: "", logoUrl: "" };
+  if (!svc) return { name: "Paint Group", phone: "", logoUrl: "", coordinatorName: "" };
   const { data } = await svc.from("settings").select("value").eq("key", "company_profile").maybeSingle();
-  const v = (data?.value ?? {}) as { name?: string; phone?: string; logoUrl?: string };
-  return { name: v.name || "Paint Group", phone: v.phone || "", logoUrl: v.logoUrl || "" };
+  const v = (data?.value ?? {}) as { name?: string; phone?: string; logoUrl?: string; coordinatorName?: string };
+  return {
+    name: v.name || "Paint Group", phone: v.phone || "", logoUrl: v.logoUrl || "",
+    // The Settings default (app/quote/company.ts) — kept in step by hand.
+    coordinatorName: v.coordinatorName || "Felipe Martinez",
+  };
 }
 
 export async function getPortalContext(): Promise<PortalContext | null> {
@@ -87,6 +92,7 @@ export async function getPortalContext(): Promise<PortalContext | null> {
     companyName: company.name,
     companyPhone: company.phone,
     logoUrl: company.logoUrl,
+    coordinatorName: company.coordinatorName,
   };
 }
 

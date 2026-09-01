@@ -1,3 +1,96 @@
+# 1 Sep 2026 (evening) — Tom's second batch of the day: 18 items across the portals, variations, wizard. FOUR MIGRATIONS AWAIT TOM ON PROD: 20261223 → 20261226 (all applied + proven on C1).
+
+Per item:
+1. **Variation sign → dashboard.** /v post-sign lands on /account/money when
+   the estimate has an account (service-client check on the page); /e#changes
+   stays the pre-portal fallback. VariationDecision takes `dashboardHref`.
+2. **Contractor home: variations waiting.** Portal home card lists
+   customer-approved variations awaiting the painter (released non-credits +
+   ready credits — the job page's own rule), linking the job. Batched query.
+3. **Contractor app logo.** The portal header now actually shows Settings
+   logo 1 — the old session-client settings read ALWAYS came back null
+   (staff-RLS'd); it goes through getCompanyContact() now.
+4. **Offer notifications.** send/reassign/re-offer → text + email to the
+   painter ("you have a job offer", 24h, link /portal/requests) via
+   lib/contractor/notify.ts. NEW `contractors.phone` (migration 20261223,
+   column-granted; portal Profile "Your mobile" card, best-effort reads via
+   lib/contractor/weekend.ts's pattern — card hidden pre-migration).
+5. **Customer dashboard crew.** "Who's at your home" = painter ONLY with
+   Tom's sentence; new "Who is managing and overseeing the job" section:
+   company_profile.coordinatorName (Settings → Company details → Project
+   coordinator; DEFAULT "Felipe Martinez"), Tom's blurb, phone, and a
+   "Message me" button → /account/messages/<estimateId>. The thread page no
+   longer 404s an owned estimate with no thread — it opens an empty
+   conversation (found live: the demo estimate has no sent_at).
+6. **Internal variation approval** (migration 20261224):
+   wo_approve_variation_internal — pays the painter, charges the client $0,
+   client NEVER sees it (customer_token null + priced_inputs.internal=true;
+   estimate_changes_by_token + invoice_draft_final filter it; completion
+   report filters $0 approvals client-side). PC card button with
+   window.prompt amount+note; releases immediately + texts the painter.
+7. **Contractor amount override** (same migration):
+   wo_set_variation_contractor_amount — staff set what the painter receives,
+   any time before they accept. Buttons on the priced + approved states.
+8. **Timeline only shows customer-facing variations.** The `raised`
+   "We spotted something" card is GONE (the office may absorb it); approved
+   cards gate on customer_token. Portfolio attention already filtered.
+9. **"Money" → "Invoicing"** across the customer portal (tab, both h1s,
+   property sub-tab display label; routes/testids unchanged).
+10. **"Progress claim" → "Deposit"** (migration 20261225):
+    invoice_request_payment's line wording + existing DRAFT lines re-worded
+    (issued documents immutable, keep what they said).
+11. **Invoice back button.** /i/[token]?portal=1 renders "← My account" in
+    the chrome; all five portal links into /i carry it (portfolio tests
+    repointed).
+12. **Blank address on Get a new estimate.** The ?property= address prefill
+    is gone (name/phone/email prefill stays); REBOOK keeps its address
+    (?property=&rebook= — the e2e caught that regression in-session). Home
+    card copy no longer promises "we already know the address".
+13. **Wizard windows/doors "Not applicable".** New na enum member + tile;
+    auto-set when the surface isn't ticked on page 2, backs off to Not sure
+    when it is (PageDetails effect). Merge semantics untouched (na prices
+    like unsure if lines exist; unticked surfaces never generate lines).
+14. **Wizard paint & colours.** Brand question: Dulux/Haymes/Taubmans/
+    Porters/Wattyl/Not sure (unsure exclusive, array shape kept — stored
+    snapshots parse). "I know the colours" → free test-pots line;
+    "Looking for advice" → NEW crm event colour_advice_requested (catalogue
+    + timeline label + submit-route write, deduped per estimate). New
+    water/oil question (paint.base) with Tom's extra-coats note — picking
+    water keeps waterBasedOnly + the oil-trims follow-up exactly as before.
+15. **PC job page names the painter** — "· Painter: X" on the ref line
+    (profiles.name || company_name via the page's own join).
+16. **QA fail photos.** The fail form has a multi-photo box (kind 'qa',
+    area = the "Where", caption from the "What"); no capture attr (camera OR
+    gallery).
+17. **QA fail reaches the painter.** recordQa(fail) → text (notify.ts,
+    once per check via qa_fail_notified event); portal home "Quality check —
+    put right" card (outstanding rectification count per job); the job page
+    gets a fail card: inspector's notes + missed areas + the qa photos.
+18. **Fuel/consumables out of colour match** (migration 20261226):
+    wo_colour_match_outstanding + ColourMatchCard both skip
+    /fuel|consumable/i — screen and gate agree.
+
+**Gates:** tsc clean · eslint 0 errors (10/23 warnings) · unit 1318/1318 ·
+C1: portal-timeline 4, portal-shell 4, wo-variations 15, portal-full-loop,
+invoicing 9 (one stale 25 Aug send-sheet assertion repointed), pc-console,
+wo-qa-ruling, offer-accept, portal-money, colour-records, trade-money-team
+(24 green), customer-journey openings/doors 5, portal-commercial rebook
+fixed. Screens driven for real: customer timeline (painter-only + Felipe
+card + Message me → working thread), contractor home (logo + variation +
+QA-fail cards on REAL prod data).
+
+⚠ PRE-EXISTING, left for the trade-portal-v2 session (their b7f89d4 home
+rework): portal-commercial "tiles/attention" + "consolidated Money" specs
+red at HEAD (assert the old .tile home). Also their TradePortfolioHome owns
+the trade home now.
+
+**Tom must:** paste 20261223…20261226 in order, read the read-backs. Until
+then: no painter texts (no phone column — sends skip quietly), internal
+approve / amount override buttons error politely, colour-match gate still
+lists fuel, "Progress claim" still prints on new payment requests.
+
+---
+
 # 1 Sep 2026 — Tom's 14-item PC-view batch. FIVE MIGRATIONS AWAIT TOM ON PROD: 20261218 → 20261222, paste in order (all applied + proven on C1).
 
 The whole 1 Sep list, shipped in one batch. Per item:

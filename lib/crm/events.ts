@@ -63,6 +63,9 @@ export const CRM_EVENT_SCHEMAS = {
   // ---- the customer reaching in ------------------------------------------
   website_chat: z.object({ excerpt: shortText.optional(), answered: z.boolean().default(false) }),
   callback_requested: z.object({ phone: z.string().max(30).optional(), note: shortText.optional() }),
+  /** Ticked "looking for advice" on the wizard's colours question (1 Sep) —
+   *  the office follows up with the colour consultant. */
+  colour_advice_requested: z.object({ brands: z.array(z.string().max(20)).max(6).default([]) }),
   /** A text they sent back — surfaced on the timeline, answered by a human. */
   sms_reply: z.object({ body: shortText }),
   cta_clicked: z.object({ campaignKey: z.string().max(60), linkKey: z.string().max(60).optional() }),

@@ -45,7 +45,7 @@ export default async function MoneyPage() {
 
   return (
     <div>
-      <h1>Money</h1>
+      <h1>Invoicing</h1>
 
       {trade && (
         <div className="card raised">
@@ -124,7 +124,7 @@ export default async function MoneyPage() {
                 )}
                 {row.token && (
                   <div className="btn-row" style={{ marginTop: 12 }}>
-                    <Link className="btn btn-ghost" style={{ padding: 12, fontSize: 15 }} href={`/i/${row.token}`}>
+                    <Link className="btn btn-ghost" style={{ padding: 12, fontSize: 15 }} href={`/i/${row.token}?portal=1`}>
                       {row.balanceCents > 0 ? "View & pay" : "View invoice & PDF"}
                     </Link>
                   </div>

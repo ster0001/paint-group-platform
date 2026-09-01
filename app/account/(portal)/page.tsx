@@ -109,9 +109,7 @@ export default async function AccountHomePage({
       <h2>Thinking about more painting?</h2>
       <div className="card">
         <p className="sub" style={{ marginBottom: 14 }}>
-          {primaryProperty
-            ? <>Price another job at <b style={{ color: "var(--text)" }}>{propertyLabel(primaryProperty)}</b> — we already know the address, so you start closer to a price.</>
-            : <>Answer a few questions about your home and see your estimate in minutes.</>}
+          Answer a few questions about the property and see your estimate in minutes.
         </p>
         <div className="btn-row" style={{ marginTop: 0 }}>
           <Link className="btn btn-ghost" href={wizardHref}>Get a new estimate</Link>

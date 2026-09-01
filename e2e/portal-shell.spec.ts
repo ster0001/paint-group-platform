@@ -70,7 +70,7 @@ test.describe("portal auth + shell (3a-2)", () => {
     expect(await page.locator(".btn-cyan").count()).toBe(1);
 
     // The shell: five tabs, and each stub names a next step (no dead ends).
-    for (const label of ["My project", "My colours", "Money", "Messages"]) {
+    for (const label of ["My project", "My colours", "Invoicing", "Messages"]) {
       await page.getByRole("link", { name: label }).click();
       await expect(page.locator("h1")).not.toBeEmpty();
       await expect(page.locator(".card").last()).toContainText(/Ring us|Reply to any of our emails|Need it sooner/i);

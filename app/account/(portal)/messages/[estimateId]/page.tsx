@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getPortalContext } from "@/lib/portal/data";
 import { getPortalThreads } from "@/lib/portal/messages";
+import { createServiceClient } from "@/lib/supabase/service";
 import { sendPortalMessageAction } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -24,8 +25,29 @@ export default async function MessageThreadPage({
   if (!ctx) redirect("/account/login");
 
   const threads = await getPortalThreads(ctx.accounts.map((a) => a.id));
-  const thread = threads.find((t) => t.estimateId === estimateId);
-  if (!thread) notFound();
+  let thread = threads.find((t) => t.estimateId === estimateId);
+  if (!thread) {
+    // The timeline's "Message me" button (Tom, 1 Sep) can arrive before a
+    // thread exists (an estimate that never went through a send). If the
+    // estimate is genuinely THEIRS, open an empty conversation rather than a
+    // dead end — the compose action runs its own ownership check anyway.
+    const svc = createServiceClient();
+    const owned = svc
+      ? (await svc.from("estimates").select("id, title")
+          .eq("id", estimateId)
+          .in("account_id", ctx.accounts.map((a) => a.id))
+          .maybeSingle()).data as { id: string; title: string | null } | null
+      : null;
+    if (!owned) notFound();
+    thread = {
+      estimateId: owned.id,
+      title: owned.title?.trim() || "Your job",
+      shareToken: null,
+      hasInvoice: false,
+      messages: [],
+      lastAt: null,
+    };
+  }
 
   return (
     <div>

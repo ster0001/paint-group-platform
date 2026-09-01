@@ -12,6 +12,7 @@ import { after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { deliverCustomerUpdate } from "@/lib/workorder/sendUpdate";
 import { sendWalkthroughInvites } from "@/lib/workorder/walkthroughInvite";
+import { notifyJobOffer, notifyQaFail, notifyVariationReleased } from "@/lib/contractor/notify";
 import { melbourneDate } from "@/lib/workorder/console";
 
 /**
@@ -46,8 +47,57 @@ async function call(fn: string, args: Record<string, unknown>, okWording?: strin
 export async function releaseVariation(raw: unknown): Promise<PcResult> {
   const parsed = z.object({ variationId: uuid }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };
-  return call("wo_release_variation", { p_variation_id: parsed.data.variationId },
+  const r = await call("wo_release_variation", { p_variation_id: parsed.data.variationId },
     "Released — it's with the contractor now.");
+  // Text the painter that it's waiting on them (Tom, 1 Sep #2) — idempotent.
+  if (r.ok) {
+    const service = createServiceClient();
+    if (service) {
+      const variationId = parsed.data.variationId;
+      after(() => notifyVariationReleased(service, variationId));
+    }
+  }
+  return r;
+}
+
+/**
+ * Approve a variation FOR THE CONTRACTOR without sending it to the client
+ * (Tom, 1 Sep #2): the painter is paid the figure typed here, the client is
+ * charged nothing and never sees it. Dollars in, integer cents to the RPC.
+ */
+export async function approveVariationInternal(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({
+    variationId: uuid,
+    amountDollars: z.number().min(0).max(50_000),
+    note: z.string().trim().max(500).default(""),
+  }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Enter the amount the contractor receives." };
+  const r = await call("wo_approve_variation_internal", {
+    p_variation_id: parsed.data.variationId,
+    p_contractor_cents: Math.round(parsed.data.amountDollars * 100),
+    p_note: parsed.data.note,
+  }, "Approved for the contractor — the client is not charged and won't see it.");
+  if (r.ok) {
+    const service = createServiceClient();
+    if (service) {
+      const variationId = parsed.data.variationId;
+      after(() => notifyVariationReleased(service, variationId));
+    }
+  }
+  return r;
+}
+
+/** Staff override of the contractor's figure on a variation (Tom, 1 Sep #2). */
+export async function setVariationContractorAmount(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({
+    variationId: uuid,
+    amountDollars: z.number().min(0).max(50_000),
+  }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Enter the amount the contractor receives." };
+  return call("wo_set_variation_contractor_amount", {
+    p_variation_id: parsed.data.variationId,
+    p_cents: Math.round(parsed.data.amountDollars * 100),
+  }, "Contractor amount updated.");
 }
 
 /**
@@ -253,6 +303,19 @@ export async function reofferJob(raw: unknown): Promise<PcResult> {
   if (!result.ok && result.message.includes("offerable")) {
     return { ok: false, message: "That contractor isn't compliant — their insurance needs to be current." };
   }
+  // The new painter hears about it the same way a fresh offer lands.
+  if (result.ok) {
+    const service = createServiceClient();
+    if (service) {
+      const { offerId, contractorId } = parsed.data;
+      after(async () => {
+        const { data } = await service
+          .from("booking_offers").select("work_order_id").eq("id", offerId).maybeSingle();
+        const woId = (data as { work_order_id?: string } | null)?.work_order_id;
+        if (woId) await notifyJobOffer(service, woId, contractorId);
+      });
+    }
+  }
   return result;
 }
 
@@ -354,6 +417,15 @@ export async function recordQa(raw: unknown): Promise<QaResult> {
   });
   if (error) return { ok: false, message: error.message };
   const s = String(data ?? "");
+  // A logged FAIL texts the painter (Tom, 1 Sep #2): areas need rectifying,
+  // details on the job in their portal. Idempotent per check.
+  if (s.startsWith("ok:") && parsed.data.result === "fail") {
+    const service = createServiceClient();
+    if (service) {
+      const checkId = parsed.data.checkId;
+      after(() => notifyQaFail(service, checkId));
+    }
+  }
   if (!s.startsWith("ok:")) {
     const reason = s.replace("error:", "");
     if (reason.startsWith("standards_outstanding:")) {

@@ -79,6 +79,10 @@ describe("buildTimeline", () => {
         v({ id: "v2", status: "customer_approved", customer_responded_at: "2026-08-26T05:00:00Z" }),
         v({ id: "v3", status: "declined", customer_responded_at: "2026-08-26T06:00:00Z" }),
         v({ id: "v4", status: "raised", price_cents: null, customer_token: null }),
+        // Internal approval (office pays the painter, client never sees it —
+        // Tom, 1 Sep): approved with no token, must render NOTHING.
+        v({ id: "v5", status: "customer_approved", price_cents: 0, customer_token: null,
+            customer_responded_at: "2026-08-26T07:00:00Z" }),
       ],
     }));
     const pending = items.find((i) => i.key === "variation:v1")!;
@@ -87,7 +91,10 @@ describe("buildTimeline", () => {
     expect(pending.body).toContain("$340.00");
     expect(items.find((i) => i.key === "variation:v2")!.title).toBe("You approved an extra");
     expect(items.find((i) => i.key === "variation:v3")!.title).toBe("You said no thanks");
-    expect(items.find((i) => i.key === "variation:v4")!.chip?.label).toBe("Being priced");
+    // Tom, 1 Sep: a raised variation says nothing to the customer — they hear
+    // when it's priced FOR THEM (or never, if the office absorbs it).
+    expect(items.find((i) => i.key === "variation:v4")).toBeUndefined();
+    expect(items.find((i) => i.key === "variation:v5")).toBeUndefined();
   });
 
   it("milestones carry the money and the plain words", () => {

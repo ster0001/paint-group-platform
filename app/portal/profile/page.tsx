@@ -1,6 +1,6 @@
 import { requireContractor } from "@/lib/contractor/session";
 import { loadContractorDocs, docsErrorMessage } from "@/lib/contractor/docs";
-import { weekendAvailability } from "@/lib/contractor/weekend";
+import { contractorPhone, weekendAvailability } from "@/lib/contractor/weekend";
 import { createClient } from "@/lib/supabase/server";
 import ProfileForm from "./ProfileForm";
 
@@ -25,9 +25,10 @@ export default async function ProfilePage() {
   }
 
   const { docs, error: docsError } = await loadContractorDocs(contractor.id);
-  // Best-effort: null until migration 20261221 runs, which hides the card.
-  const weekend = (await weekendAvailability(await createClient(), [contractor.id]))
-    .get(contractor.id) ?? null;
+  // Best-effort: null until migrations 20261221/20261223 run — hides the cards.
+  const db = await createClient();
+  const weekend = (await weekendAvailability(db, [contractor.id])).get(contractor.id) ?? null;
+  const phone = await contractorPhone(db, contractor.id);
 
   return (
     <ProfileForm
@@ -37,6 +38,7 @@ export default async function ProfilePage() {
       name={name}
       email={email}
       weekend={weekend}
+      phone={phone.available ? { value: phone.phone ?? "" } : null}
     />
   );
 }

@@ -119,6 +119,14 @@ export default function SettingsForm({ initial }: { initial: CompanyProfile }) {
         {field("email", "Email")}
       </div>
 
+      <h3 className="mt-5 text-sm font-semibold">Project coordinator</h3>
+      <p className="mt-1 text-xs text-gray-500">
+        Named on the customer dashboard as who manages and oversees the job, with a Message me button.
+      </p>
+      <div className="mt-2 grid grid-cols-2 gap-3">
+        {field("coordinatorName", "Name")}
+      </div>
+
       {/* Banking moved to the Invoicing folder (24 Aug 2026) — one editor,
           one source of truth. Its save writes BOTH company_profile (the
           estimate header) and invoicing_bank (invoices, receipts, the

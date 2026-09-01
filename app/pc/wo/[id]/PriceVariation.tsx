@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { priceVariationAction } from "@/app/quote/variationActions";
 import { sendVariationForSignatureAction } from "@/app/quote/revisionActions";
-import { releaseVariation } from "../../actions";
+import { approveVariationInternal, releaseVariation, setVariationContractorAmount } from "../../actions";
 import { contractorDeltaCents } from "@/lib/workorder/variations";
 import type { VariationStatus } from "@/lib/workorder/variations";
 
@@ -60,6 +60,40 @@ export default function PriceVariation({
     });
   }
 
+  function approveInternal() {
+    // Two window.prompts, the Mark-paid pattern: the figure, then an optional note.
+    const raw = window.prompt(
+      "Approve for the contractor WITHOUT sending to the client.\n" +
+      "The client is charged nothing and never sees it.\n\n" +
+      "How much does the contractor receive? ($)",
+    );
+    if (raw == null) return;
+    const dollars = Number(raw.replace(/[$,\s]/g, ""));
+    if (!(dollars >= 0)) { setMessage("Enter a dollar figure."); return; }
+    const note = window.prompt("A note for the record (optional):") ?? "";
+    setMessage(null);
+    startTransition(async () => {
+      const r = await approveVariationInternal({ variationId: id, amountDollars: dollars, note });
+      if (r.ok) { setState("customer_approved"); setIsReleased(true); setMessage(r.message ?? "Approved for the contractor."); }
+      else setMessage(r.message);
+    });
+  }
+
+  function overrideAmount() {
+    const raw = window.prompt(
+      "Set what the contractor receives for this variation ($).\n" +
+      `Currently ${deltaCents != null ? money(deltaCents) : "the engine figure"}.`,
+    );
+    if (raw == null) return;
+    const dollars = Number(raw.replace(/[$,\s]/g, ""));
+    if (!(dollars >= 0)) { setMessage("Enter a dollar figure."); return; }
+    setMessage(null);
+    startTransition(async () => {
+      const r = await setVariationContractorAmount({ variationId: id, amountDollars: dollars });
+      setMessage(r.ok ? (r.message ?? "Updated.") : r.message);
+    });
+  }
+
   function sendLink(via: "email" | "sms" | "both") {
     setMessage(null);
     startTransition(async () => {
@@ -87,6 +121,14 @@ export default function PriceVariation({
             <button type="button" className="btn" onClick={() => setQuick((q) => !q)}
               data-testid={`quick-price-toggle-${id}`}>
               {quick ? "Hide quick price" : "Quick price — hours only"}
+            </button>
+          </div>
+          {/* Tom, 1 Sep: the office can absorb it — pay the painter, charge
+              the client nothing, client never sees it. */}
+          <div className="row">
+            <button type="button" className="btn" disabled={pending}
+              onClick={approveInternal} data-testid={`approve-internal-${id}`}>
+              Approve for the contractor only — no charge to the client
             </button>
           </div>
           {quick && (
@@ -127,7 +169,26 @@ export default function PriceVariation({
             <button type="button" className="btn" disabled={pending} onClick={() => sendLink("sms")} data-testid={`send-sms-${id}`}>Text the link</button>
             <button type="button" className="btn" disabled={pending} onClick={() => sendLink("both")} data-testid={`send-both-${id}`}>Both</button>
           </div>
+          <div className="row">
+            <button type="button" className="btn" disabled={pending}
+              onClick={overrideAmount} data-testid={`override-amount-${id}`}>
+              Set contractor amount{deltaCents != null ? ` (${money(deltaCents)})` : ""}
+            </button>
+            <button type="button" className="btn" disabled={pending}
+              onClick={approveInternal} data-testid={`approve-internal-priced-${id}`}>
+              Approve for the contractor only
+            </button>
+          </div>
         </>
+      )}
+
+      {state === "customer_approved" && !isReleased && (
+        <div className="row">
+          <button type="button" className="btn" disabled={pending}
+            onClick={overrideAmount} data-testid={`override-amount-approved-${id}`}>
+            Set contractor amount{deltaCents != null ? ` (${money(deltaCents)})` : ""}
+          </button>
+        </div>
       )}
 
       {state === "customer_approved" && !isReleased && (

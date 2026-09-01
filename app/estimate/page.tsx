@@ -56,10 +56,13 @@ export default async function CustomerWizardPage({
     memberPhone = (acct?.phone as string | null)?.trim() || null;
   }
 
-  // Prefill from a chosen property: read through the CALLER'S session — RLS
-  // (properties_member_select) is the ownership check.
+  // Tom's ruling (1 Sep): "Get a new estimate" starts with a BLANK address —
+  // the new job may be at a different property, and a pre-filled one was
+  // getting submitted unread. REBOOK is the exception: that flow is
+  // explicitly "this property again", so its links (?property=&rebook=) keep
+  // the property's address exactly as 3a-7 built it.
   let prefillAddress: { street: string; suburb: string; state: string; postcode: string; formatted: string } | null = null;
-  if (memberEmail && propertyParam && /^[0-9a-f-]{36}$/.test(propertyParam)) {
+  if (memberEmail && rebookParam && propertyParam && /^[0-9a-f-]{36}$/.test(propertyParam)) {
     const { data: prop } = await supabase
       .from("properties")
       .select("address, suburb, state, postcode")

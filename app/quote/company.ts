@@ -10,6 +10,8 @@ export type CompanyProfile = {
   estimatorName: string;
   estimatorTitle: string;
   estimatorPhone: string;
+  /** Shown on the customer dashboard's "who is managing the job" (Tom, 1 Sep). */
+  coordinatorName: string;
   email: string;
   bankName: string;
   bsb: string;
@@ -63,6 +65,7 @@ export const DEFAULT_COMPANY: CompanyProfile = {
   estimatorName: "",
   estimatorTitle: "",
   estimatorPhone: "",
+  coordinatorName: "Felipe Martinez",
   email: "",
   bankName: "",
   bsb: "",

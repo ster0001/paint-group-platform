@@ -114,6 +114,8 @@ const RENDER: Record<CrmEventType, { label: string; kind: TimelineRow["kind"]; d
     detail: (p) => [str(p.excerpt), p.answered ? "" : "Not answered yet."].filter(Boolean).join(" — ") },
   callback_requested: { label: "Asked for a callback", kind: "customer",
     detail: (p) => join(str(p.phone), str(p.note)) },
+  colour_advice_requested: { label: "Wants colour advice", kind: "customer",
+    detail: (p) => (Array.isArray(p.brands) && p.brands.length ? `Brands: ${(p.brands as string[]).join(", ")}` : "Follow up with the colour consultant") },
   cta_clicked: { label: "Clicked a campaign link", kind: "customer",
     detail: (p) => str(p.campaignKey) },
   sms_reply: { label: "Texted back", kind: "customer", detail: (p) => str(p.body) },

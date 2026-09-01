@@ -29,7 +29,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
 
   const { data: wo } = await supabase
     .from("work_orders")
-    .select("id, wo_ref, stage, blocked_reason, contractor_payment_cents, start_date, end_date, qa_required, walkthrough_required, colours, estimate_id, wo_snapshot, estimates(total_cents, deposit_paid_at:accepted_at)")
+    .select("id, wo_ref, stage, blocked_reason, contractor_payment_cents, start_date, end_date, qa_required, walkthrough_required, colours, estimate_id, wo_snapshot, contractors(company_name, profiles(name)), estimates(total_cents, deposit_paid_at:accepted_at)")
     .eq("id", id).maybeSingle();
   if (!wo) notFound();
 
@@ -39,8 +39,11 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     qa_required: boolean | null; walkthrough_required: boolean | null;
     colours: Record<string, { status?: string; match?: { code?: string; brand?: string; canSize?: string; by?: string } }> | null;
     wo_snapshot: { jobTitle?: string; jobAddress?: string } | null;
+    contractors: { company_name: string | null; profiles: { name: string | null } | null } | null;
     estimates: { total_cents: number | null; deposit_paid_at: string | null } | null;
   };
+  // Who's managing the job on site (Tom, 1 Sep #2) — the person, then their company.
+  const painterName = (row.contractors?.profiles?.name || row.contractors?.company_name || "").trim();
 
   const estimateId = (wo as { estimate_id?: string }).estimate_id ?? "";
 
@@ -246,6 +249,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             <h2>{row.wo_snapshot?.jobTitle ?? row.wo_ref}</h2>
             <span className="ref" data-testid="wo-ref">
               {row.wo_ref}{row.wo_snapshot?.jobAddress ? ` · ${row.wo_snapshot.jobAddress}` : ""}
+              {painterName ? ` · Painter: ${painterName}` : ""}
             </span>
           </div>
           <span style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
@@ -465,7 +469,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
               the last PASS sends the pack and refreshes this page — the card
               must survive that, or its "pack sent" message vanishes with it. */}
           {(row.stage === "qa" || row.stage === "walkthrough" || row.stage === "closed") && qaChecks.map((c) => (
-            <QaCheck key={c.id} check={c} />
+            <QaCheck key={c.id} check={c} workOrderId={id} />
           ))}
           {/* An empty qa stage was a silent dead end: no cards, no explanation,
               and the way forward not obviously the answer. Say what's true. */}

@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { notifyVariationReleased } from "@/lib/contractor/notify";
 import { chargeOutCents } from "@/lib/pricing/estimate";
 import type { RateItem } from "@/lib/pricing/types";
 import { sendVariationForSignatureAction } from "./revisionActions";
@@ -146,6 +148,14 @@ export async function releaseVariationAction(raw: unknown): Promise<VariationRes
   });
   if (error) return { ok: false, message: error.message };
   const result = interpret(data, "released");
-  if (result.ok) { revalidatePath("/quote"); revalidatePath("/portal/jobs"); }
+  if (result.ok) {
+    revalidatePath("/quote"); revalidatePath("/portal/jobs");
+    // Text the painter that it's waiting on them (Tom, 1 Sep #2) — idempotent.
+    const service = createServiceClient();
+    if (service) {
+      const variationId = parsed.data.variationId;
+      after(() => notifyVariationReleased(service, variationId));
+    }
+  }
   return result;
 }

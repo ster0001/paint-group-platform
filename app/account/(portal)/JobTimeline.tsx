@@ -12,9 +12,11 @@ import PhotoGrid, { type GridPhoto } from "./project/PhotoGrid";
  * back link and the extra trade events threaded through the same feed. The
  * snapshot test pins that identical input produces identical output.
  */
-export default async function JobTimeline({ project, companyPhone, greet, h1, backLink, tradeEvents }: {
+export default async function JobTimeline({ project, companyPhone, coordinatorName, greet, h1, backLink, tradeEvents }: {
   project: PortalProject;
   companyPhone: string;
+  /** Settings → Company details → Project coordinator (Tom, 1 Sep). */
+  coordinatorName?: string | null;
   greet?: string;
   h1?: string;
   backLink?: { href: string; label: string };
@@ -88,26 +90,47 @@ export default async function JobTimeline({ project, companyPhone, greet, h1, ba
 
       {showCrew && (
         <>
+          {/* Tom, 1 Sep: this section is the PAINTER only — the coordinator
+              gets their own section below, with a name and a way in. */}
           <h2>Who&rsquo;s at your home</h2>
           <div className="card">
-            {project.painterFirstName && (
+            {project.painterFirstName ? (
               <div className="person">
                 <div className="pface m">{project.painterFirstName[0]?.toUpperCase()}</div>
                 <div>
                   <div className="pname">{project.painterFirstName}</div>
-                  <div className="prole">Your painter</div>
+                  <div className="prole">
+                    Your painter &middot; Please speak to me if you have any questions
+                    regarding how the job will be completed.
+                  </div>
                 </div>
               </div>
+            ) : (
+              <p className="sub">Your painter&rsquo;s details appear here once the job is under way.</p>
             )}
+          </div>
+
+          <h2>Who is managing and overseeing the job</h2>
+          <div className="card" data-testid="coordinator-card">
             <div className="person">
-              <div className="pface d">PG</div>
+              <div className="pface d">{(coordinatorName || "P")[0]?.toUpperCase()}</div>
               <div>
-                <div className="pname">Your project coordinator</div>
+                <div className="pname">{coordinatorName || "Your project coordinator"}</div>
                 <div className="prole">
-                  The office checks every day&rsquo;s work{companyPhone ? ` — ${companyPhone}` : ""}
+                  Your Project Coordinator &middot; Please speak to me if you would like to
+                  make any changes to your scope, any progress updates or concerns.
+                  {companyPhone ? ` ${companyPhone}` : ""}
                 </div>
               </div>
             </div>
+            <Link
+              href={`/account/messages/${project.estimateId}`}
+              className="btn btn-ghost"
+              style={{ width: "auto", padding: "10px 18px", fontSize: 14, marginTop: 10, display: "inline-block" }}
+              data-testid="message-coordinator"
+            >
+              Message me
+            </Link>
           </div>
         </>
       )}

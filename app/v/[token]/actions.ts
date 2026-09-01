@@ -2,7 +2,10 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { notifyVariationReleased } from "@/lib/contractor/notify";
 
 /**
  * The customer's answer to a priced variation. Token-only, exactly like the
@@ -37,7 +40,23 @@ export async function signVariationAction(raw: unknown): Promise<RespondResult> 
   if (error) return { ok: false, message: "We couldn't record that just now — please try again." };
 
   const s = String(data ?? "");
-  if (s === "ok:approved") { revalidatePath(`/v/${parsed.data.token}`); return { ok: true, state: "approved" }; }
+  if (s === "ok:approved") {
+    revalidatePath(`/v/${parsed.data.token}`);
+    // The auto-release arm inside wo_customer_sign_variation may have put it
+    // straight with the painter — text them (idempotent; a not-released or
+    // zero-hours-auto-accepted variation is a no-op inside the notifier).
+    const service = createServiceClient();
+    if (service) {
+      const token = parsed.data.token;
+      after(async () => {
+        const { data: v } = await service
+          .from("wo_variations").select("id").eq("customer_token", token).maybeSingle();
+        const id = (v as { id?: string } | null)?.id;
+        if (id) await notifyVariationReleased(service, id);
+      });
+    }
+    return { ok: true, state: "approved" };
+  }
   if (s.startsWith("error:already_")) {
     return { ok: false, message: "You've already answered this one — thanks, nothing more to do." };
   }

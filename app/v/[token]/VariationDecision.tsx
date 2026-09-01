@@ -16,12 +16,14 @@ const dateFmt = (iso: string) =>
  * one-tap it always was — nobody signs to say no.
  */
 export default function VariationDecision({
-  token, priceCents, credit, status, signedName, signedAt, estimateToken = null,
+  token, priceCents, credit, status, signedName, signedAt, estimateToken = null, dashboardHref = null,
 }: {
   token: string; priceCents: number; credit: boolean; status: string;
   signedName: string | null; signedAt: string | null;
-  /** Their own /e page — where signing lands them, updated figures and all. */
+  /** Their own /e page — the fallback landing for pre-portal customers. */
   estimateToken?: string | null;
+  /** The dashboard invoicing view (Tom, 1 Sep) — wins over /e when they have an account. */
+  dashboardHref?: string | null;
 }) {
   const [state, setState] = useState(status);
   const [message, setMessage] = useState<string | null>(null);
@@ -36,16 +38,18 @@ export default function VariationDecision({
 
   const approved = state === "customer_approved" || state === "contractor_accepted";
 
-  // Tom's ruling (24 Aug follow-up): signing takes the customer back to THEIR
-  // page, where the change now shows on their figures. A fresh signature
+  // Tom's rulings (24 Aug, then 1 Sep): signing takes the customer to where
+  // the change now shows on their figures — the DASHBOARD's invoicing view
+  // when they have an account, their /e page otherwise. A fresh signature
   // redirects after a beat; an older visit keeps the button only.
+  const landing = dashboardHref ?? (estimateToken ? `/e/${estimateToken}#changes` : null);
   useEffect(() => {
-    if (!justSigned || !estimateToken) return;
+    if (!justSigned || !landing) return;
     const t = setTimeout(() => {
-      window.location.assign(`/e/${estimateToken}#changes`);
+      window.location.assign(landing);
     }, 4000);
     return () => clearTimeout(t);
-  }, [justSigned, estimateToken]);
+  }, [justSigned, landing]);
 
   if (approved) {
     return (
@@ -62,11 +66,11 @@ export default function VariationDecision({
             {doneAt ? ` on ${dateFmt(doneAt)}` : ""}.
           </p>
         )}
-        {estimateToken && (
+        {landing && (
           <a
             className="cv-btn primary"
             style={{ display: "block", textAlign: "center", marginTop: 12, textDecoration: "none" }}
-            href={`/e/${estimateToken}#changes`}
+            href={landing}
             data-testid="back-to-invoice"
           >
             {justSigned ? "See your updated invoice → (taking you there…)" : "See your updated invoice →"}

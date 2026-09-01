@@ -554,6 +554,26 @@ export async function POST(request: Request) {
           }
         }
 
+        // Colour advice wanted (Tom, 1 Sep): the wizard's "looking for advice"
+        // tick becomes a CRM event so the office follows up. Best-effort,
+        // dedupe-keyed per estimate.
+        if (effectiveState.paint?.colourHelp === "advice") {
+          try {
+            const args = buildEvent({
+              type: "colour_advice_requested",
+              accountId: linked.accountId,
+              estimateId,
+              source: "customer",
+              payload: { brands: effectiveState.paint.brands ?? [] },
+              dedupeKey: dedupeKey("colour_advice", estimateId),
+            });
+            const logged = await db.rpc("crm_log_event", args);
+            if (logged.error) reportError(logged.error, { where: "wizard.colourAdvice", bestEffort: true });
+          } catch (e) {
+            reportError(e, { where: "wizard.colourAdvice.build", bestEffort: true });
+          }
+        }
+
         // 3a-2, the A1 promise: "Your estimate is saved. We've sent a link to
         // your email — use it any time to come back to your project." Only on
         // outcomes a customer can act on; best-effort — a mail hiccup never
