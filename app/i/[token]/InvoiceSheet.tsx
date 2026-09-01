@@ -109,7 +109,9 @@ export default function InvoiceSheet({
       <div className="top">
         <div>
           <div className="wordmark">PAINT<span>GROUP</span></div>
-          <div className="tagline">{entity.brandSub || "Painting · Plastering · Restoration"}</div>
+          {/* Tagline only when Settings sets one (Tom, 1 Sep: the old
+              "Painting · Plastering · Restoration" default is gone). */}
+          {entity.brandSub ? <div className="tagline">{entity.brandSub}</div> : null}
           <div className="entity">
             {entity.address}<br />
             ABN {entity.abn}
@@ -199,6 +201,18 @@ export default function InvoiceSheet({
             <>
               <div className="trow received"><span>Received</span><b>−{money(doc.paid_cents)}</b></div>
               <div className="trow big due"><span>Balance due</span><b>{money(Math.max(balance, 0))}</b></div>
+            </>
+          )}
+          {/* Deposit / progress invoices show what the job still owes AFTER
+              this one (Tom, 1 Sep) — the customer sees the whole picture on
+              the first document, not just the slice being billed. */}
+          {(doc.kind === "deposit" || doc.kind === "progress") && doc.adjusted_contract_cents != null && (
+            <>
+              <div className="trow contract"><span>Contract total (inc GST)</span><b>{money(Number(doc.adjusted_contract_cents))}</b></div>
+              <div className="trow contract" data-testid="remaining-payable">
+                <span>Remaining payable after this {doc.kind === "deposit" ? "deposit" : "payment"} — not due yet</span>
+                <b>{money(Math.max(0, Number(doc.adjusted_contract_cents) - Number(doc.previously_invoiced_cents ?? 0) - doc.total_inc_cents))}</b>
+              </div>
             </>
           )}
         </div>

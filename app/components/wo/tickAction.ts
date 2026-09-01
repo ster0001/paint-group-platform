@@ -1,10 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { SURFACE_STATES } from "@/lib/workorder/surfaces";
 import { applyColourRecordsForTick } from "@/lib/colourRecords/transitions";
+import { draftUpdateFromTodaysTicks } from "@/lib/workorder/draftFromTicks";
 
 /**
  * Ticking a surface — from the painter's phone OR the office.
@@ -17,7 +20,7 @@ import { applyColourRecordsForTick } from "@/lib/colourRecords/transitions";
  */
 export type TickResult =
   | { ok: true; state: string }
-  | { ok: false; message: string; needsPhoto?: string };
+  | { ok: false; message: string; needsPhoto?: string; needsAfterPhoto?: string };
 
 const tickInput = z.object({
   surfaceId: z.string().uuid(),
@@ -42,6 +45,15 @@ export async function tickSurfaceAction(raw: unknown): Promise<TickResult> {
       // record follows the tick, but a record hiccup never blocks the tick.
       try { await applyColourRecordsForTick(parsed.data.surfaceId, null); } catch { /* deliberate */ }
     }
+    // Ticked work lands in the day's progress-update draft NOW, not at the
+    // overnight sweep (Tom, 1 Sep) — the composer on the PC job page and the
+    // drafted-updates reminder card pick it up on their next render.
+    // Best-effort behind after(): a draft hiccup never un-ticks anything.
+    const service = createServiceClient();
+    if (service) {
+      const surfaceId = parsed.data.surfaceId;
+      after(() => draftUpdateFromTodaysTicks(service, surfaceId).catch(() => {}));
+    }
     revalidatePath("/portal/jobs");
     revalidatePath("/pc");
     return { ok: true, state: s.slice(3) };
@@ -54,6 +66,14 @@ export async function tickSurfaceAction(raw: unknown): Promise<TickResult> {
       ok: false,
       needsPhoto: heading,
       message: `Take a before photo of ${heading} first — it goes on the record for this job.`,
+    };
+  }
+  if (reason.startsWith("after_photo_required:")) {
+    const heading = reason.slice("after_photo_required:".length);
+    return {
+      ok: false,
+      needsAfterPhoto: heading,
+      message: `Take a finished photo of ${heading} first — it completes the area's record.`,
     };
   }
   if (reason.startsWith("not_in_progress:")) return { ok: false, message: "This job isn't open for ticking yet." };

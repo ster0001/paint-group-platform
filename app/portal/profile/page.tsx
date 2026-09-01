@@ -1,5 +1,7 @@
 import { requireContractor } from "@/lib/contractor/session";
 import { loadContractorDocs, docsErrorMessage } from "@/lib/contractor/docs";
+import { weekendAvailability } from "@/lib/contractor/weekend";
+import { createClient } from "@/lib/supabase/server";
 import ProfileForm from "./ProfileForm";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +25,9 @@ export default async function ProfilePage() {
   }
 
   const { docs, error: docsError } = await loadContractorDocs(contractor.id);
+  // Best-effort: null until migration 20261221 runs, which hides the card.
+  const weekend = (await weekendAvailability(await createClient(), [contractor.id]))
+    .get(contractor.id) ?? null;
 
   return (
     <ProfileForm
@@ -31,6 +36,7 @@ export default async function ProfilePage() {
       docsError={docsError ? docsErrorMessage(docsError) : null}
       name={name}
       email={email}
+      weekend={weekend}
     />
   );
 }

@@ -4,6 +4,8 @@ import { composeUpdate, type TickEvent } from "@/lib/workorder/updates";
 import { melbourneDate, melbourneDayStartUtc } from "@/lib/workorder/console";
 import { reportError } from "@/lib/monitoring/report";
 import { sendPreStartChecklists } from "@/lib/workorder/preStart";
+import { sendAppointmentConfirmation } from "@/lib/workorder/appointmentEmail";
+import { sendWalkthroughInvites } from "@/lib/workorder/walkthroughInvite";
 import { reconcileAllConnected } from "@/lib/gcal/sync";
 import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 
@@ -178,6 +180,27 @@ async function sweep() {
   let gcal = { contractors: 0, errors: 0 };
   try { gcal = await reconcileAllConnected(); } catch (e) { reportError(e, { where: "wo-sweep.gcal" }); }
 
+  // Appointment-confirmation backstop (Tom, 1 Sep): the accept-time ping does
+  // the timely send; this catches a lost ping and the staff-approved-proposal
+  // path. Recent acceptances only (3 days) — both sends are idempotent off
+  // wo_events, so re-touching a job is a no-op.
+  let apptConfirmed = 0;
+  try {
+    const threeDaysAgo = new Date(now.getTime() - 3 * 86_400_000).toISOString();
+    const { data: recent } = await db
+      .from("booking_offers")
+      .select("work_order_id")
+      .eq("state", "accepted")
+      .gte("accepted_at", threeDaysAgo)
+      .limit(200);
+    const recentIds = [...new Set(((recent ?? []) as { work_order_id: string }[]).map((r) => r.work_order_id))];
+    await eachLimit(recentIds, 4, async (id) => {
+      await sendAppointmentConfirmation(db, id);
+      await sendWalkthroughInvites(db, id);
+      apptConfirmed += 1;
+    });
+  } catch (e) { reportError(e, { where: "wo-sweep.apptConfirm" }); }
+
   return {
     ok: true as const, date: today, drafted,
     flagged: flagged ?? 0, started: started ?? 0, lapsed: lapsed ?? 0,
@@ -188,6 +211,7 @@ async function sweep() {
     qaDeferred,
     qaRouteDeferred,
     preStartSent,
+    apptConfirmed,
     gcalContractors: gcal.contractors,
     gcalErrors: gcal.errors,
   };

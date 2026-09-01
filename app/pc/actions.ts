@@ -11,6 +11,7 @@ import { onChecklistAnswered } from "@/lib/colourRecords/transitions";
 import { after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { deliverCustomerUpdate } from "@/lib/workorder/sendUpdate";
+import { sendWalkthroughInvites } from "@/lib/workorder/walkthroughInvite";
 import { melbourneDate } from "@/lib/workorder/console";
 
 /**
@@ -388,8 +389,19 @@ export async function setQaRequired(raw: unknown): Promise<PcResult> {
 export async function setWalkthroughRequired(raw: unknown): Promise<PcResult> {
   const parsed = z.object({ workOrderId: uuid, required: z.boolean() }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };
-  return call("wo_set_walkthrough_required", { p_work_order_id: parsed.data.workOrderId, p_required: parsed.data.required },
+  const r = await call("wo_set_walkthrough_required", { p_work_order_id: parsed.data.workOrderId, p_required: parsed.data.required },
     parsed.data.required ? "Walkthrough required again." : "No walkthrough — the job will close once it's finished and checked.");
+  // Turning the walkthrough off cancels any invites already in calendars;
+  // turning it back on re-sends for a still-booked final. Both are the same
+  // reconcile call — it reads the current state and sends only on change.
+  if (r.ok) {
+    const service = createServiceClient();
+    if (service) {
+      const workOrderId = parsed.data.workOrderId;
+      after(() => sendWalkthroughInvites(service, workOrderId));
+    }
+  }
+  return r;
 }
 
 /** Close a "walkthrough not required" job from prep / quality check (invoice stage). */
@@ -479,6 +491,13 @@ export async function bookWalkthrough(raw: unknown): Promise<PcResult> {
   if (!r.ok && r.message === "qa first") {
     return { ok: false, message: "Quality check first — the final isn't booked with the customer until the checks pass." };
   }
+  // Calendar invites to the customer AND the painter follow every booking or
+  // move of the FINAL (Tom, 1 Sep) — same UID, climbing sequence, so a change
+  // edits the entry already in their calendars.
+  if (r.ok && v.kind === "final") {
+    const service = createServiceClient();
+    if (service) after(() => sendWalkthroughInvites(service, v.workOrderId));
+  }
   return r;
 }
 
@@ -488,11 +507,23 @@ export async function setWalkthroughStatus(raw: unknown): Promise<PcResult> {
     status: z.enum(["done", "missed", "cancelled"]),
   }).safeParse(raw);
   if (!parsed.success) return { ok: false, message: "Invalid input." };
-  return call("wo_set_walkthrough_status",
+  const r = await call("wo_set_walkthrough_status",
     { p_walkthrough_id: parsed.data.walkthroughId, p_status: parsed.data.status },
     parsed.data.status === "missed"
       ? "Marked missed — the customer can now be asked to sign remotely."
       : "Updated.");
+  // A cancelled final pulls the calendar entries back out (METHOD:CANCEL).
+  if (r.ok && parsed.data.status === "cancelled") {
+    const service = createServiceClient();
+    if (service) {
+      const { data: row } = await service
+        .from("wo_walkthroughs").select("work_order_id, kind")
+        .eq("id", parsed.data.walkthroughId).maybeSingle();
+      const wRow = row as { work_order_id: string; kind: string } | null;
+      if (wRow?.kind === "final") after(() => sendWalkthroughInvites(service, wRow.work_order_id));
+    }
+  }
+  return r;
 }
 
 export async function markClientUnavailable(raw: unknown): Promise<PcResult> {

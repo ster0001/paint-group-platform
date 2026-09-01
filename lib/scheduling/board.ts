@@ -413,10 +413,12 @@ export async function loadBoard(from: string, to: string): Promise<BoardData> {
 
   const tray: TrayJob[] = wos
     // "Awaiting dates" means not yet started: unissued, or issued and still at
-    // pre_start. A job past pre_start was necessarily booked to get there —
-    // without this, any mid-flight job whose booking rows are missing (bulk
-    // imports, unwound offers) squats in the tray for ever.
-    .filter((w) => !w.issued_at || w.stage === "pre_start")
+    // offered/pre_start. A job past pre_start was necessarily booked to get
+    // there — without this, any mid-flight job whose booking rows are missing
+    // (bulk imports, unwound offers) squats in the tray for ever. `offered`
+    // matters too (1 Sep): a cancelled or lapsed booking releases the job BACK
+    // to offered, and the 31 Aug filter silently vanished it from the tray.
+    .filter((w) => !w.issued_at || w.stage === "pre_start" || w.stage === "offered")
     .filter((w) => !acceptedByWo.has(w.id) && !liveWoIds.has(w.id) && !(w.contractor_id && w.start_date))
     .map((w) => {
       const doc = snapshotOf(w.wo_snapshot);

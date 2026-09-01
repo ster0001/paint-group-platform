@@ -22,6 +22,8 @@ export type ContractorSummary = {
   docs: ContractorDoc[];
   liveOffers: number;
   bookedJobs: number;
+  /** Weekend availability — null until migration 20261221 runs (controls hidden). */
+  weekend: { worksSaturday: boolean; worksSunday: boolean } | null;
 };
 
 /** An unacknowledged change to where a contractor gets paid. */
@@ -136,6 +138,20 @@ export default function ContractorsManager({
       setMsg(requires
         ? "Every job for this contractor now gets a quality check before sign-off."
         : "Back to the normal cadence — first few jobs only.");
+      router.refresh();
+    }
+    setBusy(null);
+  }
+
+  async function setWeekendDay(id: string, col: "works_saturday" | "works_sunday", value: boolean) {
+    // A plain column write, not an RPC: staff RLS covers every row and
+    // migration 20261221 granted exactly these two columns.
+    setBusy(id);
+    setErr("");
+    const { error } = await supabase.from("contractors").update({ [col]: value }).eq("id", id);
+    if (error) setErr(error.message);
+    else {
+      setMsg(`${col === "works_saturday" ? "Saturdays" : "Sundays"}: ${value ? "available" : "not available"}.`);
       router.refresh();
     }
     setBusy(null);
@@ -484,6 +500,22 @@ export default function ContractorsManager({
                     >
                       {c.requiresQa ? "QA: every job" : "QA: first jobs"}
                     </button>
+                    {c.weekend && ([["works_saturday", "Sat", c.weekend.worksSaturday], ["works_sunday", "Sun", c.weekend.worksSunday]] as const).map(([col, label, on]) => (
+                      <button
+                        key={col}
+                        onClick={() => setWeekendDay(c.id, col, !on)}
+                        disabled={busy === c.id}
+                        title={`Available to work ${label === "Sat" ? "Saturdays" : "Sundays"}`}
+                        data-testid={`${col.replace("_", "-")}-${c.id}`}
+                        className={`rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50 ${
+                          on
+                            ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                            : "border border-gray-300 text-gray-700 hover:bg-gray-100"
+                        }`}
+                      >
+                        {label}: {on ? "yes" : "no"}
+                      </button>
+                    ))}
                     <button
                       onClick={() => setRcti(c.id, !c.rctiSigned)}
                       disabled={busy === c.id}

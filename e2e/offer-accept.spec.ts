@@ -89,6 +89,11 @@ test.describe("offer a job, contractor accepts", () => {
     // Dropping opens a confirmation — it never fires an offer by itself.
     const sendOffer = staffPage.getByRole("button", { name: "Send offer" });
     await expect(sendOffer).toBeVisible();
+    // The sheet refuses to send until the final walkthrough is confirmed
+    // (date AND time) or waived (Tom, 1 Sep). Confirm it with the suggested
+    // date so the walkthrough path stays exercised.
+    await staffPage.locator('[data-testid="use-suggested-walkthrough"]').click();
+    await staffPage.locator('[data-testid="walkthrough-time"]').fill("15:00");
     await sendOffer.click();
 
     // The job leaves the tray and appears on the board as a live offer.

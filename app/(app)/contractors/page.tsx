@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { CONTRACTOR_COLUMNS, type ContractorRow, type ContractorDoc, DOC_COLUMNS } from "@/lib/contractor/model";
+import { weekendAvailability } from "@/lib/contractor/weekend";
 import ContractorsManager, { type BankAlert, type ContractorSummary, type InviteRow } from "./ContractorsManager";
 
 export const dynamic = "force-dynamic";
@@ -52,6 +53,13 @@ export default async function ContractorsPage() {
   const allDocs = (docs as ContractorDoc[] | null) ?? [];
   const allOffers = (offers as { contractor_id: string; state: string }[] | null) ?? [];
 
+  // Best-effort: an empty map until migration 20261221 runs → weekend = null
+  // per contractor and the Sat/Sun controls stay hidden.
+  const weekendMap = await weekendAvailability(
+    supabase,
+    ((rows as Row[] | null) ?? []).map((c) => c.id),
+  );
+
   const contractors: ContractorSummary[] = ((rows as Row[] | null) ?? []).map((c) => ({
     id: c.id,
     name: c.profiles?.name || c.company_name || "Contractor",
@@ -68,6 +76,7 @@ export default async function ContractorsPage() {
     docs: allDocs.filter((d) => d.contractor_id === c.id),
     liveOffers: allOffers.filter((o) => o.contractor_id === c.id && ["offered", "proposed"].includes(o.state)).length,
     bookedJobs: allOffers.filter((o) => o.contractor_id === c.id && o.state === "accepted").length,
+    weekend: weekendMap.get(c.id) ?? null,
   }));
 
   type EventRow = { id: string; contractor_id: string; detail: unknown; created_at: string };

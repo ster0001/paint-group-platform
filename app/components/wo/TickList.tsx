@@ -127,6 +127,17 @@ export default function TickList({
       askForPhoto(row.heading);
       return;
     }
+    // The finished shot is REQUIRED before the last tick lands (Tom, 1 Sep):
+    // the tap that would complete the area opens the picker instead, and the
+    // tick goes through on the next tap once the photo is up. The server
+    // enforces the same rule, so two phones can't race past it.
+    if (to === "done" && !afterHeadings.includes(row.heading)) {
+      const others = rows.filter((r) => r.heading === row.heading && !r.removed && r.id !== row.id);
+      if (others.every((r) => r.state === "done")) {
+        askForAfterPhoto(row.heading);
+        return;
+      }
+    }
     setBusy(row.id);
     setMessage(null);
     startTransition(async () => {
@@ -134,8 +145,9 @@ export default function TickList({
       if (result.ok) {
         setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, state: to } : r)));
       } else {
-        setMessage({ text: result.message, heading: result.needsPhoto });
+        setMessage({ text: result.message, heading: result.needsPhoto ?? result.needsAfterPhoto });
         if (result.needsPhoto) setPhotoHeadings((h) => h.filter((x) => x !== result.needsPhoto));
+        if (result.needsAfterPhoto) setAfterHeadings((h) => h.filter((x) => x !== result.needsAfterPhoto));
       }
       setBusy(null);
     });
@@ -153,11 +165,13 @@ export default function TickList({
         <p className="tick-msg" role="status" data-testid="tick-message">{message.text}</p>
       )}
 
+      {/* No `capture` attribute on purpose (Tom, 1 Sep): with it the phone
+          jumps straight to the camera; without it the OS offers Take Photo /
+          Photo Library, so the painter can pick either. */}
       <input
         ref={fileInput}
         type="file"
         accept="image/jpeg,image/png,image/webp,image/heic"
-        capture="environment"
         hidden
         onChange={(e) => {
           const f = e.target.files?.[0];
@@ -201,7 +215,7 @@ export default function TickList({
                 disabled={uploading === heading}
                 data-testid={`after-photo-prompt-${heading}`}
               >
-                {uploading === heading ? "Uploading…" : `📷 ${heading} is done — add the finished photo`}
+                {uploading === heading ? "Uploading…" : `📷 Finished photo of ${heading} — needed to complete the area`}
               </button>
             )}
 

@@ -122,6 +122,22 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     await supabase.rpc("wo_seed_prep_checklist", { p_work_order_id: id }).then(() => {}, () => {});
   }
 
+  // The final invoice, once sign-off (or a no-walkthrough close) drafts it —
+  // the button to view / edit / resend it lives right on this page (Tom, 1 Sep).
+  type FinalInvoice = { id: string; status: string; number: string | null };
+  let finalInvoice: FinalInvoice | null = null;
+  if (estimateId) {
+    const { data: finalRows } = await supabase
+      .from("invoices")
+      .select("id, status, number")
+      .eq("estimate_id", estimateId)
+      .eq("kind", "final")
+      .neq("status", "void")
+      .order("created_at", { ascending: false })
+      .limit(1);
+    finalInvoice = ((finalRows ?? []) as FinalInvoice[])[0] ?? null;
+  }
+
   const coloursConfirmed = Boolean(
     (await supabase.rpc("wo_colours_confirmed", { p_work_order_id: id })).data,
   );
@@ -288,6 +304,13 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             data-testid="money-view-link">
             Money view →
           </a>
+          {finalInvoice && (
+            <a className="btn" href={`/invoicing/inv/${finalInvoice.id}`}
+              data-testid="final-invoice-link"
+              title="View, edit or resend the final invoice">
+              Final invoice{finalInvoice.status === "draft" ? " (draft)" : finalInvoice.number ? ` ${finalInvoice.number}` : ""} →
+            </a>
+          )}
         </div>
       </div>
 

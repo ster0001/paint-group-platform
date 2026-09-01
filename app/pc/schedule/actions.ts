@@ -123,13 +123,29 @@ export async function sendOfferAction(raw: unknown): Promise<ActionResult> {
     const flagged = await run("wo_set_walkthrough_required", { p_work_order_id: v.workOrderId, p_required: false });
     if (!flagged.ok) return flagged;
   }
-  return run("send_offer", {
+  const sent = await run("send_offer", {
     p_work_order_id: v.workOrderId,
     p_contractor_id: v.contractorId,
     p_start: v.startDate,
     p_end: v.endDate ?? null,
     p_note: v.note,
   });
+  // The walkthrough the sheet confirmed with the client, booked server-side in
+  // the same action (Tom, 1 Sep — it used to be a client fire-and-forget that
+  // could silently miss). Best-effort by ruling: a refusal (e.g. qa_first)
+  // never unwinds the offer — the job page's WalkthroughCard and the console's
+  // contact card catch an unbooked final.
+  if (sent.ok && v.walkthroughRequired && v.walkthroughDate) {
+    const { supabase } = await requireStaff();
+    await supabase.rpc("wo_book_walkthrough", {
+      p_work_order_id: v.workOrderId,
+      p_kind: "final",
+      p_date: v.walkthroughDate,
+      p_time: v.walkthroughTime ?? null,
+      p_note: "Confirmed with the client at booking",
+    }).then(() => {}, () => {});
+  }
+  return sent;
 }
 
 export async function withdrawOfferAction(raw: unknown): Promise<ActionResult> {

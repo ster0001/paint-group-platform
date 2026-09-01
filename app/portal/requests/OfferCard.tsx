@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { pingGcalSync } from "@/lib/gcal/ping";
+import { pingAppointmentConfirm } from "@/lib/workorder/appointmentPing";
 import {
   DECLINE_REASONS,
   effectiveState,
@@ -98,6 +99,7 @@ export default function OfferCard({
       }
       setSheet(null);
       pingGcalSync(); // accepted/declined changes what belongs in Google Calendar
+      if (action === "accept") pingAppointmentConfirm(workOrderId); // the customer's booking confirmation + walkthrough invites
       router.refresh();
     } catch (e) {
       const m = typeof e === "object" && e !== null && "message" in e ? String((e as { message: string }).message) : String(e);

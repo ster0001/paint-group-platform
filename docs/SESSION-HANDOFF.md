@@ -1,3 +1,108 @@
+# 1 Sep 2026 — Tom's 14-item PC-view batch. FIVE MIGRATIONS AWAIT TOM ON PROD: 20261218 → 20261222, paste in order (all applied + proven on C1).
+
+The whole 1 Sep list, shipped in one batch. Per item:
+
+1. **Variation photos forced.** The contractor raise path was already
+   photo-gated three layers deep; the real gaps were the REVISION builder
+   (variations there could never carry a photo) and the customer never seeing
+   them. Now: `sendVariationForSignatureAction` refuses a photo-less
+   non-credit variation (all three send surfaces go through it — credits are
+   exempt, nothing on site to photograph); the revision panel has a per-row
+   "Add a photo" uploader (send buttons disabled until one's up); /api/wo/photos
+   ingest takes `variationId` (links via service client — authenticated writes
+   on wo_photos are revoked by design); and /v renders the actual photos
+   (service client, token = authorisation, the /s report rule).
+2. **Final invoice on the PC job page** — money strip gains "Final invoice →"
+   (number or “draft”) linking to /invoicing/inv/[id] (view / edit-draft /
+   issue / send again all live there).
+3. **Update links → the dashboard.** sendUpdate's email button + SMS link go
+   to /account when the estimate has an account; /e token fallback for
+   pre-portal rows. Button reads "Open your dashboard".
+4. **Booking sheet walkthrough rules.** The final-walkthrough date field
+   starts EMPTY; the estimated date (last day on site) is a one-tap suggestion
+   BESIDE it; Send offer is refused (client + zod refine) until date AND time
+   are entered or "Walkthrough not required" is ticked. The booking moved
+   from a client fire-and-forget into sendOfferAction (still best-effort by
+   the 25 Aug ruling). Cancel now resets every sheet field.
+5. **Weekend availability** — `contractors.works_saturday/works_sunday`
+   (migration 20261221, default false, column-granted). Contractor ticks them
+   in portal Profile ("When you work" card); staff toggle Sat/Sun pills on
+   /contractors. Reads ride `lib/contractor/weekend.ts` (best-effort,
+   feature hidden until the migration runs — NOT in CONTRACTOR_COLUMNS on
+   purpose). Board shading/gating deliberately not wired yet.
+6. **After photos forced.** The tick that would COMPLETE an area opens the
+   photo picker instead (TickList pre-empt, both portals), and migration
+   20261220 adds the server gate: `wo_tick_surface` refuses
+   `error:after_photo_required:<heading>` on the completing tick until a
+   completion photo exists (`wo_has_after_photo`, mirror of the before gate;
+   removed-from-scope rows don't count). e2e fixtures plant completion shots
+   the way they plant before shots.
+7. **Camera OR gallery** — `capture="environment"` removed from all three
+   photo inputs (TickList / SitePhotos / Variations): the phone now shows its
+   own Take Photo / Photo Library chooser.
+8. **Painter's view fixed.** (a) `/pc/wo/[id]/as-contractor` no longer 404s
+   on a job without a v1 snapshot — renders what exists + a "no job sheet
+   yet" card linking the builder; (b) migration 20261219 adds the missing
+   `is_staff()` branch to `wo_contractor_accept_variation` /
+   `wo_contractor_acknowledge_variation` (they answered error:not_yours to
+   every staff press; actor recorded honestly as staff).
+9. **Ticks → instant update draft.** After every successful tick,
+   `draftUpdateFromTodaysTicks` (service client, behind after()) recomposes
+   TODAY's wo_updates draft — the composer and /pc/updates carry the day's
+   work immediately; the overnight sweep stays as backstop. The existing
+   "N customer updates drafted" console card is the send reminder and now
+   fires same-day. One update per Melbourne day still holds (wo_draft_update
+   never overwrites approved/sent).
+10. **Deposit invoice shows remaining payable.** Migration 20261218 widens
+    invoice_by_token's ledger context to deposit/progress; InvoiceSheet +
+    staff InvoiceDoc render "Contract total" + "Remaining payable after this
+    deposit — not due yet". Degrades to nothing until the migration runs.
+11. **Tagline gone.** Every hardcoded "Painting · Plastering · Restoration"
+    fallback removed (InvoiceSheet, InvoiceDoc, receiptHtml, remittanceHtml,
+    Settings default); migration 20261218 blanks the stored settings value
+    (only if still the seeded string). NOTE: the tagline stays on prod
+    documents until Tom pastes 20261218 — the stored value is what renders.
+12. **Walkthrough calendar invites.** lib/workorder/ics.ts (pure, unit-pinned)
+    + walkthroughInvite.ts: customer AND painter each get an email with a
+    text/calendar .ics — "Final walk through — (customer x painter)", stable
+    UID per job, SEQUENCE climbs, so a date change EDITS the calendar entry;
+    cancellation sends METHOD:CANCEL. Reconciler-shaped + content-hash
+    idempotent (the gcal-sync rule); triggered from bookWalkthrough,
+    setWalkthroughStatus(cancelled), setWalkthroughRequired, the painter's
+    finish-date move, the accept ping, and the sweep backstop. Painter email
+    via auth.admin.getUserById. Migration 20261222 fixes
+    wo_contractor_set_finish_date dropping scheduled_time on a re-book
+    (live bug — the confirmed time silently vanished on every painter move).
+13. **Appointment confirmation.** Editable template in Settings → Messaging
+    (apptConfirmSubject/Body, drafted per Tom's spec: painter name,
+    07:30–08:00 start window, {{walkthrough_line}}, why attendance matters,
+    dashboard updates). Sent by lib/workorder/appointmentEmail.ts the moment
+    the job is booked: contractor accept (new /api/appointments/confirm ping
+    from OfferCard/OfferBar — the gcal ping pattern), staff direct assign
+    (after() in setWorkOrderScheduleAction), sweep backstop for lost pings.
+    Idempotent per start_date via appt_confirm_sent/skipped events;
+    isTestEmail guarded.
+14. **Tray regression found & fixed** (bonus, via the offer-accept e2e): the
+    31 Aug volume fix's tray filter dropped issued jobs at stage `offered`,
+    so a cancelled/lapsed booking never returned to the tray. Filter now
+    admits offered + pre_start.
+
+**Gates:** tsc clean · eslint 0 errors (11/23 warnings) · unit 1318/1318
+(5 new ics pins) · C1 e2e: wo-ticks 6, wo-updates 10, wo-full-loop 14,
+colour-records 1, revision-builder 7 (one stale 25 Aug assertion repointed),
+revision-contractor + revision-reconcile + wo-variations 21, offer-accept 1
+(now walks the new walkthrough-confirm flow), walkthrough-v3 + checklists +
+signoff/batch3/batch4/stage-advance/qa-ruling/photos/pc-console 56+14.
+Screens driven for real on :3000 (booking sheet gate refuses, final-invoice
+button, painter's view, Settings block).
+
+**Tom must:** paste 20261218…20261222 in the prod SQL editor, in order, and
+read the read-backs. Everything code-side degrades quietly until then
+(tagline still shows, deposit remainder absent, weekend card hidden, after
+photo gate client-only, staff variation buttons still refused).
+
+---
+
 # 31 Aug 2026 (later) — the volume-scale fixes: silent 1000-row truncation + unbounded sweep. Migration 20261214 AWAITS TOM ON PROD (paste with 20261213).
 
 The two production-scale bugs the volume battery exposed (previous entry,

@@ -162,7 +162,9 @@ test.describe("the revision builder — diff → signed variations", () => {
 
     // The Invoicing tab (estimates-style list): the job's ADDRESS is the door.
     await page.goto("/invoices");
-    await expect(page.getByTestId(`job-${estimateId}`)).toContainText("deposit · draft");
+    // Row wording since 8790fd8 (25 Aug): "Draft · Deposit — 10% of $X · $Y · draft".
+    await expect(page.getByTestId(`job-${estimateId}`)).toContainText("Deposit");
+    await expect(page.getByTestId(`job-${estimateId}`)).toContainText("draft");
     await page.getByTestId(`revise-${estimateId}`).click();
     await expect(page.getByTestId("revision-badge")).toBeVisible();
 

@@ -25,6 +25,15 @@ export type MessagingSettings = {
   preStartDaysBefore: number;
   preStartSubject: string;
   preStartBody: string;
+  /**
+   * Appointment confirmation (Tom, 1 Sep): emailed to the customer the moment
+   * their job is booked in (the contractor accepts, or the office assigns
+   * directly). Placeholders: first_name, company_name, address, start_date,
+   * painter_name, walkthrough_line (a whole sentence — the booked final's
+   * date/time, or "we'll confirm it with you" when not yet organised).
+   */
+  apptConfirmSubject: string;
+  apptConfirmBody: string;
 };
 
 export const DEFAULT_MESSAGING: MessagingSettings = {
@@ -48,6 +57,15 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "• Let us know about pets, parking and access on the day.\n" +
     "• Colours are confirmed on your job sheet — tell us straight away if anything has changed.\n\n" +
     "Any questions, just reply to this email or give us a call.",
+  apptConfirmSubject: "Your painting is booked in — starting {{start_date}}",
+  apptConfirmBody:
+    "Hello {{first_name}},\n\n" +
+    "Good news — your painting at {{address}} is booked in, starting {{start_date}}.\n\n" +
+    "Your painter will be {{painter_name}}. We start between 07:30 and 08:00 each morning.\n\n" +
+    "{{walkthrough_line}}\n\n" +
+    "Being there for the final walkthrough really matters: it's when we walk the finished job together, so you can confirm you're happy with the result — or point out anything that needs another touch before we sign off.\n\n" +
+    "You'll also receive regular progress updates in your dashboard as the job moves along, photos included.\n\n" +
+    "Any questions before we start, just reply to this email or give us a call.",
 };
 
 /** Placeholders offered in the Settings UI — keep this list in step with renderTemplate. */
@@ -71,6 +89,10 @@ export type TemplateVars = {
   total?: string;
   estimator_name?: string;
   link?: string;
+  /** Appointment confirmation (1 Sep): the assigned painter's first name. */
+  painter_name?: string;
+  /** A whole sentence about the final walkthrough — booked or to-be-confirmed. */
+  walkthrough_line?: string;
 };
 
 /** Fill {{placeholders}}; unknown or missing values render as empty string. */

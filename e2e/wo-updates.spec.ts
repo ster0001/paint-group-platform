@@ -80,6 +80,12 @@ test.describe("daily updates and the silent site", () => {
   test("a day's ticks become a draft, in the customer's language", async ({ request }) => {
     // The contractor does a day's work.
     const front = fixture!.surfaces.filter((s) => s.heading === "Front");
+    // The finished shot must be on record before the tick that completes the
+    // area (Tom, 1 Sep — migration 20261220's after-photo gate).
+    await db!.from("wo_photos").insert({
+      work_order_id: fixture!.workOrderId, kind: "completion", area: "Front",
+      storage_path: `wo/${fixture!.workOrderId}/after.jpg`,
+    });
     for (const s of front) {
       const r = await rpcAs(contractor!, "wo_tick_surface", { p_surface_id: s.id, p_to: "done" });
       expect(r).toBe("ok:done");

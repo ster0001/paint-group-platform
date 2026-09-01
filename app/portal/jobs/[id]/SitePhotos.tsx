@@ -77,7 +77,8 @@ export default function SitePhotos({ workOrderId, areas }: { workOrderId: string
           onClick={() => setKind("completion")} data-testid="photo-kind-completion">Finished</button>
       </div>
 
-      <input ref={fileInput} type="file" hidden capture="environment"
+      {/* No `capture` — the OS offers camera OR photo library (Tom, 1 Sep). */}
+      <input ref={fileInput} type="file" hidden
         accept="image/jpeg,image/png,image/webp,image/heic"
         onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void upload(f); }} />
 

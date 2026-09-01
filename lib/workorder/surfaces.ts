@@ -182,7 +182,9 @@ export function needsAfterPhoto(
   headingsWithAfterPhoto: readonly string[],
 ): boolean {
   if (headingsWithAfterPhoto.includes(heading)) return false;
-  const mine = surfaces.filter((s) => s.heading === heading);
+  // Struck-from-scope rows don't count — an elevation whose only unticked rows
+  // were removed by a signed credit IS finished (same rule as progressOf).
+  const mine = surfaces.filter((s) => s.heading === heading && !s.removed);
   return mine.length > 0 && mine.every((s) => s.state === "done");
 }
 

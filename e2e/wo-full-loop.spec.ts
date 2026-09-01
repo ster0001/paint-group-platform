@@ -173,6 +173,9 @@ test.describe("the whole loop, one job", () => {
       .select("id, heading").eq("work_order_id", job!.workOrderId).neq("state", "done");
     for (const s of (rest as { id: string; heading: string }[])) {
       await photoFor(job!.workOrderId, "before", s.heading);
+      // The tick that completes an area needs the finished shot in first
+      // (Tom, 1 Sep — migration 20261220's after-photo gate).
+      await photoFor(job!.workOrderId, "completion", s.heading);
       expect(await rpcAs(contractor!, "wo_tick_surface", { p_surface_id: s.id, p_to: "done" })).toBe("ok:done");
     }
 

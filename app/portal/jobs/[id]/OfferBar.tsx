@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { pingGcalSync } from "@/lib/gcal/ping";
+import { pingAppointmentConfirm } from "@/lib/workorder/appointmentPing";
 import { formatCountdown, msRemaining } from "@/lib/scheduling/offers";
 
 /**
@@ -17,8 +18,9 @@ import { formatCountdown, msRemaining } from "@/lib/scheduling/offers";
 
 const DECLINE_REASON = "Not available";
 
-export default function OfferBar({ offerId, expiresAt, priceCents }: {
+export default function OfferBar({ offerId, workOrderId, expiresAt, priceCents }: {
   offerId: string;
+  workOrderId: string;
   expiresAt: string | null;
   priceCents: number | null;
 }) {
@@ -53,6 +55,7 @@ export default function OfferBar({ offerId, expiresAt, priceCents }: {
         return;
       }
       pingGcalSync(); // accepted/declined changes what belongs in Google Calendar
+      if (action === "accept") pingAppointmentConfirm(workOrderId); // customer confirmation + walkthrough invites
       router.refresh();
     } catch {
       setErr("Couldn't record that — check your connection and try again.");

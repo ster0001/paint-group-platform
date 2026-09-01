@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { signPhotos, type WOPhotoRow } from "@/lib/workorder/photos";
 import VariationDecision from "./VariationDecision";
 import "@/app/e/customer.css";
 import "./variation.css";
@@ -43,6 +45,22 @@ export default async function VariationPage({ params }: { params: Promise<{ toke
   const row = ((data as Row[] | null) ?? [])[0];
   if (!row) notFound();
 
+  // The photos of what was found, signed through the service client — token
+  // possession IS the authorisation, the same rule as the /s report page. The
+  // anon session rightly has no wo_photos read of its own.
+  let photos: { id: string; url: string; caption: string }[] = [];
+  const service = createServiceClient();
+  if (service && row.photo_count > 0) {
+    const { data: photoRows } = await service
+      .from("wo_photos")
+      .select("id, work_order_id, kind, storage_path, area, caption, created_at, variation_id")
+      .eq("variation_id", row.id)
+      .order("created_at", { ascending: true })
+      .limit(8);
+    photos = (await signPhotos(service, (photoRows ?? []) as WOPhotoRow[]))
+      .map((p) => ({ id: p.id, url: p.url, caption: p.caption }));
+  }
+
   const pending = row.status === "priced";
   const signedDelta = row.credit ? -row.price_cents : row.price_cents;
   // Old → new: for a pending variation the ledger doesn't include it yet; once
@@ -62,11 +80,19 @@ export default async function VariationPage({ params }: { params: Promise<{ toke
         <div className="cv-card">
           <div className="cv-cat">{CATEGORY_LABEL[row.category] ?? row.category}</div>
           <p className="cv-comment">&ldquo;{row.comment}&rdquo;</p>
-          {row.photo_count > 0 && (
+          {photos.length > 0 ? (
+            <div className="cv-photos" data-testid="variation-photos">
+              {photos.map((p) => (
+                // Signed URLs, deliberately not next/image (same call as PhotoGrid).
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={p.id} src={p.url} alt={p.caption || "Photo taken on site"} loading="lazy" />
+              ))}
+            </div>
+          ) : row.photo_count > 0 ? (
             <p className="cv-fine" data-testid="variation-photos">
               {row.photo_count} photo{row.photo_count === 1 ? "" : "s"} taken on site.
             </p>
-          )}
+          ) : null}
           {lines.length > 0 && (
             <ul className="cv-lines" data-testid="variation-lines">
               {lines.map((l, i) => (

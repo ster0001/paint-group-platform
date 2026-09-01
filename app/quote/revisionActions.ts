@@ -59,6 +59,8 @@ export type DraftedVariation = {
   credit: boolean;
   hours: number;
   token: string | null;
+  /** The wo_variations row id — what a photo attaches to. */
+  variationId: string | null;
   state: "drafted" | "updated" | "cancelled" | "no_change" | "error";
   message?: string;
 };
@@ -67,6 +69,7 @@ export type DraftResult =
   | {
       ok: true;
       drafted: DraftedVariation[];
+      workOrderId: string;
       acceptedIncCents: number;
       workingIncCents: number;
     }
@@ -188,6 +191,7 @@ export async function draftRevisionVariationsAction(raw: unknown): Promise<Draft
       priceIncCents,
       credit,
       hours: draftHours,
+      variationId: null,
       token: s.startsWith("ok:") && s !== "ok:cancelled" && s !== "ok:no_change" ? s.slice(3) : null,
       state: error ? "error"
         : s === "ok:cancelled" ? "cancelled"
@@ -219,9 +223,23 @@ export async function draftRevisionVariationsAction(raw: unknown): Promise<Draft
       priceIncCents: 0,
       credit: false,
       hours: 0,
+      variationId: null,
       token: null,
       state: String(data ?? "") === "ok:cancelled" ? "cancelled" : "no_change",
     });
+  }
+
+  // The RPC returns the signing token; the photo uploader needs the row id.
+  const tokens = drafted.map((d) => d.token).filter((t): t is string => !!t);
+  if (tokens.length > 0) {
+    const { data: idRows } = await supabase
+      .from("wo_variations").select("id, customer_token")
+      .in("customer_token", tokens);
+    const byToken = new Map(((idRows ?? []) as { id: string; customer_token: string }[])
+      .map((r) => [r.customer_token, r.id]));
+    for (const d of drafted) {
+      if (d.token) d.variationId = byToken.get(d.token) ?? null;
+    }
   }
 
   revalidatePath("/quote");
@@ -229,6 +247,7 @@ export async function draftRevisionVariationsAction(raw: unknown): Promise<Draft
   return {
     ok: true,
     drafted,
+    workOrderId: scope.work_order_id as string,
     acceptedIncCents: diff.acceptedIncCents,
     workingIncCents: diff.workingIncCents,
   };
@@ -273,6 +292,22 @@ export async function sendVariationForSignatureAction(raw: unknown): Promise<Sen
   } | null;
   if (!variation?.customer_token) return { ok: false, message: "Price it first — there's no signing link yet." };
   if (variation.status !== "priced") return { ok: false, message: "This one has already been answered." };
+
+  // Tom's ruling (1 Sep): a variation goes to the customer WITH a photo of
+  // what was found — they sign what they can see. Credits (scope removals)
+  // are exempt; there is nothing on site to photograph.
+  if (!variation.credit) {
+    const { count } = await supabase
+      .from("wo_photos")
+      .select("id", { count: "exact", head: true })
+      .eq("variation_id", variation.id);
+    if (!count) {
+      return {
+        ok: false,
+        message: "Attach a photo of the change first — the customer signs what they can see.",
+      };
+    }
+  }
 
   const [{ data: est }, { data: settingsRows }] = await Promise.all([
     supabase.from("estimates").select("builder_state, title").eq("id", variation.work_orders?.estimate_id ?? "").maybeSingle(),

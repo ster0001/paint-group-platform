@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { RevisionDiff } from "@/lib/revision/diff";
 import {
   draftRevisionVariationsAction,
@@ -31,7 +31,7 @@ export type ExistingRevisionVariation = {
  * recompute and draft — nothing here writes money.
  */
 export default function RevisionPanel({
-  estimateId, diff, existing, saveFirst, onViewInvoice,
+  estimateId, diff, existing, saveFirst, onViewInvoice, workOrderId = null, photoCounts = {},
 }: {
   estimateId: string;
   diff: RevisionDiff;
@@ -40,6 +40,10 @@ export default function RevisionPanel({
   saveFirst: () => Promise<unknown>;
   /** Flip to the customer tab — what the final invoice will read. */
   onViewInvoice?: () => void;
+  /** The job the photos hang off — null on jobs with no work order yet. */
+  workOrderId?: string | null;
+  /** variationId → how many wo_photos already sit on it (server-loaded). */
+  photoCounts?: Record<string, number>;
 }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -47,6 +51,43 @@ export default function RevisionPanel({
   const [copied, setCopied] = useState<string | null>(null);
   const [sending, setSending] = useState<string | null>(null);
   const [sentIds, setSentIds] = useState<string[]>([]);
+  const [counts, setCounts] = useState<Record<string, number>>(photoCounts);
+  const [uploadingFor, setUploadingFor] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement | null>(null);
+  const uploadTarget = useRef<string | null>(null);
+
+  // Tom's ruling (1 Sep): a change goes to the customer WITH a photo — they
+  // sign what they can see. The server refuses too; this keeps the buttons
+  // honest. Credits (scope removals) are exempt.
+  async function uploadPhoto(variationId: string, file: File) {
+    if (!workOrderId) return;
+    setUploadingFor(variationId);
+    setMessage(null);
+    try {
+      const signRes = await fetch("/api/wo/photos", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workOrderId, size: file.size }),
+      });
+      const sign = await signRes.json();
+      if (!signRes.ok) throw new Error(sign.error ?? "upload");
+      const put = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/upload/sign/wo-photos/${sign.path}?token=${sign.token}`,
+        { method: "PUT", body: file },
+      );
+      if (!put.ok) throw new Error("upload");
+      const ingest = await fetch("/api/wo/photos", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workOrderId, path: sign.path, kind: "variation", variationId }),
+      });
+      const done = await ingest.json();
+      if (!ingest.ok) throw new Error(done.error ?? "upload");
+      setCounts((c) => ({ ...c, [variationId]: (c[variationId] ?? 0) + 1 }));
+    } catch (e) {
+      setMessage(e instanceof Error && e.message !== "upload" ? e.message : "That photo didn't upload — try again.");
+    } finally {
+      setUploadingFor(null);
+    }
+  }
 
   async function sendLink(token: string, via: "email" | "sms" | "both") {
     setSending(token + via);
@@ -168,28 +209,55 @@ export default function RevisionPanel({
           draft still awaiting the customer from earlier. Copy it, or fire it
           straight to their email + mobile through the messaging rails. */}
       {(() => {
-        const rows: { key: string; title: string; credit: boolean; priceIncCents: number; token: string }[] = [
+        const rows: { key: string; title: string; credit: boolean; priceIncCents: number; token: string; variationId: string | null }[] = [
           ...(drafted ?? [])
             .filter((d) => d.state === "drafted" && d.token)
-            .map((d) => ({ key: d.blockRef, title: d.title, credit: d.credit, priceIncCents: d.priceIncCents, token: d.token! })),
+            .map((d) => ({ key: d.blockRef, title: d.title, credit: d.credit, priceIncCents: d.priceIncCents, token: d.token!, variationId: d.variationId })),
           ...(!drafted
             ? pending
                 .filter((p) => p.customer_token)
                 .map((p) => ({
                   key: p.id, title: p.comment || "Awaiting signature", credit: p.credit,
-                  priceIncCents: p.price_cents ?? 0, token: p.customer_token!,
+                  priceIncCents: p.price_cents ?? 0, token: p.customer_token!, variationId: p.id,
                 }))
             : []),
         ];
         if (rows.length === 0) return null;
         return (
+          <>
+          <input
+            ref={fileInput} type="file" hidden
+            accept="image/jpeg,image/png,image/webp,image/heic"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              const target = uploadTarget.current;
+              if (f && target) void uploadPhoto(target, f);
+            }}
+          />
           <ul className="mt-3 space-y-1.5" data-testid="drafted-list">
-            {rows.map((d) => (
+            {rows.map((d) => {
+              const photoCount = d.variationId ? (counts[d.variationId] ?? 0) : 0;
+              const needsPhoto = !d.credit && photoCount === 0;
+              return (
               <li key={d.key} className="flex flex-wrap items-center gap-2 text-xs">
                 <span className={`font-mono ${d.credit ? "text-rose-400" : "text-emerald-400"}`}>
                   {d.credit ? "− " : "+ "}{money(d.priceIncCents)}
                 </span>
                 <span>{d.title}</span>
+                {!d.credit && d.variationId && workOrderId && (
+                  <button
+                    type="button"
+                    className={`rounded border px-2 py-0.5 text-[11px] ${needsPhoto ? "border-amber-400/70 text-amber-300" : "border-white/15 text-gray-300"} hover:bg-white/5 disabled:opacity-50`}
+                    onClick={() => { uploadTarget.current = d.variationId; fileInput.current?.click(); }}
+                    disabled={uploadingFor !== null}
+                    data-testid={`variation-photo-${d.key.replace(/[^a-z0-9]/gi, "-")}`}
+                  >
+                    {uploadingFor === d.variationId ? "Uploading…"
+                      : needsPhoto ? "📷 Add a photo — needed before sending"
+                      : `📷 ${photoCount} photo${photoCount === 1 ? "" : "s"} — add another`}
+                  </button>
+                )}
                 <button
                   type="button"
                   className="rounded border border-white/15 px-2 py-0.5 text-[11px] text-gray-300 hover:bg-white/5"
@@ -206,7 +274,8 @@ export default function RevisionPanel({
                       type="button"
                       className="bg-cyan-500/90 px-2 py-0.5 text-black hover:bg-cyan-400 disabled:opacity-50 border-r border-cyan-700/40 last:border-r-0"
                       onClick={() => sendLink(d.token, via)}
-                      disabled={sending !== null}
+                      disabled={sending !== null || needsPhoto}
+                      title={needsPhoto ? "Attach a photo of the change first — the customer signs what they can see." : undefined}
                       data-testid={`send-${via}-${d.key.replace(/[^a-z0-9]/gi, "-")}`}
                     >
                       {sending === d.token + via ? "…" : label}
@@ -215,8 +284,10 @@ export default function RevisionPanel({
                 </span>
                 {sentIds.includes(d.token) && <span className="text-[11px] text-emerald-400">Sent ✓</span>}
               </li>
-            ))}
+              );
+            })}
           </ul>
+          </>
         );
       })()}
     </section>

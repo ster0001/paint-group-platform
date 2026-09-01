@@ -17,7 +17,7 @@ type Core = { depositPct: number; paymentTermsDays: number; finalTermsDays: numb
 
 const ENTITY_DEFAULTS: Entity = {
   tradingName: "Paint Group",
-  brandSub: "Painting · Plastering · Restoration",
+  brandSub: "",
   address: "25/25-35 Bunney Road, Oakleigh South VIC 3167",
   abn: "41 639 780 108",
   legalLine: "",

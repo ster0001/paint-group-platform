@@ -3,10 +3,11 @@
  *
  * wo_send_update records that an update went; this module makes it true:
  * an email with the update text, the chosen site photos and a button to the
- * customer's own job page (the estimate token link — the property page until
- * the customer portal lands), and a text with the link. Same rails as
- * everything else (lib/messaging), best-effort after the record — a failed
- * send never un-records the update, it reports and the office resends.
+ * customer's own DASHBOARD (/account — the progress timeline lives there;
+ * estates with no linked account fall back to the /e token link), and a text
+ * with the same link. Same rails as everything else (lib/messaging),
+ * best-effort after the record — a failed send never un-records the update,
+ * it reports and the office resends.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -42,14 +43,14 @@ export async function deliverCustomerUpdate(
 
   const { data: w } = await service
     .from("work_orders")
-    .select("estimate_id, wo_snapshot, estimates(share_token, accepted_name, contact_email:sent_snapshot->>contactEmail, contact_phone:builder_state->contact->>phone, job_address:sent_snapshot->>jobAddress)")
+    .select("estimate_id, wo_snapshot, estimates(share_token, account_id, accepted_name, contact_email:sent_snapshot->>contactEmail, contact_phone:builder_state->contact->>phone, job_address:sent_snapshot->>jobAddress)")
     .eq("id", update.work_order_id)
     .maybeSingle();
   const wo = w as {
     estimate_id: string;
     wo_snapshot: { jobAddress?: string } | null;
     estimates: {
-      share_token: string | null; accepted_name: string | null;
+      share_token: string | null; account_id: string | null; accepted_name: string | null;
       contact_email: string | null; contact_phone: string | null; job_address: string | null;
     } | null;
   } | null;
@@ -58,7 +59,13 @@ export async function deliverCustomerUpdate(
   const text = (update.final_text ?? update.draft_text ?? "").trim();
   const address = wo.estimates.job_address || wo.wo_snapshot?.jobAddress || "your property";
   const firstName = (wo.estimates.accepted_name ?? "").split(" ")[0] || "there";
-  const link = wo.estimates.share_token ? `${siteUrl()}/e/${wo.estimates.share_token}` : null;
+  // The button goes to the customer's DASHBOARD, where the progress timeline
+  // lives (Tom, 1 Sep) — not the estimate document, which shows no progress.
+  // Jobs with no linked account (pre-portal rows) keep the /e token link so
+  // the button never dead-ends on a login the customer can't pass.
+  const link = wo.estimates.account_id
+    ? `${siteUrl()}/account`
+    : wo.estimates.share_token ? `${siteUrl()}/e/${wo.estimates.share_token}` : null;
 
   // The chosen photos, scoped to THIS job — an id from another job is ignored.
   let photoUrls: string[] = [];
@@ -102,7 +109,7 @@ export async function deliverCustomerUpdate(
     <p style="margin:0 0 15px;font-size:15px;line-height:1.6;color:#1f2937;white-space:pre-line;">${esc(text)}</p>
     ${photosHtml}
     ${link ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px 0 6px;"><tr><td style="border-radius:9px;background:#0e8296;">
-      <a href="${esc(link)}" style="display:inline-block;padding:13px 26px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;">View your job</a>
+      <a href="${esc(link)}" style="display:inline-block;padding:13px 26px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;">${wo.estimates.account_id ? "Open your dashboard" : "View your job"}</a>
     </td></tr></table>` : ""}
   </td></tr>
   <tr><td style="padding:16px 32px;border-top:1px solid #e5e7eb;">

@@ -7,7 +7,6 @@ import { pingGcalSync } from "@/lib/gcal/ping";
 import { msRemaining, isReschedule, formatDMY, type BookingOffer } from "@/lib/scheduling/offers";
 import { addDays, dayDiff, todayIso } from "@/lib/scheduling/dates";
 import { sendOfferAction, reassignOfferAction, moveBookingAction, blockOutAction, addBookingNote, deleteBookingNote, type ActionResult } from "./actions";
-import { bookWalkthrough } from "../actions";
 import type { Block, BoardWalkthrough, Lane, TrayJob } from "@/lib/scheduling/board";
 import "./schedule.css";
 
@@ -444,10 +443,20 @@ export default function ScheduleBoard({
 
   async function sendOffer() {
     if (!pendingDrop?.job) return;
+    // The gate (Tom, 1 Sep): an offer doesn't go until the final walkthrough
+    // is confirmed with the client — a DATE AND TIME typed in — or the
+    // walkthrough-not-required box is ticked. The field starts empty on
+    // purpose; the suggested date is written beside it, not into it.
+    if (!offerNoWalk && (!walkDate || !walkTime)) {
+      setErr("Confirm the final walkthrough with the client first — enter its date and time, or tick walkthrough not required.");
+      return;
+    }
     setBusy(true);
     setErr("");
     // No amount crosses the wire. The server derives the contractor's payment
     // from the work order's stored pricing — the client couldn't forge it.
+    // The confirmed walkthrough rides the same action and is booked
+    // server-side after the offer succeeds.
     const r = await sendOfferAction({
       workOrderId: pendingDrop.job.workOrderId,
       contractorId: pendingDrop.contractorId,
@@ -456,20 +465,10 @@ export default function ScheduleBoard({
       note: offerNote.trim(),
       qaRequired: offerQa,
       walkthroughRequired: !offerNoWalk,
+      walkthroughDate: offerNoWalk ? null : walkDate,
+      walkthroughTime: offerNoWalk ? null : walkTime,
     });
     if (handle(r, "Offer sent — the contractor has 24 hours to respond.")) {
-      // The walkthrough confirmed with the client rides the booking (Tom,
-      // 25 Aug). Best-effort: a refusal never unwinds the offer.
-      const wDate = walkDate || addDays(pendingDrop.startDate, pendingDrop.spanDays - 1);
-      if (!offerNoWalk && wDate) {
-        void bookWalkthrough({
-          workOrderId: pendingDrop.job.workOrderId,
-          kind: "final",
-          date: wDate,
-          time: walkTime || null,
-          note: "Confirmed with the client at booking",
-        });
-      }
       setPendingDrop(null);
       setOfferNote("");   // never carry one job's note onto the next offer
       setOfferQa(false);
@@ -1124,9 +1123,13 @@ export default function ScheduleBoard({
                     <span className="l" style={{ display: "block", marginBottom: 6 }}>
                       Final walkthrough — confirm the date &amp; time with the client
                     </span>
+                    {/* The date field starts EMPTY on purpose (Tom, 1 Sep):
+                        booking means someone actually spoke to the client, so
+                        the suggested date is written beside the field, one tap
+                        away, never silently pre-filled into it. */}
                     <div style={{ display: "flex", gap: 8 }}>
                       <input type="date" data-testid="walkthrough-date"
-                        value={walkDate || addDays(pendingDrop.startDate, pendingDrop.spanDays - 1)}
+                        value={walkDate}
                         onChange={(e) => setWalkDate(e.target.value)}
                         style={{ flex: 1, background: "var(--panel, #11151c)", color: "var(--text)", border: "1px solid var(--line)", borderRadius: 8, padding: "8px 10px", fontSize: 13 }} />
                       <input type="time" data-testid="walkthrough-time"
@@ -1134,8 +1137,15 @@ export default function ScheduleBoard({
                         onChange={(e) => setWalkTime(e.target.value)}
                         style={{ width: 110, background: "var(--panel, #11151c)", color: "var(--text)", border: "1px solid var(--line)", borderRadius: 8, padding: "8px 10px", fontSize: 13 }} />
                     </div>
-                    <span style={{ fontSize: 11, color: "var(--muted)" }}>
-                      Defaults to the last day on site. Booked with the offer — reminders for the client and contractor hang off this later.
+                    <span style={{ fontSize: 11, color: "var(--muted)", display: "block", marginTop: 4 }}>
+                      Estimated final walkthrough:{" "}
+                      <button type="button" data-testid="use-suggested-walkthrough"
+                        onClick={() => setWalkDate(addDays(pendingDrop.startDate, pendingDrop.spanDays - 1))}
+                        style={{ background: "none", border: "none", padding: 0, color: "var(--cyan, #22d3ee)", cursor: "pointer", fontSize: 11, textDecoration: "underline" }}>
+                        {formatDMY(addDays(pendingDrop.startDate, pendingDrop.spanDays - 1))}
+                      </button>
+                      {" "}(last day on site). Both the date and a time are needed to send —
+                      or tick walkthrough not required.
                     </span>
                   </div>
                 )}
@@ -1153,7 +1163,12 @@ export default function ScheduleBoard({
             <button className="btn cy" disabled={busy} onClick={pendingDrop.kind === "tray" ? sendOffer : moveBooking}>
               {busy ? "Working…" : pendingDrop.kind === "tray" ? "Send offer" : "Move booking"}
             </button>
-            <button className="btn gh" onClick={() => { setPendingDrop(null); setErr(""); setOfferNote(""); }}>Cancel</button>
+            <button className="btn gh" onClick={() => {
+              // Reset EVERYTHING — a cancelled sheet must not leak one job's
+              // walkthrough date or ticks onto the next drop.
+              setPendingDrop(null); setErr(""); setOfferNote("");
+              setOfferQa(false); setOfferNoWalk(false); setWalkDate(""); setWalkTime("");
+            }}>Cancel</button>
           </>
         )}
       </div>

@@ -5,6 +5,8 @@ import { after } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { reconcileForWorkOrder } from "@/lib/gcal/sync";
+import { createServiceClient } from "@/lib/supabase/service";
+import { sendWalkthroughInvites } from "@/lib/workorder/walkthroughInvite";
 import { onChecklistAnswered } from "@/lib/colourRecords/transitions";
 
 export type PrepResult = { ok: true } | { ok: false; message: string };
@@ -204,8 +206,15 @@ export async function setFinishDate(raw: unknown): Promise<PrepResult> {
   if (s.startsWith("ok:")) {
     revalidatePath("/portal/jobs");
     revalidatePath("/portal/calendar");
-    // The booking's end date moved — reflect it in their Google Calendar.
+    // The booking's end date moved — reflect it in their Google Calendar,
+    // and re-issue the final-walkthrough invites (the SQL re-books the final
+    // to the new day; the invites follow with a climbing sequence).
     after(() => reconcileForWorkOrder(parsed.data.workOrderId));
+    const service = createServiceClient();
+    if (service) {
+      const workOrderId = parsed.data.workOrderId;
+      after(() => sendWalkthroughInvites(service, workOrderId));
+    }
     return { ok: true };
   }
   if (s === "error:before_start") return { ok: false, message: "That's before the job starts — pick a later day." };

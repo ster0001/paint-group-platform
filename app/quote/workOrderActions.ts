@@ -1,8 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { sendAppointmentConfirmation } from "@/lib/workorder/appointmentEmail";
 import { WO_STAGES } from "@/lib/workorder/stages";
 import { seedRowsFromDoc } from "@/lib/workorder/surfaces";
 import type { WorkOrderDoc } from "@/lib/workorder/snapshot";
@@ -143,7 +146,19 @@ export async function setWorkOrderScheduleAction(raw: unknown): Promise<ActionRe
   });
   if (error) return { ok: false, kind: "error", message: error.message };
   const r = interpret(data);
-  if (r.ok) revalidatePath("/pc/schedule");
+  if (r.ok) {
+    revalidatePath("/pc/schedule");
+    // Direct staff assignment IS the booking (committedIds rule: no offer =
+    // committed) — the customer's confirmation email goes out here too, the
+    // same idempotent send the contractor-accept ping triggers.
+    if (v.contractorId && v.startDate) {
+      const service = createServiceClient();
+      if (service) {
+        const workOrderId = v.workOrderId;
+        after(() => sendAppointmentConfirmation(service, workOrderId));
+      }
+    }
+  }
   return r;
 }
 

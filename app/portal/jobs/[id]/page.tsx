@@ -255,7 +255,7 @@ export default async function PortalJobPage({
           ← {from === "requests" ? "Offers" : from === "calendar" ? "Calendar" : "Jobs"}
         </Link>
         {liveOffer && (
-          <OfferBar offerId={liveOffer.id} expiresAt={liveOffer.expires_at}
+          <OfferBar offerId={liveOffer.id} workOrderId={id} expiresAt={liveOffer.expires_at}
             priceCents={liveOffer.payment_cents ?? null} />
         )}
         {!job.committed && (

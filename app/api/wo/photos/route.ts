@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { sniffKind, MAX_UPLOAD_BYTES } from "@/lib/extract/normalise";
 import { reportError } from "@/lib/monitoring/report";
 
@@ -35,6 +36,8 @@ const ingestBody = z.object({
   surfaceId: z.string().uuid().nullish(),
   area: z.string().max(120).default(""),
   caption: z.string().max(300).default(""),
+  /** Attach straight onto a variation (the revision builder's uploader). */
+  variationId: z.string().uuid().nullish(),
 });
 
 const fail = (status: number, message: string) => NextResponse.json({ error: message }, { status });
@@ -111,6 +114,31 @@ export async function PUT(request: Request) {
     if (s.includes("not_yours")) return fail(403, "That job isn't yours.");
     return fail(400, "We couldn't file that photo.");
   }
+  const photoId = s.slice(3);
 
-  return NextResponse.json({ id: s.slice(3), path: v.path });
+  // Link to a variation on the SAME job. The caller already proved they can
+  // write photos on this work order (wo_record_photo); the variation must
+  // belong to it too, checked through the caller's own RLS read. The write
+  // itself needs the service client — authenticated writes on wo_photos are
+  // revoked by design.
+  if (v.variationId) {
+    const { data: variation } = await supabase
+      .from("wo_variations").select("id, work_order_id")
+      .eq("id", v.variationId).maybeSingle();
+    if (!variation || variation.work_order_id !== v.workOrderId) {
+      return fail(400, "That change isn't part of this job.");
+    }
+    const service = createServiceClient();
+    const { error: linkError } = service
+      ? await service.from("wo_photos")
+          .update({ variation_id: v.variationId, kind: "variation" })
+          .eq("id", photoId).eq("work_order_id", v.workOrderId)
+      : { error: { message: "service client unavailable" } };
+    if (linkError) {
+      reportError(linkError, { where: "wo.photos.linkVariation", extra: { photoId } });
+      return fail(502, "The photo uploaded but we couldn't pin it to the change — try again.");
+    }
+  }
+
+  return NextResponse.json({ id: photoId, path: v.path });
 }

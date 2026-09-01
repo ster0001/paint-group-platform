@@ -716,6 +716,16 @@ export default function QuoteBuilder({
     return diffRevision(revisionBaseline as RevisionState, currentState, pricingCtx);
   }, [revision, revisionBaseline, blocks, modSel, materials, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, pricingCtx]);
 
+  // How many photos each variation already carries — the revision panel's
+  // send buttons are gated on this (a change goes out WITH a photo).
+  const variationPhotoCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const p of woPhotos) {
+      if (p.variationId) m[p.variationId] = (m[p.variationId] ?? 0) + 1;
+    }
+    return m;
+  }, [woPhotos]);
+
   // Margin % over our own work — 3rd-party charges are outside the gross margin.
   const marginBase = totals.subtotal - totals.thirdPartyPrice;
   const marginPct = marginBase > 0 ? (totals.margin / marginBase) * 100 : 0;
@@ -1748,6 +1758,8 @@ export default function QuoteBuilder({
             existing={revisionVariations}
             saveFirst={save}
             onViewInvoice={() => setViewMode("customer")}
+            workOrderId={workOrder?.id ?? null}
+            photoCounts={variationPhotoCounts}
           />
         </div>
       )}

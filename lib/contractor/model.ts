@@ -22,6 +22,10 @@ export type ContractorRow = {
   crew_size: number;
 };
 
+/** Weekend availability (Tom, 1 Sep) — read via lib/contractor/weekend.ts,
+ *  which degrades to null (unknown) until migration 20261221 runs. */
+export type WeekendAvailability = { worksSaturday: boolean; worksSunday: boolean };
+
 export type ContractorDoc = {
   id: string;
   contractor_id: string;
@@ -36,6 +40,11 @@ export type ContractorDoc = {
   verify_note: string;
 };
 
+// NOTE: works_saturday / works_sunday (20261221) are deliberately NOT in this
+// list — every portal page selects it, and a column the migration hasn't
+// created yet would 42703 the whole select. They ride weekendAvailability()
+// in lib/contractor/weekend.ts, which degrades to "unknown" until the
+// migration runs.
 export const CONTRACTOR_COLUMNS =
   "id, profile_id, tier, insurance_expiry, active, company_name, abn, gst_registered, address, bank_bsb, bank_account_last4, logo_url, invoice_prefix, invoice_next_number, offerable, crew_size";
 

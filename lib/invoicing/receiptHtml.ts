@@ -84,7 +84,7 @@ export function buildReceiptHtml(opts: {
   <div class="top">
     <div>
       <div class="wordmark">PAINT<span>GROUP</span></div>
-      <div class="tagline">${esc(opts.entity.brandSub || "Painting · Plastering · Restoration")}</div>
+      ${opts.entity.brandSub ? `<div class="tagline">${esc(opts.entity.brandSub)}</div>` : ""}
       <div class="entity">${esc(opts.entity.address || "")}<br>ABN ${esc(opts.entity.abn || "")}</div>
     </div>
     <div class="doctype">

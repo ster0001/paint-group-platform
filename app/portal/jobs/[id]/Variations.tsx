@@ -152,8 +152,9 @@ export default function Variations({
             data-testid="variation-comment"
           />
 
+          {/* No `capture` — the OS offers camera OR photo library (Tom, 1 Sep). */}
           <input
-            ref={fileInput} type="file" hidden capture="environment"
+            ref={fileInput} type="file" hidden
             accept="image/jpeg,image/png,image/webp,image/heic"
             onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void uploadPhoto(f); }}
           />

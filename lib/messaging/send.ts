@@ -34,8 +34,10 @@ export async function sendEmail(opts: {
   subject: string;
   html: string;
   replyTo?: string;
-  /** Resend attachment shape: content is BASE64 of the file bytes. */
-  attachments?: { filename: string; content: string }[];
+  /** Resend attachment shape: content is BASE64 of the file bytes.
+   *  contentType (→ Resend content_type) matters for .ics calendar invites —
+   *  text/calendar is what makes mail clients offer "add to calendar". */
+  attachments?: { filename: string; content: string; contentType?: string }[];
 }): Promise<DeliveryResult> {
   if (!emailConfigured()) return { status: "not_configured" };
   try {
@@ -51,7 +53,15 @@ export async function sendEmail(opts: {
         subject: opts.subject,
         html: opts.html,
         ...(opts.replyTo ? { reply_to: opts.replyTo } : {}),
-        ...(opts.attachments?.length ? { attachments: opts.attachments } : {}),
+        ...(opts.attachments?.length
+          ? {
+              attachments: opts.attachments.map((a) => ({
+                filename: a.filename,
+                content: a.content,
+                ...(a.contentType ? { content_type: a.contentType } : {}),
+              })),
+            }
+          : {}),
       }),
     });
     if (!res.ok) {

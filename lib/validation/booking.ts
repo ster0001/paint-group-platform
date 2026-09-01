@@ -28,10 +28,18 @@ export const sendOfferInput = z
     qaRequired: z.boolean().default(false),
     /** "Walkthrough not required" — the job closes after finish (+ QA) with no customer walkthrough. */
     walkthroughRequired: z.boolean().default(true),
+    /** Final walkthrough, confirmed with the client at booking (Tom, 1 Sep:
+     *  REQUIRED — date AND time — unless walkthrough not required is ticked). */
+    walkthroughDate: isoDate.nullish(),
+    walkthroughTime: z.string().regex(/^\d{2}:\d{2}$/, "expected a time as HH:MM").nullish(),
   })
   .refine((v) => !v.endDate || v.endDate >= v.startDate, {
     message: "the end date cannot be before the start date",
     path: ["endDate"],
+  })
+  .refine((v) => !v.walkthroughRequired || (!!v.walkthroughDate && !!v.walkthroughTime), {
+    message: "confirm the final walkthrough date and time with the client, or tick walkthrough not required",
+    path: ["walkthroughDate"],
   });
 
 export const withdrawOfferInput = z.object({

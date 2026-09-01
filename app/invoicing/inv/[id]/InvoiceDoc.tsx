@@ -178,7 +178,7 @@ export default function InvoiceDoc({
       <div className="doc">
         <div className="doc-head">
           <div className="brand">PAINT<span>GROUP</span></div>
-          <div className="brand-sub">{entity.brandSub || "Painting · Plastering · Restoration"}</div>
+          {entity.brandSub ? <div className="brand-sub">{entity.brandSub}</div> : null}
           <div className="entity">
             {entity.address} · ABN {entity.abn}<br />
             Banking: {bank.accountName} · {bank.bank}{bank.bsb ? ` · BSB ${bank.bsb} ACC ${bank.acc}` : ""} · ref {number ?? "INV number"}<br />
@@ -237,6 +237,16 @@ export default function InvoiceDoc({
           <div className="trow"><span>This invoice — subtotal</span><b>{fmt2(totals.subtotalExCents)}</b></div>
           <div className="trow"><span>GST (10%)</span><b>{fmt2(totals.gstCents)}</b></div>
           <div className="trow big"><span>{isFinal ? "Balance due" : "Total inc GST"}</span><b data-testid="doc-total">{fmt2(totals.totalIncCents)}</b></div>
+          {/* Deposit / progress: what the job still owes after this one (Tom, 1 Sep). */}
+          {incAnchored && (
+            <>
+              <div className="trow"><span>Contract total (inc GST)</span><b>{fmt2(totals.adjustedCents)}</b></div>
+              <div className="trow" data-testid="remaining-payable">
+                <span>Remaining payable after this {kind === "deposit" ? "deposit" : "payment"}</span>
+                <b>{fmt2(Math.max(0, totals.adjustedCents - totals.previouslyInvoicedCents - totals.totalIncCents))}</b>
+              </div>
+            </>
+          )}
           {isFinal && (
             drift === 0
               ? <div className="recon" data-testid="recon-line">● Reconciles to the job ledger — nothing owed after this invoice</div>

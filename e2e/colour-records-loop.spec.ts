@@ -113,6 +113,13 @@ test.describe("colour records write path (trade portal v2, session 2B)", () => {
         work_order_id: workOrderId, kind: "before", area: heading, storage_path: path,
       });
       if (row.error) throw new Error(row.error.message);
+      // Also the finished shot: the DONE tap on a single-surface heading is
+      // otherwise intercepted by the after-photo rule (Tom, 1 Sep), and this
+      // spec is about colour records, not the photo gates.
+      const after = await sb.from("wo_photos").insert({
+        work_order_id: workOrderId, kind: "completion", area: heading, storage_path: path,
+      });
+      if (after.error) throw new Error(after.error.message);
     }
     const upd = await sb.from("work_orders").update({ stage: "in_progress", status: "in_progress" }).eq("id", workOrderId);
     if (upd.error) throw new Error(upd.error.message);

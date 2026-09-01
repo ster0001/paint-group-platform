@@ -52,6 +52,7 @@ export default function ProfileForm({
   docsError,
   name,
   email,
+  weekend = null,
 }: {
   contractor: ContractorRow;
   docs: ContractorDoc[];
@@ -59,6 +60,8 @@ export default function ProfileForm({
   docsError: string | null;
   name: string;
   email: string;
+  /** Weekend availability — null (pre-migration) hides the card. */
+  weekend?: { worksSaturday: boolean; worksSunday: boolean } | null;
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -101,6 +104,36 @@ export default function ProfileForm({
       setCompanyErr(friendly(e));
     } finally {
       setCompanyBusy(false);
+    }
+  }
+
+  // ---- weekend availability (Tom, 1 Sep) -----------------------------------
+  // Null = migration 20261221 not run yet; the card simply isn't there.
+  const [weekendState, setWeekendState] = useState(weekend);
+  const [weekendBusy, setWeekendBusy] = useState(false);
+  const [weekendMsg, setWeekendMsg] = useState("");
+  const [weekendErr, setWeekendErr] = useState("");
+
+  async function saveWeekend(col: "works_saturday" | "works_sunday", value: boolean) {
+    setWeekendBusy(true);
+    setWeekendMsg("");
+    setWeekendErr("");
+    try {
+      const { error } = await supabase
+        .from("contractors")
+        .update({ [col]: value })
+        .eq("id", contractor.id);
+      if (error) throw error;
+      setWeekendState((w) => w && {
+        ...w,
+        [col === "works_saturday" ? "worksSaturday" : "worksSunday"]: value,
+      });
+      setWeekendMsg("Saved.");
+      router.refresh();
+    } catch (e) {
+      setWeekendErr(friendly(e));
+    } finally {
+      setWeekendBusy(false);
     }
   }
 
@@ -383,6 +416,31 @@ export default function ProfileForm({
           {companyBusy ? "Saving…" : "Save company details"}
         </button>
       </div>
+
+      {/* ---- weekend availability --------------------------------------- */}
+      {weekendState && (
+        <div className="card" data-testid="weekend-card">
+          <h3>When you work</h3>
+          <p className="hint">
+            Tick the weekend days you&rsquo;re happy to be booked on. The office sees
+            this on the scheduling board.
+          </p>
+          {weekendErr && <div className="err" style={{ marginTop: 12 }}>{weekendErr}</div>}
+          {weekendMsg && <div className="ok" style={{ marginTop: 12 }}>{weekendMsg}</div>}
+          {([["works_saturday", "Available on Saturdays"], ["works_sunday", "Available on Sundays"]] as const).map(([col, label]) => (
+            <label key={col} style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={col === "works_saturday" ? weekendState.worksSaturday : weekendState.worksSunday}
+                disabled={weekendBusy}
+                onChange={(e) => void saveWeekend(col, e.target.checked)}
+                data-testid={col}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+      )}
 
       {/* ---- bank details ----------------------------------------------- */}
       <div className="card">

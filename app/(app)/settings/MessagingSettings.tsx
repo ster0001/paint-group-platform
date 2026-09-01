@@ -100,6 +100,25 @@ export default function MessagingSettings({ initial }: { initial: Partial<Msg> |
         </label>
       </div>
 
+      <div className="rounded-lg border border-gray-200 p-4">
+        <h3 className="text-sm font-semibold text-gray-800">Appointment confirmation</h3>
+        <p className="mt-1 text-xs text-gray-500">
+          Sent to the customer the moment their job is booked in — the painter accepts, or the office assigns directly.
+          Placeholders: {"{{first_name}}"} · {"{{company_name}}"} · {"{{address}}"} · {"{{start_date}}"} · {"{{painter_name}}"} · {"{{walkthrough_line}}"} (a whole
+          sentence: the booked final walkthrough&rsquo;s date and time, or &ldquo;we&rsquo;ll confirm it with you&rdquo; when not yet organised)
+        </p>
+        <label className="mt-3 block text-sm text-gray-700">
+          Email subject
+          <input value={form.apptConfirmSubject} onChange={(e) => set("apptConfirmSubject", e.target.value)}
+            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm" data-testid="apptconfirm-subject" />
+        </label>
+        <label className="mt-3 block text-sm text-gray-700">
+          Email body
+          <textarea rows={12} value={form.apptConfirmBody} onChange={(e) => set("apptConfirmBody", e.target.value)}
+            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm leading-relaxed" data-testid="apptconfirm-body" />
+        </label>
+      </div>
+
       <div className="flex items-center gap-3">
         <button onClick={save} disabled={saving} className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50">
           {saving ? "Saving…" : "Save"}

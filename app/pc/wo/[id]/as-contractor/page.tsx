@@ -29,7 +29,7 @@ export default async function AsContractorPage({ params }: { params: Promise<{ i
 
   const { data: woRow } = await supabase
     .from("work_orders")
-    .select("id, wo_ref, status, stage, start_date, end_date, issued_at, viewed_at, contractor_payment_cents, wo_snapshot, contractors(company_name)")
+    .select("id, wo_ref, status, stage, start_date, end_date, issued_at, viewed_at, contractor_payment_cents, wo_snapshot, estimate_id, contractors(company_name)")
     .eq("id", id).maybeSingle();
   if (!woRow) notFound();
 
@@ -46,7 +46,10 @@ export default async function AsContractorPage({ params }: { params: Promise<{ i
     issued_at: row.issued_at, viewed_at: row.viewed_at,
     contractor_payment_cents: row.contractor_payment_cents, wo_snapshot: row.wo_snapshot,
   } as Parameters<typeof toJob>[0], true);
-  if (!job.doc) notFound();
+  // No v1 snapshot (job not issued yet, or a legacy row) is NOT a 404 — that
+  // was exactly how "Painter's view doesn't work" presented: the console page
+  // tolerates a missing snapshot, so the button rendered and the click died.
+  // Render what exists and say plainly why the job sheet is absent.
 
   const [{ data: surfaceRows }, { data: photoRows }, { data: variationRows }, { data: prepRows }] =
     await Promise.all([
@@ -125,7 +128,21 @@ export default async function AsContractorPage({ params }: { params: Promise<{ i
 
       <Variations workOrderId={id} variations={variations} />
 
-      <WorkOrderDoc doc={job.doc} />
+      {job.doc ? (
+        <WorkOrderDoc doc={job.doc} />
+      ) : (
+        <div className="card" style={{ marginTop: 12 }} data-testid="no-snapshot">
+          <b>No job sheet yet</b>
+          <p className="note" style={{ marginTop: 6 }}>
+            This job hasn&rsquo;t been issued to a painter, so there&rsquo;s no frozen job
+            sheet to show. Issue it from the builder&rsquo;s Work order tab and this
+            view fills in.
+          </p>
+          <Link href={`/quote?id=${(woRow as { estimate_id?: string }).estimate_id ?? ""}&view=workorder&from=${encodeURIComponent(`/pc/wo/${id}/as-contractor`)}`} className="backlink">
+            Open the job sheet in the builder →
+          </Link>
+        </div>
+      )}
     </div>
   );
 }
