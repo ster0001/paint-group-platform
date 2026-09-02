@@ -169,7 +169,11 @@ export function customerRoomView(block: LooseBlock, rules: ScopeRule[]): Custome
   // Catalogue lines (Air Vent and friends): surfaces whose code no rule key
   // covers render as their own countable tiles, mutated by surface id.
   const ruleKeys = new Set(tiles.map((t) => String(t.key)));
-  const cupboardCodes = new Set(["Kitchen Cupboard Front", "Robe Door", "Vanity Door"]);
+  const cupboardCodes = new Set([
+    "Kitchen Cupboard Front", "Robe Door", "Vanity Door",
+    // D19 interiors — owned by the cupboard-interior question the same way.
+    "Kitchen Cupboard Interior", "Robe Interior", "Vanity Interior", "Linen / Broom Cupboard Interior",
+  ]);
   for (const s of surfaces) {
     const code = String(s.code ?? "");
     if (cupboardCodes.has(code)) continue; // the cupboard question owns these

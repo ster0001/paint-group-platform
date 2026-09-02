@@ -23,7 +23,7 @@ import {
   type SidesLoopMeta,
 } from "@/lib/wizard/sides";
 import {
-  CUPBOARD_BY_ROOM_TYPE, addCatalogueLine, addRoomCustom, addRoomWindowGroup, applyCupboard,
+  CUPBOARD_BY_ROOM_TYPE, addCatalogueLine, addRoomCustom, addRoomWindowGroup, applyCupboard, applyCupboardInterior,
   applyLineCount, applyRoomDims, applyRoomSizeOk, applyRoomWindowSize, confirmRoom,
   defaultInteriorLoop, interiorDwTotals, interiorProgress, removeLine, roomLoopViews,
   type InteriorLoopMeta,
@@ -142,6 +142,7 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("room_size_ok"), areaId: z.number().int().positive() }),
   z.object({ action: z.literal("room_dims"), areaId: z.number().int().positive(), lengthM: z.number().min(0.1).max(500), widthM: z.number().min(0.1).max(500) }),
   z.object({ action: z.literal("room_cupboard"), areaId: z.number().int().positive(), on: z.boolean(), count: z.number().int().min(1).max(40).nullable().default(null) }),
+  z.object({ action: z.literal("room_cupboard_interior"), areaId: z.number().int().positive(), on: z.boolean(), count: z.number().int().min(1).max(40).nullable().default(null) }),
   z.object({ action: z.literal("room_win_size"), areaId: z.number().int().positive(), surfaceId: z.number().int().positive(), size: z.enum(["S", "M", "L"]) }),
   z.object({ action: z.literal("room_add_window_group"), areaId: z.number().int().positive() }),
   z.object({ action: z.literal("room_custom"), areaId: z.number().int().positive(), name: z.string().min(1).max(120) }),
@@ -685,7 +686,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     // ---- R3: the interior confirm loop ---------------------------------------
-    if (act.action === "room_size_ok" || act.action === "room_dims" || act.action === "room_cupboard"
+    if (act.action === "room_size_ok" || act.action === "room_dims" || act.action === "room_cupboard" || act.action === "room_cupboard_interior"
       || act.action === "room_win_size" || act.action === "room_add_window_group" || act.action === "room_custom"
       || act.action === "room_add_catalogue" || act.action === "room_line_count" || act.action === "room_remove_line"
       || act.action === "confirm_room_loop") {
@@ -726,6 +727,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         : act.action === "room_size_ok" ? applyRoomSizeOk(blocks, act.areaId)
         : act.action === "room_dims" ? applyRoomDims(blocks, act.areaId, act.lengthM, act.widthM)
         : act.action === "room_cupboard" ? applyCupboard(blocks, act.areaId, act.on, act.count, () => next++)
+        : act.action === "room_cupboard_interior" ? applyCupboardInterior(blocks, act.areaId, act.on, act.count, () => next++)
         : act.action === "room_win_size" ? applyRoomWindowSize(blocks, act.areaId, act.surfaceId, act.size)
         : act.action === "room_add_window_group" ? addRoomWindowGroup(blocks, act.areaId, snapForWin.success ? snapForWin.data : null, () => next++)
         : act.action === "room_custom" ? addRoomCustom(blocks, act.areaId, act.name)

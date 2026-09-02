@@ -38,7 +38,10 @@ type LooseRateItem = {
 };
 
 /** Rows a customer must not add directly — another control owns them. */
-const CABINETRY = new Set(["Kitchen Cupboard Front", "Robe Door", "Vanity Door"]);
+const CABINETRY = new Set([
+  "Kitchen Cupboard Front", "Robe Door", "Vanity Door",
+  "Kitchen Cupboard Interior", "Robe Interior", "Vanity Interior", "Linen / Broom Cupboard Interior",
+]);
 
 /**
  * Allowances are an ESTIMATOR's judgement in hours — plastering, sealing raw

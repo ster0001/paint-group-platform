@@ -29,7 +29,7 @@ export type LooseBlock = Record<string, unknown> & {
   id?: number; kind?: string; name?: string; type?: string; roomType?: string;
   L?: number; W?: number; H?: number;
   surfaces?: LooseSurface[];
-  customer?: { size: "yes" | "adjusted" | null; cup: boolean | null; confirmed: boolean };
+  customer?: { size: "yes" | "adjusted" | null; cup: boolean | null; cupInterior?: boolean | null; confirmed: boolean };
   customerCustom?: string[];
   assumedFields?: unknown;
   origin?: unknown; confidence?: unknown;
@@ -130,6 +130,66 @@ export function applyCupboard(
     }
     b.surfaces = surfaces;
     b.customer = { ...customerOf(b), cup: on };
+  });
+}
+
+/**
+ * Cupboard INTERIORS by room type (assistant Addendum A, R5 / D19 ruled by
+ * Tom 2 Sep 2026). Priced per carcass on migration 20261227; like the fronts
+ * above, the question only renders when the code exists on the active card.
+ * It is a TIGHTENING question, never a gate: a room confirms without it, and
+ * the assistant lists "cupboard interiors not included" as an assumption chip
+ * until it is answered.
+ */
+export const CUPBOARD_INTERIOR_BY_ROOM_TYPE: Record<string, {
+  code: string; question: string; unit: string; defaultCount: number; note: string;
+}> = {
+  kitchen: {
+    code: "Kitchen Cupboard Interior",
+    question: "Paint inside the kitchen cupboards too?",
+    unit: "cupboards", defaultCount: 8,
+    note: "Inside the carcass and shelves, brushed and rolled — in the room's colour unless you tell us otherwise.",
+  },
+  bedroom: {
+    code: "Robe Interior",
+    question: "Paint inside the built-in robe?",
+    unit: "robes", defaultCount: 1, note: "",
+  },
+  bathroom: {
+    code: "Vanity Interior",
+    question: "Paint inside the vanity?",
+    unit: "vanities", defaultCount: 1, note: "",
+  },
+  laundry: {
+    code: "Linen / Broom Cupboard Interior",
+    question: "Paint inside the laundry cupboard?",
+    unit: "cupboards", defaultCount: 1, note: "",
+  },
+  hallway: {
+    code: "Linen / Broom Cupboard Interior",
+    question: "Paint inside the linen cupboard?",
+    unit: "cupboards", defaultCount: 1, note: "",
+  },
+};
+
+/** The cupboard-interior answer — same shape as applyCupboard: Yes adds the
+ * priced line at the room's default count, No records the answer and removes
+ * any line. Independent of the fronts answer (a customer may want the doors
+ * done and not the insides, or the reverse). */
+export function applyCupboardInterior(
+  blocks: LooseBlock[], areaId: number, on: boolean, count: number | null, nextId: () => number,
+): RoomsLoopResult {
+  return withRoom(blocks, areaId, (b) => {
+    const cfg = CUPBOARD_INTERIOR_BY_ROOM_TYPE[String(b.roomType ?? "")];
+    if (!cfg) return "This room has no cupboard-interior question.";
+    const surfaces = (b.surfaces ?? []).filter((s) => String(s.code) !== cfg.code);
+    if (on) {
+      const n = Math.min(40, Math.max(1, count ?? cfg.defaultCount));
+      const line = makeDraftSurface(nextId(), cfg.code, cfg.unit, n, "customer_stated", 0.85, []) as unknown as LooseSurface;
+      surfaces.push(line);
+    }
+    b.surfaces = surfaces;
+    b.customer = { ...customerOf(b), cupInterior: on };
   });
 }
 
@@ -247,6 +307,8 @@ export type RoomLoopView = {
   size: "yes" | "adjusted" | null;
   confirmed: boolean;
   cupboard: null | { question: string; unit: string; on: boolean | null; count: number; note: string };
+  /** Interiors ride the same shape; null when the card has no row for this room type. */
+  cupboardInterior: null | { question: string; unit: string; on: boolean | null; count: number; note: string };
   windows: Array<{ id: number; label: string; count: number; sizeBand: "S" | "M" | "L" }>;
   customs: string[];
 };
@@ -261,6 +323,11 @@ export function roomLoopViews(blocks: LooseBlock[], cupboardCodes: ReadonlySet<s
     const cupLine = applicable
       ? (b.surfaces ?? []).find((s) => String(s.code) === applicable.code)
       : undefined;
+    const iCfg = CUPBOARD_INTERIOR_BY_ROOM_TYPE[String(b.roomType ?? "")];
+    const interiorCfg = iCfg && cupboardCodes.has(iCfg.code) ? iCfg : null;
+    const interiorLine = interiorCfg
+      ? (b.surfaces ?? []).find((s) => String(s.code) === interiorCfg.code)
+      : undefined;
     out.push({
       areaId: Number(b.id) || 0,
       sizeLabel: `${Number(b.L) || 0} × ${Number(b.W) || 0} m`,
@@ -272,6 +339,13 @@ export function roomLoopViews(blocks: LooseBlock[], cupboardCodes: ReadonlySet<s
         on: c.cup,
         count: Number(cupLine?.count) || applicable.defaultCount,
         note: applicable.note,
+      } : null,
+      cupboardInterior: interiorCfg ? {
+        question: interiorCfg.question,
+        unit: interiorCfg.unit,
+        on: c.cupInterior ?? null,
+        count: Number(interiorLine?.count) || interiorCfg.defaultCount,
+        note: interiorCfg.note,
       } : null,
       windows: (b.surfaces ?? [])
         .filter((s) => substrateKeyForRateCode(String(s.code ?? "")) === "windows")

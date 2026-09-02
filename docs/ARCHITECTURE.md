@@ -1639,3 +1639,29 @@ no-agency-photos ruling stands), stages it, and the client ingests it through
 list + progress bar + rotating tips (PROC_TIPS). vercel.json pins functions to
 syd1 — they ran in US East against a Sydney Supabase, which was most of the
 wizard's per-tap latency. Manual script: docs/manual-tests/wizard-31aug-batch.md.
+
+## Assistant agent — S1 (2 Sep 2026)
+
+The assistant (briefs `claude-code-brief-assistant-agent.md` + Addendum A;
+rulings in `docs/briefs/agent-rulings.md`) lives in `lib/agent/`. It is a
+tool-user: the model may only act through the zod tool contract in
+`schemas.ts` (25 tools, each marked by mode and by explicit `view=staff`), and
+every call is logged to `agent_tool_calls` so any number in a reply can be
+reconstructed. `turn.ts` is one pure turn — persist the person's message
+first, check the per-conversation and per-account-per-day budgets (exhaustion
+becomes a handoff, never an error), run the model/tool loop through the
+contract, then three guards: a `hard_stop` script IS the reply, a `$` figure
+no tool returned replaces the reply and logs `number_guard`, a refused tool's
+reason is relayed. `gateway.ts` (server-only; lint rule keeps it out of
+pages/components, reach it from `app/api/agent/**`) binds the Anthropic SDK
+client (`model-anthropic.ts`, streaming), the service-role store
+(`store-supabase.ts`) and, for now, `NoopTools`; S3 binds the real scope and
+pricing tools. Model ids, budgets, support hours, tone, disclosure and the
+scripted hard stops are rows in `agent_settings` (migration `20261228`,
+seeded for `paint-group`), never code. The seven tables carry RLS: customers
+read their own conversations/messages/handoffs via the SECURITY DEFINER
+`agent_is_my_conversation`, tool calls are staff-only, no client role can
+write the transcript. D19 (`20261227`) adds four cupboard-interior rate rows;
+`lib/wizard/rooms-loop.ts` gains `CUPBOARD_INTERIOR_BY_ROOM_TYPE` +
+`applyCupboardInterior` and the wizard-edit route the `room_cupboard_interior`
+action. Manual script: `docs/manual-tests/agent-s1.md`.
