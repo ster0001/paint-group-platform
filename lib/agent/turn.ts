@@ -121,7 +121,7 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnRes
   // While a person has the conversation, the assistant stays quiet (§5).
   if (conv.status === "handed_off") return empty("handed_off", HANDED_OFF_TEXT);
 
-  const ctx: ToolContext = { conversationId: conv.id, mode: conv.mode, view: conv.view, estimateId: conv.estimateId, accountId: conv.accountId };
+  const ctx: ToolContext = { conversationId: conv.id, mode: conv.mode, view: conv.view, estimateId: conv.estimateId, accountId: conv.accountId, actorId: conv.createdBy };
   const ran: RanTool[] = [];
 
   const log = async (tool: string, toolInput: unknown, result: ToolResult): Promise<ToolCallRow> => {

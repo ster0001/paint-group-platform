@@ -12,7 +12,7 @@
 import { ceilingHeightFrom, type WizardState, type WizardSurfaceKey } from "./state";
 import {
   backfillTypicalSizes, markStarterProvenance, starterExtraction, starterRoomList,
-  type TypicalSizeRow,
+  type StarterRoom, type TypicalSizeRow,
 } from "./starter";
 import { applyWizardAnswers } from "./merge";
 import { applyConditionPricing, applyExteriorAnswers, type MergedBundle } from "./exteriorAnswers";
@@ -46,6 +46,9 @@ export function buildTreeFromState(
   refs: TreeRefs,
   ctx: PricingContext,
   startId = 1,
+  /** The assistant's co-work build: rooms named in a brief replace the
+   *  starter composition (same drafting code, different list). */
+  roomsOverride: StarterRoom[] | null = null,
 ): BuiltTree | { skip: TreeSkip } {
   const wantsInterior = state.jobType !== "exterior";
   if (wantsInterior && !state.noPlan && state.planRunIds.length > 0) return { skip: "has_plan" };
@@ -56,7 +59,7 @@ export function buildTreeFromState(
   if (wantsInterior) {
     if (!state.basics) return { skip: "incomplete" };
     const height = ceilingHeightFrom(state.details.ceilingHeight);
-    const list = starterRoomList(state.basics);
+    const list = roomsOverride ?? starterRoomList(state.basics);
     const x = starterExtraction(list, refs.typicals, {
       heightM: height.assumed ? null : height.heightM,
       bedrooms: state.basics.bedrooms,

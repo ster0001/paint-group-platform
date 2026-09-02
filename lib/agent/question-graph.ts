@@ -137,21 +137,26 @@ export function gapsFor(input: GraphInput): Gap[] {
   }
 
   // ---- 2. qualification (§4 steps 1–6, always first) -------------------------
+  // Co-work: staff are building for a customer they already know — the
+  // property questions are worth asking but never block a build; identity
+  // questions (home/trade, email, timing) belong to the customer's own flow.
+  const cowork = input.mode === "cowork";
+  const qualKind: Gap["kind"] = cowork ? "recommended" : "required";
   const hasAddress = Boolean(st.address?.suburb || cust?.suburb || cust?.postcode);
-  if (!hasAddress) add(PHASE.qual, 0, { key: "q.address", kind: "required", acceptsNotSure: false, phrasingHint: "What's the address of the property?" });
-  if (hasAddress && input.facts.inServiceArea == null) add(PHASE.qual, 0, { key: "q.service_area", kind: "required", acceptsNotSure: false, phrasingHint: "Check the address against the service area before going on.", writes: [{ tool: "answer_gap", input: { key: "q.service_area", action: "service_area_check" } }] });
-  if (input.accountType == null) add(PHASE.qual, 0, { key: "q.account_type", kind: "required", acceptsNotSure: false, phrasingHint: "Is this for your own home, or are you a business or trade client?" });
+  if (!hasAddress) add(PHASE.qual, 0, { key: "q.address", kind: qualKind, acceptsNotSure: false, phrasingHint: "What's the address of the property?" });
+  if (hasAddress && input.facts.inServiceArea == null && !cowork) add(PHASE.qual, 0, { key: "q.service_area", kind: "required", acceptsNotSure: false, phrasingHint: "Check the address against the service area before going on.", writes: [{ tool: "answer_gap", input: { key: "q.service_area", action: "service_area_check" } }] });
+  if (input.accountType == null && !cowork) add(PHASE.qual, 0, { key: "q.account_type", kind: "required", acceptsNotSure: false, phrasingHint: "Is this for your own home, or are you a business or trade client?" });
   if (jobType == null) add(PHASE.qual, 0, { key: "q.job_type", kind: "required", acceptsNotSure: false, phrasingHint: "Inside, outside, or both?" });
-  if (!cust?.propertyKind) add(PHASE.qual, 0, { key: "q.property_type", kind: "required", acceptsNotSure: false, phrasingHint: "Is it a house, townhouse, unit or a commercial building?" });
+  if (!cust?.propertyKind) add(PHASE.qual, 0, { key: "q.property_type", kind: qualKind, acceptsNotSure: false, phrasingHint: "Is it a house, townhouse, unit or a commercial building?" });
   // The hard stops depend on these (§2 rule 5) — asked once, up front.
   if (cust?.propertyKind && (cust.builtPre1970 == null || cust.heritageListed == null || cust.bodyCorporate == null || cust.asbestosSuspected == null)) {
     add(PHASE.qual, 0, { key: "q.property_flags", kind: "required", acceptsNotSure: true, phrasingHint: "Quick checks: was it built before 1970, is it heritage-listed, is there a body corporate, and any chance of asbestos? \"Not sure\" is fine for any of them." });
   }
   const storeysKnown = (wantsInterior && (floorplan || st.basics?.storeys != null)) || (wantsExterior && st.exterior != null);
   if (jobType != null && !storeysKnown) add(PHASE.qual, 0, { key: "q.storeys", kind: "required", acceptsNotSure: false, phrasingHint: "Single storey or double?" });
-  if (input.facts.timing == null) add(PHASE.qual, 0, { key: "q.timing", kind: "recommended", acceptsNotSure: true, phrasingHint: "When are you hoping to have it done — soon, in the next few months, or just pricing for now?" });
+  if (input.facts.timing == null && !cowork) add(PHASE.qual, 0, { key: "q.timing", kind: "recommended", acceptsNotSure: true, phrasingHint: "When are you hoping to have it done — soon, in the next few months, or just pricing for now?" });
   const email = input.facts.email || cust?.email || st.contact?.email || "";
-  if (!email.trim()) add(PHASE.qual, 0, { key: "q.email", kind: "required", acceptsNotSure: false, phrasingHint: "Where should I send the estimate? An email is all I need for now." });
+  if (!email.trim() && !cowork) add(PHASE.qual, 0, { key: "q.email", kind: "required", acceptsNotSure: false, phrasingHint: "Where should I send the estimate? An email is all I need for now." });
 
   // ---- 3. interior ------------------------------------------------------------
   if (wantsInterior) {

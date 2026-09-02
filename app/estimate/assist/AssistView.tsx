@@ -154,7 +154,7 @@ function answerLabel(a: { key: string; value: unknown } | null): string {
 
 type ChipsProps = { gap: Gap; onAnswer: (value: unknown, label?: string) => void };
 
-function Chips({ gap, onAnswer }: ChipsProps) {
+export function Chips({ gap, onAnswer }: ChipsProps) {
   const k = gap.key;
   const one = (opts: Array<[string, unknown]>) => (
     <div className="wz-seg">

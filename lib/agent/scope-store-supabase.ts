@@ -27,9 +27,12 @@ export class SupabaseScopeStore implements ScopeStore {
     if (!data) return null;
     const row = data as { id: string; status: string; requires_site_check: boolean | null; builder_state: Record<string, unknown> | null; accounts?: { account_type?: string } | null };
     const builderState = { ...(row.builder_state ?? {}) };
-    const agent = (builderState.agent ?? {}) as { answers?: unknown; facts?: Record<string, unknown> };
+    const agent = (builderState.agent ?? {}) as { answers?: unknown; facts?: Record<string, unknown> } & Record<string, unknown>;
     const accountType = row.accounts?.account_type === "trade" ? "trade" : row.accounts?.account_type === "residential" ? "residential" : null;
-    builderState.agent = { answers: agent.answers ?? {}, facts: { accountType, ...(agent.facts ?? {}) } };
+    // Spread FIRST: the pending proposal, its meta and the applied log live
+    // beside answers/facts and must survive a reload (S5 — the memory store
+    // kept them, this one dropped them, and the panel came back empty).
+    builderState.agent = { ...agent, answers: agent.answers ?? {}, facts: { accountType, ...(agent.facts ?? {}) } };
     return { estimateId: row.id, status: row.status, requiresSiteCheck: row.requires_site_check === true, builderState };
   }
 

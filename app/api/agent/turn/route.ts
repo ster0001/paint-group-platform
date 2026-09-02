@@ -48,7 +48,7 @@ export async function POST(request: Request) {
   const result = await gateway.turn({ conversationId, text: text.trim() || "(tapped an option)", actor: "user", answer: answer ?? null });
 
   // Email captured → the account link (same seed the wizard submit makes).
-  if (conv.estimateId && !conv.accountId) {
+  if (conv.estimateId && !conv.accountId && conv.mode !== "cowork") {
     try {
       const doc = await gateway.scope.load(conv.estimateId);
       const email = doc ? (docFacts(doc).email ?? docWizard(doc)?.customer?.email ?? docAnswers(doc).customer?.email ?? null) : null;
@@ -71,9 +71,12 @@ export async function POST(request: Request) {
     }
   }
 
-  const ui = conv.estimateId ? await uiState(gateway.scope, conv.estimateId, "customer") : { built: false, nextGap: null, price: null, thresholds: null };
+  const cowork = conv.mode === "cowork";
+  const ui = conv.estimateId
+    ? await uiState(gateway.scope, conv.estimateId, conv.view, { mode: cowork ? "cowork" : "guided", gateCents: gateway.settings.priceImpactGateCents })
+    : { built: false, nextGap: null, price: null, thresholds: null, proposal: null };
   let bundle = null;
-  if (conv.estimateId && ui.built) {
+  if (conv.estimateId && ui.built && !cowork) {
     const est = await loadOwnEstimate(db, conv.estimateId, actor);
     if (est) bundle = await loadCustomerScope(db, est);
   }

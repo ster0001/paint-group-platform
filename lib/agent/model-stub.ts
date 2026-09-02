@@ -17,6 +17,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { ModelClient, ModelRequest, ModelResponse } from "./model";
 import type { Gap, PriceScopeResult } from "./schemas";
+import { EXTRACT_TOOL_NAME, heuristicExtract, pastedTextOf } from "./brief-extract";
 
 export const ANSWER_MARKER = /\[answer key="([^"]+)" value=([\s\S]*)\]\s*$/;
 
@@ -48,13 +49,28 @@ export class StubModel implements ModelClient {
     });
     const has = (n: string) => req.tools.some((t) => t.name === n);
 
-    if (answer && !ran("answer_gap") && has("answer_gap")) return callTool("answer_gap", { key: answer.key, value: answer.value, provenance: "customer_stated" });
+    // The extraction request: read the pasted text with the rule-based reader.
+    if (has(EXTRACT_TOOL_NAME)) {
+      const last = req.messages.at(-1);
+      const raw = last && typeof last.content === "string" ? last.content : "";
+      return callTool(EXTRACT_TOOL_NAME, heuristicExtract(pastedTextOf(raw)) as unknown as Record<string, unknown>);
+    }
+    const cowork = has("apply_diff");
+
+    if (answer && !ran("answer_gap") && has("answer_gap")) return callTool("answer_gap", { key: answer.key, value: answer.value, provenance: cowork ? "human_confirmed" : "customer_stated" });
+    if (cowork && /^(apply|apply it|go ahead|yes,? apply)\b/i.test(humanText) && !answer && !ran("apply_diff")) return callTool("apply_diff", { diffId: "pending" });
+    if (!answer && !ran("propose_diff") && has("propose_diff") && (humanText.length >= 60 || /\n/.test(humanText)) && !/\b(person|human)\b/i.test(humanText)) {
+      return callTool("propose_diff", { text: humanText, sourceKind: "paste" });
+    }
     if (/\b(person|human|someone|talk to (a|some)|call me|ring me)\b/i.test(humanText) && !answer && !ran("request_handoff") && has("request_handoff")) {
       return callTool("request_handoff", { reason: "customer_asked" });
     }
-    if (!ran("next_gap") && has("next_gap")) return callTool("next_gap", {});
+    if (cowork && !ran("list_gaps") && has("list_gaps")) return callTool("list_gaps", {});
+    if (!cowork && !ran("next_gap") && has("next_gap")) return callTool("next_gap", {});
     const gapRun = ran("next_gap");
-    const gap = (gapRun?.result?.status === "ok" ? (gapRun.result.data as { gap: Gap | null }).gap : null) ?? null;
+    const listRun = ran("list_gaps");
+    const gaps: Gap[] = listRun?.result?.status === "ok" ? (listRun.result.data as { gaps: Gap[] }).gaps : [];
+    const gap = (gapRun?.result?.status === "ok" ? (gapRun.result.data as { gap: Gap | null }).gap : null) ?? gaps[0] ?? null;
     if (gap && gap.writes[0]?.tool === "hard_stop" && !ran("hard_stop") && has("hard_stop")) return callTool("hard_stop", gap.writes[0].input);
     if (!ran("price_scope") && has("price_scope")) return callTool("price_scope", {});
     if (!gap && !ran("check_thresholds") && has("check_thresholds")) return callTool("check_thresholds", {});
@@ -63,6 +79,7 @@ export class StubModel implements ModelClient {
     const price = priceRun?.result?.status === "ok" ? (priceRun.result.data as PriceScopeResult) : null;
     const answered = ran("answer_gap");
     const parts: string[] = [];
+    if (cowork) return say(coworkText(runs, gaps, price));
     if (ran("request_handoff")) parts.push("Done — I've asked a person at Paint Group to pick this up. I can keep going in the meantime if you like.");
     if (answered?.result?.status === "refused") parts.push("Let's try that again.");
     else if (answered?.result?.status === "ok" && (answered.result.data as { built?: boolean })?.built) parts.push("Thanks — your estimate is taking shape on the right.");
@@ -93,7 +110,8 @@ function readTurn(messages: Anthropic.MessageParam[]): { humanText: string; answ
     const m = messages[i];
     if (m.role === "user" && typeof m.content === "string") { lastHuman = i; break; }
   }
-  const raw = lastHuman >= 0 ? (messages[lastHuman].content as string) : "";
+  // Staff turns arrive as "[Staff member] …" (turn.ts) — the marker is the same.
+  const raw = (lastHuman >= 0 ? (messages[lastHuman].content as string) : "").replace(/^\[Staff member\]\s*/, "");
   const parsed = parseAnswerMarker(raw);
   const runs: ToolRun[] = [];
   const pending = new Map<string, ToolRun>();
@@ -113,4 +131,38 @@ function readTurn(messages: Anthropic.MessageParam[]): { humanText: string; answ
     }
   }
   return { humanText: parsed ? parsed.text : raw.trim(), answer: parsed ? { key: parsed.key, value: parsed.value } : null, runs };
+}
+
+/** Staff-tone reply: terse, the two $/hr figures, the proposal's parts. */
+function coworkText(runs: ToolRun[], gaps: Gap[], price: PriceScopeResult | null): string {
+  const parts: string[] = [];
+  const proposed = runs.find((r) => r.name === "propose_diff");
+  const applied = runs.find((r) => r.name === "apply_diff");
+  const answered = runs.find((r) => r.name === "answer_gap");
+  if (proposed?.result?.status === "refused") parts.push(`Couldn't propose: ${proposed.result.reason}`);
+  if (proposed?.result?.status === "ok") {
+    const d = proposed.result.data as { added: Array<{ areaName: string; surfaces: string[] }>; changed: Array<{ areaName: string; what: string }>; assumed: Array<{ label: string }>; groups: { price: string[]; cosmetic: string[] }; injectedInstructions: string[]; unmapped: string[]; priced: { loCents: number; hiCents: number } | null };
+    // Quoted verbatim in the panel; in the reply any $ figure inside the
+    // injected text is masked — a number in a reply must be a tool's, not an attacker's.
+    if (d.injectedInstructions.length) parts.push(`The pasted text contained instructions — ignored: "${d.injectedInstructions.map((t) => t.replace(/\$\s?\d[\d,]*(?:\.\d+)?/g, "[amount]")).join('" · "')}".`);
+    parts.push(`Proposed: ${d.added.length} area${d.added.length === 1 ? "" : "s"}${d.added.length ? ` (${d.added.map((a) => a.areaName).join(", ")})` : ""}${d.changed.length ? `; ${d.changed.length} changed` : ""}.`);
+    if (d.assumed.length) parts.push(`Fill-ins: ${d.assumed.map((a) => a.label).join("; ")}.`);
+    if (d.unmapped.length) parts.push(`Not on the rate card (amber, visit tier): ${d.unmapped.join("; ")}.`);
+    parts.push(`Gaps — price impact: ${d.groups.price.length}; cosmetic: ${d.groups.cosmetic.length}.`);
+  }
+  if (applied?.result?.status === "ok") {
+    const a = applied.result.data as { rows: number; totalCents: number | null };
+    parts.push(`Applied — ${a.rows} rows now live${a.totalCents != null ? ` at ${dollars(a.totalCents)} incl. GST` : ""}.`);
+  }
+  if (applied?.result?.status === "refused") parts.push(applied.result.reason ?? "Nothing to apply.");
+  if (answered?.result?.status === "ok") parts.push("Noted.");
+  if (answered?.result?.status === "refused") parts.push("That answer didn't land — see below.");
+  if (price) {
+    parts.push(`${price.pending ? "Proposed" : "Live"} price ${dollars(price.loCents)} – ${dollars(price.hiCents)} incl. GST (charge-out $${Math.round(price.chargeOutCentsPerHr / 100)}/hr · revenue $${Math.round(price.revenueCentsPerHr / 100)}/hr, ${price.accuracyPct}% settled).`);
+  }
+  const open = gaps.filter((g) => g.kind === "required").slice(0, 4);
+  if (open.length) parts.push(`Still needed: ${open.map((g) => g.phrasingHint).join(" · ")}`);
+  if (proposed?.result?.status === "ok" && !applied) parts.push("Say “apply” to apply it.");
+  if (parts.length === 0) parts.push(gaps[0]?.phrasingHint ?? "Paste a brief, or tell me what to change.");
+  return parts.join(" ");
 }

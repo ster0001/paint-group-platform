@@ -105,6 +105,9 @@ export const priceScopeResultSchema = z.object({
   showNumber: z.boolean(),
   confirmedAreaIds: z.array(areaId).max(200),
   allAreasConfirmed: z.boolean(),
+  /** Co-work: this priced the PENDING proposal, and the live tree's total. */
+  pending: z.boolean().default(false),
+  liveTotalCents: cents.nullable().default(null),
 });
 export type PriceScopeResult = z.infer<typeof priceScopeResultSchema>;
 
@@ -227,16 +230,25 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
     output: z.object({
       diffId: z.string().max(120),
       added: z.array(z.object({ areaName: z.string().max(120), surfaces: z.array(z.string().max(120)), provenance })),
+      changed: z.array(z.object({ areaName: z.string().max(120), what: z.string().max(200) })).default([]),
+      removed: z.array(z.string().max(120)).default([]),
+      /** Every fill-in, none silent (§3.2). */
       assumed: z.array(assumptionSchema),
       gaps: z.array(gapSchema),
+      /** The gap batch grouped by $ impact: over the review gate vs cosmetic. */
+      groups: z.object({ price: z.array(z.string().max(120)), cosmetic: z.array(z.string().max(120)) }).default({ price: [], cosmetic: [] }),
       injectedInstructions: z.array(z.string().max(300)).max(20).default([]),
+      unmapped: z.array(z.string().max(300)).max(20).default([]),
+      priced: z.object({ totalCents: cents, loCents: cents, hiCents: cents, liveTotalCents: cents.nullable() }).nullable().default(null),
+      /** guided (the customer's own draft) applies straight in; cowork waits for apply_diff. */
+      applied: z.boolean().default(false),
     }),
   }),
   t({
     name: "apply_diff", modes: ["cowork"], staffOnly: true, binds: "staff RPC apply diff (logs who applied)",
     description: "Apply a proposed diff to the estimate. Staff only; logs the applier.",
     input: z.object({ diffId: z.string().trim().min(1).max(120) }),
-    output: z.object({ applied: z.literal(true), rows: z.number().int().min(0) }),
+    output: z.object({ applied: z.literal(true), rows: z.number().int().min(0), totalCents: cents.nullable().default(null) }),
   }),
   t({
     name: "lookup_brain", modes: SUPPORT, staffOnly: false, binds: "brain_entries retrieval",
@@ -334,6 +346,8 @@ export type ToolContext = {
   view: AgentView;
   estimateId: string | null;
   accountId: string | null;
+  /** Who is talking (auth uid) — logged on apply. */
+  actorId?: string | null;
 };
 
 export interface ToolExecutor {

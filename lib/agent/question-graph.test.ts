@@ -191,6 +191,20 @@ describe("question graph — the §4 rules", () => {
     expect(nextGap(f)?.key).toBe("stop.out_of_area");
   });
 
+  it("co-work never blocks on the customer's identity: address and property type are recommended, email/account/timing not asked", () => {
+    const f = F1();
+    f.mode = "cowork";
+    f.state = state("interior", { address: null, customer: { ...state("interior").customer!, suburb: "", postcode: "", email: "" } });
+    f.accountType = null;
+    f.facts = { ...FACTS, email: null, timing: null };
+    const gaps = gapsFor(f);
+    expect(gaps.find((g) => g.key === "q.address")?.kind).toBe("recommended");
+    expect(keys(gaps)).not.toContain("q.email");
+    expect(keys(gaps)).not.toContain("q.account_type");
+    expect(keys(gaps)).not.toContain("q.timing");
+    expect(requiredKeys(gaps)[0]).toMatch(/^room\./);
+  });
+
   it("guided asks one required question per turn; co-work gets the whole batch", () => {
     expect(nextBatch(F1())).toHaveLength(1);
     const cw = F1(); cw.mode = "cowork";

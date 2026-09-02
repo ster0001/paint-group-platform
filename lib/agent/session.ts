@@ -11,8 +11,9 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getWizardActor } from "@/lib/supabase/guards";
 import type { EstimateRow } from "@/lib/wizard/customer-scope";
-import { checkThresholds, priceScope, assumptionSwings } from "./scope-tools";
-import { graphInput, isBuilt, type ScopeDeps } from "./scope-doc";
+import { checkThresholds, priceScope, assumptionSwings, pendingSummary } from "./scope-tools";
+import type { DiffSummary } from "./propose";
+import { graphInput, isBuilt, pendingOf, type ScopeDeps } from "./scope-doc";
 import { nextGap } from "./question-graph";
 import type { SupabaseScopeStore } from "./scope-store-supabase";
 import type { ConversationRow } from "./store";
@@ -70,19 +71,77 @@ export type UiState = {
   nextGap: Gap | null;
   price: PriceScopeResult | null;
   thresholds: ReturnType<typeof checkThresholds> | null;
+  /** Co-work: the pending proposal, or null. */
+  proposal: DiffSummary | null;
 };
 
-export async function uiState(scope: SupabaseScopeStore, estimateId: string, view: "customer" | "staff"): Promise<UiState> {
-  const doc = await scope.load(estimateId);
-  if (!doc) return { built: false, nextGap: null, price: null, thresholds: null };
+export async function uiState(scope: SupabaseScopeStore, estimateId: string, view: "customer" | "staff", opts: { mode?: "guided" | "cowork"; gateCents?: number } = {}): Promise<UiState> {
+  const live = await scope.load(estimateId);
+  if (!live) return { built: false, nextGap: null, price: null, thresholds: null, proposal: null };
   const deps: ScopeDeps = { refs: await scope.refs(), ctx: await scope.ctx(), actor: view };
+  const cowork = opts.mode === "cowork";
+  const doc = cowork ? (pendingOf(live) ?? live) : live;
   const built = isBuilt(doc);
   const swings = built ? assumptionSwings(doc, deps) : undefined;
+  const price = built ? priceScope(doc, deps) : null;
   return {
     built,
-    nextGap: nextGap(graphInput(doc, deps, "guided", swings)),
-    price: built ? priceScope(doc, deps) : null,
+    nextGap: nextGap(graphInput(doc, deps, cowork ? "cowork" : "guided", swings)),
+    price: price && cowork && pendingOf(live) ? { ...price, pending: true, liveTotalCents: isBuilt(live) ? priceScope(live, deps).totalCents : null } : price,
     thresholds: built ? checkThresholds(doc, deps) : null,
+    proposal: cowork ? pendingSummary(live, deps, opts.gateCents ?? 15_000) : null,
+  };
+}
+
+/** A blank STAFF draft for co-work — the builder's own source tag. */
+export async function createStaffDraft(db: SupabaseClient, actor: AgentActor): Promise<string> {
+  const { data, error } = await db.from("estimates").insert({
+    title: "New estimate (assistant)", status: "draft", source: "manual", created_by: actor.userId,
+    builder_state: { blocks: [], agent: { answers: {}, facts: { accountType: null } } },
+  }).select("id").single();
+  if (error || !data) throw new Error(`agent: couldn't create the staff draft: ${error?.message}`);
+  return data.id as string;
+}
+
+export type CoworkSession =
+  | { kind: "holding"; line: string }
+  | {
+      kind: "ok"; conversationId: string; estimateId: string; assistantName: string;
+      transcript: Array<{ id: string; role: "user" | "assistant" | "staff" | "system"; text: string; createdAt: string }>;
+      ui: UiState;
+    };
+
+/** /estimates/[id]/assist — staff only; "new" opens a blank draft. */
+export async function openCoworkSession(estimateParam: string): Promise<CoworkSession> {
+  const actor = await agentActor();
+  if (!actor || actor.kind !== "staff") return { kind: "holding", line: "Staff only." };
+  const db = agentDb();
+  if (!db) return { kind: "holding", line: "The assistant isn't available just now." };
+  let gateway;
+  try { gateway = await createGateway(); } catch { return { kind: "holding", line: "The assistant isn't available just now — is ANTHROPIC_API_KEY set?" }; }
+
+  const estimateId = estimateParam === "new" ? await createStaffDraft(db, actor) : estimateParam;
+  const est = await loadOwnEstimate(db, estimateId, actor);
+  if (!est) return { kind: "holding", line: "No such estimate." };
+  if (est.status === "accepted") return { kind: "holding", line: "This estimate is accepted and locked — open a variation from the work order." };
+
+  const { data: existing } = await db.from("agent_conversations").select("id")
+    .eq("estimate_id", est.id).eq("created_by", actor.userId).eq("mode", "cowork").eq("status", "open")
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  let conversationId = existing?.id as string | undefined;
+  if (!conversationId) {
+    const conv = await gateway.startConversation({ accountId: est.account_id ?? null, propertyId: null, estimateId: est.id, channel: "staff", mode: "cowork", view: "staff", createdBy: actor.userId, anonToken: null, externalThreadId: null });
+    await gateway.store.appendMessage({ conversationId: conv.id, role: "assistant", content: "Paste a brief, an email or a call summary and I'll draft the tree with every fill-in listed — or tell me what to change on this estimate. Nothing lands until you apply it.", modelId: null, tokensIn: 0, tokensOut: 0 });
+    conversationId = conv.id;
+  }
+  const [ui, messages] = await Promise.all([
+    uiState(gateway.scope, est.id, "staff", { mode: "cowork", gateCents: gateway.settings.priceImpactGateCents }),
+    gateway.store.listMessages(conversationId),
+  ]);
+  return {
+    kind: "ok", conversationId, estimateId: est.id, assistantName: gateway.settings.assistantName,
+    transcript: messages.filter((m) => m.role !== "system").map((m) => ({ id: m.id, role: m.role, text: displayText(m.content), createdAt: m.createdAt })),
+    ui,
   };
 }
 

@@ -48,7 +48,7 @@ export class NoopTools implements ToolExecutor {
       case "set_size": return ok({ applied: true });
       case "remove_item": return ok({ removed: true });
       case "add_custom_line": return ok({ ref: "noop-note", amber: true, visitTier: true });
-      case "attach_document": return ok({ pipelineState: "queued", sourceId: null });
+      case "attach_document": return refused("Documents aren't wired into the assistant yet — upload it in the builder and I'll read the tree from there.");
       case "price_scope": return ok(NOOP_PRICE_SAMPLE);
       case "check_thresholds": return ok({ outcome: "visit", reasons: ["Some areas are not confirmed yet."], accuracyPct: 62, minAccuracyPct: 90, capCents: 600_000, guardrail: "reveal" });
       case "propose_diff": return ok({ diffId: "noop-diff", added: [], assumed: [], gaps: [], injectedInstructions: [] });

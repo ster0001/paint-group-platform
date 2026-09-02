@@ -22,15 +22,19 @@ import { substrateKeyForRateCode } from "@/lib/estimate/substrates";
 import { CUPBOARD_INTERIOR_BY_ROOM_TYPE, applyCupboardInterior, type LooseBlock as RoomBlock } from "@/lib/wizard/rooms-loop";
 import { gapsFor, nextGap } from "./question-graph";
 import {
-  addArea, addCustomLine, addSurface, applyAnswer, docBlocks, docDeferred, docFacts, docInterior, docSides, docWizard,
-  graphInput, isBuilt, patchCeilingHeight, patchDoorStyle, patchWindowStyle, removeItem, setCount,
+  addArea, addCustomLine, addSurface, applyAnswer, applyPending, docBlocks, docDeferred, docFacts, docInterior, docSides, docWizard,
+  graphInput, isBuilt, patchCeilingHeight, patchDoorStyle, patchWindowStyle, pendingMetaOf, pendingOf, removeItem, setCount, withPending,
   type ScopeDeps, type ScopeDoc,
 } from "./scope-doc";
+import { diffSummary, proposeFromBrief, rowCount } from "./propose";
+import type { BriefExtraction } from "./brief-extract";
 import { ok, refused, type Assumption, type PriceScopeResult, type ToolContext, type ToolExecutor, type ToolResult } from "./schemas";
 import type { ScopeStore } from "./scope-store";
 import type { AgentSettings, SupportHours } from "./settings";
 
 type In = Record<string, unknown>;
+
+export type BriefExtractor = (text: string) => Promise<{ ok: true; extraction: BriefExtraction } | { ok: false; message: string }>;
 
 export class ScopeTools implements ToolExecutor {
   constructor(
@@ -38,6 +42,8 @@ export class ScopeTools implements ToolExecutor {
     private readonly settings: AgentSettings,
     private readonly fallback: ToolExecutor,
     private readonly now: () => Date = () => new Date(),
+    /** S5: the model-read of a pasted brief (null = propose_diff refuses). */
+    private readonly extractor: BriefExtractor | null = null,
   ) {}
 
   async execute(name: string, input: unknown, ctx: ToolContext): Promise<ToolResult> {
@@ -58,15 +64,41 @@ export class ScopeTools implements ToolExecutor {
     if (!SCOPE_TOOLS.has(name)) return this.fallback.execute(name, input, ctx);
 
     if (!ctx.estimateId) return refused("There's no estimate to work on yet.");
-    const doc = await this.store.load(ctx.estimateId);
-    if (!doc) return refused("I can't find that estimate.");
-    if (doc.status === "accepted") return refused("This estimate is accepted and locked — a person can open a variation for you.");
+    const live = await this.store.load(ctx.estimateId);
+    if (!live) return refused("I can't find that estimate.");
+    if (live.status === "accepted") return refused("This estimate is accepted and locked — a person can open a variation for you.");
     const deps: ScopeDeps = { refs: await this.store.refs(), ctx: await this.store.ctx(), actor: ctx.view === "staff" ? "staff" : "customer" };
 
+    // Co-work (parent §3.2): staff edit a PENDING copy; apply_diff commits it.
+    // The customer's own guided build edits the live tree (Addendum A §3.3).
+    const gated = ctx.mode === "cowork";
+    const doc = gated ? (pendingOf(live) ?? live) : live;
     const commit = async (r: { ok: true; doc: ScopeDoc; note?: string } & Record<string, unknown>, data: Record<string, unknown>) => {
-      await this.store.save(r.doc);
-      return ok({ ...data, ...(r.note ? { note: r.note } : {}) });
+      await this.store.save(gated ? withPending(live, r.doc) : r.doc);
+      return ok({ ...data, ...(r.note ? { note: r.note } : {}), ...(gated ? { pending: true } : {}) });
     };
+
+    switch (name) {
+      case "propose_diff": {
+        if (!this.extractor) return refused("Reading a brief isn't available just now.");
+        const read = await this.extractor(String(i.text ?? ""));
+        if (!read.ok) return refused(read.message);
+        const p = proposeFromBrief(doc, read.extraction, deps, { mode: gated ? "cowork" : "guided", gateCents: this.settings.priceImpactGateCents });
+        if (!p.ok) return refused(p.reason);
+        // The customer's own draft applies straight in; staff wait for apply_diff.
+        const fillIns = p.summary.assumed.filter((a) => !/^(door_style|window_style|ceiling_height|paint\.colours|condition\.photos)$/.test(a.key) && !/\.cupboard_interiors$/.test(a.key));
+        await this.store.save(gated ? withPending(live, p.working, { fillIns, injectedInstructions: p.summary.injectedInstructions, unmapped: p.summary.unmapped }) : p.working);
+        return ok(p.summary);
+      }
+      case "apply_diff": {
+        const applied = applyPending(live, ctx.actorId ?? null);
+        if (!applied) return refused("There's nothing proposed to apply yet.");
+        await this.store.save(applied);
+        const priced = isBuilt(applied) ? priceScope(applied, deps) : null;
+        return ok({ applied: true, rows: rowCount(applied), totalCents: priced?.totalCents ?? null });
+      }
+      default: break;
+    }
 
     switch (name) {
       case "get_scope": return ok(scopeView(doc, deps));
@@ -124,7 +156,10 @@ export class ScopeTools implements ToolExecutor {
         if (!r.ok) return refused(r.reason);
         return commit(r, { ref: r.ref, amber: true, visitTier: true });
       }
-      case "price_scope": return ok(priceScope(doc, deps));
+      case "price_scope": {
+        const r = priceScope(doc, deps);
+        return ok(gated && pendingOf(live) ? { ...r, pending: true, liveTotalCents: isBuilt(live) ? priceScope(live, deps).totalCents : null } : r);
+      }
       case "check_thresholds": return ok(checkThresholds(doc, deps));
       default: return this.fallback.execute(name, input, ctx);
     }
@@ -151,7 +186,7 @@ export class ScopeTools implements ToolExecutor {
   }
 }
 
-const SCOPE_TOOLS = new Set(["get_scope", "next_gap", "list_gaps", "answer_gap", "add_area", "add_surface", "set_count", "set_size", "remove_item", "add_custom_line", "price_scope", "check_thresholds"]);
+const SCOPE_TOOLS = new Set(["get_scope", "next_gap", "list_gaps", "answer_gap", "add_area", "add_surface", "set_count", "set_size", "remove_item", "add_custom_line", "price_scope", "check_thresholds", "propose_diff", "apply_diff"]);
 
 // ---- views ---------------------------------------------------------------------
 
@@ -237,7 +272,17 @@ export function priceScope(doc: ScopeDoc, deps: ScopeDeps): PriceScopeResult {
     showNumber,
     confirmedAreaIds: p.confirmedIds,
     allAreasConfirmed: p.allConfirmed && p.sweepDone,
+    pending: false,
+    liveTotalCents: null,
   };
+}
+
+/** The proposal as the staff panel shows it (null when nothing is pending). */
+export function pendingSummary(live: ScopeDoc, deps: ScopeDeps, gateCents: number) {
+  const working = pendingOf(live);
+  if (!working) return null;
+  const meta = pendingMetaOf(live);
+  return diffSummary(live, working, deps, gateCents, { fillIns: meta.fillIns as Assumption[] | undefined, injected: meta.injectedInstructions, unmapped: meta.unmapped });
 }
 
 function assumptionLabel(key: string, areaId: number | null, blocks: ReturnType<typeof docBlocks>): { label: string; assumedValue: string } {

@@ -31,6 +31,7 @@ describe("NoopTools honours the contract for every tool", () => {
   it.each(TOOL_SPECS.map((s) => [s.name, s] as const))("%s returns ok data that validates against its output schema", async (name, spec) => {
     const input = spec.input.parse(SAMPLE_INPUT[name] ?? {});
     const result = await new NoopTools(settings).execute(name, input, ctx);
+    if (name === "attach_document") { expect(result.status).toBe("refused"); return; } // honest until Site Capture / plan attach land
     expect(result.status).toBe("ok");
     if (result.status === "ok") expect(spec.output.safeParse(result.data).success, JSON.stringify(result.data)).toBe(true);
   });

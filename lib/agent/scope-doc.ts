@@ -134,12 +134,12 @@ export function graphInput(doc: ScopeDoc, deps: ScopeDeps, mode: "guided" | "cow
 /** Fill the wizard's "unsure" tiles for anything still open, so the tree can
  *  build as soon as the REQUIRED answers are in (tightening questions narrow
  *  it afterwards, exactly as the wizard prices unsure at the default rate). */
-export function toWizardState(draft: AnswerDraft, facts: AgentFacts): WizardState | null {
+export function toWizardState(draft: AnswerDraft, facts: AgentFacts, mode: "customer" | "internal" = "customer"): WizardState | null {
   if (!draft.jobType) return null;
   const wantsExterior = draft.jobType !== "interior";
   const c = draft.customer ?? {};
   const candidate = {
-    mode: "customer",
+    mode,
     jobType: draft.jobType,
     title: "",
     address: draft.address ?? null,
@@ -173,7 +173,8 @@ export function toWizardState(draft: AnswerDraft, facts: AgentFacts): WizardStat
     },
     contact: { name: "", email: facts.email ?? "", phone: "" },
     paint: { brands: draft.paint?.brands ?? [], colourHelp: draft.paint?.colourHelp ?? null, waterBasedOnly: draft.paint?.waterBasedOnly ?? false, trimsOilBased: draft.paint?.trimsOilBased ?? null, base: draft.paint?.base ?? null },
-    customer: {
+    // Staff co-work (internal mode) has no customer block unless one was given.
+    customer: mode === "internal" && !c.propertyKind ? null : {
       email: c.email ?? facts.email ?? "",
       suburb: c.suburb ?? draft.address?.suburb ?? "",
       postcode: c.postcode ?? draft.address?.postcode ?? "",
@@ -772,4 +773,54 @@ function deepMerge<T extends object>(base: T, patch: object): T {
       : v;
   }
   return out as T;
+}
+
+// ---- co-work: the pending proposal ------------------------------------------------
+//
+// Staff never edit someone else's estimate live (parent §3.2): every co-work
+// mutation lands on a PENDING copy of the builder state, kept under
+// builder_state.agent.pending, and `apply` commits it. The customer's own
+// guided build has no gate (Addendum A §3.3) and never uses this.
+
+const TREE_KEYS = ["blocks", "aiDeferred", "modSel", "interiorLoop", "sidesLoop", "wizard", "storeyHeights"] as const;
+
+export function pendingOf(doc: ScopeDoc): ScopeDoc | null {
+  const pending = agentOf(doc) as { pending?: Record<string, unknown> | null };
+  if (!pending.pending) return null;
+  const agent = { ...(doc.builderState.agent as Obj), pending: null };
+  return {
+    ...doc,
+    requiresSiteCheck: Boolean(pending.pending._requiresSiteCheck ?? doc.requiresSiteCheck),
+    builderState: { ...doc.builderState, ...pending.pending, agent: { ...agent, answers: (pending.pending._answers as AnswerDraft) ?? agentOf(doc).answers ?? {} } },
+  };
+}
+
+/** What a proposal said about itself — kept with it so the panel can show
+ *  the same fill-ins and the same "instructions ignored" line after a reload. */
+export type PendingMeta = { fillIns?: unknown[]; injectedInstructions?: string[]; unmapped?: string[] };
+
+/** Store `working` as the pending proposal on `doc`. */
+export function withPending(doc: ScopeDoc, working: ScopeDoc, meta?: PendingMeta): ScopeDoc {
+  const pending: Obj = {};
+  for (const k of TREE_KEYS) if (k in working.builderState) pending[k] = working.builderState[k];
+  pending._requiresSiteCheck = working.requiresSiteCheck;
+  pending._answers = docAnswers(working);
+  const prior = (agentOf(doc) as { pendingMeta?: PendingMeta }).pendingMeta;
+  return withState(doc, { agent: { ...(doc.builderState.agent as Obj), pending, pendingMeta: meta ?? prior ?? null } });
+}
+
+export function pendingMetaOf(doc: ScopeDoc): PendingMeta {
+  return ((agentOf(doc) as { pendingMeta?: PendingMeta | null }).pendingMeta) ?? {};
+}
+
+/** Commit the pending proposal into the live tree. */
+export function applyPending(doc: ScopeDoc, appliedBy: string | null): ScopeDoc | null {
+  const working = pendingOf(doc);
+  if (!working) return null;
+  const agent = (doc.builderState.agent ?? {}) as Obj;
+  const applied = Array.isArray(agent.appliedDiffs) ? (agent.appliedDiffs as unknown[]) : [];
+  const next: Obj = { ...doc.builderState };
+  for (const k of TREE_KEYS) if (k in working.builderState) next[k] = working.builderState[k];
+  next.agent = { ...agent, answers: docAnswers(working), pending: null, pendingMeta: null, appliedDiffs: [...applied, { at: new Date().toISOString(), by: appliedBy }] };
+  return { ...doc, requiresSiteCheck: working.requiresSiteCheck, builderState: next };
 }

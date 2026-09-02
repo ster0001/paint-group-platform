@@ -32,6 +32,9 @@ export const agentSettingsSchema = z.object({
   disclosureText: z.string().default("You're chatting with Paint Group's assistant. A person is one tap away."),
   hardStopScripts: z.record(z.string(), z.string()).default({}),
   featureFlags: z.record(z.string(), z.boolean()).default({}),
+  /** Plan-reader ruling 3 / co-work §3.2: gaps whose swing is at least this
+   *  are "will change the price"; the rest are cosmetic. */
+  priceImpactGateCents: z.number().int().positive().default(15_000),
 });
 export type AgentSettings = z.infer<typeof agentSettingsSchema>;
 
@@ -55,6 +58,7 @@ export function settingsFromRow(row: unknown): AgentSettings {
     disclosureText: r.disclosure_text,
     hardStopScripts: r.hard_stop_scripts,
     featureFlags: r.feature_flags,
+    priceImpactGateCents: (r.feature_flags as Record<string, unknown> | null)?.priceImpactGateCents,
   };
   const parsed = agentSettingsSchema.safeParse(candidate);
   if (parsed.success) return parsed.data;

@@ -1737,3 +1737,27 @@ without a live model. The wizard's page 1 offers "Rather chat it through?";
 the scope editor offers "Chat it instead". Range card and CTA in the chat
 read `price_scope` / `check_thresholds` — R4: no number for a residential
 customer until every area is confirmed and swept.
+
+## Assistant agent — S5 co-work mode (2 Sep 2026)
+
+Staff co-work at `/estimates/[id]/assist` (`new` opens a blank staff draft).
+`lib/agent/brief-extract.ts` reads pasted text into FACTS (a model tool call
+with a zod schema; `heuristicExtract` is the rule-based reader the stub uses)
+and always runs an injection regex — instruction-like lines are reported and
+never followed. `lib/agent/propose.ts` builds the proposed tree with the
+wizard's own drafting code: the starter composition for the bedroom count
+reconciled with the rooms the text names (unnamed rooms are assumed and say
+so), typical sizes unless stated, only the surfaces stated (ceilings not
+stated → not included, chip with its $ swing), coats defaulting to two with a
+fill-in, defects priced at the defect rate on an assumed quantity and held
+amber (D22), unmapped items as amber custom lines. Every co-work mutation lands
+on a PENDING copy of builder_state (`scope-doc.ts` pendingOf/withPending/
+applyPending) and `apply_diff` commits it, logging who applied; the customer's
+own guided draft has no gate (Addendum A §3.3). `price_scope` says when it
+priced the proposal and carries the live total; the staff panel shows the diff
+(added/changed/removed with provenance), the fill-ins, the gap batch grouped by
+the Settings review gate (`agent_settings.feature_flags.priceImpactGateCents`,
+default $150), the two $/hr figures, and Apply (`POST /api/agent/apply`, the
+same tool run directly so applying never depends on the model). Tom's
+paragraph is the golden in `propose.test.ts` (Addendum A §3.2); the staff
+journey is `e2e/cowork.spec.ts`.
