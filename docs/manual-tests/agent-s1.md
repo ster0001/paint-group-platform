@@ -8,7 +8,7 @@ Nothing in this batch has a screen yet (S1 is "no UI"). These checks are for the
    - The final `select` must list **four** rows: Kitchen Cupboard Interior (~50), Linen / Broom Cupboard Interior (~95), Robe Interior (~143), Vanity Interior (~57).
    - If it raises "expected 4 cupboard-interior rows", the template front rows are missing on the active card — tell Claude Code.
 2. `supabase/migrations/20261228000000_agent_schema.sql`
-   - The final `select` must list the policies — expect **10** rows across the seven `agent_*`/`brain_entries`/`callback_requests` tables. Read them; do not assume.
+   - The final `select` must list the policies — expect **9** rows across the seven `agent_*`/`brain_entries`/`callback_requests` tables. Read them; do not assume.
    - `select * from agent_settings;` → one row, `tenant_key = 'paint-group'`, `model_default = 'claude-haiku-4-5'`, `model_heavy = 'claude-sonnet-5'`.
 
 ## 2. Cupboard interiors show up in the wizard's room loop (after migration 1)
