@@ -14,6 +14,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { AnthropicModelClient } from "./model-anthropic";
 import { StubModel } from "./model-stub";
 import { extractBrief } from "./brief-extract";
+import { sendSms } from "@/lib/messaging/send";
 import { SupabaseAgentStore, loadAgentSettings } from "./store-supabase";
 import { NoopTools } from "./noop";
 import { ScopeTools } from "./scope-tools";
@@ -43,7 +44,8 @@ export async function createGateway(opts: { tools?: (settings: AgentSettings) =>
   const store = new SupabaseAgentStore(db);
   const scope = new SupabaseScopeStore(db);
   const model = usingStubModel() ? new StubModel() : new AnthropicModelClient();
-  const tools = opts.tools ? opts.tools(settings) : new ScopeTools(scope, settings, new NoopTools(settings), () => new Date(), (text) => extractBrief(model, settings.modelHeavy, text));
+  const notify = async (to: string[], body: string) => { await Promise.all(to.map((n) => sendSms({ to: n, body }).catch(() => undefined))); };
+  const tools = opts.tools ? opts.tools(settings) : new ScopeTools(scope, settings, new NoopTools(settings), () => new Date(), (text) => extractBrief(model, settings.modelHeavy, text), store, notify);
   return {
     settings,
     store,

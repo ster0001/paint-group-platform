@@ -5,6 +5,8 @@ import { accountTypeOf, agentActor, agentDb, createDraftEstimate, loadOwnEstimat
 import { graphInput } from "@/lib/agent/scope-doc";
 import { nextGap } from "@/lib/agent/question-graph";
 import { logCrmEvent } from "@/lib/crm/events";
+import { ScopeTools } from "@/lib/agent/scope-tools";
+import { NoopTools } from "@/lib/agent/noop";
 import { reportError } from "@/lib/monitoring/report";
 
 /**
@@ -18,7 +20,11 @@ import { reportError } from "@/lib/monitoring/report";
 
 export const runtime = "nodejs";
 
-const bodySchema = z.object({ estimateId: z.string().uuid().optional() });
+const bodySchema = z.object({
+  estimateId: z.string().uuid().optional(),
+  brief: z.string().trim().max(20000).optional(),
+  address: z.object({ street: z.string().max(120).default(""), suburb: z.string().max(80).default(""), postcode: z.string().max(10).default(""), state: z.string().max(10).default("VIC") }).nullable().optional(),
+});
 
 export async function POST(request: Request) {
   const actor = await agentActor();
@@ -78,6 +84,20 @@ export async function POST(request: Request) {
 
   // Drop-outs are leads (§3.1): the conversation is a wizard start.
   await logCrmEvent(db, { type: "wizard_started", accountId, estimateId, source: "customer", payload: { mode: "customer" } }).catch(() => null);
+
+  // A known address lands first (the service-area check runs with it).
+  const addr = parsed.data.address;
+  if (addr && (addr.suburb || addr.postcode)) {
+    const tools = new ScopeTools(gateway.scope, gateway.settings, new NoopTools(gateway.settings));
+    await tools.execute("answer_gap", { key: "q.address", value: addr, provenance: "customer_stated" }, { conversationId: conv.id, mode: "guided", view: "customer", estimateId, accountId, actorId: actor.userId }).catch(() => undefined);
+  }
+
+  // Addendum A §3.3 "Describe the job": the paragraph IS the first turn —
+  // the draft tree lands at once, priced as a range with every assumption a chip.
+  if (parsed.data.brief && parsed.data.brief.length >= 20) {
+    try { await gateway.turn({ conversationId: conv.id, text: parsed.data.brief, actor: "user", heavy: true }); }
+    catch (e) { reportError(e, { where: "agent.start.brief", bestEffort: true }); }
+  }
 
   return NextResponse.json({ conversationId: conv.id, estimateId });
 }

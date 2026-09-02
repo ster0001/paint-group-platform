@@ -30,6 +30,8 @@ import { diffSummary, proposeFromBrief, rowCount } from "./propose";
 import type { BriefExtraction } from "./brief-extract";
 import { visitPolicy } from "@/lib/visits/policy";
 import { liveValuesFrom, relevantHits, renderBrainAnswer } from "@/lib/brain/parse";
+import type { HandoffStore } from "./store";
+import { CLOSED_TEXT, nextWorkingDate, onDutyNumbers } from "./handoff";
 import { ok, refused, type Assumption, type PriceScopeResult, type ToolContext, type ToolExecutor, type ToolResult } from "./schemas";
 import type { ScopeStore } from "./scope-store";
 import type { AgentSettings, SupportHours } from "./settings";
@@ -46,12 +48,18 @@ export class ScopeTools implements ToolExecutor {
     private readonly now: () => Date = () => new Date(),
     /** S5: the model-read of a pasted brief (null = propose_diff refuses). */
     private readonly extractor: BriefExtractor | null = null,
+    /** S7: handoffs and callbacks live with the conversation tables. */
+    private readonly handoffs: HandoffStore | null = null,
+    /** S7: best-effort ping to whoever is on duty (SMS); null = log only. */
+    private readonly notify: ((to: string[], body: string) => Promise<void>) | null = null,
   ) {}
 
   async execute(name: string, input: unknown, ctx: ToolContext): Promise<ToolResult> {
     const i = (input ?? {}) as In;
     switch (name) {
       case "get_support_hours": return ok(supportHoursState(this.settings.supportHours, this.now()));
+      case "request_handoff": return this.requestHandoff(i, ctx);
+      case "request_callback": return this.requestCallback(i, ctx);
       case "hard_stop": return this.hardStop(i, ctx);
       case "emit_crm_event": {
         try {
@@ -187,6 +195,30 @@ export class ScopeTools implements ToolExecutor {
       case "check_thresholds": return ok(checkThresholds(doc, deps));
       default: return this.fallback.execute(name, input, ctx);
     }
+  }
+
+  /** Inside hours: a live-chat card + a ping. Outside: say so, offer a callback. */
+  private async requestHandoff(i: In, ctx: ToolContext): Promise<ToolResult> {
+    if (!this.handoffs) return this.fallback.execute("request_handoff", i, ctx);
+    const now = this.now();
+    const hours = supportHoursState(this.settings.supportHours, now);
+    if (!hours.open) return refused(CLOSED_TEXT(hours.nextOpening));
+    const reason = String(i.reason ?? "customer_asked");
+    const h = await this.handoffs.requestHandoff(ctx.conversationId, reason);
+    const { onDuty } = onDutyNumbers(this.settings.supportHours, now);
+    if (this.notify && onDuty.length) {
+      await this.notify(onDuty, `Paint Group assistant: a customer is waiting for a person (${reason.replace(/_/g, " ")}). Claim it in Today → Messages.`).catch(() => undefined);
+    }
+    return ok({ handoffId: h.id, status: h.status });
+  }
+
+  /** A callback for the next working day — the queue derives the card. */
+  private async requestCallback(i: In, ctx: ToolContext): Promise<ToolResult> {
+    if (!this.handoffs) return this.fallback.execute("request_callback", i, ctx);
+    const forDate = nextWorkingDate(this.settings.supportHours, this.now());
+    const cb = await this.handoffs.createCallback({ conversationId: ctx.conversationId, accountId: ctx.accountId, phoneE164: String(i.phoneE164), window: String(i.window) as "am" | "pm" | "any", createdForDate: forDate });
+    await this.store.logCrmEvent({ type: "callback_requested", accountId: ctx.accountId, estimateId: ctx.estimateId, source: "customer", payload: { phone: cb.phoneE164, note: `${cb.window === "am" ? "Morning" : cb.window === "pm" ? "Afternoon" : "Any time"} on ${forDate} — via the assistant` } }).catch(() => null);
+    return ok({ callbackId: cb.id, forDate });
   }
 
   private async hardStop(i: In, ctx: ToolContext): Promise<ToolResult> {

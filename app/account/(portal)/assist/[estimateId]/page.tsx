@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { openSupportSession } from "@/lib/agent/session";
+import { getCompanyContact } from "@/lib/portal/data";
 import SupportView from "./SupportView";
 
 /**
@@ -15,14 +16,14 @@ export const metadata = { title: "Ask the assistant · Paint Group" };
 
 export default async function SupportPage({ params }: { params: Promise<{ estimateId: string }> }) {
   const { estimateId } = await params;
-  const session = await openSupportSession(estimateId);
+  const [session, company] = await Promise.all([openSupportSession(estimateId), getCompanyContact()]);
   if (session.kind === "holding") return <div><h1>{session.line}</h1></div>;
   return (
     <div>
       <Link href={`/account/messages/${session.estimateId}`} className="note" style={{ display: "inline-block", marginBottom: 14 }}>← Messages</Link>
       <h1>{session.title}</h1>
       <p className="note" style={{ marginBottom: 12 }}>{session.disclosure}</p>
-      <SupportView conversationId={session.conversationId} estimateId={session.estimateId} shareToken={session.shareToken} initialTranscript={session.transcript} />
+      <SupportView conversationId={session.conversationId} estimateId={session.estimateId} shareToken={session.shareToken} initialTranscript={session.transcript} companyPhone={company.phone || null} />
     </div>
   );
 }

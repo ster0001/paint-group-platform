@@ -562,3 +562,5 @@
 .wz .wz-linkbtn { background: none; border: 0; padding: 0; color: var(--cyan); font-family: var(--wz-sans); font-size: 14px; cursor: pointer; text-decoration: underline; }
 .wz .wz-linkbtn:disabled { color: var(--muted); cursor: default; text-decoration: none; }
 .wz .as-switch-top { position: absolute; right: 16px; top: 14px; color: var(--muted); font-size: 13px; text-decoration: underline; z-index: 5; }
+
+.wz .wz-brief { width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-family: var(--wz-sans); font-size: 14.5px; resize: vertical; margin: 6px 0 8px; }

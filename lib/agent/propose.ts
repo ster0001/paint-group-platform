@@ -103,7 +103,13 @@ function buildFromBrief(doc: ScopeDoc, x: BriefExtraction, deps: ScopeDeps, mode
   const coats = x.coats ?? a.condition?.tier ?? "change";
   if (!x.coats && !a.condition?.tier) fillIns.push(fillIn("condition.tier", "Assumed: two coats (a change of colour)", "change"));
   const damageTier = x.defects.length ? Math.max(...x.defects.map((d) => d.severity)) : (a.details?.damageTier ?? 0);
-  const propertyKind = x.propertyKind ?? a.customer?.propertyKind ?? (mode === "guided" ? undefined : "house");
+  // A trade client's paragraph (Addendum A §3.3) builds at once: an unstated
+  // property kind is assumed a house and said so; the four safety flags are
+  // assumed clear and become a chip the person can flip (facts.flagsAssumed).
+  const propertyKind = x.propertyKind ?? a.customer?.propertyKind ?? "house";
+  if (!x.propertyKind && !a.customer?.propertyKind) fillIns.push(fillIn("q.property_type", "Assumed: a house", "house"));
+  const flagsKnown = a.customer?.builtPre1970 != null && a.customer?.heritageListed != null && a.customer?.bodyCorporate != null && a.customer?.asbestosSuspected != null;
+  if (!flagsKnown) fillIns.push(fillIn("q.property_flags", "Assumed: built after 1970, not heritage-listed, no body corporate, no asbestos — tap to change", "clear"));
 
   const draft: AnswerDraft = {
     ...a,
@@ -120,7 +126,7 @@ function buildFromBrief(doc: ScopeDoc, x: BriefExtraction, deps: ScopeDeps, mode
       damagePhotoCount: a.details?.damagePhotoCount ?? 0,
     },
     paint: { ...a.paint, colourHelp: x.colourMatch ? "advice" : (a.paint?.colourHelp ?? null) },
-    customer: { ...a.customer, ...(propertyKind ? { propertyKind } : {}), ...(mode === "cowork" ? { heritageListed: a.customer?.heritageListed ?? "no", bodyCorporate: a.customer?.bodyCorporate ?? "no", builtPre1970: a.customer?.builtPre1970 ?? "unsure", asbestosSuspected: a.customer?.asbestosSuspected ?? "no" } : {}) },
+    customer: { ...a.customer, propertyKind, heritageListed: a.customer?.heritageListed ?? "no", bodyCorporate: a.customer?.bodyCorporate ?? "no", builtPre1970: a.customer?.builtPre1970 ?? "no", asbestosSuspected: a.customer?.asbestosSuspected ?? "no" },
     exterior: jobType !== "interior" ? {
       ...a.exterior,
       storeys,
@@ -135,7 +141,9 @@ function buildFromBrief(doc: ScopeDoc, x: BriefExtraction, deps: ScopeDeps, mode
     if (!x.exterior?.substrates.length && !a.exterior?.substrates) fillIns.push(fillIn("ext.substrates", "Assumed: weatherboard walls outside", "weatherboards"));
     if (!x.exterior?.condition && !a.exterior?.condition) fillIns.push(fillIn("ext.condition", "Assumed: exterior paintwork in good condition", "good"));
   }
-  const nextFacts = { ...facts, ...(x.occupied != null ? { occupied: x.occupied } : {}) };
+  // A brief build prices on typical sizes and assumed cupboards; the graph
+  // confirms sizes in the sweep and asks cupboards as tightening (§3.3).
+  const nextFacts = { ...facts, briefBuilt: true, ...(x.occupied != null ? { occupied: x.occupied } : {}), ...(flagsKnown ? {} : { flagsAssumed: true }) };
   const state = toWizardState(draft, nextFacts, mode === "cowork" ? "internal" : "customer");
   if (!state) return { ok: false, reason: "The brief isn't enough to build from yet — the address, email and property questions come first." };
 

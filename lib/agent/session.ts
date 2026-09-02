@@ -14,7 +14,7 @@ import type { EstimateRow } from "@/lib/wizard/customer-scope";
 import { checkThresholds, priceScope, assumptionSwings, pendingSummary } from "./scope-tools";
 import type { DiffSummary } from "./propose";
 import { graphInput, isBuilt, pendingOf, type ScopeDeps } from "./scope-doc";
-import { nextGap } from "./question-graph";
+import { gapsFor, nextGap } from "./question-graph";
 import type { SupabaseScopeStore } from "./scope-store-supabase";
 import type { ConversationRow } from "./store";
 import type { SupabaseAgentStore } from "./store-supabase";
@@ -75,18 +75,21 @@ export type UiState = {
   proposal: DiffSummary | null;
 };
 
-export async function uiState(scope: SupabaseScopeStore, estimateId: string, view: "customer" | "staff", opts: { mode?: "guided" | "cowork"; gateCents?: number } = {}): Promise<UiState> {
-  const live = await scope.load(estimateId);
-  if (!live) return { built: false, nextGap: null, price: null, thresholds: null, proposal: null };
+export async function uiState(scope: SupabaseScopeStore, estimateId: string, view: "customer" | "staff", opts: { mode?: "guided" | "cowork"; gateCents?: number; focus?: string | null } = {}): Promise<UiState> {
+  const live0 = await scope.load(estimateId);
+  if (!live0) return { built: false, nextGap: null, price: null, thresholds: null, proposal: null };
+  // Photos already on file (the editor's upload) answer the photo gap.
+  const live = await withPhotoCount(scope, live0);
   const deps: ScopeDeps = { refs: await scope.refs(), ctx: await scope.ctx(), actor: view };
   const cowork = opts.mode === "cowork";
   const doc = cowork ? (pendingOf(live) ?? live) : live;
   const built = isBuilt(doc);
   const swings = built ? assumptionSwings(doc, deps) : undefined;
   const price = built ? priceScope(doc, deps) : null;
+  const gaps = gapsFor(graphInput(doc, deps, cowork ? "cowork" : "guided", swings));
   return {
     built,
-    nextGap: nextGap(graphInput(doc, deps, cowork ? "cowork" : "guided", swings)),
+    nextGap: (opts.focus ? gaps.find((g) => g.key === opts.focus) : undefined) ?? gaps[0] ?? null,
     price: price && cowork && pendingOf(live) ? { ...price, pending: true, liveTotalCents: isBuilt(live) ? priceScope(live, deps).totalCents : null } : price,
     thresholds: built ? checkThresholds(doc, deps) : null,
     proposal: cowork ? pendingSummary(live, deps, opts.gateCents ?? 15_000) : null,
@@ -248,4 +251,45 @@ export async function openSupportSession(estimateId: string): Promise<SupportSes
     disclosure: gateway.settings.disclosureText, assistantName: gateway.settings.assistantName,
     transcript: messages.filter((m) => m.role !== "system").map((m) => ({ id: m.id, role: m.role, text: displayText(m.content), createdAt: m.createdAt })),
   };
+}
+
+export type StaffChatSession =
+  | { kind: "holding"; line: string }
+  | {
+      kind: "ok"; conversationId: string; estimateId: string | null; estimateTitle: string | null; customerName: string | null; customerPhone: string | null;
+      status: "open" | "handed_off" | "closed"; handoff: import("./store").HandoffRecord | null; staffId: string;
+      transcript: Array<{ id: string; role: "user" | "assistant" | "staff" | "system"; text: string; createdAt: string }>;
+    };
+
+/** /crm/chat/[conversationId] — staff only. */
+export async function openStaffChat(conversationId: string): Promise<StaffChatSession> {
+  const actor = await agentActor();
+  if (!actor || actor.kind !== "staff") return { kind: "holding", line: "Staff only." };
+  const db = agentDb();
+  if (!db) return { kind: "holding", line: "The assistant isn't available just now." };
+  const { SupabaseAgentStore } = await import("./store-supabase");
+  const store = new SupabaseAgentStore(db);
+  const conv = await store.getConversation(conversationId);
+  if (!conv) return { kind: "holding", line: "No such conversation." };
+  const [handoff, messages, est, acct] = await Promise.all([
+    store.openHandoff(conv.id),
+    store.listMessages(conv.id),
+    conv.estimateId ? db.from("estimates").select("title").eq("id", conv.estimateId).maybeSingle() : Promise.resolve({ data: null }),
+    conv.accountId ? db.from("accounts").select("name, phone").eq("id", conv.accountId).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
+  return {
+    kind: "ok", conversationId: conv.id, estimateId: conv.estimateId, estimateTitle: (est.data as { title?: string } | null)?.title ?? null,
+    customerName: (acct.data as { name?: string } | null)?.name ?? null, customerPhone: (acct.data as { phone?: string } | null)?.phone ?? null,
+    status: conv.status, handoff, staffId: actor.userId,
+    transcript: messages.map((m) => ({ id: m.id, role: m.role, text: displayText(m.content), createdAt: m.createdAt })),
+  };
+}
+
+/** Count the estimate's photos on file and carry it as a fact (never stored). */
+export async function withPhotoCount(scope: SupabaseScopeStore, doc: import("./scope-doc").ScopeDoc): Promise<import("./scope-doc").ScopeDoc> {
+  if (!doc.estimateId) return doc;
+  const n = await scope.photoCount(doc.estimateId).catch(() => 0);
+  if (!n) return doc;
+  const agent = (doc.builderState.agent ?? {}) as { answers?: unknown; facts?: Record<string, unknown> };
+  return { ...doc, builderState: { ...doc.builderState, agent: { ...agent, answers: agent.answers ?? {}, facts: { ...(agent.facts ?? {}), photoCount: n } } } };
 }

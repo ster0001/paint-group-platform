@@ -24,6 +24,8 @@ const bodySchema = z.object({
   conversationId: z.string().uuid(),
   text: z.string().max(4000).default(""),
   answer: z.object({ key: z.string().min(1).max(120), value: z.unknown() }).nullable().optional(),
+  /** A tap on an assumption chip: ask THIS question next (no model turn). */
+  focus: z.string().min(1).max(120).nullable().optional(),
 });
 
 export async function POST(request: Request) {
@@ -34,8 +36,8 @@ export async function POST(request: Request) {
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Bad request." }, { status: 400 });
-  const { conversationId, text, answer } = parsed.data;
-  if (!text.trim() && !answer) return NextResponse.json({ error: "Say something, or tap an option." }, { status: 400 });
+  const { conversationId, text, answer, focus } = parsed.data;
+  if (!text.trim() && !answer && !focus) return NextResponse.json({ error: "Say something, or tap an option." }, { status: 400 });
 
   let gateway;
   try { gateway = await createGateway(); } catch (e) {
@@ -45,7 +47,9 @@ export async function POST(request: Request) {
   const conv = await loadOwnConversation(gateway.store, conversationId, actor);
   if (!conv) return NextResponse.json({ error: "No such conversation." }, { status: 404 });
 
-  const result = await gateway.turn({ conversationId, text: text.trim() || "(tapped an option)", actor: "user", answer: answer ?? null });
+  const result = focus && !text.trim() && !answer
+    ? { text: "", degraded: null as null }
+    : await gateway.turn({ conversationId, text: text.trim() || "(tapped an option)", actor: "user", answer: answer ?? null });
 
   // Email captured → the account link (same seed the wizard submit makes).
   if (conv.estimateId && !conv.accountId && conv.mode !== "cowork") {
@@ -73,7 +77,7 @@ export async function POST(request: Request) {
 
   const cowork = conv.mode === "cowork";
   const ui = conv.estimateId
-    ? await uiState(gateway.scope, conv.estimateId, conv.view, { mode: cowork ? "cowork" : "guided", gateCents: gateway.settings.priceImpactGateCents })
+    ? await uiState(gateway.scope, conv.estimateId, conv.view, { mode: cowork ? "cowork" : "guided", gateCents: gateway.settings.priceImpactGateCents, focus: focus ?? null })
     : { built: false, nextGap: null, price: null, thresholds: null, proposal: null };
   let bundle = null;
   if (conv.estimateId && ui.built && conv.mode === "guided") {

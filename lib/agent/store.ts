@@ -49,11 +49,28 @@ export type ToolCallRow = {
   createdAt: string;
 };
 
+export type HandoffRecord = {
+  id: string; conversationId: string; reason: string;
+  status: "requested" | "claimed" | "active" | "resolved" | "missed";
+  requestedAt: string; claimedBy: string | null; claimedAt: string | null; resolvedAt: string | null; escalatedAt: string | null; summary: string | null;
+};
+export type CallbackRecord = { id: string; conversationId: string; accountId: string | null; phoneE164: string; window: "am" | "pm" | "any"; status: "open" | "done" | "cancelled"; createdForDate: string };
+
+export interface HandoffStore {
+  requestHandoff(conversationId: string, reason: string): Promise<HandoffRecord>;
+  openHandoff(conversationId: string): Promise<HandoffRecord | null>;
+  claimHandoff(handoffId: string, staffId: string, summary: string): Promise<HandoffRecord | null>;
+  resolveHandoff(handoffId: string): Promise<HandoffRecord | null>;
+  markEscalated(handoffId: string, at: Date): Promise<void>;
+  listHandoffs(status: HandoffRecord["status"][]): Promise<HandoffRecord[]>;
+  createCallback(input: Omit<CallbackRecord, "id" | "status">): Promise<CallbackRecord>;
+}
+
 export type NewConversation = Omit<ConversationRow, "id" | "tokenSpend" | "status"> & { status?: ConversationStatus };
 export type NewMessage = Omit<MessageRow, "id" | "createdAt">;
 export type NewToolCall = Omit<ToolCallRow, "id" | "createdAt">;
 
-export interface AgentStore {
+export interface AgentStore extends HandoffStore {
   getConversation(id: string): Promise<ConversationRow | null>;
   createConversation(input: NewConversation): Promise<ConversationRow>;
   setStatus(conversationId: string, status: ConversationStatus): Promise<void>;
@@ -81,6 +98,40 @@ export class MemoryAgentStore implements AgentStore {
   conversations = new Map<string, ConversationRow>();
   messages: MessageRow[] = [];
   toolCalls: ToolCallRow[] = [];
+  handoffs: HandoffRecord[] = [];
+  callbacks: CallbackRecord[] = [];
+
+  async requestHandoff(conversationId: string, reason: string) {
+    const existing = this.handoffs.find((h) => h.conversationId === conversationId && ["requested", "claimed", "active"].includes(h.status));
+    if (existing) return existing;
+    const row: HandoffRecord = { id: nextId("handoff"), conversationId, reason, status: "requested", requestedAt: this.now().toISOString(), claimedBy: null, claimedAt: null, resolvedAt: null, escalatedAt: null, summary: null };
+    this.handoffs.push(row);
+    await this.setStatus(conversationId, "handed_off");
+    return row;
+  }
+  async openHandoff(conversationId: string) {
+    return this.handoffs.find((h) => h.conversationId === conversationId && ["requested", "claimed", "active"].includes(h.status)) ?? null;
+  }
+  async claimHandoff(handoffId: string, staffId: string, summary: string) {
+    const h = this.handoffs.find((x) => x.id === handoffId);
+    if (!h || !["requested", "claimed"].includes(h.status)) return null;
+    Object.assign(h, { status: "active", claimedBy: staffId, claimedAt: this.now().toISOString(), summary });
+    return h;
+  }
+  async resolveHandoff(handoffId: string) {
+    const h = this.handoffs.find((x) => x.id === handoffId);
+    if (!h || h.status === "resolved") return null;
+    Object.assign(h, { status: "resolved", resolvedAt: this.now().toISOString() });
+    await this.setStatus(h.conversationId, "open");
+    return h;
+  }
+  async markEscalated(handoffId: string, at: Date) { const h = this.handoffs.find((x) => x.id === handoffId); if (h) h.escalatedAt = at.toISOString(); }
+  async listHandoffs(status: HandoffRecord["status"][]) { return this.handoffs.filter((h) => status.includes(h.status)); }
+  async createCallback(input: Omit<CallbackRecord, "id" | "status">) {
+    const row: CallbackRecord = { ...input, id: nextId("cb"), status: "open" };
+    this.callbacks.push(row);
+    return row;
+  }
   /** Test hook: the clock the store timestamps with. */
   now: () => Date = () => new Date();
 

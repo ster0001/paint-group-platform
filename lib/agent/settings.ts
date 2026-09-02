@@ -16,6 +16,10 @@ export const supportHoursSchema = z.object({
     mon: ["08:00", "17:00"], tue: ["08:00", "17:00"], wed: ["08:00", "17:00"], thu: ["08:00", "17:00"], fri: ["08:00", "17:00"],
   }),
   strongCoverageDays: z.array(z.string()).default(["mon", "tue", "thu"]),
+  /** D9: who is pinged for a live chat, by weekday (E.164 numbers); `default`
+   *  covers unlisted days. `escalateTo` is pinged when the SLA passes. */
+  roster: z.record(z.string(), z.array(z.string())).default({}),
+  escalateTo: z.array(z.string()).default([]),
 });
 export type SupportHours = z.infer<typeof supportHoursSchema>;
 

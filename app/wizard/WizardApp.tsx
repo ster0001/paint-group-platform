@@ -178,10 +178,17 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
 
   // S4: hand the person to the assistant on a fresh draft of their own.
   const [startingChat, setStartingChat] = useState(false);
-  async function startChat() {
+  const [brief, setBrief] = useState("");
+  async function startChat(withBrief = false) {
     setStartingChat(true);
     try {
-      const res = await fetch("/api/agent/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      // The page-1 address rides along so the brief prices with a known property.
+      const address = state.address
+        ? { street: state.address.street, suburb: state.address.suburb, postcode: state.address.postcode, state: state.address.state }
+        : state.customer && (state.customer.suburb || state.customer.postcode)
+          ? { street: "", suburb: state.customer.suburb, postcode: state.customer.postcode, state: "VIC" }
+          : null;
+      const res = await fetch("/api/agent/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...(withBrief && brief.trim() ? { brief: brief.trim() } : {}), ...(address ? { address } : {}) }) });
       const j = (await res.json().catch(() => ({}))) as { conversationId?: string; error?: string };
       if (!res.ok || !j.conversationId) { setStartingChat(false); return; }
       window.location.assign(`/estimate/assist?c=${j.conversationId}`);
@@ -734,12 +741,24 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             {page === 1 && isCustomer && (
               /* S4: "Chat it or fill it in" — the assistant builds the SAME
                  tree; a customer can switch between the two at any point. */
-              <p className="wz-alt">
-                <button type="button" className="wz-linkbtn" data-testid="chat-it" disabled={sessionPhase !== "ready" || startingChat}
-                  onClick={startChat}>
-                  {startingChat ? "Opening the assistant…" : "Rather chat it through? Start with the assistant →"}
-                </button>
-              </p>
+              <div className="wz-alt">
+                {/* Addendum A §3.3: "Describe the job" beside "Fill it in" — the
+                    paragraph builds the draft tree at once; every assumption is a chip. */}
+                <p className="wz-qhead">Describe the job</p>
+                <textarea className="wz-brief" data-testid="describe-job" rows={3} value={brief} onChange={(e) => setBrief(e.target.value)}
+                  placeholder="e.g. 3 bedroom 1 bathroom house, colour match throughout, walls in good condition with a few minor cracks in the kitchen, all trims to be painted…" />
+                <div className="wz-seg">
+                  <button type="button" data-testid="build-from-brief" disabled={sessionPhase !== "ready" || startingChat || brief.trim().length < 20} onClick={() => startChat(true)}>
+                    {startingChat ? "Building…" : "Build it from my description"}
+                  </button>
+                </div>
+                <p style={{ marginTop: 8 }}>
+                  <button type="button" className="wz-linkbtn" data-testid="chat-it" disabled={sessionPhase !== "ready" || startingChat} onClick={() => startChat(false)}>
+                    {startingChat ? "Opening the assistant…" : "Rather chat it through? Start with the assistant →"}
+                  </button>
+                  <span className="wz-sub" style={{ marginLeft: 8 }}>— or fill it in below.</span>
+                </p>
+              </div>
             )}
             {page === 1 && (
               <PageProperty

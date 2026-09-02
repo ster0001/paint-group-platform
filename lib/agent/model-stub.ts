@@ -56,6 +56,15 @@ export class StubModel implements ModelClient {
       return callTool(EXTRACT_TOOL_NAME, heuristicExtract(pastedTextOf(raw)) as unknown as Record<string, unknown>);
     }
     const cowork = has("apply_diff");
+    // A tap on the callback form (support / guided): window + phone.
+    if (answer?.key === "callback" && !ran("request_callback") && has("request_callback")) {
+      const v = (answer.value ?? {}) as { window?: string; phoneE164?: string };
+      return callTool("request_callback", { window: v.window ?? "any", phoneE164: v.phoneE164 ?? "" });
+    }
+    if (ran("request_callback")) {
+      const r = ran("request_callback")!.result;
+      return say(r?.status === "ok" ? `Booked — we'll call you ${String((r.data as { forDate: string }).forDate)}. You can keep going with me in the meantime.` : `I couldn't book that: ${r?.reason ?? "something went wrong"}.`);
+    }
     const support = has("lookup_brain");
     if (support) return supportStep(runs, humanText, has, callTool, say);
 
@@ -82,7 +91,7 @@ export class StubModel implements ModelClient {
     const answered = ran("answer_gap");
     const parts: string[] = [];
     if (cowork) return say(coworkText(runs, gaps, price));
-    if (ran("request_handoff")) parts.push("Done — I've asked a person at Paint Group to pick this up. I can keep going in the meantime if you like.");
+    if (ran("request_handoff")) parts.push(ran("request_handoff")!.result?.status === "ok" ? "Done — I've asked a person at Paint Group to pick this up. They'll reply right here." : "");
     if (answered?.result?.status === "refused") parts.push("Let's try that again.");
     else if (answered?.result?.status === "ok" && (answered.result.data as { built?: boolean })?.built) parts.push("Thanks — your estimate is taking shape on the right.");
     else if (answered?.result?.status === "ok") parts.push("Got it.");
@@ -183,7 +192,11 @@ function supportStep(
   const aboutEstimate = /\b(included|include|why|how much|range|price|cost|estimate|quote|rooms?|surfaces?|walls?|ceilings?|trim|doors?|windows?|confirm)\b/.test(t);
 
   if (wantsPerson && !ran("request_handoff") && has("request_handoff")) return callTool("request_handoff", { reason: "customer_asked" });
-  if (ran("request_handoff")) return say("Done — I've asked a person at Paint Group to pick this up. They'll reply here.");
+  if (ran("request_handoff")) {
+    const r = ran("request_handoff")!.result;
+    // Refused = closed just now: the reason (next opening + callback offer) is relayed by the loop.
+    return say(r?.status === "ok" ? "Done — I've asked a person at Paint Group to pick this up. They'll reply right here; hang on a moment." : "");
+  }
   if (wantsChange && !ran("request_change") && has("request_change")) return callTool("request_change", { areaId: null, text: text.slice(0, 2000) });
   if (ran("request_change")) {
     const r = ran("request_change")!.result;

@@ -32,7 +32,8 @@ export class SupabaseScopeStore implements ScopeStore {
     // Spread FIRST: the pending proposal, its meta and the applied log live
     // beside answers/facts and must survive a reload (S5 — the memory store
     // kept them, this one dropped them, and the panel came back empty).
-    builderState.agent = { ...agent, answers: agent.answers ?? {}, facts: { accountType, ...(agent.facts ?? {}) } };
+    const photoCount = await this.photoCount(row.id).catch(() => 0);
+    builderState.agent = { ...agent, answers: agent.answers ?? {}, facts: { accountType, ...(agent.facts ?? {}), photoCount } };
     return { estimateId: row.id, status: row.status, requiresSiteCheck: row.requires_site_check === true, builderState, shareToken: row.share_token ?? null };
   }
 
@@ -61,6 +62,13 @@ export class SupabaseScopeStore implements ScopeStore {
 
   ctx() { return loadPricingContext(this.db); }
   logCrmEvent(input: CrmEventInput) { return logCrmEvent(this.db, input); }
+
+  /** Condition photos on file for the estimate (the editor's upload path). */
+  async photoCount(estimateId: string): Promise<number> {
+    const { count, error } = await this.db.from("estimate_sources").select("id", { count: "exact", head: true }).eq("estimate_id", estimateId).eq("kind", "defect_photo");
+    if (error) throw new Error(`photoCount: ${error.message}`);
+    return count ?? 0;
+  }
 
   /** Postgres full text over topic/question/answer; approved + written only. */
   async searchBrain(query: string, audience: "customer" | "staff"): Promise<BrainHit[]> {

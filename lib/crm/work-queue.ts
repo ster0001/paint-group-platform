@@ -37,6 +37,8 @@ export const WORK_ITEM_KINDS = [
   "consent_missing",
   /** Assistant S6: a customer asked for a change on a SENT estimate. */
   "change_request",
+  /** Assistant S7: a customer is waiting for a person in a live chat. */
+  "handoff_requested",
 ] as const;
 
 export type WorkItemKind = (typeof WORK_ITEM_KINDS)[number];
@@ -92,6 +94,7 @@ const CUSTOMER_VISIBLE: ReadonlySet<WorkItemKind> = new Set([
   "visit_rebook",
   "signoff_due",
   "change_request",
+  "handoff_requested",
 ]);
 
 export function isCustomerVisible(kind: WorkItemKind): boolean {
@@ -116,6 +119,7 @@ export const KIND_WEIGHT: Record<WorkItemKind, number> = {
   broadcast_incomplete: 6,
   consent_missing: 4,
   change_request: 24,
+  handoff_requested: 30,
 };
 
 export type PriorityInput = {
@@ -194,6 +198,7 @@ export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = 
   consent_missing: "approvals",
   invoice_action: "money",
   change_request: "messages",
+  handoff_requested: "messages",
 };
 
 // ---- source: snooze_expired (§3.3) -----------------------------------------
@@ -481,6 +486,39 @@ export function buildChangeRequestItems(rows: ChangeRequestRow[], staffReplies: 
   return out;
 }
 
+// ---- live-chat handoffs (assistant S7) -------------------------------------------
+
+export type HandoffQueueRow = {
+  id: string; conversation_id: string; reason: string; status: string; requested_at: string; escalated_at: string | null; claimed_by: string | null;
+  agent_conversations: { account_id: string | null; estimate_id: string | null; accounts?: { name: string | null; email: string } | null } | null;
+};
+
+/** One card per open handoff: Claim. Past the SLA it escalates — overdue,
+ *  promised-to-customer priority. A claimed chat stays in the queue (the
+ *  person is live) until it is resolved. */
+export function buildHandoffItems(rows: HandoffQueueRow[], now: Date, slaSeconds = 180): WorkItem[] {
+  return rows.filter((r) => ["requested", "claimed", "active"].includes(r.status)).map((r) => {
+    const acct = r.agent_conversations?.accounts ?? null;
+    const who = acct?.name?.trim() || acct?.email || "A customer";
+    const dueAt = new Date(new Date(r.requested_at).getTime() + slaSeconds * 1000).toISOString();
+    const live = r.status !== "requested";
+    return {
+      key: itemKey("handoff_requested", "thread", r.conversation_id, r.id.slice(0, 8)),
+      kind: "handoff_requested",
+      accountId: r.agent_conversations?.account_id ?? null,
+      subjectRef: { type: "thread", id: r.conversation_id },
+      title: live ? `Live chat with ${who}` : `${who} is waiting for a person`,
+      detail: `${r.reason.replace(/_/g, " ")}${r.escalated_at ? " — past the SLA" : ""}`,
+      since: r.requested_at,
+      dueAt: live ? null : dueAt,
+      // A live-chat SLA is minutes, not days: past due IS overdue, today.
+      bucket: live ? "today" : new Date(dueAt).getTime() <= now.getTime() ? "overdue" : "today",
+      priority: priorityOf({ kind: "handoff_requested", promisedToCustomer: true, overdueDays: r.escalated_at ? 1 : overdueDays(dueAt, now), valueCents: null }),
+      action: { label: live ? "Open chat" : "Claim", href: `/crm/chat/${r.conversation_id}` },
+    };
+  });
+}
+
 // ---- the loader ------------------------------------------------------------
 
 /**
@@ -498,7 +536,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   const nowIso = now.toISOString();
   const since90d = new Date(now.getTime() - 90 * 86_400_000).toISOString();
 
-  const [snoozeAcc, invoices, callbacks, queued, dismissed, changeReqs] = await Promise.all([
+  const [snoozeAcc, invoices, callbacks, queued, dismissed, changeReqs, handoffs] = await Promise.all([
     supabase.from("accounts")
       .select("id, name, email, snoozed_until, followup_due_at, followup_note")
       .or(`snoozed_until.lte.${nowIso},followup_due_at.lte.${nowIso}`)
@@ -525,6 +563,11 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
       .eq("type", "change_request")
       .gte("created_at", since90d)
       .order("created_at", { ascending: false })
+      .limit(100),
+    supabase.from("agent_handoffs")
+      .select("id, conversation_id, reason, status, requested_at, escalated_at, claimed_by, agent_conversations(account_id, estimate_id, accounts(name, email))")
+      .in("status", ["requested", "claimed", "active"])
+      .order("requested_at", { ascending: true })
       .limit(100),
   ]);
   // A change request is answered by a staff reply in that estimate's thread.
@@ -597,6 +640,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...buildCallbackItems(cbRows, (attempts.data ?? []) as ContactEventRow[], names, now),
     ...buildApprovalItem(queued.count ?? 0, now),
     ...buildChangeRequestItems(crRows, (staffReplies ?? []) as StaffReplyRow[], now),
+    ...buildHandoffItems(((handoffs.error ? [] : handoffs.data) ?? []) as unknown as HandoffQueueRow[], now),
   ];
 
   // Until migration 20261217 runs, the dismissals table doesn't exist and the

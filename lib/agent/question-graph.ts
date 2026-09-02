@@ -58,6 +58,15 @@ export type GraphFacts = {
   /** Hard stops whose script has been delivered — D16: the person keeps
    *  building on the visit tier; the script is not repeated every turn. */
   stopsDelivered?: string[];
+  /** A2: the safety flags were assumed clear by a brief build — ask as a
+   *  tightening question, not a required one. */
+  flagsAssumed?: boolean;
+  /** Photos on file for the estimate (estimate_sources) — satisfies the
+   *  "photos of the defects" gap however they were uploaded. */
+  photoCount?: number;
+  /** A2: the tree came from a paragraph — typical sizes are confirmed in
+   *  the sweep, cupboards are a tightening question, not gates. */
+  briefBuilt?: boolean;
 };
 
 export type GraphInput = {
@@ -148,9 +157,11 @@ export function gapsFor(input: GraphInput): Gap[] {
   if (input.accountType == null && !cowork) add(PHASE.qual, 0, { key: "q.account_type", kind: "required", acceptsNotSure: false, phrasingHint: "Is this for your own home, or are you a business or trade client?" });
   if (jobType == null) add(PHASE.qual, 0, { key: "q.job_type", kind: "required", acceptsNotSure: false, phrasingHint: "Inside, outside, or both?" });
   if (!cust?.propertyKind) add(PHASE.qual, 0, { key: "q.property_type", kind: qualKind, acceptsNotSure: false, phrasingHint: "Is it a house, townhouse, unit or a commercial building?" });
-  // The hard stops depend on these (§2 rule 5) — asked once, up front.
-  if (cust?.propertyKind && (cust.builtPre1970 == null || cust.heritageListed == null || cust.bodyCorporate == null || cust.asbestosSuspected == null)) {
-    add(PHASE.qual, 0, { key: "q.property_flags", kind: "required", acceptsNotSure: true, phrasingHint: "Quick checks: was it built before 1970, is it heritage-listed, is there a body corporate, and any chance of asbestos? \"Not sure\" is fine for any of them." });
+  // The hard stops depend on these (§2 rule 5) — asked once, up front; a
+  // brief build that assumed them clear asks as a tightening chip instead.
+  const flagsMissing = cust?.propertyKind && (cust.builtPre1970 == null || cust.heritageListed == null || cust.bodyCorporate == null || cust.asbestosSuspected == null);
+  if (flagsMissing || input.facts.flagsAssumed) {
+    add(input.facts.flagsAssumed && !flagsMissing ? PHASE.intGlobal : PHASE.qual, 0, { key: "q.property_flags", kind: input.facts.flagsAssumed && !flagsMissing ? "tightening" : "required", acceptsNotSure: true, swingCents: swing("q.property_flags"), phrasingHint: "Quick checks: was it built before 1970, is it heritage-listed, is there a body corporate, and any chance of asbestos? \"Not sure\" is fine for any of them." });
   }
   const storeysKnown = (wantsInterior && (floorplan || st.basics?.storeys != null)) || (wantsExterior && st.exterior != null);
   if (jobType != null && !storeysKnown) add(PHASE.qual, 0, { key: "q.storeys", kind: "required", acceptsNotSure: false, phrasingHint: "Single storey or double?" });
@@ -185,10 +196,15 @@ export function gapsFor(input: GraphInput): Gap[] {
       for (const q of registry.room) {
         if (!q.applies(room, ctx) || q.answered(room, ctx)) continue;
         const known = q.knownFrom?.(room, ctx) ?? false;
-        add(known ? PHASE.sweep : PHASE.intLoop, rank, {
-          key: `room.${areaId}.${q.key}`, areaId, kind: known ? "confirm" : "required", acceptsNotSure: q.acceptsNotSure,
+        const brief = input.facts.briefBuilt === true;
+        // Brief build (A2): sizes confirm in the sweep; cupboard fronts tighten.
+        const kind: Gap["kind"] = known ? "confirm" : brief ? (q.key === "cupboards" ? "tightening" : "confirm") : "required";
+        const key = `room.${areaId}.${q.key}`;
+        add(kind === "confirm" ? PHASE.sweep : PHASE.intLoop, rank, {
+          key, areaId, kind, acceptsNotSure: q.acceptsNotSure,
           phrasingHint: fill(q.phrasing, vars),
-          writes: [{ tool: "answer_gap", input: { key: `room.${areaId}.${q.key}`, action: q.action, areaId } }],
+          swingCents: kind === "tightening" ? swing(key, q.key) : null,
+          writes: [{ tool: "answer_gap", input: { key, action: q.action, areaId } }],
         });
       }
 
@@ -224,13 +240,15 @@ export function gapsFor(input: GraphInput): Gap[] {
     if (!st.condition?.tier) add(PHASE.intGlobal, 0, { key: "condition.tier", kind: "required", acceptsNotSure: false, phrasingHint: "Is it a freshen-up in the same colour, a change of colour, or going from dark to light?" });
     const damageTier = st.details?.damageTier;
     if (damageTier == null) add(PHASE.intGlobal, 0, { key: "condition.damage", kind: "required", acceptsNotSure: false, phrasingHint: "How are the surfaces — good, a few minor cracks or marks, a few areas of concern, or in real need of repair?" });
-    const photos = st.details?.damagePhotoCount ?? 0;
+    const photos = Math.max(st.details?.damagePhotoCount ?? 0, input.facts.photoCount ?? 0);
     if (damageTier != null && damageTier >= 2 && photos === 0) {
       add(PHASE.intGlobal, 0, { key: "condition.photos", kind: "required", acceptsNotSure: false, phrasingHint: "A quick phone photo of each damaged area, please — prep at this level needs to be seen.", writes: [{ tool: "attach_document", input: { kind: "photo" } }] });
     } else if (damageTier === 1 && photos === 0) {
       add(PHASE.intGlobal, 0, { key: "condition.photos", kind: "tightening", acceptsNotSure: true, phrasingHint: "A photo of the cracks would let me price the prep instead of allowing for it.", swingCents: swing("condition.photos"), writes: [{ tool: "attach_document", input: { kind: "photo" } }] });
     }
-    if (input.facts.occupied == null) add(PHASE.intGlobal, 0, { key: "occupied", kind: "required", acceptsNotSure: false, phrasingHint: "Will anyone be living in the home while we paint?" });
+    // Addendum A §3.1 lists occupancy with the tightening questions: the tree
+    // prices without it; the answer narrows it (the occupied allowance).
+    if (input.facts.occupied == null) add(PHASE.intGlobal, 0, { key: "occupied", kind: "tightening", acceptsNotSure: false, phrasingHint: "Will anyone be living in the home while we paint?", swingCents: swing("occupied") });
 
     const ticked = new Set(st.surfaces ?? []);
     const ds = st.details?.doorStyle;
@@ -289,7 +307,7 @@ export function gapsFor(input: GraphInput): Gap[] {
       }
     });
 
-    if (!wantsInterior && input.facts.occupied == null) add(PHASE.extGlobal, 0, { key: "occupied", kind: "required", acceptsNotSure: false, phrasingHint: "Will anyone be living in the home while we paint?" });
+    if (!wantsInterior && input.facts.occupied == null) add(PHASE.extGlobal, 0, { key: "occupied", kind: "tightening", acceptsNotSure: false, phrasingHint: "Will anyone be living in the home while we paint?", swingCents: swing("occupied") });
     if (!wantsInterior && (st.paint?.brands?.length ?? 0) === 0) add(PHASE.extGlobal, 0, { key: "paint.brand", kind: "recommended", acceptsNotSure: true, phrasingHint: "Any preference on paint brand?" });
     if (!wantsInterior && st.paint?.colourHelp == null) add(PHASE.extGlobal, 0, { key: "paint.colours", kind: "tightening", acceptsNotSure: true, phrasingHint: "Do you know the colours, or want a match to what's there?", swingCents: swing("paint.colours") });
     if (ext && !ext.extras?.deck && !ext.extras?.fence && !ext.extras?.pergola && !ext.extras?.balustrade && input.sides && !input.sides.done.extras) {

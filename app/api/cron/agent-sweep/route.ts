@@ -4,6 +4,9 @@ import { SupabaseScopeStore } from "@/lib/agent/scope-store-supabase";
 import { docFacts, graphInput } from "@/lib/agent/scope-doc";
 import { nextGap } from "@/lib/agent/question-graph";
 import { logCrmEvent } from "@/lib/crm/events";
+import { SupabaseAgentStore, loadAgentSettings } from "@/lib/agent/store-supabase";
+import { ESCALATED_TEXT, escalationsDue, onDutyNumbers } from "@/lib/agent/handoff";
+import { sendSms } from "@/lib/messaging/send";
 
 /**
  * GET /api/cron/agent-sweep — drop-outs are leads (assistant brief §3.1).
@@ -66,5 +69,18 @@ export async function GET(request: Request) {
       await scope.save({ ...doc, builderState: { ...doc.builderState, agent: { answers: agent.answers ?? {}, facts: { ...(agent.facts ?? {}), abandonLoggedAt: new Date().toISOString() } } } });
     }
   }
-  return NextResponse.json({ checked: (convs ?? []).length, logged });
+  // ---- SLA (D10): a request nobody claimed in time escalates ----------------
+  const settings = await loadAgentSettings(db);
+  const store = new SupabaseAgentStore(db);
+  const now = new Date();
+  const due = escalationsDue(await store.listHandoffs(["requested"]), now, settings.slaClaimSeconds);
+  let escalated = 0;
+  for (const h of due) {
+    await store.markEscalated(h.id, now);
+    await store.appendMessage({ conversationId: h.conversationId, role: "assistant", content: ESCALATED_TEXT, modelId: null, tokensIn: 0, tokensOut: 0 });
+    const { escalate } = onDutyNumbers(settings.supportHours, now);
+    await Promise.all(escalate.map((n) => sendSms({ to: n, body: "Paint Group assistant: a live-chat request has passed the SLA — claim it in Today → Messages." }).catch(() => undefined)));
+    escalated++;
+  }
+  return NextResponse.json({ checked: (convs ?? []).length, logged, escalated });
 }

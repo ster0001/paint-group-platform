@@ -7,6 +7,7 @@ import type { Gap } from "@/lib/agent/schemas";
 import ScopeEditor from "../scope/ScopeEditor";
 import SidesEditor from "../scope/SidesEditor";
 import Wordmark from "@/app/wizard/Wordmark";
+import { useLiveConversation } from "./useLiveConversation";
 
 type Msg = { id: string; role: "user" | "assistant" | "staff" | "system"; text: string; createdAt: string };
 
@@ -31,24 +32,27 @@ export default function AssistView({ conversationId, estimateId, disclosure, ass
   const [error, setError] = useState<string | null>(null);
   const [pane, setPane] = useState<"chat" | "estimate">("chat");
   const endRef = useRef<HTMLDivElement | null>(null);
+  const [handedOff, setHandedOff] = useState(false);
+  // S7: a person's replies land in the same chat, live.
+  useLiveConversation(conversationId, (snap) => { if (!busy) setTranscript(snap.transcript); setHandedOff(snap.status === "handed_off"); });
 
   useEffect(() => { endRef.current?.scrollIntoView({ block: "end" }); }, [transcript.length, busy]);
 
-  async function send(message: string, answer: { key: string; value: unknown } | null) {
+  async function send(message: string, answer: { key: string; value: unknown } | null, focus: string | null = null) {
     if (busy) return;
     setBusy(true); setError(null);
     const shown = message.trim() || answerLabel(answer);
-    setTranscript((t) => [...t, { id: `local-${Date.now()}`, role: "user", text: shown, createdAt: new Date().toISOString() }]);
+    if (!focus) setTranscript((t) => [...t, { id: `local-${Date.now()}`, role: "user", text: shown, createdAt: new Date().toISOString() }]);
     try {
       const res = await fetch("/api/agent/turn", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversationId, text: message.trim(), answer }),
+        body: JSON.stringify({ conversationId, text: message.trim(), answer, focus }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) { setError(j.error ?? "That didn't go through — try again."); return; }
-      setTranscript(j.transcript ?? []);
+      if (!focus) setTranscript(j.transcript ?? []);
       setUi(j.ui);
-      if (j.bundle) { setBundle(j.bundle); setVersion((v) => v + 1); }
+      if (j.bundle && !focus) { setBundle(j.bundle); setVersion((v) => v + 1); }
     } catch {
       setError("That didn't go through — check the connection and try again.");
     } finally {
@@ -75,7 +79,7 @@ export default function AssistView({ conversationId, estimateId, disclosure, ass
       </header>
 
       <section className="as-chat" aria-label={assistantName}>
-        <p className="as-disclosure">{disclosure}</p>
+        <p className="as-disclosure">{disclosure}{handedOff ? " · A person from Paint Group is on this chat." : ""}</p>
         <div className="as-log" data-testid="as-log">
           {transcript.map((m) => (
             <div key={m.id} className={`as-msg as-${m.role}`} data-testid={`as-msg-${m.role}`}>
@@ -102,18 +106,27 @@ export default function AssistView({ conversationId, estimateId, disclosure, ass
         <div className="as-range" data-testid="as-range" data-shown={price?.showNumber ? "1" : "0"}>
           {price?.showNumber ? (
             <>
-              <small>ESTIMATE · INCL. GST</small>
+              <small>ESTIMATE · INCL. GST · <span data-testid="as-band">±{price.bandPct}%</span></small>
               <strong>{fmt(price.loCents)} – {fmt(price.hiCents)}</strong>
               {price.assumptions.length > 0 && (
-                <ul className="as-chipsline" aria-label="Assumptions">
+                <ul className="as-chipsline" aria-label="Assumptions" data-testid="as-assumptions">
                   {price.assumptions.map((a) => (
-                    <li key={a.key}><button type="button" onClick={() => send(`Let's settle: ${a.label.replace(/^Assumed: /, "")}`, null)}>{a.label}</button></li>
+                    <li key={a.key}><button type="button" data-testid="as-chip" data-key={a.key} onClick={() => send("", null, a.key)}>{a.label}</button></li>
                   ))}
                 </ul>
               )}
             </>
           ) : ui.built ? (
-            <small>Your range appears once every area is confirmed — {price?.confirmedAreaIds.length ?? 0} confirmed so far.</small>
+            <>
+              <small>Your range appears once every area is confirmed — {price?.confirmedAreaIds.length ?? 0} confirmed so far.</small>
+              {price && price.assumptions.length > 0 && (
+                <ul className="as-chipsline" aria-label="Assumptions" data-testid="as-assumptions">
+                  {price.assumptions.map((a) => (
+                    <li key={a.key}><button type="button" data-testid="as-chip" data-key={a.key} onClick={() => send("", null, a.key)}>{a.label}</button></li>
+                  ))}
+                </ul>
+              )}
+            </>
           ) : (
             <small>Your estimate builds here as you answer.</small>
           )}

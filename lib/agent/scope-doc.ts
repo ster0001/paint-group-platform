@@ -84,7 +84,7 @@ const agentOf = (doc: ScopeDoc) => ((doc.builderState.agent ?? {}) as { answers?
 export function docAnswers(doc: ScopeDoc): AnswerDraft { return agentOf(doc).answers ?? {}; }
 export function docFacts(doc: ScopeDoc): AgentFacts {
   const f = agentOf(doc).facts ?? {};
-  return { inServiceArea: f.inServiceArea ?? null, timing: f.timing ?? null, occupied: f.occupied ?? null, email: f.email ?? null, accountType: f.accountType ?? null, accessAnswered: f.accessAnswered === true, stopsDelivered: Array.isArray(f.stopsDelivered) ? (f.stopsDelivered as string[]) : [] };
+  return { inServiceArea: f.inServiceArea ?? null, timing: f.timing ?? null, occupied: f.occupied ?? null, email: f.email ?? null, accountType: f.accountType ?? null, accessAnswered: f.accessAnswered === true, stopsDelivered: Array.isArray(f.stopsDelivered) ? (f.stopsDelivered as string[]) : [], flagsAssumed: f.flagsAssumed === true, photoCount: typeof f.photoCount === "number" ? f.photoCount : 0, briefBuilt: f.briefBuilt === true };
 }
 export function docBlocks(doc: ScopeDoc): ScopeBlock[] { return Array.isArray(doc.builderState.blocks) ? (doc.builderState.blocks as ScopeBlock[]) : []; }
 export function docDeferred(doc: ScopeDoc): WizardDeferred[] { return Array.isArray(doc.builderState.aiDeferred) ? (doc.builderState.aiDeferred as WizardDeferred[]) : []; }
@@ -126,7 +126,7 @@ export function graphInput(doc: ScopeDoc, deps: ScopeDeps, mode: "guided" | "cow
     sides: wantsExterior && isBuilt(doc) ? docSides(doc) : null,
     scopeRules: deps.refs.rules,
     rateCodes: new Set(deps.ctx.rateItems.map((r) => r.code)),
-    facts: { inServiceArea: facts.inServiceArea, timing: facts.timing, occupied: facts.occupied, email: facts.email, accessAnswered: facts.accessAnswered, stopsDelivered: facts.stopsDelivered },
+    facts: { inServiceArea: facts.inServiceArea, timing: facts.timing, occupied: facts.occupied, email: facts.email, accessAnswered: facts.accessAnswered, stopsDelivered: facts.stopsDelivered, flagsAssumed: facts.flagsAssumed, photoCount: facts.photoCount, briefBuilt: facts.briefBuilt },
     swings,
   };
 }
@@ -233,7 +233,7 @@ const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : t
 const bool = (v: unknown) => (typeof v === "boolean" ? v : v === "yes" || v === "true" ? true : v === "no" || v === "false" ? false : null);
 const oneOf = <T extends string>(v: unknown, opts: readonly T[]): T | null => (typeof v === "string" && (opts as readonly string[]).includes(v) ? (v as T) : null);
 
-const PRE_BUILD_KEYS = new Set(["q.address", "q.job_type", "q.property_type", "q.property_flags", "q.storeys", "rooms", "job.surfaces", "condition.tier", "condition.damage", "ext.storeys", "ext.substrates", "ext.painting", "ext.condition", "ext.photos"]);
+const PRE_BUILD_KEYS = new Set(["q.address", "q.job_type", "q.property_type", "q.storeys", "rooms", "job.surfaces", "condition.tier", "condition.damage", "ext.storeys", "ext.substrates", "ext.painting", "ext.condition", "ext.photos"]);
 
 export function applyAnswer(doc: ScopeDoc, key: string, value: unknown, provenance: Provenance, deps: ScopeDeps): AnswerOutcome {
   if (key.startsWith("stop.")) return { ok: false, reason: "A hard stop is answered by its script, not by me." };
@@ -283,7 +283,11 @@ export function applyAnswer(doc: ScopeDoc, key: string, value: unknown, provenan
     case "q.property_flags": {
       const v = obj(value);
       const tri = (x: unknown) => oneOf(x, ["yes", "no", "unsure"] as const) ?? (bool(x) === true ? "yes" : bool(x) === false ? "no" : "unsure");
-      return patchDraft({ customer: { builtPre1970: tri(v.builtPre1970), heritageListed: tri(v.heritageListed), bodyCorporate: tri(v.bodyCorporate), asbestosSuspected: tri(v.asbestosSuspected) } });
+      const flags = { builtPre1970: tri(v.builtPre1970), heritageListed: tri(v.heritageListed), bodyCorporate: tri(v.bodyCorporate), asbestosSuspected: tri(v.asbestosSuspected) };
+      if (!built) return patchDraft({ customer: flags });
+      // After a brief build: the answered flags replace the assumed ones.
+      const next = withAgent(patchWizardState(doc, (st) => ({ ...st, customer: st.customer ? { ...st.customer, ...flags } : st.customer })), { answers: deepMerge(a, { customer: flags }), facts: { flagsAssumed: false } });
+      return { ok: true, doc: next };
     }
     case "q.storeys": {
       const s = oneOf(value, ["single", "double"] as const) ?? (num(value) === 2 ? "double" : num(value) === 1 ? "single" : null);

@@ -1784,3 +1784,42 @@ drafts by `scripts/import-brain.ts` (idempotent on slug; [TOM TO WRITE]
 entries carry `needs_content` and are never served; approved answers are
 never overwritten by a re-import). Tom approves per entry in Settings →
 Brain. Migration `20261229` adds `slug` + `needs_content`.
+
+## Assistant agent — S7 human handoff (2 Sep 2026)
+
+"Talk to a person" is real. `request_handoff` inside support hours writes an
+`agent_handoffs` row (requested), puts the conversation in `handed_off` (the
+assistant stays quiet; the customer's messages keep landing in the SAME
+transcript), pings the on-duty roster by SMS (`agent_settings.support_hours.
+roster`, per weekday, `escalateTo` on top) and surfaces as a `handoff_
+requested` work item in Today with one action, Claim → `/crm/chat/[id]`.
+Claiming posts a 3-line summary (who, what they said, the range) as a system
+message; staff replies are `role=staff` in the transcript; Resolve reopens the
+conversation and the assistant resumes ("They've stepped away — keep going or
+leave it here?"). Realtime (`useLiveConversation`) subscribes under the
+viewer's own session to inserts/updates and refetches the authoritative
+transcript, with a polling fallback. Outside hours the tool refuses with the
+next opening and offers a callback; the callback form posts a structured
+answer that `request_callback` turns into a `callback_requests` row dated for
+the next working day plus a `callback_requested` CRM event — the existing
+callback card. The SLA (`sla_claim_seconds`, D10) runs in the agent sweep:
+unclaimed past it → `escalated_at`, an escalation ping, and the customer is
+offered a callback. `lib/agent/handoff.ts` holds the pure parts; migration
+`20261230` adds `escalated_at` and the Realtime publication.
+
+## Assistant agent — Addendum A2 trade build flow (2 Sep 2026)
+
+"Describe the job" sits beside the wizard's fill-in on page 1: the paragraph
+goes to `POST /api/agent/start` as `brief`, which runs it as the first turn —
+the model calls `propose_diff`, and on the customer's OWN draft the proposal
+applies straight in (no Apply gate). The range card shows at once for trade
+(R4/D21) with the band (±15 first) and every open tightening gap as a chip;
+tapping a chip asks that question (`focus` on the turn route — no model turn)
+and the answer removes it. A brief build assumes a house and clear safety
+flags and says so: `facts.flagsAssumed` turns `q.property_flags` into a
+tightening chip that is answerable after the build. Photos uploaded through
+the estimate's own route count (`estimate_sources` kind defect_photo →
+`facts.photoCount`) and clear the photo chip. Residential sees the chips but
+no number until every area is confirmed and swept. Tests: `trade-flow.test.ts`
+(chips = open tightening gaps, exactly) and `e2e/customer-journey/
+assistant-trade.spec.ts` (trade and residential).

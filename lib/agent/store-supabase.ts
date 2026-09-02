@@ -8,7 +8,7 @@ import "server-only";
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AgentStore, ConversationRow, ConversationStatus, MessageRow, NewConversation, NewMessage, NewToolCall, ToolCallRow } from "./store";
+import type { AgentStore, CallbackRecord, ConversationRow, ConversationStatus, HandoffRecord, MessageRow, NewConversation, NewMessage, NewToolCall, ToolCallRow } from "./store";
 import type { AgentChannel, AgentMode, AgentView } from "./schemas";
 import { settingsFromRow, type AgentSettings } from "./settings";
 
@@ -40,7 +40,15 @@ function fail(where: string, error: { message: string } | null): never {
 }
 
 export class SupabaseAgentStore implements AgentStore {
-  constructor(private readonly db: SupabaseClient) {}
+  private readonly handoffs: SupabaseHandoffs;
+  constructor(private readonly db: SupabaseClient) { this.handoffs = new SupabaseHandoffs(db); }
+  requestHandoff(conversationId: string, reason: string) { return this.handoffs.requestHandoff(conversationId, reason); }
+  openHandoff(conversationId: string) { return this.handoffs.openHandoff(conversationId); }
+  claimHandoff(handoffId: string, staffId: string, summary: string) { return this.handoffs.claimHandoff(handoffId, staffId, summary); }
+  resolveHandoff(handoffId: string) { return this.handoffs.resolveHandoff(handoffId); }
+  markEscalated(handoffId: string, at: Date) { return this.handoffs.markEscalated(handoffId, at); }
+  listHandoffs(status: HandoffRecord["status"][]) { return this.handoffs.listHandoffs(status); }
+  createCallback(input: Omit<CallbackRecord, "id" | "status">) { return this.handoffs.createCallback(input); }
 
   async getConversation(id: string) {
     const { data, error } = await this.db.from("agent_conversations").select("*").eq("id", id).maybeSingle();
@@ -120,6 +128,56 @@ export class SupabaseAgentStore implements AgentStore {
     const { data, error: e2 } = await this.db.from("agent_messages").select("tokens_in, tokens_out").in("conversation_id", ids).gte("created_at", dayStart);
     if (e2) fail("accountTokensToday", e2);
     return ((data ?? []) as Array<{ tokens_in: number; tokens_out: number }>).reduce((n, m) => n + m.tokens_in + m.tokens_out, 0);
+  }
+}
+
+type HandoffDb = { id: string; conversation_id: string; reason: string; status: HandoffRecord["status"]; requested_at: string; claimed_by: string | null; claimed_at: string | null; resolved_at: string | null; escalated_at: string | null; summary: string | null };
+const handoff = (r: HandoffDb): HandoffRecord => ({ id: r.id, conversationId: r.conversation_id, reason: r.reason, status: r.status, requestedAt: r.requested_at, claimedBy: r.claimed_by, claimedAt: r.claimed_at, resolvedAt: r.resolved_at, escalatedAt: r.escalated_at, summary: r.summary });
+
+export class SupabaseHandoffs {
+  constructor(private readonly db: SupabaseClient) {}
+  async requestHandoff(conversationId: string, reason: string): Promise<HandoffRecord> {
+    const open = await this.openHandoff(conversationId);
+    if (open) return open;
+    const { data, error } = await this.db.from("agent_handoffs").insert({ conversation_id: conversationId, reason }).select("*").single();
+    if (error || !data) fail("requestHandoff", error);
+    const { error: e2 } = await this.db.from("agent_conversations").update({ status: "handed_off" }).eq("id", conversationId);
+    if (e2) fail("requestHandoff.status", e2);
+    return handoff(data as HandoffDb);
+  }
+  async openHandoff(conversationId: string): Promise<HandoffRecord | null> {
+    const { data, error } = await this.db.from("agent_handoffs").select("*").eq("conversation_id", conversationId).in("status", ["requested", "claimed", "active"]).order("requested_at", { ascending: false }).limit(1).maybeSingle();
+    if (error) fail("openHandoff", error);
+    return data ? handoff(data as HandoffDb) : null;
+  }
+  async claimHandoff(handoffId: string, staffId: string, summary: string): Promise<HandoffRecord | null> {
+    const { data, error } = await this.db.from("agent_handoffs").update({ status: "active", claimed_by: staffId, claimed_at: new Date().toISOString(), summary }).eq("id", handoffId).in("status", ["requested", "claimed"]).select("*").maybeSingle();
+    if (error) fail("claimHandoff", error);
+    return data ? handoff(data as HandoffDb) : null;
+  }
+  async resolveHandoff(handoffId: string): Promise<HandoffRecord | null> {
+    const { data, error } = await this.db.from("agent_handoffs").update({ status: "resolved", resolved_at: new Date().toISOString() }).eq("id", handoffId).neq("status", "resolved").select("*").maybeSingle();
+    if (error) fail("resolveHandoff", error);
+    if (!data) return null;
+    const h = handoff(data as HandoffDb);
+    const { error: e2 } = await this.db.from("agent_conversations").update({ status: "open" }).eq("id", h.conversationId);
+    if (e2) fail("resolveHandoff.status", e2);
+    return h;
+  }
+  async markEscalated(handoffId: string, at: Date): Promise<void> {
+    const { error } = await this.db.from("agent_handoffs").update({ escalated_at: at.toISOString() }).eq("id", handoffId);
+    if (error) fail("markEscalated", error);
+  }
+  async listHandoffs(status: HandoffRecord["status"][]): Promise<HandoffRecord[]> {
+    const { data, error } = await this.db.from("agent_handoffs").select("*").in("status", status).order("requested_at", { ascending: true }).limit(200);
+    if (error) fail("listHandoffs", error);
+    return ((data ?? []) as HandoffDb[]).map(handoff);
+  }
+  async createCallback(input: Omit<CallbackRecord, "id" | "status">): Promise<CallbackRecord> {
+    const { data, error } = await this.db.from("callback_requests").insert({ conversation_id: input.conversationId, account_id: input.accountId, phone_e164: input.phoneE164, window: input.window, created_for_date: input.createdForDate }).select("*").single();
+    if (error || !data) fail("createCallback", error);
+    const r = data as { id: string; conversation_id: string; account_id: string | null; phone_e164: string; window: CallbackRecord["window"]; status: CallbackRecord["status"]; created_for_date: string };
+    return { id: r.id, conversationId: r.conversation_id, accountId: r.account_id, phoneE164: r.phone_e164, window: r.window, status: r.status, createdForDate: r.created_for_date };
   }
 }
 
