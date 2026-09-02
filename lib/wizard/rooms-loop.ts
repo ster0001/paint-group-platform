@@ -1,3 +1,4 @@
+import { roomGateError } from "./required-questions";
 import { makeDraftSurface } from "@/lib/extract/draft";
 import { windowRateCode } from "@/lib/extract/scope";
 import { substrateKeyForRateCode } from "@/lib/estimate/substrates";
@@ -271,8 +272,10 @@ export function addRoomCustom(blocks: LooseBlock[], areaId: number, name: string
 export function confirmRoom(blocks: LooseBlock[], areaId: number, cupboardApplies: boolean): RoomsLoopResult {
   return withRoom(blocks, areaId, (b) => {
     const c = customerOf(b);
-    if (c.size == null) return "The size question still needs an answer — “Looks right” or adjust it.";
-    if (cupboardApplies && c.cup == null) return "The cupboard question still needs an answer — yes or no is all it takes.";
+    // The required questions are DATA shared with the assistant's question
+    // graph (lib/wizard/required-questions.ts) — one list, two consumers.
+    const err = roomGateError({ customer: c }, { cupboardApplies });
+    if (err) return err;
     b.customer = { ...c, confirmed: true };
   });
 }

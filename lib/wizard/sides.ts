@@ -1,3 +1,4 @@
+import { sideGateError } from "./required-questions";
 import { makeDraftSurface } from "@/lib/extract/draft";
 import { substrateKeyForRateCode } from "@/lib/estimate/substrates";
 
@@ -506,15 +507,10 @@ export function dwTotals(blocks: LooseBlock[]): { windows: number; doors: number
 export function confirmSide(blocks: LooseBlock[], key: SideKey): SidesResult {
   return withSide(blocks, key, (b) => {
     const c = customerOf(b);
-    if (c.include == null) return "“Are we painting this side?” still needs an answer.";
-    if (c.include) {
-      if (c.size == null) return "The side's size still needs an answer — “not sure” is fine.";
-      const sum = wallSumPct(b);
-      if ((b.surfaces ?? []).some(isWallLine)) {
-        if (sum > 100) return `The wall surfaces add up to ${sum}% — they can't total more than 100%.`;
-        if (sum <= 0) return "Give at least one wall surface a share — or “No — skip this side” if none of it is being painted.";
-      }
-    }
+    // The required questions are DATA shared with the assistant's question
+    // graph (lib/wizard/required-questions.ts) — one list, two consumers.
+    const err = sideGateError({ customer: c }, { hasWalls: (b.surfaces ?? []).some(isWallLine), wallSumPct: wallSumPct(b) });
+    if (err) return err;
     b.customer = { ...c, confirmed: true };
   });
 }

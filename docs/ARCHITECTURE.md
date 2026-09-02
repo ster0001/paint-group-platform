@@ -1665,3 +1665,23 @@ write the transcript. D19 (`20261227`) adds four cupboard-interior rate rows;
 `lib/wizard/rooms-loop.ts` gains `CUPBOARD_INTERIOR_BY_ROOM_TYPE` +
 `applyCupboardInterior` and the wizard-edit route the `room_cupboard_interior`
 action. Manual script: `docs/manual-tests/agent-s1.md`.
+
+## Assistant agent — S2 question graph (2 Sep 2026)
+
+`lib/agent/question-graph.ts` is the deterministic "what do we ask next"
+(assistant brief §4). It is generated, not hand-written: per-area required
+questions come from `lib/wizard/required-questions.ts` — a data registry the
+editors' own gates (`confirmRoom`, `confirmSide`) now read, so a new required
+question added there is asked by the assistant and enforced by the editor
+without touching the graph; per-room "what are we painting" confirms come
+from `room_type_scope_rules`; cupboard questions are data-driven on the rate
+card; globals follow the wizard page order; the sweep mirrors the loop metas.
+`gapsFor` returns every open gap ordered stop → required → tightening (by $
+swing from price_scope, Addendum A) → recommended → confirm, with hallway
+first, sides front→left→right→back, and a both-job's interior questions before
+its exterior ones; `nextGap` is the head; `nextBatch` gives one question in
+guided mode, up to three sweep confirms, everything in co-work. Known ≠ asked:
+plan-read sizes are a one-time confirm, never required. Six fixture jobs pin
+the order in `question-graph.test.ts`. The five previously missing reference
+briefs (plan reader, site capture, visit booking, inbound calls) and the Brain
+v1 seed (`docs/brain/brain-v1.md`) are now committed.
