@@ -1710,3 +1710,30 @@ everything else falls through to NoopTools until its session. Storage is
 `scope-tools.test.ts` builds six jobs the wizard way and the assistant way
 against captured reference data (`lib/agent/__fixtures__/scope-refs.json`) and
 asserts identical rows, hours, cents and range.
+
+## Assistant agent — S4 guided mode (2 Sep 2026)
+
+The first screen. `/estimate/assist?c=<conversation>` (or `?estimate=<id>`
+to adopt a draft from the scope editor) is the split view: the chat on the
+left, the SAME confirm-loop editor (`ScopeEditor` / `SidesEditor`) on the
+right, remounted from a fresh `CustomerScopeBundle` after every turn. That
+bundle is `lib/wizard/customer-scope.ts` — the editor page's data assembly
+extracted so the two surfaces cannot price or gate differently. Every tap on a
+chip is a structured answer `{key, value}` carried on the message as an
+`[answer key=… value=…]` marker the model turns into `answer_gap`; free text
+goes to the model as prose. Routes: `POST /api/agent/start` (creates a blank
+customer_intake draft for the actor, or resumes on an owned estimate; seeds
+the disclosure + first graph question as the greeting, logs `wizard_started`),
+`POST /api/agent/turn` (one turn through the gateway; links the account when
+an email lands — the wizard's own `ensureAccountAndProperty`; returns reply,
+UI state and the bundle), `GET /api/cron/agent-sweep` (a quiet conversation
+with an email and no acceptance emits one `wizard_abandoned`). All server work
+sits in `lib/agent/session.ts`; the page and routes never import the gateway
+directly (the lint rule). `AGENT_MODEL_STUB=1` (the C1 stack) swaps the
+Anthropic client for `lib/agent/model-stub.ts`, a templated phrasing layer
+that follows the same tool sequence — everything else is real, which is how
+the three journey specs in `e2e/customer-journey/assistant.spec.ts` run
+without a live model. The wizard's page 1 offers "Rather chat it through?";
+the scope editor offers "Chat it instead". Range card and CTA in the chat
+read `price_scope` / `check_thresholds` — R4: no number for a residential
+customer until every area is confirmed and swept.

@@ -55,6 +55,9 @@ export type GraphFacts = {
   /** "Anything tricky about access?" answered — including "no" (the wizard
    *  state cannot tell an unasked question from an empty answer). */
   accessAnswered?: boolean;
+  /** Hard stops whose script has been delivered — D16: the person keeps
+   *  building on the visit tier; the script is not repeated every turn. */
+  stopsDelivered?: string[];
 };
 
 export type GraphInput = {
@@ -111,23 +114,24 @@ export function gapsFor(input: GraphInput): Gap[] {
   const registry = input.requiredQuestions ?? { room: ROOM_REQUIRED_QUESTIONS, side: SIDE_REQUIRED_QUESTIONS };
 
   // ---- 1. hard stops — code, not judgement (§2 rule 5) ----------------------
+  const delivered = new Set(input.facts.stopsDelivered ?? []);
   const pre1970 = cust?.builtPre1970 === "yes";
   const leadInterior = wantsInterior && pre1970 && (st.details?.damageTier ?? 0) >= 2;
   const leadExterior = wantsExterior && pre1970 && st.exterior?.condition === "peeling";
-  if (leadInterior || leadExterior) {
+  if ((leadInterior || leadExterior) && !delivered.has("lead_paint")) {
     add(PHASE.stop, 0, { key: "stop.lead_paint", kind: "required", acceptsNotSure: false,
       phrasingHint: "Peeling or damaged paint on a pre-1970s home — the lead-paint script applies; the job goes to a site visit.",
       writes: [{ tool: "hard_stop", input: { kind: "lead_paint" } }] });
   }
-  if (cust?.asbestosSuspected === "yes") {
+  if (cust?.asbestosSuspected === "yes" && !delivered.has("asbestos")) {
     add(PHASE.stop, 0, { key: "stop.asbestos", kind: "required", acceptsNotSure: false,
       phrasingHint: "Asbestos suspected — the asbestos script applies.", writes: [{ tool: "hard_stop", input: { kind: "asbestos" } }] });
   }
-  if (cust?.heritageListed === "yes") {
+  if (cust?.heritageListed === "yes" && !delivered.has("heritage")) {
     add(PHASE.stop, 0, { key: "stop.heritage", kind: "required", acceptsNotSure: false,
       phrasingHint: "Heritage overlay mentioned — the heritage script applies; visit tier.", writes: [{ tool: "hard_stop", input: { kind: "heritage" } }] });
   }
-  if (input.facts.inServiceArea === false) {
+  if (input.facts.inServiceArea === false && !delivered.has("out_of_area")) {
     add(PHASE.stop, 0, { key: "stop.out_of_area", kind: "required", acceptsNotSure: false,
       phrasingHint: "The address is outside the service area — the out-of-area script applies.", writes: [{ tool: "hard_stop", input: { kind: "out_of_area" } }] });
   }
@@ -156,7 +160,8 @@ export function gapsFor(input: GraphInput): Gap[] {
         phrasingHint: "What are we painting inside — walls, ceilings, trim, doors, windows?",
         writes: [{ tool: "answer_gap", input: { key: "job.surfaces", action: "surfaces" } }] });
     }
-    if (!floorplan && rooms.length === 0 && !st.basics) {
+    // "Basics" means the bedroom count — a storeys answer alone is not a room list.
+    if (!floorplan && rooms.length === 0 && st.basics?.bedrooms == null) {
       add(PHASE.intIntake, 0, { key: "rooms", kind: "required", acceptsNotSure: false,
         phrasingHint: "How many bedrooms and bathrooms, or upload a floorplan and I'll read the rooms off it.",
         writes: [{ tool: "answer_gap", input: { key: "rooms", action: "basics" } }] });

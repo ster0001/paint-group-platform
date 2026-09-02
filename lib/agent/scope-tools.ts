@@ -18,6 +18,7 @@ import {
   rangeBandPct, rangeFromTotal, serviceAreaFromSettings, settingValue,
 } from "@/lib/wizard/policy";
 import { visitReason } from "@/lib/wizard/sides";
+import { substrateKeyForRateCode } from "@/lib/estimate/substrates";
 import { CUPBOARD_INTERIOR_BY_ROOM_TYPE, applyCupboardInterior, type LooseBlock as RoomBlock } from "@/lib/wizard/rooms-loop";
 import { gapsFor, nextGap } from "./question-graph";
 import {
@@ -72,8 +73,17 @@ export class ScopeTools implements ToolExecutor {
       case "next_gap": return ok({ gap: nextGap(graphInput(doc, deps, ctx.mode === "cowork" ? "cowork" : "guided", assumptionSwings(doc, deps))) });
       case "list_gaps": return ok({ gaps: gapsFor(graphInput(doc, deps, ctx.mode === "cowork" ? "cowork" : "guided", assumptionSwings(doc, deps))) });
       case "answer_gap": {
-        const r = applyAnswer(doc, String(i.key), i.value, i.provenance as never, deps);
+        let r = applyAnswer(doc, String(i.key), i.value, i.provenance as never, deps);
         if (!r.ok) return refused(r.reason);
+        // An address is checked against the service area the moment it lands
+        // (§4 step 1) — an empty list means the check is not configured.
+        if (String(i.key) === "q.address") {
+          const postcodes = serviceAreaFromSettings(settingValue(deps.ctx.settings, "service_area"));
+          const pc = String(((i.value ?? {}) as { postcode?: unknown }).postcode ?? "").trim();
+          const inside = postcodes.length === 0 ? true : postcodes.includes(pc);
+          const checked = applyAnswer(r.doc, "q.service_area", inside, i.provenance as never, deps);
+          if (checked.ok) r = { ...checked, built: r.built };
+        }
         return commit(r, { applied: true, key: String(i.key), ...(r.built ? { built: true } : {}) });
       }
       case "add_area": {
@@ -132,7 +142,8 @@ export class ScopeTools implements ToolExecutor {
       if (doc) {
         const deferred = [...docDeferred(doc), { room: "Whole job", areaId: null, what: `hard stop: ${kind.replace(/_/g, " ")}`, count: 1, needs: i.detail ? `"${String(i.detail).slice(0, 200)}" — scripted stop, visit tier` : "scripted stop — a person confirms before any fixed price" }];
         const agent = (doc.builderState.agent ?? {}) as { answers?: unknown; facts?: Record<string, unknown> };
-        const facts = { ...(agent.facts ?? {}), ...(kind === "out_of_area" ? { inServiceArea: false } : {}) };
+        const delivered = Array.isArray(agent.facts?.stopsDelivered) ? (agent.facts!.stopsDelivered as string[]) : [];
+        const facts = { ...(agent.facts ?? {}), stopsDelivered: [...new Set([...delivered, kind])], ...(kind === "out_of_area" ? { inServiceArea: false } : {}) };
         await this.store.save({ ...doc, requiresSiteCheck: nextState === "visit_tier" ? true : doc.requiresSiteCheck, builderState: { ...doc.builderState, aiDeferred: deferred, agent: { answers: agent.answers ?? {}, facts } } });
       }
     }
@@ -185,7 +196,11 @@ function priced(doc: ScopeDoc, deps: ScopeDeps) {
   const range = rangeFromTotal(payload.totals.totalCents, bandPct);
   const confirmedIds = [...loop.states.entries()].filter(([, st]) => st === "confirmed").map(([id]) => id);
   const allConfirmed = loop.states.size > 0 && [...loop.states.values()].every((st) => st === "confirmed");
-  const checksExpected = (interior && blocks.some((b) => b.kind === "area" && b.type !== "Exterior") ? 2 : 0) + (sides && blocks.some((b) => b.kind === "area" && b.type === "Exterior" && b.areaType === "surface") ? 4 : 0);
+  // The same rule as the graph: the doors & windows check exists only when
+  // the tree has openings; a walls-and-ceilings job has one interior check.
+  const hasRooms = blocks.some((b) => b.kind === "area" && b.type !== "Exterior");
+  const hasOpenings = blocks.some((b) => b.kind === "area" && b.type !== "Exterior" && (b.surfaces ?? []).some((s) => ["doors", "windows"].includes(substrateKeyForRateCode(String(s.code ?? "")) ?? "")));
+  const checksExpected = (interior && hasRooms ? (hasOpenings ? 2 : 1) : 0) + (sides && blocks.some((b) => b.kind === "area" && b.type === "Exterior" && b.areaType === "surface") ? 4 : 0);
   const sweepDone = loop.checksDone >= checksExpected;
   return { blocks, payload, totals, decision, bands, bandPct, range, confirmedIds, allConfirmed, sweepDone, trade, adj, interior, sides, deferred };
 }

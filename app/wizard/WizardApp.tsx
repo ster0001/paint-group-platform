@@ -176,6 +176,18 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   // never throws — a marketing tag must not be able to break an estimate.
   useEffect(() => { captureTouch(); }, []);
 
+  // S4: hand the person to the assistant on a fresh draft of their own.
+  const [startingChat, setStartingChat] = useState(false);
+  async function startChat() {
+    setStartingChat(true);
+    try {
+      const res = await fetch("/api/agent/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const j = (await res.json().catch(() => ({}))) as { conversationId?: string; error?: string };
+      if (!res.ok || !j.conversationId) { setStartingChat(false); return; }
+      window.location.assign(`/estimate/assist?c=${j.conversationId}`);
+    } catch { setStartingChat(false); }
+  }
+
   useEffect(() => {
     if (!isCustomer) return;
     let live = true;
@@ -719,6 +731,16 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       ) : (
         <div className="wz-wrap">
           <div className="wz-step" key={page}>
+            {page === 1 && isCustomer && (
+              /* S4: "Chat it or fill it in" — the assistant builds the SAME
+                 tree; a customer can switch between the two at any point. */
+              <p className="wz-alt">
+                <button type="button" className="wz-linkbtn" data-testid="chat-it" disabled={sessionPhase !== "ready" || startingChat}
+                  onClick={startChat}>
+                  {startingChat ? "Opening the assistant…" : "Rather chat it through? Start with the assistant →"}
+                </button>
+              </p>
+            )}
             {page === 1 && (
               <PageProperty
                 state={state} set={set} isCustomer={isCustomer} substrates={substrates}

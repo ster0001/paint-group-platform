@@ -12,6 +12,7 @@ import "server-only";
 
 import { createServiceClient } from "@/lib/supabase/service";
 import { AnthropicModelClient } from "./model-anthropic";
+import { StubModel } from "./model-stub";
 import { SupabaseAgentStore, loadAgentSettings } from "./store-supabase";
 import { NoopTools } from "./noop";
 import { ScopeTools } from "./scope-tools";
@@ -23,20 +24,29 @@ import type { NewConversation, ConversationRow } from "./store";
 
 export type Gateway = {
   settings: AgentSettings;
+  store: SupabaseAgentStore;
+  scope: SupabaseScopeStore;
   startConversation(input: NewConversation): Promise<ConversationRow>;
   turn(input: TurnInput): Promise<TurnResult>;
 };
 
+/** AGENT_MODEL_STUB=1 swaps the phrasing layer for templates (the C1 test
+ *  stack / CI). Everything else runs exactly as in production. */
+export const usingStubModel = () => process.env.AGENT_MODEL_STUB === "1";
+
 export async function createGateway(opts: { tools?: (settings: AgentSettings) => ToolExecutor } = {}): Promise<Gateway> {
   const db = createServiceClient();
   if (!db) throw new Error("agent gateway: SUPABASE_SERVICE_ROLE_KEY is not set");
-  if (!process.env.ANTHROPIC_API_KEY) throw new Error("agent gateway: ANTHROPIC_API_KEY is not set");
+  if (!usingStubModel() && !process.env.ANTHROPIC_API_KEY) throw new Error("agent gateway: ANTHROPIC_API_KEY is not set");
   const settings = await loadAgentSettings(db);
   const store = new SupabaseAgentStore(db);
-  const model = new AnthropicModelClient();
-  const tools = opts.tools ? opts.tools(settings) : new ScopeTools(new SupabaseScopeStore(db), settings, new NoopTools(settings));
+  const scope = new SupabaseScopeStore(db);
+  const model = usingStubModel() ? new StubModel() : new AnthropicModelClient();
+  const tools = opts.tools ? opts.tools(settings) : new ScopeTools(scope, settings, new NoopTools(settings));
   return {
     settings,
+    store,
+    scope,
     startConversation: (input) => store.createConversation(input),
     turn: (input) => runTurn({ model, tools, store, settings }, input),
   };

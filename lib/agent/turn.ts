@@ -20,6 +20,7 @@ import type { AgentStore, ConversationRow, MessageRow, ToolCallRow } from "./sto
 import type { AgentSettings } from "./settings";
 import { toAnthropicTool, toolSpec, toolsFor, type AgentMode, type AgentView, type ToolContext, type ToolExecutor, type ToolResult } from "./schemas";
 import { budgetState, NUMBER_GUARD_TEXT, relayRefusals, untraceableDollars } from "./guards";
+import { withAnswerMarker } from "./model-stub";
 
 export const MAX_TOOL_ROUNDS = 8;
 export const REPLY_MAX_TOKENS = 4096;
@@ -43,6 +44,9 @@ export type TurnInput = {
   actor: "user" | "staff";
   /** Route this turn to the heavy model (build-from-prompt, extraction). */
   heavy?: boolean;
+  /** A tap on a chip: the answer to a named gap, carried on the message as a
+   *  marker the model turns into answer_gap (see model-stub.ts). */
+  answer?: { key: string; value: unknown } | null;
 };
 
 export type TurnResult = {
@@ -69,6 +73,7 @@ export function buildSystemPrompt(settings: AgentSettings, conv: ConversationRow
     `Tone: ${settings.tone}. Write in Australian English.`,
     "You never compute a price and never invent scope. Every number you say must come from a price_scope result in this conversation; if price_scope says showNumber is false, say what is still needed and give no figure. Ranges, never exact figures, unless the result marks the estimate as staff-reviewed.",
     "When a tool answers status=refused, relay its reason to the person in plain words. Do not improvise around it.",
+    "A person's message may end in a line like [answer key=\"…\" value=…] — that is a tap on a chip. Call answer_gap with exactly that key and value before anything else, then next_gap.",
     "When hard_stop returns a script, that script is your entire reply.",
     "Hard stops are code, not judgement: peeling paint on a pre-1970s home → hard_stop lead_paint; asbestos, heritage overlay, injury, complaint, refund, legal threat, discount haggling, margin or contractor-rate questions, out-of-area addresses → the matching hard_stop.",
     "A person is always one tap away. If someone asks for a person, call request_handoff and say it is done. Never discourage it.",
@@ -110,7 +115,7 @@ export async function runTurn(deps: TurnDeps, input: TurnInput): Promise<TurnRes
 
   // 1. Persist what the person said — before anything else can fail.
   await deps.store.appendMessage({
-    conversationId: conv.id, role: input.actor, content: input.text, modelId: null, tokensIn: 0, tokensOut: 0,
+    conversationId: conv.id, role: input.actor, content: withAnswerMarker(input.text, input.answer), modelId: null, tokensIn: 0, tokensOut: 0,
   });
 
   // While a person has the conversation, the assistant stays quiet (§5).

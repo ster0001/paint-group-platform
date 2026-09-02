@@ -82,7 +82,7 @@ const agentOf = (doc: ScopeDoc) => ((doc.builderState.agent ?? {}) as { answers?
 export function docAnswers(doc: ScopeDoc): AnswerDraft { return agentOf(doc).answers ?? {}; }
 export function docFacts(doc: ScopeDoc): AgentFacts {
   const f = agentOf(doc).facts ?? {};
-  return { inServiceArea: f.inServiceArea ?? null, timing: f.timing ?? null, occupied: f.occupied ?? null, email: f.email ?? null, accountType: f.accountType ?? null, accessAnswered: f.accessAnswered === true };
+  return { inServiceArea: f.inServiceArea ?? null, timing: f.timing ?? null, occupied: f.occupied ?? null, email: f.email ?? null, accountType: f.accountType ?? null, accessAnswered: f.accessAnswered === true, stopsDelivered: Array.isArray(f.stopsDelivered) ? (f.stopsDelivered as string[]) : [] };
 }
 export function docBlocks(doc: ScopeDoc): ScopeBlock[] { return Array.isArray(doc.builderState.blocks) ? (doc.builderState.blocks as ScopeBlock[]) : []; }
 export function docDeferred(doc: ScopeDoc): WizardDeferred[] { return Array.isArray(doc.builderState.aiDeferred) ? (doc.builderState.aiDeferred as WizardDeferred[]) : []; }
@@ -124,7 +124,7 @@ export function graphInput(doc: ScopeDoc, deps: ScopeDeps, mode: "guided" | "cow
     sides: wantsExterior && isBuilt(doc) ? docSides(doc) : null,
     scopeRules: deps.refs.rules,
     rateCodes: new Set(deps.ctx.rateItems.map((r) => r.code)),
-    facts: { inServiceArea: facts.inServiceArea, timing: facts.timing, occupied: facts.occupied, email: facts.email, accessAnswered: facts.accessAnswered },
+    facts: { inServiceArea: facts.inServiceArea, timing: facts.timing, occupied: facts.occupied, email: facts.email, accessAnswered: facts.accessAnswered, stopsDelivered: facts.stopsDelivered },
     swings,
   };
 }

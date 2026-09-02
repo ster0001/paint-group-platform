@@ -1,0 +1,49 @@
+/* Guided mode — the split view (assistant brief S4). Inherits the wizard's dark shell tokens. */
+.wz.as-page { min-height: 100vh; }
+.as-shell { display: grid; grid-template-columns: minmax(340px, 480px) 1fr; grid-template-rows: auto 1fr; min-height: 100vh; }
+.as-top { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.as-nav { display: flex; align-items: center; gap: 8px; }
+.as-nav button { display: none; }
+.as-switch { color: var(--muted); font-size: 13px; text-decoration: underline; }
+.as-chat { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-right: 1px solid var(--line); min-height: 0; }
+.as-disclosure { font-size: 12.5px; color: var(--muted); margin: 0; }
+.as-log { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 8px; min-height: 240px; max-height: calc(100vh - 360px); padding-right: 4px; }
+.as-msg { max-width: 92%; border-radius: 14px; padding: 10px 13px; font-size: 14.5px; line-height: 1.45; }
+.as-msg p { margin: 0; white-space: pre-wrap; }
+.as-assistant { align-self: flex-start; background: var(--panel); border: 1px solid var(--line); color: var(--text); }
+.as-user { align-self: flex-end; background: rgba(59,216,233,.12); border: 1px solid rgba(59,216,233,.35); color: var(--text); }
+.as-staff { align-self: flex-start; background: rgba(255,200,80,.12); border: 1px solid rgba(255,200,80,.4); }
+.as-typing p { color: var(--muted); }
+.as-chips { border-top: 1px dashed var(--line); padding-top: 10px; }
+.as-form { display: flex; flex-direction: column; gap: 8px; }
+.as-form input, .as-inline input, .as-input input { padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-size: 14.5px; font-family: var(--wz-sans); }
+.as-inline { display: flex; gap: 8px; }
+.as-inline input { flex: 1; min-width: 0; }
+.as-inline button, .as-input button, .as-form .wz-seg button { font-family: var(--wz-sans); }
+.as-row { display: flex; flex-direction: column; gap: 4px; }
+.as-row .wz-qhead { font-size: 13px; color: var(--muted); }
+.as-note { font-size: 13.5px; color: var(--muted); margin: 0; }
+.as-input { display: flex; gap: 8px; align-items: center; }
+.as-input input { flex: 1; min-width: 0; }
+.as-input button { padding: 11px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--text); cursor: pointer; }
+.as-input button[type="submit"] { border-color: var(--cyan); }
+.as-person { font-size: 13px; }
+.as-err { color: #ff8a8a; font-size: 13px; margin: 0; }
+.as-range { border: 1px solid var(--line); border-radius: 13px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; background: var(--panel); }
+.as-range small { color: var(--muted); letter-spacing: .04em; font-size: 11.5px; }
+.as-range strong { font-size: 22px; }
+.as-chipsline { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.as-chipsline button { font-size: 12px; padding: 5px 9px; border-radius: 999px; border: 1px solid rgba(255,200,80,.5); background: rgba(255,200,80,.1); color: var(--text); cursor: pointer; }
+.as-cta { margin-top: 4px; }
+.as-editor { min-height: 0; overflow: auto; }
+.as-editor .wz-top { display: none; }
+.as-empty { display: grid; place-items: center; min-height: 40vh; color: var(--muted); padding: 24px; text-align: center; }
+@media (max-width: 899px) {
+  .as-shell { grid-template-columns: 1fr; }
+  .as-nav button { display: inline-block; padding: 8px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); }
+  .as-nav button.on { border-color: var(--cyan); color: var(--text); }
+  .as-chat { border-right: 0; }
+  .as-shell[data-pane="chat"] .as-editor { display: none; }
+  .as-shell[data-pane="estimate"] .as-chat { display: none; }
+  .as-log { max-height: 50vh; }
+}
