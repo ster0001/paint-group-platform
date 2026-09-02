@@ -1685,3 +1685,28 @@ plan-read sizes are a one-time confirm, never required. Six fixture jobs pin
 the order in `question-graph.test.ts`. The five previously missing reference
 briefs (plan reader, site capture, visit booking, inbound calls) and the Brain
 v1 seed (`docs/brain/brain-v1.md`) are now committed.
+
+## Assistant agent — S3 scope tools + parity (2 Sep 2026)
+
+The tools are bound. `lib/wizard/build-tree.ts` is the wizard path (starter →
+draft → answers → exterior → condition pricing) extracted from the draft pricer
+so the draft board, the assistant and the parity test share it. `lib/agent/
+scope-doc.ts` is the estimate's builder_state as pure functions: `applyAnswer`
+maps every question-graph key onto the same loop function the wizard-edit
+route dispatches to (room sizes, cupboards and interiors, custom notes,
+confirms, sides, wall mix, the condition card, sweeps), builds the tree with
+build-tree once the answers form a complete wizard state (unsure tiles filled
+for anything still open), and patches door style / window style / ceiling
+height in place afterwards. `lib/agent/scope-tools.ts` binds get_scope,
+next_gap, list_gaps, answer_gap, add_area, add_surface (per-item charge-out
+pinned), set_count, set_size, remove_item, add_custom_line (always amber +
+visit tier), price_scope (editorPayload + guardrails + bands, plus the
+Addendum A assumption chips with $ swings priced by diffing the alternative,
+and R4's showNumber: trade from the first price, residential only when every
+area is confirmed and swept), check_thresholds (the route's self-serve rule
+with customer wording), hard_stop, get_support_hours and emit_crm_event;
+everything else falls through to NoopTools until its session. Storage is
+`ScopeStore` (memory / Supabase service role). The parity suite in
+`scope-tools.test.ts` builds six jobs the wizard way and the assistant way
+against captured reference data (`lib/agent/__fixtures__/scope-refs.json`) and
+asserts identical rows, hours, cents and range.

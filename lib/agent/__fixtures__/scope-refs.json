@@ -1,0 +1,2359 @@
+{
+ "capturedAt": "2026-09-02T09:26:44.965Z",
+ "note": "Reference data for the assistant parity tests: room_type_scope_rules/aliases/defect_prep_rates/room_type_defaults at version 3 + the ACTIVE rate card. Regenerate by re-running the capture in docs/manual-tests/agent-s3.md.",
+ "rules": [
+  {
+   "room_type": "bathroom",
+   "surface_type": "Architrave",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "bathroom",
+   "surface_type": "Ceiling",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "Tom's rule: ceiling and door only"
+  },
+  {
+   "room_type": "bathroom",
+   "surface_type": "Cornices",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "never standard - photo only"
+  },
+  {
+   "room_type": "bathroom",
+   "surface_type": "Door & Frame",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "photo only"
+  },
+  {
+   "room_type": "bathroom",
+   "surface_type": "Mantle",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "no rate item yet - prices as prep/note only until one is added"
+  },
+  {
+   "room_type": "bathroom",
+   "surface_type": "Picture Rails",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "bathroom",
+   "surface_type": "Walls",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "wet area - fractional walls, tap cycles 25/50/75/100%"
+  },
+  {
+   "room_type": "bathroom",
+   "surface_type": "Windows",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "bedroom",
+   "surface_type": "Architrave",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "bedroom",
+   "surface_type": "Ceiling",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "17 lines"
+  },
+  {
+   "room_type": "bedroom",
+   "surface_type": "Cornices",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "never standard - photo only"
+  },
+  {
+   "room_type": "bedroom",
+   "surface_type": "Door & Frame",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "only when a photo gives the door style"
+  },
+  {
+   "room_type": "bedroom",
+   "surface_type": "Mantle",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "no rate item yet - prices as prep/note only until one is added"
+  },
+  {
+   "room_type": "bedroom",
+   "surface_type": "Picture Rails",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "bedroom",
+   "surface_type": "Skirting Boards",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "14 lines"
+  },
+  {
+   "room_type": "bedroom",
+   "surface_type": "Walls",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "25 lines / 14 rooms"
+  },
+  {
+   "room_type": "bedroom",
+   "surface_type": "Windows",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "only when a photo gives the window style"
+  },
+  {
+   "room_type": "dining",
+   "surface_type": "Architrave",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "dining",
+   "surface_type": "Ceiling",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "seen"
+  },
+  {
+   "room_type": "dining",
+   "surface_type": "Cornices",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "never standard - photo only"
+  },
+  {
+   "room_type": "dining",
+   "surface_type": "Door & Frame",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "photo only"
+  },
+  {
+   "room_type": "dining",
+   "surface_type": "Mantle",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "no rate item yet - prices as prep/note only until one is added"
+  },
+  {
+   "room_type": "dining",
+   "surface_type": "Picture Rails",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "dining",
+   "surface_type": "Skirting Boards",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "seen"
+  },
+  {
+   "room_type": "dining",
+   "surface_type": "Walls",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "seen"
+  },
+  {
+   "room_type": "dining",
+   "surface_type": "Windows",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "photo only"
+  },
+  {
+   "room_type": "garage",
+   "surface_type": "Architrave",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "garage",
+   "surface_type": "Ceiling",
+   "is_option": false,
+   "requires_confirm": true,
+   "notes": "confirm whether it is lined"
+  },
+  {
+   "room_type": "garage",
+   "surface_type": "Mantle",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "no rate item yet - prices as prep/note only until one is added"
+  },
+  {
+   "room_type": "garage",
+   "surface_type": "Picture Rails",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "garage",
+   "surface_type": "Walls",
+   "is_option": false,
+   "requires_confirm": true,
+   "notes": "confirm whether it is lined"
+  },
+  {
+   "room_type": "garage",
+   "surface_type": "Windows",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "hallway",
+   "surface_type": "Architrave",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "hallway",
+   "surface_type": "Ceiling",
+   "is_option": false,
+   "requires_confirm": true,
+   "notes": "5 lines / 8 rooms - hallway ceilings are often left, confirm"
+  },
+  {
+   "room_type": "hallway",
+   "surface_type": "Cornices",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "never standard - photo only"
+  },
+  {
+   "room_type": "hallway",
+   "surface_type": "Door & Frame",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "photo only - hallways carry the most doors"
+  },
+  {
+   "room_type": "hallway",
+   "surface_type": "Mantle",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "no rate item yet - prices as prep/note only until one is added"
+  },
+  {
+   "room_type": "hallway",
+   "surface_type": "Picture Rails",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "hallway",
+   "surface_type": "Skirting Boards",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "5 lines"
+  },
+  {
+   "room_type": "hallway",
+   "surface_type": "Walls",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "13 lines / 8 rooms - the most consistent surface anywhere"
+  },
+  {
+   "room_type": "hallway",
+   "surface_type": "Windows",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "kitchen",
+   "surface_type": "Architrave",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "kitchen",
+   "surface_type": "Cabinets",
+   "is_option": true,
+   "requires_confirm": true,
+   "notes": "OPTION - never generated silently"
+  },
+  {
+   "room_type": "kitchen",
+   "surface_type": "Ceiling",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "3 lines"
+  },
+  {
+   "room_type": "kitchen",
+   "surface_type": "Cornices",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "never standard - photo only"
+  },
+  {
+   "room_type": "kitchen",
+   "surface_type": "Door & Frame",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "photo only"
+  },
+  {
+   "room_type": "kitchen",
+   "surface_type": "Mantle",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "no rate item yet - prices as prep/note only until one is added"
+  },
+  {
+   "room_type": "kitchen",
+   "surface_type": "Picture Rails",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "kitchen",
+   "surface_type": "Skirting Boards",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "OPTION - Tom 30 Aug: offer it in capture; evidence said 0/4 kitchens, so never pre-selected"
+  },
+  {
+   "room_type": "kitchen",
+   "surface_type": "Walls",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "5 lines / 4 rooms"
+  },
+  {
+   "room_type": "kitchen",
+   "surface_type": "Windows",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "laundry",
+   "surface_type": "Architrave",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "laundry",
+   "surface_type": "Ceiling",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "2 lines"
+  },
+  {
+   "room_type": "laundry",
+   "surface_type": "Cornices",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "never standard - photo only"
+  },
+  {
+   "room_type": "laundry",
+   "surface_type": "Door & Frame",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "photo only"
+  },
+  {
+   "room_type": "laundry",
+   "surface_type": "Mantle",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "no rate item yet - prices as prep/note only until one is added"
+  },
+  {
+   "room_type": "laundry",
+   "surface_type": "Picture Rails",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "laundry",
+   "surface_type": "Walls",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "4 lines / 2 rooms"
+  },
+  {
+   "room_type": "laundry",
+   "surface_type": "Windows",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "living",
+   "surface_type": "Architrave",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "living",
+   "surface_type": "Ceiling",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "9 lines"
+  },
+  {
+   "room_type": "living",
+   "surface_type": "Cornices",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "never standard - photo only"
+  },
+  {
+   "room_type": "living",
+   "surface_type": "Door & Frame",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "photo only"
+  },
+  {
+   "room_type": "living",
+   "surface_type": "Mantle",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "no rate item yet - prices as prep/note only until one is added"
+  },
+  {
+   "room_type": "living",
+   "surface_type": "Picture Rails",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "living",
+   "surface_type": "Skirting Boards",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "6 lines"
+  },
+  {
+   "room_type": "living",
+   "surface_type": "Walls",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "8 lines / 7 rooms"
+  },
+  {
+   "room_type": "living",
+   "surface_type": "Windows",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "photo only"
+  },
+  {
+   "room_type": "storage",
+   "surface_type": "Architrave",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "storage",
+   "surface_type": "Ceiling",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "5 lines"
+  },
+  {
+   "room_type": "storage",
+   "surface_type": "Mantle",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "no rate item yet - prices as prep/note only until one is added"
+  },
+  {
+   "room_type": "storage",
+   "surface_type": "Picture Rails",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "storage",
+   "surface_type": "Shelving",
+   "is_option": true,
+   "requires_confirm": true,
+   "notes": "OPTION"
+  },
+  {
+   "room_type": "storage",
+   "surface_type": "Walls",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "4 lines / 3 rooms (robe, pantry, store, linen)"
+  },
+  {
+   "room_type": "storage",
+   "surface_type": "Windows",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "study",
+   "surface_type": "Architrave",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "study",
+   "surface_type": "Ceiling",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "3 lines"
+  },
+  {
+   "room_type": "study",
+   "surface_type": "Cornices",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "never standard - photo only"
+  },
+  {
+   "room_type": "study",
+   "surface_type": "Door & Frame",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "photo only"
+  },
+  {
+   "room_type": "study",
+   "surface_type": "Mantle",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "no rate item yet - prices as prep/note only until one is added"
+  },
+  {
+   "room_type": "study",
+   "surface_type": "Picture Rails",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "study",
+   "surface_type": "Skirting Boards",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "2 lines"
+  },
+  {
+   "room_type": "study",
+   "surface_type": "Walls",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "3 lines / 2 rooms"
+  },
+  {
+   "room_type": "study",
+   "surface_type": "Windows",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "photo only"
+  },
+  {
+   "room_type": "wc",
+   "surface_type": "Architrave",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "wc",
+   "surface_type": "Ceiling",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "Tom's rule: ceiling and door only"
+  },
+  {
+   "room_type": "wc",
+   "surface_type": "Cornices",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "never standard - photo only"
+  },
+  {
+   "room_type": "wc",
+   "surface_type": "Door & Frame",
+   "is_option": false,
+   "requires_confirm": false,
+   "notes": "photo only"
+  },
+  {
+   "room_type": "wc",
+   "surface_type": "Mantle",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "no rate item yet - prices as prep/note only until one is added"
+  },
+  {
+   "room_type": "wc",
+   "surface_type": "Picture Rails",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  },
+  {
+   "room_type": "wc",
+   "surface_type": "Walls",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "wet area - fractional walls, tap cycles 25/50/75/100%"
+  },
+  {
+   "room_type": "wc",
+   "surface_type": "Windows",
+   "is_option": true,
+   "requires_confirm": false,
+   "notes": "capture: offered everywhere per Tom 18 Aug"
+  }
+ ],
+ "aliases": [
+  {
+   "alias": "alfresco",
+   "room_type": "exterior_excluded"
+  },
+  {
+   "alias": "balcony",
+   "room_type": "exterior_excluded"
+  },
+  {
+   "alias": "bath",
+   "room_type": "bathroom"
+  },
+  {
+   "alias": "bathroom",
+   "room_type": "bathroom"
+  },
+  {
+   "alias": "bathroom 2",
+   "room_type": "bathroom"
+  },
+  {
+   "alias": "bed",
+   "room_type": "bedroom"
+  },
+  {
+   "alias": "bedroom",
+   "room_type": "bedroom"
+  },
+  {
+   "alias": "bir",
+   "room_type": "storage"
+  },
+  {
+   "alias": "butler's pantry",
+   "room_type": "storage"
+  },
+  {
+   "alias": "carpark",
+   "room_type": "garage"
+  },
+  {
+   "alias": "carpark/storage",
+   "room_type": "garage"
+  },
+  {
+   "alias": "covered alfresco",
+   "room_type": "exterior_excluded"
+  },
+  {
+   "alias": "cupboard",
+   "room_type": "storage"
+  },
+  {
+   "alias": "deck",
+   "room_type": "exterior_excluded"
+  },
+  {
+   "alias": "dining",
+   "room_type": "dining"
+  },
+  {
+   "alias": "dining kitchen",
+   "room_type": "dining"
+  },
+  {
+   "alias": "dining room",
+   "room_type": "dining"
+  },
+  {
+   "alias": "double garage",
+   "room_type": "garage"
+  },
+  {
+   "alias": "dressing room",
+   "room_type": "storage"
+  },
+  {
+   "alias": "ens",
+   "room_type": "bathroom"
+  },
+  {
+   "alias": "ensuite",
+   "room_type": "bathroom"
+  },
+  {
+   "alias": "ensuite and walk in robe",
+   "room_type": "bathroom"
+  },
+  {
+   "alias": "entry",
+   "room_type": "hallway"
+  },
+  {
+   "alias": "family",
+   "room_type": "living"
+  },
+  {
+   "alias": "far left office",
+   "room_type": "study"
+  },
+  {
+   "alias": "front door",
+   "room_type": "excluded"
+  },
+  {
+   "alias": "garage",
+   "room_type": "garage"
+  },
+  {
+   "alias": "gym",
+   "room_type": "living"
+  },
+  {
+   "alias": "hall",
+   "room_type": "hallway"
+  },
+  {
+   "alias": "hallway",
+   "room_type": "hallway"
+  },
+  {
+   "alias": "hallway upper",
+   "room_type": "hallway"
+  },
+  {
+   "alias": "kitchen",
+   "room_type": "kitchen"
+  },
+  {
+   "alias": "kitchenette",
+   "room_type": "kitchen"
+  },
+  {
+   "alias": "l'dry",
+   "room_type": "laundry"
+  },
+  {
+   "alias": "landing",
+   "room_type": "hallway"
+  },
+  {
+   "alias": "laundry",
+   "room_type": "laundry"
+  },
+  {
+   "alias": "laundry room",
+   "room_type": "laundry"
+  },
+  {
+   "alias": "ldry",
+   "room_type": "laundry"
+  },
+  {
+   "alias": "left main room",
+   "room_type": "bedroom"
+  },
+  {
+   "alias": "left stairwell and hallway",
+   "room_type": "hallway"
+  },
+  {
+   "alias": "left store 1",
+   "room_type": "storage"
+  },
+  {
+   "alias": "library / office",
+   "room_type": "study"
+  },
+  {
+   "alias": "lift",
+   "room_type": "excluded"
+  },
+  {
+   "alias": "lin",
+   "room_type": "storage"
+  },
+  {
+   "alias": "linen",
+   "room_type": "storage"
+  },
+  {
+   "alias": "living",
+   "room_type": "living"
+  },
+  {
+   "alias": "living room",
+   "room_type": "living"
+  },
+  {
+   "alias": "lounge",
+   "room_type": "living"
+  },
+  {
+   "alias": "lounge/rumpus",
+   "room_type": "living"
+  },
+  {
+   "alias": "main room",
+   "room_type": "bedroom"
+  },
+  {
+   "alias": "master",
+   "room_type": "bedroom"
+  },
+  {
+   "alias": "meals",
+   "room_type": "dining"
+  },
+  {
+   "alias": "meals living",
+   "room_type": "living"
+  },
+  {
+   "alias": "mpr",
+   "room_type": "living"
+  },
+  {
+   "alias": "multi-purpose room",
+   "room_type": "living"
+  },
+  {
+   "alias": "office",
+   "room_type": "study"
+  },
+  {
+   "alias": "pantry",
+   "room_type": "storage"
+  },
+  {
+   "alias": "patio",
+   "room_type": "exterior_excluded"
+  },
+  {
+   "alias": "pdr",
+   "room_type": "wc"
+  },
+  {
+   "alias": "play room",
+   "room_type": "living"
+  },
+  {
+   "alias": "porch",
+   "room_type": "exterior_excluded"
+  },
+  {
+   "alias": "powder room",
+   "room_type": "wc"
+  },
+  {
+   "alias": "primary bathroom",
+   "room_type": "bathroom"
+  },
+  {
+   "alias": "ptry",
+   "room_type": "storage"
+  },
+  {
+   "alias": "pwdr",
+   "room_type": "wc"
+  },
+  {
+   "alias": "residence",
+   "room_type": "excluded"
+  },
+  {
+   "alias": "retreat",
+   "room_type": "living"
+  },
+  {
+   "alias": "robe",
+   "room_type": "storage"
+  },
+  {
+   "alias": "rooftop balcony",
+   "room_type": "exterior_excluded"
+  },
+  {
+   "alias": "room 1",
+   "room_type": "bedroom"
+  },
+  {
+   "alias": "room 3",
+   "room_type": "bedroom"
+  },
+  {
+   "alias": "room 5",
+   "room_type": "bedroom"
+  },
+  {
+   "alias": "rumpus",
+   "room_type": "living"
+  },
+  {
+   "alias": "sauna",
+   "room_type": "excluded"
+  },
+  {
+   "alias": "sitting",
+   "room_type": "living"
+  },
+  {
+   "alias": "stairwell",
+   "room_type": "hallway"
+  },
+  {
+   "alias": "store",
+   "room_type": "storage"
+  },
+  {
+   "alias": "study",
+   "room_type": "study"
+  },
+  {
+   "alias": "sunroom",
+   "room_type": "living"
+  },
+  {
+   "alias": "terrace",
+   "room_type": "exterior_excluded"
+  },
+  {
+   "alias": "toilet",
+   "room_type": "wc"
+  },
+  {
+   "alias": "undercover alfresco",
+   "room_type": "exterior_excluded"
+  },
+  {
+   "alias": "upper board room",
+   "room_type": "study"
+  },
+  {
+   "alias": "upper kitchenette",
+   "room_type": "kitchen"
+  },
+  {
+   "alias": "upper landing",
+   "room_type": "hallway"
+  },
+  {
+   "alias": "upper lobby area",
+   "room_type": "hallway"
+  },
+  {
+   "alias": "upper main room",
+   "room_type": "bedroom"
+  },
+  {
+   "alias": "upstairs bedroom",
+   "room_type": "bedroom"
+  },
+  {
+   "alias": "upstairs ensuite",
+   "room_type": "bathroom"
+  },
+  {
+   "alias": "upstairs living",
+   "room_type": "living"
+  },
+  {
+   "alias": "verandah",
+   "room_type": "exterior_excluded"
+  },
+  {
+   "alias": "void",
+   "room_type": "excluded"
+  },
+  {
+   "alias": "walk in robe",
+   "room_type": "storage"
+  },
+  {
+   "alias": "wc",
+   "room_type": "wc"
+  },
+  {
+   "alias": "wip",
+   "room_type": "storage"
+  },
+  {
+   "alias": "wir",
+   "room_type": "storage"
+  },
+  {
+   "alias": "wm",
+   "room_type": "laundry"
+  }
+ ],
+ "defectRates": [
+  {
+   "defect_type": "peeling",
+   "unit": "m2",
+   "hours_sev1": 0.1,
+   "hours_sev2": 0.18,
+   "hours_sev3": 0.3
+  },
+  {
+   "defect_type": "flaking",
+   "unit": "m2",
+   "hours_sev1": 0.08,
+   "hours_sev2": 0.15,
+   "hours_sev3": 0.25
+  },
+  {
+   "defect_type": "water_damage",
+   "unit": "m2",
+   "hours_sev1": 0.2,
+   "hours_sev2": 0.35,
+   "hours_sev3": 0.6
+  },
+  {
+   "defect_type": "mould",
+   "unit": "m2",
+   "hours_sev1": 0.15,
+   "hours_sev2": 0.28,
+   "hours_sev3": 0.45
+  },
+  {
+   "defect_type": "plaster_cracks",
+   "unit": "lin_m",
+   "hours_sev1": 0.12,
+   "hours_sev2": 0.22,
+   "hours_sev3": 0.4
+  },
+  {
+   "defect_type": "holes_dents",
+   "unit": "each",
+   "hours_sev1": 0.15,
+   "hours_sev2": 0.25,
+   "hours_sev3": 0.45
+  },
+  {
+   "defect_type": "timber_rot",
+   "unit": "lin_m",
+   "hours_sev1": 0.3,
+   "hours_sev2": 0.55,
+   "hours_sev3": 1
+  },
+  {
+   "defect_type": "rust",
+   "unit": "m2",
+   "hours_sev1": 0.2,
+   "hours_sev2": 0.35,
+   "hours_sev3": 0.55
+  },
+  {
+   "defect_type": "nicotine_staining",
+   "unit": "m2",
+   "hours_sev1": 0.05,
+   "hours_sev2": 0.1,
+   "hours_sev3": 0.18
+  },
+  {
+   "defect_type": "previous_poor_finish",
+   "unit": "m2",
+   "hours_sev1": 0.12,
+   "hours_sev2": 0.22,
+   "hours_sev3": 0.38
+  },
+  {
+   "defect_type": "render_cracks",
+   "unit": "lin_m",
+   "hours_sev1": 0.15,
+   "hours_sev2": 0.3,
+   "hours_sev3": 0.55
+  },
+  {
+   "defect_type": "efflorescence",
+   "unit": "m2",
+   "hours_sev1": 0.18,
+   "hours_sev2": 0.3,
+   "hours_sev3": 0.5
+  },
+  {
+   "defect_type": "needs_bogging",
+   "unit": "m2",
+   "hours_sev1": 0.25,
+   "hours_sev2": 0.4,
+   "hours_sev3": 0.6
+  },
+  {
+   "defect_type": "needs_stripping",
+   "unit": "m2",
+   "hours_sev1": 0.3,
+   "hours_sev2": 0.5,
+   "hours_sev3": 0.8
+  },
+  {
+   "defect_type": "scraping_filling",
+   "unit": "m2",
+   "hours_sev1": 0.15,
+   "hours_sev2": 0.25,
+   "hours_sev3": 0.4
+  },
+  {
+   "defect_type": "caulking",
+   "unit": "lin_m",
+   "hours_sev1": 0.08,
+   "hours_sev2": 0.12,
+   "hours_sev3": 0.18
+  }
+ ],
+ "typicals": [
+  {
+   "room_type": "wc",
+   "typical_length_m": 1.25,
+   "typical_width_m": 1
+  },
+  {
+   "room_type": "bedroom",
+   "typical_length_m": 3.5,
+   "typical_width_m": 3.25
+  },
+  {
+   "room_type": "living",
+   "typical_length_m": 4,
+   "typical_width_m": 4
+  },
+  {
+   "room_type": "open_plan_kitchen_living",
+   "typical_length_m": 6,
+   "typical_width_m": 6
+  },
+  {
+   "room_type": "bathroom",
+   "typical_length_m": 2,
+   "typical_width_m": 1.5
+  },
+  {
+   "room_type": "laundry",
+   "typical_length_m": 2,
+   "typical_width_m": 1.5
+  },
+  {
+   "room_type": "garage",
+   "typical_length_m": 6,
+   "typical_width_m": 4
+  },
+  {
+   "room_type": "kitchen",
+   "typical_length_m": 4,
+   "typical_width_m": 3
+  },
+  {
+   "room_type": "hallway",
+   "typical_length_m": 6,
+   "typical_width_m": 2
+  }
+ ],
+ "rateItems": [
+  {
+   "id": "32300b0f-737e-40ba-86dd-a4e40a99736e",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "M2",
+   "rate_1_coat": 10.49,
+   "rate_2_coat": 5.99,
+   "rate_3_coat": 4.19,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Render",
+   "sub_category": "Cladding",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux AcraTex",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "24746681-025b-4d51-927c-cdc6c9ce192b",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "M2",
+   "rate_1_coat": 12.09,
+   "rate_2_coat": 6.91,
+   "rate_3_coat": 4.84,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Stucco",
+   "sub_category": "Cladding",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux AcraTex",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "93d88ea1-9b9d-460b-b048-fe269f6cde68",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "M2",
+   "rate_1_coat": 8.06,
+   "rate_2_coat": 4.61,
+   "rate_3_coat": 3.23,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Weatherboards",
+   "sub_category": "Cladding",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "a04c970f-2417-4c17-8b09-414858b56e54",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 1.24,
+   "rate_2_coat": 2.17,
+   "rate_3_coat": 3.1,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Front Door",
+   "sub_category": "Exterior Doors",
+   "default_coats": 2,
+   "charge_out_cents": 10400,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.5
+  },
+  {
+   "id": "e646ed3f-1b02-4a1a-8535-a6a7f6eb7083",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 2.48,
+   "rate_2_coat": 4.34,
+   "rate_3_coat": 6.2,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Garage Door (1 Car)",
+   "sub_category": "Exterior Doors",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 10
+  },
+  {
+   "id": "aee10619-d779-4f1f-992b-388fd866551b",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 3.72,
+   "rate_2_coat": 6.51,
+   "rate_3_coat": 9.3,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Garage Door (2 Car)",
+   "sub_category": "Exterior Doors",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 10
+  },
+  {
+   "id": "0c4872ae-50c6-49ba-b861-76f6d62188eb",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 0.62,
+   "rate_2_coat": 1.08,
+   "rate_3_coat": 1.55,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Standard Door (1 Side)",
+   "sub_category": "Exterior Doors",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.2
+  },
+  {
+   "id": "69e74535-0b87-4ad4-a76e-58d2730dff4a",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 0.62,
+   "rate_2_coat": 1.08,
+   "rate_3_coat": 1.55,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Columns",
+   "sub_category": "Exterior Trim",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.23
+  },
+  {
+   "id": "9eec6995-846e-4360-9628-367b07e8296d",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 0.62,
+   "rate_2_coat": 1.08,
+   "rate_3_coat": 1.55,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Downpipes",
+   "sub_category": "Exterior Trim",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.07
+  },
+  {
+   "id": "d26ba2c8-9d2d-48a7-a1d4-dc4d9e65ea27",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Lineal Metres",
+   "rate_1_coat": 8.06,
+   "rate_2_coat": 4.61,
+   "rate_3_coat": 3.23,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Eaves",
+   "sub_category": "Exterior Trim",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": 36,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "e3ec4893-fbc4-40d5-bfbf-e0c3af6edd46",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Lineal Metres",
+   "rate_1_coat": 12.09,
+   "rate_2_coat": 6.91,
+   "rate_3_coat": 4.84,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Fascias",
+   "sub_category": "Exterior Trim",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": 76,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "3e0eb441-4d4e-4ff1-aa29-1b616fef426e",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "M2",
+   "rate_1_coat": 12.09,
+   "rate_2_coat": 6.91,
+   "rate_3_coat": 4.84,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Colorbond Cladding",
+   "sub_category": "Cladding",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "ddaf5cf3-e080-424c-953d-1cb1ea3c6e9c",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Lineal Metres",
+   "rate_1_coat": 12.09,
+   "rate_2_coat": 6.91,
+   "rate_3_coat": 4.84,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Gutters",
+   "sub_category": "Exterior Trim",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": 123,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "88497b90-29b5-463b-a4d0-959e43c1ccd5",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Lineal Metres",
+   "rate_1_coat": 16.13,
+   "rate_2_coat": 9.22,
+   "rate_3_coat": 6.45,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Hand Rails",
+   "sub_category": "Exterior Trim",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": 64,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "15599984-cd57-45f4-b092-325ac4b4bab8",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 4.96,
+   "rate_2_coat": 8.68,
+   "rate_3_coat": 12.4,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Pergola",
+   "sub_category": "Exterior Trim",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 2
+  },
+  {
+   "id": "ed76522e-2b5b-4265-adbc-03e8b3ee6bdc",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 0.37,
+   "rate_2_coat": 0.65,
+   "rate_3_coat": 0.93,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Posts",
+   "sub_category": "Exterior Trim",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.06
+  },
+  {
+   "id": "79e32d58-5aee-45b3-a081-1dd37bc0317c",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "M2",
+   "rate_1_coat": 17.74,
+   "rate_2_coat": 10.14,
+   "rate_3_coat": 7.1,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Soffits / Exterior Ceilings",
+   "sub_category": "Exterior Trim",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "787197f4-7bac-4976-8877-b398b70e5b3f",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 2.17,
+   "rate_2_coat": 3.8,
+   "rate_3_coat": 5.42,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Strapping",
+   "sub_category": "Exterior Trim",
+   "default_coats": 2,
+   "charge_out_cents": 10400,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.15
+  },
+  {
+   "id": "faeeadd5-7c74-4c84-a8cf-478ca03ff4e8",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 1.86,
+   "rate_2_coat": 3.25,
+   "rate_3_coat": 4.65,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Wood Shutters",
+   "sub_category": "Exterior Trim",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.3
+  },
+  {
+   "id": "01fe464f-cde7-446c-a2fe-b5d7cb4f88fb",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 1.07,
+   "rate_2_coat": 1.88,
+   "rate_3_coat": 3.12,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Awning / Casement Window",
+   "sub_category": "Exterior Windows",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.2
+  },
+  {
+   "id": "b32965af-32d0-4dbb-8f3b-3a9a6a7e0443",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 2.14,
+   "rate_2_coat": 3.74,
+   "rate_3_coat": 5.35,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Colonial / Bay Window",
+   "sub_category": "Exterior Windows",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.25
+  },
+  {
+   "id": "4c94d7e0-e948-4c31-bd6a-e6f1a0d0bfda",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 1.42,
+   "rate_2_coat": 2.5,
+   "rate_3_coat": 3.57,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Double Hung Sash",
+   "sub_category": "Exterior Windows",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.25
+  },
+  {
+   "id": "5da0a8b3-2e7f-48d7-99ac-53bf4a01f50b",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "M2 Per Hour",
+   "rate_1_coat": 23.04,
+   "rate_2_coat": null,
+   "rate_3_coat": null,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Pressure Washing",
+   "sub_category": "Pressure Washing",
+   "default_coats": 1,
+   "charge_out_cents": 10500,
+   "default_product": "Fuel / Consumables",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "d5ca424c-50f3-4c63-9783-b060ea09b54d",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "M2",
+   "rate_1_coat": 18.01,
+   "rate_2_coat": 10.29,
+   "rate_3_coat": 7.2,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Ceilings",
+   "sub_category": "Ceilings",
+   "default_coats": 2,
+   "charge_out_cents": 9500,
+   "default_product": "Haymes Expressions Ceiling",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "93a8decc-6147-45bb-a0c0-5661263d73b2",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "Lineal Metres",
+   "rate_1_coat": 16.37,
+   "rate_2_coat": 9.35,
+   "rate_3_coat": 6.55,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Patterned Cornices",
+   "sub_category": "Ceilings",
+   "default_coats": 2,
+   "charge_out_cents": 9500,
+   "default_product": "Haymes Expressions Ceiling",
+   "metres_per_litre": 80,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "e3c0f5fa-8863-41c2-8570-45ac9368c36e",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "Lineal Metres",
+   "rate_1_coat": 24.56,
+   "rate_2_coat": 14.03,
+   "rate_3_coat": 9.82,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Standard Cornices",
+   "sub_category": "Ceilings",
+   "default_coats": 2,
+   "charge_out_cents": 9400,
+   "default_product": "Haymes Expressions Ceiling",
+   "metres_per_litre": 123,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "a531f888-c2c9-4c1f-a9bf-f610508a45d3",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "M2",
+   "rate_1_coat": 18.01,
+   "rate_2_coat": 10.29,
+   "rate_3_coat": 7.2,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Walls",
+   "sub_category": "Walls",
+   "default_coats": 2,
+   "charge_out_cents": 9500,
+   "default_product": "Haymes Expressions Wall",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "7aa8227d-9bdd-4d9b-b72b-dc42d1121a44",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 0.46,
+   "rate_2_coat": 0.8,
+   "rate_3_coat": 1.14,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "4-6 Panel Door (1 Side)",
+   "sub_category": "Interior Doors",
+   "default_coats": 2,
+   "charge_out_cents": 9500,
+   "default_product": "Haymes Trim Plus",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.13
+  },
+  {
+   "id": "695fa90b-1e86-41aa-ba2d-4feac5fa713c",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 0.6,
+   "rate_2_coat": 1,
+   "rate_3_coat": 1.4,
+   "created_at": "2026-08-19T12:28:32.880349+00:00",
+   "code": "Kitchen Cupboard Front",
+   "sub_category": "Cabinetry",
+   "default_coats": 2,
+   "charge_out_cents": 10000,
+   "default_product": "Haymes Trim Plus",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.16
+  },
+  {
+   "id": "60a77b8b-114b-4249-b064-b2f9bcbc2983",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 1.56,
+   "rate_2_coat": 2.6,
+   "rate_3_coat": 3.64,
+   "created_at": "2026-08-19T13:25:24.478918+00:00",
+   "code": "Access Allowance",
+   "sub_category": "Allowances",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": 76,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "aa2ed59c-781d-4a5b-88d3-8481843f9226",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "M2",
+   "rate_1_coat": 10.49,
+   "rate_2_coat": 5.99,
+   "rate_3_coat": 4.19,
+   "created_at": "2026-08-19T03:52:56.533375+00:00",
+   "code": "Brick",
+   "sub_category": "Cladding",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux AcraTex",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "fcef9cb9-0fb4-493e-b578-55789c282c18",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "M2",
+   "rate_1_coat": 10.49,
+   "rate_2_coat": 5.99,
+   "rate_3_coat": 4.19,
+   "created_at": "2026-08-20T23:07:08.450239+00:00",
+   "code": "Brick (Unpainted)",
+   "sub_category": "Cladding",
+   "default_coats": 3,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux AcraTex",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "0c2bcc45-607a-4355-9af1-5d6a1f2713be",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Lineal Metres",
+   "rate_1_coat": 2,
+   "rate_2_coat": 1,
+   "rate_3_coat": 0.6,
+   "created_at": "2026-08-19T09:33:41.613458+00:00",
+   "code": "Fretwork",
+   "sub_category": "Exterior Trim",
+   "default_coats": 102,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "4f232631-d124-459e-b61b-e963bd6b8c34",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 0.25,
+   "rate_2_coat": 0.25,
+   "rate_3_coat": 0.25,
+   "created_at": "2026-08-19T13:47:42.067586+00:00",
+   "code": "Air Vent",
+   "sub_category": "Extras",
+   "default_coats": 2,
+   "charge_out_cents": 18000,
+   "default_product": "Dulux epoxy enamel",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.1
+  },
+  {
+   "id": "63ca232b-4deb-48e0-b335-40559635d4be",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 0.89,
+   "rate_2_coat": 1.56,
+   "rate_3_coat": 2.24,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Fixed / Picture Window",
+   "sub_category": "Exterior Windows",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.2
+  },
+  {
+   "id": "0e42a986-dd8b-4474-87c5-1314e55f2ae8",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Lineal Metres",
+   "rate_1_coat": 24.19,
+   "rate_2_coat": 13.82,
+   "rate_3_coat": 9.68,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Paling Fence",
+   "sub_category": "Fences",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": 7,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "5860850a-1019-4e2a-8c46-a7ba20f1134c",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Lineal Metres",
+   "rate_1_coat": 2.41,
+   "rate_2_coat": 1.38,
+   "rate_3_coat": 0.97,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Picket Fence (Hand Paint)",
+   "sub_category": "Fences",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": 4.5,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "c6eef0d3-8f3a-4ab6-bff5-da5641e5f677",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Lineal Metres",
+   "rate_1_coat": 12.09,
+   "rate_2_coat": 6.91,
+   "rate_3_coat": 4.84,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Picket Fence (Spray)",
+   "sub_category": "Fences",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": 4.5,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "cc068345-4e43-4eb9-85f0-4f6bf748c124",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "M2 Per Hour",
+   "rate_1_coat": 16.13,
+   "rate_2_coat": 9.22,
+   "rate_3_coat": 6.45,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Deck Painting",
+   "sub_category": "Floor Coatings",
+   "default_coats": 2,
+   "charge_out_cents": 10400,
+   "default_product": "Integrain UltraDeck",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "1e67bdbc-84f3-440c-8715-5d9cc7936592",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "M2",
+   "rate_1_coat": 13.82,
+   "rate_2_coat": 6.91,
+   "rate_3_coat": 3,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Roof",
+   "sub_category": "Roof",
+   "default_coats": 3,
+   "charge_out_cents": 10500,
+   "default_product": "Premier Roof Coatings",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "d45c97c6-5871-409c-bf68-f42d078ce361",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "M2",
+   "rate_1_coat": 10.08,
+   "rate_2_coat": 5.76,
+   "rate_3_coat": null,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Cutek",
+   "sub_category": "Staining",
+   "default_coats": 2,
+   "charge_out_cents": 12000,
+   "default_product": "Cutek Extreme CD 50",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "be6a9bae-e7f3-473e-9962-cab363f1620d",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 0.988,
+   "rate_2_coat": 1.647,
+   "rate_3_coat": 2.306,
+   "created_at": "2026-08-19T12:28:32.880349+00:00",
+   "code": "Robe Door",
+   "sub_category": "Cabinetry",
+   "default_coats": 2,
+   "charge_out_cents": 9500,
+   "default_product": "Haymes Trim Plus",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.16
+  },
+  {
+   "id": "ec7934f9-0f3a-4985-8a65-bbb28730fb09",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 1.08,
+   "rate_2_coat": 1.8,
+   "rate_3_coat": 2.52,
+   "created_at": "2026-08-19T13:25:24.478918+00:00",
+   "code": "Minor Fascia Rot Allowance",
+   "sub_category": "Allowances",
+   "default_coats": 2,
+   "charge_out_cents": 10000,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": 76,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "8f66ca0a-0690-4588-8e06-338992439a37",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 3,
+   "rate_2_coat": 3,
+   "rate_3_coat": 3,
+   "created_at": "2026-08-19T13:25:24.478918+00:00",
+   "code": "Window Shutters",
+   "sub_category": "Extras",
+   "default_coats": 2,
+   "charge_out_cents": 9333,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": 76,
+   "litres_per_item_per_coat": 0.2
+  },
+  {
+   "id": "bad5ce8f-2fdd-483e-bef7-809e80675f2a",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 3,
+   "rate_2_coat": 3,
+   "rate_3_coat": 3,
+   "created_at": "2026-08-19T13:25:24.478918+00:00",
+   "code": "Side Gate",
+   "sub_category": "Extras",
+   "default_coats": 2,
+   "charge_out_cents": 10000,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": 76,
+   "litres_per_item_per_coat": 0.4
+  },
+  {
+   "id": "705acd9f-af53-46b9-9b6b-3e9e154890a8",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 3.5,
+   "rate_2_coat": 3.5,
+   "rate_3_coat": 3.5,
+   "created_at": "2026-08-19T13:25:24.478918+00:00",
+   "code": "Security Door",
+   "sub_category": "Extras",
+   "default_coats": 2,
+   "charge_out_cents": 9857,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": 76,
+   "litres_per_item_per_coat": 0.5
+  },
+  {
+   "id": "6a3383c3-92ef-4acc-8c62-ffe49bfb0ec1",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 0.5,
+   "rate_2_coat": 0.5,
+   "rate_3_coat": 0.5,
+   "created_at": "2026-08-19T13:25:24.478918+00:00",
+   "code": "Meter Box",
+   "sub_category": "Extras",
+   "default_coats": 2,
+   "charge_out_cents": 13000,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": 76,
+   "litres_per_item_per_coat": 0.1
+  },
+  {
+   "id": "8f71c4ec-0410-4634-8ee0-6855dbc398c5",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 5,
+   "rate_2_coat": 5,
+   "rate_3_coat": 5,
+   "created_at": "2026-08-19T13:25:24.478918+00:00",
+   "code": "Shed",
+   "sub_category": "Extras",
+   "default_coats": 2,
+   "charge_out_cents": 12800,
+   "default_product": "Dulux Weathershield",
+   "metres_per_litre": 76,
+   "litres_per_item_per_coat": 4
+  },
+  {
+   "id": "51cf5639-71ee-4fce-ae81-b0ce93bc281d",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Exterior",
+   "unit": "M2",
+   "rate_1_coat": 10.49,
+   "rate_2_coat": 5.99,
+   "rate_3_coat": 4.19,
+   "created_at": "2026-08-29T01:15:25.54139+00:00",
+   "code": "Concrete / Tilt Slab",
+   "sub_category": "Cladding",
+   "default_coats": 2,
+   "charge_out_cents": 10500,
+   "default_product": "Dulux AcraTex",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "123f96f6-3b8b-4a36-893d-00e3c1e17867",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 0.92,
+   "rate_2_coat": 1.6,
+   "rate_3_coat": 2.29,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "4-6 Panel Door and Frame (1 Side)",
+   "sub_category": "Interior Doors",
+   "default_coats": 2,
+   "charge_out_cents": 9500,
+   "default_product": "Haymes Trim Plus",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.19
+  },
+  {
+   "id": "0dccd9d0-4ad0-4d0e-90a9-570728e95be9",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 0.31,
+   "rate_2_coat": 0.53,
+   "rate_3_coat": 0.76,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Architrave (1 Side)",
+   "sub_category": "Interior Doors",
+   "default_coats": 2,
+   "charge_out_cents": 9500,
+   "default_product": "Haymes Trim Plus",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.06
+  },
+  {
+   "id": "231695af-fd4b-4095-959b-25a506123e6f",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 0.31,
+   "rate_2_coat": 0.53,
+   "rate_3_coat": 0.76,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Flat Door (1 Side)",
+   "sub_category": "Interior Doors",
+   "default_coats": 2,
+   "charge_out_cents": 9500,
+   "default_product": "Haymes Trim Plus",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.1
+  },
+  {
+   "id": "347a0f5a-1f2b-4038-92aa-601204bc3f88",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 0.61,
+   "rate_2_coat": 1.07,
+   "rate_3_coat": 1.53,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Flat Door and Frame (1 Side)",
+   "sub_category": "Interior Doors",
+   "default_coats": 2,
+   "charge_out_cents": 9500,
+   "default_product": "Haymes Trim Plus",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.16
+  },
+  {
+   "id": "dbaf49b2-8cd7-40ad-9e5a-4d238242a238",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "Lineal Metres",
+   "rate_1_coat": 6.55,
+   "rate_2_coat": 3.74,
+   "rate_3_coat": 2.62,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Balustrades",
+   "sub_category": "Interior Trim",
+   "default_coats": 2,
+   "charge_out_cents": 9500,
+   "default_product": "Haymes Trim Plus",
+   "metres_per_litre": 32,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "bff04ce7-2e25-4cfe-9270-64ba2b409e16",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 0.671,
+   "rate_2_coat": 1.118,
+   "rate_3_coat": 1.565,
+   "created_at": "2026-08-19T12:28:32.880349+00:00",
+   "code": "Vanity Door",
+   "sub_category": "Cabinetry",
+   "default_coats": 2,
+   "charge_out_cents": 9500,
+   "default_product": "Haymes Trim Plus",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.16
+  },
+  {
+   "id": "53d5a468-6438-4a73-8cc2-fa1c687fee1e",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 1.43,
+   "rate_2_coat": 2.5,
+   "rate_3_coat": 3.57,
+   "created_at": "2026-08-18T12:50:26.983576+00:00",
+   "code": "Mantle",
+   "sub_category": "Interior Trim",
+   "default_coats": 2,
+   "charge_out_cents": 9500,
+   "default_product": "Haymes Trim Plus",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.25
+  },
+  {
+   "id": "a7fbe609-1c46-46c6-843f-7eb35b0bc9bd",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "M2",
+   "rate_1_coat": 0.5,
+   "rate_2_coat": 1,
+   "rate_3_coat": 1.35,
+   "created_at": "2026-08-18T13:01:09.88363+00:00",
+   "code": "Window Reveal",
+   "sub_category": "Interior Windows",
+   "default_coats": 2,
+   "charge_out_cents": 9500,
+   "default_product": "Haymes Trim Plus",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "1d344038-8b0d-41ab-8bc2-21c0051fdaf6",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "Lineal Metres",
+   "rate_1_coat": 20.47,
+   "rate_2_coat": 11.69,
+   "rate_3_coat": 8.19,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Picture Rails",
+   "sub_category": "Interior Trim",
+   "default_coats": 2,
+   "charge_out_cents": 9500,
+   "default_product": "Haymes Trim Plus",
+   "metres_per_litre": 200,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "3ab7fd64-1898-48cb-bfc5-71bb5bd2e893",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "Lineal Metres",
+   "rate_1_coat": 20.47,
+   "rate_2_coat": 11.69,
+   "rate_3_coat": 8.19,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Skirting Boards",
+   "sub_category": "Interior Trim",
+   "default_coats": 2,
+   "charge_out_cents": 9500,
+   "default_product": "Haymes Trim Plus",
+   "metres_per_litre": 103,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "57d4d991-bce0-450d-8c67-ddd45bf118f4",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "Lineal Metres",
+   "rate_1_coat": 20.47,
+   "rate_2_coat": 11.69,
+   "rate_3_coat": 8.19,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Skirting Boards MDF",
+   "sub_category": "Interior Trim",
+   "default_coats": 3,
+   "charge_out_cents": 9400,
+   "default_product": "Haymes Trim Plus",
+   "metres_per_litre": 103,
+   "litres_per_item_per_coat": null
+  },
+  {
+   "id": "28ccabc8-9736-4cd9-a9c3-f756fe41794c",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 0.92,
+   "rate_2_coat": 1.6,
+   "rate_3_coat": 2.67,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Awning / Casement Window",
+   "sub_category": "Interior Windows",
+   "default_coats": 2,
+   "charge_out_cents": 9500,
+   "default_product": "Haymes Trim Plus",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.2
+  },
+  {
+   "id": "1b562d7d-980c-4a7b-bc1d-e3b4139a7772",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 1.83,
+   "rate_2_coat": 3.21,
+   "rate_3_coat": 4.59,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Colonial / Bay Window",
+   "sub_category": "Interior Windows",
+   "default_coats": 2,
+   "charge_out_cents": 9500,
+   "default_product": "Haymes Trim Plus",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.25
+  },
+  {
+   "id": "605bc2d5-cd41-4c96-826a-57d5c56652bd",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 1.22,
+   "rate_2_coat": 2.14,
+   "rate_3_coat": 3.06,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Double Hung Sash",
+   "sub_category": "Interior Windows",
+   "default_coats": 2,
+   "charge_out_cents": 9400,
+   "default_product": "Haymes Trim Plus",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.25
+  },
+  {
+   "id": "0a010380-9198-46c9-b746-84372696fad5",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 0.76,
+   "rate_2_coat": 1.34,
+   "rate_3_coat": 1.91,
+   "created_at": "2026-08-13T12:08:25.480327+00:00",
+   "code": "Fixed / Picture / Window Reveal",
+   "sub_category": "Interior Windows",
+   "default_coats": 2,
+   "charge_out_cents": 9500,
+   "default_product": "Haymes Trim Plus",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.2
+  },
+  {
+   "id": "8f927362-e6ca-4b63-b3cb-5615fff8429f",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 0.57,
+   "rate_2_coat": 0.95,
+   "rate_3_coat": 1.33,
+   "created_at": "2026-09-02T09:11:23.56912+00:00",
+   "code": "Linen / Broom Cupboard Interior",
+   "sub_category": "Cabinetry",
+   "default_coats": 2,
+   "charge_out_cents": 10000,
+   "default_product": "Haymes Trim Plus",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.16
+  },
+  {
+   "id": "4ba9e503-f8c2-4586-b94b-c0128e1ae785",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 0.36,
+   "rate_2_coat": 0.6,
+   "rate_3_coat": 0.84,
+   "created_at": "2026-09-02T09:11:23.56912+00:00",
+   "code": "Vanity Interior",
+   "sub_category": "Cabinetry",
+   "default_coats": 2,
+   "charge_out_cents": 9500,
+   "default_product": "Haymes Trim Plus",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.16
+  },
+  {
+   "id": "6d67e76c-91d7-46fd-86a9-e59916b786da",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 0.3,
+   "rate_2_coat": 0.5,
+   "rate_3_coat": 0.7,
+   "created_at": "2026-09-02T09:11:23.56912+00:00",
+   "code": "Kitchen Cupboard Interior",
+   "sub_category": "Cabinetry",
+   "default_coats": 2,
+   "charge_out_cents": 10000,
+   "default_product": "Haymes Trim Plus",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.16
+  },
+  {
+   "id": "4a734c8b-f783-478e-aeb8-9c2f5e11df33",
+   "rate_card_id": "5b0da810-873d-4008-b17b-b3c7e52ceec7",
+   "category": "Interior",
+   "unit": "Hours Per Item",
+   "rate_1_coat": 0.903,
+   "rate_2_coat": 1.505,
+   "rate_3_coat": 2.107,
+   "created_at": "2026-09-02T09:11:23.56912+00:00",
+   "code": "Robe Interior",
+   "sub_category": "Cabinetry",
+   "default_coats": 2,
+   "charge_out_cents": 9500,
+   "default_product": "Haymes Trim Plus",
+   "metres_per_litre": null,
+   "litres_per_item_per_coat": 0.16
+  }
+ ]
+}

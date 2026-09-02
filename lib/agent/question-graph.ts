@@ -39,7 +39,7 @@ export type GraphBlock = Record<string, unknown> & {
   id?: number; kind?: string; name?: string; type?: string; areaType?: string; roomType?: string;
   L?: number; W?: number; origin?: unknown; assumedFields?: unknown;
   surfaces?: Array<Record<string, unknown> & { id?: number; code?: string; count?: number; origin?: unknown; sizeBand?: unknown }>;
-  customer?: { size?: "yes" | "adjusted" | "ns" | null; cup?: boolean | null; cupInterior?: boolean | null; include?: boolean | null; confirmed?: boolean };
+  customer?: { size?: "yes" | "adjusted" | "ns" | null; cup?: boolean | null; cupInterior?: boolean | null; include?: boolean | null; confirmed?: boolean; surfacesOk?: boolean };
   customerCustom?: string[];
 };
 
@@ -52,6 +52,9 @@ export type GraphFacts = {
   occupied: boolean | null;
   /** Email from any source (account, wizard, conversation). */
   email: string | null;
+  /** "Anything tricky about access?" answered — including "no" (the wizard
+   *  state cannot tell an unasked question from an empty answer). */
+  accessAnswered?: boolean;
 };
 
 export type GraphInput = {
@@ -136,6 +139,10 @@ export function gapsFor(input: GraphInput): Gap[] {
   if (input.accountType == null) add(PHASE.qual, 0, { key: "q.account_type", kind: "required", acceptsNotSure: false, phrasingHint: "Is this for your own home, or are you a business or trade client?" });
   if (jobType == null) add(PHASE.qual, 0, { key: "q.job_type", kind: "required", acceptsNotSure: false, phrasingHint: "Inside, outside, or both?" });
   if (!cust?.propertyKind) add(PHASE.qual, 0, { key: "q.property_type", kind: "required", acceptsNotSure: false, phrasingHint: "Is it a house, townhouse, unit or a commercial building?" });
+  // The hard stops depend on these (§2 rule 5) — asked once, up front.
+  if (cust?.propertyKind && (cust.builtPre1970 == null || cust.heritageListed == null || cust.bodyCorporate == null || cust.asbestosSuspected == null)) {
+    add(PHASE.qual, 0, { key: "q.property_flags", kind: "required", acceptsNotSure: true, phrasingHint: "Quick checks: was it built before 1970, is it heritage-listed, is there a body corporate, and any chance of asbestos? \"Not sure\" is fine for any of them." });
+  }
   const storeysKnown = (wantsInterior && (floorplan || st.basics?.storeys != null)) || (wantsExterior && st.exterior != null);
   if (jobType != null && !storeysKnown) add(PHASE.qual, 0, { key: "q.storeys", kind: "required", acceptsNotSure: false, phrasingHint: "Single storey or double?" });
   if (input.facts.timing == null) add(PHASE.qual, 0, { key: "q.timing", kind: "recommended", acceptsNotSure: true, phrasingHint: "When are you hoping to have it done — soon, in the next few months, or just pricing for now?" });
@@ -144,6 +151,11 @@ export function gapsFor(input: GraphInput): Gap[] {
 
   // ---- 3. interior ------------------------------------------------------------
   if (wantsInterior) {
+    if ((st.surfaces?.length ?? 0) === 0 && rooms.length === 0) {
+      add(PHASE.intIntake, 0, { key: "job.surfaces", kind: "required", acceptsNotSure: false,
+        phrasingHint: "What are we painting inside — walls, ceilings, trim, doors, windows?",
+        writes: [{ tool: "answer_gap", input: { key: "job.surfaces", action: "surfaces" } }] });
+    }
     if (!floorplan && rooms.length === 0 && !st.basics) {
       add(PHASE.intIntake, 0, { key: "rooms", kind: "required", acceptsNotSure: false,
         phrasingHint: "How many bedrooms and bathrooms, or upload a floorplan and I'll read the rooms off it.",
@@ -177,7 +189,7 @@ export function gapsFor(input: GraphInput): Gap[] {
         add(PHASE.intLoop, rank, { key: `room.${areaId}.surfaces`, areaId, kind: "required", acceptsNotSure: false,
           phrasingHint: `What are we painting in the ${name} — walls, ceiling, trim, doors, windows?`,
           writes: [{ tool: "answer_gap", input: { key: `room.${areaId}.surfaces`, action: "room_add_catalogue", areaId } }] });
-      } else if (rules.length > 0 && !room.customer?.confirmed) {
+      } else if (rules.length > 0 && !room.customer?.confirmed && room.customer?.surfacesOk !== true) {
         add(PHASE.sweep, rank, { key: `room.${areaId}.surfaces`, areaId, kind: "confirm", acceptsNotSure: false,
           phrasingHint: `${name}: ${rules.map((r) => r.surface_type.toLowerCase()).join(", ")} — right?` });
       }
@@ -191,7 +203,7 @@ export function gapsFor(input: GraphInput): Gap[] {
           writes: [{ tool: "answer_gap", input: { key, action: "room_cupboard_interior", areaId } }] });
       }
 
-      if (!room.customer?.confirmed && (room.customerCustom ?? []).length === 0) {
+      if (!room.customer?.confirmed && room.customerCustom == null) {
         add(PHASE.intLoop, rank, { key: `room.${areaId}.anything_else`, areaId, kind: "recommended", acceptsNotSure: true,
           phrasingHint: `Anything else in the ${name} we should know about?`,
           writes: [{ tool: "answer_gap", input: { key: `room.${areaId}.anything_else`, action: "room_custom", areaId } }] });
@@ -243,10 +255,10 @@ export function gapsFor(input: GraphInput): Gap[] {
       add(PHASE.extIntake, 0, { key: "ext.photos", kind: "required", acceptsNotSure: true, phrasingHint: "Two or three photos of the outside of the house, or the listing link — or say you have none and I'll size it from your answers.", writes: [{ tool: "attach_document", input: { kind: "photo" } }] });
     }
     if (!ext) add(PHASE.extIntake, 0, { key: "ext.storeys", kind: "required", acceptsNotSure: false, phrasingHint: "Single storey or double?" });
-    if (!ext || ext.substrates.length === 0) add(PHASE.extIntake, 0, { key: "ext.substrates", kind: "required", acceptsNotSure: false, phrasingHint: "What's the outside made of — weatherboards, render, brick, concrete?" });
-    if (!ext || !Object.values(ext.painting).some(Boolean)) add(PHASE.extIntake, 0, { key: "ext.painting", kind: "required", acceptsNotSure: false, phrasingHint: "What are we painting outside — the walls, windows and doors, the roofline, the garage?" });
+    if (!ext || (ext.substrates ?? []).length === 0) add(PHASE.extIntake, 0, { key: "ext.substrates", kind: "required", acceptsNotSure: false, phrasingHint: "What's the outside made of — weatherboards, render, brick, concrete?" });
+    if (!ext || !Object.values(ext.painting ?? {}).some(Boolean)) add(PHASE.extIntake, 0, { key: "ext.painting", kind: "required", acceptsNotSure: false, phrasingHint: "What are we painting outside — the walls, windows and doors, the roofline, the garage?" });
     if (!ext || ext.condition == null) add(PHASE.extIntake, 0, { key: "ext.condition", kind: "required", acceptsNotSure: false, phrasingHint: "How's the paintwork holding up — good, weathered, or peeling?" });
-    if (ext && ext.access.length === 0 && ext.accessEquipment.length === 0) add(PHASE.extIntake, 0, { key: "ext.access", kind: "recommended", acceptsNotSure: true, phrasingHint: "Anything tricky about access — steep, tight, or high?" });
+    if (ext && input.facts.accessAnswered !== true && (ext.access ?? []).length === 0 && (ext.accessEquipment ?? []).length === 0) add(PHASE.extIntake, 0, { key: "ext.access", kind: "recommended", acceptsNotSure: true, phrasingHint: "Anything tricky about access — steep, tight, or high?" });
 
     // Sides loop, front → left → right → back.
     SIDE_KEYS.forEach((key: SideKey, rank) => {
@@ -270,7 +282,7 @@ export function gapsFor(input: GraphInput): Gap[] {
     if (!wantsInterior && input.facts.occupied == null) add(PHASE.extGlobal, 0, { key: "occupied", kind: "required", acceptsNotSure: false, phrasingHint: "Will anyone be living in the home while we paint?" });
     if (!wantsInterior && (st.paint?.brands?.length ?? 0) === 0) add(PHASE.extGlobal, 0, { key: "paint.brand", kind: "recommended", acceptsNotSure: true, phrasingHint: "Any preference on paint brand?" });
     if (!wantsInterior && st.paint?.colourHelp == null) add(PHASE.extGlobal, 0, { key: "paint.colours", kind: "tightening", acceptsNotSure: true, phrasingHint: "Do you know the colours, or want a match to what's there?", swingCents: swing("paint.colours") });
-    if (ext && !ext.extras.deck && !ext.extras.fence && !ext.extras.pergola && !ext.extras.balustrade && input.sides && !input.sides.done.extras) {
+    if (ext && !ext.extras?.deck && !ext.extras?.fence && !ext.extras?.pergola && !ext.extras?.balustrade && input.sides && !input.sides.done.extras) {
       add(PHASE.extGlobal, 0, { key: "ext.freestanding", kind: "recommended", acceptsNotSure: false, phrasingHint: "Any freestanding items — deck, fence, pergola, balustrade?", writes: [{ tool: "answer_gap", input: { key: "ext.freestanding", action: "loop_extras_none" } }] });
     }
 

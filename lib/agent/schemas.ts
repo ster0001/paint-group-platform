@@ -193,7 +193,7 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
     name: "add_custom_line", modes: BUILD, staffOnly: false, binds: "editor RPC custom line (amber, visit tier)",
     description: "Anything the customer stated that has no catalogue item. ALWAYS amber and routes the estimate to a site visit — nothing stated is ever $0 silently.",
     input: z.object({ areaId: areaId.nullable().default(null), text: shortText }),
-    output: z.object({ surfaceId, amber: z.literal(true), visitTier: z.literal(true) }),
+    output: z.object({ ref: z.string().max(200), amber: z.literal(true), visitTier: z.literal(true) }),
   }),
   t({
     name: "attach_document", modes: ALL, staffOnly: false, binds: "plan-reader / Site Capture pipelines",
@@ -211,7 +211,14 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
     name: "check_thresholds", modes: ALL, staffOnly: false, binds: "lib/wizard/policy",
     description: "Self-serve or 'book the visit', with the reasons in customer wording.",
     input: z.object({}),
-    output: z.object({ outcome: z.enum(["self_serve", "visit"]), reasons: z.array(z.string().max(300)).max(20) }),
+    output: z.object({
+      outcome: z.enum(["self_serve", "visit"]),
+      reasons: z.array(z.string().max(300)).max(20),
+      accuracyPct: z.number().min(0).max(100),
+      minAccuracyPct: z.number().min(0).max(100),
+      capCents: cents.nullable(),
+      guardrail: z.string().max(40),
+    }),
   }),
   t({
     name: "propose_diff", modes: BUILD, staffOnly: false, binds: "lib/agent draft builder → diff",

@@ -99,6 +99,15 @@ export function applyRoomSizeOk(blocks: LooseBlock[], areaId: number): RoomsLoop
   });
 }
 
+/** "Not sure" on the size (assistant §4: always a valid answer). The
+ * question is ANSWERED — the loop can move on — but the typical default and
+ * its assumption stay, so the range stays honest-wide until someone measures. */
+export function applyRoomSizeNotSure(blocks: LooseBlock[], areaId: number): RoomsLoopResult {
+  return withRoom(blocks, areaId, (b) => {
+    b.customer = { ...customerOf(b), size: "yes" };
+  });
+}
+
 /** The L × W adjust — metres, clamped 1–15 per side; reprices via the
  * engine, provenance customer_stated. m² stays internal: everything
  * customer-facing displays L × W. */
