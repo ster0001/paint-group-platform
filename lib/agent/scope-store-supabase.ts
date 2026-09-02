@@ -12,7 +12,7 @@ import type { TypicalSizeRow } from "@/lib/wizard/starter";
 import type { TreeRefs } from "@/lib/wizard/build-tree";
 import { loadPricingContext } from "@/lib/pricing/context";
 import { logCrmEvent, type CrmEventInput } from "@/lib/crm/events";
-import type { ScopeStore } from "./scope-store";
+import type { BrainHit, ScopeStore } from "./scope-store";
 import type { ScopeDoc } from "./scope-doc";
 
 export class SupabaseScopeStore implements ScopeStore {
@@ -21,11 +21,11 @@ export class SupabaseScopeStore implements ScopeStore {
 
   async load(estimateId: string): Promise<ScopeDoc | null> {
     const { data, error } = await this.db.from("estimates")
-      .select("id, status, requires_site_check, builder_state, account_id, accounts ( account_type )")
+      .select("id, status, requires_site_check, builder_state, account_id, share_token, accounts ( account_type )")
       .eq("id", estimateId).maybeSingle();
     if (error) throw new Error(`scope store load: ${error.message}`);
     if (!data) return null;
-    const row = data as { id: string; status: string; requires_site_check: boolean | null; builder_state: Record<string, unknown> | null; accounts?: { account_type?: string } | null };
+    const row = data as { id: string; status: string; requires_site_check: boolean | null; builder_state: Record<string, unknown> | null; share_token?: string | null; accounts?: { account_type?: string } | null };
     const builderState = { ...(row.builder_state ?? {}) };
     const agent = (builderState.agent ?? {}) as { answers?: unknown; facts?: Record<string, unknown> } & Record<string, unknown>;
     const accountType = row.accounts?.account_type === "trade" ? "trade" : row.accounts?.account_type === "residential" ? "residential" : null;
@@ -33,7 +33,7 @@ export class SupabaseScopeStore implements ScopeStore {
     // beside answers/facts and must survive a reload (S5 — the memory store
     // kept them, this one dropped them, and the panel came back empty).
     builderState.agent = { ...agent, answers: agent.answers ?? {}, facts: { accountType, ...(agent.facts ?? {}) } };
-    return { estimateId: row.id, status: row.status, requiresSiteCheck: row.requires_site_check === true, builderState };
+    return { estimateId: row.id, status: row.status, requiresSiteCheck: row.requires_site_check === true, builderState, shareToken: row.share_token ?? null };
   }
 
   async save(doc: ScopeDoc): Promise<void> {
@@ -61,4 +61,26 @@ export class SupabaseScopeStore implements ScopeStore {
 
   ctx() { return loadPricingContext(this.db); }
   logCrmEvent(input: CrmEventInput) { return logCrmEvent(this.db, input); }
+
+  /** Postgres full text over topic/question/answer; approved + written only. */
+  async searchBrain(query: string, audience: "customer" | "staff"): Promise<BrainHit[]> {
+    const terms = query.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2).slice(0, 8);
+    if (terms.length === 0) return [];
+    let q = this.db.from("brain_entries").select("id, slug, topic, question, answer_md, audience")
+      .eq("status", "approved").eq("needs_content", false);
+    if (audience === "customer") q = q.in("audience", ["customer", "both"]);
+    const { data, error } = await q.textSearch("search", terms.join(" | "), { config: "english" }).limit(5);
+    if (error) throw new Error(`brain search: ${error.message}`);
+    return ((data ?? []) as Array<{ id: string; slug: string | null; topic: string; question: string; answer_md: string; audience: BrainHit["audience"] }>)
+      .map((r) => ({ id: r.id, slug: r.slug, topic: r.topic, question: r.question, answerMd: r.answer_md, audience: r.audience }));
+  }
+
+  /** estimate_events carries the flag (type change_request); the work queue derives the item. */
+  async logChangeRequest(input: { estimateId: string; conversationId: string; areaId: number | null; text: string }): Promise<string> {
+    const { data, error } = await this.db.from("estimate_events")
+      .insert({ estimate_id: input.estimateId, type: "change_request", payload: { text: input.text, areaId: input.areaId, conversationId: input.conversationId, source: "assistant" } })
+      .select("id").single();
+    if (error || !data) throw new Error(`change request: ${error?.message}`);
+    return data.id as string;
+  }
 }

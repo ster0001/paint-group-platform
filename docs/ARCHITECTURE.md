@@ -1761,3 +1761,26 @@ default $150), the two $/hr figures, and Apply (`POST /api/agent/apply`, the
 same tool run directly so applying never depends on the model). Tom's
 paragraph is the golden in `propose.test.ts` (Addendum A §3.2); the staff
 journey is `e2e/cowork.spec.ts`.
+
+## Assistant agent — S6 support mode + Brain (2 Sep 2026)
+
+Support mode lives in the customer portal at `/account/assist/[estimateId]`,
+reached from the estimate's message thread ("Ask the assistant"). Ownership
+is account membership (`loadMemberEstimate`). Answers come, in order, from
+the estimate's own data (`explain_estimate` composes rooms/surfaces/range from
+`get_scope` + `price_scope` — a sent estimate always shows its number), the
+Brain (`lookup_brain` = Postgres full text over `brain_entries`, approved and
+written entries only, audience-filtered, Settings tokens rendered live by
+`lib/brain/parse.ts`), and otherwise "no entry yet — want a person?". A change
+request on a sent estimate writes an `estimate_events` row (type
+`change_request`) that `lib/crm/work-queue.ts` derives into a `change_request`
+work item ("Reprice"), closed by a staff reply in the thread; on a draft the
+tool points at the editor instead. Visits go through `lib/visits/policy.ts`
+— the one visit-policy function from the visit brief (self_serve |
+phone_first | manual; lead paint never self-serves) — and
+`open_visit_booking` hands into the existing ladder. The Brain seed
+(`docs/brain/brain-v1.md`) is parsed by `lib/brain/parse.ts` and imported as
+drafts by `scripts/import-brain.ts` (idempotent on slug; [TOM TO WRITE]
+entries carry `needs_content` and are never served; approved answers are
+never overwritten by a re-import). Tom approves per entry in Settings →
+Brain. Migration `20261229` adds `slug` + `needs_content`.

@@ -56,6 +56,8 @@ export class StubModel implements ModelClient {
       return callTool(EXTRACT_TOOL_NAME, heuristicExtract(pastedTextOf(raw)) as unknown as Record<string, unknown>);
     }
     const cowork = has("apply_diff");
+    const support = has("lookup_brain");
+    if (support) return supportStep(runs, humanText, has, callTool, say);
 
     if (answer && !ran("answer_gap") && has("answer_gap")) return callTool("answer_gap", { key: answer.key, value: answer.value, provenance: cowork ? "human_confirmed" : "customer_stated" });
     if (cowork && /^(apply|apply it|go ahead|yes,? apply)\b/i.test(humanText) && !answer && !ran("apply_diff")) return callTool("apply_diff", { diffId: "pending" });
@@ -165,4 +167,53 @@ function coworkText(runs: ToolRun[], gaps: Gap[], price: PriceScopeResult | null
   if (proposed?.result?.status === "ok" && !applied) parts.push("Say “apply” to apply it.");
   if (parts.length === 0) parts.push(gaps[0]?.phrasingHint ?? "Paste a brief, or tell me what to change.");
   return parts.join(" ");
+}
+
+/** Support mode: this estimate's data first, then the Brain, then a person. */
+function supportStep(
+  runs: ToolRun[], text: string, has: (n: string) => boolean,
+  callTool: (name: string, input: Record<string, unknown>) => ModelResponse, say: (t: string) => ModelResponse,
+): ModelResponse {
+  const ran = (n: string) => runs.find((r) => r.name === n);
+  const t = text.toLowerCase();
+  const wantsVisitFirst = /\b(visit|come out|come and (see|look)|inspect|look at it|site)\b/.test(t);
+  const wantsPerson = !wantsVisitFirst && /\b(talk to|speak to|speak with|chat to)\b.*\b(person|someone|human|staff)\b|\b(a person|a human|call me|ring me)\b/.test(t);
+  const wantsChange = /\b(add|remove|drop|take out|swap|change|include|leave out|also paint|don'?t paint)\b/.test(t) && !/\b(how|why|what)\b/.test(t);
+  const wantsVisit = /\b(visit|come out|come and (see|look)|inspect|look at it|site)\b/.test(t);
+  const aboutEstimate = /\b(included|include|why|how much|range|price|cost|estimate|quote|rooms?|surfaces?|walls?|ceilings?|trim|doors?|windows?|confirm)\b/.test(t);
+
+  if (wantsPerson && !ran("request_handoff") && has("request_handoff")) return callTool("request_handoff", { reason: "customer_asked" });
+  if (ran("request_handoff")) return say("Done — I've asked a person at Paint Group to pick this up. They'll reply here.");
+  if (wantsChange && !ran("request_change") && has("request_change")) return callTool("request_change", { areaId: null, text: text.slice(0, 2000) });
+  if (ran("request_change")) {
+    const r = ran("request_change")!.result;
+    if (r?.status === "ok") {
+      const flag = String((r.data as { flagId: string }).flagId);
+      return say(flag.startsWith("editor:") ? "You can make that change yourself — your estimate is still open to edit. I've pointed you at the right area." : "Logged for the team — they'll reprice it and update your estimate, and you'll hear back here.");
+    }
+    return say("I couldn't log that — a person can. Tap “Talk to a person”.");
+  }
+  if (wantsVisit && !ran("visit_policy") && has("visit_policy")) return callTool("visit_policy", {});
+  if (ran("visit_policy")) {
+    const r = ran("visit_policy")!.result;
+    if (r?.status === "ok") {
+      const v = r.data as { tier: string; reasons: string[] };
+      if (v.tier === "self_serve" && !ran("open_visit_booking") && has("open_visit_booking")) return callTool("open_visit_booking", {});
+      const url = ran("open_visit_booking")?.result?.status === "ok" ? (ran("open_visit_booking")!.result!.data as { url: string }).url : null;
+      return say(v.tier === "self_serve" ? `Easy — pick a time that suits${url ? ` here: ${url}` : ""}. ${v.reasons[0] ?? ""}`.trim() : `We'll call you to arrange the visit — ${v.reasons.join(" ")}`);
+    }
+  }
+  if (aboutEstimate && !ran("explain_estimate") && has("explain_estimate")) return callTool("explain_estimate", { question: text.slice(0, 2000) });
+  if (ran("explain_estimate")) {
+    const r = ran("explain_estimate")!.result;
+    return say(r?.status === "ok" ? String((r.data as { answer: string }).answer) : "I couldn't read the estimate just now — a person can help.");
+  }
+  if (!ran("lookup_brain")) return callTool("lookup_brain", { query: text.slice(0, 2000), audience: "customer" });
+  const b = ran("lookup_brain")!.result;
+  if (b?.status === "ok") {
+    const d = b.data as { found: boolean; entries: Array<{ topic: string; answer: string }> };
+    if (d.found) return say(`${d.entries[0].answer.replace(/\s+/g, " ").trim()} (From our Brain: ${d.entries[0].topic}.)`);
+    return say("I don't have an entry for that yet, and I won't guess. Would you like a person to answer? Tap “Talk to a person” and they'll reply here.");
+  }
+  return say("I couldn't check that just now — a person can help. Tap “Talk to a person”.");
 }

@@ -35,6 +35,8 @@ export const WORK_ITEM_KINDS = [
   "signoff_due",
   "broadcast_incomplete",
   "consent_missing",
+  /** Assistant S6: a customer asked for a change on a SENT estimate. */
+  "change_request",
 ] as const;
 
 export type WorkItemKind = (typeof WORK_ITEM_KINDS)[number];
@@ -89,6 +91,7 @@ const CUSTOMER_VISIBLE: ReadonlySet<WorkItemKind> = new Set([
   "callback_requested",
   "visit_rebook",
   "signoff_due",
+  "change_request",
 ]);
 
 export function isCustomerVisible(kind: WorkItemKind): boolean {
@@ -112,6 +115,7 @@ export const KIND_WEIGHT: Record<WorkItemKind, number> = {
   approval_pending: 10,
   broadcast_incomplete: 6,
   consent_missing: 4,
+  change_request: 24,
 };
 
 export type PriorityInput = {
@@ -189,6 +193,7 @@ export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = 
   broadcast_incomplete: "approvals",
   consent_missing: "approvals",
   invoice_action: "money",
+  change_request: "messages",
 };
 
 // ---- source: snooze_expired (§3.3) -----------------------------------------
@@ -441,6 +446,41 @@ export function assembleQueue(raw: WorkItem[], dismissals: Dismissal[], now: Dat
   return { items, counts: { total: items.length, byBucket, byGroup } };
 }
 
+// ---- change requests (assistant S6) ------------------------------------------
+
+export type ChangeRequestRow = {
+  id: string; estimate_id: string; created_at: string;
+  payload: { text?: string; areaId?: number | null } | null;
+  estimates: { account_id: string | null; title: string | null } | null;
+};
+export type StaffReplyRow = { estimate_id: string; created_at: string };
+
+/** A change asked for through the assistant on a sent estimate is open until
+ *  staff reply in the estimate's thread after it. One item per request. */
+export function buildChangeRequestItems(rows: ChangeRequestRow[], staffReplies: StaffReplyRow[], now: Date): WorkItem[] {
+  const out: WorkItem[] = [];
+  for (const r of rows) {
+    const answered = staffReplies.some((m) => m.estimate_id === r.estimate_id && m.created_at > r.created_at);
+    if (answered) continue;
+    const text = (r.payload?.text ?? "").trim();
+    const dueAt = new Date(new Date(r.created_at).getTime() + 24 * 3_600_000).toISOString();
+    out.push({
+      key: itemKey("change_request", "estimate", r.estimate_id, r.id.slice(0, 8)),
+      kind: "change_request",
+      accountId: r.estimates?.account_id ?? null,
+      subjectRef: { type: "estimate", id: r.estimate_id },
+      title: `Change requested on ${r.estimates?.title?.trim() || "an estimate"}`,
+      detail: text ? `"${text.slice(0, 140)}"` : "Asked through the assistant.",
+      since: r.created_at,
+      dueAt,
+      bucket: bucketFor(dueAt, now),
+      priority: priorityOf({ kind: "change_request", promisedToCustomer: true, overdueDays: overdueDays(dueAt, now), valueCents: null }),
+      action: { label: "Reprice", href: `/quote?id=${r.estimate_id}&mode=revision` },
+    });
+  }
+  return out;
+}
+
 // ---- the loader ------------------------------------------------------------
 
 /**
@@ -458,7 +498,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   const nowIso = now.toISOString();
   const since90d = new Date(now.getTime() - 90 * 86_400_000).toISOString();
 
-  const [snoozeAcc, invoices, callbacks, queued, dismissed] = await Promise.all([
+  const [snoozeAcc, invoices, callbacks, queued, dismissed, changeReqs] = await Promise.all([
     supabase.from("accounts")
       .select("id, name, email, snoozed_until, followup_due_at, followup_note")
       .or(`snoozed_until.lte.${nowIso},followup_due_at.lte.${nowIso}`)
@@ -480,7 +520,19 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
       .select("item_key, until")
       .or(`until.is.null,until.gt.${nowIso}`)
       .limit(500),
+    supabase.from("estimate_events")
+      .select("id, estimate_id, created_at, payload, estimates(account_id, title)")
+      .eq("type", "change_request")
+      .gte("created_at", since90d)
+      .order("created_at", { ascending: false })
+      .limit(100),
   ]);
+  // A change request is answered by a staff reply in that estimate's thread.
+  const crRows = ((changeReqs.error ? [] : changeReqs.data) ?? []) as unknown as ChangeRequestRow[];
+  const crEstimateIds = [...new Set(crRows.map((r) => r.estimate_id))];
+  const { data: staffReplies } = crEstimateIds.length
+    ? await supabase.from("estimate_messages").select("estimate_id, created_at").eq("direction", "staff").in("estimate_id", crEstimateIds).gte("created_at", since90d).limit(300)
+    : { data: [] };
 
   // Callback items need the later call attempts and the names — two more
   // bounded reads, only when there are callbacks to judge.
@@ -544,6 +596,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...buildInvoiceItems(invRows, payments, now),
     ...buildCallbackItems(cbRows, (attempts.data ?? []) as ContactEventRow[], names, now),
     ...buildApprovalItem(queued.count ?? 0, now),
+    ...buildChangeRequestItems(crRows, (staffReplies ?? []) as StaffReplyRow[], now),
   ];
 
   // Until migration 20261217 runs, the dismissals table doesn't exist and the

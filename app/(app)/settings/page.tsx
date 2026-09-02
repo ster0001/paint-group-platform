@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_COMPANY, type CompanyProfile } from "@/app/quote/company";
 import SettingsForm from "./SettingsForm";
 import SettingsFolder from "./SettingsFolder";
+import BrainManager, { type BrainRow } from "./BrainManager";
 import EditableTable from "./EditableTable";
 import LineItemsManager, { type LineItemRow } from "./LineItemsManager";
 import PricingSettings, { type SettingRow } from "./PricingSettings";
@@ -157,6 +158,9 @@ export default async function SettingsPage() {
     ? (exclusionRow!.value as InclusionTemplate[])
     : DEFAULT_EXCLUSION_TEMPLATES;
 
+  const brainRes = await (await import("@/lib/supabase/server")).createClient().then((c) => c.from("brain_entries").select("id, slug, topic, question, answer_md, audience, status, needs_content").order("topic").order("slug"));
+  const brainRows = ((brainRes.error ? [] : brainRes.data) ?? []) as BrainRow[];
+
   return (
     <div className="p-6">
       <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
@@ -208,6 +212,10 @@ export default async function SettingsPage() {
         <CostIntakeSettings
           initial={(allSettings.find((r) => r.key === COST_INTAKE_KEY)?.value as { duplicateWindowDays?: number; autoConfirmExactRef?: boolean; expenseThresholdCents?: number } | undefined) ?? null}
         />
+      </SettingsFolder>
+
+      <SettingsFolder title="Brain" subtitle="What the assistant may say about how Paint Group works — approve each entry; unwritten ones are never served" count={brainRows.length}>
+        <BrainManager rows={brainRows} />
       </SettingsFolder>
 
       <SettingsFolder title="Line items" subtitle="Add, edit or remove line-item templates and their descriptions" count={lineItems.length} defaultOpen>

@@ -76,7 +76,7 @@ export async function POST(request: Request) {
     ? await uiState(gateway.scope, conv.estimateId, conv.view, { mode: cowork ? "cowork" : "guided", gateCents: gateway.settings.priceImpactGateCents })
     : { built: false, nextGap: null, price: null, thresholds: null, proposal: null };
   let bundle = null;
-  if (conv.estimateId && ui.built && !cowork) {
+  if (conv.estimateId && ui.built && conv.mode === "guided") {
     const est = await loadOwnEstimate(db, conv.estimateId, actor);
     if (est) bundle = await loadCustomerScope(db, est);
   }

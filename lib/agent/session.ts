@@ -203,3 +203,49 @@ export async function openAssistSession(params: { c?: string; estimate?: string 
     ui, bundle,
   };
 }
+
+/** Portal ownership: the actor is a member of the estimate's account. */
+export async function loadMemberEstimate(db: SupabaseClient, estimateId: string, actor: AgentActor): Promise<(EstimateRow & { title: string | null; share_token: string | null; account_id: string | null }) | null> {
+  const { data } = await db.from("estimates").select("id, title, status, source, created_by, requires_site_check, builder_state, account_id, share_token").eq("id", estimateId).maybeSingle();
+  const row = data as (EstimateRow & { title: string | null; share_token: string | null; account_id: string | null }) | null;
+  if (!row) return null;
+  if (actor.kind === "staff") return row;
+  if (!row.account_id) return row.created_by === actor.userId ? row : null;
+  const { data: member } = await db.from("account_users").select("account_id").eq("account_id", row.account_id).eq("profile_id", actor.userId).maybeSingle();
+  return member ? row : null;
+}
+
+export type SupportSession =
+  | { kind: "holding"; line: string }
+  | {
+      kind: "ok"; conversationId: string; estimateId: string; title: string; shareToken: string | null; disclosure: string; assistantName: string;
+      transcript: Array<{ id: string; role: "user" | "assistant" | "staff" | "system"; text: string; createdAt: string }>;
+    };
+
+/** /account/assist/[estimateId] — support mode on the customer's own estimate. */
+export async function openSupportSession(estimateId: string): Promise<SupportSession> {
+  const actor = await agentActor();
+  if (!actor) return { kind: "holding", line: "Sign in to your account first." };
+  const db = agentDb();
+  if (!db) return { kind: "holding", line: "The assistant isn't available just now." };
+  let gateway;
+  try { gateway = await createGateway(); } catch { return { kind: "holding", line: "The assistant isn't available just now — please try again shortly." }; }
+  const est = await loadMemberEstimate(db, estimateId, actor);
+  if (!est) return { kind: "holding", line: "We couldn't find that estimate." };
+
+  const { data: existing } = await db.from("agent_conversations").select("id")
+    .eq("estimate_id", est.id).eq("created_by", actor.userId).eq("mode", "support").eq("status", "open")
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  let conversationId = existing?.id as string | undefined;
+  if (!conversationId) {
+    const conv = await gateway.startConversation({ accountId: est.account_id ?? null, propertyId: null, estimateId: est.id, channel: "portal", mode: "support", view: actor.kind === "staff" ? "staff" : "customer", createdBy: actor.userId, anonToken: null, externalThreadId: null });
+    await gateway.store.appendMessage({ conversationId: conv.id, role: "assistant", content: `${gateway.settings.disclosureText} Ask me anything about this estimate — what's included, why something is priced the way it is, how we work — or ask for a change or a visit.`, modelId: null, tokensIn: 0, tokensOut: 0 });
+    conversationId = conv.id;
+  }
+  const messages = await gateway.store.listMessages(conversationId);
+  return {
+    kind: "ok", conversationId, estimateId: est.id, title: est.title?.trim() || "Your estimate", shareToken: est.share_token ?? null,
+    disclosure: gateway.settings.disclosureText, assistantName: gateway.settings.assistantName,
+    transcript: messages.filter((m) => m.role !== "system").map((m) => ({ id: m.id, role: m.role, text: displayText(m.content), createdAt: m.createdAt })),
+  };
+}

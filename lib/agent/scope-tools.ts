@@ -28,6 +28,8 @@ import {
 } from "./scope-doc";
 import { diffSummary, proposeFromBrief, rowCount } from "./propose";
 import type { BriefExtraction } from "./brief-extract";
+import { visitPolicy } from "@/lib/visits/policy";
+import { liveValuesFrom, relevantHits, renderBrainAnswer } from "@/lib/brain/parse";
 import { ok, refused, type Assumption, type PriceScopeResult, type ToolContext, type ToolExecutor, type ToolResult } from "./schemas";
 import type { ScopeStore } from "./scope-store";
 import type { AgentSettings, SupportHours } from "./settings";
@@ -79,6 +81,28 @@ export class ScopeTools implements ToolExecutor {
     };
 
     switch (name) {
+      case "lookup_brain": {
+        const audience = ctx.view === "staff" ? "staff" : "customer";
+        const hits = relevantHits(String(i.query ?? ""), await this.store.searchBrain(String(i.query ?? ""), audience));
+        const live = liveValuesFrom(deps.ctx.settings);
+        return ok({ found: hits.length > 0, entries: hits.map((h) => ({ id: h.id, topic: h.slug ?? h.topic, answer: renderBrainAnswer(h.answerMd, live).slice(0, 8000) })) });
+      }
+      case "explain_estimate": return ok(explainEstimate(doc, deps, String(i.question ?? "")));
+      case "request_change": {
+        if (doc.status === "draft") {
+          // Still customer-editable: the editor is the place, not a flag.
+          return ok({ flagId: `editor:${ctx.estimateId}${i.areaId != null ? `#area-${Number(i.areaId)}` : ""}` });
+        }
+        const id = await this.store.logChangeRequest({ estimateId: ctx.estimateId, conversationId: ctx.conversationId, areaId: (i.areaId as number | null) ?? null, text: String(i.text ?? "").slice(0, 2000) });
+        await this.store.logCrmEvent({ type: "note_added", accountId: ctx.accountId, estimateId: ctx.estimateId, source: "customer", payload: { body: `Change requested via the assistant: ${String(i.text ?? "").slice(0, 300)}` } }).catch(() => null);
+        return ok({ flagId: id });
+      }
+      case "visit_policy": return ok(visitPolicyFor(doc, deps, ctx));
+      case "open_visit_booking": {
+        const policy = visitPolicyFor(doc, deps, ctx);
+        if (policy.tier === "phone_first") return ok({ url: `/account/messages/${ctx.estimateId}` });
+        return ok({ url: doc.status === "draft" ? `/estimate/scope?id=${ctx.estimateId}#book` : doc.shareToken ? `/e/${doc.shareToken}?portal=1#accept` : `/account/messages/${ctx.estimateId}` });
+      }
       case "propose_diff": {
         if (!this.extractor) return refused("Reading a brief isn't available just now.");
         const read = await this.extractor(String(i.text ?? ""));
@@ -186,7 +210,7 @@ export class ScopeTools implements ToolExecutor {
   }
 }
 
-const SCOPE_TOOLS = new Set(["get_scope", "next_gap", "list_gaps", "answer_gap", "add_area", "add_surface", "set_count", "set_size", "remove_item", "add_custom_line", "price_scope", "check_thresholds", "propose_diff", "apply_diff"]);
+const SCOPE_TOOLS = new Set(["get_scope", "next_gap", "list_gaps", "answer_gap", "add_area", "add_surface", "set_count", "set_size", "remove_item", "add_custom_line", "price_scope", "check_thresholds", "propose_diff", "apply_diff", "lookup_brain", "explain_estimate", "request_change", "visit_policy", "open_visit_booking"]);
 
 // ---- views ---------------------------------------------------------------------
 
@@ -245,7 +269,9 @@ export function priceScope(doc: ScopeDoc, deps: ScopeDeps): PriceScopeResult {
   const built = isBuilt(doc);
   // R4 / D21: trade sees a range from the first price; residential only once
   // every area is confirmed and the sweep is done. Never through a guardrail.
-  const showNumber = built && p.decision.outcome === "reveal" && (p.trade || (p.allConfirmed && p.sweepDone));
+  // A sent estimate already carries its price on the customer's document.
+  const sent = doc.status !== "draft";
+  const showNumber = built && (sent || (p.decision.outcome === "reveal" && (p.trade || (p.allConfirmed && p.sweepDone))));
   const swings = assumptionSwings(doc, deps);
   const gaps = gapsFor(graphInput(doc, deps, "guided", swings));
   const assumptions: Assumption[] = gaps.filter((g) => g.kind === "tightening").map((g) => ({
@@ -381,4 +407,47 @@ export function supportHoursState(hours: SupportHours, now: Date): { open: boole
   }
   const summary = open ? `A person is available now (until ${today?.[1]}).` : nextOpening ? `We're closed just now — a person is next available ${nextOpening}.` : "Support hours aren't set.";
   return { open, nextOpening, summary };
+}
+
+// ---- support mode ----------------------------------------------------------------------
+
+/** Grounded in the tree and the price only (§7). The model phrases it. */
+export function explainEstimate(doc: ScopeDoc, deps: ScopeDeps, question: string) {
+  const view = scopeView(doc, deps);
+  const price = isBuilt(doc) ? priceScope(doc, deps) : null;
+  const q = question.toLowerCase();
+  const areas = view.areas.filter((a) => a.name.toLowerCase().split(/\W+/).some((w) => w.length > 2 && q.includes(w)));
+  const focus = areas.length ? areas : view.areas;
+  const lines: string[] = [];
+  if (focus.length === 0) lines.push("Nothing is on the estimate yet.");
+  for (const a of focus.slice(0, 12)) {
+    const parts = a.surfaces.map((s) => `${s.label}${s.count > 1 ? ` ×${s.count}` : ""}`);
+    lines.push(`${a.name}: ${parts.length ? parts.join(", ") : "nothing selected"}${a.confirmed ? " (confirmed)" : ""}.`);
+  }
+  if (areas.length === 0 && view.areas.length > 12) lines.push(`…and ${view.areas.length - 12} more areas.`);
+  const notes = docDeferred(doc).filter((d) => d.kind === "custom_surface" || d.kind === "prep_assumed").map((d) => `${d.room}: ${d.what}`);
+  if (notes.length) lines.push(`Confirmed on the visit: ${notes.slice(0, 6).join("; ")}.`);
+  if (price?.showNumber) lines.push(`The estimate is $${Math.round(price.loCents / 100).toLocaleString("en-AU")} – $${Math.round(price.hiCents / 100).toLocaleString("en-AU")} including GST${price.accuracyPct < 90 ? `, ${Math.round(price.accuracyPct)}% settled` : ""}.`);
+  else if (price) lines.push("The price shows once every area is confirmed.");
+  return {
+    answer: lines.join(" "), citedToolCallIds: ["get_scope", "price_scope"],
+    loCents: price?.showNumber ? price.loCents : null, hiCents: price?.showNumber ? price.hiCents : null, totalCents: price?.showNumber ? price.totalCents : null,
+  };
+}
+
+export function visitPolicyFor(doc: ScopeDoc, deps: ScopeDeps, ctx: ToolContext) {
+  const state = docWizard(doc);
+  const answers = state ? answersFromState(state) : answersFromState({ jobType: "interior", details: { damageTier: 0 }, customer: null });
+  const p = priced(doc, deps);
+  return visitPolicy({
+    actor: ctx.view === "staff" ? "staff" : "customer",
+    guardrailReasons: p.decision.reasons,
+    damageTier: answers.damageTier,
+    propertyKind: state?.customer?.propertyKind ?? null,
+    bodyCorporate: state?.customer?.bodyCorporate ?? null,
+    authorised: null,
+    multiProperty: false,
+    customLines: docDeferred(doc).filter((d) => d.kind === "custom_surface").length,
+    requiresSiteCheck: doc.requiresSiteCheck || p.decision.walkthroughRequired,
+  });
 }

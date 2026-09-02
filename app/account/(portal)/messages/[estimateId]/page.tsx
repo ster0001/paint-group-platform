@@ -55,6 +55,10 @@ export default async function MessageThreadPage({
         ← All messages
       </Link>
       <h1>{thread.title}</h1>
+      <p className="note" style={{ marginBottom: 8 }}>
+        <Link href={`/account/assist/${thread.estimateId}`} className="btn btn-ghost" data-testid="ask-assistant">Ask the assistant</Link>
+        {" "}<span className="sub">Instant answers about what&rsquo;s included and how we work — a person is one tap away.</span>
+      </p>
       <p className="note" style={{ marginBottom: 16 }}>
         {thread.hasInvoice
           ? "One conversation for this job — estimate and invoice questions both land here."

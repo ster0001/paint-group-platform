@@ -254,13 +254,17 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
     name: "lookup_brain", modes: SUPPORT, staffOnly: false, binds: "brain_entries retrieval",
     description: "Look up how Paint Group does things. Returns approved entries only, or found:false — never answer company policy from general knowledge.",
     input: z.object({ query: shortText, audience: z.enum(["customer", "staff"]) }),
-    output: z.object({ found: z.boolean(), entries: z.array(z.object({ id: uuid, topic: z.string().max(120), answer: z.string().max(8000) })).max(5) }),
+    output: z.object({ found: z.boolean(), entries: z.array(z.object({ id: z.string().max(120), topic: z.string().max(120), answer: z.string().max(8000) })).max(5) }),
   }),
   t({
     name: "explain_estimate", modes: SUPPORT, staffOnly: false, binds: "get_scope + price_scope",
     description: "Answer a question about this estimate grounded only in its scope and price.",
     input: z.object({ question: shortText }),
-    output: z.object({ answer: z.string().max(4000), citedToolCallIds: z.array(z.string().max(120)) }),
+    output: z.object({
+      answer: z.string().max(4000), citedToolCallIds: z.array(z.string().max(120)),
+      /** The figures the answer quotes, as numbers — so a reply repeating them traces. */
+      loCents: cents.nullable().default(null), hiCents: cents.nullable().default(null), totalCents: cents.nullable().default(null),
+    }),
   }),
   t({
     name: "request_change", modes: SUPPORT, staffOnly: false, binds: "review-flag RPC",

@@ -26,6 +26,7 @@ const KIND_TAG: Record<WorkItem["kind"], string> = {
   followup_due: "Follow-up", snooze_expired: "Follow-up", visit_rebook: "Rebook",
   approval_pending: "Approve", variation_pending: "Variation", signoff_due: "Sign-off",
   broadcast_incomplete: "Broadcast", consent_missing: "Consent", invoice_action: "Invoice",
+  change_request: "Change",
 };
 
 const GROUP_ICON: Record<Exclude<FilterGroup, "all">, string> = {

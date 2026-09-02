@@ -48,6 +48,8 @@ export type ScopeDoc = {
   status: string;
   requiresSiteCheck: boolean;
   builderState: Record<string, unknown>;
+  /** The customer document's token (sent estimates) — for links, never auth. */
+  shareToken?: string | null;
 };
 
 /** Partial answers, wizard-shaped, while the conversation collects them. */
