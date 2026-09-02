@@ -99,7 +99,7 @@ describe("A2 — the trade build flow", () => {
       const g = nextGap(graphInput((await h.scope.load("est-1"))!, deps));
       if (!g) break;
       const k = g.key;
-      const v = /\.size$/.test(k) ? "looks_right" : /cupboards$/.test(k) ? false : /cupboard_interiors$/.test(k) ? false : /anything_else$/.test(k) ? "no" : /\.(surfaces|confirm)$/.test(k) ? true : /dw_totals$/.test(k) ? true : /missed_rooms$/.test(k) ? "none" : k === "occupied" ? false : k === "paint.brand" ? ["dulux"] : k === "paint.colours" ? "advice" : k === "door_style" ? "flat" : k === "window_style" ? "casement" : k === "ceiling_height" ? "2.4" : k === "q.property_flags" ? { builtPre1970: "no", heritageListed: "no", bodyCorporate: "no", asbestosSuspected: "no" } : k === "q.timing" ? "soon" : null;
+      const v = k === "surfaces.ceilings" ? false : /\.presence$/.test(k) ? true : /\.size$/.test(k) ? "looks_right" : /cupboards$/.test(k) ? false : /cupboard_interiors$/.test(k) ? false : /anything_else$/.test(k) ? "no" : /\.(surfaces|confirm)$/.test(k) ? true : /dw_totals$/.test(k) ? true : /missed_rooms$/.test(k) ? "none" : k === "occupied" ? false : k === "paint.brand" ? ["dulux"] : k === "paint.colours" ? "advice" : k === "door_style" ? "flat" : k === "window_style" ? "casement" : k === "ceiling_height" ? "2.4" : k === "q.property_flags" ? { builtPre1970: "no", heritageListed: "no", bodyCorporate: "no", asbestosSuspected: "no" } : k === "q.timing" ? "soon" : null;
       if (v === null) throw new Error(`no answer for ${k}`);
       const r = await runTurn(h.deps, { conversationId: c.id, text: "", actor: "user", answer: { key: k, value: v } });
       expect(r.toolCalls.find((t) => t.tool === "answer_gap")?.status, k).toBe("ok");

@@ -67,6 +67,9 @@ export type GraphFacts = {
   /** A2: the tree came from a paragraph — typical sizes are confirmed in
    *  the sweep, cupboards are a tightening question, not gates. */
   briefBuilt?: boolean;
+  /** A2: the brief named surfaces but not ceilings — "Ceilings not included — add?" */
+  ceilingsUnstated?: boolean;
+  photosDeferred?: boolean;
 };
 
 export type GraphInput = {
@@ -220,6 +223,13 @@ export function gapsFor(input: GraphInput): Gap[] {
           phrasingHint: `${name}: ${rules.map((r) => r.surface_type.toLowerCase()).join(", ")} — right?` });
       }
 
+      // A2: a starter room the brief never named — keep it, or remove it.
+      const assumedFields = Array.isArray(room.assumedFields) ? (room.assumedFields as string[]) : [];
+      if (assumedFields.includes("presence") && !room.customer?.confirmed) {
+        const key = `room.${areaId}.presence`;
+        add(PHASE.intLoop, rank, { key, areaId, kind: "tightening", acceptsNotSure: false, phrasingHint: `A home like this usually has a ${name.toLowerCase()} — keep it on the estimate, or remove it?`,
+          swingCents: swing(key, "room.presence"), writes: [{ tool: "answer_gap", input: { key, action: "remove_room", areaId } }] });
+      }
       // Tightening: cupboard interiors (Addendum A §3.1) — data-driven on the card.
       const intCfg = CUPBOARD_INTERIOR_BY_ROOM_TYPE[roomType];
       if (intCfg && input.rateCodes.has(intCfg.code) && room.customer?.cupInterior == null) {
@@ -251,6 +261,9 @@ export function gapsFor(input: GraphInput): Gap[] {
     if (input.facts.occupied == null) add(PHASE.intGlobal, 0, { key: "occupied", kind: "tightening", acceptsNotSure: false, phrasingHint: "Will anyone be living in the home while we paint?", swingCents: swing("occupied") });
 
     const ticked = new Set(st.surfaces ?? []);
+    if (input.facts.ceilingsUnstated && !ticked.has("ceilings")) {
+      add(PHASE.intGlobal, 0, { key: "surfaces.ceilings", kind: "tightening", acceptsNotSure: false, phrasingHint: "Ceilings weren't mentioned — add them to every room, or leave them out?", swingCents: swing("surfaces.ceilings"), writes: [{ tool: "answer_gap", input: { key: "surfaces.ceilings", action: "toggle_surface" } }] });
+    }
     const ds = st.details?.doorStyle;
     if (ticked.has("doors") && (ds == null || ds === "unsure")) add(PHASE.intGlobal, 0, { key: "door_style", kind: "tightening", acceptsNotSure: true, phrasingHint: "Are the doors mostly flat, or panelled?", swingCents: swing("door_style") });
     const ws = st.details?.windowStyle;
@@ -279,7 +292,7 @@ export function gapsFor(input: GraphInput): Gap[] {
   if (wantsExterior) {
     const ext = st.exterior ?? null;
     const listing = Boolean(st.listingUrl?.trim());
-    if (!listing && (st.facadeRunIds?.length ?? 0) < 2 && ext?.noPhotos !== true) {
+    if (!listing && (st.facadeRunIds?.length ?? 0) < 2 && ext?.noPhotos !== true && (input.facts.photoCount ?? 0) === 0) {
       add(PHASE.extIntake, 0, { key: "ext.photos", kind: "required", acceptsNotSure: true, phrasingHint: "Two or three photos of the outside of the house, or the listing link — or say you have none and I'll size it from your answers.", writes: [{ tool: "attach_document", input: { kind: "photo" } }] });
     }
     if (!ext) add(PHASE.extIntake, 0, { key: "ext.storeys", kind: "required", acceptsNotSure: false, phrasingHint: "Single storey or double?" });
@@ -324,8 +337,11 @@ export function gapsFor(input: GraphInput): Gap[] {
   // ---- order ------------------------------------------------------------------
   // Tightening gaps sort by $ swing ACROSS phases (Addendum A: largest impact
   // first, wherever the question lives); everything else by wizard order.
+  // A gap that needs an UPLOAD (photos) is a chip, never the next question —
+  // it must not stand between the person and the sweep.
+  const rank = (g: Candidate) => (g.phase === PHASE.stop ? -1 : g.writes[0]?.tool === "attach_document" ? 4 : KIND_RANK[g.kind]);
   out.sort((a, b) =>
-    (a.phase === PHASE.stop ? -1 : KIND_RANK[a.kind]) - (b.phase === PHASE.stop ? -1 : KIND_RANK[b.kind])
+    rank(a) - rank(b)
     || (a.kind === "tightening" && b.kind === "tightening" ? (b.swingCents ?? 0) - (a.swingCents ?? 0) : 0)
     || a.phase - b.phase
     || a.areaRank - b.areaRank

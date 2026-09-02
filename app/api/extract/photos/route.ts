@@ -39,8 +39,19 @@ export async function POST(request: Request) {
       path: z.string().min(1).max(400),
       name: z.string().max(200).default("photo"),
     })).min(1).max(MAX_PHOTOS),
+    /** The assistant's attach path: claim the rows for this estimate at once
+     *  (the wizard claims at submit instead). A customer may only claim their
+     *  own draft — the same rule the assistant session uses. */
+    estimateId: z.string().uuid().optional(),
   }).safeParse(await request.json().catch(() => null));
   if (!staged.success) return NextResponse.json({ error: "Send the staged photo paths." }, { status: 400 });
+  let claimEstimateId: string | null = null;
+  if (staged.data.estimateId) {
+    const est = await db.from("estimates").select("id, created_by, source, status").eq("id", staged.data.estimateId).maybeSingle();
+    const own = est.data && (actor.kind !== "customer" || (est.data.created_by === actor.user.id && est.data.source === "customer_intake" && est.data.status === "draft"));
+    if (!own) return NextResponse.json({ error: "That estimate isn't yours to add photos to." }, { status: 403 });
+    claimEstimateId = est.data!.id as string;
+  }
 
   const perPhoto: Array<{ file: string; error?: string; kept?: boolean }> = [];
   const stagedToClean: string[] = [];
@@ -72,6 +83,7 @@ export async function POST(request: Request) {
     }
     const ins = await db.from("estimate_sources").insert({
       kind: "defect_photo",
+      estimate_id: claimEstimateId,
       storage_path: path,
       mime_type: check.mime,
       byte_size: bytes.length,

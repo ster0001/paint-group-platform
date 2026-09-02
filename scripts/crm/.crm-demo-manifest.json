@@ -1,0 +1,45 @@
+{
+  "accounts": [
+    "28c45de9-355b-4bd1-b367-956ac530b80d",
+    "d94555fa-8fed-4248-a375-9eafe130020a",
+    "e1ccfdd4-529f-483b-92db-eef73087274d",
+    "e4d04a90-7c90-484f-b860-ae1db3f319a5",
+    "10c27b34-1836-4fa8-b55c-486f1096e3e0",
+    "f9018577-6669-4e0e-add6-7e9e44aad699",
+    "5ada0e12-1159-4922-b547-0fecf04008f9"
+  ],
+  "properties": [
+    "69bcd4b7-47e8-4abe-a06b-40ddbe00f0b9",
+    "da0f5555-317e-45fd-b102-7a24c59fa56a",
+    "b4de7e11-d8d4-49ce-997e-6536fba9e45e",
+    "a0c7c587-fea5-4cc0-8465-af0aae5b024c",
+    "28737057-8784-454b-9fcd-f839bc310c0e",
+    "685619fa-c22e-4d77-a292-5ac36f962ddf",
+    "2ada24bf-46fc-4b65-a5f4-f70432e20655"
+  ],
+  "estimates": [
+    "0b57b1a7-d7ab-4521-9fc6-4965f116f52f",
+    "cd76de00-f61f-400a-87ea-03474fd0e767",
+    "2bb4a8c8-bf6d-4172-a844-64063578d8b6",
+    "32d66bef-f81f-482e-9df3-acec543dc428",
+    "aa1bb0c3-803b-4480-91fa-afc3a2482f13"
+  ],
+  "invoices": [
+    "e426a53f-b5e0-47ac-b839-4030d4ef766e"
+  ],
+  "payments": [],
+  "drafts": [
+    "8abec85e-1dd9-427b-9e4d-c7a3e69f4349"
+  ],
+  "campaigns": [
+    "08c4e594-5d92-427c-90d8-8a73f9baf078"
+  ],
+  "enrolments": [
+    "0dc2955d-4bd4-463c-a004-fdc8c46a69ca",
+    "900dc551-1d25-4906-82c1-b52274de9034"
+  ],
+  "campaignMessages": [
+    "5e331bb7-3701-45f2-b00d-35c68a7efe79",
+    "7c10f75f-6b91-4852-9aaf-40a5822bb9e6"
+  ]
+}

@@ -1,5 +1,6 @@
 "use client";
 
+import { createClient } from "@/lib/supabase/client";
 import { useEffect, useRef, useState } from "react";
 import type { CustomerScopeBundle } from "@/lib/wizard/customer-scope";
 import type { UiState } from "@/lib/agent/session";
@@ -64,7 +65,10 @@ export default function AssistView({ conversationId, estimateId, disclosure, ass
   const gap = ui.nextGap;
   const price = ui.price;
   const th = ui.thresholds;
-  const finished = ui.built && !gap;
+  // A photo request never withholds the price or the accept button — defect
+  // photos tighten an amber prep line (D22); everything else must be answered.
+  const uploadGap = gap?.writes?.[0]?.tool === "attach_document";
+  const finished = ui.built && (!gap || uploadGap);
   const cta = finished && th ? (th.outcome === "self_serve" ? "Accept estimate" : "Confirm my price — book the visit") : null;
 
   return (
@@ -92,7 +96,7 @@ export default function AssistView({ conversationId, estimateId, disclosure, ass
 
         {gap && !busy && !gap.key.startsWith("stop.") && (
           <div className="as-chips" data-gap={gap.key} data-testid="as-chips">
-            <Chips gap={gap} onAnswer={(value, label) => send(label ?? "", { key: gap.key, value })} />
+            <Chips gap={gap} estimateId={estimateId} onAnswer={(value, label) => send(label ?? "", { key: gap.key, value })} />
           </div>
         )}
 
@@ -165,10 +169,11 @@ function answerLabel(a: { key: string; value: unknown } | null): string {
 
 // ---- the chips: one component, keyed by the gap's pattern ---------------------------
 
-type ChipsProps = { gap: Gap; onAnswer: (value: unknown, label?: string) => void };
+type ChipsProps = { gap: Gap; onAnswer: (value: unknown, label?: string) => void; estimateId?: string };
 
-export function Chips({ gap, onAnswer }: ChipsProps) {
+export function Chips({ gap, onAnswer, estimateId }: ChipsProps) {
   const k = gap.key;
+  if (gap.writes[0]?.tool === "attach_document" && estimateId) return <PhotoForm gapKey={k} estimateId={estimateId} onAnswer={onAnswer} />;
   const one = (opts: Array<[string, unknown]>) => (
     <div className="wz-seg">
       {opts.map(([label, value]) => <button type="button" key={label} onClick={() => onAnswer(value, label)}>{label}</button>)}
@@ -211,6 +216,8 @@ export function Chips({ gap, onAnswer }: ChipsProps) {
   if (/^side\.\w+\.confirm$/.test(k)) return one([["Confirm", true]]);
   if (k === "ext.cond_card") return <CondForm onSubmit={(v) => onAnswer(v, "Done")} />;
   if (k === "ext.freestanding") return <MultiChips options={[["Deck", "deck"], ["Fence", "fence"], ["Pergola", "pergola"], ["Balustrade", "balustrade"]]} noneLabel="None" onSubmit={(v) => onAnswer(v.length ? v : "none", v.length ? v.join(", ") : "None")} />;
+  if (k === "surfaces.ceilings") return one([["Add ceilings", true], ["Leave them out", false]]);
+  if (/^room\.\d+\.presence$/.test(k)) return one([["Keep it", true], ["Remove it", false]]);
   if (k.startsWith("stop.")) return null;
   return null;
 }
@@ -329,6 +336,52 @@ function CondForm({ onSubmit }: { onSubmit: (v: { cond: string; rot: string; acc
       {seg("rot", "Rot", [["No rot", "no"], ["A little", "little"], ["Lots", "lots"]])}
       {seg("acc", "Access", [["None", "none"], ["Steep", "steep"], ["Tight", "tight"], ["High", "high"]])}
       <div className="wz-seg"><button type="button" disabled={!ready} onClick={() => ready && onSubmit(v as { cond: string; rot: string; acc: string })}>Done</button></div>
+    </div>
+  );
+}
+
+/** Upload gaps (condition.photos / ext.photos): the photos go through the
+ *  same staging the wizard uses and are claimed for THIS estimate, then the
+ *  turn records "attached" and the graph moves on (the count is read from
+ *  estimate_sources). "None to hand" is honest and never blocks the price. */
+function PhotoForm({ gapKey, estimateId, onAnswer }: { gapKey: string; estimateId: string; onAnswer: (value: unknown, label?: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  async function upload(files: File[]) {
+    if (!files.length) return;
+    setBusy(true); setErr(null);
+    try {
+      const prep = await fetch("/api/extract/upload-url", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ files: files.map((f) => ({ name: f.name, size: f.size })) }) });
+      const prepJson = await prep.json().catch(() => ({}));
+      if (!prep.ok) throw new Error(prepJson.error ?? "The photos couldn't be uploaded.");
+      const slots: Array<{ path: string; token: string }> = prepJson.uploads ?? [];
+      const supabase = createClient();
+      const staged: Array<{ path: string; name: string }> = [];
+      for (let i = 0; i < files.length && i < slots.length; i++) {
+        const { error } = await supabase.storage.from("estimate-sources").uploadToSignedUrl(slots[i].path, slots[i].token, files[i]);
+        if (!error) staged.push({ path: slots[i].path, name: files[i].name });
+      }
+      if (!staged.length) throw new Error("The photos didn't upload — try again.");
+      const res = await fetch("/api/extract/photos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ uploads: staged, estimateId }) });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error ?? "The photos couldn't be saved.");
+      const kept = Number(j.kept ?? 0);
+      if (kept === 0) throw new Error((j.perPhoto?.[0]?.error as string | undefined) ?? "No photo could be kept.");
+      onAnswer("attached", `${kept} photo${kept === 1 ? "" : "s"} added`);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "The photos couldn't be uploaded.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="wz-seg as-photo-form">
+      <label className="sc-btn">
+        {busy ? "Uploading…" : "Add photos"}
+        <input type="file" accept="image/*" multiple hidden data-testid="as-photo" disabled={busy} onChange={(e) => void upload(Array.from(e.target.files ?? []))} />
+      </label>
+      <button type="button" disabled={busy} onClick={() => onAnswer(gapKey === "ext.photos" ? "none" : "later", "No photos to hand")}>No photos to hand</button>
+      {err && <p className="sub" role="alert">{err}</p>}
     </div>
   );
 }

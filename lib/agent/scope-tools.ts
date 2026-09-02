@@ -350,6 +350,11 @@ function assumptionLabel(key: string, areaId: number | null, blocks: ReturnType<
   if (key === "ceiling_height") return { label: "Assumed: 2.4 m ceilings", assumedValue: "2.4" };
   if (key.endsWith(".cupboard_interiors")) return { label: `Assumed: cupboard interiors not included${room ? ` (${room})` : ""}`, assumedValue: "excluded" };
   if (key === "paint.colours") return { label: "Assumed: colours to be confirmed", assumedValue: "tbc" };
+  if (key === "occupied") return { label: "Assumed: the home is empty while we paint", assumedValue: "empty" };
+  if (key === "q.property_flags") return { label: "Assumed: built after 1970, not heritage-listed, no body corporate, no asbestos", assumedValue: "clear" };
+  if (key === "surfaces.ceilings") return { label: "Ceilings not included — add?", assumedValue: "excluded" };
+  if (key.endsWith(".cupboards")) return { label: `Assumed: no cupboard painting${room ? ` in the ${room}` : ""}`, assumedValue: "excluded" };
+  if (key.endsWith(".presence")) return { label: `Assumed: ${room || "this room"} — a home like this has one; remove if not`, assumedValue: "included" };
   if (key === "condition.photos") return { label: "Assumed: minor prep until the photos are seen", assumedValue: "minor" };
   return { label: `Assumed: ${key}`, assumedValue: "default" };
 }
@@ -370,8 +375,18 @@ export function assumptionSwings(doc: ScopeDoc, deps: ScopeDeps): Record<string,
     out.window_style = Math.max(...(["sash", "colonial", "casement"] as const).map((s) => diff(patchWindowStyle(doc, deps, s))));
   }
   if (state && state.details.ceilingHeight === "unsure") out.ceiling_height = diff(patchCeilingHeight(doc, deps, "2.7"));
+  // Ceilings on every room, and each assumed room's own price.
+  if (docFacts(doc).ceilingsUnstated) {
+    const r = applyAnswer(doc, "surfaces.ceilings", true, "ai_assumed", deps);
+    if (r.ok) out["surfaces.ceilings"] = Math.abs(totalOf(r.doc) - base);
+  }
   for (const b of docBlocks(doc)) {
     if (b.kind !== "area" || b.type === "Exterior") continue;
+    const assumed = Array.isArray(b.assumedFields) ? (b.assumedFields as string[]) : [];
+    if (assumed.includes("presence")) {
+      const r = removeItem(doc, Number(b.id), null, null);
+      if (r.ok) out[`room.${Number(b.id)}.presence`] = Math.abs(totalOf(r.doc) - base);
+    }
     const cfg = CUPBOARD_INTERIOR_BY_ROOM_TYPE[String(b.roomType ?? "")];
     if (!cfg || !deps.ctx.rateItems.some((r) => r.code === cfg.code) || b.customer?.cupInterior != null) continue;
     let n = 100000;

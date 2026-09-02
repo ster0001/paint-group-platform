@@ -165,8 +165,8 @@ export function heuristicExtract(text: string): BriefExtraction {
   const body = clean.join(" ");
   const lbody = body.toLowerCase();
 
-  const bed = lbody.match(new RegExp(`${COUNT}[\\s-]*(?:bed|bedroom|br)\\b`));
-  const bath = lbody.match(new RegExp(`${COUNT}[\\s-]*(?:bath|bathroom)\\b`));
+  const bed = lbody.match(new RegExp(`${COUNT}[\\s-]*(?:bedroom|bed|br)s?\\b`));
+  const bath = lbody.match(new RegExp(`${COUNT}[\\s-]*(?:bathroom|bath)s?\\b`));
   const bedrooms = num(bed?.[1]);
   const bathrooms = num(bath?.[1]);
 

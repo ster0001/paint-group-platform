@@ -118,7 +118,8 @@ describe("question graph — determinism and shape", () => {
   });
 
   it.each(Object.entries(FIXTURES))("%s: required before tightening before recommended before confirm", (_n, make) => {
-    const ranks = gapsFor(make()).map((g) => ({ required: 0, tightening: 1, recommended: 2, confirm: 3 }[g.kind]));
+    // Uploads (attach_document) rank after everything — a photo request never blocks the sweep.
+    const ranks = gapsFor(make()).map((g) => (g.writes[0]?.tool === "attach_document" ? 4 : { required: 0, tightening: 1, recommended: 2, confirm: 3 }[g.kind]));
     for (let i = 1; i < ranks.length; i++) expect(ranks[i]).toBeGreaterThanOrEqual(ranks[i - 1]);
   });
 });

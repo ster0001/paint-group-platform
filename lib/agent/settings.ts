@@ -35,7 +35,13 @@ export const agentSettingsSchema = z.object({
   assistantName: z.string().default("Paint Group assistant"),
   disclosureText: z.string().default("You're chatting with Paint Group's assistant. A person is one tap away."),
   hardStopScripts: z.record(z.string(), z.string()).default({}),
-  featureFlags: z.record(z.string(), z.boolean()).default({}),
+  featureFlags: z.record(z.string(), z.unknown()).default({}),
+  /** $ per million tokens by model id — the dashboard's cost estimate.
+   *  Defaults from the Anthropic price list, 2 Sep 2026; override in
+   *  agent_settings.feature_flags.modelPrices. */
+  modelPrices: z.record(z.string(), z.object({ inUsd: z.number().min(0), outUsd: z.number().min(0) })).default({
+    "claude-haiku-4-5": { inUsd: 1, outUsd: 5 }, "claude-sonnet-5": { inUsd: 2, outUsd: 10 }, "claude-opus-5": { inUsd: 5, outUsd: 25 },
+  }),
   /** Plan-reader ruling 3 / co-work §3.2: gaps whose swing is at least this
    *  are "will change the price"; the rest are cosmetic. */
   priceImpactGateCents: z.number().int().positive().default(15_000),
@@ -63,6 +69,7 @@ export function settingsFromRow(row: unknown): AgentSettings {
     hardStopScripts: r.hard_stop_scripts,
     featureFlags: r.feature_flags,
     priceImpactGateCents: (r.feature_flags as Record<string, unknown> | null)?.priceImpactGateCents,
+    modelPrices: (r.feature_flags as Record<string, unknown> | null)?.modelPrices,
   };
   const parsed = agentSettingsSchema.safeParse(candidate);
   if (parsed.success) return parsed.data;

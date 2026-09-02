@@ -60,7 +60,10 @@ async function driveLoop(page: Page, stopWhen: () => Promise<boolean>) {
     else if (key === "ceiling_height") await click("2.4 m");
     else if (key === "q.timing") await click("Soon");
     else if (key === "q.property_flags") { for (const f of ["builtPre1970", "heritageListed", "bodyCorporate", "asbestosSuspected"]) await chips.locator(`[data-flag="${f}"]`).getByRole("button", { name: "No", exact: true }).click(); await click("Done"); }
-    else if (key === "condition.photos") { await page.waitForTimeout(500); continue; }
+    else if (key === "surfaces.ceilings") await click("Leave them out");
+    // The photo ask ranks last; the chat's own control stages, keeps and claims the photo.
+    else if (/\.photos$/.test(key)) { await page.getByTestId("as-photo").setInputFiles({ name: "crack.png", mimeType: "image/png", buffer: PNG }); await expect(page.getByTestId("as-photo")).toHaveCount(0, { timeout: 30_000 }); }
+    else if (/\.presence$/.test(key)) await click("Keep it");
     else throw new Error(`no scripted answer for ${key}`);
     await expect(page.locator(".as-typing")).toHaveCount(0, { timeout: 60_000 });
   }
@@ -98,23 +101,20 @@ test.describe("Addendum A2 — describe the job", () => {
     await answerChips(page, ["door_style", "window_style", "ceiling_height", "q.property_flags"]);
     expect(await page.getByTestId("as-chip").count()).toBeLessThan(chipsBefore);
 
-    // One photo, through the estimate's own upload — the photo chip goes.
     const { data: conv } = await sb.from("agent_conversations").select("estimate_id").eq("id", new URL(page.url()).searchParams.get("c")!).single();
     const estimateId = conv!.estimate_id as string;
-    const uploaded = await page.evaluate(async ([id, b64]) => {
-      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-      const fd = new FormData(); fd.append("estimateId", id); fd.append("photos", new File([bytes], "crack.png", { type: "image/png" }));
-      const r = await fetch("/api/extract/photos", { method: "POST", body: fd });
-      return r.status;
-    }, [estimateId, PNG.toString("base64")] as const);
-    test.info().annotations.push({ type: "photo-upload", description: String(uploaded) });
 
     // The sweep: confirm everything; the band narrows and the CTA appears.
-    await driveLoop(page, async () => (await page.getByTestId("as-cta").count()) > 0);
+    // The accept button appears as soon as only the photo ask is left (it never
+    // blocks); keep driving until the photo has gone through and no chip remains.
+    await driveLoop(page, async () => (await page.getByTestId("as-cta").count()) > 0 && (await page.getByTestId("as-chips").count()) === 0 && (await page.getByTestId("as-photo").count()) === 0);
     await expect(page.getByTestId("as-cta")).toBeVisible();
     await expect(page.getByTestId("as-cta")).toHaveText(/Accept estimate|Confirm my price/);
     const band = await page.getByTestId("as-band").innerText();
     expect(["±4%", "±8%"]).toContain(band.trim());
+    // The photo was kept AND claimed for this estimate (not left with estimate_id null).
+    const { count } = await sb.from("estimate_sources").select("id", { count: "exact", head: true }).eq("estimate_id", estimateId).eq("kind", "defect_photo");
+    expect(count).toBe(1);
   });
 
   test("residential: same paragraph — chips, but no number until the sweep is done", async ({ page }) => {

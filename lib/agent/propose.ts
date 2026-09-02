@@ -94,8 +94,12 @@ function buildFromBrief(doc: ScopeDoc, x: BriefExtraction, deps: ScopeDeps, mode
   if (!x.jobType && !a.jobType) fillIns.push(fillIn("q.job_type", "Assumed: interior job", "interior"));
   const wantsInterior = jobType !== "exterior";
   const bedroomRooms = x.rooms.filter((r) => r.roomType === "bedroom").reduce((n, r) => n + r.count, 0);
-  const bedrooms = x.bedrooms ?? (bedroomRooms || null) ?? a.basics?.bedrooms ?? null;
+  // A brief that names rooms but no bedroom count ("just the living room and
+  // hallway") is that list and nothing more — no starter composition.
+  const namedOnly = wantsInterior && x.bedrooms == null && a.basics?.bedrooms == null && x.rooms.length > 0;
+  const bedrooms = x.bedrooms ?? (namedOnly ? bedroomRooms : (bedroomRooms || null)) ?? a.basics?.bedrooms ?? null;
   if (wantsInterior && bedrooms == null) return { ok: false, reason: "How many bedrooms? The brief doesn't say, and the room list starts from that." };
+  if (namedOnly) fillIns.push(fillIn("rooms.named_only", "Assumed: only the rooms named — add any I've missed", "named"));
   const storeys = x.storeys ?? a.basics?.storeys ?? "single";
   if (!x.storeys && !a.basics?.storeys) fillIns.push(fillIn("q.storeys", "Assumed: single storey", "single"));
   const surfaces = x.surfaces.length ? [...x.surfaces] : (a.surfaces?.length ? a.surfaces : [...DEFAULT_SURFACES]);
@@ -114,7 +118,8 @@ function buildFromBrief(doc: ScopeDoc, x: BriefExtraction, deps: ScopeDeps, mode
   const draft: AnswerDraft = {
     ...a,
     jobType,
-    basics: { bedrooms: bedrooms ?? 1, storeys, sizeBand: a.basics?.sizeBand ?? "unsure", openPlanKitchenLiving: a.basics?.openPlanKitchenLiving ?? false },
+    // The wizard schema wants ≥1 bedroom; a named-only list bypasses the starter composition, so the count only satisfies the schema.
+    basics: { bedrooms: Math.max(1, bedrooms ?? 1), storeys, sizeBand: a.basics?.sizeBand ?? "unsure", openPlanKitchenLiving: a.basics?.openPlanKitchenLiving ?? false },
     surfaces,
     condition: { tier: coats, darkToLightSurfaces: a.condition?.darkToLightSurfaces ?? [] },
     details: {
@@ -143,7 +148,7 @@ function buildFromBrief(doc: ScopeDoc, x: BriefExtraction, deps: ScopeDeps, mode
   }
   // A brief build prices on typical sizes and assumed cupboards; the graph
   // confirms sizes in the sweep and asks cupboards as tightening (§3.3).
-  const nextFacts = { ...facts, briefBuilt: true, ...(x.occupied != null ? { occupied: x.occupied } : {}), ...(flagsKnown ? {} : { flagsAssumed: true }) };
+  const nextFacts = { ...facts, briefBuilt: true, ceilingsUnstated: x.surfaces.length > 0 && !x.surfaces.includes("ceilings"), ...(x.occupied != null ? { occupied: x.occupied } : {}), ...(flagsKnown ? {} : { flagsAssumed: true }) };
   const state = toWizardState(draft, nextFacts, mode === "cowork" ? "internal" : "customer");
   if (!state) return { ok: false, reason: "The brief isn't enough to build from yet — the address, email and property questions come first." };
 
@@ -151,7 +156,7 @@ function buildFromBrief(doc: ScopeDoc, x: BriefExtraction, deps: ScopeDeps, mode
   // what the text names. Unnamed starter rooms are ASSUMED and say so.
   let rooms: StarterRoom[] | null = null;
   if (wantsInterior && state.basics) {
-    const base = starterRoomList(state.basics);
+    const base = namedOnly ? [] : starterRoomList(state.basics);
     const named = new Set<string>(["bedroom"]);
     for (const r of x.rooms) {
       named.add(r.roomType);
@@ -178,7 +183,12 @@ function buildFromBrief(doc: ScopeDoc, x: BriefExtraction, deps: ScopeDeps, mode
 
   const tree = buildTreeFromState(state, deps.refs, deps.ctx, nextIdFrom(docBlocks(doc)), rooms);
   if ("skip" in tree) return { ok: false, reason: `Nothing could be built from the brief (${tree.skip}).` };
-  const areas = tree.areas.map((area) => {
+  const namedTypes = new Set<string>(["bedroom", ...x.rooms.map((r) => r.roomType), ...(x.bathrooms != null ? ["bathroom"] : [])]);
+  const areas = tree.areas.map((area0) => {
+    // A starter room the text never named is ASSUMED present — a chip until kept or removed.
+    const area = !namedTypes.has(String(area0.roomType)) && area0.type !== "Exterior" && !area0.assumedFields.includes("presence")
+      ? { ...area0, assumedFields: [...area0.assumedFields, "presence"] }
+      : area0;
     const stated = x.rooms.find((r) => r.lengthM != null && r.widthM != null && (area.name.toLowerCase().startsWith((ROOM_LABEL[r.roomType] ?? r.name).toLowerCase()) || String(area.roomType) === r.roomType));
     if (!stated) return area;
     return { ...area, L: stated.lengthM as number, W: stated.widthM as number, origin: "ai_extracted" as const, confidence: 0.75, assumedFields: area.assumedFields.filter((f) => f !== "L" && f !== "W") };

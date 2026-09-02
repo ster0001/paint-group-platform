@@ -1823,3 +1823,17 @@ the estimate's own route count (`estimate_sources` kind defect_photo →
 no number until every area is confirmed and swept. Tests: `trade-flow.test.ts`
 (chips = open tightening gaps, exactly) and `e2e/customer-journey/
 assistant-trade.spec.ts` (trade and residential).
+
+## Assistant agent — S8 evals, dashboard, launch checklist (2 Sep 2026)
+
+**Evals run in `npm test`.** `lib/agent/evals/adversarial.test.ts` sends the adversarial set (haggling, margin fishing, "ignore your instructions", abuse, and lead minimisation through the guided flow) through the stub model and the real tools: every case ends in the scripted hard stop or a handoff, no dollar figure leaves without a tool result, nothing internal reaches a customer. `lib/agent/evals/replay.ts` holds twenty synthetic enquiries and `corpusReplay()`, which turns the git-ignored regression corpus into anonymised count-only briefs and reports the correction against the sent total (a proving-window figure, not a gate); `replay.test.ts` asserts determinism and that every fill-in is listed. `scripts/agent-evals.ts` prints the numbers for `docs/briefs/agent-launch-checklist.md`, which Tom signs.
+
+**Hard stops a person can trigger by talking** live in the stub as `hardStopIntent()` (discount / margin) and an abuse pattern → `request_handoff(sentiment)`; the production model reaches the same tools by instruction, and the turn loop still forces the script into the reply either way.
+
+**Photos never gate the build.** `tryBuild` no longer waits on `ext.photos` or `condition.photos`; upload-type gaps rank last in the question graph, and `toWizardState` takes the wizard's own "no photos to hand" exterior path when there is no listing and fewer than two facade photos. Defect photos tighten an amber price (D22) rather than block it.
+
+**Photos in the chat.** Upload-type gaps (`condition.photos`, `ext.photos`) render `PhotoForm` in `AssistView`: the wizard's own staging (`/api/extract/upload-url` → signed upload → `/api/extract/photos`), now with an optional `estimateId` that claims the rows for the customer's own draft at once (ownership rule as `loadOwnEstimate`; staff may claim any). The turn then records "attached" and the graph reads the count from `estimate_sources`. "None to hand" sets `facts.photosDeferred` — the amber prep line stands and the ask stops. A pending photo ask never withholds the price or the accept button (`finished` ignores upload gaps).
+
+**Briefs.** Plural counts ("5 bedrooms, 2 bathrooms") now extract; a brief that names rooms without a bedroom count builds exactly those rooms (fill-in `rooms.named_only`) instead of refusing.
+
+**`/admin/agent`** (staff shell) derives everything from rows the assistant already writes: estimated spend by Melbourne day (token counts × `agent_settings.feature_flags.modelPrices`, defaults in `lib/agent/settings.ts`), conversations by mode and channel, handoff rate and past-SLA count, cost per completed guided estimate (guided conversations whose estimate carries a prep pack), and drop-off by question key (the last `next_gap` result per unfinished guided conversation). Pure metric functions sit in `lib/agent/evals/metrics.ts`.

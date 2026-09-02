@@ -84,7 +84,7 @@ const agentOf = (doc: ScopeDoc) => ((doc.builderState.agent ?? {}) as { answers?
 export function docAnswers(doc: ScopeDoc): AnswerDraft { return agentOf(doc).answers ?? {}; }
 export function docFacts(doc: ScopeDoc): AgentFacts {
   const f = agentOf(doc).facts ?? {};
-  return { inServiceArea: f.inServiceArea ?? null, timing: f.timing ?? null, occupied: f.occupied ?? null, email: f.email ?? null, accountType: f.accountType ?? null, accessAnswered: f.accessAnswered === true, stopsDelivered: Array.isArray(f.stopsDelivered) ? (f.stopsDelivered as string[]) : [], flagsAssumed: f.flagsAssumed === true, photoCount: typeof f.photoCount === "number" ? f.photoCount : 0, briefBuilt: f.briefBuilt === true };
+  return { inServiceArea: f.inServiceArea ?? null, timing: f.timing ?? null, occupied: f.occupied ?? null, email: f.email ?? null, accountType: f.accountType ?? null, accessAnswered: f.accessAnswered === true, stopsDelivered: Array.isArray(f.stopsDelivered) ? (f.stopsDelivered as string[]) : [], flagsAssumed: f.flagsAssumed === true, photoCount: typeof f.photoCount === "number" ? f.photoCount : 0, briefBuilt: f.briefBuilt === true, ceilingsUnstated: f.ceilingsUnstated === true, photosDeferred: f.photosDeferred === true };
 }
 export function docBlocks(doc: ScopeDoc): ScopeBlock[] { return Array.isArray(doc.builderState.blocks) ? (doc.builderState.blocks as ScopeBlock[]) : []; }
 export function docDeferred(doc: ScopeDoc): WizardDeferred[] { return Array.isArray(doc.builderState.aiDeferred) ? (doc.builderState.aiDeferred as WizardDeferred[]) : []; }
@@ -126,7 +126,7 @@ export function graphInput(doc: ScopeDoc, deps: ScopeDeps, mode: "guided" | "cow
     sides: wantsExterior && isBuilt(doc) ? docSides(doc) : null,
     scopeRules: deps.refs.rules,
     rateCodes: new Set(deps.ctx.rateItems.map((r) => r.code)),
-    facts: { inServiceArea: facts.inServiceArea, timing: facts.timing, occupied: facts.occupied, email: facts.email, accessAnswered: facts.accessAnswered, stopsDelivered: facts.stopsDelivered, flagsAssumed: facts.flagsAssumed, photoCount: facts.photoCount, briefBuilt: facts.briefBuilt },
+    facts: { inServiceArea: facts.inServiceArea, timing: facts.timing, occupied: facts.occupied, email: facts.email, accessAnswered: facts.accessAnswered, stopsDelivered: facts.stopsDelivered, flagsAssumed: facts.flagsAssumed, photoCount: facts.photoCount, briefBuilt: facts.briefBuilt, ceilingsUnstated: facts.ceilingsUnstated, photosDeferred: facts.photosDeferred },
     swings,
   };
 }
@@ -193,7 +193,10 @@ export function toWizardState(draft: AnswerDraft, facts: AgentFacts, mode: "cust
       condition: draft.exterior?.condition ?? null,
       access: draft.exterior?.access ?? [],
       accessEquipment: draft.exterior?.accessEquipment ?? [],
-      noPhotos: draft.exterior?.noPhotos ?? false,
+      // Photos are asked LAST (they tighten, never block): without a listing
+      // or facade photos the tree sizes the elevations from the answers, the
+      // wizard's own "no photos to hand" path.
+      noPhotos: draft.exterior?.noPhotos ?? (!draft.listingUrl?.trim() && (draft.facadeRunIds?.length ?? 0) < 2),
       extras: draft.exterior?.extras ?? { deck: false, fence: false, fenceMetres: null, pergola: false, balustrade: false },
     } : null,
   };
@@ -206,8 +209,9 @@ export function tryBuild(doc: ScopeDoc, deps: ScopeDeps): { doc: ScopeDoc; built
   if (isBuilt(doc)) return { doc, built: false };
   // Build only once every pre-build REQUIRED question is answered — a
   // both-job must not build on its interior answers alone (the exterior
-  // intake would then be locked), and photos must be in before prep prices.
-  const openIntake = gapsFor(graphInput(doc, deps)).some((g) => g.kind === "required" && (g.key.startsWith("q.") || PRE_BUILD_KEYS.has(g.key) || g.key === "condition.photos"));
+  // intake would then be locked). Photos never gate the build — defect and
+  // facade photos are asked LAST and tighten an amber price (D22).
+  const openIntake = gapsFor(graphInput(doc, deps)).some((g) => g.kind === "required" && (g.key.startsWith("q.") || PRE_BUILD_KEYS.has(g.key)));
   if (openIntake) return { doc, built: false };
   const state = toWizardState(docAnswers(doc), docFacts(doc));
   if (!state) return { doc, built: false };
@@ -233,7 +237,7 @@ const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : t
 const bool = (v: unknown) => (typeof v === "boolean" ? v : v === "yes" || v === "true" ? true : v === "no" || v === "false" ? false : null);
 const oneOf = <T extends string>(v: unknown, opts: readonly T[]): T | null => (typeof v === "string" && (opts as readonly string[]).includes(v) ? (v as T) : null);
 
-const PRE_BUILD_KEYS = new Set(["q.address", "q.job_type", "q.property_type", "q.storeys", "rooms", "job.surfaces", "condition.tier", "condition.damage", "ext.storeys", "ext.substrates", "ext.painting", "ext.condition", "ext.photos"]);
+const PRE_BUILD_KEYS = new Set(["q.address", "q.job_type", "q.property_type", "q.storeys", "rooms", "job.surfaces", "condition.tier", "condition.damage", "ext.storeys", "ext.substrates", "ext.painting", "ext.condition"]);
 
 export function applyAnswer(doc: ScopeDoc, key: string, value: unknown, provenance: Provenance, deps: ScopeDeps): AnswerOutcome {
   if (key.startsWith("stop.")) return { ok: false, reason: "A hard stop is answered by its script, not by me." };
@@ -353,6 +357,7 @@ export function applyAnswer(doc: ScopeDoc, key: string, value: unknown, provenan
       return { ok: true, doc: withState(next, { aiDeferred: [...docDeferred(next), ...extra] }) };
     }
     case "ext.photos": {
+      if (value === "attached") return { ok: true, doc };
       if (value === "none" || bool(value) === false) return patchDraft({ exterior: { noPhotos: true } });
       return { ok: false, reason: "Photos come in through attach_document; say \"none\" to size it from the answers instead." };
     }
@@ -377,7 +382,11 @@ export function applyAnswer(doc: ScopeDoc, key: string, value: unknown, provenan
     case "door_style": return patchDoorStyle(doc, deps, value);
     case "window_style": return patchWindowStyle(doc, deps, value);
     case "ceiling_height": return patchCeilingHeight(doc, deps, value);
-    case "condition.photos": return { ok: false, reason: "Photos come in through attach_document." };
+    case "condition.photos": {
+      if (value === "attached") return { ok: true, doc };
+      if (value === "not_sure" || value === "later") return { ok: true, doc: withAgent(doc, { facts: { photosDeferred: true } }) };
+      return { ok: false, reason: "Photos come in through attach_document." };
+    }
     default: break;
   }
 
@@ -395,6 +404,22 @@ export function applyAnswer(doc: ScopeDoc, key: string, value: unknown, provenan
   });
   const rb = blocks as unknown as RoomBlock[];
   const sb = blocks as unknown as SideBlock[];
+
+  if (key === "surfaces.ceilings") {
+    const add = bool(value) ?? (value === "add" ? true : value === "no" || value === "leave" ? false : null);
+    if (add == null) return { ok: false, reason: "Add the ceilings — yes or no?" };
+    let cur = blocks as unknown as Parameters<typeof applyToggle>[0];
+    const snapshot = docWizard(doc);
+    if (add) {
+      for (const b of blocks) {
+        if (b.kind !== "area" || b.type === "Exterior") continue;
+        const r = applyToggle(cur, Number(b.id), "ceilings", true, snapshot, nextId);
+        if (r.ok) cur = r.blocks;
+      }
+    }
+    const withState2 = withAgent({ ...withState(doc, { blocks: cur, aiDeferred: deferred, interiorLoop: interior, sidesLoop: sides }), requiresSiteCheck: siteCheck }, { facts: { ceilingsUnstated: false } });
+    return { ok: true, doc: add ? patchWizardState(withState2, (st) => ({ ...st, surfaces: st.surfaces.includes("ceilings") ? st.surfaces : [...st.surfaces, "ceilings"] })) : withState2, note: add ? "ceilings added to every room" : "ceilings left out" };
+  }
 
   const room = key.match(/^room\.(\d+)\.(.+)$/);
   if (room) {
@@ -442,6 +467,16 @@ export function applyAnswer(doc: ScopeDoc, key: string, value: unknown, provenan
       deferred.push({ room: String(block.name ?? "Room"), areaId, what: `custom surface: "${text.slice(0, 80)}"`, count: 1, needs: "price this WITH the customer — never silently", kind: "custom_surface" });
       siteCheck = true;
       return finish(r.blocks as ScopeBlock[], "noted as an amber item to price on the visit");
+    }
+    if (q === "presence") {
+      const keep = bool(value) ?? (value === "keep" ? true : value === "remove" ? false : null);
+      if (keep == null) return { ok: false, reason: "Keep this room, or remove it?" };
+      if (!keep) {
+        const r = removeItem(doc, areaId, null, "the brief didn't mention it");
+        return r.ok ? { ok: true, doc: r.doc, note: `${block.name} removed` } : r;
+      }
+      const assumed = Array.isArray(block.assumedFields) ? (block.assumedFields as string[]) : [];
+      return finish(blocks.map((b) => (b === block ? { ...b, assumedFields: assumed.filter((f) => f !== "presence") } : b)));
     }
     if (q === "confirm") {
       const cfg = CUPBOARD_BY_ROOM_TYPE[String(block.roomType ?? "")];

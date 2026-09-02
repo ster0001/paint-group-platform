@@ -66,6 +66,17 @@ export class StubModel implements ModelClient {
       return say(r?.status === "ok" ? `Booked — we'll call you ${String((r.data as { forDate: string }).forDate)}. You can keep going with me in the meantime.` : `I couldn't book that: ${r?.reason ?? "something went wrong"}.`);
     }
     const support = has("lookup_brain");
+
+    // Hard stops are code (§2 rule 5): haggling, margin fishing, abuse → the
+    // scripted response; the turn loop forces the script into the reply.
+    const stopKind = !cowork && !answer ? hardStopIntent(humanText) : null;
+    if (stopKind && has("hard_stop") && !ran("hard_stop")) return callTool("hard_stop", { kind: stopKind });
+    if (stopKind && ran("hard_stop")) {
+      const r = ran("hard_stop")!.result;
+      if (r?.status === "ok") return say(String((r.data as { script: string }).script));
+      return say("I'll leave that one for a person at Paint Group — tap “Talk to a person”.");
+    }
+    if (!cowork && !answer && ABUSE.test(humanText) && has("request_handoff") && !ran("request_handoff")) return callTool("request_handoff", { reason: "sentiment" });
     if (support) return supportStep(runs, humanText, has, callTool, say);
 
     if (answer && !ran("answer_gap") && has("answer_gap")) return callTool("answer_gap", { key: answer.key, value: answer.value, provenance: cowork ? "human_confirmed" : "customer_stated" });
@@ -229,4 +240,14 @@ function supportStep(
     return say("I don't have an entry for that yet, and I won't guess. Would you like a person to answer? Tap “Talk to a person” and they'll reply here.");
   }
   return say("I couldn't check that just now — a person can help. Tap “Talk to a person”.");
+}
+
+const ABUSE = /\b(fuck\w*|shit|useless|idiot|stupid|hopeless|pathetic)\b/i;
+
+/** What a person is really asking for when the words go past the estimate. */
+export function hardStopIntent(text: string): "discount" | "margin" | null {
+  const t = text.toLowerCase();
+  if (/\b(discount|cheaper|knock (something|a bit|\$?\d+) off|best price|do better on (the )?price|match (a|their|that) quote|beat (a|their|that) quote|% off|percent off|round (it )?down)\b/.test(t) || /\d+\s?% off/.test(t)) return "discount";
+  if (/\b(margin|mark[- ]?up|what do you pay (the|your) (painters?|contractors?)|contractor rate|how much (do|does) (the |your )?painters? (get|earn|make)|your cut|profit)\b/.test(t)) return "margin";
+  return null;
 }
