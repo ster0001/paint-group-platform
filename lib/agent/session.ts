@@ -134,7 +134,7 @@ export async function openCoworkSession(estimateParam: string): Promise<CoworkSe
   let conversationId = existing?.id as string | undefined;
   if (!conversationId) {
     const conv = await gateway.startConversation({ accountId: est.account_id ?? null, propertyId: null, estimateId: est.id, channel: "staff", mode: "cowork", view: "staff", createdBy: actor.userId, anonToken: null, externalThreadId: null });
-    await gateway.store.appendMessage({ conversationId: conv.id, role: "assistant", content: "Paste a brief, an email or a call summary and I'll draft the tree with every fill-in listed — or tell me what to change on this estimate. Nothing lands until you apply it.", modelId: null, tokensIn: 0, tokensOut: 0 });
+    await gateway.store.appendMessage({ conversationId: conv.id, role: "assistant", content: "Tell me the job — a line, a pasted email or a call summary — and I'll build the tree on this estimate straight away, listing everything I assumed. Or say what to change.", modelId: null, tokensIn: 0, tokensOut: 0 });
     conversationId = conv.id;
   }
   const [ui, messages] = await Promise.all([

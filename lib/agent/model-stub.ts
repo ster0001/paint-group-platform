@@ -81,7 +81,8 @@ export class StubModel implements ModelClient {
 
     if (answer && !ran("answer_gap") && has("answer_gap")) return callTool("answer_gap", { key: answer.key, value: answer.value, provenance: cowork ? "human_confirmed" : "customer_stated" });
     if (cowork && /^(apply|apply it|go ahead|yes,? apply)\b/i.test(humanText) && !answer && !ran("apply_diff")) return callTool("apply_diff", { diffId: "pending" });
-    if (!answer && !ran("propose_diff") && has("propose_diff") && (humanText.length >= 60 || /\n/.test(humanText)) && !/\b(person|human)\b/i.test(humanText)) {
+    const changeVerb = /^(add|remove|drop|delete|change|set|make|rename|swap|take)\b/i.test(humanText);
+    if (!answer && !ran("propose_diff") && has("propose_diff") && humanText.trim() && (cowork ? !changeVerb : (humanText.length >= 60 || /\n/.test(humanText))) && !/\b(person|human)\b/i.test(humanText)) {
       return callTool("propose_diff", { text: humanText, sourceKind: "paste" });
     }
     if (/\b(person|human|someone|talk to (a|some)|call me|ring me)\b/i.test(humanText) && !answer && !ran("request_handoff") && has("request_handoff")) {
@@ -167,7 +168,8 @@ function coworkText(runs: ToolRun[], gaps: Gap[], price: PriceScopeResult | null
     // Quoted verbatim in the panel; in the reply any $ figure inside the
     // injected text is masked — a number in a reply must be a tool's, not an attacker's.
     if (d.injectedInstructions.length) parts.push(`The pasted text contained instructions — ignored: "${d.injectedInstructions.map((t) => t.replace(/\$\s?\d[\d,]*(?:\.\d+)?/g, "[amount]")).join('" · "')}".`);
-    parts.push(`Proposed: ${d.added.length} area${d.added.length === 1 ? "" : "s"}${d.added.length ? ` (${d.added.map((a) => a.areaName).join(", ")})` : ""}${d.changed.length ? `; ${d.changed.length} changed` : ""}.`);
+    const built = Boolean((proposed.result.data as { applied?: boolean }).applied);
+    parts.push(`${built ? "Built on the estimate" : "Proposed"}: ${d.added.length} area${d.added.length === 1 ? "" : "s"}${d.added.length ? ` (${d.added.map((a) => a.areaName).join(", ")})` : ""}${d.changed.length ? `; ${d.changed.length} changed` : ""}.`);
     if (d.assumed.length) parts.push(`Fill-ins: ${d.assumed.map((a) => a.label).join("; ")}.`);
     if (d.unmapped.length) parts.push(`Not on the rate card (amber, visit tier): ${d.unmapped.join("; ")}.`);
     parts.push(`Gaps — price impact: ${d.groups.price.length}; cosmetic: ${d.groups.cosmetic.length}.`);
@@ -184,7 +186,7 @@ function coworkText(runs: ToolRun[], gaps: Gap[], price: PriceScopeResult | null
   }
   const open = gaps.filter((g) => g.kind === "required").slice(0, 4);
   if (open.length) parts.push(`Still needed: ${open.map((g) => g.phrasingHint).join(" · ")}`);
-  if (proposed?.result?.status === "ok" && !applied) parts.push("Say “apply” to apply it.");
+  if (proposed?.result?.status === "ok" && !applied && !(proposed.result.data as { applied?: boolean }).applied) parts.push("Say “apply” to apply it.");
   if (parts.length === 0) parts.push(gaps[0]?.phrasingHint ?? "Paste a brief, or tell me what to change.");
   return parts.join(" ");
 }

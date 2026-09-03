@@ -15,13 +15,13 @@ export default function CoworkView({ conversationId, estimateId, assistantName, 
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [applied, setApplied] = useState<string | null>(null);
+  const [applied] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => { endRef.current?.scrollIntoView({ block: "end" }); }, [transcript.length, busy]);
 
   async function send(message: string, answer: { key: string; value: unknown } | null) {
     if (busy) return;
-    setBusy(true); setError(null); setApplied(null);
+    setBusy(true); setError(null);
     setTranscript((t) => [...t, { id: `local-${Date.now()}`, role: "user", text: message.trim() || `[${answer?.key}]`, createdAt: new Date().toISOString() }]);
     try {
       const res = await fetch("/api/agent/turn", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ conversationId, text: message.trim(), answer }) });
@@ -31,20 +31,6 @@ export default function CoworkView({ conversationId, estimateId, assistantName, 
       setUi(j.ui);
     } catch { setError("That didn't go through — check the connection."); }
     finally { setBusy(false); setText(""); }
-  }
-
-  async function apply() {
-    if (busy) return;
-    setBusy(true); setError(null);
-    try {
-      const res = await fetch("/api/agent/apply", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ conversationId }) });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) { setError(j.error ?? "Couldn't apply."); return; }
-      setUi(j.ui);
-      setApplied(j.note ?? "Applied.");
-      setTranscript((t) => [...t, { id: `sys-${Date.now()}`, role: "system", text: j.note ?? "Applied.", createdAt: new Date().toISOString() }]);
-    } catch { setError("Couldn't apply — check the connection."); }
-    finally { setBusy(false); }
   }
 
   const p = ui.proposal;
@@ -116,7 +102,6 @@ export default function CoworkView({ conversationId, estimateId, assistantName, 
                 <small>charge-out ${Math.round(price.chargeOutCentsPerHr / 100)}/hr · revenue ${Math.round(price.revenueCentsPerHr / 100)}/hr · {Math.round(price.accuracyPct)}% settled{price.liveTotalCents != null ? ` · live now ${fmt(price.liveTotalCents)}` : ""}</small>
               </div>
             )}
-            <button type="button" className="sc-btn il-cta as-cta" data-testid="cw-apply" disabled={busy} onClick={apply}>Apply to the estimate</button>
           </div>
         )}
         {/* Outside the proposal block: applying clears the proposal, the note must stay. */}

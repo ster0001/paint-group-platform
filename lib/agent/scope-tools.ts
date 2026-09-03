@@ -79,9 +79,10 @@ export class ScopeTools implements ToolExecutor {
     if (live.status === "accepted") return refused("This estimate is accepted and locked — a person can open a variation for you.");
     const deps: ScopeDeps = { refs: await this.store.refs(), ctx: await this.store.ctx(), actor: ctx.view === "staff" ? "staff" : "customer" };
 
-    // Co-work (parent §3.2): staff edit a PENDING copy; apply_diff commits it.
-    // The customer's own guided build edits the live tree (Addendum A §3.3).
-    const gated = ctx.mode === "cowork";
+    // Co-work applies LIVE (Tom, 3 Sep: "makes the changes live as you type")
+    // — the builder beside the chat shows every change at once. The pending
+    // copy + apply_diff path stays wired for a future review gate but is off.
+    const gated = false;
     const doc = gated ? (pendingOf(live) ?? live) : live;
     const commit = async (r: { ok: true; doc: ScopeDoc; note?: string } & Record<string, unknown>, data: Record<string, unknown>) => {
       await this.store.save(gated ? withPending(live, r.doc) : r.doc);
@@ -115,12 +116,12 @@ export class ScopeTools implements ToolExecutor {
         if (!this.extractor) return refused("Reading a brief isn't available just now.");
         const read = await this.extractor(String(i.text ?? ""));
         if (!read.ok) return refused(read.message);
-        const p = proposeFromBrief(doc, read.extraction, deps, { mode: gated ? "cowork" : "guided", gateCents: this.settings.priceImpactGateCents });
+        const p = proposeFromBrief(doc, read.extraction, deps, { mode: ctx.mode === "cowork" ? "cowork" : "guided", gateCents: this.settings.priceImpactGateCents });
         if (!p.ok) return refused(p.reason);
         // The customer's own draft applies straight in; staff wait for apply_diff.
         const fillIns = p.summary.assumed.filter((a) => !/^(door_style|window_style|ceiling_height|paint\.colours|condition\.photos)$/.test(a.key) && !/\.cupboard_interiors$/.test(a.key));
         await this.store.save(gated ? withPending(live, p.working, { fillIns, injectedInstructions: p.summary.injectedInstructions, unmapped: p.summary.unmapped }) : p.working);
-        return ok(p.summary);
+        return ok({ ...p.summary, applied: !gated });
       }
       case "apply_diff": {
         const applied = applyPending(live, ctx.actorId ?? null);

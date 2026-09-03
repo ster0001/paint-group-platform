@@ -177,7 +177,9 @@ function buildFromBrief(doc: ScopeDoc, x: BriefExtraction, deps: ScopeDeps, mode
       if (x.bathrooms === 0) for (let i = base.length - 1; i >= 0; i--) if (base[i].roomType === "bathroom") base.splice(i, 1);
     }
     rooms = base;
-    for (const r of base) if (!named.has(r.roomType)) fillIns.push(fillIn(`room.presence.${r.name}`, `Assumed: ${r.name} — a ${state.basics.bedrooms}-bed home has one; remove if not`, "included"));
+    // Unnamed starter rooms are marked assumedFields:"presence" on the row
+    // (A2) and surface as ONE "keep it / remove it" chip each — no second
+    // fill-in line for the same fact.
     if (!x.rooms.some((r) => r.lengthM != null)) fillIns.push(fillIn("room.sizes", "Assumed: typical room sizes for every room (confirm in the sweep)", "typical"));
   }
 

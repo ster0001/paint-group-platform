@@ -3,7 +3,7 @@ import { ticksBySurfaceKey, type SurfaceState } from "@/lib/workorder/surfaces";
 import { signPhotos, type WOPhotoRow } from "@/lib/workorder/photos";
 import { createClient } from "@/lib/supabase/server";
 import QuoteBuilder from "./QuoteBuilder";
-import AssistantFab from "./AssistantFab";
+import AssistantDrawer from "./AssistantDrawer";
 import { DEFAULT_COMPANY, type CompanyProfile, type Contact } from "./company";
 import { DEFAULT_INCLUSION_TEMPLATES, DEFAULT_EXCLUSION_TEMPLATES, INCLUSION_TEMPLATES_KEY, EXCLUSION_TEMPLATES_KEY, type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import { parseBackTo } from "@/lib/navigation/backTo";
@@ -201,9 +201,13 @@ export default async function QuotePage({
     : offerState === "offered" ? "requested"
     : "none";
 
+  // The embedded assistant writes the row; a changed builder_state remounts
+  // the builder on the fresh state (router.refresh() from the drawer).
+  const builderKey = fingerprint(JSON.stringify(initial?.builder_state ?? null));
   return (
     <>
     <QuoteBuilder
+      key={builderKey}
       initialView={initialView}
       backTo={backTo}
       rateCardId={effectiveCard?.id ?? null}
@@ -231,7 +235,14 @@ export default async function QuotePage({
       contractors={contractors}
       presentations={presentations}
     />
-    <AssistantFab estimateId={id ?? null} />
+    {!revisionMode && <AssistantDrawer estimateId={id ?? null} />}
     </>
   );
+}
+
+/** djb2 over the serialised state — a cheap, stable key. */
+function fingerprint(text: string): string {
+  let h = 5381;
+  for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
 }

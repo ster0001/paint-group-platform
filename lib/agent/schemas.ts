@@ -327,8 +327,13 @@ export function toolSpec(name: string): ToolSpec | undefined {
 }
 
 /** The tools a conversation may see — filtered by mode and by explicit view. */
+/** Staff ARE the people: co-work never offers a handoff, a callback,
+ *  support hours or a visit booking (Tom, 3 Sep — the assistant told an
+ *  estimator "we're closed right now"). */
+const NOT_IN_COWORK = new Set(["request_handoff", "request_callback", "get_support_hours", "visit_policy", "open_visit_booking"]);
+
 export function toolsFor(mode: AgentMode, view: AgentView): ToolSpec[] {
-  return TOOL_SPECS.filter((s) => s.modes.includes(mode) && (!s.staffOnly || view === "staff"));
+  return TOOL_SPECS.filter((s) => s.modes.includes(mode) && (!s.staffOnly || view === "staff") && !(mode === "cowork" && NOT_IN_COWORK.has(s.name)));
 }
 
 /** The Anthropic tool definition for a spec. `io: "input"` so optional and

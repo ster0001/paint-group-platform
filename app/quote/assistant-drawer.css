@@ -1,0 +1,25 @@
+.asd-panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 100vw); z-index: 60; display: flex; flex-direction: column; background: #fff; border-left: 1px solid #e5e7eb; box-shadow: -8px 0 24px rgba(0,0,0,.08); }
+.asd-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid #e5e7eb; }
+.asd-head strong { font-size: 14px; }
+.asd-head small { display: block; color: #6b7280; font-size: 12px; }
+.asd-close { border: 0; background: transparent; font-size: 20px; line-height: 1; cursor: pointer; color: #6b7280; }
+.asd-log { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; background: #f9fafb; }
+.asd-msg { max-width: 92%; padding: 8px 11px; border-radius: 12px; font-size: 13.5px; line-height: 1.4; white-space: pre-wrap; }
+.asd-user, .asd-staff { align-self: flex-end; background: #111827; color: #fff; border-bottom-right-radius: 4px; }
+.asd-assistant { align-self: flex-start; background: #fff; border: 1px solid #e5e7eb; border-bottom-left-radius: 4px; }
+.asd-system { align-self: center; background: transparent; color: #6b7280; font-size: 12px; }
+.asd-typing { color: #9ca3af; }
+.asd-chips { padding: 8px 14px 0; border-top: 1px solid #e5e7eb; }
+.asd-chips .as-note { margin: 0 0 6px; font-size: 12.5px; color: #374151; }
+.asd-chips .wz-seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.asd-chips button { border: 1px solid #d1d5db; background: #fff; border-radius: 999px; padding: 5px 11px; font-size: 13px; cursor: pointer; }
+.asd-chips button:hover { background: #f3f4f6; }
+.asd-chips input, .asd-chips select { border: 1px solid #d1d5db; border-radius: 6px; padding: 5px 8px; font-size: 13px; }
+.asd-price { padding: 8px 14px; border-top: 1px solid #e5e7eb; font-size: 12.5px; color: #374151; display: flex; justify-content: space-between; }
+.asd-price strong { font-size: 14px; color: #111827; }
+.asd-form { display: flex; gap: 8px; padding: 10px 14px 12px; border-top: 1px solid #e5e7eb; }
+.asd-form textarea { flex: 1; resize: none; border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 13.5px; }
+.asd-form button { border: 0; background: #111827; color: #fff; border-radius: 8px; padding: 0 14px; font-size: 13.5px; cursor: pointer; }
+.asd-form button:disabled { opacity: .5; cursor: default; }
+.asd-err { margin: 0; padding: 6px 14px; color: #b91c1c; font-size: 12.5px; }
+.asd-lock { position: fixed; inset: 0; right: min(440px, 100vw); z-index: 55; background: rgba(255,255,255,.35); cursor: progress; }

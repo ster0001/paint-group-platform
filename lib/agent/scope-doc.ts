@@ -234,8 +234,25 @@ type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : null);
-const bool = (v: unknown) => (typeof v === "boolean" ? v : v === "yes" || v === "true" ? true : v === "no" || v === "false" ? false : null);
-const oneOf = <T extends string>(v: unknown, opts: readonly T[]): T | null => (typeof v === "string" && (opts as readonly string[]).includes(v) ? (v as T) : null);
+/** Yes/no as a person (or the model relaying a chip label) says it:
+ *  "No, it'll be empty" is a no; "Yes, we'll be there" is a yes. */
+const bool = (v: unknown): boolean | null => {
+  if (typeof v === "boolean") return v;
+  if (typeof v !== "string") return null;
+  const t = v.trim().toLowerCase();
+  if (/^(yes|y|true|yep|yeah|occupied|living|we'll be there)\b/.test(t)) return true;
+  if (/^(no|n|false|nope|empty|vacant|nobody|unoccupied)\b/.test(t)) return false;
+  return null;
+};
+/** An option by its code, or by a label that starts with it ("Single storey" → single). */
+const oneOf = <T extends string>(v: unknown, opts: readonly T[]): T | null => {
+  if (typeof v !== "string") return null;
+  const t = v.trim().toLowerCase();
+  const exact = (opts as readonly string[]).find((o) => o.toLowerCase() === t);
+  if (exact) return exact as T;
+  const byPrefix = (opts as readonly string[]).find((o) => t.startsWith(o.toLowerCase().replace(/_/g, " ")) || t.startsWith(o.toLowerCase()));
+  return (byPrefix as T) ?? null;
+};
 
 const PRE_BUILD_KEYS = new Set(["q.address", "q.job_type", "q.property_type", "q.storeys", "rooms", "job.surfaces", "condition.tier", "condition.damage", "ext.storeys", "ext.substrates", "ext.painting", "ext.condition"]);
 

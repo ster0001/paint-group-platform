@@ -1,5 +1,6 @@
 "use client";
 
+import { registerBuilder } from "./builderBridge";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   priceSurface,
@@ -514,6 +515,10 @@ export default function QuoteBuilder({
     });
   const [saveMsg, setSaveMsg] = useState("");
   const [saving, setSaving] = useState(false);
+  /** Embedded assistant bridge (see builderBridge.ts): unsaved edits are
+   *  flushed before an assistant turn; the page remounts this builder after. */
+  const savedStateRef = useRef<string>("");
+  const dirtyRef = useRef<() => boolean>(() => false);
   const [templateModal, setTemplateModal] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [statusMenu, setStatusMenu] = useState(false);
@@ -726,11 +731,21 @@ export default function QuoteBuilder({
     return m;
   }, [woPhotos]);
 
+  // Margin % over our own wo
   // Margin % over our own work — 3rd-party charges are outside the gross margin.
   const marginBase = totals.subtotal - totals.thirdPartyPrice;
   const marginPct = marginBase > 0 ? (totals.margin / marginBase) * 100 : 0;
   const salesRateCents = totals.contractorHours > 0 ? Math.round(totals.subtotal / totals.contractorHours) : 0;
 
+  // Fingerprint of what a save would write; equal to the last save (or the
+  // load) means nothing to flush.
+  const builderFingerprint = JSON.stringify({ blocks, modSel, contact, jobAddress, materials, materialColours, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, aiDeferred, idealPainters });
+  useEffect(() => { if (!savedStateRef.current) savedStateRef.current = builderFingerprint; }, [builderFingerprint]);
+  dirtyRef.current = () => Boolean(quoteId) && builderFingerprint !== savedStateRef.current;
+  useEffect(() => {
+    registerBuilder({ save: () => save(), dirty: () => dirtyRef.current() });
+    return () => registerBuilder(null);
+  });
   async function save(): Promise<{ id: string | null; token: string | null }> {
     if (locked) { setSaveMsg("This estimate is accepted and locked."); return { id: quoteId, token: shareToken }; }
 
@@ -796,6 +811,7 @@ export default function QuoteBuilder({
       // Republished — keep the on-screen estimate in step without a reload.
       setSentSnapshot(base.sent_snapshot);
       setSaveMsg("Saved ✓");
+      savedStateRef.current = builderFingerprint;
       // 3a: a contact email joins the estimate to its customer account —
       // fire-and-forget; a save never waits on (or fails with) the link.
       if (id && contact?.email) {
