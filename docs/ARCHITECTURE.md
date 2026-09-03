@@ -1837,3 +1837,5 @@ assistant-trade.spec.ts` (trade and residential).
 **Briefs.** Plural counts ("5 bedrooms, 2 bathrooms") now extract; a brief that names rooms without a bedroom count builds exactly those rooms (fill-in `rooms.named_only`) instead of refusing.
 
 **`/admin/agent`** (staff shell) derives everything from rows the assistant already writes: estimated spend by Melbourne day (token counts × `agent_settings.feature_flags.modelPrices`, defaults in `lib/agent/settings.ts`), conversations by mode and channel, handoff rate and past-SLA count, cost per completed guided estimate (guided conversations whose estimate carries a prep pack), and drop-off by question key (the last `next_gap` result per unfinished guided conversation). Pure metric functions sit in `lib/agent/evals/metrics.ts`.
+
+**Entry point (3 Sep 2026).** `app/quote/AssistantFab.tsx` — the floating chat button bottom-right on the builder (`/quote?id=…` → `/estimates/[id]/assist`) and on the estimates list (→ `/estimates/new/assist`, a fresh staff draft). A link, not a widget.
