@@ -79,3 +79,21 @@ test("co-work: paste a brief → proposal → answer gaps → apply → live pri
   const href = await link.getAttribute("href");
   expect(href).toMatch(/\/quote\?id=/);
 });
+
+
+test("the builder's floating assistant button opens co-work for that estimate", async ({ page }) => {
+  test.skip(!staff, missingCreds("STAFF"));
+  test.setTimeout(180_000);
+  await signIn(page, staff!, /estimates/);
+  await page.goto("/estimates/new/assist");
+  await expect(page.getByTestId("cw-msg-assistant").first()).toBeVisible({ timeout: 30_000 });
+  // The draft's id comes from the page's own "Open in builder" link.
+  const builderHref = await page.getByRole("link", { name: "Open in builder" }).first().getAttribute("href");
+  const id = builderHref!.match(/id=([0-9a-f-]{36})/)![1];
+  await page.goto(builderHref!);
+  const fab = page.getByTestId("assistant-fab");
+  await expect(fab).toBeVisible({ timeout: 30_000 });
+  await fab.click();
+  await expect(page).toHaveURL(new RegExp(`/estimates/${id}/assist`), { timeout: 30_000 });
+  await expect(page.getByTestId("cw-msg-assistant").first()).toBeVisible({ timeout: 30_000 });
+});

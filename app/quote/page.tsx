@@ -3,6 +3,7 @@ import { ticksBySurfaceKey, type SurfaceState } from "@/lib/workorder/surfaces";
 import { signPhotos, type WOPhotoRow } from "@/lib/workorder/photos";
 import { createClient } from "@/lib/supabase/server";
 import QuoteBuilder from "./QuoteBuilder";
+import AssistantFab from "./AssistantFab";
 import { DEFAULT_COMPANY, type CompanyProfile, type Contact } from "./company";
 import { DEFAULT_INCLUSION_TEMPLATES, DEFAULT_EXCLUSION_TEMPLATES, INCLUSION_TEMPLATES_KEY, EXCLUSION_TEMPLATES_KEY, type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import { parseBackTo } from "@/lib/navigation/backTo";
@@ -201,6 +202,7 @@ export default async function QuotePage({
     : "none";
 
   return (
+    <>
     <QuoteBuilder
       initialView={initialView}
       backTo={backTo}
@@ -229,5 +231,7 @@ export default async function QuotePage({
       contractors={contractors}
       presentations={presentations}
     />
+    <AssistantFab estimateId={id ?? null} />
+    </>
   );
 }

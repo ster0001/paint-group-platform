@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import NewEstimateButton, { type TemplateMeta } from "./NewEstimateButton";
 import EstimatesTable, { type EstimateRow } from "./EstimatesTable";
+import AssistantFab from "@/app/quote/AssistantFab";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +61,7 @@ export default async function EstimatesPage({
           </Link>
         </div>
       )}
+      <AssistantFab estimateId={null} />
     </div>
   );
 }
