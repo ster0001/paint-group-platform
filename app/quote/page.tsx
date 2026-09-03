@@ -189,7 +189,7 @@ export default async function QuotePage({
   // pending signature and what's signed (new drafts only carry the beyond).
   const { data: revVarRows } = revisionMode && woId
     ? await supabase.from("wo_variations")
-        .select("id, revision_block_ref, status, price_cents, credit, est_hours, customer_token, signed_name, comment")
+        .select("id, revision_block_ref, status, price_cents, credit, est_hours, customer_token, signed_name, comment, released_at, contractor_accepted_at")
         .eq("work_order_id", woId).not("revision_block_ref", "is", null)
         .order("created_at", { ascending: true })
     : { data: null };

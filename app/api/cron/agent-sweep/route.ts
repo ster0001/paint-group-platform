@@ -7,6 +7,8 @@ import { logCrmEvent } from "@/lib/crm/events";
 import { SupabaseAgentStore, loadAgentSettings } from "@/lib/agent/store-supabase";
 import { ESCALATED_TEXT, escalationsDue, onDutyNumbers } from "@/lib/agent/handoff";
 import { sendSms } from "@/lib/messaging/send";
+import { automationOn } from "@/lib/messaging/config";
+import { loadMessaging } from "@/lib/messaging/load";
 
 /**
  * GET /api/cron/agent-sweep — drop-outs are leads (assistant brief §3.1).
@@ -74,12 +76,15 @@ export async function GET(request: Request) {
   const store = new SupabaseAgentStore(db);
   const now = new Date();
   const due = escalationsDue(await store.listHandoffs(["requested"]), now, settings.slaClaimSeconds);
+  // Settings → Automations: "Assistant — someone wants a person" covers the
+  // SLA escalation text too. The escalation itself is still recorded.
+  const handoffTexts = automationOn((await loadMessaging(db)).messaging, "assistant_handoff");
   let escalated = 0;
   for (const h of due) {
     await store.markEscalated(h.id, now);
     await store.appendMessage({ conversationId: h.conversationId, role: "assistant", content: ESCALATED_TEXT, modelId: null, tokensIn: 0, tokensOut: 0 });
     const { escalate } = onDutyNumbers(settings.supportHours, now);
-    await Promise.all(escalate.map((n) => sendSms({ to: n, body: "Paint Group assistant: a live-chat request has passed the SLA — claim it in Today → Messages." }).catch(() => undefined)));
+    if (handoffTexts) await Promise.all(escalate.map((n) => sendSms({ to: n, body: "Paint Group assistant: a live-chat request has passed the SLA — claim it in Today → Messages." }).catch(() => undefined)));
     escalated++;
   }
   return NextResponse.json({ checked: (convs ?? []).length, logged, escalated });

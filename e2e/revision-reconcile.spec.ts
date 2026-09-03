@@ -192,7 +192,8 @@ test.describe("A4 — ledger and final invoice reconcile to the cent", () => {
   });
 
   test("contractor accepts the addition and acknowledges the credit", async () => {
-    expect(await rpcAs(staff!, "wo_release_variation", { p_variation_id: additionId })).toBe("ok:released");
+    // Auto-release (3 Sep) may already have done this at signing.
+    expect(["ok:released", "ok:already"]).toContain(await rpcAs(staff!, "wo_release_variation", { p_variation_id: additionId }));
     expect(await rpcAs(contractor!, "wo_contractor_accept_variation", { p_variation_id: additionId })).toBe("ok:accepted");
     expect(await rpcAs(contractor!, "wo_contractor_acknowledge_variation", { p_variation_id: creditId })).toBe("ok:acknowledged");
   });

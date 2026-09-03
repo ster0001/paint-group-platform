@@ -156,12 +156,16 @@ test.describe("the whole loop, one job", () => {
     });
     expect(approved).toBe("ok:approved");
 
-    expect(await rpcAs(contractor!, "wo_contractor_accept_variation", { p_variation_id: variationId }))
-      .toBe("error:not_released");
-
-    expect(await rpcAs(staff!, "wo_release_variation", { p_variation_id: variationId })).toBe("ok:released");
-    expect(await rpcAs(contractor!, "wo_contractor_accept_variation", { p_variation_id: variationId }))
-      .toBe("ok:accepted");
+    // Under the 3 Sep default (auto-release at signing) the painter can accept
+    // straight away; under the manual mode the office releases first. Both
+    // are fine here — the manual gate itself is pinned in wo-variations.spec.
+    const early = await rpcAs(contractor!, "wo_contractor_accept_variation", { p_variation_id: variationId });
+    expect(["error:not_released", "ok:accepted"]).toContain(early);
+    if (early !== "ok:accepted") {
+      expect(await rpcAs(staff!, "wo_release_variation", { p_variation_id: variationId })).toBe("ok:released");
+      expect(await rpcAs(contractor!, "wo_contractor_accept_variation", { p_variation_id: variationId }))
+        .toBe("ok:accepted");
+    }
 
     const { data } = await db!.from("wo_variations")
       .select("contractor_delta_cents, contractor_rate_cents").eq("id", variationId).single();

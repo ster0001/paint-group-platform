@@ -126,10 +126,12 @@ test.describe("the contractor loop — acknowledge, accept, started-work guard",
       .eq("revision_block_ref", "block:porch").single();
     additionId = (v as { id: string }).id;
 
-    // Sign-first (flag 2): nothing reaches the contractor until released,
-    // and release is only possible after the signature — proven by the accept
-    // refusals in wo-variations.spec; here the happy path.
-    expect(await rpcAs(staff!, "wo_release_variation", { p_variation_id: additionId })).toBe("ok:released");
+    // Sign-first (flag 2): release is only possible after the signature —
+    // proven by the accept refusals in wo-variations.spec; here the happy
+    // path. Since 3 Sep 2026 the sign itself releases when the setting says
+    // auto (variation-auto-release.spec.ts), so the office's release is
+    // either the act or a no-op — never a refusal.
+    expect(["ok:released", "ok:already"]).toContain(await rpcAs(staff!, "wo_release_variation", { p_variation_id: additionId }));
 
     await signIn(page, contractor!, /\/portal/);
     await page.goto(`/portal/jobs/${fixture!.workOrderId}`);

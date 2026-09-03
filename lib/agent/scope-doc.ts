@@ -30,6 +30,7 @@ import {
   type SideKey, type SidesLoopMeta, type LooseBlock as SideBlock,
 } from "@/lib/wizard/sides";
 import { FREESTANDING_EXTRA_KEYS, applyExteriorToggle, applyToggle, hasFreestandingExtras } from "@/lib/wizard/scope-editor";
+import { INTERIOR_POOR_MODIFIER_CODE } from "@/lib/wizard/exteriorAnswers";
 import { applyWizardAnswers } from "@/lib/wizard/merge";
 import { markStarterProvenance, starterExtraction } from "@/lib/wizard/starter";
 import { buildDraft } from "@/lib/extract/draft";
@@ -590,8 +591,16 @@ export function applyAnswer(doc: ScopeDoc, key: string, value: unknown, provenan
     const pushOnce = (d: WizardDeferred) => { if (!deferred.some((x) => x.what === d.what && x.room === d.room)) deferred.push(d); };
     if (cond) {
       const hasWeathered = deps.ctx.modifiers.some((m) => m.code === WEATHERED_MODIFIER_CODE);
-      if (cond === "weathered" && hasWeathered) modSel = { ...modSel, Condition: WEATHERED_MODIFIER_CODE };
-      else if (modSel.Condition === WEATHERED_MODIFIER_CODE) { const { Condition: _c, ...rest } = modSel; void _c; modSel = rest; }
+      const hasPoor = deps.ctx.modifiers.some((m) => m.code === INTERIOR_POOR_MODIFIER_CODE);
+      const wiz = doc.builderState.wizard as { state?: { jobType?: string; details?: { damageTier?: number } } } | undefined;
+      const interiorPoor = (wiz?.state?.details?.damageTier ?? 0) >= 2 && wiz?.state?.jobType !== "exterior";
+      const drop = () => { const { Condition: _c, ...rest } = modSel; void _c; modSel = rest; };
+      // Peeling = the card's "Poor — flaking / peeling" (Tom, 3 Sep) — priced
+      // up front like the wizard does, and the visit deferral still stands.
+      if (cond === "peeling" && hasPoor) modSel = { ...modSel, Condition: INTERIOR_POOR_MODIFIER_CODE };
+      else if (cond === "weathered" && hasWeathered && !(interiorPoor && modSel.Condition === INTERIOR_POOR_MODIFIER_CODE)) modSel = { ...modSel, Condition: WEATHERED_MODIFIER_CODE };
+      else if (modSel.Condition === WEATHERED_MODIFIER_CODE) drop();
+      else if (modSel.Condition === INTERIOR_POOR_MODIFIER_CODE && !interiorPoor) drop();
       if (cond === "weathered" && !hasWeathered) pushOnce({ room: "Exterior", areaId: null, what: "weathered paintwork", count: 1, needs: "extra preparation allowed for — confirm the prep scope at review" });
       if (cond === "peeling") { pushOnce({ room: "Exterior", areaId: null, what: "peeling & flaking paint", count: 1, needs: "needs eyes on it — lead-safe check on the visit if pre-1970" }); siteCheck = true; }
     }

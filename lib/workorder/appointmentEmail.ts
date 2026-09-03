@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DEFAULT_MESSAGING, MESSAGING_KEY, renderTemplate, type MessagingSettings } from "@/lib/messaging/config";
+import { DEFAULT_MESSAGING, MESSAGING_KEY, automationOn, renderTemplate, type MessagingSettings } from "@/lib/messaging/config";
 import { buildPlainEmailHtml, emailConfigured, sendEmail } from "@/lib/messaging/send";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { reportError } from "@/lib/monitoring/report";
@@ -105,6 +105,16 @@ async function run(service: SupabaseClient, workOrderId: string): Promise<void> 
   };
   const subject = renderTemplate(messaging.apptConfirmSubject, vars);
   const body = renderTemplate(messaging.apptConfirmBody, vars);
+
+  // Settings → Automations: "Booking confirmed". Off = recorded as skipped
+  // for this start date, so a later re-book still gets its own decision.
+  if (!automationOn(messaging, "appointment_confirmation")) {
+    await service.from("wo_events").insert({
+      work_order_id: workOrderId, type: "appt_confirm_skipped", actor_kind: "system",
+      meta: { start_date: wo.start_date, reason: "automation off" },
+    });
+    return;
+  }
 
   const result = emailConfigured()
     ? await sendEmail({

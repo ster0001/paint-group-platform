@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DEFAULT_MESSAGING, MESSAGING_KEY, renderTemplate, type MessagingSettings } from "@/lib/messaging/config";
+import { DEFAULT_MESSAGING, MESSAGING_KEY, automationOn, renderTemplate, type MessagingSettings } from "@/lib/messaging/config";
 import { buildPlainEmailHtml, emailConfigured, sendEmail } from "@/lib/messaging/send";
 import { melbourneDate } from "./console";
 
@@ -22,6 +22,9 @@ export async function sendPreStartChecklists(db: SupabaseClient, now = new Date(
   ]);
   const rows = (settingsRows as { key: string; value: unknown }[] | null) ?? [];
   const messaging: MessagingSettings = { ...DEFAULT_MESSAGING, ...((rows.find((r) => r.key === MESSAGING_KEY)?.value as Partial<MessagingSettings>) ?? {}) };
+  // Settings → Automations: "Pre-start checklist". Off = nothing sent, and
+  // nothing recorded either, so switching it back on sends to jobs still due.
+  if (!automationOn(messaging, "pre_start_checklist")) return 0;
   const company = (rows.find((r) => r.key === "company_profile")?.value as { name?: string; phone?: string; logoUrl?: string; logoUrlLight?: string; email?: string; estimatorName?: string } | null) ?? {};
   const ids = [...new Set(((ticked ?? []) as { work_order_id: string }[]).map((t) => t.work_order_id))];
   if (ids.length === 0) return 0;

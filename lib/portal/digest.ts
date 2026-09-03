@@ -12,6 +12,8 @@
 import { createServiceClient } from "@/lib/supabase/service";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { sendEmail } from "@/lib/messaging/send";
+import { automationOn } from "@/lib/messaging/config";
+import { loadMessaging } from "@/lib/messaging/load";
 
 export type DigestPrefs = { digest_enabled: boolean | null; digest_time: string | null } | null;
 
@@ -65,6 +67,11 @@ function escapeHtml(s: string): string {
 export async function runTradeDigest(opts: { melbourneHour: number; origin: string; dryRun?: boolean }): Promise<DigestPlan[]> {
   const svc = createServiceClient();
   if (!svc) return [];
+  let digestSwitch: boolean | undefined;
+  const digestOn = async () => {
+    if (digestSwitch === undefined) digestSwitch = automationOn((await loadMessaging(svc)).messaging, "trade_daily_digest");
+    return digestSwitch;
+  };
 
   // MEMBER-driven, never org-driven: the volume dataset carries hundreds of
   // trade accounts and tens of thousands of estimates, and an org-wide
@@ -151,6 +158,9 @@ export async function runTradeDigest(opts: { melbourneHour: number; origin: stri
     plans.push({ email, accountUserId: m.id, orgName: org?.name?.trim() || "your organisation", lines });
 
     if (!opts.dryRun) {
+      // Settings → Automations: "Trade daily digest". Off = nothing sent and
+      // last_digest_at untouched, so switching back on resumes cleanly.
+      if (!(await digestOn())) continue;
       if (!isTestEmail(email)) {
         const msg = buildDigestEmail(org?.name?.trim() || "your organisation", lines, opts.origin);
         await sendEmail({ to: email, subject: msg.subject, html: msg.html }).catch(() => {});

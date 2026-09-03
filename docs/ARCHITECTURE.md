@@ -4,6 +4,49 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## Tom's 3 Sep batch: settings in buckets, condition hours on the job sheet, auto-release, Automations
+
+**2026-09-03 · `app/(app)/settings/SettingsShell.tsx` + `page.tsx`, `app/(app)/settings/AutomationsSettings.tsx`,
+`lib/automations/registry.ts`, `lib/messaging/config.ts` + `load.ts`, `lib/workorder/conditionAllowance.ts`,
+`lib/workorder/snapshot.ts`, `app/quote/QuoteBuilder.tsx` (computeWorkOrderDoc), `app/w/WorkOrderDoc.tsx`,
+`lib/wizard/exteriorAnswers.ts`, `supabase/migrations/20261229000000_variation_auto_release.sql`**
+
+**Settings is six buckets.** Company · Communications & automations · Estimates · Pricing · Rooms & scope rules ·
+Money. `SettingsShell` (client) takes the buckets as data — each folder's content is still rendered by the server
+page and passed in as a node — and adds a sticky jump bar, a "Find a setting" filter across every folder, and
+`#<folder-id>` deep links that open and scroll to a folder. Folder TITLES are unchanged (the e2e clicks them);
+`SettingsFolder.tsx` and `MessagingSettings.tsx` are gone, the latter absorbed into Automations.
+
+**Condition reaches the painter in words, not just in the number.** The Condition modifier always scaled
+painting HOURS (`priceSurface: paintingHr = base × jobMod`), so the contractor's hours, the offer allowance and the
+booked days already carried a Poor/Heritage/Weathered job — but nothing said so. `conditionExtraHours()` splits the
+condition's slice back out; the work-order document now carries `condition {code,label,multiplier,extraHours}` and
+per-surface `paintingHours/prepHours/conditionHours`; the job sheet shows "Condition · extra prep: Poor — extra prep
+allowed for: +N h" and each surface "incl. N h prep"; the offer card shows "Extra prep allowed". The one path that
+genuinely priced nothing was the wizard's exterior **"Peeling & flaking"** — it raised the site-visit deferral and
+NO modifier. It now maps to `COND-POOR` (worst-wins with weathered), in the wizard, the loop's Condition card and the
+assistant, and the visit deferral still stands. `estimate.test.ts` pins that a poor job gives the contractor more
+hours and more pay.
+
+**Approved variations go straight to the painter.** `wo_customer_sign_variation` has released on signature since
+20261002 when `wo_loop.variationRelease = "auto"`; the seed said `'pc'` and no screen could change it. Migration
+20261229 flips the row (data only); the switch is on Settings → Automations ("Approved variations go straight to
+the painter", written as a merge into the `wo_loop` row); the sign action already texts the painter. The revision
+panel's "Already signed" list now says where each change is (with the painter to accept / painter accepted /
+awaiting release). `e2e/variation-auto-release.spec.ts` pins the auto side; `wo-variations.spec` pins the manual
+side by setting the mode for its run (`setVariationRelease` fixture helper).
+
+**Automations — one list, one switch each.** `lib/automations/registry.ts` is the catalogue of every outbound
+communication (34 send sites audited): key, audience, channels, trigger, kind (automatic / manual / planned),
+template fields. The `messaging` settings row gained `disabled: string[]` and template fields for the automatic
+messages that were hard-coded (job offer text+email, variation released, QA fail, walkthrough invite,
+signed report, chat reply, receipt, remittance, wizard saved-link). Each send site asks `automationOn(cfg, key)`
+first (`lib/messaging/load.ts` is the one server loader) and renders its wording with `renderTemplate`. Manual
+sends (estimate, invoice, update, variation-signature) are listed, not gated; "planned" rows name the events that
+are recorded but send nothing, so nobody assumes a message is going out.
+
+---
+
 ## Tom's 23 Aug batch: settings that save, optimistic deletes, a phone nav, balustrades, allowances
 
 **2026-08-23 · `lib/settings/numeric.ts`, `app/(app)/settings/PricingSettings.tsx`,

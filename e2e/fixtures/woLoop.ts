@@ -280,3 +280,17 @@ export async function completePreStart(
     }
   }
 }
+
+/**
+ * wo_loop.variationRelease — 'auto' (3 Sep 2026 default: a signed addition
+ * goes straight to the painter) or 'pc' (the office releases it by hand).
+ * Returns the previous value so a spec can put it back in afterAll.
+ */
+export async function setVariationRelease(db: SupabaseClient, mode: "auto" | "pc"): Promise<"auto" | "pc"> {
+  const { data } = await db.from("settings").select("value").eq("key", "wo_loop").maybeSingle();
+  const value = ((data as { value?: Record<string, unknown> } | null)?.value ?? {}) as Record<string, unknown>;
+  const prev = value.variationRelease === "pc" ? "pc" : "auto";
+  const { error } = await db.from("settings").upsert({ key: "wo_loop", value: { ...value, variationRelease: mode } }, { onConflict: "key" });
+  if (error) throw new Error(`setVariationRelease: ${error.message}`);
+  return prev;
+}

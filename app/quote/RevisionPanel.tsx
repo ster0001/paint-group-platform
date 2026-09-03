@@ -22,7 +22,18 @@ export type ExistingRevisionVariation = {
   customer_token: string | null;
   signed_name: string | null;
   comment: string;
+  /** Set when the addition is with the painter to accept (auto at signing
+   * since 3 Sep 2026, or the office's release). Absent on older selects. */
+  released_at?: string | null;
+  contractor_accepted_at?: string | null;
 };
+
+/** Where a signed change is, in the office's words. */
+export function signedVariationState(v: ExistingRevisionVariation): string {
+  if (v.status === "contractor_accepted") return v.credit ? "painter acknowledged" : "painter accepted";
+  if (v.credit) return "with the painter to acknowledge";
+  return v.released_at ? "with the painter to accept" : "awaiting release to the painter";
+}
 
 /**
  * The revision builder's "Changes vs the accepted estimate" panel (addendum
@@ -174,11 +185,27 @@ export default function RevisionPanel({
       )}
 
       {signedOnes.length > 0 && (
-        <p className="mt-2 text-[11px] text-gray-500">
-          Already signed on this job:{" "}
-          {signedOnes.map((v) => `${v.credit ? "−" : "+"}${money(v.price_cents ?? 0)}`).join(" · ")}
-          {" — "}new drafts carry only what goes beyond these.
-        </p>
+        <div className="mt-2 text-[11px] text-gray-500" data-testid="signed-variations">
+          <p>
+            Already signed on this job — new drafts carry only what goes beyond these:
+          </p>
+          <ul className="mt-1 space-y-0.5">
+            {signedOnes.map((v) => (
+              <li key={v.id} className="flex flex-wrap items-baseline gap-2">
+                <span className={`font-mono ${v.credit ? "text-rose-400" : "text-emerald-400"}`}>
+                  {v.credit ? "−" : "+"}{money(v.price_cents ?? 0)}
+                </span>
+                <span className="text-gray-400">{v.comment || (v.credit ? "Credit" : "Addition")}</span>
+                <span
+                  className={`rounded-full border px-1.5 py-px text-[10px] ${v.status === "contractor_accepted" ? "border-emerald-500/40 text-emerald-300" : v.released_at || v.credit ? "border-cyan-500/40 text-cyan-300" : "border-amber-500/40 text-amber-300"}`}
+                  data-testid={`signed-state-${v.id}`}
+                >
+                  {signedVariationState(v)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       <div className="mt-3 flex items-center gap-3">

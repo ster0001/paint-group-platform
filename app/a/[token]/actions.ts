@@ -6,6 +6,8 @@ import { acceptViaToken } from "@/lib/portal/approvalData";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { sendEmail } from "@/lib/messaging/send";
 import { melbourneTodayYmd } from "@/lib/portal/data";
+import { automationOn } from "@/lib/messaging/config";
+import { loadMessaging } from "@/lib/messaging/load";
 
 export type DecideResult = { ok: true; decision: "approved" | "declined" } | { ok: false; message: string };
 
@@ -75,7 +77,7 @@ export async function decideExternalApproval(raw: unknown): Promise<DecideResult
   try {
     const { data: sender } = await svc.auth.admin.getUserById(row.sent_by_profile_id);
     const to = sender?.user?.email;
-    if (to && !isTestEmail(to)) {
+    if (to && !isTestEmail(to) && automationOn((await loadMessaging(svc)).messaging, "external_approval")) {
       const title = estimate.title?.trim() || "the estimate";
       await sendEmail({
         to,

@@ -1,3 +1,66 @@
+# 3 Sep 2026 — Tom's four-item batch: Settings in buckets · condition hours reach the painter · approved variations go straight to the painter · Settings → Automations. ONE data-only migration AWAITS TOM ON PROD: 20261229 (or flip the switch on the new Automations screen).
+
+Per item:
+1. **Settings in buckets.** Six sections (Company · Communications & automations ·
+   Estimates · Pricing · Rooms & scope rules · Money), a sticky jump bar, a
+   "Find a setting…" filter, `#<folder-id>` deep links. `SettingsShell.tsx`
+   takes the buckets as data; folder titles unchanged (tom-batch-23aug e2e
+   still clicks "Pricing & job numbers"). `SettingsFolder.tsx` and
+   `MessagingSettings.tsx` removed — the latter lives on inside Automations.
+2. **Extra prep → the painter.** The Condition modifier already scaled painting
+   HOURS (so contractor hours, offer allowance, days booked all moved) — but
+   nothing SAID so, and the wizard's exterior "Peeling & flaking" priced
+   nothing at all (visit deferral only). Now: `conditionExtraHours()` splits
+   the condition's slice out; WO doc carries `condition{…extraHours}` +
+   per-surface painting/prep/condition hours; job sheet shows "Condition ·
+   extra prep: … +N h across the job", surfaces "incl. N h prep"; offer card
+   "Extra prep allowed". Peeling → COND-POOR (worst-wins) in the wizard, the
+   loop's Condition card and the assistant; the visit deferral still stands.
+   Pinned: estimate.test "a poor-condition job gives the contractor more hours
+   and more pay"; exteriorAnswers.test peeling cases.
+3. **Auto-release.** `wo_customer_sign_variation` released on signature since
+   20261002 when `wo_loop.variationRelease="auto"`; the seed said 'pc' and no
+   screen could flip it. Migration 20261229 flips the row (data-only); the
+   switch is on Settings → Automations ("Approved variations go straight to
+   the painter"); the /v sign action already texts the painter. Revision
+   panel's "Already signed" list names where each change is. New e2e
+   `variation-auto-release.spec.ts` (auto side); `wo-variations.spec` pins the
+   manual side by setting the mode for its run (`setVariationRelease`
+   fixture); revision-contractor / reconcile / full-loop tolerate either mode.
+4. **Automations.** `lib/automations/registry.ts` — every outbound message
+   (34 send sites audited): audience, channels, trigger, automatic / manual /
+   planned, template fields. `messaging` row gains `disabled[]` + templates
+   for the hard-coded automatic sends (offer text+email, variation released,
+   QA fail, walkthrough invite, signed report, chat reply, receipt,
+   remittance, wizard saved-link). Every send site asks `automationOn()`
+   (`lib/messaging/load.ts` is the loader). Manual sends listed, not gated.
+   Planned rows name the events that send nothing (sign-off nudges, review
+   request, booking chase, wizard abandoned) so nobody assumes they do.
+   `e2e/settings-automations.spec.ts` drives the screen and the saves.
+
+Rulings I made (flag if wrong):
+- Peeling exterior = Poor condition up front (×1.35, the 31 Aug worst-case
+  rule) AND the visit; interior damage tier 1 "minor" still adds nothing.
+- Auto-release ON is the shipped default; `released_by` stays NULL (system).
+- Switching an automatic message OFF never deletes the record it announces
+  (offer/variation/QA card still on the portal; appointment skip event
+  written with reason "automation off"; pre-start/digest write nothing so
+  switching back on resumes).
+- Manual sends (estimate, invoice, update, variation signature, magic link)
+  have NO kill switch — off would just break the button.
+
+⚠ Known: trade-digest + agent-sweep crons are still not in vercel.json (the
+Automations row says so). `offer_notified` written but never read (a
+re-offer texts again, by design).
+
+**Tom must:** paste 20261229 on prod (or tick the switch in Settings →
+Automations and Save). GATES: see the bottom of this entry.
+
+GATES: tsc clean · eslint 0 errors (2 pre-existing warnings) · unit 1528/1528 ·
+C1 e2e (serial, :3101): variation-auto-release 4/4 · settings-automations 2/2 · wo-variations 10/10 · revision-contractor 5/5 · revision-reconcile 6/6 · wo-full-loop 13/13 · condition-hours-golden 1/1 · tom-batch-23aug pricing-settings 1/1. Screens driven for real: Settings buckets + search, Automations edit/save/reload, the Poor-condition job sheet.
+
+---
+
 # 1 Sep 2026 (evening) — Tom's second batch of the day: 18 items across the portals, variations, wizard. FOUR MIGRATIONS AWAIT TOM ON PROD: 20261223 → 20261226 (all applied + proven on C1).
 
 Per item:

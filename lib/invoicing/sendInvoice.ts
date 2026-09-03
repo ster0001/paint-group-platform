@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { emailConfigured, sendEmail, sendSms, smsConfigured } from "@/lib/messaging/send";
-import { normalisePhoneAU } from "@/lib/messaging/config";
+import { automationOn, normalisePhoneAU, renderTemplate } from "@/lib/messaging/config";
+import { loadMessaging } from "@/lib/messaging/load";
 import { reportError } from "@/lib/monitoring/report";
 import { siteUrl } from "./pdf";
 
@@ -16,6 +17,8 @@ export type InvoiceSendOutcome =
   | { status: "sent"; to: string }
   | { status: "no_recipient" }
   | { status: "not_configured"; to: string }
+  /** Switched off on Settings → Automations — nothing sent, nothing wrong. */
+  | { status: "skipped" }
   | { status: "error"; message: string };
 
 function esc(s: string): string {
@@ -235,15 +238,19 @@ export async function sendRemittanceEmail(
   }
   if (!to) return { status: "no_recipient" };
 
+  // Settings → Automations: "Remittance advice".
+  const { messaging, company: co } = await loadMessaging(service);
+  if (!automationOn(messaging, "contractor_remittance")) return { status: "skipped" };
   const company = ci.entity_snapshot?.company_name || "there";
+  const rvars = {
+    contractor_company: company, invoice_number: ci.number ?? "", wo_ref: ci.work_orders?.wo_ref ?? "",
+    amount: money(ci.total_inc_cents), bank_reference: ci.bank_reference ? ` (bank reference ${ci.bank_reference})` : "",
+    remittance_number: ci.remittance_number ?? "", company_name: co.name || "Paint Group",
+  };
   const html = buildInvoiceEmailHtml({
-    companyName: "Paint Group",
+    companyName: co.name || "Paint Group",
     heading: "Payment sent — remittance advice",
-    intro:
-      `Hello ${company},\n\n` +
-      `We've paid your invoice ${ci.number ?? ""} for job ${ci.work_orders?.wo_ref ?? ""} — ` +
-      `${money(ci.total_inc_cents)}${ci.bank_reference ? ` (bank reference ${ci.bank_reference})` : ""}. ` +
-      `Your remittance advice ${ci.remittance_number} is attached below.`,
+    intro: renderTemplate(messaging.remittanceBody, rvars),
     link: pdfSignedUrl ?? siteUrl() + "/portal/money",
     buttonLabel: pdfSignedUrl ? "Download remittance advice" : "Open your Money tab",
     bank: {},
@@ -254,7 +261,7 @@ export async function sendRemittanceEmail(
     console.log(`[invoice-send:log-driver] to=${to} subject="Remittance ${ci.remittance_number}"`);
     return { status: "not_configured", to };
   }
-  const result = await sendEmail({ to, subject: `Remittance advice ${ci.remittance_number} — Paint Group`, html });
+  const result = await sendEmail({ to, subject: renderTemplate(messaging.remittanceSubject, rvars), html });
   if (result.status === "sent") return { status: "sent", to };
   if (result.status === "not_configured") return { status: "not_configured", to };
   reportError(new Error(result.message), { where: "sendRemittanceEmail", extra: { contractorInvoiceId } });
@@ -282,15 +289,19 @@ export async function sendReceiptEmail(
   const to = pay.invoices.estimates?.contact_email?.trim() ?? "";
   if (!to) return { status: "no_recipient" };
 
+  // Settings → Automations: "Payment receipt".
+  const { messaging, company: co } = await loadMessaging(service);
+  if (!automationOn(messaging, "payment_receipt")) return { status: "skipped" };
   const firstName = (pay.invoices.estimates?.accepted_name ?? "").split(" ")[0] || "there";
   const link = `${siteUrl()}/i/${pay.invoices.token}`;
+  const pvars = {
+    first_name: firstName, amount: money(pay.amount_cents), invoice_number: pay.invoices.number ?? "",
+    receipt_number: pay.receipt_number ?? "", company_name: co.name || "Paint Group",
+  };
   const html = buildInvoiceEmailHtml({
-    companyName: "Paint Group",
+    companyName: co.name || "Paint Group",
     heading: `Payment received — thank you`,
-    intro:
-      `Hello ${firstName},\n\n` +
-      `We have received your payment of ${money(pay.amount_cents)} against invoice ${pay.invoices.number}. ` +
-      `Your receipt number is ${pay.receipt_number}. You can see the up-to-date balance on your invoice at any time using the button below.`,
+    intro: renderTemplate(messaging.receiptBody, pvars),
     link,
     buttonLabel: "View your invoice",
     bank: {},
@@ -301,7 +312,7 @@ export async function sendReceiptEmail(
     console.log(`[invoice-send:log-driver] to=${to} subject="Receipt ${pay.receipt_number}" link=${link}`);
     return { status: "not_configured", to };
   }
-  const result = await sendEmail({ to, subject: `Receipt ${pay.receipt_number} — Paint Group`, html });
+  const result = await sendEmail({ to, subject: renderTemplate(messaging.receiptSubject, pvars), html });
   if (result.status === "sent") return { status: "sent", to };
   if (result.status === "not_configured") return { status: "not_configured", to };
   reportError(new Error(result.message), { where: "sendReceiptEmail", extra: { paymentId } });

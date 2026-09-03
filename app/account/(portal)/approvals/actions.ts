@@ -17,6 +17,8 @@ import {
 import { createServiceClient } from "@/lib/supabase/service";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { sendEmail } from "@/lib/messaging/send";
+import { automationOn } from "@/lib/messaging/config";
+import { loadMessaging } from "@/lib/messaging/load";
 
 export type ApproveResult =
   | { ok: true }
@@ -121,7 +123,9 @@ export async function sendExternalApproval(raw: unknown): Promise<SendExternalRe
   });
   if (error) return { ok: false, message: "Couldn't send that just now." };
 
-  if (!isTestEmail(parsed.data.approverEmail)) {
+  // Settings → Automations: "External approval request". Off = the link is
+  // still created (copy it from the property), just not emailed.
+  if (!isTestEmail(parsed.data.approverEmail) && automationOn((await loadMessaging(svc)).messaging, "external_approval")) {
     const origin = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
     await sendEmail({
       to: parsed.data.approverEmail,

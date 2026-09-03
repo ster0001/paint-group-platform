@@ -3,6 +3,8 @@ import { buildIcs } from "./ics";
 import { sendEmail, emailConfigured, buildPlainEmailHtml } from "@/lib/messaging/send";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { reportError } from "@/lib/monitoring/report";
+import { automationOn, renderTemplate } from "@/lib/messaging/config";
+import { loadMessaging } from "@/lib/messaging/load";
 
 /**
  * Final-walkthrough calendar invites (Tom, 1 Sep). SERVER ONLY — service client.
@@ -109,14 +111,21 @@ async function run(service: SupabaseClient, workOrderId: string): Promise<void> 
   }
   const painterFirst = painterName.split(/\s+/)[0] || "your painter";
 
-  const { data: settingsRows } = await service
-    .from("settings").select("key, value").eq("key", "company_profile").maybeSingle();
-  const company = ((settingsRows as { value?: { name?: string; email?: string; phone?: string; logoUrl?: string; logoUrlLight?: string } } | null)?.value) ?? {};
+  const { messaging, company } = await loadMessaging(service);
   const companyName = company.name || "Paint Group";
   const organizerEmail = company.email || "email@paintgroup.com.au";
+  // Settings → Automations: "Final walkthrough calendar invite". Off = no
+  // invite, no event either — switching it back on sends the current state.
+  if (!automationOn(messaging, "walkthrough_invite")) return;
 
   const address = wo.estimates.sent_snapshot?.jobAddress || wo.wo_snapshot?.jobAddress || "";
-  const summary = `Final walk through — (${customerName || "Customer"} x ${painterName || companyName})`;
+  const when = `${state.date}${state.time ? ` at ${state.time}` : ""}`;
+  const vars = {
+    first_name: customerFirst, customer_name: customerName || "Customer",
+    painter_name: painterName || companyName, painter_first_name: painterFirst,
+    walkthrough_when: when, address: address || "the property", company_name: companyName,
+  };
+  const summary = renderTemplate(messaging.walkthroughInviteSubject, vars);
   const sequence = priorEvents.length; // 0 on the first send, climbing after
   const now = new Date();
   const method = state.cancelled ? "CANCEL" as const : "REQUEST" as const;
@@ -151,9 +160,7 @@ async function run(service: SupabaseClient, workOrderId: string): Promise<void> 
         : `Final walkthrough — ${state.date}${state.time ? ` at ${state.time}` : ""}`;
       const message = state.cancelled
         ? `The final walkthrough for ${address || "the job"} has been taken out of the calendar. We'll be in touch with a new time.`
-        : r.role === "customer"
-          ? `Hello ${customerFirst},\n\nYour final walkthrough with ${painterFirst} is booked for ${state.date}${state.time ? ` at ${state.time}` : ""} at ${address || "your property"}.\n\nThe attached invite drops it straight into your calendar — if the date ever moves, the entry updates itself.\n\nBeing there matters: it's when we walk the finished job together so you can confirm you're happy, or point out anything that needs another touch before sign-off.`
-          : `Final walkthrough with ${customerName || "the customer"} booked for ${state.date}${state.time ? ` at ${state.time}` : ""} at ${address || "the job"}. The attached invite goes in your calendar and follows any date change.`;
+        : renderTemplate(r.role === "customer" ? messaging.walkthroughInviteCustomerBody : messaging.walkthroughInvitePainterBody, vars);
       const sent = await sendEmail({
         to: r.email,
         subject: summary,

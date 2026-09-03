@@ -157,6 +157,15 @@ export function applyConditionPricing(
         needs: "extra preparation allowed for — confirm the prep scope at review",
       });
     }
+    // Peeling & flaking IS the card's "Poor — flaking / peeling" (Tom, 3 Sep:
+    // a job marked poor must carry the extra prep hours for the painter). It
+    // priced NOTHING before — only the site-visit deferral, which
+    // applyExteriorAnswers still raises. Worst-case number up front (the 31
+    // Aug rule), and the visit still confirms it.
+    if (ext.condition === "peeling") {
+      const mod = findMod(INTERIOR_POOR_MODIFIER_CODE);
+      if (mod) candidates.push(mod);
+    }
     if (ext.access.length > 0) {
       const r = rateFor(ctx.rateItems, ALLOWANCE_CODES.access.code);
       const res = r

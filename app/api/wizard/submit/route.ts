@@ -28,6 +28,8 @@ import { reportError } from "@/lib/monitoring/report";
 import { ensureAccountAndProperty } from "@/lib/accounts/link";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { sendMagicLink } from "@/lib/portal/auth";
+import { automationOn, renderTemplate } from "@/lib/messaging/config";
+import { loadMessaging } from "@/lib/messaging/load";
 import { bypassesWizardLimits } from "@/lib/portal/limits";
 
 /**
@@ -580,16 +582,22 @@ export async function POST(request: Request) {
         // costs the save. Hard stops and handoffs stay staff-led.
         // A signed-in member is already in their account — no sign-in link
         // needed; the estimate simply appears on their Home.
-        if (decision.outcome === "reveal" && !isTestEmail(email) && !actor.verifiedEmail) {
+        // Settings → Automations: "Estimate saved — sign-in link".
+        const { messaging: savedMsg, company: savedCo } = await loadMessaging(db);
+        if (decision.outcome === "reveal" && !isTestEmail(email) && !actor.verifiedEmail && automationOn(savedMsg, "wizard_saved_link")) {
+          const savedVars = {
+            company_name: savedCo.name || "Paint Group",
+            next_step: decision.walkthroughRequired
+              ? "We'll confirm your price with a free visit whenever suits you."
+              : "Come back any time to look it over or pick things up where you left off.",
+          };
           // Awaited: a fire-and-forget promise can be dropped when the
           // serverless invocation ends with the response.
           await sendMagicLink({
             email,
             next: "/account",
-            subject: "Your estimate is saved",
-            intro: decision.walkthroughRequired
-              ? "Your estimate is saved in your Paint Group account.\n\nThe button below signs you straight in — no password needed. We'll confirm your price with a free visit whenever suits you.\n\nThe sign-in link lasts an hour; you can always ask for a fresh one from the account page."
-              : "Your estimate is saved in your Paint Group account.\n\nThe button below signs you straight in — no password needed. Come back any time to look it over or pick things up where you left off.\n\nThe sign-in link lasts an hour; you can always ask for a fresh one from the account page.",
+            subject: renderTemplate(savedMsg.wizardSavedSubject, savedVars),
+            intro: renderTemplate(savedMsg.wizardSavedBody, savedVars),
             buttonLabel: "Open my account",
           }).catch((err: unknown) => {
             reportError(err, { where: "wizard.account.savedEmail", bestEffort: true });

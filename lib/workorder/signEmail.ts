@@ -10,22 +10,26 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Report } from "@/app/s/[token]/CompletionReport";
 import { buildEstimateEmailHtml, sendEmail } from "@/lib/messaging/send";
 import { reportError } from "@/lib/monitoring/report";
+import { DEFAULT_MESSAGING, automationOn, renderTemplate, type MessagingSettings } from "@/lib/messaging/config";
+import { loadMessaging } from "@/lib/messaging/load";
 
 export function signedReportEmail(vars: {
   firstName: string; jobTitle: string; signedName: string; link: string; company: string;
   /** The LIGHT-background logo — email renders on white (the standing rule). */
   logoUrl?: string;
   companyPhone?: string;
+  /** The wording (Settings → Automations → "Signed completion report"). */
+  templates?: Pick<MessagingSettings, "signedReportSubject" | "signedReportBody">;
 }): { subject: string; html: string } {
-  const hi = vars.firstName ? `Hi ${vars.firstName},` : "Hello,";
-  const intro = [
-    hi,
-    `Thanks — the work at ${vars.jobTitle} has been signed off${vars.signedName ? ` by ${vars.signedName}` : ""}.`,
-    "Your completion report and warranty details are yours to keep — open them any time from the button below. They also live under Documents in your account.",
-    "Anything you notice later is covered by your two-year warranty — just reply to this email.",
-  ].join("\n\n");
+  const t = vars.templates ?? DEFAULT_MESSAGING;
+  const tv = {
+    first_name: vars.firstName, job_title: vars.jobTitle,
+    signed_by: vars.signedName ? ` by ${vars.signedName}` : "", company_name: vars.company,
+  };
+  // A blank first name reads "Hi ," — fall back to a plain hello.
+  const intro = renderTemplate(t.signedReportBody, tv).replace(/^Hi\s*,/, "Hello,");
   return {
-    subject: `Your completion report — ${vars.jobTitle}`,
+    subject: renderTemplate(t.signedReportSubject, tv),
     html: buildEstimateEmailHtml({
       intro,
       link: vars.link,
@@ -69,9 +73,10 @@ export async function sendSignedReportEmail(db: SupabaseClient, customerToken: s
     if (!email) return;   // no address on file — nothing to send, not an error
 
     const snap = (wo as { wo_snapshot?: { jobTitle?: string; company?: { name?: string } } } | null)?.wo_snapshot;
-    const { data: companyRow } = await db
-      .from("settings").select("value").eq("key", "company_profile").maybeSingle();
-    const company = (companyRow?.value ?? {}) as { phone?: string; logoUrl?: string; logoUrlLight?: string };
+    const { messaging, company } = await loadMessaging(db);
+    // Settings → Automations: "Signed completion report" (alongside the
+    // older wo_loop.walkthrough.signEmailImmediate flag — both must say yes).
+    if (!automationOn(messaging, "signed_completion_report")) return;
     const msg = signedReportEmail({
       firstName: contact?.first_name ?? (est?.accepted_name ?? "").trim().split(/\s+/)[0] ?? "",
       jobTitle: snap?.jobTitle || "your painting job",
@@ -80,6 +85,7 @@ export async function sendSignedReportEmail(db: SupabaseClient, customerToken: s
       company: snap?.company?.name || "Paint Group",
       logoUrl: company.logoUrlLight || company.logoUrl,
       companyPhone: company.phone,
+      templates: messaging,
     });
 
     // The PDF copy (Tom, 28 Aug): the frozen report rendered as a white A4

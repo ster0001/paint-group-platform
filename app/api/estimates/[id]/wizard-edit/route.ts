@@ -14,6 +14,7 @@ import {
   applyCount, applyDoorScope, applyExtent, applyExteriorToggle, applyFenceLength, applyRename, applyToggle, applyWallsShare,
   customerExteriorView, customerScopeRooms, FREESTANDING_EXTRA_KEYS, hasFreestandingExtras, offeredVisitSlots,
 } from "@/lib/wizard/scope-editor";
+import { INTERIOR_POOR_MODIFIER_CODE } from "@/lib/wizard/exteriorAnswers";
 import {
   ALLOWANCE_CODES, SWEEP_PRICED_CODES, WEATHERED_MODIFIER_CODE,
   addCatalogItem, addSideCustom, addSideSurface, addWallSurface, addWindowGroup, applySideCount, applySideDims,
@@ -599,8 +600,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (act.cond) {
         const modSel = { ...((state.modSel as Record<string, string>) ?? {}) };
         const hasWeathered = ctxCond.modifiers.some((m) => m.code === WEATHERED_MODIFIER_CODE);
-        if (act.cond === "weathered" && hasWeathered) modSel.Condition = WEATHERED_MODIFIER_CODE;
+        const hasPoor = ctxCond.modifiers.some((m) => m.code === INTERIOR_POOR_MODIFIER_CODE);
+        // Interior damage tier ≥ 2 owns the Poor slot on a Both job — the
+        // exterior card answering "good" must not take the interior's hours away.
+        const interiorPoor = ((state.wizard as { state?: { jobType?: string; details?: { damageTier?: number } } } | undefined)?.state?.details?.damageTier ?? 0) >= 2
+          && (state.wizard as { state?: { jobType?: string } } | undefined)?.state?.jobType !== "exterior";
+        if (act.cond === "peeling" && hasPoor) modSel.Condition = INTERIOR_POOR_MODIFIER_CODE;
+        else if (act.cond === "weathered" && hasWeathered && !(interiorPoor && modSel.Condition === INTERIOR_POOR_MODIFIER_CODE)) modSel.Condition = WEATHERED_MODIFIER_CODE;
         else if (modSel.Condition === WEATHERED_MODIFIER_CODE) delete modSel.Condition;
+        else if (modSel.Condition === INTERIOR_POOR_MODIFIER_CODE && !interiorPoor) delete modSel.Condition;
         (state as Record<string, unknown>).modSel = modSel;
         if (act.cond === "weathered" && !hasWeathered) {
           deferred.push({ room: "Exterior", areaId: null, what: "weathered paintwork", count: 1, needs: "extra preparation allowed for — confirm the prep scope at review" });

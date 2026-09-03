@@ -10,6 +10,7 @@ import { WO_PHOTO_KIND_LABEL, groupByKind, type WOPhoto } from "@/lib/workorder/
 import PhotoGrid from "@/app/components/wo/PhotoGrid";
 import { bookingCaption, bookingDates, bookingDays, bookingLabel, bookingTone, type Booking } from "@/lib/workorder/booking";
 import FinishChip from "@/app/components/FinishChip";
+import { conditionAllowanceLine } from "@/lib/workorder/conditionAllowance";
 import "./workorder.css";
 
 const money = (c: number) => "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -136,6 +137,16 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
           </div>
         )}
 
+        {/* CONDITION — the extra prep the job carries, in hours (Tom, 3 Sep).
+            The per-surface hours already include it; this says so plainly so a
+            poor-condition job never reads like an ordinary one. */}
+        {conditionAllowanceLine(doc.condition) && (
+          <div className="wo-finish wo-condition" data-testid="wo-condition">
+            <span className="wo-finish-lab">Condition · extra prep</span>
+            <span className="wo-finish-val">{conditionAllowanceLine(doc.condition)}</span>
+          </div>
+        )}
+
         {/* FURTHER INSTRUCTIONS — work-order-level crew note */}
         {(edit || doc.crewNotes) && (
           <div className="wo-crew">
@@ -252,6 +263,11 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
                           {edit
                             ? <input type="number" step="0.25" value={s.hours ?? ""} onChange={(e) => edit.onHours(s.key, e.target.value === "" ? null : Number(e.target.value))} />
                             : <span className="hval">{s.hours}</span>}
+                          {((s.conditionHours ?? 0) + (s.prepHours ?? 0)) > 0 && (
+                            <span className="hsub" data-testid={`surf-prep-${s.key}`}>
+                              incl. {(Math.round(((s.conditionHours ?? 0) + (s.prepHours ?? 0)) * 100) / 100).toFixed(2)} h prep
+                            </span>
+                          )}
                         </div>
                       )}
                     </div>

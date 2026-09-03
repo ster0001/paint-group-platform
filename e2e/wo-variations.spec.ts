@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { credentials, missingCreds, signIn, drawSignature } from "./helpers";
 import {
   contractorIdForEmail, createLoopFixture, destroyLoopFixture,
-  serviceClient, rpcAs, type LoopFixture,
+  serviceClient, rpcAs, setVariationRelease, type LoopFixture,
 } from "./fixtures/woLoop";
 
 /**
@@ -39,6 +39,10 @@ let fixture: LoopFixture | null = null;
 // The contractor's own raise — photo and all — is proved separately.
 let variationId = "";
 let token = "";
+// This spec proves the MANUAL release path (the office between the two money
+// events). Since 3 Sep 2026 the default is auto — see
+// variation-auto-release.spec.ts — so the mode is pinned here and restored.
+let releaseBefore: "auto" | "pc" = "auto";
 
 test.describe("a variation, end to end", () => {
   test.skip(!contractor, missingCreds("CONTRACTOR"));
@@ -47,6 +51,7 @@ test.describe("a variation, end to end", () => {
   test.skip(!db, "set SUPABASE_SERVICE_ROLE_KEY to build the fixture job");
 
   test.beforeAll(async () => {
+    releaseBefore = await setVariationRelease(db!, "pc");
     const contractorId = await contractorIdForEmail(db!, contractor!.email);
     if (!contractorId) throw new Error(`no contractors row for ${contractor!.email}`);
     fixture = await createLoopFixture(db!, contractorId, [
@@ -70,7 +75,10 @@ test.describe("a variation, end to end", () => {
       .eq("id", (photo as { id: string }).id);
   });
 
-  test.afterAll(async () => { await destroyLoopFixture(db!, fixture); });
+  test.afterAll(async () => {
+    await destroyLoopFixture(db!, fixture);
+    await setVariationRelease(db!, releaseBefore);
+  });
 
   test("the contractor raises one, with a photo, from their phone", async ({ page }) => {
     await signIn(page, contractor!, /\/portal/);

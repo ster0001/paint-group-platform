@@ -734,7 +734,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                   <div className="sd-chips">
                     <Chip on={sel("cond:c", m.cond.cond === "good", "good")} label={"Good overall"} onClick={() => act({ action: "loop_cond", cond: "good" }, { describe: withDelta("Good to hear — noted"), opt: ["cond:c", "good"] })} />
                     <Chip on={sel("cond:c", m.cond.cond === "weathered", "weathered")} label={"Weathered"} onClick={() => act({ action: "loop_cond", cond: "weathered" }, { describe: withDelta("Extra prep allowed for weathered paintwork"), opt: ["cond:c", "weathered"] })} />
-                    <Chip on={sel("cond:c", m.cond.cond === "peeling", "peeling")} label={"Peeling & flaking"} onClick={() => act({ action: "loop_cond", cond: "peeling" }, { done: "Peeling paint needs a proper look — a lead-safe check is part of our visit.", opt: ["cond:c", "peeling"] })} />
+                    <Chip on={sel("cond:c", m.cond.cond === "peeling", "peeling")} label={"Peeling & flaking"} onClick={() => act({ action: "loop_cond", cond: "peeling" }, { describe: withDelta("Extra prep allowed for peeling paintwork — and a lead-safe check is part of our visit"), opt: ["cond:c", "peeling"] })} />
                   </div>
                 </div>
                 <div className={`sd-q ${m.cond.rot ? "ok" : ""}`}>

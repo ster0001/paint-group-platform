@@ -45,6 +45,27 @@ test("weathered without the modifier row falls back to the amber deferral", () =
   assert.equal(m.deferred.some((d) => /weathered/.test(d.what)), true);
 });
 
+test("peeling & flaking exterior prices the Poor condition modifier up front (3 Sep)", () => {
+  // Before 3 Sep 2026 "peeling" priced nothing — only the visit deferral — so
+  // a job the customer marked as poor reached the painter with ordinary hours.
+  const m = bundle();
+  let next = 1;
+  const modSel = applyConditionPricing(m, exteriorState({ condition: "peeling" }), () => next++, ctx);
+  assert.equal(modSel.Condition, INTERIOR_POOR_MODIFIER_CODE);
+});
+
+test("peeling on a weathered card still takes the worse of the two", () => {
+  const m = bundle();
+  let next = 1;
+  const state: WizardState = {
+    ...defaultWizardState(), jobType: "both",
+    exterior: { ...defaultExterior(), condition: "peeling" },
+  };
+  state.details = { ...state.details, damageTier: 1 };
+  const modSel = applyConditionPricing(m, state, () => next++, ctx);
+  assert.equal(modSel.Condition, INTERIOR_POOR_MODIFIER_CODE, "×1.35 — the interior tier 1 adds nothing");
+});
+
 test("a ticked access answer lands the flat Access Allowance line at submit", () => {
   const m = bundle();
   let next = 1;

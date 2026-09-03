@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { sendEstimateInput } from "@/lib/validation/estimate";
-import { DEFAULT_MESSAGING, MESSAGING_KEY, normalisePhoneAU, renderTemplate, type MessagingSettings } from "@/lib/messaging/config";
+import { DEFAULT_MESSAGING, MESSAGING_KEY, automationOn, normalisePhoneAU, renderTemplate, type MessagingSettings } from "@/lib/messaging/config";
 import { buildChatEmailHtml, buildEstimateEmailHtml, emailConfigured, sendEmail, sendSms, smsConfigured, type DeliveryResult } from "@/lib/messaging/send";
 import { DEFAULT_COMPANY, type CompanyProfile, type Contact } from "./company";
 import type { ActionResult } from "@/app/pc/schedule/actions";
@@ -231,18 +231,22 @@ export async function replyToEstimateChatAction(raw: unknown): Promise<ChatReply
   ]);
   const rows = (settingsRows as { key: string; value: unknown }[] | null) ?? [];
   const company: CompanyProfile = { ...DEFAULT_COMPANY, ...((rows.find((r) => r.key === "company_profile")?.value as Partial<CompanyProfile>) ?? {}) };
+  const chatMessaging: MessagingSettings = { ...DEFAULT_MESSAGING, ...((rows.find((r) => r.key === MESSAGING_KEY)?.value as Partial<MessagingSettings>) ?? {}) };
   const contact = ((est?.builder_state as { contact?: Contact } | null)?.contact ?? null);
   const outcome: DeliveryOutcome = {};
 
-  if (est?.share_token) {
+  // Settings → Automations: "Reply on the estimate chat". Off = the reply is
+  // posted (the record) and the customer sees it next time they open the chat.
+  if (est?.share_token && automationOn(chatMessaging, "estimate_chat_reply")) {
     const link = `${await baseUrl()}/e/${est.share_token}#chat`;
+    const chatVars = { company_name: company.name, link };
 
     if (contact?.email) {
       let result: DeliveryResult;
       if (!emailConfigured()) result = { status: "not_configured" };
       else result = await sendEmail({
         to: contact.email,
-        subject: `New message about your estimate`,
+        subject: renderTemplate(chatMessaging.chatReplySubject, chatVars),
         replyTo: company.email || undefined,
         html: buildChatEmailHtml({
           message: body, link,
@@ -261,7 +265,7 @@ export async function replyToEstimateChatAction(raw: unknown): Promise<ChatReply
       const to = normalisePhoneAU(contact.phone);
       if (!smsConfigured()) result = { status: "not_configured" };
       else if (!to) result = { status: "error", message: "That mobile number doesn't look Australian." };
-      else result = await sendSms({ to, body: `${company.name}: you have a new message about your estimate. Open the chat: ${link}` });
+      else result = await sendSms({ to, body: renderTemplate(chatMessaging.chatReplySms, chatVars) });
       outcome.sms = { status: result.status, ...("message" in result ? { message: result.message } : {}) };
       await logDelivery(supabase, estimateId, "sms", contact.phone, result);
     }

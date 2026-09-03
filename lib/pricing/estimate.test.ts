@@ -338,3 +338,25 @@ test("sharePct scales derived quantities only — overrides stay absolute", () =
   assert.equal(computeQuantity(wallsItem, room, { count: 1, sharePct: 50, qtyOverride: 30 } as never), 30);
   assert.equal(computeQuantity(wallsItem, room, { count: 1, sharePct: 50, measureL: 6, measureH: 2 } as never), 12);
 });
+
+// ---- condition → the contractor's hours (Tom, 3 Sep 2026) ----------------
+//
+// "When an estimate is marked as needing extra prep (poor condition) more
+// hours need to be added for the contractor." The Condition modifier scales
+// PAINTING HOURS, not price — so the contractor's hours, the offer and the
+// work-order allowance all carry it. This pins that the painter side moves
+// with the customer side; sides.test.ts only ever checked labourCents.
+
+test("a poor-condition job gives the contractor more hours and more pay", () => {
+  const job = [area({ surfaces: [surface({ prepHr: 1 })] })];
+  const fair = priceEstimateTotals(job, ctx, { ...adj, modSel: { ...adj.modSel, Condition: "COND-FAIR" } });
+  const poor = priceEstimateTotals(job, ctx, { ...adj, modSel: { ...adj.modSel, Condition: "COND-POOR" } });
+  assert.ok(poor.contractorHours > fair.contractorHours, "the painter gets the extra hours");
+  assert.ok(poor.contractorOfferCents > fair.contractorOfferCents, "and is paid for them");
+  // Painting hours scale by the multiplier; the typed prep hour does not.
+  assert.equal(
+    Math.round((poor.contractorHours - 1) * 100) / 100,
+    Math.round((fair.contractorHours - 1) * 1.35 * 100) / 100,
+  );
+  assert.equal(poor.contractorOfferCents, Math.round(poor.contractorHours * 6000 * 1));
+});

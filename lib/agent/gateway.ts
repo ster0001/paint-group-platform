@@ -23,6 +23,8 @@ import { runTurn, type TurnInput, type TurnResult } from "./turn";
 import type { ToolExecutor } from "./schemas";
 import type { AgentSettings } from "./settings";
 import type { NewConversation, ConversationRow } from "./store";
+import { automationOn } from "@/lib/messaging/config";
+import { loadMessaging } from "@/lib/messaging/load";
 
 export type Gateway = {
   settings: AgentSettings;
@@ -44,7 +46,12 @@ export async function createGateway(opts: { tools?: (settings: AgentSettings) =>
   const store = new SupabaseAgentStore(db);
   const scope = new SupabaseScopeStore(db);
   const model = usingStubModel() ? new StubModel() : new AnthropicModelClient();
-  const notify = async (to: string[], body: string) => { await Promise.all(to.map((n) => sendSms({ to: n, body }).catch(() => undefined))); };
+  // Settings → Automations: "Assistant — someone wants a person". Off = the
+  // handoff card still appears in Today → Messages; nobody is texted.
+  const notify = async (to: string[], body: string) => {
+    if (!automationOn((await loadMessaging(db)).messaging, "assistant_handoff")) return;
+    await Promise.all(to.map((n) => sendSms({ to: n, body }).catch(() => undefined)));
+  };
   const tools = opts.tools ? opts.tools(settings) : new ScopeTools(scope, settings, new NoopTools(settings), () => new Date(), (text) => extractBrief(model, settings.modelHeavy, text), store, notify);
   return {
     settings,

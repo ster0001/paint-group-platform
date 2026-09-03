@@ -145,6 +145,14 @@ export default function OfferCard({
           <span className="v">{Number(hours).toFixed(1)} H</span>
         </div>
       )}
+      {/* The condition allowance, so a poor-condition job never looks like an
+          ordinary one at offer time (Tom, 3 Sep). Already inside the hours. */}
+      {doc?.condition && doc.condition.extraHours > 0 && (
+        <div className="frow" data-testid="offer-condition">
+          <span className="l">Extra prep allowed</span>
+          <span className="v">+{doc.condition.extraHours.toFixed(1)} H · {doc.condition.label}</span>
+        </div>
+      )}
       <div className="frow">
         <span className="l">Your price</span>
         <span className="v cyan" style={{ fontSize: 14 }}>

@@ -40,6 +40,17 @@ export type WOSurface = {
   colourKey?: string;
   prep: string; // plain-English prep note
   hours: number | null; // hours allowance
+  /**
+   * How the hours allowance is made up (Tom, 3 Sep — "more hours need to be
+   * added for the contractor" for a poor-condition job). `hours` already
+   * carried the Condition multiplier; these say so out loud. paintingHours
+   * is the modified painting time, prepHours the estimator's typed prep, and
+   * conditionHours the slice of paintingHours the Condition modifier added.
+   * Absent on documents frozen before 3 Sep 2026.
+   */
+  paintingHours?: number;
+  prepHours?: number;
+  conditionHours?: number;
   status: WOSurfaceStatus; // read-only in v1
 };
 
@@ -72,6 +83,12 @@ export type WorkOrderDoc = {
    * may override it individually.
    */
   finishCode: string | null;
+  /**
+   * The priced Condition (Poor / Heritage / Weathered…) and what it added to
+   * the painter's hours across the job. Null when no condition modifier is
+   * selected; absent on pre-3-Sep documents. `extraHours` is 0 for Fair.
+   */
+  condition?: { code: string; label: string; multiplier: number; extraHours: number } | null;
   contractorName: string;
   contractorPaymentCents: number;
   materials: WOMaterial[];

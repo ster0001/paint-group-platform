@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildEstimateEmailHtml, emailConfigured, sendEmail, sendSms, smsConfigured } from "@/lib/messaging/send";
-import { normalisePhoneAU } from "@/lib/messaging/config";
+import { automationOn, normalisePhoneAU, renderTemplate } from "@/lib/messaging/config";
+import { loadMessaging } from "@/lib/messaging/load";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { siteUrl } from "@/lib/invoicing/pdf";
 import { reportError } from "@/lib/monitoring/report";
@@ -66,12 +67,21 @@ const record = (service: SupabaseClient, workOrderId: string, type: string, meta
 /** "You have a job offer" — text + email, on send/reassign/re-offer. */
 export async function notifyJobOffer(service: SupabaseClient, workOrderId: string, contractorId: string): Promise<void> {
   try {
+    // Settings → Automations: "Job offer". Off = the portal still shows the
+    // offer (the record), the painter just isn't pinged.
+    const { messaging, company } = await loadMessaging(service);
+    if (!automationOn(messaging, "contractor_offer")) {
+      await record(service, workOrderId, "offer_notify_skipped", { contractor_id: contractorId, reason: "automation off" });
+      return;
+    }
     const { data: w } = await service
       .from("work_orders").select("wo_ref").eq("id", workOrderId).maybeSingle();
     const woRef = (w as { wo_ref?: string } | null)?.wo_ref ?? "a job";
     const c = await contactFor(service, contractorId);
     const link = `${siteUrl()}/portal/requests`;
-    const body = `Paint Group: you have a job offer (${woRef}) — it holds for 24 hours. Open your portal to see it and answer: ${link}`;
+    const companyName = company.name || "Paint Group";
+    const vars = { first_name: c.firstName, company_name: companyName, wo_ref: woRef, link };
+    const body = renderTemplate(messaging.offerSms, vars);
 
     if (c.phone && smsConfigured()) await sendSms({ to: c.phone, body });
     else if (c.phone) console.log(`[offer-sms:log-driver] to=${c.phone} body=${body}`);
@@ -82,13 +92,11 @@ export async function notifyJobOffer(service: SupabaseClient, workOrderId: strin
       } else {
         await sendEmail({
           to: c.email,
-          subject: `You have a job offer — ${woRef}`,
+          subject: renderTemplate(messaging.offerEmailSubject, vars),
           html: buildEstimateEmailHtml({
-            companyName: "Paint Group",
-            intro:
-              `Hi ${c.firstName},\n\n` +
-              `Paint Group has offered you a job (${woRef}). The offer holds for 24 hours — ` +
-              `sign in to your portal to see the dates, the price and the job sheet, and give your answer.`,
+            companyName,
+            logoUrl: company.logoUrlLight || company.logoUrl,
+            intro: renderTemplate(messaging.offerEmailIntro, vars),
             link,
             buttonLabel: "Open your portal",
           }),
@@ -115,11 +123,15 @@ export async function notifyVariationReleased(service: SupabaseClient, variation
     } | null;
     if (!row?.work_orders?.contractor_id || row.status !== "customer_approved" || !row.released_at) return;
     if (!(await once(service, row.work_order_id, "variation_release_notified", { variation_id: row.id }))) return;
+    const { messaging, company } = await loadMessaging(service);
+    if (!automationOn(messaging, "contractor_variation_released")) return;
 
     const c = await contactFor(service, row.work_orders.contractor_id);
     const link = `${siteUrl()}/portal/jobs/${row.work_order_id}`;
-    const body = `Paint Group: a variation on ${row.work_orders.wo_ref} is approved and waiting on you — ` +
-      `${row.credit ? "acknowledge" : "approve"} it in your dashboard: ${link}`;
+    const body = renderTemplate(messaging.variationReleasedSms, {
+      company_name: company.name || "Paint Group", wo_ref: row.work_orders.wo_ref,
+      action: row.credit ? "acknowledge" : "approve", link,
+    });
     if (c.phone && smsConfigured()) await sendSms({ to: c.phone, body });
     else console.log(`[variation-sms:log-driver] to=${c.phone ?? "-"} body=${body}`);
 
@@ -143,11 +155,14 @@ export async function notifyQaFail(service: SupabaseClient, checkId: string): Pr
     } | null;
     if (!row?.work_orders?.contractor_id || row.result !== "fail") return;
     if (!(await once(service, row.work_order_id, "qa_fail_notified", { check_id: row.id }))) return;
+    const { messaging, company } = await loadMessaging(service);
+    if (!automationOn(messaging, "contractor_qa_fail")) return;
 
     const c = await contactFor(service, row.work_orders.contractor_id);
     const link = `${siteUrl()}/portal/jobs/${row.work_order_id}`;
-    const body = `Paint Group: the quality check on ${row.work_orders.wo_ref} found areas that need rectifying. ` +
-      `The details and photos are on the job in your portal: ${link}`;
+    const body = renderTemplate(messaging.qaFailSms, {
+      company_name: company.name || "Paint Group", wo_ref: row.work_orders.wo_ref, link,
+    });
     if (c.phone && smsConfigured()) await sendSms({ to: c.phone, body });
     else console.log(`[qa-fail-sms:log-driver] to=${c.phone ?? "-"} body=${body}`);
 

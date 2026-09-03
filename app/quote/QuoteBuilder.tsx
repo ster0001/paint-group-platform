@@ -34,6 +34,7 @@ import { roundUpLitres, type WorkOrderDoc as WODoc, type WOMaterial, type WOArea
 import { aggregateMaterials, lookupColourEntry, materialColourKey, type MaterialSurfaceRow } from "@/lib/workorder/materials";
 import type { WoStage } from "@/lib/workorder/stages";
 import { finishFromModifier } from "@/lib/workorder/finish";
+import { conditionExtraHours } from "@/lib/workorder/conditionAllowance";
 import OfferPanel from "./OfferPanel";
 import { linkEstimateAccountAction, replyToEstimateChatAction, sendEstimateAction, type DeliveryOutcome } from "./actions";
 import SendDialog, { type SendDelivery } from "./SendDialog";
@@ -1140,6 +1141,13 @@ export default function QuoteBuilder({
     // The job's contractor-facing standard, derived from the priced level of
     // finish. Null when the estimate's level has no PG equivalent.
     const jobFinishCode = finishFromModifier(modSel["Level of Finish"]);
+    // The priced Condition, so the painter's sheet can say how much extra
+    // prep the job carries (Tom, 3 Sep). The hours below ALREADY include it —
+    // priceSurface multiplies painting hours by the job modifier — this only
+    // splits the slice back out for the eye.
+    const conditionMod = modSel["Condition"] ? modifiers.find((m) => m.code === modSel["Condition"]) ?? null : null;
+    const conditionMult = conditionMod?.multiplier ?? 1;
+    let conditionHoursTotal = 0;
     for (const b of blocks) {
       if (b.kind !== "area" || b.isOption) continue;
       const surfaces: WOArea["surfaces"] = [];
@@ -1160,12 +1168,19 @@ export default function QuoteBuilder({
           });
         }
         const key = `${b.id}:${s.id}`;
+        // A typed painting-hours override bypasses the modifier entirely, so
+        // it carries no condition slice — the figure is the estimator's own.
+        const conditionHours = s.paintingHrOverride == null ? conditionExtraHours(calc.paintingHr, conditionMult) : 0;
+        conditionHoursTotal += conditionHours;
         surfaces.push({
           key, label: s.clientLabel || s.code, coats: s.coats, product: pname,
           colourName: col.name, colourHex: col.hex,
           colourKey: pname ? materialColourKey(pname, col.name) : undefined,
           prep: s.crewNote || "",
           hours: woHours[key] ?? Number((calc.paintingHr + calc.prepHr).toFixed(2)),
+          paintingHours: Number(calc.paintingHr.toFixed(2)),
+          prepHours: Number(calc.prepHr.toFixed(2)),
+          conditionHours,
           status: "not_started",
         });
       }
@@ -1201,6 +1216,14 @@ export default function QuoteBuilder({
       crewNotes: woCrewNotes,
       levelOfFinish: (modifiers.find((m) => m.code === modSel["Level of Finish"])?.label ?? "").replace(/\s*\(×[^)]*\)\s*$/, "").trim(),
       finishCode: jobFinishCode,
+      condition: conditionMod
+        ? {
+            code: conditionMod.code,
+            label: conditionMod.label.replace(/\s*\(×[^)]*\)\s*$/, "").trim(),
+            multiplier: conditionMod.multiplier,
+            extraHours: Math.round(conditionHoursTotal * 100) / 100,
+          }
+        : null,
       contractorName: contractors.find((c) => c.id === woContractorId)?.name ?? "",
       contractorPaymentCents: totals.contractorOffer,
       materials, areas: areasDoc,
