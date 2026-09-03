@@ -194,8 +194,11 @@ export function heuristicExtract(text: string): BriefExtraction {
   if (/\btrims?\b/.test(lbody)) { surfaces.add("doors"); surfaces.add("architraves"); surfaces.add("skirting"); }
 
   const exteriorish = /\b(exterior|outside|external|weatherboards?|render(ed)?|facade|fascias?|gutters?|eaves|brickwork)\b/.test(lbody);
-  const interiorish = /\b(interior|inside|internal|bedroom|kitchen|ceiling|hallway|walls?|bathroom|living)\b/.test(lbody);
-  const jobType = exteriorish && interiorish ? "both" : exteriorish ? "exterior" : interiorish || bedrooms != null ? "interior" : null;
+  // Room words alone ("4 bedroom house") describe the house, not the job:
+  // with an exterior cue present only a STRONG interior cue makes it both.
+  const interiorStrong = /\b(interior|inside|internal|ceilings?|hallway|skirting|cornices?|architraves?|inside and out|in and out|internal walls)\b/.test(lbody);
+  const interiorish = interiorStrong || /\b(bedroom|kitchen|walls?|bathroom|living)\b/.test(lbody);
+  const jobType = exteriorish && interiorStrong ? "both" : exteriorish ? "exterior" : interiorish || bedrooms != null ? "interior" : null;
 
   const defects: BriefExtraction["defects"] = [];
   for (const s of clean) {

@@ -15,7 +15,7 @@ import { DEFAULT_SURFACES, type WizardState } from "@/lib/wizard/state";
 import { buildTreeFromState } from "@/lib/wizard/build-tree";
 import { starterRoomList, type StarterRoom } from "@/lib/wizard/starter";
 import { defaultInteriorLoop } from "@/lib/wizard/rooms-loop";
-import { defaultSidesLoop } from "@/lib/wizard/sides";
+import { addWallSurface, applySideInclude, applySideSizeOk, defaultSidesLoop, findSide, SIDE_KEYS, type LooseBlock } from "@/lib/wizard/sides";
 import { applyToggle } from "@/lib/wizard/scope-editor";
 import { makeDraftSurface, type DraftArea } from "@/lib/extract/draft";
 import { DEFECT_LABELS, defectHours } from "@/lib/capture/commit";
@@ -24,7 +24,7 @@ import { adjustmentsFrom } from "@/lib/pricing/context";
 import type { WizardDeferred } from "@/lib/wizard/view";
 import type { BriefExtraction } from "./brief-extract";
 import { gapsFor } from "./question-graph";
-import { addArea, addCustomLine, docAnswers, docBlocks, docDeferred, docFacts, graphInput, isBuilt, nextIdFrom, toWizardState, type AnswerDraft, type ScopeBlock, type ScopeDeps, type ScopeDoc } from "./scope-doc";
+import { addArea, addCustomLine, docAnswers, exteriorTicks, docBlocks, docDeferred, docFacts, graphInput, isBuilt, nextIdFrom, toWizardState, type AnswerDraft, type ScopeBlock, type ScopeDeps, type ScopeDoc } from "./scope-doc";
 import { assumptionSwings, priceScope } from "./scope-tools";
 import type { Assumption, Gap } from "./schemas";
 
@@ -102,8 +102,14 @@ function buildFromBrief(doc: ScopeDoc, x: BriefExtraction, deps: ScopeDeps, mode
   if (namedOnly) fillIns.push(fillIn("rooms.named_only", "Assumed: only the rooms named — add any I've missed", "named"));
   const storeys = x.storeys ?? a.basics?.storeys ?? "single";
   if (!x.storeys && !a.basics?.storeys) fillIns.push(fillIn("q.storeys", "Assumed: single storey", "single"));
-  const surfaces = x.surfaces.length ? [...x.surfaces] : (a.surfaces?.length ? a.surfaces : [...DEFAULT_SURFACES]);
-  if (!x.surfaces.length && !a.surfaces?.length) fillIns.push(fillIn("job.surfaces", `Assumed: the usual interior surfaces (${DEFAULT_SURFACES.join(", ")})`, DEFAULT_SURFACES.join(",")));
+  // Page-2 ticks: interior surfaces as stated (or the usual set), plus the
+  // exterior ticks derived from substrates + what we're painting outside —
+  // without them the envelope scaffolds as bare walls (Tom, 3 Sep).
+  const interiorSurfaces = wantsInterior ? (x.surfaces.length ? [...x.surfaces] : (a.surfaces?.filter((k) => !EXTERIOR_TICK.test(k)).length ? a.surfaces.filter((k) => !EXTERIOR_TICK.test(k)) : [...DEFAULT_SURFACES])) : [];
+  const extTicks = jobType !== "interior" ? exteriorTicks({ exterior: { substrates: x.exterior?.substrates.length ? x.exterior.substrates : (a.exterior?.substrates ?? ["weatherboards"]), painting: x.exterior?.painting ?? a.exterior?.painting ?? { body: true, windowsDoors: true, roofline: true, garage: false } } } as AnswerDraft) : [];
+  const surfaces = [...interiorSurfaces, ...extTicks];
+  if (wantsInterior && !x.surfaces.length && !a.surfaces?.length) fillIns.push(fillIn("job.surfaces", `Assumed: the usual interior surfaces (${DEFAULT_SURFACES.join(", ")})`, DEFAULT_SURFACES.join(",")));
+  if (jobType !== "interior" && !x.exterior?.painting && !a.exterior?.painting) fillIns.push(fillIn("ext.painting", "Assumed: painting the walls, windows and doors, and the roofline outside — not the garage", "body,windowsDoors,roofline"));
   const coats = x.coats ?? a.condition?.tier ?? "change";
   if (!x.coats && !a.condition?.tier) fillIns.push(fillIn("condition.tier", "Assumed: two coats (a change of colour)", "change"));
   const damageTier = x.defects.length ? Math.max(...x.defects.map((d) => d.severity)) : (a.details?.damageTier ?? 0);
@@ -197,11 +203,33 @@ function buildFromBrief(doc: ScopeDoc, x: BriefExtraction, deps: ScopeDeps, mode
   });
   const surfacesNotStated = new Set<string>();
   if (x.surfaces.length && !x.surfaces.includes("ceilings")) surfacesNotStated.add("ceilings");
+  // Co-work exterior (Tom, 3 Sep): the estimator wants the whole envelope
+  // priced at once — every side in, typical elevation sizes, the stated
+  // substrates split across each side — then corrects in the builder. The
+  // customer's own guided build keeps the per-side loop.
+  let blocks: LooseBlock[] = areas as unknown as LooseBlock[];
+  if (mode === "cowork" && jobType !== "interior") {
+    let nextId = nextIdFrom(areas as unknown as ScopeBlock[]);
+    const subs = state.exterior?.substrates ?? [];
+    const extraWalls = subs.slice(1).map((k) => WALL_CODE_FOR[k]).filter((c): c is string => Boolean(c));
+    let touched = false;
+    for (const key of SIDE_KEYS) {
+      if (!findSide(blocks, key)) continue;
+      const inc = applySideInclude(blocks, key, true); if (inc.ok) blocks = inc.blocks;
+      const ok = applySideSizeOk(blocks, key); if (ok.ok) blocks = ok.blocks;
+      for (const code of extraWalls) { const w = addWallSurface(blocks, key, code, () => nextId++); if (w.ok) blocks = w.blocks; }
+      touched = true;
+    }
+    if (touched) {
+      fillIns.push(fillIn("sides.all", "Assumed: all four sides painted, typical elevation sizes — confirm in the sweep", "all"));
+      if (extraWalls.length) fillIns.push(fillIn("sides.wall_split", `Assumed: ${subs.join(" and ")} split across each side (${subs[0]} the larger share) — adjust the split in the builder`, "split"));
+    }
+  }
   const working: ScopeDoc = {
     ...doc,
     builderState: {
       ...doc.builderState,
-      blocks: areas, aiDeferred: tree.deferred, modSel: tree.modSel,
+      blocks: blocks as unknown as ScopeBlock[], aiDeferred: tree.deferred, modSel: tree.modSel,
       interiorLoop: defaultInteriorLoop(), sidesLoop: defaultSidesLoop(),
       wizard: { state, builtAt: new Date().toISOString(), builtBy: "assistant-brief" },
       agent: { ...(doc.builderState.agent as Record<string, unknown> ?? {}), answers: draft, facts: nextFacts },
@@ -310,3 +338,7 @@ export function rowCount(doc: ScopeDoc): number {
 }
 
 export type { DraftArea };
+
+/** Substrate answer → the wall rate row it lands on. */
+const WALL_CODE_FOR: Record<string, string> = { weatherboards: "Weatherboards", render: "Render", brick: "Brick", concrete: "Concrete / Tilt Slab" };
+const EXTERIOR_TICK = /^(weatherboards|render|brick|concrete|fascias|gutters|eaves|downpipes|exterior_windows|exterior_doors|garage_doors)$/;

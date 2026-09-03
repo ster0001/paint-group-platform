@@ -203,3 +203,48 @@ describe("co-work: the pending proposal and the apply gate", () => {
     expect(assistantNumbersTraceable(await store.listMessages(conv.id), await store.listToolCalls(conv.id))).toBe(true);
   });
 });
+
+describe("3 Sep — what Tom's first real run taught us", () => {
+  it("'outside' with a room count is an EXTERIOR job, not both", () => {
+    expect(heuristicExtract("Outside. 4 bedroom detached single storey house, weatherboards and render, weathered.").jobType).toBe("exterior");
+    expect(heuristicExtract("Outside and inside: 3 bed house, walls and ceilings, plus the weatherboards.").jobType).toBe("both");
+    expect(heuristicExtract("3 bed house, walls and ceilings.").jobType).toBe("interior");
+  });
+
+  it("co-work exterior: every side in with typical sizes, both substrates on each side, trims/windows/doors present", () => {
+    const scope = new MemoryScopeStore({ refs, ctx });
+    scope.seed(emptyDoc("est-1", "residential"));
+    const x = heuristicExtract("Outside only. 4 bedroom single storey house, weatherboards and render, weathered paintwork.");
+    const p = proposeFromBrief(emptyDoc("est-1", "residential"), x, staff, { mode: "cowork", gateCents: 15_000 });
+    expect(p.ok).toBe(true);
+    if (!p.ok) return;
+    const sides = docBlocks(p.working).filter((b) => b.type === "Exterior");
+    expect(sides.length).toBe(4);
+    for (const s of sides) {
+      const codes = (s.surfaces ?? []).map((l) => String(l.code));
+      expect(codes).toContain("Weatherboards");
+      expect(codes).toContain("Render");
+      expect(codes).toContain("Fascias");
+      expect(codes).toContain("Fixed / Picture Window");
+      expect((s.customer as { include?: boolean; size?: string }).include).toBe(true);
+    }
+    expect(p.summary.assumed.some((a) => a.key === "sides.all")).toBe(true);
+    // No interior rooms sneaked in.
+    expect(docBlocks(p.working).some((b) => b.type !== "Exterior" && b.kind === "area")).toBe(false);
+  });
+
+  it("'change all walls to 3 coats' after the build re-coats every row", async () => {
+    const scope = new MemoryScopeStore({ refs, ctx });
+    scope.seed(emptyDoc("est-1", "residential"));
+    const tools = new ScopeTools(scope, settings, new NoopTools(settings), () => new Date(), async (text) => ({ ok: true, extraction: heuristicExtract(text) }));
+    const tctx: ToolContext = { conversationId: "c1", mode: "cowork", view: "staff", estimateId: "est-1", accountId: null, actorId: "staff-1" };
+    expect((await tools.execute("propose_diff", { text: "3 bed house, walls and ceilings", sourceKind: "text" }, tctx)).status).toBe("ok");
+    const before = (await tools.execute("price_scope", {}, tctx) as { data: { totalCents: number } }).data.totalCents;
+    const r = await tools.execute("answer_gap", { key: "condition.tier", value: "3 coats", provenance: "human_confirmed" }, tctx);
+    expect(r.status).toBe("ok");
+    const live = (await scope.load("est-1"))!;
+    for (const b of docBlocks(live)) for (const l of b.surfaces ?? []) expect(l.coats).toBe(3);
+    const after = (await tools.execute("price_scope", {}, tctx) as { data: { totalCents: number } }).data.totalCents;
+    expect(after).toBeGreaterThan(before);
+  });
+});

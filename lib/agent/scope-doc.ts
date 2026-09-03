@@ -16,6 +16,7 @@
  * Nothing here prices. Nothing here talks to a database.
  */
 
+import { coatsFor } from "@/lib/wizard/state";
 import { DEFAULT_SURFACES, wizardStateSchema, windowStyleLabel, windowStyleToSchema, type WizardState } from "@/lib/wizard/state";
 import { buildTreeFromState, type TreeRefs } from "@/lib/wizard/build-tree";
 import {
@@ -155,7 +156,7 @@ export function toWizardState(draft: AnswerDraft, facts: AgentFacts, mode: "cust
     basics: draft.basics && draft.basics.bedrooms != null
       ? { bedrooms: draft.basics.bedrooms, storeys: draft.basics.storeys ?? "single", sizeBand: draft.basics.sizeBand ?? "unsure", openPlanKitchenLiving: draft.basics.openPlanKitchenLiving ?? false }
       : null,
-    surfaces: draft.surfaces?.length ? draft.surfaces : (draft.jobType === "exterior" ? ["weatherboards"] : DEFAULT_SURFACES),
+    surfaces: draft.surfaces?.length ? draft.surfaces : (draft.jobType === "exterior" ? exteriorTicks(draft) : DEFAULT_SURFACES),
     condition: {
       tier: draft.condition?.tier ?? (draft.jobType === "exterior" ? "change" : undefined),
       // The assistant asks the tier, not the per-surface follow-up: dark to
@@ -254,7 +255,7 @@ const oneOf = <T extends string>(v: unknown, opts: readonly T[]): T | null => {
   return (byPrefix as T) ?? null;
 };
 
-const PRE_BUILD_KEYS = new Set(["q.address", "q.job_type", "q.property_type", "q.storeys", "rooms", "job.surfaces", "condition.tier", "condition.damage", "ext.storeys", "ext.substrates", "ext.painting", "ext.condition"]);
+const PRE_BUILD_KEYS = new Set(["q.address", "q.job_type", "q.property_type", "q.storeys", "rooms", "job.surfaces", "condition.damage", "ext.storeys", "ext.substrates", "ext.painting", "ext.condition"]);
 
 export function applyAnswer(doc: ScopeDoc, key: string, value: unknown, provenance: Provenance, deps: ScopeDeps): AnswerOutcome {
   if (key.startsWith("stop.")) return { ok: false, reason: "A hard stop is answered by its script, not by me." };
@@ -334,9 +335,17 @@ export function applyAnswer(doc: ScopeDoc, key: string, value: unknown, provenan
       return patchDraft({ surfaces: ok });
     }
     case "condition.tier": {
-      const t = oneOf(value, ["fresh", "change", "dark_to_light"] as const);
-      if (!t) return { ok: false, reason: "Freshen up, change of colour, or dark to light?" };
-      return patchDraft({ condition: { tier: t } });
+      // Also the way "3 coats" / "one coat" arrives after the build.
+      const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
+      const t = oneOf(value, ["fresh", "change", "dark_to_light"] as const)
+        ?? (/\b(3|three) coats?\b|dark to light/.test(raw) ? "dark_to_light" : /\b(1|one) coats?\b|freshen|same colour/.test(raw) ? "fresh" : /\b(2|two) coats?\b|change of colour|new colour/.test(raw) ? "change" : null);
+      if (!t) return { ok: false, reason: "Freshen up (one coat), change of colour (two), or dark to light (three)?" };
+      const patched = patchDraft({ condition: { tier: t } });
+      if (!patched.ok || !isBuilt(doc)) return patched;
+      // After the build the rows carry their coats: re-coat every surface line.
+      const coats = coatsFor(t, t === "dark_to_light");
+      const blocks = docBlocks(patched.doc).map((b) => (b.kind === "area" || b.kind === "side" || b.surfaces ? { ...b, surfaces: (b.surfaces ?? []).map((s) => ({ ...s, coats })) } : b));
+      return { ok: true, doc: withState(patched.doc, { blocks }), note: `${coats} coat${coats === 1 ? "" : "s"} on every surface.` };
     }
     case "condition.damage": {
       const n = num(value);
@@ -881,4 +890,20 @@ export function applyPending(doc: ScopeDoc, appliedBy: string | null): ScopeDoc 
   for (const k of TREE_KEYS) if (k in working.builderState) next[k] = working.builderState[k];
   next.agent = { ...agent, answers: docAnswers(working), pending: null, pendingMeta: null, appliedDiffs: [...applied, { at: new Date().toISOString(), by: appliedBy }] };
   return { ...doc, requiresSiteCheck: working.requiresSiteCheck, builderState: next };
+}
+
+/** The wizard's page-2 exterior ticks, derived from the assistant's answers
+ *  (substrates + what we're painting). Before this an exterior built from
+ *  answers scaffolded ONE weatherboard line per side and no trims, windows
+ *  or doors — "weatherboards and render, windows and doors, roofline" landed
+ *  as four bare walls (Tom, 3 Sep). */
+export function exteriorTicks(draft: AnswerDraft): string[] {
+  const ext = draft.exterior ?? {};
+  const painting = ext.painting ?? { body: true, windowsDoors: true, roofline: true, garage: false };
+  const ticks = new Set<string>();
+  for (const sub of ext.substrates?.length ? ext.substrates : ["weatherboards"]) ticks.add(sub);
+  if (painting.roofline) for (const t of ["fascias", "gutters", "eaves", "downpipes"]) ticks.add(t);
+  if (painting.windowsDoors) { ticks.add("exterior_windows"); ticks.add("exterior_doors"); }
+  if (painting.garage) ticks.add("garage_doors");
+  return [...ticks];
 }

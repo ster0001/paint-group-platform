@@ -55,7 +55,7 @@ export type TurnResult = {
   toolCalls: ToolCallRow[];
   usage: { inputTokens: number; outputTokens: number };
   model: string | null;
-  degraded: null | "budget" | "daily_cap" | "refusal" | "closed" | "handed_off" | "max_rounds";
+  degraded: null | "budget" | "daily_cap" | "refusal" | "closed" | "handed_off" | "max_rounds" | "error";
 };
 
 /** The stable part of the prompt first (cacheable), the per-turn part last. */

@@ -49,7 +49,14 @@ export async function POST(request: Request) {
 
   const result = focus && !text.trim() && !answer
     ? { text: "", degraded: null as null }
-    : await gateway.turn({ conversationId, text: text.trim() || "(tapped an option)", actor: "user", answer: answer ?? null });
+    : await gateway.turn({ conversationId, text: text.trim() || "(tapped an option)", actor: "user", answer: answer ?? null }).catch(async (e: unknown) => {
+        // A model or tool failure must never be silence (Tom, 3 Sep: a turn
+        // that died left no reply at all). Persist a plain line, log the cause.
+        reportError(e, { where: `agent.turn.model:${conversationId}`, bestEffort: true });
+        const line = "Something went wrong on my side — say that again and I'll pick it up.";
+        await gateway.store.appendMessage({ conversationId, role: "assistant", content: line, modelId: null, tokensIn: 0, tokensOut: 0 }).catch(() => undefined);
+        return { text: line, degraded: "error" as const };
+      });
 
   // Email captured → the account link (same seed the wizard submit makes).
   if (conv.estimateId && !conv.accountId && conv.mode !== "cowork") {
