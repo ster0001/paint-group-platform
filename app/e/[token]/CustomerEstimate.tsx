@@ -234,7 +234,7 @@ export default function CustomerEstimate({
       <h3>Chat with us</h3>
       <div className="chatthread">
         {thread.length === 0
-          ? <p className="sub" style={{ margin: "4px 0 10px" }}>Ask us anything about your estimate — we&apos;ll reply here and let you know by text and email.</p>
+          ? <p className="sub" style={{ margin: "4px 0 10px" }}>Ask us anything about your estimate. We&apos;ll reply here and let you know by text and email.</p>
           : thread.map((m) => (
               <div key={m.id} className={`chatrow ${m.direction === "customer" ? "mine" : "theirs"}`}>
                 <div className="chatbubble">
@@ -335,7 +335,7 @@ export default function CustomerEstimate({
             </div>
             {changes.variations.some((v) => v.status === "priced") && (
               <p style={{ margin: "8px 0 0", fontSize: 12, opacity: 0.85 }}>
-                Changes awaiting your signature aren&apos;t in the total yet — they join it the moment you sign.
+                Changes awaiting your signature aren&apos;t in the total yet. They join it the moment you sign.
               </p>
             )}
           </section>
@@ -408,8 +408,8 @@ export default function CustomerEstimate({
         {/* SCOPE */}
         {(snap.areas.length > 0 || snap.lineItems.length > 0) && (
           <section>
-            <h2>Scope of works, room by room</h2>
-            <p className="sub">Every surface, product and coat count — nothing hidden in fine print. Tap a room to see the detail.</p>
+            <h2>Scope of works, item by item</h2>
+            <p className="sub">Every surface, product and coat count, nothing hidden in fine print. Tap a room to see the detail.</p>
 
             {snap.areas.map((a, i) => (
               <details className="room" key={a.id} open={i === 0}>
@@ -453,7 +453,7 @@ export default function CustomerEstimate({
           return (
             <section>
               <h2>The paint we&apos;re supplying</h2>
-              <p className="sub">Every product on this job, matched to your surfaces — all paint and materials are included in your price.</p>
+              <p className="sub">Every product on this job, matched to your surfaces. All paint and materials are included in your price.</p>
               <div className="paints">
                 {topcoats.map((p, i) => <PaintCard key={`t${i}`} p={p} />)}
               </div>
@@ -466,7 +466,7 @@ export default function CustomerEstimate({
                 </>
               )}
               {anyStarred && <p className="paintfine">* Subject to manufacturer&apos;s label conditions.</p>}
-              <p className="paintnote">Prefer a different brand or finish? Ask us — we can reprice the same scope with Dulux, Wattyl or another premium range before you accept.</p>
+              <p className="paintnote">Prefer a different brand or finish? Ask us. We can reprice the same scope with Dulux, Wattyl or another premium range before you accept.</p>
             </section>
           );
         })()}
@@ -475,7 +475,7 @@ export default function CustomerEstimate({
         {!invoiceMode && snap.options.length > 0 && (
           <section>
             <h2>Optional extras</h2>
-            <p className="sub">Add any of these to your estimate — your total updates instantly, and your selection is saved when you accept.</p>
+            <p className="sub">Add any of these to your estimate. Your total updates instantly, and your selection is saved when you accept.</p>
             {snap.options.map((o) => {
               const on = selected.has(o.id);
               return (
@@ -496,7 +496,7 @@ export default function CustomerEstimate({
         {(snap.inclusions.length > 0 || snap.exclusions.length > 0) && (
           <section>
             <h2>What&apos;s included</h2>
-            <p className="sub">And, just as importantly, what isn&apos;t — so there are no surprises on either side.</p>
+            <p className="sub">And, just as importantly, what isn&apos;t, so there are no surprises on either side.</p>
             <div className="twocol">
               <div className="inc">
                 <div className="listhead">Included in your price</div>
@@ -515,7 +515,7 @@ export default function CustomerEstimate({
         {/* INVESTMENT */}
         <section>
           <h2>Your painting quote</h2>
-          <p className="sub">One price. Pay by card, or bank transfer — whatever suits.</p>
+          <p className="sub">One price. Pay by card, or bank transfer, whatever suits.</p>
           <div className="table">
             <div className="trow"><span className="l">Painting works as scoped</span><span className="v">{money2(snap.baseSubtotalCents)}</span></div>
             {snap.options.filter((o) => selected.has(o.id)).map((o) => (
@@ -590,7 +590,7 @@ export default function CustomerEstimate({
 
               {panel === "accept" && (
                 <div className="panelbox">
-                  <h3>Confirm acceptance — {money2(total)} incl. GST</h3>
+                  <h3>Confirm acceptance: {money2(total)} incl. GST</h3>
                   <label className="field"><span>Full name</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your full name" /></label>
                   <div className="field">
                     <span>Sign below</span>
@@ -606,7 +606,7 @@ export default function CustomerEstimate({
                 <div className="panelbox">
                   <h3>Ask a question</h3>
                   {asked ? (
-                    <div className="confirm">✓ Thanks — we&apos;ll come back to you today.</div>
+                    <div className="confirm">✓ Thanks, we&apos;ll come back to you today.</div>
                   ) : (
                     <>
                       <label className="field"><span>Your question</span><textarea rows={4} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Anything you&apos;d like to check before deciding…" /></label>
@@ -619,7 +619,7 @@ export default function CustomerEstimate({
 
               {panel === "decline" && (
                 <div className="panelbox">
-                  <h3>No problem — mind telling us why?</h3>
+                  <h3>No problem. Mind telling us why?</h3>
                   <div className="quickpicks">
                     {DECLINE_PICKS.map((p) => (
                       <button key={p} className={`pick${declinePick === p ? " on" : ""}`} onClick={() => setDeclinePick(declinePick === p ? "" : p)}>{p}</button>
@@ -644,7 +644,7 @@ export default function CustomerEstimate({
           <section id="accept" className="print-hide">
             <div className="acceptpanel cutin">
               <h2>Questions about your job?</h2>
-              <p className="sub">Message us here any time — the conversation also lives in your account under Messages.</p>
+              <p className="sub">Message us here any time. The conversation also lives in your account under Messages.</p>
               <div className="finebtns print-hide">
                 <button className="btn btn-ghost" onClick={() => setPanel(panel === "chat" ? null : "chat")}>
                   {thread.length ? "Open chat" : "Message us"}
@@ -686,7 +686,7 @@ export default function CustomerEstimate({
           {invoiceMode
             ? " This invoice reflects your accepted scope plus every change you have signed."
             : " This quote covers the scope above; any variation is quoted and approved by you in writing before work proceeds."}
-          Fully insured — {snap.proof.liability} public liability. Member, Master Painters Association.
+          Fully insured with {snap.proof.liability} public liability. Member, Master Painters Association.
         </footer>
       </main>
 
@@ -788,7 +788,7 @@ function PrintQuote({
       </table>
 
       <div className="pd-deposit">
-        <b>Deposit payable ({depositPct}%): {money2(deposit)}</b> — payable in full prior to work commencement; balance on completion after your walkthrough.
+        <b>Deposit payable ({depositPct}%): {money2(deposit)}</b>, payable in full prior to work commencement. Balance on completion after your walkthrough.
       </div>
 
       {snap.paints?.length > 0 && (
@@ -796,7 +796,7 @@ function PrintQuote({
           <div className="pd-h">Paint &amp; materials supplied</div>
           <ul className="pd-list">
             {snap.paints.map((p, i) => (
-              <li key={i}>{[p.brand, p.name].filter(Boolean).join(" ")}{p.finish ? ` — ${p.finish}` : ""}{p.colourName ? ` · ${p.colourName}` : ""}{p.role ? ` (${p.role})` : ""}</li>
+              <li key={i}>{[p.brand, p.name].filter(Boolean).join(" ")}{p.finish ? `, ${p.finish}` : ""}{p.colourName ? ` · ${p.colourName}` : ""}{p.role ? ` (${p.role})` : ""}</li>
             ))}
           </ul>
         </div>
@@ -833,7 +833,7 @@ function PrintQuote({
       </div>
 
       <div className="pd-foot">
-        {c.name} · ABN {c.abn} · {est} valid for 60 days from {dateFmt(sentAt)}. Fully insured — {snap.proof.liability} public liability.
+        {c.name} · ABN {c.abn} · {est} valid for 60 days from {dateFmt(sentAt)}. Fully insured with {snap.proof.liability} public liability.
       </div>
     </div>
   );
@@ -898,7 +898,7 @@ function PaintCard({ p }: { p: SnapshotPaint }) {
             <div className="pc-colour" key={i}>
               <span className="pc-swatch" style={{ background: c.hex || "#cfcfcf" }} />
               {c.name ? `Colour: ${c.name}` : "Colour matched to your existing colour"}
-              {c.name && c.match ? " — colour matched" : ""}
+              {c.name && c.match ? ", colour matched" : ""}
               {c.areas.length > 0 && <small style={{ color: "inherit", opacity: 0.75 }}> · {c.areas.join(" · ")}</small>}
             </div>
           ))

@@ -1,7 +1,7 @@
 "use client";
 
 import { registerBuilder } from "./builderBridge";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   priceSurface,
   priceLine,
@@ -351,8 +351,30 @@ export default function QuoteBuilder({
   );
   // Presentation tick — which presentation (if any) injects into the customer view.
   const [presentationId, setPresentationId] = useState<string | null>(initial?.presentation_id ?? null);
+  // The list is loaded with the page, then REFRESHED whenever this tab regains
+  // focus or the picker is opened — a presentation made in Settings a minute
+  // ago must be offered without a reload (Tom, 3 Sep: "make sure any future
+  // presentations show up"). Same select as the server page, under staff RLS.
+  const [presList, setPresList] = useState(presentations);
+  const refreshPresentations = useCallback(async () => {
+    const { data } = await createClient()
+      .from("presentations")
+      .select("id, name, is_default, presentation_blocks(kind, position, enabled, content)")
+      .order("name");
+    if (!data) return;
+    type Row = { id: string; name: string; presentation_blocks: { kind: string; position: number; enabled: boolean; content: unknown }[] | null };
+    setPresList((data as Row[]).map((p) => ({
+      id: p.id, name: p.name,
+      blocks: (p.presentation_blocks ?? []).slice().sort((a, b) => a.position - b.position),
+    })));
+  }, []);
+  useEffect(() => {
+    const onFocus = () => { void refreshPresentations(); };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [refreshPresentations]);
   const presentationDoc = () => {
-    const p = presentations.find((x) => x.id === presentationId);
+    const p = presList.find((x) => x.id === presentationId);
     if (!p) return null;
     const blocks = p.blocks.filter((b) => b.enabled).sort((a, z) => a.position - z.position).map((b) => ({ kind: b.kind, content: b.content }));
     return blocks.length ? { blocks } : null;
@@ -740,9 +762,24 @@ export default function QuoteBuilder({
 
   // Fingerprint of what a save would write; equal to the last save (or the
   // load) means nothing to flush.
-  const builderFingerprint = JSON.stringify({ blocks, modSel, contact, jobAddress, materials, materialColours, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, aiDeferred, idealPainters });
+  // presentationId is part of the fingerprint (3 Sep): ticking a presentation
+  // used to leave the builder "Saved ✓", so nothing wrote it and the Estimate
+  // tab kept showing the last published copy — without the presentation.
+  const builderFingerprint = JSON.stringify({ blocks, modSel, contact, jobAddress, materials, materialColours, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, aiDeferred, idealPainters, presentationId });
   useEffect(() => { if (!savedStateRef.current) savedStateRef.current = builderFingerprint; }, [builderFingerprint]);
   dirtyRef.current = () => Boolean(quoteId) && builderFingerprint !== savedStateRef.current;
+  const unsaved = Boolean(savedStateRef.current) && builderFingerprint !== savedStateRef.current;
+  // Ticking a presentation IS the instruction to publish it — save at once,
+  // so the customer's copy and the Estimate tab carry it without anyone
+  // remembering the Save button (Tom, 3 Sep).
+  const lastSavedPresRef = useRef<string | null>(initial?.presentation_id ?? null);
+  useEffect(() => {
+    if (!quoteId || locked || revision) return;
+    if (presentationId === lastSavedPresRef.current) return;
+    lastSavedPresRef.current = presentationId;
+    void save();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presentationId]);
   useEffect(() => {
     registerBuilder({ save: () => save(), dirty: () => dirtyRef.current() });
     return () => registerBuilder(null);
@@ -1605,14 +1642,16 @@ export default function QuoteBuilder({
           <div className={`mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md px-3 py-2 text-xs ${revision ? "bg-amber-50 text-amber-800" : "bg-blue-50 text-blue-700"}`}>
             <span>
               <span className="font-semibold">
-                {revision ? "The final invoice, previewed" : sentSnapshot ? "The customer's copy" : "Not published yet"}
+                {revision ? "The final invoice, previewed" : sentSnapshot && !unsaved ? "The customer's copy" : sentSnapshot ? "Unsaved changes — previewing your edits" : "Not published yet"}
               </span>
               <span>
                 {revision
                   ? " · the working scope as the customer's invoice will read once every change is signed. Their live page keeps the accepted figures until then."
-                  : sentSnapshot
+                  : sentSnapshot && !unsaved
                     ? " · exactly what they see at their link. Editing republishes it."
-                    : " · a preview. Sending publishes this to the customer."}
+                    : sentSnapshot
+                      ? " · the customer still sees the last published copy. Save to publish these changes."
+                      : " · a preview. Sending publishes this to the customer."}
               </span>
             </span>
             {!locked && !revision && (
@@ -1698,7 +1737,7 @@ export default function QuoteBuilder({
                 customer's copy. Only an unsent estimate falls back to a live
                 build, because there is nothing published yet. */}
             <CustomerEstimate
-              snapshot={(sentSnapshot as ReturnType<typeof buildCustomerDoc> | null) ?? buildCustomerDoc(shareToken ?? "PREVIEW00")}
+              snapshot={!unsaved && sentSnapshot ? (sentSnapshot as ReturnType<typeof buildCustomerDoc>) : buildCustomerDoc(shareToken ?? "PREVIEW00")}
               validUntil={validUntil}
               sentAt={sentAt}
               preview
@@ -1853,17 +1892,24 @@ export default function QuoteBuilder({
                       </span>
                     )}
                   </label>
-                  {presentations.length > 0 && (
+                  {presList.length > 0 && (
                     <label className="mt-3 block text-xs">
                       <span className="text-gray-500">Presentation <span className="text-gray-400">· injects capability/proof blocks into the customer view</span></span>
                       <select
                         className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm sm:max-w-xs"
                         value={presentationId ?? ""}
+                        onFocus={() => { void refreshPresentations(); }}
                         onChange={(e) => setPresentationId(e.target.value || null)}
+                        data-testid="presentation-picker"
                       >
                         <option value="">— none —</option>
-                        {presentations.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        {presList.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
+                      {presentationId && unsaved && (
+                        <span className="mt-1 block text-[11px] text-amber-600" data-testid="presentation-unsaved">
+                          Saving… the presentation goes live on the customer&rsquo;s copy with this save.
+                        </span>
+                      )}
                     </label>
                   )}
                 </section>

@@ -56,6 +56,18 @@ re-offer texts again, by design).
 **Tom must:** paste 20261229 on prod (or tick the switch in Settings →
 Automations and Save). GATES: see the bottom of this entry.
 
+
+**Follow-up same evening — "my Residential Exterior presentation isn't showing
+up".** Two builder bugs, both in `app/quote/QuoteBuilder.tsx`: `presentationId`
+was NOT in `builderFingerprint`, so ticking a presentation left the header at
+"Saved ✓", nothing wrote it, and the Estimate tab kept showing the last
+PUBLISHED snapshot (which had no presentation); and the presentations list
+was loaded once with the page, so one made in Settings after that never
+appeared in the picker. Now: the tick is in the fingerprint AND saves itself
+at once; the Estimate tab previews the live build whenever there are unsaved
+edits (banner says so); the picker refreshes on window focus and when opened.
+`e2e/presentation-tick.spec.ts` pins both. No SQL.
+
 GATES: tsc clean · eslint 0 errors (2 pre-existing warnings) · unit 1528/1528 ·
 C1 e2e (serial, :3101): variation-auto-release 4/4 · settings-automations 2/2 · wo-variations 10/10 · revision-contractor 5/5 · revision-reconcile 6/6 · wo-full-loop 13/13 · condition-hours-golden 1/1 · tom-batch-23aug pricing-settings 1/1. Screens driven for real: Settings buckets + search, Automations edit/save/reload, the Poor-condition job sheet.
 

@@ -36,6 +36,12 @@ panel's "Already signed" list now says where each change is (with the painter to
 awaiting release). `e2e/variation-auto-release.spec.ts` pins the auto side; `wo-variations.spec` pins the manual
 side by setting the mode for its run (`setVariationRelease` fixture helper).
 
+**Presentation tick saves itself; the Estimate tab previews unsaved edits.** `presentationId` joined the
+builder fingerprint (it was missing, so a tick never dirtied or saved the estimate), a tick triggers `save()`
+at once, the Estimate tab shows the live build whenever `unsaved` is true (with a banner) instead of the stale
+published snapshot, and the presentation picker re-reads `presentations` on window focus / on open so a
+presentation made in Settings appears without a reload.
+
 **Automations — one list, one switch each.** `lib/automations/registry.ts` is the catalogue of every outbound
 communication (34 send sites audited): key, audience, channels, trigger, kind (automatic / manual / planned),
 template fields. The `messaging` settings row gained `disabled: string[]` and template fields for the automatic
