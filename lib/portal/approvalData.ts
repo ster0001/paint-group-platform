@@ -7,6 +7,7 @@
 import { createServiceClient } from "@/lib/supabase/service";
 import { approvalStrip, type ApprovalAccount, type ApprovalStrip, type TradeRole } from "./approvals";
 import type { PortalContext } from "./data";
+import { notifyOfficeOfAcceptanceByToken } from "@/lib/estimate/acceptedNotify";
 
 export type ApprovalEstimate = {
   id: string;
@@ -149,6 +150,8 @@ export async function acceptViaToken(shareToken: string, signerName: string): Pr
   });
   if (error) return `error:${error.message}`;
   const s = String(data ?? "");
+  // Tell the office (Settings → Automations) — idempotent, best-effort.
+  if (s === "accepted") await notifyOfficeOfAcceptanceByToken(svc, shareToken).catch(() => undefined);
   return s === "accepted" ? "ok" : s; // 'already' | 'not_sent' | 'not_found' pass through
 }
 

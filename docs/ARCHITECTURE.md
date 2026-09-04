@@ -4,6 +4,21 @@ One short entry per change: what changed, and where it lives. Newest first.
 
 ---
 
+## 4 Sep 2026 — number boxes, capture save-on-exit, office acceptance email
+
+**2026-09-04 · `app/components/NumInput.tsx`, `app/quote/QuoteBuilder.tsx`, `app/quote/capture/CaptureApp.tsx`,
+`lib/estimate/acceptedNotify.ts`, `app/api/estimates/accepted/route.ts`, `lib/portal/approvalData.ts`**
+
+`NumInput` is the one number box: text while focused, a number when it parses, `empty` says what a blank
+means. Capture's "Exit to builder" became "Save & exit": it commits the room on screen, flushes the offline
+queue, awaits tracked in-flight commits, and only then routes to the builder; a server refusal is shown with
+its reason (sync state `error`) and is never queued as "offline". `notifyOfficeOfAcceptance` emails the office
+once per accepted estimate (guard: estimate_events `office_accept_notified`, switch: Automations
+`office_estimate_accepted`); the /e page pings `/api/estimates/accepted` by token, the server-side acceptance
+paths call it through `acceptViaToken`.
+
+---
+
 ## Tom's 3 Sep batch: settings in buckets, condition hours on the job sheet, auto-release, Automations
 
 **2026-09-03 · `app/(app)/settings/SettingsShell.tsx` + `page.tsx`, `app/(app)/settings/AutomationsSettings.tsx`,

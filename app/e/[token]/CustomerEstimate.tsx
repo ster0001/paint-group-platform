@@ -167,6 +167,15 @@ export default function CustomerEstimate({
     });
     setSignatureSaved(reportIfError(sig, { where: "estimate.signature", extra: { token } }));
 
+    // Tell the office (Settings → Automations → "Estimate accepted"). Fire and
+    // forget: idempotent server-side, never in the way of the acceptance.
+    try {
+      void fetch("/api/estimates/accepted", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }), keepalive: true,
+      }).catch(() => undefined);
+    } catch { /* never let the office email interfere with the accept */ }
+
     setBusy(false);
     setDone("accepted"); setPanel(null);
     window.scrollTo({ top: 0, behavior: "smooth" });

@@ -22,6 +22,7 @@ import {
 } from "@/lib/pricing/estimate";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import NumInput from "@/app/components/NumInput";
 import type { BackTo } from "@/lib/navigation/backTo";
 import EstimateHeader from "./EstimateHeader";
 import RichTextEditor from "@/app/components/RichTextEditor";
@@ -1875,15 +1876,12 @@ export default function QuoteBuilder({
                   </div>
                   <label className="mt-3 block text-xs sm:max-w-xs">
                     <span className="text-gray-500">Ideal number of painters <span className="text-gray-400">· the scheduler sizes the booking from this</span></span>
-                    <input
-                      type="number" min={1} max={20} step={1} inputMode="numeric"
+                    <NumInput
+                      min={1} max={20} step={1} inputMode="numeric"
                       className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-                      value={idealPainters ?? ""}
+                      value={idealPainters}
                       placeholder="e.g. 2"
-                      onChange={(e) => {
-                        const n = parseInt(e.target.value, 10);
-                        setIdealPainters(Number.isFinite(n) && n > 0 ? Math.min(20, n) : null);
-                      }}
+                      onCommit={(n) => setIdealPainters(n != null && n > 0 ? Math.min(20, Math.round(n)) : null)}
                       data-testid="ideal-painters"
                     />
                     {idealPainters && totals.contractorHours > 0 && (
@@ -2143,9 +2141,9 @@ export default function QuoteBuilder({
               <div className="!mt-2 flex items-center justify-between gap-2 border-t border-gray-100 pt-2">
                 <span className="flex items-center gap-1 text-gray-500">
                   Deposit
-                  <input
-                    type="number" min={0} max={100} value={depositPct}
-                    onChange={(e) => setDepositPct(e.target.value === "" ? 0 : Math.min(100, Math.max(0, Number(e.target.value))))}
+                  <NumInput
+                    min={0} max={100} value={depositPct} empty={0}
+                    onCommit={(n) => setDepositPct(Math.min(100, Math.max(0, n ?? 0)))}
                     className="w-14 rounded-md border border-gray-300 px-1.5 py-1 text-right text-sm tabular-nums"
                   />
                   %
@@ -2292,20 +2290,20 @@ export default function QuoteBuilder({
                       <div className="space-y-3">
                         <label className="block text-xs">
                           <span className="text-gray-500">Charge-out rate ($/hr) · blank uses the rate card</span>
-                          <input
-                            type="number" min={0} value={hourlyRateOverride ?? ""}
+                          <NumInput
+                            min={0} value={hourlyRateOverride}
                             placeholder={String((chargeFor("Interior") / 100).toFixed(0))}
-                            onChange={(e) => setHourlyRateOverride(e.target.value === "" ? null : Number(e.target.value))}
+                            onCommit={(n) => setHourlyRateOverride(n)}
                             className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                           />
                         </label>
                         <div className="text-xs">
                           <label className="block">
                             <span className="text-gray-500">Contractor rate ($/hr) · what you pay the crew (margin only)</span>
-                            <input
-                              type="number" min={0} value={contractorRateOverride ?? ""}
+                            <NumInput
+                              min={0} value={contractorRateOverride}
                               placeholder={String((contractorHourlyCents / 100).toFixed(0))}
-                              onChange={(e) => setContractorRateOverride(e.target.value === "" ? null : Number(e.target.value))}
+                              onCommit={(n) => setContractorRateOverride(n)}
                               className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                             />
                           </label>
@@ -2331,15 +2329,15 @@ export default function QuoteBuilder({
                             </div>
                           </div>
                           {discountMode === "pct" ? (
-                            <input
-                              type="number" min={0} max={100} value={discountPct || ""} placeholder="e.g. 10"
-                              onChange={(e) => setDiscountPct(e.target.value === "" ? 0 : Math.min(100, Math.max(0, Number(e.target.value))))}
+                            <NumInput
+                              min={0} max={100} value={discountPct || null} placeholder="e.g. 10" empty={0}
+                              onCommit={(n) => setDiscountPct(Math.min(100, Math.max(0, n ?? 0)))}
                               className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                             />
                           ) : (
-                            <input
-                              type="number" min={0} value={discountFixedCents ? discountFixedCents / 100 : ""} placeholder="e.g. 500"
-                              onChange={(e) => setDiscountFixedCents(e.target.value === "" ? 0 : Math.max(0, Math.round(Number(e.target.value) * 100)))}
+                            <NumInput
+                              min={0} value={discountFixedCents ? discountFixedCents / 100 : null} placeholder="e.g. 500" empty={0}
+                              onCommit={(n) => setDiscountFixedCents(Math.max(0, Math.round((n ?? 0) * 100)))}
                               className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                             />
                           )}
@@ -2766,18 +2764,18 @@ function AreaCard({
           </select>
         </F>
         <F label="Length m">
-          <input type="number" min={0} step={0.1} className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-            value={area.L || ""} onChange={(e) => onPatch({ L: Number(e.target.value) || 0 })} />
+          <NumInput min={0} step={0.1} className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+            value={area.L || null} empty={0} onCommit={(n) => onPatch({ L: n ?? 0 })} />
         </F>
         {area.areaType === "room" && (
           <F label="Width m">
-            <input type="number" min={0} step={0.1} className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-              value={area.W || ""} onChange={(e) => onPatch({ W: Number(e.target.value) || 0 })} />
+            <NumInput min={0} step={0.1} className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              value={area.W || null} empty={0} onCommit={(n) => onPatch({ W: n ?? 0 })} />
           </F>
         )}
         <F label="Height m">
-          <input type="number" min={0} step={0.1} className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-            value={area.H || ""} onChange={(e) => onPatch({ H: Number(e.target.value) || 0 })} />
+          <NumInput min={0} step={0.1} className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+            value={area.H || null} empty={0} onCommit={(n) => onPatch({ H: n ?? 0 })} />
         </F>
         <span className="pb-1.5 text-[11px] text-gray-400">
           {area.areaType === "room" ? "walls = perimeter × height · ceilings = L × W" : "plane = length × height"}
@@ -2970,8 +2968,7 @@ function SurfaceEditor({
   const isItem = calc.isItem;
   const inp = "w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm";
   const num = (v: number, on: (n: number | null) => void, ph?: string) => (
-    <input type="number" className={inp} placeholder={ph}
-      value={Number.isFinite(v) ? v : ""} onChange={(e) => on(e.target.value === "" ? null : Number(e.target.value))} />
+    <NumInput className={inp} placeholder={ph} value={Number.isFinite(v) ? v : null} onCommit={on} />
   );
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4">
@@ -3029,12 +3026,12 @@ function SurfaceEditor({
             <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Rate</div>
             <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
               <F label="Quantity">
-                <input type="number" className={inp} value={s.qtyOverride ?? Number(calc.qty.toFixed(isItem ? 0 : 1))}
-                  onChange={(e) => onPatch({ qtyOverride: e.target.value === "" ? null : Number(e.target.value) })} />
+                <NumInput className={inp} value={s.qtyOverride ?? Number(calc.qty.toFixed(isItem ? 0 : 1))}
+                  onCommit={(n) => onPatch({ qtyOverride: n })} />
               </F>
               <F label={isItem ? "Rate (hrs/item)" : "Rate (units/hr)"}>
-                <input type="number" className={inp} value={s.rateOverride ?? Number(calc.rate.toFixed(3))}
-                  onChange={(e) => onPatch({ rateOverride: e.target.value === "" ? null : Number(e.target.value) })} />
+                <NumInput className={inp} value={s.rateOverride ?? Number(calc.rate.toFixed(3))}
+                  onCommit={(n) => onPatch({ rateOverride: n })} />
               </F>
               <F label="Coats">
                 <select className={inp} value={s.coats} onChange={(e) => onPatch({ coats: Number(e.target.value) })}>
@@ -3043,12 +3040,12 @@ function SurfaceEditor({
               </F>
               <F label="Prep (hr)">{num(s.prepHr, (n) => onPatch({ prepHr: n ?? 0 }))}</F>
               <F label={`Painting (hr)${s.paintingHrOverride == null ? " · auto" : ""}`}>
-                <input type="number" className={inp} value={s.paintingHrOverride ?? Number(calc.paintingHr.toFixed(2))}
-                  onChange={(e) => onPatch({ paintingHrOverride: e.target.value === "" ? null : Number(e.target.value) })} />
+                <NumInput className={inp} value={s.paintingHrOverride ?? Number(calc.paintingHr.toFixed(2))}
+                  onCommit={(n) => onPatch({ paintingHrOverride: n })} />
               </F>
               <F label={`Calculated Price ($)${s.priceOverride == null ? " · auto" : ""}`}>
-                <input type="number" className={inp} value={s.priceOverride ?? Number((calc.totalCents / 100).toFixed(2))}
-                  onChange={(e) => onPatch({ priceOverride: e.target.value === "" ? null : Number(e.target.value) })} />
+                <NumInput className={inp} value={s.priceOverride ?? Number((calc.totalCents / 100).toFixed(2))}
+                  onCommit={(n) => onPatch({ priceOverride: n })} />
               </F>
             </div>
             {isItem && (
@@ -3105,8 +3102,8 @@ function SurfaceEditor({
               </F>
               <F label="Coverage (per L)">{num(s.coverageOverride ?? NaN, (n) => onPatch({ coverageOverride: n }), "auto")}</F>
               <F label="Volume (L)">
-                <input type="number" className={inp} value={s.volumeOverride ?? Number(calc.volume.toFixed(2))}
-                  onChange={(e) => onPatch({ volumeOverride: e.target.value === "" ? null : Number(e.target.value) })} />
+                <NumInput className={inp} value={s.volumeOverride ?? Number(calc.volume.toFixed(2))}
+                  onCommit={(n) => onPatch({ volumeOverride: n })} />
               </F>
               <F label="Unit Price ($/L)">{num(s.unitPriceOverride ?? NaN, (n) => onPatch({ unitPriceOverride: n }), "auto")}</F>
               <F label="Total ($)"><div className="px-2 py-1.5 text-sm tabular-nums text-gray-600">{fmt(calc.matPriceCents)}</div></F>
@@ -3131,8 +3128,8 @@ function SurfaceEditor({
               <Check checked={s.useCustomRate} onChange={(v) => onPatch({ useCustomRate: v })} label="Use Custom Hourly Rate" />
               {s.useCustomRate && (
                 <F label="Custom rate ($/hr)">
-                  <input type="number" className={inp} value={s.customRate ?? Number((chargeFor(areaType) / 100).toFixed(2))}
-                    onChange={(e) => onPatch({ customRate: e.target.value === "" ? null : Number(e.target.value) })} />
+                  <NumInput className={inp} value={s.customRate ?? Number((chargeFor(areaType) / 100).toFixed(2))}
+                  onCommit={(n) => onPatch({ customRate: n })} />
                 </F>
               )}
             </div>
@@ -3175,7 +3172,7 @@ function LineCard({
   onRemove: () => void;
 }) {
   const num = (v: number, on: (n: number) => void) => (
-    <input type="number" className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm" value={v || ""} onChange={(e) => on(Number(e.target.value) || 0)} />
+    <NumInput className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm" value={v || null} empty={0} onCommit={(n) => on(n ?? 0)} />
   );
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4">

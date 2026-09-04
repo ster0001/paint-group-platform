@@ -72,6 +72,10 @@ export type MessagingSettings = {
   /** Customer: the wizard saved their estimate (sign-in link). */
   wizardSavedSubject: string;
   wizardSavedBody: string;
+  /** Office: an estimate was accepted (Tom, 4 Sep). */
+  officeEmail: string;
+  acceptedOfficeSubject: string;
+  acceptedOfficeBody: string;
 };
 
 export const DEFAULT_MESSAGING: MessagingSettings = {
@@ -144,6 +148,12 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "Hello {{contractor_company}},\n\n" +
     "We've paid your invoice {{invoice_number}} for job {{wo_ref}} — {{amount}}{{bank_reference}}. " +
     "Your remittance advice {{remittance_number}} is attached below.",
+  officeEmail: "info@paintgroup.com.au",
+  acceptedOfficeSubject: "Estimate accepted — {{estimate_title}} ({{total}})",
+  acceptedOfficeBody:
+    "{{accepted_name}} has accepted the estimate for {{estimate_title}}.\n\n" +
+    "Total: {{total}} incl. GST\nDeposit: {{deposit}}\nAccepted: {{accepted_at}}\n\n" +
+    "A work order has been created and the deposit invoice is drafted. Open the estimate to book it in.",
   wizardSavedSubject: "Your estimate is saved",
   wizardSavedBody:
     "Your estimate is saved in your {{company_name}} account.\n\n" +
@@ -201,6 +211,9 @@ export type TemplateVars = {
   bank_reference?: string;
   remittance_number?: string;
   next_step?: string;
+  accepted_name?: string;
+  accepted_at?: string;
+  deposit?: string;
 };
 
 /** Fill {{placeholders}}; unknown or missing values render as empty string. */

@@ -69,6 +69,7 @@ const P = {
   receipt: ["{{first_name}}", "{{amount}}", "{{invoice_number}}", "{{receipt_number}}", "{{company_name}}"],
   remittance: ["{{contractor_company}}", "{{invoice_number}}", "{{wo_ref}}", "{{amount}}", "{{bank_reference}}", "{{remittance_number}}", "{{company_name}}"],
   wizardSaved: ["{{company_name}}", "{{next_step}}"],
+  accepted: ["{{estimate_title}}", "{{accepted_name}}", "{{accepted_at}}", "{{total}}", "{{deposit}}", "{{company_name}}", "{{link}}"],
 };
 
 export const AUTOMATIONS: Automation[] = [
@@ -211,6 +212,16 @@ export const AUTOMATIONS: Automation[] = [
   },
 
   // ---- office / trade -----------------------------------------------------
+  {
+    key: "office_estimate_accepted", name: "Estimate accepted — tell the office", audience: "office", channels: ["email"], kind: "automatic",
+    trigger: "A customer (or a trade approver) accepts an estimate. The office address below is emailed with the title, total and deposit, and a link to the estimate.",
+    templates: [
+      { field: "officeEmail", label: "Send to (email address)", kind: "subject" },
+      { field: "acceptedOfficeSubject", label: "Email subject", kind: "subject", placeholders: P.accepted },
+      { field: "acceptedOfficeBody", label: "Email body", kind: "body", placeholders: P.accepted },
+    ],
+    guard: "Once per estimate.",
+  },
   {
     key: "external_approval", name: "External approval request", audience: "customer", channels: ["email"], kind: "automatic",
     trigger: "A trade customer sends an estimate to an approver, assessor or owner for sign-off; the sender is emailed the decision.",

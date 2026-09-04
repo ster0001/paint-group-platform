@@ -17,6 +17,8 @@ import { perimeterM, perimeterPlausibility, resolveQuantity } from "@/lib/captur
 import { hoursPerUnit } from "@/lib/pricing/engine";
 import type { RateItem } from "@/lib/pricing/types";
 import { loadCaptureState, saveCaptureState, type CaptureState } from "@/lib/capture/draft-store";
+import NumInput from "@/app/components/NumInput";
+import { useRouter } from "next/navigation";
 
 export type NamePreset = { estimate_type: string; name: string; room_type: string; sort_order: number };
 
@@ -48,7 +50,10 @@ export type ExistingRoom = {
 };
 
 type Screen = { kind: "picker" } | { kind: "capture"; localId: string } | { kind: "review"; localId: string };
-type SyncState = "synced" | "saving" | "offline";
+/** "error" = the server REFUSED a room (400/403/409/422/500) — terminal, shown
+ *  with its reason; never mistaken for bad reception (Tom, 4 Sep). */
+type SyncState = "synced" | "saving" | "offline" | "error";
+class OfflineError extends Error {}
 type Totals = { subtotalCents: number; totalCents: number; contractorHours: number; marginCents: number };
 
 const money = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
@@ -89,7 +94,9 @@ export default function CaptureApp({
   const [drafts, setDrafts] = useState<RoomDraft[]>([]);
   const [committed, setCommitted] = useState<ExistingRoom[]>(initialRooms);
   const [pendingSync, setPendingSync] = useState<string[]>([]);
+  const router = useRouter();
   const [sync, setSync] = useState<SyncState>("synced");
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [totals, setTotals] = useState<Totals | null>(null);
   const [restoreOffer, setRestoreOffer] = useState<CaptureState | null>(null);
   const flushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -113,13 +120,28 @@ export default function CaptureApp({
   // ---- server commit: one batched upsert per room --------------------------
   const commitRoom = useCallback(async (draft: RoomDraft): Promise<boolean> => {
     setSync("saving");
+    setSyncError(null);
     try {
-      const res = await fetch(`/api/estimates/${estimateId}/rooms`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ room: draft, storeyHeights, exterior: vocab === "exterior" }),
-      });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `HTTP ${res.status}`);
+      let res: Response;
+      try {
+        res = await fetch(`/api/estimates/${estimateId}/rooms`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ room: draft, storeyHeights, exterior: vocab === "exterior" }),
+        });
+      } catch {
+        // TRANSPORT failed — genuinely offline. Queue and retry.
+        throw new OfflineError();
+      }
+      if (!res.ok) {
+        // The server ANSWERED and said no. That is not "offline": say why,
+        // keep the room in the draft list, and stop pretending it will sync.
+        const reason = (await res.json().catch(() => ({}))).error ?? `HTTP ${res.status}`;
+        setSync("error");
+        setSyncError(`${draft.name || "This room"} wasn't saved: ${reason}`);
+        setPendingSync((p) => p.filter((x) => x !== draft.localId));
+        return false;
+      }
       const out = (await res.json()) as { areaId: number; surfaces: number; areaPriceCents: number; totals: Totals };
 
       setDrafts((ds) => {
@@ -150,6 +172,51 @@ export default function CaptureApp({
       return false;
     }
   }, [estimateId, storeyHeights, vocab, drafts, pendingSync, persist, currentStorey]);
+
+  // Every commit is TRACKED so leaving can wait for it — "Next room →" used to
+  // fire-and-forget, and a hard navigation a second later aborted the POST.
+  const inflight = useRef<Set<Promise<boolean>>>(new Set());
+  const track = useCallback((p: Promise<boolean>) => {
+    inflight.current.add(p);
+    void p.finally(() => inflight.current.delete(p));
+    return p;
+  }, []);
+  const hasContent = (d: RoomDraft) => Object.values(d.selections ?? {}).some((n) => (n ?? 0) > 0);
+
+  // Leaving is no longer free (Tom, 4 Sep — Coppin St: a whole capture lost).
+  // Save the room on screen, flush the queue, wait for anything in flight,
+  // and only then go. A refusal keeps you here with the reason on screen.
+  const [leaving, setLeaving] = useState(false);
+  const exitToBuilder = useCallback(async () => {
+    setLeaving(true);
+    try {
+      const current = screen.kind === "picker" ? null : drafts.find((d) => d.localId === screen.localId) ?? null;
+      const jobs: Promise<boolean>[] = [];
+      if (current && hasContent(current)) jobs.push(track(commitRoom(current)));
+      for (const localId of pendingSync) {
+        if (current && localId === current.localId) continue;
+        const d = drafts.find((x) => x.localId === localId);
+        if (d) jobs.push(track(commitRoom(d)));
+      }
+      const results = await Promise.all([...jobs, ...inflight.current]);
+      if (results.every(Boolean)) {
+        router.push(`/quote?id=${estimateId}`);
+        return;
+      }
+      // Something didn't save: stay. The header says which and why.
+    } finally {
+      setLeaving(false);
+    }
+  }, [screen, drafts, pendingSync, commitRoom, track, estimateId, router]);
+
+  // A closed tab must not eat a room either.
+  useEffect(() => {
+    const guard = (e: BeforeUnloadEvent) => {
+      if (pendingSync.length > 0 || inflight.current.size > 0 || sync === "error") { e.preventDefault(); }
+    };
+    window.addEventListener("beforeunload", guard);
+    return () => window.removeEventListener("beforeunload", guard);
+  }, [pendingSync, sync]);
 
   // Retry the offline queue when the network returns (and every 20 s while queued).
   useEffect(() => {
@@ -235,15 +302,22 @@ export default function CaptureApp({
       <header className="mb-4 flex items-center justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold tracking-tight">Capture — {estimateTitle}</h1>
-          <p className="text-xs text-gray-500">
+          <p className={`text-xs ${sync === "error" ? "text-red-600" : "text-gray-500"}`} data-testid="capture-sync">
             {sync === "synced" && "saved · synced"}
             {sync === "saving" && "saving…"}
-            {sync === "offline" && `offline · ${pendingSync.length} room${pendingSync.length === 1 ? "" : "s"} queued`}
+            {sync === "offline" && `offline · ${pendingSync.length} room${pendingSync.length === 1 ? "" : "s"} queued — retrying`}
+            {sync === "error" && (syncError ?? "A room wasn't saved.")}
           </p>
         </div>
-        <a href={`/quote?id=${estimateId}`} className="rounded border border-gray-300 px-3 py-1.5 text-sm hover:border-gray-500">
-          Exit to builder
-        </a>
+        <button
+          type="button"
+          onClick={() => { void exitToBuilder(); }}
+          disabled={leaving}
+          className="rounded border border-gray-300 px-3 py-1.5 text-sm hover:border-gray-500 disabled:opacity-50"
+          data-testid="exit-to-builder"
+        >
+          {leaving ? "Saving…" : "Save & exit to builder"}
+        </button>
       </header>
 
       {prepPack && (
@@ -312,7 +386,7 @@ export default function CaptureApp({
           storeyHeights={storeyHeights}
           onChange={(d) => updateDrafts(drafts.map((x) => (x.localId === d.localId ? d : x)))}
           onDone={() => setScreen({ kind: "review", localId: active.localId })}
-          onNextRoom={async () => { void commitRoom(active); setScreen({ kind: "picker" }); }}
+          onNextRoom={async () => { void track(commitRoom(active)); setScreen({ kind: "picker" }); }}
         />
       )}
 
@@ -327,7 +401,7 @@ export default function CaptureApp({
           windowSizes={windowSizes}
           onChange={(d) => updateDrafts(drafts.map((x) => (x.localId === d.localId ? d : x)))}
           onBack={() => setScreen({ kind: "capture", localId: active.localId })}
-          onNextRoom={async () => { void commitRoom(active); setScreen({ kind: "picker" }); }}
+          onNextRoom={async () => { void track(commitRoom(active)); setScreen({ kind: "picker" }); }}
         />
       )}
 
@@ -360,8 +434,8 @@ function StoreyHeightPrompt({ heights, exterior = false, onConfirm }: { heights:
           <div key={i} className="flex items-center gap-2">
             <input value={name} onChange={(e) => setRows(rows.map((r, j) => (j === i ? [e.target.value, r[1]] : r)))}
               className="w-32 rounded border border-gray-300 px-2 py-1 text-sm" />
-            <input type="number" inputMode="decimal" step="0.05" value={h}
-              onChange={(e) => setRows(rows.map((r, j) => (j === i ? [r[0], Number(e.target.value)] : r)))}
+            <NumInput inputMode="decimal" step="0.05" value={h} empty={0}
+              onCommit={(n) => setRows(rows.map((r, j) => (j === i ? [r[0], n ?? 0] : r)))}
               className="w-24 rounded border border-gray-300 px-2 py-1 text-sm" />
             <span className="text-xs text-gray-500">m</span>
           </div>
@@ -538,16 +612,16 @@ function CaptureScreen({
           {(isElevation ? (["lengthM"] as const) : (["lengthM", "widthM"] as const)).map((k) => (
             <label key={k} className="flex items-center gap-1">
               <span className="text-xs text-gray-500">{isElevation ? "Width" : k === "lengthM" ? "L" : "W"}</span>
-              <input type="number" inputMode="decimal" step="0.05" min="0" value={draft[k] || ""}
-                onChange={(e) => set({ [k]: Number(e.target.value) } as Partial<RoomDraft>)}
+              <NumInput inputMode="decimal" step="0.05" min="0" value={draft[k] || null} empty={0}
+                onCommit={(n) => set({ [k]: n ?? 0 } as Partial<RoomDraft>)}
                 className="w-20 rounded border border-gray-300 px-2 py-1" />
               <span className="text-xs text-gray-400">m</span>
             </label>
           ))}
           <label className="flex items-center gap-1">
             <span className="text-xs text-gray-500">H</span>
-            <input type="number" inputMode="decimal" step="0.05" min="0" value={draft.heightM}
-              onChange={(e) => set({ heightM: Number(e.target.value), heightInherited: false })}
+            <NumInput inputMode="decimal" step="0.05" min="0" value={draft.heightM} empty={0}
+              onCommit={(n) => set({ heightM: n ?? 0, heightInherited: false })}
               className={`w-20 rounded border px-2 py-1 ${draft.heightInherited ? "border-gray-200 text-gray-400" : "border-gray-300"}`} />
             <span className="text-xs text-gray-400">m{draft.heightInherited ? " (storey)" : " (override)"}</span>
             {!draft.heightInherited && (
@@ -562,8 +636,8 @@ function CaptureScreen({
         <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-600">
           <label className="flex items-center gap-1">
             perimeter
-            <input type="number" inputMode="decimal" step="0.1" value={Number(perim.toFixed(2))}
-              onChange={(e) => set({ perimeterOverrideM: Number(e.target.value) || null })}
+            <NumInput inputMode="decimal" step="0.1" value={Number(perim.toFixed(2))}
+              onCommit={(n) => set({ perimeterOverrideM: n || null })}
               className="w-20 rounded border border-gray-200 px-1 py-0.5" />
             m
           </label>
@@ -571,8 +645,8 @@ function CaptureScreen({
           <button className="underline" onClick={() => set({ extraWallSegmentsM: [...draft.extraWallSegmentsM, 1] })}>+ wall segment</button>
           {draft.extraWallSegmentsM.map((s, i) => (
             <span key={i} className="flex items-center gap-1">
-              <input type="number" inputMode="decimal" step="0.1" value={s}
-                onChange={(e) => set({ extraWallSegmentsM: draft.extraWallSegmentsM.map((x, j) => (j === i ? Number(e.target.value) : x)) })}
+              <NumInput inputMode="decimal" step="0.1" value={s} empty={0}
+                onCommit={(n) => set({ extraWallSegmentsM: draft.extraWallSegmentsM.map((x, j) => (j === i ? (n ?? 0) : x)) })}
                 className="w-16 rounded border border-gray-200 px-1 py-0.5" />
               <button onClick={() => set({ extraWallSegmentsM: draft.extraWallSegmentsM.filter((_, j) => j !== i) })}>×</button>
             </span>
@@ -717,11 +791,11 @@ function RoomReview({
                   </span>
                 )}
                 <span className="flex items-center gap-1 rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-normal text-gray-600">
-                  <input type="number" inputMode="decimal" step="0.25" min="0"
+                  <NumInput inputMode="decimal" step="0.25" min="0"
                     placeholder={String(hoursFor(t, draft.selections[t.id] ?? 0) ?? "")}
-                    value={draft.hoursOverride?.[t.id] ?? ""}
-                    onChange={(e) => {
-                      const v = e.target.value === "" ? undefined : Number(e.target.value);
+                    value={draft.hoursOverride?.[t.id] ?? null}
+                    onCommit={(n) => {
+                      const v = n ?? undefined;
                       const next = { ...(draft.hoursOverride ?? {}) };
                       if (v == null || Number.isNaN(v)) delete next[t.id]; else next[t.id] = v;
                       set({ hoursOverride: next });
@@ -777,8 +851,8 @@ function RoomReview({
                 {obs.map((o) => (
                   <div key={o.type} className="flex items-center gap-2 text-[11px] text-gray-600">
                     <span className="w-36">{DEFECT_LABELS[o.type] ?? o.type} — affected</span>
-                    <input type="number" inputMode="decimal" step="0.5" min="0" value={o.qty}
-                      onChange={(e) => setDefects(t.id, obs.map((x) => (x.type === o.type ? { ...x, qty: Number(e.target.value) } : x)))}
+                    <NumInput inputMode="decimal" step="0.5" min="0" value={o.qty} empty={0}
+                      onCommit={(n) => setDefects(t.id, obs.map((x) => (x.type === o.type ? { ...x, qty: n ?? 0 } : x)))}
                       className="w-16 rounded border border-gray-200 px-1 py-0.5" />
                     <span>{unitLabel(o.type)} → {defectHours(o, defectRates).toFixed(2)}h prep</span>
                   </div>
@@ -806,9 +880,9 @@ function RoomReview({
             <div key={def.code} className="mt-2" data-testid={`allowance-${def.code}`}>
               <div className="flex items-center gap-2">
                 <span className="w-40 shrink-0 text-xs text-gray-600">{def.label}</span>
-                <input type="number" inputMode="decimal" step="0.25" min="0"
-                  value={cur.hours || ""} placeholder="hrs"
-                  onChange={(e) => patch({ hours: Number(e.target.value) || 0 })}
+                <NumInput inputMode="decimal" step="0.25" min="0"
+                  value={cur.hours || null} placeholder="hrs" empty={0}
+                  onCommit={(n) => patch({ hours: n ?? 0 })}
                   className="w-20 rounded border border-gray-300 px-2 py-1 text-xs" />
                 <span className="text-[11px] text-gray-400">hours</span>
               </div>

@@ -1,3 +1,45 @@
+# 4 Sep 2026 — Tom's four items: editable number boxes · capture no longer loses rooms on exit · office email on acceptance · landline on the site. NO SQL.
+
+1. **Number boxes you can edit.** Every `type="number"` in the builder (17)
+   and capture (8) was controlled by the parsed number, so clearing it wrote
+   "0"/the calculated fallback straight back — the first digit could never be
+   deleted. `app/components/NumInput.tsx` keeps the TEXT while focused and
+   commits a number only when it parses (`empty` = what a blank means: null
+   for "back to auto", 0 for a plain figure). e2e `builder-number-inputs`.
+2. **Capture — Coppin St.** Investigation (prod data): NOTHING from the capture
+   ever reached the server — storey_heights NULL, the one block carries none
+   of the capture markers; Tom retyped it. Structural cause: only "Next
+   room →" committed (fire-and-forget), "Exit to builder" was a bare link
+   with no flush/guard, and every server refusal was shown as "offline ·
+   queued" and retried forever. Now: **"Save & exit to builder"** commits the
+   room on screen + flushes the queue + waits for in-flight saves before
+   navigating (stays put with the reason if one is refused); HTTP refusals
+   show their reason in red (`sync === "error"`) and are NOT queued;
+   in-flight commits are tracked; beforeunload guard while anything is unsent.
+   e2e `capture-exit-saves`. Recovery: the IndexedDB draft (db `pg-capture`)
+   on the device Tom used may still hold the Coppin rooms — reopen
+   `/quote/capture?id=cfcec60c-…` there and the Restore banner offers them.
+   ⚠ Follow-ups NOT done: Fence/Deck/Garage presets (`exterior_other`) have
+   no scope rules → empty tile grid + 422 on commit (now at least SAID);
+   the builder's blind `blocks` overwrite on Save can still wipe a capture
+   committed from another tab; no `capture_room_committed` event.
+3. **Office email on acceptance.** Automations row "Estimate accepted — tell
+   the office" (recipient editable, default info@paintgroup.com.au).
+   `lib/estimate/acceptedNotify.ts` — once per estimate (estimate_events
+   `office_accept_notified`), honours the switch. Three acceptance paths all
+   end there: /e pings `/api/estimates/accepted` with its token (the
+   appointment-confirm pattern), the trade in-portal approval and the /a
+   external approver go through `acceptViaToken`. e2e `office-accept-email`.
+4. **Landline.** `settings.company_profile.phone` on PROD set to
+   "03 8840 9414" (was the mobile) over REST on Tom's instruction;
+   estimatorPhone (Tom's direct line on the estimate sign-off) left as the
+   mobile — flag if it should follow. The `tel:` links in code were already
+   the landline.
+
+GATES: tsc clean · eslint 0 errors · unit green · C1 e2e (serial): capture-exit-saves 1/1 · builder-number-inputs 1/1 · office-accept-email 3/3 · presentation-tick 2/2 · condition-hours-golden 1/1 · settings-automations 2/2.
+
+---
+
 # 3 Sep 2026 — Tom's four-item batch: Settings in buckets · condition hours reach the painter · approved variations go straight to the painter · Settings → Automations. ONE data-only migration AWAITS TOM ON PROD: 20261229 (or flip the switch on the new Automations screen).
 
 Per item:
