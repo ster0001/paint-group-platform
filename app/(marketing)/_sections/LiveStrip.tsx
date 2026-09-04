@@ -1,6 +1,7 @@
+import CountUp from "../_components/CountUp";
 import { LIVE_STATS } from "@/lib/marketing/liveStats";
 
-/** §4.8 — pulse dot + four tiles from the config constants (static now; the count-up lands in session 6). */
+/** §4.8 — pulse dot + four tiles from the config constants; each counts up on enter (CountUp). */
 export default function LiveStrip() {
   const tiles = [LIVE_STATS.estimatesThisWeek, LIVE_STATS.jobsOnSite, LIVE_STATS.pricesHonoured, LIVE_STATS.minutesToPrice] as const;
   return (
@@ -13,7 +14,7 @@ export default function LiveStrip() {
         <div className="live" data-todo="9.4">
           {tiles.map((t) => (
             <div className="tile" key={t.label}>
-              <span className="big" data-count={t.value} data-suffix={"suffix" in t ? t.suffix : ""}>{t.value}{"suffix" in t ? t.suffix : ""}</span>
+              <CountUp value={t.value} suffix={"suffix" in t ? t.suffix : ""} />
               <b>{t.label}</b><small>{t.sub}</small>
             </div>
           ))}

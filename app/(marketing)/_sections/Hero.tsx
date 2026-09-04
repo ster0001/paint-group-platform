@@ -11,7 +11,7 @@ import { PHONE_DISPLAY } from "@/lib/marketing/site";
  * §4.2 — dark, full-viewport, the taped-off copy block (border only).
  * Copy is the prototype's, verbatim. Submit fires `see_price` with
  * {where, mode} and routes to the wizard with both on the URL.
- * The self-typing estimator (ghostRun) is session 6.
+ * The self-typing estimator plays inside AddressField (`ghost`).
  */
 export default function Hero() {
   const router = useRouter();
@@ -34,7 +34,7 @@ export default function Hero() {
             minutes, then we confirm it with you — a quick call for smaller jobs, a visit for bigger ones. No waiting
             a fortnight for a quote.
           </p>
-          <AddressField where="hero" showChips onSubmit={submit} />
+          <AddressField where="hero" showChips ghost onSubmit={submit} />
           <div className="under">
             <span>
               Rather talk to a person? <strong><TelLink where="hero">Call {PHONE_DISPLAY}</TelLink></strong>
