@@ -75,7 +75,17 @@
    state machine still says sent until accepted/declined). e2e
    `estimates-viewed`.
 
-GATES: tsc clean · eslint 0 errors · unit green · C1 e2e (serial): estimates-viewed 1/1 · estimates-multi-delete 2/2 · capture-exit-saves 1/1 · builder-number-inputs 1/1 · office-accept-email 3/3 · presentation-tick 2/2 · condition-hours-golden 1/1 · settings-automations 2/2.
+6. **CI is green for the first time with the e2e job running** (run #67,
+   42 min). What it took: the lint cap was 11 with 16 warnings (cleared to
+   5, cap ratcheted to 5); Tom's three Supabase secrets were stored under
+   the .env.test.local names (ci.yml reads either); a production-ref
+   tripwire in ci.yml; `AGENT_MODEL_STUB=1` + a runner-only CRON_SECRET on
+   the e2e step; 900s budgets for the assistant journeys (2-vCPU runner is
+   ~3x a laptop); plan-panel skips where the gitignored regression plan is
+   absent; actions bumped to v5 (Node 24). Read via Claude-in-Chrome — no
+   `gh` on this Mac.
+
+GATES: tsc clean · eslint 0 errors · unit green · GitHub CI #67 green (gate + e2e 62 passed / 1 skipped) · C1 e2e (serial): estimates-viewed 1/1 · estimates-multi-delete 2/2 · capture-exit-saves 1/1 · builder-number-inputs 1/1 · office-accept-email 3/3 · presentation-tick 2/2 · condition-hours-golden 1/1 · settings-automations 2/2.
 
 ---
 
