@@ -2,8 +2,8 @@ import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { credentials, missingCreds, signIn, TINY_SIGNATURE_PNG } from "./helpers";
 import {
-  accessTokenFor, completePreStart, completePrep, contractorIdForEmail, createLoopFixture, customerIdForEmail,
-  destroyLoopFixture, rpcAs, rpcAsJson, serviceClient, type LoopFixture,
+  completePreStart, completePrep, contractorIdForEmail, createLoopFixture, customerIdForEmail,
+  destroyLoopFixture, rpcAs, serviceClient, type LoopFixture,
 } from "./fixtures/woLoop";
 
 /**

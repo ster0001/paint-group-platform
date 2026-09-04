@@ -44,8 +44,8 @@ jobs:
       # zero and must stay zero. The warning cap is a RATCHET, not a target —
       # 23 when CI landed (F1), 11 after the 30 Aug clear-out. Lower it when
       # you clear some; never raise it. Raising it is how 11 becomes 200.
-      - name: Lint (0 errors, warnings ratcheted at 11)
-        run: npx eslint --max-warnings 11
+      - name: Lint (0 errors, warnings ratcheted at 5)
+        run: npx eslint --max-warnings 5
 
       - name: Unit tests
         run: npm test

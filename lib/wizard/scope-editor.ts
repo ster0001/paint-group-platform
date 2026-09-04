@@ -1,4 +1,4 @@
-import { makeDraftSurface, type DraftArea } from "@/lib/extract/draft";
+import { makeDraftSurface } from "@/lib/extract/draft";
 import { substrateKeyForRateCode, substrateLabel, type SubstrateKey } from "@/lib/estimate/substrates";
 import {
   ARCHITRAVE_CODE, SURFACE_TO_RATE_CODE, doorCodeFor, doorLineLabel, doorScopeOfCode,

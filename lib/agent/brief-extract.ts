@@ -158,7 +158,6 @@ const DEFECT_WORDS: Array<[RegExp, string]> = [
 
 export function heuristicExtract(text: string): BriefExtraction {
   const t = text.replace(/\s+/g, " ").trim();
-  const lower = t.toLowerCase();
   const sentences = t.split(/(?<=[.!?])\s+|\n/).map((s) => s.trim()).filter(Boolean);
   const injected = detectInjectedInstructions(text);
   const clean = sentences.filter((s) => !injected.includes(s.slice(0, 200)));

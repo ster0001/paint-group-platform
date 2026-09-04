@@ -14,7 +14,7 @@ import type { EstimateRow } from "@/lib/wizard/customer-scope";
 import { checkThresholds, priceScope, assumptionSwings, pendingSummary } from "./scope-tools";
 import type { DiffSummary } from "./propose";
 import { graphInput, isBuilt, pendingOf, type ScopeDeps } from "./scope-doc";
-import { gapsFor, nextGap } from "./question-graph";
+import { gapsFor } from "./question-graph";
 import type { SupabaseScopeStore } from "./scope-store-supabase";
 import type { ConversationRow } from "./store";
 import type { SupabaseAgentStore } from "./store-supabase";

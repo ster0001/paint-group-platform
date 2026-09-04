@@ -16,7 +16,6 @@ const tab = (name) => {
 const q = (v) => v == null ? 'null' : `'${String(v).replace(/'/g, "''")}'`;
 const num = (v) => (v == null || v === '') ? 'null' : Number(v);
 const cents = (v) => (v == null || v === '') ? 'null' : Math.round(Number(v) * 100);
-const bool = (v) => v ? 'true' : 'false';
 const jsonb = (obj) => `'${JSON.stringify(obj).replace(/'/g, "''")}'::jsonb`;
 const out = [];
 const w = (s) => out.push(s);

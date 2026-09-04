@@ -93,7 +93,7 @@ function unitLines(units: UnitRow[]): string {
   return rows.map((u) => `  ${u.unit_key.padEnd(20)} ${u.size_mm} mm (±${u.tolerance_pct}%) — ${u.label}`).join("\n");
 }
 
-const ELEVATION_TOOL = (_units: UnitRow[]) => ({
+const ELEVATION_TOOL = () => ({
   name: "report_elevation",
   description: "Report the cladding and trims of this house elevation. Every metre needs a nameable reference — no reference, no number.",
   input_schema: {
@@ -184,7 +184,7 @@ export async function readElevationPhoto(
   const units = opts.units?.length ? opts.units : FALLBACK_UNITS;
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   try {
-    const tool = ELEVATION_TOOL(units);
+    const tool = ELEVATION_TOOL();
     const response = await client.messages.create({
       model: "claude-opus-4-5",
       max_tokens: 3000,

@@ -31,7 +31,7 @@ export function escalationsDue(handoffs: HandoffRow[], now: Date, slaSeconds: nu
   return handoffs.filter((h) => h.status === "requested" && !h.escalatedAt && new Date(h.requestedAt).getTime() <= cutoff);
 }
 
-const DAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+type DayKey = "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat";
 
 /** The next working day (Melbourne calendar) with support hours, as YYYY-MM-DD.
  *  Today counts if its opening hasn't passed yet. */
@@ -41,7 +41,7 @@ export function nextWorkingDate(hours: SupportHours, now: Date): string {
     const d = new Date(now.getTime() + k * 86_400_000);
     const parts = fmt.formatToParts(d);
     const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
-    const day = get("weekday").toLowerCase().slice(0, 3) as (typeof DAYS)[number];
+    const day = get("weekday").toLowerCase().slice(0, 3) as DayKey;
     const h = hours.days[day as keyof typeof hours.days];
     if (!h) continue;
     if (k === 0) {
