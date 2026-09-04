@@ -82,6 +82,8 @@ jobs:
       # Fail with instructions rather than skipping. A skipped e2e job that
       # reports green is exactly the failure mode A1-06 describes: 160
       # conditional skips meant a passing run could assert almost nothing.
+      # The store may use the .env.test.local names for the three Supabase
+      # values (that is how they were added on 4 Sep) — both spellings are read.
       # Names each missing one (4 Sep): "not configured" alone sent Tom hunting
       # through nine secrets that were all present — in the wrong place. They
       # must be REPOSITORY secrets (Settings → Secrets and variables → Actions →
@@ -89,9 +91,9 @@ jobs:
       # `environment:`, so environment secrets are invisible to it.
       - name: Check the e2e secrets are configured
         env:
-          E2E_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
-          E2E_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
-          E2E_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
+          E2E_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          E2E_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY || secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          E2E_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
           E2E_STAFF_EMAIL: ${{ secrets.E2E_STAFF_EMAIL }}
           E2E_STAFF_PASSWORD: ${{ secrets.E2E_STAFF_PASSWORD }}
           E2E_CONTRACTOR_EMAIL: ${{ secrets.E2E_CONTRACTOR_EMAIL }}
@@ -111,22 +113,32 @@ jobs:
             exit 1
           fi
           echo "All nine e2e secrets present."
+          # The tripwire in scripts/c1/env.mjs reads .env.local, which a CI
+          # runner does not have — so the refusal lives here too. The
+          # production project ref is public (it is in every customer URL);
+          # naming it is not a leak, running e2e against it would be a disaster.
+          case "$E2E_SUPABASE_URL" in
+            *llmrvgdequpmzzuaxdhq*)
+              echo "::error::The Supabase URL secret points at the PRODUCTION project. e2e must run against the TEST project (qarfyjrzgdeoqbnbbxfp) — fix the secret."
+              exit 1;;
+          esac
+          echo "Supabase URL secret is not production."
 
       - run: npx playwright install --with-deps chromium
 
       - name: Build (test stack env baked in, as a deploy would)
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY || secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_SITE_URL: http://localhost:3101
         run: npm run build
 
       - name: Customer journey · role RLS · ledger parity
         env:
           CI: "1"
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY || secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
           E2E_STAFF_EMAIL: ${{ secrets.E2E_STAFF_EMAIL }}
           E2E_STAFF_PASSWORD: ${{ secrets.E2E_STAFF_PASSWORD }}
           E2E_CONTRACTOR_EMAIL: ${{ secrets.E2E_CONTRACTOR_EMAIL }}
