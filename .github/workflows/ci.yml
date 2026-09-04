@@ -139,6 +139,9 @@ jobs:
           # The assistant journeys drive the deterministic stub model — no
           # Anthropic key in CI, ever. Same switch .env.test.local sets.
           AGENT_MODEL_STUB: "1"
+          # Throwaway, runner-only: the abandon-sweep journey calls the cron
+          # route, which needs SOME shared secret. Never a real one here.
+          CRON_SECRET: e2e-runner-cron-secret
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY || secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}

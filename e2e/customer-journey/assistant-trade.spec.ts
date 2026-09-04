@@ -76,7 +76,7 @@ test.describe("Addendum A2 — describe the job", () => {
   test.afterAll(async () => { if (!db) return; for (const e of Object.values(emails)) { await destroyAccountChain(db, e); await deleteUserByEmail(db, e); } });
 
   test("trade: the paragraph prices at once; four answers, a photo and the sweep narrow the band to the CTA", async ({ page }) => {
-    test.setTimeout(420_000);
+    test.setTimeout(900_000); // CI runners are ~3x slower than a laptop (4 Sep)
     const sb = db!;
     await member(sb, emails.trade, "trade");
     await page.goto(await magicLinkFor(sb, emails.trade));
@@ -118,7 +118,7 @@ test.describe("Addendum A2 — describe the job", () => {
   });
 
   test("residential: same paragraph — chips, but no number until the sweep is done", async ({ page }) => {
-    test.setTimeout(420_000);
+    test.setTimeout(900_000); // CI runners are ~3x slower than a laptop (4 Sep)
     const sb = db!;
     await member(sb, emails.res, "residential");
     await page.goto(await magicLinkFor(sb, emails.res));

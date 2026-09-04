@@ -118,7 +118,7 @@ async function startAssistant(page: Page) {
 
 test.describe("assistant — guided mode as an anonymous customer", () => {
   test("interior 2-bed: the range shows once everything is confirmed, then the accept CTA", async ({ page }) => {
-    test.setTimeout(420_000);
+    test.setTimeout(900_000); // CI runners are ~3x slower than a laptop (4 Sep)
     await startAssistant(page);
     const answered = await converse(page, script({ email: `e2e-assist-${unique()}@example.com` }));
     // §4 order: qualification first, then rooms, then the room loop.
@@ -137,7 +137,7 @@ test.describe("assistant — guided mode as an anonymous customer", () => {
   });
 
   test("exterior on a pre-1970 home with peeling paint: the lead-paint script, visit tier", async ({ page }) => {
-    test.setTimeout(300_000);
+    test.setTimeout(600_000);
     await startAssistant(page);
     // Answer up to and including the exterior condition; the stop comes next.
     await converse(page, script({ email: `e2e-lead-${unique()}@example.com`, jobType: "Outside", pre1970: "Yes", condition: "Peeling" }), {
@@ -152,7 +152,7 @@ test.describe("assistant — guided mode as an anonymous customer", () => {
   });
 
   test("abandon after the email: the sweep emits the lead event", async ({ page }) => {
-    test.setTimeout(240_000);
+    test.setTimeout(600_000);
     const email = `e2e-abandon-${unique()}@example.com`;
     await startAssistant(page);
     await converse(page, script({ email }), { stopAt: (key) => key === "job.surfaces" || key === "rooms" || key.startsWith("ext."), max: 20 });

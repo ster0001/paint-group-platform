@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { existsSync } from "node:fs";
 
 /**
  * The pinned floorplan, at a size you can actually read (Tom, 21 Aug:
@@ -16,7 +17,10 @@ import { test, expect } from "@playwright/test";
 
 const PLAN = "regression-set/plans/120 murrumbeena.jpg";
 
+// The plan is a real customer floorplan from the (gitignored) regression set —
+// present on Tom's machines, absent on a CI runner. Skip there, never fabricate.
 test("the plan panel is big enough to read, and opens bigger still", async ({ page }) => {
+  test.skip(!existsSync(PLAN), `regression plan not on this machine: ${PLAN}`);
   test.setTimeout(420_000);
   await page.setViewportSize({ width: 1512, height: 900 });
   await page.goto("/estimate");
