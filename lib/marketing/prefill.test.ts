@@ -5,6 +5,8 @@ test("a home hand-off keeps the address and leaves the property kind alone", () 
   expect(parseEstimateIntent({ address: "12 Elm Street, Northcote VIC 3070", mode: "home" })).toEqual({
     addressText: "12 Elm Street, Northcote VIC 3070",
     propertyKind: null,
+    scope: null,
+    from: null,
   });
 });
 
@@ -27,4 +29,13 @@ test("the address is cleaned and clamped to the wizard's cap", () => {
 test("nothing usable → null, so the wizard starts blank", () => {
   expect(parseEstimateIntent({}).addressText).toBeNull();
   expect(parseEstimateIntent({ address: "   " }).addressText).toBeNull();
+});
+
+test("scope and from are validated, never trusted", () => {
+  const ok = parseEstimateIntent({ scope: "exterior", from: "Exterior-Weatherboard-Thornbury" });
+  expect(ok.scope).toBe("exterior");
+  expect(ok.from).toBe("exterior-weatherboard-thornbury");
+  const bad = parseEstimateIntent({ scope: "roof", from: "../etc; drop table" });
+  expect(bad.scope).toBeNull();
+  expect(bad.from).toBeNull();
 });
