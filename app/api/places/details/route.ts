@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getWizardActor } from "@/lib/supabase/guards";
+import { allowPublicPlaces } from "@/lib/places/publicLimit";
 import { serviceAreaFromSettings } from "@/lib/wizard/policy";
 import { clampAddress } from "@/lib/wizard/state";
 
@@ -30,7 +31,11 @@ function part(components: Component[], type: string, short = false): string {
 export async function POST(request: Request) {
   const supabase = await createClient();
   const actor = await getWizardActor(supabase);
-  if (actor.kind === "none") return NextResponse.json({ error: "Sign in first." }, { status: 403 });
+  // Homepage visitors have no session (homepage brief §4.2): same-origin +
+  // per-IP brakes instead — see lib/places/publicLimit.ts.
+  if (actor.kind === "none" && !allowPublicPlaces(request, "details")) {
+    return NextResponse.json({ error: "Too many lookups — type the address by hand." }, { status: 429 });
+  }
 
   const key = process.env.GOOGLE_MAPS_API_KEY;
   if (!key) return NextResponse.json({ error: "Address lookup isn't configured.", code: "no_places_key" }, { status: 503 });
@@ -67,7 +72,9 @@ export async function POST(request: Request) {
 
     // Service-area check, same rule as the policy engine: an empty configured
     // list means "unconfigured — allow" (never block on missing setup).
-    const db = actor.kind === "customer" ? createServiceClient() : supabase;
+    // Staff read settings under RLS; a customer OR a sessionless homepage
+    // visitor has no table access, so the service client reads it for them.
+    const db = actor.kind === "staff" ? supabase : createServiceClient();
     let inServiceArea: boolean | null = null;
     if (db && address.postcode) {
       const { data: row } = await db.from("settings").select("value").eq("key", "service_area").maybeSingle();

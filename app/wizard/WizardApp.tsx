@@ -66,7 +66,7 @@ const PROC_TIPS = [
   "Nothing is booked and nothing is charged until you say so.",
 ];
 
-export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl }: {
+export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, intent }: {
   roomTypes: string[];
   /** A2: the offered surface lists, derived server-side from the rate card. */
   substrates: SubstrateGroups;
@@ -89,6 +89,10 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    * as the starting point, so the walk only asks what's changed. The server
    * strips file/run references before it hands this over. */
   prefillState?: WizardState;
+  /** Homepage hand-off (lib/marketing/prefill.ts): the address the visitor
+   * typed on the marketing site, shown in the field; "business" pre-selects
+   * the commercial property kind. Intent only — no account, no event. */
+  intent?: { addressText: string | null; propertyKind: "commercial" | null };
 }) {
   const [state, setState] = useState<WizardState>(() => {
     const seed = prefillState ?? defaultWizardState();
@@ -101,6 +105,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             email: prefill?.email ?? seed.customer?.email ?? "",
             suburb: prefill?.address?.suburb ?? seed.customer?.suburb ?? "",
             postcode: prefill?.address?.postcode ?? seed.customer?.postcode ?? "",
+            ...(intent?.propertyKind ? { propertyKind: intent.propertyKind } : {}),
           },
           address: prefill?.address ?? seed.address,
           contact: {
@@ -763,6 +768,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             {page === 1 && (
               <PageProperty
                 state={state} set={set} isCustomer={isCustomer} substrates={substrates}
+                initialAddressText={intent?.addressText ?? ""}
                 planFileCount={planFileCount} facadeFileCount={facadeFileCount}
                 uploading={uploading}
                 /* P1: a fast tap before anonymous sign-in completed got a
@@ -869,11 +875,13 @@ function Seg<T extends string>({ options, value, onPick }: {
 // ---- page 1: the property ---------------------------------------------------
 
 function PageProperty({
-  state, set, isCustomer = false, substrates, planFileCount, facadeFileCount, uploading, sessionBlocked = false, planInputRef, facadeInputRef, onPlanFiles, onFacadeFiles, onImportListingPlan,
+  state, set, isCustomer = false, substrates, planFileCount, facadeFileCount, uploading, sessionBlocked = false, planInputRef, facadeInputRef, onPlanFiles, onFacadeFiles, onImportListingPlan, initialAddressText = "",
 }: {
   state: WizardState;
   set: (p: Partial<WizardState>) => void;
   isCustomer?: boolean;
+  /** Homepage hand-off: what the visitor typed on the marketing site. */
+  initialAddressText?: string;
   substrates: SubstrateGroups;
   planFileCount: number;
   facadeFileCount: number;
@@ -894,7 +902,7 @@ function PageProperty({
   const blocked = busyReason({ uploading, sessionPhase: sessionBlocked ? "connecting" : "ready" }) !== null;
   // A1: the customer's address line as typed (structured only once picked),
   // and the immediate service-area answer for the polite early message.
-  const [addressText, setAddressText] = useState("");
+  const [addressText, setAddressText] = useState(initialAddressText);
   const [outOfArea, setOutOfArea] = useState(false);
   return (
     <>

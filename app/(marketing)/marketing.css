@@ -1,0 +1,95 @@
+/* Marketing site — ported from design/reference/paint-group-homepage-v2-prototype.html
+   (the source of truth for layout, copy and spacing; brief §0). Scoped under
+   `.mk` so nothing leaks into the app. Colours are the Tailwind @theme tokens
+   in app/globals.css (one source); fonts are the next/font variables that
+   app/(marketing)/layout.tsx sets on the wrapper. Port, don't extend (§0). */
+
+html:has(.mk) { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) {
+  html:has(.mk) { scroll-behavior: auto; }
+  .mk * { transition: none !important; animation: none !important; }
+}
+
+.mk {
+  --pad: clamp(20px, 5vw, 64px);
+  flex: 1 1 auto; width: 100%;
+  background: var(--color-ink); color: var(--color-text);
+  font-family: var(--font-switzer), system-ui, sans-serif;
+  line-height: 1.5; -webkit-font-smoothing: antialiased;
+  padding-bottom: 76px; /* room for the mobile call bar */
+}
+@media (min-width: 960px) { .mk { padding-bottom: 0; } }
+.mk a { color: inherit; text-decoration: none; }
+.mk button { font: inherit; cursor: pointer; border: 0; background: none; color: inherit; }
+.mk :focus-visible { outline: 2px solid var(--color-cyan); outline-offset: 3px; }
+.mk .mono { font-family: var(--font-martian), ui-monospace, monospace; font-size: 12px; letter-spacing: .04em; }
+.mk h1, .mk h2, .mk h3 { font-weight: 600; letter-spacing: -.025em; line-height: 1.02; }
+.mk h1 { font-size: clamp(44px, 8vw, 88px); }
+.mk h2 { font-size: clamp(32px, 4.4vw, 56px); max-width: 18ch; }
+.mk h3 { font-size: clamp(20px, 2vw, 26px); letter-spacing: -.015em; line-height: 1.15; }
+.mk .lead { font-size: clamp(17px, 1.5vw, 20px); color: var(--color-muted); max-width: 60ch; }
+.mk .sec { padding: clamp(64px, 9vw, 120px) var(--pad); }
+.mk .wrap { max-width: 1312px; margin: 0 auto; }
+.mk .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 16px 26px; border-radius: 999px; font-weight: 500; font-size: 17px; letter-spacing: -.01em; transition: transform .15s ease, background .15s; }
+.mk .btn:active { transform: scale(.98); }
+.mk .btn-cyan { background: var(--color-cyan); color: var(--color-on-cyan); }
+.mk .btn-ink { background: var(--color-ink); color: var(--color-text); }
+.mk .btn-ghost { border: 1px solid rgba(237, 240, 242, .3); }
+.mk .light .btn-ghost { border-color: var(--color-lline); color: var(--color-tink); }
+.mk .light { background: var(--color-paper); color: var(--color-tink); }
+.mk .light .lead { color: var(--color-tmut); }
+.mk .warm { background: var(--color-warm); }
+
+/* NAV */
+.mk nav { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; padding: 16px var(--pad); background: rgba(10, 11, 13, .85); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255, 255, 255, .06); }
+.mk nav .links { display: none; gap: 28px; color: var(--color-muted); font-size: 16px; }
+.mk nav .right { display: flex; align-items: center; gap: 16px; }
+.mk nav .phone { font-family: var(--font-martian), ui-monospace, monospace; font-size: 13px; }
+.mk nav .btn { padding: 11px 18px; font-size: 15px; }
+.mk nav > *, .mk nav .phone, .mk nav .btn { white-space: nowrap; }
+@media (max-width: 420px) { .mk nav .right { gap: 10px; } .mk nav .btn { padding: 10px 14px; font-size: 14px; } }
+@media (min-width: 960px) { .mk nav .links { display: flex; } }
+
+/* HERO */
+.mk .hero { position: relative; background: var(--color-ink); min-height: 100svh; display: flex; align-items: center; padding: clamp(48px, 8vw, 120px) var(--pad); overflow: hidden; }
+.mk .stage { position: relative; z-index: 2; max-width: 920px; width: 100%; }
+.mk .block { position: relative; background: var(--color-ink); border: 1px solid rgba(237, 240, 242, .18); padding: clamp(24px, 4vw, 48px); display: grid; gap: 24px; }
+/* Grid items default to min-width:auto, so the field's intrinsic width
+   (input + nowrap button) would size the column past a 375px screen. */
+.mk .block > * { min-width: 0; }
+.mk .field { display: flex; align-items: center; gap: 12px; background: var(--color-graphite); border: 2px solid var(--color-cyan); border-radius: 999px; padding: 8px 8px 8px 22px; transition: box-shadow .3s; }
+.mk .field.typing { box-shadow: 0 0 0 6px rgba(59, 216, 233, .12); }
+.mk .field input { flex: 1; min-width: 0; background: none; border: 0; color: var(--color-text); font: inherit; font-size: clamp(16px, 1.4vw, 20px); }
+.mk .field input::placeholder { color: var(--color-muted); }
+.mk .field .btn { padding: 14px 22px; white-space: nowrap; }
+.mk .ghost { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; min-height: 28px; font-size: 15px; color: var(--color-muted); opacity: 0; transition: opacity .4s; }
+.mk .ghost.on { opacity: 1; }
+.mk .ghost .gprice { font-family: var(--font-martian), ui-monospace, monospace; font-size: 18px; color: var(--color-cyan); letter-spacing: -.02em; }
+.mk .ghost .gtime { font-family: var(--font-martian), ui-monospace, monospace; font-size: 11px; letter-spacing: .04em; }
+.mk .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.mk .chip { padding: 10px 16px; border-radius: 999px; border: 1px solid var(--color-line); background: var(--color-raised); font-weight: 500; font-size: 15px; transition: background .25s, color .25s; }
+.mk .chip[aria-pressed="true"] { background: var(--color-cyan); color: var(--color-on-cyan); border-color: var(--color-cyan); }
+.mk .suggest { display: none; background: var(--color-graphite); border: 1px solid var(--color-line); border-radius: 14px; overflow: hidden; }
+.mk .suggest.open { display: block; }
+.mk .suggest button { display: block; width: 100%; text-align: left; padding: 14px 22px; border-bottom: 1px solid var(--color-line); font-size: 16px; }
+.mk .suggest button:last-child { border: 0; }
+.mk .suggest button:hover { background: var(--color-raised); }
+.mk .under { color: var(--color-muted); font-size: 15px; display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.mk .under strong { color: var(--color-text); font-weight: 500; }
+
+/* CTA (closing) — the second AddressField sits on cyan with an ink field */
+.mk .cta { background: var(--color-cyan); color: var(--color-on-cyan); text-align: center; }
+.mk .cta h2 { margin: 0 auto; max-width: 22ch; }
+.mk .cta .field { margin: 32px auto 16px; max-width: 720px; background: var(--color-ink); border-color: var(--color-ink); }
+.mk .cta .field input { color: var(--color-text); }
+.mk .cta p { font-size: 16px; }
+
+/* FOOTER */
+.mk footer { padding: 56px var(--pad); display: grid; gap: 32px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); color: var(--color-muted); font-size: 15px; }
+.mk footer b { display: block; color: var(--color-text); margin-bottom: 10px; font-family: var(--font-martian), ui-monospace, monospace; font-size: 12px; font-weight: 500; }
+.mk footer a { display: block; color: var(--color-text); margin-bottom: 8px; }
+
+/* Sticky call bar (mobile only — the phone number never hides, experience-plan rule) */
+.mk .callbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; display: flex; gap: 10px; padding: 12px var(--pad); background: rgba(10, 11, 13, .92); backdrop-filter: blur(10px); border-top: 1px solid var(--color-line); }
+.mk .callbar .btn { flex: 1; padding: 14px; font-size: 16px; }
+@media (min-width: 960px) { .mk .callbar { display: none; } }

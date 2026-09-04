@@ -1,0 +1,30 @@
+import { test, expect } from "vitest";
+import { parseEstimateIntent } from "./prefill";
+
+test("a home hand-off keeps the address and leaves the property kind alone", () => {
+  expect(parseEstimateIntent({ address: "12 Elm Street, Northcote VIC 3070", mode: "home" })).toEqual({
+    addressText: "12 Elm Street, Northcote VIC 3070",
+    propertyKind: null,
+  });
+});
+
+test("business pre-selects commercial", () => {
+  expect(parseEstimateIntent({ address: "4/22 High St", mode: "business" }).propertyKind).toBe("commercial");
+});
+
+test("junk mode is ignored, not an error", () => {
+  expect(parseEstimateIntent({ address: "x", mode: "biz" }).propertyKind).toBeNull();
+  expect(parseEstimateIntent({ mode: ["home", "business"] }).propertyKind).toBeNull();
+});
+
+test("the address is cleaned and clamped to the wizard's cap", () => {
+  const long = "a".repeat(400);
+  const r = parseEstimateIntent({ address: `  12  Elm   St\n\t${long}` });
+  expect(r.addressText?.length).toBe(250);
+  expect(r.addressText?.startsWith("12 Elm St a")).toBe(true);
+});
+
+test("nothing usable → null, so the wizard starts blank", () => {
+  expect(parseEstimateIntent({}).addressText).toBeNull();
+  expect(parseEstimateIntent({ address: "   " }).addressText).toBeNull();
+});

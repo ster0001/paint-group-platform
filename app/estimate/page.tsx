@@ -6,6 +6,7 @@ import WizardApp from "../wizard/WizardApp";
 import Wordmark from "../wizard/Wordmark";
 import { getCompanyContact } from "@/lib/portal/data";
 import { clampAddress, wizardStateSchema, type WizardState } from "@/lib/wizard/state";
+import { parseEstimateIntent } from "@/lib/marketing/prefill";
 
 /**
  * /estimate — Step 8's CUSTOMER wizard.
@@ -26,9 +27,13 @@ export const metadata = {
 export default async function CustomerWizardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ property?: string; rebook?: string }>;
+  searchParams: Promise<{ property?: string; rebook?: string; address?: string; mode?: string }>;
 }) {
-  const { property: propertyParam, rebook: rebookParam } = await searchParams;
+  const { property: propertyParam, rebook: rebookParam, address: addressParam, mode: modeParam } = await searchParams;
+  // Homepage hand-off (homepage brief §4.2): the typed address and the
+  // home/business chip arrive on the URL. Intent only — parsed and clamped
+  // by lib/marketing/prefill.ts; nothing is created and nothing fires.
+  const intent = parseEstimateIntent({ address: addressParam, mode: modeParam });
   const supabase = await createClient();
   // The Settings logo for the header (public-safe display fields only).
   const company = await getCompanyContact();
@@ -167,6 +172,7 @@ export default async function CustomerWizardPage({
         address: prefillAddress,
       } : undefined}
       prefillState={prefillState}
+      intent={intent}
     />
   );
 }
