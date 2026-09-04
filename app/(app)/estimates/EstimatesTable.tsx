@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { deleteEstimateAction } from "./actions";
 import DeleteEstimateButton from "./DeleteEstimateButton";
+import { displayStatus } from "@/lib/estimate/displayStatus";
 
 /**
  * The estimates table with multi-select delete (Tom, 20 Aug 2026).
@@ -27,6 +28,8 @@ export type EstimateRow = {
   status: string;
   total_cents: number | null;
   created_at: string;
+  /** First customer open — a sent estimate with this set reads "viewed". */
+  viewed_at?: string | null;
 };
 
 const money = (c: number | null) =>
@@ -190,7 +193,13 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
                     {e.title || "Untitled estimate"}
                   </Link>
                 </td>
-                <td className="px-4 py-2.5 capitalize text-gray-500">{e.status}</td>
+                <td
+                  className={`px-4 py-2.5 capitalize ${displayStatus(e) === "viewed" ? "text-cyan-700" : "text-gray-500"}`}
+                  title={e.viewed_at ? `Opened by the customer ${new Date(e.viewed_at).toLocaleString("en-AU", { dateStyle: "medium", timeStyle: "short" })}` : undefined}
+                  data-testid={`status-${e.id}`}
+                >
+                  {displayStatus(e)}
+                </td>
                 <td className="px-4 py-2.5 text-gray-500">
                   {new Date(e.created_at).toLocaleDateString("en-AU")}
                 </td>

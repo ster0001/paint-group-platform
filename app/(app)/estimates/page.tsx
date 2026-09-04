@@ -3,10 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import NewEstimateButton, { type TemplateMeta } from "./NewEstimateButton";
 import EstimatesTable, { type EstimateRow } from "./EstimatesTable";
 import AssistantFab from "@/app/quote/AssistantFab";
+import { LIST_FILTERS as FILTERS, filterQuery } from "@/lib/estimate/displayStatus";
 
 export const dynamic = "force-dynamic";
-
-const FILTERS = ["all", "draft", "sent", "accepted", "declined", "expired"] as const;
 
 export default async function EstimatesPage({
   searchParams,
@@ -16,11 +15,16 @@ export default async function EstimatesPage({
   const { status } = await searchParams;
   const supabase = await createClient();
 
+  // "Viewed" is sent + the customer's first open (viewed_at) — one DB status,
+  // two tabs (Tom, 4 Sep). The row shows "viewed" the same way.
+  const fq = filterQuery(status);
   let query = supabase
     .from("estimates")
-    .select("id, title, status, total_cents, created_at")
+    .select("id, title, status, total_cents, created_at, viewed_at")
     .order("created_at", { ascending: false });
-  if (status && status !== "all") query = query.eq("status", status);
+  if (fq.status) query = query.eq("status", fq.status);
+  if (fq.viewed === true) query = query.not("viewed_at", "is", null);
+  if (fq.viewed === false) query = query.is("viewed_at", null);
   const { data: estimates } = await query;
 
   const { data: tplRow } = await supabase.from("settings").select("value").eq("key", "estimate_templates").maybeSingle();

@@ -36,7 +36,14 @@
    mobile — flag if it should follow. The `tel:` links in code were already
    the landline.
 
-GATES: tsc clean · eslint 0 errors · unit green · C1 e2e (serial): capture-exit-saves 1/1 · builder-number-inputs 1/1 · office-accept-email 3/3 · presentation-tick 2/2 · condition-hours-golden 1/1 · settings-automations 2/2.
+5. **"Viewed" on the estimates list.** `lib/estimate/displayStatus.ts`: a
+   sent estimate with `viewed_at` (the customer's first open, stamped by
+   record_estimate_view) READS "viewed" and has its own tab; the Sent tab
+   is now the unopened ones. DB status untouched (no enum surgery — the
+   state machine still says sent until accepted/declined). e2e
+   `estimates-viewed`.
+
+GATES: tsc clean · eslint 0 errors · unit green · C1 e2e (serial): estimates-viewed 1/1 · estimates-multi-delete 2/2 · capture-exit-saves 1/1 · builder-number-inputs 1/1 · office-accept-email 3/3 · presentation-tick 2/2 · condition-hours-golden 1/1 · settings-automations 2/2.
 
 ---
 
