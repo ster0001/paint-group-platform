@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_COMPANY, type CompanyProfile } from "@/app/quote/company";
 import SettingsForm from "./SettingsForm";
@@ -178,6 +179,13 @@ export default async function SettingsPage() {
           content: <SettingsForm initial={company} /> },
         { id: "documents", title: "Documents", subtitle: "Credentials on display in every customer portal — insurance certificates with expiry, plus the warranty-terms approval switch", count: companyDocs.length,
           content: <DocumentsManager initialDocs={companyDocs} warrantyApproved={warrantyApproved} /> },
+        { id: "showcase", title: "Showcase jobs", subtitle: "Finished jobs shown on the website as “Real jobs, real prices” — photos, price range, what we did; the three featured ones are the homepage cards",
+          content: (
+            <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+              <span>Each job is one page on the website, filled in top to bottom exactly as a visitor reads it.</span>
+              <Link href="/settings/showcase" data-testid="open-showcase" className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-700">Open showcase jobs →</Link>
+            </div>
+          ) },
         { id: "trade-accounts", title: "Trade accounts", subtitle: "Create a trade login or grant an existing customer the trade workspace — office-side only, never self-serve",
           content: (
             <>

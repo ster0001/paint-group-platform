@@ -25,6 +25,26 @@
   --color-paint: #2fb9cb;
 }
 
+/* Marketing-site tokens — the Figma "01 Foundations" variable names
+   (homepage brief §2). Added alongside the older names above (estimate
+   views use those); the marketing CSS reads these as var(--color-*). */
+@theme {
+  --color-raised: #171c21;
+  --color-line: #242b32;
+  --color-text: #edf0f2;
+  --color-muted: #8c959d;
+  --color-cyan: #3bd8e9;
+  --color-on-cyan: #03272d;
+  --color-amber: #e0a83c;
+  --color-emerald: #2fa46b;
+  --color-clay: #b3574a;
+  --color-paper: #f7f7f5;
+  --color-warm: #eeece6;
+  --color-tink: #0a0b0d;
+  --color-tmut: #5b646c;
+  --color-lline: #dad6ce;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;

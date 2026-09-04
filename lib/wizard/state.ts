@@ -50,7 +50,10 @@ const customerSchema = z.object({
   asbestosSuspected: z.enum(["yes", "no", "unsure"]),
 });
 
-export const wizardStateSchema = z.object({
+/** The SHAPE of a wizard state — every field, no cross-field rules. Seeds
+ * (a showcase job's scope, lib/wizard/showcaseSeed) validate against this;
+ * a state on its way to submit validates against wizardStateSchema below. */
+export const wizardStateShapeSchema = z.object({
   /** internal = staff from the estimates list · customer = Step 8's public
    * wizard (guardrails + range bands + email gate apply). */
   mode: z.enum(["internal", "customer"]),
@@ -186,7 +189,9 @@ export const wizardStateSchema = z.object({
       balustrade: z.boolean().default(false),
     }).default({ deck: false, fence: false, fenceMetres: null, pergola: false, balustrade: false }),
   }).nullable().default(null),
-}).superRefine((s, ctx) => {
+});
+
+export const wizardStateSchema = wizardStateShapeSchema.superRefine((s, ctx) => {
   const wantsInterior = s.jobType === "interior" || s.jobType === "both";
   const wantsExterior = s.jobType === "exterior" || s.jobType === "both";
 

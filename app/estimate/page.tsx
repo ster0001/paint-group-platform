@@ -6,6 +6,9 @@ import WizardApp from "../wizard/WizardApp";
 import Wordmark from "../wizard/Wordmark";
 import { getCompanyContact } from "@/lib/portal/data";
 import { clampAddress, wizardStateSchema, type WizardState } from "@/lib/wizard/state";
+import { parseEstimateIntent } from "@/lib/marketing/prefill";
+import { showcaseJobBySlug } from "@/lib/showcase/queries";
+import { sanitiseClonedState, scopeSeed } from "@/lib/wizard/showcaseSeed";
 
 /**
  * /estimate — Step 8's CUSTOMER wizard.
@@ -26,9 +29,13 @@ export const metadata = {
 export default async function CustomerWizardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ property?: string; rebook?: string }>;
+  searchParams: Promise<{ property?: string; rebook?: string; address?: string; mode?: string; scope?: string; from?: string }>;
 }) {
-  const { property: propertyParam, rebook: rebookParam } = await searchParams;
+  const { property: propertyParam, rebook: rebookParam, address: addressParam, mode: modeParam, scope: scopeParam, from: fromParam } = await searchParams;
+  // Homepage hand-off (homepage brief §4.2): the typed address and the
+  // home/business chip arrive on the URL. Intent only — parsed and clamped
+  // by lib/marketing/prefill.ts; nothing is created and nothing fires.
+  const intent = parseEstimateIntent({ address: addressParam, mode: modeParam, scope: scopeParam, from: fromParam });
   const supabase = await createClient();
   // The Settings logo for the header (public-safe display fields only).
   const company = await getCompanyContact();
@@ -154,6 +161,25 @@ export default async function CustomerWizardPage({
     }
   }
 
+  // "Get a price like this" (homepage brief §4.4c block 8): a visitor from a
+  // showcase job starts on that job's scope. The slug resolves through the
+  // PUBLIC read (published rows only); when that row links an estimate, its
+  // wizard state is read with the service client and stripped of everything
+  // that was the original customer's (lib/wizard/showcaseSeed) — the
+  // estimate id itself never appears on the URL. No linked estimate (or a
+  // state that fails validation) → the job type alone seeds the draft.
+  if (!prefillState && (intent.from || intent.scope)) {
+    const showcase = intent.from ? await showcaseJobBySlug(intent.from) : null;
+    const scope = showcase?.job_type ?? intent.scope;
+    if (showcase?.estimate_id && svc) {
+      const { data: src } = await svc
+        .from("estimates").select("wizard_state:builder_state->wizard->state")
+        .eq("id", showcase.estimate_id).maybeSingle();
+      prefillState = sanitiseClonedState(src?.wizard_state ?? null, intent.propertyKind) ?? undefined;
+    }
+    if (!prefillState && scope) prefillState = scopeSeed(scope, intent.propertyKind);
+  }
+
   return (
     <WizardApp
       roomTypes={roomTypes}
@@ -167,6 +193,7 @@ export default async function CustomerWizardPage({
         address: prefillAddress,
       } : undefined}
       prefillState={prefillState}
+      intent={intent}
     />
   );
 }

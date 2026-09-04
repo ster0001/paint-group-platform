@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getWizardActor } from "@/lib/supabase/guards";
+import { allowPublicPlaces } from "@/lib/places/publicLimit";
 
 /**
  * A1: Google Places Autocomplete, SERVER-PROXIED — the API key lives only in
@@ -29,7 +30,11 @@ const MELBOURNE_BIAS = {
 export async function POST(request: Request) {
   const supabase = await createClient();
   const actor = await getWizardActor(supabase);
-  if (actor.kind === "none") return NextResponse.json({ error: "Sign in first." }, { status: 403 });
+  // Homepage visitors have no session (homepage brief §4.2): same-origin +
+  // per-IP brakes instead — see lib/places/publicLimit.ts.
+  if (actor.kind === "none" && !allowPublicPlaces(request, "autocomplete")) {
+    return NextResponse.json({ error: "Too many lookups — type the address by hand." }, { status: 429 });
+  }
 
   const key = process.env.GOOGLE_MAPS_API_KEY;
   if (!key) return NextResponse.json({ error: "Address lookup isn't configured.", code: "no_places_key" }, { status: 503 });

@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paint Group — Homepage v2 prototype</title>
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0A0B0D;--graphite:#12161A;--raised:#171C21;--line:#242B32;
+  --text:#EDF0F2;--muted:#8C959D;
+  --cyan:#3BD8E9;--on-cyan:#03272D;--paint:#2FB9CB;
+  --amber:#E0A83C;--emerald:#2FA46B;--clay:#B3574A;
+  --paper:#F7F7F5;--warm:#EEECE6;--tink:#0A0B0D;--tmut:#5B646C;--lline:#DAD6CE;
+  --sans:'Switzer',system-ui,sans-serif;--mono:'Martian Mono',ui-monospace,monospace;
+  --pad:clamp(20px,5vw,64px);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+body{font-family:var(--sans);background:var(--ink);color:var(--text);line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+.mono{font-family:var(--mono);font-size:12px;letter-spacing:.04em}
+h1,h2,h3{font-weight:600;letter-spacing:-.025em;line-height:1.02}
+h1{font-size:clamp(44px,8vw,88px)}
+h2{font-size:clamp(32px,4.4vw,56px);max-width:18ch}
+h3{font-size:clamp(20px,2vw,26px);letter-spacing:-.015em;line-height:1.15}
+.lead{font-size:clamp(17px,1.5vw,20px);color:var(--muted);max-width:60ch}
+.sec{padding:clamp(64px,9vw,120px) var(--pad)}
+.wrap{max-width:1312px;margin:0 auto}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:16px 26px;border-radius:999px;font-weight:500;font-size:17px;letter-spacing:-.01em;transition:transform .15s ease,background .15s}
+.btn:active{transform:scale(.98)}
+.btn-cyan{background:var(--cyan);color:var(--on-cyan)}
+.btn-ink{background:var(--ink);color:var(--text)}
+.btn-ghost{border:1px solid rgba(237,240,242,.3)}
+.light .btn-ghost{border-color:var(--lline);color:var(--tink)}
+.light{background:var(--paper);color:var(--tink)}
+.light .lead{color:var(--tmut)}
+.warm{background:var(--warm)}
+
+/* NAV */
+nav{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;padding:16px var(--pad);background:rgba(10,11,13,.85);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.06)}
+nav .links{display:none;gap:28px;color:var(--muted);font-size:16px}
+nav .right{display:flex;align-items:center;gap:16px}
+nav .phone{font-family:var(--mono);font-size:13px}
+@media(min-width:960px){nav .links{display:flex}}
+
+/* HERO */
+.hero{position:relative;background:var(--ink);min-height:100svh;display:flex;align-items:center;padding:clamp(48px,8vw,120px) var(--pad);overflow:hidden}
+.stage{position:relative;z-index:2;max-width:920px;width:100%}
+.block{position:relative;background:var(--ink);border:1px solid rgba(237,240,242,.18);padding:clamp(24px,4vw,48px);display:grid;gap:24px}
+.field{display:flex;align-items:center;gap:12px;background:var(--graphite);border:2px solid var(--cyan);border-radius:999px;padding:8px 8px 8px 22px;transition:box-shadow .3s}
+.field.typing{box-shadow:0 0 0 6px rgba(59,216,233,.12)}
+.field input{flex:1;min-width:0;background:none;border:0;color:var(--text);font:inherit;font-size:clamp(16px,1.4vw,20px)}
+.field input::placeholder{color:var(--muted)}
+.field .btn{padding:14px 22px;white-space:nowrap}
+.ghost{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px;min-height:28px;font-size:15px;color:var(--muted);opacity:0;transition:opacity .4s}
+.ghost.on{opacity:1}
+.ghost .gprice{font-family:var(--mono);font-size:18px;color:var(--cyan);letter-spacing:-.02em}
+.ghost .gtime{font-family:var(--mono);font-size:11px;letter-spacing:.04em}
+.chips{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.chip{padding:10px 16px;border-radius:999px;border:1px solid var(--line);background:var(--raised);font-weight:500;font-size:15px;transition:background .25s,color .25s}
+.chip[aria-pressed=true]{background:var(--cyan);color:var(--on-cyan);border-color:var(--cyan)}
+.suggest{display:none;background:var(--graphite);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.suggest.open{display:block}
+.suggest button{display:block;width:100%;text-align:left;padding:14px 22px;border-bottom:1px solid var(--line);font-size:16px}
+.suggest button:last-child{border:0}
+.suggest button:hover{background:var(--raised)}
+.under{color:var(--muted);font-size:15px;display:flex;flex-wrap:wrap;gap:8px 20px}
+.under strong{color:var(--text);font-weight:500}
+.cue{position:absolute;left:var(--pad);bottom:24px;color:var(--muted)}
+.sweeps{position:absolute;inset:0;background:repeating-linear-gradient(180deg,rgba(59,216,233,.04) 0 60px,rgba(59,216,233,.11) 60px 120px);filter:blur(18px);pointer-events:none}
+/* STEPS */
+.grid4{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:40px}
+.card{background:#fff;border:1px solid var(--lline);border-radius:14px;padding:28px;display:grid;gap:12px;align-content:start}
+.card .n{font-family:var(--mono);color:var(--paint);font-size:26px}
+.card p{color:var(--tmut);font-size:16px}
+.phone-row{margin-top:48px;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;font-size:20px}
+.phone-row b{font-size:clamp(24px,2.4vw,30px);font-weight:600;letter-spacing:-.02em}
+.phone-row span{color:var(--tmut);font-size:17px}
+
+/* JOBS */
+.jobs{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));margin-top:40px}
+.job{background:#fff;border:1px solid var(--lline);border-radius:22px;overflow:hidden;display:grid;text-align:left;transition:transform .2s,box-shadow .2s}
+.job:hover{transform:translateY(-4px);box-shadow:0 24px 50px rgba(0,0,0,.12)}
+.job .img{aspect-ratio:4/3;background:var(--ph,linear-gradient(135deg,#C9C2B4,#E7E3DA))}
+.job .body{padding:20px 24px 24px;display:grid;gap:10px}
+.job .top{display:flex;justify-content:space-between;gap:12px;align-items:baseline}
+.job .meta{font-family:var(--mono);font-size:12px;color:var(--tmut)}
+.job .price{font-family:var(--mono);font-size:clamp(22px,2.2vw,28px);letter-spacing:-.02em}
+.job .scope{color:var(--tmut);font-size:16px}
+.job .btn{margin-top:6px;width:100%;font-size:16px;padding:14px}
+
+/* PROMISE */
+.promise{display:grid;gap:24px;margin-top:40px;grid-template-columns:1fr}
+@media(min-width:900px){.promise{grid-template-columns:520px 1fr}}
+.plist{display:grid;gap:8px;align-content:start}
+.prow{display:flex;gap:16px;align-items:center;text-align:left;padding:20px 22px;border-radius:14px;background:#fff;border:1px solid var(--lline);transition:background .2s,color .2s}
+.prow .bar{width:4px;height:44px;border-radius:2px;background:var(--lline);flex:none}
+.prow .t{display:grid;gap:2px;flex:1}.prow b{font-weight:600;font-size:18px;letter-spacing:-.01em}.prow small{color:var(--tmut);font-size:14px}
+.prow[aria-selected=true]{background:var(--ink);color:var(--text);border-color:var(--ink)}
+.prow[aria-selected=true] .bar{background:var(--cyan)}.prow[aria-selected=true] small{color:var(--muted)}
+.panel{background:var(--ink);color:var(--text);border-radius:22px;padding:clamp(20px,3vw,32px);display:grid;gap:18px;align-content:start}
+.panel h3{font-size:clamp(22px,2.4vw,30px)}
+.pcard{background:var(--graphite);border:1px solid var(--line);border-radius:14px;padding:22px;display:grid;gap:12px}
+.pill{font-family:var(--mono);font-size:11px;padding:4px 10px;border-radius:999px;background:var(--amber);color:var(--ink);letter-spacing:.04em}
+.pill.green{background:var(--emerald)}.pill.grey{background:var(--raised);color:var(--muted)}
+.pcard .row{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.money{font-family:var(--mono);font-size:26px;letter-spacing:-.02em}
+.pcard .btns{display:flex;gap:10px;flex-wrap:wrap}.pcard .btns .btn{flex:1;padding:13px 18px;font-size:15px}
+.ph{display:flex;gap:10px}.ph i{display:block;width:120px;height:84px;border-radius:8px;background:var(--raised)}
+.panel p.note{color:var(--muted);font-size:15px}
+.done{color:var(--emerald);font-family:var(--mono);font-size:12px}
+
+/* shared bits */
+.head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--emerald);box-shadow:0 0 0 0 rgba(47,164,107,.6);animation:pulse 2s infinite;flex:none}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(47,164,107,.6)}70%{box-shadow:0 0 0 10px rgba(47,164,107,0)}100%{box-shadow:0 0 0 0 rgba(47,164,107,0)}}
+/* PROGRESS STORY */
+.storywrap{display:grid;gap:40px;grid-template-columns:1fr;align-items:center}
+@media(min-width:960px){.storywrap{grid-template-columns:1fr 420px;gap:64px}}
+.caption{margin-top:32px;min-height:4.2em;font-size:clamp(24px,2.6vw,34px);font-weight:600;letter-spacing:-.02em;line-height:1.15;max-width:18ch;transition:opacity .35s}
+.caption.swap{opacity:0}
+.capsr{position:absolute;left:-9999px}
+@media (prefers-reduced-motion:reduce){.capsr{position:static;margin-top:16px;padding-left:20px;color:var(--tmut);font-size:16px}.caption{display:none}}
+.storycopy .replay{margin-top:20px;color:var(--tmut);border:1px solid var(--lline);padding:8px 12px;border-radius:999px;opacity:0;transition:opacity .4s}
+.storycopy .replay.on{opacity:1}
+.device{position:relative;justify-self:center;width:min(390px,100%);aspect-ratio:390/800;background:var(--ink);color:var(--text);border-radius:44px;padding:56px 18px 18px;box-shadow:0 40px 80px rgba(0,0,0,.28),inset 0 0 0 2px #2A3138;overflow:hidden;display:grid;align-content:start;gap:12px;font-size:14px}
+.notch{position:absolute;top:14px;left:50%;transform:translateX(-50%);width:120px;height:28px;border-radius:14px;background:#000}
+.banner{position:absolute;left:14px;right:14px;top:16px;padding:12px 14px;border-radius:14px;background:var(--graphite);border:1px solid var(--line);font-size:13px;transform:translateY(-140%);transition:transform .5s cubic-bezier(.2,.9,.3,1);z-index:2}
+.banner.on{transform:translateY(40px)}
+.banner b{color:var(--cyan)}
+.ptop{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}.ptop b{font-size:15px;display:block;letter-spacing:-.01em}
+.ptrack{height:6px;border-radius:3px;background:var(--raised);overflow:hidden}.ptrack i{display:block;height:100%;width:0;background:var(--cyan);transition:width .9s cubic-bezier(.2,.8,.2,1)}
+.pareas{display:grid;gap:6px}
+.parea{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:var(--raised);border:1px solid transparent;transition:border-color .3s}
+.parea b{display:block;font-size:14px}.parea small{color:var(--muted);font-size:12px}
+.parea .state{transition:color .3s}
+.parea[data-s=done]{border-color:rgba(59,216,233,.5)}
+.pphotos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;min-height:0}
+.pphotos i{display:block;aspect-ratio:4/3;border-radius:8px;background:linear-gradient(135deg,#2A3138,#171C21);transform:translateX(40px);opacity:0;transition:.5s cubic-bezier(.2,.8,.2,1)}
+.pphotos i.on{transform:none;opacity:1}
+.pupd{background:var(--graphite);border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:6px;font-size:13px;min-height:74px}
+.pvar{background:var(--graphite);border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:8px;font-size:13px;transform:translateY(30px);opacity:0;transition:.45s cubic-bezier(.2,.8,.2,1)}
+.pvar.on{transform:none;opacity:1}
+.pvar .row,.psign .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.pvar .money,.psign .money{font-size:18px}
+.pbtn{padding:8px 14px;border-radius:999px;background:var(--cyan);color:var(--on-cyan);font-weight:500;transition:transform .15s,background .3s}
+.pbtn.press{transform:scale(.94)}.pbtn.ok{background:var(--emerald);color:var(--ink)}
+.psign{position:absolute;inset:0;background:var(--ink);padding:110px 24px 24px;display:grid;align-content:start;gap:14px;opacity:0;transition:opacity .5s;z-index:3}
+.psign.on{opacity:1}
+.sig{width:100%;height:auto}.sig path{stroke-dasharray:600;stroke-dashoffset:600;transition:stroke-dashoffset 1.6s ease-in-out}
+.psign.on .sig path{stroke-dashoffset:0}
+[hidden]{display:none!important}
+
+/* LIVE STRIP */
+.live{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));margin-top:24px}
+.tile{background:#fff;border:1px solid var(--lline);border-radius:14px;padding:26px;display:grid;gap:6px}
+.tile .big{font-size:clamp(40px,5vw,56px);font-weight:600;letter-spacing:-.03em;line-height:1}
+.tile b{font-weight:600;font-size:18px;letter-spacing:-.01em}.tile small{color:var(--tmut);font-size:14px}
+
+/* PAINTERS */
+.painters{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:40px}
+.pc{background:#fff;border:1px solid var(--lline);border-radius:14px;padding:24px;display:grid;gap:10px}
+.pc .av{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#C9C2B4,#8C959D)}
+.pc b{font-size:20px;letter-spacing:-.01em}.pc .meta{font-family:var(--mono);font-size:12px;color:var(--tmut)}.pc q{color:var(--tmut);font-size:16px}
+.rules{margin-top:32px;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.rule{display:flex;gap:12px;font-size:17px}.rule i{font-style:normal;color:var(--paint);font-weight:600}
+
+/* TRADE */
+.trade{display:grid;gap:40px;grid-template-columns:1fr;align-items:center}
+@media(min-width:960px){.trade{grid-template-columns:1.05fr 1fr}}
+.tbl{background:var(--graphite);border:1px solid var(--line);border-radius:22px;padding:18px;display:grid;gap:8px}
+.tbl .r{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;border-radius:10px;background:var(--raised)}
+.tbl .r b{display:block;font-size:16px}.tbl .r small{color:var(--muted);font-family:var(--mono);font-size:11px}
+.tbl .r .st{font-size:14px;text-align:right}
+.trade h2{color:var(--text)}.trade .lead{color:var(--muted)}
+
+/* REVIEWS */
+.revs{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));margin-top:40px}
+.rev{background:#fff;border:1px solid var(--lline);border-radius:14px;padding:28px;display:grid;gap:14px}
+.rev .stars{color:var(--amber);letter-spacing:2px}.rev p{font-size:18px;line-height:1.4}.rev small{color:var(--tmut);font-family:var(--mono);font-size:12px}
+
+/* FAQ */
+.faq{margin-top:32px;border-top:1px solid var(--lline);max-width:860px}
+.faq details{border-bottom:1px solid var(--lline)}
+.faq summary{list-style:none;cursor:pointer;padding:20px 0;font-size:clamp(18px,1.6vw,21px);font-weight:600;letter-spacing:-.01em;display:flex;justify-content:space-between;gap:16px}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:'+';font-weight:400;color:var(--tmut)}
+.faq details[open] summary::after{content:'–'}
+.faq p{padding:0 0 20px;color:var(--tmut);font-size:17px;max-width:64ch}
+
+/* CTA + FOOTER */
+.cta{background:var(--cyan);color:var(--on-cyan);text-align:center}
+.cta h2{margin:0 auto;max-width:22ch}
+.cta .field{margin:32px auto 16px;max-width:720px;background:var(--ink);border-color:var(--ink)}
+.cta .field input{color:var(--text)}
+.cta p{font-size:16px}
+footer{padding:56px var(--pad);display:grid;gap:32px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));color:var(--muted);font-size:15px}
+footer b{display:block;color:var(--text);margin-bottom:10px;font-family:var(--mono);font-size:12px}
+footer a{display:block;color:var(--text);margin-bottom:8px}
+
+/* sticky phone (mobile) */
+.callbar{position:fixed;left:0;right:0;bottom:0;z-index:25;display:flex;gap:10px;padding:12px var(--pad);background:rgba(10,11,13,.92);backdrop-filter:blur(10px);border-top:1px solid var(--line)}
+.callbar .btn{flex:1;padding:14px;font-size:16px}
+@media(min-width:960px){.callbar{display:none}}
+body{padding-bottom:76px}@media(min-width:960px){body{padding-bottom:0}}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="#" class="mono">PAINT GROUP</a>
+  <div class="links"><a href="#jobs">Real jobs, real prices</a><a href="#how">How it works</a><a href="#trade">For business</a><a href="#reviews">Reviews</a></div>
+  <div class="right"><a class="phone" href="tel:1300000000">1300 000 000</a><a class="btn btn-cyan" style="padding:11px 18px;font-size:15px" href="#top" data-ev="nav_cta">See my price</a></div>
+</nav>
+
+<!-- HERO -->
+<section class="hero" id="top">
+  <div class="stage">
+    <div class="block">
+      <div class="mono" style="color:var(--muted)">Melbourne · homes and businesses · see your price today · confirmed by a person before we start</div>
+      <h1>Transforming spaces.<br>Redefining painting.</h1>
+      <p class="lead">Type the address — a home, a shop, an office or a whole portfolio. See a real price range in about ten minutes, then we confirm it with you — a quick call for smaller jobs, a visit for bigger ones. No waiting a fortnight for a quote.</p>
+      <form class="field" id="addr" autocomplete="off" onsubmit="return go(event)">
+        <span aria-hidden="true">📍</span>
+        <input id="addrIn" placeholder="Type your address" aria-label="Address" data-ev="address_typed">
+        <button class="btn btn-cyan" type="submit" data-ev="see_price">See my price →</button>
+      </form>
+      <div class="ghost" id="ghost" aria-live="polite"><span class="gaddr"></span><span class="garrow">→</span><span class="gprice"></span><span class="gtime"></span></div>
+      <div class="suggest" id="sug"></div>
+      <div class="chips" role="group" aria-label="This is">
+        <span class="mono" style="color:var(--muted)">This is</span>
+        <button class="chip" aria-pressed="true" data-mode="home" data-ev="mode_home">My home</button>
+        <button class="chip" aria-pressed="false" data-mode="biz" data-ev="mode_business">A business or property I manage</button>
+      </div>
+      <div class="under"><span>Rather talk to a person? <strong><a href="tel:1300000000">Call 1300 000 000</a></strong></span><span>Inside, outside, or both</span></div>
+    </div>
+  </div>
+  </section>
+
+<!-- HOW IT WORKS -->
+<section class="sec light warm" id="how"><div class="wrap">
+  <h2>Four steps. You're in charge of every one.</h2>
+  <div class="grid4">
+    <div class="card"><span class="n">01</span><h3>See your price</h3><p>Type your address, answer a few questions, add photos if you have them. A price range appears on screen. About ten minutes.</p></div>
+    <div class="card"><span class="n">02</span><h3>We confirm it with you</h3><p>The more you tell us, the tighter the range. Then a real person checks it — over the phone for apartments, units and smaller jobs, on site for larger ones — and signs it off with you.</p></div>
+    <div class="card"><span class="n">03</span><h3>Pick your dates</h3><p>Once the price is signed off, choose a start that suits you. We confirm your painter before we lock it in — you'll know who's coming.</p></div>
+    <div class="card"><span class="n">04</span><h3>Sign off, then pay</h3><p>Photo updates every day in your portal. A walkthrough with you at the end. You sign off, then the final invoice is due.</p></div>
+  </div>
+  <div class="phone-row">Rather talk to a person first? <b><a href="tel:1300000000">Call 1300 000 000</a></b><span>Mon–Fri, 8am–5pm</span></div>
+</div></section>
+
+<!-- JOBS -->
+<section class="sec light" id="jobs"><div class="wrap">
+  <div class="head"><div><div class="mono" style="color:var(--tmut);margin-bottom:12px">Real jobs · real prices · inc. GST</div><h2>What Melbourne homes actually cost to paint.</h2><p class="lead" style="margin-top:14px">Every card is a finished job with the real price. Tap one and we'll open the estimator pre-filled with the same scope.</p></div><a href="#" style="font-weight:500">All 40 jobs →</a></div>
+  <div class="jobs">
+    <button class="job" data-ev="job_card" data-scope="exterior"><div class="img" style="--ph:linear-gradient(135deg,#B9B3A5,#E4E0D6)"></div><div class="body"><div class="top"><h3>Exterior weatherboard</h3><span class="meta">6 days on site</span></div><span class="meta">Thornbury · completed Jul 2026</span><span class="price">$14,200 – $15,800</span><span class="scope">Whole exterior, 2 coats, fascias &amp; gutters, front fence</span><span class="btn btn-ink">Get a price like this →</span></div></button>
+    <button class="job" data-ev="job_card" data-scope="interior"><div class="img" style="--ph:linear-gradient(135deg,#D8D3C7,#F2EFE8)"></div><div class="body"><div class="top"><h3>Interior Victorian</h3><span class="meta">4 days on site</span></div><span class="meta">Fitzroy North · completed Aug 2026</span><span class="price">$8,400 – $9,600</span><span class="scope">4 rooms + hallway, walls, ceilings, trim</span><span class="btn btn-ink">Get a price like this →</span></div></button>
+    <button class="job" data-ev="job_card" data-scope="commercial"><div class="img" style="--ph:linear-gradient(135deg,#9FA3A6,#D9DBDC)"></div><div class="body"><div class="top"><h3>Commercial shopfront</h3><span class="meta">3 days on site</span></div><span class="meta">Preston · completed Jun 2026</span><span class="price">$6,900 – $7,700</span><span class="scope">Exterior render + signage band, after-hours</span><span class="btn btn-ink">Get a price like this →</span></div></button>
+  </div>
+</div></section>
+
+<!-- PROMISE -->
+<section class="sec light" id="promise"><div class="wrap">
+  <h2>Four things we put in writing before we start.</h2>
+  <p class="lead" style="margin-top:14px">Tap each one to see exactly what it looks like inside your job.</p>
+  <div class="promise">
+    <div class="plist" role="tablist" aria-label="Our promise">
+      <button class="prow" role="tab" aria-selected="true" data-p="0"><span class="bar"></span><span class="t"><b>No surprises on the invoice</b><small>Extra work is priced and approved by you before it starts.</small></span></button>
+      <button class="prow" role="tab" aria-selected="false" data-p="1"><span class="bar"></span><span class="t"><b>A price a person signs off with you</b><small>Your range tightens as you go, then we confirm it together before anything is booked.</small></span></button>
+      <button class="prow" role="tab" aria-selected="false" data-p="2"><span class="bar"></span><span class="t"><b>You sign off before you pay</b><small>The final invoice waits for your walkthrough.</small></span></button>
+      <button class="prow" role="tab" aria-selected="false" data-p="3"><span class="bar"></span><span class="t"><b>2-year warranty, $20M insured</b><small>Both documents sit in your portal from day one.</small></span></button>
+    </div>
+    <div class="panel" id="ppanel" role="tabpanel"></div>
+  </div>
+</div></section>
+
+<!-- HOW YOU'RE KEPT INFORMED — scripted progress story -->
+<section class="sec light warm" id="story"><div class="wrap storywrap">
+  <div class="storycopy">
+    <div class="mono" style="color:var(--tmut);margin-bottom:12px">Your portal · one job, start to finish · demo data</div>
+    <h2>Watch it happen from wherever you are.</h2>
+    <p class="lead" style="margin-top:14px">This is what five days looks like from your phone.</p>
+    <div class="caption" id="cap" aria-live="polite"></div>
+    <ol class="capsr" id="capsr"></ol>
+    <button class="replay mono" id="replay" onclick="playStory()">↻ Replay</button>
+  </div>
+  <div class="device" id="phone" aria-hidden="true">
+    <div class="notch"></div>
+    <div class="banner" id="banner"></div>
+    <div class="ptop"><div><b>12 Elm Street, Northcote</b><div class="mono" style="color:var(--muted)">Interior · 4 rooms + hallway · $9,180 inc. GST</div></div><span class="pill green" id="pday">Day 1 of 5</span></div>
+    <div class="ptrack"><i id="pfill"></i></div>
+    <div class="pareas" id="pareas">
+      <div class="parea" data-a="living"><span><b>Living room</b><small>Not started</small></span><span class="state todo">To do</span></div>
+      <div class="parea" data-a="hall"><span><b>Hallway</b><small>Not started</small></span><span class="state todo">To do</span></div>
+      <div class="parea" data-a="bed1"><span><b>Main bedroom</b><small>Not started</small></span><span class="state todo">To do</span></div>
+      <div class="parea" data-a="bed2"><span><b>Bedroom 2</b><small>Not started</small></span><span class="state todo">To do</span></div>
+      <div class="parea" data-a="kitchen"><span><b>Kitchen</b><small>Not started</small></span><span class="state todo">To do</span></div>
+    </div>
+    <div class="pphotos" id="pphotos"></div>
+    <div class="pupd" id="pupd" hidden><span class="mono" style="color:var(--cyan)">Today's update · Felipe M.</span><span id="pupdtext"></span></div>
+    <div class="pvar" id="pvar" hidden><div class="row"><span class="mono" style="color:var(--muted)">Variation #2</span><span class="pill" id="pvarpill">Waiting for you</span></div><b>Small patch of rot behind the fascia — replace, prime, paint to match</b><div class="row"><span class="money">+ $486</span><span class="pbtn" id="pvarbtn">Approve $486</span></div></div>
+    <div class="psign" id="psign" hidden><div class="mono" style="color:var(--emerald)">Signed off · 12 Elm Street</div><svg viewBox="0 0 260 70" class="sig"><path id="sigpath" d="M8 48 C 30 10, 48 62, 70 30 S 110 60, 130 28 S 170 10, 190 44 S 230 60, 252 22" fill="none" stroke="#EDF0F2" stroke-width="2.5" stroke-linecap="round"/></svg><div class="row"><span>Final invoice</span><span class="money">$9,180</span></div><small style="color:var(--muted)">inc. GST · due now · thank you</small></div>
+  </div>
+</div></section>
+
+<!-- LIVE STRIP -->
+<section class="sec light" id="live"><div class="wrap">
+  <div style="display:flex;align-items:center;gap:12px"><span class="dot"></span><span class="mono">Live from the Paint Group platform</span><span style="color:var(--tmut);font-size:14px">· updated 2 min ago</span></div>
+  <div class="live">
+    <div class="tile"><span class="big" data-count="38">0</span><b>Estimates built this week</b><small>↑ 6 on last week</small></div>
+    <div class="tile"><span class="big" data-count="6">0</span><b>Jobs on site right now</b><small>Northcote · Preston · Kew · +3</small></div>
+    <div class="tile"><span class="big" data-count="100" data-suffix="%">0</span><b>Prices honoured as signed off</b><small>What we confirm together is what you pay</small></div>
+    <div class="tile"><span class="big" data-count="9" data-suffix=" min">0</span><b>Average time to a price</b><small>From address to range</small></div>
+  </div>
+</div></section>
+
+<!-- PAINTERS -->
+<section class="sec light warm" id="painters"><div class="wrap">
+  <h2>Who'll be painting.</h2>
+  <p class="lead" style="margin-top:14px">Our trusted network of painters. Every one is quality-checked, fully insured, and the kind of person you'll be comfortable having in your home or on your premises. You'll know who's coming before the date is locked in.</p>
+  <div class="painters">
+    <div class="pc"><span class="av"></span><b>Felipe M.</b><span class="meta">Interiors, heritage · with Paint Group since 2024</span><q>"I'd rather spend the extra hour on prep than come back."</q></div>
+    <div class="pc"><span class="av"></span><b>Adi S.</b><span class="meta">Exteriors, weatherboard · with Paint Group since 2025</span><q>"Photos every day. It keeps everyone honest, me included."</q></div>
+    <div class="pc"><span class="av"></span><b>[Painter 3]</b><span class="meta">Specialty · with Paint Group since</span><q>"[One line in their own words]"</q></div>
+  </div>
+  <div class="rules">
+    <div class="rule"><i>—</i>Your expectations are documented for your painter before day one. No nasty surprises, for you or for them.</div>
+    <div class="rule"><i>—</i>The finish you're paying for is written on the work order, room by room.</div>
+    <div class="rule"><i>—</i>Photos from the site every day, so you never have to wonder how it's going.</div>
+    <div class="rule"><i>—</i>Nothing is finished until you've walked it with us and said so.</div>
+  </div>
+</div></section>
+
+<!-- TRADE -->
+<section class="sec" id="trade" style="background:var(--ink);position:relative;overflow:hidden"><div class="sweeps"></div><div class="wrap trade" style="position:relative">
+  <div class="tbl">
+    <div style="display:flex;justify-content:space-between" class="mono"><span style="color:var(--muted)">Ray White Northcote · 11 properties</span><span style="color:var(--cyan)">+ New estimate</span></div>
+    <div class="r"><span><b>4/22 High St, Northcote</b><small>PO 4471 · vacate paint</small></span><span class="st" style="color:var(--emerald)">On site · day 2</span></div>
+    <div class="r"><span><b>9 Clarke St, Thornbury</b><small>PO 4468 · exterior</small></span><span class="st" style="color:var(--amber)">Estimate viewed<br>$9,400–$10,200</span></div>
+    <div class="r"><span><b>31 Separation St, Northcote</b><small>PO 4462 · touch-up</small></span><span class="st" style="color:var(--muted)">Signed off · paid</span></div>
+  </div>
+  <div>
+    <div class="mono" style="color:var(--cyan);margin-bottom:12px">For agents, facilities managers and insurers</div>
+    <h2>Every property. One login. No chasing.</h2>
+    <p class="lead" style="margin-top:14px">Paste the job in plain English and get a range straight back. Approvals by link, your references printed on everything, colours kept per property, one invoice run. Built for people running twenty jobs, not one.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:24px"><a class="btn btn-cyan" href="#" data-ev="trade_walkthrough">Book a 15-minute walkthrough</a><a class="btn btn-ghost" href="#" data-ev="trade_account">Open a trade account</a></div>
+  </div>
+</div></section>
+
+<!-- REVIEWS -->
+<section class="sec light" id="reviews"><div class="wrap">
+  <div class="mono" style="color:var(--tmut);margin-bottom:12px">5.0 from 85+ Google reviews</div>
+  <h2>What people say once the tape comes off.</h2>
+  <div class="revs">
+    <div class="rev"><span class="stars">★★★★★</span><p>[Real review — pick one that mentions the price being what was quoted]</p><small>Name · suburb · job type</small></div>
+    <div class="rev"><span class="stars">★★★★★</span><p>[Real review — one that mentions daily updates or the painter by name]</p><small>Name · suburb · job type</small></div>
+    <div class="rev"><span class="stars">★★★★★</span><p>[Real review — one that mentions the finish or the prep]</p><small>Name · suburb · job type</small></div>
+  </div>
+</div></section>
+
+<!-- FAQ -->
+<section class="sec light warm" id="faq"><div class="wrap">
+  <h2>Questions people ask before they type their address.</h2>
+  <div class="faq">
+    <details><summary>What happens after I type my address?</summary><p>You answer a few questions about the property — what's being painted, roughly how big, the condition. Photos help but aren't required. A price range appears on screen. Save it and it's yours to come back to; nobody rings you unless you ask.</p></details>
+    <details><summary>Is the price on screen my final price?</summary><p>It's a real range, and it gets tighter as you answer. The final price is always signed off with you by one of our people — a phone call for apartments, units and smaller jobs, a site visit for larger ones. Once it's signed off, that's the number on your invoice; anything extra found on site is priced and approved by you first.</p></details>
+    <details><summary>Who does the painting?</summary><p>Our own trusted network — painters who are quality-checked, fully insured and used to working in people's homes and businesses. You'll see who's coming in your portal before the start date is locked in.</p></details>
+    <details><summary>How soon can you start?</summary><p>Once your price is signed off, we'll give you the earliest start we can hold for a job that size — smaller interiors are usually quicker than whole-house or exterior work, which depends on the weather. You pick a date that suits from what's available.</p></details>
+    <details><summary>Do I need to be home?</summary><p>Not while the painting happens — we'll agree access with you and send photo updates every day. The final walkthrough is done with you there, so we'll book it for a time that works.</p></details>
+    <details><summary>What if you find something extra?</summary><p>It's raised as a variation with photos and a price. Nothing extra starts, and nothing extra lands on the invoice, until you've tapped Approve.</p></details>
+    <details><summary>When do I pay?</summary><p>A deposit when your price is signed off, and the balance after you've walked the job with us and approved it — not before.</p></details>
+    <details><summary>What does the warranty cover?</summary><p>Our workmanship, for two years from sign-off. If the finish fails because of how it was applied, we come back and fix it. The warranty and our $20M public liability certificate sit in your portal.</p></details>
+  </div>
+</div></section>
+
+<!-- CTA -->
+<section class="sec cta"><div class="wrap">
+  <h2>See what it costs to paint your home or business. Now.</h2>
+  <form class="field" onsubmit="return go(event,'bottom')"><span aria-hidden="true">📍</span><input placeholder="Type your address" aria-label="Address" data-ev="address_typed_bottom"><button class="btn btn-cyan" type="submit">See my price →</button></form>
+  <p>or call <a href="tel:1300000000" style="font-weight:600">1300 000 000</a> — a real person, Mon–Fri 8am–5pm</p>
+</div></section>
+
+<footer>
+  <div><b>PAINT GROUP</b>Painting · Plastering · Restoration<br>Melbourne, within 50 km<br><br>Dulux · Haymes · Master Painters · NICA</div>
+  <div><b>SERVICES</b><a href="#">Interior</a><a href="#">Exterior</a><a href="#">Commercial</a><a href="#">Heritage</a><a href="#">Body corporate</a></div>
+  <div><b>COMPANY</b><a href="#jobs">Real jobs, real prices</a><a href="#reviews">Reviews</a><a href="#trade">For business</a><a href="#">Contact</a></div>
+  <div><b>LEGAL</b><a href="#">Privacy</a><a href="#">Terms</a><a href="#">Warranty</a></div>
+</footer>
+
+<div class="callbar"><a class="btn btn-ghost" href="tel:1300000000">Call us</a><a class="btn btn-cyan" href="#top">See my price</a></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ---- analytics hook: every data-ev fires here; swap for Clarity/PostHog later
+const ev=(name,extra={})=>{console.log('[event]',name,extra)};
+document.addEventListener('click',e=>{const t=e.target.closest('[data-ev]');if(t)ev(t.dataset.ev)});
+const toast=(m)=>{const t=document.getElementById('toast');t.textContent=m;t.classList.add('on');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('on'),2200)};
+
+// ---- hero address field
+const sug=document.getElementById('sug'),inp=document.getElementById('addrIn');
+const streets=['Street','Grove','Road','Avenue'];const subs=['Northcote VIC 3070','Thornbury VIC 3071','Preston VIC 3072','Kew VIC 3101'];
+inp.addEventListener('input',()=>{const v=inp.value.trim();if(v.length<3){sug.classList.remove('open');return}
+  const num=v.match(/^\d+/)?.[0]||'12';const word=v.replace(/^\d+\s*/,'').split(' ')[0]||'Elm';const W=word[0].toUpperCase()+word.slice(1);
+  sug.innerHTML=[0,1,2].map(i=>`<button type="button">${num} ${W} ${streets[i]}, ${subs[i]}</button>`).join('');sug.classList.add('open');
+  sug.querySelectorAll('button').forEach(b=>b.onclick=()=>{inp.value=b.textContent;sug.classList.remove('open');ev('address_selected')})});
+document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{document.querySelectorAll('.chip').forEach(x=>x.setAttribute('aria-pressed',x===c));document.body.dataset.mode=c.dataset.mode;
+  toast(c.dataset.mode==='biz'?'Showing the business version — trade portal, PO references, approvals by link':'Showing the home version')});
+function go(e,where){e.preventDefault();const f=e.target.querySelector('input').value||'your address';ev('see_price',{where});toast(`Opening the estimator for ${f}…`);return false}
+
+// ---- promise explorer
+const P=[
+ {h:"Your painter finds rotten timber behind the fascia. Here's what happens next.",card:`<div class="row"><span class="mono" style="color:var(--muted)">Variation #2 · 12 Elm St</span><span class="pill">Waiting for you</span></div><b>Replace 2.4 m of rotten fascia board, prime and paint to match</b><div class="ph"><i></i><i></i></div><div class="row"><span><span class="mono" style="color:var(--muted)">Extra, inc. GST</span><br><span class="money">+ $486</span></span><span style="color:var(--muted);font-size:14px">Work won't start until you approve</span></div><div class="btns"><button class="btn btn-cyan" onclick="approve(this)">Approve $486</button><button class="btn btn-ghost">Ask a question</button></div>`,note:"Declined variations are recorded on your completion report. Nothing lands on the invoice that you didn't tap Approve on."},
+ {h:"Your range gets tighter with every answer. Then we sign it off together.",card:`<div class="row"><span class="mono" style="color:var(--muted)">Estimate · 12 Elm St</span><span class="pill">Ready to confirm</span></div><div style="display:grid;gap:8px;font-size:15px"><div class="row"><span style="color:var(--muted)">After your address</span><span class="mono" style="color:var(--muted)">$6,000 – $12,000</span></div><div class="row"><span style="color:var(--muted)">After room sizes</span><span class="mono" style="color:var(--muted)">$8,000 – $10,400</span></div><div class="row"><span>After doors, windows and photos</span><span class="money">$8,400 – $9,600</span></div></div><span style="color:var(--muted);font-size:14px">4 rooms + hallway · walls, ceilings, trim · 2 coats · apartment — we can confirm this one on the phone</span><div class="btns"><button class="btn btn-cyan">Confirm my price — book a call</button></div>`,note:"Every price is signed off by one of our people before it's booked: a call for apartments, units and smaller jobs, a visit for larger or older homes. What we sign off together is what goes on the invoice."},
+ {h:"The last day on site is a walkthrough with you, area by area.",card:`<div class="row"><span class="mono" style="color:var(--muted)">Walkthrough · Fri 5 Sep</span><span class="pill">In progress</span></div><div style="display:grid;gap:6px;font-size:15px"><div class="row"><span>Living room</span><span class="done">Approved</span></div><div class="row"><span>Hallway</span><span class="done">Approved</span></div><div class="row"><span>Main bedroom</span><span style="color:var(--amber)">Flagged · scuff by door</span></div><div class="row"><span>Bedroom 2 · Kitchen</span><span style="color:var(--muted)">Not yet checked</span></div></div><span style="color:var(--muted);font-size:14px">Flagged items are fixed before you sign. Final invoice is issued only after your signature.</span><div class="btns"><button class="btn btn-ghost" disabled style="opacity:.5">Sign off (1 item open)</button></div>`,note:"The walkthrough is done with you, on site. Flagged items are fixed first; the invoice follows your signature."},
+ {h:"Both documents are in your portal the day you accept.",card:`<div class="row"><span class="mono" style="color:var(--muted)">Documents · 12 Elm St</span></div><div style="display:grid;gap:8px;font-size:15px"><div class="row"><span>Workmanship warranty · 2 years from sign-off</span><span class="mono" style="color:var(--cyan)">PDF</span></div><div class="row"><span>Public liability certificate · $20M</span><span class="mono" style="color:var(--cyan)">PDF</span></div><div class="row"><span>Colour schedule · what went where</span><span class="mono" style="color:var(--cyan)">PDF</span></div><div class="row"><span>Completion report · signed</span><span class="pill grey">After sign-off</span></div></div>`,note:"Six months from now you'll want to know which white is on the hallway. It's here."}
+];
+const panel=document.getElementById('ppanel');
+const showP=i=>{panel.innerHTML=`<span class="mono" style="color:var(--cyan)">What this looks like in your job</span><h3>${P[i].h}</h3><div class="pcard">${P[i].card}</div><p class="note">${P[i].note}</p>`};
+document.querySelectorAll('.prow').forEach(r=>r.onclick=()=>{document.querySelectorAll('.prow').forEach(x=>x.setAttribute('aria-selected',x===r));showP(+r.dataset.p);ev('promise_'+r.dataset.p)});
+showP(0);
+function approve(b){b.textContent='Approved ✓';b.disabled=true;b.style.background='var(--emerald)';b.style.color='var(--ink)';b.closest('.pcard').querySelector('.pill').outerHTML='<span class="pill green">Approved</span>';toast('Approved. Felipe gets the go-ahead and $486 is added to your fixed price.')}
+
+// ---- progress story: one timeline, eight beats, 22s
+const $=id=>document.getElementById(id);
+const cap=$('cap'),capsr=$('capsr');
+const setArea=(a,st,sub)=>{const el=document.querySelector(`.parea[data-a=${a}]`);el.dataset.s=st;const s=el.querySelector('.state');s.className='state '+st;s.textContent={todo:'To do',prepped:'Prepped',done:'Done'}[st];if(sub)el.querySelector('small').textContent=sub};
+const typeInto=(el,text,ms)=>{el.textContent='';let i=0;const step=()=>{if(i<=text.length){el.textContent=text.slice(0,i++);storyTimers.push(setTimeout(step,ms))}};step()};
+const BEATS=[
+ [0,'Monday, 7:31am — Felipe\'s on site.',()=>{}],
+ [2000,'You get a message before the first brush touches a wall.',()=>{$('banner').innerHTML='<b>Felipe M.</b> Furniture moved, floors covered. Starting the living room.';$('banner').classList.add('on');$('pfill').style.width='8%'}],
+ [5000,'Photos from the site, every day.',()=>{$('banner').classList.remove('on');['Prep · floors covered','Living room · masked up'].forEach((c,i)=>{const el=document.createElement('i');el.title=c;$('pphotos').appendChild(el);storyTimers.push(setTimeout(()=>el.classList.add('on'),120+i*180))});setArea('living','prepped','Masked up, first coat next')}],
+ [8000,'Every area ticked off as it\'s finished — no guessing.',()=>{$('pday').textContent='Day 3 of 5';setArea('living','done','Walls ✓ Ceiling ✓ Trim ✓');storyTimers.push(setTimeout(()=>setArea('hall','prepped','First coat on'),400));$('pfill').style.width='48%'}],
+ [11000,'An update in plain words at the end of each day.',()=>{$('pupd').hidden=false;typeInto($('pupdtext'),'Living room finished and looking great. Hallway has its first coat; second coat first thing tomorrow. Back on site at 7:30.',22)}],
+ [14500,'Anything extra is priced and approved by you before it starts.',()=>{$('pupd').hidden=true;$('pvar').hidden=false;requestAnimationFrame(()=>$('pvar').classList.add('on'));storyTimers.push(setTimeout(()=>{$('pvarbtn').classList.add('press')},1500));storyTimers.push(setTimeout(()=>{$('pvarbtn').classList.remove('press');$('pvarbtn').classList.add('ok');$('pvarbtn').textContent='Approved ✓';$('pvarpill').className='pill green';$('pvarpill').textContent='Approved'},1700))}],
+ [17500,'Then you walk it with us, room by room.',()=>{$('pvar').classList.remove('on');storyTimers.push(setTimeout(()=>$('pvar').hidden=true,400));$('pday').textContent='Day 5 of 5';[['hall','Walls ✓ Ceiling ✓ Trim ✓'],['bed1','Walls ✓ Ceiling ✓ Trim ✓'],['bed2','Walls ✓ Ceiling ✓ Trim ✓'],['kitchen','Walls ✓ Ceiling ✓ Trim ✓']].forEach(([a,sub],i)=>storyTimers.push(setTimeout(()=>setArea(a,'done',sub),i*300)));$('pfill').style.width='100%';storyTimers.push(setTimeout(()=>{$('banner').innerHTML='<b>Walkthrough booked</b> · Fri 3:30pm, with you on site.';$('banner').classList.add('on')},1400))}],
+ [20000,'You sign off. Then you pay.',()=>{$('banner').classList.remove('on');$('psign').hidden=false;requestAnimationFrame(()=>$('psign').classList.add('on'))}],
+ [22000,null,()=>{$('replay').classList.add('on');ev('progress_story_complete')}]
+];
+capsr.innerHTML=BEATS.filter(b=>b[1]).map(b=>`<li>${b[1]}</li>`).join('');
+let storyTimers=[],storyPlayed=false;
+function resetStory(){storyTimers.forEach(clearTimeout);storyTimers=[];$('banner').classList.remove('on');$('pday').textContent='Day 1 of 5';$('pfill').style.width='0%';['living','hall','bed1','bed2','kitchen'].forEach(a=>setArea(a,'todo','Not started'));$('pphotos').innerHTML='';$('pupd').hidden=true;$('pupdtext').textContent='';$('pvar').hidden=true;$('pvar').classList.remove('on');$('pvarbtn').className='pbtn';$('pvarbtn').textContent='Approve $486';$('pvarpill').className='pill';$('pvarpill').textContent='Waiting for you';$('psign').hidden=true;$('psign').classList.remove('on');$('replay').classList.remove('on');cap.textContent=''}
+function playStory(){resetStory();ev(storyPlayed?'progress_story_replay':'progress_story_start');storyPlayed=true;
+  BEATS.forEach(([t,text,fn])=>storyTimers.push(setTimeout(()=>{if(text){cap.classList.add('swap');storyTimers.push(setTimeout(()=>{cap.textContent=text;cap.classList.remove('swap')},180))}fn()},t)))}
+if(matchMedia('(prefers-reduced-motion: reduce)').matches){BEATS.forEach(b=>b[2]());storyTimers.forEach(clearTimeout)}else{const sio=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){playStory();sio.unobserve($('story'))}}),{threshold:.5});sio.observe($('story'))}
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&storyPlayed&&!$('replay').classList.contains('on')){resetStory();cap.textContent='Paused — tap Replay';$('replay').classList.add('on')}});
+
+// ---- live counters
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(!e.isIntersecting)return;const el=e.target,n=+el.dataset.count,suf=el.dataset.suffix||'';let t0;const step=ts=>{t0??=ts;const p=Math.min(1,(ts-t0)/900);el.textContent=Math.round(n*(1-Math.pow(1-p,3)))+suf;if(p<1)requestAnimationFrame(step)};requestAnimationFrame(step);io.unobserve(el)}),{threshold:.5});
+document.querySelectorAll('[data-count]').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

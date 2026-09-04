@@ -35,6 +35,17 @@ export const CRM_EVENT_SCHEMAS = {
   // ---- the job's own lifecycle, written by the system it happens in -------
   wizard_started: z.object({ jobType: z.string().max(20).optional(), mode: z.enum(["customer", "internal"]).optional() }),
   wizard_abandoned: z.object({ lastStep: z.number().int().min(1).max(12), emailCaptured: z.boolean() }),
+  /** Homepage v2 §5: every marketing-site event (nav_cta, see_price, faq_open …)
+   *  as one type, the event name in the payload. `address` is present ONLY on
+   *  see_price (the sink strips it elsewhere); `visitorId` is the first-party
+   *  cookie that lets lead-source attribution join a later wizard draft. */
+  web_event: z.object({
+    name: z.string().regex(/^[a-z][a-z0-9_]{2,40}$/),
+    props: z.record(z.string(), z.union([z.string().max(300), z.number(), z.boolean(), z.null()])).default({}),
+    path: z.string().max(300).default("/"),
+    visitorId: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/).nullable().default(null),
+    address: z.string().max(250).nullable().default(null),
+  }),
   estimate_built: z.object({ totalCents: money, accuracyPct: z.number().min(0).max(100).optional(), rooms: z.number().int().min(0).optional() }),
   estimate_sent: z.object({ totalCents: money, channel: z.enum(["email", "sms", "both", "link"]), validDays: z.number().int().min(1).max(365).optional() }),
   estimate_viewed: z.object({ viewNumber: z.number().int().min(1).optional(), secondsOnPage: z.number().int().min(0).optional() }),

@@ -60,6 +60,8 @@ const RENDER: Record<CrmEventType, { label: string; kind: TimelineRow["kind"]; d
   wizard_abandoned: { label: "Left the wizard unfinished", kind: "customer",
     detail: (p) => join(num(p.lastStep) && `Reached step ${num(p.lastStep)}`,
       p.emailCaptured ? "email captured" : "no email") },
+  web_event: { label: "Website", kind: "customer",
+    detail: (p) => join(str(p.name), str(p.path) && `on ${str(p.path)}`) },
   estimate_built: { label: "Estimate built", kind: "system",
     detail: (p) => join(money(p.totalCents), num(p.rooms) && `${num(p.rooms)} rooms`,
       num(p.accuracyPct) && `confidence ${num(p.accuracyPct)}%`) },
