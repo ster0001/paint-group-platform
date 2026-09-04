@@ -221,11 +221,14 @@ export async function loadCostCapture(supabase: SupabaseClient) {
       .is("work_order_id", null)
       .order("created_at", { ascending: false })
       .limit(100),
+    // The job picker behind the "matched job" search box (Tom, 4 Sep): every
+    // open job, plus jobs closed in the last 60 days — supplier invoices
+    // routinely arrive after the painter has finished.
     supabase.from("work_orders")
       .select("id, estimate_id, job_no, stage, job_address:wo_snapshot->>jobAddress")
-      .neq("stage", "closed")
+      .or(`stage.neq.closed,stage_entered_at.gte.${new Date(Date.now() - 60 * 86_400_000).toISOString()}`)
       .order("created_at", { ascending: false })
-      .limit(100),
+      .limit(500),
   ]);
   return {
     expenses: (expenses.error ? [] : expenses.data ?? []) as unknown as ContractorExpenseRow[],

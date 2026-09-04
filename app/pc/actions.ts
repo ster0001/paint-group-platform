@@ -697,3 +697,43 @@ export async function dismissCard(raw: unknown): Promise<PcResult> {
     p_key: parsed.data.cardKey,
   }, "Closed off.");
 }
+
+// ---- Materials on the PC job page (Tom, 4 Sep) ------------------------------
+
+const materialEditInput = z.object({
+  workOrderId: uuid,
+  rowKey: z.string().trim().min(1).max(400),
+  colourName: z.string().trim().max(120).default(""),
+  colourHex: z.string().trim().regex(/^(#[0-9A-Fa-f]{6})?$/, "hex").default(""),
+  colourStatus: z.enum(["tbc", "confirmed"]).default("tbc"),
+  litres: z.number().min(0).max(10000).nullable().default(null),
+});
+
+/**
+ * Adjust one material row on the job sheet — colour name, swatch, TBC /
+ * confirmed, order litres. The RPC (20261231) rewrites the frozen snapshot
+ * row + its surfaces and mirrors the colours map, so the painter's sheet,
+ * the portal and the colour register all read the same thing.
+ */
+export async function setMaterial(raw: unknown): Promise<PcResult> {
+  const p = materialEditInput.safeParse(raw);
+  if (!p.success) {
+    const hex = p.error.issues.some((i) => i.message === "hex");
+    return { ok: false, message: hex ? "The swatch needs a 6-digit hex colour, like #F1EDE4." : "Check the colour details and try again." };
+  }
+  const r = await call("wo_set_material", {
+    p_work_order_id: p.data.workOrderId,
+    p_row_key: p.data.rowKey,
+    p_colour_name: p.data.colourName,
+    p_colour_hex: p.data.colourHex,
+    p_status: p.data.colourStatus,
+    p_litres: p.data.litres,
+  }, "Saved — the job sheet carries the new colour.");
+  if (!r.ok && /wo_set_material/.test(r.message)) {
+    return { ok: false, message: "Material edits need database migration 20261231 run first — nothing was changed." };
+  }
+  if (!r.ok && r.message === "closed") return { ok: false, message: "This job is closed — its job sheet is final." };
+  if (!r.ok && r.message === "no such material") return { ok: false, message: "That material isn't on this job sheet any more — reload the page." };
+  if (r.ok) { revalidatePath("/portal/jobs"); revalidatePath(`/pc/wo/${p.data.workOrderId}`); }
+  return r;
+}

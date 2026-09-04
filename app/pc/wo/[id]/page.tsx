@@ -18,6 +18,9 @@ import { WO_PHOTO_KIND_LABEL, forVariation, groupByKind, signPhotos, type WOPhot
 import StageAdvance from "./StageAdvance";
 import RebuildTicks from "./RebuildTicks";
 import SetDeduction from "./SetDeduction";
+import MaterialsCard, { type MaterialRowProp } from "./MaterialsCard";
+import { materialRowKey, substratesFor } from "@/lib/workorder/materials";
+import { loadEstimatePricing, materialsBudget, materialsBudgetCents } from "@/lib/workorder/materialsBudget";
 
 export const dynamic = "force-dynamic";
 
@@ -193,6 +196,42 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     ((photoRows as WOPhotoRow[] | null) ?? [])
       .filter((p) => p.kind === "completion").map((p) => p.area ?? "").filter(Boolean),
   )];
+
+  // Materials (Tom, 4 Sep): the colour breakdown per substrate off the frozen
+  // job sheet, and the budget — the estimate's engine materials cost against
+  // every supplier invoice matched to this job. Both reads are tolerant: a
+  // fixture without a priced scope shows "—" rather than a fabricated zero.
+  const [{ data: materialCostRows }, pricing] = await Promise.all([
+    supabase.from("material_costs")
+      .select("id, supplier, order_ref, amount_cents, invoice_date, created_at")
+      .eq("work_order_id", id)
+      .order("invoice_date", { ascending: false, nullsFirst: false }),
+    estimateId ? loadEstimatePricing(supabase, estimateId) : Promise.resolve(null),
+  ]);
+  const materialInvoices = ((materialCostRows ?? []) as {
+    id: string; supplier: string; order_ref: string; amount_cents: number; invoice_date: string | null;
+  }[]);
+  const budget = materialsBudget(
+    pricing ? materialsBudgetCents(pricing.state, pricing.ctx) : null,
+    materialInvoices,
+  );
+  const materialRows: MaterialRowProp[] = (snapshotDoc?.materials ?? []).map((m) => {
+    const rowKey = materialRowKey(m);
+    const live = row.colours?.[rowKey] ?? row.colours?.[m.product];
+    return {
+      rowKey,
+      product: m.product,
+      photoUrl: m.photoUrl ?? "",
+      colourName: m.colourName ?? "",
+      colourHex: m.colourHex ?? "",
+      colourStatus: m.colourStatus === "confirmed" || live?.status === "confirmed" ? "confirmed" : "tbc",
+      litres: m.litres ?? null,
+      coverageMissing: Boolean(m.coverageMissing),
+      matchCode: live?.match?.code || m.colourMatch?.code || "",
+      matchRequired: Boolean(m.colourMatch?.required),
+      substrates: snapshotDoc ? substratesFor(snapshotDoc, rowKey) : [],
+    };
+  });
 
   const qaChecks: QaCheckView[] = ((qaRows ?? []) as unknown as {
     id: string; kind: string; result: string | null; thin_record: boolean;
@@ -409,6 +448,22 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             }))}
             coloursNo={checklist.some((c) => c.phase === "pre_start" && c.itemKey === "colours" && c.answer === "no")}
             canEdit={row.stage !== "closed"}
+          />
+
+          {/* Materials (Tom, 4 Sep): colours per substrate, adjustable here,
+              and the budget against matched supplier invoices. */}
+          <MaterialsCard
+            workOrderId={id}
+            rows={materialRows}
+            budget={{
+              ...budget,
+              invoices: materialInvoices.map((inv) => ({
+                id: inv.id, supplier: inv.supplier, amountCents: inv.amount_cents,
+                date: inv.invoice_date, ref: inv.order_ref,
+              })),
+            }}
+            canEdit={row.stage !== "closed"}
+            moneyHref={`/invoicing/job/${estimateId}?tab=costs`}
           />
 
           {row.stage === "offered" && forPhase("pre_offer").length > 0 && (

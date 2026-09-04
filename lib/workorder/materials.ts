@@ -13,7 +13,7 @@
  * bare product name, which is exactly what the key degenerates to when the
  * estimate has no colour yet — so old data reads through the same lookup.
  */
-import type { WOColourStatus, WOMaterial } from "./snapshot";
+import type { WOColourStatus, WOMaterial, WorkOrderDoc } from "./snapshot";
 
 /** The identity of a material row: product alone until a colour is named. */
 export function materialColourKey(product: string, colourName: string): string {
@@ -79,4 +79,71 @@ export function aggregateMaterials(
         : null,
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// The PC job page's Materials section (Tom, 4 Sep 2026)
+// ---------------------------------------------------------------------------
+
+/** The identity of a material row on a frozen document: its colourKey, or the
+ * bare product on documents frozen before the product×colour split. */
+export function materialRowKey(m: Pick<WOMaterial, "colourKey" | "product">): string {
+  return m.colourKey ?? m.product;
+}
+
+export type MaterialSubstrate = { area: string; label: string; coats: number };
+
+/**
+ * Which substrates a material row covers — every surface on the job sheet
+ * painted in that product×colour, area by area. A legacy surface without a
+ * colourKey matches on its product, the same degenerate key the row uses.
+ */
+export function substratesFor(doc: Pick<WorkOrderDoc, "areas">, rowKey: string): MaterialSubstrate[] {
+  const out: MaterialSubstrate[] = [];
+  for (const a of doc.areas ?? []) {
+    for (const s of a.surfaces ?? []) {
+      if (!s.product) continue;
+      if ((s.colourKey ?? s.product) !== rowKey) continue;
+      out.push({ area: a.title, label: s.label, coats: s.coats });
+    }
+  }
+  return out;
+}
+
+export type MaterialEdit = {
+  colourName: string;
+  colourHex: string;
+  colourStatus: WOColourStatus;
+  /** Order quantity in litres; null leaves the frozen figure alone. */
+  litres: number | null;
+};
+
+/**
+ * The document-side half of wo_set_material, kept in TypeScript so the SQL
+ * can be tested against the same rule: rewrite the ONE material row with that
+ * identity, and every surface that carries it. Returns the same document
+ * (by reference) when nothing matches, so callers can tell.
+ */
+export function applyMaterialEdit(doc: WorkOrderDoc, rowKey: string, edit: MaterialEdit): WorkOrderDoc {
+  let hit = false;
+  const materials = (doc.materials ?? []).map((m) => {
+    if (materialRowKey(m) !== rowKey) return m;
+    hit = true;
+    return {
+      ...m,
+      colourName: edit.colourName.trim(),
+      colourHex: edit.colourHex.trim(),
+      colourStatus: edit.colourStatus,
+      ...(edit.litres == null ? {} : { litres: edit.litres, coverageMissing: false }),
+    };
+  });
+  if (!hit) return doc;
+  const areas = (doc.areas ?? []).map((a) => ({
+    ...a,
+    surfaces: (a.surfaces ?? []).map((s) =>
+      s.product && (s.colourKey ?? s.product) === rowKey
+        ? { ...s, colourName: edit.colourName.trim(), colourHex: edit.colourHex.trim() }
+        : s),
+  }));
+  return { ...doc, materials, areas };
 }

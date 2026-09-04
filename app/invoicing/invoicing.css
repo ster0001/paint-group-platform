@@ -243,3 +243,23 @@
 .invx .chips.wrap{flex-wrap:wrap}
 .invx .chips.wrap .pchip{flex:0 0 auto}
 .invx label.hint input{margin-top:4px}
+
+/* ---- Payables: the "matched job" search box + category dropdown (4 Sep) ---- */
+.invx .jsearch{position:relative;margin-top:2px}
+.invx .jsearch input[type="search"]{width:100%;appearance:none;-webkit-appearance:none;border:1px solid var(--line);
+  background:var(--graphite);color:var(--text);font-family:var(--mono);font-size:13px;padding:11px 12px;border-radius:10px}
+.invx .jsearch input[type="search"]:focus{outline:none;border-color:var(--cyan)}
+.invx .jlist{list-style:none;margin:4px 0 0;padding:4px;position:absolute;left:0;right:0;z-index:5;max-height:260px;overflow:auto;
+  background:var(--raised,var(--graphite));border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.45)}
+.invx .jlist li{padding:9px 10px;border-radius:7px;font-size:13px;cursor:pointer;color:var(--text)}
+.invx .jlist li.on{background:var(--cyan);color:var(--on-cyan)}
+.invx .jlist li.jnone{color:var(--muted);border-top:1px solid var(--line);border-radius:0;margin-top:4px;padding-top:10px}
+.invx .jlist li.jempty{color:var(--muted);cursor:default;font-size:12px}
+.invx .jsel{display:flex;align-items:center;gap:10px;border:1px solid rgba(59,216,233,.4);background:rgba(59,216,233,.06);
+  border-radius:10px;padding:9px 12px}
+.invx .jsel-label{flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--text)}
+.invx select.sel{width:100%;appearance:none;-webkit-appearance:none;border:1px solid var(--line);background:var(--graphite);
+  color:var(--text);font-family:var(--mono);font-size:13px;padding:11px 36px 11px 12px;border-radius:10px;cursor:pointer;
+  background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+  background-position:calc(100% - 18px) 50%,calc(100% - 13px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+.invx select.sel:focus{outline:none;border-color:var(--cyan)}

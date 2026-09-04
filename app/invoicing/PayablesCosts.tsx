@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { fmt2 } from "./format";
+import JobSearch from "./JobSearch";
 import {
   assignMaterialCostAction,
   approveJobCostAction,
@@ -240,29 +241,21 @@ export default function PayablesCosts({
           {/* the confirm panel — prefilled from the reading, edited by a person */}
           {open === c.intakeId && !c.duplicate && (
             <div style={{ marginTop: 12, borderTop: "1px solid var(--line)", paddingTop: 12 }} data-testid={`panel-${c.intakeId}`}>
-              <div className="k" style={{ marginBottom: 6 }}>Job</div>
-              <div className="chips wrap">
-                {jobs.map((j) => (
-                  <button key={j.woId} className={`pchip ${woId === j.woId ? "on" : ""}`}
-                    onClick={() => setWoId(j.woId)} data-testid={`pick-job-${j.woId}`}>
-                    {j.label}
-                  </button>
-                ))}
-                {category === "materials" && (
-                  <button className={`pchip ${woId === null ? "on" : ""}`} onClick={() => setWoId(null)}>
-                    No job yet (unmatched)
-                  </button>
-                )}
-              </div>
-              <div className="k" style={{ margin: "10px 0 6px" }}>Category</div>
-              <div className="chips wrap">
+              {/* The matched job: type the address, pick from the matches
+                  (Tom, 4 Sep). A proposed match arrives pre-picked. */}
+              <div className="k" style={{ marginBottom: 6 }}>Matched job</div>
+              <JobSearch jobs={jobs} value={woId} onChange={setWoId}
+                testId={`job-search-${c.intakeId}`}
+                allowNone={category === "materials"} />
+              <label className="k" htmlFor={`category-${c.intakeId}`} style={{ display: "block", margin: "10px 0 6px" }}>
+                Expense type
+              </label>
+              <select id={`category-${c.intakeId}`} className="sel" value={category}
+                onChange={(e) => setCategory(e.target.value)} data-testid={`category-${c.intakeId}`}>
                 {CATEGORIES.map((cat) => (
-                  <button key={cat.key} className={`pchip ${category === cat.key ? "on" : ""}`}
-                    onClick={() => setCategory(cat.key)}>
-                    {cat.label}
-                  </button>
+                  <option key={cat.key} value={cat.key}>{cat.label}</option>
                 ))}
-              </div>
+              </select>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
                 <label className="hint">Total inc GST ($)
                   <input type="number" inputMode="decimal" min={0.01} step="0.01" value={totalDollars}
@@ -297,13 +290,14 @@ export default function PayablesCosts({
               <div style={{ fontSize: 13.5, fontWeight: 600 }}>{m.label}</div>
               <div className="hint mono" style={{ fontSize: 10 }}>{m.hint}</div>
               {assigning === m.id ? (
-                <div className="chips wrap" style={{ marginTop: 8 }}>
-                  {jobs.map((j) => (
-                    <button key={j.woId} className="pchip" disabled={busy}
-                      onClick={() => run(() => assignMaterialCostAction({ materialCostId: m.id, woId: j.woId }))}>
-                      {j.label}
-                    </button>
-                  ))}
+                <div style={{ marginTop: 8 }}>
+                  <div className="k" style={{ marginBottom: 6 }}>Matched job</div>
+                  <JobSearch jobs={jobs} value={null} autoFocus testId={`assign-search-${m.id}`}
+                    onChange={(woId) => {
+                      if (!woId || busy) return;
+                      run(() => assignMaterialCostAction({ materialCostId: m.id, woId }));
+                    }} />
+                  <button className="mini" style={{ marginTop: 6 }} onClick={() => setAssigning(null)}>Cancel</button>
                 </div>
               ) : (
                 <button className="mini cy" style={{ marginTop: 8 }} onClick={() => setAssigning(m.id)}

@@ -175,7 +175,10 @@ test.describe("cost capture 6a — the intake pipeline", () => {
     await expect(panel).toBeVisible();
     // The proposed job arrives pre-picked; amounts prefilled from the reading.
     await expect(panel.getByTestId(`total-${firstIntakeId}`)).toHaveValue("1450.00");
-    await panel.getByRole("button", { name: "Scaffold" }).click();
+    // The proposed job arrives pre-picked in the matched-job box (Tom, 4 Sep);
+    // the expense type is a dropdown.
+    await expect(panel.getByTestId(`job-search-${firstIntakeId}-chosen`)).toBeVisible();
+    await panel.getByTestId(`category-${firstIntakeId}`).selectOption("scaffold");
     await panel.getByTestId(`save-${firstIntakeId}`).click();
 
     await expect(page.getByTestId("costs-message")).toContainText("recorded", { ignoreCase: true });
@@ -230,7 +233,10 @@ test.describe("cost capture 6a — the intake pipeline", () => {
     const card = page.getByTestId(`intake-${row.id}`);
     await expect(card).toContainText("Possible duplicate");
     await card.getByTestId(`reject-${row.id}`).click();
-    await expect(card).toBeHidden();
+    // The card leaves when the action's re-render lands; on C1's 20k-job
+    // volume data /invoicing?tab=pay takes ~10 s to render (the RPC itself
+    // answers in under 200 ms), so this waits for the page, not the action.
+    await expect(card).toBeHidden({ timeout: 30_000 });
 
     const { data: costRows } = await db!.from("job_costs").select("id").eq("work_order_id", fixture!.workOrderId);
     expect(costRows ?? []).toHaveLength(1);
@@ -369,11 +375,12 @@ test.describe("cost capture 6a — the intake pipeline", () => {
 
     // recorded → approved → paid on the Payables tab.
     await page.goto("/invoicing?tab=pay");
+    // Each step shows after the Payables re-render (~10 s on C1's volume data).
     await page.getByTestId(`approve-cost-${cost.id}`).click();
-    await expect(page.getByTestId(`pay-cost-${cost.id}`)).toBeVisible();
+    await expect(page.getByTestId(`pay-cost-${cost.id}`)).toBeVisible({ timeout: 30_000 });
     page.once("dialog", (d) => d.accept("2026-08-25"));
     await page.getByTestId(`pay-cost-${cost.id}`).click();
-    await expect(page.getByTestId(`pay-cost-${cost.id}`)).toBeHidden();
+    await expect(page.getByTestId(`pay-cost-${cost.id}`)).toBeHidden({ timeout: 30_000 });
 
     const { data: after } = await db!.from("job_costs").select("status, paid_at").eq("id", cost.id).single();
     expect((after as { status: string }).status).toBe("paid");

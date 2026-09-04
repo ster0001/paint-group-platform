@@ -1,3 +1,35 @@
+# 4 Sep 2026 (later) — Materials on the PC job page · Payables "matched job" search box + expense-type dropdown. ONE migration: 20261231 (QUEUED for prod).
+
+1. **PC → job → Materials card** (`app/pc/wo/[id]/MaterialsCard.tsx`, under Colour
+   matches). The colour breakdown per substrate off the frozen job sheet: one row per
+   product × colour (`lib/workorder/materials.ts` `materialRowKey`/`substratesFor`),
+   with the surfaces painted in it. **Adjust colour / litres** → `setMaterial`
+   (`app/pc/actions.ts`) → `wo_set_material` (migration **20261231**): the snapshot
+   column is server-owned (20260902 revoked it), so the RPC rewrites the ONE
+   material row + every surface carrying its key IN the snapshot, mirrors
+   name/hex/status into `work_orders.colours` under the same key (the builder's
+   shape), writes a `material_edited` wo_event. Staff-only, closed refused, hex
+   validated. TS twin `applyMaterialEdit` is unit-tested against the same rule.
+   Colour-match CODES stay on ColourMatchCard (bare-product key, the gate reads it).
+2. **Materials budget** (`lib/workorder/materialsBudget.ts`): budget = the estimate's
+   engine `materialsCostCents` priced on the estimate's OWN rate card
+   (`loadEstimatePricing`, uncached, falls back to the active card); actual = Σ
+   `material_costs.amount_cents` on the work order, GST backed out (÷1.1) for the
+   comparison; bar + Remaining/Over; the matched invoices listed. No priced scope
+   → "—", never a fabricated zero.
+3. **Payables** (`app/invoicing/PayablesCosts.tsx`): the per-project tiles are gone —
+   `JobSearch.tsx` is a word-match combobox over the job list (address or PG-
+   number; keyboard + click-away; "No job yet" for materials); a proposed match
+   arrives chosen with a Change button. Same box on "Materials without a job →
+   Assign" (pick = assign). Expense type is a `<select className="sel">`. The job
+   list (`loadCostCapture`) now includes jobs closed ≤60 days, limit 500.
+4. **Gates:** unit 1539 · e2e `pc-materials` 4/4 on C1 (migration applied there) ·
+   `cost-intake` confirm path green with the new controls; its duplicate-dismiss
+   test times out on C1 because `/invoicing?tab=pay` renders in ~10 s there (20k-job
+   volume data; the action itself answers in 190 ms) — pre-existing, NOT this
+   batch, but worth a look: the Payables page is heavy. Script:
+   `docs/manual-tests/tom-batch-4sep-materials.md`.
+
 # 4 Sep 2026 — Tom's four items: editable number boxes · capture no longer loses rooms on exit · office email on acceptance · landline on the site. NO SQL.
 
 1. **Number boxes you can edit.** Every `type="number"` in the builder (17)
