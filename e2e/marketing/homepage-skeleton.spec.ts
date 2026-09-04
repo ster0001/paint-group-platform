@@ -68,7 +68,9 @@ test("anonymous mobile visitor: type → pick → See my price → wizard pre-fi
   // The phone number never hides: on mobile it lives in the call bar.
   await expect(page.getByRole("link", { name: "Call us" })).toBeVisible();
 
-  const field = page.getByRole("textbox", { name: "Address" });
+  // Two address fields now (hero + closing CTA, session 5): this spec is the hero's.
+  const hero = page.locator("#top");
+  const field = hero.getByRole("textbox", { name: "Address" });
   await field.tap();
   await expect(field).toBeFocused();
   await expect(field).toHaveValue("");
@@ -80,7 +82,7 @@ test("anonymous mobile visitor: type → pick → See my price → wizard pre-fi
   await options.first().click();
   await expect(field).toHaveValue(PICKED.formatted);
 
-  await page.getByRole("button", { name: "See my price →" }).click();
+  await hero.getByRole("button", { name: "See my price →" }).click();
   await expect(page).toHaveURL(/\/estimate\?/);
 
   const url = new URL(page.url());
@@ -109,10 +111,11 @@ test("the business chip travels as mode=business and pre-selects commercial", as
   await mockLookup(page);
   await page.goto("/");
 
-  await page.getByRole("button", { name: "A business or property I manage" }).tap();
-  const field = page.getByRole("textbox", { name: "Address" });
+  const hero = page.locator("#top");
+  await hero.getByRole("button", { name: "A business or property I manage" }).tap();
+  const field = hero.getByRole("textbox", { name: "Address" });
   await field.fill("4/22 High Street, Northcote");
-  await page.getByRole("button", { name: "See my price →" }).click();
+  await hero.getByRole("button", { name: "See my price →" }).click();
   await expect(page).toHaveURL(/\/estimate\?/);
 
   const url = new URL(page.url());
