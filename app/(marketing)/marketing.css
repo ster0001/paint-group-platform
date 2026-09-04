@@ -317,3 +317,10 @@ html:has(.mk) { scroll-behavior: smooth; }
 .mk .consent-p { font-size: 15px; color: var(--color-muted); max-width: 70ch; margin: 0; }
 .mk .consent-btns { display: flex; gap: 10px; flex-wrap: wrap; }
 .mk .consent-btns .btn { padding: 12px 18px; font-size: 15px; }
+
+/* Settings-driven content: nav logo, painter photos, variation-card photos */
+.mk nav .brand { display: inline-flex; align-items: center; }
+.mk nav .brand img { display: block; height: 28px; width: auto; }
+.mk .pc .av { overflow: hidden; }
+.mk .pc .av-img { display: block; width: 64px; height: 64px; object-fit: cover; }
+.mk .ph .ph-img { display: block; width: 120px; height: 84px; border-radius: 8px; overflow: hidden; background: var(--color-raised); }
