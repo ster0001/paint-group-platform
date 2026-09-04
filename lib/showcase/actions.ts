@@ -113,15 +113,6 @@ export async function saveShowcaseJobAction(raw: unknown): Promise<SaveShowcaseR
   }
 }
 
-/** The staff list for Settings → Showcase (session 3): every row, drafts included, under the staff read policy. */
-export async function listShowcaseJobsForStaff(): Promise<ShowcaseJob[]> {
-  const supabase = await createClient();
-  const staff = await requireStaff(supabase);
-  if (!staff) return [];
-  const { data } = await supabase.from("showcase_jobs").select(SHOWCASE_COLUMNS).order("updated_at", { ascending: false }).limit(500);
-  return (data ?? []).flatMap((r) => { const p = showcaseJobRowSchema.safeParse(r); return p.success ? [p.data] : []; });
-}
-
 type Db = NonNullable<ReturnType<typeof createServiceClient>>;
 
 /** `slug`, then `slug-2`, `slug-3`… until one is free (excluding the row being edited). */

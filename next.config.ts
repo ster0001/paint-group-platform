@@ -1,6 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Showcase photos live in the public showcase-media bucket and are served
+  // through next/image (CLAUDE.md: images via next/image with Supabase
+  // transforms) — the optimizer derives the sized variants the pages ask for
+  // (800/1600 …) on request and caches them at the edge.
+  images: {
+    remotePatterns: [{ protocol: "https", hostname: "*.supabase.co", pathname: "/storage/v1/object/public/**" }],
+  },
   // Pin Turbopack's project root to this directory. Without it, Turbopack
   // infers the root from the GIT repository, which breaks git worktrees:
   // a worktree's .git file points at the primary checkout, so module

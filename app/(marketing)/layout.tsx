@@ -1,31 +1,11 @@
 import type { Metadata } from "next";
-import localFont from "next/font/local";
-import { Martian_Mono } from "next/font/google";
+import { marketingFontClass } from "./fonts";
 import "./marketing.css";
 
 /**
- * The marketing site's shell (brief §2). Switzer is the production face —
- * Fontshare, self-hosted through next/font/local (it is not on Google Fonts);
- * Martian Mono is money, references and small data labels only.
- * Both `display: swap` so the H1 (the LCP element) paints on a fallback.
+ * The marketing site's shell (brief §2). Fonts come from ./fonts.ts (shared
+ * with the Settings → Showcase preview); styles are scoped under `.mk`.
  */
-const switzer = localFont({
-  src: [
-    { path: "./fonts/switzer-400.woff2", weight: "400", style: "normal" },
-    { path: "./fonts/switzer-500.woff2", weight: "500", style: "normal" },
-    { path: "./fonts/switzer-600.woff2", weight: "600", style: "normal" },
-  ],
-  variable: "--font-switzer",
-  display: "swap",
-});
-
-const martian = Martian_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500"],
-  variable: "--font-martian",
-  display: "swap",
-});
-
 export const metadata: Metadata = {
   title: "Paint Group — see what it costs to paint your home or business",
   description:
@@ -36,5 +16,5 @@ export const metadata: Metadata = {
 };
 
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
-  return <div className={`mk ${switzer.variable} ${martian.variable}`}>{children}</div>;
+  return <div className={`mk ${marketingFontClass}`}>{children}</div>;
 }

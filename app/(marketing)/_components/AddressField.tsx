@@ -28,7 +28,7 @@ export default function AddressField({
   initialMode = "home",
   onSubmit,
 }: {
-  where: "hero" | "bottom";
+  where: "hero" | "bottom" | "project";
   showChips?: boolean;
   initialMode?: Mode;
   onSubmit: (address: string, mode: Mode) => void;
