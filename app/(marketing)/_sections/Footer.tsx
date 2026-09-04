@@ -1,10 +1,11 @@
 import Link from "next/link";
+import CookieSettingsLink from "../_components/CookieSettingsLink";
 
 /**
  * §4.14 — as the prototype. Service and legal pages are not in this brief
  * (⚑9.8 covers the suburb/service pages); those links stay `#` with a
- * data-todo so nothing is silently filled. "Cookie settings" is added in
- * session 7 with the consent sheet.
+ * data-todo so nothing is silently filled. "Cookie settings" reopens the
+ * consent sheet.
  */
 export default function Footer() {
   return (
@@ -35,6 +36,7 @@ export default function Footer() {
         <a href="#" data-todo="9.8">Privacy</a>
         <a href="#" data-todo="9.8">Terms</a>
         <a href="#" data-todo="9.8">Warranty</a>
+        <CookieSettingsLink />
       </div>
     </footer>
   );

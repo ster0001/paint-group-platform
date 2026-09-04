@@ -158,7 +158,7 @@ test.describe("/work pages (homepage brief §4.4c)", () => {
     await page.keyboard.press("ArrowRight");
     await expect(page.getByRole("dialog", { name: /Photo 2 of 2/ })).toContainText("Finished");
     await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByRole("dialog", { name: /Photo \d+ of/ })).toHaveCount(0); // the consent sheet is a dialog too
 
     // metadata + JSON-LD (Article, no offers)
     await expect(page).toHaveTitle(`E2E interior ${run} in Northcote — $8,400 – $9,600 | Paint Group`);

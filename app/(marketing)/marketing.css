@@ -307,3 +307,13 @@ html:has(.mk) { scroll-behavior: smooth; }
 .mk .cta .cta-field .field input { color: var(--color-text); }
 .mk .cta .cta-field .suggest { text-align: left; }
 .mk .cta a.tel { font-weight: 600; }
+
+/* CONSENT SHEET (Tom's spec: bottom sheet, decline default + quieter) */
+.mk .consent { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; padding: 12px var(--pad) calc(12px + env(safe-area-inset-bottom)); background: rgba(10, 11, 13, .96); backdrop-filter: blur(10px); border-top: 1px solid var(--color-line); color: var(--color-text); }
+@media (max-width: 959px) { .mk .consent { bottom: 76px; } } /* above the call bar */
+.mk .consent-body { max-width: 1312px; margin: 0 auto; display: grid; gap: 10px; }
+@media (min-width: 960px) { .mk .consent-body { grid-template-columns: 1fr auto; align-items: center; } .mk .consent-t { grid-column: 1 / -1; } }
+.mk .consent-t { font-family: var(--font-martian), ui-monospace, monospace; font-size: 12px; letter-spacing: .04em; color: var(--color-muted); margin: 0; }
+.mk .consent-p { font-size: 15px; color: var(--color-muted); max-width: 70ch; margin: 0; }
+.mk .consent-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+.mk .consent-btns .btn { padding: 12px 18px; font-size: 15px; }

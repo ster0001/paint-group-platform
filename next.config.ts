@@ -1,6 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Homepage brief §8: while the new site lives on new.paintgroup.com.au,
+  // every page carries `X-Robots-Tag: noindex, nofollow` (on top of the
+  // page-level robots metadata) so Google never sees two Paint Group sites.
+  // The flip: set SITE_INDEXABLE=1 in the Vercel project env and redeploy.
+  async headers() {
+    if (process.env.SITE_INDEXABLE === "1") return [];
+    return [{ source: "/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] }];
+  },
   // Showcase photos live in the public showcase-media bucket and are served
   // through next/image (CLAUDE.md: images via next/image with Supabase
   // transforms) — the optimizer derives the sized variants the pages ask for

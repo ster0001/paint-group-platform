@@ -1,4 +1,6 @@
 /**
+ * (Also brakes the first-party event sink, /api/events — same shape.)
+ *
  * The address lookup proxy (/api/places/*) was session-only: staff or an
  * anonymous wizard session. The marketing homepage has NO session — a
  * visitor typing an address is exactly who we want suggestions for, and
@@ -15,7 +17,7 @@
  * groups a keystroke run with its details call for Google's billing.
  */
 const WINDOW_MS = 10 * 60_000;
-const LIMITS = { autocomplete: 60, details: 20 } as const;
+const LIMITS = { autocomplete: 60, details: 20, events: 240 } as const;
 export type PlacesKind = keyof typeof LIMITS;
 
 type Bucket = { n: number; resetAt: number };

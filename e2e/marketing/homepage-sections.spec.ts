@@ -26,6 +26,7 @@ const SECTION_IDS = ["top", "how", "jobs", "promise", "story", "live", "painters
 test.describe("homepage sections (brief §3, §4.3–4.13)", () => {
   test("every section renders with the prototype copy — desktop", async ({ page }) => {
     await page.goto("/");
+    await page.getByTestId("consent-decline").click({ timeout: 3_000 }).catch(() => {});
     for (const id of SECTION_IDS) await expect(page.locator(`#${id}`)).toHaveCount(1);
     await expect(page.getByRole("heading", { name: "Four steps. You’re in charge of every one." })).toBeVisible();
     await expect(page.getByText("Rather talk to a person first?")).toBeVisible();
@@ -55,6 +56,7 @@ test.describe("homepage sections (brief §3, §4.3–4.13)", () => {
   test("every section renders at 375px and the phone number never hides", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/");
+    await page.getByTestId("consent-decline").click({ timeout: 3_000 }).catch(() => {});
     for (const id of SECTION_IDS) await expect(page.locator(`#${id}`)).toHaveCount(1);
     await expect(page.getByRole("link", { name: "Call us" })).toBeVisible();
     // the four steps stack; the phone line keeps its number on one line
@@ -69,6 +71,7 @@ test.describe("homepage sections (brief §3, §4.3–4.13)", () => {
   test("promise explorer: default row 0, arrow keys move, events fire, approving flips the variation", async ({ page }) => {
     await captureEvents(page);
     await page.goto("/");
+    await page.getByTestId("consent-decline").click({ timeout: 3_000 }).catch(() => {});
     const tabs = page.getByRole("tab");
     await expect(tabs).toHaveCount(4);
     await expect(tabs.nth(0)).toHaveAttribute("aria-selected", "true");
@@ -97,19 +100,21 @@ test.describe("homepage sections (brief §3, §4.3–4.13)", () => {
   test("FAQ: several answers open at once; faq_open carries the index", async ({ page }) => {
     await captureEvents(page);
     await page.goto("/");
+    await page.getByTestId("consent-decline").click({ timeout: 3_000 }).catch(() => {});
     const faq = page.getByTestId("faq");
     await expect(faq.locator("details")).toHaveCount(8);
     await faq.getByText("When do I pay?").click();
     await faq.getByText("What does the warranty cover?").click();
     await expect(faq.locator("details[open]")).toHaveCount(2);
-    const seen = (await events(page)).filter((e) => e.name === "faq_open").map((e) => e.props.index);
-    expect(seen).toEqual([6, 7]);
+    // <details> dispatches `toggle` as a queued task after `open` flips — poll for the second event.
+    await expect.poll(async () => (await events(page)).filter((e) => e.name === "faq_open").map((e) => e.props.index)).toEqual([6, 7]);
   });
 
   test("closing CTA fires see_price with where: bottom and lands in the wizard", async ({ page }) => {
     await captureEvents(page);
     await page.route("**/api/places/autocomplete", (route) => route.fulfill({ json: { suggestions: [] } }));
     await page.goto("/#cta");
+    await page.getByTestId("consent-decline").click({ timeout: 3_000 }).catch(() => {});
     const cta = page.locator("#cta");
     await cta.getByRole("textbox", { name: "Address" }).fill("9 Clarke Street, Thornbury");
     await cta.getByRole("button", { name: "See my price →" }).click();
@@ -118,7 +123,7 @@ test.describe("homepage sections (brief §3, §4.3–4.13)", () => {
     expect(u.searchParams.get("address")).toBe("9 Clarke Street, Thornbury");
     expect(u.searchParams.get("mode")).toBe("home");
     const sp = (await events(page)).find((e) => e.name === "see_price");
-    expect(sp?.props).toEqual({ where: "bottom", mode: "home" });
+    expect(sp?.props).toEqual({ where: "bottom", mode: "home", address: "9 Clarke Street, Thornbury" });
   });
 
   test("Real jobs: the featured cards are the published ranks 1–3 and nothing else; empty slots are visible placeholders", async ({ page }) => {
@@ -142,6 +147,7 @@ test.describe("homepage sections (brief §3, §4.3–4.13)", () => {
       const deadline = Date.now() + 150_000;
       for (;;) {
         await page.goto("/");
+    await page.getByTestId("consent-decline").click({ timeout: 3_000 }).catch(() => {});
         if (await page.getByText(`E2E featured one ${run}`).count()) break;
         if (Date.now() > deadline) throw new Error("/ never picked up the fixtures within two ISR windows");
         await page.waitForTimeout(5_000);

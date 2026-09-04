@@ -17,7 +17,7 @@ export default function Hero() {
   const router = useRouter();
 
   function submit(address: string, mode: Mode) {
-    track("see_price", { where: "hero", mode });
+    track("see_price", { where: "hero", mode, address });
     router.push(estimateHref(address, mode));
   }
 

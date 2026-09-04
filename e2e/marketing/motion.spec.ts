@@ -24,6 +24,7 @@ test.describe("ghost estimator (§4.2)", () => {
   test("cold load: mid-typing within 2 s, a result within 6 s, the chip follows, then loops", async ({ page }) => {
     await captureEvents(page);
     await page.goto("/");
+    await page.getByTestId("consent-decline").click({ timeout: 3_000 }).catch(() => {});
     const hero = page.locator("#top");
     const field = hero.getByRole("textbox", { name: "Address" });
     await expect(field).not.toHaveValue("", { timeout: 2_000 });
@@ -41,6 +42,7 @@ test.describe("ghost estimator (§4.2)", () => {
   test("tapping the field at any point leaves it empty, focused, with no ghost text — and it never restarts", async ({ page }) => {
     await captureEvents(page);
     await page.goto("/");
+    await page.getByTestId("consent-decline").click({ timeout: 3_000 }).catch(() => {});
     const hero = page.locator("#top");
     const field = hero.getByRole("textbox", { name: "Address" });
     await expect(field).not.toHaveValue("", { timeout: 2_000 });
@@ -63,6 +65,7 @@ test.describe("ghost estimator (§4.2)", () => {
   test("tapping a chip stops it too, and the chip choice sticks", async ({ page }) => {
     await captureEvents(page);
     await page.goto("/");
+    await page.getByTestId("consent-decline").click({ timeout: 3_000 }).catch(() => {});
     const hero = page.locator("#top");
     await expect(hero.getByRole("textbox", { name: "Address" })).not.toHaveValue("", { timeout: 2_000 });
     await hero.getByRole("button", { name: "A business or property I manage" }).tap();
@@ -76,6 +79,7 @@ test.describe("ghost estimator (§4.2)", () => {
   test("reduced motion: the field is empty and idle, chips default to My home", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
+    await page.getByTestId("consent-decline").click({ timeout: 3_000 }).catch(() => {});
     const hero = page.locator("#top");
     await page.waitForTimeout(3_000);
     await expect(hero.getByRole("textbox", { name: "Address" })).toHaveValue("");
@@ -89,6 +93,7 @@ test.describe("progress story (§4.7) + count-up (§4.8)", () => {
     test.setTimeout(120_000);
     await captureEvents(page);
     await page.goto("/");
+    await page.getByTestId("consent-decline").click({ timeout: 3_000 }).catch(() => {});
     const story = page.getByTestId("story");
     await expect(story).toHaveAttribute("data-story-state", "idle");
     await story.scrollIntoViewIfNeeded();
@@ -127,6 +132,7 @@ test.describe("progress story (§4.7) + count-up (§4.8)", () => {
   test("reduced motion: the final frame with the eight captions listed", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/#story");
+    await page.getByTestId("consent-decline").click({ timeout: 3_000 }).catch(() => {});
     const story = page.getByTestId("story");
     await expect(story).toHaveAttribute("data-story-state", "reduced");
     await expect(page.getByTestId("story-day")).toHaveText("Day 5 of 5");
@@ -138,6 +144,7 @@ test.describe("progress story (§4.7) + count-up (§4.8)", () => {
 
   test("the live tiles count up to the config numbers", async ({ page }) => {
     await page.goto("/");
+    await page.getByTestId("consent-decline").click({ timeout: 3_000 }).catch(() => {});
     const live = page.locator("#live");
     await live.scrollIntoViewIfNeeded();
     await expect(live.locator(".big").nth(0)).toHaveText("38", { timeout: 5_000 });

@@ -62,6 +62,7 @@ test("anonymous mobile visitor: type → pick → See my price → wizard pre-fi
   await captureEvents(page);
   await mockLookup(page);
   await page.goto("/");
+  await page.getByTestId("consent-decline").click();
 
   // The H1 is the LCP element and the copy is the prototype's, verbatim.
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Transforming spaces.Redefining painting.");
@@ -102,14 +103,15 @@ test("anonymous mobile visitor: type → pick → See my price → wizard pre-fi
   const names = seen.map((e) => e.name);
   expect(names).toEqual(expect.arrayContaining(["address_typed", "address_selected", "see_price"]));
   const seePrice = seen.find((e) => e.name === "see_price");
-  expect(seePrice?.props).toEqual({ where: "hero", mode: "home" });
-  for (const e of seen) expect(JSON.stringify(e.props)).not.toContain("Elm");
+  expect(seePrice?.props).toEqual({ where: "hero", mode: "home", address: PICKED.formatted });
+  for (const e of seen) if (e.name !== "see_price") expect(JSON.stringify(e.props)).not.toContain("Elm");
 });
 
 test("the business chip travels as mode=business and pre-selects commercial", async ({ page }) => {
   await captureEvents(page);
   await mockLookup(page);
   await page.goto("/");
+  await page.getByTestId("consent-decline").click();
 
   const hero = page.locator("#top");
   await hero.getByRole("button", { name: "A business or property I manage" }).tap();
@@ -124,7 +126,7 @@ test("the business chip travels as mode=business and pre-selects commercial", as
 
   const seen = await events(page);
   expect(seen.find((e) => e.name === "mode_business")?.props).toEqual({ where: "hero" });
-  expect(seen.find((e) => e.name === "see_price")?.props).toEqual({ where: "hero", mode: "business" });
+  expect(seen.find((e) => e.name === "see_price")?.props).toEqual({ where: "hero", mode: "business", address: "4/22 High Street, Northcote" });
 
   const holding = page.getByText("Online estimates are nearly here");
   if (await holding.count()) throw new Error("wizard_public is OFF on this stack — turn it on before running this spec");

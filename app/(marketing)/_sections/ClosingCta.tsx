@@ -11,7 +11,7 @@ import { PHONE_DISPLAY } from "@/lib/marketing/site";
 export default function ClosingCta() {
   const router = useRouter();
   function submit(address: string, mode: Mode) {
-    track("see_price", { where: "bottom", mode });
+    track("see_price", { where: "bottom", mode, address });
     router.push(estimateHref(address, mode));
   }
   return (
