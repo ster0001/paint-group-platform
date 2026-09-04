@@ -22,8 +22,8 @@ jobs:
     name: typecheck · lint · unit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
@@ -72,8 +72,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: gate
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
@@ -82,21 +82,35 @@ jobs:
       # Fail with instructions rather than skipping. A skipped e2e job that
       # reports green is exactly the failure mode A1-06 describes: 160
       # conditional skips meant a passing run could assert almost nothing.
+      # Names each missing one (4 Sep): "not configured" alone sent Tom hunting
+      # through nine secrets that were all present — in the wrong place. They
+      # must be REPOSITORY secrets (Settings → Secrets and variables → Actions →
+      # "Repository secrets"), not Environment secrets: this job names no
+      # `environment:`, so environment secrets are invisible to it.
       - name: Check the e2e secrets are configured
         env:
-          URL: ${{ secrets.E2E_SUPABASE_URL }}
+          E2E_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          E2E_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
+          E2E_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
+          E2E_STAFF_EMAIL: ${{ secrets.E2E_STAFF_EMAIL }}
+          E2E_STAFF_PASSWORD: ${{ secrets.E2E_STAFF_PASSWORD }}
+          E2E_CONTRACTOR_EMAIL: ${{ secrets.E2E_CONTRACTOR_EMAIL }}
+          E2E_CONTRACTOR_PASSWORD: ${{ secrets.E2E_CONTRACTOR_PASSWORD }}
+          E2E_CUSTOMER_EMAIL: ${{ secrets.E2E_CUSTOMER_EMAIL }}
+          E2E_CUSTOMER_PASSWORD: ${{ secrets.E2E_CUSTOMER_PASSWORD }}
         run: |
-          if [ -z "$URL" ]; then
-            echo "::error::e2e secrets are not configured, so this job cannot run."
-            echo "Add these repository secrets — TEST project only, never production:"
-            echo "  E2E_SUPABASE_URL  E2E_SUPABASE_ANON_KEY  E2E_SERVICE_ROLE_KEY"
-            echo "  E2E_STAFF_EMAIL  E2E_STAFF_PASSWORD"
-            echo "  E2E_CONTRACTOR_EMAIL  E2E_CONTRACTOR_PASSWORD"
-            echo "  E2E_CUSTOMER_EMAIL  E2E_CUSTOMER_PASSWORD"
-            echo "Values are in .env.test.local. Until then, remove 'e2e' from"
-            echo "required checks — do NOT make this job skip silently."
+          missing=""
+          for n in E2E_SUPABASE_URL E2E_SUPABASE_ANON_KEY E2E_SERVICE_ROLE_KEY E2E_STAFF_EMAIL E2E_STAFF_PASSWORD E2E_CONTRACTOR_EMAIL E2E_CONTRACTOR_PASSWORD E2E_CUSTOMER_EMAIL E2E_CUSTOMER_PASSWORD; do
+            if [ -z "${!n}" ]; then missing="$missing $n"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::These e2e secrets are EMPTY in this workflow:$missing"
+            echo "They must be REPOSITORY secrets: GitHub → Settings → Secrets and variables → Actions → tab 'Repository secrets'."
+            echo "Environment secrets and Codespaces/Dependabot secrets are not visible to this job. Names are case-sensitive, no spaces."
+            echo "Values come from .env.test.local (TEST project only, never production)."
             exit 1
           fi
+          echo "All nine e2e secrets present."
 
       - run: npx playwright install --with-deps chromium
 
@@ -128,7 +142,7 @@ jobs:
           for i in $(seq 1 60); do curl -sf -o /dev/null http://localhost:3101/login && break; sleep 1; done
           npx playwright test e2e/customer-journey e2e/wo-rls.spec.ts e2e/account-rls.spec.ts e2e/ledger-parity.spec.ts e2e/trade-org-rls.spec.ts
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: failure()
         with:
           name: playwright-traces
