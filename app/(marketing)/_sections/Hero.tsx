@@ -1,11 +1,13 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import AddressField from "../_components/AddressField";
 import TelLink from "../_components/TelLink";
 import { track } from "@/lib/analytics";
 import { estimateHref, type Mode } from "@/lib/marketing/estimateLink";
 import { PHONE_DISPLAY } from "@/lib/marketing/site";
+import { showcaseMediaUrl } from "@/lib/showcase/format";
 
 /**
  * §4.2 — dark, full-viewport, the taped-off copy block (border only).
@@ -13,7 +15,7 @@ import { PHONE_DISPLAY } from "@/lib/marketing/site";
  * {where, mode} and routes to the wizard with both on the URL.
  * The self-typing estimator plays inside AddressField (`ghost`).
  */
-export default function Hero() {
+export default function Hero({ heroPhoto = null }: { heroPhoto?: string | null }) {
   const router = useRouter();
 
   function submit(address: string, mode: Mode) {
@@ -23,6 +25,11 @@ export default function Hero() {
 
   return (
     <section className="hero" id="top">
+      {heroPhoto && (
+        <div className="hero-photo" aria-hidden="true" data-testid="hero-photo">
+          <Image src={showcaseMediaUrl(heroPhoto)} alt="" fill priority sizes="100vw" style={{ objectFit: "cover" }} />
+        </div>
+      )}
       <div className="stage">
         <div className="block">
           <div className="mono" style={{ color: "var(--color-muted)" }}>
@@ -38,7 +45,6 @@ export default function Hero() {
             <span>
               Rather talk to a person? <strong><TelLink where="hero">Call {PHONE_DISPLAY}</TelLink></strong>
             </span>
-            <span>Inside, outside, or both</span>
           </div>
         </div>
       </div>

@@ -30,10 +30,14 @@ export const websiteContentSchema = z.object({
   promisePhotos: z.array(mediaPath).max(2).default([]),
   /** §4.7 beat 3 — "Prep · floors covered", "Living room · masked up". */
   storyPhotos: z.array(mediaPath).max(2).default([]),
+  /** Tom, 5 Sep: a real house behind the taped-off block (desktop, darkened) and a strip above it on phones. */
+  heroPhoto: mediaPath.nullable().default(null),
+  /** The one video on the homepage (Reviews section): a published showcase job that has a video. */
+  featuredVideoJobId: z.string().uuid().nullable().default(null),
 });
 export type WebsiteContent = z.infer<typeof websiteContentSchema>;
 
-export const EMPTY_WEBSITE_CONTENT: WebsiteContent = { painters: [], promisePhotos: [], storyPhotos: [] };
+export const EMPTY_WEBSITE_CONTENT: WebsiteContent = { painters: [], promisePhotos: [], storyPhotos: [], heroPhoto: null, featuredVideoJobId: null };
 
 /** Tolerant: an older or partial row still renders; garbage renders the defaults. */
 export function parseWebsiteContent(value: unknown): WebsiteContent {

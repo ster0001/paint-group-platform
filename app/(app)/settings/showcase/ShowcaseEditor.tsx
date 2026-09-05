@@ -45,6 +45,7 @@ type Form = {
   colours: Array<{ surface: string; brand: string; product: string; colour: string }>;
   condition_notes: string;
   review_quote: string; review_name: string;
+  video_url: string; video_caption: string; video_transcript: string; video_poster_path: string | null;
   estimate_id: string | null;
   hero_path: string | null;
   featured_rank: number | null;
@@ -65,6 +66,7 @@ function fromJob(j: ShowcaseJob | null): Form {
     what_we_did: j?.what_we_did ?? [], gallery: j?.gallery ?? [], colours: j?.colours ?? [],
     condition_notes: j?.condition_notes ?? "",
     review_quote: j?.review_quote ?? "", review_name: j?.review_name ?? "",
+    video_url: j?.video_url ?? "", video_caption: j?.video_caption ?? "", video_transcript: j?.video_transcript ?? "", video_poster_path: j?.video_poster_path ?? null,
     estimate_id: j?.estimate_id ?? null, hero_path: j?.hero_path ?? null,
     featured_rank: j?.featured_rank ?? null, consent_confirmed: j?.consent_confirmed ?? false, published: j?.published ?? false,
   };
@@ -82,6 +84,7 @@ function toInput(f: Form, id: string | undefined, displace = false): ShowcaseJob
     what_we_did: f.what_we_did, colours: f.colours, condition_notes: f.condition_notes,
     hero_path: f.hero_path, gallery: f.gallery,
     estimate_id: f.estimate_id, review_quote: f.review_quote.trim() || null, review_name: f.review_name.trim() || null,
+    video_url: f.video_url.trim() || null, video_caption: f.video_caption.trim() || null, video_transcript: f.video_transcript.trim() || null, video_poster_path: f.video_poster_path,
     featured_rank: f.featured_rank, consent_confirmed: f.consent_confirmed, published: f.published,
     displace_featured: displace || undefined,
   };
@@ -99,6 +102,7 @@ function toPreview(f: Form, base: ShowcaseJob | null): ShowcaseJob {
     scope_line: input.scope_line, summary: input.summary, what_we_did: input.what_we_did, colours: input.colours,
     condition_notes: input.condition_notes, hero_path: input.hero_path, gallery: input.gallery, estimate_id: input.estimate_id,
     review_quote: input.review_quote, review_name: input.review_name, featured_rank: input.featured_rank,
+    video_url: input.video_url, video_caption: input.video_caption, video_transcript: input.video_transcript, video_poster_path: input.video_poster_path,
     consent_confirmed: input.consent_confirmed, published: input.published, published_at: base?.published_at ?? null,
     created_at: base?.created_at ?? "", updated_at: base?.updated_at ?? "",
   };
@@ -113,7 +117,7 @@ export default function ShowcaseEditor({ initial, estimates }: { initial: Showca
   const [saved, setSaved] = useState<ShowcaseJob | null>(initial);
   const [form, setForm] = useState<Form>(() => fromJob(initial));
   const [busy, setBusy] = useState(false);
-  const [uploading, setUploading] = useState<"hero" | "gallery" | null>(null);
+  const [uploading, setUploading] = useState<"hero" | "gallery" | "poster" | null>(null);
   const [status, setStatus] = useState<{ tone: "ok" | "err" | "info"; text: string } | null>(null);
   const [issues, setIssues] = useState<string[]>([]);
   const [rankConflict, setRankConflict] = useState<{ rank: number; holder: { id: string; title: string; suburb: string } } | null>(null);
@@ -127,7 +131,7 @@ export default function ShowcaseEditor({ initial, estimates }: { initial: Showca
   const checklist = useMemo(() => publishChecklist(toInput(form, saved?.id)), [form, saved]);
   const slugLocked = Boolean(saved?.published);
 
-  async function upload(kind: "hero" | "gallery", files: FileList | null) {
+  async function upload(kind: "hero" | "gallery" | "poster", files: FileList | null) {
     if (!files || files.length === 0) return;
     setUploading(kind);
     setStatus(null);
@@ -138,6 +142,7 @@ export default function ShowcaseEditor({ initial, estimates }: { initial: Showca
         const out = await uploadShowcasePhoto(client, jobKey.current, file);
         if ("error" in out) { setStatus({ tone: "err", text: out.error }); continue; }
         if (kind === "hero") set({ hero_path: out.path });
+        else if (kind === "poster") set({ video_poster_path: out.path });
         else setForm((f) => ({ ...f, gallery: [...f.gallery, { path: out.path, caption: "", kind: "after" }] }));
         setStatus({ tone: "info", text: `Photo uploaded — Save to keep it.` });
       }
@@ -349,10 +354,26 @@ export default function ShowcaseEditor({ initial, estimates }: { initial: Showca
             <textarea className={input} rows={3} maxLength={2000} value={form.condition_notes} onChange={(e) => set({ condition_notes: e.target.value })} />
           </Section>
 
-          <Section n={11} title="What the customer said" blurb="Optional. First name and suburb only (⚑9.13).">
+          <Section n={11} title="What the customer said" blurb="Optional. First name and suburb only (⚑9.13). A video (YouTube or Vimeo — unlisted is fine) shows here as a poster with a play button; the player only loads when someone presses play.">
             <div className="grid gap-2">
               <textarea className={input} rows={2} maxLength={600} placeholder="Their words" value={form.review_quote} onChange={(e) => set({ review_quote: e.target.value })} />
               <input className={input} maxLength={80} placeholder="Sarah · Thornbury" value={form.review_name} onChange={(e) => set({ review_name: e.target.value })} />
+              <input className={input} maxLength={300} placeholder="Video link — YouTube or Vimeo (testimonial, progress video…)" value={form.video_url} onChange={(e) => set({ video_url: e.target.value })} data-testid="showcase-video-url" inputMode="url" />
+              {form.video_url && (
+                <>
+                  <input className={input} maxLength={160} placeholder="Video caption, e.g. Stephanie, Murrumbeena — exterior weatherboard" value={form.video_caption} onChange={(e) => set({ video_caption: e.target.value })} data-testid="showcase-video-caption" />
+                  <textarea className={input} rows={4} maxLength={20000} placeholder="Transcript (what is said in the video) — shown under it and read by search engines" value={form.video_transcript} onChange={(e) => set({ video_transcript: e.target.value })} data-testid="showcase-video-transcript" />
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="relative h-[72px] w-[128px] overflow-hidden rounded bg-gray-100">
+                      {form.video_poster_path && <Image src={showcaseMediaUrl(form.video_poster_path)} alt="" fill sizes="128px" className="object-cover" />}
+                    </div>
+                    <label className="cursor-pointer rounded-md border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">
+                      {uploading === "poster" ? "Uploading…" : form.video_poster_path ? "Change poster" : "Upload a poster image (optional — YouTube's own thumbnail is used otherwise)"}
+                      <input type="file" accept={acceptAttr("image")} className="hidden" data-testid="showcase-video-poster" onChange={(e) => void upload("poster", e.target.files)} />
+                    </label>
+                  </div>
+                </>
+              )}
             </div>
           </Section>
 

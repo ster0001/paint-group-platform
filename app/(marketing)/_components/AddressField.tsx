@@ -129,7 +129,7 @@ export default function AddressField({
           onSubmit(value.trim(), mode);
         }}
       >
-        <span aria-hidden="true">📍</span>
+        <svg className="pin" aria-hidden="true" width="18" height="22" viewBox="0 0 18 22" fill="none"><path d="M9 21s7-6.6 7-12A7 7 0 0 0 2 9c0 5.4 7 12 7 12Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><circle cx="9" cy="9" r="2.6" stroke="currentColor" strokeWidth="1.8"/></svg>
         <input
           id={inputId}
           placeholder={ghosting ? "" : "Type your address"}

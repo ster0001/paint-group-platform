@@ -19,7 +19,7 @@ import { saveWebsiteContentAction } from "./websiteActions";
 const input = "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none";
 const blankPainter = (): Painter => ({ name: "", specialty: "", since: "", quote: "", photoPath: null });
 
-export default function WebsiteContentManager({ initial }: { initial: WebsiteContent }) {
+export default function WebsiteContentManager({ initial, videoJobs = [] }: { initial: WebsiteContent; videoJobs?: Array<{ id: string; title: string; suburb: string; published: boolean }> }) {
   const [c, setC] = useState<WebsiteContent>(initial);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
@@ -54,6 +54,36 @@ export default function WebsiteContentManager({ initial }: { initial: WebsiteCon
   return (
     <div className="grid gap-6" data-testid="website-content">
       {status && <p data-testid="website-status" className={`rounded-md px-3 py-2 text-sm ${status.ok ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}>{status.text}</p>}
+
+      <section className="grid gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">Hero photo</h3>
+          <p className="text-xs text-gray-500">A real house behind the address block: darkened behind the text on a laptop, a strip above it on a phone. Your best finished exterior, landscape, well lit.</p>
+        </div>
+        <div className="flex flex-wrap items-start gap-4" data-testid="hero-slot">
+          <div className="relative h-[110px] w-[196px] overflow-hidden rounded-md bg-gray-100">
+            {c.heroPhoto && <Image src={showcaseMediaUrl(c.heroPhoto)} alt="" fill sizes="196px" className="object-cover" />}
+          </div>
+          <div className="grid gap-1">
+            <label className="cursor-pointer rounded-md border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">
+              {uploading === "hero" ? "Uploading…" : c.heroPhoto ? "Change photo" : "Upload photo"}
+              <input type="file" accept={acceptAttr("image")} className="hidden" data-testid="hero-upload" onChange={(e) => void upload("hero", e.target.files?.[0], (path) => setC((x) => ({ ...x, heroPhoto: path })))} />
+            </label>
+            {c.heroPhoto && <button type="button" className="text-xs text-red-700 underline" onClick={() => setC((x) => ({ ...x, heroPhoto: null }))}>Remove</button>}
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">Featured review video</h3>
+          <p className="text-xs text-gray-500">One video on the homepage, in the reviews section, as a poster with a play button. Pick a published showcase job that has a video (add videos on each job in Showcase jobs).</p>
+        </div>
+        <select className={`${input} w-auto`} value={c.featuredVideoJobId ?? ""} onChange={(e) => setC((x) => ({ ...x, featuredVideoJobId: e.target.value || null }))} data-testid="featured-video">
+          <option value="">No video on the homepage</option>
+          {videoJobs.map((j) => <option key={j.id} value={j.id}>{j.title} · {j.suburb}{j.published ? "" : " (draft — publish it first)"}</option>)}
+        </select>
+      </section>
 
       <section className="grid gap-3">
         <div>

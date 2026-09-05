@@ -30,14 +30,15 @@ const placeSchema = z.object({
 });
 
 /** Long reviews are cut at a sentence end near this length and linked to the full text on Google (the words themselves are never changed). */
-export const REVIEW_MAX_CHARS = 420;
+export const REVIEW_MAX_CHARS = 220; // ≈ 35 words: the best sentence or two, the Google link carries the rest (Tom, 5 Sep)
 
 export function trimReview(text: string, max = REVIEW_MAX_CHARS): { text: string; trimmed: boolean } {
   const t = text.trim();
   if (t.length <= max) return { text: t, trimmed: false };
   const head = t.slice(0, max);
-  const cut = Math.max(head.lastIndexOf(". "), head.lastIndexOf("! "), head.lastIndexOf("? "));
-  const end = cut > max * 0.5 ? cut + 1 : max;
+  const sentence = Math.max(head.lastIndexOf(". "), head.lastIndexOf("! "), head.lastIndexOf("? "));
+  // A sentence end in the back half; otherwise the last whole word — never mid-word.
+  const end = sentence > max * 0.5 ? sentence + 1 : Math.max(head.lastIndexOf(" "), Math.floor(max * 0.6));
   return { text: t.slice(0, end).trimEnd(), trimmed: true };
 }
 

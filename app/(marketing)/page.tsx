@@ -30,7 +30,7 @@ export default async function HomePage() {
     <>
       <Nav logoUrl={logoUrl} />
       <main>
-        <Hero />
+        <Hero heroPhoto={content.heroPhoto} />
         <HowItWorks />
         <RealJobs />
         <PromiseSection variationPhotos={content.promisePhotos} />
@@ -38,7 +38,7 @@ export default async function HomePage() {
         <LiveStrip />
         <Painters painters={content.painters} />
         <Trade />
-        <Reviews />
+        <Reviews featuredVideoJobId={content.featuredVideoJobId} />
         <Faq />
         <ClosingCta />
       </main>

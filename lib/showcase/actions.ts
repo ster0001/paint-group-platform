@@ -7,6 +7,7 @@ import { requireStaff } from "@/lib/supabase/guards";
 import { reportError } from "@/lib/monitoring/report";
 import { z } from "zod";
 import { SHOWCASE_BUCKET, slugify } from "./format";
+import { parseVideoUrl } from "@/lib/marketing/video";
 import {
   SHOWCASE_COLUMNS, plainIssues, publishChecklist, showcaseJobInputSchema, showcaseJobRowSchema,
   type ShowcaseJob,
@@ -44,6 +45,9 @@ export async function saveShowcaseJobAction(raw: unknown): Promise<SaveShowcaseR
   const parsed = showcaseJobInputSchema.safeParse(raw);
   if (!parsed.success) return { status: "invalid", issues: plainIssues(parsed.error) };
   const input = parsed.data;
+  if (input.video_url && !parseVideoUrl(input.video_url)) {
+    return { status: "invalid", issues: ["The video link needs to be a YouTube or Vimeo link."] };
+  }
 
   const db = createServiceClient();
   if (!db) return { status: "error", message: "The service key isn't configured on this machine." };
