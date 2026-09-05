@@ -1,5 +1,8 @@
 import ReviewsSlider from "../_components/ReviewsSlider";
+import Link from "next/link";
+import VideoEmbed from "../_components/VideoEmbed";
 import { getGoogleReviews, trimReview } from "@/lib/marketing/googleReviews";
+import { showcaseJobById } from "@/lib/showcase/queries";
 
 /**
  * §4.11 — LIVE from the Google listing "Paint Group" (Tom, 5 Sep: the
@@ -14,8 +17,9 @@ const PLACEHOLDERS = [
   "[Real review: one that mentions the finish or the prep]",
 ];
 
-export default async function Reviews() {
-  const live = await getGoogleReviews();
+export default async function Reviews({ featuredVideoJobId = null }: { featuredVideoJobId?: string | null }) {
+  const [live, videoJob] = await Promise.all([getGoogleReviews(), featuredVideoJobId ? showcaseJobById(featuredVideoJobId) : Promise.resolve(null)]);
+  const video = videoJob?.video_url ? videoJob : null;
   const cards = live && live.reviews.length > 0
     ? live.reviews.map((r) => { const t = trimReview(r.text); return { ...r, shown: t.text, trimmed: t.trimmed }; })
     : null;
@@ -31,6 +35,12 @@ export default async function Reviews() {
           </div>
           {live?.url && <a href={live.url} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 500 }} data-testid="reviews-all">All {live.count} reviews on Google →</a>}
         </div>
+        {video && (
+          <div className="rev-video" data-testid="featured-video">
+            <VideoEmbed url={video.video_url!} caption={video.video_caption || `${video.review_name ? video.review_name.split("·")[0].trim() : "A customer"}, ${video.suburb} — ${video.title.toLowerCase()}`} posterPath={video.video_poster_path} transcript={video.video_transcript} testId="featured-video" />
+            <p className="rev-video-link"><Link href={`/work/${video.slug}`}>See this job →</Link></p>
+          </div>
+        )}
         <div data-testid="reviews" data-source={cards ? "google" : "placeholder"}>
           {cards
             ? <ReviewsSlider reviews={cards} />

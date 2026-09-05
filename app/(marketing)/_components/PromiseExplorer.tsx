@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import Image from "next/image";
+import PhotoZoom from "./PhotoZoom";
 import { track, type MarketingEventName } from "@/lib/analytics";
 import { showcaseMediaUrl } from "@/lib/showcase/format";
 
@@ -72,7 +72,7 @@ export default function PromiseExplorer({ variationPhotos = [] }: { variationPho
       <b>Replace 2.4 m of rotten fascia board, prime and paint to match</b>
       <div className="ph">
         {[0, 1].map((i) => variationPhotos[i]
-          ? <span key={i} className="ph-img"><Image src={showcaseMediaUrl(variationPhotos[i])} alt="" width={120} height={84} style={{ objectFit: "cover", width: "100%", height: "100%" }} /></span>
+          ? <PhotoZoom key={i} className="ph-img" src={showcaseMediaUrl(variationPhotos[i])} alt={`Variation photo ${i + 1}`} width={120} height={84} />
           : <i key={i} data-todo="site-photos" />)}
       </div>
       <div className="row"><span><span className="mono" style={muted}>Extra, inc. GST</span><br /><span className="money">+ $486</span></span><span style={{ color: "var(--color-muted)", fontSize: 14 }}>Work won&rsquo;t start until you approve</span></div>

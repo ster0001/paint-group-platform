@@ -2,6 +2,7 @@ import Image from "next/image";
 import Gallery from "./Gallery";
 import GetPriceLike from "./GetPriceLike";
 import JobCard from "./JobCard";
+import VideoEmbed from "./VideoEmbed";
 import { formatCompletedOn, formatPriceRange, showcaseMediaUrl } from "@/lib/showcase/format";
 import { JOB_TYPE_LABEL, type ShowcaseJob } from "@/lib/showcase/schema";
 import { swatchHex } from "@/lib/showcase/swatches";
@@ -104,14 +105,19 @@ export default function ProjectPage({ job, related = [], preview = false }: {
             </section>
           )}
 
-          {/* 7 · What the customer said */}
-          {job.review_quote && (
+          {/* 7 · What the customer said — the quote, and the video where there is one (Tom, 5 Sep) */}
+          {(job.review_quote || job.video_url) && (
             <section className="pp-block" aria-labelledby="pp-quote">
               <h2 id="pp-quote">What the customer said</h2>
-              <blockquote className="pp-quote">
-                <p>“{job.review_quote}”</p>
-                {job.review_name && <footer className="mono">{job.review_name}</footer>}
-              </blockquote>
+              {job.video_url && (
+                <VideoEmbed url={job.video_url} caption={job.video_caption || (job.review_name ? `${job.review_name} — ${job.title}` : job.title)} posterPath={job.video_poster_path} transcript={job.video_transcript} testId="job-video" />
+              )}
+              {job.review_quote && (
+                <blockquote className="pp-quote">
+                  <p>“{job.review_quote}”</p>
+                  {job.review_name && <footer className="mono">{job.review_name}</footer>}
+                </blockquote>
+              )}
             </section>
           )}
         </div>

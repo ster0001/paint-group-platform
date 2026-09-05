@@ -7,6 +7,7 @@ import CallBar from "../../_sections/CallBar";
 import ProjectPage from "../../_components/ProjectPage";
 import { publishedShowcaseJobs, relatedShowcaseJobs, showcaseJobBySlug } from "@/lib/showcase/queries";
 import { formatPriceRange, showcaseMediaUrl } from "@/lib/showcase/format";
+import { parseVideoUrl } from "@/lib/marketing/video";
 
 /**
  * /work/[slug] — one showcase job through THE template (brief §4.4c).
@@ -60,6 +61,22 @@ export default async function WorkJobPage({ params }: { params: Promise<{ slug: 
     publisher: { "@type": "Organization", name: "Paint Group" },
   };
 
+  // VideoObject when the job carries a video (Tom, 5 Sep): name, description,
+  // thumbnail, upload date (the job's publish date), the privacy-enhanced embed
+  // URL and the transcript — so the video is indexable text as well.
+  const video = job.video_url ? parseVideoUrl(job.video_url) : null;
+  const videoLd = video ? {
+    "@context": "https://schema.org",
+    "@type": "VideoObject",
+    name: job.video_caption || `${job.title} in ${job.suburb}`,
+    description: job.review_quote || job.summary || job.scope_line,
+    thumbnailUrl: [job.video_poster_path ? showcaseMediaUrl(job.video_poster_path) : video.thumbnailUrl].filter(Boolean),
+    uploadDate: job.published_at ?? undefined,
+    embedUrl: video.embedUrl,
+    contentUrl: video.watchUrl,
+    transcript: job.video_transcript || undefined,
+  } : null;
+
   return (
     <>
       <Nav logoUrl={logoUrl} />
@@ -69,6 +86,7 @@ export default async function WorkJobPage({ params }: { params: Promise<{ slug: 
       <Footer />
       <CallBar />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      {videoLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(videoLd) }} />}
     </>
   );
 }

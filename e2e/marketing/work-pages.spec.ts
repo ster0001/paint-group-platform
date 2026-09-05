@@ -88,6 +88,7 @@ test.describe("/work pages (homepage brief §4.4c)", () => {
         gallery: [{ path: galleryPath, caption: "Living room, masked up", kind: "during" }, { path: heroPath, caption: "Finished", kind: "after" }],
         colours: [{ surface: "Walls", brand: "Dulux", product: "Wash&Wear", colour: "Natural White" }],
         review_quote: "Exactly the price we were quoted.", review_name: "Sarah · Northcote",
+        video_url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", video_caption: "Sarah, Northcote — the living room", video_transcript: "It was exactly the price we were quoted, and the photos meant we never had to wonder.", video_poster_path: heroPath,
         estimate_id: estimateId, published: true },
       { ...base, slug: slugB, title: `E2E exterior ${run}`, job_type: "exterior", property_type: "business", suburb: "Preston",
         price_low_cents: 690000, price_high_cents: 770000, scope_line: "Render + signage band", summary: "A shopfront done after hours.", published: true },
@@ -159,6 +160,17 @@ test.describe("/work pages (homepage brief §4.4c)", () => {
     await expect(page.getByRole("dialog", { name: /Photo 2 of 2/ })).toContainText("Finished");
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog", { name: /Photo \d+ of/ })).toHaveCount(0); // the consent sheet is a dialog too
+
+    // block 7 — the video: poster + play, the player only on press, transcript under it (Tom, 5 Sep)
+    const video = page.getByTestId("job-video");
+    await expect(video).toBeVisible();
+    await expect(video.getByTestId("job-video-player")).toHaveCount(0);
+    await expect(page.locator('iframe[src*="youtube"]')).toHaveCount(0);
+    await video.getByTestId("job-video-play").click();
+    await expect(video.getByTestId("job-video-player")).toHaveAttribute("src", /youtube-nocookie\.com\/embed\/dQw4w9WgXcQ/);
+    await expect(video.getByTestId("job-video-transcript")).toContainText("never had to wonder");
+    const lds = await page.locator('script[type="application/ld+json"]').allTextContents();
+    expect(lds.some((t) => t.includes('"VideoObject"') && t.includes("youtube-nocookie"))).toBe(true);
 
     // metadata + JSON-LD (Article, no offers)
     await expect(page).toHaveTitle(`E2E interior ${run} in Northcote, $8,400 – $9,600 | Paint Group`);

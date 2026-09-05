@@ -5,6 +5,7 @@ export default function PromiseSection({ variationPhotos = [] }: { variationPhot
   return (
     <section className="sec light" id="promise">
       <div className="wrap">
+        <div className="mono" style={{ color: "var(--color-tmut)", marginBottom: 12 }}>Our promise · in writing, in your portal</div>
         <h2>Four things we put in writing before we start.</h2>
         <p className="lead" style={{ marginTop: 14 }}>Tap each one to see exactly what it looks like inside your job.</p>
         <PromiseExplorer variationPhotos={variationPhotos} />

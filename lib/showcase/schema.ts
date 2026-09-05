@@ -68,6 +68,11 @@ export const showcaseJobInputSchema = z
     estimate_id: z.string().uuid().nullable().default(null),
     review_quote: z.string().trim().max(600).nullable().default(null),
     review_name: z.string().trim().max(80).nullable().default(null),
+    /** A YouTube or Vimeo link (Tom, 5 Sep) — validated as one by the action. */
+    video_url: z.string().trim().url().max(300).nullable().default(null),
+    video_caption: z.string().trim().max(160).nullable().default(null),
+    video_transcript: z.string().trim().max(20000).nullable().default(null),
+    video_poster_path: mediaPath.nullable().default(null),
     featured_rank: z.number().int().min(1).max(3).nullable().default(null),
     consent_confirmed: z.boolean().default(false),
     published: z.boolean().default(false),
@@ -107,6 +112,10 @@ export const showcaseJobRowSchema = z.object({
   estimate_id: z.string().uuid().nullable(),
   review_quote: z.string().nullable(),
   review_name: z.string().nullable(),
+  video_url: z.string().nullable().default(null),
+  video_caption: z.string().nullable().default(null),
+  video_transcript: z.string().nullable().default(null),
+  video_poster_path: z.string().nullable().default(null),
   featured_rank: z.number().int().nullable(),
   consent_confirmed: z.boolean().default(false),
   published: z.boolean(),
@@ -118,7 +127,7 @@ export type ShowcaseJob = z.infer<typeof showcaseJobRowSchema>;
 
 /** The columns any reader selects — never `*`, so tenant plumbing stays out of pages. */
 export const SHOWCASE_COLUMNS =
-  "id, slug, title, job_type, property_type, suburb, completed_on, days_on_site, price_low_cents, price_high_cents, scope_line, summary, what_we_did, colours, condition_notes, hero_path, gallery, estimate_id, review_quote, review_name, featured_rank, consent_confirmed, published, published_at, created_at, updated_at";
+  "id, slug, title, job_type, property_type, suburb, completed_on, days_on_site, price_low_cents, price_high_cents, scope_line, summary, what_we_did, colours, condition_notes, hero_path, gallery, estimate_id, review_quote, review_name, video_url, video_caption, video_transcript, video_poster_path, featured_rank, consent_confirmed, published, published_at, created_at, updated_at";
 
 /**
  * §4.4b — publish is blocked with a checklist, in plain English. Mirrors the

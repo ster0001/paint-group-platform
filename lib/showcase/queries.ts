@@ -56,6 +56,16 @@ export async function showcaseJobBySlug(slug: string): Promise<ShowcaseJob | nul
   return parsed.success ? parsed.data : null;
 }
 
+/** The homepage's featured review video: one PUBLISHED job by id (Settings → Website). */
+export async function showcaseJobById(id: string): Promise<ShowcaseJob | null> {
+  const db = publicClient();
+  if (!db) return null;
+  const { data } = await db.from("showcase_jobs").select(SHOWCASE_COLUMNS).eq("published", true).eq("id", id).maybeSingle();
+  if (!data) return null;
+  const parsed = showcaseJobRowSchema.safeParse(data);
+  return parsed.success ? parsed.data : null;
+}
+
 /** §4.4c block 9 — three other published jobs, same job type first. */
 export function relatedShowcaseJobs(all: ShowcaseJob[], current: ShowcaseJob, n = 3): ShowcaseJob[] {
   const others = all.filter((j) => j.id !== current.id);
