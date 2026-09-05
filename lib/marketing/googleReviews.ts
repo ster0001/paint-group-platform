@@ -6,8 +6,8 @@ import { GOOGLE_PLACE_ID } from "./site";
  * feed showing reviews which are added in live"). Places API (New) Place
  * Details — the same key and API the address lookup uses; the legacy API
  * is not enabled on the project. Google returns up to five reviews per
- * listing; we show the newest three that have text, with the rating and
- * total count live. Cached for an hour at the fetch layer, and the homepage
+ * listing; we show every one that has text, newest first, on a slider,
+ * with the rating and total count live. Cached for an hour at the fetch layer, and the homepage
  * is ISR, so a new review shows within about an hour. Any failure renders
  * the placeholders — never a broken section.
  *
@@ -59,7 +59,6 @@ export async function getGoogleReviews(): Promise<GoogleReviews | null> {
     const reviews = p.reviews
       .filter((r) => (r.text?.text ?? "").trim().length > 0)
       .sort((a, b) => (a.publishTime < b.publishTime ? 1 : -1))
-      .slice(0, 3)
       .map((r) => ({
         author: r.authorAttribution?.displayName || "A Google user",
         rating: r.rating,
