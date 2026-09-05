@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, type ReactNode } from "react";
 import type { Audience } from "@/lib/marketing/audience";
+import { captureTouch } from "@/lib/crm/attributionClient";
 
 /**
  * Session 8 §2 — the audience, decided per request by the proxy and handed
@@ -16,6 +17,11 @@ const AudienceContext = createContext<Ctx>({ audience: "home", wizardOrigin: "" 
 
 export function AudienceProvider({ audience, wizardOrigin = "", children }: { audience: Audience; wizardOrigin?: string; children: ReactNode }) {
   useEffect(() => { document.documentElement.dataset.audience = audience; }, [audience]);
+  // The first touch is recorded HERE, on the landing page, so an ad that
+  // lands on the homepage keeps its source when the visitor moves on to the
+  // wizard days later (same origin; across domains the hand-off URL carries
+  // the tags). Writes itself only once; never throws.
+  useEffect(() => { captureTouch(); }, []);
   return <AudienceContext.Provider value={{ audience, wizardOrigin }}>{children}</AudienceContext.Provider>;
 }
 
