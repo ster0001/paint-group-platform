@@ -14,5 +14,5 @@ test("short reviews pass through untouched; long ones are cut at a sentence and 
 test("with no sentence end in reach it cuts at a word, never mid-word", () => {
   const r = trimReview("one two three four five six seven eight nine ten eleven twelve thirteen", 40);
   expect(r.trimmed).toBe(true);
-  expect(r.text).toBe("one two three four five six seven");
+  expect(r.text).toBe("one two three four five six seven eight");
 });
