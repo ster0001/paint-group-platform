@@ -55,6 +55,10 @@ test.describe("Settings → Website", () => {
     await expect(box.getByTestId("promise-slot-0").locator("img")).toBeVisible({ timeout: 20_000 });
     await box.getByTestId("story-slot-0-upload").setInputFiles({ name: "s1.png", mimeType: "image/png", buffer: png });
     await expect(box.getByTestId("story-slot-0").locator("img")).toBeVisible({ timeout: 20_000 });
+    // Tom, 6 Sep: a testimonial video pasted straight in, no showcase job needed.
+    await box.getByTestId("testimonial-url").fill("https://youtu.be/dQw4w9WgXcQ");
+    await box.getByTestId("testimonial-caption").fill(`Sarah, Malvern East ${run}`);
+    await box.getByTestId("testimonial-transcript").fill("They turned up when they said they would.");
     await box.getByTestId("website-save").click();
     await expect(box.getByTestId("website-status")).toContainText("Saved", { timeout: 20_000 });
 
@@ -70,6 +74,11 @@ test.describe("Settings → Website", () => {
     await expect(painters.getByText(/rating|★|jobs done/i)).toHaveCount(0);
     await expect(page.locator("#promise .ph .ph-img img")).toHaveCount(1);
     await expect(page.locator("#promise .ph i")).toHaveCount(1); // the second slot still a placeholder box
+    // the pasted video: poster + play in Reviews, its caption, no player until pressed
+    const vid = page.locator("#reviews [data-testid=featured-video]");
+    await expect(vid.getByText(`Sarah, Malvern East ${run}`)).toBeVisible();
+    await expect(vid.locator("iframe")).toHaveCount(0);
+    await expect(page.locator("#reviews script[type='application/ld+json']")).toHaveCount(1);
     if (logo) await expect(page.locator("nav .brand img")).toHaveAttribute("src", /.+/);
     else await expect(page.locator("nav").getByText("PAINT GROUP")).toBeVisible();
   });

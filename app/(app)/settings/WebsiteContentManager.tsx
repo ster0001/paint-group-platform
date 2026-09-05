@@ -77,7 +77,30 @@ export default function WebsiteContentManager({ initial, videoJobs = [] }: { ini
       <section className="grid gap-3">
         <div>
           <h3 className="text-sm font-semibold text-gray-900">Featured review video</h3>
-          <p className="text-xs text-gray-500">One video on the homepage, in the reviews section, as a poster with a play button. Pick a published showcase job that has a video (add videos on each job in Showcase jobs).</p>
+          <p className="text-xs text-gray-500">One video on the homepage, in the reviews section, as a poster with a play button. Paste a testimonial video here, or pick a published showcase job that has one. The pasted video wins when both are set.</p>
+        </div>
+        <div className="grid gap-2 sm:max-w-xl" data-testid="testimonial-video">
+          <input className={input} placeholder="YouTube or Vimeo link, e.g. https://youtu.be/…" value={c.featuredVideo.url} data-testid="testimonial-url"
+            onChange={(e) => setC((x) => ({ ...x, featuredVideo: { ...x.featuredVideo, url: e.target.value } }))} />
+          <input className={input} placeholder="Caption, e.g. Sarah, Malvern East — two-storey exterior" maxLength={160} value={c.featuredVideo.caption} data-testid="testimonial-caption"
+            onChange={(e) => setC((x) => ({ ...x, featuredVideo: { ...x.featuredVideo, caption: e.target.value } }))} />
+          <textarea className={`${input} min-h-[90px]`} placeholder="Transcript (what they say — read by search engines and anyone who cannot play it)" value={c.featuredVideo.transcript} data-testid="testimonial-transcript"
+            onChange={(e) => setC((x) => ({ ...x, featuredVideo: { ...x.featuredVideo, transcript: e.target.value } }))} />
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative h-[72px] w-[128px] overflow-hidden rounded-md bg-gray-100">
+              {c.featuredVideo.posterPath && <Image src={showcaseMediaUrl(c.featuredVideo.posterPath)} alt="" fill sizes="128px" className="object-cover" />}
+            </div>
+            <label className="cursor-pointer rounded-md border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">
+              {uploading === "poster" ? "Uploading…" : c.featuredVideo.posterPath ? "Change poster" : "Poster photo (optional)"}
+              <input type="file" accept={acceptAttr("image")} className="hidden" data-testid="testimonial-poster" onChange={(e) => void upload("poster", e.target.files?.[0], (path) => setC((x) => ({ ...x, featuredVideo: { ...x.featuredVideo, posterPath: path } })))} />
+            </label>
+            {c.featuredVideo.posterPath && <button type="button" className="text-xs text-red-700 underline" onClick={() => setC((x) => ({ ...x, featuredVideo: { ...x.featuredVideo, posterPath: null } }))}>Remove poster</button>}
+            <span className="text-xs text-gray-500">No poster: the thumbnail from YouTube or Vimeo is used.</span>
+          </div>
+          {c.featuredVideo.url && <button type="button" className="w-fit text-xs text-red-700 underline" onClick={() => setC((x) => ({ ...x, featuredVideo: { url: "", caption: "", transcript: "", posterPath: null } }))}>Clear the pasted video</button>}
+        </div>
+        <div>
+          <p className="text-xs text-gray-500">Or the video on one of the showcase jobs:</p>
         </div>
         <select className={`${input} w-auto`} value={c.featuredVideoJobId ?? ""} onChange={(e) => setC((x) => ({ ...x, featuredVideoJobId: e.target.value || null }))} data-testid="featured-video">
           <option value="">No video on the homepage</option>
