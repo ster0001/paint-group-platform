@@ -22,7 +22,7 @@ export default function Trade() {
         <div>
           <div className="mono" style={{ color: "var(--color-cyan)", marginBottom: 12 }}>For agents, facilities managers and insurers</div>
           <h2>Every property. One login. No chasing.</h2>
-          <p className="lead" style={{ marginTop: 14 }}>Paste the job in plain English and get a range straight back. Approvals by link, your references printed on everything, colours kept per property, one invoice run. Built for people running twenty jobs, not one.</p>
+          <p className="lead" style={{ marginTop: 14 }}>Upload a floorplan, room measurements or photos and get a price range immediately. Approve or request variations at the click of a button, colours kept on file, one click repaint. All invoices in one place. Built for people running twenty jobs, not one.</p>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 24 }}>
             <TrackedLink href="#" ev="trade_walkthrough" data-todo="9.5" className="btn btn-cyan">Book a 15-minute walkthrough</TrackedLink>
             <TrackedLink href="#" ev="trade_account" data-todo="9.5" className="btn btn-ghost">Open a trade account</TrackedLink>

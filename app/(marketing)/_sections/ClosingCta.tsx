@@ -19,7 +19,7 @@ export default function ClosingCta() {
       <div className="wrap">
         <h2>See what it costs to paint your home or business. Now.</h2>
         <div className="cta-field"><AddressField where="bottom" onSubmit={submit} /></div>
-        <p>or call <TelLink where="bottom" className="tel">{PHONE_DISPLAY}</TelLink> — a real person, Mon–Fri 8am–5pm</p>
+        <p>or call <TelLink where="bottom" className="tel">{PHONE_DISPLAY}</TelLink>. A real person, Mon to Fri, 8am to 5pm.</p>
       </div>
     </section>
   );

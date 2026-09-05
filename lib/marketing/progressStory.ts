@@ -20,10 +20,10 @@ export const STORY_AREAS: ReadonlyArray<{ key: AreaKey; label: string }> = [
 ];
 
 export const STORY_BEATS: ReadonlyArray<{ at: number; caption: string }> = [
-  { at: 0, caption: "Monday, 7:31am — Felipe's on site." },
+  { at: 0, caption: "Monday, 7:31am. Felipe's on site." },
   { at: 2000, caption: "You get a message before the first brush touches a wall." },
-  { at: 5000, caption: "Photos from the site, every day." },
-  { at: 8000, caption: "Every area ticked off as it's finished — no guessing." },
+  { at: 5000, caption: "Photos from the site." },
+  { at: 8000, caption: "Every area ticked off as it's finished. No guessing." },
   { at: 11000, caption: "An update in plain words at the end of each day." },
   { at: 14500, caption: "Anything extra is priced and approved by you before it starts." },
   { at: 17500, caption: "Then you walk it with us, room by room." },
@@ -32,7 +32,7 @@ export const STORY_BEATS: ReadonlyArray<{ at: number; caption: string }> = [
 export const STORY_END_MS = 22000;
 export const STORY_CAPTIONS = STORY_BEATS.map((b) => b.caption);
 
-export const UPDATE_TEXT = "Living room finished and looking great. Hallway has its first coat; second coat first thing tomorrow. Back on site at 7:30.";
+export const UPDATE_TEXT = "Living room finished and looking great. Hallway has its first coat. Second coat first thing tomorrow. Back on site at 7:30.";
 const UPDATE_CHAR_MS = 22;
 export const VARIATION_PRESS_AT = 14500 + 1500;
 export const VARIATION_APPROVED_AT = 14500 + 1700;

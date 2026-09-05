@@ -25,9 +25,9 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const job = await showcaseJobBySlug(slug);
-  if (!job) return { title: "Job not found — Paint Group" };
+  if (!job) return { title: "Job not found | Paint Group" };
   const price = job.price_low_cents != null && job.price_high_cents != null ? formatPriceRange(job.price_low_cents, job.price_high_cents) : "";
-  const title = `${job.title} in ${job.suburb}${price ? ` — ${price}` : ""} | Paint Group`;
+  const title = `${job.title} in ${job.suburb}${price ? `, ${price}` : ""} | Paint Group`;
   const description = job.summary || job.scope_line || `${job.title} in ${job.suburb}, painted by Paint Group.`;
   return {
     title,

@@ -3,7 +3,7 @@ import { LIVE_STATS } from "@/lib/marketing/liveStats";
 
 /** §4.8 — pulse dot + four tiles from the config constants; each counts up on enter (CountUp). */
 export default function LiveStrip() {
-  const tiles = [LIVE_STATS.estimatesThisWeek, LIVE_STATS.jobsOnSite, LIVE_STATS.pricesHonoured, LIVE_STATS.minutesToPrice] as const;
+  const tiles = [LIVE_STATS.estimatesThisWeek, LIVE_STATS.jobsOnSite, LIVE_STATS.minutesToPrice] as const;
   return (
     <section className="sec light" id="live">
       <div className="wrap">

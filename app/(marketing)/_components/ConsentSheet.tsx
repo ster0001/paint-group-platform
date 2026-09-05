@@ -52,7 +52,7 @@ export default function ConsentSheet() {
       <div className="consent-body">
         <p id="consent-h" className="consent-t">Cookies</p>
         <p className="consent-p">
-          We use a small first-party cookie so the site works. If you allow it, we also use Microsoft Clarity to see how the page is used — click maps and anonymous recordings — so we can make it clearer. Your address is never sent to Clarity.
+          We use a small first-party cookie so the site works. If you allow it, we also use Microsoft Clarity to see how the page is used, with click maps and anonymous recordings, so we can make it clearer. Your address is never sent to Clarity.
         </p>
         <div className="consent-btns">
           <button ref={declineRef} type="button" className="btn btn-ghost" onClick={() => choose("essential")} data-testid="consent-decline">Only what&rsquo;s needed</button>
