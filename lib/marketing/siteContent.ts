@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase/service";
 import { mediaPath } from "@/lib/showcase/schema";
+import { parseVideoUrl } from "@/lib/marketing/video";
 
 /**
  * Website content Tom edits in Settings → Company → Website (5 Sep 2026):
@@ -34,10 +35,17 @@ export const websiteContentSchema = z.object({
   heroPhoto: mediaPath.nullable().default(null),
   /** The one video on the homepage (Reviews section): a published showcase job that has a video. */
   featuredVideoJobId: z.string().uuid().nullable().default(null),
+  /** Tom, 6 Sep: OR a testimonial video entered straight here (YouTube/Vimeo), no showcase job needed. Wins over the job when set. */
+  featuredVideo: z.object({
+    url: z.string().trim().max(300).refine((u) => u === "" || parseVideoUrl(u) !== null, "Paste a YouTube or Vimeo link.").default(""),
+    caption: z.string().trim().max(160).default(""),
+    transcript: z.string().trim().max(20000).default(""),
+    posterPath: mediaPath.nullable().default(null),
+  }).default({ url: "", caption: "", transcript: "", posterPath: null }),
 });
 export type WebsiteContent = z.infer<typeof websiteContentSchema>;
 
-export const EMPTY_WEBSITE_CONTENT: WebsiteContent = { painters: [], promisePhotos: [], storyPhotos: [], heroPhoto: null, featuredVideoJobId: null };
+export const EMPTY_WEBSITE_CONTENT: WebsiteContent = { painters: [], promisePhotos: [], storyPhotos: [], heroPhoto: null, featuredVideoJobId: null, featuredVideo: { url: "", caption: "", transcript: "", posterPath: null } };
 
 /** Tolerant: an older or partial row still renders; garbage renders the defaults. */
 export function parseWebsiteContent(value: unknown): WebsiteContent {

@@ -38,7 +38,7 @@ export default async function HomePage() {
         <LiveStrip />
         <Painters painters={content.painters} />
         <Trade />
-        <Reviews featuredVideoJobId={content.featuredVideoJobId} />
+        <Reviews featuredVideoJobId={content.featuredVideoJobId} featuredVideo={content.featuredVideo} />
         <Faq />
         <ClosingCta />
       </main>
