@@ -27,7 +27,7 @@ export default function Hero({ heroPhoto = null }: { heroPhoto?: string | null }
     <section className="hero" id="top">
       {heroPhoto && (
         <div className="hero-photo" aria-hidden="true" data-testid="hero-photo">
-          <Image src={showcaseMediaUrl(heroPhoto)} alt="" fill priority sizes="100vw" style={{ objectFit: "cover" }} />
+          <Image src={showcaseMediaUrl(heroPhoto)} alt="" fill priority sizes="100vw" style={{ objectFit: "cover", objectPosition: "center 40%" }} />
         </div>
       )}
       <div className="stage">

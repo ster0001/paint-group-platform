@@ -28,7 +28,11 @@ export async function deleteUserByEmail(sb: SupabaseClient, email: string) {
     const { data } = await sb.auth.admin.listUsers({ page: pageNo, perPage: 200 });
     const user = data?.users?.find((u) => (u.email ?? "").toLowerCase() === wanted);
     if (user) {
-      await sb.auth.admin.deleteUser(user.id);
+      // supabase-js returns the error rather than throwing, and a swallowed
+      // FK refusal is how 75 e2e logins piled up on the test project (5 Sep).
+      // Say so in the log; the spec's own result is not the place for it.
+      const { error } = await sb.auth.admin.deleteUser(user.id);
+      if (error) console.warn(`deleteUserByEmail(${email}): ${error.message}`);
       return;
     }
     if (!data?.users || data.users.length < 200) return;
@@ -51,7 +55,10 @@ export async function destroyAccountChain(sb: SupabaseClient, email: string) {
     await sb.from("invoices").delete().in("estimate_id", estIds);
     const { data: leads } = await sb.from("wizard_leads").select("id, user_id").in("estimate_id", estIds);
     await sb.from("wizard_leads").delete().in("estimate_id", estIds);
-    await sb.from("estimates").delete().in("id", estIds);
+    const gone = await sb.from("estimates").delete().in("id", estIds);
+    // Before migration 20270105 this failed for any estimate with a CRM event
+    // (the append-only trigger refused the FK's "set null") — silently.
+    if (gone.error) console.warn(`destroyAccountChain(${email}) estimates: ${gone.error.message}`);
     for (const lead of (leads ?? []) as Array<{ user_id: string | null }>) {
       if (lead.user_id) await sb.auth.admin.deleteUser(lead.user_id).catch(() => undefined);
     }
@@ -61,5 +68,6 @@ export async function destroyAccountChain(sb: SupabaseClient, email: string) {
   // 3a-5: warranty_issues.account_id is RESTRICT — clear them or the account
   // delete fails silently and the fixture leaks.
   await sb.from("warranty_issues").delete().eq("account_id", accountId);
-  await sb.from("accounts").delete().eq("id", accountId);
+  const acct2 = await sb.from("accounts").delete().eq("id", accountId);
+  if (acct2.error) console.warn(`destroyAccountChain(${email}) account: ${acct2.error.message}`);
 }
