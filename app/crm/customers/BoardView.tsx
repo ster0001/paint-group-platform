@@ -57,7 +57,7 @@ export default function BoardView({ input }: { input: CustomerInput[] }) {
                 {(c.chips.length > 0 || c.source) && (
                   <span className="cchips">
                     {c.chips.map((chip) => (
-                      <i key={chip} className={`cchip ${chip === "Follow-up overdue" || chip === "Worth a call now" ? "bad" : "warn"}`}>{chip}</i>
+                      <i key={chip} className={`cchip ${chip === "Follow-up overdue" || chip === "Worth a call now" || chip === "Needs help" ? "bad" : chip.startsWith("Ready") ? "" : "warn"}`}>{chip}</i>
                     ))}
                     {c.source && <i className="cchip">{c.source}</i>}
                   </span>

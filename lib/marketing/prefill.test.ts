@@ -7,7 +7,16 @@ test("a home hand-off keeps the address and leaves the property kind alone", () 
     propertyKind: null,
     scope: null,
     from: null,
+    mode: "home",
+    entrySource: "direct",
   });
+});
+
+test("the entry source rides as src, validated; a job page implies job_page:<slug> (buckets brief §2.1)", () => {
+  expect(parseEstimateIntent({ src: "homepage_hero" }).entrySource).toBe("homepage_hero");
+  expect(parseEstimateIntent({ from: "exterior-weatherboard-thornbury" }).entrySource).toBe("job_page:exterior-weatherboard-thornbury");
+  expect(parseEstimateIntent({ src: "<script>" }).entrySource).toBe("direct");
+  expect(parseEstimateIntent({}).mode).toBeNull();
 });
 
 test("business pre-selects commercial", () => {

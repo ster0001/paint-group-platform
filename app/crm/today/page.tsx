@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getWorkQueue } from "../queue";
 import { FILTER_GROUPS, GROUP_OF_KIND, type FilterGroup, type WorkItem } from "@/lib/crm/work-queue";
 import DismissControl from "./DismissControl";
+import DroppedThisWeek from "./DroppedThisWeek";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,7 @@ const KIND_TAG: Record<WorkItem["kind"], string> = {
   broadcast_incomplete: "Broadcast", consent_missing: "Consent", invoice_action: "Invoice",
   change_request: "Change",
   handoff_requested: "Live chat",
+  wizard_ready: "Ready", wizard_help: "Needs help", wizard_priced: "Priced",
 };
 
 const GROUP_ICON: Record<Exclude<FilterGroup, "all">, string> = {
@@ -126,6 +128,8 @@ export default async function TodayPage({ searchParams }: {
           {page < pages && <Link href={`/crm/today?${filter === "all" ? "" : `f=${filter}&`}page=${page + 1}`}>Older →</Link>}
         </div>
       )}
+
+      <DroppedThisWeek />
 
       {shown.length > 0 && (
         <div className="note">

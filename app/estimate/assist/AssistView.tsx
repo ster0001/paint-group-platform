@@ -103,7 +103,17 @@ export default function AssistView({ conversationId, estimateId, disclosure, ass
         <form className="as-input" onSubmit={(e) => { e.preventDefault(); if (text.trim()) send(text, null); }}>
           <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Type here…" aria-label="Message" disabled={busy} />
           <button type="submit" disabled={busy || !text.trim()}>Send</button>
-          <button type="button" className="as-person" disabled={busy} onClick={() => send("I'd like to talk to a person, please.", null)}>Talk to a person</button>
+          <button type="button" className="as-person" disabled={busy} onClick={() => {
+            // Buckets brief §3: the session's outcome becomes "question asked", with
+            // the last thing they typed attached for the human reply.
+            const lastQuestion = [...transcript].reverse().find((m) => m.role === "user")?.text ?? "";
+            void fetch("/api/wizard/outcome", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ outcome: "question_asked", note: lastQuestion.slice(0, 600) || undefined, pageLabel: "Ask a question" }),
+              keepalive: true,
+            }).catch(() => {});
+            send("I'd like to talk to a person, please.", null);
+          }}>Talk to a person</button>
         </form>
         {error && <p className="as-err" role="alert">{error}</p>}
 

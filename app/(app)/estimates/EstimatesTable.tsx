@@ -6,6 +6,9 @@ import { useRouter } from "next/navigation";
 import { deleteEstimateAction } from "./actions";
 import DeleteEstimateButton from "./DeleteEstimateButton";
 import { displayStatus } from "@/lib/estimate/displayStatus";
+import type { WizardJourney } from "@/lib/wizard/journey";
+import WizardPill from "./WizardPill";
+import JourneyDrawer from "./JourneyDrawer";
 
 /**
  * The estimates table with multi-select delete (Tom, 20 Aug 2026).
@@ -30,6 +33,8 @@ export type EstimateRow = {
   created_at: string;
   /** First customer open — a sent estimate with this set reads "viewed". */
   viewed_at?: string | null;
+  /** Buckets brief §5: the wizard session that built this estimate, when there is one. */
+  wizard?: WizardJourney | null;
 };
 
 const money = (c: number | null) =>
@@ -43,6 +48,7 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
   const [failures, setFailures] = useState<string[]>([]);
   /** Gone from the list, still being deleted on the server. */
   const [removing, setRemoving] = useState<Set<string>>(new Set());
+  const [journey, setJourney] = useState<WizardJourney | null>(null);
 
   const visible = estimates.filter((e) => !removing.has(e.id));
   const selectable = visible.filter((e) => e.status !== "accepted");
@@ -167,6 +173,7 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
               </th>
               <th className="px-4 py-2 font-medium">Title</th>
               <th className="px-4 py-2 font-medium">Status</th>
+              <th className="px-4 py-2 font-medium">Wizard status</th>
               <th className="px-4 py-2 font-medium">Date</th>
               <th className="px-4 py-2 text-right font-medium">Value</th>
               <th className="px-4 py-2 text-right font-medium"><span className="sr-only">Actions</span></th>
@@ -200,6 +207,9 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
                 >
                   {displayStatus(e)}
                 </td>
+                <td className="px-4 py-2.5">
+                  {e.wizard ? <WizardPill j={e.wizard} onOpen={() => setJourney(e.wizard!)} /> : <span className="text-xs text-gray-300">—</span>}
+                </td>
                 <td className="px-4 py-2.5 text-gray-500">
                   {new Date(e.created_at).toLocaleDateString("en-AU")}
                 </td>
@@ -226,6 +236,7 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
           </tbody>
         </table>
       </div>
+      {journey && <JourneyDrawer j={journey} onClose={() => setJourney(null)} />}
     </>
   );
 }

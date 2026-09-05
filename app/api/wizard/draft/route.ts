@@ -10,6 +10,7 @@ import { SCOPE_VERSION } from "@/lib/extract/scope";
 import { ensureAccount } from "@/lib/accounts/link";
 import { normaliseEmail, isTestEmail } from "@/lib/accounts/identity";
 import { reportError } from "@/lib/monitoring/report";
+import { bucketFor, type WizardOutcome } from "@/lib/wizard/journey";
 
 /**
  * Autosaving a part-finished wizard run (C15).
@@ -49,6 +50,10 @@ const bodySchema = z.object({
   /** Where they had got to. The honest measure of how far through they are. */
   page: z.number().int().min(1).max(12).optional(),
   lastPage: z.number().int().min(1).max(12).optional(),
+  /** Buckets brief §2.1: the hero chip and where they came from (the CRM lead source, verbatim). */
+  mode: z.enum(["home", "business"]).optional(),
+  entrySource: z.string().regex(/^[a-z_]+(:[a-z0-9-]+)?$/).max(100).optional(),
+  address: z.string().trim().max(250).optional(),
 });
 
 export async function POST(req: Request) {
@@ -138,15 +143,25 @@ export async function POST(req: Request) {
     ...(estValueCents != null ? { est_value_cents: estValueCents } : {}),
     last_seen_at: now,
     ...(parsed.data.converted ? { converted_at: now, estimate_id: parsed.data.estimateId ?? null } : {}),
+    // Buckets brief §2.1
+    ...(parsed.data.mode ? { mode: parsed.data.mode } : {}),
+    ...(parsed.data.entrySource ? { entry_source: parsed.data.entrySource } : {}),
+    ...(parsed.data.address ? { address: parsed.data.address } : {}),
+    ...(parsed.data.page ? { current_page: parsed.data.page } : {}),
+    ...(parsed.data.lastPage ? { pages_total: parsed.data.lastPage } : {}),
   };
 
   try {
     const { data: existing } = await db.from("wizard_drafts")
-      .select("id, visits").eq("user_id", user.id).is("converted_at", null).maybeSingle();
+      .select("id, visits, furthest_page, outcome").eq("user_id", user.id).is("converted_at", null).maybeSingle();
 
     if (existing) {
+      const nowDate = new Date(now);
       await db.from("wizard_drafts").update({
         ...row,
+        furthest_page: Math.max((existing.furthest_page as number) ?? 1, parsed.data.page ?? 1),
+        // Activity = online now, unless a customer action already filed it (§4: forward only on action).
+        bucket: bucketFor({ completed: Boolean(parsed.data.converted), outcome: ((existing.outcome as WizardOutcome) ?? "none"), lastActiveAt: now, now: nowDate }),
         // Coming BACK is the strongest signal there is, so it is counted
         // rather than inferred from timestamps later.
         ...(parsed.data.returning ? { visits: ((existing.visits as number) ?? 1) + 1 } : {}),
@@ -171,7 +186,7 @@ export async function POST(req: Request) {
     }
 
     const { data: inserted, error } = await db.from("wizard_drafts")
-      .insert({ ...row, started_at: now }).select("id").single();
+      .insert({ ...row, started_at: now, furthest_page: parsed.data.page ?? 1, bucket: "online_now" }).select("id").single();
     if (error) { reportError(error, { where: "wizard.draft.insert", bestEffort: true }); return quietly("insert"); }
     return NextResponse.json({ saved: true, id: inserted.id });
   } catch (e) {

@@ -21,6 +21,8 @@ export function estimateHref(
     scope?: string;
     /** The showcase slug the visitor came from. */
     from?: string;
+    /** Buckets brief §2.1: where the visitor started — `homepage_hero`, `homepage_cta`, `job_page:<slug>`; the wizard stores it as the lead source. */
+    src?: string;
   } = {},
 ): string {
   const q = new URLSearchParams();
@@ -29,5 +31,6 @@ export function estimateHref(
   q.set("mode", mode);
   if (opts.scope) q.set("scope", opts.scope);
   if (opts.from) q.set("from", opts.from);
+  if (opts.src) q.set("src", opts.src);
   return `/estimate?${q.toString()}`;
 }

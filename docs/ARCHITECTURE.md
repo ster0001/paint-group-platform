@@ -1947,3 +1947,27 @@ Framer Motion added (story and estimator only — no page-transition or scroll e
 ## Wizard + builder batch (5 Sep 2026)
 
 Ten items from Tom's live review. **Sheen per material row**: `QuoteBuilder` keeps `sheens` in builder_state keyed `${type}::${code}` (like `materialColours`); `products.finish` is only the default; the customer paint cards group by product + sheen; `WOMaterial`/`WOSurface` carry `finish` and the PC materials card shows it. The old control wrote the catalogue row and moved every estimate. **Garage door 22 L → 6 L**: `rate_items.litres_per_item_per_coat` 10 → 2.727 on the two Garage Door rows (migration 20270102), and Settings → Substrates now exposes that column and `metres_per_litre`. **Size uplift**: `sizeUpliftCents()` in `lib/pricing/estimate.ts`, two tiers from Settings rows ("Margin uplift — tier n threshold / %"), marginal on the slice above each threshold, applied inside the subtotal before discount/GST so wizard range, builder, margin and work order agree; seeded 0%. **Countable per-item lines**: `sidesView` takes `hoursPerItemCodes(rateItems)` — every "Hours Per Item" rate code (posts, strapping…) gets the −/+ stepper the server already honoured. **Eaves twice**: `addSideSurface` allows `TWICE_OK_CODES` (Eaves) a second row, relabelling upper/lower; the editor's add panel offers it. **Fence type**: `exterior.extras.fenceType` (paling / picket_hand / picket_spray) → `FENCE_CODE` picks the card row at submit (`exteriorExtrasNodes`), `applyFenceType` + route action `set_fence_type` swap it in the editor; a segmented control on wizard step 5 and chips on the extras card. **Finalise my price**: `ContactCard` (call us via Settings phone, threaded as `companyPhone`; call back; site visit with availability) → route action `request_contact` writes the prep pack, an `estimate_events` row and — the part a booking never did — a `crm_events` `callback_requested` (note prefixed `SITE VISIT —`), so it appears on CRM → Today and the account timeline; the slot strip and `book_visit` UI are gone (the action remains for the assistant). **Measured sides**: `applyExteriorAnswers` takes `MeasuredSides`; the submit route fills it from the site-plan read's edge lengths and the elevation reads' heights, so a side the envelope could not price still gets its real L/H (origin ai_extracted, not flagged) instead of the 12/14 × 2.6 constants — the root of "always the same measurement". Interior no-plan rooms remain typical by design.
+
+## Wizard progress, estimate status and CRM buckets (6 Sep 2026)
+
+Brief: `docs/briefs/wizard-progress-crm-buckets.md`. The brief's `wizard_sessions` IS
+`wizard_drafts` (one row per wizard start, keyed on the anonymous auth user — the brief's
+`session_token`); migration `20270107` adds the session columns (mode, entry_source,
+address, current/furthest page, pages_total, outcome, active_seconds, step_times,
+dropped_at, bucket). A session exists from the FIRST answer (address, suburb, or leaving
+page 1), not from the email. Leads, stages and tasks stay DERIVED (CLAUDE.md): the bucket
+rule is `lib/wizard/journey.ts bucketFor` (unit-tested over every completed × outcome ×
+idle case); the only stored classification is `wizard_drafts.bucket`, written by the
+autosave, the heartbeat, the outcome routes and the 30-minute sweep
+(`/api/cron/wizard-sweep`, 45 idle minutes → dropped / priced_no_request, ≤500 rows).
+Attention: `/api/wizard/heartbeat` every 15 s while visible + input in the last 60 s;
+12 s per-session rate limit. Outcomes: call/visit requests via the estimate's wizard-edit
+route; `/api/wizard/outcome` for "Stuck? Ask us to call you" (wizard footer) and "Talk to
+a person" (assistant). Staff: Estimates page gets a Wizard status column, a Journey drawer
+and a Wizard tab (bucket/source/mode filters); Today gets `wizard_ready` / `wizard_help` /
+`wizard_priced` work items (Melbourne business-hour due dates, `lib/time/businessHours.ts`)
+and a "Dropped this week" panel grouped by page; board cards carry the bucket pill. Entry
+source rides the hand-off as `?src=` (`homepage_hero`, `homepage_cta`, `job_page:<slug>`,
+else `direct`). Manual check: start `/estimate?src=homepage_hero`, answer two pages, wait
+20 s, leave; `curl -H "Authorization: Bearer $CRON_SECRET" /api/cron/wizard-sweep?minutes=0`;
+open Estimates → Wizard and CRM → Today. e2e: `e2e/wizard-buckets.spec.ts`.

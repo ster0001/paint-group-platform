@@ -29,13 +29,13 @@ export const metadata = {
 export default async function CustomerWizardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ property?: string; rebook?: string; address?: string; mode?: string; scope?: string; from?: string }>;
+  searchParams: Promise<{ property?: string; rebook?: string; address?: string; mode?: string; scope?: string; from?: string; src?: string }>;
 }) {
-  const { property: propertyParam, rebook: rebookParam, address: addressParam, mode: modeParam, scope: scopeParam, from: fromParam } = await searchParams;
+  const { property: propertyParam, rebook: rebookParam, address: addressParam, mode: modeParam, scope: scopeParam, from: fromParam, src: srcParam } = await searchParams;
   // Homepage hand-off (homepage brief §4.2): the typed address and the
   // home/business chip arrive on the URL. Intent only — parsed and clamped
   // by lib/marketing/prefill.ts; nothing is created and nothing fires.
-  const intent = parseEstimateIntent({ address: addressParam, mode: modeParam, scope: scopeParam, from: fromParam });
+  const intent = parseEstimateIntent({ address: addressParam, mode: modeParam, scope: scopeParam, from: fromParam, src: srcParam });
   const supabase = await createClient();
   // The Settings logo for the header (public-safe display fields only).
   const company = await getCompanyContact();

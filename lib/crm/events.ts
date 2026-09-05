@@ -35,6 +35,10 @@ export const CRM_EVENT_SCHEMAS = {
   // ---- the job's own lifecycle, written by the system it happens in -------
   wizard_started: z.object({ jobType: z.string().max(20).optional(), mode: z.enum(["customer", "internal"]).optional() }),
   wizard_abandoned: z.object({ lastStep: z.number().int().min(1).max(12), emailCaptured: z.boolean() }),
+  /** Buckets brief §3: "I'm stuck, call me" from any wizard page. */
+  wizard_help_requested: z.object({ phone: z.string().max(30).optional(), note: shortText.optional(), page: z.string().max(40).optional() }),
+  /** Buckets brief §3: "Talk to a person" in the assistant — the question text rides along for the human reply. */
+  wizard_question_asked: z.object({ phone: z.string().max(30).optional(), note: shortText.optional(), page: z.string().max(40).optional() }),
   /** Homepage v2 §5: every marketing-site event (nav_cta, see_price, faq_open …)
    *  as one type, the event name in the payload. `address` is present ONLY on
    *  see_price (the sink strips it elsewhere); `visitorId` is the first-party

@@ -29,7 +29,7 @@ export async function loadBoardInput(supabase: SupabaseClient): Promise<Customer
       supabase.from("properties").select("account_id, suburb").limit(1000),
       // C15: the open drafts — the drop-outs the enquiry lane exists for.
       supabase.from("wizard_drafts")
-        .select("account_id, progress_pct, uploaded, visits, est_value_cents, last_seen_at, converted_at")
+        .select("account_id, progress_pct, uploaded, visits, est_value_cents, last_seen_at, converted_at, bucket, job_type, furthest_page, pages_total, active_seconds, entry_source")
         .not("account_id", "is", null)
         .order("last_seen_at", { ascending: false }).limit(1000),
     ]);
@@ -58,7 +58,7 @@ export async function loadBoardInput(supabase: SupabaseClient): Promise<Customer
     evByAccount.set(e.account_id as string, list);
   }
   const suburbOf = new Map((props ?? []).map((p) => [p.account_id as string, p.suburb as string | null]));
-  const draftOf = new Map<string, { progressPct: number; uploaded: boolean; visits: number; estValueCents: number | null; lastSeenAt: string }>();
+  const draftOf = new Map<string, NonNullable<BoardInput["draft"]>>();
   for (const d of drafts ?? []) {
     if (d.converted_at != null) continue;   // finished: a customer, not a drop-out
     const acc = d.account_id as string;
@@ -69,6 +69,12 @@ export async function loadBoardInput(supabase: SupabaseClient): Promise<Customer
       visits: (d.visits as number) ?? 1,
       estValueCents: (d.est_value_cents as number | null) ?? null,
       lastSeenAt: (d.last_seen_at as string) ?? "",
+      bucket: (d.bucket as string | null) ?? null,
+      jobType: (d.job_type as string | null) ?? null,
+      furthestPage: (d.furthest_page as number | undefined) ?? undefined,
+      pagesTotal: (d.pages_total as number | undefined) ?? undefined,
+      activeSeconds: (d.active_seconds as number | undefined) ?? undefined,
+      entrySource: (d.entry_source as string | null) ?? null,
     });
   }
 
