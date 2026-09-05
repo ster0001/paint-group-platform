@@ -42,7 +42,7 @@ export default function BoardView({ input }: { input: CustomerInput[] }) {
             {lane.cards.map((c) => (
               <Link
                 key={c.accountId}
-                href={`/crm/customers/${c.accountId}`}
+                href={c.href}
                 className={`card ${c.chips.includes("Follow-up overdue") ? "warnclay" : c.needsYou ? "warnamber" : ""}`}
               >
                 <span className="cname">
@@ -73,7 +73,7 @@ export default function BoardView({ input }: { input: CustomerInput[] }) {
           </div>
         ))}
       </div>
-      <p className="swipe">Seven lanes — scroll across →</p>
+      <p className="swipe">{board.lanes.length} lanes — scroll across →</p>
     </>
   );
 }

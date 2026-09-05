@@ -12,7 +12,10 @@ import { bucketPill, journeyLine, type WizardBucket } from "@/lib/wizard/journey
 import { LANES, needsYouToday, OPEN_LANES, stageFor, type AccountFacts, type LaneKey, type StageResult } from "./stage";
 
 export type BoardInput = {
+  /** The account id — or `session:<id>` for a wizard session that has no account yet. */
   accountId: string;
+  /** Set for a session-only card (no account): the wizard_drafts id. */
+  sessionId?: string;
   name: string;
   /** "Northcote · Interior, 2 rooms" — whatever the record can say. */
   meta: string;
@@ -27,12 +30,16 @@ export type BoardInput = {
    *  signals, and the call prompt fires off them. */
   draft: { progressPct: number; uploaded: boolean; visits: number; estValueCents: number | null; lastSeenAt: string;
     /** Buckets brief §6: the session's bucket and journey, when the columns exist. */
-    bucket?: string | null; jobType?: string | null; furthestPage?: number; pagesTotal?: number; activeSeconds?: number; entrySource?: string | null } | null;
+    bucket?: string | null; jobType?: string | null; furthestPage?: number; pagesTotal?: number; activeSeconds?: number; entrySource?: string | null;
+    /** True once the session saw its price (converted) — no call prompt then; the bucket lane still applies. */
+    converted?: boolean } | null;
   facts: AccountFacts;
 };
 
 export type BoardCard = {
   accountId: string;
+  /** Where the card opens: the customer record, or the session's Journey on the Estimates page. */
+  href: string;
   name: string;
   meta: string;
   valueCents: number | null;
@@ -85,20 +92,40 @@ function chipsFor(r: StageResult, snoozedUntil: string | null, now: Date): strin
   return out;
 }
 
+/** Which board lane a wizard bucket is (Tom, 6 Sep). */
+export function laneForBucket(bucket: string | null | undefined): LaneKey | null {
+  switch (bucket) {
+    case "online_now": return "online_now";
+    case "ready_call": case "ready_visit": return "wizard_ready";
+    case "needs_help": return "wizard_help";
+    case "dropped": return "wizard_dropped";
+    case "priced_no_request": return "wizard_priced";
+    default: return null;
+  }
+}
+
 export function buildBoard(input: BoardInput[], now: Date = new Date()): Board {
   const cards: BoardCard[] = input.map((i) => {
     const r = stageFor(i.facts, now);
     // A live job outranks a sales call — nobody rings a customer mid-job to
-    // ask about an estimate they abandoned.
-    const verdict = i.draft && r.stage !== "job_on"
+    // ask about an estimate they abandoned; and a session that saw its price
+    // is no longer a drop-out to chase for answers.
+    const verdict = i.draft && !i.draft.converted && r.stage !== "job_on"
       ? draftCallVerdict(i.draft, i.draft.lastSeenAt, now)
       : null;
     const chips = chipsFor(r, i.facts.snoozedUntil, now);
     if (verdict?.call) chips.unshift("Worth a call now");
-    // Buckets brief §6: the wizard bucket, worded as the pill.
-    if (i.draft?.bucket && i.draft.bucket !== "online_now") chips.unshift(bucketPill(i.draft.bucket as WizardBucket, i.draft.jobType, i.draft.furthestPage ?? 1).label);
+    // Tom, 6 Sep: an enquiry with a wizard session sits in that session's
+    // bucket lane. Anything further along (estimate sent, visit booked, job
+    // on…) keeps its lane and wears the bucket as a chip instead.
+    const bucketLane = laneForBucket(i.draft?.bucket);
+    const stage: StageResult["stage"] = bucketLane && r.stage === "enquiry_unfinished" ? bucketLane : r.stage;
+    if (i.draft?.bucket && i.draft.bucket !== "online_now" && stage !== bucketLane) {
+      chips.unshift(bucketPill(i.draft.bucket as WizardBucket, i.draft.jobType, i.draft.furthestPage ?? 1).label);
+    }
     return {
       accountId: i.accountId,
+      href: i.sessionId ? `/estimates?status=wizard&open=${i.sessionId}` : `/crm/customers/${i.accountId}`,
       name: i.name,
       meta: i.meta,
       valueCents: i.valueCents,
@@ -116,7 +143,7 @@ export function buildBoard(input: BoardInput[], now: Date = new Date()): Board {
       callWhy: verdict?.why ?? [],
       wantsCall: verdict?.call ?? false,
       temperature: i.facts.temperature,
-      stage: r.stage,
+      stage,
       flags: r.flags,
       needsYou: needsYouToday(r) || (verdict?.call ?? false),
       chips,

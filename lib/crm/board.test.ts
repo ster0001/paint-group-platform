@@ -7,6 +7,7 @@ const daysAgo = (n: number) => new Date(NOW.getTime() - n * 86_400_000).toISOStr
 
 const person = (over: Omit<Partial<BoardInput>, "facts"> & { facts?: Partial<AccountFacts> } = {}): BoardInput => ({
   accountId: over.accountId ?? "a1",
+  ...(over.sessionId ? { sessionId: over.sessionId } : {}),
   name: over.name ?? "Sarah Mitchell",
   meta: over.meta ?? "Camberwell · Interior",
   valueCents: over.valueCents ?? 842_000,
@@ -28,14 +29,30 @@ const sentEstimate = (d: number, over: Record<string, unknown> = {}) => ({
 });
 
 describe("buildBoard", () => {
-  it("lays out the mockup's seven lanes, always, even when empty", () => {
+  it("lays out the five wizard lanes and the mockup's seven, always, even when empty (Tom, 6 Sep)", () => {
     const b = buildBoard([], NOW);
     expect(b.lanes.map((l) => l.label)).toEqual([
+      "Online now", "Ready to confirm", "Needs help", "Dropped out", "Priced, no request",
       "Enquiry unfinished", "Estimate sent", "Visit booked",
       "Visit done, no reply", "Negotiating", "Job on", "Past customers",
     ]);
     expect(b.open).toBe(0);
     expect(b.tiles.winRatePct).toBeNull();
+  });
+
+  it("an enquiry with a wizard session sits in its bucket's lane; a session with no account is a card that opens its Journey", () => {
+    const b = buildBoard([
+      person({ accountId: "acc-1", facts: { estimates: [] }, draft: { progressPct: 40, uploaded: false, visits: 1, estValueCents: null, lastSeenAt: NOW.toISOString(), bucket: "dropped", jobType: "interior", furthestPage: 3, pagesTotal: 6, activeSeconds: 540 } }),
+      person({ accountId: "session:s1", sessionId: "s1", name: "12 Elm St", facts: { estimates: [] }, draft: { progressPct: 10, uploaded: false, visits: 1, estValueCents: null, lastSeenAt: NOW.toISOString(), bucket: "online_now", jobType: "interior", furthestPage: 1, pagesTotal: 6, activeSeconds: 30 } }),
+      // Further along than an enquiry: keeps its lane, wears the bucket as a chip.
+      person({ accountId: "acc-2", facts: { estimates: [sentEstimate(1)] }, draft: { progressPct: 100, uploaded: false, visits: 1, estValueCents: 800000, lastSeenAt: NOW.toISOString(), bucket: "priced_no_request", jobType: "interior", furthestPage: 6, pagesTotal: 6, activeSeconds: 900, converted: true } }),
+    ], NOW);
+    const lane = (k: string) => b.lanes.find((l) => l.key === k)!.cards;
+    expect(lane("wizard_dropped").map((c) => c.accountId)).toEqual(["acc-1"]);
+    expect(lane("wizard_dropped")[0].because).toBe("3 of 6 · 9 min · last active just now");
+    expect(lane("online_now")[0].href).toBe("/estimates?status=wizard&open=s1");
+    expect(lane("estimate_sent")[0].chips).toContain("Priced · no request");
+    expect(lane("enquiry_unfinished")).toHaveLength(0);
   });
 
   it("counts what is open and what needs you today", () => {

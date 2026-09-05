@@ -50,6 +50,11 @@ const GROUPS = [
 type GroupKey = (typeof GROUPS)[number]["key"];
 
 const LANE_GROUP: Record<string, Exclude<GroupKey, "all" | "trade">> = {
+  online_now: "leads",
+  wizard_ready: "leads",
+  wizard_help: "leads",
+  wizard_dropped: "leads",
+  wizard_priced: "leads",
   enquiry_unfinished: "leads",
   visit_booked: "leads",
   estimate_sent: "quoted",
@@ -188,7 +193,7 @@ export default async function CustomersPage({ searchParams }: {
           {rows.map(({ input: a, quoteAt, lastActivity, because }) => {
             const quiet = daysAgo(lastActivity);
             return (
-              <Link key={a.accountId} className="prow" href={`/crm/customers/${a.accountId}`}>
+              <Link key={a.accountId} className="prow" href={a.sessionId ? `/estimates?status=wizard&open=${a.sessionId}` : `/crm/customers/${a.accountId}`}>
                 <span className="av">{initials(a.name)}</span>
                 <span className="pmain">
                   <span className="rn">
