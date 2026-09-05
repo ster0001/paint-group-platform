@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import PhotoZoom from "./PhotoZoom";
 import { track, type MarketingEventName } from "@/lib/analytics";
 import { showcaseMediaUrl } from "@/lib/showcase/format";
@@ -12,6 +12,12 @@ import { showcaseMediaUrl } from "@/lib/showcase/format";
  * (aria-live). Approving the variation flips the pill, disables the button
  * and shows the prototype's toast copy. Nothing here mentions remote or
  * absent sign-off (ruling: never advertised). Default row is 0.
+ *
+ * Layout (Tom, 5 Sep): the panel is rendered straight after the SELECTED
+ * row, so on a phone it opens under the row you tapped (an accordion) and
+ * the other rows stay within reach. On desktop the grid places the panel in
+ * the right-hand column spanning all four rows, whatever its DOM position,
+ * so the two-column look of the prototype is unchanged.
  */
 const ROWS = [
   { b: "No surprises on the invoice", s: "Extra work is priced and approved by you before it starts." },
@@ -40,11 +46,28 @@ export default function PromiseExplorer({ variationPhotos = [] }: { variationPho
   const [approved, setApproved] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const tabs = useRef<Array<HTMLButtonElement | null>>([]);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
 
+  // Phone only, and only after a TAP (never on first paint — that scrolled
+  // the whole page down to this section on load): the panel sits under the
+  // row; if its top or bottom is off-screen, nudge it into view by the
+  // nearest edge, so the row you tapped stays put.
+  const nudge = useRef(false);
+  useEffect(() => {
+    if (!nudge.current) return;
+    nudge.current = false;
+    if (typeof window === "undefined" || window.innerWidth >= 900) return;
+    const el = panelRef.current;
+    if (!el) return;
+    const t = window.setTimeout(() => el.scrollIntoView({ block: "nearest", behavior: "smooth" }), 30);
+    return () => window.clearTimeout(t);
+  }, [i]);
+
   function select(n: number, focus = false) {
+    nudge.current = true;
     setI(n);
     track(`promise_${n}` as MarketingEventName);
     if (focus) tabs.current[n]?.focus();
@@ -113,26 +136,30 @@ export default function PromiseExplorer({ variationPhotos = [] }: { variationPho
     </>,
   ];
 
+  const panel = (
+    <div ref={panelRef} className="panel" id="promise-panel" role="tabpanel" aria-labelledby={`promise-tab-${i}`} aria-live="polite" data-testid="promise-panel">
+      <span className="mono" style={{ color: "var(--color-cyan)" }}>What this looks like in your job</span>
+      <h3>{H[i]}</h3>
+      <div className="pcard">{cards[i]}</div>
+      <p className="note">{NOTE[i]}</p>
+    </div>
+  );
+
   return (
-    <div className="promise">
-      <div className="plist" role="tablist" aria-label="Our promise" aria-orientation="vertical">
-        {ROWS.map((r, n) => (
+    <div className="promise" role="tablist" aria-label="Our promise" aria-orientation="vertical">
+      {ROWS.map((r, n) => (
+        <Fragment key={r.b}>
           <button
-            key={r.b} ref={(el) => { tabs.current[n] = el; }} type="button" role="tab" id={`promise-tab-${n}`}
+            ref={(el) => { tabs.current[n] = el; }} type="button" role="tab" id={`promise-tab-${n}`}
             aria-selected={i === n} aria-controls="promise-panel" tabIndex={i === n ? 0 : -1}
-            className="prow" data-p={n} data-ev={`promise_${n}`}
+            className="prow" data-p={n} data-ev={`promise_${n}`} style={{ gridRow: n + 1 }}
             onClick={() => select(n)} onKeyDown={(e) => onKey(e, n)}
           >
             <span className="bar" /><span className="t"><b>{r.b}</b><small>{r.s}</small></span>
           </button>
-        ))}
-      </div>
-      <div className="panel" id="promise-panel" role="tabpanel" aria-labelledby={`promise-tab-${i}`} aria-live="polite">
-        <span className="mono" style={{ color: "var(--color-cyan)" }}>What this looks like in your job</span>
-        <h3>{H[i]}</h3>
-        <div className="pcard">{cards[i]}</div>
-        <p className="note">{NOTE[i]}</p>
-      </div>
+          {i === n && panel}
+        </Fragment>
+      ))}
       <div className={`toast${toast ? " on" : ""}`} role="status" aria-live="polite">{toast}</div>
     </div>
   );

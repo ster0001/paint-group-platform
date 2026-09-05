@@ -180,6 +180,12 @@ test.describe("trade org layer RLS (trade portal v2, session 1)", () => {
   });
 
   test.afterAll(async () => {
+    // Deleting an auth user checks every FK into auth.users; on the volume
+    // test project that was 13.5 s PER USER until migration 20270104 indexed
+    // the big referencing columns (287 ms after). Four users still add up,
+    // and a second CI run can share the database, so: a real budget for
+    // this hook, and the four user deletes in flight together.
+    test.setTimeout(180_000);
     const sb = db!;
     if (approvalX) await sb.from("external_approvals").delete().eq("id", approvalX);
     if (estimateX) await sb.from("estimates").delete().eq("id", estimateX);
@@ -188,7 +194,7 @@ test.describe("trade org layer RLS (trade portal v2, session 1)", () => {
     if (orgX) await sb.from("properties").delete().in("account_id", [orgX, orgY].filter(Boolean));
     if (orgX) await sb.from("account_users").delete().in("account_id", [orgX, orgY].filter(Boolean));
     for (const id of [orgX, orgY]) if (id) await sb.from("accounts").delete().eq("id", id);
-    for (const u of [admin, viewer, finance, other]) if (u.id) await sb.auth.admin.deleteUser(u.id);
+    await Promise.all([admin, viewer, finance, other].filter((u) => u.id).map((u) => sb.auth.admin.deleteUser(u.id)));
   });
 
   const needMigrations = "run migrations 20261213000000_trade_org_layer + 20261214000000_colour_records first";

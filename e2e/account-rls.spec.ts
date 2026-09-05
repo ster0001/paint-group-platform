@@ -126,13 +126,16 @@ test.describe("account chain RLS (3a-1)", () => {
   });
 
   test.afterAll(async () => {
+    // See e2e/trade-org-rls.spec.ts afterAll: user deletes are FK scans of
+    // the big tables (migration 20270104 indexed them); give the hook room.
+    test.setTimeout(180_000);
     const sb = db!;
     if (invoiceA) await sb.from("invoices").delete().eq("id", invoiceA);
     if (estimateA) await sb.from("estimates").delete().eq("id", estimateA);
     if (accountA) await sb.from("properties").delete().in("account_id", [accountA, accountB].filter(Boolean));
     if (accountA) await sb.from("account_users").delete().eq("account_id", accountA);
     for (const id of [accountA, accountB]) if (id) await sb.from("accounts").delete().eq("id", id);
-    for (const u of [userA, userB]) if (u.id) await sb.auth.admin.deleteUser(u.id);
+    await Promise.all([userA, userB].filter((u) => u.id).map((u) => sb.auth.admin.deleteUser(u.id)));
   });
 
   test("a member reads exactly their own account — and no one else's", async () => {
