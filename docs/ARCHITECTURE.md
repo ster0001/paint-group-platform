@@ -2006,3 +2006,27 @@ per host. e2e: `e2e/marketing/audiences.spec.ts` (mobile; journey 3 needs
 `COMMERCIAL_DOMAIN`). Hand-off: `see_price` on the business site carries
 `src=commercial_home_hero|_cta` and, on the commercial domain, an absolute residential
 `/estimate` URL (⚑ D2).
+
+## Help content foundation — session A1, the convention (6 Sep 2026)
+
+Brief: `docs/briefs/claude-code-brief-help-content-foundation.md` (Phase A only). Help
+content for staff, PCs, contractors and (later) customers lives as markdown at
+`docs/help/<feature>/<role>.md` — one source of truth that Phase B (assistant support-mode
+retrieval), Phase C (`/help` route) and Phase D (voiced video) will all generate from.
+Roles are `staff | pc | contractor | customer`; `pc` is a distinct role (⚑1 ruled 6 Sep) for
+PC-only screens, never alongside `staff.md` for the same content. Role scoping is by
+construction: separate files, never one file with hidden sections. `CLAUDE.md` → Process now
+carries the rule that a feature is not done until its help files exist for every role that
+can see it, written after the e2e run from the real screens, shipping in the same PR.
+
+Pieces: `docs/help/_template.md` (the brief's §6, verbatim), `docs/help/README.md` (folder
+convention, roles, front-matter spec, index rules), `scripts/help-index.ts` → `npm run
+help:index` (plain `node`, no new dependency — Node 24 strips types; keep the file free of
+enums and parameter properties). The script validates every role file (known keys only,
+role in the allowed set and matching the filename, feature matching its slug folder,
+referenced screenshots and walkthrough GIF present on disk, no stray `.md` files) and
+writes `docs/help/_index.json` (feature, role, title, summary, path, walkthrough, media,
+verified_at_commit). The index is committed; the CI `gate` job runs `help:index -- --check`,
+which fails on any validation problem or a stale index. `verified_at_commit` is read now
+and set from git in session A4. Backfill (A2 scheduling + self-invoicing, A3 work orders)
+and GIF walkthroughs (A4) follow on this branch.

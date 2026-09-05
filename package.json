@@ -10,7 +10,8 @@
     "test": "TZ=Australia/Melbourne vitest run",
     "test:watch": "TZ=Australia/Melbourne vitest",
     "test:e2e": "playwright test",
-    "seed:extraction": "tsx scripts/seed-extraction-settings.ts"
+    "seed:extraction": "tsx scripts/seed-extraction-settings.ts",
+    "help:index": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/help-index.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",

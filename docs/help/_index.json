@@ -1,0 +1,9 @@
+{
+  "roles": [
+    "staff",
+    "pc",
+    "contractor",
+    "customer"
+  ],
+  "files": []
+}

@@ -50,6 +50,13 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      # Help files are part of definition of done (CLAUDE.md). This validates
+      # every docs/help/<feature>/<role>.md front-matter, refuses a role outside
+      # staff|pc|contractor|customer, and fails if the committed _index.json
+      # (what the assistant will retrieve from) is behind the files.
+      - name: Help content index (front-matter + role check)
+        run: npm run help:index -- --check
+
       # The money paths are meant to be mutation-tested (audit P6). This is the
       # cheap standing version: break a pricing constant, prove the suite
       # notices. If this step ever PASSES, the pricing suite has stopped
