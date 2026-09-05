@@ -329,3 +329,18 @@ html:has(.mk) { scroll-behavior: smooth; }
 .mk #promise .lead { font-size: 16px; }
 .mk #story.sec { padding-top: clamp(40px, 5vw, 64px); padding-bottom: clamp(40px, 5vw, 64px); }
 .mk .caption { margin-top: 20px; min-height: 3.6em; font-size: clamp(22px, 2.2vw, 30px); }
+
+/* REVIEWS slider (Tom, 5 Sep) */
+.mk .revslider { margin-top: 40px; display: grid; gap: 16px; }
+.mk .revtrack { display: grid; grid-auto-flow: column; grid-auto-columns: calc((100% - 40px) / 3); gap: 20px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; padding-bottom: 4px; }
+.mk .revtrack::-webkit-scrollbar { display: none; }
+.mk .revtrack:focus-visible { outline: 2px solid var(--color-paint); outline-offset: 6px; border-radius: 14px; }
+.mk .revtrack .rev { scroll-snap-align: start; }
+@media (max-width: 959px) { .mk .revtrack { grid-auto-columns: calc((100% - 20px) / 2); } }
+@media (max-width: 639px) { .mk .revtrack { grid-auto-columns: 100%; } }
+.mk .revnav { display: flex; align-items: center; justify-content: center; gap: 14px; }
+.mk .revbtn { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--color-lline); background: #fff; font-size: 24px; line-height: 1; display: grid; place-items: center; color: var(--color-tink); }
+.mk .revbtn:disabled { opacity: .35; cursor: default; }
+.mk .revdots { display: flex; gap: 6px; }
+.mk .revdot { width: 7px; height: 7px; border-radius: 50%; background: var(--color-lline); }
+.mk .revdot.on { background: var(--color-tink); }

@@ -45,7 +45,7 @@ test.describe("homepage sections (brief §3, §4.3–4.13)", () => {
     await expect(page.getByRole("heading", { name: "Every property. One login. No chasing." })).toBeVisible();
     await expect(page.getByText("[Agency name] · 11 properties")).toBeVisible();
     await expect(page.getByRole("heading", { name: "What people say once the tape comes off." })).toBeVisible();
-    await expect(page.locator("#reviews .rev")).toHaveCount(3); // live Google reviews, or placeholders where the key is absent
+    expect(await page.locator("#reviews .rev").count()).toBeGreaterThanOrEqual(3); // live Google reviews on the slider, or 3 placeholders where the key is absent
     await expect(page.getByRole("heading", { name: "Questions people ask before they type their address." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "See what it costs to paint your home or business. Now." })).toBeVisible();
     // No start-date TILE in the live strip (ruled a future feature); FAQPage JSON-LD present
