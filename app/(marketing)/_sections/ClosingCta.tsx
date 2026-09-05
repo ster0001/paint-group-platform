@@ -17,7 +17,7 @@ export default function ClosingCta({ copy }: { copy: CtaCopy }) {
   const { audience, wizardOrigin } = useAudience();
   function submit(address: string, mode: Mode) {
     track("see_price", { where: "bottom", mode, address });
-    router.push(estimateHref(address, mode, { src: entrySourceFor(audience, "bottom"), origin: wizardOrigin }));
+    router.push(estimateHref(address, mode, { src: entrySourceFor(audience, "bottom"), origin: wizardOrigin, carry: window.location.search }));
   }
   return (
     <section className="sec cta" id="cta">
