@@ -8,7 +8,7 @@ import "./marketing.css";
  * with the Settings → Showcase preview); styles are scoped under `.mk`.
  */
 export const metadata: Metadata = {
-  title: "Paint Group — see what it costs to paint your home or business",
+  title: "Paint Group | See what it costs to paint your home or business",
   description:
     "Type your address and see a real painting price range in about ten minutes. Homes and businesses across Melbourne, confirmed by a person before we start.",
   // §8: the new site lives on the noindex test subdomain until the flip.

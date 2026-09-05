@@ -24,7 +24,7 @@ export default function GetPriceLike({ job, preview = false }: { job: ShowcaseJo
     <section className="pp-cta" aria-labelledby="pp-cta-h">
       <div className="wrap">
         <h2 id="pp-cta-h">A job like this in your home or business?</h2>
-        <p className="lead">Type the address and see your own range in about ten minutes — the same scope as this job, priced for your place.</p>
+        <p className="lead">Type the address and see your own range in about ten minutes, the same scope as this job, priced for your place.</p>
         <div className="pp-cta-field">
           <AddressField where="project" showChips initialMode={job.property_type} onSubmit={submit} />
         </div>

@@ -15,7 +15,7 @@ import { publishedShowcaseJobs } from "@/lib/showcase/queries";
 export const revalidate = 60;
 
 export const metadata: Metadata = {
-  title: "Real jobs, real prices — Paint Group",
+  title: "Real jobs, real prices | Paint Group",
   description: "Finished painting jobs across Melbourne with the real price of each one, inc. GST.",
 };
 

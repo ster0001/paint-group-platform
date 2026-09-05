@@ -30,9 +30,8 @@ export default function Hero() {
           </div>
           <h1>Transforming spaces.<br />Redefining painting.</h1>
           <p className="lead">
-            Type the address — a home, a shop, an office or a whole portfolio. See a real price range in about ten
-            minutes, then we confirm it with you — a quick call for smaller jobs, a visit for bigger ones. No waiting
-            a fortnight for a quote.
+            Type the address. A home, a shop, an office or a whole portfolio. See a real price range in about ten
+            minutes.
           </p>
           <AddressField where="hero" showChips ghost onSubmit={submit} />
           <div className="under">

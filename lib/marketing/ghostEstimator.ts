@@ -13,14 +13,15 @@ import type { Mode } from "./estimateLink";
  * never restarts in that session; reduced motion never starts it.
  *
  * ⚑9.1: replace EXAMPLES with real anonymised jobs when Tom supplies them.
+ * Suburbs per Tom (5 Sep): Malvern, Coburg, Beaumaris, Melbourne CBD.
  */
 export type GhostExample = { address: string; mode: Mode; price: string; time: string };
 
 export const GHOST_EXAMPLES: readonly GhostExample[] = [
-  { address: "12 Elm Street, Northcote", mode: "home", price: "$8,400 – $9,600", time: "9 min to a range" },
-  { address: "4/22 High Street, Northcote", mode: "business", price: "$3,100 – $3,600", time: "6 min · vacate paint" },
-  { address: "9 Clarke Street, Thornbury", mode: "home", price: "$14,200 – $15,800", time: "11 min · exterior" },
-  { address: "31 Separation St, Northcote", mode: "business", price: "$1,900 – $2,300", time: "5 min · touch-up" },
+  { address: "12 Elm Street, Malvern", mode: "home", price: "$8,400 – $9,600", time: "9 min to a range" },
+  { address: "4/22 Sydney Road, Coburg", mode: "business", price: "$3,100 – $3,600", time: "6 min · vacate paint" },
+  { address: "9 Clarke Street, Beaumaris", mode: "home", price: "$14,200 – $15,800", time: "11 min · exterior" },
+  { address: "Level 3, 31 Collins Street, Melbourne CBD", mode: "business", price: "$1,900 – $2,300", time: "5 min · touch-up" },
 ];
 
 export const GHOST_START_DELAY_MS = 900;

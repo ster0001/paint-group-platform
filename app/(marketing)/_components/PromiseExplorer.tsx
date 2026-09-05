@@ -88,8 +88,8 @@ export default function PromiseExplorer({ variationPhotos = [] }: { variationPho
         <div className="row"><span style={muted}>After room sizes</span><span className="mono" style={muted}>$8,000 – $10,400</span></div>
         <div className="row"><span>After doors, windows and photos</span><span className="money">$8,400 – $9,600</span></div>
       </div>
-      <span style={{ color: "var(--color-muted)", fontSize: 14 }}>4 rooms + hallway · walls, ceilings, trim · 2 coats · apartment — we can confirm this one on the phone</span>
-      <div className="btns"><button type="button" className="btn btn-cyan">Confirm my price — book a call</button></div>
+      <span style={{ color: "var(--color-muted)", fontSize: 14 }}>4 rooms + hallway · walls, ceilings, trim · 2 coats · apartment. We can confirm this one on the phone</span>
+      <div className="btns"><button type="button" className="btn btn-cyan">Confirm my price. Book a call</button></div>
     </>,
     <>
       <div className="row"><span className="mono" style={muted}>Walkthrough · Fri 5 Sep</span><span className="pill">In progress</span></div>

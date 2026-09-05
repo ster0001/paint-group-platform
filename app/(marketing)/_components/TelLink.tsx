@@ -6,14 +6,13 @@ import { PHONE_TEL } from "@/lib/marketing/site";
 
 /**
  * Every phone link on the site: one `tel:` target, one `call_tap` event
- * with where it was tapped (§5). Carries the ⚑9.10 placeholder marker
- * until the real number lands in lib/marketing/site.ts.
+ * with where it was tapped (§5). The number lives in lib/marketing/site.ts.
  */
 export default function TelLink({
   where, children, ...rest
 }: { where: string; children: ReactNode } & Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href">) {
   return (
-    <a href={PHONE_TEL} data-ev="call_tap" data-todo="9.10" onClick={() => track("call_tap", { where })} {...rest}>
+    <a href={PHONE_TEL} data-ev="call_tap" onClick={() => track("call_tap", { where })} {...rest}>
       {children}
     </a>
   );

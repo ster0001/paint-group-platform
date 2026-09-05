@@ -17,7 +17,7 @@ export function clarityLoaded(): boolean {
 export function loadClarity(): "loaded" | "already" | "unconfigured" {
   if (typeof window === "undefined") return "unconfigured";
   if (!CLARITY_ID) {
-    if (process.env.NODE_ENV !== "production") console.debug("[clarity] NEXT_PUBLIC_CLARITY_ID not set — not loading");
+    if (process.env.NODE_ENV !== "production") console.debug("[clarity] NEXT_PUBLIC_CLARITY_ID not set, not loading");
     return "unconfigured";
   }
   if (clarityLoaded()) return "already";

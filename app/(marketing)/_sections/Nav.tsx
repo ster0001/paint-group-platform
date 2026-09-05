@@ -11,7 +11,7 @@ import { PHONE_DISPLAY } from "@/lib/marketing/site";
 export default function Nav({ logoUrl = "" }: { logoUrl?: string }) {
   return (
     <nav aria-label="Main">
-      <Link href="/" className={logoUrl ? "brand" : "mono"} aria-label="Paint Group — home">
+      <Link href="/" className={logoUrl ? "brand" : "mono"} aria-label="Paint Group home">
         {logoUrl
           ? <Image src={logoUrl} alt="Paint Group" width={160} height={32} priority style={{ height: 28, width: "auto" }} />
           : "PAINT GROUP"}

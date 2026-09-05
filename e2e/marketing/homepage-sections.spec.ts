@@ -30,6 +30,8 @@ test.describe("homepage sections (brief §3, §4.3–4.13)", () => {
     for (const id of SECTION_IDS) await expect(page.locator(`#${id}`)).toHaveCount(1);
     await expect(page.getByRole("heading", { name: "Four steps. You’re in charge of every one." })).toBeVisible();
     await expect(page.getByText("Rather talk to a person first?")).toBeVisible();
+    await expect(page.locator("#how").getByText("03 8840 9414")).toBeVisible();
+    await expect(page.locator("main")).not.toContainText("—"); // Tom, 5 Sep: no em dashes anywhere on the page
     await expect(page.getByRole("heading", { name: "What Melbourne homes actually cost to paint." })).toBeVisible();
     await expect(page.getByRole("link", { name: "All jobs →" })).toHaveAttribute("href", "/work");
     await expect(page.getByRole("heading", { name: "Four things we put in writing before we start." })).toBeVisible();
@@ -37,18 +39,18 @@ test.describe("homepage sections (brief §3, §4.3–4.13)", () => {
     await expect(page.getByTestId("story-captions").getByRole("listitem")).toHaveCount(8);
     await expect(page.getByText("Live from the Paint Group platform")).toBeVisible();
     await expect(page.getByText("updated 2 min ago")).toBeVisible();
-    await expect(page.getByText("Prices honoured as signed off")).toBeVisible();
+    await expect(page.getByText("Prices honoured")).toHaveCount(0); // removed (Tom, 5 Sep)
     await expect(page.getByRole("heading", { name: "Who’ll be painting." })).toBeVisible();
     await expect(page.locator('.pc[data-todo="9.3"]')).toHaveCount(3);
     await expect(page.getByRole("heading", { name: "Every property. One login. No chasing." })).toBeVisible();
     await expect(page.getByText("[Agency name] · 11 properties")).toBeVisible();
     await expect(page.getByRole("heading", { name: "What people say once the tape comes off." })).toBeVisible();
-    await expect(page.locator('.rev[data-todo="9.6"]')).toHaveCount(3);
+    await expect(page.locator("#reviews .rev")).toHaveCount(3); // live Google reviews, or placeholders where the key is absent
     await expect(page.getByRole("heading", { name: "Questions people ask before they type their address." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "See what it costs to paint your home or business. Now." })).toBeVisible();
     // No start-date TILE in the live strip (ruled a future feature); FAQPage JSON-LD present
     await expect(page.locator("#live").getByText(/start date|next available/i)).toHaveCount(0);
-    await expect(page.locator("#live .tile")).toHaveCount(4);
+    await expect(page.locator("#live .tile")).toHaveCount(3);
     const lds = await page.locator('script[type="application/ld+json"]').allTextContents();
     expect(lds.some((t) => t.includes('"FAQPage"'))).toBe(true);
   });
@@ -80,7 +82,7 @@ test.describe("homepage sections (brief §3, §4.3–4.13)", () => {
     await tabs.nth(0).focus();
     await page.keyboard.press("ArrowDown");
     await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
-    await expect(page.getByRole("tabpanel")).toContainText("Confirm my price — book a call");
+    await expect(page.getByRole("tabpanel")).toContainText("Confirm my price. Book a call");
     await page.keyboard.press("End");
     await expect(tabs.nth(3)).toHaveAttribute("aria-selected", "true");
     await expect(page.getByRole("tabpanel")).toContainText("Public liability certificate · $20M");

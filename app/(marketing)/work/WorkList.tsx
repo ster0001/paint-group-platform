@@ -34,7 +34,7 @@ export default function WorkList({ jobs }: { jobs: ShowcaseJob[] }) {
 
       {shown.length === 0 ? (
         <p className="lead work-empty" data-todo="9.2">
-          {jobs.length === 0 ? "[The first finished jobs are being written up — check back soon.]" : "No jobs match those filters yet."}
+          {jobs.length === 0 ? "[The first finished jobs are being written up. Check back soon.]" : "No jobs match those filters yet."}
         </p>
       ) : (
         <div className="jobs" data-testid="work-grid">

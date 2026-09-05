@@ -32,7 +32,7 @@ test.describe("ghost estimator (§4.2)", () => {
     await expect(field).toHaveAttribute("placeholder", "");
     await expect(hero.getByTestId("ghost-result")).toHaveClass(/\bon\b/, { timeout: 6_000 });
     await expect(hero.getByTestId("ghost-result")).toContainText("$8,400 – $9,600");
-    await expect(field).toHaveValue("12 Elm Street, Northcote");
+    await expect(field).toHaveValue("12 Elm Street, Malvern");
     await expect(hero.getByRole("button", { name: "My home" })).toHaveAttribute("aria-pressed", "true");
     // the second example is a business — the chip follows
     await expect(hero.getByRole("button", { name: "A business or property I manage" })).toHaveAttribute("aria-pressed", "true", { timeout: 12_000 });
@@ -89,7 +89,7 @@ test.describe("ghost estimator (§4.2)", () => {
 });
 
 test.describe("progress story (§4.7) + count-up (§4.8)", () => {
-  test("plays once on entering view, completes in ~22 s, never auto-replays, Replay restarts from 0", async ({ page }) => {
+  test("starts on entering view, completes in ~22 s, then loops from the top by itself", async ({ page }) => {
     test.setTimeout(120_000);
     await captureEvents(page);
     await page.goto("/");
@@ -106,27 +106,19 @@ test.describe("progress story (§4.7) + count-up (§4.8)", () => {
     await expect(story).toHaveAttribute("data-story-state", "done", { timeout: 10_000 });
     const runtime = Date.now() - t0;
     expect(runtime).toBeGreaterThan(20_000);
-    expect(runtime).toBeLessThan(26_000); // 22 s ± the assertion polling
-    await expect(page.getByTestId("story-day")).toHaveText("Day 5 of 5");
+    expect(runtime).toBeLessThan(26_000);
     await expect(page.getByTestId("story-phone").locator('.parea[data-s="done"]')).toHaveCount(5);
-    await expect(page.getByTestId("story-replay")).toBeVisible();
+    await expect(page.getByTestId("story-replay")).toHaveCount(0); // no Replay control (Tom, 5 Sep)
 
-    // scroll away and back — no second play
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await page.waitForTimeout(500);
-    await story.scrollIntoViewIfNeeded();
-    await page.waitForTimeout(1_500);
-    await expect(story).toHaveAttribute("data-story-state", "done");
-
-    await page.getByTestId("story-replay").click();
-    await expect(story).toHaveAttribute("data-story-state", "playing");
+    // …and round it goes again, from Day 1
+    await expect(story).toHaveAttribute("data-story-state", "playing", { timeout: 6_000 });
     await expect(page.getByTestId("story-day")).toHaveText("Day 1 of 5");
     await expect(page.getByTestId("story-caption")).toContainText("Monday, 7:31am");
 
     const names = (await events(page)).map((e) => e.name);
     expect(names.filter((n) => n === "progress_story_start")).toHaveLength(1);
     expect(names.filter((n) => n === "progress_story_complete")).toHaveLength(1);
-    expect(names.filter((n) => n === "progress_story_replay")).toHaveLength(1);
+    expect(names).not.toContain("progress_story_replay");
   });
 
   test("reduced motion: the final frame with the eight captions listed", async ({ page }) => {
@@ -148,7 +140,8 @@ test.describe("progress story (§4.7) + count-up (§4.8)", () => {
     const live = page.locator("#live");
     await live.scrollIntoViewIfNeeded();
     await expect(live.locator(".big").nth(0)).toHaveText("38", { timeout: 5_000 });
-    await expect(live.locator(".big").nth(2)).toHaveText("100%");
-    await expect(live.locator(".big").nth(3)).toHaveText("9 min");
+    await expect(live.locator(".big").nth(1)).toHaveText("7");
+    await expect(live.locator(".big").nth(2)).toHaveText("9 min");
+    await expect(live.locator(".tile")).toHaveCount(3);
   });
 });

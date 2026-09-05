@@ -161,7 +161,7 @@ test.describe("/work pages (homepage brief §4.4c)", () => {
     await expect(page.getByRole("dialog", { name: /Photo \d+ of/ })).toHaveCount(0); // the consent sheet is a dialog too
 
     // metadata + JSON-LD (Article, no offers)
-    await expect(page).toHaveTitle(`E2E interior ${run} in Northcote — $8,400 – $9,600 | Paint Group`);
+    await expect(page).toHaveTitle(`E2E interior ${run} in Northcote, $8,400 – $9,600 | Paint Group`);
     const og = await page.locator('meta[property="og:image"]').getAttribute("content");
     expect(og).toContain(`showcase-media/${heroPath}`);
     const ld = JSON.parse(await page.locator('script[type="application/ld+json"]').first().textContent() ?? "{}");

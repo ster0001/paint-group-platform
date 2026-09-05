@@ -25,10 +25,10 @@ export default function Painters({ painters = [] }: { painters?: Painter[] }) {
           {cards.map((c) => <PainterCard key={c.n} {...c} />)}
         </div>
         <div className="rules">
-          <div className="rule"><i>—</i>Your expectations are documented for your painter before day one. No nasty surprises, for you or for them.</div>
-          <div className="rule"><i>—</i>The finish you&rsquo;re paying for is written on the work order, room by room.</div>
-          <div className="rule"><i>—</i>Photos from the site every day, so you never have to wonder how it&rsquo;s going.</div>
-          <div className="rule"><i>—</i>Nothing is finished until you&rsquo;ve walked it with us and said so.</div>
+          <div className="rule"><i aria-hidden="true" />Your expectations are documented for your painter before day one. No nasty surprises, for you or for them.</div>
+          <div className="rule"><i aria-hidden="true" />The finish you&rsquo;re paying for is written on the work order, room by room.</div>
+          <div className="rule"><i aria-hidden="true" />Photos from the site, so you never have to wonder how it&rsquo;s going.</div>
+          <div className="rule"><i aria-hidden="true" />Nothing is finished until you&rsquo;ve walked it with us and said so.</div>
         </div>
       </div>
     </section>

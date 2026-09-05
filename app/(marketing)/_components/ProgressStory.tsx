@@ -8,6 +8,9 @@ import {
   STORY_AREAS, STORY_BEATS, STORY_CAPTIONS, STORY_END_MS, storyFinalState, storyStateAt, type StoryState,
 } from "@/lib/marketing/progressStory";
 
+/** How long the signed-off frame holds before the story goes round again. */
+const LOOP_HOLD_MS = 1800;
+
 /**
  * §4.7 — the phone playback. ONE clock (`elapsed`, advanced by
  * requestAnimationFrame, paused while the tab is hidden) and every visual is
@@ -16,9 +19,10 @@ import {
  * Framer Motion animates the transitions between those states (banner,
  * photos, variation card, sign-off, signature path).
  *
- * Plays once when 50% in view; never auto-replays; `↻ Replay` restarts from
- * 0. Fires progress_story_start / _complete / _replay. Reduced motion: the
- * final frame with the eight captions listed. The phone is aria-hidden; the
+ * Starts when 50% in view, then keeps playing on repeat (Tom, 5 Sep: no
+ * Replay control, just loop) with a short hold on the last frame. Fires
+ * progress_story_start once, progress_story_complete at the end of every
+ * pass. Reduced motion: the final frame with the eight captions listed. The phone is aria-hidden; the
  * caption list is the accessible text and is always in the DOM.
  */
 export default function ProgressStory({ photos = [] }: { photos?: string[] }) {
@@ -57,7 +61,7 @@ export default function ProgressStory({ photos = [] }: { photos?: string[] }) {
     setFinished(false);
     setElapsed(0);
     setPlayed(true);
-    track(replay ? "progress_story_replay" : "progress_story_start");
+    if (!replay) track("progress_story_start");
     start();
   }
 
@@ -78,7 +82,10 @@ export default function ProgressStory({ photos = [] }: { photos?: string[] }) {
   useEffect(() => {
     const onVis = () => {
       if (document.hidden) pause();
-      else if (played && !finished && elapsed >= 0 && elapsed < STORY_END_MS) start();
+      else if (played && elapsed >= 0) {
+        if (elapsed < STORY_END_MS) start();
+        else { completedFired.current = false; setFinished(false); setElapsed(0); start(); }
+      }
     };
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
@@ -92,7 +99,17 @@ export default function ProgressStory({ photos = [] }: { photos?: string[] }) {
       completedFired.current = true;
       setFinished(true);
       track("progress_story_complete");
+      // Hold the signed-off frame, then go again from the top.
+      const t = window.setTimeout(() => {
+        if (document.hidden) return; // resumes via visibilitychange
+        completedFired.current = false;
+        setFinished(false);
+        setElapsed(0);
+        start();
+      }, LOOP_HOLD_MS);
+      return () => window.clearTimeout(t);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elapsed]);
 
   const s: StoryState = reduced ? storyFinalState() : storyStateAt(elapsed);
@@ -116,11 +133,6 @@ export default function ProgressStory({ photos = [] }: { photos?: string[] }) {
         <ol className={`capsr${reduced ? " shown" : ""}`} data-testid="story-captions">
           {STORY_CAPTIONS.map((c) => <li key={c}>{c}</li>)}
         </ol>
-        {!reduced && (
-          <button type="button" className={`replay mono${finished ? " on" : ""}`} onClick={() => play(true)} data-testid="story-replay" tabIndex={finished ? 0 : -1} aria-hidden={!finished}>
-            ↻ Replay
-          </button>
-        )}
       </div>
 
       <Phone s={s} reduced={Boolean(reduced)} photos={photos} />
@@ -165,7 +177,7 @@ function Phone({ s, reduced, photos }: { s: StoryState; reduced: boolean; photos
         {s.variation !== "hidden" && (
           <motion.div className="pvar" initial={reduced ? false : { y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 30, opacity: 0 }} transition={{ duration: dur(.45), ease: [.2, .8, .2, 1] }} style={{ transform: "none", opacity: 1 }}>
             <div className="row"><span className="mono" style={{ color: "var(--color-muted)" }}>Variation #2</span><span className={`pill${s.variation === "approved" ? " green" : ""}`}>{s.variation === "approved" ? "Approved" : "Waiting for you"}</span></div>
-            <b>Small patch of rot behind the fascia — replace, prime, paint to match</b>
+            <b>Small patch of rot behind the fascia. Replace, prime, paint to match</b>
             <div className="row"><span className="money">+ $486</span><span className={`pbtn${s.variation === "pressed" ? " press" : ""}${s.variation === "approved" ? " ok" : ""}`}>{s.variation === "approved" ? "Approved ✓" : "Approve $486"}</span></div>
           </motion.div>
         )}

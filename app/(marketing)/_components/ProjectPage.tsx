@@ -42,7 +42,7 @@ export default function ProjectPage({ job, related = [], preview = false }: {
           <h1>{job.title || "Untitled job"}</h1>
           <span className="mono pp-meta">{metaBits.join(" · ").toUpperCase()}</span>
           {price && <span className="pp-price">{price}</span>}
-          {price && <span className="mono pp-gst">inc. GST · the real price of this job</span>}
+          {price && <span className="mono pp-gst">inc. GST</span>}
         </div>
       </header>
 
