@@ -89,6 +89,16 @@ test.describe("wizard sessions → buckets", () => {
     await expect(dropped).toBeVisible();
     await expect(dropped.getByTestId("dropped-group").filter({ hasText: "Condition" })).toHaveCount(1);
     await expect(dropped.getByTestId("dropped-row").filter({ hasText: "Malvern" }).first()).toBeVisible();
+
+    // Tom, 6 Sep: the board carries the buckets as lanes — the session, with
+    // no account yet, is a card in "Dropped out".
+    await staffPage.goto("/crm/customers?view=board&f=leads");
+    const lane = staffPage.locator(".lane", { has: staffPage.locator(".lanename", { hasText: "Dropped out" }) });
+    await expect(lane).toBeVisible();
+    const card = lane.locator(".card", { hasText: `e2e${stamp}` });
+    await expect(card).toBeVisible();
+    await expect(card).toContainText("3 of 6");
+    await expect(card).toHaveAttribute("href", `/estimates?status=wizard&open=${after.id}`);
   });
 
   test("finish, see the price, request a call: Ready · call, and a Call item on Today", async ({ browser }) => {

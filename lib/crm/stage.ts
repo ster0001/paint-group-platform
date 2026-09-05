@@ -7,7 +7,7 @@
  * it describes — because the lane is computed from estimates, work orders,
  * invoices and events every time it is read.
  *
- * Seven lanes, matching crm-board-mockup.html exactly. `lost` is an eighth
+ * The mockup's seven lanes, plus the five wizard lanes (6 Sep). `lost` is an eighth
  * value the function can return and the mockup has no lane for: a declined
  * customer is not on the board, but the function must be able to say so rather
  * than filing them somewhere untrue. ⚑ C1 (final stage list) is still open —
@@ -15,6 +15,17 @@
  */
 
 export const LANES = [
+  // Tom, 6 Sep 2026 (buckets brief §4/§6, ⚑C1 ruled): the wizard's five
+  // buckets are lanes of their own, so who has just enquired and who has
+  // dropped out is visible on the board itself. lib/crm/board.ts files a
+  // card into one of these from its wizard session; stageFor never returns
+  // them. "Online now" is never worded "In progress" — that is a job on site.
+  { key: "online_now", label: "Online now" },
+  { key: "wizard_ready", label: "Ready to confirm" },
+  { key: "wizard_help", label: "Needs help" },
+  { key: "wizard_dropped", label: "Dropped out" },
+  { key: "wizard_priced", label: "Priced, no request" },
+  // An enquiry that never went through the wizard (an estimate the office started).
   { key: "enquiry_unfinished", label: "Enquiry unfinished" },
   { key: "estimate_sent", label: "Estimate sent" },
   { key: "visit_booked", label: "Visit booked" },

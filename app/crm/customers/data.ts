@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { BoardInput } from "@/lib/crm/board";
 import type { AccountFacts } from "@/lib/crm/stage";
+import { journeyWho } from "@/lib/wizard/journey";
 
 /**
  * One fact-load for the Customers tab, whichever shape it is wearing (§4.3):
@@ -27,12 +28,20 @@ export async function loadBoardInput(supabase: SupabaseClient): Promise<Customer
         .not("account_id", "is", null)
         .order("occurred_at", { ascending: false }).limit(2000),
       supabase.from("properties").select("account_id, suburb").limit(1000),
-      // C15: the open drafts — the drop-outs the enquiry lane exists for.
+      // C15: the drafts — the drop-outs the enquiry lane exists for. Since 6 Sep
+      // the converted ones ride too (their bucket lane: ready / priced).
       supabase.from("wizard_drafts")
         .select("account_id, progress_pct, uploaded, visits, est_value_cents, last_seen_at, converted_at, bucket, job_type, furthest_page, pages_total, active_seconds, entry_source")
         .not("account_id", "is", null)
         .order("last_seen_at", { ascending: false }).limit(1000),
     ]);
+  // Tom, 6 Sep: sessions with NO account yet (no email typed) are cards of
+  // their own — "an address is a lead". Open ones from the last 30 days.
+  const { data: anonDrafts } = await supabase.from("wizard_drafts")
+    .select("id, name, email, phone, address, suburb, job_type, mode, entry_source, bucket, outcome, outcome_note, furthest_page, pages_total, active_seconds, est_value_cents, last_seen_at, progress_pct, uploaded, visits, started_at")
+    .is("account_id", null).is("converted_at", null)
+    .gte("last_seen_at", new Date(Date.now() - 30 * 86_400_000).toISOString())
+    .order("last_seen_at", { ascending: false }).limit(500);
 
   type Est = NonNullable<typeof estimates>[number];
   const estByAccount = new Map<string, Est[]>();
@@ -60,9 +69,8 @@ export async function loadBoardInput(supabase: SupabaseClient): Promise<Customer
   const suburbOf = new Map((props ?? []).map((p) => [p.account_id as string, p.suburb as string | null]));
   const draftOf = new Map<string, NonNullable<BoardInput["draft"]>>();
   for (const d of drafts ?? []) {
-    if (d.converted_at != null) continue;   // finished: a customer, not a drop-out
     const acc = d.account_id as string;
-    if (draftOf.has(acc)) continue;         // newest open draft wins
+    if (draftOf.has(acc)) continue;         // newest draft wins
     draftOf.set(acc, {
       progressPct: (d.progress_pct as number) ?? 0,
       uploaded: d.uploaded === true,
@@ -75,10 +83,32 @@ export async function loadBoardInput(supabase: SupabaseClient): Promise<Customer
       pagesTotal: (d.pages_total as number | undefined) ?? undefined,
       activeSeconds: (d.active_seconds as number | undefined) ?? undefined,
       entrySource: (d.entry_source as string | null) ?? null,
+      converted: d.converted_at != null,
     });
   }
 
-  return (accounts ?? []).map((a) => {
+  const sessionCards: CustomerInput[] = ((anonDrafts ?? []) as Record<string, unknown>[]).map((d) => ({
+    accountId: `session:${d.id as string}`,
+    sessionId: d.id as string,
+    name: journeyWho({ name: d.name as string | null, email: d.email as string | null, address: d.address as string | null, suburb: d.suburb as string | null }),
+    meta: [(d.address as string | null) || (d.suburb as string | null), d.job_type as string | null, d.mode === "business" ? "Business" : ""].filter(Boolean).join(" · ") || "No contact yet",
+    valueCents: (d.est_value_cents as number | null) ?? null,
+    source: (d.entry_source as string | null) ?? null,
+    note: (d.outcome_note as string | null) ?? null,
+    phone: (d.phone as string | null) ?? null,
+    draft: {
+      progressPct: (d.progress_pct as number) ?? 0, uploaded: d.uploaded === true, visits: (d.visits as number) ?? 1,
+      estValueCents: (d.est_value_cents as number | null) ?? null, lastSeenAt: (d.last_seen_at as string) ?? "",
+      bucket: (d.bucket as string | null) ?? null, jobType: (d.job_type as string | null) ?? null,
+      furthestPage: (d.furthest_page as number | undefined) ?? undefined, pagesTotal: (d.pages_total as number | undefined) ?? undefined,
+      activeSeconds: (d.active_seconds as number | undefined) ?? undefined, entrySource: (d.entry_source as string | null) ?? null,
+      converted: false,
+    },
+    trade: false,
+    facts: { estimates: [], workOrders: [], events: [], temperature: null, snoozedUntil: null, followupDueAt: null },
+  }));
+
+  return [...sessionCards, ...(accounts ?? []).map((a) => {
     const est = estByAccount.get(a.id as string) ?? [];
     const evs = evByAccount.get(a.id as string) ?? [];
     const live = est.find((e) => !e.declined_at && e.status !== "declined");
@@ -109,5 +139,5 @@ export async function loadBoardInput(supabase: SupabaseClient): Promise<Customer
         followupDueAt: a.followup_due_at as string | null,
       },
     };
-  });
+  })];
 }
