@@ -18,7 +18,7 @@ import {
   policyFromSettings, serviceAreaFromSettings, settingValue,
 } from "@/lib/wizard/policy";
 import { wizardStateSchema } from "@/lib/wizard/state";
-import { defaultSidesLoop, extrasPrices, sidesView, visitReason, wallOptionsFromRates, type SidesLoopMeta, type SidesView } from "@/lib/wizard/sides";
+import { defaultSidesLoop, extrasPrices, hoursPerItemCodes, sidesView, visitReason, wallOptionsFromRates, type SidesLoopMeta, type SidesView } from "@/lib/wizard/sides";
 import { defaultInteriorLoop, interiorDwTotals, interiorProgress, roomLoopViews, type InteriorLoopMeta, type RoomLoopView } from "@/lib/wizard/rooms-loop";
 import { loopConfirmState } from "@/lib/wizard/confirm-state";
 import { estimateDocuments, type EstimateDocuments } from "@/lib/wizard/documents";
@@ -42,12 +42,12 @@ export type CustomerScopeBundle =
   | {
       kind: "sides"; estimateId: string; initial: CustomerPayload; initialSides: SidesView; initialExterior: CustomerExteriorView | null;
       initialLadder: { tier: "self_serve" | "visit"; reason: ReturnType<typeof visitReason> | null; visitSlots: string[] };
-      docs: EstimateDocuments; logoUrl: string | null;
+      docs: EstimateDocuments; logoUrl: string | null; companyPhone: string | null;
     }
   | {
       kind: "rooms"; estimateId: string; initial: CustomerPayload; initialRooms: CustomerScopeRoom[]; initialSides: SidesView | null;
       initialExterior: CustomerExteriorView | null; initialLadder: { tier: "self_serve" | "visit"; visitSlots: string[] };
-      initialInteriorLoop: InteriorLoopView | null; roomTypes: string[]; liveRange: boolean; docs: EstimateDocuments; logoUrl: string | null;
+      initialInteriorLoop: InteriorLoopView | null; roomTypes: string[]; liveRange: boolean; docs: EstimateDocuments; logoUrl: string | null; companyPhone: string | null;
     };
 
 export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRow): Promise<CustomerScopeBundle> {
@@ -97,6 +97,7 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
 
   const customer = customerPayload(payload, blocks, decision, bandsFromSettings(settingValue(ctx.settings, "wizard_bands")));
   const headerLogoUrl = ((settingValue(ctx.settings, "company_profile") ?? {}) as { logoUrl?: string }).logoUrl || null;
+  const companyPhone = ((settingValue(ctx.settings, "company_profile") ?? {}) as { phone?: string }).phone?.trim() || null;
   const roomTypes = [...new Set(rules.map((r) => r.room_type))]
     .filter((t) => !["exterior", "exterior_elevation", "unknown", "excluded", "exterior_excluded"].includes(t))
     .sort();
@@ -117,7 +118,7 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
   const interiorRooms = customerScopeRooms(blocks, rules);
   const sides = sidesView(blocks, sidesMeta, extrasPrices(ctx.rateItems),
     snap.success ? (snap.data.exterior?.storeys ?? null) : null,
-    exteriorAddOptions(ctx.rateItems), wallOptionsFromRates(ctx.rateItems));
+    exteriorAddOptions(ctx.rateItems), wallOptionsFromRates(ctx.rateItems), hoursPerItemCodes(ctx.rateItems));
   // Batch 4: an estimate with exterior blocks but NO sides structure
   // predates the rebuild — the old editor is deleted, so it gets a polite
   // restart message, never a broken surface. (Tom's ruling: archive +
@@ -135,7 +136,7 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
         reason: selfServe ? null : visitReason(sidesMeta, deferred),
         visitSlots: offeredVisitSlots(editorFlags),
       },
-      docs, logoUrl: headerLogoUrl,
+      docs, logoUrl: headerLogoUrl, companyPhone,
     };
   }
 
@@ -153,6 +154,6 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
     kind: "rooms", estimateId: id, initial: customer, initialRooms: interiorRooms, initialSides: sides,
     initialExterior: customerExteriorView(blocks),
     initialLadder: { tier: selfServe ? "self_serve" : "visit", visitSlots: offeredVisitSlots(editorFlags) },
-    initialInteriorLoop: interiorLoop, roomTypes, liveRange: editorFlags.liveRange !== false, docs, logoUrl: headerLogoUrl,
+    initialInteriorLoop: interiorLoop, roomTypes, liveRange: editorFlags.liveRange !== false, docs, logoUrl: headerLogoUrl, companyPhone,
   };
 }

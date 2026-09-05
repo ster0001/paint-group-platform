@@ -32,6 +32,8 @@ export function lookupColourEntry<T>(
 
 export type MaterialSurfaceRow = {
   product: string;
+  /** Sheen for this surface (per-row in the builder since 5 Sep 2026). */
+  finish?: string;
   /** Litres of coverage demand for this surface; 0/negative = unknown. */
   volume: number;
   photoUrl: string;
@@ -59,6 +61,7 @@ export function aggregateMaterials(
       g.vol += r.volume > 0 ? r.volume : 0;
       if (!g.photo && r.photoUrl) g.photo = r.photoUrl;
       if (!g.row.match && r.match) g.row = { ...g.row, match: r.match };
+      if (!g.row.finish && r.finish) g.row = { ...g.row, finish: r.finish };
       continue;
     }
     groups.set(key, { row: r, vol: r.volume > 0 ? r.volume : 0, photo: r.photoUrl });
@@ -67,6 +70,7 @@ export function aggregateMaterials(
     const missing = !(vol > 0); // no coverage data → never fabricate a litre figure
     return {
       product: row.product,
+      finish: row.finish || undefined,
       colourKey: key,
       photoUrl: photo,
       litres: missing ? null : opts.roundUpLitres(vol),

@@ -19,6 +19,8 @@ import { setMaterial } from "../../actions";
 export type MaterialRowProp = {
   rowKey: string;
   product: string;
+  /** Sheen, when the estimate set one per surface type (5 Sep 2026). */
+  finish?: string;
   photoUrl: string;
   colourName: string;
   colourHex: string;
@@ -170,6 +172,7 @@ export default function MaterialsCard({
                 background: r.colourHex || "transparent", flex: "0 0 auto",
               }} />
               <b>{r.product}</b>
+              {r.finish && <span className="ct" data-testid={`material-finish-${r.rowKey}`}>{r.finish}</span>}
               <em data-testid={`material-colour-${r.rowKey}`}>{r.colourName || "Colour TBC"}</em>
               <span className={`pill ${r.colourStatus === "confirmed" ? "p-em" : "p-amber"}`} data-testid={`material-status-${r.rowKey}`}>
                 {r.colourStatus === "confirmed" ? "Confirmed" : "TBC"}

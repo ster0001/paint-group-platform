@@ -106,3 +106,36 @@ test("good condition, no access, light damage — no modifier, nothing added", (
   assert.equal(m.areas.length, 0);
   assert.equal(m.deferred.length, 0);
 });
+
+
+// ---- Tom, 5 Sep 2026: read measurements beat the typical-size constants ----
+import { applyExteriorAnswers, sideKeyOfName } from "./exteriorAnswers.ts";
+
+test("a plan-read width and a photo-read height replace the 12/14 × 2.6 constants on that side only", () => {
+  const b = bundle();
+  applyExteriorAnswers(b, exteriorState(), (() => { let n = 1; return () => n++; })(), new Set(["weatherboards"]), {
+    front: { L: 9.4, H: 3.1 },
+    left: { L: 16.2 },
+  });
+  const side = (name: RegExp) => b.areas.find((a) => a.type === "Exterior" && a.areaType === "surface" && name.test(a.name))!;
+  assert.equal(side(/front/i).L, 9.4);
+  assert.equal(side(/front/i).H, 3.1);
+  assert.ok(!side(/front/i).assumedFields.includes("L") && !side(/front/i).assumedFields.includes("H"));
+  assert.equal(side(/left/i).L, 16.2);
+  assert.equal(side(/left/i).H, 2.6);                  // height still typical → still flagged
+  assert.ok(side(/left/i).assumedFields.includes("H"));
+  assert.equal(side(/right/i).L, 14);                  // nothing read → the constant, flagged
+  assert.ok(side(/right/i).assumedFields.includes("L"));
+  assert.equal(side(/rear/i).L, 12);
+});
+
+test("nothing measured → exactly the old behaviour", () => {
+  const b = bundle();
+  applyExteriorAnswers(b, exteriorState({ storeys: "double" }), (() => { let n = 1; return () => n++; })(), new Set(["weatherboards"]));
+  for (const a of b.areas.filter((a) => a.type === "Exterior" && a.areaType === "surface")) {
+    assert.equal(a.H, 5.2);
+    assert.ok(a.assumedFields.includes("L") && a.assumedFields.includes("H"));
+  }
+  assert.equal(sideKeyOfName("Exterior - Rear"), "back");
+  assert.equal(sideKeyOfName("Exterior - Extras"), null);
+});

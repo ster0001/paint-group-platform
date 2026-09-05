@@ -69,7 +69,7 @@ export default function AssistView({ conversationId, estimateId, disclosure, ass
   // photos tighten an amber prep line (D22); everything else must be answered.
   const uploadGap = gap?.writes?.[0]?.tool === "attach_document";
   const finished = ui.built && (!gap || uploadGap);
-  const cta = finished && th ? (th.outcome === "self_serve" ? "Accept estimate" : "Confirm my price — book the visit") : null;
+  const cta = finished && th ? (th.outcome === "self_serve" ? "Accept estimate" : "Finalise my price") : null;
 
   return (
     <div className="as-shell" data-pane={pane}>
@@ -146,10 +146,10 @@ export default function AssistView({ conversationId, estimateId, disclosure, ass
         {!bundle && <div className="as-empty"><p>Your estimate builds here as you answer.</p></div>}
         {bundle?.kind === "holding" && <div className="as-empty" data-testid="as-holding"><p>{bundle.line}</p></div>}
         {bundle?.kind === "sides" && (
-          <SidesEditor key={version} estimateId={bundle.estimateId} initial={bundle.initial} initialSides={bundle.initialSides} initialExterior={bundle.initialExterior} initialLadder={bundle.initialLadder} docs={bundle.docs} logoUrl={bundle.logoUrl} />
+          <SidesEditor key={version} estimateId={bundle.estimateId} initial={bundle.initial} initialSides={bundle.initialSides} initialExterior={bundle.initialExterior} initialLadder={bundle.initialLadder} docs={bundle.docs} logoUrl={bundle.logoUrl} companyPhone={bundle.companyPhone} />
         )}
         {bundle?.kind === "rooms" && (
-          <ScopeEditor key={version} estimateId={bundle.estimateId} initial={bundle.initial} initialRooms={bundle.initialRooms} initialSides={bundle.initialSides} initialExterior={bundle.initialExterior} initialLadder={bundle.initialLadder} initialInteriorLoop={bundle.initialInteriorLoop} roomTypes={bundle.roomTypes} liveRange={bundle.liveRange} docs={bundle.docs} logoUrl={bundle.logoUrl} />
+          <ScopeEditor key={version} estimateId={bundle.estimateId} initial={bundle.initial} initialRooms={bundle.initialRooms} initialSides={bundle.initialSides} initialExterior={bundle.initialExterior} initialLadder={bundle.initialLadder} initialInteriorLoop={bundle.initialInteriorLoop} roomTypes={bundle.roomTypes} liveRange={bundle.liveRange} docs={bundle.docs} logoUrl={bundle.logoUrl} companyPhone={bundle.companyPhone} />
         )}
       </section>
     </div>

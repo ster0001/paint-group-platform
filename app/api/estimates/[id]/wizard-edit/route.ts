@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { logCrmEvent } from "@/lib/crm/events";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -9,11 +10,10 @@ import { SCOPE_VERSION, type Alias, type ScopeRule } from "@/lib/extract/scope";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { applyWizardAnswers } from "@/lib/wizard/merge";
 import { wizardStateSchema } from "@/lib/wizard/state";
-import { markStarterProvenance, starterExtraction, type TypicalSizeRow } from "@/lib/wizard/starter";
+import { markStarterProvenance, starterExtraction, type TypicalSizeRow, FENCE_CODE, FENCE_TYPE_LABEL } from "@/lib/wizard/starter";
 import {
   applyCount, applyDoorScope, applyExtent, applyExteriorToggle, applyFenceLength, applyRename, applyToggle, applyWallsShare,
-  customerExteriorView, customerScopeRooms, FREESTANDING_EXTRA_KEYS, hasFreestandingExtras, offeredVisitSlots,
-} from "@/lib/wizard/scope-editor";
+  customerExteriorView, customerScopeRooms, FREESTANDING_EXTRA_KEYS, hasFreestandingExtras, offeredVisitSlots, applyFenceType } from "@/lib/wizard/scope-editor";
 import { INTERIOR_POOR_MODIFIER_CODE } from "@/lib/wizard/exteriorAnswers";
 import {
   ALLOWANCE_CODES, SWEEP_PRICED_CODES, WEATHERED_MODIFIER_CODE,
@@ -21,8 +21,7 @@ import {
   applySideInclude, applySideSizeOk, applyWallShare, applyWindowSize, confirmSide, defaultSidesLoop,
   extrasPrices, hasExtrasItem, rateFor, removeSideCustom, removeSideLine, sidesView, toggleExtrasItem, visitReason,
   wallOptionsFromRates,
-  type SidesLoopMeta,
-} from "@/lib/wizard/sides";
+  type SidesLoopMeta, hoursPerItemCodes } from "@/lib/wizard/sides";
 import {
   CUPBOARD_BY_ROOM_TYPE, addCatalogueLine, addRoomCustom, addRoomWindowGroup, applyCupboard, applyCupboardInterior,
   applyLineCount, applyRoomDims, applyRoomSizeOk, applyRoomWindowSize, confirmRoom,
@@ -100,10 +99,21 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("set_extent"), extent: z.enum(["whole", "front", "front_sides"]) }),
   /** metres sets the fence length; null = "not sure" → amber note. */
   z.object({ action: z.literal("set_fence"), metres: z.number().min(1).max(500).nullable() }),
+  /** Fence type — paling, picket brushed or picket sprayed (Tom, 5 Sep). */
+  z.object({ action: z.literal("set_fence_type"), type: z.enum(["paling", "picket_hand", "picket_spray"]) }),
   /** Customer accepted online (self-serve tier) — desk check follows. */
   z.object({ action: z.literal("accept_intent") }),
   /** Book the confirming visit; slot must be one the server offered. */
   z.object({ action: z.literal("book_visit"), slot: z.string().min(4).max(60) }),
+  /** Tom, 5 Sep 2026: finalise by a call back or a site visit at the
+   *  customer's convenience — a person schedules it, nothing is reserved. */
+  z.object({
+    action: z.literal("request_contact"),
+    how: z.enum(["callback", "visit"]),
+    window: z.enum(["am", "pm", "any"]),
+    phone: z.string().trim().min(8).max(30),
+    when: z.string().trim().max(300).default(""),
+  }),
   // ---- R2b: the exterior confirm loop, BY SIDES ---------------------------
   z.object({ action: z.literal("side_include"), side: z.enum(["front", "left", "right", "back"]), include: z.boolean() }),
   z.object({ action: z.literal("side_size_ok"), side: z.enum(["front", "left", "right", "back"]) }),
@@ -170,7 +180,7 @@ type ActionRefusal = { error: string; status: number };
  * they write events and a prep pack, so they are never swept into a batch
  * of scope edits. The client sends them alone; this is the server's half of
  * that rule. */
-const UNBATCHABLE = new Set(["accept_intent", "book_visit"]);
+const UNBATCHABLE = new Set(["accept_intent", "book_visit", "request_contact"]);
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -439,6 +449,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         .then((r) => { if (r.error) reportError(r.error, { where: "wizard.edit.flagGeometry", bestEffort: true, extra: { id } }); });
     }
 
+    if (act.action === "set_fence_type") {
+      const result = applyFenceType(blocks, FENCE_CODE[act.type], FENCE_TYPE_LABEL[act.type]);
+      if (!result.ok) return { error: result.error, status: 400 };
+      blocks = result.blocks as LooseBlock[];
+    }
+
     if (act.action === "toggle_exterior" || act.action === "set_extent" || act.action === "set_fence") {
       let next = Math.max(0, ...blocks.flatMap((b) => [
         Number(b.id) || 0, ...(b.surfaces ?? []).map((s) => Number(s.id) || 0),
@@ -467,6 +483,35 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           };
         }
       }
+    }
+
+    if (act.action === "request_contact") {
+      // The prep pack + the estimator's amber line, as for a booking …
+      const windowText = act.window === "am" ? "mornings" : act.window === "pm" ? "afternoons" : "any time";
+      const visit = act.how === "visit";
+      const note = `${visit ? "SITE VISIT — " : ""}${windowText}${act.when ? ` · ${act.when}` : ""} · ${act.phone} · via the estimate builder`;
+      (state as Record<string, unknown>).prepPack = {
+        kind: visit ? "visit_request" : "callback", slot: null, at: new Date().toISOString(),
+        window: act.window, phone: act.phone, when: act.when, removedSubstrates: [], flags: [],
+      };
+      deferred.push({
+        room: "Whole job", areaId: null, count: 1,
+        what: visit ? `site visit requested — ${windowText}${act.when ? `, ${act.when}` : ""}` : `call back requested — ${windowText}`,
+        needs: visit ? `ring ${act.phone} to book the visit, then confirm the scope on site` : `ring ${act.phone} to finalise the price`,
+      });
+      await db.from("estimate_events").insert({
+        estimate_id: id, type: visit ? "visit_requested" : "callback_requested",
+        payload: { window: act.window, phone: act.phone, when: act.when },
+      }).then((r) => { if (r.error) reportError(r.error, { where: "wizard.edit.contact", bestEffort: true }); });
+      // … and the CRM event that puts it on Today and the account timeline
+      // (a booking never wrote one, so the office was never told).
+      await logCrmEvent(db, {
+        type: "callback_requested", source: "customer",
+        accountId: (estimate as { account_id?: string | null } | null)?.account_id ?? null,
+        estimateId: id,
+        payload: { phone: act.phone, note },
+        dedupeKey: `contact:${id}:${act.how}:${act.window}:${act.phone}`,
+      });
     }
 
     if (act.action === "accept_intent" || act.action === "book_visit") {
@@ -944,7 +989,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       sides: sidesView(blocks, sidesMeta, extrasPrices(ctx.rateItems),
         (() => { const sn = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
                  return sn.success ? (sn.data.exterior?.storeys ?? null) : null; })(),
-        exteriorAddOptions(ctx.rateItems), wallOptionsFromRates(ctx.rateItems)),
+        exteriorAddOptions(ctx.rateItems), wallOptionsFromRates(ctx.rateItems), hoursPerItemCodes(ctx.rateItems)),
       // R3: the interior confirm loop — rooms joined by areaId, plus the
       // totals check and sweep state. Cupboard questions are data-driven off
       // the live rate card.

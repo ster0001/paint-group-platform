@@ -564,3 +564,15 @@
 .wz .as-switch-top { position: absolute; right: 16px; top: 14px; color: var(--muted); font-size: 13px; text-decoration: underline; z-index: 5; }
 
 .wz .wz-brief { width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-family: var(--wz-sans); font-size: 14.5px; resize: vertical; margin: 6px 0 8px; }
+
+/* Finalise my price — the contact card (Tom, 5 Sep 2026) */
+.wz .sc-contact, .wz .sd-contact { margin: 10px auto 0; max-width: var(--sd-w, 1020px); display: grid; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--graphite, #12161a); }
+.wz .sc-contact-t, .wz .sd-contact-t { margin: 0; font-size: 14px; color: var(--text); font-weight: 600; }
+.wz .sc-contact-opts, .wz .sd-contact-opts, .wz .sc-contact-row, .wz .sd-contact-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.wz .sc-contact-opt, .wz .sd-contact-opt, .wz .sc-contact-chip, .wz .sd-contact-chip { font: inherit; font-size: 13px; padding: 9px 14px; border-radius: 100px; border: 1px solid var(--line); background: none; color: var(--text); cursor: pointer; text-decoration: none; }
+.wz .sc-contact-opt b, .wz .sd-contact-opt b { font-family: var(--wz-mono); font-weight: 500; margin-left: 6px; }
+.wz .sc-contact-opt.on, .wz .sd-contact-opt.on, .wz .sc-contact-chip.on, .wz .sd-contact-chip.on { border-color: var(--cyan); color: var(--cyan); }
+.wz .sc-contact-form, .wz .sd-contact-form { display: grid; gap: 8px; }
+.wz .sc-contact-form input, .wz .sd-contact-form input { font: inherit; font-size: 14px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: none; color: var(--text); }
+.wz .sc-contact-go, .wz .sd-contact-go { font: inherit; font-size: 14px; font-weight: 600; padding: 11px 16px; border-radius: 100px; border: 0; background: var(--cyan); color: #03272d; cursor: pointer; justify-self: start; }
+.wz .sc-contact-go:disabled, .wz .sd-contact-go:disabled { opacity: .5; cursor: default; }

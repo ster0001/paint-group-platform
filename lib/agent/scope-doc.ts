@@ -199,7 +199,7 @@ export function toWizardState(draft: AnswerDraft, facts: AgentFacts, mode: "cust
       // or facade photos the tree sizes the elevations from the answers, the
       // wizard's own "no photos to hand" path.
       noPhotos: draft.exterior?.noPhotos ?? (!draft.listingUrl?.trim() && (draft.facadeRunIds?.length ?? 0) < 2),
-      extras: draft.exterior?.extras ?? { deck: false, fence: false, fenceMetres: null, pergola: false, balustrade: false },
+      extras: draft.exterior?.extras ?? { deck: false, fence: false, fenceMetres: null, fenceType: "paling", pergola: false, balustrade: false },
     } : null,
   };
   const parsed = wizardStateSchema.safeParse(candidate);

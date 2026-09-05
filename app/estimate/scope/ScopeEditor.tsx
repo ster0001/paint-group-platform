@@ -1,5 +1,6 @@
 "use client";
 
+import ContactCard from "./ContactCard";
 import { useRef, useState, useSyncExternalStore } from "react";
 import type { CustomerPayload } from "@/lib/wizard/view";
 import { assertCustomerShape } from "@/lib/wizard/contract";
@@ -77,7 +78,7 @@ const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
 const snapshotFalse = () => false;
 
-export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null }: {
+export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null }: {
   estimateId: string;
   initial: CustomerPayload;
   initialRooms: CustomerScopeRoom[];
@@ -92,6 +93,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   /** R5: the plan and photos this customer uploaded, pinned beside the loop. */
   docs?: EstimateDocuments;
   logoUrl?: string | null;
+  companyPhone?: string | null;
 }) {
   const [payload, setPayload] = useState<CustomerPayload>(initial);
   const [rooms, setRooms] = useState<CustomerScopeRoom[]>(initialRooms);
@@ -489,12 +491,12 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   const selfServe = ladder.tier === "self_serve";
   // The visit tier is an offer, never a block (mockup copy verbatim).
   const tierLine = booked
-    ? "Visit booked — your price is confirmed on the day, then fixed in writing."
+    ? `${booked} — we'll be in touch to finalise your price.`
     : accepted
       ? "Accepted — our team gives it a final desk check, then your fixed price and booking confirmation follow."
       : selfServe
         ? `At ${payload.accuracyPct}% accuracy you can accept online. We confirm details before we start.`
-        : "The final step is a short visit so we can stand behind every number.";
+        : "The final step is a quick call or a visit with one of our people, so we can stand behind every number.";
 
   return (
     <div className={ready ? undefined : "wz-waking"} data-ready={ready ? "1" : undefined}>
@@ -997,21 +999,19 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             >
               {combined != null && !combined.allDone
                 ? `Confirm ${initialSides ? "everything" : "all rooms"} to continue — ${combined.done} of ${combined.total}`
-                : selfServe ? "Accept estimate" : "Confirm my price — book the visit"}
+                : selfServe ? "Accept estimate" : "Finalise my price"}
             </button>
           )}
         </div>
+        {/* Tom, 5 Sep 2026: call us, ask for a call back, or request a site
+            visit with the customer's own availability — a person books it. */}
         {slotsOpen && !booked && (
-          <div className="sc-slots">
-            {ladder.visitSlots.map((slot) => (
-              <button key={slot} onClick={() => {
-                setSlotsOpen(false);
-                setBooked(slot);
-                act({ action: "book_visit", slot }, "book");
-                say("Booked — your estimator arrives with everything you've built here.");
-              }}>{slot.toUpperCase()}</button>
-            ))}
-          </div>
+          <ContactCard companyPhone={companyPhone} onSubmit={(req) => {
+            setSlotsOpen(false);
+            setBooked(req.how === "visit" ? "Site visit requested" : "Call back requested");
+            act({ action: "request_contact", ...req }, "book");
+            say(req.how === "visit" ? "Thanks — we'll ring you to lock in a visit time that suits." : "Thanks — we'll call you back to finalise your price.");
+          }} />
         )}
       </div>
 

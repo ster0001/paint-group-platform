@@ -1,5 +1,6 @@
 "use client";
 
+import ContactCard from "./ContactCard";
 import { useRef, useState, useSyncExternalStore } from "react";
 import type { CustomerPayload } from "@/lib/wizard/view";
 import type { CustomerExteriorView } from "@/lib/wizard/scope-editor";
@@ -59,7 +60,7 @@ function Chip({ on, label, onClick }: { on: boolean; label: string; onClick: () 
   return <button className={`sd-chip ${on ? "on" : ""}`} onClick={onClick}>{label}</button>;
 }
 
-export default function SidesEditor({ estimateId, initial, initialSides, initialExterior, initialLadder, embedded = false, onState, docs = { plan: null, photos: [] }, logoUrl = null }: {
+export default function SidesEditor({ estimateId, initial, initialSides, initialExterior, initialLadder, embedded = false, onState, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null }: {
   estimateId: string;
   initial: CustomerPayload;
   initialSides: SidesView;
@@ -69,6 +70,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
    * to the parent ScopeEditor so a stacked page shows ONE plan, not two. */
   docs?: EstimateDocuments;
   logoUrl?: string | null;
+  companyPhone?: string | null;
   /** Batch 4: Both-jobs render the sides stack INSIDE the interior editor —
    * embedded mode drops SidesEditor's own chrome (header/range/CTA) and
    * reports progress + range upward so the host owns one combined loop. */
@@ -244,13 +246,17 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
    * sub-categories. Anything already on the side — or already offered as a
    * priced catalogue chip — is left out. */
   function sideAddGroups(s: SideView): Array<[string, SidesView["addable"]]> {
-    const onCodes = new Set(s.tiles.map((t) => t.code));
+    const onCount = new Map<string, number>();
+    for (const t of s.tiles) onCount.set(t.code, (onCount.get(t.code) ?? 0) + 1);
     const priced = new Set(sides.catalog.map((c) => c.code));
     const groups = new Map<string, SidesView["addable"]>();
     for (const o of sides.addable ?? []) {
-      if (onCodes.has(o.key) || priced.has(o.key)) continue;
+      const on = onCount.get(o.key) ?? 0;
+      // Eaves may go on twice — upper and lower on a double storey (Tom, 5 Sep).
+      const secondOk = o.key === "Eaves" && on === 1;
+      if ((on > 0 && !secondOk) || priced.has(o.key)) continue;
       if (!groups.has(o.group)) groups.set(o.group, []);
-      groups.get(o.group)!.push(o);
+      groups.get(o.group)!.push(secondOk ? { ...o, label: `${o.label} (second row, upper)` } : o);
     }
     return [...groups.entries()];
   }
@@ -707,6 +713,14 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                   <Chip on={sel("extras:none", m.extrasAns === "none")} label={"Nothing else ✓"} onClick={() => act({ action: "loop_extras_none" }, { opt: ["extras:none", "1"] })} />
                 </div>
                 {extrasTiles.some((t) => t.key === "fence" && t.on) && (
+                  <div className="sd-chips" style={{ marginTop: 9 }} data-testid="fence-type">
+                    {([["paling", "Paling Fence", "Paling"], ["picket_hand", "Picket Fence (Hand Paint)", "Picket (brushed)"], ["picket_spray", "Picket Fence (Spray)", "Picket (sprayed)"]] as const).map(([type, code, label]) => (
+                      <Chip key={type} on={(exterior?.fenceCode ?? "Paling Fence") === code} label={label}
+                        onClick={() => act({ action: "set_fence_type", type }, { done: `${label} fence — repriced.` })} />
+                    ))}
+                  </div>
+                )}
+                {extrasTiles.some((t) => t.key === "fence" && t.on) && (
                   <div className="sd-mrow" style={{ display: "flex", marginTop: 9 }}>
                     <input placeholder="fence metres — or 'not sure'" value={fenceText} onChange={(e) => setFenceText(e.target.value)} />
                     <button
@@ -817,8 +831,8 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
               exterior job on the visit tier, so there is no self-serve branch
               here to fall through to. */}
           {booked
-            ? "Visit booked — your price is confirmed on the day, then fixed in writing."
-            : `${VISIT_REASON_LINE[ladder.reason ?? "signoff"]}we'll visit to confirm before your price is fixed — the calendar's right here once everything's blue.`}
+            ? `${booked} — we'll be in touch to finalise your price.`
+            : `${VISIT_REASON_LINE[ladder.reason ?? "signoff"]}a person finalises your price with you — call us, ask for a call back, or request a visit once everything's blue.`}
         </div>
         <div className="sd-row">
           <div className="sd-pr"><small>ESTIMATE · INCL. GST</small><span data-role="range">{range}</span></div>
@@ -828,23 +842,17 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
             disabled={!allDone || booked != null}
             onClick={() => setSlotsOpen((v) => !v)}
           >
-            {booked ? `Visit booked · ${booked}`
+            {booked ? booked
               : !allDone ? "Confirm all sides to continue"
-              : "Confirm my price — book the visit"}
+              : "Finalise my price"}
           </button>
         </div>
-        {slotsOpen && (
-          <div className="sd-slots">
-            {ladder.visitSlots.map((slot) => (
-              <button key={slot} onClick={() => {
-                act({ action: "book_visit", slot }, { done: "Booked — your estimator arrives with everything you've confirmed, side by side." });
-                setBooked(slot);
-                setSlotsOpen(false);
-              }}>
-                {slot}
-              </button>
-            ))}
-          </div>
+        {slotsOpen && booked == null && (
+          <ContactCard prefix="sd" companyPhone={companyPhone} onSubmit={(req) => {
+            act({ action: "request_contact", ...req }, { done: req.how === "visit" ? "Thanks — we'll ring you to lock in a visit time that suits." : "Thanks — we'll call you back to finalise your price." });
+            setBooked(req.how === "visit" ? "Site visit requested" : "Call back requested");
+            setSlotsOpen(false);
+          }} />
         )}
       </div>
       )}

@@ -435,6 +435,8 @@ export type CustomerExteriorView = {
   /** Read-only geometry chips ("Not right? Tell us" flags the job). */
   storeys: number;
   fenceLengthM: number | null;
+  /** The fence line's rate code (Paling Fence / Picket Fence (Hand Paint) / (Spray)) — null when no fence. */
+  fenceCode: string | null;
 };
 
 const EXT_GROUPS: Array<{ group: ExteriorGroup["group"]; label: string; keys: string[] }> = [
@@ -517,7 +519,10 @@ export function customerExteriorView(blocks: LooseBlock[]): CustomerExteriorView
   const storeys = new Set(blocks.filter((b) => b.kind === "area" && b.type !== "Exterior")
     .map((b) => String(b.storey ?? "ground"))).size;
 
-  return { groups, extent, storeys: Math.max(1, storeys), fenceLengthM };
+  const fenceCode = ext.flatMap((b) => b.surfaces ?? []).map((s) => String(s.code ?? ""))
+    .find((c) => substrateKeyForRateCode(c) === "fence") ?? null;
+
+  return { groups, extent, storeys: Math.max(1, storeys), fenceLengthM, fenceCode };
 }
 
 /** Exterior on/off applies across EVERY elevation at once — gutters off means
@@ -582,6 +587,25 @@ export function applyExtent(blocks: LooseBlock[], extent: ExteriorExtent): Scope
   });
   if (!touched) return { ok: false, error: "This estimate has no exterior." };
   return { ok: true, blocks: out };
+}
+
+/** Fence type (Tom, 5 Sep 2026): swap the fence line's rate code — paling,
+ * picket brushed or picket sprayed — keeping its metres. */
+export function applyFenceType(blocks: LooseBlock[], code: string, label: string): ScopeToggleResult {
+  const out = [...blocks];
+  for (let i = 0; i < out.length; i++) {
+    const b = out[i];
+    if (!isExtArea(b)) continue;
+    const surfaces = [...(b.surfaces ?? [])];
+    for (let j = 0; j < surfaces.length; j++) {
+      if (substrateKeyForRateCode(String(surfaces[j].code ?? "")) === "fence") {
+        surfaces[j] = { ...surfaces[j], code, internalLabel: label };
+        out[i] = { ...b, surfaces };
+        return { ok: true, blocks: out };
+      }
+    }
+  }
+  return { ok: false, error: "Turn the fence on first." };
 }
 
 /** The fence takes metres (a scope quantity the brief explicitly grants) —

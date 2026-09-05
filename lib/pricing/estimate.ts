@@ -135,6 +135,8 @@ export type LineResult = { priceCents: number; hours: number; costCents: number 
 export type EstimateTotals = {
   subtotalCents: number;
   sundriesCents: number;
+  /** Extra margin on bigger jobs (Settings "Margin uplift — tier …"); 0 until set. */
+  sizeUpliftCents: number;
   discountCents: number;
   netSubtotalCents: number;
   gstCents: number;
@@ -184,7 +186,32 @@ export function resolveRates(ctx: PricingContext, adj: Adjustments) {
     // Settings as superseded).
     windowSmall: sNum("Window size — small") ?? 0.8,
     windowLarge: sNum("Window size — large") ?? 1.2,
+    // Size uplift (Tom, 5 Sep 2026): extra margin on bigger jobs. Two tiers,
+    // each a % applied to the SLICE of the ex-GST subtotal above its
+    // threshold — marginal, so a job never gets cheaper by getting bigger.
+    // Defaults 0% until the Settings rows carry a figure.
+    sizeUplifts: [
+      { overCents: Math.round((sNum("Margin uplift — tier 1 threshold") ?? 10000) * 100), pct: sNum("Margin uplift — tier 1 %") ?? 0 },
+      { overCents: Math.round((sNum("Margin uplift — tier 2 threshold") ?? 20000) * 100), pct: sNum("Margin uplift — tier 2 %") ?? 0 },
+    ] as SizeUplift[],
   };
+}
+
+export type SizeUplift = { overCents: number; pct: number };
+
+/**
+ * The size uplift on an ex-GST subtotal: for each tier, `pct` of whatever
+ * sits above `overCents`. Tiers stack (the part above $20k carries both), so
+ * the price is continuous across each threshold.
+ */
+export function sizeUpliftCents(subtotalCents: number, tiers: readonly SizeUplift[]): number {
+  let cents = 0;
+  for (const t of tiers) {
+    if (!(t.pct > 0) || !(t.overCents >= 0)) continue;
+    const slice = subtotalCents - t.overCents;
+    if (slice > 0) cents += (slice * t.pct) / 100;
+  }
+  return Math.round(cents);
 }
 
 /** True for rate items the S/M/L control applies to. */
@@ -422,6 +449,11 @@ export function priceEstimateTotals(
   const sundriesCents = (anyInt ? rates.sundriesIntCents : 0) + (anyExt ? rates.sundriesExtCents : 0);
   subtotal += sundriesCents;
 
+  // Size uplift — before discount and GST, inside the subtotal, so the
+  // wizard range, the builder, the margin report and the work order agree.
+  const sizeUplift = sizeUpliftCents(subtotal, rates.sizeUplifts);
+  subtotal += sizeUplift;
+
   // Discount comes off the ex-GST subtotal (and out of margin) — a percentage
   // or a flat amount, capped so it can never exceed the subtotal.
   const discountCents =
@@ -442,6 +474,7 @@ export function priceEstimateTotals(
   return {
     subtotalCents: subtotal,
     sundriesCents,
+    sizeUpliftCents: sizeUplift,
     discountCents,
     netSubtotalCents,
     gstCents,

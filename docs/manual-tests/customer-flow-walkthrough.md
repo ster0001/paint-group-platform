@@ -40,7 +40,7 @@ that's R1.1, and it's why testing as yourself is finally trustworthy).
    **doors & windows totals check** ("We make it N doors and M windows…"),
    then the **sweep** — the FIRST chip must be **Hallway**.
 6. All blue: header flips to **ESTIMATE CONFIRMED ✓**, the CTA enables.
-   At ≤65% accuracy it must read **"Confirm my price — book the visit"** —
+   At ≤65% accuracy it must read **"Finalise my price"** (call us / call back / site visit with the customer's availability) —
    tap it, pick a slot, see "Visit booked".
 
 ## Path B — exterior, ~90 seconds
