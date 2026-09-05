@@ -1,4 +1,5 @@
 import PainterCard from "../_components/PainterCard";
+import Md from "../_components/Md";
 import type { Painter } from "@/lib/marketing/siteContent";
 
 /**
@@ -9,7 +10,9 @@ import type { Painter } from "@/lib/marketing/siteContent";
  */
 const PLACEHOLDERS = [1, 2, 3].map((n) => ({ n, name: `[Painter ${n}]`, meta: "[Specialty] · with Paint Group since [YYYY]", quote: "[One line in their own words]", photoPath: null as string | null, placeholder: true }));
 
-export default function Painters({ painters = [] }: { painters?: Painter[] }) {
+export type PaintersCopy = { h2: string; lead: string; rules: string[] };
+
+export default function Painters({ painters = [], copy }: { painters?: Painter[]; copy: PaintersCopy }) {
   const cards = painters.length
     ? painters.map((p, i) => ({
         n: i + 1, name: p.name, photoPath: p.photoPath, quote: p.quote, placeholder: false,
@@ -19,16 +22,13 @@ export default function Painters({ painters = [] }: { painters?: Painter[] }) {
   return (
     <section className="sec light warm" id="painters">
       <div className="wrap">
-        <h2>Who&rsquo;ll be painting.</h2>
-        <p className="lead" style={{ marginTop: 14 }}>Our trusted network of painters. Every one is quality-checked, fully insured, and the kind of person you&rsquo;ll be comfortable having in your home or on your premises. You&rsquo;ll know who&rsquo;s coming before the date is locked in.</p>
+        <h2>{copy.h2}</h2>
+        <p className="lead" style={{ marginTop: 14 }}><Md src={copy.lead} inline /></p>
         <div className="painters">
           {cards.map((c) => <PainterCard key={c.n} {...c} />)}
         </div>
         <div className="rules">
-          <div className="rule"><i aria-hidden="true" />Your expectations are documented for your painter before day one. No nasty surprises, for you or for them.</div>
-          <div className="rule"><i aria-hidden="true" />The finish you&rsquo;re paying for is written on the work order, room by room.</div>
-          <div className="rule"><i aria-hidden="true" />Photos from the site, so you never have to wonder how it&rsquo;s going.</div>
-          <div className="rule"><i aria-hidden="true" />Nothing is finished until you&rsquo;ve walked it with us and said so.</div>
+          {copy.rules.map((r, i) => <div className="rule" key={i}><i aria-hidden="true" />{r}</div>)}
         </div>
       </div>
     </section>

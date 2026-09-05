@@ -64,20 +64,22 @@ export type GhostState = {
 };
 
 export const ghostInitial: GhostState = { status: "waiting", index: 0, text: "", mode: "home", result: null };
+/** Session 8: the business site's estimator starts on its own chip. */
+export const ghostInitialFor = (mode: Mode): GhostState => ({ ...ghostInitial, mode });
 
-export function applyGhostStep(state: GhostState, step: GhostStep): GhostState {
+export function applyGhostStep(state: GhostState, step: GhostStep, exampleCount = GHOST_EXAMPLES.length): GhostState {
   if (state.status === "stopped") return state;
   switch (step.kind) {
     case "type": return { ...state, status: "typing", text: step.text, mode: step.mode, result: null };
     case "result": return { ...state, status: "result", result: step.example };
     case "fade": return { ...state, status: "fading" };
-    case "clear": return { ...state, status: "waiting", text: "", result: null, index: (state.index + 1) % GHOST_EXAMPLES.length };
+    case "clear": return { ...state, status: "waiting", text: "", result: null, index: (state.index + 1) % Math.max(1, exampleCount) };
   }
 }
 
-/** The visitor touched it: empty field, no result, chips back to "My home", never restarts. */
-export function stopGhost(state: GhostState): GhostState {
-  return { ...state, status: "stopped", text: "", result: null, mode: "home" };
+/** The visitor touched it: empty field, no result, chips back to the site's own default, never restarts. */
+export function stopGhost(state: GhostState, restMode: Mode = "home"): GhostState {
+  return { ...state, status: "stopped", text: "", result: null, mode: restMode };
 }
 
 /** Time from mount to the first visible character / the first result, for the ACs (worst case). */

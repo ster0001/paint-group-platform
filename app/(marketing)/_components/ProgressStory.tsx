@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { track } from "@/lib/analytics";
 import { showcaseMediaUrl } from "@/lib/showcase/format";
 import {
-  STORY_AREAS, STORY_BEATS, STORY_CAPTIONS, STORY_END_MS, storyFinalState, storyStateAt, type StoryState,
+  STORY_AREAS, STORY_END_MS, storyBeats, storyFinalState, storyStateAt, type StoryBeat, type StoryState,
 } from "@/lib/marketing/progressStory";
 
 /** How long the signed-off frame holds before the story goes round again. */
@@ -25,8 +25,11 @@ const LOOP_HOLD_MS = 1800;
  * pass. Reduced motion: the final frame with the eight captions listed. The phone is aria-hidden; the
  * caption list is the accessible text and is always in the DOM.
  */
-export default function ProgressStory({ photos = [] }: { photos?: string[] }) {
+export type StoryCopy = { kicker: string; h2: string; lead: string; phoneAddress: string; phoneMeta: string; signedLine: string; captions: string[]; businessBeat: string | null };
+
+export default function ProgressStory({ photos = [], copy }: { photos?: string[]; copy: StoryCopy }) {
   const reduced = useReducedMotion();
+  const beats: StoryBeat[] = storyBeats(copy.captions, copy.businessBeat);
   const [elapsed, setElapsed] = useState(-1); // -1 = not started
   const [played, setPlayed] = useState(false);
   const [finished, setFinished] = useState(false);
@@ -112,17 +115,17 @@ export default function ProgressStory({ photos = [] }: { photos?: string[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elapsed]);
 
-  const s: StoryState = reduced ? storyFinalState() : storyStateAt(elapsed);
-  const caption = s.captionIndex >= 0 ? STORY_BEATS[s.captionIndex].caption : "";
+  const s: StoryState = reduced ? storyFinalState(beats) : storyStateAt(elapsed, beats);
+  const caption = s.captionIndex >= 0 ? beats[s.captionIndex]?.caption ?? "" : "";
 
   return (
     <div ref={root} className="wrap storywrap" data-testid="story" data-story-state={reduced ? "reduced" : finished ? "done" : played ? "playing" : "idle"}>
       <div className="storycopy">
-        <div className="mono" style={{ color: "var(--color-tmut)", marginBottom: 12 }}>Your portal · one job, start to finish · demo data</div>
-        <h2>Watch it happen from wherever you are.</h2>
-        <p className="lead" style={{ marginTop: 14 }}>This is what five days looks like from your phone.</p>
+        <div className="mono" style={{ color: "var(--color-tmut)", marginBottom: 12 }}>{copy.kicker}</div>
+        <h2>{copy.h2}</h2>
+        <p className="lead" style={{ marginTop: 14 }}>{copy.lead}</p>
         <ol className={`capsr${reduced ? " shown" : ""}`} data-testid="story-captions">
-          {STORY_CAPTIONS.map((c) => <li key={c}>{c}</li>)}
+          {beats.map((b) => <li key={b.at}>{b.caption}</li>)}
         </ol>
       </div>
 
@@ -138,12 +141,12 @@ export default function ProgressStory({ photos = [] }: { photos?: string[] }) {
         </div>
       )}
 
-      <Phone s={s} reduced={Boolean(reduced)} photos={photos} />
+      <Phone s={s} reduced={Boolean(reduced)} photos={photos} copy={copy} />
     </div>
   );
 }
 
-function Phone({ s, reduced, photos }: { s: StoryState; reduced: boolean; photos: string[] }) {
+function Phone({ s, reduced, photos, copy }: { s: StoryState; reduced: boolean; photos: string[]; copy: StoryCopy }) {
   const dur = (d: number) => (reduced ? 0 : d);
   return (
     <div className="device" aria-hidden="true" data-testid="story-phone" data-day={s.day}>
@@ -152,7 +155,7 @@ function Phone({ s, reduced, photos }: { s: StoryState; reduced: boolean; photos
         {s.banner && <><b>{s.banner.bold}</b> {s.banner.text}</>}
       </motion.div>
       <div className="ptop">
-        <div><b>12 Elm Street, Northcote</b><div className="mono" style={{ color: "var(--color-muted)" }}>Interior · 4 rooms + hallway · $9,180 inc. GST</div></div>
+        <div><b>{copy.phoneAddress}</b><div className="mono" style={{ color: "var(--color-muted)" }}>{copy.phoneMeta}</div></div>
         <span className="pill green" data-testid="story-day">Day {s.day} of 5</span>
       </div>
       <div className="ptrack"><motion.i animate={{ width: `${s.progress}%` }} transition={{ duration: dur(.9), ease: [.2, .8, .2, 1] }} initial={false} style={{ display: "block", height: "100%", background: "var(--color-cyan)" }} /></div>
@@ -188,7 +191,7 @@ function Phone({ s, reduced, photos }: { s: StoryState; reduced: boolean; photos
       <AnimatePresence>
         {s.signed && (
           <motion.div className="psign" initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: dur(.5) }} style={{ opacity: 1 }}>
-            <div className="mono" style={{ color: "var(--color-emerald)" }}>Signed off · 12 Elm Street</div>
+            <div className="mono" style={{ color: "var(--color-emerald)" }}>{copy.signedLine}</div>
             <svg viewBox="0 0 260 70" className="sig">
               <motion.path d="M8 48 C 30 10, 48 62, 70 30 S 110 60, 130 28 S 170 10, 190 44 S 230 60, 252 22" fill="none" stroke="#EDF0F2" strokeWidth="2.5" strokeLinecap="round"
                 initial={reduced ? false : { pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: dur(1.6), ease: "easeInOut" }} style={{ strokeDasharray: "none", strokeDashoffset: 0 }} />

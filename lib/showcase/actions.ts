@@ -90,6 +90,19 @@ export async function saveShowcaseJobAction(raw: unknown): Promise<SaveShowcaseR
       }
     }
 
+    // Session 8 ⚑ D4: the business site's rank. One holder per rank, like the
+    // homepage rank; the previous holder simply loses it (no second prompt).
+    if (input.featured_rank_business != null) {
+      let q = db.from("showcase_jobs").select("id").eq("featured_rank_business", input.featured_rank_business);
+      if (existing) q = q.neq("id", existing.id);
+      const { data: holders, error } = await q.limit(3);
+      if (error) throw error;
+      for (const h of holders ?? []) {
+        const { error: clearErr } = await db.from("showcase_jobs").update({ featured_rank_business: null }).eq("id", h.id as string);
+        if (clearErr) throw clearErr;
+      }
+    }
+
     // ---- write -------------------------------------------------------------
     const { id: _id, displace_featured: _d, slug: _s, ...fields } = input;
     void _id; void _d; void _s;

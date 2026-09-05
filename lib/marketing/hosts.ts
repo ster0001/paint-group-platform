@@ -1,3 +1,4 @@
+import { commercialDomain } from "./audience";
 /**
  * Which hosts serve the marketing homepage at `/` (Tom, 5 Sep 2026: the
  * platform address paint-group-platform.vercel.app must keep its login page
@@ -15,7 +16,11 @@ export function marketingHosts(env = process.env.MARKETING_HOSTS): string[] {
 }
 
 /** `host` as the browser sent it, with or without a port. */
-export function isMarketingHost(host: string | null | undefined, env?: string): boolean {
+export function isMarketingHost(host: string | null | undefined, env?: string, commercial: string | null = commercialDomain()): boolean {
   const bare = (host ?? "").toLowerCase().split(":")[0];
+  // Session 8: the commercial domain is a marketing host too, and so is any
+  // *.localhost name (the e2e drives the business site as business.localhost).
+  if (commercial && (bare === commercial || bare === `www.${commercial}`)) return true;
+  if (bare.endsWith(".localhost")) return true;
   return marketingHosts(env).includes(bare);
 }

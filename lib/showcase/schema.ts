@@ -74,6 +74,8 @@ export const showcaseJobInputSchema = z
     video_transcript: z.string().trim().max(20000).nullable().default(null),
     video_poster_path: mediaPath.nullable().default(null),
     featured_rank: z.number().int().min(1).max(3).nullable().default(null),
+    /** Session 8 ⚑ D4: the business site's three cards, a rank per audience. */
+    featured_rank_business: z.number().int().min(1).max(3).nullable().default(null),
     consent_confirmed: z.boolean().default(false),
     published: z.boolean().default(false),
     /** Editor: "yes, take rank N off the job that has it" (§4.4b). */
@@ -117,6 +119,7 @@ export const showcaseJobRowSchema = z.object({
   video_transcript: z.string().nullable().default(null),
   video_poster_path: z.string().nullable().default(null),
   featured_rank: z.number().int().nullable(),
+  featured_rank_business: z.number().int().nullable().default(null),
   consent_confirmed: z.boolean().default(false),
   published: z.boolean(),
   published_at: z.string().nullable().default(null),
@@ -127,7 +130,7 @@ export type ShowcaseJob = z.infer<typeof showcaseJobRowSchema>;
 
 /** The columns any reader selects — never `*`, so tenant plumbing stays out of pages. */
 export const SHOWCASE_COLUMNS =
-  "id, slug, title, job_type, property_type, suburb, completed_on, days_on_site, price_low_cents, price_high_cents, scope_line, summary, what_we_did, colours, condition_notes, hero_path, gallery, estimate_id, review_quote, review_name, video_url, video_caption, video_transcript, video_poster_path, featured_rank, consent_confirmed, published, published_at, created_at, updated_at";
+  "id, slug, title, job_type, property_type, suburb, completed_on, days_on_site, price_low_cents, price_high_cents, scope_line, summary, what_we_did, colours, condition_notes, hero_path, gallery, estimate_id, review_quote, review_name, video_url, video_caption, video_transcript, video_poster_path, featured_rank, featured_rank_business, consent_confirmed, published, published_at, created_at, updated_at";
 
 /**
  * §4.4b — publish is blocked with a checklist, in plain English. Mirrors the
@@ -169,4 +172,5 @@ const FIELD_LABEL: Record<string, string> = {
   scope_line: "Scope line", summary: "Summary", what_we_did: "What we did", colours: "Colours", condition_notes: "Condition notes",
   hero_path: "Hero photo", gallery: "Gallery", estimate_id: "Linked estimate", review_quote: "Customer line", review_name: "Customer name",
   featured_rank: "Featured rank",
+  featured_rank_business: "Featured rank (business site)",
 };

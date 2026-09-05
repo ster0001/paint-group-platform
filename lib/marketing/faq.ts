@@ -1,8 +1,9 @@
+import { mdToText } from "./md";
 /**
- * The eight FAQ entries (brief §4.12) — verbatim from the prototype; they
- * have been through the pricing/sign-off rulings, so change them there
- * first. One source array feeds both the <details> list and the FAQPage
- * JSON-LD.
+ * The eight FAQ entries (brief §4.12). Since session 8 the pages read them
+ * from site_content (lib/marketing/copy holds the same text as the
+ * defaults); this array remains the home fallback and the JSON-LD source
+ * shape.
  */
 export const FAQS: ReadonlyArray<{ q: string; a: string }> = [
   { q: "What happens after I type my address?",
@@ -23,13 +24,15 @@ export const FAQS: ReadonlyArray<{ q: string; a: string }> = [
     a: "Our workmanship, for two years from sign-off. If the finish fails because of how it was applied, we come back and fix it. The warranty and our $20M public liability certificate sit in your portal." },
 ];
 
-export function faqJsonLd() {
+export type FaqEntry = { q: string; a: string };
+
+export function faqJsonLd(entries: ReadonlyArray<FaqEntry> = FAQS) {
   return {
     "@context": "https://schema.org",
     "@type": "FAQPage",
-    mainEntity: FAQS.map((f) => ({
+    mainEntity: entries.map((f) => ({
       "@type": "Question", name: f.q,
-      acceptedAnswer: { "@type": "Answer", text: f.a },
+      acceptedAnswer: { "@type": "Answer", text: mdToText(f.a) },
     })),
   };
 }

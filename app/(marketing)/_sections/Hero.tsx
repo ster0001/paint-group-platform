@@ -2,7 +2,11 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import AddressField from "../_components/AddressField";
+import AddressField, { type FieldLabels } from "../_components/AddressField";
+import Md from "../_components/Md";
+import { useAudience } from "../_components/Audience";
+import { entrySourceFor } from "@/lib/marketing/audience";
+import type { GhostExample } from "@/lib/marketing/ghostEstimator";
 import TelLink from "../_components/TelLink";
 import { track } from "@/lib/analytics";
 import { estimateHref, type Mode } from "@/lib/marketing/estimateLink";
@@ -15,12 +19,15 @@ import { showcaseMediaUrl } from "@/lib/showcase/format";
  * {where, mode} and routes to the wizard with both on the URL.
  * The self-typing estimator plays inside AddressField (`ghost`).
  */
-export default function Hero({ heroPhoto = null }: { heroPhoto?: string | null }) {
+export type HeroCopy = { kicker: string; h1Lines: string[]; lead: string; talkLine: string; labels: FieldLabels; examples: GhostExample[] };
+
+export default function Hero({ heroPhoto = null, copy }: { heroPhoto?: string | null; copy: HeroCopy }) {
   const router = useRouter();
+  const { audience, wizardOrigin } = useAudience();
 
   function submit(address: string, mode: Mode) {
     track("see_price", { where: "hero", mode, address });
-    router.push(estimateHref(address, mode, { src: "homepage_hero" }));
+    router.push(estimateHref(address, mode, { src: entrySourceFor(audience, "hero"), origin: wizardOrigin }));
   }
 
   return (
@@ -32,18 +39,13 @@ export default function Hero({ heroPhoto = null }: { heroPhoto?: string | null }
       )}
       <div className="stage">
         <div className="block">
-          <div className="mono" style={{ color: "var(--color-muted)" }}>
-            Melbourne · homes and businesses · see your price today · confirmed by a person before we start
-          </div>
-          <h1>Transforming spaces.<br />Redefining painting.</h1>
-          <p className="lead">
-            Type the address. A home, a shop, an office or a whole portfolio. See a real price range in about ten
-            minutes.
-          </p>
-          <AddressField where="hero" showChips ghost onSubmit={submit} />
+          <div className="mono" style={{ color: "var(--color-muted)" }}>{copy.kicker}</div>
+          <h1>{copy.h1Lines.map((line, i) => <span key={i}>{i > 0 && <br />}{line}</span>)}</h1>
+          <p className="lead"><Md src={copy.lead} inline /></p>
+          <AddressField where="hero" showChips ghost examples={copy.examples} labels={copy.labels} onSubmit={submit} />
           <div className="under">
             <span>
-              Rather talk to a person? <strong><TelLink where="hero">Call {PHONE_DISPLAY}</TelLink></strong>
+              {copy.talkLine} <strong><TelLink where="hero">Call {PHONE_DISPLAY}</TelLink></strong>
             </span>
           </div>
         </div>

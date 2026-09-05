@@ -420,3 +420,9 @@ html:has(.mk) { scroll-behavior: smooth; }
 .mk .rev-video { margin-top: 32px; }
 .mk .rev-video-link { margin: 0; font-size: 15px; }
 .mk .rev-video + [data-testid="reviews"] .revslider { margin-top: 28px; }
+
+/* Session 8: on the business site the trade lane sits straight after the
+   jobs, full width — the table runs the whole row under the copy. */
+.mk .trade-promoted .trade { grid-template-columns: 1fr; }
+.mk .trade-promoted .tbl { order: 2; max-width: none; }
+.mk nav .links .other { color: var(--color-cyan); }

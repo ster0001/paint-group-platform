@@ -23,6 +23,8 @@ export function estimateHref(
     from?: string;
     /** Buckets brief §2.1: where the visitor started — `homepage_hero`, `homepage_cta`, `job_page:<slug>`; the wizard stores it as the lead source. */
     src?: string;
+    /** Session 8 ⚑ D2: the residential origin, when the business site runs on its own domain and must hand off across. */
+    origin?: string;
   } = {},
 ): string {
   const q = new URLSearchParams();
@@ -32,5 +34,5 @@ export function estimateHref(
   if (opts.scope) q.set("scope", opts.scope);
   if (opts.from) q.set("from", opts.from);
   if (opts.src) q.set("src", opts.src);
-  return `/estimate?${q.toString()}`;
+  return `${(opts.origin ?? "").replace(/\/$/, "")}/estimate?${q.toString()}`;
 }

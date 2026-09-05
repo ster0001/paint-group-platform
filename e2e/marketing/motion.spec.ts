@@ -34,8 +34,10 @@ test.describe("ghost estimator (§4.2)", () => {
     await expect(hero.getByTestId("ghost-result")).toContainText("$8,400 – $9,600");
     await expect(field).toHaveValue("12 Elm Street, Malvern");
     await expect(hero.getByRole("button", { name: "My home" })).toHaveAttribute("aria-pressed", "true");
-    // the second example is a business — the chip follows
-    await expect(hero.getByRole("button", { name: "A business or property I manage" })).toHaveAttribute("aria-pressed", "true", { timeout: 12_000 });
+    // Session 8 §4: the homes site plays home examples only — the next one
+    // types, and the chip stays on "My home".
+    await expect(field).toHaveValue("9 Clarke Street, Beaumaris", { timeout: 12_000 });
+    await expect(hero.getByRole("button", { name: "My home" })).toHaveAttribute("aria-pressed", "true");
     expect((await events(page)).map((e) => e.name)).not.toContain("ghost_stopped");
   });
 
@@ -55,7 +57,7 @@ test.describe("ghost estimator (§4.2)", () => {
     await expect(hero.getByRole("button", { name: "My home" })).toHaveAttribute("aria-pressed", "true");
     const seen = (await events(page)).filter((e) => e.name === "ghost_stopped");
     expect(seen).toHaveLength(1);
-    expect(seen[0].props).toEqual({ where: "hero" });
+    expect(seen[0].props).toEqual({ where: "hero", audience: "home" });
     await page.waitForTimeout(5_000);
     await expect(field).toHaveValue("");
     await expect(hero.locator("form.field")).not.toHaveClass(/typing/);

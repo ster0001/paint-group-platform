@@ -49,6 +49,7 @@ type Form = {
   estimate_id: string | null;
   hero_path: string | null;
   featured_rank: number | null;
+  featured_rank_business: number | null;
   consent_confirmed: boolean;
   published: boolean;
 };
@@ -68,7 +69,7 @@ function fromJob(j: ShowcaseJob | null): Form {
     review_quote: j?.review_quote ?? "", review_name: j?.review_name ?? "",
     video_url: j?.video_url ?? "", video_caption: j?.video_caption ?? "", video_transcript: j?.video_transcript ?? "", video_poster_path: j?.video_poster_path ?? null,
     estimate_id: j?.estimate_id ?? null, hero_path: j?.hero_path ?? null,
-    featured_rank: j?.featured_rank ?? null, consent_confirmed: j?.consent_confirmed ?? false, published: j?.published ?? false,
+    featured_rank: j?.featured_rank ?? null, featured_rank_business: j?.featured_rank_business ?? null, consent_confirmed: j?.consent_confirmed ?? false, published: j?.published ?? false,
   };
 }
 
@@ -85,7 +86,7 @@ function toInput(f: Form, id: string | undefined, displace = false): ShowcaseJob
     hero_path: f.hero_path, gallery: f.gallery,
     estimate_id: f.estimate_id, review_quote: f.review_quote.trim() || null, review_name: f.review_name.trim() || null,
     video_url: f.video_url.trim() || null, video_caption: f.video_caption.trim() || null, video_transcript: f.video_transcript.trim() || null, video_poster_path: f.video_poster_path,
-    featured_rank: f.featured_rank, consent_confirmed: f.consent_confirmed, published: f.published,
+    featured_rank: f.featured_rank, featured_rank_business: f.featured_rank_business, consent_confirmed: f.consent_confirmed, published: f.published,
     displace_featured: displace || undefined,
   };
 }
@@ -101,7 +102,7 @@ function toPreview(f: Form, base: ShowcaseJob | null): ShowcaseJob {
     price_low_cents: input.price_low_cents, price_high_cents: input.price_high_cents,
     scope_line: input.scope_line, summary: input.summary, what_we_did: input.what_we_did, colours: input.colours,
     condition_notes: input.condition_notes, hero_path: input.hero_path, gallery: input.gallery, estimate_id: input.estimate_id,
-    review_quote: input.review_quote, review_name: input.review_name, featured_rank: input.featured_rank,
+    review_quote: input.review_quote, review_name: input.review_name, featured_rank: input.featured_rank, featured_rank_business: input.featured_rank_business,
     video_url: input.video_url, video_caption: input.video_caption, video_transcript: input.video_transcript, video_poster_path: input.video_poster_path,
     consent_confirmed: input.consent_confirmed, published: input.published, published_at: base?.published_at ?? null,
     created_at: base?.created_at ?? "", updated_at: base?.updated_at ?? "",
@@ -381,12 +382,19 @@ export default function ShowcaseEditor({ initial, estimates }: { initial: Showca
             <EstimatePicker estimates={estimates} value={form.estimate_id} onChange={(id) => set({ estimate_id: id })} />
           </Section>
 
-          <Section n={13} title="Featured on the homepage" blurb="Ranks 1–3 are the three homepage cards, in that order. Only one job can hold each rank.">
+          <Section n={13} title="Featured on the homepage" blurb="Ranks 1–3 are the three homepage cards, in that order. Only one job can hold each rank. The homes site shows ranked home jobs; the business site (session 8) has its own rank below.">
             <select className={`${input} w-auto`} value={form.featured_rank ?? ""} onChange={(e) => set({ featured_rank: e.target.value === "" ? null : Number(e.target.value) })} data-testid="showcase-rank">
               <option value="">Not featured</option>
               <option value="1">1 — first card</option>
               <option value="2">2 — second card</option>
               <option value="3">3 — third card</option>
+            </select>
+            <div className="mt-3 text-xs text-gray-500">Business site</div>
+            <select className={`${input} w-auto`} value={form.featured_rank_business ?? ""} onChange={(e) => set({ featured_rank_business: e.target.value === "" ? null : Number(e.target.value) })} data-testid="showcase-rank-business">
+              <option value="">Not featured on the business site</option>
+              <option value="1">1 — first business card</option>
+              <option value="2">2 — second business card</option>
+              <option value="3">3 — third business card</option>
             </select>
           </Section>
 

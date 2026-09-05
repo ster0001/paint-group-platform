@@ -19,29 +19,18 @@ import { showcaseMediaUrl } from "@/lib/showcase/format";
  * the right-hand column spanning all four rows, whatever its DOM position,
  * so the two-column look of the prototype is unchanged.
  */
-const ROWS = [
-  { b: "No surprises on the invoice", s: "Extra work is priced and approved by you before it starts." },
-  { b: "A price a person signs off with you", s: "Your range tightens as you go, then we confirm it together before anything is booked." },
-  { b: "You sign off before you pay", s: "The final invoice waits for your walkthrough." },
-  { b: "2-year warranty, $20M insured", s: "Both documents sit in your portal from day one." },
-];
-
-const H = [
-  "Your painter finds rotten timber behind the fascia. Here's what happens next.",
-  "Your range gets tighter with every answer. Then we sign it off together.",
-  "The last day on site is a walkthrough with you, area by area.",
-  "Both documents are in your portal the day you accept.",
-];
-const NOTE = [
-  "Declined variations are recorded on your completion report. Nothing lands on the invoice that you didn't tap Approve on.",
-  "Every price is signed off by one of our people before it's booked: a call for apartments, units and smaller jobs, a visit for larger or older homes. What we sign off together is what goes on the invoice.",
-  "The walkthrough is done with you, on site. Flagged items are fixed first; the invoice follows your signature.",
-  "Six months from now you'll want to know which white is on the hallway. It's here.",
-];
+/** Session 8: the four rows, their panel headings and notes come from site content; the demo cards stay in code. */
+export type PromiseCopy = {
+  kicker: string; h2: string; lead: string; panelKicker: string;
+  rows: Array<{ title: string; sub: string; heading: string; note: string }>;
+};
 
 const muted = { color: "var(--color-muted)" } as const;
 
-export default function PromiseExplorer({ variationPhotos = [] }: { variationPhotos?: string[] }) {
+export default function PromiseExplorer({ variationPhotos = [], copy }: { variationPhotos?: string[]; copy: PromiseCopy }) {
+  const ROWS = copy.rows.map((r) => ({ b: r.title, s: r.sub }));
+  const H = copy.rows.map((r) => r.heading);
+  const NOTE = copy.rows.map((r) => r.note);
   const [i, setI] = useState(0);
   const [approved, setApproved] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -138,7 +127,7 @@ export default function PromiseExplorer({ variationPhotos = [] }: { variationPho
 
   const panel = (
     <div ref={panelRef} className="panel" id="promise-panel" role="tabpanel" aria-labelledby={`promise-tab-${i}`} aria-live="polite" data-testid="promise-panel">
-      <span className="mono" style={{ color: "var(--color-cyan)" }}>What this looks like in your job</span>
+      <span className="mono" style={{ color: "var(--color-cyan)" }}>{copy.panelKicker}</span>
       <h3>{H[i]}</h3>
       <div className="pcard">{cards[i]}</div>
       <p className="note">{NOTE[i]}</p>

@@ -2,13 +2,13 @@ import CountUp from "../_components/CountUp";
 import { LIVE_STATS } from "@/lib/marketing/liveStats";
 
 /** §4.8 — pulse dot + four tiles from the config constants; each counts up on enter (CountUp). */
-export default function LiveStrip() {
+export default function LiveStrip({ heading = "Live from the Paint Group platform" }: { heading?: string }) {
   const tiles = [LIVE_STATS.estimatesThisWeek, LIVE_STATS.jobsOnSite, LIVE_STATS.minutesToPrice] as const;
   return (
     <section className="sec light" id="live">
       <div className="wrap">
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span className="dot" aria-hidden="true" /><span className="mono">Live from the Paint Group platform</span>
+          <span className="dot" aria-hidden="true" /><span className="mono">{heading}</span>
           <span style={{ color: "var(--color-tmut)", fontSize: 14 }}>· {LIVE_STATS.updatedLabel}</span>
         </div>
         <div className="live" data-todo="9.4">

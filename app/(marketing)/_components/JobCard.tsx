@@ -13,12 +13,12 @@ import { JOB_TYPE_LABEL, type ShowcaseJob } from "@/lib/showcase/schema";
  * fires `job_card` with the slug. Used on the homepage, /work and the
  * project page's "More jobs" block.
  */
-export default function JobCard({ job, priority = false }: { job: ShowcaseJob; priority?: boolean }) {
+export default function JobCard({ job, priority = false, prefix = "" }: { job: ShowcaseJob; priority?: boolean; prefix?: string }) {
   const price = job.price_low_cents != null && job.price_high_cents != null
     ? formatPriceRange(job.price_low_cents, job.price_high_cents) : "";
   const meta = [job.suburb, job.completed_on ? `completed ${formatCompletedOn(job.completed_on)}` : ""].filter(Boolean).join(" · ");
   return (
-    <Link href={`/work/${job.slug}`} className="job" data-ev="job_card" onClick={() => track("job_card", { slug: job.slug })}>
+    <Link href={`${prefix}/work/${job.slug}`} className="job" data-ev="job_card" onClick={() => track("job_card", { slug: job.slug })}>
       <div className="img">
         {job.hero_path && (
           <Image

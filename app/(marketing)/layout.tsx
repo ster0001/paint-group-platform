@@ -8,9 +8,10 @@ import "./marketing.css";
  * with the Settings → Showcase preview); styles are scoped under `.mk`.
  */
 export const metadata: Metadata = {
-  title: "Paint Group | See what it costs to paint your home or business",
-  description:
-    "Type your address and see a real painting price range in about ten minutes. Homes and businesses across Melbourne, confirmed by a person before we start.",
+  // Session 8: title and description come from site_content per audience
+  // (HomePage.homeMetadata); these are the fallbacks for pages without one.
+  title: "Paint Group",
+  description: "Type your address and see a real painting price range in about ten minutes. Homes and businesses across Melbourne, confirmed by a person before we start.",
   // §8: the new site lives on the noindex test subdomain until the flip.
   // next.config.ts adds the X-Robots-Tag header; this covers the page itself.
   // Flip: SITE_INDEXABLE=1 in Vercel env drops the header; remove this line too.

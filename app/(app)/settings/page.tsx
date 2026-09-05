@@ -21,6 +21,10 @@ import ColoursManager, { type ColourRow } from "./ColoursManager";
 import DocumentsManager, { type CompanyDocRow } from "./DocumentsManager";
 import TradeAccountsManager from "./TradeAccountsManager";
 import StaffAccountsManager from "./StaffAccountsManager";
+import SiteCopyEditor from "./SiteCopyEditor";
+import ReviewTagsManager, { type ReviewTagRow } from "./ReviewTagsManager";
+import { getSiteCopy } from "@/lib/marketing/siteCopy";
+import { audiencePrefix, commercialDomain } from "@/lib/marketing/audience";
 import ColourCardSettings from "./ColourCardSettings";
 import PresentationsManager, { type PresentationRow } from "./PresentationsManager";
 import { DEFAULT_INCLUSION_TEMPLATES, DEFAULT_EXCLUSION_TEMPLATES, INCLUSION_TEMPLATES_KEY, EXCLUSION_TEMPLATES_KEY, type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
@@ -113,6 +117,13 @@ export default async function SettingsPage() {
   const allSettings = (settingsRes.data as SettingRow[] | null) ?? [];
   const websiteContent = parseWebsiteContent(allSettings.find((r) => r.key === WEBSITE_CONTENT_KEY)?.value);
   const videoJobs = (await listShowcaseJobsForStaff()).filter((j) => j.video_url).map((j) => ({ id: j.id, title: j.title, suburb: j.suburb, published: j.published }));
+  // Session 8: the copy for both audiences and the fetched reviews' tags.
+  const [homeCopy, businessCopy, tagRes] = await Promise.all([
+    getSiteCopy("home"), getSiteCopy("business"),
+    supabase.from("review_tags").select("review_key, author, rating, snippet, published_at, audience_suggested, audience").order("published_at", { ascending: false }).limit(100),
+  ]);
+  const reviewTags = (tagRes.data ?? []) as ReviewTagRow[];
+  const businessHref = commercialDomain() ? `https://${commercialDomain()}/` : audiencePrefix("business");
   // Numeric levers only, decided by SHAPE. The old filter excluded six named
   // keys and swept up everything else — including whole config objects like
   // `wizard_policy` and `wo_loop`, which coerced to NaN, serialised to null and
@@ -187,6 +198,10 @@ export default async function SettingsPage() {
           content: <DocumentsManager initialDocs={companyDocs} warrantyApproved={warrantyApproved} /> },
         { id: "website", title: "Website", subtitle: "The homepage's painter cards and the photos in the promise card and the progress story — the top-left logo comes from Company details (logo 1)", count: websiteContent.painters.length,
           content: <WebsiteContentManager initial={websiteContent} videoJobs={videoJobs} /> },
+        { id: "site-copy", title: "Website copy", subtitle: "Every word on the homes site and the business site, by section, with a live preview. Business copy is a draft to work through here.",
+          content: <SiteCopyEditor initial={{ home: homeCopy, business: businessCopy }} businessHref={businessHref} /> },
+        { id: "review-tags", title: "Reviews", subtitle: "Tag each Google review Home or Business so the business site shows the right ones", count: reviewTags.length,
+          content: <ReviewTagsManager initial={reviewTags} /> },
         { id: "showcase", title: "Showcase jobs", subtitle: "Finished jobs shown on the website as “Real jobs, real prices” — photos, price range, what we did; the three featured ones are the homepage cards",
           content: (
             <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
