@@ -37,12 +37,15 @@ test("R4 ladder: below the accuracy bar lands the visit tier — slots offered, 
   // 90% bar, so the CTA is the visit offer, enabled — never blocked.
   const cta = page.locator(".il-cta");
   await expect(cta).toBeEnabled({ timeout: 45_000 }); // production queue drain
-  await expect(cta).toContainText(/book the visit/i);
+  await expect(cta).toContainText(/finalise my price/i);
 
-  // Slots are the server's own offer; booking sticks.
+  // Tom, 5 Sep: call us / call back / site visit with availability — a
+  // person schedules it. Requesting sticks.
   await cta.click();
-  const slots = page.locator(".sc-slots button");
-  expect(await slots.count()).toBeGreaterThan(0);
-  await slots.first().click();
-  await expect(page.locator(".sc-tier")).toContainText(/Visit booked/i, { timeout: 15_000 });
+  await expect(page.getByTestId("contact-card")).toBeVisible();
+  await page.getByTestId("contact-visit").click();
+  await page.getByTestId("contact-phone").fill("0400 000 000");
+  await page.getByTestId("contact-when").fill("weekday mornings, not Wednesdays");
+  await page.getByTestId("contact-send").click();
+  await expect(page.locator(".sc-tier")).toContainText(/Site visit requested/i, { timeout: 15_000 });
 });

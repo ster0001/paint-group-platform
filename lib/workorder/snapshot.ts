@@ -7,6 +7,9 @@ export type WOSurfaceStatus = "not_started" | "in_progress" | "complete";
 
 export type WOMaterial = {
   product: string;
+  /** Sheen / finish for this row (Tom, 5 Sep 2026: set per surface type in the
+   * builder, not per product). Absent on documents frozen before then. */
+  finish?: string;
   /** Stable row identity: `${product}||${colourName}`, bare product while the
    * colour is TBC. Keys work_orders.colours entries; absent on documents
    * frozen before the product×colour split (read those by bare product). */
@@ -32,6 +35,8 @@ export type WOSurface = {
   label: string;
   coats: number;
   product: string;
+  /** Sheen / finish this surface is painted in (absent on older documents). */
+  finish?: string;
   /** Per-surface colour truth (ruling 1, 30 Aug): the resolved estimate
    * colour rides EVERY surface so area×surface-type grouping downstream never
    * re-derives it through the product. Absent on pre-split documents. */

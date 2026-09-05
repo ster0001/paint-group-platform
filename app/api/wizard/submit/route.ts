@@ -17,7 +17,7 @@ import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { applyWizardAnswers, filterSurfacesByTicks } from "@/lib/wizard/merge";
 import { ceilingHeightFrom, wizardStateSchema, type WizardSurfaceKey } from "@/lib/wizard/state";
 import { backfillTypicalSizes, markStarterProvenance, starterExtraction, starterRoomList, type TypicalSizeRow } from "@/lib/wizard/starter";
-import { applyConditionPricing, applyExteriorAnswers } from "@/lib/wizard/exteriorAnswers";
+import { applyConditionPricing, applyExteriorAnswers, type MeasuredSides } from "@/lib/wizard/exteriorAnswers";
 import { defaultSidesLoop } from "@/lib/wizard/sides";
 import { customerPayload, editorPayload } from "@/lib/wizard/view";
 import {
@@ -380,7 +380,24 @@ export async function POST(request: Request) {
   // 3): lib/wizard/exteriorAnswers.ts is the one place "storeys give every
   // side its height" lives, so a drop-out is valued by the same rules as the
   // estimate they would have received.
-  applyExteriorAnswers(merged, effectiveState, () => nextId++, tickedSurfaces);
+  // What the sources DID read, side by side, for any elevation the envelope
+  // could not price (a height without a width, an edge without a photo).
+  // These beat the typical-size constants in applyExteriorAnswers.
+  const measuredSides: MeasuredSides = {};
+  const sideOf = (el: string): keyof MeasuredSides | null => (el === "rear" ? "back" : el === "front" || el === "left" || el === "right" ? el : null);
+  if (sitePlanRead) {
+    for (const e of sitePlanRead.edges) {
+      const k = sideOf(e.side);
+      if (k && e.lengthM != null && e.basis !== "none" && e.confidence >= 0.6 && !measuredSides[k]?.L) measuredSides[k] = { ...measuredSides[k], L: e.lengthM };
+    }
+  }
+  for (const r of elevationReads) {
+    const k = sideOf(r.elevation);
+    if (!k) continue;
+    const h = Math.max(0, ...r.cladding.filter((c) => c.heightM != null && c.heightBasis !== "none" && c.confidence >= 0.6).map((c) => c.heightM as number));
+    if (h > 0 && !measuredSides[k]?.H) measuredSides[k] = { ...measuredSides[k], H: Math.round(h * 10) / 10 };
+  }
+  applyExteriorAnswers(merged, effectiveState, () => nextId++, tickedSurfaces, measuredSides);
 
   // Tom, 31 Aug: condition answers PRICE from the first reveal — the same
   // modifier/allowance the loop's Condition card applies, applied up front so

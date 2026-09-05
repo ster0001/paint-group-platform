@@ -9,7 +9,7 @@ Two prerequisites, both already true on the C1 test stack; on production the sec
 2. You land on `/estimate/assist?c=…`. The first line is the disclosure ("You're chatting with Paint Group's assistant…"). The assistant asks the address.
 3. Answer with the chips (or type). Order: address → home/trade → inside/outside → house → the four flags → storeys → timing → email → what we're painting → condition → damage → bedrooms. The estimate appears on the right after the bedrooms.
 4. The room loop follows: size (Looks right / Not sure / type it), cupboards, "anything else", then the tightening questions (doors, windows, ceiling height, colours), then the doors & windows check, missed rooms, and a Confirm per room.
-5. **No dollar figure appears in the chat until every room is confirmed** (R4). Then the range card shows and a CTA — "Accept estimate" (small, fully settled job) or "Confirm my price — book the visit".
+5. **No dollar figure appears in the chat until every room is confirmed** (R4). Then the range card shows and a CTA — "Accept estimate" (small, fully settled job) or "Finalise my price" (call us, a call back, or a site visit at a time that suits them).
 6. Tap any tile on the right at any point; come back to the chat and it carries on from the tree as it now is.
 7. "Fill it in instead" (top right) opens the plain editor on the same estimate; "Chat it instead" on the editor comes back.
 

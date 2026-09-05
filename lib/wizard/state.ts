@@ -185,9 +185,11 @@ export const wizardStateShapeSchema = z.object({
       fence: z.boolean().default(false),
       /** metres; null with fence=true = "not sure" → measured on the day. */
       fenceMetres: z.number().min(1).max(500).nullable().default(null),
+      /** Tom, 5 Sep 2026: paling vs picket — a 10× labour difference on the card. */
+      fenceType: z.enum(["paling", "picket_hand", "picket_spray"]).default("paling"),
       pergola: z.boolean().default(false),
       balustrade: z.boolean().default(false),
-    }).default({ deck: false, fence: false, fenceMetres: null, pergola: false, balustrade: false }),
+    }).default({ deck: false, fence: false, fenceMetres: null, fenceType: "paling", pergola: false, balustrade: false }),
   }).nullable().default(null),
 });
 
@@ -330,7 +332,7 @@ export function defaultExterior(): WizardExterior {
     access: [],
     accessEquipment: [],
     noPhotos: false,
-    extras: { deck: false, fence: false, fenceMetres: null, pergola: false, balustrade: false },
+    extras: { deck: false, fence: false, fenceMetres: null, fenceType: "paling", pergola: false, balustrade: false },
   };
 }
 

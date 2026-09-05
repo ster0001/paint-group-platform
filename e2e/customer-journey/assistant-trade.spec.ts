@@ -109,7 +109,7 @@ test.describe("Addendum A2 — describe the job", () => {
     // blocks); keep driving until the photo has gone through and no chip remains.
     await driveLoop(page, async () => (await page.getByTestId("as-cta").count()) > 0 && (await page.getByTestId("as-chips").count()) === 0 && (await page.getByTestId("as-photo").count()) === 0);
     await expect(page.getByTestId("as-cta")).toBeVisible();
-    await expect(page.getByTestId("as-cta")).toHaveText(/Accept estimate|Confirm my price/);
+    await expect(page.getByTestId("as-cta")).toHaveText(/Accept estimate|Finalise my price/);
     const band = await page.getByTestId("as-band").innerText();
     expect(["±4%", "±8%"]).toContain(band.trim());
     // The photo was kept AND claimed for this estimate (not left with estimate_id null).

@@ -264,6 +264,11 @@ export default async function SettingsPage() {
                 { key: "charge_out_cents", label: "Charge-out $/hr", type: "money", width: "8rem" },
                 // The paint field lists the products on file rather than free text.
                 { key: "default_product", label: "Default paint", type: "select", options: productNames },
+                // Paint quantity per item (Hours Per Item rows) / metres per litre
+                // (Lineal Metres rows) — Tom, 5 Sep: the garage door read 22 L
+                // because this sat at 10 with no way to see or change it.
+                { key: "litres_per_item_per_coat", label: "L / item / coat", type: "number", width: "7rem" },
+                { key: "metres_per_litre", label: "m / L", type: "number", width: "6rem" },
               ]}
               addLabel="+ Add substrate"
             />

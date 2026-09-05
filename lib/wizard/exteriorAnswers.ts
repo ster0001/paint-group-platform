@@ -24,11 +24,28 @@ export type MergedBundle = {
   assumedCount: number;
 };
 
+/** Per-side numbers that were actually read (site-plan edge widths, facade
+ * photo heights) but did not make it into a priced envelope — usually
+ * because a photo read a height and no width, which the envelope gate
+ * refuses. Tom, 5 Sep 2026: "always gives the same measurement" — these
+ * now beat the 12 / 14 × 2.6 constants. */
+export type MeasuredSides = Partial<Record<"front" | "back" | "left" | "right", { L?: number; H?: number }>>;
+
+export function sideKeyOfName(name: string): keyof MeasuredSides | null {
+  const n = name.toLowerCase();
+  if (/front/.test(n)) return "front";
+  if (/rear|back/.test(n)) return "back";
+  if (/left/.test(n)) return "left";
+  if (/right/.test(n)) return "right";
+  return null;
+}
+
 export function applyExteriorAnswers(
   merged: MergedBundle,
   state: WizardState,
   nextId: () => number,
   tickedSurfaces: ReadonlySet<WizardSurfaceKey>,
+  measured: MeasuredSides = {},
 ): void {
   const wantsExterior = state.jobType === "exterior" || state.jobType === "both";
   if (!wantsExterior) return;
@@ -45,7 +62,7 @@ export function applyExteriorAnswers(
 
   // A2: ticked whole-job extras are never measured by an elevation read —
   // they always arrive as $0 placeholders to measure.
-  const extras = exteriorExtrasNodes(nextId, tickedSurfaces);
+  const extras = exteriorExtrasNodes(nextId, tickedSurfaces, state.exterior?.extras.fenceType ?? "paling");
   merged.areas.push(...extras.areas);
   merged.deferred.push(...extras.deferred);
 
@@ -58,14 +75,27 @@ export function applyExteriorAnswers(
   const sideH = ext.storeys === "double" ? 5.2 : 2.6;
   for (const a of merged.areas) {
     if (a.type !== "Exterior" || a.areaType !== "surface") continue;
+    const key = sideKeyOfName(a.name);
+    const m = key ? measured[key] : undefined;
     if (!(Number(a.H) > 0)) {
-      a.H = sideH;
-      if (!a.assumedFields.includes("H")) a.assumedFields = [...a.assumedFields, "H"];
+      if (m?.H && m.H > 0) {
+        a.H = m.H; // read off the facade photo
+        a.assumedFields = a.assumedFields.filter((f) => f !== "H");
+      } else {
+        a.H = sideH;
+        if (!a.assumedFields.includes("H")) a.assumedFields = [...a.assumedFields, "H"];
+      }
     }
     if (!(Number(a.L) > 0)) {
-      a.L = /front|rear|back/i.test(a.name) ? 12 : 14;
-      if (!a.assumedFields.includes("L")) a.assumedFields = [...a.assumedFields, "L"];
+      if (m?.L && m.L > 0) {
+        a.L = m.L; // the floorplan's own edge for this side
+        a.assumedFields = a.assumedFields.filter((f) => f !== "L");
+      } else {
+        a.L = /front|rear|back/i.test(a.name) ? 12 : 14;
+        if (!a.assumedFields.includes("L")) a.assumedFields = [...a.assumedFields, "L"];
+      }
     }
+    if (m && (m.L || m.H) && a.origin === "ai_assumed") { a.origin = "ai_extracted"; a.confidence = Math.max(a.confidence, 0.7); }
   }
 
   // Weathered pricing itself moved to applyConditionPricing (Tom, 31 Aug:

@@ -79,6 +79,7 @@ export default async function ScopeEditorPage({
           initialLadder={bundle.initialLadder}
           docs={bundle.docs}
           logoUrl={bundle.logoUrl}
+          companyPhone={bundle.companyPhone}
         />
       </div>
     );
@@ -98,6 +99,7 @@ export default async function ScopeEditorPage({
         initialInteriorLoop={bundle.initialInteriorLoop}
         roomTypes={bundle.roomTypes}
         liveRange={bundle.liveRange}
+        companyPhone={bundle.companyPhone}
         docs={bundle.docs}
         logoUrl={bundle.logoUrl}
       />

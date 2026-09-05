@@ -32,5 +32,5 @@ allowances, and only ever a price RANGE.
    than the range appears anywhere in the page or its network responses
    (search a response for "marginCents" — absent).
 9. Crossing the ladder: add rooms until the range mid passes the self-serve
-   line — the bottom bar flips from "Accept estimate" to "Confirm my price —
+   line — the bottom bar flips from "Accept estimate" to "Finalise my price" (was "Confirm my price —
    book the visit" (booking slots arrive with B2).

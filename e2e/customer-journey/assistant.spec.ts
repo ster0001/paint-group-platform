@@ -130,7 +130,7 @@ test.describe("assistant — guided mode as an anonymous customer", () => {
     await expect(page.getByTestId("as-range")).toContainText(MONEY);
     const cta = page.getByTestId("as-cta");
     await expect(cta).toBeVisible();
-    await expect(cta).toHaveText(/Accept estimate|Confirm my price/);
+    await expect(cta).toHaveText(/Accept estimate|Finalise my price/);
     // The editor beside the chat shows the same tree, priced — never a $0 line.
     await expect(page.locator(".sc-r").first()).toHaveText(MONEY);
     await expect(page.locator("text=/\\$0\\b/")).toHaveCount(0);

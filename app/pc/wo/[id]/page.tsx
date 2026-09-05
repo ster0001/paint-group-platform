@@ -229,6 +229,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
       coverageMissing: Boolean(m.coverageMissing),
       matchCode: live?.match?.code || m.colourMatch?.code || "",
       matchRequired: Boolean(m.colourMatch?.required),
+      finish: m.finish,
       substrates: snapshotDoc ? substratesFor(snapshotDoc, rowKey) : [],
     };
   });

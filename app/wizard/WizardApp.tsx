@@ -1836,6 +1836,12 @@ function PageExteriorExtras({ state, set }: { state: WizardState; set: (p: Parti
       </div>
       {ext.extras.fence && (
         <div className="wz-follow">
+          <p className="wz-q">What kind of fence?</p>
+          <div className="wz-seg">
+            {([["paling", "Paling"], ["picket_hand", "Picket (brushed)"], ["picket_spray", "Picket (sprayed)"]] as const).map(([v, label]) => (
+              <button key={v} className={ext.extras.fenceType === v ? "on" : ""} onClick={() => setExt({ extras: { ...ext.extras, fenceType: v } })}>{label}</button>
+            ))}
+          </div>
           <p className="wz-q">Roughly how many metres of fence? &ldquo;Not sure&rdquo; is fine — we&rsquo;ll measure on the day.</p>
           <input
             className="wz-field"

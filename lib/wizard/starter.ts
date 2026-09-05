@@ -299,11 +299,23 @@ const EXTRA_CODES: ReadonlyArray<{ key: string; code: string; label: string }> =
   { key: "balustrade", code: "Hand Rails", label: "Balustrades & hand rails" },
 ];
 
+/** The three fence rows on the card, by the wizard's fence type. */
+export const FENCE_CODE: Record<"paling" | "picket_hand" | "picket_spray", string> = {
+  paling: "Paling Fence",
+  picket_hand: "Picket Fence (Hand Paint)",
+  picket_spray: "Picket Fence (Spray)",
+};
+export const FENCE_TYPE_LABEL: Record<keyof typeof FENCE_CODE, string> = {
+  paling: "Paling fence", picket_hand: "Picket fence (brushed)", picket_spray: "Picket fence (sprayed)",
+};
+
 export function exteriorExtrasNodes(
   nextId: () => number,
   ticked: ReadonlySet<string>,
+  fenceType: keyof typeof FENCE_CODE = "paling",
 ): { areas: DraftArea[]; deferred: Array<{ room: string; areaId: number | null; what: string; count: number; needs: string; kind?: string }> } {
-  const wanted = EXTRA_CODES.filter((e) => ticked.has(e.key));
+  const wanted = EXTRA_CODES.filter((e) => ticked.has(e.key))
+    .map((e) => (e.key === "fence" ? { ...e, code: FENCE_CODE[fenceType] ?? e.code, label: FENCE_TYPE_LABEL[fenceType] ?? e.label } : e));
   if (wanted.length === 0) return { areas: [], deferred: [] };
 
   const id = nextId();

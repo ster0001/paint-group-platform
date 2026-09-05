@@ -305,7 +305,7 @@ export default function QuoteBuilder({
     return g;
   }, [modifiers]);
 
-  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; materialColours?: Record<string, { name: string; hex: string }>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null; contractorRateOverride?: number | null; aiDeferred?: AiDeferred[]; idealPainters?: number | null; colourMatches?: Record<string, ColourMatch> } | null;
+  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; materialColours?: Record<string, { name: string; hex: string }>; sheens?: Record<string, string>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null; contractorRateOverride?: number | null; aiDeferred?: AiDeferred[]; idealPainters?: number | null; colourMatches?: Record<string, ColourMatch> } | null;
   // Deferred plan-reader decisions ride builder_state so the review gate can
   // price them; the builder itself only carries them through saves.
   const aiDeferred = useMemo(() => loaded?.aiDeferred ?? [], [loaded]);
@@ -389,22 +389,15 @@ export default function QuoteBuilder({
   // What we pay the contractor per hour (margin only, never shown to the customer).
   // Blank falls back to the settings default.
   const [contractorRateOverride, setContractorRateOverride] = useState<number | null>(() => loaded?.contractorRateOverride ?? null);
-  // In-session cache of sheen edits made from the Materials panel; each edit is
-  // also persisted to the products table, so this just reflects it before reload.
-  const [sheenEdits, setSheenEdits] = useState<Record<string, string>>({});
-  const effectiveSheen = (productName: string): string => sheenEdits[productName] ?? productByName.get(productName)?.finish ?? "";
-  async function updateSheen(productName: string, finish: string) {
-    setSheenEdits((m) => ({ ...m, [productName]: finish }));
-    // Not best-effort: the sheen shown on the customer's estimate comes from
-    // this row, so a write that fails leaves the screen disagreeing with what
-    // is actually stored. (The old try/catch caught nothing — supabase returns
-    // { error } instead of throwing.)
-    const r = await createClient().from("products").update({ finish }).eq("name", productName);
-    if (!reportIfError(r, { where: "products.sheen", extra: { productName } })) {
-      setSaveMsg(`Couldn't save that sheen — ${errorMessage(r.error)}`);
-      setSheenEdits((m) => { const n = { ...m }; delete n[productName]; return n; });
-    }
-  }
+  // Sheen per MATERIAL ROW (Tom, 5 Sep 2026): keyed like materialColours,
+  // "${type}::${code}", and saved with the estimate. It used to be keyed by
+  // product name and written to the products table, so changing the sheen on
+  // one row moved every row on the same paint — on every estimate, past and
+  // future. The catalogue's products.finish is now only the default a row
+  // starts from (Settings → Products still edits that).
+  const [sheens, setSheens] = useState<Record<string, string>>(() => loaded?.sheens ?? {});
+  const sheenForKey = (key: string, productName: string): string => sheens[key] ?? productByName.get(productName)?.finish ?? "";
+  const sheenFor = (type: string, s: Surface): string => sheenForKey(materialKey(type, s.code), productNameFor(type, s) ?? "");
   const [discountMode, setDiscountMode] = useState<"pct" | "fixed">(() => loaded?.discountMode ?? "pct");
   const [discountPct, setDiscountPct] = useState<number>(() => loaded?.discountPct ?? 0);
   const [discountFixedCents, setDiscountFixedCents] = useState<number>(() => loaded?.discountFixedCents ?? 0);
@@ -766,7 +759,7 @@ export default function QuoteBuilder({
   // presentationId is part of the fingerprint (3 Sep): ticking a presentation
   // used to leave the builder "Saved ✓", so nothing wrote it and the Estimate
   // tab kept showing the last published copy — without the presentation.
-  const builderFingerprint = JSON.stringify({ blocks, modSel, contact, jobAddress, materials, materialColours, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, aiDeferred, idealPainters, presentationId });
+  const builderFingerprint = JSON.stringify({ blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, aiDeferred, idealPainters, presentationId });
   useEffect(() => { if (!savedStateRef.current) savedStateRef.current = builderFingerprint; }, [builderFingerprint]);
   dirtyRef.current = () => Boolean(quoteId) && builderFingerprint !== savedStateRef.current;
   const unsaved = Boolean(savedStateRef.current) && builderFingerprint !== savedStateRef.current;
@@ -797,7 +790,7 @@ export default function QuoteBuilder({
       try {
         const result = await saveWorkingScopeAction({
           estimateId: quoteId,
-          state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, aiDeferred, idealPainters },
+          state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, aiDeferred, idealPainters },
         });
         setSaveMsg(result.ok ? "Saved ✓ (working scope)" : result.message);
       } finally {
@@ -829,7 +822,7 @@ export default function QuoteBuilder({
       // keys — the old fixed key list silently dropped builder_state.wizard
       // (the answers + proving snapshot), prepPack, sidesLoop and interiorLoop
       // on every staff save. Keys the builder owns still overwrite.
-      builder_state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, aiDeferred, idealPainters, woDoc: computeWorkOrderDoc() },
+      builder_state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, aiDeferred, idealPainters, woDoc: computeWorkOrderDoc() },
       share_token: token,
       presentation_id: presentationId,
       sent_snapshot: buildCustomerDoc(token),
@@ -1047,8 +1040,12 @@ export default function QuoteBuilder({
     return "";
   };
   function computePaints(): SnapshotPaint[] {
-    const used = new Map<string, Map<string, Set<string>>>(); // product → surfaceLabel → area titles
-    const colourByProduct = new Map<string, { name: string; hex: string }>(); // first resolved colour per product
+    // Grouped by product + sheen (Tom, 5 Sep): "Wash & Wear · Low Sheen" for
+    // the walls and "Wash & Wear · Gloss" for the trim are two cards.
+    const used = new Map<string, Map<string, Set<string>>>(); // product||sheen → surfaceLabel → area titles
+    const sheenByGroup = new Map<string, string>();
+    const productByGroup = new Map<string, string>();
+    const colourByProduct = new Map<string, { name: string; hex: string }>(); // first resolved colour per group
     // Tom (25 Aug): every colour on the job is LISTED on its paint card, with
     // its areas — and a colour-matched substrate says so to the customer.
     // product → "name|hex|match" → { colour, match, areas }
@@ -1058,8 +1055,12 @@ export default function QuoteBuilder({
       const areaTitle = b.name || "Area";
       for (const s of b.surfaces) {
         if (!s.code || s.hidden) continue;
-        const pname = productNameFor(b.type, s);
-        if (!pname) continue;
+        const productName = productNameFor(b.type, s);
+        if (!productName) continue;
+        const sheen = sheenFor(b.type, s);
+        const pname = `${productName}||${sheen}`;
+        productByGroup.set(pname, productName);
+        sheenByGroup.set(pname, sheen);
         const label = s.clientLabel || s.code;
         if (!used.has(pname)) used.set(pname, new Map());
         const bySurf = used.get(pname)!;
@@ -1078,7 +1079,8 @@ export default function QuoteBuilder({
       }
     }
     const paints: SnapshotPaint[] = [];
-    for (const [pname, bySurf] of used) {
+    for (const [gkey, bySurf] of used) {
+      const pname = productByGroup.get(gkey) ?? gkey;
       const p = productByName.get(pname);
       const usage: string[] = [];
       for (const [label, areas] of bySurf) {
@@ -1095,9 +1097,9 @@ export default function QuoteBuilder({
         brand,
         category,
         role: roleForCategory(category),
-        finish: effectiveSheen(pname),
-        colourName: colourByProduct.get(pname)?.name ?? "",
-        colourHex: colourByProduct.get(pname)?.hex ?? "",
+        finish: sheenByGroup.get(gkey) ?? "",
+        colourName: colourByProduct.get(gkey)?.name ?? "",
+        colourHex: colourByProduct.get(gkey)?.hex ?? "",
         blurb: visible ? (p?.blurb ?? "") : "",
         properties: visible ? (p?.properties ?? []) : [],
         guarantee: visible ? (p?.guarantee ?? "") : "",
@@ -1105,7 +1107,7 @@ export default function QuoteBuilder({
         customerVisible: visible,
         isPrep: /prep|primer/i.test(category),
         usage: usage.slice(0, 3),
-        colours: [...(coloursByProduct.get(pname)?.values() ?? [])].map((g) => ({
+        colours: [...(coloursByProduct.get(gkey)?.values() ?? [])].map((g) => ({
           name: g.name, hex: g.hex, match: g.match, areas: [...g.areas].slice(0, 6),
         })),
       });
@@ -1198,6 +1200,7 @@ export default function QuoteBuilder({
           const cm = colourMatches[materialKey(b.type, s.code)];
           matRows.push({
             product: pname,
+            finish: sheenFor(b.type, s),
             volume: calc.volume,
             photoUrl: productByName.get(pname)?.photo_url ?? productByName.get(pname)?.image_url ?? "",
             colourName: col.name,
@@ -1212,6 +1215,7 @@ export default function QuoteBuilder({
         conditionHoursTotal += conditionHours;
         surfaces.push({
           key, label: s.clientLabel || s.code, coats: s.coats, product: pname,
+          finish: pname ? sheenFor(b.type, s) : undefined,
           colourName: col.name, colourHex: col.hex,
           colourKey: pname ? materialColourKey(pname, col.name) : undefined,
           prep: s.crewNote || "",
@@ -1957,12 +1961,13 @@ export default function QuoteBuilder({
                             {globalName && (
                               <select
                                 className="w-32 shrink-0 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-                                value={effectiveSheen(globalName)}
-                                onChange={(e) => updateSheen(globalName, e.target.value)}
-                                title="Finish / sheen"
+                                value={sheenForKey(r.key, globalName)}
+                                onChange={(e) => setSheens((m) => ({ ...m, [r.key]: e.target.value }))}
+                                title="Finish / sheen for this surface type (this estimate only)"
+                                data-testid={`sheen-${r.key}`}
                               >
                                 <option value="">— sheen —</option>
-                                {effectiveSheen(globalName) && !SHEEN_LEVELS.includes(effectiveSheen(globalName)) && <option value={effectiveSheen(globalName)}>{effectiveSheen(globalName)}</option>}
+                                {sheenForKey(r.key, globalName) && !SHEEN_LEVELS.includes(sheenForKey(r.key, globalName)) && <option value={sheenForKey(r.key, globalName)}>{sheenForKey(r.key, globalName)}</option>}
                                 {SHEEN_LEVELS.map((s) => <option key={s} value={s}>{s}</option>)}
                               </select>
                             )}

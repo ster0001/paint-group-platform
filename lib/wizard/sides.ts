@@ -122,6 +122,16 @@ export function rateFor(
 }
 
 /** Display prices for the add-panel + sweep chips, straight off the card. */
+/**
+ * Every rate code priced per item ("Hours Per Item"): posts, strapping,
+ * shutters, meter boxes… Tom (5 Sep): the wizard showed Posts and Strapping
+ * with no way to change the count — `countable` was a hand-kept whitelist
+ * while the server accepted any count. Anything priced per item is countable.
+ */
+export function hoursPerItemCodes(rateItems: ReadonlyArray<LooseRateItem>): ReadonlySet<string> {
+  return new Set(rateItems.filter((r) => String((r as { unit?: unknown }).unit ?? "") === "Hours Per Item").map((r) => String(r.code)));
+}
+
 export function extrasPrices(rateItems: ReadonlyArray<LooseRateItem>): Record<string, number> {
   const out: Record<string, number> = {};
   for (const { code } of [...CATALOG_CODES, ...SWEEP_PRICED_CODES]) {
@@ -317,13 +327,27 @@ export function addWallSurface(
  * side's length and an M2 row off length × height, so only per-item rows
  * ride the count.
  */
+/** Codes a side may carry twice (Tom, 5 Sep 2026): a double-storey house
+ * has upper and lower eaves, each running the full length of the side. */
+export const TWICE_OK_CODES: ReadonlySet<string> = new Set(["Eaves"]);
+const SECOND_ROW_LABEL: Record<string, [string, string]> = { Eaves: ["Eaves (lower)", "Eaves (upper)"] };
+
 export function addSideSurface(
   blocks: LooseBlock[], key: SideKey, code: string, label: string,
   nextId: () => number, chargeOutDollars: number | null = null,
 ): SidesResult {
   return withSide(blocks, key, (b) => {
-    if ((b.surfaces ?? []).some((s) => String(s.code) === code)) return "That's already on this side.";
-    const line = makeDraftSurface(nextId(), code, label, 1, "customer_stated", 0.75, []) as unknown as LooseSurface;
+    const existing = (b.surfaces ?? []).filter((s) => String(s.code) === code);
+    if (existing.length >= 1 && !TWICE_OK_CODES.has(code)) return "That's already on this side.";
+    if (existing.length >= 2) return "That's already on this side twice.";
+    let lineLabel = label;
+    if (existing.length === 1) {
+      // A second row: name both so the sheet never reads "Eaves, Eaves".
+      const [first, second] = SECOND_ROW_LABEL[code] ?? [`${label} (1)`, `${label} (2)`];
+      existing[0].internalLabel = first;
+      lineLabel = second;
+    }
+    const line = makeDraftSurface(nextId(), code, lineLabel, 1, "customer_stated", 0.75, []) as unknown as LooseSurface;
     if (chargeOutDollars != null) { line.useCustomRate = true; line.customRate = chargeOutDollars; }
     b.surfaces = [...(b.surfaces ?? []), line];
   });
@@ -581,6 +605,8 @@ export function sidesView(
   storeys: "single" | "double" | null = null,
   addable: Array<{ key: string; label: string; group: string }> = [],
   wallOptions: Array<{ code: string; label: string }> = WALL_CODES.map((w) => ({ ...w })),
+  /** Rate codes priced per item — every one of them gets a − / + stepper. */
+  countableCodes: ReadonlySet<string> = new Set(),
 ): SidesView | null {
   if (!SIDE_KEYS.some((k) => findSide(blocks, k))) return null;
   const sides: SideView[] = [];
@@ -616,7 +642,8 @@ export function sidesView(
           : String(s.internalLabel ?? s.code ?? ""),
         count: Number(s.count) || 1,
         countable: isWindowLine(s) || isDoorLine(s) || isCatalogLine(s)
-          || substrateKeyForRateCode(String(s.code ?? "")) === "downpipes",
+          || substrateKeyForRateCode(String(s.code ?? "")) === "downpipes"
+          || countableCodes.has(String(s.code ?? "")),
         window: isWindowLine(s),
         sizeBand: (s.sizeBand as "S" | "M" | "L" | undefined) ?? (isWindowLine(s) ? "M" : null),
       })),
