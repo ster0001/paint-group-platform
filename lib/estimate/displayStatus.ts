@@ -14,7 +14,8 @@ export function displayStatus(row: { status: string; viewed_at?: string | null }
 }
 
 /** The list's filter tabs, in order. `viewed` splits `sent` by viewed_at. */
-export const LIST_FILTERS = ["all", "draft", "sent", "viewed", "accepted", "declined", "expired"] as const;
+/** "wizard" (buckets brief §5) lists the open wizard sessions — leads with no estimate yet. */
+export const LIST_FILTERS = ["all", "draft", "sent", "viewed", "accepted", "declined", "expired", "wizard"] as const;
 export type ListFilter = (typeof LIST_FILTERS)[number];
 
 /** Translate a tab into the query: which DB status, and whether viewed_at must be set/null. */

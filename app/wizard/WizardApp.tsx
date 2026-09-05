@@ -92,7 +92,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   /** Homepage hand-off (lib/marketing/prefill.ts): the address the visitor
    * typed on the marketing site, shown in the field; "business" pre-selects
    * the commercial property kind. Intent only — no account, no event. */
-  intent?: { addressText: string | null; propertyKind: "commercial" | null };
+  intent?: { addressText: string | null; propertyKind: "commercial" | null; mode?: "home" | "business" | null; entrySource?: string };
 }) {
   const [state, setState] = useState<WizardState>(() => {
     const seed = prefillState ?? defaultWizardState();
@@ -587,13 +587,24 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    *  DURING the processing screen and races the server's conversion — the
    *  probe run left an orphan "open" draft at 83% that way. */
   const draftHaltRef = useRef(false);
+  // Buckets brief §2.1: a session exists from the first answer (an address,
+  // a suburb, or moving off page 1) — not from the email, which is now the
+  // LAST page. "An address is a lead in this business." A visitor who lands
+  // and bounces still leaves nothing.
+  const addressText = (state.address as { formatted?: string } | null | undefined)?.formatted?.trim()
+    || intent?.addressText?.trim() || "";
+  const sessionWorthSaving = page > 1 || Boolean(addressText) || Boolean((state.customer?.suburb ?? "").trim());
   useEffect(() => {
     if (!isCustomer) return;
     if (draftHaltRef.current) return;
-    const email = state.contact.email.trim() || state.customer?.email.trim() || "";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+    if (!sessionWorthSaving) return;
 
-    const body = JSON.stringify({ state, page, lastPage });
+    const body = JSON.stringify({
+      state, page, lastPage,
+      ...(intent?.mode ? { mode: intent.mode } : {}),
+      entrySource: intent?.entrySource || "direct",
+      ...(addressText ? { address: addressText.slice(0, 250) } : {}),
+    });
     if (body === savedRef.current) return;
 
     const t = setTimeout(() => {
@@ -607,7 +618,62 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       }).catch(() => {});
     }, 2500);
     return () => clearTimeout(t);
-  }, [state, page, lastPage, isCustomer]);
+  }, [state, page, lastPage, isCustomer, sessionWorthSaving, addressText, intent?.mode, intent?.entrySource]);
+
+  // Buckets brief §2.3 · the heartbeat. Every 15 s, ONLY while the tab is
+  // visible and there has been a keypress, tap or scroll in the last 60 s —
+  // so a tab left open overnight adds nothing, and "9 minutes on the page"
+  // means nine minutes of attention. Fire-and-forget like the autosave.
+  const lastInputRef = useRef(0);
+  useEffect(() => {
+    if (!isCustomer) return;
+    const bump = () => { lastInputRef.current = Date.now(); };
+    bump();
+    const opts: AddEventListenerOptions = { passive: true };
+    window.addEventListener("pointerdown", bump, opts);
+    window.addEventListener("keydown", bump, opts);
+    window.addEventListener("scroll", bump, opts);
+    window.addEventListener("touchstart", bump, opts);
+    return () => {
+      window.removeEventListener("pointerdown", bump);
+      window.removeEventListener("keydown", bump);
+      window.removeEventListener("scroll", bump);
+      window.removeEventListener("touchstart", bump);
+    };
+  }, [isCustomer]);
+  useEffect(() => {
+    if (!isCustomer || screen !== "pages" || !sessionWorthSaving) return;
+    const beat = () => {
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - lastInputRef.current > 60_000) return;
+      if (draftHaltRef.current) return;
+      void fetch("/api/wizard/heartbeat", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ page }), keepalive: true,
+      }).catch(() => {});
+    };
+    const id = window.setInterval(beat, 15_000);
+    return () => window.clearInterval(id);
+  }, [isCustomer, screen, page, sessionWorthSaving]);
+
+  // Buckets brief §3 · "I'm stuck, call me" — from any page. Sets the
+  // session's outcome (Needs help) and puts it on Today.
+  const [stuckOpen, setStuckOpen] = useState(false);
+  const [stuckPhone, setStuckPhone] = useState("");
+  const [stuckSent, setStuckSent] = useState(false);
+  const pageName = (state.jobType === "exterior"
+    ? ["Property", "House", "Scope", "Condition", "Extras", "Contact"]
+    : ["Property", "Surfaces", "Condition", "Details", "Paint", "Contact"])[page - 1] ?? `Page ${page}`;
+  async function sendStuck() {
+    const phone = (stuckPhone || state.contact.phone || "").trim();
+    if (phone.replace(/[^0-9]/g, "").length < 8) return;
+    setStuckSent(true);
+    await fetch("/api/wizard/outcome", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ outcome: "help_requested", phone, note: "Stuck in the wizard, asked for a call", page, pageLabel: pageName }),
+      keepalive: true,
+    }).catch(() => {});
+  }
 
   // ---- client-side page gates (server re-validates everything) --------------
 
@@ -851,6 +917,23 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
               label that claims a file is going up when none was chosen. */}
           {nav.note && <span className="wz-navnote">{nav.note}</span>}
         </nav>
+      )}
+      {screen === "pages" && isCustomer && sessionWorthSaving && (
+        <div className="wz-stuck" data-testid="wz-stuck">
+          {stuckSent ? (
+            <span className="wz-stuck-done">Thanks — one of us will call you shortly. Keep going if you like, your answers are saved.</span>
+          ) : !stuckOpen ? (
+            <button type="button" className="wz-linkish" onClick={() => { setStuckOpen(true); setStuckPhone(state.contact.phone); }} data-testid="wz-stuck-open">
+              Stuck? Ask us to call you
+            </button>
+          ) : (
+            <form className="wz-stuck-form" onSubmit={(e) => { e.preventDefault(); void sendStuck(); }}>
+              <input type="tel" inputMode="tel" placeholder="Your phone number" aria-label="Your phone number" value={stuckPhone} onChange={(e) => setStuckPhone(e.target.value)} data-testid="wz-stuck-phone" />
+              <button type="submit" className="wz-btn wz-bp" data-testid="wz-stuck-send" disabled={stuckPhone.replace(/[^0-9]/g, "").length < 8}>Call me</button>
+              <button type="button" className="wz-linkish" onClick={() => setStuckOpen(false)}>Never mind</button>
+            </form>
+          )}
+        </div>
       )}
     </div>
   );

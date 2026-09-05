@@ -20,7 +20,7 @@ export default function Hero({ heroPhoto = null }: { heroPhoto?: string | null }
 
   function submit(address: string, mode: Mode) {
     track("see_price", { where: "hero", mode, address });
-    router.push(estimateHref(address, mode));
+    router.push(estimateHref(address, mode, { src: "homepage_hero" }));
   }
 
   return (

@@ -20,7 +20,13 @@ export type EstimateIntent = {
   scope: JobType | null;
   /** The published showcase slug the visitor came from (its linked estimate seeds the draft). */
   from: string | null;
+  /** Buckets brief §2.1: the hero chip as typed, for the session row. */
+  mode: "home" | "business" | null;
+  /** Buckets brief §2.1 / §4.2: `homepage_hero | homepage_cta | job_page:<slug> | direct`. Missing = direct. */
+  entrySource: string;
 };
+
+const SRC_RE = /^[a-z_]{2,40}(:[a-z0-9-]{1,80})?$/;
 
 /** The wizard schema's own cap on a formatted address (lib/wizard/state.ts). */
 const ADDRESS_MAX = 250;
@@ -31,7 +37,7 @@ const first = (p: Param): string | undefined => (Array.isArray(p) ? p[0] : p);
 /** Control characters (C0 + DEL) are never part of an address — drop them. */
 const isPrintable = (c: string) => { const n = c.charCodeAt(0); return n >= 32 && n !== 127; };
 
-export function parseEstimateIntent(params: { address?: Param; mode?: Param; scope?: Param; from?: Param }): EstimateIntent {
+export function parseEstimateIntent(params: { address?: Param; mode?: Param; scope?: Param; from?: Param; src?: Param }): EstimateIntent {
   const raw = first(params.address) ?? "";
   // Strip control characters, collapse whitespace, clamp to the schema cap.
   const cleaned = Array.from(raw)
@@ -43,10 +49,14 @@ export function parseEstimateIntent(params: { address?: Param; mode?: Param; sco
   const mode = first(params.mode);
   const scope = first(params.scope);
   const from = (first(params.from) ?? "").trim().toLowerCase();
+  const src = (first(params.src) ?? "").trim().toLowerCase();
+  const fromOk = SLUG_RE.test(from) && from.length <= 80 ? from : null;
   return {
     addressText: cleaned || null,
     propertyKind: isMode(mode) && mode === "business" ? "commercial" : null,
     scope: (JOB_TYPES as readonly string[]).includes(scope ?? "") ? (scope as JobType) : null,
-    from: SLUG_RE.test(from) && from.length <= 80 ? from : null,
+    from: fromOk,
+    mode: isMode(mode) ? mode : null,
+    entrySource: SRC_RE.test(src) ? src : fromOk ? `job_page:${fromOk}` : "direct",
   };
 }

@@ -512,10 +512,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         payload: { phone: act.phone, note },
         dedupeKey: `contact:${id}:${act.how}:${act.window}:${act.phone}`,
       });
+      // Buckets brief §3: the wizard session's outcome → bucket A on Today.
+      await db.from("wizard_drafts").update({
+        outcome: visit ? "visit_requested" : "call_requested", outcome_at: new Date().toISOString(), outcome_note: note,
+        bucket: visit ? "ready_visit" : "ready_call",
+      }).eq("estimate_id", id).then((r) => { if (r.error) reportError(r.error, { where: "wizard.edit.sessionOutcome", bestEffort: true }); });
     }
 
     if (act.action === "accept_intent" || act.action === "book_visit") {
       if (act.action === "book_visit") {
+        // Buckets brief §3: a booked visit is a visit requested, for the session's bucket.
+        await db.from("wizard_drafts").update({
+          outcome: "visit_requested", outcome_at: new Date().toISOString(), bucket: "ready_visit",
+        }).eq("estimate_id", id).then((r) => { if (r.error) reportError(r.error, { where: "wizard.edit.sessionVisit", bestEffort: true }); });
         const flags = (settingValue((await ctxPromise).settings, "scope_editor") ?? {}) as { visitSlots?: string[] };
         if (!offeredVisitSlots(flags).includes(act.slot)) {
           return { error: "Pick one of the offered times.", status: 400 };

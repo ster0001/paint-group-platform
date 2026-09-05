@@ -12,7 +12,7 @@ export default function ClosingCta() {
   const router = useRouter();
   function submit(address: string, mode: Mode) {
     track("see_price", { where: "bottom", mode, address });
-    router.push(estimateHref(address, mode));
+    router.push(estimateHref(address, mode, { src: "homepage_cta" }));
   }
   return (
     <section className="sec cta" id="cta">

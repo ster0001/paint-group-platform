@@ -8,6 +8,7 @@
  */
 
 import { draftCallVerdict, leftAgo } from "@/lib/wizard/progress";
+import { bucketPill, journeyLine, type WizardBucket } from "@/lib/wizard/journey";
 import { LANES, needsYouToday, OPEN_LANES, stageFor, type AccountFacts, type LaneKey, type StageResult } from "./stage";
 
 export type BoardInput = {
@@ -24,7 +25,9 @@ export type BoardInput = {
   phone: string | null;
   /** C15: the open autosaved wizard run — a drop-out. The card wears its
    *  signals, and the call prompt fires off them. */
-  draft: { progressPct: number; uploaded: boolean; visits: number; estValueCents: number | null; lastSeenAt: string } | null;
+  draft: { progressPct: number; uploaded: boolean; visits: number; estValueCents: number | null; lastSeenAt: string;
+    /** Buckets brief §6: the session's bucket and journey, when the columns exist. */
+    bucket?: string | null; jobType?: string | null; furthestPage?: number; pagesTotal?: number; activeSeconds?: number; entrySource?: string | null } | null;
   facts: AccountFacts;
 };
 
@@ -92,6 +95,8 @@ export function buildBoard(input: BoardInput[], now: Date = new Date()): Board {
       : null;
     const chips = chipsFor(r, i.facts.snoozedUntil, now);
     if (verdict?.call) chips.unshift("Worth a call now");
+    // Buckets brief §6: the wizard bucket, worded as the pill.
+    if (i.draft?.bucket && i.draft.bucket !== "online_now") chips.unshift(bucketPill(i.draft.bucket as WizardBucket, i.draft.jobType, i.draft.furthestPage ?? 1).label);
     return {
       accountId: i.accountId,
       name: i.name,
@@ -103,7 +108,9 @@ export function buildBoard(input: BoardInput[], now: Date = new Date()): Board {
       // "85% answered · left 2 hours ago" is what makes someone pick up the
       // phone, and it is the mockup's own wording for this lane.
       because: i.draft
-        ? `${i.draft.progressPct}% answered · left ${leftAgo(i.draft.lastSeenAt, now)}`
+        ? (i.draft.pagesTotal
+            ? journeyLine({ furthestPage: i.draft.furthestPage ?? 1, pagesTotal: i.draft.pagesTotal, activeSeconds: i.draft.activeSeconds ?? 0, lastActiveAt: i.draft.lastSeenAt }, now)
+            : `${i.draft.progressPct}% answered · left ${leftAgo(i.draft.lastSeenAt, now)}`)
         : r.because,
       phone: i.phone,
       callWhy: verdict?.why ?? [],

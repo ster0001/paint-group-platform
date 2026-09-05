@@ -18,7 +18,7 @@ export default function GetPriceLike({ job, preview = false }: { job: ShowcaseJo
   function submit(address: string, mode: Mode) {
     if (preview) return;
     track("job_get_price", { slug: job.slug, mode });
-    router.push(estimateHref(address, mode, { scope: job.job_type, from: job.slug }));
+    router.push(estimateHref(address, mode, { scope: job.job_type, from: job.slug, src: `job_page:${job.slug}` }));
   }
   return (
     <section className="pp-cta" aria-labelledby="pp-cta-h">

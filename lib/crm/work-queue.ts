@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { invoiceIsOverdue, invoiceBalanceCents, type DeriveInvoice, type DerivePayment } from "@/lib/invoicing/derive";
 import { OPEN_STATUSES } from "@/lib/invoicing/stateMachine";
+import { bucketPill, journeyLine, journeyWho, pageLabel, type WizardBucket } from "@/lib/wizard/journey";
+import { addBusinessHours, nextBusinessMorning } from "@/lib/time/businessHours";
 
 /**
  * The work queue (shell brief §3) — the one answer to "what needs a human?".
@@ -39,6 +41,12 @@ export const WORK_ITEM_KINDS = [
   "change_request",
   /** Assistant S7: a customer is waiting for a person in a live chat. */
   "handoff_requested",
+  /** Buckets brief §4: a wizard session that asked for a call or a visit (A). */
+  "wizard_ready",
+  /** Buckets brief §4: a wizard session that asked a question or for help (B). */
+  "wizard_help",
+  /** Buckets brief §4: priced, idle, nothing asked (C+). */
+  "wizard_priced",
 ] as const;
 
 export type WorkItemKind = (typeof WORK_ITEM_KINDS)[number];
@@ -46,7 +54,7 @@ export type WorkItemKind = (typeof WORK_ITEM_KINDS)[number];
 export type WorkItemBucket = "overdue" | "today" | "waiting";
 
 export type SubjectRef = {
-  type: "account" | "estimate" | "invoice" | "work_order" | "visit" | "event" | "campaign_queue" | "thread";
+  type: "account" | "estimate" | "invoice" | "work_order" | "visit" | "event" | "campaign_queue" | "thread" | "wizard_session";
   id: string;
 };
 
@@ -95,6 +103,8 @@ const CUSTOMER_VISIBLE: ReadonlySet<WorkItemKind> = new Set([
   "signoff_due",
   "change_request",
   "handoff_requested",
+  "wizard_ready",
+  "wizard_help",
 ]);
 
 export function isCustomerVisible(kind: WorkItemKind): boolean {
@@ -120,6 +130,9 @@ export const KIND_WEIGHT: Record<WorkItemKind, number> = {
   consent_missing: 4,
   change_request: 24,
   handoff_requested: 30,
+  wizard_ready: 26,
+  wizard_help: 28,
+  wizard_priced: 12,
 };
 
 export type PriorityInput = {
@@ -199,6 +212,9 @@ export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = 
   invoice_action: "money",
   change_request: "messages",
   handoff_requested: "messages",
+  wizard_ready: "followups",
+  wizard_help: "followups",
+  wizard_priced: "followups",
 };
 
 // ---- source: snooze_expired (§3.3) -----------------------------------------
@@ -363,6 +379,72 @@ export function buildCallbackItems(
       dueAt: due,
       action: { label: "Call", href: `/crm/customers/${cb.account_id}` },
     }, { valueCents: null, promisedToCustomer: false }, now));
+  }
+  return items;
+}
+
+// ---- source: wizard buckets A / B / C+ (buckets brief §4) -------------------
+
+export type WizardQueueRow = {
+  id: string; account_id: string | null; estimate_id: string | null;
+  name: string | null; email: string | null; phone: string | null; address: string | null; suburb: string | null;
+  job_type: string | null; bucket: string; outcome: string; outcome_at: string | null; outcome_note: string | null;
+  dropped_at: string | null; furthest_page: number; pages_total: number; active_seconds: number;
+  last_seen_at: string; est_value_cents: number | null; entry_source: string | null;
+};
+
+const money = (c: number) => `$${Math.round(c / 100).toLocaleString("en-AU")}`;
+
+/**
+ * One item per session in bucket A, B or C+. The item dies when a call
+ * attempt is logged on the account after the request (the callback rule),
+ * when the session moves on, or when it is dismissed. Due dates are office
+ * hours in Melbourne: 4 for a call or visit request, 2 for help, the next
+ * business morning for "priced, no request".
+ */
+export function buildWizardItems(rows: WizardQueueRow[], attempts: ContactEventRow[], now: Date): WorkItem[] {
+  const items: WorkItem[] = [];
+  for (const r of rows) {
+    const bucket = r.bucket as WizardBucket;
+    const since = r.outcome_at ?? r.dropped_at ?? r.last_seen_at;
+    if (r.account_id && attempts.some((a) => a.account_id === r.account_id && a.occurred_at > since)) continue;
+    const who = journeyWho(r);
+    const where = r.address || r.suburb || "";
+    const line = journeyLine({ furthestPage: r.furthest_page, pagesTotal: r.pages_total, activeSeconds: r.active_seconds, lastActiveAt: r.last_seen_at }, now);
+    const href = r.account_id ? `/crm/customers/${r.account_id}` : r.estimate_id ? `/quote?id=${r.estimate_id}` : `/estimates?status=wizard&open=${r.id}`;
+    const base = { accountId: r.account_id, subjectRef: { type: "wizard_session" as const, id: r.id }, since };
+    if (bucket === "ready_call" || bucket === "ready_visit") {
+      const visit = bucket === "ready_visit";
+      items.push(finish({
+        ...base,
+        key: itemKey("wizard_ready", "wizard_session", r.id, visit ? "visit" : "call"),
+        kind: "wizard_ready",
+        title: visit ? `Book visit — ${who}` : `Call ${who} — confirm price`,
+        detail: [where, line, r.phone].filter(Boolean).join(" · "),
+        dueAt: addBusinessHours(new Date(since), 4).toISOString(),
+        action: { label: visit ? "Book visit" : "Call", href },
+      }, { valueCents: r.est_value_cents, promisedToCustomer: false }, now));
+    } else if (bucket === "needs_help") {
+      items.push(finish({
+        ...base,
+        key: itemKey("wizard_help", "wizard_session", r.id, r.outcome),
+        kind: "wizard_help",
+        title: `Reply to ${who} — stuck at ${pageLabel(r.job_type, r.furthest_page)}`,
+        detail: [r.outcome_note, where, line, r.phone].filter(Boolean).join(" · ") || line,
+        dueAt: addBusinessHours(new Date(since), 2).toISOString(),
+        action: { label: "Reply", href },
+      }, { valueCents: r.est_value_cents, promisedToCustomer: false }, now));
+    } else if (bucket === "priced_no_request") {
+      items.push(finish({
+        ...base,
+        key: itemKey("wizard_priced", "wizard_session", r.id, "priced"),
+        kind: "wizard_priced",
+        title: `Follow up ${who} — saw ${r.est_value_cents ? money(r.est_value_cents) : "their price"}`,
+        detail: [where, bucketPill(bucket, r.job_type, r.furthest_page).label, line].filter(Boolean).join(" · "),
+        dueAt: nextBusinessMorning(new Date(since)).toISOString(),
+        action: { label: "Follow up", href },
+      }, { valueCents: r.est_value_cents, promisedToCustomer: false }, now));
+    }
   }
   return items;
 }
@@ -536,7 +618,8 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   const nowIso = now.toISOString();
   const since90d = new Date(now.getTime() - 90 * 86_400_000).toISOString();
 
-  const [snoozeAcc, invoices, callbacks, queued, dismissed, changeReqs, handoffs] = await Promise.all([
+  const since30d = new Date(now.getTime() - 30 * 86_400_000).toISOString();
+  const [snoozeAcc, invoices, callbacks, queued, dismissed, changeReqs, handoffs, wizardRows] = await Promise.all([
     supabase.from("accounts")
       .select("id, name, email, snoozed_until, followup_due_at, followup_note")
       .or(`snoozed_until.lte.${nowIso},followup_due_at.lte.${nowIso}`)
@@ -569,7 +652,22 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
       .in("status", ["requested", "claimed", "active"])
       .order("requested_at", { ascending: true })
       .limit(100),
+    // Buckets brief §4: sessions in A, B or C+ from the last 30 days. Until
+    // migration 20270107 runs the columns don't exist and the read errors;
+    // the queue stands up without them.
+    supabase.from("wizard_drafts")
+      .select("id, account_id, estimate_id, name, email, phone, address, suburb, job_type, bucket, outcome, outcome_at, outcome_note, dropped_at, furthest_page, pages_total, active_seconds, last_seen_at, est_value_cents, entry_source")
+      .in("bucket", ["ready_call", "ready_visit", "needs_help", "priced_no_request"])
+      .gte("last_seen_at", since30d)
+      .order("last_seen_at", { ascending: false })
+      .limit(200),
   ]);
+  const wzRows = (wizardRows.error ? [] : (wizardRows.data ?? [])) as unknown as WizardQueueRow[];
+  const wzAccountIds = [...new Set(wzRows.map((r) => r.account_id).filter((x): x is string => Boolean(x)))];
+  const { data: wzAttempts } = wzAccountIds.length
+    ? await supabase.from("crm_events").select("account_id, occurred_at")
+        .in("type", ["call_connected", "call_no_answer", "message_left"]).in("account_id", wzAccountIds).gte("occurred_at", since30d).limit(300)
+    : { data: [] };
   // A change request is answered by a staff reply in that estimate's thread.
   const crRows = ((changeReqs.error ? [] : changeReqs.data) ?? []) as unknown as ChangeRequestRow[];
   const crEstimateIds = [...new Set(crRows.map((r) => r.estimate_id))];
@@ -641,6 +739,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...buildApprovalItem(queued.count ?? 0, now),
     ...buildChangeRequestItems(crRows, (staffReplies ?? []) as StaffReplyRow[], now),
     ...buildHandoffItems(((handoffs.error ? [] : handoffs.data) ?? []) as unknown as HandoffQueueRow[], now),
+    ...buildWizardItems(wzRows, (wzAttempts ?? []) as ContactEventRow[], now),
   ];
 
   // Until migration 20261217 runs, the dismissals table doesn't exist and the

@@ -576,3 +576,11 @@
 .wz .sc-contact-form input, .wz .sd-contact-form input { font: inherit; font-size: 14px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: none; color: var(--text); }
 .wz .sc-contact-go, .wz .sd-contact-go { font: inherit; font-size: 14px; font-weight: 600; padding: 11px 16px; border-radius: 100px; border: 0; background: var(--cyan); color: #03272d; cursor: pointer; justify-self: start; }
 .wz .sc-contact-go:disabled, .wz .sd-contact-go:disabled { opacity: .5; cursor: default; }
+
+/* Buckets brief §3 · "Stuck? Ask us to call you" under the page buttons. */
+.wz .wz-stuck { max-width: 720px; margin: 0 auto; padding: 4px 20px 28px; text-align: center; }
+.wz .wz-stuck .wz-linkish { margin-top: 6px; color: var(--muted); }
+.wz .wz-stuck-form { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; align-items: center; margin-top: 8px; }
+.wz .wz-stuck-form input { flex: 1 1 200px; max-width: 280px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--graphite); color: var(--text); font: inherit; font-size: 16px; }
+.wz .wz-stuck-form .wz-btn { padding: 12px 18px; }
+.wz .wz-stuck-done { display: block; margin-top: 6px; color: var(--muted); font-size: 14px; }
