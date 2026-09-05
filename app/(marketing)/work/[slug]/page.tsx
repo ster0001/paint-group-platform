@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import { getAudience } from "@/lib/marketing/audienceServer";
-import { audiencePrefix, commercialDomain, otherAudienceHref } from "@/lib/marketing/audience";
+import { audiencePrefix, commercialDomain, otherAudienceHref, residentialOrigin } from "@/lib/marketing/audience";
 import { getSiteLogo } from "@/lib/marketing/siteContent";
 import Nav from "../../_sections/Nav";
 import Footer from "../../_sections/Footer";
@@ -48,7 +48,7 @@ export default async function WorkJobPage({ params }: { params: Promise<{ slug: 
   const audience = await getAudience();
   const domain = commercialDomain();
   if (domain) {
-    const residential = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
+    const residential = residentialOrigin() ?? "";
     if (job.property_type === "business" && audience === "home") permanentRedirect(`https://${domain}/work/${job.slug}`);
     if (job.property_type === "home" && audience === "business" && residential) permanentRedirect(`${residential}/work/${job.slug}`);
   }

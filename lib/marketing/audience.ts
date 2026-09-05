@@ -63,11 +63,23 @@ export function resolveAudience(host: string | null | undefined, pathname: strin
   return { audience: "home", redirect: null, rewrite: null };
 }
 
+/**
+ * The residential website's origin, for the cross-domain links and the
+ * wizard hand-off from the commercial domain. Its own variable (Tom set
+ * NEXT_SITE_URL, 6 Sep — a non-public name, and this is only read on the
+ * server): NEXT_PUBLIC_SITE_URL is the PLATFORM address in production
+ * (OAuth callbacks, portal links, PDFs) whose root is the login page.
+ */
+export function residentialOrigin(env: Record<string, string | undefined> = process.env): string | null {
+  const v = (env.NEXT_SITE_URL || env.RESIDENTIAL_SITE_URL || "").trim().replace(/\/$/, "");
+  return v || null;
+}
+
 /** Where the nav's "For business →" / "For homes →" link goes: the other domain's root, or the local path when no domain is set. */
-export function otherAudienceHref(audience: Audience, domain: string | null = commercialDomain(), residentialOrigin: string | null = process.env.NEXT_PUBLIC_SITE_URL ?? null): string {
+export function otherAudienceHref(audience: Audience, domain: string | null = commercialDomain(), residential: string | null = residentialOrigin()): string {
   if (audience === "home") return domain ? `https://${domain}/` : BUSINESS_PREFIX;
   // On the business site → the residential homepage.
-  const res = (residentialOrigin ?? "").replace(/\/$/, "");
+  const res = (residential ?? "").replace(/\/$/, "");
   return domain && res ? `${res}/` : "/";
 }
 

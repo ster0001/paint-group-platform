@@ -17,7 +17,7 @@ import { AudienceProvider } from "./_components/Audience";
 import { faqJsonLd, type FaqEntry } from "@/lib/marketing/faq";
 import { getSiteLogo, getWebsiteContent } from "@/lib/marketing/siteContent";
 import { getSiteCopy } from "@/lib/marketing/siteCopy";
-import { audiencePrefix, commercialDomain, otherAudienceHref, type Audience } from "@/lib/marketing/audience";
+import { audiencePrefix, commercialDomain, otherAudienceHref, residentialOrigin, type Audience } from "@/lib/marketing/audience";
 import { text } from "@/lib/marketing/copy";
 import type { SiteCopy } from "@/lib/marketing/copy/schema";
 import { PHONE_DISPLAY } from "@/lib/marketing/site";
@@ -80,7 +80,7 @@ export default async function HomePage({ audience }: { audience: Audience }) {
   const prefix = audiencePrefix(audience);
   // ⚑ D2: the wizard lives on the residential domain; from the commercial
   // domain the hand-off is absolute.
-  const wizardOrigin = audience === "business" && commercialDomain() ? (process.env.NEXT_PUBLIC_SITE_URL ?? "") : "";
+  const wizardOrigin = audience === "business" && commercialDomain() ? (residentialOrigin() ?? "") : "";
   const business = audience === "business";
   const localBusinessLd = {
     "@context": "https://schema.org",

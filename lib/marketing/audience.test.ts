@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { audiencePrefix, entrySourceFor, otherAudienceHref, resolveAudience } from "./audience";
+import { audiencePrefix, entrySourceFor, otherAudienceHref, residentialOrigin, resolveAudience } from "./audience";
 
 describe("audience resolution (session 8 §2) — hostname × path", () => {
   const D = "business.paintgroup.com.au";
@@ -32,4 +32,9 @@ describe("audience resolution (session 8 §2) — hostname × path", () => {
     expect(entrySourceFor("business", "hero")).toBe("commercial_home_hero");
     expect(entrySourceFor("home", "bottom")).toBe("homepage_cta");
   });
+});
+
+it("the residential origin is its own variable, never the platform address (NEXT_PUBLIC_SITE_URL)", () => {
+  expect(residentialOrigin({ NEXT_SITE_URL: "https://new.paintgroup.com.au/", NEXT_PUBLIC_SITE_URL: "https://paint-group-platform.vercel.app" })).toBe("https://new.paintgroup.com.au");
+  expect(residentialOrigin({ NEXT_PUBLIC_SITE_URL: "https://paint-group-platform.vercel.app" })).toBeNull();
 });
