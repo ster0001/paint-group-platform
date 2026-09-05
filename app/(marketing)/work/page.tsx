@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getSiteLogo } from "@/lib/marketing/siteContent";
 import Nav from "../_sections/Nav";
 import Footer from "../_sections/Footer";
 import CallBar from "../_sections/CallBar";
@@ -19,10 +20,10 @@ export const metadata: Metadata = {
 };
 
 export default async function WorkPage() {
-  const jobs = await publishedShowcaseJobs();
+  const [jobs, logoUrl] = await Promise.all([publishedShowcaseJobs(), getSiteLogo()]);
   return (
     <>
-      <Nav />
+      <Nav logoUrl={logoUrl} />
       <main className="sec light" id="jobs">
         <div className="wrap">
           <div className="head">

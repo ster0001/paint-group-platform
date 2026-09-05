@@ -6,10 +6,10 @@ import ProgressStory from "../_components/ProgressStory";
  * blur and the reduced-motion end state all live in ProgressStory; the
  * timeline itself is lib/marketing/progressStory (tested for drift).
  */
-export default function Story() {
+export default function Story({ photos = [] }: { photos?: string[] }) {
   return (
     <section className="sec light warm" id="story">
-      <ProgressStory />
+      <ProgressStory photos={photos} />
     </section>
   );
 }

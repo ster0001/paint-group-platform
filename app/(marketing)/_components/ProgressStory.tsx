@@ -3,6 +3,7 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { track } from "@/lib/analytics";
+import { showcaseMediaUrl } from "@/lib/showcase/format";
 import {
   STORY_AREAS, STORY_BEATS, STORY_CAPTIONS, STORY_END_MS, storyFinalState, storyStateAt, type StoryState,
 } from "@/lib/marketing/progressStory";
@@ -20,7 +21,7 @@ import {
  * final frame with the eight captions listed. The phone is aria-hidden; the
  * caption list is the accessible text and is always in the DOM.
  */
-export default function ProgressStory() {
+export default function ProgressStory({ photos = [] }: { photos?: string[] }) {
   const reduced = useReducedMotion();
   const [elapsed, setElapsed] = useState(-1); // -1 = not started
   const [played, setPlayed] = useState(false);
@@ -122,12 +123,12 @@ export default function ProgressStory() {
         )}
       </div>
 
-      <Phone s={s} reduced={Boolean(reduced)} />
+      <Phone s={s} reduced={Boolean(reduced)} photos={photos} />
     </div>
   );
 }
 
-function Phone({ s, reduced }: { s: StoryState; reduced: boolean }) {
+function Phone({ s, reduced, photos }: { s: StoryState; reduced: boolean; photos: string[] }) {
   const dur = (d: number) => (reduced ? 0 : d);
   return (
     <div className="device" aria-hidden="true" data-testid="story-phone" data-day={s.day}>
@@ -153,7 +154,8 @@ function Phone({ s, reduced }: { s: StoryState; reduced: boolean }) {
       </div>
       <div className="pphotos">
         {["Prep · floors covered", "Living room · masked up"].slice(0, s.photos).map((c, i) => (
-          <motion.i key={c} title={c} initial={reduced ? false : { x: 40, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ duration: dur(.5), delay: dur(.12 + i * .18), ease: [.2, .8, .2, 1] }} />
+          <motion.i key={c} title={c} initial={reduced ? false : { x: 40, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ duration: dur(.5), delay: dur(.12 + i * .18), ease: [.2, .8, .2, 1] }}
+            style={photos[i] ? { backgroundImage: `url(${showcaseMediaUrl(photos[i])})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined} />
         ))}
       </div>
       {s.update !== null && (

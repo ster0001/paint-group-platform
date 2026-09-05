@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import Image from "next/image";
 import { track, type MarketingEventName } from "@/lib/analytics";
+import { showcaseMediaUrl } from "@/lib/showcase/format";
 
 /**
  * §4.5 — four selectable rows (role=tab) and one dark panel (role=tabpanel)
@@ -33,7 +35,7 @@ const NOTE = [
 
 const muted = { color: "var(--color-muted)" } as const;
 
-export default function PromiseExplorer() {
+export default function PromiseExplorer({ variationPhotos = [] }: { variationPhotos?: string[] }) {
   const [i, setI] = useState(0);
   const [approved, setApproved] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -68,7 +70,11 @@ export default function PromiseExplorer() {
     <>
       <div className="row"><span className="mono" style={muted}>Variation #2 · 12 Elm St</span><span className={`pill${approved ? " green" : ""}`} data-testid="variation-pill">{approved ? "Approved" : "Waiting for you"}</span></div>
       <b>Replace 2.4 m of rotten fascia board, prime and paint to match</b>
-      <div className="ph"><i /><i /></div>
+      <div className="ph">
+        {[0, 1].map((i) => variationPhotos[i]
+          ? <span key={i} className="ph-img"><Image src={showcaseMediaUrl(variationPhotos[i])} alt="" width={120} height={84} style={{ objectFit: "cover", width: "100%", height: "100%" }} /></span>
+          : <i key={i} data-todo="site-photos" />)}
+      </div>
       <div className="row"><span><span className="mono" style={muted}>Extra, inc. GST</span><br /><span className="money">+ $486</span></span><span style={{ color: "var(--color-muted)", fontSize: 14 }}>Work won&rsquo;t start until you approve</span></div>
       <div className="btns">
         <button type="button" className={`btn btn-cyan${approved ? " approved" : ""}`} onClick={approve} disabled={approved} data-testid="approve-variation">{approved ? "Approved ✓" : "Approve $486"}</button>

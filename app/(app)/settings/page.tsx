@@ -30,6 +30,8 @@ import { myobEnv } from "@/lib/myob/oauth";
 import { freshConnection, listAccounts, listCompanyFiles, type MyobAccount } from "@/lib/myob/client";
 import { requestNowMs } from "@/lib/time/requestClock";
 import { AUTOMATIONS } from "@/lib/automations/registry";
+import WebsiteContentManager from "./WebsiteContentManager";
+import { WEBSITE_CONTENT_KEY, parseWebsiteContent } from "@/lib/marketing/siteContent";
 
 const AUTOMATION_COUNT = AUTOMATIONS.length;
 
@@ -107,6 +109,7 @@ export default async function SettingsPage() {
   const rateItems = rateItemsRes.data ?? [];
 
   const allSettings = (settingsRes.data as SettingRow[] | null) ?? [];
+  const websiteContent = parseWebsiteContent(allSettings.find((r) => r.key === WEBSITE_CONTENT_KEY)?.value);
   // Numeric levers only, decided by SHAPE. The old filter excluded six named
   // keys and swept up everything else — including whole config objects like
   // `wizard_policy` and `wo_loop`, which coerced to NaN, serialised to null and
@@ -179,6 +182,8 @@ export default async function SettingsPage() {
           content: <SettingsForm initial={company} /> },
         { id: "documents", title: "Documents", subtitle: "Credentials on display in every customer portal — insurance certificates with expiry, plus the warranty-terms approval switch", count: companyDocs.length,
           content: <DocumentsManager initialDocs={companyDocs} warrantyApproved={warrantyApproved} /> },
+        { id: "website", title: "Website", subtitle: "The homepage's painter cards and the photos in the promise card and the progress story — the top-left logo comes from Company details (logo 1)", count: websiteContent.painters.length,
+          content: <WebsiteContentManager initial={websiteContent} /> },
         { id: "showcase", title: "Showcase jobs", subtitle: "Finished jobs shown on the website as “Real jobs, real prices” — photos, price range, what we did; the three featured ones are the homepage cards",
           content: (
             <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">

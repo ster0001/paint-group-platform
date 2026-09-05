@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { getSiteLogo } from "@/lib/marketing/siteContent";
 import Nav from "../../_sections/Nav";
 import Footer from "../../_sections/Footer";
 import CallBar from "../../_sections/CallBar";
@@ -42,7 +43,7 @@ export default async function WorkJobPage({ params }: { params: Promise<{ slug: 
   const { slug } = await params;
   const job = await showcaseJobBySlug(slug);
   if (!job) notFound();
-  const all = await publishedShowcaseJobs();
+  const [all, logoUrl] = await Promise.all([publishedShowcaseJobs(), getSiteLogo()]);
   const related = relatedShowcaseJobs(all, job);
 
   // Article JSON-LD — deliberately no Product/Offer markup: prices are ranges
@@ -61,7 +62,7 @@ export default async function WorkJobPage({ params }: { params: Promise<{ slug: 
 
   return (
     <>
-      <Nav />
+      <Nav logoUrl={logoUrl} />
       <main>
         <ProjectPage job={job} related={related} />
       </main>

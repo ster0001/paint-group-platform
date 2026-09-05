@@ -13,28 +13,30 @@ import ClosingCta from "./_sections/ClosingCta";
 import Footer from "./_sections/Footer";
 import CallBar from "./_sections/CallBar";
 import { faqJsonLd } from "@/lib/marketing/faq";
+import { getSiteLogo, getWebsiteContent } from "@/lib/marketing/siteContent";
 
 /**
  * The marketing homepage (docs/briefs/homepage-v2-build-brief.md). One job:
  * get a visitor to type their address. The thirteen sections in §3's order,
  * one file each under _sections/ (no section imports another). Static with
- * ISR: the only data is the three featured showcase jobs, and the save
- * action revalidates "/" when they change.
+ * ISR: the data is the three featured showcase jobs plus Settings → Website
+ * (painters, photos, logo); both save actions revalidate "/".
  */
 export const revalidate = 60;
 
-export default function HomePage() {
+export default async function HomePage() {
+  const [content, logoUrl] = await Promise.all([getWebsiteContent(), getSiteLogo()]);
   return (
     <>
-      <Nav />
+      <Nav logoUrl={logoUrl} />
       <main>
         <Hero />
         <HowItWorks />
         <RealJobs />
-        <PromiseSection />
-        <Story />
+        <PromiseSection variationPhotos={content.promisePhotos} />
+        <Story photos={content.storyPhotos} />
         <LiveStrip />
-        <Painters />
+        <Painters painters={content.painters} />
         <Trade />
         <Reviews />
         <Faq />
