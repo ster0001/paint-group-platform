@@ -6,9 +6,10 @@ import Chip from "./Chip";
 import { track } from "@/lib/analytics";
 import type { Mode } from "@/lib/marketing/estimateLink";
 import {
-  GHOST_EXAMPLES, GHOST_GAP_MS, GHOST_START_DELAY_MS, applyGhostStep, ghostInitial, ghostSchedule, stopGhost,
-  type GhostState,
+  GHOST_EXAMPLES, GHOST_GAP_MS, GHOST_START_DELAY_MS, applyGhostStep, ghostInitialFor, ghostSchedule, stopGhost,
+  type GhostExample, type GhostState,
 } from "@/lib/marketing/ghostEstimator";
+import { useAudience } from "./Audience";
 
 /**
  * The universal address field (brief §1, §4.2) — used in the hero, the
@@ -29,28 +30,39 @@ import {
  * first paint, stops it for good the instant the visitor touches the field
  * or a chip, and never starts it under reduced motion.
  */
+export type FieldLabels = { placeholder?: string; button?: string; chipsLabel?: string; chipHome?: string; chipBusiness?: string };
+
 export default function AddressField({
   where,
   showChips = false,
-  initialMode = "home",
+  initialMode,
   ghost = false,
+  examples,
+  labels = {},
   onSubmit,
 }: {
   where: "hero" | "bottom" | "project";
   showChips?: boolean;
+  /** Session 8: defaults to the site's audience (business site → business chip), still unlocked. */
   initialMode?: Mode;
   ghost?: boolean;
+  /** Session 8 §4: the self-typing examples, from site content, this audience's mode only. */
+  examples?: readonly GhostExample[];
+  labels?: FieldLabels;
   onSubmit: (address: string, mode: Mode) => void;
 }) {
+  const { audience } = useAudience();
+  const restMode: Mode = initialMode ?? (audience === "business" ? "business" : "home");
+  const list = examples && examples.length ? examples : GHOST_EXAMPLES.filter((e) => e.mode === restMode);
   const [value, setValue] = useState("");
-  const [mode, setMode] = useState<Mode>(initialMode);
+  const [mode, setMode] = useState<Mode>(restMode);
   const typedOnce = useRef(false);
   const { suggestions, open, setOpen, lookup, resolve } = useAddressLookup();
   const inputId = useId();
 
   // ---- the ghost loop -------------------------------------------------------
-  const [g, setG] = useState<GhostState>(ghostInitial);
-  const gRef = useRef<GhostState>(ghostInitial);
+  const [g, setG] = useState<GhostState>(() => ghostInitialFor(restMode));
+  const gRef = useRef<GhostState>(ghostInitialFor(restMode));
   const timers = useRef<number[]>([]);
   const stoppedRef = useRef(false);
 
@@ -60,12 +72,12 @@ export default function AddressField({
     const clearTimers = () => { timers.current.forEach((t) => window.clearTimeout(t)); timers.current = []; };
     const commit = (next: GhostState) => { gRef.current = next; setG(next); };
     const playExample = (index: number) => {
-      if (stoppedRef.current) return;
-      const steps = ghostSchedule(GHOST_EXAMPLES[index]);
+      if (stoppedRef.current || list.length === 0) return;
+      const steps = ghostSchedule(list[index % list.length]);
       for (const step of steps) {
         timers.current.push(window.setTimeout(() => {
           if (stoppedRef.current) return;
-          commit(applyGhostStep(gRef.current, step));
+          commit(applyGhostStep(gRef.current, step, list.length));
           if (step.kind === "clear") {
             timers.current.push(window.setTimeout(() => playExample(gRef.current.index), GHOST_GAP_MS));
           }
@@ -75,6 +87,8 @@ export default function AddressField({
     // After first paint: the H1 is the LCP element and the loop must not delay it.
     timers.current.push(window.setTimeout(() => playExample(0), GHOST_START_DELAY_MS));
     return clearTimers;
+    // `list` is the site's fixed example set for this render of the page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ghost]);
 
   function stopGhostNow() {
@@ -82,9 +96,9 @@ export default function AddressField({
     stoppedRef.current = true;
     timers.current.forEach((t) => window.clearTimeout(t));
     timers.current = [];
-    const next = stopGhost(gRef.current);
+    const next = stopGhost(gRef.current, restMode);
     gRef.current = next; setG(next);
-    setMode("home");
+    setMode(restMode);
     track("ghost_stopped", { where });
   }
 
@@ -132,7 +146,7 @@ export default function AddressField({
         <svg className="pin" aria-hidden="true" width="18" height="22" viewBox="0 0 18 22" fill="none"><path d="M9 21s7-6.6 7-12A7 7 0 0 0 2 9c0 5.4 7 12 7 12Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><circle cx="9" cy="9" r="2.6" stroke="currentColor" strokeWidth="1.8"/></svg>
         <input
           id={inputId}
-          placeholder={ghosting ? "" : "Type your address"}
+          placeholder={ghosting ? "" : labels.placeholder || "Type your address"}
           aria-label="Address"
           data-ev="address_typed"
           data-ghosting={ghosting ? "true" : undefined}
@@ -141,7 +155,7 @@ export default function AddressField({
           onFocus={() => { stopGhostNow(); if (suggestions.length) setOpen(true); }}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
         />
-        <button className="btn btn-cyan" type="submit" data-ev="see_price">See my price →</button>
+        <button className="btn btn-cyan" type="submit" data-ev="see_price">{labels.button || "See my price →"}</button>
       </form>
 
       {ghost && (
@@ -174,9 +188,9 @@ export default function AddressField({
 
       {showChips && (
         <div className="chips" role="group" aria-label="This is">
-          <span className="mono" style={{ color: "var(--color-muted)" }}>This is</span>
-          <Chip pressed={shownMode === "home"} data-mode="home" data-ev="mode_home" onClick={() => choose("home")}>My home</Chip>
-          <Chip pressed={shownMode === "business"} data-mode="business" data-ev="mode_business" onClick={() => choose("business")}>A business or property I manage</Chip>
+          <span className="mono" style={{ color: "var(--color-muted)" }}>{labels.chipsLabel || "This is"}</span>
+          <Chip pressed={shownMode === "home"} data-mode="home" data-ev="mode_home" onClick={() => choose("home")}>{labels.chipHome || "My home"}</Chip>
+          <Chip pressed={shownMode === "business"} data-mode="business" data-ev="mode_business" onClick={() => choose("business")}>{labels.chipBusiness || "A business or property I manage"}</Chip>
         </div>
       )}
     </>

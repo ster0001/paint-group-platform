@@ -1,4 +1,5 @@
 import TrackedLink from "../_components/TrackedLink";
+import Md from "../_components/Md";
 
 /**
  * §4.10 — the trade lane. No real client name until ⚑9.5 (generic
@@ -8,18 +9,20 @@ import TrackedLink from "../_components/TrackedLink";
  * DOM so it sits ABOVE the example portfolio on a phone (Tom, 5 Sep); on
  * desktop the CSS keeps the portfolio on the left as in the prototype.
  */
-export default function Trade() {
+export type TradeCopy = { kicker: string; h2: string; lead: string; cta1: string; cta2: string };
+
+export default function Trade({ copy, promoted = false }: { copy: TradeCopy; promoted?: boolean }) {
   return (
-    <section className="sec trade-sec" id="trade">
+    <section className={`sec trade-sec${promoted ? " trade-promoted" : ""}`} id="trade">
       <div className="sweeps" aria-hidden="true" />
       <div className="wrap trade">
         <div>
-          <div className="mono" style={{ color: "var(--color-cyan)", marginBottom: 12 }}>For businesses who manage multiple sites at once</div>
-          <h2>Every property. One login. No chasing.</h2>
-          <p className="lead" style={{ marginTop: 14 }}>Upload a floorplan, room measurements or photos and get a price range immediately. Approve or request variations at the click of a button, colours kept on file, one click repaint. All invoices in one place. Built for people running twenty jobs, not one.</p>
+          <div className="mono" style={{ color: "var(--color-cyan)", marginBottom: 12 }}>{copy.kicker}</div>
+          <h2>{copy.h2}</h2>
+          <p className="lead" style={{ marginTop: 14 }}><Md src={copy.lead} inline /></p>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 24 }}>
-            <TrackedLink href="#" ev="trade_walkthrough" data-todo="9.5" className="btn btn-cyan">Book a 15-minute walkthrough</TrackedLink>
-            <TrackedLink href="#" ev="trade_account" data-todo="9.5" className="btn btn-ghost">Open a trade account</TrackedLink>
+            <TrackedLink href="#" ev="trade_walkthrough" data-todo="9.5" className="btn btn-cyan">{copy.cta1}</TrackedLink>
+            <TrackedLink href="#" ev="trade_account" data-todo="9.5" className="btn btn-ghost">{copy.cta2}</TrackedLink>
           </div>
         </div>
         <div className="tbl" aria-label="A trade portfolio, example">

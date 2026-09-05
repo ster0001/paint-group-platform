@@ -6,9 +6,9 @@ import JobCard from "../_components/JobCard";
 import { JOB_TYPES, JOB_TYPE_LABEL, type JobType, type PropertyType, type ShowcaseJob } from "@/lib/showcase/schema";
 
 /** The /work grid with its two chip rows (same Chip as the hero). Client-side only — no URL state needed. */
-export default function WorkList({ jobs }: { jobs: ShowcaseJob[] }) {
+export default function WorkList({ jobs, initialProperty = "all", prefix = "" }: { jobs: ShowcaseJob[]; initialProperty?: PropertyType | "all"; prefix?: string }) {
   const [type, setType] = useState<JobType | "all">("all");
-  const [property, setProperty] = useState<PropertyType | "all">("all");
+  const [property, setProperty] = useState<PropertyType | "all">(initialProperty);
 
   const shown = useMemo(
     () => jobs.filter((j) => (type === "all" || j.job_type === type) && (property === "all" || j.property_type === property)),
@@ -38,7 +38,7 @@ export default function WorkList({ jobs }: { jobs: ShowcaseJob[] }) {
         </p>
       ) : (
         <div className="jobs" data-testid="work-grid">
-          {shown.map((j, i) => <JobCard key={j.id} job={j} priority={i < 3} />)}
+          {shown.map((j, i) => <JobCard key={j.id} job={j} priority={i < 3} prefix={prefix} />)}
         </div>
       )}
     </>

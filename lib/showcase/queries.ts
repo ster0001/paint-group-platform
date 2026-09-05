@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { SHOWCASE_COLUMNS, showcaseJobRowSchema, type ShowcaseJob } from "./schema";
+import { rankShowcaseJobs } from "./rank";
+import type { Audience } from "@/lib/marketing/audience";
 
 /**
  * Public reads for the marketing pages (homepage cards, /work, /work/[slug]).
@@ -14,7 +16,13 @@ function publicClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) return null;
-  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  // `cache: "no-store"` on the underlying fetch: an ISR page must read the
+  // table fresh each time it regenerates, never a Data Cache copy — a save
+  // in Settings revalidates the page and expects the new rows to show.
+  return createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }) },
+  });
 }
 
 function rows(data: unknown[] | null): ShowcaseJob[] {
@@ -24,15 +32,21 @@ function rows(data: unknown[] | null): ShowcaseJob[] {
   });
 }
 
-/** §4.4c AC: the three lowest featured ranks among PUBLISHED jobs, nothing else. */
-export async function featuredShowcaseJobs(): Promise<ShowcaseJob[]> {
+/**
+ * §4.4c AC: the three homepage cards. Session 8: per audience — home = the
+ * three lowest featured ranks among published home jobs; business = ranked
+ * business jobs then newest, never padded with home jobs while three or
+ * more business jobs are published (lib/showcase/rank.ts, unit-tested).
+ */
+export async function featuredShowcaseJobs(audience: Audience = "home"): Promise<ShowcaseJob[]> {
   const db = publicClient();
   if (!db) return [];
   const { data } = await db
     .from("showcase_jobs").select(SHOWCASE_COLUMNS)
-    .eq("published", true).not("featured_rank", "is", null)
-    .order("featured_rank", { ascending: true }).limit(3);
-  return rows(data);
+    .eq("published", true)
+    .order("completed_on", { ascending: false, nullsFirst: false })
+    .limit(200);
+  return rankShowcaseJobs(rows(data), audience);
 }
 
 /** /work — every published job, newest completed first. */

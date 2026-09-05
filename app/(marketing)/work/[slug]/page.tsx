@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
+import { getAudience } from "@/lib/marketing/audienceServer";
+import { audiencePrefix, commercialDomain, otherAudienceHref } from "@/lib/marketing/audience";
 import { getSiteLogo } from "@/lib/marketing/siteContent";
 import Nav from "../../_sections/Nav";
 import Footer from "../../_sections/Footer";
@@ -15,13 +17,10 @@ import { parseVideoUrl } from "@/lib/marketing/video";
  * unknown slugs render on demand, unpublished ones 404, and the save action
  * revalidates the path so an edit is live within a minute.
  */
-export const revalidate = 60;
-export const dynamicParams = true;
-
-export async function generateStaticParams() {
-  const jobs = await publishedShowcaseJobs();
-  return jobs.map((j) => ({ slug: j.slug }));
-}
+// Session 8: a project page 301s to the domain matching its property_type,
+// which needs the request's host — so it renders per request (no ISR, no
+// prerendered params). One row and its related jobs.
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -44,6 +43,16 @@ export default async function WorkJobPage({ params }: { params: Promise<{ slug: 
   const { slug } = await params;
   const job = await showcaseJobBySlug(slug);
   if (!job) notFound();
+  // Session 8 §7: a project page lives on the domain matching its
+  // property_type; the other domain 301s to it (no URL answers on both).
+  const audience = await getAudience();
+  const domain = commercialDomain();
+  if (domain) {
+    const residential = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
+    if (job.property_type === "business" && audience === "home") permanentRedirect(`https://${domain}/work/${job.slug}`);
+    if (job.property_type === "home" && audience === "business" && residential) permanentRedirect(`${residential}/work/${job.slug}`);
+  }
+  const prefix = audiencePrefix(audience);
   const [all, logoUrl] = await Promise.all([publishedShowcaseJobs(), getSiteLogo()]);
   const related = relatedShowcaseJobs(all, job);
 
@@ -79,8 +88,8 @@ export default async function WorkJobPage({ params }: { params: Promise<{ slug: 
 
   return (
     <>
-      <Nav logoUrl={logoUrl} />
-      <main>
+      <Nav logoUrl={logoUrl} copy={{ links: [{ label: "Real jobs, real prices", href: "/work" }, { label: "How it works", href: "/#how" }, { label: "Reviews", href: "/#reviews" }], otherLabel: audience === "home" ? "For business →" : "For homes →", otherHref: otherAudienceHref(audience), cta: "See my price", prefix }} />
+      <main data-audience={audience}>
         <ProjectPage job={job} related={related} />
       </main>
       <Footer />

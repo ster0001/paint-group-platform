@@ -1,6 +1,8 @@
 import Link from "next/link";
 import JobCard from "../_components/JobCard";
 import { featuredShowcaseJobs } from "@/lib/showcase/queries";
+import Md from "../_components/Md";
+import type { Audience } from "@/lib/marketing/audience";
 
 /**
  * §4.4 — three JobCards driven by the showcase table: the three lowest
@@ -14,22 +16,24 @@ const PLACEHOLDERS = [
   { title: "[Commercial shopfront]", days: 3, meta: "Preston · completed Jun 2026", price: "$6,900 – $7,700", scope: "Exterior render + signage band, after-hours", ph: "linear-gradient(135deg,#9FA3A6,#D9DBDC)" },
 ];
 
-export default async function RealJobs() {
-  const featured = await featuredShowcaseJobs();
+export type JobsCopy = { kicker: string; h2: string; lead: string; allLink: string };
+
+export default async function RealJobs({ audience, copy, prefix = "" }: { audience: Audience; copy: JobsCopy; prefix?: string }) {
+  const featured = await featuredShowcaseJobs(audience);
   const gaps = PLACEHOLDERS.slice(featured.length, 3);
   return (
     <section className="sec light" id="jobs">
       <div className="wrap">
         <div className="head">
           <div>
-            <div className="mono" style={{ color: "var(--color-tmut)", marginBottom: 12 }}>Real jobs · real prices · inc. GST</div>
-            <h2>What Melbourne properties actually cost to paint.</h2>
-            <p className="lead" style={{ marginTop: 14 }}>Every card is a finished job with the real price. Tap one and we&rsquo;ll open the estimator pre-filled with the same scope.</p>
+            <div className="mono" style={{ color: "var(--color-tmut)", marginBottom: 12 }}>{copy.kicker}</div>
+            <h2>{copy.h2}</h2>
+            <p className="lead" style={{ marginTop: 14 }}><Md src={copy.lead} inline /></p>
           </div>
-          <Link href="/work" style={{ fontWeight: 500 }}>All jobs →</Link>
+          <Link href={`${prefix}/work`} style={{ fontWeight: 500 }}>{copy.allLink}</Link>
         </div>
         <div className="jobs" data-testid="featured-jobs">
-          {featured.map((j, i) => <JobCard key={j.id} job={j} priority={i === 0} />)}
+          {featured.map((j, i) => <JobCard key={j.id} job={j} priority={i === 0} prefix={prefix} />)}
           {gaps.map((p) => (
             <div key={p.title} className="job placeholder" data-todo="9.2" data-testid="featured-placeholder">
               <div className="img" style={{ background: p.ph }} />

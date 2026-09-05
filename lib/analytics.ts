@@ -80,7 +80,9 @@ type ClarityFn = (cmd: "set" | "event" | "consent", ...args: unknown[]) => void;
 
 export function track(name: MarketingEventName, rawProps: TrackProps = {}): void {
   if (typeof window === "undefined") return;
-  const props = scrubProps(name, rawProps);
+  // Session 8 §7: every event says which site it came from.
+  const audience = document.documentElement.dataset.audience;
+  const props = scrubProps(name, audience && rawProps.audience === undefined ? { ...rawProps, audience } : rawProps);
   const detail: TrackDetail = { name, props, at: Date.now() };
   window.dispatchEvent(new CustomEvent<TrackDetail>(TRACK_DOM_EVENT, { detail }));
   if (process.env.NODE_ENV !== "production") console.debug("[track]", name, props);

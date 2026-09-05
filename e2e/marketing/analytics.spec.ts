@@ -91,7 +91,7 @@ test.describe("first-party events", () => {
 
     const seePrice = rows.find((r) => r.payload.name === "see_price")!;
     expect(seePrice.payload.address).toBe(address);
-    expect(seePrice.payload.props).toEqual({ where: "hero", mode: "home" });
+    expect(seePrice.payload.props).toEqual({ where: "hero", mode: "home", audience: "home" });
     expect(seePrice.payload.path).toBe("/");
     for (const r of rows) {
       if (r.payload.name === "see_price") continue;

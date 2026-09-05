@@ -1971,3 +1971,38 @@ source rides the hand-off as `?src=` (`homepage_hero`, `homepage_cta`, `job_page
 else `direct`). Manual check: start `/estimate?src=homepage_hero`, answer two pages, wait
 20 s, leave; `curl -H "Authorization: Bearer $CRON_SECRET" /api/cron/wizard-sweep?minutes=0`;
 open Estimates → Wizard and CRM → Today. e2e: `e2e/wizard-buckets.spec.ts`.
+
+## Website session 8 — residential and commercial audiences (6 Sep 2026)
+
+Brief: `docs/briefs/website-audiences.md`. One brand, two domains, one codebase.
+`audience ∈ {home, business}` is decided per request in `proxy.ts` by
+`lib/marketing/audience.ts resolveAudience(host, path)` (unit-tested): the commercial
+host (env `COMMERCIAL_DOMAIN`, ⚑ D1) is business and its root is rewritten to the
+`/business` route; `/business…` on the residential host 301s to the commercial domain,
+or, with no domain configured (dev, C1, the Settings preview), is served locally. The
+proxy stamps `x-audience`; the two homepage routes (`app/(marketing)/page.tsx`,
+`business/page.tsx`) render one `HomePage` per audience and stay static/ISR; the `/work`
+pages read `getAudience()` (dynamic) and a project page 301s to the domain matching its
+`property_type`. `AudienceProvider` gives client sections `useAudience()`; `track()` adds
+`audience` from `<html data-audience>`.
+
+Copy: `site_content` (migration 20270109; public select, service-only writes) keyed
+audience/section/key, seeded for BOTH audiences from `lib/marketing/copy/{home,business}.ts`
+via `scripts/gen-site-content-seed.ts`; `lib/marketing/siteCopy.ts getSiteCopy` merges rows
+over those defaults; the field list is `lib/marketing/copy/schema.ts` (one list feeds the
+seed, the editor and the reader). Settings → Company → Website copy: two tabs, sections in
+page order, live preview iframe, markdown (`lib/marketing/md.ts`) on lead/answer keys.
+
+Per audience: hero (chip defaults to the audience, unlocked), self-typing examples with the
+audience's mode only, steps, promise rows, story captions (+ the business beat at 13.0 s,
+`storyBeats`), painters intro, trade lane promoted after the jobs on the business site,
+reviews (`review_tags` table + `lib/marketing/reviewTags.ts pickReviews`: business shows
+confirmed-business reviews, fewer than three → best untagged under "From homeowners and
+businesses"; Settings → Website → Reviews confirms tags), FAQ, CTA (chips on the business
+site), meta + `LocalBusiness` JSON-LD with one `@id` and a per-audience `serviceType`.
+Cards: `showcase_jobs.featured_rank_business` (⚑ D4) + `lib/showcase/rank.ts` (never pads
+with home jobs while ≥3 business jobs are published). Sitemap: `app/sitemap.xml/route.ts`
+per host. e2e: `e2e/marketing/audiences.spec.ts` (mobile; journey 3 needs
+`COMMERCIAL_DOMAIN`). Hand-off: `see_price` on the business site carries
+`src=commercial_home_hero|_cta` and, on the commercial domain, an absolute residential
+`/estimate` URL (⚑ D2).

@@ -103,7 +103,7 @@ test("anonymous mobile visitor: type → pick → See my price → wizard pre-fi
   const names = seen.map((e) => e.name);
   expect(names).toEqual(expect.arrayContaining(["address_typed", "address_selected", "see_price"]));
   const seePrice = seen.find((e) => e.name === "see_price");
-  expect(seePrice?.props).toEqual({ where: "hero", mode: "home", address: PICKED.formatted });
+  expect(seePrice?.props).toEqual({ where: "hero", mode: "home", address: PICKED.formatted, audience: "home" });
   for (const e of seen) if (e.name !== "see_price") expect(JSON.stringify(e.props)).not.toContain("Elm");
 });
 
@@ -125,8 +125,8 @@ test("the business chip travels as mode=business and pre-selects commercial", as
   expect(url.searchParams.get("mode")).toBe("business");
 
   const seen = await events(page);
-  expect(seen.find((e) => e.name === "mode_business")?.props).toEqual({ where: "hero" });
-  expect(seen.find((e) => e.name === "see_price")?.props).toEqual({ where: "hero", mode: "business", address: "4/22 High Street, Northcote" });
+  expect(seen.find((e) => e.name === "mode_business")?.props).toEqual({ where: "hero", audience: "home" });
+  expect(seen.find((e) => e.name === "see_price")?.props).toEqual({ where: "hero", mode: "business", address: "4/22 High Street, Northcote", audience: "home" });
 
   const holding = page.getByText("Online estimates are nearly here");
   if (await holding.count()) throw new Error("wizard_public is OFF on this stack — turn it on before running this spec");

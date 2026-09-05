@@ -125,7 +125,7 @@ test.describe("homepage sections (brief §3, §4.3–4.13)", () => {
     expect(u.searchParams.get("address")).toBe("9 Clarke Street, Thornbury");
     expect(u.searchParams.get("mode")).toBe("home");
     const sp = (await events(page)).find((e) => e.name === "see_price");
-    expect(sp?.props).toEqual({ where: "bottom", mode: "home", address: "9 Clarke Street, Thornbury" });
+    expect(sp?.props).toEqual({ where: "bottom", mode: "home", address: "9 Clarke Street, Thornbury", audience: "home" });
   });
 
   test("Real jobs: the featured cards are the published ranks 1–3 and nothing else; empty slots are visible placeholders", async ({ page }) => {

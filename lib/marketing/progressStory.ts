@@ -32,6 +32,22 @@ export const STORY_BEATS: ReadonlyArray<{ at: number; caption: string }> = [
 export const STORY_END_MS = 22000;
 export const STORY_CAPTIONS = STORY_BEATS.map((b) => b.caption);
 
+/** Session 8 §4: the business site's extra beat, between the daily update and the variation. Timing lives here; the caption in site content. */
+export const BUSINESS_BEAT_AT = 13000;
+
+export type StoryBeat = { at: number; caption: string };
+
+/**
+ * The beats for a page: the eight captions from site content in the
+ * standing order (a blank falls back to the built-in line), plus, for the
+ * business site, the ninth beat at 13.0 s when it has a caption.
+ */
+export function storyBeats(captions: string[], businessBeat: string | null = null): StoryBeat[] {
+  const beats: StoryBeat[] = STORY_BEATS.map((b, i) => ({ at: b.at, caption: (captions[i] ?? "").trim() || b.caption }));
+  if (businessBeat && businessBeat.trim()) beats.push({ at: BUSINESS_BEAT_AT, caption: businessBeat.trim() });
+  return beats.sort((a, b) => a.at - b.at);
+}
+
 export const UPDATE_TEXT = "Living room finished and looking great. Hallway has its first coat. Second coat first thing tomorrow. Back on site at 7:30.";
 const UPDATE_CHAR_MS = 22;
 export const VARIATION_PRESS_AT = 14500 + 1500;
@@ -55,7 +71,7 @@ export type StoryState = {
 
 const DONE_SUB = "Walls ✓ Ceiling ✓ Trim ✓";
 
-export function storyStateAt(t: number): StoryState {
+export function storyStateAt(t: number, beats: ReadonlyArray<StoryBeat> = STORY_BEATS): StoryState {
   const areas: StoryState["areas"] = {
     living: { state: "todo", sub: "Not started" },
     hall: { state: "todo", sub: "Not started" },
@@ -66,7 +82,7 @@ export function storyStateAt(t: number): StoryState {
   const s: StoryState = { captionIndex: -1, day: 1, progress: 0, areas, photos: 0, banner: null, update: null, variation: "hidden", signed: false, done: false };
   if (t < 0) return s;
 
-  s.captionIndex = STORY_BEATS.reduce((idx, b, i) => (t >= b.at ? i : idx), 0);
+  s.captionIndex = beats.reduce((idx, b, i) => (t >= b.at ? i : idx), 0);
 
   if (t >= 2000) { s.banner = { bold: "Felipe M.", text: "Furniture moved, floors covered. Starting the living room." }; s.progress = 8; }
   if (t >= 5000) { s.banner = null; s.photos = 2; areas.living = { state: "prepped", sub: "Masked up, first coat next" }; }
@@ -87,4 +103,4 @@ export function storyStateAt(t: number): StoryState {
 }
 
 /** The end state — what reduced motion shows, and what the phone holds after 22 s. */
-export const storyFinalState = (): StoryState => storyStateAt(STORY_END_MS);
+export const storyFinalState = (beats: ReadonlyArray<StoryBeat> = STORY_BEATS): StoryState => storyStateAt(STORY_END_MS, beats);
