@@ -102,7 +102,7 @@ export default async function EstimatesPage({
   if (fq.status) query = query.eq("status", fq.status);
   if (fq.viewed === true) query = query.not("viewed_at", "is", null);
   if (fq.viewed === false) query = query.is("viewed_at", null);
-  const { data: estimates } = await query;
+  const { data: estimates, error: listError } = await query;
 
   // Buckets brief §5: the wizard session behind each listed estimate. Read
   // the converted sessions newest-first rather than `in(ids)` — a thousand
@@ -127,7 +127,13 @@ export default async function EstimatesPage({
 
       {tabs}
 
-      {estimates && estimates.length > 0 ? (
+      {listError ? (
+        // A failed read is not "no estimates" — say what happened (6 Sep: the
+        // list came back empty on the test project under load and read as none).
+        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-800" data-testid="estimates-error">
+          The estimates list could not be loaded: {listError.message}. Reload the page.
+        </div>
+      ) : estimates && estimates.length > 0 ? (
         <EstimatesTable estimates={rowsWithWizard as EstimateRow[]} />
       ) : (
         <div className="mt-4 rounded-lg border border-gray-200 bg-white p-10 text-center text-sm text-gray-400">

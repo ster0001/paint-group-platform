@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { checkUpload } from "@/lib/uploads/validate";
@@ -582,6 +582,28 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    * Only once there is an email. Before that there is no way to reach them, so
    * a row would be a half-finished form nobody can act on.
    */
+  // ONE save in flight at a time (6 Sep). Two overlapping POSTs race at the
+  // database — the older one, slower because it priced the draft, landed
+  // after the newer one and wiped the email the person had just typed
+  // (CI run #105). The newest body waits for the one in flight, then goes.
+  const inFlightRef = useRef(false);
+  const queuedRef = useRef<string | null>(null);
+  const queueDraftSave = useCallback(function send(body: string) {
+    if (inFlightRef.current) { queuedRef.current = body; return; }
+    inFlightRef.current = true;
+    void fetch("/api/wizard/draft", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      keepalive: true,
+    }).catch(() => {}).finally(() => {
+      inFlightRef.current = false;
+      const next = queuedRef.current;
+      queuedRef.current = null;
+      if (next && !draftHaltRef.current) send(next);
+    });
+  }, []);
+
   const savedRef = useRef("");
   /** Set at the moment submit starts. The pending debounce otherwise fires
    *  DURING the processing screen and races the server's conversion — the
@@ -610,15 +632,10 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     const t = setTimeout(() => {
       if (draftHaltRef.current) return;
       savedRef.current = body;
-      void fetch("/api/wizard/draft", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body,
-        keepalive: true,
-      }).catch(() => {});
+      queueDraftSave(body);
     }, 2500);
     return () => clearTimeout(t);
-  }, [state, page, lastPage, isCustomer, sessionWorthSaving, addressText, intent?.mode, intent?.entrySource]);
+  }, [state, page, lastPage, isCustomer, sessionWorthSaving, addressText, intent?.mode, intent?.entrySource, queueDraftSave]);
 
   // Buckets brief §2.3 · the heartbeat. Every 15 s, ONLY while the tab is
   // visible and there has been a keypress, tap or scroll in the last 60 s —

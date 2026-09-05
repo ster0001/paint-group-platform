@@ -108,7 +108,11 @@ export async function POST(req: Request) {
   // schema — a dollar figure built on guesses puts calls on the wrong desks —
   // and never allowed to break the save: est_value_cents simply stays null.
   let estValueCents: number | null = null;
-  try {
+  // Since a session starts from the first answer (6 Sep), an autosave from
+  // page 2 must stay cheap: pricing needs the whole run, so it happens only
+  // once the person is at the last pages or finishing.
+  const nearTheEnd = Boolean(parsed.data.converted) || (parsed.data.page ?? 1) >= 5;
+  if (nearTheEnd) try {
     const [ctx, { data: rulesRows }, { data: aliasRows }, { data: defectRows }, { data: typicalRows }] =
       await Promise.all([
         loadPricingContext(db),
@@ -128,12 +132,16 @@ export async function POST(req: Request) {
   }
 
   const now = new Date().toISOString();
+  // Contact fields only ever move FORWARD: a save that carries no email must
+  // not blank one an earlier save recorded (two saves can cross in flight).
+  const name = contact.name?.trim() || null;
+  const phone = contact.phone?.trim() || null;
   const row = {
     user_id: user.id,
-    account_id: accountId,
-    name: contact.name?.trim() || null,
-    email: email || null,
-    phone: contact.phone?.trim() || null,
+    ...(accountId ? { account_id: accountId } : {}),
+    ...(name ? { name } : {}),
+    ...(email ? { email } : {}),
+    ...(phone ? { phone } : {}),
     job_type: (state.jobType as string) ?? null,
     suburb: (customer.suburb as string) ?? null,
     postcode: (customer.postcode as string) ?? null,
