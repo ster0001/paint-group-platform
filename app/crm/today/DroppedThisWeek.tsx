@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { maybeSweep } from "@/lib/wizard/sweep";
 import { journeyFromRow, journeyLine, journeyWho, pageLabel, WIZARD_SESSION_COLUMNS } from "@/lib/wizard/journey";
 
 /**
@@ -10,6 +12,9 @@ import { journeyFromRow, journeyLine, journeyWho, pageLabel, WIZARD_SESSION_COLU
  * too — an address is a lead in this business.
  */
 export default async function DroppedThisWeek() {
+  // The buckets move on read too (Hobby-plan cron is daily): idle sessions
+  // are filed before this list is built.
+  await maybeSweep(createServiceClient());
   const supabase = await createClient();
   const now = new Date();
   const weekAgo = new Date(now.getTime() - 7 * 86_400_000).toISOString();
