@@ -9,25 +9,25 @@ import { signout } from "@/app/auth/actions";
 // reading now. The /plans ROUTE still exists and still works; only the nav
 // entry is gone, so anything holding a link to it (and the wizard's own use of
 // the extraction pipeline) is untouched.
-const NAV = [
-  { href: "/estimates", label: "Estimates", icon: "📄" },
-  { href: "/proving", label: "Proving", icon: "🎯" },
+const ALL_NAV = [
+  { href: "/estimates", label: "Estimates", icon: "📄", area: "estimates" },
+  { href: "/proving", label: "Proving", icon: "🎯", area: "proving" },
   // Projects — the job workflow, from scheduling through to sign-off. It lives
   // outside this route group (its own chrome), so it has to be linked
   // explicitly; the scheduling timeline is its first tab rather than a separate
   // entry here.
-  { href: "/pc", label: "Projects", icon: "◉" },
+  { href: "/pc", label: "Projects", icon: "◉", area: "projects" },
   // Two money tabs (Tom, 24 Aug): Invoicing = the per-job invoice list that
   // opens the revision builder; Payments = the ledger dashboard
   // (receivables / payables / activity, the old "Invoicing").
-  { href: "/invoices", label: "Invoicing", icon: "🧾" },
-  { href: "/invoicing", label: "Payments", icon: "💳" },
-  { href: "/contacts", label: "Contacts", icon: "👤" },
+  { href: "/invoices", label: "Invoicing", icon: "🧾", area: "invoicing" },
+  { href: "/invoicing", label: "Payments", icon: "💳", area: "payments" },
+  { href: "/contacts", label: "Contacts", icon: "👤", area: "contacts" },
   // The CRM lives outside this shell (its own dark chrome, like /pc), so it
   // needs its link here or it is a screen nobody can find.
-  { href: "/crm", label: "CRM", icon: "📣" },
-  { href: "/contractors", label: "Contractors", icon: "🎨" },
-  { href: "/settings", label: "Settings", icon: "⚙️" },
+  { href: "/crm", label: "CRM", icon: "📣", area: "crm" },
+  { href: "/contractors", label: "Contractors", icon: "🎨", area: "contractors" },
+  { href: "/settings", label: "Settings", icon: "⚙️", area: "settings" },
 ];
 
 /**
@@ -38,10 +38,13 @@ const NAV = [
  * The bar at the top of a small screen carries the logo and the current page's
  * name, so you still know where you are with the drawer shut.
  */
-export default function AppSidebar({ name, email, logoUrl = "" }: { name: string; email: string; logoUrl?: string }) {
+export default function AppSidebar({ name, email, logoUrl = "", areas }: { name: string; email: string; logoUrl?: string; areas?: string[] }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
 
+  // Tom, 5 Sep: the master user ticks which areas each staff login sees
+  // (Settings → Staff logins). No list = everything, as before.
+  const NAV = areas ? ALL_NAV.filter((n) => areas.includes(n.area)) : ALL_NAV;
   const isActive = (href: string) => path === href || path.startsWith(href + "/");
   const current = NAV.find((n) => isActive(n.href));
 

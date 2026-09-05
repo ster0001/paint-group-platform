@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import AppSidebar from "@/app/(app)/AppSidebar";
+import { staffVisibility, gateStaffArea } from "@/lib/staff/gate";
+import { visibleAreas } from "@/lib/staff/access";
 
 export const dynamic = "force-dynamic";
 
@@ -20,12 +22,16 @@ export default async function QuoteLayout({ children }: { children: React.ReactN
     .single();
   if (profile?.role !== "staff") redirect("/account");
 
+  // Tom, 5 Sep: what this login is allowed to see (Settings → Staff logins).
+  const vis = await staffVisibility(supabase, user.id);
+  await gateStaffArea(vis);
+
   const { data: companyRow } = await supabase.from("settings").select("value").eq("key", "company_profile").maybeSingle();
   const logoUrl = (companyRow?.value as { logoUrl?: string } | null)?.logoUrl ?? "";
 
   return (
     <div className="flex min-h-screen">
-      <AppSidebar name={profile?.name || user.email || ""} email={user.email || ""} logoUrl={logoUrl} />
+      <AppSidebar name={profile?.name || user.email || ""} email={user.email || ""} logoUrl={logoUrl} areas={visibleAreas(vis)} />
       <div className="min-w-0 flex-1 bg-gray-50">{children}</div>
     </div>
   );

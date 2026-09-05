@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import AppSidebar from "./AppSidebar";
+import { staffVisibility, gateStaffArea } from "@/lib/staff/gate";
+import { visibleAreas } from "@/lib/staff/access";
 
 export const dynamic = "force-dynamic";
 
@@ -21,12 +23,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (profile?.role === "contractor") redirect("/portal");
   if (profile?.role !== "staff") redirect("/account");
 
+  // Tom, 5 Sep: what this login is allowed to see (Settings → Staff logins).
+  const vis = await staffVisibility(supabase, user.id);
+  await gateStaffArea(vis);
+
   const { data: companyRow } = await supabase.from("settings").select("value").eq("key", "company_profile").maybeSingle();
   const logoUrl = (companyRow?.value as { logoUrl?: string } | null)?.logoUrl ?? "";
 
   return (
     <div className="flex min-h-screen">
-      <AppSidebar name={profile?.name || user.email || ""} email={user.email || ""} logoUrl={logoUrl} />
+      <AppSidebar name={profile?.name || user.email || ""} email={user.email || ""} logoUrl={logoUrl} areas={visibleAreas(vis)} />
       {/* On a phone the sidebar is a fixed off-canvas drawer with a bar across
           the top, so the page starts below that bar. On md+ the sidebar is back
           in the flex row and the padding goes away. */}

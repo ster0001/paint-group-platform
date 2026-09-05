@@ -23,7 +23,7 @@ export default async function RealJobs() {
         <div className="head">
           <div>
             <div className="mono" style={{ color: "var(--color-tmut)", marginBottom: 12 }}>Real jobs · real prices · inc. GST</div>
-            <h2>What Melbourne homes actually cost to paint.</h2>
+            <h2>What Melbourne properties actually cost to paint.</h2>
             <p className="lead" style={{ marginTop: 14 }}>Every card is a finished job with the real price. Tap one and we&rsquo;ll open the estimator pre-filled with the same scope.</p>
           </div>
           <Link href="/work" style={{ fontWeight: 500 }}>All jobs →</Link>

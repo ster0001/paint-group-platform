@@ -213,6 +213,8 @@ export function buildPlainEmailHtml(opts: {
   message: string;
   companyName: string;
   logoUrl?: string;
+  /** "ink": a dark header band, for the white-on-dark logo (logo 1). Default: white header, logo 2. */
+  header?: "light" | "ink";
   companyPhone?: string;
 }): string {
   const logo = opts.logoUrl
@@ -227,7 +229,7 @@ export function buildPlainEmailHtml(opts: {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:24px 0;">
   <tr><td align="center">
     <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:94%;background:#ffffff;border-radius:12px;overflow:hidden;">
-      <tr><td style="padding:24px 32px 16px;border-bottom:1px solid #e5e7eb;">${logo}</td></tr>
+      <tr><td style="padding:24px 32px 16px;${opts.header === "ink" ? "background:#0a0b0d;" : "border-bottom:1px solid #e5e7eb;"}">${logo}</td></tr>
       <tr><td style="padding:24px 32px 8px;">
         <h1 style="margin:0 0 14px;font-size:20px;line-height:1.3;color:#111827;">${esc(opts.heading)}</h1>
         ${bodyHtml}

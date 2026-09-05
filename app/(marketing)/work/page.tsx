@@ -29,7 +29,7 @@ export default async function WorkPage() {
           <div className="head">
             <div>
               <div className="mono" style={{ color: "var(--color-tmut)", marginBottom: 12 }}>Real jobs · real prices · inc. GST</div>
-              <h1 className="work-h1">What Melbourne homes actually cost to paint.</h1>
+              <h1 className="work-h1">What Melbourne properties actually cost to paint.</h1>
               <p className="lead" style={{ marginTop: 14 }}>
                 Every card is a finished job with the real price. Open one to see what was done, the photos, and to get a price like it for your place.
               </p>

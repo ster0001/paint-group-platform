@@ -75,7 +75,10 @@ export async function sendPreStartChecklists(db: SupabaseClient, now = new Date(
           to, subject, replyTo: company.email || undefined,
           html: buildPlainEmailHtml({
             heading: subject, message: body, companyName: vars.company_name,
-            logoUrl: company.logoUrlLight || company.logoUrl || undefined,
+            // Tom, 5 Sep: this one carries logo 1 (paint in white) on a dark
+            // header band, not the dark-on-light logo the other emails use.
+            logoUrl: company.logoUrl || company.logoUrlLight || undefined,
+            header: "ink",
             companyPhone: company.phone || undefined,
           }),
         })

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { staffVisibility, gateStaffArea } from "@/lib/staff/gate";
 import "./invoicing.css";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,7 @@ export default async function InvoicingLayout({ children }: { children: React.Re
   if (!user) redirect("/login");
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
   if (profile?.role !== "staff") redirect("/portal");
+  await gateStaffArea(await staffVisibility(supabase, user.id), "payments");
 
   return <div className="invx">{children}</div>;
 }

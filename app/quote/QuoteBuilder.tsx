@@ -3191,16 +3191,35 @@ function LineCard({
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      {/* Tom, 5 Sep: the heading is typed straight in (a line item from
+          scratch), and the template list is a shortcut that fills the
+          heading, type and description — either way the heading stays
+          editable afterwards. */}
+      <div className="flex flex-wrap items-center gap-2">
         <span className="rounded bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Line item</span>
+        <input
+          className="min-w-[200px] flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm font-medium"
+          value={l.name}
+          onChange={(e) => onPatch({ name: e.target.value })}
+          placeholder="Heading shown on the estimate"
+          aria-label="Line item heading"
+          data-testid="line-heading"
+        />
+        {l.hidden && <span className="whitespace-nowrap rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">Hidden</span>}
+        <span className="whitespace-nowrap text-sm font-medium tabular-nums">{fmt(calc.priceCents)}</span>
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        <span className="text-xs text-gray-500">Start from a template</span>
         <select
           className="flex-1 rounded-md border border-gray-300 px-1 py-1.5 text-sm"
-          value={l.name}
+          aria-label="Line item template"
+          value={lineItems.some((x) => x.name === l.name) ? l.name : ""}
           onChange={(e) => {
             const li = lineItems.find((x) => x.name === e.target.value);
-            const type = (li?.type as LineBlock["type"]) ?? l.type;
+            if (!li) return;
+            const type = (li.type as LineBlock["type"]) ?? l.type;
             onPatch({
-              name: e.target.value, type,
+              name: li.name, type,
               mode: li?.pricing_method === "Custom" ? "custom" : "hourly",
               rate: chargeFor(type) / 100,
               // Attach the template's pre-written description (staff can then edit it).
@@ -3208,11 +3227,9 @@ function LineCard({
             });
           }}
         >
-          <option value="">— choose line item —</option>
+          <option value="">— pick one —</option>
           {lineItems.map((li) => <option key={li.name} value={li.name}>{li.name} ({li.type})</option>)}
         </select>
-        {l.hidden && <span className="whitespace-nowrap rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">Hidden</span>}
-        <span className="whitespace-nowrap text-sm font-medium tabular-nums">{fmt(calc.priceCents)}</span>
       </div>
 
       <div className="mt-3">

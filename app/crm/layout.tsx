@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { staffVisibility, gateStaffArea } from "@/lib/staff/gate";
 import CrmTabs from "./CrmTabs";
 import { getWorkQueue } from "./queue";
 import "./crm.css";
@@ -26,6 +27,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
 
   const { data: profile } = await supabase.from("profiles").select("role, name").eq("id", user.id).single();
   if (profile?.role !== "staff") redirect("/portal");
+  await gateStaffArea(await staffVisibility(supabase, user.id), "crm");
 
   const today = new Intl.DateTimeFormat("en-AU", {
     timeZone: "Australia/Melbourne", weekday: "long", day: "numeric", month: "long",

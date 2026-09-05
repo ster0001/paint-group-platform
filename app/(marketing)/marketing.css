@@ -230,13 +230,27 @@ html:has(.mk) { scroll-behavior: smooth; }
 @keyframes mk-pulse { 0% { box-shadow: 0 0 0 0 rgba(47, 164, 107, .6); } 70% { box-shadow: 0 0 0 10px rgba(47, 164, 107, 0); } 100% { box-shadow: 0 0 0 0 rgba(47, 164, 107, 0); } }
 
 /* PROGRESS STORY (static end state now; the timeline lands in session 6) */
-.mk .storywrap { display: grid; gap: 40px; grid-template-columns: 1fr; align-items: center; }
-@media (min-width: 960px) { .mk .storywrap { grid-template-columns: 1fr 340px; gap: 56px; } }
-.mk .caption { margin-top: 32px; min-height: 4.2em; font-size: clamp(24px, 2.6vw, 34px); font-weight: 600; letter-spacing: -.02em; line-height: 1.15; max-width: 18ch; transition: opacity .35s; }
+/* Three grid children: the copy, the changing caption, the phone.
+   Phone screens: copy across the top, then the caption BESIDE the phone
+   (Tom, 5 Sep). Desktop: copy + caption in the left column, the phone
+   centred in the space between the copy and the page edge. */
+.mk .storywrap { display: grid; grid-template-columns: minmax(0, 1fr) 170px; gap: 20px 14px; align-items: center; }
+.mk .storycopy { grid-column: 1 / -1; }
+.mk .caption { grid-column: 1; grid-row: 2; min-height: 0; font-size: clamp(16px, 4.6vw, 19px); font-weight: 600; letter-spacing: -.02em; line-height: 1.2; transition: opacity .35s; }
+.mk .device { grid-column: 2; grid-row: 2; }
+@media (min-width: 960px) {
+  .mk .storywrap { grid-template-columns: minmax(0, 560px) minmax(0, 1fr); gap: 32px 40px; }
+  .mk .storycopy { grid-column: 1; grid-row: 1; }
+  .mk .caption { grid-row: 2; margin-top: 8px; min-height: 4.2em; font-size: clamp(24px, 2.6vw, 34px); max-width: 18ch; }
+  .mk .device { grid-column: 2; grid-row: 1 / span 2; justify-self: center; }
+}
 .mk .capsr { position: absolute; left: -9999px; }
 .mk .capsr.shown, .mk .capsr:where(.static) { position: static; margin-top: 16px; padding-left: 20px; color: var(--color-tmut); font-size: 16px; }
 @media (prefers-reduced-motion: reduce) { .mk .capsr { position: static; margin-top: 16px; padding-left: 20px; color: var(--color-tmut); font-size: 16px; } .mk .caption.motion-only { display: none; } }
-@media (max-width: 959px) { .mk .device { zoom: .72; } } /* Tom, 5 Sep: a smaller phone on phones */
+/* Tom, 5 Sep: a smaller phone on phones, room for the caption beside it.
+   A fixed width under the zoom, so the grid track (170px) is what the
+   scaled phone actually occupies in every engine. */
+@media (max-width: 959px) { .mk .device { width: 320px; zoom: .52; } }
 .mk .device { position: relative; justify-self: center; width: min(320px, 100%); aspect-ratio: 390 / 800; background: var(--color-ink); color: var(--color-text); border-radius: 38px; padding: 48px 14px 14px; box-shadow: 0 40px 80px rgba(0, 0, 0, .28), inset 0 0 0 2px #2A3138; overflow: hidden; display: grid; align-content: start; gap: 10px; font-size: 13px; }
 .mk .notch { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); width: 120px; height: 28px; border-radius: 14px; background: #000; }
 .mk .banner { position: absolute; left: 14px; right: 14px; top: 16px; padding: 12px 14px; border-radius: 14px; background: var(--color-graphite); border: 1px solid var(--color-line); font-size: 13px; transform: translateY(-140%); z-index: 2; }
@@ -347,7 +361,6 @@ html:has(.mk) { scroll-behavior: smooth; }
 .mk #promise h2 { font-size: clamp(28px, 3.4vw, 44px); }
 .mk #promise .lead { font-size: 16px; }
 .mk #story.sec { padding-top: clamp(40px, 5vw, 64px); padding-bottom: clamp(40px, 5vw, 64px); }
-.mk .caption { margin-top: 20px; min-height: 3.6em; font-size: clamp(22px, 2.2vw, 30px); }
 
 /* REVIEWS slider (Tom, 5 Sep) */
 .mk .revslider { margin-top: 40px; display: grid; gap: 16px; }
@@ -371,7 +384,6 @@ html:has(.mk) { scroll-behavior: smooth; }
 .mk .panel .btn-ghost:hover { border-color: var(--color-cyan); }
 .mk .ph .ph-img { padding: 0; border: 0; cursor: zoom-in; }
 .mk .field .pin { flex: none; color: var(--color-cyan); }
-@media (min-width: 960px) { .mk .storywrap { grid-template-columns: minmax(0, 560px) 340px; gap: 40px; justify-content: space-between; } }
 
 /* Hero photo (Tom, 5 Sep): behind the block on desktop, darkened; a strip above it on phones */
 .mk .hero-photo { position: absolute; inset: 0; z-index: 1; }

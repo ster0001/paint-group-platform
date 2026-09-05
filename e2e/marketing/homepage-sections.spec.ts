@@ -32,7 +32,7 @@ test.describe("homepage sections (brief §3, §4.3–4.13)", () => {
     await expect(page.getByText("Rather talk to a person first?")).toBeVisible();
     await expect(page.locator("#how").getByText("03 8840 9414")).toBeVisible();
     await expect(page.locator("main")).not.toContainText("—"); // Tom, 5 Sep: no em dashes anywhere on the page
-    await expect(page.getByRole("heading", { name: "What Melbourne homes actually cost to paint." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "What Melbourne properties actually cost to paint." })).toBeVisible();
     await expect(page.getByRole("link", { name: "All jobs →" })).toHaveAttribute("href", "/work");
     await expect(page.getByRole("heading", { name: "Four things we put in writing before we start." })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Watch it happen from wherever you are." })).toBeVisible();
