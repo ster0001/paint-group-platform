@@ -58,18 +58,32 @@ export default function WebsiteContentManager({ initial, videoJobs = [] }: { ini
       <section className="grid gap-3">
         <div>
           <h3 className="text-sm font-semibold text-gray-900">Hero photo</h3>
-          <p className="text-xs text-gray-500">A real house behind the address block: darkened behind the text on a laptop, a strip above it on a phone. Your best finished exterior, landscape, well lit.</p>
+          <p className="text-xs text-gray-500">A real property behind the address block: darkened behind the text on a laptop, a band above it on a phone. Landscape, well lit. One for each site.</p>
         </div>
         <div className="flex flex-wrap items-start gap-4" data-testid="hero-slot">
           <div className="relative h-[110px] w-[196px] overflow-hidden rounded-md bg-gray-100">
             {c.heroPhoto && <Image src={showcaseMediaUrl(c.heroPhoto)} alt="" fill sizes="196px" className="object-cover" />}
           </div>
           <div className="grid gap-1">
+            <div className="text-xs text-gray-500">Homes site</div>
             <label className="cursor-pointer rounded-md border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">
               {uploading === "hero" ? "Uploading…" : c.heroPhoto ? "Change photo" : "Upload photo"}
               <input type="file" accept={acceptAttr("image")} className="hidden" data-testid="hero-upload" onChange={(e) => void upload("hero", e.target.files?.[0], (path) => setC((x) => ({ ...x, heroPhoto: path })))} />
             </label>
             {c.heroPhoto && <button type="button" className="text-xs text-red-700 underline" onClick={() => setC((x) => ({ ...x, heroPhoto: null }))}>Remove</button>}
+          </div>
+        </div>
+        <div className="flex flex-wrap items-start gap-4" data-testid="hero-slot-business">
+          <div className="relative h-[110px] w-[196px] overflow-hidden rounded-md bg-gray-100">
+            {c.heroPhotoBusiness && <Image src={showcaseMediaUrl(c.heroPhotoBusiness)} alt="" fill sizes="196px" className="object-cover" />}
+          </div>
+          <div className="grid gap-1">
+            <div className="text-xs text-gray-500">Business site (uses the homes photo until one is set)</div>
+            <label className="cursor-pointer rounded-md border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">
+              {uploading === "hero-business" ? "Uploading…" : c.heroPhotoBusiness ? "Change photo" : "Upload photo"}
+              <input type="file" accept={acceptAttr("image")} className="hidden" data-testid="hero-business-upload" onChange={(e) => void upload("hero-business", e.target.files?.[0], (path) => setC((x) => ({ ...x, heroPhotoBusiness: path })))} />
+            </label>
+            {c.heroPhotoBusiness && <button type="button" className="text-xs text-red-700 underline" onClick={() => setC((x) => ({ ...x, heroPhotoBusiness: null }))}>Remove</button>}
           </div>
         </div>
       </section>
