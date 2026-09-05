@@ -115,11 +115,21 @@ test.describe("Settings → Showcase editor", () => {
     await expect(page.getByTestId("showcase-status")).toContainText("draft", { timeout: 20_000 });
     expect(await anonSlugs(`slug=eq.e2e-showcase-${run}`)).toEqual([]);
 
-    // …but still in the staff list, as a draft
+    // …but still in the staff list, as a draft, with Edit / Remove
     await page.goto("/settings/showcase");
     const row = page.getByTestId(`showcase-row-e2e-showcase-${run}`);
     await expect(row).toBeVisible();
     await expect(row.getByText("Draft")).toBeVisible();
+    await expect(row.getByTestId(`showcase-edit-${createdId}`)).toHaveAttribute("href", `/settings/showcase/${createdId}`);
+
+    // Remove asks first, then the row is gone and the public never sees it (Tom, 5 Sep)
+    await row.getByTestId(`showcase-remove-${createdId}`).click();
+    await expect(row.getByTestId(`showcase-remove-confirm-${createdId}`)).toContainText("Remove");
+    await row.getByTestId(`showcase-remove-yes-${createdId}`).click();
+    await expect(page.getByTestId(`showcase-row-e2e-showcase-${run}`)).toHaveCount(0, { timeout: 15_000 });
+    const gone = await db!.from("showcase_jobs").select("id").eq("id", createdId);
+    expect(gone.data ?? []).toHaveLength(0);
+    createdId = null;
   });
 
   test("publish is refused with the checklist when the photo consent is missing", async ({ page }) => {
