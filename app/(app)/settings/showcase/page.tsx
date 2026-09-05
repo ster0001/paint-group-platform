@@ -3,11 +3,12 @@ import Link from "next/link";
 import { listShowcaseJobsForStaff } from "@/lib/showcase/staff";
 import { formatPriceRange, showcaseMediaUrl } from "@/lib/showcase/format";
 import { JOB_TYPE_LABEL } from "@/lib/showcase/schema";
+import RowActions from "./RowActions";
 
 /**
  * Settings → Showcase jobs (homepage brief §4.4b) — the list. Every job,
  * drafts included, under the staff read policy: thumbnail, title, suburb,
- * price range, published pill, featured rank. Row click → editor.
+ * price range, published pill, featured rank, and Edit / Remove (Tom, 5 Sep).
  */
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Showcase jobs · Settings" };
@@ -40,7 +41,7 @@ export default async function ShowcaseListPage() {
             <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
               <tr>
                 <th className="px-3 py-2">Photo</th><th className="px-3 py-2">Job</th><th className="px-3 py-2">Suburb</th>
-                <th className="px-3 py-2">Price range</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Featured</th>
+                <th className="px-3 py-2">Price range</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Featured</th><th className="px-3 py-2">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -65,6 +66,7 @@ export default async function ShowcaseListPage() {
                       : <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">Draft</span>}
                   </td>
                   <td className="px-3 py-2">{j.featured_rank != null ? <span className="font-mono text-xs">#{j.featured_rank}</span> : <span className="text-gray-400">—</span>}</td>
+                  <td className="px-3 py-2"><RowActions id={j.id} title={j.title} published={j.published} compact /></td>
                 </tr>
               ))}
             </tbody>

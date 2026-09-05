@@ -15,6 +15,7 @@ import {
 } from "@/lib/showcase/schema";
 import type { EstimatePick } from "@/lib/showcase/staff";
 import ProjectPage from "@/app/(marketing)/_components/ProjectPage";
+import RowActions from "./RowActions";
 import { marketingFontClass } from "@/app/(marketing)/fonts";
 import "@/app/(marketing)/marketing.css";
 
@@ -380,7 +381,8 @@ export default function ShowcaseEditor({ initial, estimates }: { initial: Showca
             )}
           </Section>
 
-          <div className="flex justify-end">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {saved ? <RowActions id={saved.id} title={saved.title} published={saved.published} afterDelete="list" /> : <span />}
             <button type="submit" className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50" disabled={busy || uploading != null}>
               {busy ? "Saving…" : form.published ? "Save & publish" : "Save draft"}
             </button>

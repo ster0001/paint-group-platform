@@ -5,7 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { requireStaff } from "@/lib/supabase/guards";
 import { reportError } from "@/lib/monitoring/report";
-import { slugify } from "./format";
+import { z } from "zod";
+import { SHOWCASE_BUCKET, slugify } from "./format";
 import {
   SHOWCASE_COLUMNS, plainIssues, publishChecklist, showcaseJobInputSchema, showcaseJobRowSchema,
   type ShowcaseJob,
@@ -110,6 +111,44 @@ export async function saveShowcaseJobAction(raw: unknown): Promise<SaveShowcaseR
   } catch (e) {
     reportError(e, { where: "showcase.save", extra: { jobId: input.id ?? null } });
     return { status: "error", message: "Couldn't save the job — please try again." };
+  }
+}
+
+export type DeleteShowcaseResult = { status: "deleted"; slug: string } | { status: "error"; message: string };
+
+const deleteSchema = z.object({ id: z.string().uuid() });
+
+/**
+ * Tom, 5 Sep: "update, edit or remove an existing showcase". Removing a job
+ * takes it off /work and the homepage at once (the paths revalidate) and its
+ * page answers 404; its photos in the bucket go too, best-effort. Same
+ * guards as saving: staff session, zod, service client.
+ */
+export async function deleteShowcaseJobAction(raw: unknown): Promise<DeleteShowcaseResult> {
+  const supabase = await createClient();
+  const staff = await requireStaff(supabase);
+  if (!staff) return { status: "error", message: "Staff only." };
+  const parsed = deleteSchema.safeParse(raw);
+  if (!parsed.success) return { status: "error", message: "That job id isn't valid." };
+  const db = createServiceClient();
+  if (!db) return { status: "error", message: "The service key isn't configured on this machine." };
+  try {
+    const { data: row, error: readErr } = await db.from("showcase_jobs").select("id, slug, hero_path, gallery").eq("id", parsed.data.id).maybeSingle();
+    if (readErr) throw readErr;
+    if (!row) return { status: "error", message: "That job no longer exists." };
+    const { error } = await db.from("showcase_jobs").delete().eq("id", row.id as string);
+    if (error) throw error;
+    // Photos: only the ones under this job's own folder (never a shared `site/` path).
+    const paths = [row.hero_path as string | null, ...(((row.gallery as Array<{ path?: string }> | null) ?? []).map((g) => g.path ?? null))]
+      .filter((p): p is string => Boolean(p) && (p as string).startsWith(`jobs/${row.id as string}/`));
+    if (paths.length) await db.storage.from(SHOWCASE_BUCKET).remove(paths).then(() => undefined, () => undefined);
+    revalidatePath("/");
+    revalidatePath("/work");
+    revalidatePath(`/work/${row.slug as string}`);
+    return { status: "deleted", slug: row.slug as string };
+  } catch (e) {
+    reportError(e, { where: "showcase.delete", extra: { jobId: parsed.data.id } });
+    return { status: "error", message: "Couldn't remove the job — please try again." };
   }
 }
 
