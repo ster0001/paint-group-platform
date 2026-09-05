@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { maybeSweep } from "@/lib/wizard/sweep";
 import NewEstimateButton, { type TemplateMeta } from "./NewEstimateButton";
 import EstimatesTable, { type EstimateRow } from "./EstimatesTable";
 import AssistantFab from "@/app/quote/AssistantFab";
@@ -43,6 +45,7 @@ export default async function EstimatesPage({
   // Buckets brief §5 — the Wizard tab: open sessions (no estimate yet), with
   // bucket / source / mode filters; Ready sorts oldest request first.
   if (status === "wizard") {
+    await maybeSweep(createServiceClient());
     const bucketOk = (WIZARD_BUCKETS as readonly string[]).includes(bucket ?? "") ? (bucket as WizardBucket) : null;
     let q = supabase.from("wizard_drafts").select(WIZARD_SESSION_COLUMNS).is("converted_at", null)
       .order("last_seen_at", { ascending: false }).limit(500);

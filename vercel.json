@@ -13,7 +13,7 @@
     },
     {
       "path": "/api/cron/wizard-sweep",
-      "schedule": "*/30 * * * *"
+      "schedule": "0 21 * * *"
     }
   ]
 }
