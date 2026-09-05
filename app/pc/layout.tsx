@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { staffVisibility, gateStaffArea } from "@/lib/staff/gate";
 import PcNav from "./PcNav";
 import "./pc.css";
 
@@ -16,6 +17,7 @@ export default async function PcLayout({ children }: { children: React.ReactNode
 
   const { data: profile } = await supabase.from("profiles").select("role, name").eq("id", user.id).single();
   if (profile?.role !== "staff") redirect("/portal");
+  await gateStaffArea(await staffVisibility(supabase, user.id), "projects");
 
   const today = new Intl.DateTimeFormat("en-AU", {
     timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short",

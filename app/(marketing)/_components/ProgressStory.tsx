@@ -121,19 +121,22 @@ export default function ProgressStory({ photos = [] }: { photos?: string[] }) {
         <div className="mono" style={{ color: "var(--color-tmut)", marginBottom: 12 }}>Your portal · one job, start to finish · demo data</div>
         <h2>Watch it happen from wherever you are.</h2>
         <p className="lead" style={{ marginTop: 14 }}>This is what five days looks like from your phone.</p>
-        {!reduced && (
-          <div className="caption motion-only" aria-hidden="true" data-testid="story-caption">
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.span key={s.captionIndex} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: .18 }} style={{ display: "block" }}>
-                {caption}
-              </motion.span>
-            </AnimatePresence>
-          </div>
-        )}
         <ol className={`capsr${reduced ? " shown" : ""}`} data-testid="story-captions">
           {STORY_CAPTIONS.map((c) => <li key={c}>{c}</li>)}
         </ol>
       </div>
+
+      {/* The changing line is its own grid child: beside the phone on a
+          phone screen (Tom, 5 Sep), under the copy on desktop. */}
+      {!reduced && (
+        <div className="caption motion-only" aria-hidden="true" data-testid="story-caption">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.span key={s.captionIndex} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: .18 }} style={{ display: "block" }}>
+              {caption}
+            </motion.span>
+          </AnimatePresence>
+        </div>
+      )}
 
       <Phone s={s} reduced={Boolean(reduced)} photos={photos} />
     </div>

@@ -20,6 +20,7 @@ import ProductsManager, { type ProductRow } from "./ProductsManager";
 import ColoursManager, { type ColourRow } from "./ColoursManager";
 import DocumentsManager, { type CompanyDocRow } from "./DocumentsManager";
 import TradeAccountsManager from "./TradeAccountsManager";
+import StaffAccountsManager from "./StaffAccountsManager";
 import ColourCardSettings from "./ColourCardSettings";
 import PresentationsManager, { type PresentationRow } from "./PresentationsManager";
 import { DEFAULT_INCLUSION_TEMPLATES, DEFAULT_EXCLUSION_TEMPLATES, INCLUSION_TEMPLATES_KEY, EXCLUSION_TEMPLATES_KEY, type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
@@ -193,6 +194,8 @@ export default async function SettingsPage() {
               <Link href="/settings/showcase" data-testid="open-showcase" className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-700">Open showcase jobs →</Link>
             </div>
           ) },
+        { id: "staff-logins", title: "Staff logins", subtitle: "Office logins for your team — the master user creates them and ticks which areas each person sees",
+          content: <StaffAccountsManager /> },
         { id: "trade-accounts", title: "Trade accounts", subtitle: "Create a trade login or grant an existing customer the trade workspace — office-side only, never self-serve",
           content: (
             <>
