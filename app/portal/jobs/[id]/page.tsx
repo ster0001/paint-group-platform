@@ -106,6 +106,15 @@ export default async function PortalJobPage({
   const woBooking: Booking = bookingRow
     ? { state: bookingRow.state as Booking["state"], startDate: bookingRow.start_date, endDate: bookingRow.end_date }
     : { state: "none", startDate: job.startDate, endDate: job.endDate };
+  // A reschedule the painter has asked for is not a booking yet: the original
+  // date stands until staff decide (RescheduleRequest says exactly that). The
+  // wo_booking() RPC reports the PROPOSED start for the office's benefit, which
+  // on this page read "14 Sept – 8 Sept · 1 day" against the unchanged end
+  // (6 Sep). Show them the booking they actually hold.
+  if (booking && booking.state === "proposed" && booking.prior_start_date) {
+    woBooking.startDate = booking.prior_start_date;
+    woBooking.endDate = booking.end_date;
+  }
 
   const { data: prepRows } = await supabase
     .from("wo_checklist_items")
