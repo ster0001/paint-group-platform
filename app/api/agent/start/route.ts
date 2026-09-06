@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createGateway } from "@/lib/agent/gateway";
 import { accountTypeOf, agentActor, agentDb, createDraftEstimate, loadOwnEstimate } from "@/lib/agent/session";
-import { graphInput } from "@/lib/agent/scope-doc";
+import { graphInput, isBuilt } from "@/lib/agent/scope-doc";
 import { nextGap } from "@/lib/agent/question-graph";
 import { logCrmEvent } from "@/lib/crm/events";
 import { ScopeTools } from "@/lib/agent/scope-tools";
@@ -94,10 +94,16 @@ export async function POST(request: Request) {
 
   // Addendum A §3.3 "Describe the job": the paragraph IS the first turn —
   // the draft tree lands at once, priced as a range with every assumption a chip.
+  let built = false;
   if (parsed.data.brief && parsed.data.brief.length >= 20) {
     try { await gateway.turn({ conversationId: conv.id, text: parsed.data.brief, actor: "user", heavy: true }); }
     catch (e) { reportError(e, { where: "agent.start.brief", bestEffort: true }); }
+    // Tom, 7 Sep: one request builds the estimate and the customer lands
+    // STRAIGHT in the editor — the chat interview is the fallback when the
+    // paragraph was not enough to build from.
+    const after = await gateway.scope.load(estimateId);
+    built = after ? isBuilt(after) : false;
   }
 
-  return NextResponse.json({ conversationId: conv.id, estimateId });
+  return NextResponse.json({ conversationId: conv.id, estimateId, built });
 }

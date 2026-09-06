@@ -2106,3 +2106,12 @@ the "we're closed" script only when the reason is `customer_asked`; any other ou
 handoff attempt gets one quiet line. Model tier is DATA (`agent_settings.model_default`) —
 Tom's ruling is the Sonnet-class model for customer chat; SQL in the manual test. Streaming
 replies and a real-model regression eval remain open.
+
+**7 Sep, Tom's ruling — Describe it lands in the editor.** `POST /api/agent/start` returns `built`
+after the brief turn; when true the wizard sends the customer to `/estimate/scope?id=…` (the
+plain confirm-loop editor with the assumptions as amber lines and the details card) instead of
+the chat split view. The chat interview remains the fallback for a paragraph that could not
+build, and the explicit "Chat it through instead" link. In the chat, ScopeEditor runs in
+`chatMode` (quiet preview). Budgets: 400k per conversation / 2M per account per day in code;
+the seeded `agent_settings` row overrides (SQL in the P4 manual), and the budget message now
+points at the editor rather than only at a person.

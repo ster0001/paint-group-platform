@@ -65,8 +65,8 @@ export type BudgetState =
   | { exhausted: true; which: "conversation" | "daily"; text: string };
 
 export const BUDGET_TEXT: Record<"conversation" | "daily", string> = {
-  conversation: "We've covered a lot in this chat and I've reached my limit for it. Let's get a person to pick it up from here — I've flagged it for the office, and you can tap \"Talk to a person\" any time.",
-  daily: "You've used today's assistant allowance on this account. A person can carry on with you — I've flagged it for the office, and you can tap \"Talk to a person\" any time.",
+  conversation: "We've covered a lot in this chat and I've reached my limit for it. Your estimate is saved — tap \"My estimate\" or \"Fill it in instead\" to keep shaping it yourself, and I've let the office know in case you'd like a person to pick it up.",
+  daily: "You've used today's assistant allowance on this account. Your estimate is saved — tap \"My estimate\" or \"Fill it in instead\" to keep shaping it yourself, and I've let the office know in case you'd like a person to pick it up.",
 };
 
 export function budgetState(args: { spent: number; budget: number; accountToday: number | null; dailyCap: number }): BudgetState {

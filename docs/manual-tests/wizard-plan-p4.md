@@ -19,7 +19,14 @@ update public.agent_settings
 
 `model_heavy` is already `claude-sonnet-5`. Cost shows on `/admin/agent` per completed estimate.
 
-## 2. The paragraph that failed on 6 Sep
+## 2. Describe it = one request, straight into the editor (your ruling, 7 Sep)
+On `/estimate` tap **Describe it**, type the job in one go (rooms, surfaces, condition, anything unusual),
+tap **Build my estimate**. You land in the confirm-loop editor, not the chat: the rooms the paragraph
+named, the range, the amber "to confirm" lines, and the "A few details to settle" card. The chat only
+appears if the paragraph wasn't enough to build from (e.g. no rooms named). "Chat it through instead"
+is still there under the box for people who want the back-and-forth.
+
+## 3. The paragraph that failed on 6 Sep (chat path)
 Open the chat and type, as one message:
 > Hi, it's 14 Murrumbeena Rd, Murrumbeena 3163. It's my own home, a 3 bed single storey weatherboard.
 > We want the whole inside repainted, new colours, and the kitchen cupboards painted too. Roughly what would that cost?

@@ -287,9 +287,16 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           ? { street: "", suburb: state.customer.suburb, postcode: state.customer.postcode, state: "VIC" }
           : null;
       const res = await fetch("/api/agent/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...(withBrief && brief.trim() ? { brief: brief.trim() } : {}), ...(address ? { address } : {}) }) });
-      const j = (await res.json().catch(() => ({}))) as { conversationId?: string; error?: string };
+      const j = (await res.json().catch(() => ({}))) as { conversationId?: string; estimateId?: string; built?: boolean; error?: string };
       if (!res.ok || !j.conversationId) { setStartingChat(false); return; }
-      window.location.assign(`/estimate/assist?c=${j.conversationId}`);
+      // Tom, 7 Sep: a described job lands STRAIGHT in the editor with every
+      // assumption marked; the chat is only where the paragraph wasn't enough.
+      if (withBrief && j.built && j.estimateId) {
+        clearResume();
+        router.push(`/estimate/scope?id=${j.estimateId}`);
+        return;
+      }
+      router.push(`/estimate/assist?c=${j.conversationId}`);
     } catch { setStartingChat(false); }
   }
 
@@ -1292,7 +1299,7 @@ function PageProperty({
           <div className="wz-cards" data-testid="wz-entry">
             <button type="button" className={`wz-card ${entry === "describe" ? "on" : ""}`} onClick={() => onEntry("describe")} data-testid="entry-describe">
               <b>Describe it</b>
-              <span>Type a few lines about the job and we build the estimate for you — you fine-tune it after.</span>
+              <span>Type a few lines about the job — we build the whole estimate from them and you fine-tune it after.</span>
             </button>
             <button type="button" className={`wz-card ${entry === "questions" ? "on" : ""}`} onClick={() => onEntry("questions")} data-testid="entry-questions">
               <b>Answer a few questions</b>
@@ -1315,17 +1322,17 @@ function PageProperty({
 
       {isCustomer && entry === "describe" && (
         <div className="wz-follow wz-alt" data-testid="describe-box">
-          <p className="wz-q">Tell us about the job in your own words.</p>
+          <p className="wz-q">Tell us about the job in your own words — rooms, what&rsquo;s being painted, the condition, anything unusual. One go is enough; you land in your estimate with every assumption marked.</p>
           <textarea className="wz-brief" data-testid="describe-job" rows={4} value={brief} onChange={(e) => setBrief(e.target.value)}
             placeholder="e.g. 3 bedroom 1 bathroom house, colour match throughout, walls in good condition with a few minor cracks in the kitchen, all trims to be painted…" />
           <div className="wz-seg">
             <button type="button" data-testid="build-from-brief" disabled={sessionPhase !== "ready" || startingChat || brief.trim().length < 20} onClick={() => startChat(true)}>
-              {startingChat ? "Building…" : "Build it from my description"}
+              {startingChat ? "Building your estimate…" : "Build my estimate"}
             </button>
           </div>
           <p style={{ marginTop: 8 }}>
             <button type="button" className="wz-linkbtn" data-testid="chat-it" disabled={sessionPhase !== "ready" || startingChat} onClick={() => startChat(false)}>
-              {startingChat ? "Opening the assistant…" : "Rather chat it through? Start with the assistant →"}
+              {startingChat ? "Opening the assistant…" : "Prefer a back-and-forth? Chat it through instead →"}
             </button>
           </p>
         </div>
