@@ -2,6 +2,7 @@
 
 import ContactCard from "./ContactCard";
 import { useRef, useState, useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
 import type { CustomerPayload } from "@/lib/wizard/view";
 import { assertCustomerShape } from "@/lib/wizard/contract";
 import type { CustomerExteriorView, CustomerScopeRoom } from "@/lib/wizard/scope-editor";
@@ -81,7 +82,7 @@ const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
 const snapshotFalse = () => false;
 
-export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null }: {
+export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, chatMode = false }: {
   estimateId: string;
   initial: CustomerPayload;
   initialRooms: CustomerScopeRoom[];
@@ -97,6 +98,11 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   docs?: EstimateDocuments;
   logoUrl?: string | null;
   companyPhone?: string | null;
+  /** Phase 4 (6 Sep plan): mounted beside the assistant. The chat asks the
+   * questions, so this pane is a quiet live preview — no amber list, no
+   * details card, cards collapsed — instead of a pile of open questions
+   * repeating what the chat is already asking. */
+  chatMode?: boolean;
 }) {
   const [payload, setPayload] = useState<CustomerPayload>(initial);
   const [rooms, setRooms] = useState<CustomerScopeRoom[]>(initialRooms);
@@ -107,14 +113,17 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   // the next unconfirmed card and scrolls it into view (mockup openRoom).
   const [openCard, setOpenCard] = useState<string>(() => {
     const il = initialInteriorLoop;
-    if (!il) return "";
+    if (!il || chatMode) return "";
     const firstRoom = il.rooms.find((r) => !r.confirmed);
     if (firstRoom) return `room:${firstRoom.areaId}`;
     if (!il.meta.done.dw) return "dw";
     if (!il.meta.done.sweep) return "sweep";
     return "";
   });
+  const router = useRouter();
   function openAndScroll(key: string) {
+    // Beside the chat the cards are a preview — a tap opens the FULL editor.
+    if (chatMode) { router.push(`/estimate/scope?id=${estimateId}`); return; }
     setOpenCard(key);
     setTimeout(() => {
       const el = document.querySelector(`[data-card="${key}"]`);
@@ -579,7 +588,13 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         {/* R1.3 lives HERE now the interstitial result screen is gone
             (Tom, 28 Aug): anything the reads couldn't settle is an amber
             trace the customer sees — never silence. */}
-        {(styleOpen.doors || styleOpen.windows || payload.heightUnconfirmed) && (
+        {chatMode && payload.confirmOnSite.length > 0 && (
+          <p className="wz-note" style={{ margin: "14px 0 0" }} data-testid="chat-quiet-note">
+            {payload.confirmOnSite.length} {payload.confirmOnSite.length === 1 ? "detail" : "details"} still to settle — I&rsquo;ll ask as we go, or tap any room to answer them yourself.{" "}
+            <button type="button" className="wz-linkish" style={{ display: "inline", margin: 0 }} onClick={() => router.push(`/estimate/scope?id=${estimateId}`)} data-testid="chat-open-editor">Open the full editor →</button>
+          </p>
+        )}
+        {!chatMode && (styleOpen.doors || styleOpen.windows || payload.heightUnconfirmed) && (
           <section className="sc-rc il-card amber sc-details" data-card="details" data-testid="details-card">
             <div className="sc-hd il-hd"><b>A few details to settle</b><span className="il-pill">TIGHTENS YOUR RANGE</span></div>
             {styleOpen.doors && (
@@ -614,7 +629,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             )}
           </section>
         )}
-        {payload.confirmOnSite.length > 0 && (
+        {!chatMode && payload.confirmOnSite.length > 0 && (
           <p className="wz-note wz-confirmonsite" style={{ margin: "14px 0 0" }}>
             {payload.confirmOnSite.map((n, i) => <span key={i}>⚑ {n}<br /></span>)}
           </p>
@@ -902,10 +917,63 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     )}
                   </div>
                 )}
+                {/* Tom, 7 Sep: the walls inside the cupboards, and the inside of the robe doors — asked, not assumed. */}
+                {loop?.cupboardInterior && (
+                  <div className={`il-q il-cup ${loop.cupboardInterior.on != null ? "ok" : ""}`} data-testid={`cup-interior-${room.areaId}`}>
+                    <p className="il-ql">{loop.cupboardInterior.question} <span className="il-okc">✓</span></p>
+                    <div className="sc-chips">
+                      <button className={`sd-chip ${sel(`cupi:${room.areaId}`, loop.cupboardInterior.on === true, "yes") ? "on" : ""}`}
+                        onClick={() => act({ action: "room_cupboard_interior", areaId: room.areaId, on: true, count: loop.cupboardInterior!.count }, `cupi:${room.areaId}`,
+                          deltaText(`inside the ${loop.cupboardInterior!.unit}`, true), [`cupi:${room.areaId}`, "yes"])}>
+                        Yes
+                      </button>
+                      <button className={`sd-chip ${sel(`cupi:${room.areaId}`, loop.cupboardInterior.on === false, "no") ? "on" : ""}`}
+                        onClick={() => act({ action: "room_cupboard_interior", areaId: room.areaId, on: false, count: null }, `cupi:${room.areaId}`,
+                          () => "Noted — the insides stay as they are.", [`cupi:${room.areaId}`, "no"])}>
+                        No
+                      </button>
+                    </div>
+                    {loop.cupboardInterior.on === true && (
+                      <span className="sc-st" style={{ display: "flex", marginTop: 8 }}>
+                        <button aria-label="fewer" onClick={() => stepBy(`${room.areaId}:cupi`, loop.cupboardInterior!.count, -1, 40, (count) => ({ action: "room_cupboard_interior", areaId: room.areaId, on: true, count }), loop.cupboardInterior!.unit)}>−</button>
+                        <b>{shown(`${room.areaId}:cupi`, loop.cupboardInterior.count)}</b>
+                        <button aria-label="more" onClick={() => stepBy(`${room.areaId}:cupi`, loop.cupboardInterior!.count, 1, 40, (count) => ({ action: "room_cupboard_interior", areaId: room.areaId, on: true, count }), loop.cupboardInterior!.unit)}>+</button>
+                        <span style={{ fontSize: 11.5, color: "var(--muted)" }}>{loop.cupboardInterior.unit}</span>
+                      </span>
+                    )}
+                    {loop.cupboardInterior.on === true && loop.cupboardInterior.note && <p className="il-note">{loop.cupboardInterior.note}</p>}
+                  </div>
+                )}
+                {loop?.cupboardDoorInside && (
+                  <div className={`il-q il-cup ${loop.cupboardDoorInside.on != null ? "ok" : ""}`} data-testid={`cup-door-inside-${room.areaId}`}>
+                    <p className="il-ql">{loop.cupboardDoorInside.question} <span className="il-okc">✓</span></p>
+                    <div className="sc-chips">
+                      <button className={`sd-chip ${sel(`cupd:${room.areaId}`, loop.cupboardDoorInside.on === true, "yes") ? "on" : ""}`}
+                        onClick={() => act({ action: "room_cupboard_door_inside", areaId: room.areaId, on: true, count: loop.cupboardDoorInside!.count }, `cupd:${room.areaId}`,
+                          deltaText("the inside of the robe doors", true), [`cupd:${room.areaId}`, "yes"])}>
+                        Yes
+                      </button>
+                      <button className={`sd-chip ${sel(`cupd:${room.areaId}`, loop.cupboardDoorInside.on === false, "no") ? "on" : ""}`}
+                        onClick={() => act({ action: "room_cupboard_door_inside", areaId: room.areaId, on: false, count: null }, `cupd:${room.areaId}`,
+                          () => "Noted — the door insides stay as they are.", [`cupd:${room.areaId}`, "no"])}>
+                        No
+                      </button>
+                    </div>
+                    {loop.cupboardDoorInside.on === true && (
+                      <span className="sc-st" style={{ display: "flex", marginTop: 8 }}>
+                        <button aria-label="fewer" onClick={() => stepBy(`${room.areaId}:cupd`, loop.cupboardDoorInside!.count, -1, 40, (count) => ({ action: "room_cupboard_door_inside", areaId: room.areaId, on: true, count }), loop.cupboardDoorInside!.unit)}>−</button>
+                        <b>{shown(`${room.areaId}:cupd`, loop.cupboardDoorInside.count)}</b>
+                        <button aria-label="more" onClick={() => stepBy(`${room.areaId}:cupd`, loop.cupboardDoorInside!.count, 1, 40, (count) => ({ action: "room_cupboard_door_inside", areaId: room.areaId, on: true, count }), loop.cupboardDoorInside!.unit)}>+</button>
+                        <span style={{ fontSize: 11.5, color: "var(--muted)" }}>{loop.cupboardDoorInside.unit}</span>
+                      </span>
+                    )}
+                  </div>
+                )}
                 {noteChips[room.areaId] && (
                   <div className="sc-notechip">⚑ &ldquo;{noteChips[room.areaId]}&rdquo; — we&rsquo;ll confirm this area on the site visit</div>
                 )}
                 <div className="sc-inc">Includes filling minor cracks and sanding — allowances set by us</div>
+                {room.allowances?.map((a) => <div className="sc-inc" key={a} data-testid="room-allowance">🔒 {a} — allowed for by us</div>)}
                 {loop && (
                   <button
                     className={`sd-confirm il-confirm ${loop.confirmed ? "done" : ""}`}
@@ -1002,6 +1070,15 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     ))}
                     {/* Tom, 31 Aug: "something else" opens a box to SAY what —
                         an amber flag with no name tells the estimator nothing. */}
+                    {/* Tom, 7 Sep: the insides of the cupboards belong in the last check too. */}
+                    <button className="sd-chip il-chip" data-testid="sweep-cup-interior"
+                      onClick={() => act({ action: "iloop_sweep_cupboards", kind: "interior" }, "sweep:cupi", () => "Inside the cupboards added to every room with built-ins — adjust any room above")}>
+                      + Inside the cupboards
+                    </button>
+                    <button className="sd-chip il-chip" data-testid="sweep-cup-door-inside"
+                      onClick={() => act({ action: "iloop_sweep_cupboards", kind: "door_inside" }, "sweep:cupd", () => "Inside of the robe doors added to every bedroom — adjust any room above")}>
+                      + Inside of the cupboard doors
+                    </button>
                     <button className={`sd-chip ${sweepOtherOpen ? "on" : ""}`} onClick={() => setSweepOtherOpen((v) => !v)}>
                       + Something else
                     </button>

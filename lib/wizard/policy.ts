@@ -221,11 +221,14 @@ export function evaluateGuardrails(
   // "heritage_unsure" alone is not worth losing the lead over when everything
   // else is clean — only definite answers hand off on their own. For a trade
   // actor, commercial/body-corp/heritage are soft too (see the parameter
-  // note); asbestos_unsure and lead_paint_possible stay hard for everyone.
+  // note). Tom, 7 Sep 2026: "Not sure" about asbestos is a flag for the visit
+  // (never an online accept), not a dead end — now that nothing is
+  // pre-selected, honest people pick it, and a person on site settles it.
+  // asbestos YES and lead_paint_possible stay hard for everyone.
   const softForActor = new Set(
     tradeActor
-      ? ["heritage_unsure", "heritage_listed", "commercial_property", "body_corporate"]
-      : ["heritage_unsure"],
+      ? ["heritage_unsure", "asbestos_unsure", "heritage_listed", "commercial_property", "body_corporate"]
+      : ["heritage_unsure", "asbestos_unsure"],
   );
   const hardReasons = reasons.filter((r) => !softForActor.has(r));
   if (hardReasons.length) {
@@ -251,6 +254,8 @@ export function evaluateGuardrails(
   // state — the visit tier is an offer with the calendar right there.
   const softReasons = reasons; // e.g. heritage_unsure — noted for staff, not blocking
   let walkthrough = requiresSiteCheck;
+  // An unsure asbestos answer is settled by a person on site, never online.
+  if (reasons.includes("asbestos_unsure")) walkthrough = true;
   if (requiresSiteCheck) softReasons.push("site_check_required");
   // A trade job that would have handed off still takes the VISIT tier — the
   // price shows as a range, but a person signs it off before acceptance.
@@ -284,4 +289,26 @@ export function evaluateGuardrails(
     walkthroughRequired: walkthrough,
     canAccept: !walkthrough,
   };
+}
+
+/**
+ * Tom, 7 Sep 2026: a blocking outcome says WHY in plain words. "This one
+ * deserves a person" with no reason read as a broken wizard the first time
+ * a floorplan run landed on it; the reason is always one of these.
+ */
+const WHY: Record<string, string> = {
+  commercial_property: "Commercial properties are priced by a person — the scope and access are different from a home.",
+  heritage_listed: "A heritage listing changes what paints and methods are allowed, so a person confirms the details.",
+  body_corporate: "Body-corporate work needs the owners corporation's requirements confirmed first.",
+  lead_paint_possible: "A home that may be pre-1970 and in real need of repair is checked for lead paint before anything is priced.",
+  asbestos_suspected: "Where asbestos sheeting is possible, an assessment comes before any painting is priced.",
+  lead_paint_disturbance: "Paint of this age and condition is checked for lead before anything is priced.",
+  nothing_priced: "We couldn't read any rooms from what was uploaded, so there was nothing to price yet — the quick questions (three taps) work every time.",
+  outside_service_area: "The address is outside the area we currently cover.",
+  below_minimum: "The job is smaller than our minimum call-out, so we confirm the price directly.",
+};
+
+export function guardrailWhy(reasons: string[]): string | null {
+  for (const r of reasons) if (WHY[r]) return WHY[r];
+  return null;
 }

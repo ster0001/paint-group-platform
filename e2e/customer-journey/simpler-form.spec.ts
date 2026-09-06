@@ -23,7 +23,7 @@ async function toBasics(page: import("@playwright/test").Page, sizeBand: string)
   await expect(page.getByText("Step 1 of 5", { exact: false })).toBeVisible();
   await page.getByPlaceholder("Suburb").fill("Murrumbeena");
   await page.getByPlaceholder("Postcode").fill("3163");
-  await page.locator(".wz-qhead", { hasText: "Heritage listed" }).locator("xpath=following-sibling::div[1]").getByRole("button", { name: "No", exact: true }).click();
+  await page.locator(".wz-qhead", { hasText: "Heritage listed" }).locator("xpath=following-sibling::div[1]").getByRole("button", { name: /^No(\s|$)/ }).click();
   // The three ways in.
   const ways = page.getByTestId("wz-entry");
   await expect(ways.getByRole("button", { name: /Describe it/ })).toBeVisible();
@@ -51,8 +51,8 @@ test.describe("the simpler form", () => {
     await next();
     await expect(page.getByText("Step 4 of 5", { exact: false })).toBeVisible();
     await expect(page.getByText("Any damage we should know about?")).toHaveCount(0);
-    for (const q of [/built before 1970/, /asbestos/]) {
-      await page.locator(".wz-qhead", { hasText: q }).locator("xpath=following-sibling::div[1]").getByRole("button", { name: "No", exact: true }).click();
+    for (const q of [/built before 1970/, /asbestos/, /living there/]) {
+      await page.locator(".wz-qhead", { hasText: q }).locator("xpath=following-sibling::div[1]").getByRole("button", { name: /^No(\s|$)/ }).click();
     }
     await next();
     await expect(page.getByText("Step 5 of 5", { exact: false })).toBeVisible();
@@ -76,8 +76,8 @@ test.describe("the simpler form", () => {
       }
       const next = () => page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ }).first().click();
       await next(); await next(); await next();
-      for (const q of [/built before 1970/, /asbestos/]) {
-        await page.locator(".wz-qhead", { hasText: q }).locator("xpath=following-sibling::div[1]").getByRole("button", { name: "No", exact: true }).click();
+      for (const q of [/built before 1970/, /asbestos/, /living there/]) {
+        await page.locator(".wz-qhead", { hasText: q }).locator("xpath=following-sibling::div[1]").getByRole("button", { name: /^No(\s|$)/ }).click();
       }
       await next();
       const contact = page.locator(".wz-crow input");

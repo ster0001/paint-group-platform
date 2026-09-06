@@ -51,6 +51,7 @@ test.describe("the wizard drop-out funnel", () => {
     await next(); // details
     await tap(/built before 1970/);
     await tap(/asbestos/);
+    await page.locator(".wz-qhead", { hasText: "living there" }).locator("xpath=following-sibling::div[1]").getByRole("button", { name: /empty/ }).click();
     await next(); // → the contact page (paint preferences ride it — Phase 2)
 
     const contact = page.locator(".wz-crow input");

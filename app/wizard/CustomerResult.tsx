@@ -20,6 +20,9 @@ import Wordmark from "./Wordmark";
 export type CustomerOutcome = {
   outcome: "hard_stop" | "handoff" | "outside_area" | "below_floor" | "rate_limited";
   message: string;
+  /** Tom, 7 Sep: the reason in plain words, and whether the quick questions are a way through. */
+  why?: string | null;
+  canRetry?: boolean;
 };
 
 type Reveal = CustomerPayload & {
@@ -62,9 +65,14 @@ export default function CustomerResult({ outcome, reveal, roomTypes, logoUrl }: 
         <div className="wz-wrap" style={{ textAlign: "center", paddingTop: 70 }}>
           <h1>{OUTCOME_HEADINGS[o.outcome]}</h1>
           <p className="wz-sub" style={{ marginTop: 14 }}>{o.message}</p>
-          <p style={{ fontSize: 13.5, color: "var(--muted)" }}>
-            We have everything you entered — nothing needs doing again.
-          </p>
+          {o.why && <p className="wz-q" style={{ marginTop: 10 }} data-testid="outcome-why">{o.why}</p>}
+          {o.canRetry ? (
+            <p style={{ marginTop: 14 }}><a className="wz-btn wz-bp" href="/estimate" style={{ display: "inline-block", textDecoration: "none" }}>Try the quick questions instead</a></p>
+          ) : (
+            <p style={{ fontSize: 13.5, color: "var(--muted)" }}>
+              We have everything you entered — nothing needs doing again.
+            </p>
+          )}
         </div>
       </>
     );

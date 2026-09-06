@@ -30,6 +30,8 @@ export type EstimateRow = {
   title: string | null;
   status: string;
   total_cents: number | null;
+  /** Tom, 7 Sep: customer-built drafts get a 'Customer editor' link. */
+  source?: string | null;
   created_at: string;
   /** First customer open — a sent estimate with this set reads "viewed". */
   viewed_at?: string | null;
@@ -199,6 +201,11 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
                   <Link href={`/quote?id=${e.id}`} className="font-medium hover:underline">
                     {e.title || "Untitled estimate"}
                   </Link>
+                  {/* Tom, 7 Sep: the customer's own confirm-loop editor, opened by staff
+                      to walk it with them on the phone. */}
+                  {e.source === "customer_intake" && e.status === "draft" && (
+                    <Link href={`/estimate/scope?id=${e.id}`} className="ml-2 text-xs text-cyan-700 hover:underline" data-testid={`customer-editor-${e.id}`}>Customer editor →</Link>
+                  )}
                 </td>
                 <td
                   className={`px-4 py-2.5 capitalize ${displayStatus(e) === "viewed" ? "text-cyan-700" : "text-gray-500"}`}

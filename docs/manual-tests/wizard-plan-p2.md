@@ -50,3 +50,24 @@ as staff (the public switch stays off).
    that is the data Phase 3's calibration reads. The tag is stored on the estimate (no SQL).
 4. **Both (inside + outside):** "Answer a few questions" sizes the rooms from the basics AND the sides from
    your answers (no listing or photos needed); "Add photos or the listing" is the measured path for both.
+
+## F. Tom's 7 Sep additions (interior)
+1. **Living there or empty:** page 4 (Details) asks "Will anyone be living there while we paint?" — nothing
+   pre-selected. "Yes" shows the note that daily set-up/pack-down is allowed for and the price may vary with
+   whether coverings can stay down. The estimate carries the Staging modifier (STG-OCCUPIED, ×1.1 on labour,
+   Settings → Pricing → Modifiers) and an amber "living there while we paint" line in the editor.
+2. **Bedrooms ask about the insides:** under "Paint the built-in robe doors?" the card now asks "Paint the
+   walls inside the built-in robe?" (priced as Robe Interior — run migration 20270110 or set the row to
+   0.5 / 1.0 / 1.5 hours in Settings → Substrates, so a colour match is 30 min and a colour change 1 hour)
+   and "Paint the inside of the robe doors too?" (a flat door side per door; the doors-and-windows check
+   does not count them as extra doors). Kitchens get the "inside the kitchen cupboards" question too.
+3. **Last check:** the sweep has "+ Inside the cupboards" and "+ Inside of the cupboard doors" — one tap adds
+   it to every room with built-ins (skipping rooms where the cupboards were answered No); adjust per room above.
+4. **Two allowances the engine adds itself** (run migration 20270111 first — it creates two Interior rate rows,
+   "Colour Match Allowance" and "Ceilings Only Allowance", half an hour each at the interior rate; tune them in
+   Settings → Substrates):
+   - Pick **Freshen up (colour match)** on the Condition page → every room in the editor shows
+     "🔒 Colour match — spot priming, extra patching, set-up and pack-up — allowed for by us" and the range
+     includes it. Colour change / dark-to-light: no line.
+   - In any room untick **Walls** but leave **Ceilings** ticked → the room gains "🔒 Ceilings on their own —
+     extra set-up and masking"; tick the walls back and it goes. Customers cannot untick these lines.

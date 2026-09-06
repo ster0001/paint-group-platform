@@ -27,8 +27,13 @@ export const agentSettingsSchema = z.object({
   tenantKey: z.string().default("paint-group"),
   modelDefault: z.string().min(1).default("claude-haiku-4-5"),
   modelHeavy: z.string().min(1).default("claude-sonnet-5"),
-  budgetTokensPerConversation: z.number().int().positive().default(60_000),
-  dailyCapPerAccount: z.number().int().positive().default(400_000),
+  /** Phase 4 (6 Sep plan): a guided turn is a tool LOOP — up to eight model
+   * rounds, each re-sending the growing transcript and tool results — so a
+   * single paragraph turn spent the old 60k budget and the chat said it had
+   * "reached its limit" after three questions. Sized for a full walk now;
+   * the seeded DB row overrides these, so the same change is a data update. */
+  budgetTokensPerConversation: z.number().int().positive().default(400_000),
+  dailyCapPerAccount: z.number().int().positive().default(2_000_000),
   supportHours: supportHoursSchema.prefault({}),
   slaClaimSeconds: z.number().int().positive().default(180),
   tone: z.string().default("warm, plain Australian English; short sentences; never salesy"),

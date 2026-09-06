@@ -5,6 +5,7 @@ import {
   doorStyleOfCode, windowRateCode, type DoorScope, type ScopeRule,
 } from "@/lib/extract/scope";
 import { windowStyleLabel, type WizardState } from "./state";
+import { roomAllowanceLabels } from "./allowances";
 
 /**
  * Part B: the customer scope editor's server logic. Pure functions over the
@@ -43,6 +44,8 @@ export type CustomerScopeRoom = {
   name: string;
   m2: number | null;
   tiles: CustomerTile[];
+  /** Tom, 7 Sep: the engine's per-room allowances, read as inclusions. */
+  allowances?: string[];
 };
 
 type LooseBlock = Record<string, unknown> & {
@@ -176,6 +179,7 @@ export function customerRoomView(block: LooseBlock, rules: ScopeRule[]): Custome
   ]);
   for (const s of surfaces) {
     const code = String(s.code ?? "");
+    if (s.allowance === true) continue; // the engine's own allowances are inclusions, not tiles
     if (cupboardCodes.has(code)) continue; // the cupboard question owns these
     const key = substrateKeyForRateCode(code);
     if (key != null && ruleKeys.has(String(key))) continue;
@@ -198,6 +202,7 @@ export function customerRoomView(block: LooseBlock, rules: ScopeRule[]): Custome
       ? Math.round(Number(block.L) * Number(block.W) * 10) / 10
       : null,
     tiles,
+    allowances: roomAllowanceLabels(surfaces),
   };
 }
 

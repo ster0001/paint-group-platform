@@ -3,15 +3,34 @@
 Branch `feat/wizard-plan-p2` (same PR as Phase 2/3). Needs the real model, so test on production
 as staff (staff preview of `/estimate` → Describe it → "Rather chat it through?").
 
-## 1. Model tier (your ruling: the larger model for customer chat) — one SQL statement on prod
+## 1. Model tier and the token budget — one SQL statement on prod (do this FIRST)
+
+The chat said "I've reached my limit" after three questions on 7 Sep because the per-conversation
+budget in the database is 60,000 tokens, and one paragraph turn (up to eight tool rounds) spends
+more than that. The code defaults are now 400,000 per conversation and 2,000,000 per account per
+day, but the seeded row wins, so:
 
 ```sql
-update public.agent_settings set model_default = 'claude-sonnet-5';
+update public.agent_settings
+   set model_default = 'claude-sonnet-5',
+       budget_tokens_per_conversation = 400000,
+       daily_cap_per_account = 2000000;
 ```
 
 `model_heavy` is already `claude-sonnet-5`. Cost shows on `/admin/agent` per completed estimate.
 
-## 2. The paragraph that failed on 6 Sep
+## 2. Describe it = one request, straight into the editor (your ruling, 7 Sep)
+On `/estimate` tap **Describe it**, type the job in one go (rooms, surfaces, condition, anything unusual),
+tap **Continue** → your name, email and phone (still the last question) → **See my estimate**. A building
+screen shows for 10–20 seconds and you land in the confirm-loop editor, not the chat. The estimate is
+named by the street line, carries the address and contact, joins the customer record, converts the wizard
+session (the status pills on Estimates → Wizard and the CRM buckets), and sends the "Your estimate is
+saved" link that opens the editor. In the editor you will see: the rooms the paragraph
+named, the range, the amber "to confirm" lines, and the "A few details to settle" card. The chat only
+appears if the paragraph wasn't enough to build from (e.g. no rooms named). "Chat it through instead"
+is still there under the box for people who want the back-and-forth.
+
+## 3. The paragraph that failed on 6 Sep (chat path)
 Open the chat and type, as one message:
 > Hi, it's 14 Murrumbeena Rd, Murrumbeena 3163. It's my own home, a 3 bed single storey weatherboard.
 > We want the whole inside repainted, new colours, and the kitchen cupboards painted too. Roughly what would that cost?

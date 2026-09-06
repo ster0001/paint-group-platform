@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createGateway } from "@/lib/agent/gateway";
 import { accountTypeOf, agentActor, agentDb, createDraftEstimate, loadOwnEstimate } from "@/lib/agent/session";
-import { graphInput } from "@/lib/agent/scope-doc";
+import { graphInput, isBuilt } from "@/lib/agent/scope-doc";
 import { nextGap } from "@/lib/agent/question-graph";
 import { logCrmEvent } from "@/lib/crm/events";
 import { ScopeTools } from "@/lib/agent/scope-tools";
 import { NoopTools } from "@/lib/agent/noop";
 import { reportError } from "@/lib/monitoring/report";
+import { createHash } from "node:crypto";
+import { finishDescribedEstimate } from "@/lib/wizard/describeFinish";
 
 /**
  * POST /api/agent/start — begin (or resume) a guided conversation.
@@ -23,7 +25,10 @@ export const runtime = "nodejs";
 const bodySchema = z.object({
   estimateId: z.string().uuid().optional(),
   brief: z.string().trim().max(20000).optional(),
-  address: z.object({ street: z.string().max(120).default(""), suburb: z.string().max(80).default(""), postcode: z.string().max(10).default(""), state: z.string().max(10).default("VIC") }).nullable().optional(),
+  /** Tom, 7 Sep: the describe path still asks name/phone/email last — they
+   * ride the build request so the estimate joins the customer record. */
+  contact: z.object({ name: z.string().trim().max(120).default(""), email: z.string().trim().max(200).default(""), phone: z.string().trim().max(30).default("") }).optional(),
+  address: z.object({ street: z.string().max(120).default(""), suburb: z.string().max(80).default(""), postcode: z.string().max(10).default(""), state: z.string().max(10).default("VIC"), formatted: z.string().max(250).default("") }).nullable().optional(),
 });
 
 export async function POST(request: Request) {
@@ -94,10 +99,45 @@ export async function POST(request: Request) {
 
   // Addendum A §3.3 "Describe the job": the paragraph IS the first turn —
   // the draft tree lands at once, priced as a range with every assumption a chip.
+  let built = false;
   if (parsed.data.brief && parsed.data.brief.length >= 20) {
-    try { await gateway.turn({ conversationId: conv.id, text: parsed.data.brief, actor: "user", heavy: true }); }
-    catch (e) { reportError(e, { where: "agent.start.brief", bestEffort: true }); }
+    // Tom, 7 Sep: ONE request builds the estimate and the customer lands
+    // STRAIGHT in the editor. The build is deterministic — propose_diff
+    // (one extraction call, applied straight on the customer's own draft) —
+    // not left to the model's choice of tools, which once recorded the
+    // facts one by one and never built. The chat interview is the fallback
+    // when the paragraph was not enough to build from.
+    const ctx = { conversationId: conv.id, mode: "guided" as const, view: "customer" as const, estimateId, accountId, actorId: actor.userId };
+    let proposed: Awaited<ReturnType<typeof gateway.tools.execute>> | null = null;
+    try { proposed = await gateway.tools.execute("propose_diff", { text: parsed.data.brief, sourceKind: "paste" }, ctx); }
+    catch (e) { reportError(e, { where: "agent.start.propose", bestEffort: true }); }
+    const after = await gateway.scope.load(estimateId);
+    built = after ? isBuilt(after) : false;
+    if (built && proposed) {
+      const contact = parsed.data.contact;
+      const email = actor.verifiedEmail ?? contact?.email?.trim().toLowerCase() ?? "";
+      if (email.includes("@")) {
+        const ipHash = createHash("sha256")
+          .update(`${request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"}::${process.env.WIZARD_IP_SALT ?? "pg-wizard"}`)
+          .digest("hex").slice(0, 32);
+        await finishDescribedEstimate(db, {
+          estimateId, userId: actor.userId, verifiedEmail: actor.verifiedEmail,
+          contact: { name: contact?.name ?? "", email, phone: contact?.phone ?? "" },
+          address: addr && (addr.street || addr.suburb) ? { street: addr.street, suburb: addr.suburb, state: addr.state, postcode: addr.postcode, formatted: addr.formatted || [addr.street, addr.suburb, addr.state, addr.postcode].filter(Boolean).join(" ") } : null,
+          suburb: addr?.suburb ?? "", postcode: addr?.postcode ?? "", ipHash,
+        });
+      }
+      const userMsg = await gateway.store.appendMessage({ conversationId: conv.id, role: "user", content: parsed.data.brief, modelId: null, tokensIn: 0, tokensOut: 0 });
+      const call = await gateway.store.logToolCall({ conversationId: conv.id, messageId: userMsg.id, tool: "propose_diff", input: { sourceKind: "paste" }, result: proposed, rpcName: "lib/agent/propose", status: proposed.status });
+      const reply = await gateway.store.appendMessage({ conversationId: conv.id, role: "assistant", content: "Built from your description — every assumption is marked in your estimate, and you can change anything there.", modelId: null, tokensIn: 0, tokensOut: 0 });
+      await gateway.store.linkToolCalls([call.id], reply.id);
+    } else {
+      try { await gateway.turn({ conversationId: conv.id, text: parsed.data.brief, actor: "user", heavy: true }); }
+      catch (e) { reportError(e, { where: "agent.start.brief", bestEffort: true }); }
+      const retry = await gateway.scope.load(estimateId);
+      built = retry ? isBuilt(retry) : false;
+    }
   }
 
-  return NextResponse.json({ conversationId: conv.id, estimateId });
+  return NextResponse.json({ conversationId: conv.id, estimateId, built });
 }

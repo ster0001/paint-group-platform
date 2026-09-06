@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getPortalContext, getPortalJobs, melbourneGreeting, melbourneTodayYmd } from "@/lib/portal/data";
 import { homeState } from "@/lib/portal/home";
+import { createServiceClient } from "@/lib/supabase/service";
+import { pageLabel } from "@/lib/wizard/journey";
 import { signout } from "@/app/auth/actions";
 import TradePortfolioHome from "./TradePortfolioHome";
 
@@ -38,7 +40,18 @@ export default async function AccountHomePage({
   const selected = ctx.properties.find((p) => p.id === propertyParam)?.id ?? null;
   const estimates = selected ? all.estimates.filter((e) => e.property_id === selected) : all.estimates;
   const workOrders = all.workOrders;
-  const state = homeState(estimates, workOrders, melbourneTodayYmd(), ctx.companyPhone || "");
+  // Tom, 7 Sep: a half-finished wizard walk (the autosaved session for this
+  // signed-in user) is the way back in — "pick up where I left off".
+  let openWizard: { pageLabel: string } | null = null;
+  const svcForDraft = createServiceClient();
+  if (svcForDraft) {
+    const { data: d } = await svcForDraft.from("wizard_drafts").select("job_type, current_page, furthest_page, last_seen_at")
+      .eq("user_id", ctx.userId).is("converted_at", null).order("last_seen_at", { ascending: false }).limit(1).maybeSingle();
+    if (d && d.last_seen_at && new Date().getTime() - new Date(d.last_seen_at as string).getTime() < 7 * 24 * 3600_000 && (Number(d.furthest_page) || 1) > 1) {
+      openWizard = { pageLabel: pageLabel(d.job_type as string | null, Number(d.current_page) || Number(d.furthest_page) || 1) };
+    }
+  }
+  const state = homeState(estimates, workOrders, melbourneTodayYmd(), ctx.companyPhone || "", openWizard);
   const isTel = state.cta.href.startsWith("tel:");
 
   const primaryProperty = ctx.properties.find((p) => p.id === selected) ?? ctx.properties[0] ?? null;

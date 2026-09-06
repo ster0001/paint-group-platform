@@ -32,6 +32,8 @@ export type Gateway = {
   scope: SupabaseScopeStore;
   startConversation(input: NewConversation): Promise<ConversationRow>;
   turn(input: TurnInput): Promise<TurnResult>;
+  /** The bound tools — for the deterministic steps a route runs without a model turn (the brief build). */
+  tools: ToolExecutor;
 };
 
 /** AGENT_MODEL_STUB=1 swaps the phrasing layer for templates (the C1 test
@@ -59,5 +61,6 @@ export async function createGateway(opts: { tools?: (settings: AgentSettings) =>
     scope,
     startConversation: (input) => store.createConversation(input),
     turn: (input) => runTurn({ model, tools, store, settings }, input),
+    tools,
   };
 }

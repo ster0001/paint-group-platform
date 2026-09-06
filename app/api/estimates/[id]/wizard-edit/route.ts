@@ -11,6 +11,7 @@ import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { applyWizardAnswers } from "@/lib/wizard/merge";
 import { wizardStateSchema } from "@/lib/wizard/state";
 import { applyDoorStyle, applyWindowStyle, DOOR_STYLE_DEFERRAL, WINDOW_STYLE_DEFERRAL } from "@/lib/wizard/styles";
+import { reconcileRoomAllowances, type AllowanceBlock } from "@/lib/wizard/allowances";
 import { markStarterProvenance, starterExtraction, type TypicalSizeRow, FENCE_CODE, FENCE_TYPE_LABEL } from "@/lib/wizard/starter";
 import {
   applyCount, applyDoorScope, applyExtent, applyExteriorToggle, applyFenceLength, applyRename, applyToggle, applyWallsShare,
@@ -24,7 +25,7 @@ import {
   wallOptionsFromRates,
   type SidesLoopMeta, hoursPerItemCodes } from "@/lib/wizard/sides";
 import {
-  CUPBOARD_BY_ROOM_TYPE, addCatalogueLine, addRoomCustom, addRoomWindowGroup, applyCupboard, applyCupboardInterior,
+  CUPBOARD_BY_ROOM_TYPE, addCatalogueLine, addRoomCustom, addRoomWindowGroup, applyCupboard, applyCupboardInterior, applyCupboardDoorInside, applyCupboardsEverywhere,
   applyLineCount, applyRoomDims, applyRoomSizeOk, applyRoomWindowSize, confirmRoom,
   defaultInteriorLoop, interiorDwTotals, interiorProgress, removeLine, roomLoopViews,
   type InteriorLoopMeta,
@@ -160,6 +161,9 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("room_dims"), areaId: z.number().int().positive(), lengthM: z.number().min(0.1).max(500), widthM: z.number().min(0.1).max(500) }),
   z.object({ action: z.literal("room_cupboard"), areaId: z.number().int().positive(), on: z.boolean(), count: z.number().int().min(1).max(40).nullable().default(null) }),
   z.object({ action: z.literal("room_cupboard_interior"), areaId: z.number().int().positive(), on: z.boolean(), count: z.number().int().min(1).max(40).nullable().default(null) }),
+  /** Tom, 7 Sep: the inside face of the robe doors, and the sweep's "inside the cupboards" chips (every room at once). */
+  z.object({ action: z.literal("room_cupboard_door_inside"), areaId: z.number().int().positive(), on: z.boolean(), count: z.number().int().min(1).max(40).nullable().default(null) }),
+  z.object({ action: z.literal("iloop_sweep_cupboards"), kind: z.enum(["interior", "door_inside"]) }),
   z.object({ action: z.literal("room_win_size"), areaId: z.number().int().positive(), surfaceId: z.number().int().positive(), size: z.enum(["S", "M", "L"]) }),
   z.object({ action: z.literal("room_add_window_group"), areaId: z.number().int().positive() }),
   z.object({ action: z.literal("room_custom"), areaId: z.number().int().positive(), name: z.string().min(1).max(120) }),
@@ -769,7 +773,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     // ---- R3: the interior confirm loop ---------------------------------------
-    if (act.action === "room_size_ok" || act.action === "room_dims" || act.action === "room_cupboard" || act.action === "room_cupboard_interior"
+    if (act.action === "iloop_sweep_cupboards") {
+      let next = Math.max(0, ...blocks.flatMap((b) => [Number(b.id) || 0, ...(b.surfaces ?? []).map((s) => Number(s.id) || 0)])) + 1;
+      const codes = new Set((await ctxPromise).rateItems.map((r) => r.code));
+      const res = applyCupboardsEverywhere(blocks, act.kind, codes, () => next++);
+      if (res.rooms === 0) return { error: "No rooms with built-in cupboards to add that to yet.", status: 400 };
+      blocks = res.blocks;
+      return null;
+    }
+
+    if (act.action === "room_size_ok" || act.action === "room_dims" || act.action === "room_cupboard" || act.action === "room_cupboard_interior" || act.action === "room_cupboard_door_inside"
       || act.action === "room_win_size" || act.action === "room_add_window_group" || act.action === "room_custom"
       || act.action === "room_add_catalogue" || act.action === "room_line_count" || act.action === "room_remove_line"
       || act.action === "confirm_room_loop") {
@@ -811,6 +824,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         : act.action === "room_dims" ? applyRoomDims(blocks, act.areaId, act.lengthM, act.widthM)
         : act.action === "room_cupboard" ? applyCupboard(blocks, act.areaId, act.on, act.count, () => next++)
         : act.action === "room_cupboard_interior" ? applyCupboardInterior(blocks, act.areaId, act.on, act.count, () => next++)
+        : act.action === "room_cupboard_door_inside" ? applyCupboardDoorInside(blocks, act.areaId, act.on, act.count, () => next++)
         : act.action === "room_win_size" ? applyRoomWindowSize(blocks, act.areaId, act.surfaceId, act.size)
         : act.action === "room_add_window_group" ? addRoomWindowGroup(blocks, act.areaId, snapForWin.success ? snapForWin.data : null, () => next++)
         : act.action === "room_custom" ? addRoomCustom(blocks, act.areaId, act.name)
@@ -918,6 +932,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: refusal.error }, { status: refusal.status });
   }
 
+  // Tom, 7 Sep: after every edit the engine's per-room allowances follow the
+  // scope — untick a room's walls and its ceilings-only allowance appears.
+  {
+    const tierSnap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
+    let allowId = Math.max(0, ...blocks.flatMap((b) => [Number(b.id) || 0, ...(b.surfaces ?? []).map((s) => Number(s.id) || 0)])) + 1;
+    blocks = reconcileRoomAllowances(blocks as unknown as AllowanceBlock[], { tier: tierSnap.success ? tierSnap.data.condition.tier : null, rateItems: (await ctxPromise).rateItems }, () => allowId++).blocks as unknown as LooseBlock[];
+  }
   const newState = { ...state, blocks, aiDeferred: newDeferred, sidesLoop: sidesMeta, interiorLoop: interiorMeta };
   const { error: writeError } = await db
     .from("estimates")

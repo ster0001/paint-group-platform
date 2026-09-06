@@ -68,6 +68,7 @@ test("exterior: geometry chips + flag flip the tier; toasts carry $ amounts", as
   await page.getByRole("button", { name: /Good overall/i }).click();
   await answer(/built before 1970/, "No");
   await answer(/asbestos/, "No"); // Phase 0: unanswered until tapped
+  await answer(/living there/, "No — it'll be empty"); // Tom, 7 Sep
   await next(); await next();
   // The contact page is the LAST page now (Tom, 31 Aug).
   await fillContactStep(page, `e2e-mech-${Date.now()}@example.com`);

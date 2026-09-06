@@ -29,7 +29,7 @@ import {
 import type { WizardEditorPayload } from "@/lib/wizard/view";
 import AddressField from "./AddressField";
 import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
-import { RESUME_KEY, decodeResume, encodeResume, resumeLine, type SafetyAnswered } from "@/lib/wizard/resume";
+import { RESUME_KEY, decodeResume, encodeResume, resumeLine, type ResumeRecord, type SafetyAnswered } from "@/lib/wizard/resume";
 import Wordmark from "./Wordmark";
 
 /**
@@ -102,7 +102,7 @@ const PROC_TIPS = [
   "Nothing is booked and nothing is charged until you say so.",
 ];
 
-export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, intent }: {
+export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, intent, resume = null }: {
   roomTypes: string[];
   /** A2: the offered surface lists, derived server-side from the rate card. */
   substrates: SubstrateGroups;
@@ -129,6 +129,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    * typed on the marketing site, shown in the field; "business" pre-selects
    * the commercial property kind. Intent only — no account, no event. */
   intent?: { addressText: string | null; propertyKind: "commercial" | null; mode?: "home" | "business" | null; entrySource?: string };
+  /** Tom, 7 Sep: the SERVER copy of a half-finished walk (the autosaved
+   * draft for this user) — merged with the browser copy on mount, newest wins. */
+  resume?: Omit<ResumeRecord, "v"> | null;
 }) {
   const makeInitialState = (): WizardState => {
     const seed = prefillState ?? defaultWizardState();
@@ -215,12 +218,18 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   // exterior each have their own; condition and damage share a page; the
   // paint preferences ride the LAST page (the contact details for a customer,
   // their own page for staff and members whose details are already known).
-  const pageKeys: PageKey[] = state.jobType === "exterior"
-    ? ["property", "house", "scope", "ext_condition", "extras", ...(isCustomer && !contactDone ? ["contact" as const] : [])]
-    : ["property", "surfaces", "condition", "details", ...(isCustomer && !contactDone ? ["contact" as const] : ["paint" as const])];
+  const [entry, setEntry] = useState<EntryChoice | null>(null);
+  // Tom, 7 Sep: "Describe it" is one request — the property page, then the
+  // contact details (still the LAST question before the build), then the
+  // build lands in the editor. Nothing else is asked.
+  const describing = isCustomer && entry === "describe";
+  const pageKeys: PageKey[] = describing
+    ? ["property", ...(!contactDone ? ["contact" as const] : [])]
+    : state.jobType === "exterior"
+      ? ["property", "house", "scope", "ext_condition", "extras", ...(isCustomer && !contactDone ? ["contact" as const] : [])]
+      : ["property", "surfaces", "condition", "details", ...(isCustomer && !contactDone ? ["contact" as const] : ["paint" as const])];
   const lastPage = pageKeys.length;
   const pageKey: PageKey = pageKeys[Math.min(page, lastPage) - 1];
-  const [entry, setEntry] = useState<EntryChoice | null>(null);
   const chooseEntry = (e: EntryChoice) => {
     setEntry(e);
     set(entryPatch(e, state.jobType, state.exterior, state.basics));
@@ -255,8 +264,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     // Deferred: the restore is a state change, and it must land after paint.
     const t = setTimeout(() => {
       let raw: string | null = null;
-      try { raw = localStorage.getItem(RESUME_KEY); } catch { return; }
-      const r = decodeResume(raw, new Date(), { incomingAddress: intent?.addressText ?? null });
+      try { raw = localStorage.getItem(RESUME_KEY); } catch { raw = null; }
+      const local = decodeResume(raw, new Date(), { incomingAddress: intent?.addressText ?? null });
+      // The server copy (any device) vs the browser copy — whichever is newer.
+      const server = resume && !(intent?.addressText && (resume.addressText || resume.state.customer?.suburb) && !decodeResume(encodeResume(resume), new Date(), { incomingAddress: intent.addressText })) ? resume : null;
+      const r = local && server ? (new Date(local.savedAt) >= new Date(server.savedAt) ? local : server) : (local ?? server);
       if (!r) return;
       setState(r.state);
       setAnswered(r.answered);
@@ -276,9 +288,21 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
 
   // S4: hand the person to the assistant on a fresh draft of their own.
   const [startingChat, setStartingChat] = useState(false);
+  /** The processing screen is showing a BRIEF build, not a form submit. */
+  const [briefBuilding, setBriefBuilding] = useState(false);
   const [brief, setBrief] = useState("");
   async function startChat(withBrief = false) {
     setStartingChat(true);
+    // Tom, 7 Sep: a build must never look frozen — the same processing screen
+    // the form path shows, with the brief's own steps.
+    let ticks: ReturnType<typeof setTimeout>[] = [];
+    if (withBrief) {
+      setBriefBuilding(true);
+      setScreen("processing");
+      setProcLine(1);
+      ticks = [setTimeout(() => setProcLine(2), 5000), setTimeout(() => setProcLine(3), 11000)];
+    }
+    const backToPages = () => { ticks.forEach(clearTimeout); setBriefBuilding(false); setScreen("pages"); setStartingChat(false); };
     try {
       // The page-1 address rides along so the brief prices with a known property.
       const address = state.address
@@ -286,11 +310,25 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         : state.customer && (state.customer.suburb || state.customer.postcode)
           ? { street: "", suburb: state.customer.suburb, postcode: state.customer.postcode, state: "VIC" }
           : null;
-      const res = await fetch("/api/agent/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...(withBrief && brief.trim() ? { brief: brief.trim() } : {}), ...(address ? { address } : {}) }) });
-      const j = (await res.json().catch(() => ({}))) as { conversationId?: string; error?: string };
-      if (!res.ok || !j.conversationId) { setStartingChat(false); return; }
-      window.location.assign(`/estimate/assist?c=${j.conversationId}`);
-    } catch { setStartingChat(false); }
+      const contact = withBrief ? { name: state.contact.name.trim(), email: state.contact.email.trim(), phone: state.contact.phone.trim() } : null;
+      const res = await fetch("/api/agent/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+        ...(withBrief && brief.trim() ? { brief: brief.trim() } : {}),
+        ...(address ? { address: { ...address, formatted: state.address?.formatted ?? "" } } : {}),
+        ...(contact ? { contact } : {}),
+      }) });
+      const j = (await res.json().catch(() => ({}))) as { conversationId?: string; estimateId?: string; built?: boolean; error?: string };
+      if (!res.ok || !j.conversationId) { backToPages(); setError(j.error ?? "That didn't go through — please try again."); return; }
+      ticks.forEach(clearTimeout);
+      setProcLine(4);
+      // Tom, 7 Sep: a described job lands STRAIGHT in the editor with every
+      // assumption marked; the chat is only where the paragraph wasn't enough.
+      if (withBrief && j.built && j.estimateId) {
+        clearResume();
+        router.push(`/estimate/scope?id=${j.estimateId}`);
+        return;
+      }
+      router.push(`/estimate/assist?c=${j.conversationId}`);
+    } catch { backToPages(); setError("That didn't go through — check the connection and try again."); }
   }
 
   useEffect(() => {
@@ -818,10 +856,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       if (isCustomer && !answered.heritage) return "Heritage listed? Yes, no or not sure — it changes what we can price online.";
       // Phase 2: a way in is chosen, not implied.
       if (isCustomer && !entry) return "How would you like to do this? Pick one of the three.";
-      if (isCustomer && entry === "describe") {
-        return brief.trim().length < 20
-          ? "Type a few lines about the job, then tap “Build it from my description” — or pick another way in."
-          : "Tap “Build it from my description” — or pick another way in.";
+      if (isCustomer && entry === "describe" && brief.trim().length < 20) {
+        return "Type a few lines about the job first — or pick another way in.";
       }
       if (wantsInterior && !state.noPlan && state.planRunIds.length === 0) {
         return state.listingUrl.trim()
@@ -855,6 +891,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     }
     if (pageKey === "details" && isCustomer && !answered.pre1970) return "Was the home built before 1970? Yes, no or not sure.";
     if (pageKey === "details" && isCustomer && !answered.asbestos) return "Any chance of asbestos sheeting? Yes, no or not sure.";
+    if (pageKey === "details" && isCustomer && state.details.occupied == null) return "Will anyone be living there while we paint? Yes or no.";
     if (pageKey === "condition" && state.details.damageTier >= 2 && state.details.damagePhotoCount === 0) {
       // Customer mode is photos-only (Step 8 brief) - a note cannot be priced.
       if (isCustomer) return "Damage at this level needs photos — a quick phone shot of each area is perfect.";
@@ -873,6 +910,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     if (isCustomer && state.customer && !state.customer.email.trim() && state.contact.email.trim()) {
       set({ customer: { ...state.customer, email: state.contact.email.trim() } });
     }
+    // Tom, 7 Sep: a described job builds from the paragraph, not the form.
+    if (describing) { void startChat(true); return; }
     void runSubmit();
   }
 
@@ -915,7 +954,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         <div className="wz-wrap wz-proc">
           <div className="wz-ring" />
           <div className="wz-psteps">
-            {[
+            {(briefBuilding ? [
+              { at: 1, label: "Reading your description" },
+              { at: 2, label: "Building the rooms and surfaces" },
+              { at: 3, label: "Pricing every surface" },
+            ] : [
               {
                 at: 1,
                 label: state.jobType === "exterior" ? "Looking over the outside"
@@ -928,7 +971,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
               },
               ...(state.details.damagePhotoCount > 0 ? [{ at: 2, label: "Analysing the damage photos" }] : []),
               { at: 3, label: "Pricing every surface" },
-            ].map((s, i) => (
+            ]).map((s, i) => (
               <p key={i} className={`wz-pstep ${procLine > s.at ? "done" : procLine >= s.at ? "on" : ""}`}>
                 <i className="wz-pdot" aria-hidden>{procLine > s.at ? "✓" : ""}</i>
                 {s.label}
@@ -1292,7 +1335,7 @@ function PageProperty({
           <div className="wz-cards" data-testid="wz-entry">
             <button type="button" className={`wz-card ${entry === "describe" ? "on" : ""}`} onClick={() => onEntry("describe")} data-testid="entry-describe">
               <b>Describe it</b>
-              <span>Type a few lines about the job and we build the estimate for you — you fine-tune it after.</span>
+              <span>Type a few lines about the job — we build the whole estimate from them and you fine-tune it after.</span>
             </button>
             <button type="button" className={`wz-card ${entry === "questions" ? "on" : ""}`} onClick={() => onEntry("questions")} data-testid="entry-questions">
               <b>Answer a few questions</b>
@@ -1315,17 +1358,13 @@ function PageProperty({
 
       {isCustomer && entry === "describe" && (
         <div className="wz-follow wz-alt" data-testid="describe-box">
-          <p className="wz-q">Tell us about the job in your own words.</p>
+          <p className="wz-q">Tell us about the job in your own words — rooms, what&rsquo;s being painted, the condition, anything unusual. One go is enough; you land in your estimate with every assumption marked.</p>
           <textarea className="wz-brief" data-testid="describe-job" rows={4} value={brief} onChange={(e) => setBrief(e.target.value)}
             placeholder="e.g. 3 bedroom 1 bathroom house, colour match throughout, walls in good condition with a few minor cracks in the kitchen, all trims to be painted…" />
-          <div className="wz-seg">
-            <button type="button" data-testid="build-from-brief" disabled={sessionPhase !== "ready" || startingChat || brief.trim().length < 20} onClick={() => startChat(true)}>
-              {startingChat ? "Building…" : "Build it from my description"}
-            </button>
-          </div>
+          <p className="wz-chint" style={{ marginTop: 8 }}>Tap Continue — your details come next, then we build the whole estimate from this.</p>
           <p style={{ marginTop: 8 }}>
             <button type="button" className="wz-linkbtn" data-testid="chat-it" disabled={sessionPhase !== "ready" || startingChat} onClick={() => startChat(false)}>
-              {startingChat ? "Opening the assistant…" : "Rather chat it through? Start with the assistant →"}
+              {startingChat ? "Opening the assistant…" : "Prefer a back-and-forth? Chat it through instead →"}
             </button>
           </p>
         </div>
@@ -1769,6 +1808,23 @@ function PageDetails({ state, set, isCustomer = false, stepsTotal, answered, mar
         </>
       )}
 
+      {/* Tom, 7 Sep: a lived-in home is set up and packed down every day —
+          priced with the Staging modifier, and said out loud. */}
+      <p className="wz-qhead">Will anyone be living there while we paint?</p>
+      <Seg
+        options={[{ v: "no" as const, label: "No — it'll be empty" }, { v: "yes" as const, label: "Yes — we'll be living there" }]}
+        value={d.occupied ?? null}
+        onPick={(v) => set({ details: { ...d, occupied: v } })}
+      />
+      {d.occupied === "yes" && (
+        <div className="wz-follow" data-testid="occupied-note">
+          <p className="wz-q">That&rsquo;s fine — we set up and pack down each day, and it&rsquo;s allowed for.</p>
+          <p style={{ fontSize: 13.5, color: "var(--muted)", margin: 0 }}>
+            The price may still vary a little depending on whether our floor and furniture coverings can stay down
+            between visits. We&rsquo;ll talk that through with you before anything is fixed.
+          </p>
+        </div>
+      )}
     </>
   );
 }

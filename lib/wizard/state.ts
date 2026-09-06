@@ -124,6 +124,10 @@ export const wizardStateShapeSchema = z.object({
     damageNote: z.string().max(2000).default(""),
     /** Photos went to the extraction photos route; only the count rides here. */
     damagePhotoCount: z.number().int().min(0).max(24).default(0),
+    /** Tom, 7 Sep 2026: a lived-in home is priced with daily set-up and
+     * pack-down (the Staging modifier). Interior jobs; optional so every
+     * stored state still parses. */
+    occupied: z.enum(["yes", "no"]).optional(),
   }),
 
   /**
