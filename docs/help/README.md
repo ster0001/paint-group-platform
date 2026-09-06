@@ -101,6 +101,22 @@ committed and CI runs `npm run help:index -- --check`, which fails when:
 
 Errors print one line each, `path: what is wrong`, and the script exits 1.
 
+## Screenshots — the capture rig
+
+Screenshots are never taken by hand. `e2e/help-capture/<feature>.spec.ts`
+drives the real flow in the real roles on the C1 **test** stack (never
+production) and saves `docs/help/<feature>/media/<role>-<step>.png` as it goes:
+contractor shots at a 390×844 phone viewport, staff shots at 1440×900. The
+fixtures are invented test data (`rig.ts`), created before the run and
+destroyed after it. When a screen changes, re-run the spec and re-read the
+help file against the new pictures:
+
+```bash
+./scripts/c1/run-e2e.sh e2e/help-capture/scheduling.spec.ts
+```
+
+These specs are not CI gates — they exist to regenerate the media.
+
 ## Walkthroughs
 
 Defined in session A4 of the brief. Until then the `walkthrough:` field is

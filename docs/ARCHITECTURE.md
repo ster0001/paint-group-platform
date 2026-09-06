@@ -2030,3 +2030,21 @@ verified_at_commit). The index is committed; the CI `gate` job runs `help:index 
 which fails on any validation problem or a stale index. `verified_at_commit` is read now
 and set from git in session A4. Backfill (A2 scheduling + self-invoicing, A3 work orders)
 and GIF walkthroughs (A4) follow on this branch.
+
+## Help content — session A2, scheduling + self-invoicing backfill (6 Sep 2026)
+
+First four help files, written from e2e runs on the C1 test stack in the real roles:
+`docs/help/scheduling/{contractor,staff}.md` and `docs/help/self-invoicing/{contractor,staff}.md`,
+35 screenshots under each feature's `media/`. The screenshots come from a committed capture
+rig, `e2e/help-capture/` (`rig.ts` = viewport presets, `shot()`, an invented-data job fixture
+`createHelpJob` that lands in the tray or on a contractor; `scheduling.spec.ts` and
+`self-invoicing.spec.ts` drive both roles end to end and save the PNGs). Not CI gates; re-run
+to regenerate. Contractor shots are viewport-sized because the portal's fixed tab bar and
+bottom sheets strand mid-image under a full-page capture. `contractorIdForEmail` in
+`e2e/fixtures/woLoop.ts` now pages 50×200 users (was 10×200 — the test project's anonymous
+wizard sign-ins passed 2,000 and the helper silently returned null). Running the flows
+surfaced three app defects, reported in the session notes, not fixed here: the sign-off
+invoice submitted after a progress claim loses the "previously invoiced" subtraction
+(migration 20261127 dropped it — money bug, live), a reschedule request re-redacts an
+accepted job to suburb-only, and approving a proposed date moves start_date but not end_date
+or the booked walkthrough.

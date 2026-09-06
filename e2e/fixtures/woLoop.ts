@@ -30,7 +30,11 @@ export function serviceClient(): SupabaseClient | null {
  */
 export async function contractorIdForEmail(db: SupabaseClient, email: string): Promise<string | null> {
   const wanted = email.toLowerCase();
-  for (let page = 1; page <= 10; page++) {
+  // 50 pages × 200 = 10,000 users. It was 10 pages, and the moment the test
+  // project's anonymous wizard sign-ins pushed auth.users past 2,000 the test
+  // contractor fell off the end and this returned null — silently, so a
+  // fixture got created with contractor_id "null" (6 Sep, help capture).
+  for (let page = 1; page <= 50; page++) {
     const { data, error } = await db.auth.admin.listUsers({ page, perPage: 200 });
     if (error || !data?.users?.length) return null;
     const user = data.users.find((u) => (u.email ?? "").toLowerCase() === wanted);
@@ -208,7 +212,11 @@ export async function rpcAsJson<T = unknown>(
 /** The customers row behind a login, for fixtures that need customer-side RLS. */
 export async function customerIdForEmail(db: SupabaseClient, email: string): Promise<string | null> {
   const wanted = email.toLowerCase();
-  for (let page = 1; page <= 10; page++) {
+  // 50 pages × 200 = 10,000 users. It was 10 pages, and the moment the test
+  // project's anonymous wizard sign-ins pushed auth.users past 2,000 the test
+  // contractor fell off the end and this returned null — silently, so a
+  // fixture got created with contractor_id "null" (6 Sep, help capture).
+  for (let page = 1; page <= 50; page++) {
     const { data, error } = await db.auth.admin.listUsers({ page, perPage: 200 });
     if (error || !data?.users?.length) return null;
     const user = data.users.find((u) => (u.email ?? "").toLowerCase() === wanted);
