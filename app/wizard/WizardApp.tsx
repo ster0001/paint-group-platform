@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { checkUpload } from "@/lib/uploads/validate";
 import {
@@ -28,6 +29,7 @@ import {
 import type { WizardEditorPayload } from "@/lib/wizard/view";
 import AddressField from "./AddressField";
 import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
+import { RESUME_KEY, decodeResume, encodeResume, resumeLine, type SafetyAnswered } from "@/lib/wizard/resume";
 import Wordmark from "./Wordmark";
 
 /**
@@ -43,6 +45,40 @@ import Wordmark from "./Wordmark";
  */
 
 type Screen = "pages" | "processing" | "editor";
+
+/** Phase 2 (6 Sep plan): the wizard's pages are a LIST per job type, not numbers. */
+type PageKey = "property" | "surfaces" | "condition" | "details" | "paint" | "house" | "scope" | "ext_condition" | "extras" | "contact";
+/** The customer's way in: describe it · answer a few questions · upload the plan/listing. */
+type EntryChoice = "describe" | "questions" | "upload";
+
+/** What choosing a way in means for the state, per job type. Pure, so the
+ * job-type switch and the entry cards write the same thing. */
+function entryPatch(e: EntryChoice, jobType: WizardState["jobType"], ext: WizardExterior | null, basics: WizardState["basics"]): Partial<WizardState> {
+  if (jobType === "exterior") {
+    const base = ext ?? defaultExterior();
+    return { exterior: { ...base, noPhotos: e === "questions" } };
+  }
+  return {
+    noPlan: e === "questions",
+    basics: e === "questions" && !basics
+      ? { bedrooms: 3, storeys: "single", sizeBand: "s120_200", openPlanKitchenLiving: false }
+      : basics,
+    // A "both" job answers for the outside too: no photos = sized from the answers.
+    ...(jobType === "both" ? { exterior: { ...(ext ?? defaultExterior()), noPhotos: e === "questions" } } : {}),
+  };
+}
+
+/** A restored walk: which way in do its answers imply? */
+function entryFromState(s: WizardState): EntryChoice | null {
+  if (s.jobType === "exterior") {
+    if (s.exterior?.noPhotos) return "questions";
+    if (s.facadeRunIds.length > 0 || s.listingUrl.trim()) return "upload";
+    return null;
+  }
+  if (s.noPlan) return "questions";
+  if (s.planRunIds.length > 0 || s.listingUrl.trim()) return "upload";
+  return null;
+}
 
 type SubmitResult = WizardEditorPayload & {
   estimateId: string;
@@ -94,7 +130,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    * the commercial property kind. Intent only — no account, no event. */
   intent?: { addressText: string | null; propertyKind: "commercial" | null; mode?: "home" | "business" | null; entrySource?: string };
 }) {
-  const [state, setState] = useState<WizardState>(() => {
+  const makeInitialState = (): WizardState => {
     const seed = prefillState ?? defaultWizardState();
     const base = mode === "customer"
       ? {
@@ -118,7 +154,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     return prefillState
       ? base // the rebook keeps the prior job's chosen surfaces
       : { ...base, surfaces: defaultSurfacesFor(base.jobType, substrates) };
-  });
+  };
+  const [state, setState] = useState<WizardState>(makeInitialState);
   const [page, setPage] = useState(1);
   const [screen, setScreen] = useState<Screen>("pages");
   const isCustomer = mode === "customer";
@@ -174,7 +211,63 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    *  member, most portal customers) never sees the page at all. */
   const contactDone =
     Boolean(prefill?.email && prefill?.name?.trim() && (prefill?.phone ?? "").replace(/[^0-9]/g, "").length >= 8);
-  const lastPage = isCustomer && !contactDone ? 6 : 5;
+  // Phase 2 (6 Sep plan): the pages are a LIST, not numbers — interior and
+  // exterior each have their own; condition and damage share a page; the
+  // paint preferences ride the LAST page (the contact details for a customer,
+  // their own page for staff and members whose details are already known).
+  const pageKeys: PageKey[] = state.jobType === "exterior"
+    ? ["property", "house", "scope", "ext_condition", "extras", ...(isCustomer && !contactDone ? ["contact" as const] : [])]
+    : ["property", "surfaces", "condition", "details", ...(isCustomer && !contactDone ? ["contact" as const] : ["paint" as const])];
+  const lastPage = pageKeys.length;
+  const pageKey: PageKey = pageKeys[Math.min(page, lastPage) - 1];
+  const [entry, setEntry] = useState<EntryChoice | null>(null);
+  const chooseEntry = (e: EntryChoice) => {
+    setEntry(e);
+    set(entryPatch(e, state.jobType, state.exterior, state.basics));
+  };
+
+  // Phase 0 (6 Sep plan): the three safety answers carry no silent default —
+  // heritage, built-before-1970 and asbestos read as unanswered until the
+  // customer taps one, and Continue names the one still open. A rebook
+  // arrives with the prior job's answers, which count as answered.
+  const [answered, setAnswered] = useState<SafetyAnswered>(() =>
+    prefillState ? { heritage: true, pre1970: true, asbestos: true } : { heritage: false, pre1970: false, asbestos: false });
+  const markAnswered = (k: keyof SafetyAnswered) => setAnswered((a) => (a[k] ? a : { ...a, [k]: true }));
+
+  // Phase 1 (6 Sep plan): save-and-return on this device. The answers are
+  // kept in the browser as the customer goes; on the next visit they come
+  // back to the page they were on, with a line saying so and a way to start
+  // again. A rebook or a member's prefilled walk is never overridden, and a
+  // homepage hand-off for a DIFFERENT address starts fresh (lib/wizard/resume).
+  const [resumed, setResumed] = useState<string | null>(null);
+  const clearResume = () => { try { localStorage.removeItem(RESUME_KEY); } catch { /* storage may be unavailable */ } };
+  const startAgain = () => {
+    clearResume();
+    setResumed(null);
+    setEntry(null);
+    setState(makeInitialState());
+    setAnswered({ heritage: false, pre1970: false, asbestos: false });
+    setPage(1);
+    window.scrollTo({ top: 0 });
+  };
+  useEffect(() => {
+    if (!isCustomer || prefillState || prefill?.address) return;
+    // Deferred: the restore is a state change, and it must land after paint.
+    const t = setTimeout(() => {
+      let raw: string | null = null;
+      try { raw = localStorage.getItem(RESUME_KEY); } catch { return; }
+      const r = decodeResume(raw, new Date(), { incomingAddress: intent?.addressText ?? null });
+      if (!r) return;
+      setState(r.state);
+      setAnswered(r.answered);
+      setEntry(entryFromState(r.state));
+      setPage(r.page);
+      setResumed(resumeLine(r.page, r.state.jobType));
+    }, 0);
+    return () => clearTimeout(t);
+    // Mount only: a later change to these props is a new walk, not a resume.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 2.4 · record the arrival once, on mount. First touch writes itself only
   // the first time; last touch moves every visit. Wrapped in the helper, which
@@ -550,6 +643,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       // (R1.1 parity). Guardrail outcomes still render CustomerResult
       // above; photo-analysis issues ride the estimate as review
       // deferrals, which the editor surfaces itself.
+      clearResume();
       router.push(`/estimate/scope?id=${(j as { estimateId: string }).estimateId}`);
       return;
     }
@@ -568,6 +662,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         keepalive: true,
       }).catch(() => {});
     }
+    clearResume();
     router.push(`/estimate/scope?id=${landed.estimateId}`);
   }
 
@@ -637,6 +732,17 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     return () => clearTimeout(t);
   }, [state, page, lastPage, isCustomer, sessionWorthSaving, addressText, intent?.mode, intent?.entrySource, queueDraftSave]);
 
+  // Phase 1: the same-device copy, written a beat after every change.
+  useEffect(() => {
+    if (!isCustomer || screen !== "pages" || !sessionWorthSaving || draftHaltRef.current) return;
+    const t = setTimeout(() => {
+      try {
+        localStorage.setItem(RESUME_KEY, encodeResume({ savedAt: new Date().toISOString(), page, state, answered, addressText }));
+      } catch { /* private mode, full storage — the server autosave still runs */ }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [state, page, answered, isCustomer, screen, sessionWorthSaving, addressText]);
+
   // Buckets brief §2.3 · the heartbeat. Every 15 s, ONLY while the tab is
   // visible and there has been a keypress, tap or scroll in the last 60 s —
   // so a tab left open overnight adds nothing, and "9 minutes on the page"
@@ -695,7 +801,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   // ---- client-side page gates (server re-validates everything) --------------
 
   function pageBlocker(): string | null {
-    if (page === 1) {
+    if (pageKey === "property") {
       // The contact block is the first thing on the page, so it is the first
       // thing checked — being told about a field you cannot see is how a gate
       // reads as broken.
@@ -709,6 +815,14 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       if (isCustomer && (!state.customer || state.customer.suburb.trim() === "" || state.customer.postcode.trim() === "")) {
         return "Where's the property? Suburb and postcode, please.";
       }
+      if (isCustomer && !answered.heritage) return "Heritage listed? Yes, no or not sure — it changes what we can price online.";
+      // Phase 2: a way in is chosen, not implied.
+      if (isCustomer && !entry) return "How would you like to do this? Pick one of the three.";
+      if (isCustomer && entry === "describe") {
+        return brief.trim().length < 20
+          ? "Type a few lines about the job, then tap “Build it from my description” — or pick another way in."
+          : "Tap “Build it from my description” — or pick another way in.";
+      }
       if (wantsInterior && !state.noPlan && state.planRunIds.length === 0) {
         return state.listingUrl.trim()
           ? "Tap “Read the floorplan from this listing”, upload a floorplan, or choose the quick basics instead."
@@ -720,7 +834,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         return "Exterior needs the listing or two to three facade photos — or tap “No photos to hand” and we'll size it from your answers.";
       }
     }
-    if (page === 6 && isCustomer) {
+    if (pageKey === "contact") {
       const c = state.contact;
       if (!c.name.trim()) return "Your name, so we know who we're talking to.";
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email.trim())) return "An email — it's where your estimate is saved.";
@@ -729,16 +843,19 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     // R2: the exterior pages' own gates.
     if (state.jobType === "exterior") {
       const ext = state.exterior;
-      if (page === 2 && (ext?.substrates.length ?? 0) === 0) return "What's the building made of? Tick at least one.";
-      if (page === 3 && ext && !Object.values(ext.painting).some(Boolean)) return "Tick at least one thing we're painting.";
-      if (page === 4 && ext?.condition == null) return "How's the paintwork holding up?";
+      if (pageKey === "house" && (ext?.substrates.length ?? 0) === 0) return "What's the building made of? Tick at least one.";
+      if (pageKey === "scope" && ext && !Object.values(ext.painting).some(Boolean)) return "Tick at least one thing we're painting.";
+      if (pageKey === "ext_condition" && ext?.condition == null) return "How's the paintwork holding up?";
+      if (pageKey === "ext_condition" && isCustomer && !answered.pre1970) return "Was the home built before 1970? Yes, no or not sure.";
       return null;
     }
-    if (page === 2 && state.surfaces.length === 0) return "Tick at least one surface.";
-    if (page === 3 && state.condition.tier === "dark_to_light" && state.condition.darkToLightSurfaces.length === 0) {
+    if (pageKey === "surfaces" && state.surfaces.length === 0) return "Tick at least one surface.";
+    if (pageKey === "condition" && state.condition.tier === "dark_to_light" && state.condition.darkToLightSurfaces.length === 0) {
       return "Which surfaces are going dark to light?";
     }
-    if (page === 4 && state.details.damageTier >= 2 && state.details.damagePhotoCount === 0) {
+    if (pageKey === "details" && isCustomer && !answered.pre1970) return "Was the home built before 1970? Yes, no or not sure.";
+    if (pageKey === "details" && isCustomer && !answered.asbestos) return "Any chance of asbestos sheeting? Yes, no or not sure.";
+    if (pageKey === "condition" && state.details.damageTier >= 2 && state.details.damagePhotoCount === 0) {
       // Customer mode is photos-only (Step 8 brief) - a note cannot be priced.
       if (isCustomer) return "Damage at this level needs photos — a quick phone shot of each area is perfect.";
       if (state.details.damageNote.trim() === "") return "Damage at this level needs photos, or a short description.";
@@ -825,32 +942,18 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         </div>
       ) : (
         <div className="wz-wrap">
+          {resumed && (
+            <div className="wz-resume" data-testid="wz-resume">
+              <span>Welcome back — {resumed}. Everything you answered is still here.</span>
+              <button type="button" className="wz-linkish" onClick={startAgain} data-testid="wz-start-again">Start again</button>
+            </div>
+          )}
           <div className="wz-step" key={page}>
-            {page === 1 && isCustomer && (
-              /* S4: "Chat it or fill it in" — the assistant builds the SAME
-                 tree; a customer can switch between the two at any point. */
-              <div className="wz-alt">
-                {/* Addendum A §3.3: "Describe the job" beside "Fill it in" — the
-                    paragraph builds the draft tree at once; every assumption is a chip. */}
-                <p className="wz-qhead">Describe the job</p>
-                <textarea className="wz-brief" data-testid="describe-job" rows={3} value={brief} onChange={(e) => setBrief(e.target.value)}
-                  placeholder="e.g. 3 bedroom 1 bathroom house, colour match throughout, walls in good condition with a few minor cracks in the kitchen, all trims to be painted…" />
-                <div className="wz-seg">
-                  <button type="button" data-testid="build-from-brief" disabled={sessionPhase !== "ready" || startingChat || brief.trim().length < 20} onClick={() => startChat(true)}>
-                    {startingChat ? "Building…" : "Build it from my description"}
-                  </button>
-                </div>
-                <p style={{ marginTop: 8 }}>
-                  <button type="button" className="wz-linkbtn" data-testid="chat-it" disabled={sessionPhase !== "ready" || startingChat} onClick={() => startChat(false)}>
-                    {startingChat ? "Opening the assistant…" : "Rather chat it through? Start with the assistant →"}
-                  </button>
-                  <span className="wz-sub" style={{ marginLeft: 8 }}>— or fill it in below.</span>
-                </p>
-              </div>
-            )}
-            {page === 1 && (
+            {pageKey === "property" && (
               <PageProperty
                 state={state} set={set} isCustomer={isCustomer} substrates={substrates}
+                stepsTotal={lastPage} answered={answered} markAnswered={markAnswered}
+                entry={entry} onEntry={chooseEntry} brief={brief} setBrief={setBrief} startChat={startChat} startingChat={startingChat} sessionPhase={sessionPhase}
                 initialAddressText={intent?.addressText ?? ""}
                 planFileCount={planFileCount} facadeFileCount={facadeFileCount}
                 uploading={uploading}
@@ -870,18 +973,18 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             {/* Tom, 31 Aug: contact details moved to the LAST page (below) —
                 the questions come first, the name/phone/email is the final
                 step before the AI builds the estimate. */}
-            {page === 2 && (state.jobType === "exterior"
-              ? <PageExteriorHouse state={state} set={set} substrates={substrates} />
-              : <PageSurfaces state={state} set={set} substrates={substrates} />)}
-            {page === 3 && (state.jobType === "exterior"
-              ? <PageExteriorScope state={state} set={set} />
-              : <PageCondition state={state} set={set} substrates={substrates} />)}
-            {page === 4 && state.jobType === "exterior" && (
-              <PageExteriorCondition state={state} set={set} isCustomer={isCustomer} />
+            {pageKey === "house" && <PageExteriorHouse state={state} set={set} substrates={substrates} stepsTotal={lastPage} />}
+            {pageKey === "surfaces" && <PageSurfaces state={state} set={set} substrates={substrates} stepsTotal={lastPage} />}
+            {pageKey === "scope" && <PageExteriorScope state={state} set={set} stepsTotal={lastPage} />}
+            {pageKey === "ext_condition" && (
+              <PageExteriorCondition state={state} set={set} isCustomer={isCustomer} stepsTotal={lastPage} answered={answered} markAnswered={markAnswered} />
             )}
-            {page === 4 && state.jobType !== "exterior" && (
-              <PageDetails
-                state={state} set={set} damageInputRef={damageInputRef} isCustomer={isCustomer}
+            {pageKey === "details" && (
+              <PageDetails state={state} set={set} isCustomer={isCustomer} stepsTotal={lastPage} answered={answered} markAnswered={markAnswered} />
+            )}
+            {pageKey === "condition" && (
+              <PageCondition
+                state={state} set={set} substrates={substrates} stepsTotal={lastPage} damageInputRef={damageInputRef}
                 hasPlanRuns={state.planRunIds.length > 0}
                 onDamageFiles={(files) => {
                   for (const f of files) {
@@ -894,10 +997,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 }}
               />
             )}
-            {page === 5 && (state.jobType === "exterior"
-              ? <PageExteriorExtras state={state} set={set} />
-              : <PagePaint state={state} set={set} />)}
-            {page === 6 && isCustomer && <PageContact state={state} set={set} />}
+            {pageKey === "extras" && <PageExteriorExtras state={state} set={set} stepsTotal={lastPage} embedPaint={!pageKeys.includes("contact")} />}
+            {pageKey === "paint" && <PagePaint state={state} set={set} stepsTotal={lastPage} />}
+            {pageKey === "contact" && <PageContact state={state} set={set} stepsTotal={lastPage} />}
             {uploadNote && <div className="wz-note">{uploadNote}</div>}
             {readIssueCount > 0 && (
               <div className="wz-note">
@@ -928,7 +1030,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             Back
           </button>
           <button className="wz-btn wz-bp" onClick={next} disabled={nav.disabled} title={nav.note ?? undefined}>
-            {page === lastPage ? "See my estimate" : page === 5 && isCustomer ? "Nearly there" : "Continue"}
+            {page === lastPage ? "See my estimate" : pageKeys[page] === "contact" ? "Nearly there" : "Continue"}
           </button>
           {/* S0.3: the honest reason, beside the button rather than inside a
               label that claims a file is going up when none was chosen. */}
@@ -975,11 +1077,24 @@ function Seg<T extends string>({ options, value, onPick }: {
 // ---- page 1: the property ---------------------------------------------------
 
 function PageProperty({
-  state, set, isCustomer = false, substrates, planFileCount, facadeFileCount, uploading, sessionBlocked = false, planInputRef, facadeInputRef, onPlanFiles, onFacadeFiles, onImportListingPlan, initialAddressText = "",
+  state, set, isCustomer = false, substrates, stepsTotal, answered, markAnswered, entry, onEntry, brief, setBrief, startChat, startingChat, sessionPhase,
+  planFileCount, facadeFileCount, uploading, sessionBlocked = false, planInputRef, facadeInputRef, onPlanFiles, onFacadeFiles, onImportListingPlan, initialAddressText = "",
 }: {
   state: WizardState;
   set: (p: Partial<WizardState>) => void;
   isCustomer?: boolean;
+  stepsTotal: number;
+  answered: SafetyAnswered;
+  markAnswered: (k: keyof SafetyAnswered) => void;
+  /** Phase 2 (6 Sep plan): the customer's way in — describe it, answer a
+   * few questions, or upload the plan/listing. Staff keep the old layout. */
+  entry: EntryChoice | null;
+  onEntry: (e: EntryChoice) => void;
+  brief: string;
+  setBrief: (b: string) => void;
+  startChat: (withBrief?: boolean) => void;
+  startingChat: boolean;
+  sessionPhase: SessionPhase;
   /** Homepage hand-off: what the visitor typed on the marketing site. */
   initialAddressText?: string;
   substrates: SubstrateGroups;
@@ -997,6 +1112,7 @@ function PageProperty({
   onImportListingPlan: () => void;
 }) {
   const basics = state.basics;
+  const isExterior = state.jobType === "exterior";
   const needsFacades = state.jobType !== "interior" && !state.listingUrl.trim();
   /** Both reasons disable the upload controls; only one may be spoken aloud. */
   const blocked = busyReason({ uploading, sessionPhase: sessionBlocked ? "connecting" : "ready" }) !== null;
@@ -1004,10 +1120,45 @@ function PageProperty({
   // and the immediate service-area answer for the polite early message.
   const [addressText, setAddressText] = useState(initialAddressText);
   const [outOfArea, setOutOfArea] = useState(false);
+  // Phase 2: a customer sees the controls of the way in they chose; staff see everything.
+  const showListing = !isCustomer || entry === "upload";
+  const showBasics = Boolean(state.noPlan && basics) && (!isCustomer || entry === "questions");
+  const showFacades = needsFacades && (!isCustomer || entry === "upload");
+
+  const jobTypeSeg = (
+    <Seg
+      options={[
+        { v: "interior" as const, label: "Interior" },
+        { v: "exterior" as const, label: "Exterior" },
+        { v: "both" as const, label: "Both" },
+      ]}
+      value={state.jobType}
+      onPick={(v) => {
+        if (v === state.jobType) return;
+        // A2: the job type decides which substrate lists page 2 offers —
+        // re-tick the defaults for the new type so an exterior job never
+        // carries interior ticks (and vice versa). R2: pure exterior gets
+        // the exterior question set; its answers drive the tick list.
+        const ext = v === "exterior" ? (state.exterior ?? defaultExterior()) : state.exterior;
+        set({
+          jobType: v,
+          exterior: v === "exterior" ? ext : v === "interior" ? null : state.exterior,
+          surfaces: v === "exterior" && ext ? exteriorSurfaceKeys(ext) : defaultSurfacesFor(v, substrates),
+          condition: { ...state.condition, darkToLightSurfaces: [] },
+          // The chosen way in means the same thing for the new job type.
+          ...(isCustomer && entry ? entryPatch(entry, v, v === "interior" ? null : ext, state.basics) : {}),
+        });
+      }}
+    />
+  );
+
   return (
     <>
-      <p className="wz-kick">Step 1 of 5 · The property</p>
+      <p className="wz-kick">Step 1 of {stepsTotal} · The property</p>
       <h1>Let&rsquo;s look at the place</h1>
+      {isCustomer && (
+        <p className="wz-sub">About 90 seconds to your first range — and every answer can be changed afterwards.</p>
+      )}
 
       {/* Tom, 29 Aug: "always ask for name, phone and email". Before anything
           else, because an estimate with no way to reach anyone can never join
@@ -1030,11 +1181,13 @@ function PageProperty({
           </p>
         </div>
       )}
-      <p className="wz-sub">
-        {state.jobType === "exterior"
-          ? <>Paste the real-estate listing if there is one — we&rsquo;ll read the photos and address. Or add two or three photos of the outside.</>
-          : <>Paste the real-estate listing if there is one — we&rsquo;ll read the floorplan, photos and address. Or upload a floorplan photo.</>}
-      </p>
+      {!isCustomer && (
+        <p className="wz-sub">
+          {state.jobType === "exterior"
+            ? <>Paste the real-estate listing if there is one — we&rsquo;ll read the photos and address. Or add two or three photos of the outside.</>
+            : <>Paste the real-estate listing if there is one — we&rsquo;ll read the floorplan, photos and address. Or upload a floorplan photo.</>}
+        </p>
+      )}
 
       {!isCustomer && (
         // A1: the field captures the FULL job address (server-proxied Places,
@@ -1087,22 +1240,116 @@ function PageProperty({
         </div>
         </>
       )}
-      <input
-        className="wz-field"
-        placeholder="Paste the listing URL — realestate.com.au or Domain"
-        value={state.listingUrl}
-        onChange={(e) => set({ listingUrl: e.target.value })}
-      />
+
+      {/* Customers answer the three property questions BEFORE choosing a way
+          in — the way in depends on the job type. Staff keep the old order. */}
+      {isCustomer && (
+        <>
+          <p className="wz-qhead">What&rsquo;s being painted?</p>
+          {jobTypeSeg}
+        </>
+      )}
+      {isCustomer && state.customer && (
+        <>
+          <p className="wz-qhead">What kind of property?</p>
+          <Seg
+            options={[
+              { v: "house" as const, label: "House" },
+              { v: "townhouse" as const, label: "Townhouse" },
+              { v: "unit_apartment" as const, label: "Unit / apartment" },
+              { v: "commercial" as const, label: "Commercial" },
+            ]}
+            value={state.customer.propertyKind}
+            onPick={(v) => set({ customer: { ...state.customer!, propertyKind: v } })}
+          />
+          <p className="wz-qhead">Heritage listed? <small>— many period homes aren&rsquo;t</small></p>
+          <Seg
+            options={[{ v: "no" as const, label: "No" }, { v: "yes" as const, label: "Yes" }, { v: "unsure" as const, label: "Not sure" }]}
+            value={answered.heritage ? state.customer.heritageListed : null}
+            onPick={(v) => { markAnswered("heritage"); set({ customer: { ...state.customer!, heritageListed: v } }); }}
+          />
+          {(state.customer.propertyKind === "unit_apartment" || state.customer.propertyKind === "townhouse") && (
+            <>
+              <p className="wz-qhead">Is there a body corporate / owners corporation?</p>
+              <Seg
+                options={[{ v: "no" as const, label: "No" }, { v: "yes" as const, label: "Yes" }, { v: "unsure" as const, label: "Not sure" }]}
+                value={state.customer.bodyCorporate}
+                onPick={(v) => set({ customer: { ...state.customer!, bodyCorporate: v } })}
+              />
+            </>
+          )}
+        </>
+      )}
+
+      {/* Phase 2 (6 Sep plan): the three ways in. "Describe it" is the
+          assistant's build-from-brief, promoted from a textarea above the
+          form to a first-class choice; the other two are the wizard paths
+          that already existed, now chosen deliberately instead of by which
+          link you happened to notice. */}
+      {isCustomer && (
+        <>
+          <p className="wz-qhead">How would you like to do this?</p>
+          <div className="wz-cards" data-testid="wz-entry">
+            <button type="button" className={`wz-card ${entry === "describe" ? "on" : ""}`} onClick={() => onEntry("describe")} data-testid="entry-describe">
+              <b>Describe it</b>
+              <span>Type a few lines about the job and we build the estimate for you — you fine-tune it after.</span>
+            </button>
+            <button type="button" className={`wz-card ${entry === "questions" ? "on" : ""}`} onClick={() => onEntry("questions")} data-testid="entry-questions">
+              <b>Answer a few questions</b>
+              <span>{isExterior
+                ? "No photos to hand? We size it from your answers and you confirm each side."
+                : "There isn't a floorplan to hand — we size the rooms from typical dimensions and you confirm each one."}</span>
+            </button>
+            <button type="button" className={`wz-card ${entry === "upload" ? "on" : ""}`} onClick={() => onEntry("upload")} data-testid="entry-upload">
+              <b>{isExterior ? "Add photos or the listing" : "Upload the floorplan or listing"}</b>
+              <span>{isExterior
+                ? "Two or three photos of the outside, or the real-estate listing — the most accurate start."
+                : "Paste the real-estate listing or upload a floorplan photo — we read the rooms and sizes."}</span>
+            </button>
+          </div>
+          <p className="wz-chint">
+            Curious what similar homes cost? <Link href="/work" style={{ color: "var(--text)" }}>See real jobs and their prices →</Link>
+          </p>
+        </>
+      )}
+
+      {isCustomer && entry === "describe" && (
+        <div className="wz-follow wz-alt" data-testid="describe-box">
+          <p className="wz-q">Tell us about the job in your own words.</p>
+          <textarea className="wz-brief" data-testid="describe-job" rows={4} value={brief} onChange={(e) => setBrief(e.target.value)}
+            placeholder="e.g. 3 bedroom 1 bathroom house, colour match throughout, walls in good condition with a few minor cracks in the kitchen, all trims to be painted…" />
+          <div className="wz-seg">
+            <button type="button" data-testid="build-from-brief" disabled={sessionPhase !== "ready" || startingChat || brief.trim().length < 20} onClick={() => startChat(true)}>
+              {startingChat ? "Building…" : "Build it from my description"}
+            </button>
+          </div>
+          <p style={{ marginTop: 8 }}>
+            <button type="button" className="wz-linkbtn" data-testid="chat-it" disabled={sessionPhase !== "ready" || startingChat} onClick={() => startChat(false)}>
+              {startingChat ? "Opening the assistant…" : "Rather chat it through? Start with the assistant →"}
+            </button>
+          </p>
+        </div>
+      )}
+
+      {showListing && (
+        <input
+          className="wz-field"
+          style={isCustomer ? { marginTop: 14 } : undefined}
+          placeholder="Paste the listing URL — realestate.com.au or Domain"
+          value={state.listingUrl}
+          onChange={(e) => set({ listingUrl: e.target.value })}
+        />
+      )}
       {/* Tom, 31 Aug: an interior job can read the floorplan straight off the
           listing — one tap here instead of hunting for a file. */}
-      {state.jobType !== "exterior" && state.listingUrl.trim() !== "" && state.planRunIds.length === 0 && !state.noPlan && (
+      {showListing && state.jobType !== "exterior" && state.listingUrl.trim() !== "" && state.planRunIds.length === 0 && !state.noPlan && (
         <button className="wz-upload" onClick={onImportListingPlan} disabled={blocked}>
           {uploading ? "Reading the listing…" : "📐 Read the floorplan from this listing"}
         </button>
       )}
       {/* R1.3: floorplans are an INTERIOR document — the exterior path has no
           floorplan field anywhere (a floorplan is a picture of the inside). */}
-      {state.jobType !== "exterior" && (
+      {showListing && state.jobType !== "exterior" && (
         <>
           <div className="wz-or">OR</div>
           <input
@@ -1117,21 +1364,23 @@ function PageProperty({
           >
             {planUploadLabel({ planFileCount, uploading })}
           </button>
-          <button
-            className="wz-linkish"
-            onClick={() => set({
-              noPlan: !state.noPlan,
-              basics: !state.noPlan && !basics
-                ? { bedrooms: 3, storeys: "single", sizeBand: "s120_200", openPlanKitchenLiving: false }
-                : state.basics,
-            })}
-          >
-            {state.noPlan ? "✓ Using the quick basics instead — tap to undo" : "There isn't a floorplan to hand"}
-          </button>
+          {!isCustomer && (
+            <button
+              className="wz-linkish"
+              onClick={() => set({
+                noPlan: !state.noPlan,
+                basics: !state.noPlan && !basics
+                  ? { bedrooms: 3, storeys: "single", sizeBand: "s120_200", openPlanKitchenLiving: false }
+                  : state.basics,
+              })}
+            >
+              {state.noPlan ? "✓ Using the quick basics instead — tap to undo" : "There isn't a floorplan to hand"}
+            </button>
+          )}
         </>
       )}
 
-      {state.noPlan && basics && (
+      {showBasics && basics && (
         <div className="wz-follow">
           <p className="wz-q">Not a problem — thirty seconds of basics instead.</p>
           <p className="wz-qhead" style={{ marginTop: 4 }}>Bedrooms</p>
@@ -1149,7 +1398,7 @@ function PageProperty({
             value={basics.storeys}
             onPick={(v) => set({ basics: { ...basics, storeys: v } })}
           />
-          <p className="wz-qhead">Roughly how big?</p>
+          <p className="wz-qhead">Roughly how big? <small>— it sets the room sizes you&rsquo;ll confirm</small></p>
           <Seg
             options={[
               { v: "lt120" as const, label: "<120 m²" },
@@ -1166,68 +1415,32 @@ function PageProperty({
             value={basics.openPlanKitchenLiving ? "yes" : "no"}
             onPick={(v) => set({ basics: { ...basics, openPlanKitchenLiving: v === "yes" } })}
           />
+          {/* Phase 3 (6 Sep plan): the rooms the list used to assume away. */}
+          <p className="wz-qhead">Bathrooms <small>— including the ensuite</small></p>
+          <Seg
+            options={[{ v: "1", label: "1" }, { v: "2", label: "2" }, { v: "3", label: "3+" }]}
+            value={String(Math.min(basics.bathrooms ?? 1, 3))}
+            onPick={(v) => set({ basics: { ...basics, bathrooms: Number(v) } })}
+          />
+          <p className="wz-qhead">Also being painted? <small>— tick any that apply</small></p>
+          <div className="wz-chips" data-testid="basics-extras">
+            {([["separateToilet", "Separate toilet"], ["garage", "Garage"], ["study", "Study"]] as const).map(([k, label]) => (
+              <button key={k} type="button" className={`wz-chip ${basics[k] ? "on" : ""}`} onClick={() => set({ basics: { ...basics, [k]: !basics[k] } })}>{label}</button>
+            ))}
+          </div>
         </div>
       )}
 
-      <p className="wz-qhead">What&rsquo;s being painted?</p>
-      <Seg
-        options={[
-          { v: "interior" as const, label: "Interior" },
-          { v: "exterior" as const, label: "Exterior" },
-          { v: "both" as const, label: "Both" },
-        ]}
-        value={state.jobType}
-        onPick={(v) => {
-          if (v === state.jobType) return;
-          // A2: the job type decides which substrate lists page 2 offers —
-          // re-tick the defaults for the new type so an exterior job never
-          // carries interior ticks (and vice versa). R2: pure exterior gets
-          // the exterior question set; its answers drive the tick list.
-          const ext = v === "exterior" ? (state.exterior ?? defaultExterior()) : state.exterior;
-          set({
-            jobType: v,
-            exterior: v === "exterior" ? ext : v === "interior" ? null : state.exterior,
-            surfaces: v === "exterior" && ext ? exteriorSurfaceKeys(ext) : defaultSurfacesFor(v, substrates),
-            condition: { ...state.condition, darkToLightSurfaces: [] },
-          });
-        }}
-      />
-
-      {isCustomer && state.customer && (
+      {!isCustomer && (
         <>
-          <p className="wz-qhead">What kind of property?</p>
-          <Seg
-            options={[
-              { v: "house" as const, label: "House" },
-              { v: "townhouse" as const, label: "Townhouse" },
-              { v: "unit_apartment" as const, label: "Unit / apartment" },
-              { v: "commercial" as const, label: "Commercial" },
-            ]}
-            value={state.customer.propertyKind}
-            onPick={(v) => set({ customer: { ...state.customer!, propertyKind: v } })}
-          />
-          <p className="wz-qhead">Heritage listed? <small>— many period homes aren&rsquo;t</small></p>
-          <Seg
-            options={[{ v: "no" as const, label: "No" }, { v: "yes" as const, label: "Yes" }, { v: "unsure" as const, label: "Not sure" }]}
-            value={state.customer.heritageListed}
-            onPick={(v) => set({ customer: { ...state.customer!, heritageListed: v } })}
-          />
-          {(state.customer.propertyKind === "unit_apartment" || state.customer.propertyKind === "townhouse") && (
-            <>
-              <p className="wz-qhead">Is there a body corporate / owners corporation?</p>
-              <Seg
-                options={[{ v: "no" as const, label: "No" }, { v: "yes" as const, label: "Yes" }, { v: "unsure" as const, label: "Not sure" }]}
-                value={state.customer.bodyCorporate}
-                onPick={(v) => set({ customer: { ...state.customer!, bodyCorporate: v } })}
-              />
-            </>
-          )}
+          <p className="wz-qhead">What&rsquo;s being painted?</p>
+          {jobTypeSeg}
         </>
       )}
 
-      {needsFacades && (
+      {showFacades && (
         <div className="wz-follow">
-          <p className="wz-q">Exterior works best with two or three facade photos — the front and each visible side. No photos? You can build it from your answers instead.</p>
+          <p className="wz-q">Exterior works best with two or three facade photos — the front and each visible side.{!isCustomer && <> No photos? You can build it from your answers instead.</>}</p>
           <input
             ref={facadeInputRef} type="file" hidden multiple accept="image/*"
             onChange={(e) => { onFacadeFiles([...(e.target.files ?? [])]); e.target.value = ""; }}
@@ -1242,8 +1455,9 @@ function PageProperty({
               : "📷 Add facade photos"}
           </button>
           {/* Tom, 31 Aug: exterior from scratch — no listing, no photos. The
-              sides size from the answers and get confirmed one by one. */}
-          {facadeFileCount === 0 && (
+              sides size from the answers and get confirmed one by one. Customers
+              choose this as "Answer a few questions" above. */}
+          {!isCustomer && facadeFileCount === 0 && (
             <button
               className="wz-linkish"
               onClick={() => {
@@ -1264,7 +1478,8 @@ function PageProperty({
 
 // ---- page 2: surfaces -------------------------------------------------------
 
-function PageSurfaces({ state, set, substrates }: {
+function PageSurfaces({ state, set, substrates, stepsTotal }: {
+  stepsTotal: number;
   state: WizardState;
   set: (p: Partial<WizardState>) => void;
   substrates: SubstrateGroups;
@@ -1287,7 +1502,7 @@ function PageSurfaces({ state, set, substrates }: {
       ];
   return (
     <>
-      <p className="wz-kick">Step 2 of 5 · Surfaces</p>
+      <p className="wz-kick">Step 2 of {stepsTotal} · Surfaces</p>
       <h1>What&rsquo;s being painted?</h1>
       <p className="wz-sub">We&rsquo;ve pre-ticked the usual full repaint — untick anything that isn&rsquo;t being done.</p>
       {groups.map((g) => (
@@ -1308,10 +1523,14 @@ function PageSurfaces({ state, set, substrates }: {
 
 // ---- page 3: condition ------------------------------------------------------
 
-function PageCondition({ state, set, substrates }: {
+function PageCondition({ state, set, substrates, stepsTotal, damageInputRef, hasPlanRuns, onDamageFiles }: {
+  stepsTotal: number;
   state: WizardState;
   set: (p: Partial<WizardState>) => void;
   substrates: SubstrateGroups;
+  damageInputRef: React.RefObject<HTMLInputElement | null>;
+  hasPlanRuns: boolean;
+  onDamageFiles: (files: File[]) => void;
 }) {
   const labelFor = (k: WizardSurfaceKey) =>
     [...substrates.interior, ...substrates.exterior].find((o) => o.key === k)?.label ?? k;
@@ -1320,11 +1539,18 @@ function PageCondition({ state, set, substrates }: {
     { v: "change" as const, coats: "2 COATS", b: "Change of colour", s: "New colours throughout — generally two coats to all surfaces." },
     { v: "dark_to_light" as const, coats: "3 COATS", b: "Dark to light", s: "Covering dark colours or stains — usually three coats to cover properly." },
   ];
+  const d = state.details;
+  const damage = [
+    { v: 0, b: "No damage", s: "Overall good condition." },
+    { v: 1, b: "Only minor cracks or defects", s: "The usual hairline cracks and dings." },
+    { v: 2, b: "Mostly minor, a few areas of concern", s: "Please attach photos of the worst areas." },
+    { v: 3, b: "In real need of repair", s: "Please add photos and a short description." },
+  ];
   return (
     <>
-      <p className="wz-kick">Step 3 of 5 · Condition</p>
+      <p className="wz-kick">Step 3 of {stepsTotal} · Condition</p>
       <h1>Which describes it best?</h1>
-      <p className="wz-sub">This sets how many coats we allow for.</p>
+      <p className="wz-sub">Coats first, then any damage — together they set the preparation we allow for.</p>
       <div className="wz-cards">
         {tiers.map((t) => (
           <button
@@ -1364,19 +1590,62 @@ function PageCondition({ state, set, substrates }: {
           </div>
         </div>
       )}
+
+      {/* Phase 2 (6 Sep plan): condition and damage are ONE page — coats and prep are the same question to a customer. */}
+      <p className="wz-qhead">Any damage we should know about?</p>
+      <div className="wz-cards">
+        {damage.map((c) => (
+          <button
+            key={c.v}
+            className={`wz-card ${d.damageTier === c.v ? "on" : ""}`}
+            onClick={() => set({ details: { ...d, damageTier: c.v } })}
+          >
+            <b>{c.b}</b>
+            <span>{c.s}</span>
+          </button>
+        ))}
+      </div>
+      {d.damageTier >= 2 && (
+        <>
+          {/* R1.3: condition photos are their own document type and NEVER
+              require a floorplan — without a plan run they skip the defect
+              reader and land with the estimator instead (said out loud, not
+              silently). The old no-plan branch hid the input entirely while
+              the customer gate still demanded photos: a dead end. */}
+          <input
+            ref={damageInputRef} type="file" hidden multiple accept="image/*"
+            onChange={(e) => { onDamageFiles([...(e.target.files ?? [])]); e.target.value = ""; }}
+          />
+          <button
+            className={`wz-photo-stub ${d.damagePhotoCount ? "done" : ""}`}
+            onClick={() => damageInputRef.current?.click()}
+          >
+            {d.damagePhotoCount
+              ? `✓ ${d.damagePhotoCount} photo${d.damagePhotoCount === 1 ? "" : "s"} attached — ${hasPlanRuns ? "they feed the defect reader, which prices the prep properly" : "your estimator reviews them with the estimate"}`
+              : `📷 Attach photos of the worst areas — ${hasPlanRuns ? "they feed our defect reader, which prices the prep properly" : "your estimator reviews them with the estimate"}`}
+          </button>
+          <textarea
+            className="wz-field"
+            style={{ marginTop: 12, minHeight: 74 }}
+            placeholder="A short description of the damage (helps whether or not there are photos)"
+            value={d.damageNote}
+            onChange={(e) => set({ details: { ...d, damageNote: e.target.value } })}
+          />
+        </>
+      )}
     </>
   );
 }
 
 // ---- page 4: details --------------------------------------------------------
 
-function PageDetails({ state, set, damageInputRef, hasPlanRuns, isCustomer = false, onDamageFiles }: {
+function PageDetails({ state, set, isCustomer = false, stepsTotal, answered, markAnswered }: {
+  stepsTotal: number;
+  answered: SafetyAnswered;
+  markAnswered: (k: keyof SafetyAnswered) => void;
   state: WizardState;
   set: (p: Partial<WizardState>) => void;
-  damageInputRef: React.RefObject<HTMLInputElement | null>;
-  hasPlanRuns: boolean;
   isCustomer?: boolean;
-  onDamageFiles: (files: File[]) => void;
 }) {
   const d = state.details;
   // Tom, 1 Sep: doors/windows unticked on page 2 answer their own "mostly"
@@ -1393,15 +1662,9 @@ function PageDetails({ state, set, damageInputRef, hasPlanRuns, isCustomer = fal
     if (Object.keys(next).length) set({ details: { ...d, ...next } });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doorsTicked, windowsTicked, d.doorStyle, d.windowStyle]);
-  const damage = [
-    { v: 0, b: "No damage", s: "Overall good condition." },
-    { v: 1, b: "Only minor cracks or defects", s: "The usual hairline cracks and dings." },
-    { v: 2, b: "Mostly minor, a few areas of concern", s: "Please attach photos of the worst areas." },
-    { v: 3, b: "In real need of repair", s: "Please add photos and a short description." },
-  ];
   return (
     <>
-      <p className="wz-kick">Step 4 of 5 · Details</p>
+      <p className="wz-kick">Step 4 of {stepsTotal} · Details</p>
       <h1>A few quick details</h1>
       <p className="wz-sub">Pick what&rsquo;s closest — &ldquo;mostly&rdquo; is fine.</p>
 
@@ -1494,66 +1757,25 @@ function PageDetails({ state, set, damageInputRef, hasPlanRuns, isCustomer = fal
           <p className="wz-qhead">Was the home built before 1970? <small>— older paint can contain lead, and we handle it properly</small></p>
           <Seg
             options={[{ v: "no" as const, label: "No" }, { v: "yes" as const, label: "Yes" }, { v: "unsure" as const, label: "Not sure" }]}
-            value={state.customer.builtPre1970}
-            onPick={(v) => set({ customer: { ...state.customer!, builtPre1970: v } })}
+            value={answered.pre1970 ? state.customer.builtPre1970 : null}
+            onPick={(v) => { markAnswered("pre1970"); set({ customer: { ...state.customer!, builtPre1970: v } }); }}
           />
           <p className="wz-qhead">Any chance of asbestos sheeting in the areas being painted?</p>
           <Seg
             options={[{ v: "no" as const, label: "No" }, { v: "yes" as const, label: "Yes" }, { v: "unsure" as const, label: "Not sure" }]}
-            value={state.customer.asbestosSuspected}
-            onPick={(v) => set({ customer: { ...state.customer!, asbestosSuspected: v } })}
+            value={answered.asbestos ? state.customer.asbestosSuspected : null}
+            onPick={(v) => { markAnswered("asbestos"); set({ customer: { ...state.customer!, asbestosSuspected: v } }); }}
           />
         </>
       )}
 
-      <p className="wz-qhead">Any damage we should know about?</p>
-      <div className="wz-cards">
-        {damage.map((c) => (
-          <button
-            key={c.v}
-            className={`wz-card ${d.damageTier === c.v ? "on" : ""}`}
-            onClick={() => set({ details: { ...d, damageTier: c.v } })}
-          >
-            <b>{c.b}</b>
-            <span>{c.s}</span>
-          </button>
-        ))}
-      </div>
-      {d.damageTier >= 2 && (
-        <>
-          {/* R1.3: condition photos are their own document type and NEVER
-              require a floorplan — without a plan run they skip the defect
-              reader and land with the estimator instead (said out loud, not
-              silently). The old no-plan branch hid the input entirely while
-              the customer gate still demanded photos: a dead end. */}
-          <input
-            ref={damageInputRef} type="file" hidden multiple accept="image/*"
-            onChange={(e) => { onDamageFiles([...(e.target.files ?? [])]); e.target.value = ""; }}
-          />
-          <button
-            className={`wz-photo-stub ${d.damagePhotoCount ? "done" : ""}`}
-            onClick={() => damageInputRef.current?.click()}
-          >
-            {d.damagePhotoCount
-              ? `✓ ${d.damagePhotoCount} photo${d.damagePhotoCount === 1 ? "" : "s"} attached — ${hasPlanRuns ? "they feed the defect reader, which prices the prep properly" : "your estimator reviews them with the estimate"}`
-              : `📷 Attach photos of the worst areas — ${hasPlanRuns ? "they feed our defect reader, which prices the prep properly" : "your estimator reviews them with the estimate"}`}
-          </button>
-          <textarea
-            className="wz-field"
-            style={{ marginTop: 12, minHeight: 74 }}
-            placeholder="A short description of the damage (helps whether or not there are photos)"
-            value={d.damageNote}
-            onChange={(e) => set({ details: { ...d, damageNote: e.target.value } })}
-          />
-        </>
-      )}
     </>
   );
 }
 
 // ---- page 5: paint ----------------------------------------------------------
 
-function PagePaint({ state, set, embedded = false }: { state: WizardState; set: (p: Partial<WizardState>) => void; embedded?: boolean }) {
+function PagePaint({ state, set, embedded = false, stepsTotal = 5 }: { state: WizardState; set: (p: Partial<WizardState>) => void; embedded?: boolean; stepsTotal?: number }) {
   const p = state.paint;
   // Tom, 1 Sep: five brands + Not sure. "Not sure" is exclusive — picking it
   // clears the brands, picking a brand clears it.
@@ -1579,7 +1801,7 @@ function PagePaint({ state, set, embedded = false }: { state: WizardState; set: 
     <>
       {!embedded && (
         <>
-          <p className="wz-kick">Step 5 of 5 · Paint &amp; colours</p>
+          <p className="wz-kick">Step 5 of {stepsTotal} · Paint &amp; colours</p>
           <h1>Paint and colours</h1>
           <p className="wz-sub">Tick anything that applies — perfectly fine to leave blank.</p>
         </>
@@ -1691,11 +1913,13 @@ function useExt(state: WizardState, set: (p: Partial<WizardState>) => void) {
  * asked before the ai tool starts the search"). Trade and portal members
  * whose account already carries all three never see it.
  */
-function PageContact({ state, set }: { state: WizardState; set: (p: Partial<WizardState>) => void }) {
+function PageContact({ state, set, stepsTotal }: { state: WizardState; set: (p: Partial<WizardState>) => void; stepsTotal: number }) {
+  // Phase 2 (6 Sep plan): the paint preferences ride this page — they barely
+  // move the price, so they stopped being a page of their own.
   const c = state.contact;
   return (
     <>
-      <p className="wz-kick">One last thing</p>
+      <p className="wz-kick">Step {stepsTotal} of {stepsTotal} · Your details</p>
       <h1>Who should we send your estimate to?</h1>
       <p className="wz-sub">
         You&rsquo;ll see it on screen the moment it&rsquo;s built — this saves it to your email so
@@ -1713,12 +1937,13 @@ function PageContact({ state, set }: { state: WizardState; set: (p: Partial<Wiza
         We use the phone only if there&rsquo;s something we can&rsquo;t work out from your answers.
         No spam, no obligation — and you can stop hearing from us in one click, any time.
       </p>
+      <PagePaint state={state} set={set} embedded />
     </>
   );
 }
 
-function PageExteriorHouse({ state, set, substrates }: {
-  state: WizardState; set: (p: Partial<WizardState>) => void; substrates: SubstrateGroups;
+function PageExteriorHouse({ state, set, substrates, stepsTotal }: {
+  stepsTotal: number; state: WizardState; set: (p: Partial<WizardState>) => void; substrates: SubstrateGroups;
 }) {
   const { ext, setExt } = useExt(state, set);
   // A tick that cannot price is never offered: tilt slab / concrete appears
@@ -1739,7 +1964,7 @@ function PageExteriorHouse({ state, set, substrates }: {
   );
   return (
     <>
-      <p className="wz-kick">Step 2 of 5 · The house</p>
+      <p className="wz-kick">Step 2 of {stepsTotal} · The house</p>
       <h1>Let&rsquo;s size up the outside</h1>
       <p className="wz-sub">Two quick looks — how tall, and what it&rsquo;s made of.</p>
 
@@ -1757,6 +1982,14 @@ function PageExteriorHouse({ state, set, substrates }: {
         </button>
       </div>
 
+      {/* Phase 3 (6 Sep plan): the footprint band scales the typical side lengths. */}
+      <p className="wz-qhead">Roughly how big is the footprint? <small style={{ color: "var(--muted)", fontWeight: 400 }}>— the ground floor, near enough</small></p>
+      <div className="wz-seg" data-testid="ext-size-band">
+        {([["lt120", "<120 m²"], ["s120_200", "120–200"], ["gt200", "200+"], ["unsure", "Not sure"]] as const).map(([v, label]) => (
+          <button key={v} type="button" className={ext.sizeBand === v ? "on" : ""} onClick={() => setExt({ sizeBand: v })}>{label}</button>
+        ))}
+      </div>
+
       <p className="wz-qhead">What&rsquo;s the building made of? <small style={{ color: "var(--muted)", fontWeight: 400 }}>— a mix? Tick everything that&rsquo;s there</small></p>
       <div className="wz-tiles">
         {sub("weatherboards", "Weatherboard")}
@@ -1771,7 +2004,7 @@ function PageExteriorHouse({ state, set, substrates }: {
   );
 }
 
-function PageExteriorScope({ state, set }: { state: WizardState; set: (p: Partial<WizardState>) => void }) {
+function PageExteriorScope({ state, set, stepsTotal }: { state: WizardState; set: (p: Partial<WizardState>) => void; stepsTotal: number }) {
   const { ext, setExt } = useExt(state, set);
   const tile = (k: keyof WizardExterior["painting"], label: string, sub?: string) => (
     <button
@@ -1786,7 +2019,7 @@ function PageExteriorScope({ state, set }: { state: WizardState; set: (p: Partia
   );
   return (
     <>
-      <p className="wz-kick">Step 3 of 5 · The scope</p>
+      <p className="wz-kick">Step 3 of {stepsTotal} · The scope</p>
       <h1>What are we painting?</h1>
       <p className="wz-sub">The usual full exterior is pre-ticked — untick anything that isn&rsquo;t being done. You&rsquo;ll choose the sides in a moment.</p>
       <div className="wz-tiles">
@@ -1799,8 +2032,9 @@ function PageExteriorScope({ state, set }: { state: WizardState; set: (p: Partia
   );
 }
 
-function PageExteriorCondition({ state, set, isCustomer }: {
+function PageExteriorCondition({ state, set, isCustomer, stepsTotal, answered, markAnswered }: {
   state: WizardState; set: (p: Partial<WizardState>) => void; isCustomer: boolean;
+  stepsTotal: number; answered: SafetyAnswered; markAnswered: (k: keyof SafetyAnswered) => void;
 }) {
   const { ext, setExt } = useExt(state, set);
   const cond = (v: NonNullable<WizardExterior["condition"]>, b: string, s: string) => (
@@ -1832,7 +2066,7 @@ function PageExteriorCondition({ state, set, isCustomer }: {
   );
   return (
     <>
-      <p className="wz-kick">Step 4 of 5 · Condition</p>
+      <p className="wz-kick">Step 4 of {stepsTotal} · Condition</p>
       <h1>How&rsquo;s it holding up?</h1>
       <p className="wz-sub">Honest is best — it sets the preparation we allow for.</p>
 
@@ -1852,8 +2086,8 @@ function PageExteriorCondition({ state, set, isCustomer }: {
               { v: "no" as const, label: "No" },
               { v: "unsure" as const, label: "Not sure" },
             ]}
-            value={state.customer.builtPre1970}
-            onPick={(v) => set({ customer: { ...state.customer!, builtPre1970: v } })}
+            value={answered.pre1970 ? state.customer.builtPre1970 : null}
+            onPick={(v) => { markAnswered("pre1970"); set({ customer: { ...state.customer!, builtPre1970: v } }); }}
           />
         </>
       )}
@@ -1912,7 +2146,7 @@ const GEAR_LABEL: Record<WizardExterior["accessEquipment"][number], string> = {
   scaffold: "Scaffold / platform",
 };
 
-function PageExteriorExtras({ state, set }: { state: WizardState; set: (p: Partial<WizardState>) => void }) {
+function PageExteriorExtras({ state, set, stepsTotal, embedPaint = true }: { state: WizardState; set: (p: Partial<WizardState>) => void; stepsTotal: number; embedPaint?: boolean }) {
   const { ext, setExt } = useExt(state, set);
   const extra = (k: "deck" | "fence" | "pergola" | "balustrade", label: string) => (
     <button
@@ -1925,7 +2159,7 @@ function PageExteriorExtras({ state, set }: { state: WizardState; set: (p: Parti
   );
   return (
     <>
-      <p className="wz-kick">Step 5 of 5 · Extras &amp; paint</p>
+      <p className="wz-kick">Step 5 of {stepsTotal} · {embedPaint ? <>Extras &amp; paint</> : "Extras"}</p>
       <h1>Anything else out there?</h1>
       <p className="wz-sub">The freestanding things — not on a wall, easy to forget.</p>
       <div className="wz-tiles">
@@ -1957,7 +2191,7 @@ function PageExteriorExtras({ state, set }: { state: WizardState; set: (p: Parti
           />
         </div>
       )}
-      <PagePaint state={state} set={set} embedded />
+      {embedPaint && <PagePaint state={state} set={set} embedded stepsTotal={stepsTotal} />}
     </>
   );
 }

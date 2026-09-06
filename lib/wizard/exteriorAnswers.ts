@@ -11,7 +11,7 @@
  * length.
  */
 
-import { exteriorExtrasNodes, starterExteriorNodes } from "./starter";
+import { exteriorExtrasNodes, SIZE_BAND_FACTOR, starterExteriorNodes } from "./starter";
 import { applyFenceLength } from "./scope-editor";
 import { ALLOWANCE_CODES, rateFor, toggleExtrasItem, WEATHERED_MODIFIER_CODE, type LooseBlock } from "./sides";
 import type { WizardState, WizardSurfaceKey } from "./state";
@@ -73,6 +73,9 @@ export function applyExteriorAnswers(
   // (12 m front/back, 14 m sides), tagged assumed until the confirm loop
   // settles them.
   const sideH = ext.storeys === "double" ? 5.2 : 2.6;
+  // Phase 3 (6 Sep plan): the footprint band scales the typical lengths —
+  // a 200+ m² home is not 12 m across the front.
+  const sideF = SIZE_BAND_FACTOR[ext.sizeBand ?? "unsure"] ?? 1;
   for (const a of merged.areas) {
     if (a.type !== "Exterior" || a.areaType !== "surface") continue;
     const key = sideKeyOfName(a.name);
@@ -91,7 +94,7 @@ export function applyExteriorAnswers(
         a.L = m.L; // the floorplan's own edge for this side
         a.assumedFields = a.assumedFields.filter((f) => f !== "L");
       } else {
-        a.L = /front|rear|back/i.test(a.name) ? 12 : 14;
+        a.L = Math.round((/front|rear|back/i.test(a.name) ? 12 : 14) * sideF * 100) / 100;
         if (!a.assumedFields.includes("L")) a.assumedFields = [...a.assumedFields, "L"];
       }
     }

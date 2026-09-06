@@ -188,3 +188,29 @@ describe("starterExteriorNodes (#2)", () => {
     expect(codes).not.toContain("Render");
   });
 });
+
+describe("the size band (Phase 2, 6 Sep plan)", () => {
+  it("scales every typical room by the band, and 120–200 / unsure leave them alone", () => {
+    const rooms = starterRoomList({ bedrooms: 3, storeys: "single", sizeBand: "gt200", openPlanKitchenLiving: true });
+    const big = starterExtraction(rooms, [], { heightM: null, bedrooms: 3, sizeBand: "gt200" });
+    const mid = starterExtraction(rooms, [], { heightM: null, bedrooms: 3, sizeBand: "s120_200" });
+    const small = starterExtraction(rooms, [], { heightM: null, bedrooms: 3, sizeBand: "lt120" });
+    const none = starterExtraction(rooms, [], { heightM: null, bedrooms: 3 });
+    const bed = (x: ReturnType<typeof starterExtraction>) => x.rooms.find((r) => r.name_on_plan === "Bed 1")!;
+    expect(bed(mid).length_m).toBe(3.5);
+    expect(bed(none).length_m).toBe(3.5);
+    expect(bed(big).length_m).toBeCloseTo(3.5 * 1.15, 2);
+    expect(bed(small).width_m).toBeCloseTo(3.25 * 0.9, 2);
+  });
+});
+
+describe("the extra rooms (Phase 3, 6 Sep plan)", () => {
+  it("bathrooms, a separate toilet, a garage and a study join the list when asked; absent = the old list", () => {
+    const base = { bedrooms: 3, storeys: "single" as const, sizeBand: "unsure" as const, openPlanKitchenLiving: true };
+    const old = starterRoomList(base).map((r) => r.name);
+    expect(old).toEqual(["Bed 1", "Bed 2", "Bed 3", "Kitchen / Living", "Bathroom", "Laundry", "Hall & Entry"]);
+    const full = starterRoomList({ ...base, bathrooms: 3, separateToilet: true, garage: true, study: true }).map((r) => r.name);
+    expect(full).toEqual(["Bed 1", "Bed 2", "Bed 3", "Kitchen / Living", "Bathroom", "Ensuite", "Bathroom 3", "WC", "Study", "Laundry", "Hall & Entry", "Garage"]);
+    expect(starterRoomList({ ...base, bathrooms: 3, separateToilet: true, study: true }).find((r) => r.name === "WC")?.roomType).toBe("wc");
+  });
+});

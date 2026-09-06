@@ -45,3 +45,32 @@ export async function requireStaff(supabase: SupabaseClient): Promise<User | nul
   const actor = await getWizardActor(supabase);
   return actor.kind === "staff" ? actor.user : null;
 }
+
+/**
+ * Phase 1 (6 Sep plan): may this CUSTOMER open and edit this draft?
+ *
+ * Two doors, both to a draft only:
+ *   · the anonymous session that built it (created_by, source customer_intake)
+ *     — the wizard's original rule;
+ *   · a signed-in member of the account the estimate is linked to — the
+ *     magic-link owner coming back on another device, or later.
+ * Membership is read through the service client the callers already hold;
+ * account_users rows only ever come from verified sign-ins (3a-1), so a
+ * typed email never opens anyone else's estimate.
+ */
+export async function customerOwnsDraft(
+  db: SupabaseClient,
+  actor: Extract<WizardActor, { kind: "customer" }>,
+  estimate: { created_by?: string | null; source?: string | null; status?: string | null; account_id?: string | null },
+): Promise<boolean> {
+  if (estimate.status !== "draft") return false;
+  if (estimate.created_by === actor.user.id && estimate.source === "customer_intake") return true;
+  if (!actor.verifiedEmail || !estimate.account_id) return false;
+  const { data } = await db
+    .from("account_users")
+    .select("account_id")
+    .eq("profile_id", actor.user.id)
+    .eq("account_id", estimate.account_id)
+    .maybeSingle();
+  return Boolean(data);
+}

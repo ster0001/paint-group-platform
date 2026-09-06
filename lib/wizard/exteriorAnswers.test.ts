@@ -139,3 +139,19 @@ test("nothing measured → exactly the old behaviour", () => {
   assert.equal(sideKeyOfName("Exterior - Rear"), "back");
   assert.equal(sideKeyOfName("Exterior - Extras"), null);
 });
+
+// ---- Phase 3 (6 Sep plan): the footprint band scales the typical lengths ----
+test("a 200+ footprint stretches the 12/14 m typicals; a read measurement still wins", () => {
+  const b = bundle();
+  applyExteriorAnswers(b, exteriorState({ sizeBand: "gt200" }), (() => { let n = 1; return () => n++; })(), new Set(["weatherboards"]), {
+    front: { L: 9.4 },
+  });
+  const side = (name: RegExp) => b.areas.find((a) => a.type === "Exterior" && a.areaType === "surface" && name.test(a.name))!;
+  assert.equal(side(/front/i).L, 9.4);                 // read → untouched by the band
+  assert.equal(side(/rear/i).L, 13.8);                 // 12 × 1.15
+  assert.equal(side(/left/i).L, 16.1);                 // 14 × 1.15
+  assert.ok(side(/left/i).assumedFields.includes("L"));
+  const small = bundle();
+  applyExteriorAnswers(small, exteriorState({ sizeBand: "lt120" }), (() => { let n = 1; return () => n++; })(), new Set(["weatherboards"]));
+  assert.equal(small.areas.find((a) => /rear/i.test(a.name))!.L, 10.8); // 12 × 0.9
+});

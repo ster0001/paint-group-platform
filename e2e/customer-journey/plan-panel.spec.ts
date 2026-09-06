@@ -52,6 +52,9 @@ test("the plan panel is big enough to read, and opens bigger still", async ({ pa
       await contact.nth(1).fill(`e2e-plan-${Date.now()}@example.com`);
       await contact.nth(2).fill("0400 000 111");
     }
+    // Phase 0: the safety answers are unanswered until tapped (no-ops off page 4).
+    await answer(/built before 1970/, "No");
+    await answer(/asbestos/, "No");
     const nav = page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ });
     if (!(await nav.count())) break; // submitted — the processing screen has no nav
     await nav.first().click();

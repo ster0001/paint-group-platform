@@ -42,12 +42,16 @@ test.describe("the wizard drop-out funnel", () => {
     await page.getByRole("button", { name: /There isn't a floorplan to hand/ }).click();
     await page.getByPlaceholder("Suburb").fill("Murrumbeena");
     await page.getByPlaceholder("Postcode").fill("3163");
+    // Phase 0: the safety answers are unanswered until tapped.
+    const tap = async (heading: string | RegExp) => page.locator(".wz-qhead", { hasText: heading }).locator("xpath=following-sibling::div[1]").getByRole("button", { name: "No", exact: true }).click();
+    await tap("Heritage listed");
     const next = async () => page.getByRole("button", { name: /Continue|Nearly there/ }).first().click();
     await next(); // surfaces
     await next(); // condition
     await next(); // details
-    await next(); // paint
-    await next(); // → the contact page
+    await tap(/built before 1970/);
+    await tap(/asbestos/);
+    await next(); // → the contact page (paint preferences ride it — Phase 2)
 
     const contact = page.locator(".wz-crow input");
     await expect(contact.first()).toBeVisible();

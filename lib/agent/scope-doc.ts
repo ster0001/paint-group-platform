@@ -18,6 +18,7 @@
 
 import { coatsFor } from "@/lib/wizard/state";
 import { DEFAULT_SURFACES, wizardStateSchema, windowStyleLabel, windowStyleToSchema, type WizardState } from "@/lib/wizard/state";
+import { parseAddressText } from "@/lib/wizard/addressText";
 import { buildTreeFromState, type TreeRefs } from "@/lib/wizard/build-tree";
 import {
   CUPBOARD_BY_ROOM_TYPE, addCatalogueLine, addRoomCustom, applyCupboard, applyCupboardInterior, applyLineCount,
@@ -275,7 +276,9 @@ export function applyAnswer(doc: ScopeDoc, key: string, value: unknown, provenan
 
   switch (key) {
     case "q.address": {
-      const v = obj(value);
+      // Phase 4 (6 Sep plan): a typed line is an answer too — "14 Murrumbeena
+      // Rd, Murrumbeena 3163" was refused for lacking a suburb it contained.
+      const v = typeof value === "string" ? ((parseAddressText(value) ?? {}) as Record<string, unknown>) : obj(value);
       const suburb = str(v.suburb); const postcode = str(v.postcode);
       if (!suburb && !postcode) return { ok: false, reason: "I need at least the suburb or postcode." };
       return patchDraft({

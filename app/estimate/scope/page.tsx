@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { getWizardActor } from "@/lib/supabase/guards";
+import { customerOwnsDraft, getWizardActor } from "@/lib/supabase/guards";
 import { loadCustomerScope, type EstimateRow } from "@/lib/wizard/customer-scope";
 import ScopeEditor from "./ScopeEditor";
 import SidesEditor from "./SidesEditor";
@@ -56,11 +56,9 @@ export default async function ScopeEditorPage({
     .select("id, status, source, created_by, requires_site_check, builder_state, account_id")
     .eq("id", id)
     .maybeSingle();
-  const own = actor.kind !== "customer" || (
-    (estimate as { created_by?: string | null } | null)?.created_by === actor.user.id
-    && (estimate as { source?: string } | null)?.source === "customer_intake"
-    && estimate?.status === "draft"
-  );
+  // Phase 1 (6 Sep plan): the anonymous builder OR a signed-in member of the
+  // linked account — the "keep shaping my estimate" way back in.
+  const own = !estimate ? false : actor.kind !== "customer" || await customerOwnsDraft(db, actor, estimate as EstimateRow);
   if (!estimate || !own) return <Holding line="We couldn't find that estimate." />;
   if (estimate.status === "accepted") {
     return <Holding line="This estimate is accepted — its scope is locked in." />;

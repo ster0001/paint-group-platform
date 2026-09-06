@@ -17,7 +17,7 @@
  * groups a keystroke run with its details call for Google's billing.
  */
 const WINDOW_MS = 10 * 60_000;
-const LIMITS = { autocomplete: 60, details: 20, events: 240 } as const;
+const LIMITS = { autocomplete: 60, details: 20, events: 240, callback: 6 } as const;
 export type PlacesKind = keyof typeof LIMITS;
 
 type Bucket = { n: number; resetAt: number };

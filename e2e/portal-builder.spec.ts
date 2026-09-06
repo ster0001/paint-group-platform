@@ -35,6 +35,7 @@ async function drive(page: Page) {
   await next(); // → condition
   await next(); // → details
   await answer(/built before 1970/, "No");
+  await answer(/asbestos/, "No"); // Phase 0: unanswered until tapped
   await next(); // → paint (page 5 — the LAST page for a signed-in customer)
   await next(); // "See my estimate" — submits with no email gate in sight
   // 28 Aug: the wizard lands straight in the confirm-loop editor.

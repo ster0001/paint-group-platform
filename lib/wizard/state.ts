@@ -34,6 +34,15 @@ const basicsSchema = z.object({
    * kitchen are very different scopes, so the basics form asks which.
    */
   openPlanKitchenLiving: z.boolean(),
+  /**
+   * Phase 3 (6 Sep plan): the rooms the conservative starter list used to
+   * assume away — and the Proving window showed were the missing money.
+   * Optional so every stored state still parses; absent = the old list.
+   */
+  bathrooms: z.number().int().min(1).max(4).optional(),
+  separateToilet: z.boolean().optional(),
+  garage: z.boolean().optional(),
+  study: z.boolean().optional(),
 });
 
 /** Step 8: the customer's property answers — the guardrails' raw material. */
@@ -156,6 +165,9 @@ export const wizardStateShapeSchema = z.object({
    */
   exterior: z.object({
     storeys: z.enum(["single", "double"]).default("single"),
+    /** Phase 3 (6 Sep plan): the footprint band scales the typical side
+     * lengths (12 m / 14 m) the no-photo path starts from. Optional. */
+    sizeBand: z.enum(["lt120", "s120_200", "gt200", "unsure"]).optional(),
     /** "What's the building made of?" — multi; a mix = several ticked. SEEDS
      * the editor's wall tiles (only these substrates render per side).
      * `concrete` (tilt slab / precast panel) prices as a clone of render —

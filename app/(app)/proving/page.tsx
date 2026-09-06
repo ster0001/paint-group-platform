@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { priceEstimateTotals, type BlockInput } from "@/lib/pricing/estimate";
 import { provingRow, provingSummary, type ProvingRow, type WizardSnapshot } from "@/lib/wizard/proving";
+import { correctionBreakdown, correctionFrom, type Correction } from "@/lib/wizard/correction";
+import CorrectionTags from "./CorrectionTags";
 
 /**
  * /proving — the Step 9 proving-window dashboard (staff).
@@ -44,11 +46,14 @@ export default async function ProvingPage() {
   ]);
 
   const rows: ProvingRow[] = [];
+  // Phase 3 (6 Sep plan): WHY staff corrected each one, tagged on the row.
+  const corrections: Record<string, Correction | null> = {};
   for (const e of (estimates ?? []) as EstimateRow[]) {
     const state = (e.builder_state ?? {}) as {
       blocks?: unknown[];
-      wizard?: { submittedAt?: string; snapshot?: WizardSnapshot };
+      wizard?: { submittedAt?: string; snapshot?: WizardSnapshot; correction?: unknown };
     };
+    corrections[e.id] = correctionFrom(state.wizard?.correction);
     const snapshot = state.wizard?.snapshot ?? null;
     const blocks = Array.isArray(state.blocks) ? state.blocks : [];
     const totals = priceEstimateTotals(blocks as BlockInput[], ctx, adjustmentsFrom(state as Record<string, unknown>));
@@ -58,6 +63,7 @@ export default async function ProvingPage() {
 
   const summary = provingSummary(rows);
   const pending = (estimates ?? []).length - rows.length;
+  const why = correctionBreakdown(rows.map((r) => ({ correction: corrections[r.estimateId] ?? null, correctionCents: r.correctionCents })));
 
   return (
     <div className="mx-auto max-w-6xl p-6">
@@ -85,6 +91,26 @@ export default async function ProvingPage() {
         />
       </div>
 
+      {/* ---- why staff corrected them (Phase 3) ---------------------------- */}
+      <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4" data-testid="why-corrected">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-sm font-semibold text-gray-900">Why staff corrected them</h2>
+          <span className="text-xs text-gray-500">{why.tagged} tagged · {why.untagged} still to tag</span>
+        </div>
+        {why.reasons.length === 0 ? (
+          <p className="mt-2 text-sm text-gray-500">Nothing tagged yet. Tap “Why did it change?” on a row after you have priced it — ten tagged rows tell us what to fix first.</p>
+        ) : (
+          <ul className="mt-2 grid gap-1 sm:grid-cols-2">
+            {why.reasons.map((r) => (
+              <li key={r.reason} className="flex items-baseline justify-between gap-3 text-sm">
+                <span className="text-gray-800">{r.label}</span>
+                <span className="tabular-nums text-gray-500">{r.count} · median {money(r.medianAbsCents)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       {/* ---- per-estimate table ------------------------------------------- */}
       <div className="mt-6 overflow-x-auto rounded-lg border border-gray-200 bg-white">
         <table className="w-full text-sm">
@@ -97,11 +123,12 @@ export default async function ProvingPage() {
               <th className="px-3 py-2 text-right">Correction</th>
               <th className="px-3 py-2 text-right">Accuracy</th>
               <th className="px-3 py-2">Status</th>
+              <th className="px-3 py-2">Why it changed</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-400">
+              <tr><td colSpan={8} className="px-3 py-6 text-center text-gray-400">
                 No wizard estimates carry a snapshot yet — new ones will appear here as they&rsquo;re submitted.
               </td></tr>
             )}
@@ -126,6 +153,9 @@ export default async function ProvingPage() {
                   <td className="px-3 py-2 text-right tabular-nums text-gray-500">{r.accuracyPct}%</td>
                   <td className="px-3 py-2">
                     <span className={r.accepted ? "text-emerald-600" : "text-gray-500"}>{r.status}</span>
+                  </td>
+                  <td className="px-3 py-2 align-top" style={{ minWidth: 220 }}>
+                    <CorrectionTags estimateId={r.estimateId} initial={corrections[r.estimateId] ?? null} />
                   </td>
                 </tr>
               );
