@@ -4,7 +4,7 @@ role: staff
 title: Find help inside the office console
 summary: Where the office and project-coordinator guides live, how to open one with its pictures and film, how to search across them, and what the painters see in their own Help tab.
 sources: app/(app)/help, app/(app)/AppSidebar.tsx, lib/help, app/api/help/media, scripts/help-index.ts
-verified_at_commit: 5d1bb7261d
+verified_at_commit: 931d769016
 ---
 
 ## What this is for

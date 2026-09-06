@@ -20,7 +20,7 @@
         "media/contractor-04.png",
         "media/contractor-05.png"
       ],
-      "verified_at_commit": "5d1bb7261d",
+      "verified_at_commit": "931d769016",
       "sources": [
         "app/portal/help",
         "app/portal/PortalTour.tsx",
@@ -41,7 +41,7 @@
         "media/staff-02.png",
         "media/staff-03.png"
       ],
-      "verified_at_commit": "5d1bb7261d",
+      "verified_at_commit": "931d769016",
       "sources": [
         "app/(app)/help",
         "app/(app)/AppSidebar.tsx",
@@ -72,7 +72,7 @@
         "media/contractor-12.png",
         "media/contractor-13.png"
       ],
-      "verified_at_commit": "5d1bb7261d",
+      "verified_at_commit": "931d769016",
       "sources": [
         "app/portal/requests",
         "app/portal/calendar",
@@ -99,7 +99,7 @@
         "media/staff-08.png",
         "media/staff-09.png"
       ],
-      "verified_at_commit": "5d1bb7261d",
+      "verified_at_commit": "931d769016",
       "sources": [
         "app/pc/schedule",
         "lib/scheduling",
@@ -125,7 +125,7 @@
         "media/contractor-09.png",
         "media/contractor-10.png"
       ],
-      "verified_at_commit": "5d1bb7261d",
+      "verified_at_commit": "931d769016",
       "sources": [
         "app/portal/money",
         "app/portal/profile",
@@ -144,7 +144,7 @@
         "media/staff-02.png",
         "media/staff-03.png"
       ],
-      "verified_at_commit": "5d1bb7261d",
+      "verified_at_commit": "931d769016",
       "sources": [
         "app/invoicing",
         "lib/invoicing"
@@ -178,7 +178,7 @@
         "media/contractor-18.png",
         "media/contractor-walkthrough-2.gif"
       ],
-      "verified_at_commit": "5d1bb7261d",
+      "verified_at_commit": "931d769016",
       "sources": [
         "app/portal/jobs",
         "app/components/wo",
@@ -213,7 +213,7 @@
         "media/pc-17.png",
         "media/pc-18.png"
       ],
-      "verified_at_commit": "5d1bb7261d",
+      "verified_at_commit": "931d769016",
       "sources": [
         "app/pc",
         "app/components/wo",
@@ -228,7 +228,7 @@
       "summary": "The first-sign-in tour of the contractor portal — one card per tab, Next, Back, Skip.",
       "path": "docs/help/_tours/contractor.md",
       "cards": 7,
-      "verified_at_commit": "5d1bb7261d",
+      "verified_at_commit": "931d769016",
       "sources": [
         "app/portal/PortalTabs.tsx",
         "app/portal/page.tsx",

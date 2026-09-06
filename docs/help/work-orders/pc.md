@@ -5,7 +5,7 @@ title: Run jobs through the six stages from the PC console
 summary: The project coordinator's console — the attention queue and what its colours mean, the six lanes, the pre-start list, pricing and releasing variations, approving drafted customer updates, quality checks, the walkthrough and sign-off gates, and closing.
 walkthrough: media/pc-walkthrough.gif
 sources: app/pc, app/components/wo, lib/workorder
-verified_at_commit: 5d1bb7261d
+verified_at_commit: 931d769016
 ---
 
 ## What this is for

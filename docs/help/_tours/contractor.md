@@ -4,7 +4,7 @@ role: contractor
 title: Show me around
 summary: The first-sign-in tour of the contractor portal — one card per tab, Next, Back, Skip.
 sources: app/portal/PortalTabs.tsx, app/portal/page.tsx, app/portal/requests, app/portal/jobs, app/portal/money, app/portal/calendar, app/portal/help
-verified_at_commit: 5d1bb7261d
+verified_at_commit: 931d769016
 ---
 
 ## Welcome to your Paint Group portal

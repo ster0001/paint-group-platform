@@ -4,7 +4,7 @@ role: contractor
 title: Find help inside the portal
 summary: Where the guides live in the portal, how to read one with its pictures and short film, how to search for the thing you are stuck on, and how to replay the "show me around" tour from your first sign-in.
 sources: app/portal/help, app/portal/PortalTour.tsx, app/portal/layout.tsx, lib/help, app/api/help/media
-verified_at_commit: 5d1bb7261d
+verified_at_commit: 931d769016
 ---
 
 ## What this is for

@@ -5,7 +5,7 @@ title: Run a job from the first tick to the customer's signature
 summary: How a booked job works on your phone — the pre-start list, photos before ticks, ticking surfaces off, raising a variation, the finishing-up list, the quality check, and handing the phone to the customer to sign off.
 walkthrough: media/contractor-walkthrough.gif
 sources: app/portal/jobs, app/components/wo, app/s, lib/workorder
-verified_at_commit: 5d1bb7261d
+verified_at_commit: 931d769016
 ---
 
 ## What this is for
