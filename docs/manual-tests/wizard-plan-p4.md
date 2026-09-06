@@ -59,3 +59,12 @@ once. Any other message out of hours never mentions hours.
 3. Tap **Yes** → two more questions appear under it: the walls inside the robe, and the inside of the robe doors. Answer Yes to both → two extra lines price in.
 4. Flip the doors back to **No** → both inside lines disappear from the price and both follow-up questions go; flip to **Yes** again and they come back unanswered.
 5. Kitchen/bathroom/laundry follow the same rule for "inside the cupboards".
+
+## 7 Sep evening batch (Tom)
+
+- **No heritage question on page 1.** Customer wizard → property page: suburb, postcode, job, property type, then the way in. Continue never asks for heritage.
+- **Price on the estimates list.** Finish a customer wizard run (form or describe) → Estimates list shows the total straight away; each edit in the customer editor keeps it current.
+- **Rename a room.** Customer editor → a room card → ✎ next to × → type "Nursery" → Save → the card, the toast and the price line update.
+- **Chat widget.** Customer editor (and every portal page): "💬 Chat with us" bottom-right → the assistant's support disclosure, ask "What's included?" → grounded answer; "Talk to a person" → status line says waiting for a person; a callback can be requested. No "Inside, outside or both?" interview, no co-work.
+- **Plastering from the builder.** /quote → an area → + Add Surface → folder "Plastering & sealing (hours)" → Plastering → a line with 1 prep hour and a crew note field; the price moves by one charge-out hour.
+- **Allowances out of Materials.** An estimate with a Ceilings Only / Colour Match allowance: the Materials card at the top of the builder lists no row for them.

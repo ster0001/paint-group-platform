@@ -958,6 +958,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // action may be the confirmation that lifts the ring.
   const loopState = loopConfirmState(blocks, interiorMeta, sidesMeta);
   const payload = editorPayload(blocks, ctx, adjustmentsFrom(newState), newDeferred, loopState);
+  // Tom, 7 Sep: keep the list's price in step with every edit (best-effort).
+  await db.from("estimates").update({ total_cents: payload.totals.totalCents }).eq("id", id)
+    .then(() => undefined, () => undefined);
 
   if (view === "customer") {
     // The customer's view recomputes the range and the acceptance verdict —

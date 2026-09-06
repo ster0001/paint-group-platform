@@ -213,9 +213,25 @@ export async function loadMemberEstimate(db: SupabaseClient, estimateId: string,
   const row = data as (EstimateRow & { title: string | null; share_token: string | null; account_id: string | null }) | null;
   if (!row) return null;
   if (actor.kind === "staff") return row;
+  // The draft's own creator — an anonymous wizard run before any magic link —
+  // owns it the same way the scope editor rules (customerOwnsDraft), so the
+  // chat widget works on /estimate/scope as well as in the portal (7 Sep).
+  if (row.created_by === actor.userId && row.source === "customer_intake") return row;
   if (!row.account_id) return row.created_by === actor.userId ? row : null;
   const { data: member } = await db.from("account_users").select("account_id").eq("account_id", row.account_id).eq("profile_id", actor.userId).maybeSingle();
   return member ? row : null;
+}
+
+/** The newest estimate an actor can talk about: their accounts' latest, else the latest draft they created (the widget with no estimate in the URL). */
+export async function latestEstimateForActor(db: SupabaseClient, actor: AgentActor): Promise<string | null> {
+  const { data: memberships } = await db.from("account_users").select("account_id").eq("profile_id", actor.userId);
+  const accountIds = (memberships ?? []).map((m) => m.account_id as string);
+  if (accountIds.length) {
+    const { data } = await db.from("estimates").select("id").in("account_id", accountIds).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (data?.id) return data.id as string;
+  }
+  const { data: own } = await db.from("estimates").select("id").eq("created_by", actor.userId).eq("source", "customer_intake").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return (own?.id as string | undefined) ?? null;
 }
 
 export type SupportSession =

@@ -5,6 +5,8 @@ import { sendMagicLink } from "@/lib/portal/auth";
 import { automationOn, renderTemplate } from "@/lib/messaging/config";
 import { loadMessaging } from "@/lib/messaging/load";
 import { reportError } from "@/lib/monitoring/report";
+import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
+import { priceEstimateTotals, type BlockInput } from "@/lib/pricing/estimate";
 import { builderContactFrom, upsertWizardContact } from "./contactCard";
 
 /**
@@ -54,7 +56,13 @@ export async function finishDescribedEstimate(db: SupabaseClient, input: {
       contact: card,
       ...(address ? { jobAddress: { address: address.street, city: address.suburb, state: address.state, postal: address.postcode } } : {}),
     };
-    const { error } = await db.from("estimates").update({ title, builder_state: next }).eq("id", estimateId);
+    // Tom, 7 Sep: the list's price column reads total_cents — write it here too.
+    let totalCents: number | null = null;
+    try {
+      const ctx = await loadPricingContext(db);
+      totalCents = priceEstimateTotals(((state.blocks ?? []) as BlockInput[]), ctx, adjustmentsFrom(state)).totalCents;
+    } catch (e) { reportError(e, { where: "describe.finish.total", bestEffort: true }); }
+    const { error } = await db.from("estimates").update({ title, builder_state: next, ...(totalCents != null ? { total_cents: totalCents } : {}) }).eq("id", estimateId);
     if (error) reportError(error, { where: "describe.finish.title", bestEffort: true });
   } catch (e) { reportError(e, { where: "describe.finish.title", bestEffort: true }); }
 

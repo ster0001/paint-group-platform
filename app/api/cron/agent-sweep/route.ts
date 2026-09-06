@@ -45,10 +45,14 @@ export async function GET(request: Request) {
   const minutes = Math.max(0, Number(new URL(request.url).searchParams.get("minutes") ?? 30) || 0);
   const cutoff = new Date(Date.now() - minutes * 60_000).toISOString();
 
-  const { data: convs, error } = await db.from("agent_conversations")
+  // `minutes=0` (the e2e) means NO quiet window: a read receipt or a trailing
+  // write can land a moment after the cutoff and hide the conversation the
+  // test just abandoned — the 7 Sep C1 run saw exactly that (logged: 0).
+  let query = db.from("agent_conversations")
     .select("id, account_id, estimate_id, updated_at")
-    .eq("status", "open").eq("mode", "guided").not("account_id", "is", null).not("estimate_id", "is", null)
-    .lte("updated_at", cutoff).limit(200);
+    .eq("status", "open").eq("mode", "guided").not("account_id", "is", null).not("estimate_id", "is", null);
+  if (minutes > 0) query = query.lte("updated_at", cutoff);
+  const { data: convs, error } = await query.limit(200);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const scope = new SupabaseScopeStore(db);

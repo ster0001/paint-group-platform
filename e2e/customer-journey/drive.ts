@@ -39,7 +39,6 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
       .getByRole("button", { name: label, exact: true });
     if (await row.count()) await row.first().click();
   };
-  await answer("Heritage listed", "No");
   await answer("What kind of property", "House");
 
   const next = async () => {

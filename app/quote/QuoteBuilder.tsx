@@ -64,6 +64,16 @@ type WorkOrderRow = {
 };
 import type { CompanyProfile, Contact, JobAddress } from "./company";
 import type { Product, RateItem } from "@/lib/pricing/types";
+import { ALLOWANCE_DEFS } from "@/lib/capture/commit";
+
+/** What the surface picker needs of a row — real rate items and the hour allowances alike. */
+type PickerItem = Pick<RateItem, "code" | "unit">;
+/** Tom, 7 Sep: the capture view's hour-and-a-note allowances, offered from the builder's picker too. */
+const ALLOWANCE_FOLDER = "Plastering & sealing (hours)";
+/** Hour-and-a-note lines (plastering, raw timber, the engine's colour-match /
+ *  ceilings-only allowances) carry no paint: never a Materials row (Tom, 7 Sep). */
+const isAllowanceLine = (s: { code: string; allowance?: boolean }) =>
+  s.allowance === true || /\ballowance$/i.test(s.code) || ALLOWANCE_DEFS.some((d) => d.code === s.code);
 
 type MediaItem = { path: string; url: string };
 type Modifier = { code: string; group_name: string; label: string; multiplier: number };
@@ -291,12 +301,15 @@ export default function QuoteBuilder({
   }, [products]);
   // substrates grouped into folders (sub-category) per Interior/Exterior
   const subGroups = useMemo(() => {
-    const g: Record<string, Record<string, RateItem[]>> = { Interior: {}, Exterior: {} };
+    const g: Record<string, Record<string, PickerItem[]>> = { Interior: {}, Exterior: {} };
     for (const r of rateItems) {
       const cat = r.category === "Exterior" ? "Exterior" : "Interior";
       const sub = r.sub_category ?? "Other";
       ((g[cat] ||= {})[sub] ||= []).push(r);
     }
+    // Plastering and raw-timber sealing price as prep hours, no rate row
+    // needed (lib/capture/commit ALLOWANCE_DEFS) — the same lines capture writes.
+    for (const cat of ["Interior", "Exterior"]) g[cat][ALLOWANCE_FOLDER] = ALLOWANCE_DEFS.map((d) => ({ code: d.code, unit: "Hours" }));
     return g;
   }, [rateItems]);
   const modGroups = useMemo(() => {
@@ -629,11 +642,17 @@ export default function QuoteBuilder({
   // Add a brand-new surface with a chosen substrate (from the folder picker) and
   // append its label to the area description.
   const addSurfaceWithCode = (areaId: number, code: string): number => {
-    const surf: Surface = { ...newSurface(), code, internalLabel: code, clientLabel: code, open: true };
+    // Tom, 7 Sep: an hour allowance from the picker starts at one prep hour
+    // with the crew-note field for WHERE — the shape capture commits.
+    const allowance = ALLOWANCE_DEFS.find((d) => d.code === code) ?? null;
+    const surf: Surface = {
+      ...newSurface(), code, internalLabel: allowance?.label ?? code, clientLabel: allowance?.label ?? code, open: true,
+      ...(allowance ? { prepHr: 1, hideQty: true, showCoats: false, crewNote: allowance.stamp } : {}),
+    };
     setBlocks((bs) =>
       bs.map((b) => {
         if (b.id !== areaId || b.kind !== "area") return b;
-        surf.coats = defaultCoatsFor(b.type, code);
+        surf.coats = allowance ? 1 : defaultCoatsFor(b.type, code);
         const line = `<p>${code}</p>`;
         const description = (b.description ?? "").trim() ? b.description + line : line;
         return { ...b, surfaces: [...b.surfaces, surf], description };
@@ -1002,7 +1021,9 @@ export default function QuoteBuilder({
     for (const b of blocks) {
       if (b.kind !== "area") continue;
       for (const s of b.surfaces) {
-        if (!s.code) continue;
+        // Tom, 7 Sep: no paint in an allowance — the ceilings-only / colour-match
+        // rows and plastering never make a Materials row.
+        if (!s.code || isAllowanceLine(s)) continue;
         const key = `${b.type}::${s.code}`;
         const row = map.get(key) ?? { key, type: b.type, code: s.code, count: 0, customCount: 0 };
         row.count += 1;
@@ -1193,7 +1214,7 @@ export default function QuoteBuilder({
       const surfaces: WOArea["surfaces"] = [];
       for (const s of b.surfaces) {
         if (!s.code || s.hidden) continue;
-        const pname = productNameFor(b.type, s) || "";
+        const pname = isAllowanceLine(s) ? "" : (productNameFor(b.type, s) || "");
         const calc = surfaceCalc(b, s);
         const col = pname ? colourFor(b.type, s) : { name: "", hex: "" };
         if (pname) {
@@ -2603,7 +2624,7 @@ function AreaPicker({
 function SurfacePicker({
   subGroups, onPick, onClose,
 }: {
-  subGroups: Record<string, RateItem[]>;
+  subGroups: Record<string, PickerItem[]>;
   onPick: (code: string) => void;
   onClose: () => void;
 }) {

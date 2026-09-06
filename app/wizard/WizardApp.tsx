@@ -859,7 +859,6 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       if (isCustomer && (!state.customer || state.customer.suburb.trim() === "" || state.customer.postcode.trim() === "")) {
         return "Where's the property? Suburb and postcode, please.";
       }
-      if (isCustomer && !answered.heritage) return "Heritage listed? Yes, no or not sure — it changes what we can price online.";
       // Phase 2: a way in is chosen, not implied.
       if (isCustomer && !entry) return "How would you like to do this? Pick one of the three.";
       if (isCustomer && entry === "describe" && brief.trim().length < 20) {
@@ -1005,7 +1004,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             {pageKey === "property" && (
               <PageProperty
                 state={state} set={set} isCustomer={isCustomer} substrates={substrates}
-                stepsTotal={lastPage} answered={answered} markAnswered={markAnswered}
+                stepsTotal={lastPage}
                 entry={entry} onEntry={chooseEntry} brief={brief} setBrief={setBrief} startChat={startChat} startingChat={startingChat} sessionPhase={sessionPhase}
                 initialAddressText={intent?.addressText ?? ""}
                 planFileCount={planFileCount} facadeFileCount={facadeFileCount}
@@ -1130,15 +1129,13 @@ function Seg<T extends string>({ options, value, onPick }: {
 // ---- page 1: the property ---------------------------------------------------
 
 function PageProperty({
-  state, set, isCustomer = false, substrates, stepsTotal, answered, markAnswered, entry, onEntry, brief, setBrief, startChat, startingChat, sessionPhase,
+  state, set, isCustomer = false, substrates, stepsTotal, entry, onEntry, brief, setBrief, startChat, startingChat, sessionPhase,
   planFileCount, facadeFileCount, uploading, sessionBlocked = false, planInputRef, facadeInputRef, onPlanFiles, onFacadeFiles, onImportListingPlan, initialAddressText = "",
 }: {
   state: WizardState;
   set: (p: Partial<WizardState>) => void;
   isCustomer?: boolean;
   stepsTotal: number;
-  answered: SafetyAnswered;
-  markAnswered: (k: keyof SafetyAnswered) => void;
   /** Phase 2 (6 Sep plan): the customer's way in — describe it, answer a
    * few questions, or upload the plan/listing. Staff keep the old layout. */
   entry: EntryChoice | null;
@@ -1315,12 +1312,9 @@ function PageProperty({
             value={state.customer.propertyKind}
             onPick={(v) => set({ customer: { ...state.customer!, propertyKind: v } })}
           />
-          <p className="wz-qhead">Heritage listed? <small>— many period homes aren&rsquo;t</small></p>
-          <Seg
-            options={[{ v: "no" as const, label: "No" }, { v: "yes" as const, label: "Yes" }, { v: "unsure" as const, label: "Not sure" }]}
-            value={answered.heritage ? state.customer.heritageListed : null}
-            onPick={(v) => { markAnswered("heritage"); set({ customer: { ...state.customer!, heritageListed: v } }); }}
-          />
+          {/* Tom, 7 Sep: the heritage question is gone from page 1 — it is not a
+              pricing input; heritageListed keeps its default and the policy
+              treats it as "no". The assistant still asks it with the flags. */}
           {(state.customer.propertyKind === "unit_apartment" || state.customer.propertyKind === "townhouse") && (
             <>
               <p className="wz-qhead">Is there a body corporate / owners corporation?</p>
