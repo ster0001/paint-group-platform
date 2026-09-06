@@ -54,6 +54,8 @@ const bodySchema = z.object({
   mode: z.enum(["home", "business"]).optional(),
   entrySource: z.string().regex(/^[a-z_]+(:[a-z0-9-]+)?$/).max(100).optional(),
   address: z.string().trim().max(250).optional(),
+  /** "Start again": the open draft is dropped, so it never resurfaces as a resume (7 Sep). */
+  reset: z.boolean().optional(),
 });
 
 export async function POST(req: Request) {
@@ -70,6 +72,17 @@ export async function POST(req: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return quietly("no session");
+
+  // A restart is not a drop-out and not a finish: the open row goes, and the
+  // next answer founds a fresh one. Deleted rather than converted, so the
+  // funnel never chases somebody over a walk they chose to throw away.
+  if (parsed.data.reset) {
+    const db0 = createServiceClient();
+    if (!db0) return quietly("no service client");
+    const { error } = await db0.from("wizard_drafts").delete().eq("user_id", user.id).is("converted_at", null);
+    if (error) reportError(error, { where: "wizard.draft.reset", bestEffort: true });
+    return NextResponse.json({ saved: false, why: "reset" });
+  }
 
   // The state is stored as given. A half-answered form does not satisfy the
   // full schema and is not supposed to — and it cannot be loosened either:

@@ -29,7 +29,7 @@ import {
 import type { WizardEditorPayload } from "@/lib/wizard/view";
 import AddressField from "./AddressField";
 import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
-import { RESUME_KEY, decodeResume, encodeResume, resumeLine, type ResumeRecord, type SafetyAnswered } from "@/lib/wizard/resume";
+import { RESUME_KEY, RESTART_KEY, decodeResume, encodeResume, restartedSince, resumeLine, type ResumeRecord, type SafetyAnswered } from "@/lib/wizard/resume";
 import Wordmark from "./Wordmark";
 
 /**
@@ -252,6 +252,10 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const clearResume = () => { try { localStorage.removeItem(RESUME_KEY); } catch { /* storage may be unavailable */ } };
   const startAgain = () => {
     clearResume();
+    // The server copy would otherwise come straight back on the next reload:
+    // mark the restart here and reset the open draft row (lib/wizard/resume).
+    try { localStorage.setItem(RESTART_KEY, new Date().toISOString()); } catch { /* storage may be unavailable */ }
+    void fetch("/api/wizard/draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state: {}, reset: true }), keepalive: true }).catch(() => {});
     setResumed(null);
     setEntry(null);
     setState(makeInitialState());
@@ -264,10 +268,12 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     // Deferred: the restore is a state change, and it must land after paint.
     const t = setTimeout(() => {
       let raw: string | null = null;
-      try { raw = localStorage.getItem(RESUME_KEY); } catch { raw = null; }
+      let restartedAt: string | null = null;
+      try { raw = localStorage.getItem(RESUME_KEY); restartedAt = localStorage.getItem(RESTART_KEY); } catch { raw = null; }
       const local = decodeResume(raw, new Date(), { incomingAddress: intent?.addressText ?? null });
-      // The server copy (any device) vs the browser copy — whichever is newer.
-      const server = resume && !(intent?.addressText && (resume.addressText || resume.state.customer?.suburb) && !decodeResume(encodeResume(resume), new Date(), { incomingAddress: intent.addressText })) ? resume : null;
+      // The server copy (any device) vs the browser copy — whichever is newer;
+      // a server copy from before a "Start again" on this device is not a resume.
+      const server = resume && !restartedSince(resume.savedAt, restartedAt) && !(intent?.addressText && (resume.addressText || resume.state.customer?.suburb) && !decodeResume(encodeResume(resume), new Date(), { incomingAddress: intent.addressText })) ? resume : null;
       const r = local && server ? (new Date(local.savedAt) >= new Date(server.savedAt) ? local : server) : (local ?? server);
       if (!r) return;
       setState(r.state);
