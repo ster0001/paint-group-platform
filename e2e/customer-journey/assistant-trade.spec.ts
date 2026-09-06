@@ -45,8 +45,15 @@ test.describe("Addendum A2 — describe the job", () => {
       await page.getByPlaceholder("Postcode").fill("3163");
       await page.getByTestId("entry-describe").click();
       await page.getByTestId("describe-job").fill(TOM);
-      await expect(page.getByTestId("build-from-brief")).toBeEnabled({ timeout: 30_000 });
-      await page.getByTestId("build-from-brief").click();
+      // Tom, 7 Sep: the contact details are still the last question, then the build.
+      await page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ }).first().click();
+      const contact = page.locator(".wz-crow input");
+      if (await contact.count()) {
+        await contact.nth(0).fill("E2E Describe");
+        if (!(await contact.nth(1).inputValue())) await contact.nth(1).fill(email);
+        await contact.nth(2).fill("0400 000 111");
+        await page.getByRole("button", { name: "See my estimate" }).click();
+      }
       await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 120_000 });
       // The editor: a range, the rooms the paragraph named, and the open assumptions as amber lines.
       await expect(page.locator(".sc-r").first()).toHaveText(MONEY, { timeout: 30_000 });

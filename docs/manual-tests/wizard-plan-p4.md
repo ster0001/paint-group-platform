@@ -21,7 +21,11 @@ update public.agent_settings
 
 ## 2. Describe it = one request, straight into the editor (your ruling, 7 Sep)
 On `/estimate` tap **Describe it**, type the job in one go (rooms, surfaces, condition, anything unusual),
-tap **Build my estimate**. You land in the confirm-loop editor, not the chat: the rooms the paragraph
+tap **Continue** → your name, email and phone (still the last question) → **See my estimate**. A building
+screen shows for 10–20 seconds and you land in the confirm-loop editor, not the chat. The estimate is
+named by the street line, carries the address and contact, joins the customer record, converts the wizard
+session (the status pills on Estimates → Wizard and the CRM buckets), and sends the "Your estimate is
+saved" link that opens the editor. In the editor you will see: the rooms the paragraph
 named, the range, the amber "to confirm" lines, and the "A few details to settle" card. The chat only
 appears if the paragraph wasn't enough to build from (e.g. no rooms named). "Chat it through instead"
 is still there under the box for people who want the back-and-forth.

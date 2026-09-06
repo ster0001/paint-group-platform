@@ -215,12 +215,18 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   // exterior each have their own; condition and damage share a page; the
   // paint preferences ride the LAST page (the contact details for a customer,
   // their own page for staff and members whose details are already known).
-  const pageKeys: PageKey[] = state.jobType === "exterior"
-    ? ["property", "house", "scope", "ext_condition", "extras", ...(isCustomer && !contactDone ? ["contact" as const] : [])]
-    : ["property", "surfaces", "condition", "details", ...(isCustomer && !contactDone ? ["contact" as const] : ["paint" as const])];
+  const [entry, setEntry] = useState<EntryChoice | null>(null);
+  // Tom, 7 Sep: "Describe it" is one request — the property page, then the
+  // contact details (still the LAST question before the build), then the
+  // build lands in the editor. Nothing else is asked.
+  const describing = isCustomer && entry === "describe";
+  const pageKeys: PageKey[] = describing
+    ? ["property", ...(!contactDone ? ["contact" as const] : [])]
+    : state.jobType === "exterior"
+      ? ["property", "house", "scope", "ext_condition", "extras", ...(isCustomer && !contactDone ? ["contact" as const] : [])]
+      : ["property", "surfaces", "condition", "details", ...(isCustomer && !contactDone ? ["contact" as const] : ["paint" as const])];
   const lastPage = pageKeys.length;
   const pageKey: PageKey = pageKeys[Math.min(page, lastPage) - 1];
-  const [entry, setEntry] = useState<EntryChoice | null>(null);
   const chooseEntry = (e: EntryChoice) => {
     setEntry(e);
     set(entryPatch(e, state.jobType, state.exterior, state.basics));
@@ -298,7 +304,12 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         : state.customer && (state.customer.suburb || state.customer.postcode)
           ? { street: "", suburb: state.customer.suburb, postcode: state.customer.postcode, state: "VIC" }
           : null;
-      const res = await fetch("/api/agent/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...(withBrief && brief.trim() ? { brief: brief.trim() } : {}), ...(address ? { address } : {}) }) });
+      const contact = withBrief ? { name: state.contact.name.trim(), email: state.contact.email.trim(), phone: state.contact.phone.trim() } : null;
+      const res = await fetch("/api/agent/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+        ...(withBrief && brief.trim() ? { brief: brief.trim() } : {}),
+        ...(address ? { address: { ...address, formatted: state.address?.formatted ?? "" } } : {}),
+        ...(contact ? { contact } : {}),
+      }) });
       const j = (await res.json().catch(() => ({}))) as { conversationId?: string; estimateId?: string; built?: boolean; error?: string };
       if (!res.ok || !j.conversationId) { backToPages(); setError(j.error ?? "That didn't go through — please try again."); return; }
       ticks.forEach(clearTimeout);
@@ -839,10 +850,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       if (isCustomer && !answered.heritage) return "Heritage listed? Yes, no or not sure — it changes what we can price online.";
       // Phase 2: a way in is chosen, not implied.
       if (isCustomer && !entry) return "How would you like to do this? Pick one of the three.";
-      if (isCustomer && entry === "describe") {
-        return brief.trim().length < 20
-          ? "Type a few lines about the job, then tap “Build it from my description” — or pick another way in."
-          : "Tap “Build it from my description” — or pick another way in.";
+      if (isCustomer && entry === "describe" && brief.trim().length < 20) {
+        return "Type a few lines about the job first — or pick another way in.";
       }
       if (wantsInterior && !state.noPlan && state.planRunIds.length === 0) {
         return state.listingUrl.trim()
@@ -894,6 +903,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     if (isCustomer && state.customer && !state.customer.email.trim() && state.contact.email.trim()) {
       set({ customer: { ...state.customer, email: state.contact.email.trim() } });
     }
+    // Tom, 7 Sep: a described job builds from the paragraph, not the form.
+    if (describing) { void startChat(true); return; }
     void runSubmit();
   }
 
@@ -1343,11 +1354,7 @@ function PageProperty({
           <p className="wz-q">Tell us about the job in your own words — rooms, what&rsquo;s being painted, the condition, anything unusual. One go is enough; you land in your estimate with every assumption marked.</p>
           <textarea className="wz-brief" data-testid="describe-job" rows={4} value={brief} onChange={(e) => setBrief(e.target.value)}
             placeholder="e.g. 3 bedroom 1 bathroom house, colour match throughout, walls in good condition with a few minor cracks in the kitchen, all trims to be painted…" />
-          <div className="wz-seg">
-            <button type="button" data-testid="build-from-brief" disabled={sessionPhase !== "ready" || startingChat || brief.trim().length < 20} onClick={() => startChat(true)}>
-              {startingChat ? "Building your estimate…" : "Build my estimate"}
-            </button>
-          </div>
+          <p className="wz-chint" style={{ marginTop: 8 }}>Tap Continue — your details come next, then we build the whole estimate from this.</p>
           <p style={{ marginTop: 8 }}>
             <button type="button" className="wz-linkbtn" data-testid="chat-it" disabled={sessionPhase !== "ready" || startingChat} onClick={() => startChat(false)}>
               {startingChat ? "Opening the assistant…" : "Prefer a back-and-forth? Chat it through instead →"}
