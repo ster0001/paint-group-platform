@@ -4,6 +4,8 @@ import {
   buildSnoozeItems, buildInvoiceItems, buildCallbackItems, buildApprovalItem,
   applyDismissals, sortItems, assembleQueue,
   type WorkItem, type SnoozeAccountRow, type QueueInvoiceRow, type CallbackEventRow,
+  buildLapsedItems,
+  type LapsedEventRow,
 } from "./work-queue";
 
 /** Mid-afternoon Melbourne, mid-week. Every test pins its own clock. */
@@ -203,5 +205,42 @@ describe("assembly", () => {
     expect(q.counts.total).toBe(2);
     expect(q.counts.byGroup.approvals).toBe(1);
     expect(q.counts.byGroup.money).toBe(1);
+  });
+});
+
+describe("estimate_lapsed (CRM v2 P1, decision 8.11) — lapsed is a decision, not a loss", () => {
+  const now = new Date("2026-09-07T10:00:00+10:00");
+  const ago = (d: number) => new Date(now.getTime() - d * 86_400_000).toISOString();
+  const row = (over: Partial<LapsedEventRow> = {}): LapsedEventRow => ({
+    id: "ev1", account_id: "acc1", estimate_id: "est1", occurred_at: ago(3),
+    payload: { totalCents: 435_200, sentAt: ago(70) },
+    estimates: { status: "expired", title: "Interior", viewed_at: null },
+    ...over,
+  });
+  const names = new Map([["acc1", "Garry Kennedy"]]);
+
+  it("asks a person, two days after the lapse, with the value and whether it was opened", () => {
+    const [item] = buildLapsedItems([row()], [], names, now);
+    expect(item.kind).toBe("estimate_lapsed");
+    expect(item.title).toBe("Garry Kennedy's quote lapsed");
+    expect(item.detail).toContain("$4,352");
+    expect(item.detail).toContain("never opened");
+    expect(item.bucket).toBe("overdue");
+    expect(item.action.href).toBe("/crm/customers/acc1");
+  });
+
+  it("dies when somebody contacts the customer after the lapse", () => {
+    expect(buildLapsedItems([row()], [{ account_id: "acc1", occurred_at: ago(1) }], names, now)).toHaveLength(0);
+    expect(buildLapsedItems([row()], [{ account_id: "acc1", occurred_at: ago(5) }], names, now)).toHaveLength(1);
+  });
+
+  it("dies when the estimate is no longer expired (re-sent, accepted)", () => {
+    expect(buildLapsedItems([row({ estimates: { status: "sent", title: null, viewed_at: null } })], [], names, now)).toHaveLength(0);
+  });
+
+  it("keys on the estimate so a re-lapse of the same quote is the same item", () => {
+    const [a] = buildLapsedItems([row()], [], names, now);
+    const [b] = buildLapsedItems([row({ id: "ev2", occurred_at: ago(1) })], [], names, now);
+    expect(a.key).toBe(b.key);
   });
 });

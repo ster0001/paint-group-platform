@@ -6,21 +6,31 @@ import { addressKey, normaliseEmail, type AddressParts } from "./identity";
  * exists) for an estimate save. Runs on the SERVER through the service client
  * or a staff session — never from a browser.
  *
+ * CRM v2 P1 (deep dive §4.1, decision 8.2): identity is an email OR a phone.
+ * `crm_find_account` (migration 20270120) resolves either — account email,
+ * contact email, account phone, contact phone, in that order — so a phone
+ * enquiry with no email address is a customer, and a second estimate from
+ * the same mobile lands on the same record. An existing record's blank
+ * phone or email is filled from what the caller knows; a stored one is
+ * never overwritten here (the record page is where a person corrects it).
+ *
  * Security rule (documented in the migration): this links the ESTIMATE into
  * the account chain. It never creates account_users rows — an unverified
  * email typed into the wizard must not grant anyone read access to an
  * existing account. Membership is granted only by the 3a-2 magic-link flow,
  * where clicking the emailed link proves possession of the address.
  *
- * Degrades gracefully: until migration 20261128 runs, the tables/columns are
+ * Degrades gracefully: until the migrations run, the tables/columns are
  * missing and every caller gets { migrationPending: true } back — the wizard
  * keeps saving estimates exactly as before (inert-but-safe rule).
  */
 
 export type EnsureAccountInput = {
-  email: string;
+  email?: string | null;
   name?: string | null;
   phone?: string | null;
+  /** Decision 8.5: whoever creates the record owns it, unless told otherwise. */
+  ownerId?: string | null;
   address?: AddressParts & { state?: string | null };
 };
 
@@ -30,56 +40,96 @@ export type EnsureAccountResult = {
   migrationPending?: boolean;
 };
 
-const MISSING_SCHEMA = new Set(["42P01", "42703"]); // undefined table / column
+const MISSING_SCHEMA = new Set(["42P01", "42703", "42883", "PGRST202"]); // undefined table / column / function
 
 function schemaMissing(error: { code?: string } | null): boolean {
   return !!error?.code && MISSING_SCHEMA.has(error.code);
 }
 
-/** Find-or-create the account for a normalised email. The single account
+/** Find-or-create the account for an email and/or phone. The single account
  * identity rule — the wizard save, the backfill and the verified magic-link
- * login all resolve an email to an account through here. */
+ * login all resolve a person to an account through here. */
 export async function ensureAccount(
   db: SupabaseClient,
   input: Omit<EnsureAccountInput, "address">,
 ): Promise<{ accountId: string | null; migrationPending?: boolean }> {
   const email = normaliseEmail(input.email);
-  if (!email || !email.includes("@")) return { accountId: null };
+  const validEmail = email.includes("@") ? email : "";
+  const phone = input.phone?.trim() || "";
+  if (!validEmail && !phone) return { accountId: null };
 
-  const found = await db.from("accounts").select("id").eq("email", email).maybeSingle();
+  // One lookup, either key. Before 20270120 the RPC does not exist: fall back
+  // to the email-only select this file always did.
+  let accountId: string | null = null;
+  const found = await db.rpc("crm_find_account", { p_email: validEmail || null, p_phone: phone || null });
   if (found.error) {
-    if (schemaMissing(found.error)) return { accountId: null, migrationPending: true };
-    throw new Error(`account lookup failed: ${found.error.message}`);
-  }
-  let accountId = (found.data as { id: string } | null)?.id ?? null;
-
-  if (!accountId) {
-    const inserted = await db
-      .from("accounts")
-      .insert({
-        email,
-        name: input.name?.trim() || null,
-        phone: input.phone?.trim() || null,
-      })
-      .select("id")
-      .single();
-    if (inserted.error) {
-      // 23505 = a concurrent save created it between our select and insert.
-      // The retry select has a DIFFERENT shape from the first one — inside a
-      // single request Next memoises byte-identical fetches, and an identical
-      // retry would return the pre-insert empty result (the WO-loop lesson).
-      if (inserted.error.code === "23505") {
-        const again = await db.from("accounts").select("id, created_at").eq("email", email).maybeSingle();
-        accountId = (again.data as { id: string } | null)?.id ?? null;
-      } else if (schemaMissing(inserted.error)) {
-        return { accountId: null, migrationPending: true };
-      }
-      if (!accountId) throw new Error(`account create failed: ${inserted.error.message}`);
-    } else {
-      accountId = (inserted.data as { id: string }).id;
+    if (!schemaMissing(found.error) && found.error.code !== "42501") {
+      throw new Error(`account lookup failed: ${found.error.message}`);
     }
+    if (validEmail) {
+      const byEmail = await db.from("accounts").select("id").eq("email", validEmail).maybeSingle();
+      if (byEmail.error) {
+        if (schemaMissing(byEmail.error)) return { accountId: null, migrationPending: true };
+        throw new Error(`account lookup failed: ${byEmail.error.message}`);
+      }
+      accountId = (byEmail.data as { id: string } | null)?.id ?? null;
+    }
+  } else {
+    accountId = (found.data as string | null) ?? null;
+  }
+
+  if (accountId) {
+    await fillBlanks(db, accountId, { email: validEmail || null, phone: phone || null, name: input.name?.trim() || null });
+    return { accountId };
+  }
+
+  const inserted = await db
+    .from("accounts")
+    .insert({
+      email: validEmail || null,
+      name: input.name?.trim() || null,
+      phone: phone || null,
+      ...(input.ownerId ? { owner_id: input.ownerId } : {}),
+    })
+    .select("id")
+    .single();
+  if (inserted.error) {
+    // 23505 = a concurrent save created it between our select and insert.
+    // The retry select has a DIFFERENT shape from the first one — inside a
+    // single request Next memoises byte-identical fetches, and an identical
+    // retry would return the pre-insert empty result (the WO-loop lesson).
+    if (inserted.error.code === "23505" && validEmail) {
+      const again = await db.from("accounts").select("id, created_at").eq("email", validEmail).maybeSingle();
+      accountId = (again.data as { id: string } | null)?.id ?? null;
+    } else if (inserted.error.code === "23514") {
+      // accounts_reachable: a phone that could not be normalised and no email.
+      // Not a record we can ever reach — the caller keeps its estimate and
+      // nothing links, the same outcome "no email" always had.
+      return { accountId: null };
+    } else if (schemaMissing(inserted.error)) {
+      return { accountId: null, migrationPending: true };
+    }
+    if (!accountId) throw new Error(`account create failed: ${inserted.error.message}`);
+  } else {
+    accountId = (inserted.data as { id: string }).id;
   }
   return { accountId };
+}
+
+/** An existing record learns a phone or an email it did not have. Never
+ *  overwrites — a stored value is the office's to change on the record. */
+async function fillBlanks(db: SupabaseClient, accountId: string, known: { email: string | null; phone: string | null; name: string | null }) {
+  const current = await db.from("accounts").select("email, phone, name").eq("id", accountId).maybeSingle();
+  const row = current.data as { email: string | null; phone: string | null; name: string | null } | null;
+  if (!row) return;
+  const patch: Record<string, string> = {};
+  if (!row.email && known.email) patch.email = known.email;
+  if (!row.phone && known.phone) patch.phone = known.phone;
+  if (!row.name && known.name) patch.name = known.name;
+  if (Object.keys(patch).length === 0) return;
+  // A unique-email collision here means the email belongs to ANOTHER account
+  // — a duplicate for the finder to surface, not something to fail a save on.
+  await db.from("accounts").update(patch).eq("id", accountId);
 }
 
 export async function ensureAccountAndProperty(

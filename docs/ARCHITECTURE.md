@@ -2203,3 +2203,36 @@ deferral (`applyConditionPricing`). Cupboards: `CUPBOARD_DOOR_INSIDE_BY_ROOM_TYP
 doors total), `applyCupboardsEverywhere` behind the sweep's two chips, and the room card renders
 the interior + door-inside questions. Policy: `asbestos_unsure` is a visit-tier flag;
 `guardrailWhy` puts the hand-off reason on the customer screen.
+
+## CRM v2 · Phase 1 — identity, the self-feeding event log, the facts layer (7 Sep 2026)
+
+Source: `docs/briefs/crm-v2-deep-dive.md` (the 7 Sep assessment Tom accepted in full). Phase 1 fixes the
+three faults every other phase reads through: identity, the event log, and how lists are computed.
+
+- **Identity is an email OR a phone** (migration 20270120). `accounts.email` is nullable; the constraint is
+  `accounts_reachable` (email or `phone_e164`). `phone_e164` is maintained by trigger through the one SQL
+  normaliser `phone_e164_au()`. `account_contacts` holds every person on an account; the account's own
+  name/email/phone are mirrored in as the primary row by trigger (one-way, so the account stays canonical).
+  `crm_find_account(email, phone)` is the one lookup, used by `lib/accounts/link.ts ensureAccount`, which
+  now accepts a phone-only enquiry and fills an existing record's blanks (never overwrites).
+  `crm_merge_accounts(keep, drop)` re-points every FK generically, fills blanks, logs `account_merged`;
+  `crm_duplicate_candidates(limit, account?)` finds pairs by phone / email / address.
+- **The event log feeds itself** (20270121). SECURITY DEFINER triggers on `estimates`, `estimate_views`,
+  `work_orders` and `invoices` write `estimate_sent · viewed · accepted · declined · lapsed`,
+  `job_started · completed`, `invoice_sent · paid` into `crm_events` with dedupe keys; history is backfilled.
+  App code no longer has to remember. `crm_lapse_estimates()` expires sent estimates past `valid_until`;
+  `estimate_lapsed` is a new event kind and a Today item (`estimate_lapsed`, "chase, re-send, or mark lost" —
+  decision 8.11, lapsed ≠ lost). `stage.ts` gained two lanes: `lapsed` and `lost`.
+  The append-only guard on `crm_events` allows exactly two updates: an FK unlink (SET NULL when the linked
+  estimate/WO/invoice is deleted) and the merge's account re-point under `crm.merge = on`.
+- **The facts layer** (20270122). `crm_account_facts` is the CACHED output of `cardFor`/`stageFor` per
+  account plus sort keys and counters. Not a stored status: triggers on the source tables mark rows
+  `stale`; `lib/crm/facts.ts` recomputes — after every CRM write (one account), for any stale row on the
+  page being shown, opportunistically on CRM reads (bounded batch, 30 s throttle), and in full from
+  `/api/cron/crm-sweep` (daily; `?rebuild=1` recomputes every row — 27,567 in 3.6 min on C1). The
+  Customers tab (list and board) reads it through SQL: search (`pg_trgm`), filter, sort, page, count.
+  `crm_board_counts()` / `crm_board_tiles()` give the chips and tiles. A logged call now counts as activity.
+
+Verification: `e2e/crm-p1-facts.spec.ts` (serial, 4 journeys on C1), `lib/crm/facts.test.ts`,
+`lib/crm/stage.test.ts`, `lib/crm/work-queue.test.ts`; manual test
+`docs/manual-tests/crm-v2-p1-identity-facts.md`.

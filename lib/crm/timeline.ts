@@ -85,6 +85,8 @@ const RENDER: Record<CrmEventType, { label: string; kind: TimelineRow["kind"]; d
   estimate_accepted: { label: "Estimate accepted", kind: "customer",
     detail: (p) => join(money(p.totalCents), p.depositCents ? `deposit ${money(p.depositCents)}` : "") },
   estimate_declined: { label: "Estimate declined", kind: "customer", detail: (p) => str(p.reason) },
+  estimate_lapsed: { label: "Estimate lapsed", kind: "system",
+    detail: (p) => join(money(p.totalCents), str(p.validUntil) && `valid until ${str(p.validUntil)}`, "not lost until someone says so") },
   visit_booked: { label: "Visit booked", kind: "activity",
     detail: (p) => join(str(p.when), str(p.who)) },
   visit_completed: { label: "Visit done", kind: "activity", detail: (p) => str(p.outcome) },
@@ -143,6 +145,8 @@ const RENDER: Record<CrmEventType, { label: string; kind: TimelineRow["kind"]; d
   // ---- attribution and offers ---------------------------------------------
   first_touch_recorded: { label: "First touch", kind: "system",
     detail: (p) => [str(p.source), str(p.detail)].filter(Boolean).join(" — ") },
+  account_merged: { label: "Merged a duplicate record", kind: "activity",
+    detail: (p) => join(str(p.droppedName), str(p.droppedEmail), str(p.droppedPhone)) },
   source_overridden: { label: "Source corrected", kind: "activity",
     detail: (p) => join(str(p.from) && str(p.to) ? `${str(p.from)} → ${str(p.to)}` : "", str(p.reason)) },
   offer_granted: { label: "Offer made", kind: "campaign",

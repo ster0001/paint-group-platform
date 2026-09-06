@@ -47,6 +47,8 @@ export const WORK_ITEM_KINDS = [
   "wizard_help",
   /** Buckets brief §4: priced, idle, nothing asked (C+). */
   "wizard_priced",
+  /** CRM v2 P1: a sent estimate passed its valid_until — chase or close? Lapsed is not lost (decision 8.11). */
+  "estimate_lapsed",
 ] as const;
 
 export type WorkItemKind = (typeof WORK_ITEM_KINDS)[number];
@@ -133,6 +135,7 @@ export const KIND_WEIGHT: Record<WorkItemKind, number> = {
   wizard_ready: 26,
   wizard_help: 28,
   wizard_priced: 12,
+  estimate_lapsed: 18,
 };
 
 export type PriorityInput = {
@@ -215,6 +218,7 @@ export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = 
   wizard_ready: "followups",
   wizard_help: "followups",
   wizard_priced: "followups",
+  estimate_lapsed: "followups",
 };
 
 // ---- source: snooze_expired (§3.3) -----------------------------------------
@@ -222,7 +226,7 @@ export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = 
 export type SnoozeAccountRow = {
   id: string;
   name: string | null;
-  email: string;
+  email: string | null;
   snoozed_until: string | null;
   followup_due_at: string | null;
   followup_note: string | null;
@@ -601,6 +605,52 @@ export function buildHandoffItems(rows: HandoffQueueRow[], now: Date, slaSeconds
   });
 }
 
+// ---- source: estimate_lapsed (CRM v2 P1, decision 8.11) --------------------
+
+export type LapsedEventRow = {
+  id: string; account_id: string; estimate_id: string | null; occurred_at: string;
+  payload: { totalCents?: number; sentAt?: string | null; validUntil?: string | null } | null;
+  /** The estimate as it is NOW: re-sent means the item is gone. */
+  estimates: { status: string; title: string | null; viewed_at: string | null } | null;
+};
+
+/**
+ * A quote lapsed and nobody has decided what that means. The item dies when
+ * somebody contacts the customer after the lapse, when the estimate is no
+ * longer expired (re-sent, accepted), or when it is dismissed with a reason.
+ * Due two days after the lapse — it is not urgent, it is a decision.
+ */
+export function buildLapsedItems(rows: LapsedEventRow[], attempts: ContactEventRow[], accountNames: Map<string, string>, now: Date): WorkItem[] {
+  const items: WorkItem[] = [];
+  for (const ev of rows) {
+    if (ev.estimates && ev.estimates.status !== "expired") continue;
+    const touched = attempts.some((a) => a.account_id === ev.account_id && a.occurred_at > ev.occurred_at);
+    if (touched) continue;
+    const who = accountNames.get(ev.account_id) ?? "A customer";
+    const cents = ev.payload?.totalCents ?? null;
+    const sentAt = ev.payload?.sentAt ?? null;
+    const sentDays = sentAt ? Math.floor((now.getTime() - new Date(sentAt).getTime()) / 86_400_000) : null;
+    const detail = [
+      cents != null && cents > 0 ? money(cents) : null,
+      sentDays != null ? `sent ${sentDays}d ago` : null,
+      ev.estimates?.viewed_at ? "was opened" : "never opened",
+      "chase, re-send, or mark lost",
+    ].filter(Boolean).join(" · ");
+    items.push(finish({
+      key: itemKey("estimate_lapsed", "estimate", ev.estimate_id ?? ev.id, "decide"),
+      kind: "estimate_lapsed",
+      accountId: ev.account_id,
+      subjectRef: { type: "estimate", id: ev.estimate_id ?? ev.id },
+      title: `${who}'s quote lapsed`,
+      detail,
+      since: ev.occurred_at,
+      dueAt: new Date(new Date(ev.occurred_at).getTime() + 2 * 86_400_000).toISOString(),
+      action: { label: "Decide", href: `/crm/customers/${ev.account_id}` },
+    }, { valueCents: cents, promisedToCustomer: false }, now));
+  }
+  return items;
+}
+
 // ---- the loader ------------------------------------------------------------
 
 /**
@@ -619,7 +669,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   const since90d = new Date(now.getTime() - 90 * 86_400_000).toISOString();
 
   const since30d = new Date(now.getTime() - 30 * 86_400_000).toISOString();
-  const [snoozeAcc, invoices, callbacks, queued, dismissed, changeReqs, handoffs, wizardRows] = await Promise.all([
+  const [snoozeAcc, invoices, callbacks, queued, dismissed, changeReqs, handoffs, wizardRows, lapsedEvents] = await Promise.all([
     supabase.from("accounts")
       .select("id, name, email, snoozed_until, followup_due_at, followup_note")
       .or(`snoozed_until.lte.${nowIso},followup_due_at.lte.${nowIso}`)
@@ -661,7 +711,26 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
       .gte("last_seen_at", since30d)
       .order("last_seen_at", { ascending: false })
       .limit(200),
+    // P1: quotes that lapsed in the last 60 days, with the estimate as it is now.
+    supabase.from("crm_events")
+      .select("id, account_id, estimate_id, occurred_at, payload, estimates(status, title, viewed_at)")
+      .eq("type", "estimate_lapsed")
+      .gte("occurred_at", new Date(now.getTime() - 60 * 86_400_000).toISOString())
+      .order("occurred_at", { ascending: false })
+      .limit(200),
   ]);
+  const lapsedRows = (lapsedEvents.error ? [] : (lapsedEvents.data ?? [])) as unknown as LapsedEventRow[];
+  const lapsedAccountIds = [...new Set(lapsedRows.map((r) => r.account_id).filter(Boolean))];
+  const [{ data: lapsedAttempts }, { data: lapsedAccounts }] = lapsedAccountIds.length
+    ? await Promise.all([
+        supabase.from("crm_events").select("account_id, occurred_at")
+          .in("type", ["call_connected", "call_no_answer", "message_left", "estimate_sent", "sms_reply"]).in("account_id", lapsedAccountIds)
+          .gte("occurred_at", new Date(now.getTime() - 60 * 86_400_000).toISOString()).limit(600),
+        supabase.from("accounts").select("id, name, email, phone").in("id", lapsedAccountIds),
+      ])
+    : [{ data: [] }, { data: [] }];
+  const lapsedNames = new Map(((lapsedAccounts ?? []) as Array<{ id: string; name: string | null; email: string | null; phone: string | null }>)
+    .map((a) => [a.id, a.name || a.email || a.phone || "A customer"]));
   const wzRows = (wizardRows.error ? [] : (wizardRows.data ?? [])) as unknown as WizardQueueRow[];
   const wzAccountIds = [...new Set(wzRows.map((r) => r.account_id).filter((x): x is string => Boolean(x)))];
   const { data: wzAttempts } = wzAccountIds.length
@@ -740,6 +809,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...buildChangeRequestItems(crRows, (staffReplies ?? []) as StaffReplyRow[], now),
     ...buildHandoffItems(((handoffs.error ? [] : handoffs.data) ?? []) as unknown as HandoffQueueRow[], now),
     ...buildWizardItems(wzRows, (wzAttempts ?? []) as ContactEventRow[], now),
+    ...buildLapsedItems(lapsedRows, (lapsedAttempts ?? []) as ContactEventRow[], lapsedNames, now),
   ];
 
   // Until migration 20261217 runs, the dismissals table doesn't exist and the

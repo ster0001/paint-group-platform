@@ -1,19 +1,17 @@
 import Link from "next/link";
-import { buildBoard } from "@/lib/crm/board";
-import type { CustomerInput } from "./data";
+import type { BoardData } from "./data";
 
 const money = (c: number) => "$" + Math.round(c / 100).toLocaleString("en-AU");
 const compact = (c: number) => (c >= 100_000_00 ? `$${Math.round(c / 100_000) / 10}k` : money(c));
 
 /**
  * The board — a view mode inside Customers (§2.1), not a destination. Nothing
- * here is stored: every card's lane comes from `stageFor`, which reads the
- * estimates, work orders and events. Which is why there is no drag handle on
- * a card, and why the header says so out loud.
+ * here is stored by hand: every card's lane comes from `stageFor`, cached per
+ * account in crm_account_facts (P1). Which is why there is no drag handle on
+ * a card, and why the header says so out loud. Each lane shows its top cards
+ * and its TRUE count; "N more" links to the list filtered to that lane's group.
  */
-export default function BoardView({ input }: { input: CustomerInput[] }) {
-  const board = buildBoard(input);
-
+export default function BoardView({ board, moreHref }: { board: BoardData; moreHref: (laneKey: string) => string }) {
   return (
     <>
       <div className="tiles">
@@ -31,10 +29,10 @@ export default function BoardView({ input }: { input: CustomerInput[] }) {
           <div className="lane" key={lane.key}>
             <div className="lanehead">
               <span className="lanename">{lane.label}</span>
-              <span className="lanecount mono">{lane.cards.length}</span>
+              <span className="lanecount mono">{lane.count}</span>
             </div>
             <div className="lanebar">
-              <i style={{ width: `${lane.cards.length === 0 ? 0 : Math.min(100, lane.cards.length * 18)}%` }} />
+              <i style={{ width: `${lane.count === 0 ? 0 : Math.min(100, lane.count * 18)}%` }} />
             </div>
 
             {lane.cards.length === 0 && <p className="laneempty">Nobody here</p>}
@@ -70,6 +68,12 @@ export default function BoardView({ input }: { input: CustomerInput[] }) {
                 {c.note && <span className="cnote">&ldquo;{c.note}&rdquo;</span>}
               </Link>
             ))}
+
+            {lane.count > lane.cards.length && (
+              <Link className="lanemore" href={moreHref(lane.key)}>
+                {lane.count - lane.cards.length} more in the list →
+              </Link>
+            )}
           </div>
         ))}
       </div>

@@ -56,6 +56,8 @@ export const CRM_EVENT_SCHEMAS = {
   estimate_revised: z.object({ revision: z.number().int().min(1), totalCents: money }),
   estimate_accepted: z.object({ totalCents: money, depositCents: money.optional() }),
   estimate_declined: z.object({ reason: shortText.optional() }),
+  /** CRM v2 P1: a sent estimate passed its valid_until (crm_lapse_estimates). Lapsed is not lost — decision 8.11. */
+  estimate_lapsed: z.object({ totalCents: money.optional(), sentAt: z.string().nullable().optional(), validUntil: z.string().nullable().optional() }),
   visit_booked: z.object({ when: z.string().max(40), who: z.string().max(80).optional() }),
   visit_completed: z.object({ outcome: shortText.optional() }),
   job_started: z.object({ workOrderNo: z.string().max(30).optional() }),
@@ -97,6 +99,8 @@ export const CRM_EVENT_SCHEMAS = {
   // ---- attribution --------------------------------------------------------
   first_touch_recorded: z.object({ source: z.string().max(40), detail: z.string().max(200).optional() }),
   source_overridden: z.object({ from: z.string().max(40), to: z.string().max(40), reason: shortText }),
+  /** CRM v2 P1: two records for one customer became one (crm_merge_accounts). Written on the KEPT account. */
+  account_merged: z.object({ droppedAccountId: z.string().uuid(), droppedEmail: z.string().nullable().optional(), droppedName: z.string().nullable().optional(), droppedPhone: z.string().nullable().optional(), moved: z.record(z.string(), z.number()).optional() }),
 
   // ---- offers made in a campaign, honoured on an estimate -----------------
   offer_granted: z.object({ offerKey: z.string().max(60), expiresAt: z.string().datetime(), valueCents: money.optional() }),

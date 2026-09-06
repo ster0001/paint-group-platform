@@ -4,6 +4,13 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { buildEvent, type CrmEventType } from "@/lib/crm/events";
+import { refreshAccountFacts } from "@/lib/crm/facts";
+
+/** P1: the card is cached (crm_account_facts); a write recomputes it before the page re-renders. */
+async function refreshFor(db: Awaited<ReturnType<typeof createClient>>, accountId: string | null | undefined) {
+  if (!accountId) return;
+  await refreshAccountFacts(db, [accountId]).catch(() => null);
+}
 
 /**
  * The Customer tab's writes. Every one goes through an RPC — the browser never
@@ -51,6 +58,7 @@ export async function logActivity(accountId: string, action: LoggableAction, tex
   const { error } = await supabase.rpc("crm_log_event", args);
   if (error) return { ok: false, message: error.message };
 
+  await refreshFor(supabase, accountId);
   revalidatePath("/crm", "layout");
   return { ok: true, message: WORDING[action] };
 }
@@ -60,6 +68,7 @@ export async function setTemperature(accountId: string, temperature: "hot" | "wa
   const supabase = await createClient();
   const { error } = await supabase.rpc("crm_set_temperature", { p_account_id: accountId, p_temperature: temperature });
   if (error) return { ok: false, message: error.message };
+  await refreshFor(supabase, accountId);
   revalidatePath("/crm", "layout");
   return { ok: true, message: `Marked ${temperature}.` };
 }
@@ -73,6 +82,7 @@ export async function snooze(accountId: string, days: number, reason: string): P
   const supabase = await createClient();
   const { error } = await supabase.rpc("crm_snooze", { p_account_id: accountId, p_until: until, p_reason: reason.trim() || null });
   if (error) return { ok: false, message: error.message };
+  await refreshFor(supabase, accountId);
   revalidatePath("/crm", "layout");
   return { ok: true, message: `Out of the way for ${days} day${days === 1 ? "" : "s"}.` };
 }
@@ -107,6 +117,7 @@ export async function dismissWorkItem(
         : error.message,
     };
   }
+  await refreshFor(supabase, accountId);
   revalidatePath("/crm", "layout");
   return { ok: true, message: days == null ? "Gone — and it's on the record why." : `Back in ${days} day${days === 1 ? "" : "s"}.` };
 }
@@ -119,6 +130,7 @@ export async function setFollowup(accountId: string, days: number, note: string)
   const supabase = await createClient();
   const { error } = await supabase.rpc("crm_set_followup", { p_account_id: accountId, p_due_at: due, p_note: note.trim() || null });
   if (error) return { ok: false, message: error.message };
+  await refreshFor(supabase, accountId);
   revalidatePath("/crm", "layout");
   return { ok: true, message: days === 0 ? "Reminder set for today." : `Reminder set for ${days} day${days === 1 ? "" : "s"} away.` };
 }

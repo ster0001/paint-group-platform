@@ -2,9 +2,13 @@
  * The board (session 2.3) — crm-board-mockup.html's lanes, counts and tiles.
  *
  * Pure assembly over `stageFor`: give it every customer's facts and it hands
- * back the seven lanes, the header line and the four tiles. The page does the
+ * back the lanes, the header line and the four tiles. The page does the
  * reading; this file does the deciding, so both are testable and neither is
  * a query buried in a component.
+ *
+ * CRM v2 P1: `cardFor` is the one card computation. `buildBoard` uses it for
+ * the in-memory board (tests, small sets); `lib/crm/facts.ts` uses it to fill
+ * `crm_account_facts`, which is what the Customers tab reads at volume.
  */
 
 import { draftCallVerdict, leftAgo } from "@/lib/wizard/progress";
@@ -53,6 +57,8 @@ export type BoardCard = {
   wantsCall: boolean;
   temperature: string | null;
   stage: StageResult["stage"];
+  /** When the customer entered the stage — P1, so the facts row can sort on it. */
+  since: string | null;
   flags: StageResult["flags"];
   needsYou: boolean;
   /** The chips the mockup puts under a card, already worded. */
@@ -76,7 +82,7 @@ export type Board = {
 };
 
 /** The mockup's warning chips, in the order it shows them. */
-function chipsFor(r: StageResult, snoozedUntil: string | null, now: Date): string[] {
+export function chipsFor(r: StageResult, snoozedUntil: string | null, now: Date): string[] {
   const out: string[] = [];
   if (r.flags.followupOverdue) out.push("Follow-up overdue");
   if (r.flags.chaseDue) out.push("Chase due");
@@ -96,7 +102,8 @@ function chipsFor(r: StageResult, snoozedUntil: string | null, now: Date): strin
 export function laneForBucket(bucket: string | null | undefined): LaneKey | null {
   switch (bucket) {
     case "online_now": return "online_now";
-    case "ready_call": case "ready_visit": return "wizard_ready";
+    case "ready_call":
+    case "ready_visit": return "wizard_ready";
     case "needs_help": return "wizard_help";
     case "dropped": return "wizard_dropped";
     case "priced_no_request": return "wizard_priced";
@@ -104,61 +111,67 @@ export function laneForBucket(bucket: string | null | undefined): LaneKey | null
   }
 }
 
+/** One customer → one card. The only place a card is computed. */
+export function cardFor(i: BoardInput, now: Date = new Date()): BoardCard {
+  const r = stageFor(i.facts, now);
+  // A live job outranks a sales call — nobody rings a customer mid-job to
+  // ask about an estimate they abandoned; and a session that saw its price
+  // is no longer a drop-out to chase for answers.
+  const verdict = i.draft && !i.draft.converted && r.stage !== "job_on"
+    ? draftCallVerdict(i.draft, i.draft.lastSeenAt, now)
+    : null;
+  const chips = chipsFor(r, i.facts.snoozedUntil, now);
+  if (verdict?.call) chips.unshift("Worth a call now");
+  // Tom, 6 Sep: an enquiry with a wizard session sits in that session's
+  // bucket lane. Anything further along (estimate sent, visit booked, job
+  // on…) keeps its lane and wears the bucket as a chip instead.
+  const bucketLane = laneForBucket(i.draft?.bucket);
+  const stage: StageResult["stage"] = bucketLane && r.stage === "enquiry_unfinished" ? bucketLane : r.stage;
+  if (i.draft?.bucket && i.draft.bucket !== "online_now" && stage !== bucketLane) {
+    chips.unshift(bucketPill(i.draft.bucket as WizardBucket, i.draft.jobType, i.draft.furthestPage ?? 1).label);
+  }
+  return {
+    accountId: i.accountId,
+    href: i.sessionId ? `/estimates?status=wizard&open=${i.sessionId}` : `/crm/customers/${i.accountId}`,
+    name: i.name,
+    meta: i.meta,
+    valueCents: i.valueCents,
+    source: i.source,
+    note: i.note,
+    // A drop-out's second line is its draft, not its (non-existent) quotes:
+    // "85% answered · left 2 hours ago" is what makes someone pick up the
+    // phone, and it is the mockup's own wording for this lane.
+    because: i.draft
+      ? (i.draft.pagesTotal
+          ? journeyLine({ furthestPage: i.draft.furthestPage ?? 1, pagesTotal: i.draft.pagesTotal, activeSeconds: i.draft.activeSeconds ?? 0, lastActiveAt: i.draft.lastSeenAt }, now)
+          : `${i.draft.progressPct}% answered · left ${leftAgo(i.draft.lastSeenAt, now)}`)
+      : r.because,
+    phone: i.phone,
+    callWhy: verdict?.why ?? [],
+    wantsCall: verdict?.call ?? false,
+    temperature: i.facts.temperature,
+    stage,
+    since: stage === r.stage ? r.since : (i.draft?.lastSeenAt ?? r.since),
+    flags: r.flags,
+    needsYou: needsYouToday(r) || (verdict?.call ?? false),
+    chips,
+  };
+}
+
+/** Inside a lane: whoever needs you first, then the biggest job. A board
+ *  sorted by date buries the $46k body corporate under six drop-outs. */
+export function laneOrder(a: BoardCard, b: BoardCard): number {
+  if (a.needsYou !== b.needsYou) return a.needsYou ? -1 : 1;
+  return (b.valueCents ?? 0) - (a.valueCents ?? 0);
+}
+
 export function buildBoard(input: BoardInput[], now: Date = new Date()): Board {
-  const cards: BoardCard[] = input.map((i) => {
-    const r = stageFor(i.facts, now);
-    // A live job outranks a sales call — nobody rings a customer mid-job to
-    // ask about an estimate they abandoned; and a session that saw its price
-    // is no longer a drop-out to chase for answers.
-    const verdict = i.draft && !i.draft.converted && r.stage !== "job_on"
-      ? draftCallVerdict(i.draft, i.draft.lastSeenAt, now)
-      : null;
-    const chips = chipsFor(r, i.facts.snoozedUntil, now);
-    if (verdict?.call) chips.unshift("Worth a call now");
-    // Tom, 6 Sep: an enquiry with a wizard session sits in that session's
-    // bucket lane. Anything further along (estimate sent, visit booked, job
-    // on…) keeps its lane and wears the bucket as a chip instead.
-    const bucketLane = laneForBucket(i.draft?.bucket);
-    const stage: StageResult["stage"] = bucketLane && r.stage === "enquiry_unfinished" ? bucketLane : r.stage;
-    if (i.draft?.bucket && i.draft.bucket !== "online_now" && stage !== bucketLane) {
-      chips.unshift(bucketPill(i.draft.bucket as WizardBucket, i.draft.jobType, i.draft.furthestPage ?? 1).label);
-    }
-    return {
-      accountId: i.accountId,
-      href: i.sessionId ? `/estimates?status=wizard&open=${i.sessionId}` : `/crm/customers/${i.accountId}`,
-      name: i.name,
-      meta: i.meta,
-      valueCents: i.valueCents,
-      source: i.source,
-      note: i.note,
-      // A drop-out's second line is its draft, not its (non-existent) quotes:
-      // "85% answered · left 2 hours ago" is what makes someone pick up the
-      // phone, and it is the mockup's own wording for this lane.
-      because: i.draft
-        ? (i.draft.pagesTotal
-            ? journeyLine({ furthestPage: i.draft.furthestPage ?? 1, pagesTotal: i.draft.pagesTotal, activeSeconds: i.draft.activeSeconds ?? 0, lastActiveAt: i.draft.lastSeenAt }, now)
-            : `${i.draft.progressPct}% answered · left ${leftAgo(i.draft.lastSeenAt, now)}`)
-        : r.because,
-      phone: i.phone,
-      callWhy: verdict?.why ?? [],
-      wantsCall: verdict?.call ?? false,
-      temperature: i.facts.temperature,
-      stage,
-      flags: r.flags,
-      needsYou: needsYouToday(r) || (verdict?.call ?? false),
-      chips,
-    };
-  });
+  const cards: BoardCard[] = input.map((i) => cardFor(i, now));
 
   const lanes = LANES.map((l) => ({
     key: l.key,
     label: l.label,
-    // Inside a lane: whoever needs you first, then the biggest job. A board
-    // sorted by date buries the $46k body corporate under six drop-outs.
-    cards: cards.filter((c) => c.stage === l.key).sort((a, b) => {
-      if (a.needsYou !== b.needsYou) return a.needsYou ? -1 : 1;
-      return (b.valueCents ?? 0) - (a.valueCents ?? 0);
-    }),
+    cards: cards.filter((c) => c.stage === l.key).sort(laneOrder),
   }));
 
   const openCards = cards.filter((c) => OPEN_LANES.includes(c.stage as LaneKey));
