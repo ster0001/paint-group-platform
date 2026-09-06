@@ -84,6 +84,7 @@ test("exterior: every item can be taken off, and there is no accept-online butto
   test.setTimeout(300_000);
   await page.goto("/estimate");
   await page.getByRole("button", { name: "Exterior", exact: true }).click();
+  await page.getByTestId("entry-upload").click(); // Phase 2: the way in is a card
   await page.getByPlaceholder(/listing URL/).fill("https://www.realestate.com.au/property-house-vic-murrumbeena-1400001");
   await page.getByPlaceholder("Suburb").fill("Murrumbeena");
   await page.getByPlaceholder("Postcode").fill("3163");

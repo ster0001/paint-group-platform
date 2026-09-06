@@ -1,5 +1,21 @@
 import { test, expect } from "@playwright/test";
+import { createClient } from "@supabase/supabase-js";
 import { driveNoPlanWizard, openScopeEditor } from "./drive";
+
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL; const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const db = url && key ? createClient(url, key) : null;
+// "Talk to a person" is refused outside support hours (a callback is offered instead) — the run must be inside them.
+const ALL_DAY = { timezone: "Australia/Melbourne", days: { mon: ["00:00", "23:59"], tue: ["00:00", "23:59"], wed: ["00:00", "23:59"], thu: ["00:00", "23:59"], fri: ["00:00", "23:59"], sat: ["00:00", "23:59"], sun: ["00:00", "23:59"] }, strongCoverageDays: [] };
+let savedHours: unknown = null;
+test.beforeAll(async () => {
+  if (!db) return;
+  const { data } = await db.from("agent_settings").select("support_hours").eq("tenant_key", "paint-group").maybeSingle();
+  savedHours = data?.support_hours ?? null;
+  await db.from("agent_settings").update({ support_hours: ALL_DAY }).eq("tenant_key", "paint-group");
+});
+test.afterAll(async () => {
+  if (db && savedHours) await db.from("agent_settings").update({ support_hours: savedHours }).eq("tenant_key", "paint-group");
+});
 
 /**
  * Tom, 7 Sep 2026 — the bottom-right chat on the customer's editor
@@ -9,6 +25,7 @@ import { driveNoPlanWizard, openScopeEditor } from "./drive";
  * person" hands the conversation off.
  */
 test("the chat widget answers about the estimate and hands off to a person", async ({ page }) => {
+  test.skip(!db, "service key needed (support hours)");
   test.setTimeout(300_000);
   await driveNoPlanWizard(page);
   await openScopeEditor(page);

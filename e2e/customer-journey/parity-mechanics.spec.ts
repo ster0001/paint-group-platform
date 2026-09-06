@@ -51,6 +51,7 @@ test("exterior: geometry chips + flag flip the tier; toasts carry $ amounts", as
   test.setTimeout(240_000);
   await page.goto("/estimate");
   await page.getByRole("button", { name: "Exterior", exact: true }).click();
+  await page.getByTestId("entry-upload").click(); // Phase 2: the way in is a card
   await page.getByPlaceholder(/listing URL/).fill("https://www.realestate.com.au/property-house-vic-murrumbeena-1400031");
   await page.getByPlaceholder("Suburb").fill("Murrumbeena");
   await page.getByPlaceholder("Postcode").fill("3163");
