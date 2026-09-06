@@ -79,33 +79,32 @@ test.describe("holding page + honest defaults", () => {
     const ctx = await browser.newContext({ ...devices["iPhone 13"] });
     const page = await ctx.newPage();
     await page.goto("/estimate");
-    await expect(page.getByText("Step 1 of 6", { exact: false })).toBeVisible();
+    await expect(page.getByText("Step 1 of 5", { exact: false })).toBeVisible(); // Phase 2: five interior steps
     await page.getByRole("button", { name: /There isn't a floorplan to hand/ }).click();
     await page.getByPlaceholder("Suburb").fill("Murrumbeena");
     await page.getByPlaceholder("Postcode").fill("3163");
     // Nothing pre-selected on the safety row.
     const heritageRow = page.locator(".wz-qhead", { hasText: "Heritage listed" }).locator("xpath=following-sibling::div[1]");
     await expect(heritageRow.locator("button.on")).toHaveCount(0);
-    await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByRole("button", { name: /Continue|Nearly there/ }).click();
     await expect(page.locator(".wz-err")).toContainText(/Heritage listed/);
     await heritageRow.getByRole("button", { name: "No", exact: true }).click();
-    await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.getByText("Step 2 of 6", { exact: false })).toBeVisible();
-    await page.getByRole("button", { name: "Continue" }).click(); // → condition
-    await page.getByRole("button", { name: "Continue" }).click(); // → details
-    await expect(page.getByText("Step 4 of 6", { exact: false })).toBeVisible();
-    await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByRole("button", { name: /Continue|Nearly there/ }).click();
+    await expect(page.getByText("Step 2 of 5", { exact: false })).toBeVisible();
+    await page.getByRole("button", { name: /Continue|Nearly there/ }).click(); // → condition
+    await page.getByRole("button", { name: /Continue|Nearly there/ }).click(); // → details
+    await expect(page.getByText("Step 4 of 5", { exact: false })).toBeVisible();
+    await page.getByRole("button", { name: /Continue|Nearly there/ }).click();
     await expect(page.locator(".wz-err")).toContainText(/built before 1970/);
     const preRow = page.locator(".wz-qhead", { hasText: /built before 1970/ }).locator("xpath=following-sibling::div[1]");
     await preRow.getByRole("button", { name: "No", exact: true }).click();
-    await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByRole("button", { name: /Continue|Nearly there/ }).click();
     await expect(page.locator(".wz-err")).toContainText(/asbestos/i);
     const asbRow = page.locator(".wz-qhead", { hasText: /asbestos/ }).locator("xpath=following-sibling::div[1]");
     await asbRow.getByRole("button", { name: "No", exact: true }).click();
-    await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.getByText("Step 5 of 6", { exact: false })).toBeVisible();
-    await page.getByRole("button", { name: "Nearly there" }).click();
-    await expect(page.getByText("Step 6 of 6", { exact: false })).toBeVisible();
+    await page.getByRole("button", { name: /Continue|Nearly there/ }).click();
+    await expect(page.getByText("Step 5 of 5", { exact: false })).toBeVisible();
+    await expect(page.getByText("Who should we send your estimate to?")).toBeVisible();
     await ctx.close();
   });
 

@@ -14,8 +14,8 @@ test("Both job: interior cards then sides, combined progress, single visit CTA",
   test.setTimeout(300_000);
   await page.goto("/estimate");
   await page.getByRole("button", { name: "Both", exact: true }).click();
+  // Phase 2: "Answer a few questions" sizes the inside from the basics AND the outside from the answers.
   await page.getByRole("button", { name: /There isn't a floorplan to hand/ }).click();
-  await page.getByPlaceholder(/listing URL/).fill("https://www.realestate.com.au/property-house-vic-murrumbeena-1400051");
   await page.getByPlaceholder("Suburb").fill("Murrumbeena");
   await page.getByPlaceholder("Postcode").fill("3163");
   const answer = async (heading: string | RegExp, label: string) => {
@@ -36,8 +36,7 @@ test("Both job: interior cards then sides, combined progress, single visit CTA",
   await next(); // details
   await answer(/built before 1970/, "No");
   await answer(/asbestos/, "No"); // Phase 0: unanswered until tapped
-  await next(); // paint
-  await next(); // → contact, the LAST page (Tom, 31 Aug)
+  await next(); // → contact, the LAST page — paint preferences ride it (Phase 2)
   await fillContactStep(page, `e2e-both-${Date.now()}@example.com`);
   await page.getByRole("button", { name: "See my estimate" }).click();
   // 28 Aug: the wizard lands straight in the confirm-loop editor.

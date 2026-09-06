@@ -43,13 +43,13 @@ test.describe("save-and-return", () => {
     await page.getByRole("button", { name: "4", exact: true }).click(); // bedrooms
     await page.locator(".wz-qhead", { hasText: "Heritage listed" }).locator("xpath=following-sibling::div[1]").getByRole("button", { name: "No", exact: true }).click();
     await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.getByText("Step 2 of 6", { exact: false })).toBeVisible();
+    await expect(page.getByText("Step 2 of 5", { exact: false })).toBeVisible();
     await page.getByRole("button", { name: "Windows", exact: true }).click(); // an extra tick
     await page.waitForTimeout(800); // the browser copy is written a beat after the change
 
     await page.reload();
     await expect(page.getByTestId("wz-resume")).toContainText(/you were at Surfaces/);
-    await expect(page.getByText("Step 2 of 6", { exact: false })).toBeVisible();
+    await expect(page.getByText("Step 2 of 5", { exact: false })).toBeVisible();
     await expect(page.getByRole("button", { name: /^Windows/ })).toHaveClass(/\bon\b/);
     await page.getByRole("button", { name: "Back" }).click();
     await expect(page.getByPlaceholder("Suburb")).toHaveValue("Murrumbeena");

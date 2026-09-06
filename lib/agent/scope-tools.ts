@@ -203,8 +203,15 @@ export class ScopeTools implements ToolExecutor {
     if (!this.handoffs) return this.fallback.execute("request_handoff", i, ctx);
     const now = this.now();
     const hours = supportHoursState(this.settings.supportHours, now);
-    if (!hours.open) return refused(CLOSED_TEXT(hours.nextOpening));
     const reason = String(i.reason ?? "customer_asked");
+    // Phase 4 (6 Sep plan): the closed script is for someone who ASKED for a
+    // person. Anything else outside hours gets one quiet line, not the
+    // "we're closed" speech (which a price question once earned, twice).
+    if (!hours.open) {
+      return refused(reason === "customer_asked"
+        ? CLOSED_TEXT(hours.nextOpening)
+        : "No one is on right now — keep going here and a person picks it up when we open.");
+    }
     const h = await this.handoffs.requestHandoff(ctx.conversationId, reason);
     const { onDuty } = onDutyNumbers(this.settings.supportHours, now);
     if (this.notify && onDuty.length) {

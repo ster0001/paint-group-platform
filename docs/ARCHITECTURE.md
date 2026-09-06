@@ -2030,3 +2030,51 @@ the portal Home's "Keep shaping my estimate" (`lib/portal/home.ts`, wizard-built
 only) and the saved-estimate magic link (now `next=/estimate/scope?id=…`) reopen the
 editor on any device. Journey specs: `holding-and-honest-defaults.spec.ts`,
 `save-and-return.spec.ts` (anonymous customer, phone viewport).
+
+## Estimator plan · Phase 2 — the simpler form (7 Sep 2026)
+
+WizardApp's pages are a LIST per job type (`pageKeys`), not numbers: customer interior =
+Property · Surfaces · Condition (coats + damage on one page) · Details · Your details (contact
++ paint preferences embedded); customer exterior = Property · House · Scope · Condition ·
+Extras · Your details; staff and members whose details are known keep a Paint page instead of
+the contact page. `pageBlocker` gates by page key. Page 1 asks the property questions first,
+then **"How would you like to do this?"** — three cards (`EntryChoice`: describe · questions ·
+upload; `entryPatch`/`entryFromState` keep the choice and the state in step, also across a
+job-type switch and a resumed walk). "Describe it" is the assistant's build-from-brief,
+promoted from a textarea above the form. `lib/wizard/journey.ts` page labels follow.
+**Styles in the editor:** `lib/wizard/styles.ts` is the ONE door/window style swap
+(assumed-style lines only; the assistant's scope-doc mirrors it); wizard-edit actions
+`set_door_style` / `set_window_style` swap the rate codes, clear the amber deferral and
+write the answer into the wizard snapshot; ScopeEditor shows an "A few details to settle"
+card (doors, windows, ceiling height via `confirm_height`) while any is open, the amber list
+now reads the LIVE payload, and a "Last change: …" line sits under the sticky range.
+**Size band:** `starter.ts SIZE_BAND_FACTOR` scales typical L×W by "Roughly how big"
+(0.9 / 1 / 1.15; calibrate from the Proving tags), plumbed through build-tree, the submit
+route and add_room. Sides editor shows its range once. Journey spec:
+`simpler-form.spec.ts`; drive.ts and the inline specs lost the paint step.
+
+## Estimator plan · Phase 3, first pieces (7 Sep 2026)
+
+**Correction tags:** `lib/wizard/correction.ts` (reasons, `correctionFrom`, `correctionBreakdown`)
+stored at `builder_state.wizard.correction` by the staff server action
+`app/(app)/proving/actions.ts` (read-merge-write of the jsonb; no migration); the Proving page
+shows a "Why staff corrected them" panel and a per-row `CorrectionTags` control. **Extra rooms:**
+`basicsSchema` gained optional `bathrooms / separateToilet / garage / study`; `starterRoomList`
+adds Ensuite / Bathroom N / WC / Study / Garage; the quick basics ask them. **Footprint band:**
+`exterior.sizeBand` (optional) scales the 12 m / 14 m typical side lengths in
+`applyExteriorAnswers` by `SIZE_BAND_FACTOR`; read measurements still win. All three are
+starting values the correction tags are meant to calibrate.
+
+## Estimator plan · Phase 4, first pieces — the assistant (7 Sep 2026)
+
+Three fixes for the failure recorded on 6 Sep (a full paragraph brief answered with "We're
+closed right now… I need at least the suburb or postcode"): (1) `lib/wizard/addressText.ts`
+parses a typed AU address line; `scope-doc` `q.address` accepts a string as well as the
+structured fields. (2) The guided system prompt (`lib/agent/turn.ts buildSystemPrompt`) now
+says: record EVERY fact a message contains (one `answer_gap` per fact) before asking the ONE
+question `next_gap` returns; a price question is a normal question, never a stop or a
+handoff; never volunteer opening hours or callbacks. (3) `scope-tools.requestHandoff` returns
+the "we're closed" script only when the reason is `customer_asked`; any other out-of-hours
+handoff attempt gets one quiet line. Model tier is DATA (`agent_settings.model_default`) —
+Tom's ruling is the Sonnet-class model for customer chat; SQL in the manual test. Streaming
+replies and a real-model regression eval remain open.

@@ -144,6 +144,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   const [booked, setBooked] = useState<string | null>(null);
   const [busyKeys, setBusyKeys] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<string | null>(null);
+  /** Phase 2 (6 Sep plan): the last thing that moved the range, kept under it. */
+  const [lastChange, setLastChange] = useState<string | null>(null);
   const [flash, setFlash] = useState(0);
   const [openPanel, setOpenPanel] = useState<Set<number>>(new Set());
   const [advice, setAdvice] = useState<{ areaId: number; key: string } | null>(null);
@@ -171,9 +173,19 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
     setPendingAdds((p) => ({ ...p, [areaId]: (p[areaId] ?? []).filter((l) => l !== label) }));
 
   const mid = (payload.rangeLoCents + payload.rangeHiCents) / 2;
+  // Phase 2 (6 Sep plan): the styles the wizard left "Not sure" are answerable
+  // here — the amber lines used to sit at the top with no control behind them.
+  const styleOpen = {
+    doors: payload.confirmOnSite.some((n) => /door style to confirm/.test(n)),
+    windows: payload.confirmOnSite.some((n) => /window style to confirm/.test(n)),
+  };
+  const styleChip = (label: string, body: Record<string, unknown>, said: string) => (
+    <button key={label} className="sd-chip il-chip" onClick={() => act(body, `style:${label}`, () => said)}>{label}</button>
+  );
 
   function say(message: string) {
     setToast(message);
+    if (/[$—]/.test(message)) setLastChange(message);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 3200);
   }
@@ -567,9 +579,44 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         {/* R1.3 lives HERE now the interstitial result screen is gone
             (Tom, 28 Aug): anything the reads couldn't settle is an amber
             trace the customer sees — never silence. */}
-        {initial.confirmOnSite.length > 0 && (
+        {(styleOpen.doors || styleOpen.windows || payload.heightUnconfirmed) && (
+          <section className="sc-rc il-card amber sc-details" data-card="details" data-testid="details-card">
+            <div className="sc-hd il-hd"><b>A few details to settle</b><span className="il-pill">TIGHTENS YOUR RANGE</span></div>
+            {styleOpen.doors && (
+              <div className="il-q">
+                <p className="il-ql">The doors — mostly panelled, or flat?</p>
+                <div className="sc-chips">
+                  {styleChip("Panel", { action: "set_door_style", style: "panel" }, "Panel doors — every door is priced at the panel rate now")}
+                  {styleChip("Flat", { action: "set_door_style", style: "flat" }, "Flat doors — every door is priced at the flat rate now")}
+                </div>
+              </div>
+            )}
+            {styleOpen.windows && (
+              <div className="il-q">
+                <p className="il-ql">The windows — which type, mostly?</p>
+                <div className="sc-chips">
+                  {styleChip("Casement", { action: "set_window_style", style: "casement" }, "Casement windows — priced at the casement rate now")}
+                  {styleChip("Sash", { action: "set_window_style", style: "sash" }, "Sash windows — priced at the sash rate now")}
+                  {styleChip("Colonial", { action: "set_window_style", style: "colonial" }, "Colonial windows — priced at the colonial rate now")}
+                  {styleChip("Winder", { action: "set_window_style", style: "winder" }, "Winder windows — priced at the awning rate now")}
+                </div>
+              </div>
+            )}
+            {payload.heightUnconfirmed && (
+              <div className="il-q">
+                <p className="il-ql">Ceiling height — approximate is fine.</p>
+                <div className="sc-chips">
+                  {styleChip("2.4 m", { action: "confirm_height", heightM: 2.4 }, "Ceilings at 2.4 m — every room repriced at that height")}
+                  {styleChip("2.7 m", { action: "confirm_height", heightM: 2.7 }, "Ceilings at 2.7 m — every room repriced at that height")}
+                  {styleChip("3 m+", { action: "confirm_height", heightM: 3 }, "Ceilings at 3 m — every room repriced at that height")}
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+        {payload.confirmOnSite.length > 0 && (
           <p className="wz-note wz-confirmonsite" style={{ margin: "14px 0 0" }}>
-            {initial.confirmOnSite.map((n, i) => <span key={i}>⚑ {n}<br /></span>)}
+            {payload.confirmOnSite.map((n, i) => <span key={i}>⚑ {n}<br /></span>)}
           </p>
         )}
         <div className="sc-cols">
@@ -988,6 +1035,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
 
       <div className="sc-stick">
         <div className={`sc-tier ${selfServe && !accepted && !booked ? "" : "visit"}`}><i />{tierLine}</div>
+        {lastChange && <div className="sc-lastchange" data-testid="last-change">Last change: {lastChange}</div>}
         <div className="sc-row">
           <div className="sc-pr"><small>ESTIMATE · INCL. GST</small><span>{rangeText}</span></div>
           <div className="sc-sp" />

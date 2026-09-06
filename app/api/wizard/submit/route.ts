@@ -190,6 +190,7 @@ export async function POST(request: Request) {
     const x = starterExtraction(list, typicals, {
       heightM: height.assumed ? null : height.heightM,
       bedrooms: state.basics.bedrooms,
+      sizeBand: state.basics.sizeBand,
     });
     const draft = buildDraft(x, rules, aliases, { startId: nextId, defectRates });
     markStarterProvenance(draft.areas);

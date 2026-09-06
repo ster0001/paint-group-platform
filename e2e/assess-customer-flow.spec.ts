@@ -86,8 +86,7 @@ test("walk the customer flow and record reality", async ({ page }) => {
       } catch { console.log("photo stub present but no file chooser opened"); }
     } else console.log("NO damage-photo control on page 4");
   }
-  await next(); // paint
-  await next(); // contact page (customer mode — the LAST question since 31 Aug)
+  await next(); // contact page — paint preferences ride it (Phase 2)
   const contact = page.locator(".wz-crow input");
   if (await contact.count()) {
     await contact.nth(0).fill("Assess Tester");

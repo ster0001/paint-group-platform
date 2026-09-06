@@ -16,6 +16,7 @@ import { MONEY_RANGE, fillContactStep } from "./drive";
 async function driveExteriorWizard(page: Page) {
   await page.goto("/estimate");
   await page.getByRole("button", { name: "Exterior", exact: true }).click();
+  await page.getByTestId("entry-upload").click(); // Phase 2: the way in is a card
   await page.getByPlaceholder(/listing URL/).fill("https://www.realestate.com.au/property-house-vic-murrumbeena-1400002");
   await page.getByPlaceholder("Suburb").fill("Murrumbeena");
   await page.getByPlaceholder("Postcode").fill("3163");

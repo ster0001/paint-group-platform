@@ -63,6 +63,7 @@ export function buildTreeFromState(
     const x = starterExtraction(list, refs.typicals, {
       heightM: height.assumed ? null : height.heightM,
       bedrooms: state.basics.bedrooms,
+      sizeBand: state.basics.sizeBand,
     });
     const draft = buildDraft(x, refs.rules, refs.aliases, { startId: nextId, defectRates: refs.defectRates });
     nextId = Math.max(nextId, ...draft.areas.flatMap((a) => [a.id, ...a.surfaces.map((s) => s.id)]), 0) + 1;

@@ -22,6 +22,7 @@ test("R2 exterior journey: five exterior pages, no interior questions, priced by
 
   // Page 1 — exterior with a listing as the visual evidence.
   await page.getByRole("button", { name: "Exterior", exact: true }).click();
+  await page.getByTestId("entry-upload").click(); // Phase 2: the way in is a card
   await page.getByPlaceholder(/listing URL/).fill("https://www.realestate.com.au/property-house-vic-murrumbeena-1400001");
   await page.getByPlaceholder("Suburb").fill("Murrumbeena");
   await page.getByPlaceholder("Postcode").fill("3163");
@@ -72,15 +73,16 @@ test("R2 exterior journey: five exterior pages, no interior questions, priced by
   await expect(page.getByText(/No access equipment costs are included/i)).toBeVisible();
   await expect(page.getByText(/your estimator will confirm/i)).toBeVisible();
 
-  // Page 5 — extras + paint prefs.
+  // Page 5 — extras.
   await next();
   await expect(page.getByText(/Anything else out there|extras/i).first()).toBeVisible();
-  await expect(page.locator(".wz-step")).toContainText(/Dulux|Haymes/);
 
-  // The contact page (the LAST question) → submit → a priced result by sides.
+  // The contact page (the LAST question) carries the paint preferences now
+  // (Phase 2) → submit → a priced result by sides.
   await next();
   const contact = page.locator(".wz-crow input");
   await expect(contact.first()).toBeVisible();
+  await expect(page.locator(".wz-step")).toContainText(/Dulux|Haymes/);
   await contact.nth(0).fill("E2E Exterior");
   await contact.nth(1).fill(`e2e-exterior-${Date.now()}@example.com`);
   await contact.nth(2).fill("0400 000 222");

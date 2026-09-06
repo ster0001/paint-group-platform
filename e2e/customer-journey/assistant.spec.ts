@@ -107,6 +107,8 @@ async function converse(page: Page, s: Script, opts: { stopAt?: (key: string) =>
 
 async function startAssistant(page: Page) {
   await page.goto("/estimate");
+  await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
+  await page.getByTestId("entry-describe").click(); // Phase 2: the chat link sits behind the Describe card
   const entry = page.getByTestId("chat-it");
   await expect(entry).toBeEnabled({ timeout: 30_000 });
   await entry.click();

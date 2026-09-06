@@ -36,6 +36,7 @@ export const FALLBACK_TYPICALS: Record<string, { L: number; W: number }> = {
   hallway: { L: 6.0, W: 2.0 },
   wc: { L: 1.25, W: 1.0 },
   garage: { L: 6.0, W: 4.0 },
+  study: { L: 3.0, W: 3.0 },
 };
 
 export function typicalSize(roomType: string, rows: TypicalSizeRow[]): { L: number; W: number } {
@@ -101,11 +102,19 @@ export function starterRoomList(basics: WizardBasics): StarterRoom[] {
     rooms.push({ name: "Kitchen / Meals", roomType: "kitchen", storey: "Ground" });
   }
   rooms.push({ name: "Bathroom", roomType: "bathroom", storey: up });
+  // Phase 3 (6 Sep plan): three taps instead of assumptions — the second
+  // bathroom is the ensuite, then WC, garage and study when ticked.
+  for (let i = 2; i <= Math.min(4, basics.bathrooms ?? 1); i++) {
+    rooms.push({ name: i === 2 ? "Ensuite" : `Bathroom ${i}`, roomType: "bathroom", storey: up });
+  }
+  if (basics.separateToilet) rooms.push({ name: "WC", roomType: "wc", storey: "Ground" });
+  if (basics.study) rooms.push({ name: "Study", roomType: "study", storey: "Ground" });
   rooms.push({ name: "Laundry", roomType: "laundry", storey: "Ground" });
   rooms.push({ name: "Hall & Entry", roomType: "hallway", storey: "Ground" });
   if (basics.storeys === "double") {
     rooms.push({ name: "Landing & stairs", roomType: "hallway", storey: "First" });
   }
+  if (basics.garage) rooms.push({ name: "Garage", roomType: "garage", storey: "Ground" });
   return rooms;
 }
 
@@ -149,11 +158,22 @@ const unknownWindow = {
  * it exists only so the starter list and a real plan go through the same
  * stage-5 drafting code.
  */
+/**
+ * Phase 2 (6 Sep plan): "Roughly how big?" scales the typical room sizes.
+ * The typicals describe a 120–200 m² home; a smaller home's rooms are
+ * smaller, a bigger home's bigger. Applied to length AND width, so the
+ * floor area moves by the square (0.81× / 1.32×). Starting values — the
+ * Proving window's correction tags calibrate them.
+ */
+export const SIZE_BAND_FACTOR: Record<string, number> = { lt120: 0.9, s120_200: 1, gt200: 1.15, unsure: 1 };
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 export function starterExtraction(
   rooms: StarterRoom[],
   typicals: TypicalSizeRow[],
-  opts: { heightM: number | null; bedrooms: number },
+  opts: { heightM: number | null; bedrooms: number; sizeBand?: string | null },
 ): Extraction {
+  const sizeFactor = SIZE_BAND_FACTOR[opts.sizeBand ?? "unsure"] ?? 1;
   const storeys = [...new Set(rooms.map((r) => r.storey))].map((label) => ({
     label,
     kind: label === "First" ? ("first" as const) : ("ground" as const),
@@ -171,8 +191,8 @@ export function starterExtraction(
         name_on_plan: r.name,
         normalised_type: r.roomType as Extraction["rooms"][number]["normalised_type"],
         storey: r.storey,
-        length_m: size.L,
-        width_m: size.W,
+        length_m: round2(size.L * sizeFactor),
+        width_m: round2(size.W * sizeFactor),
         dimension_source: "derived" as const,
         dimension_confidence: 0.5,
         area_m2_printed: null,

@@ -596,3 +596,8 @@
 /* Phase 1 (6 Sep plan): the welcome-back line on a resumed walk. */
 .wz .wz-resume { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; margin: 0 0 16px; padding: 11px 14px; border: 1px solid var(--cyan); border-radius: 10px; background: rgba(59,216,233,.07); font-family: var(--wz-sans); font-size: 13.5px; color: var(--text); }
 .wz .wz-resume .wz-linkish { margin: 0; font-size: 13.5px; }
+
+/* Phase 2 (6 Sep plan): the details-to-settle card and the "what moved" line. */
+.wz .sc-details { margin: 14px 0 0; }
+.wz .sc-details .il-q { margin-top: 10px; }
+.wz .sc-lastchange { font-family: var(--wz-mono); font-size: 10.5px; letter-spacing: .06em; color: var(--muted); margin: 6px 0 0; }

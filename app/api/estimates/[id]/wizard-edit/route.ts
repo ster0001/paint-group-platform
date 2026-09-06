@@ -10,6 +10,7 @@ import { SCOPE_VERSION, type Alias, type ScopeRule } from "@/lib/extract/scope";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { applyWizardAnswers } from "@/lib/wizard/merge";
 import { wizardStateSchema } from "@/lib/wizard/state";
+import { applyDoorStyle, applyWindowStyle, DOOR_STYLE_DEFERRAL, WINDOW_STYLE_DEFERRAL } from "@/lib/wizard/styles";
 import { markStarterProvenance, starterExtraction, type TypicalSizeRow, FENCE_CODE, FENCE_TYPE_LABEL } from "@/lib/wizard/starter";
 import {
   applyCount, applyDoorScope, applyExtent, applyExteriorToggle, applyFenceLength, applyRename, applyToggle, applyWallsShare,
@@ -63,6 +64,11 @@ export const maxDuration = 30;
 
 const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("confirm_height"), heightM: z.number().min(2).max(6) }),
+  /** Phase 2 (6 Sep plan): the door / window style left "Not sure" in the
+   * wizard is answerable in the editor — every assumed-style line swaps to
+   * the answered rate; the amber flag clears. */
+  z.object({ action: z.literal("set_door_style"), style: z.enum(["flat", "panel"]) }),
+  z.object({ action: z.literal("set_window_style"), style: z.enum(["casement", "sash", "colonial", "winder"]) }),
   z.object({
     action: z.literal("confirm_room"),
     areaId: z.number().int().positive(),
@@ -313,6 +319,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       storeyHeights = Object.fromEntries((storeys.length ? storeys : ["ground"]).map((s) => [s, act.heightM]));
     }
 
+    if (act.action === "set_door_style" || act.action === "set_window_style") {
+      const r = act.action === "set_door_style"
+        ? applyDoorStyle(blocks, act.style, stampOrigin)
+        : applyWindowStyle(blocks, act.style, stampOrigin);
+      if ("error" in r) return { error: r.error, status: 400 };
+      blocks = r.blocks;
+      const gone = act.action === "set_door_style" ? DOOR_STYLE_DEFERRAL : WINDOW_STYLE_DEFERRAL;
+      newDeferred = newDeferred.filter((d) => d.what !== gone);
+      // The wizard snapshot remembers the answer, so a later re-merge (add_room)
+      // builds new rooms at the answered style too.
+      const wiz = state.wizard as { state?: { details?: Record<string, unknown> } } | undefined;
+      if (wiz?.state?.details) wiz.state.details[act.action === "set_door_style" ? "doorStyle" : "windowStyle"] = act.style;
+    }
+
     if (act.action === "confirm_room") {
       const idx = blocks.findIndex((b) => b.kind === "area" && Number(b.id) === act.areaId);
       if (idx < 0) return { error: "No such room.", status: 404 };
@@ -365,7 +385,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const x = starterExtraction(
         [{ name, roomType: act.roomType, storey: "Ground" }],
         typicals,
-        { heightM, bedrooms: 0 },
+        // The wizard's size band, if this tree came from the quick basics.
+        { heightM, bedrooms: 0, sizeBand: ((state.wizard as { state?: { basics?: { sizeBand?: string } | null } } | undefined)?.state?.basics?.sizeBand) ?? null },
       );
       const draft = buildDraft(x, rules, (aliasRows ?? []) as Alias[], { startId: next });
       markStarterProvenance(draft.areas);

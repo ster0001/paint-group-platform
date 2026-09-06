@@ -23,6 +23,7 @@ test.describe("R1.3 document model", () => {
     await page.goto("/estimate");
 
     // The input is single-file at the DOM level, not just by convention.
+    await page.getByTestId("entry-upload").click(); // Phase 2: the way in is a card
     const [chooserA] = await Promise.all([
       page.waitForEvent("filechooser"),
       page.getByRole("button", { name: /Upload a floorplan/ }).click(),
@@ -48,9 +49,11 @@ test.describe("R1.3 document model", () => {
     await page.goto("/estimate");
     await page.getByRole("button", { name: "Exterior", exact: true }).click();
 
+    await page.getByTestId("entry-upload").click(); // Phase 2: the way in is a card
     await expect(page.getByRole("button", { name: /Upload a floorplan/ })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /floorplan to hand/ })).toHaveCount(0);
     // The facade intake is what exterior offers instead.
+    await page.getByTestId("entry-upload").click(); // Phase 2: the way in is a card
     await expect(page.getByRole("button", { name: /Add facade photos/ })).toBeVisible();
   });
 
@@ -82,18 +85,17 @@ test.describe("R1.3 document model", () => {
       if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
     };
     await next(); // → page 2: surfaces
-    await next(); // condition
-    await next(); // details
-    await answer(/built before 1970/, "No");
-    await answer(/asbestos/, "No"); // Phase 0: unanswered until tapped
+    await next(); // condition — damage lives here now (Phase 2)
     await page.getByRole("button", { name: /a few areas of concern/i }).click();
     const [chooser] = await Promise.all([
       page.waitForEvent("filechooser"),
       page.locator(".wz-photo-stub").click(),
     ]);
     await chooser.setFiles(`${FIXTURES}/condition-photo.png`);
-    await next(); // paint
-    await next(); // → contact, the LAST page (Tom, 31 Aug)
+    await next(); // details
+    await answer(/built before 1970/, "No");
+    await answer(/asbestos/, "No"); // Phase 0: unanswered until tapped
+    await next(); // → contact, the LAST page — paint preferences ride it (Phase 2)
     await fillContactStep(page, `e2e-docmodel-${Date.now()}@example.com`);
     await page.getByRole("button", { name: "See my estimate" }).click();
     // 28 Aug: straight into the editor — the amber trace lives there now.
