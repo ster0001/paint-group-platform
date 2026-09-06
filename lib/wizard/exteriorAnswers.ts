@@ -169,6 +169,9 @@ export const INTERIOR_POOR_MODIFIER_CODE = "COND-POOR";
  * Returns the modSel patch for builder_state; mutates merged.areas (the
  * allowance line) and merged.deferred (fallbacks) in place.
  */
+/** The Staging modifier for a lived-in home (rate card v7 seed). */
+export const OCCUPIED_MODIFIER_CODE = "STG-OCCUPIED";
+
 export function applyConditionPricing(
   merged: MergedBundle,
   state: WizardState,
@@ -226,6 +229,21 @@ export function applyConditionPricing(
     if (mod) candidates.push(mod);
     // No fallback deferral: tier ≥ 2 already demands photos, which raise
     // their own damage-to-price deferral through the defect reader.
+  }
+
+  // Tom, 7 Sep 2026: a lived-in home is set up and packed down every day —
+  // the Staging modifier prices it. Coverings may not be able to stay down
+  // between visits, so the price can still move; the deferral says so on the
+  // estimate and the estimator talks it through before anything is fixed.
+  if (state.jobType !== "exterior" && state.details.occupied === "yes") {
+    const mod = findMod(OCCUPIED_MODIFIER_CODE);
+    if (mod) modSel.Staging = mod.code;
+    merged.deferred.push({
+      room: "Whole job", areaId: null, what: "living there while we paint", count: 1,
+      needs: mod
+        ? "daily set-up and pack-down is allowed for; the price may vary depending on whether our coverings can stay down between visits — we'll talk it through with you"
+        : "daily set-up and pack-down to allow for — confirm at review",
+    });
   }
 
   // One Condition slot in modSel — the worst case wins, per Tom's ruling.

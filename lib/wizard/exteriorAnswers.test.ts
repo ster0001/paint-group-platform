@@ -155,3 +155,20 @@ test("a 200+ footprint stretches the 12/14 m typicals; a read measurement still 
   applyExteriorAnswers(small, exteriorState({ sizeBand: "lt120" }), (() => { let n = 1; return () => n++; })(), new Set(["weatherboards"]));
   assert.equal(small.areas.find((a) => /rear/i.test(a.name))!.L, 10.8); // 12 × 0.9
 });
+
+// ---- Tom, 7 Sep 2026: a lived-in home carries the Staging modifier ----
+import { OCCUPIED_MODIFIER_CODE } from "./exteriorAnswers.ts";
+
+test("an occupied interior job selects STG-OCCUPIED and says the price may vary; an empty one does not", () => {
+  const interior = (occupied: "yes" | "no"): WizardState => ({ ...defaultWizardState(), jobType: "interior", details: { ...defaultWizardState().details, occupied } });
+  const withMod = { ...ctx, modifiers: [...ctx.modifiers, { ...ctx.modifiers[0], code: OCCUPIED_MODIFIER_CODE, multiplier: 1.1 }] };
+  const m = bundle();
+  let next = 1;
+  const sel = applyConditionPricing(m, interior("yes"), () => next++, withMod);
+  assert.equal(sel.Staging, OCCUPIED_MODIFIER_CODE);
+  assert.ok(m.deferred.some((d) => /living there/.test(d.what) && /coverings/.test(d.needs)));
+  const empty = bundle();
+  const none = applyConditionPricing(empty, interior("no"), () => next++, withMod);
+  assert.equal(none.Staging, undefined);
+  assert.equal(empty.deferred.length, 0);
+});

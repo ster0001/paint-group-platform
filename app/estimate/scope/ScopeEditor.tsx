@@ -917,6 +917,58 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     )}
                   </div>
                 )}
+                {/* Tom, 7 Sep: the walls inside the cupboards, and the inside of the robe doors — asked, not assumed. */}
+                {loop?.cupboardInterior && (
+                  <div className={`il-q il-cup ${loop.cupboardInterior.on != null ? "ok" : ""}`} data-testid={`cup-interior-${room.areaId}`}>
+                    <p className="il-ql">{loop.cupboardInterior.question} <span className="il-okc">✓</span></p>
+                    <div className="sc-chips">
+                      <button className={`sd-chip ${sel(`cupi:${room.areaId}`, loop.cupboardInterior.on === true, "yes") ? "on" : ""}`}
+                        onClick={() => act({ action: "room_cupboard_interior", areaId: room.areaId, on: true, count: loop.cupboardInterior!.count }, `cupi:${room.areaId}`,
+                          deltaText(`inside the ${loop.cupboardInterior!.unit}`, true), [`cupi:${room.areaId}`, "yes"])}>
+                        Yes
+                      </button>
+                      <button className={`sd-chip ${sel(`cupi:${room.areaId}`, loop.cupboardInterior.on === false, "no") ? "on" : ""}`}
+                        onClick={() => act({ action: "room_cupboard_interior", areaId: room.areaId, on: false, count: null }, `cupi:${room.areaId}`,
+                          () => "Noted — the insides stay as they are.", [`cupi:${room.areaId}`, "no"])}>
+                        No
+                      </button>
+                    </div>
+                    {loop.cupboardInterior.on === true && (
+                      <span className="sc-st" style={{ display: "flex", marginTop: 8 }}>
+                        <button aria-label="fewer" onClick={() => stepBy(`${room.areaId}:cupi`, loop.cupboardInterior!.count, -1, 40, (count) => ({ action: "room_cupboard_interior", areaId: room.areaId, on: true, count }), loop.cupboardInterior!.unit)}>−</button>
+                        <b>{shown(`${room.areaId}:cupi`, loop.cupboardInterior.count)}</b>
+                        <button aria-label="more" onClick={() => stepBy(`${room.areaId}:cupi`, loop.cupboardInterior!.count, 1, 40, (count) => ({ action: "room_cupboard_interior", areaId: room.areaId, on: true, count }), loop.cupboardInterior!.unit)}>+</button>
+                        <span style={{ fontSize: 11.5, color: "var(--muted)" }}>{loop.cupboardInterior.unit}</span>
+                      </span>
+                    )}
+                    {loop.cupboardInterior.on === true && loop.cupboardInterior.note && <p className="il-note">{loop.cupboardInterior.note}</p>}
+                  </div>
+                )}
+                {loop?.cupboardDoorInside && (
+                  <div className={`il-q il-cup ${loop.cupboardDoorInside.on != null ? "ok" : ""}`} data-testid={`cup-door-inside-${room.areaId}`}>
+                    <p className="il-ql">{loop.cupboardDoorInside.question} <span className="il-okc">✓</span></p>
+                    <div className="sc-chips">
+                      <button className={`sd-chip ${sel(`cupd:${room.areaId}`, loop.cupboardDoorInside.on === true, "yes") ? "on" : ""}`}
+                        onClick={() => act({ action: "room_cupboard_door_inside", areaId: room.areaId, on: true, count: loop.cupboardDoorInside!.count }, `cupd:${room.areaId}`,
+                          deltaText("the inside of the robe doors", true), [`cupd:${room.areaId}`, "yes"])}>
+                        Yes
+                      </button>
+                      <button className={`sd-chip ${sel(`cupd:${room.areaId}`, loop.cupboardDoorInside.on === false, "no") ? "on" : ""}`}
+                        onClick={() => act({ action: "room_cupboard_door_inside", areaId: room.areaId, on: false, count: null }, `cupd:${room.areaId}`,
+                          () => "Noted — the door insides stay as they are.", [`cupd:${room.areaId}`, "no"])}>
+                        No
+                      </button>
+                    </div>
+                    {loop.cupboardDoorInside.on === true && (
+                      <span className="sc-st" style={{ display: "flex", marginTop: 8 }}>
+                        <button aria-label="fewer" onClick={() => stepBy(`${room.areaId}:cupd`, loop.cupboardDoorInside!.count, -1, 40, (count) => ({ action: "room_cupboard_door_inside", areaId: room.areaId, on: true, count }), loop.cupboardDoorInside!.unit)}>−</button>
+                        <b>{shown(`${room.areaId}:cupd`, loop.cupboardDoorInside.count)}</b>
+                        <button aria-label="more" onClick={() => stepBy(`${room.areaId}:cupd`, loop.cupboardDoorInside!.count, 1, 40, (count) => ({ action: "room_cupboard_door_inside", areaId: room.areaId, on: true, count }), loop.cupboardDoorInside!.unit)}>+</button>
+                        <span style={{ fontSize: 11.5, color: "var(--muted)" }}>{loop.cupboardDoorInside.unit}</span>
+                      </span>
+                    )}
+                  </div>
+                )}
                 {noteChips[room.areaId] && (
                   <div className="sc-notechip">⚑ &ldquo;{noteChips[room.areaId]}&rdquo; — we&rsquo;ll confirm this area on the site visit</div>
                 )}
@@ -1017,6 +1069,15 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     ))}
                     {/* Tom, 31 Aug: "something else" opens a box to SAY what —
                         an amber flag with no name tells the estimator nothing. */}
+                    {/* Tom, 7 Sep: the insides of the cupboards belong in the last check too. */}
+                    <button className="sd-chip il-chip" data-testid="sweep-cup-interior"
+                      onClick={() => act({ action: "iloop_sweep_cupboards", kind: "interior" }, "sweep:cupi", () => "Inside the cupboards added to every room with built-ins — adjust any room above")}>
+                      + Inside the cupboards
+                    </button>
+                    <button className="sd-chip il-chip" data-testid="sweep-cup-door-inside"
+                      onClick={() => act({ action: "iloop_sweep_cupboards", kind: "door_inside" }, "sweep:cupd", () => "Inside of the robe doors added to every bedroom — adjust any room above")}>
+                      + Inside of the cupboard doors
+                    </button>
                     <button className={`sd-chip ${sweepOtherOpen ? "on" : ""}`} onClick={() => setSweepOtherOpen((v) => !v)}>
                       + Something else
                     </button>

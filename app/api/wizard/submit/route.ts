@@ -21,7 +21,7 @@ import { applyConditionPricing, applyExteriorAnswers, type MeasuredSides } from 
 import { defaultSidesLoop } from "@/lib/wizard/sides";
 import { customerPayload, editorPayload } from "@/lib/wizard/view";
 import {
-  GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails,
+  GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails, guardrailWhy,
   policyFromSettings, serviceAreaFromSettings, settingValue,
 } from "@/lib/wizard/policy";
 import { reportError } from "@/lib/monitoring/report";
@@ -724,6 +724,9 @@ export async function POST(request: Request) {
     return NextResponse.json({
       outcome: decision.outcome,
       message: GUARDRAIL_MESSAGES[decision.outcome] ?? GUARDRAIL_MESSAGES.handoff,
+      // Tom, 7 Sep: the reason, in plain words — never a mystery hand-off.
+      why: guardrailWhy(decision.reasons),
+      canRetry: decision.reasons.includes("nothing_priced"),
     });
   }
 

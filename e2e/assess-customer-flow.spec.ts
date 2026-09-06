@@ -74,6 +74,8 @@ test("walk the customer flow and record reality", async ({ page }) => {
   if (await no1970.count()) await no1970.first().click();
   const noAsb = page.locator(".wz-qhead", { hasText: "asbestos" }).locator("xpath=following-sibling::div[1]").getByRole("button", { name: "No", exact: true });
   if (await noAsb.count()) await noAsb.first().click();
+  const noOcc = page.locator(".wz-qhead", { hasText: "living there" }).locator("xpath=following-sibling::div[1]").getByRole("button", { name: /empty/ });
+  if (await noOcc.count()) await noOcc.first().click();
   if (await t3.count()) {
     await t3.click();
     const photoBtn = page.locator(".wz-photo-stub");

@@ -102,6 +102,10 @@ test.describe("holding page + honest defaults", () => {
     await expect(page.locator(".wz-err")).toContainText(/asbestos/i);
     const asbRow = page.locator(".wz-qhead", { hasText: /asbestos/ }).locator("xpath=following-sibling::div[1]");
     await asbRow.getByRole("button", { name: "No", exact: true }).click();
+    // Tom, 7 Sep: living there or empty — asked, never assumed.
+    await page.getByRole("button", { name: /Continue|Nearly there/ }).click();
+    await expect(page.locator(".wz-err")).toContainText(/living there/);
+    await page.locator(".wz-qhead", { hasText: "living there" }).locator("xpath=following-sibling::div[1]").getByRole("button", { name: /empty/ }).click();
     await page.getByRole("button", { name: /Continue|Nearly there/ }).click();
     await expect(page.getByText("Step 5 of 5", { exact: false })).toBeVisible();
     await expect(page.getByText("Who should we send your estimate to?")).toBeVisible();

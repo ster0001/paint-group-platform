@@ -46,6 +46,7 @@ test("capture: exterior sides loop", async ({ page }) => {
   await page.getByRole("button", { name: /Good overall/i }).click();
   await answer(/built before 1970/, "No");
   await answer(/asbestos/, "No"); // Phase 0: unanswered until tapped
+  await answer(/living there/, "No — it'll be empty"); // Tom, 7 Sep
   await next(); await next();
   const email = page.locator("input[type=email]");
   if (await email.count()) await email.fill(`e2e-shots-${Date.now()}@example.com`);

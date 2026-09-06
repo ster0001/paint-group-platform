@@ -36,6 +36,7 @@ test("Both job: interior cards then sides, combined progress, single visit CTA",
   await next(); // details
   await answer(/built before 1970/, "No");
   await answer(/asbestos/, "No"); // Phase 0: unanswered until tapped
+  await answer(/living there/, "No — it'll be empty"); // Tom, 7 Sep
   await next(); // → contact, the LAST page — paint preferences ride it (Phase 2)
   await fillContactStep(page, `e2e-both-${Date.now()}@example.com`);
   await page.getByRole("button", { name: "See my estimate" }).click();

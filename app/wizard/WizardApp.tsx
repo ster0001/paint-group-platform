@@ -885,6 +885,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     }
     if (pageKey === "details" && isCustomer && !answered.pre1970) return "Was the home built before 1970? Yes, no or not sure.";
     if (pageKey === "details" && isCustomer && !answered.asbestos) return "Any chance of asbestos sheeting? Yes, no or not sure.";
+    if (pageKey === "details" && isCustomer && state.details.occupied == null) return "Will anyone be living there while we paint? Yes or no.";
     if (pageKey === "condition" && state.details.damageTier >= 2 && state.details.damagePhotoCount === 0) {
       // Customer mode is photos-only (Step 8 brief) - a note cannot be priced.
       if (isCustomer) return "Damage at this level needs photos — a quick phone shot of each area is perfect.";
@@ -1801,6 +1802,23 @@ function PageDetails({ state, set, isCustomer = false, stepsTotal, answered, mar
         </>
       )}
 
+      {/* Tom, 7 Sep: a lived-in home is set up and packed down every day —
+          priced with the Staging modifier, and said out loud. */}
+      <p className="wz-qhead">Will anyone be living there while we paint?</p>
+      <Seg
+        options={[{ v: "no" as const, label: "No — it'll be empty" }, { v: "yes" as const, label: "Yes — we'll be living there" }]}
+        value={d.occupied ?? null}
+        onPick={(v) => set({ details: { ...d, occupied: v } })}
+      />
+      {d.occupied === "yes" && (
+        <div className="wz-follow" data-testid="occupied-note">
+          <p className="wz-q">That&rsquo;s fine — we set up and pack down each day, and it&rsquo;s allowed for.</p>
+          <p style={{ fontSize: 13.5, color: "var(--muted)", margin: 0 }}>
+            The price may still vary a little depending on whether our floor and furniture coverings can stay down
+            between visits. We&rsquo;ll talk that through with you before anything is fixed.
+          </p>
+        </div>
+      )}
     </>
   );
 }

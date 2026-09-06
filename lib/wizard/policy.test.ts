@@ -98,12 +98,19 @@ describe("guardrails — handoffs", () => {
       { propertyKind: "commercial" as const },
       { heritageListed: "yes" as const },
       { bodyCorporate: "yes" as const },
-      { asbestosSuspected: "unsure" as const },
     ]) {
       const d = evaluateGuardrails(clean(over), 1_000_000, 95, false);
       expect(d.outcome).toBe("handoff");
       expect(d.canAccept).toBe(false);
     }
+  });
+
+  it("asbestos 'not sure' is a visit-tier flag, never an online accept and never a dead end (Tom, 7 Sep)", () => {
+    const d = evaluateGuardrails(clean({ asbestosSuspected: "unsure" }), 500_000, 95, false);
+    expect(d.outcome).toBe("reveal");
+    expect(d.walkthroughRequired).toBe(true);
+    expect(d.canAccept).toBe(false);
+    expect(d.reasons).toContain("asbestos_unsure");
   });
 
   it("heritage 'not sure' alone does not lose the lead", () => {
@@ -134,8 +141,9 @@ describe("guardrails — trade actors (28 Aug: the commercial portal handed its 
     expect(trade({ propertyKind: "commercial" }).reasons).toContain("commercial_property");
   });
 
-  it("safety never relaxes: asbestos unsure still hands off, asbestos yes still hard-stops", () => {
-    expect(trade({ asbestosSuspected: "unsure" }).outcome).toBe("handoff");
+  it("safety never relaxes: asbestos unsure still forces the visit, asbestos yes still hard-stops", () => {
+    expect(trade({ asbestosSuspected: "unsure" }).walkthroughRequired).toBe(true);
+    expect(trade({ asbestosSuspected: "unsure" }).canAccept).toBe(false);
     expect(trade({ asbestosSuspected: "yes" }).outcome).toBe("hard_stop");
     expect(trade({ builtPre1970: "yes", damageTier: 2 }).outcome).toBe("hard_stop");
   });

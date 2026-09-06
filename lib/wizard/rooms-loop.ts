@@ -30,7 +30,7 @@ export type LooseBlock = Record<string, unknown> & {
   id?: number; kind?: string; name?: string; type?: string; roomType?: string;
   L?: number; W?: number; H?: number;
   surfaces?: LooseSurface[];
-  customer?: { size: "yes" | "adjusted" | null; cup: boolean | null; cupInterior?: boolean | null; confirmed: boolean };
+  customer?: { size: "yes" | "adjusted" | null; cup: boolean | null; cupInterior?: boolean | null; cupDoorInside?: boolean | null; confirmed: boolean };
   customerCustom?: string[];
   assumedFields?: unknown;
   origin?: unknown; confidence?: unknown;
@@ -162,8 +162,9 @@ export const CUPBOARD_INTERIOR_BY_ROOM_TYPE: Record<string, {
   },
   bedroom: {
     code: "Robe Interior",
-    question: "Paint inside the built-in robe?",
-    unit: "robes", defaultCount: 1, note: "",
+    question: "Paint the walls inside the built-in robe?",
+    unit: "robes", defaultCount: 1,
+    note: "Half an hour a coat per robe — a colour match is one coat, a colour change two.",
   },
   bathroom: {
     code: "Vanity Interior",
@@ -201,6 +202,61 @@ export function applyCupboardInterior(
     b.surfaces = surfaces;
     b.customer = { ...customerOf(b), cupInterior: on };
   });
+}
+
+/**
+ * Tom, 7 Sep 2026: the INSIDE face of the robe doors — its own question,
+ * priced as a flat door side per door (the inside of a robe door is flat).
+ * The line is marked `cupInside` so the doors-and-windows totals never
+ * count it as another door.
+ */
+export const CUPBOARD_DOOR_INSIDE_BY_ROOM_TYPE: Record<string, {
+  code: string; label: string; question: string; unit: string; defaultCount: number;
+}> = {
+  bedroom: { code: "Flat Door (1 Side)", label: "Inside of robe doors", question: "Paint the inside of the robe doors too?", unit: "door insides", defaultCount: 2 },
+};
+
+export function applyCupboardDoorInside(
+  blocks: LooseBlock[], areaId: number, on: boolean, count: number | null, nextId: () => number,
+): RoomsLoopResult {
+  return withRoom(blocks, areaId, (b) => {
+    const cfg = CUPBOARD_DOOR_INSIDE_BY_ROOM_TYPE[String(b.roomType ?? "")];
+    if (!cfg) return "This room has no robe-door question.";
+    const surfaces = (b.surfaces ?? []).filter((s) => s.cupInside !== true);
+    if (on) {
+      // Default to the robe-door count when the doors are on the estimate.
+      const front = CUPBOARD_BY_ROOM_TYPE[String(b.roomType ?? "")];
+      const frontLine = front ? surfaces.find((s) => String(s.code) === front.code) : undefined;
+      const n = Math.min(40, Math.max(1, count ?? (Number(frontLine?.count) || cfg.defaultCount)));
+      const line = { ...(makeDraftSurface(nextId(), cfg.code, cfg.label, n, "customer_stated", 0.85, []) as unknown as LooseSurface), internalLabel: cfg.label, cupInside: true };
+      surfaces.push(line);
+    }
+    b.surfaces = surfaces;
+    b.customer = { ...customerOf(b), cupDoorInside: on };
+  });
+}
+
+/**
+ * The sweep's "inside the cupboards" chips (Tom, 7 Sep): every interior room
+ * whose type has the question, unless the cupboards were answered No there.
+ * Returns how many rooms it reached — none is an honest refusal upstream.
+ */
+export function applyCupboardsEverywhere(
+  blocks: LooseBlock[], kind: "interior" | "door_inside", rateCodes: ReadonlySet<string>, nextId: () => number,
+): { blocks: LooseBlock[]; rooms: number } {
+  let out = blocks;
+  let rooms = 0;
+  for (const b of blocks) {
+    if (!isInteriorRoom(b) || customerOf(b).cup === false) continue;
+    const type = String(b.roomType ?? "");
+    const cfg = kind === "interior" ? CUPBOARD_INTERIOR_BY_ROOM_TYPE[type] : CUPBOARD_DOOR_INSIDE_BY_ROOM_TYPE[type];
+    if (!cfg || !rateCodes.has(cfg.code)) continue;
+    const r = kind === "interior"
+      ? applyCupboardInterior(out, Number(b.id), true, null, nextId)
+      : applyCupboardDoorInside(out, Number(b.id), true, null, nextId);
+    if (r.ok) { out = r.blocks; rooms++; }
+  }
+  return { blocks: out, rooms };
 }
 
 const WINDOW_FACTOR: Record<"S" | "M" | "L", number> = { S: 0.8, M: 1, L: 1.2 };
@@ -294,6 +350,7 @@ export function interiorDwTotals(blocks: LooseBlock[]): { doors: number; windows
   for (const b of blocks) {
     if (!isInteriorRoom(b)) continue;
     for (const s of b.surfaces ?? []) {
+      if (s.cupInside === true) continue; // the inside of a robe door is not another door
       const k = substrateKeyForRateCode(String(s.code ?? ""));
       if (k === "doors") doors += Number(s.count) || 1;
       if (k === "windows") windows += Number(s.count) || 1;
@@ -321,6 +378,8 @@ export type RoomLoopView = {
   cupboard: null | { question: string; unit: string; on: boolean | null; count: number; note: string };
   /** Interiors ride the same shape; null when the card has no row for this room type. */
   cupboardInterior: null | { question: string; unit: string; on: boolean | null; count: number; note: string };
+  /** Tom, 7 Sep: the inside face of the robe doors. */
+  cupboardDoorInside: null | { question: string; unit: string; on: boolean | null; count: number };
   windows: Array<{ id: number; label: string; count: number; sizeBand: "S" | "M" | "L" }>;
   customs: string[];
 };
@@ -340,6 +399,9 @@ export function roomLoopViews(blocks: LooseBlock[], cupboardCodes: ReadonlySet<s
     const interiorLine = interiorCfg
       ? (b.surfaces ?? []).find((s) => String(s.code) === interiorCfg.code)
       : undefined;
+    const dCfg = CUPBOARD_DOOR_INSIDE_BY_ROOM_TYPE[String(b.roomType ?? "")];
+    const doorInsideCfg = dCfg && cupboardCodes.has(dCfg.code) ? dCfg : null;
+    const doorInsideLine = doorInsideCfg ? (b.surfaces ?? []).find((s) => s.cupInside === true) : undefined;
     out.push({
       areaId: Number(b.id) || 0,
       sizeLabel: `${Number(b.L) || 0} × ${Number(b.W) || 0} m`,
@@ -358,6 +420,12 @@ export function roomLoopViews(blocks: LooseBlock[], cupboardCodes: ReadonlySet<s
         on: c.cupInterior ?? null,
         count: Number(interiorLine?.count) || interiorCfg.defaultCount,
         note: interiorCfg.note,
+      } : null,
+      cupboardDoorInside: doorInsideCfg ? {
+        question: doorInsideCfg.question,
+        unit: doorInsideCfg.unit,
+        on: c.cupDoorInside ?? null,
+        count: Number(doorInsideLine?.count) || Number(cupLine?.count) || doorInsideCfg.defaultCount,
       } : null,
       windows: (b.surfaces ?? [])
         .filter((s) => substrateKeyForRateCode(String(s.code ?? "")) === "windows")
