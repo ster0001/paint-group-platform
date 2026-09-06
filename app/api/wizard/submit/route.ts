@@ -512,6 +512,9 @@ export async function POST(request: Request) {
   let sourceTag = isCustomerMode ? "customer_intake" : "wizard";
   const baseRow: Record<string, unknown> = {
     title, status: "draft", builder_state: builderState, source: sourceTag,
+    // Tom, 7 Sep: the estimates list reads total_cents, which only the builder
+    // wrote — a wizard estimate showed no price there until staff saved it.
+    total_cents: payload.totals.totalCents,
     ...(actor.kind === "customer" ? { created_by: user.id } : {}),
   };
   let insert = await db.from("estimates").insert(baseRow).select("id").single();

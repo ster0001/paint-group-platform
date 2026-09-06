@@ -231,8 +231,11 @@
 .wz .sc-hd { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .wz .sc-hd b { font-size: 16.5px; font-weight: 600; }
 .wz .sc-m { font-family: var(--wz-mono); font-size: 11px; color: var(--muted); display: inline-flex; gap: 8px; align-items: center; }
-.wz .sc-x { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; font-size: 12px; padding: 3px 9px; cursor: pointer; font-family: var(--wz-sans); }
+.wz .sc-x, .wz .sc-pen { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; font-size: 12px; padding: 3px 9px; cursor: pointer; font-family: var(--wz-sans); }
 .wz .sc-x:hover { border-color: var(--clay); color: var(--clay); }
+.wz .sc-pen:hover { border-color: var(--cyan, #39D9E6); color: var(--cyan, #39D9E6); }
+.wz .sc-rn { display: flex; gap: 6px; align-items: center; flex: 1; min-width: 0; }
+.wz .sc-rn input { flex: 1; min-width: 0; background: rgba(255,255,255,0.04); border: 1px solid var(--line); color: inherit; border-radius: 8px; padding: 6px 9px; font: inherit; font-size: 14px; }
 .wz .sc-tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 8px; margin-top: 13px; }
 .wz .sc-tl { position: relative; border: 1px solid var(--line); background: var(--panel2); border-radius: 10px; padding: 11px 12px; cursor: pointer; font-size: 13.5px; color: var(--muted); user-select: none; }
 .wz .sc-tl.on { border-color: var(--cyan); color: var(--text); background: rgba(59,216,233,.07); }

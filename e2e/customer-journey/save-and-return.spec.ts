@@ -41,7 +41,6 @@ test.describe("save-and-return", () => {
     await page.getByPlaceholder("Suburb").fill("Murrumbeena");
     await page.getByPlaceholder("Postcode").fill("3163");
     await page.getByRole("button", { name: "4", exact: true }).click(); // bedrooms
-    await page.locator(".wz-qhead", { hasText: "Heritage listed" }).locator("xpath=following-sibling::div[1]").getByRole("button", { name: "No", exact: true }).click();
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.getByText("Step 2 of 5", { exact: false })).toBeVisible();
     await page.getByRole("button", { name: "Windows", exact: true }).click(); // an extra tick

@@ -44,7 +44,6 @@ test.describe("the wizard drop-out funnel", () => {
     await page.getByPlaceholder("Postcode").fill("3163");
     // Phase 0: the safety answers are unanswered until tapped.
     const tap = async (heading: string | RegExp) => page.locator(".wz-qhead", { hasText: heading }).locator("xpath=following-sibling::div[1]").getByRole("button", { name: "No", exact: true }).click();
-    await tap("Heritage listed");
     const next = async () => page.getByRole("button", { name: /Continue|Nearly there/ }).first().click();
     await next(); // surfaces
     await next(); // condition

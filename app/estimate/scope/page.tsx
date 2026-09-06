@@ -3,6 +3,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { customerOwnsDraft, getWizardActor } from "@/lib/supabase/guards";
 import { loadCustomerScope, type EstimateRow } from "@/lib/wizard/customer-scope";
 import ScopeEditor from "./ScopeEditor";
+import AssistantWidget from "@/app/estimate/assist/AssistantWidget";
 import SidesEditor from "./SidesEditor";
 import Wordmark from "@/app/wizard/Wordmark";
 import { getCompanyContact } from "@/lib/portal/data";
@@ -87,6 +88,8 @@ export default async function ScopeEditorPage({
     <div className="wz" style={{ position: "relative" }}>
       {/* S4: "Chat it or fill it in" — the other half of the toggle. */}
       <a className="as-switch-top" href={`/estimate/assist?estimate=${bundle.estimateId}`}>Chat it instead</a>
+      {/* Tom, 7 Sep: general questions to the assistant, or a person — never co-work. */}
+      {actor.kind === "customer" && <AssistantWidget estimateId={bundle.estimateId} lift={76} />}
       <ScopeEditor
         estimateId={bundle.estimateId}
         initial={bundle.initial}

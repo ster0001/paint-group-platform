@@ -10,7 +10,7 @@ import { DEFAULT_ONLINE_ESTIMATES } from "../../lib/wizard/publicFlag";
  *     holding page — which is a LEAD, not a closed door: the office's own
  *     wording, the typed address, and a "call me" form that files a
  *     callback_requested event on the account it creates.
- *  2. While ON, the three safety answers (heritage, built before 1970,
+ *  2. While ON, the two safety answers (built before 1970,
  *     asbestos) are unanswered until tapped — Continue refuses and names
  *     the question; the kicker counts all six steps; the confirm loop's
  *     header counts rooms and checks separately; the sweep never mentions
@@ -83,12 +83,8 @@ test.describe("holding page + honest defaults", () => {
     await page.getByRole("button", { name: /There isn't a floorplan to hand/ }).click();
     await page.getByPlaceholder("Suburb").fill("Murrumbeena");
     await page.getByPlaceholder("Postcode").fill("3163");
-    // Nothing pre-selected on the safety row.
-    const heritageRow = page.locator(".wz-qhead", { hasText: "Heritage listed" }).locator("xpath=following-sibling::div[1]");
-    await expect(heritageRow.locator("button.on")).toHaveCount(0);
-    await page.getByRole("button", { name: /Continue|Nearly there/ }).click();
-    await expect(page.locator(".wz-err")).toContainText(/Heritage listed/);
-    await heritageRow.getByRole("button", { name: "No", exact: true }).click();
+    // Tom, 7 Sep: no heritage question on page 1 any more — nothing to tap before Continue.
+    await expect(page.locator(".wz-qhead", { hasText: "Heritage listed" })).toHaveCount(0);
     await page.getByRole("button", { name: /Continue|Nearly there/ }).click();
     await expect(page.getByText("Step 2 of 5", { exact: false })).toBeVisible();
     await page.getByRole("button", { name: /Continue|Nearly there/ }).click(); // → condition

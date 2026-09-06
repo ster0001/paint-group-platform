@@ -58,7 +58,8 @@ describe("A2 — the trade build flow", () => {
     expect(price.bandPct).toBe(15);
     const keys = price.assumptions.map((a) => a.key);
     expect(keys).toEqual(expect.arrayContaining(["door_style", "window_style", "ceiling_height", "q.property_flags"]));
-    expect(keys.some((k) => k.endsWith("cupboard_interiors"))).toBe(true);
+    // The insides follow the doors (Tom, 7 Sep): the paragraph never ticks the doors, so no interiors chip yet.
+    expect(keys.some((k) => k.endsWith("cupboard_interiors"))).toBe(false);
     expect(docFacts(doc).flagsAssumed).toBe(true);
     // Chips = open tightening gaps, exactly (§5).
     const open = gapsFor(graphInput(doc, deps)).filter((g) => g.kind === "tightening").map((g) => g.key).sort();

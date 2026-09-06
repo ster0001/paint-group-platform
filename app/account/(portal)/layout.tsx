@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getPortalContext } from "@/lib/portal/data";
 import { ensureMembership } from "@/lib/portal/auth";
 import AccountTabs from "./AccountTabs";
+import AssistantWidget from "@/app/estimate/assist/AssistantWidget";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +65,8 @@ export default async function PortalShellLayout({ children }: { children: React.
       </header>
       <AccountTabs trade={trade} financeOnly={financeOnly} />
       <main className="scroll">{children}</main>
+      {/* Tom, 7 Sep: bottom-right chat — the assistant on their latest estimate, or a person. */}
+      {!financeOnly && <AssistantWidget />}
     </div>
   );
 }

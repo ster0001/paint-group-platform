@@ -7,8 +7,10 @@ type Msg = { id: string; role: "user" | "assistant" | "staff" | "system"; text: 
 
 const QUICK = ["What's included in my estimate?", "How much is the deposit and when do I pay?", "Can someone come out and look at it?"];
 
-export default function SupportView({ conversationId, estimateId, shareToken, initialTranscript, companyPhone = null }: {
+export default function SupportView({ conversationId, estimateId, shareToken, initialTranscript, companyPhone = null, compact = false }: {
   conversationId: string; estimateId: string; shareToken: string | null; initialTranscript: Msg[]; companyPhone?: string | null;
+  /** The floating widget (7 Sep): no portal links — the customer is already on their estimate. */
+  compact?: boolean;
 }) {
   const [transcript, setTranscript] = useState<Msg[]>(initialTranscript);
   const [status, setStatus] = useState<"open" | "handed_off" | "closed">("open");
@@ -61,8 +63,8 @@ export default function SupportView({ conversationId, estimateId, shareToken, in
         <button type="button" className="btn btn-ghost" disabled={busy} data-testid="sp-person" onClick={() => send("I'd like to talk to a person, please.")}>Talk to a person</button>
         <button type="button" className="btn btn-ghost" disabled={busy} data-testid="sp-callback" onClick={() => setCallback((c) => ({ ...c, open: !c.open }))}>Request a callback</button>
         {companyPhone && <a className="btn btn-ghost" href={`tel:${companyPhone.replace(/\s+/g, "")}`} data-testid="sp-call">Call us</a>}
-        {shareToken && <a className="btn btn-ghost" href={`/e/${shareToken}?portal=1`}>Open the estimate</a>}
-        <a className="btn btn-ghost" href={`/account/messages/${estimateId}`}>Message the team</a>
+        {!compact && shareToken && <a className="btn btn-ghost" href={`/e/${shareToken}?portal=1`}>Open the estimate</a>}
+        {!compact && <a className="btn btn-ghost" href={`/account/messages/${estimateId}`}>Message the team</a>}
       </div>
       {callback.open && (
         <form data-testid="sp-callback-form" style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }} onSubmit={(e) => {

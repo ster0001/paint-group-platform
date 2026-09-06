@@ -27,6 +27,7 @@ export type DriveOptions = {
  */
 export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
   await page.goto("/estimate");
+  await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
   await page.getByRole("button", { name: /There isn't a floorplan to hand/ }).click();
   await expect(page.getByText(/thirty seconds of basics/i)).toBeVisible();
 
@@ -39,7 +40,6 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
       .getByRole("button", { name: label, exact: true });
     if (await row.count()) await row.first().click();
   };
-  await answer("Heritage listed", "No");
   await answer("What kind of property", "House");
 
   const next = async () => {

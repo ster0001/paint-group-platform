@@ -10,6 +10,7 @@ import { MONEY_RANGE, fillContactStep } from "./drive";
 test("an exterior job builds from answers alone — no listing, no photos", async ({ page }) => {
   test.setTimeout(240_000);
   await page.goto("/estimate");
+  await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
   await page.getByRole("button", { name: "Exterior", exact: true }).click();
 
   // The old gate demanded a listing or two facades; the third way is explicit.
@@ -24,7 +25,6 @@ test("an exterior job builds from answers alone — no listing, no photos", asyn
       .getByRole("button", { name: label, exact: true });
     if (await row.count()) await row.first().click();
   };
-  await answer("Heritage listed", "No");
   await answer("What kind of property", "House");
   const next = async () => {
     await page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ }).first().click();

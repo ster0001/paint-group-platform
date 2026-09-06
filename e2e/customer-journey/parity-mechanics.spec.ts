@@ -38,8 +38,11 @@ test("interior: cards collapse, confirm auto-advances + scrolls, window groups i
   // Confirm the first room → it collapses, the SECOND opens and is scrolled
   // into view.
   await first.getByRole("button", { name: /Looks right/ }).click();
-  const cup = first.locator(".il-cup");
-  if (await cup.count()) await cup.getByRole("button", { name: "No", exact: true }).click();
+  // Every cupboard question the room carries, one at a time (doors first, 7 Sep).
+  for (let i = 0; i < 4 && (await first.locator(".il-cup:not(.ok)").count()); i++) {
+    await first.locator(".il-cup:not(.ok)").first().getByRole("button", { name: "No", exact: true }).click();
+    await page.waitForTimeout(300);
+  }
   await first.locator(".il-confirm").click();
   await expect(first).toHaveClass(/done/, { timeout: 15_000 });
   await expect(second.locator(".il-q").first()).toBeVisible({ timeout: 15_000 });
@@ -51,6 +54,7 @@ test("exterior: geometry chips + flag flip the tier; toasts carry $ amounts", as
   test.setTimeout(240_000);
   await page.goto("/estimate");
   await page.getByRole("button", { name: "Exterior", exact: true }).click();
+  await page.getByTestId("entry-upload").click(); // Phase 2: the way in is a card
   await page.getByPlaceholder(/listing URL/).fill("https://www.realestate.com.au/property-house-vic-murrumbeena-1400031");
   await page.getByPlaceholder("Suburb").fill("Murrumbeena");
   await page.getByPlaceholder("Postcode").fill("3163");
@@ -60,7 +64,6 @@ test("exterior: geometry chips + flag flip the tier; toasts carry $ amounts", as
       .getByRole("button", { name: label, exact: true });
     if (await row.count()) await row.first().click();
   };
-  await answer("Heritage listed", "No");
   await answer("What kind of property", "House");
   const next = async () => page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ }).first().click();
   await next();

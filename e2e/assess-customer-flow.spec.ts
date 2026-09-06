@@ -47,12 +47,7 @@ test("walk the customer flow and record reality", async ({ page }) => {
   // customer page-1 gate needs suburb + postcode
   await page.getByPlaceholder("Suburb").fill("Murrumbeena");
   await page.getByPlaceholder("Postcode").fill("3163");
-  // answer the guardrail questions benignly (No heritage, built after 1970)
-  const seg = async (q: string, a: string) => {
-    const row = page.locator(".wz-qhead", { hasText: q }).locator("xpath=following-sibling::div[1]").getByRole("button", { name: a, exact: true });
-    if (await row.count()) await row.first().click();
-  };
-  await seg("Heritage listed", "No");
+  // Tom, 7 Sep: no heritage question on page 1 any more — nothing to answer here.
 
   // ---- facade/photos box behaviour (complaint 3): what does adding a PHOTO
   // do? Use the exterior facade box on a Both job to see its labelling.

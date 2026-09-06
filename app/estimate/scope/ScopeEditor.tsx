@@ -138,6 +138,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
     return "";
   }
   const [shakeCard, setShakeCard] = useState<string | null>(null);
+  // Tom, 7 Sep: the customer can rename a room ("Bed 2" → "Nursery").
+  const [renaming, setRenaming] = useState<{ areaId: number; value: string } | null>(null);
   // P1: production feel — hydration gate, queue indicator, optimistic taps.
   const ready = useSyncExternalStore(emptySubscribe, snapshotTrue, snapshotFalse);
   const [pendingCount, setPendingCount] = useState(0);
@@ -649,18 +651,38 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                 data-card={`room:${room.areaId}`}
               >
                 <div className="sc-hd il-hd" onClick={() => loop && openAndScroll(`room:${room.areaId}`)} style={loop ? { cursor: "pointer" } : undefined}>
-                  <b>
-                    {room.name}
-                    {loop && (
-                      <span className="il-hm"> · {loop.sizeLabel}{loop.size === "adjusted" ? " · updated by you" : ""}</span>
-                    )}
-                  </b>
+                  {renaming?.areaId === room.areaId ? (
+                    <form className="sc-rn" data-testid={`room-rename-${room.areaId}`} onClick={(e) => e.stopPropagation()}
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        const name = renaming.value.trim().slice(0, 60);
+                        setRenaming(null);
+                        if (name && name !== room.name) act({ action: "rename_room", areaId: room.areaId, name }, `rn:${room.areaId}`, () => `Renamed to ${name}`);
+                      }}>
+                      <input autoFocus value={renaming.value} maxLength={60} aria-label="Room name"
+                        onChange={(e) => setRenaming({ areaId: room.areaId, value: e.target.value })}
+                        onKeyDown={(e) => { if (e.key === "Escape") setRenaming(null); }} />
+                      <button type="submit" className="sc-x">Save</button>
+                      <button type="button" className="sc-x" onClick={() => setRenaming(null)}>Cancel</button>
+                    </form>
+                  ) : (
+                    <b>
+                      {room.name}
+                      {loop && (
+                        <span className="il-hm"> · {loop.sizeLabel}{loop.size === "adjusted" ? " · updated by you" : ""}</span>
+                      )}
+                    </b>
+                  )}
                   <span className="sc-m">
                     {loop ? (
                       <span className={`il-pill ${loop.confirmed ? "done" : ""}`}>{loop.confirmed ? "CONFIRMED ✓" : "CONFIRM THIS ROOM"}</span>
                     ) : (
                       room.m2 != null && `${room.m2.toFixed(1)} m²`
                     )}
+                    <button
+                      className="sc-pen" aria-label={`Rename ${room.name}`} data-testid={`room-rename-btn-${room.areaId}`}
+                      onClick={(e) => { e.stopPropagation(); setRenaming({ areaId: room.areaId, value: room.name }); }}
+                    >✎</button>
                     <button
                       className="sc-x" aria-label={`Remove ${room.name}`}
                       onClick={() => act({ action: "remove_room", areaId: room.areaId }, `rm:${room.areaId}`, deltaText(room.name, false))}
@@ -1072,11 +1094,11 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                         an amber flag with no name tells the estimator nothing. */}
                     {/* Tom, 7 Sep: the insides of the cupboards belong in the last check too. */}
                     <button className="sd-chip il-chip" data-testid="sweep-cup-interior"
-                      onClick={() => act({ action: "iloop_sweep_cupboards", kind: "interior" }, "sweep:cupi", () => "Inside the cupboards added to every room with built-ins — adjust any room above")}>
+                      onClick={() => act({ action: "iloop_sweep_cupboards", kind: "interior" }, "sweep:cupi", () => "Inside the cupboards added to every room where the cupboard doors are on — adjust any room above")}>
                       + Inside the cupboards
                     </button>
                     <button className="sd-chip il-chip" data-testid="sweep-cup-door-inside"
-                      onClick={() => act({ action: "iloop_sweep_cupboards", kind: "door_inside" }, "sweep:cupd", () => "Inside of the robe doors added to every bedroom — adjust any room above")}>
+                      onClick={() => act({ action: "iloop_sweep_cupboards", kind: "door_inside" }, "sweep:cupd", () => "Inside of the robe doors added to every bedroom where the robe doors are on — adjust any room above")}>
                       + Inside of the cupboard doors
                     </button>
                     <button className={`sd-chip ${sweepOtherOpen ? "on" : ""}`} onClick={() => setSweepOtherOpen((v) => !v)}>

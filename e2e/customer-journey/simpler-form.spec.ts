@@ -23,7 +23,6 @@ async function toBasics(page: import("@playwright/test").Page, sizeBand: string)
   await expect(page.getByText("Step 1 of 5", { exact: false })).toBeVisible();
   await page.getByPlaceholder("Suburb").fill("Murrumbeena");
   await page.getByPlaceholder("Postcode").fill("3163");
-  await page.locator(".wz-qhead", { hasText: "Heritage listed" }).locator("xpath=following-sibling::div[1]").getByRole("button", { name: /^No(\s|$)/ }).click();
   // The three ways in.
   const ways = page.getByTestId("wz-entry");
   await expect(ways.getByRole("button", { name: /Describe it/ })).toBeVisible();

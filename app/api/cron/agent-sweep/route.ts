@@ -45,21 +45,31 @@ export async function GET(request: Request) {
   const minutes = Math.max(0, Number(new URL(request.url).searchParams.get("minutes") ?? 30) || 0);
   const cutoff = new Date(Date.now() - minutes * 60_000).toISOString();
 
-  const { data: convs, error } = await db.from("agent_conversations")
+  // `minutes=0` (the e2e) means NO quiet window: a read receipt or a trailing
+  // write can land a moment after the cutoff and hide the conversation the
+  // test just abandoned — the 7 Sep C1 run saw exactly that (logged: 0).
+  let query = db.from("agent_conversations")
     .select("id, account_id, estimate_id, updated_at")
-    .eq("status", "open").eq("mode", "guided").not("account_id", "is", null).not("estimate_id", "is", null)
-    .lte("updated_at", cutoff).limit(200);
+    .eq("status", "open").eq("mode", "guided").not("account_id", "is", null).not("estimate_id", "is", null);
+  if (minutes > 0) query = query.lte("updated_at", cutoff);
+  // NEWEST first. The cap of 200 with no order let a pile of old, already
+  // logged conversations fill the page and the fresh drop-out never got
+  // looked at (C1 had 200+; production accumulates the same way).
+  const { data: convs, error } = await query.order("updated_at", { ascending: false }).limit(200);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const scope = new SupabaseScopeStore(db);
   const deps = { refs: await scope.refs(), ctx: await scope.ctx(), actor: "customer" as const };
   let logged = 0;
+  // Why each conversation was passed over — in the response, so a "logged: 0"
+  // can be read instead of guessed at (the 7 Sep e2e chase).
+  const skipped = { noDoc: 0, alreadyLogged: 0, booked: 0, refused: 0 };
   for (const c of (convs ?? []) as Array<{ id: string; account_id: string; estimate_id: string }>) {
     const doc = await scope.load(c.estimate_id);
-    if (!doc) continue;
+    if (!doc) { skipped.noDoc++; continue; }
     const agent = (doc.builderState.agent ?? {}) as { answers?: unknown; facts?: Record<string, unknown> };
-    if (agent.facts?.abandonLoggedAt) continue;
-    if ((doc.builderState as { prepPack?: unknown }).prepPack) continue; // accepted or booked
+    if (agent.facts?.abandonLoggedAt) { skipped.alreadyLogged++; continue; }
+    if ((doc.builderState as { prepPack?: unknown }).prepPack) { skipped.booked++; continue; } // accepted or booked
     const gap = nextGap(graphInput(doc, deps));
     const ok = await logCrmEvent(db, {
       type: "wizard_abandoned", accountId: c.account_id, estimateId: c.estimate_id, source: "customer",
@@ -69,7 +79,7 @@ export async function GET(request: Request) {
     if (ok) {
       logged++;
       await scope.save({ ...doc, builderState: { ...doc.builderState, agent: { answers: agent.answers ?? {}, facts: { ...(agent.facts ?? {}), abandonLoggedAt: new Date().toISOString() } } } });
-    }
+    } else skipped.refused++;
   }
   // ---- SLA (D10): a request nobody claimed in time escalates ----------------
   const settings = await loadAgentSettings(db);
@@ -87,5 +97,5 @@ export async function GET(request: Request) {
     if (handoffTexts) await Promise.all(escalate.map((n) => sendSms({ to: n, body: "Paint Group assistant: a live-chat request has passed the SLA — claim it in Today → Messages." }).catch(() => undefined)));
     escalated++;
   }
-  return NextResponse.json({ checked: (convs ?? []).length, logged, escalated });
+  return NextResponse.json({ checked: (convs ?? []).length, logged, skipped, escalated });
 }

@@ -777,7 +777,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       let next = Math.max(0, ...blocks.flatMap((b) => [Number(b.id) || 0, ...(b.surfaces ?? []).map((s) => Number(s.id) || 0)])) + 1;
       const codes = new Set((await ctxPromise).rateItems.map((r) => r.code));
       const res = applyCupboardsEverywhere(blocks, act.kind, codes, () => next++);
-      if (res.rooms === 0) return { error: "No rooms with built-in cupboards to add that to yet.", status: 400 };
+      if (res.rooms === 0) return { error: "Tick the cupboard doors Yes in a room first — the insides follow that answer.", status: 400 };
       blocks = res.blocks;
       return null;
     }
@@ -958,6 +958,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // action may be the confirmation that lifts the ring.
   const loopState = loopConfirmState(blocks, interiorMeta, sidesMeta);
   const payload = editorPayload(blocks, ctx, adjustmentsFrom(newState), newDeferred, loopState);
+  // Tom, 7 Sep: keep the list's price in step with every edit (best-effort).
+  await db.from("estimates").update({ total_cents: payload.totals.totalCents }).eq("id", id)
+    .then(() => undefined, () => undefined);
 
   if (view === "customer") {
     // The customer's view recomputes the range and the acceptance verdict —

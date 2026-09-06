@@ -94,7 +94,7 @@ test.describe("R5 customer scope editor", () => {
       if (r.url().includes("wizard-edit") && !r.ok()) failures.push(`${r.status()} ${(await r.text().catch(() => "")).slice(0, 120)}`);
     });
 
-    const tile = page.locator(".sc-rc").first().locator(".sc-tl").first();
+    const tile = page.locator(".sc-rc[data-room]").first().locator(".sc-tl").first(); // the details card is the first .sc-rc since 7 Sep
     await tile.click({ noWaitAfter: true });
     await page.waitForTimeout(120);
     await tile.click({ noWaitAfter: true });

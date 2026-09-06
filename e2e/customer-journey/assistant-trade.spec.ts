@@ -45,8 +45,6 @@ test.describe("Addendum A2 — describe the job", () => {
       await page.getByPlaceholder("Postcode").fill("3163");
       await page.getByTestId("entry-describe").click();
       await page.getByTestId("describe-job").fill(TOM);
-      // Honest defaults: heritage is unanswered until tapped, and Continue names it.
-      await page.locator(".wz-qhead", { hasText: "Heritage listed" }).locator("xpath=following-sibling::div[1]").getByRole("button", { name: "No", exact: true }).click();
       // Tom, 7 Sep: the contact details are still the last question, then the build.
       await page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ }).first().click();
       const contact = page.locator(".wz-crow input");

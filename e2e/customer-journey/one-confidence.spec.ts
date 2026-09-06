@@ -35,7 +35,7 @@ test("R1.4 one score: no-plan capped, and confirming a room ramps it", async ({ 
   // cupboard/robe question on bedrooms, a doors/windows check — each with a
   // "No" that is a real answer. Confirm refuses until all are answered, so
   // the spec answers what the card actually asks rather than assuming.
-  const card = page.locator(".sc-rc").first();
+  const card = page.locator(".sc-rc[data-room]").first(); // the details card is the first .sc-rc since 7 Sep
   await card.click();
   await card.getByRole("button", { name: "Looks right" }).click();
   const no = card.getByRole("button", { name: /^No\b/ });
