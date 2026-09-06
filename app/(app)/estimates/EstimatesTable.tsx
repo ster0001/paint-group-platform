@@ -27,14 +27,18 @@ import JourneyDrawer from "./JourneyDrawer";
 
 export type EstimateRow = {
   id: string;
-  title: string | null;
+  title: string |  total_cents: number | null;
+  source?: string | null;
   status: string;
   total_cents: number | null;
+  source?: string | null;| null;
   created_at: string;
   /** First customer open — a sent estimate with this set reads "viewed". */
-  viewed_at?: string | null;
+  viewed_at?: string |  total_cents: number | null;
+  source?: string | null;
   /** Buckets brief §5: the wizard session that built this estimate, when there is one. */
-  wizard?: WizardJourney | null;
+  wizard?: WizardJourney |  total_cents: number | null;
+  source?: string | null;
 };
 
 const money = (c: number | null) =>
@@ -199,6 +203,11 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
                   <Link href={`/quote?id=${e.id}`} className="font-medium hover:underline">
                     {e.title || "Untitled estimate"}
                   </Link>
+                  {/* Tom, 7 Sep: the customer's own confirm-loop editor, opened by staff
+                      to walk it with them on the phone. */}
+                  {e.source === "customer_intake" && e.status === "draft" && (
+                    <Link href={`/estimate/scope?id=${e.id}`} className="ml-2 text-xs text-cyan-700 hover:underline" data-testid={`customer-editor-${e.id}`}>Customer editor →</Link>
+                  )}
                 </td>
                 <td
                   className={`px-4 py-2.5 capitalize ${displayStatus(e) === "viewed" ? "text-cyan-700" : "text-gray-500"}`}

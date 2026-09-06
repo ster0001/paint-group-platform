@@ -34,6 +34,15 @@ describe("homeState — one headline, one primary action, by precedence", () => 
     expect(s.cta.href).toBe("tel:(03)90000000");
   });
 
+  it("a half-finished wizard walk beats the welcome: pick up where I left off (Tom, 7 Sep)", () => {
+    const s = homeState([], [], TODAY, PHONE, { pageLabel: "Surfaces" });
+    expect(s.key).toBe("wizard_unfinished");
+    expect(s.cta.href).toBe("/estimate");
+    expect(s.sub).toMatch(/Surfaces/);
+    // A saved estimate still wins over an unfinished walk.
+    expect(homeState([est({ source: "customer_intake" })], [], TODAY, PHONE, { pageLabel: "Surfaces" }).key).toBe("estimate_saved");
+  });
+
   it("a WIZARD-built draft: the primary action reopens the confirm-loop editor (Phase 1, 6 Sep plan)", () => {
     const s = homeState([est({ source: "customer_intake" })], [], TODAY, PHONE);
     expect(s.key).toBe("estimate_saved");

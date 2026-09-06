@@ -1,6 +1,6 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
-import { decodeResume, encodeResume, resumeLine, RESUME_MAX_AGE_MS } from "./resume";
+import { decodeResume, encodeResume, resumeLine, serverResumeFrom, RESUME_MAX_AGE_MS } from "./resume";
 import { defaultCustomer, defaultWizardState } from "./state";
 
 const now = new Date("2026-09-07T10:00:00+10:00");
@@ -52,4 +52,16 @@ test("the welcome-back line names the wizard's own page", () => {
   assert.equal(resumeLine(2, "interior"), "you were at Surfaces");
   assert.equal(resumeLine(3, "exterior"), "you were at Scope");
   assert.equal(resumeLine(1, "interior"), "your answers are back");
+});
+
+test("the server copy resumes a fresh, unconverted draft; converted, stale or empty rows do not", () => {
+  const row = { state: customerState(), current_page: 3, furthest_page: 3, last_seen_at: now.toISOString(), converted_at: null };
+  const r = serverResumeFrom(row, now);
+  assert.ok(r);
+  assert.equal(r.page, 3);
+  assert.deepEqual(r.answered, { heritage: true, pre1970: false, asbestos: false });
+  assert.equal(serverResumeFrom({ ...row, converted_at: now.toISOString() }, now), null);
+  assert.equal(serverResumeFrom({ ...row, last_seen_at: new Date(now.getTime() - RESUME_MAX_AGE_MS - 1).toISOString() }, now), null);
+  assert.equal(serverResumeFrom({ state: { jobType: "spaceship" }, current_page: 3, last_seen_at: now.toISOString() }, now), null);
+  assert.equal(serverResumeFrom(null, now), null);
 });

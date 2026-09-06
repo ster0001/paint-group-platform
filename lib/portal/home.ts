@@ -34,6 +34,7 @@ export type HomeState = {
     | "finished"
     | "estimate_ready"
     | "estimate_saved"
+    | "wizard_unfinished"
     | "welcome";
   headline: string;
   sub: string;
@@ -71,6 +72,8 @@ export function homeState(
   workOrders: PortalWorkOrder[],
   todayYmd: string,
   phone: string,
+  /** Tom, 7 Sep: an autosaved wizard walk this member left part-way. */
+  openWizard: { pageLabel: string } | null = null,
 ): HomeState {
   const byEstimate = new Map(estimates.map((e) => [e.id, e]));
   const wo = (stages: Set<string> | string[]) => {
@@ -144,6 +147,19 @@ export function homeState(
       // ?portal=1 renders the "← My account" way back on the estimate page.
       cta: { label: "See my estimate", href: `/e/${sent.share_token}?portal=1` },
       estimateId: sent.id,
+    };
+  }
+
+  // Tom, 7 Sep: a walk left part-way (the autosaved wizard session) beats
+  // the welcome — "pick up where I left off" opens the wizard on that page.
+  if (openWizard && !estimates.some((e) => e.status === "draft")) {
+    return {
+      key: "wizard_unfinished",
+      headline: "You were part-way through an estimate",
+      sub: `Your answers are saved — you were at ${openWizard.pageLabel}. Pick up where you left off, or start again.`,
+      chip: null,
+      cta: { label: "Pick up where I left off", href: "/estimate" },
+      estimateId: null,
     };
   }
 

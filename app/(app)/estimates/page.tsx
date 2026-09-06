@@ -100,7 +100,7 @@ export default async function EstimatesPage({
   const fq = filterQuery(status);
   let query = supabase
     .from("estimates")
-    .select("id, title, status, total_cents, created_at, viewed_at")
+    .select("id, title, status, total_cents, created_at, viewed_at, source")
     .order("created_at", { ascending: false });
   if (fq.status) query = query.eq("status", fq.status);
   if (fq.viewed === true) query = query.not("viewed_at", "is", null);

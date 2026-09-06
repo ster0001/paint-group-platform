@@ -29,7 +29,7 @@ import {
 import type { WizardEditorPayload } from "@/lib/wizard/view";
 import AddressField from "./AddressField";
 import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
-import { RESUME_KEY, decodeResume, encodeResume, resumeLine, type SafetyAnswered } from "@/lib/wizard/resume";
+import { RESUME_KEY, decodeResume, encodeResume, resumeLine, type ResumeRecord, type SafetyAnswered } from "@/lib/wizard/resume";
 import Wordmark from "./Wordmark";
 
 /**
@@ -102,7 +102,7 @@ const PROC_TIPS = [
   "Nothing is booked and nothing is charged until you say so.",
 ];
 
-export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, intent }: {
+export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, intent, resume = null }: {
   roomTypes: string[];
   /** A2: the offered surface lists, derived server-side from the rate card. */
   substrates: SubstrateGroups;
@@ -129,6 +129,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    * typed on the marketing site, shown in the field; "business" pre-selects
    * the commercial property kind. Intent only — no account, no event. */
   intent?: { addressText: string | null; propertyKind: "commercial" | null; mode?: "home" | "business" | null; entrySource?: string };
+  /** Tom, 7 Sep: the SERVER copy of a half-finished walk (the autosaved
+   * draft for this user) — merged with the browser copy on mount, newest wins. */
+  resume?: Omit<ResumeRecord, "v"> | null;
 }) {
   const makeInitialState = (): WizardState => {
     const seed = prefillState ?? defaultWizardState();
@@ -261,8 +264,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     // Deferred: the restore is a state change, and it must land after paint.
     const t = setTimeout(() => {
       let raw: string | null = null;
-      try { raw = localStorage.getItem(RESUME_KEY); } catch { return; }
-      const r = decodeResume(raw, new Date(), { incomingAddress: intent?.addressText ?? null });
+      try { raw = localStorage.getItem(RESUME_KEY); } catch { raw = null; }
+      const local = decodeResume(raw, new Date(), { incomingAddress: intent?.addressText ?? null });
+      // The server copy (any device) vs the browser copy — whichever is newer.
+      const server = resume && !(intent?.addressText && (resume.addressText || resume.state.customer?.suburb) && !decodeResume(encodeResume(resume), new Date(), { incomingAddress: intent.addressText })) ? resume : null;
+      const r = local && server ? (new Date(local.savedAt) >= new Date(server.savedAt) ? local : server) : (local ?? server);
       if (!r) return;
       setState(r.state);
       setAnswered(r.answered);

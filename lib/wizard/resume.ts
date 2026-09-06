@@ -85,3 +85,38 @@ export function decodeResume(
 export function resumeLine(page: number, jobType: string | null | undefined): string {
   return page <= 1 ? "your answers are back" : `you were at ${pageLabel(jobType, page)}`;
 }
+
+/**
+ * The SERVER copy of a walk (Tom, 7 Sep 2026): the autosaved wizard_drafts row
+ * for this signed-in or anonymous user — the way back into a half-finished
+ * estimate from another device, or after the browser copy is gone. Same
+ * freshness rule as the browser copy; the safety taps count as answered once
+ * the walk got past the page that asked them.
+ */
+export type ServerDraftRow = {
+  state: unknown;
+  current_page?: number | null;
+  furthest_page?: number | null;
+  last_seen_at?: string | null;
+  converted_at?: string | null;
+};
+
+export function serverResumeFrom(row: ServerDraftRow | null | undefined, now: Date): Omit<ResumeRecord, "v"> | null {
+  if (!row || row.converted_at) return null;
+  const seen = row.last_seen_at ? new Date(row.last_seen_at).getTime() : NaN;
+  if (!Number.isFinite(seen) || now.getTime() - seen > RESUME_MAX_AGE_MS) return null;
+  const parsed = wizardStateShapeSchema.safeParse(row.state);
+  if (!parsed.success) return null;
+  const s = parsed.data as WizardState;
+  const furthest = Math.max(1, Number(row.furthest_page) || Number(row.current_page) || 1);
+  const page = Math.max(1, Math.min(6, Number(row.current_page) || furthest));
+  const suburb = (s.customer?.suburb ?? "").trim();
+  if (page < 2 && !suburb && !s.address) return null;
+  return {
+    savedAt: new Date(seen).toISOString(),
+    page,
+    state: s,
+    answered: { heritage: furthest >= 2, pre1970: furthest >= 5, asbestos: furthest >= 5 },
+    addressText: s.address?.formatted ?? "",
+  };
+}

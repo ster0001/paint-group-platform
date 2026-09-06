@@ -430,7 +430,7 @@ export async function POST(request: Request) {
 
   // Tom, 7 Sep: the wizard's contact lands on the estimate's Contact card AND
   // in Contacts — automatically, for every customer run with a name or email.
-  const wizardContact = actor.kind === "customer" && (state.contact.name.trim() || state.contact.email.trim())
+  const wizardContact = state.mode === "customer" && (state.contact.name.trim() || state.contact.email.trim())
     ? builderContactFrom({
         name: state.contact.name, email: email || state.contact.email, phone: state.contact.phone,
         address: state.address ? { street: state.address.street, suburb: state.address.suburb, state: state.address.state, postcode: state.address.postcode } : null,
@@ -529,8 +529,14 @@ export async function POST(request: Request) {
   }
   const estimateId = insert.data.id as string;
 
-  // The lead row — every real customer attempt, whatever the outcome.
-  if (actor.kind === "customer") {
+  // The lead row — every real customer attempt, whatever the outcome. Tom,
+  // 7 Sep: a STAFF-run customer-mode wizard (the office building it with the
+  // customer on the phone) links the account and sends the sign-in link too,
+  // so the customer can keep shaping the same estimate. The lead row and the
+  // visitor cap stay customer-only.
+  const verifiedEmail = "verifiedEmail" in actor ? actor.verifiedEmail : null;
+  if (state.mode === "customer" && email.includes("@")) {
+    if (actor.kind === "customer") {
     const leadOutcome = decision.outcome === "reveal"
       ? (decision.walkthroughRequired ? "walkthrough_only" : "revealed")
       : decision.outcome === "outside_area" ? "outside_area"
@@ -541,6 +547,7 @@ export async function POST(request: Request) {
       suburb: state.customer?.suburb ?? null, postcode: state.customer?.postcode ?? null,
       job_type: state.jobType, outcome: leadOutcome, reasons: decision.reasons,
     }).then((r) => { if (r.error) reportError(r.error, { where: "wizard.leads.insert", bestEffort: true }); });
+    }
 
     // 3a-1: the save is the account seed — find-or-create the account by the
     // captured email (plus the property when a real street address was
@@ -620,7 +627,7 @@ export async function POST(request: Request) {
         // needed; the estimate simply appears on their Home.
         // Settings → Automations: "Estimate saved — sign-in link".
         const { messaging: savedMsg, company: savedCo } = await loadMessaging(db);
-        if (decision.outcome === "reveal" && !isTestEmail(email) && !actor.verifiedEmail && automationOn(savedMsg, "wizard_saved_link")) {
+        if (decision.outcome === "reveal" && !isTestEmail(email) && !verifiedEmail && automationOn(savedMsg, "wizard_saved_link")) {
           const savedVars = {
             company_name: savedCo.name || "Paint Group",
             next_step: decision.walkthroughRequired
