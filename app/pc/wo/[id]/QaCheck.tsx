@@ -7,6 +7,10 @@ import { recordQa, tickQaItem } from "../../actions";
 export type QaStandard = { id: string; label: string; detail: string; done: boolean };
 export type QaCheckView = {
   id: string; kind: string; result: string | null; thinRecord: boolean;
+  /** The failed check this one re-inspects (migration 20270112), or null. */
+  retryOf: string | null;
+  /** A logged FAIL that already has its re-check — a record, not a hold. */
+  superseded: boolean;
   standards: QaStandard[];
 };
 
@@ -17,6 +21,11 @@ export type QaCheckView = {
  * PASS is refused until every one has been looked at. A FAIL is not — the point
  * of a fail is to record what was wrong and get it back to the painter, on the
  * same tick list they already use.
+ *
+ * A FAIL is never reset. It spawns its own re-check (same kind, `retryOf` = the
+ * failed check, all standards fresh) the moment it is logged; the painter's
+ * re-finish brings the job back here and THAT card is the one with controls.
+ * The failed card stays as the record and says where its re-check went.
  */
 export default function QaCheck({ check, workOrderId }: { check: QaCheckView; workOrderId: string }) {
   const router = useRouter();
@@ -101,15 +110,23 @@ export default function QaCheck({ check, workOrderId }: { check: QaCheckView; wo
     });
   }
 
+  const kindLabel = check.kind === "mid" ? "mid-job" : check.kind.replace(/_/g, " ");
+
   if (result) {
+    // A fail logged this session has its re-check on the way (the refresh
+    // draws it); one loaded from the record has it already.
+    const rechecked = check.superseded || result === "fail";
     return (
       <div className="card" data-testid={`qa-${check.id}`}>
-        <h3>Quality check <em>{check.kind.replace(/_/g, " ")}</em></h3>
+        <h3>Quality check <em>{kindLabel}{check.retryOf ? " · re-check" : ""}</em></h3>
         <p className="note" data-testid={`qa-result-${check.id}`}>
           Logged: <b style={{ color: result === "pass" ? "var(--emerald)" : "var(--clay)" }}>
             {result.toUpperCase()}
           </b>
           {check.thinRecord && " · thin photo record"}
+          {result === "fail" && rechecked && (
+            <> · re-check scheduled — it appears here once the painter finishes again</>
+          )}
         </p>
         {message && <p className="note" data-testid={`qa-msg-${check.id}`}>{message}</p>}
       </div>
@@ -119,9 +136,13 @@ export default function QaCheck({ check, workOrderId }: { check: QaCheckView; wo
   return (
     <div className="card" data-testid={`qa-${check.id}`}>
       <h3>
-        Quality check <em>{left === 0 ? "ready to log" : `${left} to check`}</em>
+        Quality check <em>{check.retryOf ? "re-check · " : ""}{left === 0 ? "ready to log" : `${left} to check`}</em>
       </h3>
-      <p className="note">Photo-logged against the standards. Every line looked at before a pass.</p>
+      <p className="note">
+        {check.retryOf
+          ? "Re-inspection after a fail: the rectification is ticked, every standard looked at again before a pass."
+          : "Photo-logged against the standards. Every line looked at before a pass."}
+      </p>
 
       {message && <p className="note" style={{ color: "var(--amber)" }} data-testid={`qa-msg-${check.id}`}>{message}</p>}
 

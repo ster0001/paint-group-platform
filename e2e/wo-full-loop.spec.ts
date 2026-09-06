@@ -14,7 +14,10 @@ import {
  * story stops at that gate.
  *
  * Then the failure story: a QA fail and a walkthrough flag, both rectified
- * through the same tick list the painter already uses.
+ * through the same tick list the painter already uses. The fail's re-check
+ * (20270112) is the app's, not the test's: nothing here edits wo_qa_checks —
+ * step 7 used to flip the failed row to pass through the service client,
+ * which is how a parked-for-ever job passed this suite for two weeks.
  */
 
 const staff = credentials("STAFF");
@@ -204,8 +207,16 @@ test.describe("the whole loop, one job", () => {
       .toBe("ok:completion_prep");
     expect(await rpcAs(staff!, "wo_seed_prep_checklist", { p_work_order_id: job!.workOrderId })).toMatch(/^ok:/);
 
-    const { data: check } = await db!.from("wo_qa_checks")
-      .insert({ work_order_id: job!.workOrderId, kind: "final" }).select("id").single();
+    // The check is the APP's: step 5's sweep (and the PC page's self-heal)
+    // schedules a new contractor's final check. A second one inserted here
+    // would be a straggler nothing ever logs — which is what the old step 8
+    // was flipping to pass. Fall back to inserting only if the cadence did
+    // not fire (the test contractor stops being "new" once enough leaked
+    // fixtures have closed).
+    const { data: scheduled } = await db!.from("wo_qa_checks")
+      .select("id").eq("work_order_id", job!.workOrderId).eq("kind", "final").is("result", null).maybeSingle();
+    const check = scheduled ?? (await db!.from("wo_qa_checks")
+      .insert({ work_order_id: job!.workOrderId, kind: "final" }).select("id").single()).data;
 
     const early = await rpcAs(staff!, "wo_advance_stage", { p_work_order_id: job!.workOrderId, p_to: "qa" });
     expect(early).toContain("still to tick");
@@ -230,56 +241,64 @@ test.describe("the whole loop, one job", () => {
     expect((rect as { label: string }[])[0].label).toContain("Re-sand");
   });
 
-  test("7 · the painter puts it right on that same list, and QA passes", async () => {
+  test("7 · the painter puts it right on that same list, and the re-check passes", async () => {
     const { data: outstanding } = await db!.from("wo_surfaces")
       .select("id, heading").eq("work_order_id", job!.workOrderId).neq("state", "done");
     for (const s of (outstanding as { id: string; heading: string }[])) {
       expect(await rpcAs(contractor!, "wo_tick_surface", { p_surface_id: s.id, p_to: "done" })).toBe("ok:done");
     }
 
-    // Back through prep (its items are still ticked from step 6), then to qa.
-    expect(await rpcAs(staff!, "wo_advance_stage", { p_work_order_id: job!.workOrderId, p_to: "completion_prep" }))
-      .toBe("ok:completion_prep");
-    expect(await rpcAs(staff!, "wo_advance_stage", { p_work_order_id: job!.workOrderId, p_to: "qa" })).toBe("ok:qa");
+    // The fail spawned its own re-check (migration 20270112): same kind,
+    // linked to the failed check, standards fresh, not yet logged. Nothing in
+    // this story inserts or edits a check by hand — the app made this one.
+    const { data: failedRow } = await db!.from("wo_qa_checks")
+      .select("id").eq("work_order_id", job!.workOrderId).eq("result", "fail").single();
+    const failedId = (failedRow as { id: string }).id;
+    const { data: recheckRow } = await db!.from("wo_qa_checks")
+      .select("id, kind, result").eq("retry_of", failedId).single();
+    const recheck = recheckRow as { id: string; kind: string; result: string | null };
+    expect(recheck.kind).toBe("final");
+    expect(recheck.result).toBeNull();
 
-    const { data: check } = await db!.from("wo_qa_checks")
-      .insert({ work_order_id: job!.workOrderId, kind: "final" }).select("id").single();
+    // "All done — next step", as the painter: the button's own two RPCs. Prep
+    // is still ticked from step 6; the open re-check routes the job to qa.
+    expect(await rpcAs(contractor!, "wo_contractor_finish", { p_work_order_id: job!.workOrderId }))
+      .toBe("ok:completion_prep:qa_pending");
+    expect(await rpcAs(contractor!, "wo_contractor_confirm_prep", { p_work_order_id: job!.workOrderId }))
+      .toBe("ok:qa");
+
+    // The re-check holds the pack — ONE open check, not the fail as well.
+    expect(await rpcAs(staff!, "wo_deliver_evidence_pack", { p_work_order_id: job!.workOrderId }))
+      .toBe("error:gate:1 quality check still open");
+
     for (let i = 0; i < 3; i++) await photoFor(job!.workOrderId, "qa");
 
-    // A pass now has to have looked at every standard.
-    const { data: qaItems } = await db!.from("wo_qa_items")
-      .select("id").eq("qa_check_id", (check as { id: string }).id);
+    // A pass has to have looked at every standard.
+    const { data: qaItems } = await db!.from("wo_qa_items").select("id").eq("qa_check_id", recheck.id);
     for (const item of (qaItems as { id: string }[])) {
       await rpcAs(staff!, "wo_tick_qa_item", { p_item_id: item.id, p_done: true });
     }
 
+    // The LAST pass settles the fail (its re-check passed) and routes the job
+    // on from inside wo_record_qa — the pack goes out, the stage moves.
     expect(await rpcAs(staff!, "wo_record_qa", {
-      p_check_id: (check as { id: string }).id, p_result: "pass", p_notes: "All good.", p_rectify: [],
-    })).toBe("ok:pass");
+      p_check_id: recheck.id, p_result: "pass", p_notes: "All good.", p_rectify: [],
+    })).toBe("ok:pass:walkthrough");
 
-    // The failed check from step 6 still blocks the pack — every check must
-    // be answered pass before the customer is asked to look.
-    const blocked = await rpcAs(staff!, "wo_deliver_evidence_pack", { p_work_order_id: job!.workOrderId });
-    expect(blocked).toContain("still open");
-    await db!.from("wo_qa_checks").update({ result: "pass" })
-      .eq("work_order_id", job!.workOrderId).eq("result", "fail");
+    // The fail is still a fail — a record, never reset.
+    const { data: again } = await db!.from("wo_qa_checks").select("result").eq("id", failedId).single();
+    expect((again as { result: string }).result).toBe("fail");
   });
 
-  test("8 · the checks all passed, so the pack goes to the customer", async () => {
-    // The console self-heals QA scheduling for a NEW contractor whenever staff
-    // view an in-progress job — earlier steps did exactly that, so cadence
-    // checks (day_one) exist beside the ones this story created. The ruling
-    // says the pack cannot leave while ANY is unpassed; settle the stragglers
-    // the way the office would.
-    await db!.from("wo_qa_checks").update({ result: "pass" })
-      .eq("work_order_id", job!.workOrderId).is("result", null);
-
-    // Prep was confirmed back in step 6; the checks passed in step 7. From the
-    // qa stage the pack goes straight out — quality check sits between prep
-    // and sign-off now, not before prep.
-    const delivered = await rpcAs(staff!, "wo_deliver_evidence_pack", { p_work_order_id: job!.workOrderId });
-    expect(delivered).toMatch(/^ok:/);
-    signoffToken = delivered.slice(3);
+  test("8 · the checks are settled, so the pack is with the customer", async () => {
+    // The pass delivered it (Tom, 23 Aug: automatic, wherever the pass is
+    // logged). The customer's link is the signoff row's token.
+    const { data: wo } = await db!.from("work_orders").select("stage").eq("id", job!.workOrderId).single();
+    expect((wo as { stage: string }).stage).toBe("walkthrough");
+    const { data: so } = await db!.from("wo_signoff")
+      .select("customer_token").eq("work_order_id", job!.workOrderId).single();
+    signoffToken = (so as { customer_token: string | null }).customer_token ?? "";
+    expect(signoffToken).toBeTruthy();
   });
 
   test("9 · the customer flags an area, and it goes back to the painter", async ({ page }) => {

@@ -435,7 +435,9 @@ export async function recordQa(raw: unknown): Promise<QaResult> {
   }
   revalidatePath("/pc"); revalidatePath("/pc/flow"); revalidatePath("/pc/updates");
   const thin = s.endsWith(":thin_record") ? " (thin photo record)" : "";
-  if (s.startsWith("ok:fail")) return { ok: true, message: `Failed — rectification is on the painter's list.${thin}` };
+  if (s.startsWith("ok:fail")) {
+    return { ok: true, message: `Failed — rectification is on the painter's list. A re-check is scheduled: it comes back here when they finish again.${thin}` };
+  }
   if (s.startsWith("ok:pass:walkthrough")) {
     return { ok: true, to: "walkthrough", message: `Passed — all checks clear. The customer has their walkthrough; sign-off is running.${thin}` };
   }

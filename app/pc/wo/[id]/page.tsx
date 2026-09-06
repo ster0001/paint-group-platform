@@ -9,6 +9,7 @@ import UpdateComposer from "./UpdateComposer";
 import Checklist, { type ChecklistItem } from "./Checklist";
 import WalkthroughCard from "./WalkthroughCard";
 import QaCheck, { type QaCheckView } from "./QaCheck";
+import { supersededQaIds } from "@/lib/workorder/qa";
 import QaControls from "./QaControls";
 import ColourMatchCard from "@/app/components/wo/ColourMatchCard";
 import { humaniseGate } from "@/lib/workorder/gateText";
@@ -61,7 +62,7 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     else if (r.startsWith("error:gate:")) qaHold = r.slice("error:gate:".length);
   }
 
-  const [{ data: surfaceRows }, { data: variationRows }, { data: updateRows }, { data: qaRows }, { data: checklistRows }, { data: rateRow }, { data: walkthroughRows }, { data: signoffRow }] =
+  const [{ data: surfaceRows }, { data: variationRows }, { data: updateRows }, { data: qaRows }, { data: qaLinkRows }, { data: checklistRows }, { data: rateRow }, { data: walkthroughRows }, { data: signoffRow }] =
     await Promise.all([
       supabase.from("wo_surfaces")
         .select("id, heading, heading_meta, label, state, rectification, removed_from_scope")
@@ -74,6 +75,10 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
       supabase.from("wo_qa_checks")
         .select("id, kind, result, thin_record, scheduled_for, wo_qa_items(id, label, detail, sort, done_at)")
         .eq("work_order_id", id),
+      // The re-check link (migration 20270112) on its own, so the QA section
+      // survives a stack that has not run it yet: a missing column fails THIS
+      // query only, and the links read as "none".
+      supabase.from("wo_qa_checks").select("id, retry_of").eq("work_order_id", id),
       supabase.from("wo_checklist_items")
         .select("id, phase, label, detail, required, done_at, auto_key, kind, item_key, answer, answer_note, handled_at")
         .eq("work_order_id", id).order("phase").order("sort"),
@@ -234,14 +239,34 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
     };
   });
 
+  // A FAIL spawns its re-check (same kind, `retry_of` = the failed check —
+  // migration 20270112). The failed card stays as the record; the re-check is
+  // the card with controls. Ordered so a re-check sits under what it re-checks.
+  const retryOf = new Map(((qaLinkRows ?? []) as { id: string; retry_of: string | null }[])
+    .map((r) => [r.id, r.retry_of] as const));
+  const superseded = supersededQaIds([...retryOf].map(([qid, rof]) => ({ id: qid, result: null, retryOf: rof })));
   const qaChecks: QaCheckView[] = ((qaRows ?? []) as unknown as {
     id: string; kind: string; result: string | null; thin_record: boolean;
     wo_qa_items: { id: string; label: string; detail: string; sort: number; done_at: string | null }[] | null;
   }[]).map((c) => ({
     id: c.id, kind: c.kind, result: c.result, thinRecord: c.thin_record,
+    retryOf: retryOf.get(c.id) ?? null,
+    superseded: superseded.has(c.id),
     standards: [...(c.wo_qa_items ?? [])].sort((a, b) => a.sort - b.sort)
       .map((i) => ({ id: i.id, label: i.label, detail: i.detail, done: i.done_at !== null })),
   }));
+  {
+    const at = new Map(qaChecks.map((c, i) => [c.id, i]));
+    const rootAndDepth = (c: QaCheckView): [number, number] => {
+      let cur = c; let depth = 0;
+      while (cur.retryOf && at.has(cur.retryOf) && depth < 20) { cur = qaChecks[at.get(cur.retryOf)!]; depth += 1; }
+      return [at.get(cur.id) ?? 0, depth];
+    };
+    qaChecks.sort((a, b) => {
+      const [ra, da] = rootAndDepth(a); const [rb, db] = rootAndDepth(b);
+      return ra - rb || da - db;
+    });
+  }
 
   const forPhase = (phase: string) => checklist.filter((c) => c.phase === phase);
   const outstanding = (phase: string) =>
@@ -523,8 +548,13 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
 
           {/* The checks stay on screen past the pass (walkthrough, closed):
               the last PASS sends the pack and refreshes this page — the card
-              must survive that, or its "pack sent" message vanishes with it. */}
-          {(row.stage === "qa" || row.stage === "walkthrough" || row.stage === "closed") && qaChecks.map((c) => (
+              must survive that, or its "pack sent" message vanishes with it.
+              Same for a FAIL, which sends the job back to In progress: the
+              logged record (and where its re-check went) stays in view while
+              the painter rectifies; the unlogged re-check itself waits for
+              their next finish before it is drawn. */}
+          {(row.stage === "qa" || row.stage === "walkthrough" || row.stage === "closed" || row.stage === "in_progress")
+            && qaChecks.filter((c) => row.stage !== "in_progress" || c.result !== null).map((c) => (
             <QaCheck key={c.id} check={c} workOrderId={id} />
           ))}
           {/* An empty qa stage was a silent dead end: no cards, no explanation,
@@ -656,9 +686,9 @@ export default async function PcWorkOrderPage({ params }: { params: Promise<{ id
             </div>
             {((qaRows ?? []) as { id: string; kind: string; result: string | null; thin_record: boolean; scheduled_for: string | null }[]).map((q) => (
               <div className="tick" key={q.id}>
-                <p>{q.kind === "mid" ? "mid-job" : q.kind.replace(/_/g, " ")}{q.scheduled_for ? ` · ${q.scheduled_for}` : ""}</p>
+                <p>{q.kind === "mid" ? "mid-job" : q.kind.replace(/_/g, " ")}{retryOf.get(q.id) ? " · re-check" : ""}{q.scheduled_for ? ` · ${q.scheduled_for}` : ""}</p>
                 <span className={`pill ${q.result === "pass" ? "p-em" : q.result === "fail" ? "p-clay" : "p-amber"}`}>
-                  {q.result ?? "due"}{q.thin_record ? " · thin record" : ""}
+                  {q.result ?? "due"}{q.result === "fail" && superseded.has(q.id) ? " · re-checked" : ""}{q.thin_record ? " · thin record" : ""}
                 </span>
               </div>
             ))}

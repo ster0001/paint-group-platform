@@ -27,6 +27,7 @@ import type { PortalBlock, PortalJobDay } from "@/app/portal/calendar/CalendarGr
 import { jobDaysFor } from "@/lib/contractor/jobDays";
 import { suburbOnly } from "@/lib/scheduling/offers";
 import { requestNowMs } from "@/lib/time/requestClock";
+import { qaAllClear } from "@/lib/workorder/qa";
 
 export const dynamic = "force-dynamic";
 
@@ -85,7 +86,7 @@ export default async function PortalJobPage({
 
   // The tick list and the before-photos already logged. RLS scopes both to this
   // contractor's own jobs, so an id that isn't theirs simply returns nothing.
-  const [{ data: surfaceRows }, { data: photoRows }, { data: woRow }, { data: walkthroughRows }, { data: qaRows }, { data: signoffRow }] = await Promise.all([
+  const [{ data: surfaceRows }, { data: photoRows }, { data: woRow }, { data: walkthroughRows }, { data: qaRows }, { data: signoffRow }, { data: qaLinkRows }] = await Promise.all([
     supabase.from("wo_surfaces")
       .select("id, heading, heading_meta, label, state, rectification, removed_from_scope")
       .eq("work_order_id", id).order("sort", { ascending: true }),
@@ -98,6 +99,9 @@ export default async function PortalJobPage({
     supabase.from("wo_qa_checks")
       .select("id, result, kind, scheduled_for, notes, checked_at").eq("work_order_id", id),
     supabase.from("wo_signoff").select("signed_at, signed_name").eq("work_order_id", id).maybeSingle(),
+    // Re-check links (migration 20270112), on their own so a stack without the
+    // column loses only the links, never the page.
+    supabase.from("wo_qa_checks").select("id, retry_of").eq("work_order_id", id),
   ]);
 
   // Requested or confirmed — derived from the live offer, never stored twice.
@@ -212,7 +216,10 @@ export default async function PortalJobPage({
   // the moment anyone looks — the painter never presses anything customer-
   // facing (Tom, 23 Aug). A pack-gate refusal is shown in its own words.
   const qaList = ((qaRows ?? []) as { id: string; result: string | null; notes?: string | null; checked_at?: string | null }[]);
-  const qaPassed = qaList.length > 0 && qaList.every((q) => q.result === "pass");
+  // A failed check is settled once its re-check has passed (20270112): the
+  // record keeps the FAIL, the job is not held by it.
+  const qaRetryOf = new Map(((qaLinkRows ?? []) as { id: string; retry_of: string | null }[]).map((r) => [r.id, r.retry_of] as const));
+  const qaPassed = qaAllClear(qaList.map((q) => ({ id: q.id, result: q.result, retryOf: qaRetryOf.get(q.id) ?? null })));
 
   // A failed check with areas still to put right (Tom, 1 Sep #2): show the
   // inspector's notes, the missed areas and their photos right on the job.

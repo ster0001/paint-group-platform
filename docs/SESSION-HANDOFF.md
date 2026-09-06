@@ -1,3 +1,44 @@
+# 6 Sep 2026 — A failed quality check can be re-inspected and passed. ONE migration: 20270112 (QUEUED for prod; applied + proven on C1). Branch `fix/qa-recheck`.
+
+Found by `e2e/help-capture/work-orders.spec.ts` (help brief A3): fail the final check
+→ painter rectifies and finishes again → the job is back at Quality check with ONE
+card, "Logged: FAIL", no controls; `wo_record_qa` refuses a second log
+(`already_fail`), `wo_schedule_qa` makes nothing (a 'final' exists), every gate
+counts the fail as open. Parked for ever. `wo-full-loop` step 7 passed only because
+it flipped the row to `pass` through the service client.
+
+**Ruling applied (23 Aug: QA is ours, a passed check must move the job on):** option
+(a) — a FAIL spawns its own re-check, in the same statement, and a fail counts as
+open only until its re-check exists.
+
+1. **`wo_qa_checks.retry_of`** + `wo_qa_open_count(wo)` = unlogged + failed-with-no-
+   re-check. `wo_record_qa`'s FAIL branch inserts the successor (same kind, linked,
+   standards seeded by trigger, undated) before moving the job back; `qa_fail` event
+   carries `recheck_id`, `qa_pass` carries `retry_of`. Gate (both arms), finish,
+   confirm-prep, route-passed and book-walkthrough read the one predicate — bodies
+   verbatim from 20261116 / 20261031 / 20261110 / 20261125 otherwise. Backfill gives
+   every parked fail on a non-closed job its re-check (read-back `no_parked_fails`).
+2. **PC job page:** the failed card stays as the record ("Logged: FAIL · re-check
+   scheduled — it appears here once the painter finishes again"); the re-check card
+   reads "Quality check re-check · N to check" with the fresh standards and the
+   controls; Job facts rows say "re-check" / "fail · re-checked". Cards ordered
+   re-check under its parent. Painter's page: "every check passed" now reads the
+   re-check rule (`lib/workorder/qa.ts`), so the self-heal fires once the re-check
+   passes. Both pages read `retry_of` in a separate query — a stack without the
+   column loses only the links.
+3. **Nothing else moved:** the painter's re-finish routes to qa because the re-check
+   is open; the last pass routes through `wo_qa_route_passed` as before; the stage
+   matrix is unchanged (`stages.ts` untouched, drift test still 20261124).
+4. **Gates:** unit `lib/workorder/qa.test.ts` 7/7 · e2e `wo-qa-recheck` 4/4 on C1
+   (real buttons in both portals: finish, Log FAIL, Log check — PASS; no service-role
+   edits of `wo_qa_checks`) · `wo-full-loop` 13/13 with the step-7 flip GONE and
+   step 8 reading the token the pass delivered. Script:
+   `docs/manual-tests/qa-recheck.md`.
+5. **Help:** `docs/help/work-orders/pc.md` steps 14–16 + the "N quality checks still
+   open" entry, and the WORKAROUND block in `e2e/help-capture/work-orders.spec.ts`,
+   live uncommitted in the `-help` worktree (`feat/help-content-foundation`) — updated
+   there in place; they merge with that branch, not this one.
+
 # 4 Sep 2026 (later) — Materials on the PC job page · Payables "matched job" search box + expense-type dropdown. ONE migration: 20261231 (QUEUED for prod).
 
 1. **PC → job → Materials card** (`app/pc/wo/[id]/MaterialsCard.tsx`, under Colour

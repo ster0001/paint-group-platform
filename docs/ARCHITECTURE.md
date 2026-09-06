@@ -2006,3 +2006,27 @@ per host. e2e: `e2e/marketing/audiences.spec.ts` (mobile; journey 3 needs
 `COMMERCIAL_DOMAIN`). Hand-off: `see_price` on the business site carries
 `src=commercial_home_hero|_cta` and, on the commercial domain, an absolute residential
 `/estimate` URL (⚑ D2).
+
+## Quality check re-check (6 Sep 2026)
+
+A failed quality check is a record, never a state to reset — and it no longer parks
+the job. Migration **20270112** gives `wo_qa_checks` a `retry_of` link and makes
+`wo_record_qa` spawn the re-check inside the FAIL itself: a fresh row of the same
+kind, `retry_of` = the failed check, standards seeded by the existing trigger, result
+null (the stage event carries `recheck_id`). One definition of "open" replaces the
+five copies of `result is null or result = 'fail'`: **`wo_qa_open_count(work_order)`**
+= unlogged checks + failed checks with no re-check pointing at them. `wo_gate_blocked`
+(both QA arms), `wo_contractor_finish`, `wo_contractor_confirm_prep`,
+`wo_qa_route_passed` and `wo_book_walkthrough` all read it, bodies otherwise verbatim.
+So the painter's re-finish routes to `qa` because the RE-CHECK is open, the PC works
+that card (`QaCheck.tsx`: "re-check" in the heading, the failed card says where its
+re-check went), and the pass on it is the last open check → the existing
+`wo_qa_route_passed` path delivers the pack. A re-check that fails spawns the next one;
+the chain is as long as it needs to be. `lib/workorder/qa.ts` is the TS twin
+(`openQaChecks` / `qaAllClear`) used by the PC job page and the painter's job page;
+both read the link in a separate query so a stack without the column loses only the
+links. Backfill in the migration gives every parked fail on a non-closed job its
+re-check. e2e: `wo-qa-recheck.spec.ts` (fail → rectify → re-check → pass → walkthrough,
+driven through both portals' buttons, no service-role edits of `wo_qa_checks`);
+`wo-full-loop.spec.ts` step 7 no longer flips the failed row. The stage matrix did not
+change (`lib/workorder/stages.ts` untouched).
