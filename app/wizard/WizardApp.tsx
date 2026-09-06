@@ -865,6 +865,10 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       if (isCustomer && entry === "describe" && brief.trim().length < 20) {
         return "Type a few lines about the job first — or pick another way in.";
       }
+      // A described job is built from the paragraph alone (Tom, 7 Sep): no
+      // floorplan, basics or facade photos are asked for. The C1 run of 7 Sep
+      // caught the gate below stopping it with "Upload a floorplan…".
+      if (isCustomer && entry === "describe") return null;
       if (wantsInterior && !state.noPlan && state.planRunIds.length === 0) {
         return state.listingUrl.trim()
           ? "Tap “Read the floorplan from this listing”, upload a floorplan, or choose the quick basics instead."
