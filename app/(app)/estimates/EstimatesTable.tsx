@@ -34,11 +34,9 @@ export type EstimateRow = {
   source?: string | null;
   created_at: string;
   /** First customer open — a sent estimate with this set reads "viewed". */
-  viewed_at?: string |  total_cents: number | null;
-  source?: string | null;
+  viewed_at?: string | null;
   /** Buckets brief §5: the wizard session that built this estimate, when there is one. */
-  wizard?: WizardJourney |  total_cents: number | null;
-  source?: string | null;
+  wizard?: WizardJourney | null;
 };
 
 const money = (c: number | null) =>
