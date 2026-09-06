@@ -27,11 +27,11 @@ import JourneyDrawer from "./JourneyDrawer";
 
 export type EstimateRow = {
   id: string;
-  title: string |  total_cents: number | null;
-  source?: string | null;
+  title: string | null;
   status: string;
   total_cents: number | null;
-  source?: string | null;| null;
+  /** Tom, 7 Sep: customer-built drafts get a 'Customer editor' link. */
+  source?: string | null;
   created_at: string;
   /** First customer open — a sent estimate with this set reads "viewed". */
   viewed_at?: string |  total_cents: number | null;
