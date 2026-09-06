@@ -109,13 +109,32 @@ async function committedSet(workOrderIds: string[]): Promise<Set<string>> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("booking_offers")
-    .select("work_order_id, state")
+    .select("work_order_id, state, prior_start_date")
     .in("work_order_id", workOrderIds);
 
   return committedIds(workOrderIds, (data as OfferStateRow[] | null) ?? []);
 }
 
-export type OfferStateRow = { work_order_id: string; state: string };
+export type OfferStateRow = {
+  work_order_id: string;
+  state: string;
+  /** Set while a RESCHEDULE of an accepted booking awaits staff (request_reschedule). */
+  prior_start_date?: string | null;
+};
+
+/**
+ * Has the contractor committed to this offer? Accepted, plainly. Also a
+ * 'proposed' offer that carries prior_start_date: that is an accepted booking
+ * the painter has asked to MOVE, not a job they were merely asked about — the
+ * original date still stands until staff decide (RescheduleRequest says so),
+ * so the address they already hold must not vanish. Found 6 Sep: sending a
+ * reschedule request re-redacted the job to suburb-only and retitled it with
+ * the suburb. A first-time proposal ('proposed' with no prior date) stays
+ * redacted — they have not accepted anything yet.
+ */
+export function offerCommits(r: OfferStateRow): boolean {
+  return r.state === "accepted" || (r.state === "proposed" && !!r.prior_start_date);
+}
 
 /**
  * The rule itself, separated from the query so it can be tested. Getting this
@@ -124,7 +143,7 @@ export type OfferStateRow = { work_order_id: string; state: string };
  */
 export function committedIds(workOrderIds: string[], offers: OfferStateRow[]): Set<string> {
   const hasAnyOffer = new Set(offers.map((r) => r.work_order_id));
-  const accepted = new Set(offers.filter((r) => r.state === "accepted").map((r) => r.work_order_id));
+  const accepted = new Set(offers.filter(offerCommits).map((r) => r.work_order_id));
   return new Set(workOrderIds.filter((id) => accepted.has(id) || !hasAnyOffer.has(id)));
 }
 
