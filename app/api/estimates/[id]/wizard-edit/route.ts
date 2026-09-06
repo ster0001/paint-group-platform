@@ -3,7 +3,7 @@ import { logCrmEvent } from "@/lib/crm/events";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { getWizardActor } from "@/lib/supabase/guards";
+import { customerOwnsDraft, getWizardActor } from "@/lib/supabase/guards";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildDraft } from "@/lib/extract/draft";
 import { SCOPE_VERSION, type Alias, type ScopeRule } from "@/lib/extract/scope";
@@ -249,9 +249,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .maybeSingle();
   if (!estimate) return NextResponse.json({ error: "No such estimate." }, { status: 404 });
   if (actor.kind === "customer") {
-    const own = (estimate as { created_by?: string | null }).created_by === actor.user.id
-      && (estimate as { source?: string }).source === "customer_intake"
-      && estimate.status === "draft";
+    // Phase 1 (6 Sep plan): the anonymous builder OR a signed-in member of
+    // the linked account (lib/supabase/guards customerOwnsDraft).
+    const own = await customerOwnsDraft(db, actor, estimate as { created_by?: string | null; source?: string | null; status?: string | null; account_id?: string | null });
     // 404, not 403 - existence is never confirmed to guessers.
     if (!own) return NextResponse.json({ error: "No such estimate." }, { status: 404 });
   }

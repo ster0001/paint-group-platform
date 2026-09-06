@@ -85,6 +85,7 @@ test.describe("R1.3 document model", () => {
     await next(); // condition
     await next(); // details
     await answer(/built before 1970/, "No");
+    await answer(/asbestos/, "No"); // Phase 0: unanswered until tapped
     await page.getByRole("button", { name: /a few areas of concern/i }).click();
     const [chooser] = await Promise.all([
       page.waitForEvent("filechooser"),

@@ -35,6 +35,7 @@ test("Both job: interior cards then sides, combined progress, single visit CTA",
   await next(); // condition
   await next(); // details
   await answer(/built before 1970/, "No");
+  await answer(/asbestos/, "No"); // Phase 0: unanswered until tapped
   await next(); // paint
   await next(); // → contact, the LAST page (Tom, 31 Aug)
   await fillContactStep(page, `e2e-both-${Date.now()}@example.com`);

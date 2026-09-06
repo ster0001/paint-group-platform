@@ -612,7 +612,9 @@ export async function POST(request: Request) {
           // serverless invocation ends with the response.
           await sendMagicLink({
             email,
-            next: "/account",
+            // Phase 1 (6 Sep plan): the link lands IN the estimate, not on a
+            // page that points at it.
+            next: `/estimate/scope?id=${estimateId}`,
             subject: renderTemplate(savedMsg.wizardSavedSubject, savedVars),
             intro: renderTemplate(savedMsg.wizardSavedBody, savedVars),
             buttonLabel: "Open my account",

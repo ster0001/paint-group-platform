@@ -2006,3 +2006,27 @@ per host. e2e: `e2e/marketing/audiences.spec.ts` (mobile; journey 3 needs
 `COMMERCIAL_DOMAIN`). Hand-off: `see_price` on the business site carries
 `src=commercial_home_hero|_cta` and, on the commercial domain, an absolute residential
 `/estimate` URL (⚑ D2).
+
+## Estimator plan · Phase 0 + 1 (7 Sep 2026)
+
+From `docs/briefs/estimator-wizard-end-to-end-plan.md`. **Online estimates switch:**
+`lib/wizard/publicFlag.ts` reads the `wizard_public` settings row as `{ enabled,
+holdingTitle, holdingBody }` (old `{ enabled }` rows still read); Settings → Estimates →
+Online estimates (`OnlineEstimatesSettings.tsx`) is the only place it is flipped. While
+off, `/estimate` renders the holding page WITH a call-me form (`HoldingCallback.tsx` →
+`POST /api/wizard/callback`, sessionless, same-origin + per-IP bucket `callback` in
+`lib/places/publicLimit`), which files an account by email and a `callback_requested`
+CRM event — the existing `buildCallbackItems` puts it on Today. **Honest defaults:** the
+three safety answers (heritage, built-before-1970, asbestos) carry no pre-selection; the
+wizard tracks `answered` per question and `pageBlocker` names the open one; the kicker
+counts `lastPage` steps ("Step 2 of 6"). **Save-and-return:** `lib/wizard/resume.ts` is
+the pure codec (7-day freshness, shape-validated, a homepage hand-off for a different
+address starts fresh); WizardApp writes the record to localStorage a beat after every
+change and restores it on mount with a "Welcome back — you were at Surfaces" line and
+Start again; cleared on a successful build. Ownership of a customer draft is now
+`customerOwnsDraft` (`lib/supabase/guards.ts`): the anonymous builder OR a signed-in
+member of the linked account — used by `/estimate/scope` and the wizard-edit route — so
+the portal Home's "Keep shaping my estimate" (`lib/portal/home.ts`, wizard-built drafts
+only) and the saved-estimate magic link (now `next=/estimate/scope?id=…`) reopen the
+editor on any device. Journey specs: `holding-and-honest-defaults.spec.ts`,
+`save-and-return.spec.ts` (anonymous customer, phone viewport).

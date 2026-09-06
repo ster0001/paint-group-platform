@@ -43,6 +43,8 @@ test.describe("wizard sessions → buckets", () => {
     await page.getByRole("button", { name: /There isn't a floorplan to hand/ }).click();
     await page.getByPlaceholder("Suburb").fill("Malvern");
     await page.getByPlaceholder("Postcode").fill("3144");
+    // Phase 0: heritage is unanswered until tapped.
+    await page.locator(".wz-qhead", { hasText: "Heritage listed" }).locator("xpath=following-sibling::div[1]").getByRole("button", { name: "No", exact: true }).click();
     const next = async () => { await page.getByRole("button", { name: /Continue|Nearly there/ }).first().click(); };
     await next(); // → 2 Surfaces
     await next(); // → 3 Condition

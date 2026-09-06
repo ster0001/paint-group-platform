@@ -12,6 +12,8 @@ import TemplatesManager, { type TemplateMeta } from "./TemplatesManager";
 import InclusionTemplatesManager from "./InclusionTemplatesManager";
 import TermsEditor, { TERMS_KEY } from "./TermsEditor";
 import AutomationsSettings from "./AutomationsSettings";
+import OnlineEstimatesSettings from "./OnlineEstimatesSettings";
+import { onlineEstimatesFrom, WIZARD_PUBLIC_KEY } from "@/lib/wizard/publicFlag";
 import InvoicingSettings from "./InvoicingSettings";
 import CostIntakeSettings from "./CostIntakeSettings";
 import { COST_INTAKE_KEY } from "@/lib/costs/intake";
@@ -143,6 +145,7 @@ export default async function SettingsPage() {
     .filter((r) => /window/i.test(`${r.sub_category ?? ""} ${r.code ?? ""}`) && /\b(small|large)\b/i.test(r.code ?? ""))
     .map((r) => r.code as string);
   const messaging = (allSettings.find((r) => r.key === MESSAGING_KEY)?.value as Partial<MessagingValues> | undefined) ?? null;
+  const onlineEstimates = onlineEstimatesFrom(allSettings.find((r) => r.key === WIZARD_PUBLIC_KEY)?.value);
   // Settings → Automations: the one wo_loop key the office can flip here.
   const variationRelease = ((allSettings.find((r) => r.key === "wo_loop")?.value as { variationRelease?: string } | undefined)?.variationRelease === "pc") ? "pc" as const : "auto" as const;
 
@@ -236,6 +239,8 @@ export default async function SettingsPage() {
       id: "estimates", title: "Estimates", icon: "📄",
       blurb: "Templates and wording that shape every estimate the customer reads.",
       folders: [
+        { id: "online-estimates", title: "Online estimates", subtitle: onlineEstimates.enabled ? "LIVE — the public can build an estimate at /estimate" : "HOLDING — the public sees the holding page with a call-me form; flip the switch to launch",
+          content: <OnlineEstimatesSettings initial={onlineEstimates} /> },
         { id: "estimate-templates", title: "Estimate templates", subtitle: "Reusable starting points for new estimates", count: templates.length,
           content: <TemplatesManager initial={templates} /> },
         { id: "included-templates", title: "What's included templates", subtitle: "Reusable inclusion lists applied from the estimate builder", count: inclusionTemplates.length,

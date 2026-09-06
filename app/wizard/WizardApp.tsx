@@ -28,6 +28,7 @@ import {
 import type { WizardEditorPayload } from "@/lib/wizard/view";
 import AddressField from "./AddressField";
 import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
+import { RESUME_KEY, decodeResume, encodeResume, resumeLine, type SafetyAnswered } from "@/lib/wizard/resume";
 import Wordmark from "./Wordmark";
 
 /**
@@ -94,7 +95,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    * the commercial property kind. Intent only — no account, no event. */
   intent?: { addressText: string | null; propertyKind: "commercial" | null; mode?: "home" | "business" | null; entrySource?: string };
 }) {
-  const [state, setState] = useState<WizardState>(() => {
+  const makeInitialState = (): WizardState => {
     const seed = prefillState ?? defaultWizardState();
     const base = mode === "customer"
       ? {
@@ -118,7 +119,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     return prefillState
       ? base // the rebook keeps the prior job's chosen surfaces
       : { ...base, surfaces: defaultSurfacesFor(base.jobType, substrates) };
-  });
+  };
+  const [state, setState] = useState<WizardState>(makeInitialState);
   const [page, setPage] = useState(1);
   const [screen, setScreen] = useState<Screen>("pages");
   const isCustomer = mode === "customer";
@@ -175,6 +177,47 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const contactDone =
     Boolean(prefill?.email && prefill?.name?.trim() && (prefill?.phone ?? "").replace(/[^0-9]/g, "").length >= 8);
   const lastPage = isCustomer && !contactDone ? 6 : 5;
+
+  // Phase 0 (6 Sep plan): the three safety answers carry no silent default —
+  // heritage, built-before-1970 and asbestos read as unanswered until the
+  // customer taps one, and Continue names the one still open. A rebook
+  // arrives with the prior job's answers, which count as answered.
+  const [answered, setAnswered] = useState<SafetyAnswered>(() =>
+    prefillState ? { heritage: true, pre1970: true, asbestos: true } : { heritage: false, pre1970: false, asbestos: false });
+  const markAnswered = (k: keyof SafetyAnswered) => setAnswered((a) => (a[k] ? a : { ...a, [k]: true }));
+
+  // Phase 1 (6 Sep plan): save-and-return on this device. The answers are
+  // kept in the browser as the customer goes; on the next visit they come
+  // back to the page they were on, with a line saying so and a way to start
+  // again. A rebook or a member's prefilled walk is never overridden, and a
+  // homepage hand-off for a DIFFERENT address starts fresh (lib/wizard/resume).
+  const [resumed, setResumed] = useState<string | null>(null);
+  const clearResume = () => { try { localStorage.removeItem(RESUME_KEY); } catch { /* storage may be unavailable */ } };
+  const startAgain = () => {
+    clearResume();
+    setResumed(null);
+    setState(makeInitialState());
+    setAnswered({ heritage: false, pre1970: false, asbestos: false });
+    setPage(1);
+    window.scrollTo({ top: 0 });
+  };
+  useEffect(() => {
+    if (!isCustomer || prefillState || prefill?.address) return;
+    // Deferred: the restore is a state change, and it must land after paint.
+    const t = setTimeout(() => {
+      let raw: string | null = null;
+      try { raw = localStorage.getItem(RESUME_KEY); } catch { return; }
+      const r = decodeResume(raw, new Date(), { incomingAddress: intent?.addressText ?? null });
+      if (!r) return;
+      setState(r.state);
+      setAnswered(r.answered);
+      setPage(r.page);
+      setResumed(resumeLine(r.page, r.state.jobType));
+    }, 0);
+    return () => clearTimeout(t);
+    // Mount only: a later change to these props is a new walk, not a resume.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 2.4 · record the arrival once, on mount. First touch writes itself only
   // the first time; last touch moves every visit. Wrapped in the helper, which
@@ -550,6 +593,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       // (R1.1 parity). Guardrail outcomes still render CustomerResult
       // above; photo-analysis issues ride the estimate as review
       // deferrals, which the editor surfaces itself.
+      clearResume();
       router.push(`/estimate/scope?id=${(j as { estimateId: string }).estimateId}`);
       return;
     }
@@ -568,6 +612,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         keepalive: true,
       }).catch(() => {});
     }
+    clearResume();
     router.push(`/estimate/scope?id=${landed.estimateId}`);
   }
 
@@ -636,6 +681,17 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     }, 2500);
     return () => clearTimeout(t);
   }, [state, page, lastPage, isCustomer, sessionWorthSaving, addressText, intent?.mode, intent?.entrySource, queueDraftSave]);
+
+  // Phase 1: the same-device copy, written a beat after every change.
+  useEffect(() => {
+    if (!isCustomer || screen !== "pages" || !sessionWorthSaving || draftHaltRef.current) return;
+    const t = setTimeout(() => {
+      try {
+        localStorage.setItem(RESUME_KEY, encodeResume({ savedAt: new Date().toISOString(), page, state, answered, addressText }));
+      } catch { /* private mode, full storage — the server autosave still runs */ }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [state, page, answered, isCustomer, screen, sessionWorthSaving, addressText]);
 
   // Buckets brief §2.3 · the heartbeat. Every 15 s, ONLY while the tab is
   // visible and there has been a keypress, tap or scroll in the last 60 s —
@@ -709,6 +765,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       if (isCustomer && (!state.customer || state.customer.suburb.trim() === "" || state.customer.postcode.trim() === "")) {
         return "Where's the property? Suburb and postcode, please.";
       }
+      if (isCustomer && !answered.heritage) return "Heritage listed? Yes, no or not sure — it changes what we can price online.";
       if (wantsInterior && !state.noPlan && state.planRunIds.length === 0) {
         return state.listingUrl.trim()
           ? "Tap “Read the floorplan from this listing”, upload a floorplan, or choose the quick basics instead."
@@ -732,12 +789,15 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       if (page === 2 && (ext?.substrates.length ?? 0) === 0) return "What's the building made of? Tick at least one.";
       if (page === 3 && ext && !Object.values(ext.painting).some(Boolean)) return "Tick at least one thing we're painting.";
       if (page === 4 && ext?.condition == null) return "How's the paintwork holding up?";
+      if (page === 4 && isCustomer && !answered.pre1970) return "Was the home built before 1970? Yes, no or not sure.";
       return null;
     }
     if (page === 2 && state.surfaces.length === 0) return "Tick at least one surface.";
     if (page === 3 && state.condition.tier === "dark_to_light" && state.condition.darkToLightSurfaces.length === 0) {
       return "Which surfaces are going dark to light?";
     }
+    if (page === 4 && isCustomer && !answered.pre1970) return "Was the home built before 1970? Yes, no or not sure.";
+    if (page === 4 && isCustomer && !answered.asbestos) return "Any chance of asbestos sheeting? Yes, no or not sure.";
     if (page === 4 && state.details.damageTier >= 2 && state.details.damagePhotoCount === 0) {
       // Customer mode is photos-only (Step 8 brief) - a note cannot be priced.
       if (isCustomer) return "Damage at this level needs photos — a quick phone shot of each area is perfect.";
@@ -825,6 +885,12 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         </div>
       ) : (
         <div className="wz-wrap">
+          {resumed && (
+            <div className="wz-resume" data-testid="wz-resume">
+              <span>Welcome back — {resumed}. Everything you answered is still here.</span>
+              <button type="button" className="wz-linkish" onClick={startAgain} data-testid="wz-start-again">Start again</button>
+            </div>
+          )}
           <div className="wz-step" key={page}>
             {page === 1 && isCustomer && (
               /* S4: "Chat it or fill it in" — the assistant builds the SAME
@@ -851,6 +917,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             {page === 1 && (
               <PageProperty
                 state={state} set={set} isCustomer={isCustomer} substrates={substrates}
+                stepsTotal={lastPage} answered={answered} markAnswered={markAnswered}
                 initialAddressText={intent?.addressText ?? ""}
                 planFileCount={planFileCount} facadeFileCount={facadeFileCount}
                 uploading={uploading}
@@ -871,17 +938,18 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 the questions come first, the name/phone/email is the final
                 step before the AI builds the estimate. */}
             {page === 2 && (state.jobType === "exterior"
-              ? <PageExteriorHouse state={state} set={set} substrates={substrates} />
-              : <PageSurfaces state={state} set={set} substrates={substrates} />)}
+              ? <PageExteriorHouse state={state} set={set} substrates={substrates} stepsTotal={lastPage} />
+              : <PageSurfaces state={state} set={set} substrates={substrates} stepsTotal={lastPage} />)}
             {page === 3 && (state.jobType === "exterior"
-              ? <PageExteriorScope state={state} set={set} />
-              : <PageCondition state={state} set={set} substrates={substrates} />)}
+              ? <PageExteriorScope state={state} set={set} stepsTotal={lastPage} />
+              : <PageCondition state={state} set={set} substrates={substrates} stepsTotal={lastPage} />)}
             {page === 4 && state.jobType === "exterior" && (
-              <PageExteriorCondition state={state} set={set} isCustomer={isCustomer} />
+              <PageExteriorCondition state={state} set={set} isCustomer={isCustomer} stepsTotal={lastPage} answered={answered} markAnswered={markAnswered} />
             )}
             {page === 4 && state.jobType !== "exterior" && (
               <PageDetails
                 state={state} set={set} damageInputRef={damageInputRef} isCustomer={isCustomer}
+                stepsTotal={lastPage} answered={answered} markAnswered={markAnswered}
                 hasPlanRuns={state.planRunIds.length > 0}
                 onDamageFiles={(files) => {
                   for (const f of files) {
@@ -895,9 +963,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
               />
             )}
             {page === 5 && (state.jobType === "exterior"
-              ? <PageExteriorExtras state={state} set={set} />
-              : <PagePaint state={state} set={set} />)}
-            {page === 6 && isCustomer && <PageContact state={state} set={set} />}
+              ? <PageExteriorExtras state={state} set={set} stepsTotal={lastPage} />
+              : <PagePaint state={state} set={set} stepsTotal={lastPage} />)}
+            {page === 6 && isCustomer && <PageContact state={state} set={set} stepsTotal={lastPage} />}
             {uploadNote && <div className="wz-note">{uploadNote}</div>}
             {readIssueCount > 0 && (
               <div className="wz-note">
@@ -975,11 +1043,14 @@ function Seg<T extends string>({ options, value, onPick }: {
 // ---- page 1: the property ---------------------------------------------------
 
 function PageProperty({
-  state, set, isCustomer = false, substrates, planFileCount, facadeFileCount, uploading, sessionBlocked = false, planInputRef, facadeInputRef, onPlanFiles, onFacadeFiles, onImportListingPlan, initialAddressText = "",
+  state, set, isCustomer = false, substrates, stepsTotal, answered, markAnswered, planFileCount, facadeFileCount, uploading, sessionBlocked = false, planInputRef, facadeInputRef, onPlanFiles, onFacadeFiles, onImportListingPlan, initialAddressText = "",
 }: {
   state: WizardState;
   set: (p: Partial<WizardState>) => void;
   isCustomer?: boolean;
+  stepsTotal: number;
+  answered: SafetyAnswered;
+  markAnswered: (k: keyof SafetyAnswered) => void;
   /** Homepage hand-off: what the visitor typed on the marketing site. */
   initialAddressText?: string;
   substrates: SubstrateGroups;
@@ -1006,7 +1077,7 @@ function PageProperty({
   const [outOfArea, setOutOfArea] = useState(false);
   return (
     <>
-      <p className="wz-kick">Step 1 of 5 · The property</p>
+      <p className="wz-kick">Step 1 of {stepsTotal} · The property</p>
       <h1>Let&rsquo;s look at the place</h1>
 
       {/* Tom, 29 Aug: "always ask for name, phone and email". Before anything
@@ -1209,8 +1280,8 @@ function PageProperty({
           <p className="wz-qhead">Heritage listed? <small>— many period homes aren&rsquo;t</small></p>
           <Seg
             options={[{ v: "no" as const, label: "No" }, { v: "yes" as const, label: "Yes" }, { v: "unsure" as const, label: "Not sure" }]}
-            value={state.customer.heritageListed}
-            onPick={(v) => set({ customer: { ...state.customer!, heritageListed: v } })}
+            value={answered.heritage ? state.customer.heritageListed : null}
+            onPick={(v) => { markAnswered("heritage"); set({ customer: { ...state.customer!, heritageListed: v } }); }}
           />
           {(state.customer.propertyKind === "unit_apartment" || state.customer.propertyKind === "townhouse") && (
             <>
@@ -1264,7 +1335,8 @@ function PageProperty({
 
 // ---- page 2: surfaces -------------------------------------------------------
 
-function PageSurfaces({ state, set, substrates }: {
+function PageSurfaces({ state, set, substrates, stepsTotal }: {
+  stepsTotal: number;
   state: WizardState;
   set: (p: Partial<WizardState>) => void;
   substrates: SubstrateGroups;
@@ -1287,7 +1359,7 @@ function PageSurfaces({ state, set, substrates }: {
       ];
   return (
     <>
-      <p className="wz-kick">Step 2 of 5 · Surfaces</p>
+      <p className="wz-kick">Step 2 of {stepsTotal} · Surfaces</p>
       <h1>What&rsquo;s being painted?</h1>
       <p className="wz-sub">We&rsquo;ve pre-ticked the usual full repaint — untick anything that isn&rsquo;t being done.</p>
       {groups.map((g) => (
@@ -1308,7 +1380,8 @@ function PageSurfaces({ state, set, substrates }: {
 
 // ---- page 3: condition ------------------------------------------------------
 
-function PageCondition({ state, set, substrates }: {
+function PageCondition({ state, set, substrates, stepsTotal }: {
+  stepsTotal: number;
   state: WizardState;
   set: (p: Partial<WizardState>) => void;
   substrates: SubstrateGroups;
@@ -1322,7 +1395,7 @@ function PageCondition({ state, set, substrates }: {
   ];
   return (
     <>
-      <p className="wz-kick">Step 3 of 5 · Condition</p>
+      <p className="wz-kick">Step 3 of {stepsTotal} · Condition</p>
       <h1>Which describes it best?</h1>
       <p className="wz-sub">This sets how many coats we allow for.</p>
       <div className="wz-cards">
@@ -1370,7 +1443,10 @@ function PageCondition({ state, set, substrates }: {
 
 // ---- page 4: details --------------------------------------------------------
 
-function PageDetails({ state, set, damageInputRef, hasPlanRuns, isCustomer = false, onDamageFiles }: {
+function PageDetails({ state, set, damageInputRef, hasPlanRuns, isCustomer = false, onDamageFiles, stepsTotal, answered, markAnswered }: {
+  stepsTotal: number;
+  answered: SafetyAnswered;
+  markAnswered: (k: keyof SafetyAnswered) => void;
   state: WizardState;
   set: (p: Partial<WizardState>) => void;
   damageInputRef: React.RefObject<HTMLInputElement | null>;
@@ -1401,7 +1477,7 @@ function PageDetails({ state, set, damageInputRef, hasPlanRuns, isCustomer = fal
   ];
   return (
     <>
-      <p className="wz-kick">Step 4 of 5 · Details</p>
+      <p className="wz-kick">Step 4 of {stepsTotal} · Details</p>
       <h1>A few quick details</h1>
       <p className="wz-sub">Pick what&rsquo;s closest — &ldquo;mostly&rdquo; is fine.</p>
 
@@ -1494,14 +1570,14 @@ function PageDetails({ state, set, damageInputRef, hasPlanRuns, isCustomer = fal
           <p className="wz-qhead">Was the home built before 1970? <small>— older paint can contain lead, and we handle it properly</small></p>
           <Seg
             options={[{ v: "no" as const, label: "No" }, { v: "yes" as const, label: "Yes" }, { v: "unsure" as const, label: "Not sure" }]}
-            value={state.customer.builtPre1970}
-            onPick={(v) => set({ customer: { ...state.customer!, builtPre1970: v } })}
+            value={answered.pre1970 ? state.customer.builtPre1970 : null}
+            onPick={(v) => { markAnswered("pre1970"); set({ customer: { ...state.customer!, builtPre1970: v } }); }}
           />
           <p className="wz-qhead">Any chance of asbestos sheeting in the areas being painted?</p>
           <Seg
             options={[{ v: "no" as const, label: "No" }, { v: "yes" as const, label: "Yes" }, { v: "unsure" as const, label: "Not sure" }]}
-            value={state.customer.asbestosSuspected}
-            onPick={(v) => set({ customer: { ...state.customer!, asbestosSuspected: v } })}
+            value={answered.asbestos ? state.customer.asbestosSuspected : null}
+            onPick={(v) => { markAnswered("asbestos"); set({ customer: { ...state.customer!, asbestosSuspected: v } }); }}
           />
         </>
       )}
@@ -1553,7 +1629,7 @@ function PageDetails({ state, set, damageInputRef, hasPlanRuns, isCustomer = fal
 
 // ---- page 5: paint ----------------------------------------------------------
 
-function PagePaint({ state, set, embedded = false }: { state: WizardState; set: (p: Partial<WizardState>) => void; embedded?: boolean }) {
+function PagePaint({ state, set, embedded = false, stepsTotal = 5 }: { state: WizardState; set: (p: Partial<WizardState>) => void; embedded?: boolean; stepsTotal?: number }) {
   const p = state.paint;
   // Tom, 1 Sep: five brands + Not sure. "Not sure" is exclusive — picking it
   // clears the brands, picking a brand clears it.
@@ -1579,7 +1655,7 @@ function PagePaint({ state, set, embedded = false }: { state: WizardState; set: 
     <>
       {!embedded && (
         <>
-          <p className="wz-kick">Step 5 of 5 · Paint &amp; colours</p>
+          <p className="wz-kick">Step 5 of {stepsTotal} · Paint &amp; colours</p>
           <h1>Paint and colours</h1>
           <p className="wz-sub">Tick anything that applies — perfectly fine to leave blank.</p>
         </>
@@ -1691,11 +1767,11 @@ function useExt(state: WizardState, set: (p: Partial<WizardState>) => void) {
  * asked before the ai tool starts the search"). Trade and portal members
  * whose account already carries all three never see it.
  */
-function PageContact({ state, set }: { state: WizardState; set: (p: Partial<WizardState>) => void }) {
+function PageContact({ state, set, stepsTotal }: { state: WizardState; set: (p: Partial<WizardState>) => void; stepsTotal: number }) {
   const c = state.contact;
   return (
     <>
-      <p className="wz-kick">One last thing</p>
+      <p className="wz-kick">Step {stepsTotal} of {stepsTotal} · Your details</p>
       <h1>Who should we send your estimate to?</h1>
       <p className="wz-sub">
         You&rsquo;ll see it on screen the moment it&rsquo;s built — this saves it to your email so
@@ -1717,8 +1793,8 @@ function PageContact({ state, set }: { state: WizardState; set: (p: Partial<Wiza
   );
 }
 
-function PageExteriorHouse({ state, set, substrates }: {
-  state: WizardState; set: (p: Partial<WizardState>) => void; substrates: SubstrateGroups;
+function PageExteriorHouse({ state, set, substrates, stepsTotal }: {
+  stepsTotal: number; state: WizardState; set: (p: Partial<WizardState>) => void; substrates: SubstrateGroups;
 }) {
   const { ext, setExt } = useExt(state, set);
   // A tick that cannot price is never offered: tilt slab / concrete appears
@@ -1739,7 +1815,7 @@ function PageExteriorHouse({ state, set, substrates }: {
   );
   return (
     <>
-      <p className="wz-kick">Step 2 of 5 · The house</p>
+      <p className="wz-kick">Step 2 of {stepsTotal} · The house</p>
       <h1>Let&rsquo;s size up the outside</h1>
       <p className="wz-sub">Two quick looks — how tall, and what it&rsquo;s made of.</p>
 
@@ -1771,7 +1847,7 @@ function PageExteriorHouse({ state, set, substrates }: {
   );
 }
 
-function PageExteriorScope({ state, set }: { state: WizardState; set: (p: Partial<WizardState>) => void }) {
+function PageExteriorScope({ state, set, stepsTotal }: { state: WizardState; set: (p: Partial<WizardState>) => void; stepsTotal: number }) {
   const { ext, setExt } = useExt(state, set);
   const tile = (k: keyof WizardExterior["painting"], label: string, sub?: string) => (
     <button
@@ -1786,7 +1862,7 @@ function PageExteriorScope({ state, set }: { state: WizardState; set: (p: Partia
   );
   return (
     <>
-      <p className="wz-kick">Step 3 of 5 · The scope</p>
+      <p className="wz-kick">Step 3 of {stepsTotal} · The scope</p>
       <h1>What are we painting?</h1>
       <p className="wz-sub">The usual full exterior is pre-ticked — untick anything that isn&rsquo;t being done. You&rsquo;ll choose the sides in a moment.</p>
       <div className="wz-tiles">
@@ -1799,8 +1875,9 @@ function PageExteriorScope({ state, set }: { state: WizardState; set: (p: Partia
   );
 }
 
-function PageExteriorCondition({ state, set, isCustomer }: {
+function PageExteriorCondition({ state, set, isCustomer, stepsTotal, answered, markAnswered }: {
   state: WizardState; set: (p: Partial<WizardState>) => void; isCustomer: boolean;
+  stepsTotal: number; answered: SafetyAnswered; markAnswered: (k: keyof SafetyAnswered) => void;
 }) {
   const { ext, setExt } = useExt(state, set);
   const cond = (v: NonNullable<WizardExterior["condition"]>, b: string, s: string) => (
@@ -1832,7 +1909,7 @@ function PageExteriorCondition({ state, set, isCustomer }: {
   );
   return (
     <>
-      <p className="wz-kick">Step 4 of 5 · Condition</p>
+      <p className="wz-kick">Step 4 of {stepsTotal} · Condition</p>
       <h1>How&rsquo;s it holding up?</h1>
       <p className="wz-sub">Honest is best — it sets the preparation we allow for.</p>
 
@@ -1852,8 +1929,8 @@ function PageExteriorCondition({ state, set, isCustomer }: {
               { v: "no" as const, label: "No" },
               { v: "unsure" as const, label: "Not sure" },
             ]}
-            value={state.customer.builtPre1970}
-            onPick={(v) => set({ customer: { ...state.customer!, builtPre1970: v } })}
+            value={answered.pre1970 ? state.customer.builtPre1970 : null}
+            onPick={(v) => { markAnswered("pre1970"); set({ customer: { ...state.customer!, builtPre1970: v } }); }}
           />
         </>
       )}
@@ -1912,7 +1989,7 @@ const GEAR_LABEL: Record<WizardExterior["accessEquipment"][number], string> = {
   scaffold: "Scaffold / platform",
 };
 
-function PageExteriorExtras({ state, set }: { state: WizardState; set: (p: Partial<WizardState>) => void }) {
+function PageExteriorExtras({ state, set, stepsTotal }: { state: WizardState; set: (p: Partial<WizardState>) => void; stepsTotal: number }) {
   const { ext, setExt } = useExt(state, set);
   const extra = (k: "deck" | "fence" | "pergola" | "balustrade", label: string) => (
     <button
@@ -1925,7 +2002,7 @@ function PageExteriorExtras({ state, set }: { state: WizardState; set: (p: Parti
   );
   return (
     <>
-      <p className="wz-kick">Step 5 of 5 · Extras &amp; paint</p>
+      <p className="wz-kick">Step 5 of {stepsTotal} · Extras &amp; paint</p>
       <h1>Anything else out there?</h1>
       <p className="wz-sub">The freestanding things — not on a wall, easy to forget.</p>
       <div className="wz-tiles">
@@ -1957,7 +2034,7 @@ function PageExteriorExtras({ state, set }: { state: WizardState; set: (p: Parti
           />
         </div>
       )}
-      <PagePaint state={state} set={set} embedded />
+      <PagePaint state={state} set={set} embedded stepsTotal={stepsTotal} />
     </>
   );
 }

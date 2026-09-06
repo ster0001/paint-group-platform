@@ -53,6 +53,9 @@ type Payload = CustomerPayload & {
 
 const fmt = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
+/** A room type as a person says it: "wc" is WC, the rest is words. */
+const roomTypeLabel = (t: string) => (t === "wc" ? "WC" : t.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()));
+
 /** Matches the wizard-edit route's own cap on a batch. */
 const MAX_BATCH = 24;
 
@@ -518,7 +521,11 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         {iloop && (
           <div className="il-progwrap">
             <div className="sd-lbl">
-              <span className="il-prog">{combined!.done} OF {combined!.total} CONFIRMED</span>
+              {/* Phase 0 (6 Sep plan): rooms and the two whole-job checks are
+                  counted apart — "0 of 9 confirmed" read as nine rooms. */}
+              <span className="il-prog">{initialSides
+                ? `${combined!.done} OF ${combined!.total} CONFIRMED`
+                : `${iloop.rooms.filter((r) => r.confirmed).length} OF ${iloop.rooms.length} ROOMS · ${Number(iloop.meta.done.dw) + Number(iloop.meta.done.sweep)} OF 2 CHECKS`}</span>
               <span>ORANGE = STILL TO CONFIRM · BLUE = CONFIRMED</span>
             </div>
             <div className={`sd-pbar ${combined!.allDone ? "ok" : ""}`}>
@@ -933,15 +940,17 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                 {openCard === "sweep" && (<>
                 <div className={`il-q ${iloop.meta.sweepAns ? "ok" : ""}`}>
                   <p className="il-ql">
-                    Hallways are the ones floorplans miss most — and they make the biggest difference to the price.
-                    Laundries, toilets and studies go missing too. <span className="il-req">REQUIRED</span><span className="il-okc">✓</span>
+                    {docs.plan
+                      ? <>Hallways are the ones floorplans miss most — and they make the biggest difference to the price. Laundries, toilets and studies go missing too.</>
+                      : <>Hallways are the rooms people forget most — and they make the biggest difference to the price. Laundries, toilets, studies and garages go missing too.</>}
+                    {" "}<span className="il-req">REQUIRED</span><span className="il-okc">✓</span>
                   </p>
                   <div className="sc-chips">
                     {sweepTypes.map((t) => (
                       <button key={t} className="sd-chip il-chip"
                         onClick={() => act({ action: "add_room", roomType: t }, `add:${t}`,
                           () => `${t.replace(/_/g, " ")} added and priced in — it appears above as a new orange room to confirm.`)}>
-                        + {t.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase())}
+                        + {roomTypeLabel(t)}
                       </button>
                     ))}
                     {/* Tom, 31 Aug: "something else" opens a box to SAY what —
@@ -998,7 +1007,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
               }}
             >
               {combined != null && !combined.allDone
-                ? `Confirm ${initialSides ? "everything" : "all rooms"} to continue — ${combined.done} of ${combined.total}`
+                ? `Confirm ${initialSides ? "everything" : "every room and check"} to continue — ${combined.done} of ${combined.total}`
                 : selfServe ? "Accept estimate" : "Finalise my price"}
             </button>
           )}

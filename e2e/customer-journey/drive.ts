@@ -54,6 +54,7 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
   if (opts.windowStyle) await page.getByRole("button", { name: opts.windowStyle, exact: true }).click();
   if (opts.doorScope) await page.getByRole("button", { name: opts.doorScope, exact: true }).click();
   await answer(/built before 1970/, "No");
+  await answer(/asbestos/, "No"); // Phase 0: unanswered until tapped
   await next(); // → paint
   await next(); // → the contact page (Tom, 31 Aug: the LAST question)
   await fillContactStep(page, opts.email);

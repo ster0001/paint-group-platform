@@ -9,6 +9,8 @@ import { clampAddress, wizardStateSchema, type WizardState } from "@/lib/wizard/
 import { parseEstimateIntent } from "@/lib/marketing/prefill";
 import { showcaseJobBySlug } from "@/lib/showcase/queries";
 import { sanitiseClonedState, scopeSeed } from "@/lib/wizard/showcaseSeed";
+import { onlineEstimatesFrom, WIZARD_PUBLIC_KEY, type OnlineEstimates } from "@/lib/wizard/publicFlag";
+import HoldingCallback from "./HoldingCallback";
 
 /**
  * /estimate — Step 8's CUSTOMER wizard.
@@ -95,16 +97,16 @@ export default async function CustomerWizardPage({
   // so a dev machine without the service key can still preview the wizard.
   const svc = createServiceClient();
   const ref = svc ?? (isStaff ? supabase : null);
-  let enabled = false;
+  let online: OnlineEstimates = onlineEstimatesFrom(null);
   let roomTypes: string[] = [];
   let substrates: SubstrateGroups = { interior: [], exterior: [] };
   if (ref) {
     const [{ data: flagRow }, { data: rules }, { data: rateItems }] = await Promise.all([
-      ref.from("settings").select("value").eq("key", "wizard_public").maybeSingle(),
+      ref.from("settings").select("value").eq("key", WIZARD_PUBLIC_KEY).maybeSingle(),
       ref.from("room_type_scope_rules").select("room_type").eq("version", SCOPE_VERSION),
       ref.from("rate_items").select("code, category"),
     ]);
-    enabled = (flagRow?.value as { enabled?: boolean } | null)?.enabled === true;
+    online = onlineEstimatesFrom(flagRow?.value);
     roomTypes = [...new Set((rules ?? []).map((r) => r.room_type as string))]
       .filter((t) => !["exterior", "unknown", "excluded", "exterior_excluded"].includes(t))
       .sort();
@@ -114,16 +116,18 @@ export default async function CustomerWizardPage({
   // Existing customers (signed-in members) keep their builder even while the
   // public gate is shut — B4: the portal wizard IS the public wizard, and a
   // customer we already serve is not the audience the launch gate protects.
-  if (!enabled && !isStaff && !memberEmail) {
+  // Phase 0 (6 Sep plan): the holding page is a LEAD, not a closed door —
+  // the homepage's "See my price" still lands here while the switch is off,
+  // so the visitor's address rides in and a "call me" form files a callback
+  // on Today. Wording is the office's (Settings → Estimates → Online estimates).
+  if (!online.enabled && !isStaff && !memberEmail) {
     return (
       <>
         <header className="wz-top"><Wordmark logoUrl={company.logoUrl} /></header>
-        <div className="wz-wrap" style={{ textAlign: "center", paddingTop: 80 }}>
-          <h1>Online estimates are nearly here</h1>
-          <p className="wz-sub" style={{ marginTop: 14 }}>
-            We&rsquo;re putting the finishing coats on. In the meantime, call or email and
-            we&rsquo;ll sort your quote the old-fashioned way — quickly.
-          </p>
+        <div className="wz-wrap wz-hold" data-testid="holding-page">
+          <h1>{online.holdingTitle}</h1>
+          <p className="wz-sub" style={{ marginTop: 14 }}>{online.holdingBody}</p>
+          <HoldingCallback address={intent.addressText ?? ""} companyPhone={company.phone} />
         </div>
       </>
     );
