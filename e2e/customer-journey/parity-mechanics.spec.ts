@@ -38,8 +38,11 @@ test("interior: cards collapse, confirm auto-advances + scrolls, window groups i
   // Confirm the first room → it collapses, the SECOND opens and is scrolled
   // into view.
   await first.getByRole("button", { name: /Looks right/ }).click();
-  const cup = first.locator(".il-cup");
-  if (await cup.count()) await cup.getByRole("button", { name: "No", exact: true }).click();
+  // Every cupboard question the room carries, one at a time (doors first, 7 Sep).
+  for (let i = 0; i < 4 && (await first.locator(".il-cup:not(.ok)").count()); i++) {
+    await first.locator(".il-cup:not(.ok)").first().getByRole("button", { name: "No", exact: true }).click();
+    await page.waitForTimeout(300);
+  }
   await first.locator(".il-confirm").click();
   await expect(first).toHaveClass(/done/, { timeout: 15_000 });
   await expect(second.locator(".il-q").first()).toBeVisible({ timeout: 15_000 });

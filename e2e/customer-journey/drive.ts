@@ -27,6 +27,7 @@ export type DriveOptions = {
  */
 export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
   await page.goto("/estimate");
+  await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
   await page.getByRole("button", { name: /There isn't a floorplan to hand/ }).click();
   await expect(page.getByText(/thirty seconds of basics/i)).toBeVisible();
 

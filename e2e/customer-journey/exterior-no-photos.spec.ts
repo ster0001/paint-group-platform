@@ -10,6 +10,7 @@ import { MONEY_RANGE, fillContactStep } from "./drive";
 test("an exterior job builds from answers alone — no listing, no photos", async ({ page }) => {
   test.setTimeout(240_000);
   await page.goto("/estimate");
+  await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
   await page.getByRole("button", { name: "Exterior", exact: true }).click();
 
   // The old gate demanded a listing or two facades; the third way is explicit.

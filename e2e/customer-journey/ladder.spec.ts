@@ -21,8 +21,11 @@ test("R4 ladder: below the accuracy bar lands the visit tier — slots offered, 
     const card = cards.nth(i);
     await card.scrollIntoViewIfNeeded();
     await card.getByRole("button", { name: /Looks right/ }).click();
-    const cup = card.locator(".il-cup");
-    if (await cup.count()) await cup.getByRole("button", { name: "No", exact: true }).click();
+    // Every cupboard question the room carries, one at a time (doors first, 7 Sep).
+    for (let i = 0; i < 4 && (await card.locator(".il-cup:not(.ok)").count()); i++) {
+      await card.locator(".il-cup:not(.ok)").first().getByRole("button", { name: "No", exact: true }).click();
+      await page.waitForTimeout(300);
+    }
     await card.locator(".il-confirm").click();
     await expect(card).toHaveClass(/done/, { timeout: 15_000 });
   }

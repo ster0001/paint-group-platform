@@ -24,7 +24,7 @@ async function assertContractHolds(page: Page) {
 
   // THE regression: the first edit after load must keep the range rendered
   // and must refresh the tile grid.
-  const firstCard = page.locator(".sc-rc").first();
+  const firstCard = page.locator(".sc-rc[data-room]").first(); // the details card is the first .sc-rc since 7 Sep
   const onTiles = firstCard.locator(".sc-tl.on");
   const before = await onTiles.count();
   expect(before).toBeGreaterThan(0);
