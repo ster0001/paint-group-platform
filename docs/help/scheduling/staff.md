@@ -3,6 +3,9 @@ feature: scheduling
 role: staff
 title: Offer a job to a painter and manage the booking on the scheduling board
 summary: How the Schedule tab works — drag an accepted job onto a contractor's row to send a 24-hour offer, handle proposals and reschedule requests, cancel or move a booking, and what the customer receives once the painter accepts.
+walkthrough: media/staff-walkthrough.gif
+sources: app/pc/schedule, lib/scheduling, lib/workorder/appointmentEmail.ts
+verified_at_commit: 0c1f08f47d
 ---
 
 ## What this is for

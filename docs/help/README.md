@@ -125,5 +125,50 @@ volume-test jobs C1 carries. Photos they upload are generated placeholders
 
 ## Walkthroughs
 
-Defined in session A4 of the brief. Until then the `walkthrough:` field is
-optional.
+Every help file has a silent, captioned walkthrough GIF at
+`docs/help/<feature>/media/<role>-walkthrough.gif`, named in its front-matter
+`walkthrough:` field. A flow that would run past a minute is split
+(`<role>-walkthrough-2.gif`, embedded in the body where that part begins).
+
+**How one is produced.** `e2e/help-capture/gif-<feature>.spec.ts` performs the
+help file's steps in the real role on the C1 test stack, exactly as the
+screenshot specs do, with two additions from `rig.ts`:
+
+- `installCaptions()` + `caption(page, text)` inject a caption banner into the
+  page for each step — the on-screen captions are the only narration.
+- `startRecording(page)` captures a frame about five times a second (skipping
+  half-loaded pages), and `writeGif()` joins the frames with `sharp` (already a
+  dependency — no ffmpeg or browser extension) into an animated GIF whose
+  frame timing follows real time, sped up uniformly if the run exceeds 58 s,
+  with the last frame held for two seconds.
+
+The brief assumed Claude in Chrome's `gif_creator`; the scripted route was
+chosen because it is deterministic, runs from a command, never touches
+production (Claude in Chrome would drive the real browser against real
+customers), and regenerates all six films in one pass.
+
+```bash
+./scripts/c1/run-e2e.sh e2e/help-capture/gif-scheduling.spec.ts e2e/help-capture/gif-self-invoicing.spec.ts e2e/help-capture/gif-work-orders.spec.ts
+```
+
+Constraints (brief §4, A4): silent, captions only, under 60 seconds each,
+invented test data only. Phone films are 390 px wide, desktop films 960 px.
+
+## Keeping help current — `verified_at_commit` and `sources`
+
+Two front-matter fields make stale help visible:
+
+- `sources:` — comma-separated repo paths whose changes would make this file
+  stale (the screens it documents and the logic behind them).
+- `verified_at_commit:` — the commit the media and text were checked against.
+  Never typed by hand: after regenerating a feature's screenshots and
+  walkthroughs and re-reading the file, run
+  `npm run help:index -- --stamp <feature>` (or `--stamp` for all) and the
+  index script writes the current commit into every role file of that feature.
+
+`npm run help:index -- --check` (the CI gate) then compares: if any commit
+after `verified_at_commit` touched a file's `sources`, or the working tree has
+uncommitted changes there, it prints a GitHub `::warning::` annotation naming
+the file and what changed. Warnings never fail the build — stale help is a
+chore to schedule, not a broken build — and CI checks out full history so the
+comparison can run.

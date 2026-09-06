@@ -3,6 +3,9 @@ feature: work-orders
 role: contractor
 title: Run a job from the first tick to the customer's signature
 summary: How a booked job works on your phone — the pre-start list, photos before ticks, ticking surfaces off, raising a variation, the finishing-up list, the quality check, and handing the phone to the customer to sign off.
+walkthrough: media/contractor-walkthrough.gif
+sources: app/portal/jobs, app/components/wo, app/s, lib/workorder
+verified_at_commit: 0c1f08f47d
 ---
 
 ## What this is for
@@ -42,6 +45,10 @@ Once you have accepted a booking, the job page in **Jobs** is where the work is 
    ![](media/contractor-08.png)
 
 ### Finishing up
+The second walkthrough film covers this part of the job, from the completion list to the customer's signature:
+
+![](media/contractor-walkthrough-2.gif)
+
 10. When every surface is **DONE**, the **All surfaces done** card and the **Completion prep** list appear on the same screen. Work through it: **Touch-up sweep done**, **Site left clean**, **Rubbish for collection?** (Yes tells the office to organise a collection), **Equipment for collection?** (Yes asks you to list what needs collecting), **Final photos taken of every area**, **All work completed to the level required**, and **Any notes for the customer**, which is optional and is shown to the customer at sign-off. Ticking the list is your confirmation that the work is complete to the job sheet.
     ![](media/contractor-09.png)
 11. Tap **All done — next step**. The job routes itself: to a **quality check** if one is due on this job, straight to the **walkthrough** if not, or to complete if the booking has no customer walkthrough. The message tells you which.
@@ -80,7 +87,7 @@ Once you have accepted a booking, the job page in **Jobs** is where the work is 
 - **"Before photo of … — one shot before you start."** Not an error: tap the amber photo button, take the shot, then tick.
 - **The photo did not upload.** "That photo didn't upload — check your signal and try again." Move to better signal and tap the button again; nothing is lost.
 - **Start the job is greyed out.** The office has pre-start items still to tick. Ring them if the start date is close.
-- **All done — next step does nothing.** A surface is not done, or a completion item is unanswered. Look for a row that is not green or a question without an answer.
+- **All done — next step does nothing.** A surface is not done, a completion item is unanswered, or a variation you raised is still waiting on a decision. Look for a row that is not green, a question without an answer, or a variation still marked **WITH THE OFFICE** or **YOUR APPROVAL**.
 - **The customer is not there for the walkthrough.** Do not sign for them. Tell the office; they can open a remote sign-off for the customer.
 - **The job came back as In progress after the walkthrough.** The customer flagged an area. It is on your tick list with what they said; fix it, tick it, and finish again.
 

@@ -2065,3 +2065,20 @@ a card before shooting), `DESK_TALL` for the two-column PC job page. Trap: the t
 the phone's file picker DIRECTLY on an area's first and last tap (before / finished shot) — a
 Playwright tap must intercept `filechooser` or the tick silently never lands. Stage names in
 the files match `STAGE_LANES` in `lib/workorder/stages.ts` and the on-screen rail.
+
+## Help content — session A4, walkthrough GIFs + staleness (6 Sep 2026)
+
+Every help file now has a silent captioned walkthrough GIF (`media/<role>-walkthrough.gif`,
+the painter's work-order flow split into two under 60 s). Produced by
+`e2e/help-capture/gif-{scheduling,self-invoicing,work-orders}.spec.ts`: the rig injects a caption
+banner per step (`installCaptions`/`caption`, persisted through navigations in sessionStorage),
+captures frames ~5/s (`startRecording`, skipping half-loaded pages and any frame whose
+`innerWidth` is not the viewport — mobile emulation draws a page without its viewport meta at
+980 px), and `writeGif` joins them with `sharp` (already a dependency; libvips merges identical
+consecutive frames, so a 26 s film is ~200 KB). Real-time frame delays, uniform speed-up past 58 s,
+two-second hold on the last frame. Chosen over the brief's Claude-in-Chrome `gif_creator` because
+it is scripted, deterministic and never touches production. Staleness: front-matter `sources:`
+(repo paths the file documents) + `verified_at_commit:` written by `npm run help:index -- --stamp
+<feature>`; `--check` prints a GitHub `::warning::` when commits after the stamp (or uncommitted
+changes) touched the sources — never a failure. CI's gate checkout is `fetch-depth: 0` so the
+comparison can see history.

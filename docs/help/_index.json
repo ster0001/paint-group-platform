@@ -12,7 +12,7 @@
       "title": "Answer a job offer and manage your booked dates",
       "summary": "How a job offer reaches you in the portal, what the 24-hour clock means, how to accept, propose a different start date or decline, and how to ask to move a job you have already accepted.",
       "path": "docs/help/scheduling/contractor.md",
-      "walkthrough": null,
+      "walkthrough": "media/contractor-walkthrough.gif",
       "media": [
         "media/contractor-01.png",
         "media/contractor-02.png",
@@ -28,7 +28,14 @@
         "media/contractor-12.png",
         "media/contractor-13.png"
       ],
-      "verified_at_commit": null
+      "verified_at_commit": "0c1f08f47d",
+      "sources": [
+        "app/portal/requests",
+        "app/portal/calendar",
+        "app/portal/jobs/[id]/RescheduleRequest.tsx",
+        "lib/scheduling",
+        "lib/contractor/offers.ts"
+      ]
     },
     {
       "feature": "scheduling",
@@ -36,7 +43,7 @@
       "title": "Offer a job to a painter and manage the booking on the scheduling board",
       "summary": "How the Schedule tab works — drag an accepted job onto a contractor's row to send a 24-hour offer, handle proposals and reschedule requests, cancel or move a booking, and what the customer receives once the painter accepts.",
       "path": "docs/help/scheduling/staff.md",
-      "walkthrough": null,
+      "walkthrough": "media/staff-walkthrough.gif",
       "media": [
         "media/staff-01.png",
         "media/staff-02.png",
@@ -48,7 +55,12 @@
         "media/staff-08.png",
         "media/staff-09.png"
       ],
-      "verified_at_commit": null
+      "verified_at_commit": "0c1f08f47d",
+      "sources": [
+        "app/pc/schedule",
+        "lib/scheduling",
+        "lib/workorder/appointmentEmail.ts"
+      ]
     },
     {
       "feature": "self-invoicing",
@@ -56,7 +68,7 @@
       "title": "Invoice Paint Group for a job",
       "summary": "How your invoices are drafted for you in the portal, how to send a progress claim at any time, how to check and submit the sign-off invoice, and how to see when it has been approved and paid.",
       "path": "docs/help/self-invoicing/contractor.md",
-      "walkthrough": null,
+      "walkthrough": "media/contractor-walkthrough.gif",
       "media": [
         "media/contractor-01.png",
         "media/contractor-02.png",
@@ -69,7 +81,12 @@
         "media/contractor-09.png",
         "media/contractor-10.png"
       ],
-      "verified_at_commit": null
+      "verified_at_commit": "0c1f08f47d",
+      "sources": [
+        "app/portal/money",
+        "app/portal/profile",
+        "lib/workorder/contractorPay.ts"
+      ]
     },
     {
       "feature": "self-invoicing",
@@ -77,13 +94,17 @@
       "title": "Approve and pay contractor invoices from the Payables tab",
       "summary": "What the office sees when a contractor submits an invoice or progress claim, how the figures are drafted and reconciled to the job, and how approve, mark paid and the remittance work.",
       "path": "docs/help/self-invoicing/staff.md",
-      "walkthrough": null,
+      "walkthrough": "media/staff-walkthrough.gif",
       "media": [
         "media/staff-01.png",
         "media/staff-02.png",
         "media/staff-03.png"
       ],
-      "verified_at_commit": null
+      "verified_at_commit": "0c1f08f47d",
+      "sources": [
+        "app/invoicing",
+        "lib/invoicing"
+      ]
     },
     {
       "feature": "work-orders",
@@ -91,7 +112,7 @@
       "title": "Run a job from the first tick to the customer's signature",
       "summary": "How a booked job works on your phone — the pre-start list, photos before ticks, ticking surfaces off, raising a variation, the finishing-up list, the quality check, and handing the phone to the customer to sign off.",
       "path": "docs/help/work-orders/contractor.md",
-      "walkthrough": null,
+      "walkthrough": "media/contractor-walkthrough.gif",
       "media": [
         "media/contractor-01.png",
         "media/contractor-02.png",
@@ -110,9 +131,16 @@
         "media/contractor-15.png",
         "media/contractor-16.png",
         "media/contractor-17.png",
-        "media/contractor-18.png"
+        "media/contractor-18.png",
+        "media/contractor-walkthrough-2.gif"
       ],
-      "verified_at_commit": null
+      "verified_at_commit": "0c1f08f47d",
+      "sources": [
+        "app/portal/jobs",
+        "app/components/wo",
+        "app/s",
+        "lib/workorder"
+      ]
     },
     {
       "feature": "work-orders",
@@ -120,7 +148,7 @@
       "title": "Run jobs through the six stages from the PC console",
       "summary": "The project coordinator's console — the attention queue and what its colours mean, the six lanes, the pre-start list, pricing and releasing variations, approving drafted customer updates, quality checks, the walkthrough and sign-off gates, and closing.",
       "path": "docs/help/work-orders/pc.md",
-      "walkthrough": null,
+      "walkthrough": "media/pc-walkthrough.gif",
       "media": [
         "media/pc-01.png",
         "media/pc-02.png",
@@ -141,7 +169,12 @@
         "media/pc-17.png",
         "media/pc-18.png"
       ],
-      "verified_at_commit": null
+      "verified_at_commit": "0c1f08f47d",
+      "sources": [
+        "app/pc",
+        "app/components/wo",
+        "lib/workorder"
+      ]
     }
   ]
 }

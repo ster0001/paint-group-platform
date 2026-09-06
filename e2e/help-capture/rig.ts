@@ -2,7 +2,7 @@ import type { Locator, Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { mkdirSync } from "node:fs";
 import { deflateSync } from "node:zlib";
-import { destroyLoopFixture, type LoopFixture } from "../fixtures/woLoop";
+import type { LoopFixture } from "../fixtures/woLoop";
 
 /**
  * Help-content capture rig (docs/briefs/claude-code-brief-help-content-foundation.md, A2).
@@ -107,12 +107,28 @@ export async function createHelpJob(db: SupabaseClient, spec: TrayJobSpec): Prom
 
 export async function destroyHelpJob(db: SupabaseClient, f: LoopFixture | null) {
   if (!f) return;
-  // Bookings and walkthroughs hang off the work order; the estimate delete
-  // cascades through work_orders, but be explicit about the offer rows so a
-  // half-run never leaves a live offer against the shared test contractor.
-  await db.from("booking_offers").delete().eq("work_order_id", f.workOrderId);
-  await db.from("wo_walkthroughs").delete().eq("work_order_id", f.workOrderId);
-  await destroyLoopFixture(db, f);
+  // Children first, then the work order, then the estimate. One cascading
+  // estimate delete hits the statement timeout when another suite is loading
+  // the shared test project (6 Sep); a dozen small deletes never do.
+  for (const t of [
+    "contractor_invoices", "job_costs", "contractor_expenses", "expense_preapprovals", "material_costs",
+    "booking_offers", "wo_walkthroughs", "wo_qa_items", "wo_qa_checks", "wo_variations", "wo_photos",
+    "wo_updates", "wo_events", "wo_surfaces", "wo_checklist_items", "wo_signoff", "wo_reports",
+  ]) {
+    await db.from(t).delete().eq("work_order_id", f.workOrderId);
+  }
+  await db.from("invoices").delete().eq("estimate_id", f.estimateId);
+  await db.from("work_orders").delete().eq("id", f.workOrderId);
+  // The estimate delete still cascades through its own children; under load it
+  // can hit the statement timeout once. Retry before calling it a leak.
+  let lastError: string | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { error } = await db.from("estimates").delete().eq("id", f.estimateId);
+    if (!error) return;
+    lastError = error.message;
+    await new Promise((r) => setTimeout(r, 4_000));
+  }
+  throw new Error(`fixture leak: estimate ${f.estimateId} not deleted — ${lastError}`);
 }
 
 export const INTERIOR_AREAS: TrayJobSpec["areas"] = [
@@ -186,3 +202,136 @@ export async function frame(page: Page, target: Locator) {
 
 /** Tall desktop for long two-column pages such as the PC job page. */
 export const DESK_TALL = { width: 1440, height: 1300 };
+
+// ---- walkthrough GIFs -----------------------------------------------------------
+
+/**
+ * A walkthrough GIF is a run of frames captured while a help file's steps are
+ * performed, with a caption banner injected into the page for each step, then
+ * joined into an animated GIF with sharp (already a dependency). No video
+ * decoder is needed, so this runs anywhere the e2e suite runs.
+ */
+export type Frame = { at: number; png: Buffer };
+
+const CAPTION_KEY = "__helpCaption";
+
+/** Install the caption banner on every page load in this context (call before the first goto). */
+export async function installCaptions(page: Page) {
+  await page.addInitScript((key: string) => {
+    const mount = () => {
+      if (document.getElementById("help-caption")) return;
+      const el = document.createElement("div");
+      el.id = "help-caption";
+      el.setAttribute("style", [
+        "position:fixed", "left:12px", "right:12px", "bottom:calc(env(safe-area-inset-bottom, 0px) + 84px)", "z-index:2147483647",
+        "background:rgba(10,11,13,.92)", "color:#EDF0F2", "border:1px solid #3BD8E9", "border-radius:12px",
+        "padding:10px 14px", "font:600 15px/1.35 -apple-system,BlinkMacSystemFont,Inter,Segoe UI,sans-serif",
+        "box-shadow:0 6px 24px rgba(0,0,0,.5)", "pointer-events:none", "display:none",
+      ].join(";"));
+      document.documentElement.appendChild(el);
+      const text = sessionStorage.getItem(key);
+      const top = sessionStorage.getItem(key + ":top");
+      if (top) { el.style.top = `${top}px`; el.style.bottom = "auto"; }
+      if (text) { el.textContent = text; el.style.display = "block"; }
+    };
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mount); else mount();
+  }, CAPTION_KEY);
+}
+
+/** Show a caption (survives navigations via sessionStorage). Empty string hides it. */
+export async function caption(page: Page, text: string, opts: { bottom?: number; top?: number } = {}) {
+  await page.evaluate(([key, t, bottom, top]) => {
+    sessionStorage.setItem(key as string, t as string);
+    if (top != null) sessionStorage.setItem(key + ":top", String(top));
+    const el = document.getElementById("help-caption");
+    if (el) {
+      el.textContent = t as string;
+      el.style.display = t ? "block" : "none";
+      if (bottom != null) { el.style.bottom = `${bottom}px`; el.style.top = "auto"; }
+      if (top != null) { el.style.top = `${top}px`; el.style.bottom = "auto"; }
+    }
+  }, [CAPTION_KEY, text, opts.bottom ?? null, opts.top ?? null] as const);
+  await page.waitForTimeout(900); // let the reader catch the caption before anything moves
+}
+
+/** Capture frames until stop(); ~5 fps, tolerant of navigations mid-capture. */
+export function startRecording(page: Page, intervalMs = 220): { stop: () => Promise<Frame[]> } {
+  const frames: Frame[] = [];
+  let running = true;
+  const loop = (async () => {
+    while (running) {
+      try {
+        // Skip mid-load frames: a half-rendered document, or one without its
+        // viewport meta yet (which mobile emulation draws at 980px and shrinks).
+        const ok = await page.evaluate(
+          (w) => document.readyState === "complete" && window.innerWidth === w,
+          page.viewportSize()?.width ?? 0,
+        );
+        if (ok) {
+          const png = await page.screenshot({ type: "png", animations: "disabled", caret: "hide" });
+          frames.push({ at: Date.now(), png });
+        }
+      } catch {
+        // navigating — skip this tick
+      }
+      await new Promise((r) => setTimeout(r, intervalMs));
+    }
+  })();
+  return {
+    stop: async () => { running = false; await loop; return frames; },
+  };
+}
+
+/**
+ * Join frames into docs/help/<feature>/media/<name>.gif. Frame delays follow real
+ * time; if the whole run exceeds maxSeconds it is sped up uniformly (the brief
+ * caps a walkthrough at 60 s). The last frame holds for two seconds.
+ */
+export async function writeGif(frames: Frame[], feature: string, name: string, opts: { width: number; maxSeconds?: number }) {
+  const sharp = (await import("sharp")).default;
+  if (frames.length < 2) throw new Error(`not enough frames for ${name}`);
+  const dir = `docs/help/${feature}/media`;
+  mkdirSync(dir, { recursive: true });
+  const delays = frames.map((f, i) => (i + 1 < frames.length ? Math.max(60, frames[i + 1].at - f.at) : 2000));
+  const total = delays.reduce((a, b) => a + b, 0);
+  const max = (opts.maxSeconds ?? 58) * 1000;
+  const factor = total > max ? max / total : 1;
+  const scaled = delays.map((d, i) => (i + 1 < frames.length ? Math.max(40, Math.round(d * factor)) : 2000));
+  const resized = await Promise.all(frames.map((f) => sharp(f.png).resize({ width: opts.width }).png().toBuffer()));
+  const out = `${dir}/${name}.gif`;
+  await sharp(resized, { join: { animated: true } })
+    .gif({ delay: scaled, loop: 0, colours: 128, effort: 7 })
+    .toFile(out);
+  return { path: out, frames: frames.length, seconds: Math.round(scaled.reduce((a, b) => a + b, 0) / 100) / 10, spedUp: factor < 1 };
+}
+
+// ---- shared tap/upload helpers for the walkthrough specs -------------------------
+
+let photoSeed = 100;
+
+/** Click something that opens the phone's file picker and give it a placeholder photo. */
+export async function uploadPhoto(page: Page, trigger: Locator, name: string) {
+  const chooser = page.waitForEvent("filechooser");
+  await trigger.click();
+  await (await chooser).setFiles({ name, mimeType: "image/png", buffer: placeholderPng(480, 360, photoSeed++) });
+}
+
+/**
+ * Tap a tick row once; if the tap opened the picker (an area's first or last
+ * tick asks for its before / finished shot), supply a photo instead.
+ */
+export async function tapWithPhoto(page: Page, row: Locator, name: string): Promise<"photo" | "tick"> {
+  const chooser = page.waitForEvent("filechooser", { timeout: 2_500 }).catch(() => null);
+  await row.click();
+  const fc = await chooser;
+  if (fc) {
+    await fc.setFiles({ name, mimeType: "image/png", buffer: placeholderPng(480, 360, photoSeed++) });
+    await page.waitForTimeout(1500);
+    return "photo";
+  }
+  await page.waitForTimeout(600);
+  return "tick";
+}
+
+export const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+export const daysFromNow = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return d; };

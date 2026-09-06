@@ -341,19 +341,16 @@ test("work orders — painter and PC, offer to signed off", async ({ browser, re
   await c.getByTestId("finish-job").click();
   await waitForStage("qa");
 
-  // The failed check stays logged FAIL and cannot be re-logged, and no fresh
-  // check is scheduled, so the office adds a mid-job check to inspect the
-  // rectification and passes that one.
+  // The fail scheduled its own re-check (migration 20270112): the failed card
+  // stays as the record, and the card with the standards is the re-check —
+  // the office works that one and passes it.
   await p.goto(`/pc/wo/${woId}`);
-  await expect(p.getByTestId("qa-controls")).toBeVisible({ timeout: 60_000 });
-  await p.getByTestId("qa-mid-open").click();
-  await p.getByTestId("qa-mid-date").fill(iso(new Date()));
-  await p.getByTestId("qa-mid-add").click();
-  await expect(p.getByTestId("qa-controls-msg").or(p.locator('.card[data-testid^="qa-"]').filter({ has: p.locator('[data-testid^="qa-item-"]') }).first())).toBeVisible({ timeout: 30_000 });
-  await p.reload();
+  await expect(p.getByTestId(`qa-result-${checkId}`)).toContainText("FAIL", { timeout: 60_000 });
   const check2 = p.locator('.card[data-testid^="qa-"]').filter({ has: p.locator('[data-testid^="qa-item-"]') }).first();
   await expect(check2).toBeVisible({ timeout: 60_000 });
+  await expect(check2).toContainText(/re-check/i);
   const id2 = ((await check2.getAttribute("data-testid")) ?? "").replace("qa-", "");
+  expect(id2).not.toBe(checkId);
   for (const item of await check2.locator('[data-testid^="qa-item-"]').all()) {
     if (!((await item.getAttribute("class")) ?? "").includes("on")) { await item.click(); await p.waitForTimeout(500); }
   }
@@ -361,14 +358,9 @@ test("work orders — painter and PC, offer to signed off", async ({ browser, re
   await frame(p, check2);
   await shot(p, F, "pc", "14");
   await check2.getByTestId(`qa-pass-${id2}`).click();
-  await expect(check2).toContainText(/PASS|Logged/, { timeout: 30_000 });
-  // WORKAROUND, not the app: the failed 'final' check still counts as open in
-  // wo_gate_blocked and nothing in the UI can re-pass it (task "Let a failed
-  // quality check be re-inspected and passed", 6 Sep 2026). Settle it the way
-  // e2e/wo-full-loop.spec.ts does so the sign-off screens can be captured;
-  // remove this once the real re-check path exists.
-  await db!.from("wo_qa_checks").update({ result: "pass" }).eq("work_order_id", woId).eq("result", "fail");
-  await p.reload(); // the PC page self-heals a parked qa job on view (wo_qa_route_passed)
+  // The last pass routes the job on from inside wo_record_qa — the pack goes
+  // out and the stage moves, nothing to settle by hand.
+  await expect(p.getByTestId(`qa-msg-${id2}`)).toContainText(/Passed — all checks clear/, { timeout: 30_000 });
   await waitForStage("walkthrough");
   await p.reload();
   await expect(p.getByTestId("stage-advance")).toBeVisible({ timeout: 60_000 });

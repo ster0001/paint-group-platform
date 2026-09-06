@@ -3,6 +3,9 @@ feature: work-orders
 role: pc
 title: Run jobs through the six stages from the PC console
 summary: The project coordinator's console — the attention queue and what its colours mean, the six lanes, the pre-start list, pricing and releasing variations, approving drafted customer updates, quality checks, the walkthrough and sign-off gates, and closing.
+walkthrough: media/pc-walkthrough.gif
+sources: app/pc, app/components/wo, lib/workorder
+verified_at_commit: 0c1f08f47d
 ---
 
 ## What this is for
@@ -49,11 +52,11 @@ The PC console (**Projects** in the sidebar) reads every open work order and tel
 ### Quality check
 13. When the painter taps **All done — next step**, the server routes the job: to **04 Quality check** if a check is due, otherwise straight to the walkthrough. Checks are due on a new contractor's first three jobs, on any job where you ticked **Quality check required**, and for any mid-job check you added. The check appears on the job as a **Quality check** card ("Photo-logged against the standards. Every line looked at before a pass.") with the four standards: **Cut lines**, **Coverage**, **Prep evidence**, **Site**. The queue says **Quality check to do**. Tick each standard as you inspect it; the pass button reads **N standards to check** until all are ticked.
     ![](media/pc-12.png)
-14. To fail it, tap **Log fail**, enter **Where** (the area) and what needs putting right, add **Photos of where it failed — show the painter**, and tap **Log fail — raise rectification**. The check is logged **FAIL**, the job returns to **03 In progress**, and the item lands on the painter's tick list marked **Rectify** under the area you named.
+14. To fail it, tap **Log fail**, enter **Where** (the area) and what needs putting right, add **Photos of where it failed — show the painter**, and tap **Log fail — raise rectification**. The check is logged **FAIL**, the job returns to **03 In progress**, and the item lands on the painter's tick list marked **Rectify** under the area you named. The failed card stays on the page as the record — **Logged: FAIL · re-check scheduled** — and Job facts lists the re-check as **due**.
     ![](media/pc-13.png)
-15. When the painter has put it right and finished again, the job comes back to **04 Quality check**. The failed check stays on the page as **Logged: FAIL**; to inspect the fix, use **Add a mid-job check** under the job facts, pick the date, and work the new card. When every standard is ticked the card reads **READY TO LOG**; add a note and tap **Log check — PASS**.
+15. When the painter has put it right and finished again, the job comes back to **04 Quality check** with two cards: the failed check, still **Logged: FAIL** with no buttons, and a fresh **Quality check re-check** card with all four standards unticked. Work the re-check card: tick each standard as you inspect the fix; when every one is ticked it reads **READY TO LOG**; add a note and tap **Log check — PASS**. (**Add a mid-job check** is for an extra inspection, not for this — the re-check is scheduled by the fail itself.)
     ![](media/pc-14.png)
-16. A pass with no other check open moves the job on by itself: the customer's evidence pack is delivered and the stage becomes **05 Walkthrough**. The pack cannot go while any check is unpassed, and that includes a logged FAIL (see *If something goes wrong*).
+16. A pass with no other check open moves the job on by itself: the customer's evidence pack is delivered and the stage becomes **05 Walkthrough**. The pack cannot go while any check is unpassed. A logged FAIL counts as open only until its re-check exists; once the re-check passes, the fail is history and holds nothing. If the re-check fails too, the same thing happens again — a further re-check, as many times as it takes.
 
 ### Walkthrough and sign-off
 17. At **05 Walkthrough** the **Next step** card offers **Move to closed — final invoice sent**, which is the office closing the job on the customer's behalf; the normal path is the customer signing on the painter's phone. The **Walkthrough** card shows the estimated finish and the booked **FINAL** walkthrough with **Missed** and **Cancel**; pick a date and time and **Rebook final** to change it (an empty date lands on the last day on site), or **Book pre** for a pre-walkthrough. Ticking **Walkthrough not required** closes the job at the invoice stage once it is finished and checked. Under **Sign-off from our side**, **Walk through on this device** runs the customer's walkthrough on your own screen when you are with them, and **Record sign-off manually** records an approval they gave by phone or on paper, with their full name and how they approved. **Customer can't attend — open remote sign-off** is the gate for the remote path: only open it when the customer genuinely cannot be there; it sends them their own signing link.
@@ -77,8 +80,9 @@ The PC console (**Projects** in the sidebar) reads every open work order and tel
 
 ## If something goes wrong
 - **"The pre-start list has to be true before a job can start."** An item is unticked or a question unanswered; colours must be ticked before materials.
+- **"1 variation still waiting on a decision."** The painter cannot finish while a variation is unpriced, unsigned or unaccepted. Price it, chase the customer's signature, or approve it for the contractor only.
 - **"Every surface has to be ticked off first."** The painter has rows not yet Done. Check **Scope & ticks**, or tick on their behalf from **Painter's view** if you have confirmed the work on site.
-- **"N quality checks still open."** Log every scheduled check as a pass before the pack can go. A check logged **FAIL** also counts as open and cannot be re-logged from the screen, so a job that failed a check cannot reach Walkthrough on its own even after the rectification is done and a fresh check has passed. Until that is fixed, ask whoever administers the platform to settle the failed check.
+- **"N quality checks still open."** Log every scheduled check as a pass before the pack can go. A logged **FAIL** is not what is holding it: the fail schedules its own re-check, and it is the re-check (or a mid-job check you added) that is still unlogged. The card with the standards is the one to work. If the job is at Quality check and the only card reads Logged: FAIL, the painter has not finished again yet — the re-check card appears when they tap **All done — next step**.
 - **A job sits at Quality check with no card.** No check was due; use **All done — next step** to route it on.
 - **The painter says they cannot tick.** Their area has no before photo yet, or the job is not at In progress.
 - **The customer never received the variation link.** Check the contact's email and phone on the estimate, then **Text the link** or **Both**.
