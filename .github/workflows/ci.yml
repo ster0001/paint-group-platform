@@ -22,7 +22,11 @@ jobs:
     name: typecheck · lint · unit
     runs-on: ubuntu-latest
     steps:
+      # Full history: the help index compares each help file's
+      # verified_at_commit against later commits to its source paths.
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v5
         with:
           node-version: 24
@@ -49,6 +53,15 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+      # Help files are part of definition of done (CLAUDE.md). This validates
+      # every docs/help/<feature>/<role>.md front-matter, refuses a role outside
+      # staff|pc|contractor|customer, and fails if the committed _index.json
+      # (what the assistant will retrieve from) is behind the files. It also
+      # prints a ::warning:: for any help file whose source paths changed after
+      # its verified_at_commit — stale walkthroughs surface, they never fail.
+      - name: Help content index (front-matter + role check)
+        run: npm run help:index -- --check
 
       # The money paths are meant to be mutation-tested (audit P6). This is the
       # cheap standing version: break a pricing constant, prove the suite

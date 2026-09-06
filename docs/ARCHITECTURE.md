@@ -2007,6 +2007,82 @@ per host. e2e: `e2e/marketing/audiences.spec.ts` (mobile; journey 3 needs
 `src=commercial_home_hero|_cta` and, on the commercial domain, an absolute residential
 `/estimate` URL (⚑ D2).
 
+## Help content foundation — session A1, the convention (6 Sep 2026)
+
+Brief: `docs/briefs/claude-code-brief-help-content-foundation.md` (Phase A only). Help
+content for staff, PCs, contractors and (later) customers lives as markdown at
+`docs/help/<feature>/<role>.md` — one source of truth that Phase B (assistant support-mode
+retrieval), Phase C (`/help` route) and Phase D (voiced video) will all generate from.
+Roles are `staff | pc | contractor | customer`; `pc` is a distinct role (⚑1 ruled 6 Sep) for
+PC-only screens, never alongside `staff.md` for the same content. Role scoping is by
+construction: separate files, never one file with hidden sections. `CLAUDE.md` → Process now
+carries the rule that a feature is not done until its help files exist for every role that
+can see it, written after the e2e run from the real screens, shipping in the same PR.
+
+Pieces: `docs/help/_template.md` (the brief's §6, verbatim), `docs/help/README.md` (folder
+convention, roles, front-matter spec, index rules), `scripts/help-index.ts` → `npm run
+help:index` (plain `node`, no new dependency — Node 24 strips types; keep the file free of
+enums and parameter properties). The script validates every role file (known keys only,
+role in the allowed set and matching the filename, feature matching its slug folder,
+referenced screenshots and walkthrough GIF present on disk, no stray `.md` files) and
+writes `docs/help/_index.json` (feature, role, title, summary, path, walkthrough, media,
+verified_at_commit). The index is committed; the CI `gate` job runs `help:index -- --check`,
+which fails on any validation problem or a stale index. `verified_at_commit` is read now
+and set from git in session A4. Backfill (A2 scheduling + self-invoicing, A3 work orders)
+and GIF walkthroughs (A4) follow on this branch.
+
+## Help content — session A2, scheduling + self-invoicing backfill (6 Sep 2026)
+
+First four help files, written from e2e runs on the C1 test stack in the real roles:
+`docs/help/scheduling/{contractor,staff}.md` and `docs/help/self-invoicing/{contractor,staff}.md`,
+35 screenshots under each feature's `media/`. The screenshots come from a committed capture
+rig, `e2e/help-capture/` (`rig.ts` = viewport presets, `shot()`, an invented-data job fixture
+`createHelpJob` that lands in the tray or on a contractor; `scheduling.spec.ts` and
+`self-invoicing.spec.ts` drive both roles end to end and save the PNGs). Not CI gates; re-run
+to regenerate. Contractor shots are viewport-sized because the portal's fixed tab bar and
+bottom sheets strand mid-image under a full-page capture. `contractorIdForEmail` in
+`e2e/fixtures/woLoop.ts` now pages 50×200 users (was 10×200 — the test project's anonymous
+wizard sign-ins passed 2,000 and the helper silently returned null). Running the flows
+surfaced three app defects, reported in the session notes, not fixed here: the sign-off
+invoice submitted after a progress claim loses the "previously invoiced" subtraction
+(migration 20261127 dropped it — money bug, live), a reschedule request re-redacts an
+accepted job to suburb-only, and approving a proposed date moves start_date but not end_date
+or the booked walkthrough.
+
+## Help content — session A3, work order loop backfill (6 Sep 2026)
+
+`docs/help/work-orders/contractor.md` (painter: pre-start, before-photo-before-first-tick,
+ticks, site notes, variations, the finishing-up list, quality check and rectification, Mode A
+walkthrough on the painter's phone) and `docs/help/work-orders/pc.md` (six lanes, the attention
+queue and its colours, pre-start list, pricing/releasing variations, drafted customer updates,
+quality checks, walkthrough and Mode B gate, deemed clock in neutral wording, closing). No
+`staff.md`: the loop lives entirely in the PC console, so there is no office content that is not
+PC content. Screenshots from `e2e/help-capture/work-orders.spec.ts`, which drives both roles
+through the whole loop on C1 (offer → accept via RPC, then every step through the real screens;
+the customer's variation signature via RPC as the customer). Rig additions: `placeholderPng`
+(zlib-encoded gradient PNGs so uploads look like photos, not colour blocks), `frame()` (centre
+a card before shooting), `DESK_TALL` for the two-column PC job page. Trap: the tick list opens
+the phone's file picker DIRECTLY on an area's first and last tap (before / finished shot) — a
+Playwright tap must intercept `filechooser` or the tick silently never lands. Stage names in
+the files match `STAGE_LANES` in `lib/workorder/stages.ts` and the on-screen rail.
+
+## Help content — session A4, walkthrough GIFs + staleness (6 Sep 2026)
+
+Every help file now has a silent captioned walkthrough GIF (`media/<role>-walkthrough.gif`,
+the painter's work-order flow split into two under 60 s). Produced by
+`e2e/help-capture/gif-{scheduling,self-invoicing,work-orders}.spec.ts`: the rig injects a caption
+banner per step (`installCaptions`/`caption`, persisted through navigations in sessionStorage),
+captures frames ~5/s (`startRecording`, skipping half-loaded pages and any frame whose
+`innerWidth` is not the viewport — mobile emulation draws a page without its viewport meta at
+980 px), and `writeGif` joins them with `sharp` (already a dependency; libvips merges identical
+consecutive frames, so a 26 s film is ~200 KB). Real-time frame delays, uniform speed-up past 58 s,
+two-second hold on the last frame. Chosen over the brief's Claude-in-Chrome `gif_creator` because
+it is scripted, deterministic and never touches production. Staleness: front-matter `sources:`
+(repo paths the file documents) + `verified_at_commit:` written by `npm run help:index -- --stamp
+<feature>`; `--check` prints a GitHub `::warning::` when commits after the stamp (or uncommitted
+changes) touched the sources — never a failure. CI's gate checkout is `fetch-depth: 0` so the
+comparison can see history.
+
 ## Reschedule requests keep the address; approving a new date moves the whole booking (6 Sep 2026)
 
 Two defects from the scheduling help capture, both in the offer state machine's
