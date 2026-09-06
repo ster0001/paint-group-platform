@@ -159,7 +159,7 @@ export default function AssistView({ conversationId, estimateId, disclosure, ass
           <SidesEditor key={version} estimateId={bundle.estimateId} initial={bundle.initial} initialSides={bundle.initialSides} initialExterior={bundle.initialExterior} initialLadder={bundle.initialLadder} docs={bundle.docs} logoUrl={bundle.logoUrl} companyPhone={bundle.companyPhone} />
         )}
         {bundle?.kind === "rooms" && (
-          <ScopeEditor key={version} estimateId={bundle.estimateId} initial={bundle.initial} initialRooms={bundle.initialRooms} initialSides={bundle.initialSides} initialExterior={bundle.initialExterior} initialLadder={bundle.initialLadder} initialInteriorLoop={bundle.initialInteriorLoop} roomTypes={bundle.roomTypes} liveRange={bundle.liveRange} docs={bundle.docs} logoUrl={bundle.logoUrl} companyPhone={bundle.companyPhone} />
+          <ScopeEditor key={version} estimateId={bundle.estimateId} chatMode initial={bundle.initial} initialRooms={bundle.initialRooms} initialSides={bundle.initialSides} initialExterior={bundle.initialExterior} initialLadder={bundle.initialLadder} initialInteriorLoop={bundle.initialInteriorLoop} roomTypes={bundle.roomTypes} liveRange={bundle.liveRange} docs={bundle.docs} logoUrl={bundle.logoUrl} companyPhone={bundle.companyPhone} />
         )}
       </section>
     </div>

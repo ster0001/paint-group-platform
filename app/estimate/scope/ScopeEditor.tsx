@@ -81,7 +81,7 @@ const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
 const snapshotFalse = () => false;
 
-export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null }: {
+export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, chatMode = false }: {
   estimateId: string;
   initial: CustomerPayload;
   initialRooms: CustomerScopeRoom[];
@@ -97,6 +97,11 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   docs?: EstimateDocuments;
   logoUrl?: string | null;
   companyPhone?: string | null;
+  /** Phase 4 (6 Sep plan): mounted beside the assistant. The chat asks the
+   * questions, so this pane is a quiet live preview — no amber list, no
+   * details card, cards collapsed — instead of a pile of open questions
+   * repeating what the chat is already asking. */
+  chatMode?: boolean;
 }) {
   const [payload, setPayload] = useState<CustomerPayload>(initial);
   const [rooms, setRooms] = useState<CustomerScopeRoom[]>(initialRooms);
@@ -107,7 +112,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   // the next unconfirmed card and scrolls it into view (mockup openRoom).
   const [openCard, setOpenCard] = useState<string>(() => {
     const il = initialInteriorLoop;
-    if (!il) return "";
+    if (!il || chatMode) return "";
     const firstRoom = il.rooms.find((r) => !r.confirmed);
     if (firstRoom) return `room:${firstRoom.areaId}`;
     if (!il.meta.done.dw) return "dw";
@@ -115,6 +120,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
     return "";
   });
   function openAndScroll(key: string) {
+    if (chatMode) return; // the chat drives; the cards stay a preview
     setOpenCard(key);
     setTimeout(() => {
       const el = document.querySelector(`[data-card="${key}"]`);
@@ -579,7 +585,12 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         {/* R1.3 lives HERE now the interstitial result screen is gone
             (Tom, 28 Aug): anything the reads couldn't settle is an amber
             trace the customer sees — never silence. */}
-        {(styleOpen.doors || styleOpen.windows || payload.heightUnconfirmed) && (
+        {chatMode && payload.confirmOnSite.length > 0 && (
+          <p className="wz-note" style={{ margin: "14px 0 0" }} data-testid="chat-quiet-note">
+            {payload.confirmOnSite.length} {payload.confirmOnSite.length === 1 ? "detail" : "details"} still to settle — I&rsquo;ll ask as we go. Tap &ldquo;Fill it in instead&rdquo; to answer them yourself.
+          </p>
+        )}
+        {!chatMode && (styleOpen.doors || styleOpen.windows || payload.heightUnconfirmed) && (
           <section className="sc-rc il-card amber sc-details" data-card="details" data-testid="details-card">
             <div className="sc-hd il-hd"><b>A few details to settle</b><span className="il-pill">TIGHTENS YOUR RANGE</span></div>
             {styleOpen.doors && (
@@ -614,7 +625,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             )}
           </section>
         )}
-        {payload.confirmOnSite.length > 0 && (
+        {!chatMode && payload.confirmOnSite.length > 0 && (
           <p className="wz-note wz-confirmonsite" style={{ margin: "14px 0 0" }}>
             {payload.confirmOnSite.map((n, i) => <span key={i}>⚑ {n}<br /></span>)}
           </p>
