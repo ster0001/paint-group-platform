@@ -1,6 +1,7 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { mkdirSync } from "node:fs";
+import { deflateSync } from "node:zlib";
 import { destroyLoopFixture, type LoopFixture } from "../fixtures/woLoop";
 
 /**
@@ -138,3 +139,50 @@ export async function pickCalendarDay(page: Page, sheet: import("@playwright/tes
   const day = String(Number(targetIso.slice(8, 10)));
   await sheet.locator("button.cd2", { hasText: new RegExp(`^${day}$`) }).first().click();
 }
+
+// ---- test photos + framing --------------------------------------------------
+
+/**
+ * A believable "photo" for uploads: a soft two-tone gradient PNG of the given
+ * size, encoded here with zlib so the rig needs no image library. A 1×1 pixel
+ * passes the MIME check too, but renders as a flat colour block in every
+ * screenshot, which reads as broken.
+ */
+export function placeholderPng(width = 480, height = 360, seed = 0): Buffer {
+  const raw = Buffer.alloc((width * 3 + 1) * height);
+  for (let y = 0; y < height; y++) {
+    raw[y * (width * 3 + 1)] = 0; // filter: none
+    for (let x = 0; x < width; x++) {
+      const o = y * (width * 3 + 1) + 1 + x * 3;
+      const t = (x / width + y / height) / 2;
+      raw[o] = Math.round(120 + 60 * t + ((seed * 37) % 40));      // r
+      raw[o + 1] = Math.round(135 + 50 * (1 - t) + ((seed * 17) % 30)); // g
+      raw[o + 2] = Math.round(150 + 40 * t);                        // b
+    }
+  }
+  const crcTable = new Int32Array(256);
+  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; crcTable[n] = c; }
+  const crc = (buf: Buffer) => { let c = -1; for (const b of buf) c = crcTable[(c ^ b) & 0xff] ^ (c >>> 8); return (c ^ -1) >>> 0; };
+  const chunk = (type: string, data: Buffer) => {
+    const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+    const td = Buffer.concat([Buffer.from(type, "ascii"), data]);
+    const c = Buffer.alloc(4); c.writeUInt32BE(crc(td));
+    return Buffer.concat([len, td, c]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0); ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8; ihdr[9] = 2; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", ihdr), chunk("IDAT", deflateSync(raw)), chunk("IEND", Buffer.alloc(0)),
+  ]);
+}
+
+/** Scroll a card to the middle of the viewport before shooting it. */
+export async function frame(page: Page, target: Locator) {
+  await target.evaluate((el) => el.scrollIntoView({ block: "center", inline: "nearest" }));
+  await page.waitForTimeout(300);
+}
+
+/** Tall desktop for long two-column pages such as the PC job page. */
+export const DESK_TALL = { width: 1440, height: 1300 };

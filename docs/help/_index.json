@@ -84,6 +84,64 @@
         "media/staff-03.png"
       ],
       "verified_at_commit": null
+    },
+    {
+      "feature": "work-orders",
+      "role": "contractor",
+      "title": "Run a job from the first tick to the customer's signature",
+      "summary": "How a booked job works on your phone — the pre-start list, photos before ticks, ticking surfaces off, raising a variation, the finishing-up list, the quality check, and handing the phone to the customer to sign off.",
+      "path": "docs/help/work-orders/contractor.md",
+      "walkthrough": null,
+      "media": [
+        "media/contractor-01.png",
+        "media/contractor-02.png",
+        "media/contractor-03.png",
+        "media/contractor-04.png",
+        "media/contractor-05.png",
+        "media/contractor-06.png",
+        "media/contractor-07.png",
+        "media/contractor-08.png",
+        "media/contractor-09.png",
+        "media/contractor-10.png",
+        "media/contractor-11.png",
+        "media/contractor-12.png",
+        "media/contractor-13.png",
+        "media/contractor-14.png",
+        "media/contractor-15.png",
+        "media/contractor-16.png",
+        "media/contractor-17.png",
+        "media/contractor-18.png"
+      ],
+      "verified_at_commit": null
+    },
+    {
+      "feature": "work-orders",
+      "role": "pc",
+      "title": "Run jobs through the six stages from the PC console",
+      "summary": "The project coordinator's console — the attention queue and what its colours mean, the six lanes, the pre-start list, pricing and releasing variations, approving drafted customer updates, quality checks, the walkthrough and sign-off gates, and closing.",
+      "path": "docs/help/work-orders/pc.md",
+      "walkthrough": null,
+      "media": [
+        "media/pc-01.png",
+        "media/pc-02.png",
+        "media/pc-03.png",
+        "media/pc-04.png",
+        "media/pc-05.png",
+        "media/pc-06.png",
+        "media/pc-07.png",
+        "media/pc-08.png",
+        "media/pc-09.png",
+        "media/pc-10.png",
+        "media/pc-11.png",
+        "media/pc-12.png",
+        "media/pc-13.png",
+        "media/pc-14.png",
+        "media/pc-15.png",
+        "media/pc-16.png",
+        "media/pc-17.png",
+        "media/pc-18.png"
+      ],
+      "verified_at_commit": null
     }
   ]
 }

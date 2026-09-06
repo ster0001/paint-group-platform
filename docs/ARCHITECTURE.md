@@ -2048,3 +2048,20 @@ invoice submitted after a progress claim loses the "previously invoiced" subtrac
 (migration 20261127 dropped it — money bug, live), a reschedule request re-redacts an
 accepted job to suburb-only, and approving a proposed date moves start_date but not end_date
 or the booked walkthrough.
+
+## Help content — session A3, work order loop backfill (6 Sep 2026)
+
+`docs/help/work-orders/contractor.md` (painter: pre-start, before-photo-before-first-tick,
+ticks, site notes, variations, the finishing-up list, quality check and rectification, Mode A
+walkthrough on the painter's phone) and `docs/help/work-orders/pc.md` (six lanes, the attention
+queue and its colours, pre-start list, pricing/releasing variations, drafted customer updates,
+quality checks, walkthrough and Mode B gate, deemed clock in neutral wording, closing). No
+`staff.md`: the loop lives entirely in the PC console, so there is no office content that is not
+PC content. Screenshots from `e2e/help-capture/work-orders.spec.ts`, which drives both roles
+through the whole loop on C1 (offer → accept via RPC, then every step through the real screens;
+the customer's variation signature via RPC as the customer). Rig additions: `placeholderPng`
+(zlib-encoded gradient PNGs so uploads look like photos, not colour blocks), `frame()` (centre
+a card before shooting), `DESK_TALL` for the two-column PC job page. Trap: the tick list opens
+the phone's file picker DIRECTLY on an area's first and last tap (before / finished shot) — a
+Playwright tap must intercept `filechooser` or the tick silently never lands. Stage names in
+the files match `STAGE_LANES` in `lib/workorder/stages.ts` and the on-screen rail.

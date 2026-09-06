@@ -113,9 +113,15 @@ help file against the new pictures:
 
 ```bash
 ./scripts/c1/run-e2e.sh e2e/help-capture/scheduling.spec.ts
+./scripts/c1/run-e2e.sh e2e/help-capture/self-invoicing.spec.ts
+./scripts/c1/run-e2e.sh e2e/help-capture/work-orders.spec.ts
 ```
 
-These specs are not CI gates — they exist to regenerate the media.
+These specs are not CI gates — they exist to regenerate the media. They share
+the C1 test contractor with the real e2e suites, so run them when nothing
+else is driving that stack, and expect the console screenshots to show the
+volume-test jobs C1 carries. Photos they upload are generated placeholders
+(`placeholderPng` in `rig.ts`); no real site photo is ever committed.
 
 ## Walkthroughs
 
