@@ -5,7 +5,7 @@ title: Answer a job offer and manage your booked dates
 summary: How a job offer reaches you in the portal, what the 24-hour clock means, how to accept, propose a different start date or decline, and how to ask to move a job you have already accepted.
 walkthrough: media/contractor-walkthrough.gif
 sources: app/portal/requests, app/portal/calendar, app/portal/jobs/[id]/RescheduleRequest.tsx, lib/scheduling, lib/contractor/offers.ts
-verified_at_commit: 0c1f08f47d
+verified_at_commit: 5d1bb7261d
 ---
 
 ## What this is for

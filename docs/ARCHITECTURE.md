@@ -2083,6 +2083,46 @@ it is scripted, deterministic and never touches production. Staleness: front-mat
 changes) touched the sources — never a failure. CI's gate checkout is `fetch-depth: 0` so the
 comparison can see history.
 
+## Help centre — Phase C, the /help routes, search and the first-sign-in tour (6 Sep 2026)
+
+Brief: `docs/briefs/claude-code-brief-help-centre.md`. The markdown under `docs/help/` is now
+read in the app. **Routes**: `/portal/help` and `/portal/help/[feature]` for contractors (portal
+shell, `.pt` tokens, a HELP tab in `PortalTabs`); `/help` and `/help/[feature]/[role]` for the
+office (Tailwind, a sidebar entry every login sees — `AppSidebar` treats area `help` as
+always-on). **Role scoping is server-side by construction**: `lib/help/content.ts` →
+`rolesFor("staff") = [staff, pc]`, `rolesFor("contractor") = [contractor]`; the page lists,
+reads and rewrites only files whose role is in that set, and a file outside it is `notFound()`
+(the office shell streams behind `loading.tsx`, so the not-found is a 200 body without the
+guide — the e2e asserts on the served HTML, not the status). `lib/help/session.ts` `helpReader()`
+is a non-redirecting role probe: a suspended contractor still reads Help (⚑ C-3). Screenshots
+and films are served by `app/api/help/media/[feature]/[file]` under the same role check, 404
+when it fails — never 403, so a URL never confirms a file exists — with `Cache-Control:
+private`. The markdown goes through `lib/help/markdown.ts` (`stripFrontMatter`, `parseHelp` →
+h/p/img/list blocks with per-item images, `helpToText`) and `lib/marketing/md.ts`'s `inlines`,
+whose link grammar now accepts `../feature/role.md` relative links; `rewrite()` turns media
+paths into the API route and related links into the right route for the reader, or demotes
+them to plain text when the target is a role the reader may not see. `next.config.ts`
+`outputFileTracingIncludes` ships `docs/help/**` with the three route groups so Vercel can read
+the files at request time. **Search** (`lib/help/search.ts`, `?q=`): AND over the query's
+terms, weighted title/summary/body, a sentence snippet, ranked; full-body (⚑ C-4) but only over
+the reader's own role files, so an office phrase finds nothing for a painter. **Tour** (⚑ C-1
+contractors only, ⚑ C-2 once per account): `docs/help/_tours/contractor.md` is cards of
+`## Title` / `target: /portal/…` / body, validated and indexed by `help-index.ts` (`tours` in
+`_index.json`); `PortalTour.tsx` overlays one card at a time, Next walks to the card's tab,
+Done/Skip call the server action `markTourSeen()` → RPC `contractor_tour_seen()` (migration
+**20270114**, `contractors.tour_seen_at`, self-only). The portal layout mounts it when the
+contractor is not suspended, has no `tour_seen_at`, and has no live offers or work orders — an
+existing painter is never interrupted; `/portal/help?tour=1` replays it without recording.
+**Join fix found by the tour e2e**: Supabase answers `signUp` for an email that already has an
+account with no error and no session (anti-enumeration); `JoinForm` treated that as success and
+the redeem RPC failed `not_signed_in`. It now signs in when there is no session. Help for the
+help centre: `docs/help/help-centre/{contractor,staff}.md`. e2e: `help-centre.spec.ts`
+(index-driven: every guide listed and opened per role, office text absent from portal HTML,
+search both ways, anonymous media 404) and `help-tour.spec.ts` (real invite → join → tour →
+recorded → replay; the shared contractor with work on the books is not toured). The capture
+rig's `help-centre.spec.ts` shoots the centre itself; every earlier portal screenshot was
+re-captured because the tab bar gained HELP.
+
 ## Reschedule requests keep the address; approving a new date moves the whole booking (6 Sep 2026)
 
 Two defects from the scheduling help capture, both in the offer state machine's

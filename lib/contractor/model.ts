@@ -20,6 +20,8 @@ export type ContractorRow = {
   offerable: boolean;
   /** Painters they can field at once. Capacity signal, never a booking limit. */
   crew_size: number;
+  /** Phase C: when the first-sign-in tour was finished or skipped; null = show it once. */
+  tour_seen_at?: string | null;
 };
 
 /** Weekend availability (Tom, 1 Sep) — read via lib/contractor/weekend.ts,
@@ -46,7 +48,7 @@ export type ContractorDoc = {
 // in lib/contractor/weekend.ts, which degrades to "unknown" until the
 // migration runs.
 export const CONTRACTOR_COLUMNS =
-  "id, profile_id, tier, insurance_expiry, active, company_name, abn, gst_registered, address, bank_bsb, bank_account_last4, logo_url, invoice_prefix, invoice_next_number, offerable, crew_size";
+  "id, profile_id, tier, insurance_expiry, active, company_name, abn, gst_registered, address, bank_bsb, bank_account_last4, logo_url, invoice_prefix, invoice_next_number, offerable, crew_size, tour_seen_at";
 
 export const DOC_COLUMNS =
   "id, contractor_id, kind, name, file_url, expires_on, status, created_at, verified_at, verify_note";

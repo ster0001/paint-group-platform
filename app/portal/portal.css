@@ -512,3 +512,12 @@
 .pt .tick-photo.after {
   background: rgba(47,164,107,.09); border-color: rgba(47,164,107,.45); color: var(--green, #2FA46B);
 }
+
+/* ---- guided tour (help brief Phase C) ------------------------------------ */
+.pt .tourwrap { position: fixed; inset: 0; z-index: 60; background: rgba(5, 6, 7, 0.72); display: flex; align-items: flex-end; justify-content: center; padding: 0 12px 92px; }
+.pt .tour { width: 100%; max-width: 420px; background: var(--graphite); border: 1px solid var(--cyan); border-radius: 16px; padding: 16px 16px 14px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6); }
+.pt .tour-dots { display: flex; gap: 6px; margin: 12px 0 10px; }
+.pt .tour-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--line); }
+.pt .tour-dots i.on { background: var(--cyan); }
+.pt .tour-btns { display: flex; gap: 8px; align-items: center; }
+.pt .tour-btns .btn { margin-top: 0; }

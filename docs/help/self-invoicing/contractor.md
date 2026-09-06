@@ -5,7 +5,7 @@ title: Invoice Paint Group for a job
 summary: How your invoices are drafted for you in the portal, how to send a progress claim at any time, how to check and submit the sign-off invoice, and how to see when it has been approved and paid.
 walkthrough: media/contractor-walkthrough.gif
 sources: app/portal/money, app/portal/profile, lib/workorder/contractorPay.ts
-verified_at_commit: 0c1f08f47d
+verified_at_commit: 5d1bb7261d
 ---
 
 ## What this is for
