@@ -24,7 +24,7 @@ const CHIP_LABEL: Record<FilterGroup, string> = {
 
 const KIND_TAG: Record<WorkItem["kind"], string> = {
   message_unanswered: "Message", message_unmatched: "Unmatched", callback_requested: "Callback",
-  followup_due: "Follow-up", snooze_expired: "Follow-up", visit_rebook: "Rebook",
+  followup_due: "Follow-up", snooze_expired: "Follow-up", estimate_lapsed: "Quote lapsed", visit_rebook: "Rebook",
   approval_pending: "Approve", variation_pending: "Variation", signoff_due: "Sign-off",
   broadcast_incomplete: "Broadcast", consent_missing: "Consent", invoice_action: "Invoice",
   change_request: "Change",

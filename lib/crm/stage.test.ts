@@ -205,3 +205,41 @@ describe("isWon", () => {
     expect(isWon({ status: "declined", accepted_at: null })).toBe(false);
   });
 });
+
+describe("CRM v2 P1 — lapsed and lost are lanes, not holes", () => {
+  it("a sent estimate that expired lands in Quote lapsed, and says whether it was opened", () => {
+    const r = stageFor(facts({ estimates: [estimate({ status: "expired", sent_at: daysAgo(70), viewed_at: daysAgo(60) })] }), NOW);
+    expect(r.stage).toBe("lapsed");
+    expect(r.because).toBe("Lapsed — was opened");
+    expect(r.flags.goingCold).toBe(false);
+    const unopened = stageFor(facts({ estimates: [estimate({ status: "expired", sent_at: daysAgo(70) })] }), NOW);
+    expect(unopened.because).toBe("Lapsed — never opened");
+  });
+
+  it("a lapsed quote is NOT 'estimate sent' any more — the chase rule stops firing", () => {
+    const r = stageFor(facts({ estimates: [estimate({ status: "expired", sent_at: daysAgo(70) })] }), NOW);
+    expect(r.flags.chaseDue).toBe(false);
+  });
+
+  it("re-sending after a lapse moves the customer straight back to Estimate sent", () => {
+    const r = stageFor(facts({ estimates: [
+      estimate({ id: "old", status: "expired", sent_at: daysAgo(70) }),
+      estimate({ id: "new", status: "sent", sent_at: daysAgo(1) }),
+    ] }), NOW);
+    expect(r.stage).toBe("estimate_sent");
+  });
+
+  it("every estimate declined and nothing open is Lost — a lane, so the filter chip can find them", () => {
+    const r = stageFor(facts({ estimates: [estimate({ status: "declined", sent_at: daysAgo(20), declined_at: daysAgo(10) })] }), NOW);
+    expect(r.stage).toBe("lost");
+    expect(r.flags.goingCold).toBe(false);
+  });
+
+  it("a new estimate started for a lost customer moves them out of Lost", () => {
+    const r = stageFor(facts({ estimates: [
+      estimate({ id: "old", status: "declined", declined_at: daysAgo(10) }),
+      estimate({ id: "new", status: "draft", created_at: daysAgo(1) }),
+    ] }), NOW);
+    expect(r.stage).toBe("enquiry_unfinished");
+  });
+});

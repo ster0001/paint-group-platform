@@ -7,11 +7,16 @@
  * it describes — because the lane is computed from estimates, work orders,
  * invoices and events every time it is read.
  *
- * The mockup's seven lanes, plus the five wizard lanes (6 Sep). `lost` is an eighth
- * value the function can return and the mockup has no lane for: a declined
- * customer is not on the board, but the function must be able to say so rather
- * than filing them somewhere untrue. ⚑ C1 (final stage list) is still open —
- * when it is ruled, this is the only file that changes.
+ * The mockup's seven lanes, plus the five wizard lanes (6 Sep), plus — CRM v2
+ * P1 (7 Sep, deep dive §4.5) — `lapsed` and `lost`. Before P1 a declined
+ * customer had no lane and was reachable only through "All", and nothing ever
+ * expired an estimate, so a March quote sat in "Estimate sent" for ever.
+ * ⚑ C1 (final stage list) is ruled; when it changes again, this is the only
+ * file that changes.
+ *
+ * CRM v2 P1 also caches the result of this function per account in
+ * `crm_account_facts` (lib/crm/facts.ts) so lists and rules can run in SQL.
+ * That is a cache of THIS function's output, never a second implementation.
  */
 
 export const LANES = [
@@ -28,15 +33,21 @@ export const LANES = [
   // An enquiry that never went through the wizard (an estimate the office started).
   { key: "enquiry_unfinished", label: "Enquiry unfinished" },
   { key: "estimate_sent", label: "Estimate sent" },
+  /** P1: every open estimate passed its valid_until. A person decides whether
+   *  to chase or close (decision 8.11) — the Today item asks. */
+  { key: "lapsed", label: "Quote lapsed" },
   { key: "visit_booked", label: "Visit booked" },
   { key: "visit_done_no_reply", label: "Visit done, no reply" },
   { key: "negotiating", label: "Negotiating" },
   { key: "job_on", label: "Job on" },
   { key: "past_customer", label: "Past customers" },
+  /** P1: every estimate declined and nothing open. Kept for reporting; a new
+   *  estimate moves them straight back out. */
+  { key: "lost", label: "Lost" },
 ] as const;
 
 export type LaneKey = (typeof LANES)[number]["key"];
-export type Stage = LaneKey | "lost";
+export type Stage = LaneKey;
 
 /**
  * The thresholds that turn a card amber. ⚑ C2 is open — these are defaults
@@ -110,6 +121,9 @@ const lastEventAt = (facts: AccountFacts, type: string): string | null =>
     .map((e) => e.occurred_at)
     .sort((a, b) => b.localeCompare(a))[0] ?? null;
 
+/** Declined or lapsed: the estimate is no longer with the customer. */
+const isClosed = (e: EstimateFact) => e.status === "declined" || e.declined_at != null || e.status === "expired";
+
 /**
  * The lane, and why.
  *
@@ -120,9 +134,10 @@ const lastEventAt = (facts: AccountFacts, type: string): string | null =>
  */
 export function stageFor(facts: AccountFacts, now: Date = new Date()): StageResult {
   const est = facts.estimates;
-  const open = est.filter((e) => e.status !== "declined" && !e.declined_at);
+  const open = est.filter((e) => !isClosed(e));
   const accepted = est.filter((e) => e.accepted_at || e.status === "accepted");
   const sent = open.filter((e) => e.sent_at || e.status === "sent");
+  const lapsed = est.filter((e) => e.status === "expired");
 
   const liveWO = facts.workOrders.find((w) => w.status === "issued" || w.status === "in_progress");
   const doneWO = latest(facts.workOrders.filter((w) => w.status === "complete"), (w) => w.end_date);
@@ -141,7 +156,8 @@ export function stageFor(facts: AccountFacts, now: Date = new Date()): StageResu
       ...r,
       flags: {
         ...flags,
-        goingCold: r.stage !== "past_customer" && inStage != null && inStage >= THRESHOLDS.goingColdDays,
+        goingCold: r.stage !== "past_customer" && r.stage !== "lost" && r.stage !== "lapsed"
+          && inStage != null && inStage >= THRESHOLDS.goingColdDays,
         chaseDue: flags.chaseDue,
       },
     };
@@ -181,7 +197,7 @@ export function stageFor(facts: AccountFacts, now: Date = new Date()): StageResu
 
   // ---- a quote being argued over -------------------------------------------
   const revisedAt = lastEventAt(facts, "estimate_revised");
-  if (revisedAt && accepted.length === 0) {
+  if (revisedAt && accepted.length === 0 && sent.length > 0) {
     const revisions = facts.events.filter((e) => e.type === "estimate_revised").length;
     return withCold({
       stage: "negotiating",
@@ -230,6 +246,19 @@ export function stageFor(facts: AccountFacts, now: Date = new Date()): StageResu
   }
 
   // ---- nothing sent, nothing won -------------------------------------------
+  // A quote that lapsed while it was the only thing out: somebody decides.
+  // A drafted-but-unsent estimate does not rescue it from this lane — the
+  // office has started something new only once it is SENT.
+  if (lapsed.length > 0 && sent.length === 0) {
+    const newest = latest(lapsed, (e) => e.sent_at ?? e.created_at)!;
+    const opened = newest.viewed_at != null || facts.events.some((e) => e.type === "estimate_viewed");
+    return withCold({
+      stage: "lapsed",
+      because: opened ? "Lapsed — was opened" : "Lapsed — never opened",
+      since: newest.sent_at ?? newest.created_at,
+    });
+  }
+
   const declined = est.filter((e) => e.declined_at || e.status === "declined");
   if (declined.length > 0 && open.length === 0) {
     return withCold({ stage: "lost", because: "Declined", since: latest(declined, (e) => e.declined_at)?.declined_at ?? null });
@@ -259,8 +288,9 @@ export function isWon(e: Pick<EstimateFact, "status" | "accepted_at">): boolean 
   return e.status === "accepted" || e.accepted_at != null;
 }
 
-/** Every open lane — the board's "34 open" is the count across these. */
-export const OPEN_LANES: LaneKey[] = LANES.map((l) => l.key).filter((k) => k !== "past_customer");
+/** Every open lane — the board's "34 open" is the count across these. Past
+ *  customers and lost customers are not open: nobody is chasing them. */
+export const OPEN_LANES: LaneKey[] = LANES.map((l) => l.key).filter((k) => k !== "past_customer" && k !== "lost");
 
 /** Does this card want attention today? Snoozed cards do not, which is what a
  *  snooze is for; an EXPIRED snooze puts the card back in the count, which is

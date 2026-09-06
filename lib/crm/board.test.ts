@@ -33,8 +33,8 @@ describe("buildBoard", () => {
     const b = buildBoard([], NOW);
     expect(b.lanes.map((l) => l.label)).toEqual([
       "Online now", "Ready to confirm", "Needs help", "Dropped out", "Priced, no request",
-      "Enquiry unfinished", "Estimate sent", "Visit booked",
-      "Visit done, no reply", "Negotiating", "Job on", "Past customers",
+      "Enquiry unfinished", "Estimate sent", "Quote lapsed", "Visit booked",
+      "Visit done, no reply", "Negotiating", "Job on", "Past customers", "Lost",
     ]);
     expect(b.open).toBe(0);
     expect(b.tiles.winRatePct).toBeNull();
