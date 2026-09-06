@@ -118,6 +118,30 @@ test("every unsettled or refused offer leaves the job redacted", () => {
   }
 });
 
+test("a reschedule request on an accepted booking keeps the job committed", () => {
+  // request_reschedule flips the accepted offer to 'proposed' and stores the
+  // date it WAS on in prior_start_date. The painter already holds the booking
+  // (the original date stands until staff decide), so the address they were
+  // given must not be taken back. Found 6 Sep: it was, and the jobs list
+  // retitled the job with the suburb.
+  const ids = committedIds(["a"], [{ work_order_id: "a", state: "proposed", prior_start_date: "2026-09-04" }]);
+  expect(ids.has("a")).toBe(true);
+});
+
+test("a first-time proposal — no prior date — is still not a commitment", () => {
+  for (const prior of [null, undefined, ""]) {
+    const ids = committedIds(["a"], [{ work_order_id: "a", state: "proposed", prior_start_date: prior }]);
+    expect(ids.has("a"), `prior_start_date=${String(prior)}`).toBe(false);
+  }
+});
+
+test("prior_start_date only counts on a proposal, never on a refused or lapsed offer", () => {
+  for (const state of ["declined", "expired", "withdrawn", "cancelled", "offered"]) {
+    const ids = committedIds(["a"], [{ work_order_id: "a", state, prior_start_date: "2026-09-04" }]);
+    expect(ids.has("a"), state).toBe(false);
+  }
+});
+
 test("a declined offer followed by an accepted one is committed", () => {
   const ids = committedIds(["a"], [
     { work_order_id: "a", state: "declined" },

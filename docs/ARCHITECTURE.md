@@ -2007,6 +2007,34 @@ per host. e2e: `e2e/marketing/audiences.spec.ts` (mobile; journey 3 needs
 `src=commercial_home_hero|_cta` and, on the commercial domain, an absolute residential
 `/estimate` URL (⚑ D2).
 
+## Reschedule requests keep the address; approving a new date moves the whole booking (6 Sep 2026)
+
+Two defects from the scheduling help capture, both in the offer state machine's
+`proposed` state. (1) `request_reschedule` flips an ACCEPTED offer to `proposed` with
+`prior_start_date` set, and `committedIds` (`lib/contractor/jobs.ts`) only counted
+`accepted`, so the painter's job snapped back to suburb-only and the jobs list retitled
+it with the suburb. `offerCommits` now treats `proposed` + `prior_start_date` as a
+commitment (the booking they already hold; the original date stands until staff decide);
+a first-time proposal — no prior date — stays redacted. The job page header shows the
+held booking while the request is pending (the `wo_booking()` RPC reports the PROPOSED
+start for the office, which read "proposed – old end · 1 day" there). Unit:
+`privacy.test.ts`; e2e: `contractor-portal.spec.ts` (response-body assertion after
+`request_reschedule`). (2) `resolve_proposed_offer` moved `start_date` only — the offer's
+`end_date` and the booked final walkthrough stayed on the old days, so the painter's
+Requests card read "Fri 11 – Tue 8" and the walkthrough pin sat before the job started.
+Migration **20270110** shifts `end_date` by the start's delta (offer + work order) and
+re-books a BOOKED final walkthrough by the same delta, carrying the client-confirmed
+time — the `wo_contractor_set_finish_date` precedent (20261222) rather than clearing it
+and raising the console card, because Approve is pressed after ringing the customer
+("Ring the customer, then approve or reject") and a finish-date change already moves
+the walkthrough without a second call. The move writes a `walkthrough_booked` event with
+`via=reschedule_approved`, `from`, `delta_days`. The board's Approve now also pings
+`/api/appointments/confirm` (`lib/workorder/appointmentPing.ts`), so the customer's
+confirmation (idempotent per start date) and the walkthrough invite (idempotent per
+date+time, sequence climbs) go out at approval instead of waiting for the nightly
+`wo-sweep`. e2e: `wo-reschedule.spec.ts` (reschedule of an accepted booking, first-time
+proposal, and the refuse branch moving nothing).
+
 ## Estimator plan · Phase 0 + 1 (7 Sep 2026)
 
 From `docs/briefs/estimator-wizard-end-to-end-plan.md`. **Online estimates switch:**
