@@ -91,7 +91,8 @@ describe("Addendum A §3.2 — the golden fixture", () => {
     expect(labels).toContain("Ceilings not included — add?");
     expect(labels.some((l) => l.startsWith("Assumed: flat doors"))).toBe(true);
     expect(labels.some((l) => l.startsWith("Assumed: casement windows"))).toBe(true);
-    expect(labels.some((l) => /cupboard interiors not included/.test(l))).toBe(true);
+    // The insides follow the doors (Tom, 7 Sep): no interiors chip until the cupboard doors are a Yes.
+    expect(labels.some((l) => /cupboard interiors not included/.test(l))).toBe(false);
     expect(labels.some((l) => /Hallway|Hall/.test(l) && /Assumed/.test(l))).toBe(true);
     expect(labels.some((l) => /two coats/.test(l))).toBe(true);
     expect(labels.some((l) => /Colour match/.test(l))).toBe(true);

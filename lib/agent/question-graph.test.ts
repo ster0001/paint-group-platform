@@ -68,6 +68,13 @@ const requiredKeys = (gaps: ReturnType<typeof gapsFor>) => gaps.filter((g) => g.
 
 /** F1 interior, quick basics, three rooms (bedroom first in the tree, hallway second). */
 const F1 = () => input({ blocks: [room(1, "bedroom", "Bedroom 1"), room(2, "hallway", "Hallway"), room(3, "kitchen", "Kitchen")] });
+/** F1 with the bedroom's and kitchen's cupboard doors ticked Yes — the insides
+ * are only asked after that (Tom, 7 Sep 2026); the hallway's doors stay unanswered. */
+const F1doors = () => input({ blocks: [
+  room(1, "bedroom", "Bedroom 1", { customer: { size: null, cup: true, confirmed: false } }),
+  room(2, "hallway", "Hallway"),
+  room(3, "kitchen", "Kitchen", { customer: { size: null, cup: true, confirmed: false } }),
+] });
 /** F2 interior with a floorplan: sizes were READ. */
 const F2 = () => input({
   state: state("interior", { planRunIds: ["7f1a7e6c-3c2b-4a1e-9f0d-2b6d1c4e8a11"], noPlan: false }),
@@ -215,17 +222,19 @@ describe("question graph — the §4 rules", () => {
 
 describe("question graph — Addendum A tightening gaps", () => {
   it("F1 lists every open assumption as a tightening gap", () => {
-    const t = gapsFor(F1()).filter((g) => g.kind === "tightening").map((g) => g.key);
+    const t = gapsFor(F1doors()).filter((g) => g.kind === "tightening").map((g) => g.key);
     expect(t).toEqual(expect.arrayContaining(["room.1.cupboard_interiors", "room.3.cupboard_interiors", "door_style", "window_style", "paint.colours", "condition.photos"]));
+    // The insides follow the doors: no interiors question while the doors are unanswered.
+    expect(t).not.toContain("room.2.cupboard_interiors");
   });
 
   it("ordering flips when a swing changes (largest $ impact first)", () => {
-    const a = F1(); a.swings = { door_style: 35_000, cupboard_interiors: 98_000 };
+    const a = F1doors(); a.swings = { door_style: 35_000, cupboard_interiors: 98_000 };
     const ta = gapsFor(a).filter((g) => g.kind === "tightening").map((g) => g.key);
     expect(ta[0]).toBe("room.1.cupboard_interiors");
     expect(ta.indexOf("door_style")).toBeGreaterThan(ta.indexOf("room.3.cupboard_interiors"));
 
-    const b = F1(); b.swings = { door_style: 500_000, cupboard_interiors: 1_000 };
+    const b = F1doors(); b.swings = { door_style: 500_000, cupboard_interiors: 1_000 };
     const tb = gapsFor(b).filter((g) => g.kind === "tightening").map((g) => g.key);
     expect(tb[0]).toBe("door_style");
     expect(gapsFor(b).find((g) => g.key === "door_style")?.swingCents).toBe(500_000);

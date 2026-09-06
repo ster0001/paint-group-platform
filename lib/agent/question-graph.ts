@@ -230,9 +230,10 @@ export function gapsFor(input: GraphInput): Gap[] {
         add(PHASE.intLoop, rank, { key, areaId, kind: "tightening", acceptsNotSure: false, phrasingHint: `A home like this usually has a ${name.toLowerCase()} — keep it on the estimate, or remove it?`,
           swingCents: swing(key, "room.presence"), writes: [{ tool: "answer_gap", input: { key, action: "remove_room", areaId } }] });
       }
-      // Tightening: cupboard interiors (Addendum A §3.1) — data-driven on the card.
+      // Tightening: cupboard interiors (Addendum A §3.1) — data-driven on the
+      // card, and only once the cupboard doors are a Yes (Tom, 7 Sep).
       const intCfg = CUPBOARD_INTERIOR_BY_ROOM_TYPE[roomType];
-      if (intCfg && input.rateCodes.has(intCfg.code) && room.customer?.cupInterior == null) {
+      if (intCfg && input.rateCodes.has(intCfg.code) && room.customer?.cup === true && room.customer?.cupInterior == null) {
         const key = `room.${areaId}.cupboard_interiors`;
         add(PHASE.intLoop, rank, { key, areaId, kind: "tightening", acceptsNotSure: false, phrasingHint: intCfg.question,
           swingCents: swing(key, "cupboard_interiors"),

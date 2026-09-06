@@ -1072,11 +1072,11 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                         an amber flag with no name tells the estimator nothing. */}
                     {/* Tom, 7 Sep: the insides of the cupboards belong in the last check too. */}
                     <button className="sd-chip il-chip" data-testid="sweep-cup-interior"
-                      onClick={() => act({ action: "iloop_sweep_cupboards", kind: "interior" }, "sweep:cupi", () => "Inside the cupboards added to every room with built-ins — adjust any room above")}>
+                      onClick={() => act({ action: "iloop_sweep_cupboards", kind: "interior" }, "sweep:cupi", () => "Inside the cupboards added to every room where the cupboard doors are on — adjust any room above")}>
                       + Inside the cupboards
                     </button>
                     <button className="sd-chip il-chip" data-testid="sweep-cup-door-inside"
-                      onClick={() => act({ action: "iloop_sweep_cupboards", kind: "door_inside" }, "sweep:cupd", () => "Inside of the robe doors added to every bedroom — adjust any room above")}>
+                      onClick={() => act({ action: "iloop_sweep_cupboards", kind: "door_inside" }, "sweep:cupd", () => "Inside of the robe doors added to every bedroom where the robe doors are on — adjust any room above")}>
                       + Inside of the cupboard doors
                     </button>
                     <button className={`sd-chip ${sweepOtherOpen ? "on" : ""}`} onClick={() => setSweepOtherOpen((v) => !v)}>

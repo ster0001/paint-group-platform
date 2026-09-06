@@ -51,3 +51,11 @@ once. Any other message out of hours never mentions hours.
 - Streaming replies (first reply under 5 s on a phone; today the whole turn returns at once).
 - A weekly real-model eval: the paragraph above as a regression case with the expected recorded facts.
 - The "Ask" bar on every wizard page / editor (support mode inside the estimate).
+
+## Cupboards: the doors come first (Tom, 7 Sep)
+
+1. Customer wizard → any bedroom card in the editor. The only cupboard question is "Paint the built-in robe doors?".
+2. Tap **No** → no further cupboard questions appear; the "+ Inside the cupboards" sweep chip answers "Tick the cupboard doors Yes in a room first".
+3. Tap **Yes** → two more questions appear under it: the walls inside the robe, and the inside of the robe doors. Answer Yes to both → two extra lines price in.
+4. Flip the doors back to **No** → both inside lines disappear from the price and both follow-up questions go; flip to **Yes** again and they come back unanswered.
+5. Kitchen/bathroom/laundry follow the same rule for "inside the cupboards".
