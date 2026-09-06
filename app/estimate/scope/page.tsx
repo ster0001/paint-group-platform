@@ -89,7 +89,7 @@ export default async function ScopeEditorPage({
       {/* S4: "Chat it or fill it in" — the other half of the toggle. */}
       <a className="as-switch-top" href={`/estimate/assist?estimate=${bundle.estimateId}`}>Chat it instead</a>
       {/* Tom, 7 Sep: general questions to the assistant, or a person — never co-work. */}
-      {actor.kind === "customer" && <AssistantWidget estimateId={bundle.estimateId} />}
+      {actor.kind === "customer" && <AssistantWidget estimateId={bundle.estimateId} lift={76} />}
       <ScopeEditor
         estimateId={bundle.estimateId}
         initial={bundle.initial}

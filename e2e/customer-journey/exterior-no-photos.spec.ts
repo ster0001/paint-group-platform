@@ -24,7 +24,6 @@ test("an exterior job builds from answers alone — no listing, no photos", asyn
       .getByRole("button", { name: label, exact: true });
     if (await row.count()) await row.first().click();
   };
-  await answer("Heritage listed", "No");
   await answer("What kind of property", "House");
   const next = async () => {
     await page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ }).first().click();

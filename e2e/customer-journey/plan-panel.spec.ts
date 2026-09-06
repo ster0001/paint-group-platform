@@ -40,7 +40,6 @@ test("the plan panel is big enough to read, and opens bigger still", async ({ pa
       .getByRole("button", { name: label, exact: true });
     if (await row.count()) await row.first().click();
   };
-  await answer("Heritage listed", "No");
   await answer("What kind of property", "House");
   for (let i = 0; i < 7; i++) {
     if (await page.locator(".sc-r").count()) break;
