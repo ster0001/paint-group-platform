@@ -47,7 +47,7 @@ export default async function AccountHomePage({
   if (svcForDraft) {
     const { data: d } = await svcForDraft.from("wizard_drafts").select("job_type, current_page, furthest_page, last_seen_at")
       .eq("user_id", ctx.userId).is("converted_at", null).order("last_seen_at", { ascending: false }).limit(1).maybeSingle();
-    if (d && d.last_seen_at && Date.now() - new Date(d.last_seen_at as string).getTime() < 7 * 24 * 3600_000 && (Number(d.furthest_page) || 1) > 1) {
+    if (d && d.last_seen_at && new Date().getTime() - new Date(d.last_seen_at as string).getTime() < 7 * 24 * 3600_000 && (Number(d.furthest_page) || 1) > 1) {
       openWizard = { pageLabel: pageLabel(d.job_type as string | null, Number(d.current_page) || Number(d.furthest_page) || 1) };
     }
   }
