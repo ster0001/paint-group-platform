@@ -3,10 +3,18 @@
 Branch `feat/wizard-plan-p2` (same PR as Phase 2/3). Needs the real model, so test on production
 as staff (staff preview of `/estimate` → Describe it → "Rather chat it through?").
 
-## 1. Model tier (your ruling: the larger model for customer chat) — one SQL statement on prod
+## 1. Model tier and the token budget — one SQL statement on prod (do this FIRST)
+
+The chat said "I've reached my limit" after three questions on 7 Sep because the per-conversation
+budget in the database is 60,000 tokens, and one paragraph turn (up to eight tool rounds) spends
+more than that. The code defaults are now 400,000 per conversation and 2,000,000 per account per
+day, but the seeded row wins, so:
 
 ```sql
-update public.agent_settings set model_default = 'claude-sonnet-5';
+update public.agent_settings
+   set model_default = 'claude-sonnet-5',
+       budget_tokens_per_conversation = 400000,
+       daily_cap_per_account = 2000000;
 ```
 
 `model_heavy` is already `claude-sonnet-5`. Cost shows on `/admin/agent` per completed estimate.

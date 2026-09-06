@@ -7,7 +7,7 @@ describe("agent settings (§2 rules 9–10)", () => {
     expect(s).toEqual(DEFAULT_AGENT_SETTINGS);
     expect(s.modelDefault).toBe("claude-haiku-4-5");
     expect(s.modelHeavy).toBe("claude-sonnet-5");
-    expect(s.budgetTokensPerConversation).toBe(60_000);
+    expect(s.budgetTokensPerConversation).toBe(400_000);
     expect(s.assistantName).toBe("Paint Group assistant");
   });
 
@@ -29,7 +29,7 @@ describe("agent settings (§2 rules 9–10)", () => {
   it("a bad field falls back on its own without losing the rest", () => {
     const s = settingsFromRow({ model_default: 42, budget_tokens_per_conversation: -5, assistant_name: "Sam" });
     expect(s.modelDefault).toBe("claude-haiku-4-5");
-    expect(s.budgetTokensPerConversation).toBe(60_000);
+    expect(s.budgetTokensPerConversation).toBe(400_000);
     expect(s.assistantName).toBe("Sam");
   });
 });
