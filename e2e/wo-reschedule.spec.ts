@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { credentials, missingCreds } from "./helpers";
+import { credentials, missingCreds, signIn } from "./helpers";
 import {
   contractorIdForEmail, createLoopFixture, destroyLoopFixture,
   rpcAs, serviceClient, type LoopFixture,
@@ -176,5 +176,64 @@ test.describe("a FIRST-TIME proposal approved from the tray moves the span too",
       [iso(D + 2), "cancelled", "10:30"],
       [iso(D + 5), "booked", "10:30"],
     ]);
+  });
+});
+
+/**
+ * The board's Approve button, driven for real: it must book the new dates AND
+ * confirm the customer straight away. Before 6 Sep only the contractor's own
+ * Accept pinged /api/appointments/confirm, so a proposal approved on the board
+ * left the customer unconfirmed until the nightly sweep. The fixture has no
+ * customer email, so the sender records `appt_confirm_skipped` — the event is
+ * the proof the ping reached the server, keyed on the NEW start date.
+ */
+test.describe("the board's Approve confirms the customer on the new dates", () => {
+  test.skip(!staff || !contractor, missingCreds("STAFF"));
+  test.skip(!db, "set SUPABASE_SERVICE_ROLE_KEY to build the fixture job");
+
+  let job: LoopFixture | null = null;
+  let woRef = "";
+  const D = 90;
+
+  test.beforeAll(async () => {
+    job = await trayJob();
+    const { data } = await db!.from("work_orders").select("wo_ref").eq("id", job.workOrderId).single();
+    woRef = (data as { wo_ref: string }).wo_ref;
+  });
+  test.afterAll(async () => { await destroyLoopFixture(db!, job); });
+
+  test("staff press Approve on the Needs-your-decision card → dates move and the confirmation is sent", async ({ page }) => {
+    const contractorId = await contractorIdForEmail(db!, contractor!.email);
+    expect(await rpcAs(staff!, "send_offer", {
+      p_work_order_id: job!.workOrderId, p_contractor_id: contractorId,
+      p_start: iso(D), p_end: iso(D + 3), p_note: "",
+    })).toMatch(/^ok|offered/);
+    const offer = await offerDates(job!.workOrderId);
+    expect(await rpcAs(contractor!, "request_reschedule", {
+      p_offer_id: offer.id, p_new_start: iso(D + 2), p_note: "",
+    })).toBe("error:not_accepted"); // sanity: only an accepted booking can be rescheduled
+    expect(await rpcAs(contractor!, "respond_to_offer", {
+      p_offer_id: offer.id, p_action: "accept", p_note: "", p_proposed_start: null, p_decline_reason: "",
+    })).toMatch(/accepted|^ok/);
+    expect(await rpcAs(contractor!, "request_reschedule", {
+      p_offer_id: offer.id, p_new_start: iso(D + 2), p_note: "Two days behind",
+    })).toBe("proposed");
+
+    await signIn(page, staff!, /\/estimates/);
+    await page.goto("/pc/schedule");
+    await expect(page.getByTestId("lane").first()).toBeVisible({ timeout: 30_000 });
+    const card = page.locator(".jcard", { hasText: woRef }).filter({ hasText: "WANTS TO MOVE THE JOB" });
+    await expect(card).toBeVisible({ timeout: 30_000 });
+    await card.getByRole("button", { name: "Approve", exact: true }).click();
+    await expect(page.locator("body")).toContainText("Approved — the new date is locked in", { timeout: 20_000 });
+
+    expect(await offerDates(job!.workOrderId)).toMatchObject({ state: "accepted", start_date: iso(D + 2), end_date: iso(D + 5) });
+
+    // The ping: the server-side sender ran for the NEW start date.
+    await expect.poll(async () => {
+      const { data } = await db!.from("wo_events").select("type, meta").eq("work_order_id", job!.workOrderId)
+        .in("type", ["appt_confirm_sent", "appt_confirm_skipped"]);
+      return ((data ?? []) as { meta: { start_date?: string } | null }[]).map((e) => e.meta?.start_date ?? "");
+    }, { timeout: 20_000 }).toContain(iso(D + 2));
   });
 });

@@ -1,3 +1,32 @@
+# 6 Sep 2026 — Scheduling: reschedule request re-redacted the job · Approve moved start only. ONE migration: 20270110 (QUEUED for prod; applied + proven on C1). Branch `fix/reschedule-redaction-dates`.
+
+Both found running `e2e/help-capture/scheduling.spec.ts` as a real contractor + staff.
+
+1. **A reschedule request no longer hides the address.** `request_reschedule` puts the
+   accepted offer in `proposed` with `prior_start_date`; `committedIds` only knew
+   `accepted`, so the painter's job snapped back to SUBURB ONLY and the jobs list
+   retitled it with the suburb. `offerCommits` (`lib/contractor/jobs.ts`): `proposed` +
+   `prior_start_date` = the booking they already hold = committed; a first-time
+   proposal stays redacted. The job page header shows the held dates while pending
+   (was "proposed start – old end · 1 day"). Unit 14/14; e2e `contractor-portal`
+   (address in the response body after `request_reschedule`; first-time proposal
+   still suburb only).
+2. **Approve moves the whole booking** (migration **20270110**, `resolve_proposed_offer`
+   with the 20260828 body): `end_date` shifts by the start's delta on the offer and
+   the work order; a BOOKED final walkthrough is re-booked by the same delta with the
+   client-confirmed time (the `wo_contractor_set_finish_date` precedent — Approve
+   follows the ring-the-customer step, so it moves rather than clearing + raising the
+   console card; flag if you'd rather it re-asked), event `walkthrough_booked`
+   via=reschedule_approved. Refuse branches untouched. e2e `wo-reschedule` (reschedule,
+   first-time proposal, refuse = nothing moves).
+3. **Board Approve pings `/api/appointments/confirm`** — the customer's confirmation
+   (idempotent per start date) + walkthrough invite go out at approval, not at the
+   nightly sweep. Script: `docs/manual-tests/reschedule-6sep.md`.
+4. **Help files:** `docs/help/scheduling/{contractor,staff}.md` live on
+   `feat/help-content-foundation`, not main — once that merges, staff.md step 10 and
+   contractor.md step 12 need a line each (address stays; Approve moves end date +
+   walkthrough). Not done here because the files are not on this branch.
+
 # 4 Sep 2026 (later) — Materials on the PC job page · Payables "matched job" search box + expense-type dropdown. ONE migration: 20261231 (QUEUED for prod).
 
 1. **PC → job → Materials card** (`app/pc/wo/[id]/MaterialsCard.tsx`, under Colour
