@@ -26,6 +26,8 @@ import {
 } from "@/lib/wizard/policy";
 import { reportError } from "@/lib/monitoring/report";
 import { ensureAccountAndProperty } from "@/lib/accounts/link";
+import { reconcileRoomAllowances, type AllowanceBlock } from "@/lib/wizard/allowances";
+import { builderContactFrom, upsertWizardContact } from "@/lib/wizard/contactCard";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { sendMagicLink } from "@/lib/portal/auth";
 import { automationOn, renderTemplate } from "@/lib/messaging/config";
@@ -405,6 +407,8 @@ export async function POST(request: Request) {
   // the opening number is the worst case, not a jump at the end.
   const ctx = await loadPricingContext(db);
   const conditionModSel = applyConditionPricing(merged, effectiveState, () => nextId++, ctx);
+  // Tom, 7 Sep: the engine's own per-room allowances (colour match, ceilings only).
+  merged.areas = reconcileRoomAllowances(merged.areas as unknown as AllowanceBlock[], { tier: effectiveState.condition.tier, rateItems: ctx.rateItems }, () => nextId++).blocks as unknown as typeof merged.areas;
 
   // The exterior loop's Condition & access card arrives PRE-ANSWERED from the
   // wizard's own questions (cond + access; rot was never asked, so it stays
@@ -424,9 +428,23 @@ export async function POST(request: Request) {
       }
     : null;
 
+  // Tom, 7 Sep: the wizard's contact lands on the estimate's Contact card AND
+  // in Contacts — automatically, for every customer run with a name or email.
+  const wizardContact = actor.kind === "customer" && (state.contact.name.trim() || state.contact.email.trim())
+    ? builderContactFrom({
+        name: state.contact.name, email: email || state.contact.email, phone: state.contact.phone,
+        address: state.address ? { street: state.address.street, suburb: state.address.suburb, state: state.address.state, postcode: state.address.postcode } : null,
+      })
+    : null;
+  if (wizardContact) {
+    const contactId = await upsertWizardContact(db, wizardContact);
+    if (contactId) wizardContact.id = contactId;
+  }
+
   const builderState: Record<string, unknown> = {
     blocks: merged.areas,
     aiDeferred: merged.deferred,
+    ...(wizardContact ? { contact: wizardContact } : {}),
     ...(Object.keys(conditionModSel).length ? { modSel: conditionModSel } : {}),
     ...(sidesLoopSeed ? { sidesLoop: sidesLoopSeed } : {}),
     // A1: a picked Places address flows straight onto the estimate document

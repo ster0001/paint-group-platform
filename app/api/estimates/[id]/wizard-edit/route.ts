@@ -11,6 +11,7 @@ import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { applyWizardAnswers } from "@/lib/wizard/merge";
 import { wizardStateSchema } from "@/lib/wizard/state";
 import { applyDoorStyle, applyWindowStyle, DOOR_STYLE_DEFERRAL, WINDOW_STYLE_DEFERRAL } from "@/lib/wizard/styles";
+import { reconcileRoomAllowances, type AllowanceBlock } from "@/lib/wizard/allowances";
 import { markStarterProvenance, starterExtraction, type TypicalSizeRow, FENCE_CODE, FENCE_TYPE_LABEL } from "@/lib/wizard/starter";
 import {
   applyCount, applyDoorScope, applyExtent, applyExteriorToggle, applyFenceLength, applyRename, applyToggle, applyWallsShare,
@@ -931,6 +932,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: refusal.error }, { status: refusal.status });
   }
 
+  // Tom, 7 Sep: after every edit the engine's per-room allowances follow the
+  // scope — untick a room's walls and its ceilings-only allowance appears.
+  {
+    const tierSnap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
+    let allowId = Math.max(0, ...blocks.flatMap((b) => [Number(b.id) || 0, ...(b.surfaces ?? []).map((s) => Number(s.id) || 0)])) + 1;
+    blocks = reconcileRoomAllowances(blocks as unknown as AllowanceBlock[], { tier: tierSnap.success ? tierSnap.data.condition.tier : null, rateItems: (await ctxPromise).rateItems }, () => allowId++).blocks as unknown as LooseBlock[];
+  }
   const newState = { ...state, blocks, aiDeferred: newDeferred, sidesLoop: sidesMeta, interiorLoop: interiorMeta };
   const { error: writeError } = await db
     .from("estimates")

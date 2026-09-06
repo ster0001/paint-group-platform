@@ -2115,3 +2115,15 @@ build, and the explicit "Chat it through instead" link. In the chat, ScopeEditor
 `chatMode` (quiet preview). Budgets: 400k per conversation / 2M per account per day in code;
 the seeded `agent_settings` row overrides (SQL in the P4 manual), and the budget message now
 points at the editor rather than only at a person.
+
+**7 Sep, Tom's pricing rules.** `lib/wizard/allowances.ts reconcileRoomAllowances` is the ONE place
+the engine adds its own per-room lines — Colour Match Allowance (tier "fresh") and Ceilings Only
+Allowance (ceilings on, walls off) — as rate rows (migration 20270111, Hours Per Item) marked
+`allowance` so the customer editor lists them as inclusions rather than tiles; it runs at submit,
+in build-tree and after every wizard-edit, so the lines follow the scope. Occupied homes:
+`details.occupied` (interior) → `modSel.Staging = STG-OCCUPIED` + a "living there while we paint"
+deferral (`applyConditionPricing`). Cupboards: `CUPBOARD_DOOR_INSIDE_BY_ROOM_TYPE` +
+`applyCupboardDoorInside` (a flat door side per robe door, `cupInside` lines excluded from the
+doors total), `applyCupboardsEverywhere` behind the sweep's two chips, and the room card renders
+the interior + door-inside questions. Policy: `asbestos_unsure` is a visit-tier flag;
+`guardrailWhy` puts the hand-off reason on the customer screen.

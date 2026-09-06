@@ -63,3 +63,11 @@ as staff (the public switch stays off).
    does not count them as extra doors). Kitchens get the "inside the kitchen cupboards" question too.
 3. **Last check:** the sweep has "+ Inside the cupboards" and "+ Inside of the cupboard doors" — one tap adds
    it to every room with built-ins (skipping rooms where the cupboards were answered No); adjust per room above.
+4. **Two allowances the engine adds itself** (run migration 20270111 first — it creates two Interior rate rows,
+   "Colour Match Allowance" and "Ceilings Only Allowance", half an hour each at the interior rate; tune them in
+   Settings → Substrates):
+   - Pick **Freshen up (colour match)** on the Condition page → every room in the editor shows
+     "🔒 Colour match — spot priming, extra patching, set-up and pack-up — allowed for by us" and the range
+     includes it. Colour change / dark-to-light: no line.
+   - In any room untick **Walls** but leave **Ceilings** ticked → the room gains "🔒 Ceilings on their own —
+     extra set-up and masking"; tick the walls back and it goes. Customers cannot untick these lines.

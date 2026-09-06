@@ -16,6 +16,7 @@ import {
 } from "./starter";
 import { applyWizardAnswers } from "./merge";
 import { applyConditionPricing, applyExteriorAnswers, type MergedBundle } from "./exteriorAnswers";
+import { reconcileRoomAllowances, type AllowanceBlock } from "./allowances";
 import { buildDraft, type DraftArea } from "@/lib/extract/draft";
 import type { Alias, ScopeRule } from "@/lib/extract/scope";
 import type { DefectRate } from "@/lib/capture/commit";
@@ -81,6 +82,8 @@ export function buildTreeFromState(
   if (answered.areas.length === 0) return { skip: "nothing_to_price" };
 
   const modSel = applyConditionPricing(answered as MergedBundle, state, () => nextId++, ctx);
+  // Tom, 7 Sep: the engine's own per-room allowances (colour match, ceilings only).
+  answered.areas = reconcileRoomAllowances(answered.areas as unknown as AllowanceBlock[], { tier: state.condition.tier, rateItems: ctx.rateItems }, () => nextId++).blocks as unknown as typeof answered.areas;
   return {
     areas: answered.areas,
     deferred: answered.deferred,

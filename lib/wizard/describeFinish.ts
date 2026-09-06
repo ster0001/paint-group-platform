@@ -5,6 +5,7 @@ import { sendMagicLink } from "@/lib/portal/auth";
 import { automationOn, renderTemplate } from "@/lib/messaging/config";
 import { loadMessaging } from "@/lib/messaging/load";
 import { reportError } from "@/lib/monitoring/report";
+import { builderContactFrom, upsertWizardContact } from "./contactCard";
 
 /**
  * The customer-side finish for a DESCRIBED estimate (Tom, 7 Sep 2026).
@@ -44,9 +45,13 @@ export async function finishDescribedEstimate(db: SupabaseClient, input: {
     const state = ((row?.builder_state ?? {}) as Record<string, unknown>);
     const streetLine = address?.street.trim() || address?.formatted.split(",")[0]?.trim() || "";
     const title = streetLine || [input.suburb, input.postcode].filter(Boolean).join(" ") || "Customer enquiry";
+    // The builder's Contact card shape, and the Contacts row it points at.
+    const card = builderContactFrom({ name: contact.name, email, phone: contact.phone, address: address ? { street: address.street, suburb: address.suburb, state: address.state, postcode: address.postcode } : null });
+    const contactId = await upsertWizardContact(db, card);
+    if (contactId) card.id = contactId;
     const next = {
       ...state,
-      contact: { name: contact.name.trim(), email, phone: contact.phone.trim() },
+      contact: card,
       ...(address ? { jobAddress: { address: address.street, city: address.suburb, state: address.state, postal: address.postcode } } : {}),
     };
     const { error } = await db.from("estimates").update({ title, builder_state: next }).eq("id", estimateId);

@@ -973,6 +973,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                   <div className="sc-notechip">⚑ &ldquo;{noteChips[room.areaId]}&rdquo; — we&rsquo;ll confirm this area on the site visit</div>
                 )}
                 <div className="sc-inc">Includes filling minor cracks and sanding — allowances set by us</div>
+                {room.allowances?.map((a) => <div className="sc-inc" key={a} data-testid="room-allowance">🔒 {a} — allowed for by us</div>)}
                 {loop && (
                   <button
                     className={`sd-confirm il-confirm ${loop.confirmed ? "done" : ""}`}
