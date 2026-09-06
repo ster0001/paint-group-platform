@@ -680,7 +680,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                       room.m2 != null && `${room.m2.toFixed(1)} m²`
                     )}
                     <button
-                      className="sc-x" aria-label={`Rename ${room.name}`} data-testid={`room-rename-btn-${room.areaId}`}
+                      className="sc-pen" aria-label={`Rename ${room.name}`} data-testid={`room-rename-btn-${room.areaId}`}
                       onClick={(e) => { e.stopPropagation(); setRenaming({ areaId: room.areaId, value: room.name }); }}
                     >✎</button>
                     <button
