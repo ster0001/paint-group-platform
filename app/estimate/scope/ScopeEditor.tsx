@@ -2,6 +2,7 @@
 
 import ContactCard from "./ContactCard";
 import { useRef, useState, useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
 import type { CustomerPayload } from "@/lib/wizard/view";
 import { assertCustomerShape } from "@/lib/wizard/contract";
 import type { CustomerExteriorView, CustomerScopeRoom } from "@/lib/wizard/scope-editor";
@@ -119,8 +120,10 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
     if (!il.meta.done.sweep) return "sweep";
     return "";
   });
+  const router = useRouter();
   function openAndScroll(key: string) {
-    if (chatMode) return; // the chat drives; the cards stay a preview
+    // Beside the chat the cards are a preview — a tap opens the FULL editor.
+    if (chatMode) { router.push(`/estimate/scope?id=${estimateId}`); return; }
     setOpenCard(key);
     setTimeout(() => {
       const el = document.querySelector(`[data-card="${key}"]`);
@@ -587,7 +590,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             trace the customer sees — never silence. */}
         {chatMode && payload.confirmOnSite.length > 0 && (
           <p className="wz-note" style={{ margin: "14px 0 0" }} data-testid="chat-quiet-note">
-            {payload.confirmOnSite.length} {payload.confirmOnSite.length === 1 ? "detail" : "details"} still to settle — I&rsquo;ll ask as we go. Tap &ldquo;Fill it in instead&rdquo; to answer them yourself.
+            {payload.confirmOnSite.length} {payload.confirmOnSite.length === 1 ? "detail" : "details"} still to settle — I&rsquo;ll ask as we go, or tap any room to answer them yourself.{" "}
+            <button type="button" className="wz-linkish" style={{ display: "inline", margin: 0 }} onClick={() => router.push(`/estimate/scope?id=${estimateId}`)} data-testid="chat-open-editor">Open the full editor →</button>
           </p>
         )}
         {!chatMode && (styleOpen.doors || styleOpen.windows || payload.heightUnconfirmed) && (

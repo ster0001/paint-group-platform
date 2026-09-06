@@ -276,9 +276,21 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
 
   // S4: hand the person to the assistant on a fresh draft of their own.
   const [startingChat, setStartingChat] = useState(false);
+  /** The processing screen is showing a BRIEF build, not a form submit. */
+  const [briefBuilding, setBriefBuilding] = useState(false);
   const [brief, setBrief] = useState("");
   async function startChat(withBrief = false) {
     setStartingChat(true);
+    // Tom, 7 Sep: a build must never look frozen — the same processing screen
+    // the form path shows, with the brief's own steps.
+    let ticks: ReturnType<typeof setTimeout>[] = [];
+    if (withBrief) {
+      setBriefBuilding(true);
+      setScreen("processing");
+      setProcLine(1);
+      ticks = [setTimeout(() => setProcLine(2), 5000), setTimeout(() => setProcLine(3), 11000)];
+    }
+    const backToPages = () => { ticks.forEach(clearTimeout); setBriefBuilding(false); setScreen("pages"); setStartingChat(false); };
     try {
       // The page-1 address rides along so the brief prices with a known property.
       const address = state.address
@@ -288,7 +300,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           : null;
       const res = await fetch("/api/agent/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...(withBrief && brief.trim() ? { brief: brief.trim() } : {}), ...(address ? { address } : {}) }) });
       const j = (await res.json().catch(() => ({}))) as { conversationId?: string; estimateId?: string; built?: boolean; error?: string };
-      if (!res.ok || !j.conversationId) { setStartingChat(false); return; }
+      if (!res.ok || !j.conversationId) { backToPages(); setError(j.error ?? "That didn't go through — please try again."); return; }
+      ticks.forEach(clearTimeout);
+      setProcLine(4);
       // Tom, 7 Sep: a described job lands STRAIGHT in the editor with every
       // assumption marked; the chat is only where the paragraph wasn't enough.
       if (withBrief && j.built && j.estimateId) {
@@ -297,7 +311,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         return;
       }
       router.push(`/estimate/assist?c=${j.conversationId}`);
-    } catch { setStartingChat(false); }
+    } catch { backToPages(); setError("That didn't go through — check the connection and try again."); }
   }
 
   useEffect(() => {
@@ -922,7 +936,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         <div className="wz-wrap wz-proc">
           <div className="wz-ring" />
           <div className="wz-psteps">
-            {[
+            {(briefBuilding ? [
+              { at: 1, label: "Reading your description" },
+              { at: 2, label: "Building the rooms and surfaces" },
+              { at: 3, label: "Pricing every surface" },
+            ] : [
               {
                 at: 1,
                 label: state.jobType === "exterior" ? "Looking over the outside"
@@ -935,7 +953,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
               },
               ...(state.details.damagePhotoCount > 0 ? [{ at: 2, label: "Analysing the damage photos" }] : []),
               { at: 3, label: "Pricing every surface" },
-            ].map((s, i) => (
+            ]).map((s, i) => (
               <p key={i} className={`wz-pstep ${procLine > s.at ? "done" : procLine >= s.at ? "on" : ""}`}>
                 <i className="wz-pdot" aria-hidden>{procLine > s.at ? "✓" : ""}</i>
                 {s.label}

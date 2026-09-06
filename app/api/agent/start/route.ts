@@ -96,13 +96,29 @@ export async function POST(request: Request) {
   // the draft tree lands at once, priced as a range with every assumption a chip.
   let built = false;
   if (parsed.data.brief && parsed.data.brief.length >= 20) {
-    try { await gateway.turn({ conversationId: conv.id, text: parsed.data.brief, actor: "user", heavy: true }); }
-    catch (e) { reportError(e, { where: "agent.start.brief", bestEffort: true }); }
-    // Tom, 7 Sep: one request builds the estimate and the customer lands
-    // STRAIGHT in the editor — the chat interview is the fallback when the
-    // paragraph was not enough to build from.
+    // Tom, 7 Sep: ONE request builds the estimate and the customer lands
+    // STRAIGHT in the editor. The build is deterministic — propose_diff
+    // (one extraction call, applied straight on the customer's own draft) —
+    // not left to the model's choice of tools, which once recorded the
+    // facts one by one and never built. The chat interview is the fallback
+    // when the paragraph was not enough to build from.
+    const ctx = { conversationId: conv.id, mode: "guided" as const, view: "customer" as const, estimateId, accountId, actorId: actor.userId };
+    let proposed: Awaited<ReturnType<typeof gateway.tools.execute>> | null = null;
+    try { proposed = await gateway.tools.execute("propose_diff", { text: parsed.data.brief, sourceKind: "paste" }, ctx); }
+    catch (e) { reportError(e, { where: "agent.start.propose", bestEffort: true }); }
     const after = await gateway.scope.load(estimateId);
     built = after ? isBuilt(after) : false;
+    if (built && proposed) {
+      const userMsg = await gateway.store.appendMessage({ conversationId: conv.id, role: "user", content: parsed.data.brief, modelId: null, tokensIn: 0, tokensOut: 0 });
+      const call = await gateway.store.logToolCall({ conversationId: conv.id, messageId: userMsg.id, tool: "propose_diff", input: { sourceKind: "paste" }, result: proposed, rpcName: "lib/agent/propose", status: proposed.status });
+      const reply = await gateway.store.appendMessage({ conversationId: conv.id, role: "assistant", content: "Built from your description — every assumption is marked in your estimate, and you can change anything there.", modelId: null, tokensIn: 0, tokensOut: 0 });
+      await gateway.store.linkToolCalls([call.id], reply.id);
+    } else {
+      try { await gateway.turn({ conversationId: conv.id, text: parsed.data.brief, actor: "user", heavy: true }); }
+      catch (e) { reportError(e, { where: "agent.start.brief", bestEffort: true }); }
+      const retry = await gateway.scope.load(estimateId);
+      built = retry ? isBuilt(retry) : false;
+    }
   }
 
   return NextResponse.json({ conversationId: conv.id, estimateId, built });
