@@ -8,7 +8,7 @@ import { driveNoPlanWizard, openScopeEditor } from "./customer-journey/drive";
  *
  *  1. Start from the homepage hand-off, answer three pages, leave. The
  *     session heartbeats while the tab is open; the 30-minute sweep (run
- *     here with minutes=0) files it as Dropped · Condition with "3 of 6"
+ *     here with minutes=0) files it as Dropped · Condition with "3 of 5"
  *     and time > 0; the Estimates page shows the pill and the Journey; the
  *     CRM's "Dropped this week" counts it under Condition.
  *  2. Finish, see the price, request a call → Ready · call, and a "Call …
@@ -35,7 +35,7 @@ test.describe("wizard sessions → buckets", () => {
     for (const r of fin ?? []) if (r.estimate_id) await db.from("estimates").delete().eq("id", r.estimate_id);
   });
 
-  test("three pages then gone: the sweep files Dropped · Condition, 3 of 6, with time on the page", async ({ browser, request }) => {
+  test("three pages then gone: the sweep files Dropped · Condition, 3 of 5, with time on the page", async ({ browser, request }) => {
     test.setTimeout(240_000);
     const ctx = await browser.newContext({ ...devices["iPhone 13"] });
     const page = await ctx.newPage();
@@ -43,6 +43,8 @@ test.describe("wizard sessions → buckets", () => {
     await page.getByRole("button", { name: /There isn't a floorplan to hand/ }).click();
     await page.getByPlaceholder("Suburb").fill("Malvern");
     await page.getByPlaceholder("Postcode").fill("3144");
+    // Phase 0: heritage is unanswered until tapped.
+    await page.locator(".wz-qhead", { hasText: "Heritage listed" }).locator("xpath=following-sibling::div[1]").getByRole("button", { name: "No", exact: true }).click();
     const next = async () => { await page.getByRole("button", { name: /Continue|Nearly there/ }).first().click(); };
     await next(); // → 2 Surfaces
     await next(); // → 3 Condition
@@ -74,7 +76,7 @@ test.describe("wizard sessions → buckets", () => {
     await staffPage.goto("/estimates?status=wizard&bucket=dropped");
     const pill = staffPage.getByTestId(`wizard-pill-${after.id}`);
     await expect(pill).toContainText("Dropped · Condition");
-    await expect(staffPage.getByTestId(`wizard-line-${after.id}`)).toContainText("3 of 6");
+    await expect(staffPage.getByTestId(`wizard-line-${after.id}`)).toContainText("3 of 5");
     await pill.click();
     const drawer = staffPage.getByTestId("journey-drawer");
     await expect(drawer).toBeVisible();
@@ -97,7 +99,7 @@ test.describe("wizard sessions → buckets", () => {
     await expect(lane).toBeVisible();
     const card = lane.locator(".card", { hasText: `e2e${stamp}` });
     await expect(card).toBeVisible();
-    await expect(card).toContainText("3 of 6");
+    await expect(card).toContainText("3 of 5");
     await expect(card).toHaveAttribute("href", `/estimates?status=wizard&open=${after.id}`);
   });
 

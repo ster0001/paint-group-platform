@@ -28,14 +28,21 @@ describe("homeState — one headline, one primary action, by precedence", () => 
     expect(s.cta.href).toBe("/estimate");
   });
 
-  it("a saved draft: honest holding copy, CTA is the phone (never a dead end)", () => {
-    const s = homeState([est({})], [], TODAY, PHONE);
+  it("a STAFF-built draft: honest holding copy, CTA is the phone (never a dead end)", () => {
+    const s = homeState([est({ source: "manual" })], [], TODAY, PHONE);
     expect(s.key).toBe("estimate_saved");
     expect(s.cta.href).toBe("tel:(03)90000000");
   });
 
+  it("a WIZARD-built draft: the primary action reopens the confirm-loop editor (Phase 1, 6 Sep plan)", () => {
+    const s = homeState([est({ source: "customer_intake" })], [], TODAY, PHONE);
+    expect(s.key).toBe("estimate_saved");
+    expect(s.cta.label).toBe("Keep shaping my estimate");
+    expect(s.cta.href).toBe("/estimate/scope?id=e1");
+  });
+
   it("no phone configured: the CTA still goes somewhere, never tel:nothing", () => {
-    const s = homeState([est({})], [], TODAY, "");
+    const s = homeState([est({ source: "manual" })], [], TODAY, "");
     expect(s.cta.href).toBe("/account/messages");
   });
 

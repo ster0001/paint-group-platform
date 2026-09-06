@@ -47,8 +47,10 @@ export function bucketFor(i: BucketInput): WizardBucket {
 
 // ---- pages ------------------------------------------------------------------
 
-const INTERIOR_PAGES = ["Property", "Surfaces", "Condition", "Details", "Paint", "Contact"] as const;
-const EXTERIOR_PAGES = ["Property", "House", "Scope", "Condition", "Extras", "Contact"] as const;
+// Phase 2 (6 Sep plan): condition + damage share a page and the paint
+// preferences ride the last page, so interior is five pages.
+const INTERIOR_PAGES = ["Property", "Surfaces", "Condition", "Details", "Your details"] as const;
+const EXTERIOR_PAGES = ["Property", "House", "Scope", "Condition", "Extras", "Your details"] as const;
 
 /** The page's name for a person. "both" runs the interior pages (WizardApp branches on exterior only). */
 export function pageLabel(jobType: string | null | undefined, page: number): string {

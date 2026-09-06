@@ -83,6 +83,7 @@ test.describe("Addendum A2 — describe the job", () => {
     await page.goto("/estimate");
     await page.getByPlaceholder("Suburb").fill("Murrumbeena");
     await page.getByPlaceholder("Postcode").fill("3163");
+    await page.getByTestId("entry-describe").click(); // Phase 2: the describe box sits behind its card
     await page.getByTestId("describe-job").fill(TOM);
     await expect(page.getByTestId("build-from-brief")).toBeEnabled({ timeout: 30_000 });
     await page.getByTestId("build-from-brief").click();
@@ -125,6 +126,7 @@ test.describe("Addendum A2 — describe the job", () => {
     await page.goto("/estimate");
     await page.getByPlaceholder("Suburb").fill("Murrumbeena");
     await page.getByPlaceholder("Postcode").fill("3163");
+    await page.getByTestId("entry-describe").click(); // Phase 2: the describe box sits behind its card
     await page.getByTestId("describe-job").fill(TOM);
     await expect(page.getByTestId("build-from-brief")).toBeEnabled({ timeout: 30_000 });
     await page.getByTestId("build-from-brief").click();

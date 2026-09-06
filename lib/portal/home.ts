@@ -149,6 +149,19 @@ export function homeState(
 
   const draft = estimates.find((e) => e.status === "draft");
   if (draft) {
+    // Phase 1 (6 Sep plan): a wizard-built draft is the customer's to keep
+    // shaping — the primary action opens the confirm-loop editor, not the
+    // phone. A staff-built draft has no customer editor yet; it keeps the call.
+    if (draft.source === "customer_intake") {
+      return {
+        key: "estimate_saved",
+        headline: "Your estimate is saved — keep shaping it",
+        sub: "Pick up exactly where you left off: confirm each room, change anything, and finalise your price when you're ready.",
+        chip: null,
+        cta: { label: "Keep shaping my estimate", href: `/estimate/scope?id=${draft.id}` },
+        estimateId: draft.id,
+      };
+    }
     return {
       key: "estimate_saved",
       headline: "Your estimate is saved",

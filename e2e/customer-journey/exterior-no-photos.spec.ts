@@ -14,7 +14,7 @@ test("an exterior job builds from answers alone — no listing, no photos", asyn
 
   // The old gate demanded a listing or two facades; the third way is explicit.
   await page.getByRole("button", { name: /No photos to hand/ }).click();
-  await expect(page.getByText(/size it from your answers. Tap to undo/i)).toBeVisible();
+  await expect(page.getByTestId("entry-questions")).toHaveClass(/\bon\b/); // Phase 2: the way in is a card
 
   await page.getByPlaceholder("Suburb").fill("Murrumbeena");
   await page.getByPlaceholder("Postcode").fill("3163");

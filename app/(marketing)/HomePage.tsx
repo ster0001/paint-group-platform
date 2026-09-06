@@ -97,7 +97,7 @@ export default async function HomePage({ audience }: { audience: Audience }) {
     <AudienceProvider audience={audience} wizardOrigin={wizardOrigin}>
       <Nav logoUrl={logoUrl} copy={c.nav} />
       <main data-audience={audience}>
-        <Hero heroPhoto={content.heroPhoto} copy={c.hero} />
+        <Hero heroPhoto={business ? (content.heroPhotoBusiness ?? content.heroPhoto) : content.heroPhoto} copy={c.hero} />
         <HowItWorks copy={c.steps} />
         <RealJobs audience={audience} copy={c.jobs} prefix={prefix} />
         {business && <Trade copy={c.trade} promoted />}

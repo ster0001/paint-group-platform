@@ -2082,3 +2082,103 @@ it is scripted, deterministic and never touches production. Staleness: front-mat
 <feature>`; `--check` prints a GitHub `::warning::` when commits after the stamp (or uncommitted
 changes) touched the sources — never a failure. CI's gate checkout is `fetch-depth: 0` so the
 comparison can see history.
+
+## Reschedule requests keep the address; approving a new date moves the whole booking (6 Sep 2026)
+
+Two defects from the scheduling help capture, both in the offer state machine's
+`proposed` state. (1) `request_reschedule` flips an ACCEPTED offer to `proposed` with
+`prior_start_date` set, and `committedIds` (`lib/contractor/jobs.ts`) only counted
+`accepted`, so the painter's job snapped back to suburb-only and the jobs list retitled
+it with the suburb. `offerCommits` now treats `proposed` + `prior_start_date` as a
+commitment (the booking they already hold; the original date stands until staff decide);
+a first-time proposal — no prior date — stays redacted. The job page header shows the
+held booking while the request is pending (the `wo_booking()` RPC reports the PROPOSED
+start for the office, which read "proposed – old end · 1 day" there). Unit:
+`privacy.test.ts`; e2e: `contractor-portal.spec.ts` (response-body assertion after
+`request_reschedule`). (2) `resolve_proposed_offer` moved `start_date` only — the offer's
+`end_date` and the booked final walkthrough stayed on the old days, so the painter's
+Requests card read "Fri 11 – Tue 8" and the walkthrough pin sat before the job started.
+Migration **20270110** shifts `end_date` by the start's delta (offer + work order) and
+re-books a BOOKED final walkthrough by the same delta, carrying the client-confirmed
+time — the `wo_contractor_set_finish_date` precedent (20261222) rather than clearing it
+and raising the console card, because Approve is pressed after ringing the customer
+("Ring the customer, then approve or reject") and a finish-date change already moves
+the walkthrough without a second call. The move writes a `walkthrough_booked` event with
+`via=reschedule_approved`, `from`, `delta_days`. The board's Approve now also pings
+`/api/appointments/confirm` (`lib/workorder/appointmentPing.ts`), so the customer's
+confirmation (idempotent per start date) and the walkthrough invite (idempotent per
+date+time, sequence climbs) go out at approval instead of waiting for the nightly
+`wo-sweep`. e2e: `wo-reschedule.spec.ts` (reschedule of an accepted booking, first-time
+proposal, and the refuse branch moving nothing).
+
+## Estimator plan · Phase 0 + 1 (7 Sep 2026)
+
+From `docs/briefs/estimator-wizard-end-to-end-plan.md`. **Online estimates switch:**
+`lib/wizard/publicFlag.ts` reads the `wizard_public` settings row as `{ enabled,
+holdingTitle, holdingBody }` (old `{ enabled }` rows still read); Settings → Estimates →
+Online estimates (`OnlineEstimatesSettings.tsx`) is the only place it is flipped. While
+off, `/estimate` renders the holding page WITH a call-me form (`HoldingCallback.tsx` →
+`POST /api/wizard/callback`, sessionless, same-origin + per-IP bucket `callback` in
+`lib/places/publicLimit`), which files an account by email and a `callback_requested`
+CRM event — the existing `buildCallbackItems` puts it on Today. **Honest defaults:** the
+three safety answers (heritage, built-before-1970, asbestos) carry no pre-selection; the
+wizard tracks `answered` per question and `pageBlocker` names the open one; the kicker
+counts `lastPage` steps ("Step 2 of 6"). **Save-and-return:** `lib/wizard/resume.ts` is
+the pure codec (7-day freshness, shape-validated, a homepage hand-off for a different
+address starts fresh); WizardApp writes the record to localStorage a beat after every
+change and restores it on mount with a "Welcome back — you were at Surfaces" line and
+Start again; cleared on a successful build. Ownership of a customer draft is now
+`customerOwnsDraft` (`lib/supabase/guards.ts`): the anonymous builder OR a signed-in
+member of the linked account — used by `/estimate/scope` and the wizard-edit route — so
+the portal Home's "Keep shaping my estimate" (`lib/portal/home.ts`, wizard-built drafts
+only) and the saved-estimate magic link (now `next=/estimate/scope?id=…`) reopen the
+editor on any device. Journey specs: `holding-and-honest-defaults.spec.ts`,
+`save-and-return.spec.ts` (anonymous customer, phone viewport).
+
+## Estimator plan · Phase 2 — the simpler form (7 Sep 2026)
+
+WizardApp's pages are a LIST per job type (`pageKeys`), not numbers: customer interior =
+Property · Surfaces · Condition (coats + damage on one page) · Details · Your details (contact
++ paint preferences embedded); customer exterior = Property · House · Scope · Condition ·
+Extras · Your details; staff and members whose details are known keep a Paint page instead of
+the contact page. `pageBlocker` gates by page key. Page 1 asks the property questions first,
+then **"How would you like to do this?"** — three cards (`EntryChoice`: describe · questions ·
+upload; `entryPatch`/`entryFromState` keep the choice and the state in step, also across a
+job-type switch and a resumed walk). "Describe it" is the assistant's build-from-brief,
+promoted from a textarea above the form. `lib/wizard/journey.ts` page labels follow.
+**Styles in the editor:** `lib/wizard/styles.ts` is the ONE door/window style swap
+(assumed-style lines only; the assistant's scope-doc mirrors it); wizard-edit actions
+`set_door_style` / `set_window_style` swap the rate codes, clear the amber deferral and
+write the answer into the wizard snapshot; ScopeEditor shows an "A few details to settle"
+card (doors, windows, ceiling height via `confirm_height`) while any is open, the amber list
+now reads the LIVE payload, and a "Last change: …" line sits under the sticky range.
+**Size band:** `starter.ts SIZE_BAND_FACTOR` scales typical L×W by "Roughly how big"
+(0.9 / 1 / 1.15; calibrate from the Proving tags), plumbed through build-tree, the submit
+route and add_room. Sides editor shows its range once. Journey spec:
+`simpler-form.spec.ts`; drive.ts and the inline specs lost the paint step.
+
+## Estimator plan · Phase 3, first pieces (7 Sep 2026)
+
+**Correction tags:** `lib/wizard/correction.ts` (reasons, `correctionFrom`, `correctionBreakdown`)
+stored at `builder_state.wizard.correction` by the staff server action
+`app/(app)/proving/actions.ts` (read-merge-write of the jsonb; no migration); the Proving page
+shows a "Why staff corrected them" panel and a per-row `CorrectionTags` control. **Extra rooms:**
+`basicsSchema` gained optional `bathrooms / separateToilet / garage / study`; `starterRoomList`
+adds Ensuite / Bathroom N / WC / Study / Garage; the quick basics ask them. **Footprint band:**
+`exterior.sizeBand` (optional) scales the 12 m / 14 m typical side lengths in
+`applyExteriorAnswers` by `SIZE_BAND_FACTOR`; read measurements still win. All three are
+starting values the correction tags are meant to calibrate.
+
+## Estimator plan · Phase 4, first pieces — the assistant (7 Sep 2026)
+
+Three fixes for the failure recorded on 6 Sep (a full paragraph brief answered with "We're
+closed right now… I need at least the suburb or postcode"): (1) `lib/wizard/addressText.ts`
+parses a typed AU address line; `scope-doc` `q.address` accepts a string as well as the
+structured fields. (2) The guided system prompt (`lib/agent/turn.ts buildSystemPrompt`) now
+says: record EVERY fact a message contains (one `answer_gap` per fact) before asking the ONE
+question `next_gap` returns; a price question is a normal question, never a stop or a
+handoff; never volunteer opening hours or callbacks. (3) `scope-tools.requestHandoff` returns
+the "we're closed" script only when the reason is `customer_asked`; any other out-of-hours
+handoff attempt gets one quiet line. Model tier is DATA (`agent_settings.model_default`) —
+Tom's ruling is the Sonnet-class model for customer chat; SQL in the manual test. Streaming
+replies and a real-model regression eval remain open.

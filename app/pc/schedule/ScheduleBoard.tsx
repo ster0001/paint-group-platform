@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { pingGcalSync } from "@/lib/gcal/ping";
+import { pingAppointmentConfirm } from "@/lib/workorder/appointmentPing";
 import { msRemaining, isReschedule, formatDMY, type BookingOffer } from "@/lib/scheduling/offers";
 import { addDays, dayDiff, todayIso } from "@/lib/scheduling/dates";
 import { sendOfferAction, reassignOfferAction, moveBookingAction, blockOutAction, addBookingNote, deleteBookingNote, type ActionResult } from "./actions";
@@ -519,10 +520,10 @@ export default function ScheduleBoard({
   }
 
   /** Approve or refuse a proposed / reschedule date. */
-  async function resolve(offerId: string, approve: boolean) {
+  async function resolve(offer: BookingOffer, approve: boolean) {
     setBusy(true);
     setErr("");
-    const { data, error } = await supabase.rpc("resolve_proposed_offer", { p_offer_id: offerId, p_approve: approve });
+    const { data, error } = await supabase.rpc("resolve_proposed_offer", { p_offer_id: offer.id, p_approve: approve });
     if (error) setErr(error.message);
     else if (String(data).startsWith("error:")) setErr(String(data).replace("error:", ""));
     else {
@@ -532,7 +533,13 @@ export default function ScheduleBoard({
         declined: "Refused — the job is back in the unscheduled tray.",
       };
       flash(msg[String(data)] ?? "Done.");
-      pingGcalSync({ offerId }); // date moved / booking released → contractor's Google Calendar
+      pingGcalSync({ offerId: offer.id }); // date moved / booking released → contractor's Google Calendar
+      // Approving IS the booking (or a re-booking on new dates): the customer's
+      // confirmation email + the walkthrough invite go out now, not at the
+      // nightly sweep. Before 6 Sep only the contractor's Accept button pinged
+      // this, so a proposal approved here left the customer unconfirmed all day.
+      // Idempotent per start date server-side, so a re-approve is a no-op.
+      if (String(data) === "accepted") pingAppointmentConfirm(offer.work_order_id);
       router.refresh();
     }
     setBusy(false);
@@ -747,10 +754,10 @@ export default function ScheduleBoard({
                       <div className="meta" style={{ marginTop: 6, color: "var(--text)" }}>&ldquo;{a.offer.response_note}&rdquo;</div>
                     )}
                     <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-                      <button className="btn cy" style={{ marginTop: 0, padding: 8, fontSize: 12 }} disabled={busy} onClick={() => resolve(a.offer.id, true)}>
+                      <button className="btn cy" style={{ marginTop: 0, padding: 8, fontSize: 12 }} disabled={busy} onClick={() => resolve(a.offer, true)}>
                         Approve
                       </button>
-                      <button className="btn gh" style={{ marginTop: 0, padding: 8, fontSize: 12 }} disabled={busy} onClick={() => resolve(a.offer.id, false)}>
+                      <button className="btn gh" style={{ marginTop: 0, padding: 8, fontSize: 12 }} disabled={busy} onClick={() => resolve(a.offer, false)}>
                         {resched ? "Keep original" : "Reject"}
                       </button>
                     </div>

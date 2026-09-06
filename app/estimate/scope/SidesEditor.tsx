@@ -647,7 +647,6 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
       <main className="sd-wrap">
         <div className="sd-rangebar">
           <div><b>{embedded ? "Now the outside — one side at a time" : "Walk around the house, one side at a time"}</b><span>Front, both sides, back — confirm each and it turns blue.</span></div>
-          {!embedded && <div className="sd-range" data-role="range"><small>YOUR ESTIMATE · INCL. GST</small>{range}</div>}
         </div>
 
         <div className="sd-grid">

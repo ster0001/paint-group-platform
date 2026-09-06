@@ -45,7 +45,7 @@ describe("the portal and the public site share ONE wizard", () => {
     // 31 Aug: the contact page is the LAST page, and a member whose account
     // already carries name+phone+email (contactDone) never sees it.
     const app = readFileSync(resolve(ROOT, "app/wizard/WizardApp.tsx"), "utf8");
-    expect(app).toMatch(/!contactDone \? 6 : 5/);
+    expect(app).toMatch(/!contactDone \? \["contact" as const\]/); // Phase 2: the contact page is appended only when the details are unknown
     expect(app).toMatch(/prefill\?\.email && prefill\?\.name/);
   });
 });
