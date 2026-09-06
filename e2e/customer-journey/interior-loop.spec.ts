@@ -57,9 +57,12 @@ test("R3 interior loop: L×W size question, confirm walk, dw check, sweep — CT
     } else {
       await card.getByRole("button", { name: /Looks right/ }).click();
     }
-    const cup = card.locator(".il-cup");
-    if (await cup.count()) {
-      await cup.getByRole("button", { name: "No", exact: true }).click();
+    // Every cupboard question the room carries (cupboards, the walls inside
+    // them, the inside of the doors — 7 Sep), answered one at a time: a "No"
+    // can re-render the ones after it, so the next open one is found afresh.
+    for (let i = 0; i < 4 && (await card.locator(".il-cup:not(.ok)").count()); i++) {
+      await card.locator(".il-cup:not(.ok)").first().getByRole("button", { name: "No", exact: true }).click();
+      await page.waitForTimeout(300);
     }
     await card.locator(".il-confirm").click();
     await expect(card).toHaveClass(/done/, { timeout: 15_000 });

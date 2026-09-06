@@ -1,6 +1,6 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
-import { decodeResume, encodeResume, resumeLine, serverResumeFrom, RESUME_MAX_AGE_MS } from "./resume";
+import { decodeResume, encodeResume, resumeLine, serverResumeFrom, restartedSince, RESUME_MAX_AGE_MS } from "./resume";
 import { defaultCustomer, defaultWizardState } from "./state";
 
 const now = new Date("2026-09-07T10:00:00+10:00");
@@ -64,4 +64,12 @@ test("the server copy resumes a fresh, unconverted draft; converted, stale or em
   assert.equal(serverResumeFrom({ ...row, last_seen_at: new Date(now.getTime() - RESUME_MAX_AGE_MS - 1).toISOString() }, now), null);
   assert.equal(serverResumeFrom({ state: { jobType: "spaceship" }, current_page: 3, last_seen_at: now.toISOString() }, now), null);
   assert.equal(serverResumeFrom(null, now), null);
+});
+
+test("Start again: a server copy saved at or before the restart is not a resume; a later one is", () => {
+  assert.equal(restartedSince("2026-09-07T10:00:00Z", "2026-09-07T10:05:00Z"), true);
+  assert.equal(restartedSince("2026-09-07T10:05:00Z", "2026-09-07T10:05:00Z"), true);
+  assert.equal(restartedSince("2026-09-07T10:06:00Z", "2026-09-07T10:05:00Z"), false);
+  assert.equal(restartedSince("2026-09-07T10:06:00Z", null), false);
+  assert.equal(restartedSince("2026-09-07T10:06:00Z", "not a date"), false);
 });

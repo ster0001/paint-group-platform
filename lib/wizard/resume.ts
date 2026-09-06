@@ -18,6 +18,20 @@ import { pageLabel } from "./journey";
 export const RESUME_KEY = "pg-wizard-resume-v1";
 /** After this long an unfinished walk is a memory, not a draft. */
 export const RESUME_MAX_AGE_MS = 7 * 24 * 60 * 60_000;
+/**
+ * "Start again" on this device. The browser copy is simply removed, but the
+ * SERVER copy (any device) was written before the restart and would come
+ * straight back on the next reload — the 7 Sep C1 run caught exactly that.
+ * The restart moment is kept here, and a server copy saved at or before it
+ * is not a resume; the open draft row is reset server-side as well.
+ */
+export const RESTART_KEY = "pg-wizard-restarted-v1";
+export function restartedSince(savedAt: string, restartedAt: string | null | undefined): boolean {
+  if (!restartedAt) return false;
+  const r = new Date(restartedAt).getTime();
+  const s = new Date(savedAt).getTime();
+  return Number.isFinite(r) && Number.isFinite(s) && s <= r;
+}
 
 export type SafetyAnswered = { heritage: boolean; pre1970: boolean; asbestos: boolean };
 
