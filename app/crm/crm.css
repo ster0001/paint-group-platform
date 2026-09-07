@@ -28,6 +28,9 @@
 .crm .homemark{display:inline-flex;align-items:center;gap:8px;flex:none;min-width:0;border-radius:8px;padding:2px 4px 2px 0}
 .crm .homemark:hover .hometext,.crm .homemark:hover .homesuffix{color:var(--cyan)}
 .crm .homelogo{height:26px;width:auto;max-width:150px;object-fit:contain;object-position:left;display:block}
+.crm .homelogo-light{display:none}
+.crm[data-theme="light"] .homelogo-dark{display:none}
+.crm[data-theme="light"] .homelogo-light{display:block}
 .crm .hometext{font-size:15px;font-weight:600;letter-spacing:-.02em;white-space:nowrap}
 .crm .homedot{color:var(--cyan)}
 .crm .homesuffix{font-size:15px;font-weight:500;color:var(--muted);white-space:nowrap}

@@ -70,3 +70,9 @@ surfaces follow (same cookie). The scheduling board follows too.
 - `e2e/chrome-8sep.spec.ts` 2/2: logo + theme across all three, the address, the strip.
 - `lib/gcal/read.test.ts`: which calendars are read, which events count as busy (incl. all-day Melbourne days).
 - Google itself can't be exercised on C1 (no Google keys there): the reconnect + lanes are yours to walk live.
+
+## 7. Two logos, one per theme (Tom, 8 Sep later)
+Settings → Company already holds two logos: the main one (white lettering, dark headers) and "Logo for light
+backgrounds" (dark lettering; email and the quote PDF). The CRM, Projects and Payments now show the main logo in
+dark mode and the light-background one in light mode; the theme button swaps them instantly. Either empty →
+the other is used; both empty → the "Paint·Group" text mark. Proven by `e2e/chrome-8sep.spec.ts` test 2.

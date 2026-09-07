@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { staffVisibility, gateStaffArea } from "@/lib/staff/gate";
 import { firstVisibleHref } from "@/lib/staff/access";
-import { loadLogoUrl } from "@/lib/company/logo";
+import { loadLogos } from "@/lib/company/logo";
 import HomeMark from "@/app/components/HomeMark";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import { THEME_COOKIE, themeFromCookie } from "@/lib/theme/cookie";
@@ -25,13 +25,13 @@ export default async function InvoicingLayout({ children }: { children: React.Re
   const vis = await staffVisibility(supabase, user.id);
   await gateStaffArea(vis, "payments");
   // Tom, 8 Sep: the logo top-left goes home; dark or light follows the CRM's cookie.
-  const logoUrl = await loadLogoUrl(supabase);
+  const logos = await loadLogos(supabase);
   const theme = themeFromCookie((await cookies()).get(THEME_COOKIE)?.value);
 
   return (
     <div className="invx" data-theme={theme}>
       <div className="invtop">
-        <HomeMark href={firstVisibleHref(vis)} logoUrl={logoUrl} suffix="Payments" />
+        <HomeMark href={firstVisibleHref(vis)} logos={logos} suffix="Payments" />
         <ThemeToggle initial={theme} rootSelector=".invx" />
       </div>
       {children}

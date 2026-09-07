@@ -83,7 +83,7 @@ export default function SettingsForm({ initial }: { initial: CompanyProfile }) {
             {c.logoUrl && (
               <button onClick={() => set("logoUrl", "")} className="w-fit text-xs text-gray-400 hover:text-red-600">Remove</button>
             )}
-            <span className="text-[11px] text-gray-400">PNG with transparent background works best. Shown on a dark header.</span>
+            <span className="text-[11px] text-gray-400">PNG with transparent background works best. Shown on dark headers — the estimate, and the CRM, Projects and Payments in dark mode.</span>
           </div>
         </div>
       </div>
@@ -106,7 +106,7 @@ export default function SettingsForm({ initial }: { initial: CompanyProfile }) {
             {c.logoUrlLight && (
               <button onClick={() => set("logoUrlLight", "")} className="w-fit text-xs text-gray-400 hover:text-red-600">Remove</button>
             )}
-            <span className="text-[11px] text-gray-400">Used on emails and the quote PDF (white background). If empty, the main logo is used.</span>
+            <span className="text-[11px] text-gray-400">Used on emails, the quote PDF, and the CRM, Projects and Payments in light mode. If empty, the main logo is used.</span>
           </div>
         </div>
       </div>

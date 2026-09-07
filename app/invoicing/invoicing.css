@@ -25,6 +25,9 @@
 .invx .homemark{display:inline-flex;align-items:center;gap:8px;flex:none;min-width:0}
 .invx .homemark:hover .hometext,.invx .homemark:hover .homesuffix{color:var(--cyan)}
 .invx .homelogo{height:26px;width:auto;max-width:150px;object-fit:contain;object-position:left;display:block}
+.invx .homelogo-light{display:none}
+.invx[data-theme="light"] .homelogo-dark{display:none}
+.invx[data-theme="light"] .homelogo-light{display:block}
 .invx .hometext{font-size:15px;font-weight:600;letter-spacing:-.02em;white-space:nowrap}
 .invx .homedot{color:var(--cyan)}
 .invx .homesuffix{font-size:15px;font-weight:500;color:var(--muted);white-space:nowrap}

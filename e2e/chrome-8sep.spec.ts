@@ -31,6 +31,9 @@ test.describe("8 Sep — chrome, theme, record address, wizard strip", () => {
   test.skip(!db || !staff.email, "needs SUPABASE_SERVICE_ROLE_KEY + E2E_STAFF_* creds");
 
   let accountId = "", wizId = "";
+  // Tom, 8 Sep (later): two logos — dark lettering in light mode, white in dark.
+  const DARK_LOGO = "https://example.com/e2e-logo-for-dark.png", LIGHT_LOGO = "https://example.com/e2e-logo-for-light.png";
+  let savedProfile: Record<string, unknown> | null = null, hadProfile = false;
 
   test.beforeAll(async () => {
     const sb = db!;
@@ -47,10 +50,19 @@ test.describe("8 Sep — chrome, theme, record address, wizard strip", () => {
     }).select("id").single();
     if (wiz.error) throw new Error(wiz.error.message);
     wizId = wiz.data.id as string;
+    const prof = await sb.from("settings").select("value").eq("key", "company_profile").maybeSingle();
+    hadProfile = !!prof.data; savedProfile = (prof.data?.value as Record<string, unknown> | null) ?? null;
+    const next = { ...(savedProfile ?? {}), logoUrl: DARK_LOGO, logoUrlLight: LIGHT_LOGO };
+    const w = hadProfile
+      ? await sb.from("settings").update({ value: next }).eq("key", "company_profile")
+      : await sb.from("settings").insert({ key: "company_profile", value: next });
+    if (w.error) throw new Error(w.error.message);
   });
 
   test.afterAll(async () => {
     const sb = db!;
+    if (hadProfile) await sb.from("settings").update({ value: savedProfile }).eq("key", "company_profile");
+    else await sb.from("settings").delete().eq("key", "company_profile");
     if (wizId) await sb.from("wizard_drafts").delete().eq("id", wizId);
     if (accountId) {
       await sb.from("crm_events").delete().eq("account_id", accountId).then(() => undefined, () => undefined);
@@ -99,6 +111,29 @@ test.describe("8 Sep — chrome, theme, record address, wizard strip", () => {
     await page.getByTestId("home-mark").click();
     await page.waitForURL((u) => !u.pathname.startsWith("/crm"), { waitUntil: "commit" });
     expect(new URL(page.url()).pathname.startsWith("/crm")).toBe(false);
+  });
+
+  test("light mode wears the dark-lettering logo, dark mode the white one, on all three surfaces", async ({ page }) => {
+    test.setTimeout(240_000);
+    await loginAs(page, staff);
+    for (const [path, root] of [["/crm/today", ".crm"], ["/pc", ".pc"], ["/invoicing", ".invx"]] as const) {
+      await page.goto(path);
+      const surface = page.locator(root);
+      const dark = page.getByTestId("home-logo-dark"), light = page.getByTestId("home-logo-light");
+      await expect(dark).toHaveAttribute("src", DARK_LOGO);
+      await expect(light).toHaveAttribute("src", LIGHT_LOGO);
+      // Start dark: the white-lettering logo shows, the dark-lettering one is hidden.
+      if ((await surface.getAttribute("data-theme")) === "light") await page.getByTestId("theme-toggle").click();
+      await expect(surface).toHaveAttribute("data-theme", "dark");
+      await expect(dark).toBeVisible();
+      await expect(light).toBeHidden();
+      await page.getByTestId("theme-toggle").click();
+      await expect(surface).toHaveAttribute("data-theme", "light");
+      await expect(light).toBeVisible();
+      await expect(dark).toBeHidden();
+      await page.getByTestId("theme-toggle").click();
+      await expect(surface).toHaveAttribute("data-theme", "dark");
+    }
   });
 
   test("the record head shows the contact address, and the dropped-out online estimate as a strip", async ({ page }) => {

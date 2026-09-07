@@ -33,6 +33,9 @@
 .pc .homemark{display:inline-flex;align-items:center;gap:8px;flex:none;min-width:0;text-decoration:none;color:inherit}
 .pc .homemark:hover .hometext,.pc .homemark:hover .homesuffix{color:var(--cyan)}
 .pc .homelogo{height:28px;width:auto;max-width:160px;object-fit:contain;object-position:left;display:block}
+.pc .homelogo-light{display:none}
+.pc[data-theme="light"] .homelogo-dark{display:none}
+.pc[data-theme="light"] .homelogo-light{display:block}
 .pc .hometext{font-weight:700;font-size:17px;letter-spacing:-.02em;white-space:nowrap}
 .pc .homedot{color:var(--cyan)}
 .pc .homesuffix{font-size:15px;font-weight:500;color:var(--muted);white-space:nowrap}
