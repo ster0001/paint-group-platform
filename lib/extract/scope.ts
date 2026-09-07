@@ -164,6 +164,8 @@ export type Deferred = {
   what: string;
   count: number;
   needs: string;
+  /** Machine-readable class (exterior_width, custom_surface, photo_review…) — the review gate and the work queue read it. */
+  kind?: string;
 };
 
 export type RoomPlan = { surfaces: PlannedSurface[]; deferred: Deferred[] };

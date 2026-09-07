@@ -239,7 +239,7 @@ export function markStarterProvenance(areas: DraftArea[]): void {
  * every line is a placeholder awaiting a measurement, consistent with the E1
  * rule that the envelope is measured, never derived.
  */
-function extSurface(id: number, code: string): DraftSurfaceLike {
+export function extSurface(id: number, code: string): DraftSurfaceLike {
   return {
     id, code, internalLabel: code, clientLabel: code,
     coats: 2, count: 1, hidden: false, media: [],
@@ -261,14 +261,29 @@ type DraftSurfaceLike = DraftArea["surfaces"][number];
 function scaffoldCladdingCode(ticked: ReadonlySet<string>): string {
   if (ticked.has("weatherboards")) return "Weatherboards";
   if (ticked.has("render")) return "Render";
+  if (ticked.has("stucco")) return "Stucco";
+  if (ticked.has("cement_sheet")) return "Cement Sheet";
+  if (ticked.has("colorbond")) return "Colorbond Cladding";
   if (ticked.has("concrete")) return "Concrete / Tilt Slab";
   if (ticked.has("brick")) return "Brick";
   return "Weatherboards";
 }
 
+/** The rate code for a wizard cladding answer (shed / freestanding wall). */
+export const CLADDING_CODE: Record<string, string> = {
+  weatherboards: "Weatherboards", render: "Render", stucco: "Stucco", cement_sheet: "Cement Sheet",
+  colorbond: "Colorbond Cladding", concrete: "Concrete / Tilt Slab", brick: "Brick",
+};
+export const CLADDING_LABEL: Record<string, string> = {
+  weatherboards: "weatherboard", render: "render", stucco: "stucco", cement_sheet: "cement sheet",
+  colorbond: "Colorbond", concrete: "tilt slab / concrete", brick: "brick", other: "other", none: "no wall painting",
+};
+
 export function starterExteriorNodes(
   nextId: () => number,
   ticked: ReadonlySet<string> = new Set(),
+  /** Tom, 7 Sep: "none" for the cladding = trims only, no wall line. */
+  wantsWalls = true,
 ): { areas: DraftArea[]; deferred: Array<{ room: string; areaId: number | null; what: string; count: number; needs: string; kind?: string }> } {
   const elevations = ["Front", "Left", "Right", "Rear"] as const;
   const areas: DraftArea[] = [];
@@ -280,7 +295,7 @@ export function starterExteriorNodes(
 
   for (const name of elevations) {
     const id = nextId();
-    const surfaces: DraftSurfaceLike[] = [extSurface(nextId(), scaffoldCladdingCode(ticked))];
+    const surfaces: DraftSurfaceLike[] = wantsWalls ? [extSurface(nextId(), scaffoldCladdingCode(ticked))] : [];
     if (wantsTrim("fascias")) surfaces.push(extSurface(nextId(), "Fascias"));
     if (wantsTrim("gutters")) surfaces.push(extSurface(nextId(), "Gutters"));
     if (wantsTrim("eaves")) surfaces.push(extSurface(nextId(), "Eaves"));
@@ -325,17 +340,19 @@ export const FENCE_CODE: Record<"paling" | "picket_hand" | "picket_spray", strin
   picket_hand: "Picket Fence (Hand Paint)",
   picket_spray: "Picket Fence (Spray)",
 };
-export const FENCE_TYPE_LABEL: Record<keyof typeof FENCE_CODE, string> = {
-  paling: "Paling fence", picket_hand: "Picket fence (brushed)", picket_spray: "Picket fence (sprayed)",
+export const FENCE_TYPE_LABEL: Record<keyof typeof FENCE_CODE | "metal", string> = {
+  paling: "Paling fence", picket_hand: "Picket fence (brushed)", picket_spray: "Picket fence (sprayed)", metal: "Metal fence",
 };
 
 export function exteriorExtrasNodes(
   nextId: () => number,
   ticked: ReadonlySet<string>,
-  fenceType: keyof typeof FENCE_CODE = "paling",
+  fenceType: keyof typeof FENCE_CODE | "metal" = "paling",
 ): { areas: DraftArea[]; deferred: Array<{ room: string; areaId: number | null; what: string; count: number; needs: string; kind?: string }> } {
-  const wanted = EXTRA_CODES.filter((e) => ticked.has(e.key))
-    .map((e) => (e.key === "fence" ? { ...e, code: FENCE_CODE[fenceType] ?? e.code, label: FENCE_TYPE_LABEL[fenceType] ?? e.label } : e));
+  // Tom, 7 Sep: a metal fence has no rate row — it is a deferral the answers
+  // module raises, never a line priced at the paling rate.
+  const wanted = EXTRA_CODES.filter((e) => ticked.has(e.key) && !(e.key === "fence" && fenceType === "metal"))
+    .map((e) => (e.key === "fence" ? { ...e, code: FENCE_CODE[fenceType as keyof typeof FENCE_CODE] ?? e.code, label: FENCE_TYPE_LABEL[fenceType] ?? e.label } : e));
   if (wanted.length === 0) return { areas: [], deferred: [] };
 
   const id = nextId();

@@ -217,7 +217,9 @@ export function evaluateGuardrails(
   if (a.heritageListed !== "no") reasons.push(a.heritageListed === "yes" ? "heritage_listed" : "heritage_unsure");
   if (a.bodyCorporate === "yes") reasons.push("body_corporate");
   if (a.asbestosSuspected === "unsure") reasons.push("asbestos_unsure");
-  if (a.builtPre1970 === "unsure" && a.damageTier >= 3) reasons.push("lead_paint_possible");
+  // Tom, 7 Sep (late): the wizard no longer asks the build year (the office
+  // looks it up), so "unsure" is the normal answer and never hands off. A
+  // definite "yes" (staff, the assistant) keeps the lead-paint hard stop above.
   // "heritage_unsure" alone is not worth losing the lead over when everything
   // else is clean — only definite answers hand off on their own. For a trade
   // actor, commercial/body-corp/heritage are soft too (see the parameter

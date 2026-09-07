@@ -445,7 +445,7 @@ export type CustomerExteriorView = {
 };
 
 const EXT_GROUPS: Array<{ group: ExteriorGroup["group"]; label: string; keys: string[] }> = [
-  { group: "body", label: "THE BODY", keys: ["weatherboards", "render", "concrete", "brick", "brick_unpainted"] },
+  { group: "body", label: "THE BODY", keys: ["weatherboards", "render", "stucco", "cement_sheet", "colorbond", "concrete", "brick", "brick_unpainted"] },
   { group: "trims", label: "TRIMS & OPENINGS", keys: ["exterior_windows", "exterior_doors", "garage_doors"] },
   { group: "roofline", label: "THE ROOFLINE", keys: ["fascias", "gutters", "eaves", "downpipes"] },
   { group: "extras", label: "EXTRAS", keys: ["deck", "fence", "pergola", "balustrade"] },

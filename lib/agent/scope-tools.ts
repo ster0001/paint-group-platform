@@ -85,7 +85,10 @@ export class ScopeTools implements ToolExecutor {
     const gated = false;
     const doc = gated ? (pendingOf(live) ?? live) : live;
     const commit = async (r: { ok: true; doc: ScopeDoc; note?: string } & Record<string, unknown>, data: Record<string, unknown>) => {
-      await this.store.save(gated ? withPending(live, r.doc) : r.doc);
+      // The proving-window baseline: the FIRST price, frozen the moment the
+      // tree builds (the form path freezes it at submit).
+      const next = r.built ? withWizardSnapshot(r.doc, deps) : r.doc;
+      await this.store.save(gated ? withPending(live, next) : next);
       return ok({ ...data, ...(r.note ? { note: r.note } : {}), ...(gated ? { pending: true } : {}) });
     };
 
@@ -120,7 +123,8 @@ export class ScopeTools implements ToolExecutor {
         if (!p.ok) return refused(p.reason);
         // The customer's own draft applies straight in; staff wait for apply_diff.
         const fillIns = p.summary.assumed.filter((a) => !/^(door_style|window_style|ceiling_height|paint\.colours|condition\.photos)$/.test(a.key) && !/\.cupboard_interiors$/.test(a.key));
-        await this.store.save(gated ? withPending(live, p.working, { fillIns, injectedInstructions: p.summary.injectedInstructions, unmapped: p.summary.unmapped }) : p.working);
+        const working = withWizardSnapshot(p.working, deps);
+        await this.store.save(gated ? withPending(live, working, { fillIns, injectedInstructions: p.summary.injectedInstructions, unmapped: p.summary.unmapped }) : working);
         return ok({ ...p.summary, applied: !gated });
       }
       case "apply_diff": {
@@ -274,6 +278,33 @@ export function scopeView(doc: ScopeDoc, _deps: ScopeDeps) {
 
 // ---- pricing -----------------------------------------------------------------------
 
+/**
+ * Tom, 7 Sep (late): "the proving window stopped pulling in jobs". The
+ * /proving page measures builder_state.wizard.snapshot — the wizard's FIRST
+ * numbers — against where staff took the estimate. The form path froze that
+ * at submit; the describe / chat builds wrote no snapshot, so every
+ * assistant-built estimate showed as "pre-snapshot" and never counted.
+ * Written once, at the first build; never overwritten.
+ */
+export function withWizardSnapshot(doc: ScopeDoc, deps: ScopeDeps): ScopeDoc {
+  if (!isBuilt(doc)) return doc;
+  const wizard = (doc.builderState.wizard ?? {}) as Record<string, unknown>;
+  if (wizard.snapshot) return doc;
+  const p = priced(doc, deps);
+  const snapshot = {
+    totalCents: p.payload.totals.totalCents,
+    accuracyPct: p.payload.accuracyPct,
+    marginCents: p.payload.totals.marginCents,
+    contractorHours: p.payload.totals.contractorHours,
+    areaCount: p.payload.rooms.length,
+    deferredCount: p.payload.deferred.length,
+    outcome: p.decision.outcome,
+    walkthroughRequired: p.decision.walkthroughRequired,
+    reasons: p.decision.reasons,
+  };
+  return { ...doc, builderState: { ...doc.builderState, wizard: { ...wizard, snapshot, submittedAt: (wizard.submittedAt as string | undefined) ?? new Date().toISOString() } } };
+}
+
 function priced(doc: ScopeDoc, deps: ScopeDeps) {
   const blocks = docBlocks(doc);
   const state = docWizard(doc);
@@ -359,7 +390,7 @@ function assumptionLabel(key: string, areaId: number | null, blocks: ReturnType<
   if (key.endsWith(".cupboard_interiors")) return { label: `Assumed: cupboard interiors not included${room ? ` (${room})` : ""}`, assumedValue: "excluded" };
   if (key === "paint.colours") return { label: "Assumed: colours to be confirmed", assumedValue: "tbc" };
   if (key === "occupied") return { label: "Assumed: the home is empty while we paint", assumedValue: "empty" };
-  if (key === "q.property_flags") return { label: "Assumed: built after 1970, not heritage-listed, no body corporate, no asbestos", assumedValue: "clear" };
+  if (key === "q.property_flags") return { label: "Assumed: not heritage-listed, no body corporate, no asbestos", assumedValue: "clear" };
   if (key === "surfaces.ceilings") return { label: "Ceilings not included — add?", assumedValue: "excluded" };
   if (key.endsWith(".cupboards")) return { label: `Assumed: no cupboard painting${room ? ` in the ${room}` : ""}`, assumedValue: "excluded" };
   if (key.endsWith(".presence")) return { label: `Assumed: ${room || "this room"} — a home like this has one; remove if not`, assumedValue: "included" };
@@ -433,6 +464,7 @@ const VISIT_WORDING: Record<ReturnType<typeof visitReason>, string> = {
   peeling: "Peeling paint needs eyes on it before we fix a price.",
   rot: "Rot needs eyes on it before we fix a price.",
   flagged: "Something was flagged for a check on site.",
+  photos: "Your photos are with your estimator, who signs off any extra preparation before the price is fixed.",
   big: "It's a bigger job, so we confirm it in person.",
   signoff: "This one is signed off in person before it's fixed.",
 };

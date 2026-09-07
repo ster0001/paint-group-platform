@@ -7,6 +7,7 @@ import AssistantDrawer from "./AssistantDrawer";
 import { DEFAULT_COMPANY, type CompanyProfile, type Contact } from "./company";
 import { DEFAULT_INCLUSION_TEMPLATES, DEFAULT_EXCLUSION_TEMPLATES, INCLUSION_TEMPLATES_KEY, EXCLUSION_TEMPLATES_KEY, type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import { parseBackTo } from "@/lib/navigation/backTo";
+import { estimateDocuments } from "@/lib/wizard/documents";
 import type { ExistingRevisionVariation } from "./RevisionPanel";
 
 export const dynamic = "force-dynamic";
@@ -194,6 +195,9 @@ export default async function QuotePage({
         .order("created_at", { ascending: true })
     : { data: null };
   const woPhotos = await signPhotos(supabase, (photoRows as WOPhotoRow[] | null) ?? []);
+  // Tom, 7 Sep: the customer's own photos (condition, facade) — the
+  // estimator signs off any extra prep from them before the price is fixed.
+  const customerPhotos = id ? await estimateDocuments(supabase, id, { includeFacades: true }) : null;
   const offerState = (liveOffer as { state?: string } | null)?.state;
   const bookingState =
     offerState === "accepted" ? "confirmed"
@@ -231,6 +235,7 @@ export default async function QuotePage({
       workOrder={workOrderRes.data ?? null}
       woTicks={woTicks}
       woPhotos={woPhotos}
+      customerPhotos={customerPhotos}
       bookingState={bookingState}
       contractors={contractors}
       presentations={presentations}

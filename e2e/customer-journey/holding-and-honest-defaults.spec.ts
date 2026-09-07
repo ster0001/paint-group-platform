@@ -1,6 +1,6 @@
 import { test, expect, devices } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { driveNoPlanWizard } from "./drive";
+import { driveNoPlanWizard, uniquePhone } from "./drive";
 import { DEFAULT_ONLINE_ESTIMATES } from "../../lib/wizard/publicFlag";
 
 /**
@@ -56,12 +56,13 @@ test.describe("holding page + honest defaults", () => {
     await expect(page.getByText(`For ${address}`)).toBeVisible();
 
     await page.getByPlaceholder("Your name").fill("Holding Tester");
-    await page.getByPlaceholder("Phone").fill("0400 000 222");
+    const holdPhone = uniquePhone(); // CRM v2 P1 matches accounts by phone too — one number per run
+    await page.getByPlaceholder("Phone").fill(holdPhone);
     await expect(page.getByTestId("holding-send")).toBeDisabled();
     await page.getByPlaceholder("Email").fill(holdEmail);
     await page.getByTestId("holding-send").click();
     await expect(page.getByTestId("holding-sent")).toContainText("Holding");
-    await expect(page.getByTestId("holding-sent")).toContainText("0400 000 222");
+    await expect(page.getByTestId("holding-sent")).toContainText(holdPhone);
     await ctx.close();
 
     const { data: acct } = await db!.from("accounts").select("id, name, phone").eq("email", holdEmail).maybeSingle();
@@ -90,10 +91,8 @@ test.describe("holding page + honest defaults", () => {
     await page.getByRole("button", { name: /Continue|Nearly there/ }).click(); // → condition
     await page.getByRole("button", { name: /Continue|Nearly there/ }).click(); // → details
     await expect(page.getByText("Step 4 of 5", { exact: false })).toBeVisible();
-    await page.getByRole("button", { name: /Continue|Nearly there/ }).click();
-    await expect(page.locator(".wz-err")).toContainText(/built before 1970/);
-    const preRow = page.locator(".wz-qhead", { hasText: /built before 1970/ }).locator("xpath=following-sibling::div[1]");
-    await preRow.getByRole("button", { name: "No", exact: true }).click();
+    // Tom, 7 Sep (late): the build year is not asked any more — the office finds it.
+    await expect(page.locator(".wz-qhead", { hasText: /built before 1970/ })).toHaveCount(0);
     await page.getByRole("button", { name: /Continue|Nearly there/ }).click();
     await expect(page.locator(".wz-err")).toContainText(/asbestos/i);
     const asbRow = page.locator(".wz-qhead", { hasText: /asbestos/ }).locator("xpath=following-sibling::div[1]");

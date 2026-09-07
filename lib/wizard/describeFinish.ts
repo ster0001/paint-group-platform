@@ -38,6 +38,7 @@ export async function finishDescribedEstimate(db: SupabaseClient, input: {
   suburb: string;
   postcode: string;
   ipHash: string | null;
+  jobType?: "interior" | "exterior" | "both";
 }): Promise<void> {
   const { estimateId, userId, contact, address } = input;
   const email = (input.verifiedEmail ?? contact.email).trim().toLowerCase();
@@ -71,7 +72,7 @@ export async function finishDescribedEstimate(db: SupabaseClient, input: {
   await db.from("wizard_leads").insert({
     user_id: userId, estimate_id: estimateId, email, ip_hash: input.ipHash,
     suburb: input.suburb || null, postcode: input.postcode || null,
-    job_type: "interior", outcome: "walkthrough_only", reasons: ["described"],
+    job_type: input.jobType ?? "interior", outcome: "walkthrough_only", reasons: ["described"],
   }).then((r) => { if (r.error) reportError(r.error, { where: "describe.finish.lead", bestEffort: true }); });
 
   // 3. Account + property, and the estimate joins the chain.

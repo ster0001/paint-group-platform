@@ -89,5 +89,16 @@ export async function fillContactStep(page: Page, email?: string) {
   if (!(await contact.count())) return;
   await contact.nth(0).fill("E2E Journey");
   await contact.nth(1).fill(email ?? `e2e-journey-${Date.now()}@example.com`);
-  await contact.nth(2).fill("0400 000 111");
+  await contact.nth(2).fill(uniquePhone());
+}
+
+/**
+ * CRM v2 P1 (7 Sep): accounts are found by email OR phone (crm_find_account),
+ * so every run that typed "0400 000 111" was filed onto the FIRST account
+ * that ever used it — the "another device" portal spec then signed into an
+ * account with no estimates. One phone per run keeps the runs apart.
+ */
+export function uniquePhone(): string {
+  const d = String(Date.now()).slice(-8);
+  return `04${d.slice(0, 2)} ${d.slice(2, 5)} ${d.slice(5, 8)}`;
 }

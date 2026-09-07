@@ -50,7 +50,8 @@ test.describe("the simpler form", () => {
     await next();
     await expect(page.getByText("Step 4 of 5", { exact: false })).toBeVisible();
     await expect(page.getByText("Any damage we should know about?")).toHaveCount(0);
-    for (const q of [/built before 1970/, /asbestos/, /living there/]) {
+    await expect(page.locator(".wz-qhead", { hasText: /built before 1970/ })).toHaveCount(0); // Tom, 7 Sep (late)
+    for (const q of [/asbestos/, /living there/]) {
       await page.locator(".wz-qhead", { hasText: q }).locator("xpath=following-sibling::div[1]").getByRole("button", { name: /^No(\s|$)/ }).click();
     }
     await next();
@@ -75,7 +76,7 @@ test.describe("the simpler form", () => {
       }
       const next = () => page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ }).first().click();
       await next(); await next(); await next();
-      for (const q of [/built before 1970/, /asbestos/, /living there/]) {
+      for (const q of [/asbestos/, /living there/]) { // Tom, 7 Sep (late): no build-year question
         await page.locator(".wz-qhead", { hasText: q }).locator("xpath=following-sibling::div[1]").getByRole("button", { name: /^No(\s|$)/ }).click();
       }
       await next();

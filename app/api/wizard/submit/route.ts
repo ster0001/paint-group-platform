@@ -14,7 +14,7 @@ import { extractionSchema } from "@/lib/extract/schema";
 import { SCOPE_VERSION, type Alias, type ScopeRule } from "@/lib/extract/scope";
 import type { DefectRate } from "@/lib/capture/commit";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
-import { applyWizardAnswers, filterSurfacesByTicks } from "@/lib/wizard/merge";
+import { applyWizardAnswers, conditionPhotoCount, filterSurfacesByTicks } from "@/lib/wizard/merge";
 import { ceilingHeightFrom, wizardStateSchema, type WizardSurfaceKey } from "@/lib/wizard/state";
 import { backfillTypicalSizes, markStarterProvenance, starterExtraction, starterRoomList, type TypicalSizeRow } from "@/lib/wizard/starter";
 import { applyConditionPricing, applyExteriorAnswers, type MeasuredSides } from "@/lib/wizard/exteriorAnswers";
@@ -425,7 +425,7 @@ export async function POST(request: Request) {
         },
         // A deck/fence/pergola ticked in the wizard already answers the
         // loop's "anything freestanding?" card.
-        ...(Object.values(ext.extras).some((v) => v === true) ? { extrasAns: "some" as const } : {}),
+        ...(Object.values(ext.extras).some((v) => v === true) || ext.targets.some((t) => t !== "house") ? { extrasAns: "some" as const } : {}),
       }
     : null;
 
@@ -716,7 +716,10 @@ export async function POST(request: Request) {
     // add it later. Needs the column grant from migration 20260917 on the
     // staff path — report a refusal loudly rather than letting the safety
     // flag silently stay false.
-    wantsExterior && (
+    // Tom, 7 Sep: condition photos = estimator sign-off before any price is
+    // fixed, interior or exterior — the customer sees the pending flag and
+    // cannot accept online until a person has looked.
+    (conditionPhotoCount(effectiveState) > 0) || wantsExterior && (
       !state.exterior
       || state.jobType === "both"
       || state.exterior.storeys === "double"
@@ -724,6 +727,11 @@ export async function POST(request: Request) {
       // Gear the wizard cannot price (scissor/boom lift, scaffold) — the
       // estimator confirms access before any price is fixed.
       || state.exterior.accessEquipment.length > 0
+      // Tom, 7 Sep: things the card cannot price yet (metal fence, floor
+      // coatings, a freestanding wall, "other" cladding) — the estimator prices them.
+      || state.exterior.extras.fenceType === "metal"
+      || state.exterior.targets.some((t) => t === "floor" || t === "wall" || t === "shed")
+      || state.exterior.substrates.includes("other")
     )
       ? db.from("estimates").update({ requires_site_check: true }).eq("id", estimateId)
           .then((r) => { if (r.error) reportError(r.error, { where: "wizard.submit.requiresSiteCheck", bestEffort: true, extra: { estimateId } }); })

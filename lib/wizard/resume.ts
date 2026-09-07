@@ -115,10 +115,10 @@ export type ServerDraftRow = {
   converted_at?: string | null;
 };
 
-export function serverResumeFrom(row: ServerDraftRow | null | undefined, now: Date): Omit<ResumeRecord, "v"> | null {
+export function serverResumeFrom(row: ServerDraftRow | null | undefined, now: Date, maxAgeMs: number = RESUME_MAX_AGE_MS): Omit<ResumeRecord, "v"> | null {
   if (!row || row.converted_at) return null;
   const seen = row.last_seen_at ? new Date(row.last_seen_at).getTime() : NaN;
-  if (!Number.isFinite(seen) || now.getTime() - seen > RESUME_MAX_AGE_MS) return null;
+  if (!Number.isFinite(seen) || now.getTime() - seen > maxAgeMs) return null;
   const parsed = wizardStateShapeSchema.safeParse(row.state);
   if (!parsed.success) return null;
   const s = parsed.data as WizardState;

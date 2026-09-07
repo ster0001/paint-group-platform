@@ -45,6 +45,10 @@ export const WALL_CODES: ReadonlyArray<{ code: string; label: string }> = [
   // (migration 20261204), named for what the customer actually has.
   { code: "Concrete / Tilt Slab", label: "Tilt slab / concrete" },
   { code: "Stucco", label: "Stucco" },
+  // Tom, 7 Sep: cement sheet (a clone of Render, migration 20270128) and
+  // Colorbond — offered only while their rows are on the live card.
+  { code: "Cement Sheet", label: "Cement sheet" },
+  { code: "Colorbond Cladding", label: "Colorbond" },
   { code: "Brick", label: "Painted brick" },
   // Bare brick — sealer plus two topcoats. Its rate row carries
   // default_coats 3 (migration 20260925); the line reads the card.
@@ -542,7 +546,7 @@ export function confirmSide(blocks: LooseBlock[], key: SideKey): SidesResult {
 /** Why this job is on the visit tier — the mockup names the reason on the
  * sticky tier line, in this priority order. "big" is the residual: nothing
  * specific flagged it, the exterior is just past the self-serve bar. */
-export type VisitReason = "custom" | "peeling" | "rot" | "flagged" | "big" | "signoff";
+export type VisitReason = "custom" | "peeling" | "rot" | "flagged" | "photos" | "big" | "signoff";
 
 export function visitReason(
   meta: SidesLoopMeta,
@@ -552,6 +556,8 @@ export function visitReason(
   if (meta.cond.cond === "peeling") return "peeling";
   if (meta.cond.rot === "lots") return "rot";
   if (deferred.some((d) => /flagged/i.test(`${d.what} ${d.needs}`))) return "flagged";
+  // Tom, 7 Sep: the customer's condition photos are with the estimator.
+  if (deferred.some((d) => d.kind === "photo_review")) return "photos";
   // The floor, since 21 Aug: every exterior job is signed off by an
   // estimator, so "big" is no longer the reason of last resort.
   return "signoff";

@@ -45,6 +45,8 @@ import { depositPctFromSettings } from "@/lib/invoicing/settings";
 import { issueWorkOrderAction, setWorkOrderScheduleAction } from "./workOrderActions";
 import type { SurfaceState } from "@/lib/workorder/surfaces";
 import type { WOPhoto } from "@/lib/workorder/photos";
+import type { EstimateDocuments } from "@/lib/wizard/documents";
+import { PHOTO_REVIEW_KIND } from "@/lib/wizard/merge";
 import { acceptAttr, checkUpload } from "@/lib/uploads/validate";
 import { reportIfError, errorMessage } from "@/lib/monitoring/report";
 import RevisionPanel, { type ExistingRevisionVariation } from "./RevisionPanel";
@@ -220,6 +222,9 @@ const unitLabel = (item?: RateItem) =>
 /** Colour match on a substrate (Tom, 23 Aug): flagged, with codes when known. */
 type ColourMatch = { required: boolean; code: string; brand: string; canSize: string };
 
+/** Tom, 7 Sep: the estimator's sign-off on the customer's condition photos. */
+type PhotoReview = { signedOffAt: string; photos: number };
+
 export default function QuoteBuilder({
   rateCardId,
   rateCardVersion,
@@ -238,6 +243,7 @@ export default function QuoteBuilder({
   workOrder = null,
   woTicks = {},
   woPhotos = [],
+  customerPhotos = null,
   bookingState = "none",
   contractors = [],
   initialView,
@@ -267,6 +273,8 @@ export default function QuoteBuilder({
   woTicks?: Record<string, SurfaceState>;
   /** Site photos, already signed server-side (the bucket is private). */
   woPhotos?: WOPhoto[];
+  /** The customer's own photos on file (condition, facade), signed URLs. */
+  customerPhotos?: EstimateDocuments | null;
   bookingState?: "none" | "requested" | "proposed" | "confirmed";
   contractors?: { id: string; name: string }[];
   initialView?: "builder" | "customer" | "workorder";
@@ -318,10 +326,18 @@ export default function QuoteBuilder({
     return g;
   }, [modifiers]);
 
-  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; materialColours?: Record<string, { name: string; hex: string }>; sheens?: Record<string, string>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null; contractorRateOverride?: number | null; aiDeferred?: AiDeferred[]; idealPainters?: number | null; colourMatches?: Record<string, ColourMatch> } | null;
+  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; materialColours?: Record<string, { name: string; hex: string }>; sheens?: Record<string, string>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null; contractorRateOverride?: number | null; aiDeferred?: AiDeferred[]; idealPainters?: number | null; colourMatches?: Record<string, ColourMatch>; photoReview?: PhotoReview | null } | null;
   // Deferred plan-reader decisions ride builder_state so the review gate can
-  // price them; the builder itself only carries them through saves.
-  const aiDeferred = useMemo(() => loaded?.aiDeferred ?? [], [loaded]);
+  // price them; the builder carries them through saves — and, since 7 Sep,
+  // RESOLVES one of them: the estimator's sign-off on the customer's photos.
+  const [aiDeferred, setAiDeferred] = useState<AiDeferred[]>(() => loaded?.aiDeferred ?? []);
+  const [photoReview, setPhotoReview] = useState<PhotoReview | null>(() => loaded?.photoReview ?? null);
+  const photoDeferral = aiDeferred.find((d) => d.kind === PHOTO_REVIEW_KIND) ?? null;
+  const customerPhotoList = useMemo(() => [...(customerPhotos?.plan && customerPhotos.plan.kind !== "floorplan" && customerPhotos.plan.kind !== "site_plan" ? [customerPhotos.plan] : []), ...(customerPhotos?.photos ?? [])], [customerPhotos]);
+  function signOffPhotos() {
+    setAiDeferred((ds) => ds.filter((d) => d.kind !== PHOTO_REVIEW_KIND));
+    setPhotoReview({ signedOffAt: new Date().toISOString(), photos: customerPhotoList.length });
+  }
   const [blocks, setBlocks] = useState<Block[]>(() => {
     const b = loaded?.blocks;
     if (b && b.length) {
@@ -778,7 +794,7 @@ export default function QuoteBuilder({
   // presentationId is part of the fingerprint (3 Sep): ticking a presentation
   // used to leave the builder "Saved ✓", so nothing wrote it and the Estimate
   // tab kept showing the last published copy — without the presentation.
-  const builderFingerprint = JSON.stringify({ blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, aiDeferred, idealPainters, presentationId });
+  const builderFingerprint = JSON.stringify({ blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, aiDeferred, idealPainters, presentationId, photoReview });
   useEffect(() => { if (!savedStateRef.current) savedStateRef.current = builderFingerprint; }, [builderFingerprint]);
   dirtyRef.current = () => Boolean(quoteId) && builderFingerprint !== savedStateRef.current;
   const unsaved = Boolean(savedStateRef.current) && builderFingerprint !== savedStateRef.current;
@@ -809,7 +825,7 @@ export default function QuoteBuilder({
       try {
         const result = await saveWorkingScopeAction({
           estimateId: quoteId,
-          state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, aiDeferred, idealPainters },
+          state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, aiDeferred, idealPainters, photoReview },
         });
         setSaveMsg(result.ok ? "Saved ✓ (working scope)" : result.message);
       } finally {
@@ -841,7 +857,7 @@ export default function QuoteBuilder({
       // keys — the old fixed key list silently dropped builder_state.wizard
       // (the answers + proving snapshot), prepPack, sidesLoop and interiorLoop
       // on every staff save. Keys the builder owns still overwrite.
-      builder_state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, aiDeferred, idealPainters, woDoc: computeWorkOrderDoc() },
+      builder_state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, aiDeferred, idealPainters, photoReview, woDoc: computeWorkOrderDoc() },
       share_token: token,
       presentation_id: presentationId,
       sent_snapshot: buildCustomerDoc(token),
@@ -2060,6 +2076,47 @@ export default function QuoteBuilder({
                 </section>
               )}
 
+              {/* Tom, 7 Sep: the customer's photos are an estimator sign-off —
+                  clearly labelled, above the areas, until a person has looked
+                  and priced any extra preparation. Nothing here goes to the customer. */}
+              {!customerView && (customerPhotoList.length > 0 || photoDeferral) && (
+                <section className={`rounded-xl border p-4 ${photoDeferral ? "border-amber-400 bg-amber-50" : "border-gray-200 bg-white"}`} data-testid="customer-photos-panel">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h2 className="text-sm font-semibold">
+                      Customer photos{" "}
+                      {photoDeferral
+                        ? <span className="ml-1 rounded-full bg-amber-500 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-white">Needs estimator sign-off</span>
+                        : photoReview
+                          ? <span className="ml-1 rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-white">Signed off</span>
+                          : null}
+                    </h2>
+                    {photoDeferral && (
+                      <button type="button" onClick={signOffPhotos} className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700" data-testid="photos-sign-off">
+                        Signed off — prep priced ✓
+                      </button>
+                    )}
+                  </div>
+                  <p className="mt-1 text-xs text-gray-600">
+                    {photoDeferral
+                      ? `The customer attached ${photoDeferral.count} photo${photoDeferral.count === 1 ? "" : "s"} of the condition. Look at them, add any extra preparation (prep hours, allowances) to the areas below, then sign off — the customer's range shows "pending estimator sign-off" until you do.`
+                      : photoReview
+                        ? `Signed off ${new Date(photoReview.signedOffAt).toLocaleDateString("en-AU")} — the customer's price no longer waits on the photos.`
+                        : "Photos the customer attached with their estimate."}
+                  </p>
+                  {customerPhotoList.length > 0 ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {customerPhotoList.map((p, i) => (
+                        <a key={i} href={p.url} target="_blank" rel="noreferrer" className="block h-24 w-24 overflow-hidden rounded-md border border-gray-200 bg-gray-100" title={p.label}>
+                          {/* eslint-disable-next-line @next/next/no-img-element -- signed, short-lived storage URL */}
+                          <img src={p.url} alt={p.label} className="h-full w-full object-cover" />
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-xs text-amber-700">The photos didn&rsquo;t reach the file store — ask the customer to re-send them, or arrange a visit.</p>
+                  )}
+                </section>
+              )}
               {/* Each area/line is a closed folder — click to open it (drag the grip
                   to reorder); in customer view it's the read-only document card. */}
               {mainBlocks.filter(visibleToCustomer).map((b) => (customerView ? renderSummary(b) : renderDraggable(b)))}

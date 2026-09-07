@@ -176,7 +176,31 @@ export const wizardStateShapeSchema = z.object({
      * the editor's wall tiles (only these substrates render per side).
      * `concrete` (tilt slab / precast panel) prices as a clone of render —
      * see lib/estimate/substrates.ts and migration 20261204. */
-    substrates: z.array(z.enum(["weatherboards", "render", "concrete", "brick"])).min(1).default(["weatherboards"]),
+    substrates: z.array(z.enum(["weatherboards", "render", "concrete", "brick", "stucco", "cement_sheet", "colorbond", "other", "none"])).min(1).default(["weatherboards"]),
+    /** Tom, 7 Sep: "What are we painting? tick all that apply" — the house,
+     * and/or the freestanding things. Absent (older states) = the house. */
+    targets: z.array(z.enum(["house", "fence", "floor", "deck", "shed", "wall"])).default(["house"]),
+    /** Tom, 7 Sep: the house's trims, one tick each (windows / doors / eaves /
+     * fascias / gutters / garage door). Absent (older states) = derived from
+     * `painting` below, which stays the summary the scaffold reads. */
+    elements: z.object({
+      windows: z.boolean().default(true), doors: z.boolean().default(true),
+      eaves: z.boolean().default(true), fascias: z.boolean().default(true), gutters: z.boolean().default(true),
+      garage: z.boolean().default(false),
+    }).optional(),
+    /** Tom, 7 Sep: "Where are we painting?" — the sides being painted; absent
+     * or all four = the full exterior. Unlisted sides arrive in the confirm
+     * loop already answered "not painting". */
+    sides: z.array(z.enum(["front", "left", "right", "back"])).optional(),
+    /** A garage / workshop / shed being painted, and what it's made of. */
+    shed: z.object({ substrate: z.enum(["weatherboards", "render", "concrete", "brick", "stucco", "cement_sheet", "colorbond", "other"]).default("colorbond") }).nullable().default(null),
+    /** A freestanding wall (boundary / retaining) — material and rough length. */
+    wall: z.object({
+      substrate: z.enum(["brick", "render", "colorbond", "cement_sheet"]).default("brick"),
+      metres: z.number().min(1).max(500).nullable().default(null),
+    }).nullable().default(null),
+    /** Floor coatings — rough area; priced by the estimator (no rate row). */
+    floor: z.object({ m2: z.number().min(1).max(2000).nullable().default(null) }).nullable().default(null),
     /** What are we painting — roofline pre-ticked per the standard scope. */
     painting: z.object({
       body: z.boolean().default(true),
@@ -201,8 +225,9 @@ export const wizardStateShapeSchema = z.object({
       fence: z.boolean().default(false),
       /** metres; null with fence=true = "not sure" → measured on the day. */
       fenceMetres: z.number().min(1).max(500).nullable().default(null),
-      /** Tom, 5 Sep 2026: paling vs picket — a 10× labour difference on the card. */
-      fenceType: z.enum(["paling", "picket_hand", "picket_spray"]).default("paling"),
+      /** Tom, 5 Sep 2026: paling vs picket — a 10× labour difference on the card.
+       * 7 Sep: metal — no rate row yet, so it is flagged for the estimator, never $0. */
+      fenceType: z.enum(["paling", "picket_hand", "picket_spray", "metal"]).default("paling"),
       pergola: z.boolean().default(false),
       balustrade: z.boolean().default(false),
     }).default({ deck: false, fence: false, fenceMetres: null, fenceType: "paling", pergola: false, balustrade: false }),
@@ -238,6 +263,8 @@ export const wizardStateSchema = wizardStateShapeSchema.superRefine((s, ctx) => 
       ctx.addIssue({ code: "custom", path: ["exterior"], message: "The exterior questions first, please." });
     } else if (s.exterior.condition == null) {
       ctx.addIssue({ code: "custom", path: ["exterior", "condition"], message: "How's the paintwork holding up?" });
+    } else if (s.exterior.targets.length === 0) {
+      ctx.addIssue({ code: "custom", path: ["exterior", "targets"], message: "What are we painting? Tick at least one." });
     }
   }
   // Damage tiers 2–3 need evidence: photos, or (internal mode only) a written
@@ -343,6 +370,8 @@ export function defaultExterior(): WizardExterior {
   return {
     storeys: "single",
     substrates: ["weatherboards"],
+    targets: ["house"],
+    shed: null, wall: null, floor: null,
     painting: { body: true, windowsDoors: true, roofline: true, garage: false },
     condition: null,
     access: [],
@@ -359,15 +388,39 @@ export function defaultExterior(): WizardExterior {
  */
 export function exteriorSurfaceKeys(ext: WizardExterior): WizardSurfaceKey[] {
   const keys: WizardSurfaceKey[] = [];
-  if (ext.painting.body) keys.push(...ext.substrates);
-  if (ext.painting.windowsDoors) keys.push("exterior_windows", "exterior_doors");
-  if (ext.painting.roofline) keys.push("fascias", "gutters", "eaves", "downpipes");
-  if (ext.painting.garage) keys.push("garage_doors");
-  if (ext.extras.deck) keys.push("deck");
-  if (ext.extras.fence) keys.push("fence");
+  const house = ext.targets.includes("house");
+  // "other" and "none" are answers, not substrates: "other" scaffolds a
+  // placeholder wall the estimator swaps; "none" means no wall painting.
+  const cladding = ext.substrates.filter((s): s is Exclude<typeof s, "other" | "none"> => s !== "other" && s !== "none");
+  if (house && ext.painting.body) keys.push(...cladding);
+  const el = exteriorElements(ext);
+  if (house && el.windows) keys.push("exterior_windows");
+  if (house && el.doors) keys.push("exterior_doors");
+  if (house && el.fascias) keys.push("fascias");
+  if (house && el.gutters) keys.push("gutters", "downpipes");
+  if (house && el.eaves) keys.push("eaves");
+  if (house && el.garage) keys.push("garage_doors");
+  if (ext.extras.deck || ext.targets.includes("deck")) keys.push("deck");
+  if ((ext.extras.fence || ext.targets.includes("fence")) && ext.extras.fenceType !== "metal") keys.push("fence");
   if (ext.extras.pergola) keys.push("pergola");
   if (ext.extras.balustrade) keys.push("balustrade");
-  return keys;
+  return [...new Set(keys)];
+}
+
+/** The house's trims, one flag each — from `elements` when the new page
+ * answered them, else derived from the older `painting` summary. */
+export function exteriorElements(ext: WizardExterior): NonNullable<WizardExterior["elements"]> {
+  if (ext.elements) return ext.elements;
+  return {
+    windows: ext.painting.windowsDoors, doors: ext.painting.windowsDoors,
+    eaves: ext.painting.roofline, fascias: ext.painting.roofline, gutters: ext.painting.roofline,
+    garage: ext.painting.garage,
+  };
+}
+
+/** Which sides are being painted — absent = all four (the full exterior). */
+export function exteriorSides(ext: WizardExterior): Array<"front" | "left" | "right" | "back"> {
+  return ext.sides && ext.sides.length > 0 ? ext.sides : ["front", "left", "right", "back"];
 }
 
 /** Coats for the condition tier; dark-to-light surfaces get 3, the rest 2. */

@@ -9,6 +9,8 @@ import {
   defaultCustomer,
   defaultExterior,
   defaultWizardState,
+  exteriorElements,
+  exteriorSides,
   exteriorSurfaceKeys,
   pageForPath,
   type WizardExterior,
@@ -51,12 +53,21 @@ type PageKey = "property" | "surfaces" | "condition" | "details" | "paint" | "ho
 /** The customer's way in: describe it · answer a few questions · upload the plan/listing. */
 type EntryChoice = "describe" | "questions" | "upload";
 
+/** The page's name for a person (the "I'm stuck" note). */
+const PAGE_NAME: Record<PageKey, string> = {
+  property: "Property", surfaces: "Surfaces", condition: "Condition", details: "Details", paint: "Paint",
+  house: "House", scope: "Scope", ext_condition: "Condition", extras: "Extras", contact: "Contact",
+};
+
 /** What choosing a way in means for the state, per job type. Pure, so the
  * job-type switch and the entry cards write the same thing. */
 function entryPatch(e: EntryChoice, jobType: WizardState["jobType"], ext: WizardExterior | null, basics: WizardState["basics"]): Partial<WizardState> {
   if (jobType === "exterior") {
     const base = ext ?? defaultExterior();
-    return { exterior: { ...base, noPhotos: e === "questions" } };
+    // Tom, 7 Sep: an exterior job answers the EXTERIOR question set — the
+    // interior "quick basics" (bedrooms, open-plan) must never ride along
+    // from a job type picked earlier. noPlan is the interior path's flag.
+    return { exterior: { ...base, noPhotos: e === "questions" }, noPlan: false, basics: null };
   }
   return {
     noPlan: e === "questions",
@@ -223,10 +234,19 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   // contact details (still the LAST question before the build), then the
   // build lands in the editor. Nothing else is asked.
   const describing = isCustomer && entry === "describe";
+  // Tom, 7 Sep (evening): the paragraph builds the ROOM LIST, but the
+  // questions the form asks up front — condition and damage (with photos),
+  // the safety flags, occupancy — are still asked; the build was assuming
+  // "no damage, built after 1970" for every described job.
+  // Tom, 7 Sep (late): a commercial property skips "Anything else out there?"
+  // (pergola, balustrades, paint preferences) — a person prices it anyway.
+  const commercial = isCustomer && state.customer?.propertyKind === "commercial";
   const pageKeys: PageKey[] = describing
-    ? ["property", ...(!contactDone ? ["contact" as const] : [])]
+    ? ["property", ...(state.jobType === "exterior" ? ["ext_condition" as const] : ["condition" as const, "details" as const]), ...(!contactDone ? ["contact" as const] : [])]
     : state.jobType === "exterior"
-      ? ["property", "house", "scope", "ext_condition", "extras", ...(isCustomer && !contactDone ? ["contact" as const] : [])]
+      // Tom, 7 Sep: the follow-up page exists only when something other than
+      // the house was ticked (fence type, shed / wall material, floor area).
+      ? ["property", "house", ...(state.exterior?.targets.some((t) => t !== "house") ? ["scope" as const] : []), "ext_condition", ...(commercial ? [] : ["extras" as const]), ...(isCustomer && !contactDone ? ["contact" as const] : [])]
       : ["property", "surfaces", "condition", "details", ...(isCustomer && !contactDone ? ["contact" as const] : ["paint" as const])];
   const lastPage = pageKeys.length;
   const pageKey: PageKey = pageKeys[Math.min(page, lastPage) - 1];
@@ -317,10 +337,28 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           ? { street: "", suburb: state.customer.suburb, postcode: state.customer.postcode, state: "VIC" }
           : null;
       const contact = withBrief ? { name: state.contact.name.trim(), email: state.contact.email.trim(), phone: state.contact.phone.trim() } : null;
+      // Tom, 7 Sep (evening): the damage photos go up first — they used to be
+      // asked only on the form path; their source rows are claimed for the
+      // built estimate, and the form's answers ride the build request.
+      const conditionSourceIds = withBrief ? await analyseDamagePhotos().then(() => conditionSourceIdsRef.current).catch(() => conditionSourceIdsRef.current) : [];
+      const answers = withBrief ? {
+        condition: state.condition,
+        details: state.details,
+        customer: state.customer ? {
+          propertyKind: state.customer.propertyKind, bodyCorporate: state.customer.bodyCorporate,
+          heritageListed: state.customer.heritageListed, builtPre1970: state.customer.builtPre1970, asbestosSuspected: state.customer.asbestosSuspected,
+        } : undefined,
+        exterior: state.jobType === "exterior" && state.exterior ? {
+          storeys: state.exterior.storeys, condition: state.exterior.condition,
+          access: state.exterior.access, accessEquipment: state.exterior.accessEquipment,
+        } : undefined,
+        conditionSourceIds,
+      } : null;
       const res = await fetch("/api/agent/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
         ...(withBrief && brief.trim() ? { brief: brief.trim() } : {}),
         ...(address ? { address: { ...address, formatted: state.address?.formatted ?? "" } } : {}),
         ...(contact ? { contact } : {}),
+        ...(answers ? { answers } : {}),
       }) });
       const j = (await res.json().catch(() => ({}))) as { conversationId?: string; estimateId?: string; built?: boolean; error?: string };
       if (!res.ok || !j.conversationId) { backToPages(); setError(j.error ?? "That didn't go through — please try again."); return; }
@@ -828,9 +866,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const [stuckOpen, setStuckOpen] = useState(false);
   const [stuckPhone, setStuckPhone] = useState("");
   const [stuckSent, setStuckSent] = useState(false);
-  const pageName = (state.jobType === "exterior"
-    ? ["Property", "House", "Scope", "Condition", "Extras", "Contact"]
-    : ["Property", "Surfaces", "Condition", "Details", "Paint", "Contact"])[page - 1] ?? `Page ${page}`;
+  const pageName = PAGE_NAME[pageKeys[page - 1] ?? "property"] ?? `Page ${page}`;
   async function sendStuck() {
     const phone = (stuckPhone || state.contact.phone || "").trim();
     if (phone.replace(/[^0-9]/g, "").length < 8) return;
@@ -867,7 +903,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       // A described job is built from the paragraph alone (Tom, 7 Sep): no
       // floorplan, basics or facade photos are asked for. The C1 run of 7 Sep
       // caught the gate below stopping it with "Upload a floorplan…".
-      if (isCustomer && entry === "describe") return null;
+      if (isCustomer && entry === "describe") return null; // the pages after this keep their own gates
       if (wantsInterior && !state.noPlan && state.planRunIds.length === 0) {
         return state.listingUrl.trim()
           ? "Tap “Read the floorplan from this listing”, upload a floorplan, or choose the quick basics instead."
@@ -888,17 +924,16 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     // R2: the exterior pages' own gates.
     if (state.jobType === "exterior") {
       const ext = state.exterior;
-      if (pageKey === "house" && (ext?.substrates.length ?? 0) === 0) return "What's the building made of? Tick at least one.";
+      if (pageKey === "house" && (ext?.targets.length ?? 0) === 0) return "What are we painting? Tick at least one.";
+      if (pageKey === "house" && ext?.targets.includes("house") && ext.substrates.length === 0) return "What's the house made of? Tick at least one — or “None” if the walls aren't being painted.";
       if (pageKey === "scope" && ext && !Object.values(ext.painting).some(Boolean)) return "Tick at least one thing we're painting.";
       if (pageKey === "ext_condition" && ext?.condition == null) return "How's the paintwork holding up?";
-      if (pageKey === "ext_condition" && isCustomer && !answered.pre1970) return "Was the home built before 1970? Yes, no or not sure.";
       return null;
     }
     if (pageKey === "surfaces" && state.surfaces.length === 0) return "Tick at least one surface.";
     if (pageKey === "condition" && state.condition.tier === "dark_to_light" && state.condition.darkToLightSurfaces.length === 0) {
       return "Which surfaces are going dark to light?";
     }
-    if (pageKey === "details" && isCustomer && !answered.pre1970) return "Was the home built before 1970? Yes, no or not sure.";
     if (pageKey === "details" && isCustomer && !answered.asbestos) return "Any chance of asbestos sheeting? Yes, no or not sure.";
     if (pageKey === "details" && isCustomer && state.details.occupied == null) return "Will anyone be living there while we paint? Yes or no.";
     if (pageKey === "condition" && state.details.damageTier >= 2 && state.details.damagePhotoCount === 0) {
@@ -1025,18 +1060,18 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             {/* Tom, 31 Aug: contact details moved to the LAST page (below) —
                 the questions come first, the name/phone/email is the final
                 step before the AI builds the estimate. */}
-            {pageKey === "house" && <PageExteriorHouse state={state} set={set} substrates={substrates} stepsTotal={lastPage} />}
+            {pageKey === "house" && <PageExteriorHouse state={state} set={set} substrates={substrates} stepsTotal={lastPage} stepNo={page} />}
             {pageKey === "surfaces" && <PageSurfaces state={state} set={set} substrates={substrates} stepsTotal={lastPage} />}
-            {pageKey === "scope" && <PageExteriorScope state={state} set={set} stepsTotal={lastPage} />}
+            {pageKey === "scope" && <PageExteriorScope state={state} set={set} substrates={substrates} stepsTotal={lastPage} stepNo={page} />}
             {pageKey === "ext_condition" && (
-              <PageExteriorCondition state={state} set={set} isCustomer={isCustomer} stepsTotal={lastPage} answered={answered} markAnswered={markAnswered} />
+              <PageExteriorCondition state={state} set={set} stepsTotal={lastPage} stepNo={page} />
             )}
             {pageKey === "details" && (
-              <PageDetails state={state} set={set} isCustomer={isCustomer} stepsTotal={lastPage} answered={answered} markAnswered={markAnswered} />
+              <PageDetails state={state} set={set} isCustomer={isCustomer} stepsTotal={lastPage} stepNo={page} answered={answered} markAnswered={markAnswered} />
             )}
             {pageKey === "condition" && (
               <PageCondition
-                state={state} set={set} substrates={substrates} stepsTotal={lastPage} damageInputRef={damageInputRef}
+                state={state} set={set} substrates={substrates} stepsTotal={lastPage} stepNo={page} damageInputRef={damageInputRef}
                 hasPlanRuns={state.planRunIds.length > 0}
                 onDamageFiles={(files) => {
                   for (const f of files) {
@@ -1049,7 +1084,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 }}
               />
             )}
-            {pageKey === "extras" && <PageExteriorExtras state={state} set={set} stepsTotal={lastPage} embedPaint={!pageKeys.includes("contact")} />}
+            {pageKey === "extras" && <PageExteriorExtras state={state} set={set} stepsTotal={lastPage} stepNo={page} embedPaint={!pageKeys.includes("contact")} />}
             {pageKey === "paint" && <PagePaint state={state} set={set} stepsTotal={lastPage} />}
             {pageKey === "contact" && <PageContact state={state} set={set} stepsTotal={lastPage} />}
             {uploadNote && <div className="wz-note">{uploadNote}</div>}
@@ -1172,7 +1207,7 @@ function PageProperty({
   const [outOfArea, setOutOfArea] = useState(false);
   // Phase 2: a customer sees the controls of the way in they chose; staff see everything.
   const showListing = !isCustomer || entry === "upload";
-  const showBasics = Boolean(state.noPlan && basics) && (!isCustomer || entry === "questions");
+  const showBasics = Boolean(state.noPlan && basics) && state.jobType !== "exterior" && (!isCustomer || entry === "questions");
   const showFacades = needsFacades && (!isCustomer || entry === "upload");
 
   const jobTypeSeg = (
@@ -1566,8 +1601,9 @@ function PageSurfaces({ state, set, substrates, stepsTotal }: {
 
 // ---- page 3: condition ------------------------------------------------------
 
-function PageCondition({ state, set, substrates, stepsTotal, damageInputRef, hasPlanRuns, onDamageFiles }: {
+function PageCondition({ state, set, substrates, stepsTotal, stepNo = 3, damageInputRef, hasPlanRuns, onDamageFiles }: {
   stepsTotal: number;
+  stepNo?: number;
   state: WizardState;
   set: (p: Partial<WizardState>) => void;
   substrates: SubstrateGroups;
@@ -1591,7 +1627,7 @@ function PageCondition({ state, set, substrates, stepsTotal, damageInputRef, has
   ];
   return (
     <>
-      <p className="wz-kick">Step 3 of {stepsTotal} · Condition</p>
+      <p className="wz-kick">Step {stepNo} of {stepsTotal} · Condition</p>
       <h1>Which describes it best?</h1>
       <p className="wz-sub">Coats first, then any damage — together they set the preparation we allow for.</p>
       <div className="wz-cards">
@@ -1682,8 +1718,9 @@ function PageCondition({ state, set, substrates, stepsTotal, damageInputRef, has
 
 // ---- page 4: details --------------------------------------------------------
 
-function PageDetails({ state, set, isCustomer = false, stepsTotal, answered, markAnswered }: {
+function PageDetails({ state, set, isCustomer = false, stepsTotal, stepNo = 4, answered, markAnswered }: {
   stepsTotal: number;
+  stepNo?: number;
   answered: SafetyAnswered;
   markAnswered: (k: keyof SafetyAnswered) => void;
   state: WizardState;
@@ -1707,7 +1744,7 @@ function PageDetails({ state, set, isCustomer = false, stepsTotal, answered, mar
   }, [doorsTicked, windowsTicked, d.doorStyle, d.windowStyle]);
   return (
     <>
-      <p className="wz-kick">Step 4 of {stepsTotal} · Details</p>
+      <p className="wz-kick">Step {stepNo} of {stepsTotal} · Details</p>
       <h1>A few quick details</h1>
       <p className="wz-sub">Pick what&rsquo;s closest — &ldquo;mostly&rdquo; is fine.</p>
 
@@ -1795,14 +1832,11 @@ function PageDetails({ state, set, isCustomer = false, stepsTotal, answered, mar
         </p>
       )}
 
+      {/* Tom, 7 Sep (late): "built before 1970" is not asked anywhere in the
+          wizard any more — the office finds the build year itself. The field
+          stays "unsure" in the state; the policy no longer acts on "unsure". */}
       {isCustomer && state.customer && (
         <>
-          <p className="wz-qhead">Was the home built before 1970? <small>— older paint can contain lead, and we handle it properly</small></p>
-          <Seg
-            options={[{ v: "no" as const, label: "No" }, { v: "yes" as const, label: "Yes" }, { v: "unsure" as const, label: "Not sure" }]}
-            value={answered.pre1970 ? state.customer.builtPre1970 : null}
-            onPick={(v) => { markAnswered("pre1970"); set({ customer: { ...state.customer!, builtPre1970: v } }); }}
-          />
           <p className="wz-qhead">Any chance of asbestos sheeting in the areas being painted?</p>
           <Seg
             options={[{ v: "no" as const, label: "No" }, { v: "yes" as const, label: "Yes" }, { v: "unsure" as const, label: "Not sure" }]}
@@ -1837,6 +1871,9 @@ function PageDetails({ state, set, isCustomer = false, stepsTotal, answered, mar
 
 function PagePaint({ state, set, embedded = false, stepsTotal = 5 }: { state: WizardState; set: (p: Partial<WizardState>) => void; embedded?: boolean; stepsTotal?: number }) {
   const p = state.paint;
+  // Tom, 7 Sep (late): the water/oil question (and its oil-trim follow-up)
+  // is interior-only, never for a commercial property.
+  const askBase = state.jobType !== "exterior" && state.customer?.propertyKind !== "commercial";
   // Tom, 1 Sep: five brands + Not sure. "Not sure" is exclusive — picking it
   // clears the brands, picking a brand clears it.
   const BRAND_LABEL = { dulux: "Dulux", haymes: "Haymes", taubmans: "Taubmans", porters: "Porters", wattyl: "Wattyl", unsure: "Not sure" } as const;
@@ -1903,6 +1940,7 @@ function PagePaint({ state, set, embedded = false, stepsTotal = 5 }: { state: Wi
       {/* Tom, 1 Sep: water vs oil is its own question. Picking "water" keeps
           the old waterBasedOnly flag in step, so the oil-trim prep follow-up
           and the merge deferrals behave exactly as before. */}
+      {askBase && (
       <div className="wz-follow">
         <p className="wz-q">Are you wanting to paint using water based or oil based paints?</p>
         <div className="wz-chips">
@@ -1929,8 +1967,9 @@ function PagePaint({ state, set, embedded = false, stepsTotal = 5 }: { state: Wi
           preparation will be required.
         </p>
       </div>
+      )}
 
-      {p.waterBasedOnly && (
+      {askBase && p.waterBasedOnly && (
         <div className="wz-follow">
           <p className="wz-q">Are the trims currently painted in oil-based enamel?</p>
           <div className="wz-chips">
@@ -2007,21 +2046,84 @@ function PageContact({ state, set, stepsTotal }: { state: WizardState; set: (p: 
   );
 }
 
-function PageExteriorHouse({ state, set, substrates, stepsTotal }: {
-  stepsTotal: number; state: WizardState; set: (p: Partial<WizardState>) => void; substrates: SubstrateGroups;
+function PageExteriorHouse({ state, set, substrates, stepsTotal, stepNo = 2 }: {
+  stepsTotal: number; stepNo?: number; state: WizardState; set: (p: Partial<WizardState>) => void; substrates: SubstrateGroups;
 }) {
   const { ext, setExt } = useExt(state, set);
-  // A tick that cannot price is never offered: tilt slab / concrete appears
-  // only once its rate row exists on the active card (migration 20261204).
-  const offersConcrete = substrates.exterior.some((o) => o.key === "concrete");
+  const house = ext.targets.includes("house");
+  // A tick that cannot price is never offered: a cladding appears only once
+  // its rate row exists on the active card (concrete 20261204, cement sheet
+  // 20270128; stucco and Colorbond have had rows all along).
+  const offers = (k: string) => substrates.exterior.some((o) => o.key === k);
+  // Tom, 7 Sep: "What are we painting? tick all that apply" — the house and
+  // the freestanding things. Each target keeps its own follow-up questions
+  // (the next page) and its own line in the estimate.
+  const setTargets = (targets: WizardExterior["targets"]) => setExt({
+    targets,
+    extras: {
+      ...ext.extras,
+      deck: targets.includes("deck"),
+      fence: targets.includes("fence"),
+      ...(targets.includes("fence") ? {} : { fenceMetres: null }),
+    },
+    shed: targets.includes("shed") ? (ext.shed ?? { substrate: "colorbond" }) : null,
+    wall: targets.includes("wall") ? (ext.wall ?? { substrate: "brick", metres: null }) : null,
+    floor: targets.includes("floor") ? (ext.floor ?? { m2: null }) : null,
+    painting: { ...ext.painting, body: targets.includes("house") && !ext.substrates.includes("none") },
+  });
+  const target = (k: WizardExterior["targets"][number], label: string, sub?: string) => (
+    <button
+      key={k}
+      className={`wz-tile ${ext.targets.includes(k) ? "on" : ""}`}
+      data-testid={`ext-target-${k}`}
+      onClick={() => setTargets(ext.targets.includes(k) ? ext.targets.filter((x) => x !== k) : [...ext.targets, k])}
+    >
+      {label}
+      {sub && <span style={{ display: "block", fontSize: 12, color: "var(--muted)", fontWeight: 400 }}>{sub}</span>}
+    </button>
+  );
+  // "None" is exclusive (no wall painting — trims only); everything else mixes.
+  const setCladding = (next: WizardExterior["substrates"]) => setExt({
+    substrates: next,
+    painting: { ...ext.painting, body: next.length > 0 && !next.includes("none") },
+  });
   const sub = (k: WizardExterior["substrates"][number], label: string) => (
     <button
       key={k}
       className={`wz-tile ${ext.substrates.includes(k) ? "on" : ""}`}
+      data-testid={`ext-cladding-${k}`}
       onClick={() => {
         const has = ext.substrates.includes(k);
-        const substrates = has ? ext.substrates.filter((x) => x !== k) : [...ext.substrates, k];
-        setExt({ substrates });
+        if (k === "none") { setCladding(has ? [] : ["none"]); return; }
+        setCladding(has ? ext.substrates.filter((x) => x !== k) : [...ext.substrates.filter((x) => x !== "none"), k]);
+      }}
+    >
+      {label}
+    </button>
+  );
+  // The trims, one tick each; the older `painting` summary stays in step so
+  // the scaffold and every earlier reader see the same answer.
+  const el = exteriorElements(ext);
+  const setElements = (next: NonNullable<WizardExterior["elements"]>) => setExt({
+    elements: next,
+    painting: { body: ext.painting.body, windowsDoors: next.windows || next.doors, roofline: next.eaves || next.fascias || next.gutters, garage: next.garage },
+  });
+  const element = (k: keyof NonNullable<WizardExterior["elements"]>, label: string) => (
+    <button key={k} className={`wz-tile ${el[k] ? "on" : ""}`} data-testid={`ext-element-${k}`} onClick={() => setElements({ ...el, [k]: !el[k] })}>
+      {label}
+    </button>
+  );
+  const sides = exteriorSides(ext);
+  const allSides = sides.length === 4;
+  const side = (k: "front" | "left" | "back" | "right", label: string) => (
+    <button
+      key={k}
+      className={`wz-tile ${!allSides && sides.includes(k) ? "on" : ""}`}
+      data-testid={`ext-side-${k}`}
+      onClick={() => {
+        const cur = allSides ? [] : sides;
+        const next = cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k];
+        setExt({ sides: next.length === 0 || next.length === 4 ? undefined : next });
       }}
     >
       {label}
@@ -2029,77 +2131,185 @@ function PageExteriorHouse({ state, set, substrates, stepsTotal }: {
   );
   return (
     <>
-      <p className="wz-kick">Step 2 of {stepsTotal} · The house</p>
-      <h1>Let&rsquo;s size up the outside</h1>
-      <p className="wz-sub">Two quick looks — how tall, and what it&rsquo;s made of.</p>
-
-      <p className="wz-qhead">Single or double storey?</p>
-      <div className="wz-pick">
-        <button className={`wz-pk ${ext.storeys === "single" ? "on" : ""}`} onClick={() => setExt({ storeys: "single" })}>
-          <svg viewBox="0 0 60 64"><polygon points="8,28 30,12 52,28" fill="#1F262C" stroke="#39424B" /><rect x="12" y="28" width="36" height="24" fill="#12161A" stroke="#39424B" /><rect x="26" y="38" width="8" height="14" fill="#152A31" stroke="#2FB9CB" /></svg>
-          <small>Single storey</small>
-          <em className="wz-pksub">up to 4 metres</em>
-        </button>
-        <button className={`wz-pk ${ext.storeys === "double" ? "on" : ""}`} onClick={() => setExt({ storeys: "double" })}>
-          <svg viewBox="0 0 60 64"><polygon points="8,20 30,6 52,20" fill="#1F262C" stroke="#39424B" /><rect x="12" y="20" width="36" height="36" fill="#12161A" stroke="#39424B" /><line x1="12" y1="38" x2="48" y2="38" stroke="#39424B" /><rect x="26" y="44" width="8" height="12" fill="#152A31" stroke="#2FB9CB" /></svg>
-          <small>Double storey</small>
-          <em className="wz-pksub">over 4 metres</em>
-        </button>
+      <p className="wz-kick">Step {stepNo} of {stepsTotal} · What we&rsquo;re painting</p>
+      <h1>What are we painting?</h1>
+      <p className="wz-sub">Tick everything that applies — the house, and anything standing on its own.</p>
+      <div className="wz-tiles" data-testid="ext-targets">
+        {target("house", "The house", "walls, trims, roofline")}
+        {target("fence", "Fence")}
+        {target("floor", "Floor coatings")}
+        {target("deck", "Deck")}
+        {target("shed", "Garage / workshop / shed")}
+        {target("wall", "Wall", "a boundary or retaining wall")}
       </div>
 
-      {/* Phase 3 (6 Sep plan): the footprint band scales the typical side lengths. */}
-      <p className="wz-qhead">Roughly how big is the footprint? <small style={{ color: "var(--muted)", fontWeight: 400 }}>— the ground floor, near enough</small></p>
-      <div className="wz-seg" data-testid="ext-size-band">
-        {([["lt120", "<120 m²"], ["s120_200", "120–200"], ["gt200", "200+"], ["unsure", "Not sure"]] as const).map(([v, label]) => (
-          <button key={v} type="button" className={ext.sizeBand === v ? "on" : ""} onClick={() => setExt({ sizeBand: v })}>{label}</button>
-        ))}
-      </div>
+      {house && (
+        <>
+          <p className="wz-qhead">Single or double storey?</p>
+          <div className="wz-pick">
+            <button className={`wz-pk ${ext.storeys === "single" ? "on" : ""}`} onClick={() => setExt({ storeys: "single" })}>
+              <svg viewBox="0 0 60 64"><polygon points="8,28 30,12 52,28" fill="#1F262C" stroke="#39424B" /><rect x="12" y="28" width="36" height="24" fill="#12161A" stroke="#39424B" /><rect x="26" y="38" width="8" height="14" fill="#152A31" stroke="#2FB9CB" /></svg>
+              <small>Single storey</small>
+              <em className="wz-pksub">up to 4 metres</em>
+            </button>
+            <button className={`wz-pk ${ext.storeys === "double" ? "on" : ""}`} onClick={() => setExt({ storeys: "double" })}>
+              <svg viewBox="0 0 60 64"><polygon points="8,20 30,6 52,20" fill="#1F262C" stroke="#39424B" /><rect x="12" y="20" width="36" height="36" fill="#12161A" stroke="#39424B" /><line x1="12" y1="38" x2="48" y2="38" stroke="#39424B" /><rect x="26" y="44" width="8" height="12" fill="#152A31" stroke="#2FB9CB" /></svg>
+              <small>Double storey</small>
+              <em className="wz-pksub">over 4 metres</em>
+            </button>
+          </div>
 
-      <p className="wz-qhead">What&rsquo;s the building made of? <small style={{ color: "var(--muted)", fontWeight: 400 }}>— a mix? Tick everything that&rsquo;s there</small></p>
-      <div className="wz-tiles">
-        {sub("weatherboards", "Weatherboard")}
-        {sub("render", "Render")}
-        {offersConcrete && sub("concrete", "Tilt slab / concrete")}
-        {sub("brick", "Painted brick")}
-      </div>
-      <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 10 }}>
-        This seeds the wall list you&rsquo;ll confirm side by side in a moment — near enough is fine.
-      </p>
+          {/* Phase 3 (6 Sep plan): the footprint band scales the typical side lengths. */}
+          <p className="wz-qhead">Roughly how big is the footprint? <small style={{ color: "var(--muted)", fontWeight: 400 }}>— the ground floor, near enough</small></p>
+          <div className="wz-seg" data-testid="ext-size-band">
+            {([["lt120", "<120 m²"], ["s120_200", "120–200"], ["gt200", "200+"], ["unsure", "Not sure"]] as const).map(([v, label]) => (
+              <button key={v} type="button" className={ext.sizeBand === v ? "on" : ""} onClick={() => setExt({ sizeBand: v })}>{label}</button>
+            ))}
+          </div>
+
+          <p className="wz-qhead">What&rsquo;s the house made of? <small style={{ color: "var(--muted)", fontWeight: 400 }}>— a mix? Tick everything that&rsquo;s there</small></p>
+          <div className="wz-tiles" data-testid="ext-cladding">
+            {sub("render", "Render")}
+            {sub("weatherboards", "Weatherboards")}
+            {sub("brick", "Brick")}
+            {offers("stucco") && sub("stucco", "Stucco")}
+            {offers("cement_sheet") && sub("cement_sheet", "Cement sheet")}
+            {offers("colorbond") && sub("colorbond", "Colorbond")}
+            {offers("concrete") && sub("concrete", "Tilt slab / concrete")}
+            {sub("other", "Other")}
+            {sub("none", "None — not painting the walls")}
+          </div>
+          {ext.substrates.includes("other") && (
+            <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 10 }}>
+              We&rsquo;ll price the walls as weatherboard for now and confirm the material with you before anything is fixed.
+            </p>
+          )}
+
+          <p className="wz-qhead">Also being painted on the house? <small style={{ color: "var(--muted)", fontWeight: 400 }}>— tick all that apply</small></p>
+          <div className="wz-tiles" data-testid="ext-elements">
+            {element("windows", "Windows")}
+            {element("doors", "Doors")}
+            {element("eaves", "Eaves")}
+            {element("fascias", "Fascias")}
+            {element("gutters", "Gutters & downpipes")}
+            {element("garage", "Garage door")}
+          </div>
+
+          <p className="wz-qhead">Where are we painting? <small style={{ color: "var(--muted)", fontWeight: 400 }}>— tick all that apply</small></p>
+          <div className="wz-tiles" data-testid="ext-sides">
+            <button className={`wz-tile ${allSides ? "on" : ""}`} data-testid="ext-side-all" onClick={() => setExt({ sides: undefined })}>The full exterior</button>
+            {side("front", "Front")}
+            {side("left", "Left side")}
+            {side("back", "Back")}
+            {side("right", "Right side")}
+          </div>
+          <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 10 }}>
+            This seeds the side-by-side list you&rsquo;ll confirm in a moment — near enough is fine.
+          </p>
+        </>
+      )}
     </>
   );
 }
 
-function PageExteriorScope({ state, set, stepsTotal }: { state: WizardState; set: (p: Partial<WizardState>) => void; stepsTotal: number }) {
+/** Tom, 7 Sep: the follow-ups for everything that isn't the house — fence
+ * type and length, what the shed is made of, what the wall is made of. Shown
+ * only when one of those was ticked. */
+function PageExteriorScope({ state, set, substrates, stepsTotal, stepNo = 3 }: { state: WizardState; set: (p: Partial<WizardState>) => void; substrates: SubstrateGroups; stepsTotal: number; stepNo?: number }) {
   const { ext, setExt } = useExt(state, set);
-  const tile = (k: keyof WizardExterior["painting"], label: string, sub?: string) => (
-    <button
-      key={k}
-      className={`wz-tile ${ext.painting[k] ? "on" : ""}`}
-      onClick={() => setExt({ painting: { ...ext.painting, [k]: !ext.painting[k] } })}
-      style={{ textAlign: "left" }}
-    >
-      {label}
-      {sub && <span style={{ display: "block", fontSize: 12, color: "var(--muted)", fontWeight: 400 }}>{sub}</span>}
-    </button>
+  const offers = (k: string) => substrates.exterior.some((o) => o.key === k);
+  const metresInput = (value: number | null, onChange: (v: number | null) => void, placeholder: string, testId: string) => (
+    <input
+      className="wz-field"
+      style={{ maxWidth: 240 }}
+      placeholder={placeholder}
+      inputMode="decimal"
+      data-testid={testId}
+      defaultValue={value ?? ""}
+      onBlur={(e) => {
+        const v = e.target.value.trim().toLowerCase();
+        const m = parseFloat(v.replace(/[^0-9.]/g, ""));
+        onChange(v && !v.includes("not") && !isNaN(m) ? Math.min(2000, Math.max(1, m)) : null);
+      }}
+    />
   );
+  const clad = <K extends string>(current: K, options: ReadonlyArray<readonly [K, string]>, pick: (v: K) => void, testId: string) => (
+    <div className="wz-tiles" data-testid={testId}>
+      {options.map(([v, label]) => (
+        <button key={v} className={`wz-tile ${current === v ? "on" : ""}`} onClick={() => pick(v)}>{label}</button>
+      ))}
+    </div>
+  );
+  const shedOptions = ([
+    ["colorbond", "Colorbond"], ["weatherboards", "Weatherboards"], ["render", "Render"], ["brick", "Brick"],
+    ...(offers("stucco") ? [["stucco", "Stucco"] as const] : []),
+    ...(offers("cement_sheet") ? [["cement_sheet", "Cement sheet"] as const] : []),
+    ...(offers("concrete") ? [["concrete", "Tilt slab / concrete"] as const] : []),
+    ["other", "Other"],
+  ] as const) as ReadonlyArray<readonly [NonNullable<WizardExterior["shed"]>["substrate"], string]>;
+  const wallOptions = ([
+    ["brick", "Brick"], ["render", "Render"], ["colorbond", "Colorbond"],
+    ...(offers("cement_sheet") ? [["cement_sheet", "Cement sheet"] as const] : []),
+  ] as const) as ReadonlyArray<readonly [NonNullable<WizardExterior["wall"]>["substrate"], string]>;
   return (
     <>
-      <p className="wz-kick">Step 3 of {stepsTotal} · The scope</p>
-      <h1>What are we painting?</h1>
-      <p className="wz-sub">The usual full exterior is pre-ticked — untick anything that isn&rsquo;t being done. You&rsquo;ll choose the sides in a moment.</p>
-      <div className="wz-tiles">
-        {tile("body", "The body — the walls")}
-        {tile("windowsDoors", "Windows & doors")}
-        {tile("roofline", "The roofline", "fascias, gutters, eaves & downpipes")}
-        {tile("garage", "Garage door")}
-      </div>
+      <p className="wz-kick">Step {stepNo} of {stepsTotal} · The rest of it</p>
+      <h1>A little more on those</h1>
+      <p className="wz-sub">Near enough is fine — we measure on the day.</p>
+
+      {ext.targets.includes("fence") && (
+        <div className="wz-follow" data-testid="ext-fence">
+          <p className="wz-q">What kind of fence?</p>
+          <div className="wz-seg">
+            {([["paling", "Paling"], ["picket_hand", "Picket (brushed)"], ["picket_spray", "Picket (sprayed)"], ["metal", "Metal"]] as const).map(([v, label]) => (
+              <button key={v} className={ext.extras.fenceType === v ? "on" : ""} onClick={() => setExt({ extras: { ...ext.extras, fenceType: v } })}>{label}</button>
+            ))}
+          </div>
+          {ext.extras.fenceType === "metal" && (
+            <p style={{ fontSize: 12.5, color: "var(--muted)", margin: "8px 0 0" }}>A metal fence is priced by your estimator — it&rsquo;s noted on the estimate, not in the range.</p>
+          )}
+          <p className="wz-q" style={{ marginTop: 12 }}>Roughly how many metres of fence? &ldquo;Not sure&rdquo; is fine — we&rsquo;ll measure on the day.</p>
+          {metresInput(ext.extras.fenceMetres, (v) => setExt({ extras: { ...ext.extras, fenceMetres: v == null ? null : Math.min(500, v) } }), "metres — or 'not sure'", "ext-fence-metres")}
+        </div>
+      )}
+
+      {ext.targets.includes("shed") && (
+        <div className="wz-follow" data-testid="ext-shed">
+          <p className="wz-q">What&rsquo;s the garage / workshop / shed made of?</p>
+          {clad(ext.shed?.substrate ?? "colorbond", shedOptions, (v) => setExt({ shed: { substrate: v } }), "ext-shed-cladding")}
+        </div>
+      )}
+
+      {ext.targets.includes("wall") && (
+        <div className="wz-follow" data-testid="ext-wall">
+          <p className="wz-q">What&rsquo;s the wall made of?</p>
+          {clad(ext.wall?.substrate ?? "brick", wallOptions, (v) => setExt({ wall: { substrate: v, metres: ext.wall?.metres ?? null } }), "ext-wall-cladding")}
+          <p className="wz-q" style={{ marginTop: 12 }}>Roughly how long is it? &ldquo;Not sure&rdquo; is fine.</p>
+          {metresInput(ext.wall?.metres ?? null, (v) => setExt({ wall: { substrate: ext.wall?.substrate ?? "brick", metres: v == null ? null : Math.min(500, v) } }), "metres — or 'not sure'", "ext-wall-metres")}
+        </div>
+      )}
+
+      {ext.targets.includes("floor") && (
+        <div className="wz-follow" data-testid="ext-floor">
+          <p className="wz-q">Floor coatings — roughly how many square metres?</p>
+          {metresInput(ext.floor?.m2 ?? null, (v) => setExt({ floor: { m2: v } }), "m² — or 'not sure'", "ext-floor-m2")}
+          <p style={{ fontSize: 12.5, color: "var(--muted)", margin: "8px 0 0" }}>Floor coatings are priced by your estimator — the product and preparation depend on the floor.</p>
+        </div>
+      )}
+
+      {ext.targets.includes("deck") && (
+        <div className="wz-follow" data-testid="ext-deck">
+          <p className="wz-q">Deck — noted.</p>
+          <p style={{ fontSize: 12.5, color: "var(--muted)", margin: 0 }}>We oil or paint it to suit the timber; it&rsquo;s measured on the day and confirmed before your price is fixed.</p>
+        </div>
+      )}
     </>
   );
 }
 
-function PageExteriorCondition({ state, set, isCustomer, stepsTotal, answered, markAnswered }: {
-  state: WizardState; set: (p: Partial<WizardState>) => void; isCustomer: boolean;
-  stepsTotal: number; answered: SafetyAnswered; markAnswered: (k: keyof SafetyAnswered) => void;
+function PageExteriorCondition({ state, set, stepsTotal, stepNo = 4 }: {
+  state: WizardState; set: (p: Partial<WizardState>) => void;
+  stepsTotal: number; stepNo?: number;
 }) {
   const { ext, setExt } = useExt(state, set);
   const cond = (v: NonNullable<WizardExterior["condition"]>, b: string, s: string) => (
@@ -2131,7 +2341,7 @@ function PageExteriorCondition({ state, set, isCustomer, stepsTotal, answered, m
   );
   return (
     <>
-      <p className="wz-kick">Step 4 of {stepsTotal} · Condition</p>
+      <p className="wz-kick">Step {stepNo} of {stepsTotal} · Condition</p>
       <h1>How&rsquo;s it holding up?</h1>
       <p className="wz-sub">Honest is best — it sets the preparation we allow for.</p>
 
@@ -2142,21 +2352,7 @@ function PageExteriorCondition({ state, set, isCustomer, stepsTotal, answered, m
         {cond("peeling", "Peeling & flaking", "Coming away in places — needs a proper look before a fixed price.")}
       </div>
 
-      {isCustomer && state.customer && (
-        <>
-          <p className="wz-qhead">Was the home built before 1970? <small>— older paint can contain lead, and we handle it properly</small></p>
-          <Seg
-            options={[
-              { v: "yes" as const, label: "Yes" },
-              { v: "no" as const, label: "No" },
-              { v: "unsure" as const, label: "Not sure" },
-            ]}
-            value={answered.pre1970 ? state.customer.builtPre1970 : null}
-            onPick={(v) => { markAnswered("pre1970"); set({ customer: { ...state.customer!, builtPre1970: v } }); }}
-          />
-        </>
-      )}
-
+      {/* Tom, 7 Sep (late): the "built before 1970" question is gone — the office finds the build year itself. */}
       <p className="wz-qhead">Anything tricky about access? <small style={{ color: "var(--muted)", fontWeight: 400 }}>— tick any that apply</small></p>
       <div className="wz-chips">
         {acc("steep", "Steep block")}
@@ -2211,51 +2407,28 @@ const GEAR_LABEL: Record<WizardExterior["accessEquipment"][number], string> = {
   scaffold: "Scaffold / platform",
 };
 
-function PageExteriorExtras({ state, set, stepsTotal, embedPaint = true }: { state: WizardState; set: (p: Partial<WizardState>) => void; stepsTotal: number; embedPaint?: boolean }) {
+function PageExteriorExtras({ state, set, stepsTotal, stepNo = 5, embedPaint = true }: { state: WizardState; set: (p: Partial<WizardState>) => void; stepsTotal: number; stepNo?: number; embedPaint?: boolean }) {
   const { ext, setExt } = useExt(state, set);
-  const extra = (k: "deck" | "fence" | "pergola" | "balustrade", label: string) => (
+  // Tom, 7 Sep: deck and fence are answered on "What are we painting?" now;
+  // this page keeps the things that are easy to forget.
+  const extra = (k: "pergola" | "balustrade", label: string) => (
     <button
       key={k}
       className={`wz-tile ${ext.extras[k] ? "on" : ""}`}
-      onClick={() => setExt({ extras: { ...ext.extras, [k]: !ext.extras[k], ...(k === "fence" && ext.extras.fence ? { fenceMetres: null } : {}) } })}
+      onClick={() => setExt({ extras: { ...ext.extras, [k]: !ext.extras[k] } })}
     >
       {label}
     </button>
   );
   return (
     <>
-      <p className="wz-kick">Step 5 of {stepsTotal} · {embedPaint ? <>Extras &amp; paint</> : "Extras"}</p>
+      <p className="wz-kick">Step {stepNo} of {stepsTotal} · {embedPaint ? <>Extras &amp; paint</> : "Extras"}</p>
       <h1>Anything else out there?</h1>
-      <p className="wz-sub">The freestanding things — not on a wall, easy to forget.</p>
+      <p className="wz-sub">The things that are easy to forget.</p>
       <div className="wz-tiles">
-        {extra("deck", "Deck (oil)")}
-        {extra("fence", "Fence")}
         {extra("pergola", "Pergola")}
         {extra("balustrade", "Balustrades & hand rails")}
       </div>
-      {ext.extras.fence && (
-        <div className="wz-follow">
-          <p className="wz-q">What kind of fence?</p>
-          <div className="wz-seg">
-            {([["paling", "Paling"], ["picket_hand", "Picket (brushed)"], ["picket_spray", "Picket (sprayed)"]] as const).map(([v, label]) => (
-              <button key={v} className={ext.extras.fenceType === v ? "on" : ""} onClick={() => setExt({ extras: { ...ext.extras, fenceType: v } })}>{label}</button>
-            ))}
-          </div>
-          <p className="wz-q">Roughly how many metres of fence? &ldquo;Not sure&rdquo; is fine — we&rsquo;ll measure on the day.</p>
-          <input
-            className="wz-field"
-            style={{ maxWidth: 240 }}
-            placeholder="metres — or 'not sure'"
-            inputMode="decimal"
-            defaultValue={ext.extras.fenceMetres ?? ""}
-            onBlur={(e) => {
-              const v = e.target.value.trim().toLowerCase();
-              const m = parseFloat(v.replace(/[^0-9.]/g, ""));
-              setExt({ extras: { ...ext.extras, fenceMetres: v && !v.includes("not") && !isNaN(m) ? Math.min(500, Math.max(1, m)) : null } });
-            }}
-          />
-        </div>
-      )}
       {embedPaint && <PagePaint state={state} set={set} embedded stepsTotal={stepsTotal} />}
     </>
   );
