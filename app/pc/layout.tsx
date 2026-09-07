@@ -9,6 +9,7 @@ import ThemeToggle from "@/app/components/ThemeToggle";
 import { THEME_COOKIE, themeFromCookie } from "@/lib/theme/cookie";
 import PcNav from "./PcNav";
 import "./pc.css";
+import StaffChatDock from "@/app/components/StaffChatDock";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +58,7 @@ export default async function PcLayout({ children }: { children: React.ReactNode
           plus an explicit view, never inferred from role.
         </p>
       </div>
+      <StaffChatDock />
     </div>
   );
 }

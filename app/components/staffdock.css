@@ -1,0 +1,42 @@
+/* Tom, 8 Sep: the customer chat dock — bottom-left of EVERY staff screen,
+   its own palette so it reads the same over the light shell and the dark ones. */
+.pgdock { position: fixed; left: 14px; bottom: 14px; z-index: 90; font-family: 'Switzer','Hanken Grotesk',ui-sans-serif,-apple-system,'Segoe UI',system-ui,sans-serif; color: #EDF0F2; }
+.pgdock * { box-sizing: border-box; }
+.pgdock .dk-pill { display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 999px; border: 1px solid #2f3a44; background: #12161A; color: #EDF0F2; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: 0 10px 30px rgba(0,0,0,.35); position: relative; }
+.pgdock .dk-pill:hover { border-color: #3BD8E9; }
+.pgdock .dk-badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: #B3574A; color: #fff; font-size: 11px; display: grid; place-items: center; }
+.pgdock .dk-badge.quiet { background: #2f3a44; color: #C6CCD1; }
+.pgdock .dk-panel { width: min(400px, calc(100vw - 28px)); height: min(520px, calc(100vh - 40px)); display: flex; flex-direction: column; background: #12161A; border: 1px solid #2f3a44; border-radius: 14px; box-shadow: 0 18px 50px rgba(0,0,0,.5); overflow: hidden; }
+.pgdock .dk-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid #242B32; font-size: 13.5px; }
+.pgdock .dk-head b { font-size: 14px; }
+.pgdock .dk-head .dk-sub { color: #8C959D; font-size: 12px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pgdock .dk-x, .pgdock .dk-back { background: none; border: 1px solid #2f3a44; color: #C6CCD1; border-radius: 8px; padding: 3px 9px; cursor: pointer; font: inherit; font-size: 12px; }
+.pgdock .dk-x:hover, .pgdock .dk-back:hover { border-color: #3BD8E9; color: #3BD8E9; }
+.pgdock .dk-list { flex: 1; overflow: auto; }
+.pgdock .dk-row { display: flex; flex-direction: column; gap: 3px; width: 100%; text-align: left; padding: 10px 12px; border: 0; border-bottom: 1px solid #242B32; background: none; color: inherit; font: inherit; cursor: pointer; }
+.pgdock .dk-row:hover { background: rgba(255,255,255,.04); }
+.pgdock .dk-row .dk-who { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13.5px; }
+.pgdock .dk-row .dk-when { margin-left: auto; font-size: 11px; color: #8C959D; font-weight: 500; }
+.pgdock .dk-row .dk-last { font-size: 12.5px; color: #C6CCD1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pgdock .dk-row.unread .dk-last { color: #EDF0F2; font-weight: 600; }
+.pgdock .dk-state { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; border: 1px solid #2f3a44; color: #8C959D; }
+.pgdock .dk-state.wait { color: #E0A83C; border-color: rgba(224,168,60,.5); }
+.pgdock .dk-state.live { color: #3BD8E9; border-color: rgba(59,216,233,.5); }
+.pgdock .dk-empty { padding: 18px 14px; color: #8C959D; font-size: 13px; }
+.pgdock .dk-log { flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.pgdock .dk-msg { max-width: 88%; padding: 8px 11px; border-radius: 12px; font-size: 13.5px; line-height: 1.45; display: flex; flex-direction: column; gap: 2px; white-space: pre-wrap; }
+.pgdock .dk-msg.me { align-self: flex-end; background: #3BD8E9; color: #03272D; }
+.pgdock .dk-msg.them { align-self: flex-start; background: #171C21; border: 1px solid #242B32; }
+.pgdock .dk-msg.sys { align-self: center; background: none; color: #8C959D; font-size: 12px; text-align: center; }
+.pgdock .dk-msg .dk-role { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: #8C959D; }
+.pgdock .dk-actions { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 12px 0; }
+.pgdock .dk-btn { padding: 6px 11px; border-radius: 9px; border: 1px solid #2f3a44; background: none; color: #EDF0F2; font: inherit; font-size: 12px; cursor: pointer; text-decoration: none; }
+.pgdock .dk-btn:hover { border-color: #3BD8E9; color: #3BD8E9; }
+.pgdock .dk-btn.primary { background: #3BD8E9; color: #03272D; border-color: transparent; font-weight: 700; }
+.pgdock .dk-input { display: flex; gap: 8px; padding: 10px; border-top: 1px solid #242B32; }
+.pgdock .dk-input input { flex: 1; padding: 10px 12px; border-radius: 10px; border: 1px solid #2f3a44; background: #171C21; color: #EDF0F2; font: inherit; font-size: 13.5px; }
+.pgdock .dk-input button { padding: 10px 14px; border-radius: 10px; border: 0; background: #3BD8E9; color: #03272D; font: inherit; font-weight: 700; cursor: pointer; }
+.pgdock .dk-input button:disabled { opacity: .5; cursor: default; }
+.pgdock .dk-err { color: #f27d7d; font-size: 12.5px; padding: 0 12px 8px; margin: 0; }
+.pgdock .dk-sound { font-size: 11px; color: #8C959D; background: none; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+@media (max-width: 767px) { .pgdock { left: 8px; bottom: 8px; } }
