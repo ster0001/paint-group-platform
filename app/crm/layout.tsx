@@ -1,8 +1,11 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { staffVisibility, gateStaffArea } from "@/lib/staff/gate";
 import CrmTabs from "./CrmTabs";
 import Search from "./Search";
+import ThemeToggle, { THEME_COOKIE, type CrmTheme } from "./ThemeToggle";
+import { cachedBadge, rememberBadge } from "@/lib/crm/badgeCache";
 import { getWorkQueue } from "./queue";
 import "./crm.css";
 
@@ -37,16 +40,28 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   // The badge is overdue + due-today — "waiting on them" is not a number to
   // nag anyone with. Shares this render's queue with the Today page via
   // React cache, then refreshes through /crm/api/badge on navigation.
-  const queue = await getWorkQueue();
-  const badge = queue.counts.byBucket.overdue + queue.counts.byBucket.today;
+  // P7 fast path: the tab rail reads the number parked moments ago (the Today
+  // page, the badge route, or the last layout render) rather than rebuilding
+  // the queue on every CRM page. A miss builds it once and parks it.
+  let badge = cachedBadge(user.id);
+  if (badge == null) {
+    const queue = await getWorkQueue();
+    badge = queue.counts.byBucket.overdue + queue.counts.byBucket.today;
+    rememberBadge(user.id, badge);
+  }
+
+  // P7: dark or light for the whole CRM, chosen once, rendered right first time.
+  const themeCookie = (await cookies()).get(THEME_COOKIE)?.value;
+  const theme: CrmTheme = themeCookie === "light" ? "light" : "dark";
 
   return (
-    <div className="crm">
+    <div className="crm" data-theme={theme}>
       <div className="top">
         <div className="topbar">
           <span className="mark"><span>PG</span></span>
           <span className="brand">Paint Group <em>· CRM</em></span>
           <Search />
+          <ThemeToggle initial={theme} />
           <span className="who">{profile?.name || user.email}</span>
         </div>
         <CrmTabs initialCount={badge} />

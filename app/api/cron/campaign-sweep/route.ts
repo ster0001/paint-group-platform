@@ -17,6 +17,7 @@ import { reportError } from "@/lib/monitoring/report";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;   // Vercel Pro (decision 6.9, 7 Sep)
 
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET;

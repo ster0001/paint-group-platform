@@ -22,9 +22,9 @@ Expect ONE row: `facts_columns` true, `functions_ok` true, `segments_with_rules`
 columns are filled today rather than over the next few daily sweeps. Until they are, a rule on "estimate sent" or
 "job type" reads empty for rows the refresher has not reached.
 
-**vercel.json:** the campaign cron now fires `30 22 * * 0-4` UTC = 08:30 AEST Mon–Fri (09:30 in summer), inside the
-C11 window. It was 08:30 UTC (evening Melbourne). On Vercel Pro (decision 8.9) change it to `*/30 * * * *` for
-hour-level steps — the sweep is idempotent and the guard enforces the window either way.
+**vercel.json:** the campaign sweep runs every 30 minutes (Vercel Pro, decision 6.9 — Tom upgraded 7 Sep). The
+guard enforces the C11 window on every send, so a night-time sweep only enrols, judges exits and queues; hour-level
+steps (`afterHours`) now land within the half hour.
 
 ## Walk
 

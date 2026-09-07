@@ -12,7 +12,7 @@ import { rebuildAllFacts } from "@/lib/crm/facts";
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;   // Vercel Pro (decision 6.9, 7 Sep): a full rebuild fits one call
 
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;

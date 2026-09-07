@@ -40,6 +40,7 @@ export default async function CustomersPage({ searchParams }: {
   const filters: ListFilters = {
     state: [...RELATIONSHIP_STATES, "delay_ended"].includes(params.state ?? "") ? (params.state as string) : "",
     tag: (params.tag ?? "").slice(0, 40),
+    // P7: "me" is the signed-in staff member (the Mine option and the ?owner=me link).
     owner: (params.owner ?? "").slice(0, 40),
     temp: ["hot", "warm", "cold"].includes(params.temp ?? "") ? (params.temp as string) : "",
     life: LIFECYCLE.some((l) => l.key === params.life) ? (params.life as string) : "",
@@ -52,6 +53,10 @@ export default async function CustomersPage({ searchParams }: {
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
 
   const supabase = await createClient();
+  if (filters.owner === "me") {
+    const { data: { user } } = await supabase.auth.getUser();
+    filters.owner = user?.id ?? "00000000-0000-0000-0000-000000000000";
+  }
 
   const qs = (over: Partial<{ view: string; sort: string; f: string; q: string; page: number } & ListFilters & { v: string }>) => {
     const merged = { view, sort, f: filter, q, page, ...filters, v: activeView, ...over };
@@ -145,8 +150,9 @@ export default async function CustomersPage({ searchParams }: {
           <option value="">Any tag</option>
           {tagOptions.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
         </select>
-        <select className="field" name="owner" defaultValue={filters.owner} aria-label="Owner">
+        <select className="field" name="owner" defaultValue={params.owner ?? ""} aria-label="Owner">
           <option value="">Any owner</option>
+          <option value="me">Mine</option>
           <option value="nobody">Nobody</option>
           {staffOptions.map((s) => <option key={s.id} value={s.id}>{s.name || "Staff"}</option>)}
         </select>
