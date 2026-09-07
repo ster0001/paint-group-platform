@@ -82,8 +82,8 @@ export function renderBrainAnswer(answerMd: string, live: LiveValues): string {
 export function tokeniseSeedAnswer(slug: string, answerMd: string): string {
   if (slug === "price-validity") return answerMd.replace(/\b60 days\b/, "{{validity_days}} days");
   if (slug === "service-area") return answerMd.replace(/Within ~50 km of Melbourne\./i, "{{service_area}}.");
-  if (slug === "deposit") return `${answerMd}\n\nThe deposit is {{deposit_pct}}% of the estimate total.`;
-  if (slug === "warranty") return answerMd.replace(/\b2-year\b/, "{{warranty_years}}-year");
+  if (slug === "deposit") return answerMd.includes("{{deposit_pct}}") ? answerMd : `${answerMd}\n\nThe deposit is {{deposit_pct}}% of the estimate total.`;
+  if (slug === "warranty") return answerMd.replace(/\b2-year\b/, "{{warranty_years}}-year").replace(/\btwo years\b/i, "{{warranty_years}} years");
   return answerMd;
 }
 
