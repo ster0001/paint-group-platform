@@ -20,6 +20,8 @@ export function useLiveConversation(conversationId: string, onSnapshot: (s: Live
   const cb = useRef(onSnapshot);
   useEffect(() => { cb.current = onSnapshot; }, [onSnapshot]);
   useEffect(() => {
+    // No conversation yet (the wizard's chat bubble before its first open): nothing to watch.
+    if (!conversationId) return;
     let alive = true;
     const refetch = async () => {
       try {
@@ -35,7 +37,11 @@ export function useLiveConversation(conversationId: string, onSnapshot: (s: Live
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "agent_messages", filter: `conversation_id=eq.${conversationId}` }, () => { void refetch(); })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "agent_conversations", filter: `id=eq.${conversationId}` }, () => { void refetch(); })
       .subscribe();
+    // The first read straight away (a viewer that arrives with no
+    // server-rendered transcript — the staff dock — would otherwise wait a
+    // whole poll), deferred a tick to keep state changes out of the effect body.
+    const first = setTimeout(() => { void refetch(); }, 0);
     const timer = setInterval(() => { void refetch(); }, opts.pollMs ?? 8000);
-    return () => { alive = false; clearInterval(timer); void supabase.removeChannel(channel); };
+    return () => { alive = false; clearTimeout(first); clearInterval(timer); void supabase.removeChannel(channel); };
   }, [conversationId, opts.pollMs]);
 }

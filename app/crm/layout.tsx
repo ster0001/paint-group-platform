@@ -12,6 +12,7 @@ import { THEME_COOKIE, themeFromCookie } from "@/lib/theme/cookie";
 import { cachedBadge, rememberBadge } from "@/lib/crm/badgeCache";
 import { getWorkQueue } from "./queue";
 import "./crm.css";
+import StaffChatDock from "@/app/components/StaffChatDock";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +81,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         Every row here is read from the one event log.<br />
         Stage is worked out from the record; temperature, snooze and follow-up are yours to set.
       </p>
+      <StaffChatDock />
     </div>
   );
 }

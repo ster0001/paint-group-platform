@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import AppSidebar from "@/app/(app)/AppSidebar";
 import { staffVisibility, gateStaffArea } from "@/lib/staff/gate";
 import { visibleAreas } from "@/lib/staff/access";
+import StaffChatDock from "@/app/components/StaffChatDock";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,7 @@ export default async function QuoteLayout({ children }: { children: React.ReactN
     <div className="flex min-h-screen">
       <AppSidebar name={profile?.name || user.email || ""} email={user.email || ""} logoUrl={logoUrl} areas={visibleAreas(vis)} />
       <div className="min-w-0 flex-1 bg-gray-50">{children}</div>
+      <StaffChatDock />
     </div>
   );
 }

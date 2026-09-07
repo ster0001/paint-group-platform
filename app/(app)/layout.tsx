@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import AppSidebar from "./AppSidebar";
 import { staffVisibility, gateStaffArea } from "@/lib/staff/gate";
 import { visibleAreas } from "@/lib/staff/access";
+import StaffChatDock from "@/app/components/StaffChatDock";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           the top, so the page starts below that bar. On md+ the sidebar is back
           in the flex row and the padding goes away. */}
       <div className="min-w-0 flex-1 bg-gray-50 pt-[52px] md:pt-0">{children}</div>
+      <StaffChatDock />
     </div>
   );
 }

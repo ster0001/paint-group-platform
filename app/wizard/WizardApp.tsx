@@ -33,6 +33,8 @@ import AddressField from "./AddressField";
 import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
 import { RESUME_KEY, RESTART_KEY, decodeResume, encodeResume, restartedSince, resumeLine, type ResumeRecord, type SafetyAnswered } from "@/lib/wizard/resume";
 import Wordmark from "./Wordmark";
+import HelpBar from "./HelpBar";
+import ChatWidget from "./ChatWidget";
 
 /**
  * W1: the five paginated pages, exactly per the workflow doc — Property →
@@ -113,13 +115,15 @@ const PROC_TIPS = [
   "Nothing is booked and nothing is charged until you say so.",
 ];
 
-export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, intent, resume = null }: {
+export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, companyPhone = null, intent, resume = null }: {
   roomTypes: string[];
   /** A2: the offered surface lists, derived server-side from the rate card. */
   substrates: SubstrateGroups;
   mode?: "internal" | "customer";
   /** The Settings logo (logo 1) for the header — wordmark when unset. */
   logoUrl?: string | null;
+  /** Tom, 8 Sep: the "Call us" button on the help bar under every page. */
+  companyPhone?: string | null;
   /** 3a-6: a signed-in portal customer arrives known — email from their
    * verified session (the gate page disappears), address from the chosen
    * property. Same component, same flow; a returning customer just starts
@@ -861,22 +865,10 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     return () => window.clearInterval(id);
   }, [isCustomer, screen, page, sessionWorthSaving]);
 
-  // Buckets brief §3 · "I'm stuck, call me" — from any page. Sets the
-  // session's outcome (Needs help) and puts it on Today.
-  const [stuckOpen, setStuckOpen] = useState(false);
-  const [stuckPhone, setStuckPhone] = useState("");
-  const [stuckSent, setStuckSent] = useState(false);
+  // Tom, 8 Sep: the help bar under every page (book a visit / call us /
+  // request a call back) replaced the "Stuck? Ask us to call you" strip —
+  // the same "needs help" outcome, plus a real visit booking.
   const pageName = PAGE_NAME[pageKeys[page - 1] ?? "property"] ?? `Page ${page}`;
-  async function sendStuck() {
-    const phone = (stuckPhone || state.contact.phone || "").trim();
-    if (phone.replace(/[^0-9]/g, "").length < 8) return;
-    setStuckSent(true);
-    await fetch("/api/wizard/outcome", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ outcome: "help_requested", phone, note: "Stuck in the wizard, asked for a call", page, pageLabel: pageName }),
-      keepalive: true,
-    }).catch(() => {});
-  }
 
   // ---- client-side page gates (server re-validates everything) --------------
 
@@ -1125,23 +1117,16 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           {nav.note && <span className="wz-navnote">{nav.note}</span>}
         </nav>
       )}
-      {screen === "pages" && isCustomer && sessionWorthSaving && (
-        <div className="wz-stuck" data-testid="wz-stuck">
-          {stuckSent ? (
-            <span className="wz-stuck-done">Thanks — one of us will call you shortly. Keep going if you like, your answers are saved.</span>
-          ) : !stuckOpen ? (
-            <button type="button" className="wz-linkish" onClick={() => { setStuckOpen(true); setStuckPhone(state.contact.phone); }} data-testid="wz-stuck-open">
-              Stuck? Ask us to call you
-            </button>
-          ) : (
-            <form className="wz-stuck-form" onSubmit={(e) => { e.preventDefault(); void sendStuck(); }}>
-              <input type="tel" inputMode="tel" placeholder="Your phone number" aria-label="Your phone number" value={stuckPhone} onChange={(e) => setStuckPhone(e.target.value)} data-testid="wz-stuck-phone" />
-              <button type="submit" className="wz-btn wz-bp" data-testid="wz-stuck-send" disabled={stuckPhone.replace(/[^0-9]/g, "").length < 8}>Call me</button>
-              <button type="button" className="wz-linkish" onClick={() => setStuckOpen(false)}>Never mind</button>
-            </form>
-          )}
-        </div>
+      {screen === "pages" && isCustomer && (
+        <HelpBar
+          companyPhone={companyPhone}
+          page={page}
+          pageLabel={pageName}
+          defaults={{ name: state.contact.name, phone: state.contact.phone, email: state.contact.email || state.customer?.email || "" }}
+          address={state.address ? { street: state.address.street ?? "", suburb: state.address.suburb ?? "", postcode: state.address.postcode ?? "", state: state.address.state ?? "VIC" } : null}
+        />
       )}
+      {isCustomer && <ChatWidget ready={ready} />}
     </div>
   );
 }
