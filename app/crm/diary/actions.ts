@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireStaff } from "@/lib/supabase/guards";
-import { bookVisit, moveVisit, setVisitStatus, type BookResult } from "@/lib/visits/book";
+import { bookVisit, moveVisit, setVisitStatus, loadStaffAvailability, VISIT_COLUMNS, type BookResult } from "@/lib/visits/book";
+import { freeStarts, at as melbourneAt } from "@/lib/visits/availability";
+import { staffGcalStatus } from "@/lib/gcal/staff";
+import { melbourneLocalParts } from "./time";
+import type { VisitRow } from "@/lib/visits/types";
 
 export type VisitActionResult = { ok: true; message: string; visitId?: string } | { ok: false; message: string };
 
@@ -56,4 +60,63 @@ export async function moveVisitAction(visitId: string, startsAt: string, endsAt:
   const { data: v } = await supabase.from("visits").select("account_id").eq("id", visitId).maybeSingle();
   if (v?.account_id) revalidatePath(`/crm/customers/${v.account_id}`);
   return after(r, "Moved. The customer gets the updated invite.");
+}
+
+
+// ---- the estimator's day (Tom, 7 Sep item 6) -------------------------------
+
+export type DayPlan = {
+  works: boolean;
+  hours: [string, string];
+  visitMinutes: number;
+  /** What's already in the diary that day, in order. */
+  busy: Array<{ from: string; to: string; label: string }>;
+  /** Free blocks of at least one visit, as "HH:MM" starts you can tap. */
+  free: Array<{ from: string; to: string }>;
+  gcal: { connected: boolean; email: string | null; configured: boolean };
+};
+
+/**
+ * Everything the diary knows about one estimator on one date, so a time can
+ * be picked with the day in view instead of blind. Their Google Calendar
+ * stays private by design (the app-created-calendar scope, see lib/gcal):
+ * what they typed into Google directly is NOT here, and the panel says so.
+ */
+export async function dayPlanAction(staffId: string, date: string): Promise<DayPlan | { error: string }> {
+  if (!uuid.safeParse(staffId).success) return { error: "That isn't an estimator." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: "That isn't a date." };
+  const supabase = await createClient();
+  if (!(await requireStaff(supabase))) return { error: "Staff only." };
+  const staff = (await loadStaffAvailability(supabase)).find((s) => s.staffId === staffId);
+  if (!staff) return { error: "No such estimator." };
+  const dayStart = melbourneAt(date, staff.dayStart);
+  const dayEnd = melbourneAt(date, staff.dayEnd);
+  const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
+  const { data } = await supabase.from("visits").select(VISIT_COLUMNS)
+    .eq("staff_id", staffId).eq("status", "booked")
+    .gte("ends_at", melbourneAt(date, "00:00").toISOString()).lt("starts_at", melbourneAt(date, "23:59").toISOString())
+    .order("starts_at", { ascending: true });
+  const visits = (data ?? []) as VisitRow[];
+  const busy = visits.map((v) => ({
+    from: melbourneLocalParts(v.starts_at).time, to: melbourneLocalParts(v.ends_at).time,
+    label: [v.customer_name || "Visit", v.suburb].filter(Boolean).join(" · "),
+  }));
+  // Free = every 15-minute start with room for a whole visit; merged into ranges.
+  const starts = freeStarts(staffId, dayStart, dayEnd, staff.visitMinutes, visits.map((v) => ({ staffId, startsAt: v.starts_at, endsAt: v.ends_at })));
+  const free: Array<{ from: string; to: string }> = [];
+  for (const st of starts) {
+    const end = new Date(st.getTime() + staff.visitMinutes * 60_000);
+    const last = free[free.length - 1];
+    const stLocal = melbourneLocalParts(st.toISOString()).time;
+    const endLocal = melbourneLocalParts(end.toISOString()).time;
+    if (last && last.to >= stLocal) last.to = endLocal; else free.push({ from: stLocal, to: endLocal });
+  }
+  const g = await staffGcalStatus(staffId).catch(() => ({ kind: "unconfigured" as const }));
+  return {
+    works: staff.days.includes(dow),
+    hours: [staff.dayStart, staff.dayEnd],
+    visitMinutes: staff.visitMinutes,
+    busy, free,
+    gcal: { connected: g.kind === "connected" || g.kind === "error", email: "email" in g ? g.email : null, configured: g.kind !== "unconfigured" },
+  };
 }

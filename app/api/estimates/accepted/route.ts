@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase/service";
 import { notifyOfficeOfAcceptanceByToken } from "@/lib/estimate/acceptedNotify";
+import { recordConsent } from "@/lib/accounts/consent";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,5 +21,11 @@ export async function POST(request: Request) {
   const service = createServiceClient();
   if (!service) return NextResponse.json({ error: "service unavailable" }, { status: 503 });
   await notifyOfficeOfAcceptanceByToken(service, body.data.token);
+  // Tom, 7 Sep (item 5): the accept small print says we may send marketing,
+  // every message with an opt-out. Record the agreement on the account —
+  // only for an estimate that IS accepted, and never over an earlier "no".
+  const { data } = await service.from("estimates").select("id, account_id, status").eq("share_token", body.data.token).maybeSingle();
+  const est = data as { id: string; account_id: string | null; status: string } | null;
+  if (est?.status === "accepted" && est.account_id) await recordConsent(service, est.account_id, "marketing", "estimate_accepted", { estimateId: est.id });
   return NextResponse.json({ status: "ok" });
 }

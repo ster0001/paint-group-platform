@@ -311,3 +311,16 @@
 .acct .stagerail span.done { background: var(--emerald); }
 .acct .stagerail span.now { background: var(--cyan); }
 .acct .raillabels { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 14px; }
+
+/* Notifications & alerts (7 Sep) — one grid, a tick per type per channel. */
+.acct .notify-grid { display: grid; gap: 0; margin-top: 12px; border-top: 1px solid var(--line, rgba(255,255,255,.08)); }
+.acct .notify-head, .acct .notify-row { display: grid; grid-template-columns: 1fr 96px 96px; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line, rgba(255,255,255,.08)); }
+.acct .notify-head { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; opacity: .6; padding: 6px 0; }
+.acct .notify-row b { display: block; font-size: 14px; font-weight: 600; }
+.acct .notify-row small { display: block; font-size: 12px; opacity: .7; margin-top: 2px; line-height: 1.4; }
+.acct .notify-tick { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; cursor: pointer; }
+.acct .notify-tick input { width: 18px; height: 18px; accent-color: var(--cyan, #3BD8E9); }
+@media (max-width: 520px) {
+  .acct .notify-head, .acct .notify-row { grid-template-columns: 1fr 72px 72px; }
+  .acct .notify-tick span { display: none; }
+}

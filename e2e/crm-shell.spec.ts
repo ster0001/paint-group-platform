@@ -149,7 +149,11 @@ test.describe("CRM shell + work queue (2A)", () => {
     test.setTimeout(120_000);
     await loginAs(page, staff);
 
+    // Tom, 7 Sep (item 16): Customers opens on the board; the list is a toggle away.
     await page.goto("/crm/customers");
+    await expect(page.locator(".lanescroll")).toBeVisible();
+    await page.locator(".seg").getByRole("link", { name: "List" }).click();
+    await page.waitForURL(/view=list/);
     await expect(page.locator(".plist")).toBeVisible();
     await expect(page.locator(".note")).toContainText("Sorting isn’t a follow-up system");
 
@@ -157,8 +161,7 @@ test.describe("CRM shell + work queue (2A)", () => {
     await page.getByRole("link", { name: /^Leads/ }).click();
     await page.waitForURL(/f=leads/);
     await page.locator(".seg").getByRole("link", { name: "Board" }).click();
-    await page.waitForURL(/view=board/);
-    expect(page.url()).toContain("f=leads");
+    await page.waitForURL((u) => u.searchParams.get("f") === "leads" && u.searchParams.get("view") !== "list");
     await expect(page.locator(".lanescroll")).toBeVisible();
 
     // The old board route is only a redirect into this view.
@@ -166,7 +169,7 @@ test.describe("CRM shell + work queue (2A)", () => {
     await page.waitForURL(/\/crm\/customers\?view=board/);
 
     // Sort works in both directions, back on the list.
-    await page.goto("/crm/customers");
+    await page.goto("/crm/customers?view=list");
     await page.locator(".sortwrap summary").click();
     await page.getByRole("link", { name: /oldest first/i }).click();
     await page.waitForURL(/sort=quote-old/);

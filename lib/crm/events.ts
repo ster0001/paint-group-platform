@@ -124,6 +124,8 @@ export const CRM_EVENT_SCHEMAS = {
   offer_granted: z.object({ offerKey: z.string().max(60), expiresAt: z.string().datetime(), valueCents: money.optional() }),
   offer_applied: z.object({ offerKey: z.string().max(60), valueCents: money.optional() }),
   offer_expired: z.object({ offerKey: z.string().max(60) }),
+  /** Tom, 7 Sep: the customer agreed to be contacted — project (wizard) or marketing (accept small print). */
+  consent_recorded: z.object({ kind: z.enum(["project", "marketing"]), how: z.string().max(40) }),
 } as const;
 
 export type CrmEventType = keyof typeof CRM_EVENT_SCHEMAS;

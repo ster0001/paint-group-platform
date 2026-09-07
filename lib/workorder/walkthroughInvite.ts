@@ -162,6 +162,8 @@ async function run(service: SupabaseClient, workOrderId: string): Promise<void> 
         ? `The final walkthrough for ${address || "the job"} has been taken out of the calendar. We'll be in touch with a new time.`
         : renderTemplate(r.role === "customer" ? messaging.walkthroughInviteCustomerBody : messaging.walkthroughInvitePainterBody, vars);
       const sent = await sendEmail({
+        // Only the customer's copy answers to their alert settings; the painter's always goes.
+        ctx: r.role === "customer" ? { estimateId: wo.estimate_id, workOrderId: wo.id, kind: "walkthrough_invite" } : undefined,
         to: r.email,
         subject: summary,
         replyTo: company.email || undefined,

@@ -155,6 +155,8 @@ const RENDER: Record<CrmEventType, { label: string; kind: TimelineRow["kind"]; d
   permission_set: { label: "Contact permission changed", kind: "activity",
     detail: (p) => join(str(p.channel) === "sms" ? "Texts" : str(p.channel) === "email" ? "Marketing email" : "Phone calls", str(p.value), str(p.how) && `via ${str(p.how).replace(/_/g, " ")}`) },
   tags_set: { label: "Tags updated", kind: "activity", detail: (p) => Array.isArray(p.tags) ? (p.tags as string[]).join(", ") || "none" : "" },
+  consent_recorded: { label: "Customer agreed to be contacted", kind: "customer",
+    detail: (p) => join(str(p.kind) === "marketing" ? "Marketing messages (every one carries an opt-out)" : "Messages about their project", str(p.how) && `— ${str(p.how).replace(/_/g, " ")}`) },
   message_in: { label: "They wrote to us", kind: "customer",
     detail: (p) => join(str(p.channel) && `by ${str(p.channel)}`, str(p.subject), str(p.excerpt)) },
   message_out: { label: "We sent", kind: "activity",

@@ -76,6 +76,13 @@ export default async function TodayPage({ searchParams }: {
   const shownGroups = grouped.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const restOf = new Map(shownGroups.map((g) => [g.lead.key, g.rest]));
   const shown = shownGroups.map((g) => g.lead);
+  // Tom, 7 Sep (item 15): the number on the card, tap to call, log in place.
+  const accountIds = [...new Set(shown.map((i) => i.accountId).filter((x): x is string => Boolean(x)))];
+  const { data: phoneRows } = accountIds.length
+    ? await supabase.from("accounts").select("id, phone").in("id", accountIds.slice(0, 200))
+    : { data: [] as Array<{ id: string; phone: string | null }> };
+  const phoneOf = new Map(((phoneRows ?? []) as Array<{ id: string; phone: string | null }>).map((r) => [r.id, r.phone]));
+  const telHref = (phone: string) => `tel:${phone.replace(/[^0-9+]/g, "")}`;
   const needsYou = scoped.filter((i) => i.bucket !== "waiting").length;
 
   const qs = (extra: Record<string, string | undefined>) => {
@@ -92,7 +99,7 @@ export default async function TodayPage({ searchParams }: {
   return (
     <>
       <h2>{needsYou === 0 ? "Nothing needs you" : `${needsYou} thing${needsYou === 1 ? "" : "s"} need${needsYou === 1 ? "s" : ""} you`}</h2>
-      <p className="sub">Messages, callbacks, follow-ups and approvals — one queue, whatever they came from.</p>
+      <p className="sub">Messages, callbacks, follow-ups and approvals — one queue, whatever they came from. Each card says what happened and what to do; the blue button does it.</p>
 
       <div className="chips" style={{ margin: "0 0 8px" }} data-testid="who-chips">
         <Link className={`chip ${who === "mine" ? "on" : ""}`} href={qs({ who: undefined, page: undefined })} data-testid="who-mine">Mine</Link>
@@ -150,7 +157,10 @@ export default async function TodayPage({ searchParams }: {
                       </span>
                     ))}
                     <span className="qact">
-                      <Link href={item.action.href} className="qgo">{item.action.label} →</Link>
+                      <Link href={item.action.href} className="qgo qprimary" data-testid="item-action">{item.action.label} →</Link>
+                      {item.accountId && phoneOf.get(item.accountId) && (
+                        <a href={telHref(phoneOf.get(item.accountId)!)} className="qtel mono" data-testid="item-phone">☎ {phoneOf.get(item.accountId)}</a>
+                      )}
                       {item.accountId && <LogSheet accountId={item.accountId} />}
                       <DismissControl itemKey={item.key} accountId={item.accountId} />
                     </span>

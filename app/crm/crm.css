@@ -204,8 +204,9 @@
 .crm .slab i{flex:1;height:1px;background:var(--line)}
 .crm .slab.bad{color:var(--clay)}
 .crm .slabn{opacity:.7}
-.crm .qitem{display:flex;gap:11px;align-items:flex-start;background:var(--graphite);border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:8px;width:100%;position:relative;overflow:hidden;text-decoration:none;color:inherit}
-.crm .qitem::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--line)}
+/* overflow stays VISIBLE: the Log popover hangs out of the card (Tom, 7 Sep item 14) */
+.crm .qitem{display:flex;gap:11px;align-items:flex-start;background:var(--graphite);border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:8px;width:100%;position:relative;text-decoration:none;color:inherit}
+.crm .qitem::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;border-radius:12px 0 0 12px;background:var(--line)}
 .crm .qitem.od::before{background:var(--clay)}
 .crm .qitem.due::before{background:var(--amber)}
 .crm .qitem.ok::before{background:var(--cyan)}
@@ -308,7 +309,9 @@
 .crm .datefield{flex:none;min-width:150px;padding:6px 10px;font-size:12px;color-scheme:dark}
 .crm .logwrap{position:relative;display:inline-block}
 .crm .logbtn{background:none;border:0;cursor:pointer;font:inherit;padding:0}
-.crm .logpop{position:absolute;z-index:30;top:calc(100% + 8px);left:0;width:min(420px,92vw);background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:12px;box-shadow:0 12px 32px var(--shadow)}
+.crm .logpop{position:absolute;z-index:30;top:calc(100% + 8px);left:0;width:min(420px,92vw);}
+.crm .logpop.flip{left:auto;right:0}
+.crm .logpop{background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:12px;box-shadow:0 12px 32px var(--shadow)}
 .crm .rlist{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:16px}
 .crm .rrow{display:grid;grid-template-columns:1fr auto;gap:8px 14px;align-items:center;padding:10px 13px;border-top:1px solid var(--line);font-size:12.5px;color:inherit;text-decoration:none}
 .crm .rrow:first-child{border-top:0}
@@ -452,3 +455,49 @@
 .crm .themebtn:hover{border-color:var(--cyan);color:var(--cyan)}
 .crm .themebtn+.who{margin-left:0}
 .crm .qalso{display:flex;align-items:center;gap:6px;margin-top:4px;padding-left:2px;border-left:2px solid var(--line)}
+
+/* ---- Tom's 7 Sep batch --------------------------------------------------- */
+/* Items 2 + 15: the action is a button you can see; the phone is on the card. */
+.crm .qact .qgo.qprimary{background:var(--cyan);color:var(--on-cyan);border-radius:9px;padding:7px 12px;font-size:12px;font-weight:700;display:inline-block}
+.crm .qact .qgo.qprimary:hover{background:var(--paint);color:var(--on-cyan)}
+.crm .qact .logbtn{border:1px solid var(--line);border-radius:9px;padding:6px 11px;font-size:12px;color:var(--text);background:var(--raised)}
+.crm .qact .logbtn:hover,.crm .qact .logbtn[aria-expanded="true"]{border-color:var(--cyan);color:var(--cyan)}
+.crm .qtel{font-size:12px;color:var(--text);border:1px solid var(--line);border-radius:9px;padding:6px 10px;background:var(--raised);white-space:nowrap}
+.crm .qtel:hover{border-color:var(--cyan);color:var(--cyan)}
+.crm .qalso .qgo{border:1px solid var(--line);border-radius:7px;padding:3px 8px}
+
+/* Item 7 (clarified): the status block lives TOP RIGHT beside the name; stacks on a phone. */
+.crm .rtop{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,400px);gap:14px;align-items:start;margin-bottom:14px}
+.crm .rtop .head{margin-bottom:0}
+@media (max-width:760px){.crm .rtop{grid-template-columns:1fr}}
+.crm .stcard{background:var(--raised);border:1px solid var(--line);border-left:4px solid var(--cyan);border-radius:var(--r);padding:14px 16px;margin:0;display:grid;gap:6px}
+.crm .stcard.hold{border-left-color:var(--amber)} .crm .stcard.bad{border-left-color:var(--clay)}
+.crm .stcard .stlabel{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.crm .stcard .ststage{font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.15}
+.crm .stcard .stwhy{font-size:14px;color:var(--text);line-height:1.5}
+.crm .stcard .stflags{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+.crm .stcard .stflag{font-size:11.5px;padding:4px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.crm .stcard .stflag.hot{border-color:var(--clay);color:var(--clay)} .crm .stcard .stflag.warm{border-color:var(--amber);color:var(--amber)}
+.crm .stcard .stflag.good{border-color:var(--good-line);color:var(--good)}
+.crm .stcard .stmeta{font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 14px}
+
+/* Item 8: everything of theirs, one tap away. */
+.crm .jumpstrip{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 16px}
+.crm .jumpstrip a{font-size:12px;padding:6px 11px;border-radius:999px;border:1px solid var(--line);background:var(--graphite);color:var(--text)}
+.crm .jumpstrip a b{color:var(--cyan);margin-left:4px}
+.crm .jumpstrip a:hover{border-color:var(--cyan)}
+
+/* Item 13: money that's late is red, unmistakably. */
+.crm .pill.alert{background:var(--clay);border-color:var(--clay);color:#fff;font-weight:700}
+.crm .rrow.late{background:rgba(179,87,74,.08)}
+
+/* Item 6: the estimator's day, while you pick a time. */
+.crm .dayplan{margin-top:10px;border:1px dashed var(--line);border-radius:12px;padding:10px 12px;display:grid;gap:8px}
+.crm .dayplan .dphead{font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center}
+.crm .dayplan .dphead b{color:var(--text)}
+.crm .dayplan .dpblocks{display:flex;flex-wrap:wrap;gap:6px}
+.crm .dayplan .dpfree{font-size:12px;padding:5px 10px;border-radius:999px;border:1px solid var(--good-line);color:var(--good);background:var(--graphite)}
+.crm .dayplan .dpfree:hover,.crm .dayplan .dpfree.on{border-color:var(--cyan);color:var(--cyan)}
+.crm .dayplan .dpbusy{font-size:12px;padding:5px 10px;border-radius:999px;border:1px solid var(--bad-line);color:var(--bad-text);background:var(--graphite)}
+.crm .dayplan .dpnote{font-size:11.5px;color:var(--muted);line-height:1.45}
+.crm .dayplan .dpnote a{color:var(--cyan)}

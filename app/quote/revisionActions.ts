@@ -342,6 +342,7 @@ export async function sendVariationForSignatureAction(raw: unknown): Promise<Sen
       result.email = { status: "not_configured" };
     } else {
       const sent = await sendEmail({
+        ctx: { estimateId: variation.work_orders?.estimate_id ?? null, kind: "variation" },
         to: contact.email,
         subject: `A change to your job needs your signature — ${company.name ?? "Paint Group"}`,
         replyTo: company.email || undefined,
@@ -371,6 +372,7 @@ export async function sendVariationForSignatureAction(raw: unknown): Promise<Sen
       result.sms = { status: "error", message: "That mobile number doesn't look Australian." };
     } else {
       const sent = await sendSms({
+        ctx: { estimateId: variation.work_orders?.estimate_id ?? null, kind: "variation" },
         to,
         body: `${company.name ?? "Paint Group"}: ${what} on your job needs your signature. Review & sign: ${link}`,
       });

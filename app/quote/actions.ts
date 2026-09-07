@@ -142,6 +142,7 @@ async function deliver(
       result = { status: "not_configured" };
     } else {
       result = await sendEmail({
+        ctx: { estimateId: v.estimateId, kind: "estimate" },
         to: v.email.to,
         subject: v.email.subject,
         replyTo: company.email || undefined,
@@ -170,7 +171,7 @@ async function deliver(
     } else if (!to) {
       result = { status: "error", message: "That mobile number doesn't look like an Australian number." };
     } else {
-      result = await sendSms({ to, body: renderTemplate(messaging.smsTemplate, vars) });
+      result = await sendSms({ to, body: renderTemplate(messaging.smsTemplate, vars), ctx: { estimateId: v.estimateId, kind: "estimate" } });
     }
     outcome.sms = { status: result.status, ...("message" in result ? { message: result.message } : {}) };
     await logDelivery(supabase, v.estimateId, "sms", v.sms.to, result);
@@ -245,6 +246,7 @@ export async function replyToEstimateChatAction(raw: unknown): Promise<ChatReply
       let result: DeliveryResult;
       if (!emailConfigured()) result = { status: "not_configured" };
       else result = await sendEmail({
+        ctx: { estimateId, kind: "chat_reply" },
         to: contact.email,
         subject: renderTemplate(chatMessaging.chatReplySubject, chatVars),
         replyTo: company.email || undefined,
@@ -265,7 +267,7 @@ export async function replyToEstimateChatAction(raw: unknown): Promise<ChatReply
       const to = normalisePhoneAU(contact.phone);
       if (!smsConfigured()) result = { status: "not_configured" };
       else if (!to) result = { status: "error", message: "That mobile number doesn't look Australian." };
-      else result = await sendSms({ to, body: renderTemplate(chatMessaging.chatReplySms, chatVars) });
+      else result = await sendSms({ to, body: renderTemplate(chatMessaging.chatReplySms, chatVars), ctx: { estimateId, kind: "chat_reply" } });
       outcome.sms = { status: result.status, ...("message" in result ? { message: result.message } : {}) };
       await logDelivery(supabase, estimateId, "sms", contact.phone, result);
     }

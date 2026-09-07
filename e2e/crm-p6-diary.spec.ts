@@ -100,7 +100,7 @@ test.describe("CRM v2 P6 — visits and the Diary", () => {
     await page.getByTestId("visit-time").fill("10:00");
     await page.getByTestId("visit-save").click();
     await expect(page.getByTestId("visit-said")).toContainText("Booked");
-    await expect(page.getByTestId("status-line")).toContainText("Visit booked");
+    await expect(page.getByTestId("status-card")).toContainText("Visit booked");
 
     const { data: v } = await db!.from("visits").select("id, status, staff_id, customer_name, address, starts_at").eq("account_id", accountId).single();
     expect(v).toMatchObject({ status: "booked", staff_id: staffId, customer_name: NAME });
@@ -137,7 +137,7 @@ test.describe("CRM v2 P6 — visits and the Diary", () => {
     await page.goto("/crm/today?f=followups");
     await expect(page.getByText(`${NAME} — visit was a no-show, rebook it`)).toBeVisible();
     await page.goto(`/crm/customers/${accountId}`);
-    await expect(page.getByTestId("status-line")).toContainText("Estimate sent");
+    await expect(page.getByTestId("status-card")).toContainText("Estimate sent");
   });
 
   test("book again moves it; done completes it into the 'visit done' lane; cancel writes its event", async ({ page }) => {
@@ -162,7 +162,7 @@ test.describe("CRM v2 P6 — visits and the Diary", () => {
     const { data: ev } = await db!.from("crm_events").select("type").eq("account_id", accountId).in("type", ["visit_completed", "visit_no_show", "visit_booked"]);
     expect(ev?.map((e) => e.type).sort()).toEqual(["visit_booked", "visit_booked", "visit_completed", "visit_no_show"]);
     await page.goto(`/crm/customers/${accountId}`);
-    await expect(page.getByTestId("status-line")).toContainText(/Visited today|silent/);
+    await expect(page.getByTestId("status-card")).toContainText(/Visited today|silent/);
 
     // A second visit, then cancelled.
     const { data: second, error } = await db!.rpc("visit_book", {

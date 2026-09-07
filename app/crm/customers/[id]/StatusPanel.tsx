@@ -41,17 +41,18 @@ export default function StatusPanel({ accountId, state, stateUntil, stateNote, s
   const [busy, start] = useTransition();
   const router = useRouter();
 
-  const run = (work: () => Promise<CrmResult>) => start(async () => {
+  const run = (work: () => Promise<CrmResult>, then?: () => void) => start(async () => {
     const r = await work();
     setSaid(r);
-    if (r.ok) { setPicking(null); setNote(""); router.refresh(); }
+    if (r.ok) { setPicking(null); setNote(""); if (then) then(); else router.refresh(); }
   });
 
   const pick = (s: RelationshipState) => {
     if (s === state && s !== "delayed" && s !== "lost") return;
     if (s === "delayed" || s === "lost") { setPicking(s); return; }
     if (s === "archived" && !window.confirm("Archive this record? It disappears from every list except search.")) return;
-    run(() => setRelationshipState(accountId, { state: s, note }));
+    // Tom, 7 Sep (item 10): archiving ends here — back to the customers page.
+    run(() => setRelationshipState(accountId, { state: s, note }), s === "archived" ? () => router.push("/crm/customers?archived=1") : undefined);
   };
 
   const toggleTag = (key: string) => {

@@ -109,11 +109,11 @@ test.describe("CRM v2 P5 — campaigns with real rules", () => {
     await page.getByTestId("add-rule-1").click();
     await page.getByRole("button", { name: "+ Tags", exact: true }).click();
     await page.getByTestId("group-1").getByRole("button", { name: "VIP" }).click();
-    // A NOT: not tagged "Difficult access" in group 1.
+    // A NOT: not tagged "Heritage" in group 1 (7 Sep: Difficult access left the tag list).
     await page.getByTestId("add-rule-0").click();
     await page.getByRole("button", { name: "+ Tags", exact: true }).click();
     const group1 = page.getByTestId("group-0");
-    await group1.getByRole("button", { name: "Difficult access" }).click();
+    await group1.getByRole("button", { name: "Heritage" }).click();
     await group1.getByRole("button", { name: "is", exact: true }).last().click();
     await expect(group1.getByRole("button", { name: "not", exact: true })).toBeVisible();
 

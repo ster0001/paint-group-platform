@@ -643,9 +643,11 @@ export type HandoffQueueRow = {
   agent_conversations: { account_id: string | null; estimate_id: string | null; accounts?: { name: string | null; email: string } | null } | null;
 };
 
-/** One card per open handoff: Claim. Past the SLA it escalates — overdue,
+/** One card per open handoff. Past the SLA it escalates — overdue,
  *  promised-to-customer priority. A claimed chat stays in the queue (the
- *  person is live) until it is resolved. */
+ *  person is live) until it is resolved.
+ *  Tom, 7 Sep (item 1): "X is waiting for a person — Claim / Log" read as a
+ *  riddle. The card now says who asked, where they are, and what to do. */
 export function buildHandoffItems(rows: HandoffQueueRow[], now: Date, slaSeconds = 180): WorkItem[] {
   return rows.filter((r) => ["requested", "claimed", "active"].includes(r.status)).map((r) => {
     const acct = r.agent_conversations?.accounts ?? null;
@@ -657,14 +659,16 @@ export function buildHandoffItems(rows: HandoffQueueRow[], now: Date, slaSeconds
       kind: "handoff_requested",
       accountId: r.agent_conversations?.account_id ?? null,
       subjectRef: { type: "thread", id: r.conversation_id },
-      title: live ? `Live chat with ${who}` : `${who} is waiting for a person`,
-      detail: `${r.reason.replace(/_/g, " ")}${r.escalated_at ? " — past the SLA" : ""}`,
+      title: live ? `Live chat with ${who}` : `${who} wants to talk to a person`,
+      detail: live
+        ? "You're in this chat — keep answering until it's sorted."
+        : `They asked in the website chat (${r.reason.replace(/_/g, " ")}) and are waiting right now — open the chat and answer them.${r.escalated_at ? " Past the 3-minute promise." : ""}`,
       since: r.requested_at,
       dueAt: live ? null : dueAt,
       // A live-chat SLA is minutes, not days: past due IS overdue, today.
       bucket: live ? "today" : new Date(dueAt).getTime() <= now.getTime() ? "overdue" : "today",
       priority: priorityOf({ kind: "handoff_requested", promisedToCustomer: true, overdueDays: r.escalated_at ? 1 : overdueDays(dueAt, now), valueCents: null }),
-      action: { label: live ? "Open chat" : "Claim", href: `/crm/chat/${r.conversation_id}` },
+      action: { label: live ? "Open chat" : "Answer the chat", href: `/crm/chat/${r.conversation_id}` },
     };
   });
 }

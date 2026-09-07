@@ -35,7 +35,8 @@ export default function BoardView({ board, moreHref }: { board: BoardData; moreH
               <i style={{ width: `${lane.count === 0 ? 0 : Math.min(100, lane.count * 18)}%` }} />
             </div>
 
-            {lane.cards.length === 0 && <p className="laneempty">Nobody here</p>}
+            {lane.failed && <p className="laneempty" data-testid="lane-failed">Didn&rsquo;t load in time — refresh the page.</p>}
+            {!lane.failed && lane.cards.length === 0 && <p className="laneempty">Nobody here</p>}
 
             {lane.cards.map((c) => (
               <Link

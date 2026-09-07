@@ -155,7 +155,7 @@ export async function sendInvoiceEmail(
     console.log(`[invoice-send:log-driver] to=${to} subject="Invoice ${inv.number}" link=${link}`);
     return { status: "not_configured", to };
   }
-  const result = await sendEmail({ to, subject: `Invoice ${inv.number} from Paint Group`, html });
+  const result = await sendEmail({ to, subject: `Invoice ${inv.number} from Paint Group`, html, ctx: { invoiceId: inv.id, kind: "invoice" } });
   if (result.status === "sent") return { status: "sent", to };
   if (result.status === "not_configured") return { status: "not_configured", to };
   reportError(new Error(result.message), { where: "sendInvoiceEmail", extra: { invoiceId } });
@@ -198,7 +198,7 @@ export async function sendInvoiceSms(
     console.log(`[invoice-sms:log-driver] to=${phone} body="${body.slice(0, 120)}"`);
     return { status: "not_configured", to: phone };
   }
-  const result = await sendSms({ to: phone, body });
+  const result = await sendSms({ to: phone, body, ctx: { invoiceId: inv.id, kind: "invoice" } });
   if (result.status === "sent") return { status: "sent", to: phone };
   if (result.status === "not_configured") return { status: "not_configured", to: phone };
   reportError(new Error(result.message), { where: "sendInvoiceSms", extra: { invoiceId } });
@@ -279,7 +279,7 @@ export async function sendReceiptEmail(
     .eq("id", paymentId)
     .maybeSingle();
   const pay = data as {
-    id: string; amount_cents: number; receipt_number: string | null;
+    id: string; amount_cents: number; receipt_number: string | null; invoice_id: string;
     invoices: {
       number: string | null; token: string;
       estimates: { accepted_name: string | null; contact_email: string | null } | null;
@@ -312,7 +312,7 @@ export async function sendReceiptEmail(
     console.log(`[invoice-send:log-driver] to=${to} subject="Receipt ${pay.receipt_number}" link=${link}`);
     return { status: "not_configured", to };
   }
-  const result = await sendEmail({ to, subject: renderTemplate(messaging.receiptSubject, pvars), html });
+  const result = await sendEmail({ to, subject: renderTemplate(messaging.receiptSubject, pvars), html, ctx: { invoiceId: pay.invoice_id, kind: "receipt" } });
   if (result.status === "sent") return { status: "sent", to };
   if (result.status === "not_configured") return { status: "not_configured", to };
   reportError(new Error(result.message), { where: "sendReceiptEmail", extra: { paymentId } });
