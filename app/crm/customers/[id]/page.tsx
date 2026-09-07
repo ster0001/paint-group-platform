@@ -3,11 +3,14 @@ import { createClient } from "@/lib/supabase/server";
 import { buildTimeline } from "@/lib/crm/timeline";
 import { LANES } from "@/lib/crm/stage";
 import { refreshAccountFacts } from "@/lib/crm/facts";
+import { reportError } from "@/lib/monitoring/report";
 import CustomerPanel from "../../CustomerPanel";
 import RecordDetails, { type StaffOption } from "./RecordDetails";
 import Contacts, { type ContactRow } from "./Contacts";
 import DuplicateBanner, { type DuplicateHit } from "./DuplicateBanner";
 import Messages, { type MessageRow } from "./Messages";
+import StatusPanel, { type TagOption } from "./StatusPanel";
+import { LOST_REASONS, STATE_LABEL, delayEnded, type PermitChannel, type PermitValue, type RelationshipState } from "@/lib/crm/states";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +32,8 @@ type AccountRow = {
   id: string; name: string | null; email: string | null; phone: string | null; account_type: string;
   temperature: string | null; snoozed_until: string | null; followup_due_at: string | null; followup_note: string | null;
   owner_id: string | null;
+  relationship_state: RelationshipState; state_until: string | null; state_note: string | null; state_reason: string | null; lost_reason: string | null;
+  permit_email: PermitValue; permit_sms: PermitValue; permit_phone: PermitValue; permit_meta: Record<string, { how?: string; at?: string }> | null; tags: string[] | null;
 };
 type FactsRow = {
   stage: string; because: string; opened_count: number; last_opened_at: string | null; quote_at: string | null;
@@ -59,7 +64,7 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
   const supabase = await createClient();
 
   const { data: account } = await supabase.from("accounts")
-    .select("id, name, email, phone, account_type, temperature, snoozed_until, followup_due_at, followup_note, owner_id")
+    .select("id, name, email, phone, account_type, temperature, snoozed_until, followup_due_at, followup_note, owner_id, relationship_state, state_until, state_note, state_reason, lost_reason, permit_email, permit_sms, permit_phone, permit_meta, tags")
     .eq("id", id).maybeSingle();
   if (!account) {
     return (
@@ -71,7 +76,7 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
   }
   const a = account as AccountRow;
 
-  const [{ data: events }, { data: estimates }, { data: props }, { data: contacts }, factsRead, { data: staffRows }, dupRead, { data: messages }] = await Promise.all([
+  const [{ data: events }, { data: estimates }, { data: props }, { data: contacts }, factsRead, { data: staffRows }, dupRead, { data: messages }, { data: tagRows }] = await Promise.all([
     supabase.from("crm_events")
       .select("id, type, payload, occurred_at, source")
       .eq("account_id", id).order("occurred_at", { ascending: false }).limit(200),
@@ -85,13 +90,16 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
     supabase.rpc("crm_duplicate_candidates", { p_limit: 5, p_account: id }),
     supabase.from("messages").select("id, channel, direction, subject, body, provider, status, status_at, read_at, occurred_at, to_address, from_address, meta")
       .eq("account_id", id).order("occurred_at", { ascending: false }).limit(100),
+    supabase.from("crm_tags").select("key, label").order("sort_order").order("label"),
   ]);
 
   // The card is a cache; a stale one is recomputed before it is shown.
   let facts = (factsRead.data ?? null) as FactsRow | null;
   if (!facts || facts.stale) {
-    await refreshAccountFacts(supabase, [id]).catch(() => null);
-    const again = await supabase.from("crm_account_facts").select("stage, because, opened_count, last_opened_at, quote_at, last_contact_at, last_contact_channel, won_cents, open_value_cents, estimates_count, stale").eq("account_id", id).maybeSingle();
+    await refreshAccountFacts(supabase, [id]).catch((e) => reportError(e, { where: "record.refreshFacts", bestEffort: true, extra: { id } }));
+    // A DIFFERENT select shape from the first read — Next memoises a
+    // byte-identical fetch within one request and would hand back the stale row.
+    const again = await supabase.from("crm_account_facts").select("stage, because, opened_count, last_opened_at, quote_at, last_contact_at, last_contact_channel, won_cents, open_value_cents, estimates_count, stale, refreshed_at").eq("account_id", id).maybeSingle();
     facts = (again.data ?? facts) as FactsRow | null;
   }
 
@@ -138,6 +146,19 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
         <p className="statusline" data-testid="status-line">
           <b>{laneLabel}</b>
           {facts.because && <span>{facts.because}</span>}
+          {a.relationship_state !== "active" && (
+            <span className={a.relationship_state === "delayed" ? "warm" : "hot"}>
+              {a.relationship_state === "delayed"
+                ? (delayEnded(a.relationship_state, a.state_until, new Date()) ? "Delay ended" : `Delayed to ${shortDate(a.state_until)}`)
+                : a.relationship_state === "lost"
+                  ? `Lost${a.lost_reason ? ` — ${LOST_REASONS.find((r) => r.key === a.lost_reason)?.label ?? a.lost_reason}` : ""}`
+                  : STATE_LABEL[a.relationship_state]}
+            </span>
+          )}
+          {a.permit_email === "declined" && <span className="hot">No marketing email</span>}
+          {a.permit_sms === "declined" && <span className="hot">No texts</span>}
+          {a.permit_phone === "declined" && <span className="hot">No calls</span>}
+          {(a.tags ?? []).length > 0 && <span>{(a.tags ?? []).map((t) => ((tagRows ?? []) as TagOption[]).find((o) => o.key === t)?.label ?? t).join(", ")}</span>}
           {facts.opened_count > 0 && <span>opened {facts.opened_count}×</span>}
           {a.temperature && <span className={a.temperature}>{a.temperature[0].toUpperCase() + a.temperature.slice(1)}</span>}
           {snoozeLive && <span>Snoozed to {shortDate(a.snoozed_until)}</span>}
@@ -170,6 +191,19 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
       </div>
 
       <CustomerPanel accountId={a.id} temperature={a.temperature} followupDueAt={a.followup_due_at} followupNote={a.followup_note} snoozedUntil={a.snoozed_until} />
+
+      <StatusPanel
+        accountId={a.id}
+        state={a.relationship_state}
+        stateUntil={a.state_until}
+        stateNote={a.state_note}
+        stateReason={a.state_reason}
+        lostReason={a.lost_reason}
+        permits={{ email: a.permit_email, sms: a.permit_sms, phone: a.permit_phone } as Record<PermitChannel, PermitValue>}
+        permitMeta={a.permit_meta ?? {}}
+        tags={a.tags ?? []}
+        tagOptions={(tagRows ?? []) as TagOption[]}
+      />
 
       <p className="plabel" id="messages">Messages</p>
       <Messages accountId={a.id} messages={(messages ?? []) as MessageRow[]} hasEmail={Boolean(a.email)} hasPhone={Boolean(a.phone)} />

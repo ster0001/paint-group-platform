@@ -59,7 +59,9 @@ export async function logActivity(accountId: string, action: LoggableAction, tex
   if (error) return { ok: false, message: error.message };
 
   await refreshFor(supabase, accountId);
-  revalidatePath("/crm", "layout");
+  if (accountId) revalidatePath(`/crm/customers/${accountId}`);
+  revalidatePath("/crm/today");
+  revalidatePath("/crm/customers");
   return { ok: true, message: WORDING[action] };
 }
 
@@ -69,7 +71,9 @@ export async function setTemperature(accountId: string, temperature: "hot" | "wa
   const { error } = await supabase.rpc("crm_set_temperature", { p_account_id: accountId, p_temperature: temperature });
   if (error) return { ok: false, message: error.message };
   await refreshFor(supabase, accountId);
-  revalidatePath("/crm", "layout");
+  if (accountId) revalidatePath(`/crm/customers/${accountId}`);
+  revalidatePath("/crm/today");
+  revalidatePath("/crm/customers");
   return { ok: true, message: `Marked ${temperature}.` };
 }
 
@@ -83,7 +87,9 @@ export async function snooze(accountId: string, days: number, reason: string): P
   const { error } = await supabase.rpc("crm_snooze", { p_account_id: accountId, p_until: until, p_reason: reason.trim() || null });
   if (error) return { ok: false, message: error.message };
   await refreshFor(supabase, accountId);
-  revalidatePath("/crm", "layout");
+  if (accountId) revalidatePath(`/crm/customers/${accountId}`);
+  revalidatePath("/crm/today");
+  revalidatePath("/crm/customers");
   return { ok: true, message: `Out of the way for ${days} day${days === 1 ? "" : "s"}.` };
 }
 
@@ -118,7 +124,9 @@ export async function dismissWorkItem(
     };
   }
   await refreshFor(supabase, accountId);
-  revalidatePath("/crm", "layout");
+  if (accountId) revalidatePath(`/crm/customers/${accountId}`);
+  revalidatePath("/crm/today");
+  revalidatePath("/crm/customers");
   return { ok: true, message: days == null ? "Gone — and it's on the record why." : `Back in ${days} day${days === 1 ? "" : "s"}.` };
 }
 
@@ -131,6 +139,8 @@ export async function setFollowup(accountId: string, days: number, note: string)
   const { error } = await supabase.rpc("crm_set_followup", { p_account_id: accountId, p_due_at: due, p_note: note.trim() || null });
   if (error) return { ok: false, message: error.message };
   await refreshFor(supabase, accountId);
-  revalidatePath("/crm", "layout");
+  if (accountId) revalidatePath(`/crm/customers/${accountId}`);
+  revalidatePath("/crm/today");
+  revalidatePath("/crm/customers");
   return { ok: true, message: days === 0 ? "Reminder set for today." : `Reminder set for ${days} day${days === 1 ? "" : "s"} away.` };
 }

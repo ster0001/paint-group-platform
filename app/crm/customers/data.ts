@@ -4,6 +4,8 @@ import { LANES, OPEN_LANES, type LaneKey } from "@/lib/crm/stage";
 import { cardFor } from "@/lib/crm/board";
 import { loadSessionCards } from "@/lib/crm/factsInput";
 import { maybeRefreshFacts, refreshAccountFacts } from "@/lib/crm/facts";
+import { loadCrmThresholds, type CrmThresholds } from "@/lib/crm/thresholds";
+import { reportError } from "@/lib/monitoring/report";
 
 /**
  * The Customers tab's reads (CRM v2 P1). Both shapes — list and board — read
@@ -62,6 +64,8 @@ const lanesOf = (g: GroupKey): LaneKey[] | null =>
 
 /** A facts row, as the list and board read it. */
 export type FactsCard = BoardCard & {
+  relationshipState: string;
+  tags: string[];
   quoteAt: string | null;
   lastActivityAt: string | null;
   /** True for a wizard session with no account (no facts row). */
@@ -69,13 +73,14 @@ export type FactsCard = BoardCard & {
   stale: boolean;
 };
 
-const FACT_COLUMNS = "account_id, name, meta, because, chips, flags, needs_you, wants_call, call_why, value_cents, source, note, phone, temperature, stage, stage_since, quote_at, last_activity_at, stale";
+const FACT_COLUMNS = "account_id, name, meta, because, chips, flags, needs_you, wants_call, call_why, value_cents, source, note, phone, temperature, stage, stage_since, quote_at, last_activity_at, stale, relationship_state, tags";
 
 type FactsRowRead = {
   account_id: string; name: string | null; meta: string; because: string; chips: string[]; flags: BoardCard["flags"];
   needs_you: boolean; wants_call: boolean; call_why: string[]; value_cents: number | null; source: string | null;
   note: string | null; phone: string | null; temperature: string | null; stage: string; stage_since: string | null;
   quote_at: string | null; last_activity_at: string | null; stale: boolean;
+  relationship_state?: string; tags?: string[];
 };
 
 const EMPTY_FLAGS: BoardCard["flags"] = { chaseDue: false, followupOverdue: false, goingCold: false, snoozed: false, secondAttemptDue: false };
@@ -101,6 +106,8 @@ function toCard(r: FactsRowRead): FactsCard {
     chips: r.chips ?? [],
     quoteAt: r.quote_at,
     lastActivityAt: r.last_activity_at,
+    relationshipState: r.relationship_state ?? "active",
+    tags: r.tags ?? [],
     session: false,
     stale: r.stale,
   };
@@ -108,7 +115,7 @@ function toCard(r: FactsRowRead): FactsCard {
 
 function sessionToCard(s: Awaited<ReturnType<typeof loadSessionCards>>[number], now: Date): FactsCard {
   const c = cardFor(s, now);
-  return { ...c, quoteAt: null, lastActivityAt: s.draft?.lastSeenAt ?? null, session: true, stale: false };
+  return { ...c, quoteAt: null, lastActivityAt: s.draft?.lastSeenAt ?? null, relationshipState: "active", tags: [], session: true, stale: false };
 }
 
 const ORDER: Record<SortKey, { column: string; ascending: boolean; nullsFirst: boolean }> = {
@@ -120,7 +127,34 @@ const ORDER: Record<SortKey, { column: string; ascending: boolean; nullsFirst: b
   untouched: { column: "last_activity_at", ascending: true, nullsFirst: true },
 };
 
-export type ListQuery = { sort: SortKey; filter: GroupKey; q: string; page: number; pageSize: number };
+/** P4: the extra dimensions a list can be narrowed by. Every one rides the URL. */
+export type ListFilters = {
+  /** Relationship state, or "delay_ended"; "" = every non-archived record. */
+  state: string;
+  tag: string;
+  owner: string;
+  temp: string;
+  /** Derived lifecycle bucket: after_care · review · repaint_due. */
+  life: string;
+};
+export const EMPTY_FILTERS: ListFilters = { state: "", tag: "", owner: "", temp: "", life: "" };
+export const LIFECYCLE = [
+  { key: "after_care", label: "After-care", hint: "job finished recently" },
+  { key: "review", label: "Review & referral", hint: "finished a while ago, worth asking" },
+  { key: "repaint_due", label: "Repaint due", hint: "by job type, from Settings" },
+] as const;
+
+export type ListQuery = { sort: SortKey; filter: GroupKey; q: string; page: number; pageSize: number; filters?: Partial<ListFilters> };
+
+/** A saved view: a name for a set of URL params (Settings row `crm_views`, office-wide). */
+export type SavedView = { key: string; name: string; params: Record<string, string> };
+export const VIEWS_KEY = "crm_views";
+
+export async function loadViews(db: SupabaseClient): Promise<SavedView[]> {
+  const { data } = await db.from("settings").select("value").eq("key", VIEWS_KEY).maybeSingle();
+  const raw = data?.value;
+  return Array.isArray(raw) ? (raw as SavedView[]).filter((v) => v && typeof v.key === "string" && typeof v.name === "string") : [];
+}
 
 export type ListPage = {
   rows: FactsCard[];
@@ -135,12 +169,27 @@ export type ListPage = {
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- the PostgREST builder's
    generic chain is too deep for TS to carry through a helper (TS2589). */
-function applyFilter(qb: any, filter: GroupKey, q: string): any {
+function applyFilter(qb: any, filter: GroupKey, q: string, f: Partial<ListFilters> = {}, t?: CrmThresholds, now: Date = new Date()): any {
   const lanes = lanesOf(filter);
   if (lanes) qb = qb.in("stage", lanes);
   if (filter === "trade") qb = qb.eq("account_type", "trade");
   const needle = q.trim().toLowerCase().replace(/[%_]/g, "");
   if (needle) qb = qb.ilike("search", `%${needle}%`);
+  // P4: archived is hidden everywhere except search and its own filter.
+  const nowIso = now.toISOString();
+  if (f.state === "delay_ended") qb = qb.eq("relationship_state", "delayed").lte("state_until", nowIso);
+  else if (f.state) qb = qb.eq("relationship_state", f.state);
+  else if (!needle) qb = qb.neq("relationship_state", "archived");
+  if (f.tag) qb = qb.contains("tags", [f.tag]);
+  if (f.owner === "nobody") qb = qb.is("owner_id", null);
+  else if (f.owner) qb = qb.eq("owner_id", f.owner);
+  if (f.temp) qb = qb.eq("temperature", f.temp);
+  if (f.life && t) {
+    const daysAgo = (d: number) => new Date(now.getTime() - d * 86_400_000).toISOString();
+    if (f.life === "after_care") qb = qb.gte("last_job_completed_at", daysAgo(t.afterCareDays));
+    if (f.life === "review") qb = qb.lt("last_job_completed_at", daysAgo(t.afterCareDays)).gte("last_job_completed_at", daysAgo(t.reviewWindowMonths * 30.4375));
+    if (f.life === "repaint_due") qb = qb.lte("repaint_due_at", new Date(now.getTime() + 180 * 86_400_000).toISOString());
+  }
   return qb;
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
@@ -155,10 +204,12 @@ async function freshen(db: SupabaseClient, rows: FactsRowRead[], now: Date): Pro
   if (stale.length === 0) return rows;
   try {
     await refreshAccountFacts(db, stale, now);
-    const { data } = await db.from("crm_account_facts").select(FACT_COLUMNS).in("account_id", stale);
+    // A different shape from the page read, for the same fetch-memo reason as the record page.
+    const { data } = await db.from("crm_account_facts").select(`${FACT_COLUMNS}, refreshed_at`).in("account_id", stale);
     const fresh = new Map(((data ?? []) as unknown as FactsRowRead[]).map((r) => [r.account_id, r]));
     return rows.map((r) => fresh.get(r.account_id) ?? r);
-  } catch {
+  } catch (e) {
+    reportError(e, { where: "customers.freshen", bestEffort: true });
     return rows; // yesterday's card beats an error page
   }
 }
@@ -168,7 +219,7 @@ export async function loadCounts(db: SupabaseClient): Promise<Record<GroupKey, n
   const counts = Object.fromEntries(GROUPS.map((g) => [g.key, 0])) as Record<GroupKey, number>;
   const [{ data: byStage }, { count: trade }] = await Promise.all([
     db.rpc("crm_board_counts"),
-    db.from("crm_account_facts").select("account_id", { count: "exact", head: true }).eq("account_type", "trade"),
+    db.from("crm_account_facts").select("account_id", { count: "exact", head: true }).eq("account_type", "trade").neq("relationship_state", "archived"),
   ]);
   for (const r of (byStage ?? []) as Array<{ stage: string; cards: number }>) {
     const g = LANE_GROUP[r.stage as LaneKey];
@@ -184,7 +235,8 @@ export async function loadCustomerPage(db: SupabaseClient, query: ListQuery, now
   await maybeRefreshFacts(db);
   const from = (query.page - 1) * query.pageSize;
   const order = ORDER[query.sort];
-  const qb = applyFilter(db.from("crm_account_facts").select(FACT_COLUMNS, { count: "exact" }), query.filter, query.q);
+  const thresholds = await loadCrmThresholds(db);
+  const qb = applyFilter(db.from("crm_account_facts").select(FACT_COLUMNS, { count: "exact" }), query.filter, query.q, query.filters ?? {}, thresholds, now);
   const [{ data, error, count }, counts, sessions] = await Promise.all([
     qb.order(order.column, { ascending: order.ascending, nullsFirst: order.nullsFirst })
       .order("account_id", { ascending: true })
@@ -219,15 +271,16 @@ export type BoardData = {
 };
 
 /** The board: every lane's count from SQL, the top `perLane` cards per lane. */
-export async function loadBoard(db: SupabaseClient, filter: GroupKey, q: string, perLane = 25, now: Date = new Date()): Promise<BoardData> {
+export async function loadBoard(db: SupabaseClient, filter: GroupKey, q: string, perLane = 25, now: Date = new Date(), f: Partial<ListFilters> = {}): Promise<BoardData> {
   await maybeRefreshFacts(db);
+  const thresholds = await loadCrmThresholds(db);
   const lanes = lanesOf(filter) ?? LANES.map((l) => l.key);
   const [{ data: countRows }, tiles, sessions, ...laneReads] = await Promise.all([
     db.rpc("crm_board_counts"),
     db.rpc("crm_board_tiles", { p_stages: lanesOf(filter) }),
     !q.trim() && (filter === "all" || filter === "leads") ? loadSessionCards(db, 100) : Promise.resolve([]),
     ...lanes.map((lane) =>
-      applyFilter(db.from("crm_account_facts").select(FACT_COLUMNS).eq("stage", lane), filter === "trade" ? "trade" : "all", q)
+      applyFilter(db.from("crm_account_facts").select(FACT_COLUMNS).eq("stage", lane), filter === "trade" ? "trade" : "all", q, f, thresholds, now)
         .order("needs_you", { ascending: false }).order("value_cents", { ascending: false, nullsFirst: false }).limit(perLane)),
   ]);
   const countOf = new Map<string, { cards: number; needsYou: number }>();

@@ -361,3 +361,35 @@
 .crm .reply .field{min-width:0;width:100%}
 .crm .attach{display:grid;gap:8px;max-width:520px}
 .crm .attachhit{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--graphite)}
+
+/* CRM v2 P4 — status panel, tags, filters, views */
+.crm .stpanel{display:grid;gap:12px}
+.crm .strow{display:grid;grid-template-columns:150px 1fr;gap:10px;align-items:start}
+.crm .strow>span:first-child{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600;padding-top:9px}
+.crm .sthelp{font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.5}
+.crm .stform{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-top:8px}
+.crm .stform .field{min-width:0}
+.crm .stform .row{grid-column:1 / -1}
+.crm .chip.st-delayed.on{border-color:var(--amber);color:var(--amber)}
+.crm .chip.st-do_not_contact.on,.crm .chip.st-lost.on{border-color:var(--clay);color:var(--clay)}
+.crm .chip.st-archived.on{border-color:#6b7681;color:#9aa4ad}
+.crm .permrow{display:flex;gap:14px;flex-wrap:wrap}
+.crm .perm{display:flex;flex-direction:column;gap:6px;min-width:150px}
+.crm .perm b{font-size:12px;font-weight:600}
+.crm .perm .seg{display:inline-flex}
+.crm .perm small{font-size:10.5px;color:var(--muted)}
+.crm .tagpick{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.crm .tag{font-size:11px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.crm .tag.on{border-color:var(--cyan);color:var(--cyan)}
+.crm .rtags{display:inline-flex;gap:4px;flex-wrap:wrap;margin-left:8px;vertical-align:middle}
+.crm .rtag{font-size:9.5px;padding:1px 6px;border-radius:999px;border:1px solid var(--line);color:var(--muted);letter-spacing:.03em}
+.crm .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.crm .filters select.field{min-width:150px;flex:none;padding:6px 28px 6px 10px;font-size:12px}
+.crm .views{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px}
+.crm .views .lbl{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-right:4px}
+.crm .chip.lc{border-style:dashed}
+.crm .perm .seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--graphite)}
+.crm .perm .seg button{font-size:11.5px;padding:5px 10px;color:var(--muted);border-right:1px solid var(--line)}
+.crm .perm .seg button:last-child{border-right:0}
+.crm .perm .seg button.on{background:var(--raised);color:var(--cyan)}
+.crm .perm .seg button:disabled{opacity:.5}

@@ -13,7 +13,8 @@
 
 import { draftCallVerdict, leftAgo } from "@/lib/wizard/progress";
 import { bucketPill, journeyLine, type WizardBucket } from "@/lib/wizard/journey";
-import { LANES, needsYouToday, OPEN_LANES, stageFor, type AccountFacts, type LaneKey, type StageResult } from "./stage";
+import { LANES, needsYouToday, OPEN_LANES, stageFor, THRESHOLDS, type AccountFacts, type LaneKey, type StageResult, type StageThresholds } from "./stage";
+import { isQuiet, stateChip } from "./states";
 
 export type BoardInput = {
   /** The account id — or `session:<id>` for a wizard session that has no account yet. */
@@ -38,6 +39,10 @@ export type BoardInput = {
     /** True once the session saw its price (converted) — no call prompt then; the bucket lane still applies. */
     converted?: boolean } | null;
   facts: AccountFacts;
+  /** P4: tags and the lost reason ride on the card; phone permission gates the call prompt. */
+  tags?: string[];
+  lostReason?: string | null;
+  permitPhone?: string | null;
 };
 
 export type BoardCard = {
@@ -112,16 +117,20 @@ export function laneForBucket(bucket: string | null | undefined): LaneKey | null
 }
 
 /** One customer → one card. The only place a card is computed. */
-export function cardFor(i: BoardInput, now: Date = new Date()): BoardCard {
-  const r = stageFor(i.facts, now);
+export function cardFor(i: BoardInput, now: Date = new Date(), thresholds: StageThresholds = THRESHOLDS): BoardCard {
+  const r = stageFor(i.facts, now, thresholds);
+  const quiet = isQuiet(i.facts.relationshipState, i.facts.stateUntil, now);
   // A live job outranks a sales call — nobody rings a customer mid-job to
   // ask about an estimate they abandoned; and a session that saw its price
-  // is no longer a drop-out to chase for answers.
-  const verdict = i.draft && !i.draft.converted && r.stage !== "job_on"
+  // is no longer a drop-out to chase for answers. P4: a quiet state or a
+  // declined phone permission (decision 8.4) hides the prompt too.
+  const verdict = i.draft && !i.draft.converted && r.stage !== "job_on" && !quiet && i.permitPhone !== "declined"
     ? draftCallVerdict(i.draft, i.draft.lastSeenAt, now)
     : null;
   const chips = chipsFor(r, i.facts.snoozedUntil, now);
   if (verdict?.call) chips.unshift("Worth a call now");
+  const state = stateChip(i.facts.relationshipState, i.facts.stateUntil, i.lostReason, now);
+  if (state) chips.unshift(state);
   // Tom, 6 Sep: an enquiry with a wizard session sits in that session's
   // bucket lane. Anything further along (estimate sent, visit booked, job
   // on…) keeps its lane and wears the bucket as a chip instead.
@@ -153,7 +162,7 @@ export function cardFor(i: BoardInput, now: Date = new Date()): BoardCard {
     stage,
     since: stage === r.stage ? r.since : (i.draft?.lastSeenAt ?? r.since),
     flags: r.flags,
-    needsYou: needsYouToday(r) || (verdict?.call ?? false),
+    needsYou: needsYouToday(r, i.facts, now) || (verdict?.call ?? false),
     chips,
   };
 }

@@ -73,6 +73,10 @@ export const CRM_EVENT_SCHEMAS = {
   followup_set: z.object({ dueAt: z.string().datetime(), note: shortText.optional() }),
   temperature_set: z.object({ temperature: z.enum(["hot", "warm", "cold"]), previous: z.enum(["hot", "warm", "cold"]).nullable().default(null) }),
   snoozed: z.object({ until: z.string().datetime(), reason: shortText.optional() }),
+  /** CRM v2 P4 — the status model: relationship state, per-channel permissions, tags. */
+  state_set: z.object({ state: z.enum(["active", "delayed", "do_not_contact", "lost", "archived"]), previous: z.string().max(20).optional(), until: z.string().nullable().optional(), reason: z.string().max(200).optional(), note: z.string().max(2000).optional(), lostReason: z.string().max(40).nullable().optional() }),
+  permission_set: z.object({ channel: z.enum(["email", "sms", "phone"]), value: z.enum(["allowed", "declined", "unknown"]), how: z.string().max(30).optional() }),
+  tags_set: z.object({ tags: z.array(z.string().max(40)).max(50) }),
   /** CRM v2 P3 — one row in `messages` (any channel, either way); written by the messages trigger. */
   message_in: z.object({ channel: z.string().max(10), subject: z.string().max(200).optional(), excerpt: z.string().max(200).optional(), messageId: z.string().uuid(), provider: z.string().max(20).optional(), status: z.string().max(20).optional() }),
   message_out: z.object({ channel: z.string().max(10), subject: z.string().max(200).optional(), excerpt: z.string().max(200).optional(), messageId: z.string().uuid(), provider: z.string().max(20).optional(), status: z.string().max(20).optional() }),

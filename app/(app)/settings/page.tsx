@@ -38,6 +38,8 @@ import { freshConnection, listAccounts, listCompanyFiles, type MyobAccount } fro
 import { requestNowMs } from "@/lib/time/requestClock";
 import { AUTOMATIONS } from "@/lib/automations/registry";
 import WebsiteContentManager from "./WebsiteContentManager";
+import CrmSettings, { type TagRow as CrmTagRow } from "./CrmSettings";
+import { CRM_SETTINGS_KEY, mergeThresholds } from "@/lib/crm/thresholds";
 import { WEBSITE_CONTENT_KEY, parseWebsiteContent } from "@/lib/marketing/siteContent";
 import { listShowcaseJobsForStaff } from "@/lib/showcase/staff";
 
@@ -186,6 +188,10 @@ export default async function SettingsPage() {
 
   const brainRes = await (await import("@/lib/supabase/server")).createClient().then((c) => c.from("brain_entries").select("id, slug, topic, question, answer_md, audience, status, needs_content").order("topic").order("slug"));
   const brainRows = ((brainRes.error ? [] : brainRes.data) ?? []) as BrainRow[];
+  // CRM v2 P4: the chase thresholds and the tag list.
+  const crmThresholds = mergeThresholds(allSettings.find((r) => r.key === CRM_SETTINGS_KEY)?.value);
+  const crmTagsRes = await supabase.from("crm_tags").select("key, label, colour, sort_order").order("sort_order").order("label");
+  const crmTags = ((crmTagsRes.error ? [] : crmTagsRes.data) ?? []) as CrmTagRow[];
 
   // ---- the buckets (Tom, 3 Sep 2026) --------------------------------------
   // Six sections, each a list of folders. Titles are what the office and the
@@ -233,6 +239,8 @@ export default async function SettingsPage() {
           content: <AutomationsSettings initial={messaging} initialVariationRelease={variationRelease} /> },
         { id: "brain", title: "Brain", subtitle: "What the assistant may say about how Paint Group works — approve each entry; unwritten ones are never served", count: brainRows.length,
           content: <BrainManager rows={brainRows} /> },
+        { id: "crm", title: "CRM", subtitle: "The numbers behind the chase rules — when an estimate is chased, when a card goes cold, repaint intervals — and the customer tag list", count: crmTags.length,
+          content: <CrmSettings initial={crmThresholds} tags={crmTags} /> },
       ],
     },
     {

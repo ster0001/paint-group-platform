@@ -28,6 +28,12 @@ export default async function UnsubscribePage({ params }: { params: Promise<{ to
     // Already unsubscribed is a success, not an error: the person asked twice
     // and the answer is the same.
     done = !error;
+    // P4: the per-channel record, with provenance — the flag above stays for
+    // the guard chain until P5 reads these.
+    if (done) {
+      await db.rpc("crm_set_permission", { p_account_id: accountId, p_channel: "email", p_value: "declined", p_how: "unsubscribe_link" });
+      await db.rpc("crm_set_permission", { p_account_id: accountId, p_channel: "sms", p_value: "declined", p_how: "unsubscribe_link" });
+    }
   }
 
   return (

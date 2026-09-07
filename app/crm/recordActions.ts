@@ -10,6 +10,7 @@ import { recordMessage } from "@/lib/messaging/record";
 import { buildPlainEmailHtml, sendEmail, sendSms } from "@/lib/messaging/send";
 import { loadMessaging } from "@/lib/messaging/load";
 import { normalisePhoneAU } from "@/lib/messaging/config";
+import { LOST_REASONS, PERMIT_CHANNELS, PERMIT_VALUES, RELATIONSHIP_STATES, type PermitChannel, type PermitValue, type RelationshipState } from "@/lib/crm/states";
 import type { CrmResult } from "./actions";
 import { CONTACT_ROLES, LOG_KINDS, type LogKind } from "./recordTypes";
 
@@ -22,6 +23,13 @@ import { CONTACT_ROLES, LOG_KINDS, type LogKind } from "./recordTypes";
 
 const uuid = z.string().uuid();
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
+/** The record and Today, not the whole CRM layout: a write should not cost every tab a re-render. */
+function revalidateRecord(accountId: string) {
+  revalidatePath(`/crm/customers/${accountId}`);
+  revalidatePath("/crm/today");
+  revalidatePath("/crm/customers");
+}
 
 async function refreshFor(db: Awaited<ReturnType<typeof createClient>>, ...ids: Array<string | null | undefined>) {
   const real = ids.filter((x): x is string => Boolean(x));
@@ -100,7 +108,7 @@ export async function logContact(accountId: string, input: LogInput): Promise<Cr
   }
 
   await refreshFor(supabase, accountId);
-  revalidatePath("/crm", "layout");
+  revalidateRecord(accountId);
   return { ok: true, message: WORDING[input.kind] + extra };
 }
 
@@ -114,7 +122,7 @@ export async function setFollowupOn(accountId: string, day: string | null, note:
   const { error } = await supabase.rpc("crm_set_followup", { p_account_id: accountId, p_due_at: dueAt, p_note: note.trim() || null });
   if (error) return { ok: false, message: error.message };
   await refreshFor(supabase, accountId);
-  revalidatePath("/crm", "layout");
+  revalidateRecord(accountId);
   return { ok: true, message: dueAt ? "Reminder set." : "Reminder cleared." };
 }
 
@@ -127,7 +135,7 @@ export async function snoozeOn(accountId: string, day: string | null, reason: st
   const { error } = await supabase.rpc("crm_snooze", { p_account_id: accountId, p_until: until, p_reason: reason.trim() || null });
   if (error) return { ok: false, message: error.message };
   await refreshFor(supabase, accountId);
-  revalidatePath("/crm", "layout");
+  revalidateRecord(accountId);
   return { ok: true, message: until ? "Snoozed." : "Snooze cleared." };
 }
 
@@ -149,7 +157,7 @@ export async function updateDetails(accountId: string, details: { name: string; 
     return { ok: false, message: "That didn't save." };
   }
   await refreshFor(supabase, accountId);
-  revalidatePath("/crm", "layout");
+  revalidateRecord(accountId);
   return { ok: true, message: r.changed?.length ? "Details saved." : "Nothing changed." };
 }
 
@@ -160,7 +168,7 @@ export async function setOwner(accountId: string, ownerId: string | null): Promi
   const { error } = await supabase.rpc("crm_set_owner", { p_account_id: accountId, p_owner_id: ownerId });
   if (error) return { ok: false, message: error.message };
   await refreshFor(supabase, accountId);
-  revalidatePath("/crm", "layout");
+  revalidateRecord(accountId);
   return { ok: true, message: ownerId ? "Owner set." : "Owner cleared." };
 }
 
@@ -186,7 +194,7 @@ export async function saveContact(accountId: string, c: ContactInput): Promise<C
   });
   if (error) return { ok: false, message: error.message };
   await refreshFor(supabase, accountId);
-  revalidatePath("/crm", "layout");
+  revalidateRecord(accountId);
   return { ok: true, message: c.id ? "Contact saved." : "Contact added.", id: data as string };
 }
 
@@ -196,7 +204,7 @@ export async function removeContact(accountId: string, contactId: string): Promi
   const { error } = await supabase.rpc("crm_delete_contact", { p_contact_id: contactId });
   if (error) return { ok: false, message: error.message };
   await refreshFor(supabase, accountId);
-  revalidatePath("/crm", "layout");
+  revalidateRecord(accountId);
   return { ok: true, message: "Contact removed." };
 }
 
@@ -214,7 +222,7 @@ export async function createCustomer(input: { name: string; email: string; phone
     return { ok: false, message: r.reason === "unreachable" ? "That phone number doesn't look right — try 04xx xxx xxx, or add an email." : "That didn't save." };
   }
   await refreshFor(supabase, r.id);
-  revalidatePath("/crm", "layout");
+  revalidateRecord(r.id);
   return { ok: true, id: r.id, existed: r.existed === true };
 }
 
@@ -224,7 +232,7 @@ export async function mergeAccounts(keepId: string, dropId: string): Promise<Crm
   const { error } = await supabase.rpc("crm_merge_accounts", { p_keep: keepId, p_drop: dropId });
   if (error) return { ok: false, message: error.message };
   await refreshFor(supabase, keepId);
-  revalidatePath("/crm", "layout");
+  revalidateRecord(keepId);
   return { ok: true, message: "Merged into this record." };
 }
 
@@ -249,7 +257,7 @@ export async function sendReply(accountId: string, input: ReplyInput): Promise<C
     const to = normalisePhoneAU(a.phone ?? "");
     if (!to) return { ok: false, message: "No mobile number we can text on this record." };
     const r = await sendSms({ to, body, ctx });
-    revalidatePath("/crm", "layout");
+    revalidateRecord(accountId);
     if (r.status === "sent") return { ok: true, message: "Text sent." };
     if (r.status === "not_configured") return { ok: false, message: "Texting isn't configured on this server — recorded as not sent." };
     return { ok: false, message: r.message };
@@ -260,7 +268,7 @@ export async function sendReply(accountId: string, input: ReplyInput): Promise<C
   const subject = input.subject.trim() || `A note from ${company.name || "Paint Group"}`;
   const html = buildPlainEmailHtml({ heading: subject, message: body, companyName: company.name || "Paint Group", logoUrl: company.logoUrl, companyPhone: company.phone });
   const r = await sendEmail({ to: a.email, subject, html, replyTo: company.email, ctx });
-  revalidatePath("/crm", "layout");
+  revalidateRecord(accountId);
   if (r.status === "sent") return { ok: true, message: "Email sent." };
   if (r.status === "not_configured") return { ok: false, message: "Email isn't configured on this server — recorded as not sent." };
   return { ok: false, message: r.message };
@@ -279,6 +287,63 @@ export async function attachMessage(messageId: string, accountId: string): Promi
   const { error } = await supabase.rpc("crm_attach_message", { p_message_id: messageId, p_account_id: accountId });
   if (error) return { ok: false, message: error.message };
   await refreshFor(supabase, accountId);
-  revalidatePath("/crm", "layout");
+  revalidateRecord(accountId);
   return { ok: true, message: "Attached." };
+}
+
+// ---- P4: the status model ---------------------------------------------------
+
+export type StateInput = { state: RelationshipState; untilDay?: string | null; reason?: string; note?: string; lostReason?: string | null };
+
+export async function setRelationshipState(accountId: string, input: StateInput): Promise<CrmResult> {
+  if (!uuid.safeParse(accountId).success) return { ok: false, message: "That isn't a customer id." };
+  if (!RELATIONSHIP_STATES.includes(input.state)) return { ok: false, message: "That isn't a state." };
+  if (input.state === "delayed" && (!input.untilDay || !isoDate.safeParse(input.untilDay).success)) return { ok: false, message: "Delayed until when? Pick a date." };
+  if (input.state === "lost" && !LOST_REASONS.some((r) => r.key === input.lostReason)) return { ok: false, message: "Why did we lose them? Pick a reason." };
+  const supabase = await createClient();
+  const until = input.state === "delayed" && input.untilDay ? await atMelbourne(input.untilDay, 9) : null;
+  const { error } = await supabase.rpc("crm_set_state", {
+    p_account_id: accountId, p_state: input.state, p_until: until,
+    p_reason: input.reason?.trim() || null, p_note: input.note?.trim() || null,
+    p_lost_reason: input.state === "lost" ? input.lostReason : null,
+  });
+  if (error) return { ok: false, message: error.message };
+  await refreshFor(supabase, accountId);
+  revalidateRecord(accountId);
+  const word = input.state === "delayed" ? `Delayed until ${new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short" }).format(new Date(until!))}.`
+    : input.state === "do_not_contact" ? "Marked do not contact." : input.state === "lost" ? "Marked lost." : input.state === "archived" ? "Archived." : "Active again.";
+  return { ok: true, message: word };
+}
+
+export async function setPermission(accountId: string, channel: PermitChannel, value: PermitValue): Promise<CrmResult> {
+  if (!uuid.safeParse(accountId).success) return { ok: false, message: "That isn't a customer id." };
+  if (!PERMIT_CHANNELS.includes(channel) || !PERMIT_VALUES.includes(value)) return { ok: false, message: "That isn't a permission." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("crm_set_permission", { p_account_id: accountId, p_channel: channel, p_value: value, p_how: "staff" });
+  if (error) return { ok: false, message: error.message };
+  await refreshFor(supabase, accountId);
+  revalidateRecord(accountId);
+  return { ok: true, message: "Permission saved." };
+}
+
+export async function setTags(accountId: string, tags: string[]): Promise<CrmResult> {
+  if (!uuid.safeParse(accountId).success) return { ok: false, message: "That isn't a customer id." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("crm_set_tags", { p_account_id: accountId, p_tags: tags.slice(0, 50) });
+  if (error) return { ok: false, message: error.message };
+  await refreshFor(supabase, accountId);
+  revalidateRecord(accountId);
+  return { ok: true, message: "Tags saved." };
+}
+
+/** A new tag from the record: created in the registry, then applied. */
+export async function createTag(label: string): Promise<CrmResult & { key?: string }> {
+  const clean = label.trim();
+  if (!clean) return { ok: false, message: "A tag needs a name." };
+  const key = clean.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("crm_upsert_tag", { p_key: key, p_label: clean, p_colour: null });
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/crm", "layout");
+  return { ok: true, message: "Tag added.", key };
 }

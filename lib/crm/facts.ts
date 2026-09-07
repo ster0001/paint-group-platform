@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { cardFor, type BoardCard } from "./board";
 import { isWon } from "./stage";
 import { loadCustomerInputs, type CustomerInput } from "./factsInput";
+import { DEFAULT_THRESHOLDS, loadCrmThresholds, type CrmThresholds } from "./thresholds";
+import { reportError } from "@/lib/monitoring/report";
 
 /**
  * CRM v2 P1 — the facts layer (deep dive §3 F4, §6.2).
@@ -56,16 +58,28 @@ export type FactsRow = {
   last_job_completed_at: string | null;
   next_followup_at: string | null;
   snoozed_until: string | null;
+  relationship_state: string;
+  state_until: string | null;
+  state_note: string | null;
+  lost_reason: string | null;
+  tags: string[];
+  permit_email: string;
+  permit_sms: string;
+  permit_phone: string;
+  last_job_completed_type: string | null;
+  repaint_due_at: string | null;
   stale: false;
   refreshed_at: string;
 };
+
+const addYears = (iso: string, years: number) => { const d = new Date(iso); d.setFullYear(d.getFullYear() + years); return d.toISOString(); };
 
 const maxIso = (...xs: Array<string | null | undefined>): string | null =>
   xs.reduce<string | null>((m, x) => (x && (!m || x > m) ? x : m), null);
 
 /** Pure: one customer's inputs → one facts row. Tested without a database. */
-export function computeFactsRow(i: CustomerInput, now: Date = new Date()): FactsRow {
-  const card = cardFor(i, now);
+export function computeFactsRow(i: CustomerInput, now: Date = new Date(), t: CrmThresholds = DEFAULT_THRESHOLDS): FactsRow {
+  const card = cardFor(i, now, t);
   const est = i.facts.estimates;
   const opens = i.allEvents.filter((e) => e.type === "estimate_viewed");
   const quoteAt = est.reduce<string | null>((m, e) => {
@@ -87,6 +101,10 @@ export function computeFactsRow(i: CustomerInput, now: Date = new Date()): Facts
   );
   const search = [i.name, i.email, i.phone, i.phone?.replace(/\s+/g, ""), i.suburb, i.address]
     .filter(Boolean).join(" ").toLowerCase();
+  // Repaint due (decision 8.8): from the last completed job and its type.
+  const lastType = i.jobTypes.find((j) => j.type)?.type ?? null;
+  const years = lastType === "exterior" ? t.repaintExteriorYears : lastType === "interior" ? t.repaintInteriorYears : t.repaintUnknownYears;
+  const repaintDue = lastJobCompleted ? addYears(lastJobCompleted, years) : null;
 
   return {
     account_id: i.accountId,
@@ -123,6 +141,16 @@ export function computeFactsRow(i: CustomerInput, now: Date = new Date()): Facts
     last_job_completed_at: lastJobCompleted,
     next_followup_at: i.facts.followupDueAt,
     snoozed_until: i.facts.snoozedUntil,
+    relationship_state: i.relationshipState,
+    state_until: i.stateUntil,
+    state_note: i.stateNote,
+    lost_reason: i.lostReason ?? null,
+    tags: i.tags ?? [],
+    permit_email: i.permitEmail,
+    permit_sms: i.permitSms,
+    permit_phone: i.permitPhone ?? "unknown",
+    last_job_completed_type: lastType,
+    repaint_due_at: repaintDue,
     stale: false,
     refreshed_at: now.toISOString(),
   };
@@ -132,8 +160,8 @@ export function computeFactsRow(i: CustomerInput, now: Date = new Date()): Facts
 export async function refreshAccountFacts(db: SupabaseClient, ids: string[], now: Date = new Date()): Promise<number> {
   const unique = [...new Set(ids.filter(Boolean))];
   if (unique.length === 0) return 0;
-  const inputs = await loadCustomerInputs(db, unique);
-  const rows = inputs.map((i) => computeFactsRow(i, now));
+  const [inputs, thresholds] = await Promise.all([loadCustomerInputs(db, unique), loadCrmThresholds(db)]);
+  const rows = inputs.map((i) => computeFactsRow(i, now, thresholds));
   for (let i = 0; i < rows.length; i += 500) {
     const { error } = await db.from("crm_account_facts").upsert(rows.slice(i, i + 500), { onConflict: "account_id" });
     if (error) throw new Error(`facts upsert failed: ${error.message}`);
@@ -185,7 +213,8 @@ export async function maybeRefreshFacts(db: SupabaseClient, limit = 200): Promis
   lastOpportunistic = now;
   try {
     return await refreshStaleFacts(db, limit);
-  } catch {
+  } catch (e) {
+    reportError(e, { where: "facts.maybeRefresh", bestEffort: true });
     return null; // a failed refresh shows yesterday's card, never an error page
   }
 }

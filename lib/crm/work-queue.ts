@@ -1,4 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isQuiet } from "./states";
+import { loadCrmThresholds } from "./thresholds";
 import { invoiceIsOverdue, invoiceBalanceCents, type DeriveInvoice, type DerivePayment } from "@/lib/invoicing/derive";
 import { OPEN_STATUSES } from "@/lib/invoicing/stateMachine";
 import { bucketPill, journeyLine, journeyWho, pageLabel, type WizardBucket } from "@/lib/wizard/journey";
@@ -49,6 +51,8 @@ export const WORK_ITEM_KINDS = [
   "wizard_priced",
   /** CRM v2 P1: a sent estimate passed its valid_until — chase or close? Lapsed is not lost (decision 8.11). */
   "estimate_lapsed",
+  /** CRM v2 P4: a "delayed until" date has passed — the note says what to do. */
+  "delay_ended",
 ] as const;
 
 export type WorkItemKind = (typeof WORK_ITEM_KINDS)[number];
@@ -136,6 +140,7 @@ export const KIND_WEIGHT: Record<WorkItemKind, number> = {
   wizard_help: 28,
   wizard_priced: 12,
   estimate_lapsed: 18,
+  delay_ended: 20,
 };
 
 export type PriorityInput = {
@@ -219,6 +224,7 @@ export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = 
   wizard_help: "followups",
   wizard_priced: "followups",
   estimate_lapsed: "followups",
+  delay_ended: "followups",
 };
 
 // ---- source: snooze_expired (§3.3) -----------------------------------------
@@ -669,6 +675,7 @@ const excerpt = (m: InboundMessageRow) => (m.subject?.trim() || m.body.replace(/
  */
 export function buildMessageItems(
   inbound: InboundMessageRow[], outbound: OutboundTouchRow[], attempts: ContactEventRow[], names: Map<string, string>, now: Date,
+  overdueHours: number = MESSAGE_OVERDUE_HOURS,
 ): WorkItem[] {
   const items: WorkItem[] = [];
   for (const m of inbound) {
@@ -698,11 +705,37 @@ export function buildMessageItems(
       title: `${who} sent a ${m.channel === "sms" ? "text" : m.channel === "portal" ? "message" : m.channel}`,
       detail: excerpt(m),
       since: m.occurred_at,
-      dueAt: new Date(new Date(m.occurred_at).getTime() + MESSAGE_OVERDUE_HOURS * 3_600_000).toISOString(),
+      dueAt: new Date(new Date(m.occurred_at).getTime() + overdueHours * 3_600_000).toISOString(),
       action: { label: "Reply", href: `/crm/customers/${m.account_id}#messages` },
     }, { valueCents: null, promisedToCustomer: false }, now));
   }
   return items;
+}
+
+// ---- source: delay_ended (CRM v2 P4) ---------------------------------------
+
+export type DelayedAccountRow = { id: string; name: string | null; email: string | null; phone: string | null; state_until: string | null; state_note: string | null; state_reason: string | null };
+
+/** "Not until March" — and it is March. The item lives until someone sets a
+ *  new state (or a new date); the note is the whole point of it. */
+export function buildDelayEndedItems(rows: DelayedAccountRow[], now: Date): WorkItem[] {
+  return rows.filter((r) => r.state_until && new Date(r.state_until) <= now).map((r) => finish({
+    key: itemKey("delay_ended", "account", r.id, r.state_until!.slice(0, 10)),
+    kind: "delay_ended",
+    accountId: r.id,
+    subjectRef: { type: "account", id: r.id },
+    title: `${r.name || r.email || r.phone || "A customer"} — the delay is up`,
+    detail: r.state_note || r.state_reason || "No note was left when it was delayed — open the record and decide.",
+    since: r.state_until!,
+    dueAt: r.state_until!,
+    action: { label: "Open", href: `/crm/customers/${r.id}` },
+  }, { valueCents: null, promisedToCustomer: Boolean(r.state_note) }, now));
+}
+
+/** Nothing about a do-not-contact, archived, or still-delayed customer belongs
+ *  in Today (deep dive §4.5). Their items are dropped here, in one place. */
+export function suppressQuiet(items: WorkItem[], quietAccountIds: Set<string>): WorkItem[] {
+  return items.filter((i) => !i.accountId || !quietAccountIds.has(i.accountId) || i.kind === "delay_ended");
 }
 
 // ---- the loader ------------------------------------------------------------
@@ -722,7 +755,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   const since90d = new Date(now.getTime() - 90 * 86_400_000).toISOString();
 
   const since30d = new Date(now.getTime() - 30 * 86_400_000).toISOString();
-  const [snoozeAcc, invoices, callbacks, queued, dismissed, changeReqs, handoffs, wizardRows, lapsedEvents, inboundMsgs] = await Promise.all([
+  const [snoozeAcc, invoices, callbacks, queued, dismissed, changeReqs, handoffs, wizardRows, lapsedEvents, inboundMsgs, quietAcc, thresholds] = await Promise.all([
     supabase.from("accounts")
       .select("id, name, email, snoozed_until, followup_due_at, followup_note")
       .or(`snoozed_until.lte.${nowIso},followup_due_at.lte.${nowIso}`)
@@ -778,7 +811,16 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
       .gte("occurred_at", since30d)
       .order("occurred_at", { ascending: false })
       .limit(300),
+    // P4: quiet states silence a customer's items; a delay that ended is its own item.
+    supabase.from("accounts")
+      .select("id, name, email, phone, relationship_state, state_until, state_note, state_reason")
+      .neq("relationship_state", "active")
+      .limit(2000),
+    loadCrmThresholds(supabase),
   ]);
+  const quietRows = (quietAcc.error ? [] : (quietAcc.data ?? [])) as Array<DelayedAccountRow & { relationship_state: string }>;
+  const quietIds = new Set(quietRows.filter((r) => isQuiet(r.relationship_state, r.state_until, now)).map((r) => r.id));
+  const delayedRows = quietRows.filter((r) => r.relationship_state === "delayed");
   const inboundRows = (inboundMsgs.error ? [] : (inboundMsgs.data ?? [])) as unknown as InboundMessageRow[];
   const inboundAccountIds = [...new Set(inboundRows.map((m) => m.account_id).filter((x): x is string => Boolean(x)))];
   const [{ data: outboundTouches }, { data: inboundAttempts }, { data: inboundAccounts }] = inboundAccountIds.length
@@ -883,12 +925,13 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...buildHandoffItems(((handoffs.error ? [] : handoffs.data) ?? []) as unknown as HandoffQueueRow[], now),
     ...buildWizardItems(wzRows, (wzAttempts ?? []) as ContactEventRow[], now),
     ...buildLapsedItems(lapsedRows, (lapsedAttempts ?? []) as ContactEventRow[], lapsedNames, now),
-    ...buildMessageItems(inboundRows, (outboundTouches ?? []) as OutboundTouchRow[], (inboundAttempts ?? []) as ContactEventRow[], inboundNames, now),
+    ...buildMessageItems(inboundRows, (outboundTouches ?? []) as OutboundTouchRow[], (inboundAttempts ?? []) as ContactEventRow[], inboundNames, now, thresholds.messageOverdueHours),
+    ...buildDelayEndedItems(delayedRows, now),
   ];
 
   // Until migration 20261217 runs, the dismissals table doesn't exist and the
   // read errors; the queue must still stand up (house law: inert-but-safe).
   const dismissals = (dismissed.error ? [] : (dismissed.data ?? [])) as Dismissal[];
 
-  return assembleQueue(raw, dismissals, now);
+  return assembleQueue(suppressQuiet(raw, quietIds), dismissals, now);
 }

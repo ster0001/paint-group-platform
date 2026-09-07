@@ -243,3 +243,38 @@ describe("CRM v2 P1 — lapsed and lost are lanes, not holes", () => {
     expect(r.stage).toBe("enquiry_unfinished");
   });
 });
+
+describe("CRM v2 P4 — relationship states silence the chase", () => {
+  const sentAndSilent = { estimates: [estimate({ status: "sent", sent_at: daysAgo(20), viewed_at: daysAgo(19) })] };
+
+  it("a holding delay, do-not-contact and archived clear every chase flag", () => {
+    for (const relationshipState of ["delayed", "do_not_contact", "archived"] as const) {
+      const r = stageFor(facts({ ...sentAndSilent, relationshipState, stateUntil: relationshipState === "delayed" ? daysAgo(-30) : null, followupDueAt: daysAgo(1) }), NOW);
+      expect(r.stage).toBe("estimate_sent");
+      expect(r.flags.chaseDue).toBe(false);
+      expect(r.flags.goingCold).toBe(false);
+      expect(r.flags.followupOverdue).toBe(false);
+      expect(needsYouToday(r, { relationshipState, stateUntil: relationshipState === "delayed" ? daysAgo(-30) : null }, NOW)).toBe(false);
+    }
+  });
+
+  it("a delay whose date has passed is awake — flags return and it needs you", () => {
+    const f = facts({ ...sentAndSilent, relationshipState: "delayed", stateUntil: daysAgo(1) });
+    const r = stageFor(f, NOW);
+    expect(r.flags.chaseDue).toBe(true);
+    expect(needsYouToday(r, f, NOW)).toBe(true);
+  });
+
+  it("marked lost by a person is the Lost lane whatever the estimates say", () => {
+    const r = stageFor(facts({ estimates: [estimate({ status: "sent", sent_at: daysAgo(3) })], relationshipState: "lost", stateSetAt: daysAgo(1) }), NOW);
+    expect(r.stage).toBe("lost");
+    expect(r.because).toBe("Marked lost");
+    expect(r.flags.chaseDue).toBe(false);
+  });
+
+  it("thresholds from Settings change when a card is chased", () => {
+    const f = facts({ estimates: [estimate({ status: "sent", sent_at: daysAgo(2) })] });
+    expect(stageFor(f, NOW).flags.chaseDue).toBe(false);
+    expect(stageFor(f, NOW, { ...THRESHOLDS, chaseUnopenedDays: 1 }).flags.chaseDue).toBe(true);
+  });
+});

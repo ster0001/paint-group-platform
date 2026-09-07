@@ -21,6 +21,7 @@ const input = (over: Partial<CustomerInput> = {}): CustomerInput => ({
   suburb: "Richmond",
   accountType: "residential",
   allEvents: [],
+  relationshipState: "active", stateUntil: null, stateNote: null, permitEmail: "unknown", permitSms: "unknown", permitPhone: "unknown", tags: [], lostReason: null, jobTypes: [],
   facts: { estimates: [], workOrders: [], events: [], temperature: null, snoozedUntil: null, followupDueAt: null },
   ...over,
 });

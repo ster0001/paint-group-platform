@@ -145,6 +145,14 @@ const RENDER: Record<CrmEventType, { label: string; kind: TimelineRow["kind"]; d
   // ---- attribution and offers ---------------------------------------------
   first_touch_recorded: { label: "First touch", kind: "system",
     detail: (p) => [str(p.source), str(p.detail)].filter(Boolean).join(" — ") },
+  state_set: { label: "Status changed", kind: "activity",
+    detail: (p) => join(
+      str(p.state) === "delayed" ? `Delayed${str(p.until) ? ` to ${new Date(str(p.until)).toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short" })}` : ""}`
+        : str(p.state) === "do_not_contact" ? "Do not contact" : str(p.state) === "lost" ? "Lost" : str(p.state) === "archived" ? "Archived" : "Active",
+      str(p.lostReason).replace(/_/g, " "), str(p.reason), str(p.note)) },
+  permission_set: { label: "Contact permission changed", kind: "activity",
+    detail: (p) => join(str(p.channel) === "sms" ? "Texts" : str(p.channel) === "email" ? "Marketing email" : "Phone calls", str(p.value), str(p.how) && `via ${str(p.how).replace(/_/g, " ")}`) },
+  tags_set: { label: "Tags updated", kind: "activity", detail: (p) => Array.isArray(p.tags) ? (p.tags as string[]).join(", ") || "none" : "" },
   message_in: { label: "They wrote to us", kind: "customer",
     detail: (p) => join(str(p.channel) && `by ${str(p.channel)}`, str(p.subject), str(p.excerpt)) },
   message_out: { label: "We sent", kind: "activity",

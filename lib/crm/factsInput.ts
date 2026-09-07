@@ -18,6 +18,14 @@ import { journeyWho } from "@/lib/wizard/journey";
 /** BoardInput plus what the facts row needs beyond the card. */
 export type CustomerInput = BoardInput & {
   trade: boolean;
+  /** P4: the staff-set dimensions, mirrored onto the facts row. */
+  relationshipState: string;
+  stateUntil: string | null;
+  stateNote: string | null;
+  permitEmail: string;
+  permitSms: string;
+  /** Job types of accepted work, newest first (interior / exterior / …), for repaint intervals. */
+  jobTypes: Array<{ type: string | null; completedAt: string | null }>;
   email: string | null;
   ownerId: string | null;
   address: string | null;
@@ -50,10 +58,10 @@ async function loadChunk(supabase: SupabaseClient, ids: string[]): Promise<Custo
   const [{ data: accounts, error: e1 }, { data: estimates, error: e2 }, { data: events, error: e3 }, { data: props, error: e4 }, { data: drafts, error: e5 }] =
     await Promise.all([
       supabase.from("accounts")
-        .select("id, name, email, phone, account_type, temperature, snoozed_until, followup_due_at, owner_id")
+        .select("id, name, email, phone, account_type, temperature, snoozed_until, followup_due_at, owner_id, relationship_state, state_until, state_note, state_set_at, lost_reason, tags, permit_email, permit_sms, permit_phone")
         .in("id", ids),
       supabase.from("estimates")
-        .select("id, account_id, status, total_cents, accepted_total_cents, created_at, sent_at, viewed_at, accepted_at, declined_at, title, job_kind")
+        .select("id, account_id, status, total_cents, accepted_total_cents, created_at, sent_at, viewed_at, accepted_at, declined_at, title, job_kind, wizard_job_type:builder_state->wizard->state->>jobType")
         .in("account_id", ids).order("created_at", { ascending: false }).limit(ids.length * 50),
       supabase.from("crm_events")
         .select("account_id, type, occurred_at, payload")
@@ -131,6 +139,7 @@ async function loadChunk(supabase: SupabaseClient, ids: string[]): Promise<Custo
     const suburb = prop?.suburb ?? "";
     const kind = (live?.job_kind as string) || "";
     const name = (a.name as string) || (a.email as string) || (a.phone as string) || "Unnamed";
+    const wos = woByAccount.get(a.id as string) ?? [];
     return {
       accountId: a.id as string,
       name,
@@ -144,6 +153,18 @@ async function loadChunk(supabase: SupabaseClient, ids: string[]): Promise<Custo
       phone: (a.phone as string | null) ?? null,
       draft: draftOf.get(a.id as string) ?? null,
       trade: a.account_type === "trade",
+      relationshipState: (a.relationship_state as string) ?? "active",
+      stateUntil: (a.state_until as string | null) ?? null,
+      stateNote: (a.state_note as string | null) ?? null,
+      permitEmail: (a.permit_email as string) ?? "unknown",
+      permitSms: (a.permit_sms as string) ?? "unknown",
+      permitPhone: (a.permit_phone as string) ?? "unknown",
+      tags: (a.tags as string[] | null) ?? [],
+      lostReason: (a.lost_reason as string | null) ?? null,
+      jobTypes: est.filter((e) => e.status === "accepted" || e.accepted_at).map((e) => ({
+        type: ((e.wizard_job_type as string | null) ?? null),
+        completedAt: wos.find(() => true)?.end_date ?? (e.accepted_at as string | null) ?? null,
+      })),
       email: (a.email as string | null) ?? null,
       ownerId: (a.owner_id as string | null) ?? null,
       address: prop ? [prop.address, prop.suburb, prop.state, prop.postcode].filter(Boolean).join(" ") || null : null,
@@ -157,17 +178,20 @@ async function loadChunk(supabase: SupabaseClient, ids: string[]): Promise<Custo
           viewed_at: e.viewed_at as string | null, accepted_at: e.accepted_at as string | null,
           declined_at: e.declined_at as string | null,
         })),
-        workOrders: woByAccount.get(a.id as string) ?? [],
+        workOrders: wos,
         events: evs.map((e) => ({ type: e.type, occurred_at: e.occurred_at })),
         temperature: a.temperature as string | null,
         snoozedUntil: a.snoozed_until as string | null,
         followupDueAt: a.followup_due_at as string | null,
+        relationshipState: (a.relationship_state as string) ?? "active",
+        stateUntil: (a.state_until as string | null) ?? null,
+        stateSetAt: (a.state_set_at as string | null) ?? null,
       },
     };
   });
 }
 
-export type SessionCard = BoardInput & { trade: false };
+export type SessionCard = CustomerInput & { trade: false };
 
 /**
  * Tom, 6 Sep: wizard sessions with NO account yet (no email typed) are cards
@@ -200,6 +224,9 @@ export async function loadSessionCards(supabase: SupabaseClient, limit = 100): P
       converted: false,
     },
     trade: false,
+    relationshipState: "active", stateUntil: null, stateNote: null, permitEmail: "unknown", permitSms: "unknown", permitPhone: "unknown", tags: [], lostReason: null, jobTypes: [],
+    email: (d.email as string | null) ?? null, ownerId: null, address: (d.address as string | null) ?? null, suburb: (d.suburb as string | null) ?? null,
+    accountType: "residential", allEvents: [],
     facts: { estimates: [], workOrders: [], events: [], temperature: null, snoozedUntil: null, followupDueAt: null },
   }));
 }

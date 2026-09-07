@@ -2,7 +2,9 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import BoardView from "./BoardView";
 import QuickAdd from "./QuickAdd";
-import { GROUPS, LANE_GROUP, SORTS, loadBoard, loadCustomerPage, type FactsCard, type GroupKey, type SortKey } from "./data";
+import { EMPTY_FILTERS, GROUPS, LANE_GROUP, LIFECYCLE, SORTS, loadBoard, loadCustomerPage, loadViews, type FactsCard, type GroupKey, type ListFilters, type SortKey } from "./data";
+import ViewSaver from "./ViewSaver";
+import { RELATIONSHIP_STATES, STATE_LABEL } from "@/lib/crm/states";
 import type { LaneKey } from "@/lib/crm/stage";
 
 export const dynamic = "force-dynamic";
@@ -32,9 +34,17 @@ const initials = (name: string) => {
  * believing they're covered (brief risk #4).
  */
 export default async function CustomersPage({ searchParams }: {
-  searchParams: Promise<{ view?: string; sort?: string; f?: string; q?: string; page?: string }>;
+  searchParams: Promise<{ view?: string; sort?: string; f?: string; q?: string; page?: string; state?: string; tag?: string; owner?: string; temp?: string; life?: string; v?: string }>;
 }) {
   const params = await searchParams;
+  const filters: ListFilters = {
+    state: [...RELATIONSHIP_STATES, "delay_ended"].includes(params.state ?? "") ? (params.state as string) : "",
+    tag: (params.tag ?? "").slice(0, 40),
+    owner: (params.owner ?? "").slice(0, 40),
+    temp: ["hot", "warm", "cold"].includes(params.temp ?? "") ? (params.temp as string) : "",
+    life: LIFECYCLE.some((l) => l.key === params.life) ? (params.life as string) : "",
+  };
+  const activeView = params.v ?? "";
   const view = params.view === "board" ? "board" : "list";
   const sort = (SORTS.some((s) => s.key === params.sort) ? params.sort : "quote-new") as SortKey;
   const filter = (GROUPS.some((g) => g.key === params.f) ? params.f : "all") as GroupKey;
@@ -43,19 +53,30 @@ export default async function CustomersPage({ searchParams }: {
 
   const supabase = await createClient();
 
-  const qs = (over: Partial<{ view: string; sort: string; f: string; q: string; page: number }>) => {
-    const merged = { view, sort, f: filter, q, page, ...over };
+  const qs = (over: Partial<{ view: string; sort: string; f: string; q: string; page: number } & ListFilters & { v: string }>) => {
+    const merged = { view, sort, f: filter, q, page, ...filters, v: activeView, ...over };
     const parts = [];
     if (merged.view !== "list") parts.push(`view=${merged.view}`);
     if (merged.sort !== "quote-new") parts.push(`sort=${merged.sort}`);
     if (merged.f !== "all") parts.push(`f=${merged.f}`);
     if (merged.q) parts.push(`q=${encodeURIComponent(merged.q)}`);
+    for (const k of ["state", "tag", "owner", "temp", "life"] as const) if (merged[k]) parts.push(`${k}=${encodeURIComponent(merged[k])}`);
+    if (merged.v) parts.push(`v=${encodeURIComponent(merged.v)}`);
     if (merged.page > 1) parts.push(`page=${merged.page}`);
     return `/crm/customers${parts.length ? "?" + parts.join("&") : ""}`;
   };
+  const currentParams: Record<string, string> = Object.fromEntries(Object.entries({ view, sort, f: filter, q, ...filters }).filter(([, v]) => v && v !== "list" && v !== "quote-new" && v !== "all"));
 
-  const board = view === "board" ? await loadBoard(supabase, filter, q) : null;
-  const list = view === "list" ? await loadCustomerPage(supabase, { sort, filter, q, page, pageSize: PAGE_SIZE }) : null;
+  const [board, list, views, { data: tagRows }, { data: staffRows }] = await Promise.all([
+    view === "board" ? loadBoard(supabase, filter, q, 25, new Date(), filters) : Promise.resolve(null),
+    view === "list" ? loadCustomerPage(supabase, { sort, filter, q, page, pageSize: PAGE_SIZE, filters }) : Promise.resolve(null),
+    loadViews(supabase),
+    supabase.from("crm_tags").select("key, label").order("sort_order").order("label"),
+    supabase.from("profiles").select("id, name").eq("role", "staff").order("name"),
+  ]);
+  const tagOptions = ((tagRows ?? []) as Array<{ key: string; label: string }>);
+  const staffOptions = ((staffRows ?? []) as Array<{ id: string; name: string | null }>);
+  const filtersOn = Object.values(filters).some(Boolean);
   const counts: Record<GroupKey, number> | null = list?.counts ?? (board
     ? (Object.fromEntries(GROUPS.map((g) => [g.key,
         g.key === "all" ? board.lanes.reduce((s, l) => s + l.count, 0)
@@ -110,6 +131,47 @@ export default async function CustomersPage({ searchParams }: {
         ))}
       </div>
 
+      <form className="filters" action="/crm/customers" method="get" data-testid="filters">
+        {view !== "list" && <input type="hidden" name="view" value={view} />}
+        {sort !== "quote-new" && <input type="hidden" name="sort" value={sort} />}
+        {filter !== "all" && <input type="hidden" name="f" value={filter} />}
+        {q && <input type="hidden" name="q" value={q} />}
+        <select className="field" name="state" defaultValue={filters.state} aria-label="Status">
+          <option value="">Any status</option>
+          {RELATIONSHIP_STATES.map((s) => <option key={s} value={s}>{STATE_LABEL[s]}</option>)}
+          <option value="delay_ended">Delay ended</option>
+        </select>
+        <select className="field" name="tag" defaultValue={filters.tag} aria-label="Tag">
+          <option value="">Any tag</option>
+          {tagOptions.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+        </select>
+        <select className="field" name="owner" defaultValue={filters.owner} aria-label="Owner">
+          <option value="">Any owner</option>
+          <option value="nobody">Nobody</option>
+          {staffOptions.map((s) => <option key={s.id} value={s.id}>{s.name || "Staff"}</option>)}
+        </select>
+        <select className="field" name="temp" defaultValue={filters.temp} aria-label="Temperature">
+          <option value="">Any temperature</option>
+          <option value="hot">Hot</option><option value="warm">Warm</option><option value="cold">Cold</option>
+        </select>
+        <select className="field" name="life" defaultValue={filters.life} aria-label="Lifecycle">
+          <option value="">Any lifecycle</option>
+          {LIFECYCLE.map((l) => <option key={l.key} value={l.key}>{l.label} — {l.hint}</option>)}
+        </select>
+        <button type="submit" className="chip">Apply</button>
+        {filtersOn && <Link className="chip ghost" href={qs({ ...EMPTY_FILTERS, page: 1, v: "" })}>Clear</Link>}
+        <ViewSaver params={currentParams} activeKey={activeView} />
+      </form>
+
+      {views.length > 0 && (
+        <div className="views" data-testid="views">
+          <span className="lbl">Views</span>
+          {views.map((v) => (
+            <Link key={v.key} className={`chip sm ${activeView === v.key ? "on" : ""}`} href={`/crm/customers?${new URLSearchParams({ ...v.params, v: v.key }).toString()}`}>{v.name}</Link>
+          ))}
+        </div>
+      )}
+
       {board ? (
         <div style={{ marginTop: 14 }}>
           <BoardView board={board} moreHref={(lane) => qs({ view: "list", f: LANE_GROUP[lane as LaneKey], page: 1 })} />
@@ -128,6 +190,7 @@ export default async function CustomersPage({ searchParams }: {
                     <span className="rn">
                       {a.temperature && <i className={`dot ${a.temperature}`} aria-hidden="true" />}
                       {a.name}
+                      {a.tags.length > 0 && <span className="rtags">{a.tags.map((t) => <i key={t} className="rtag">{tagOptions.find((o) => o.key === t)?.label ?? t}</i>)}</span>}
                     </span>
                     <span className="rs">{[a.meta, a.because].filter(Boolean).join(" · ")}</span>
                   </span>

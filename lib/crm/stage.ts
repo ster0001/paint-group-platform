@@ -19,6 +19,8 @@
  * That is a cache of THIS function's output, never a second implementation.
  */
 
+import { delayEnded, isQuiet } from "./states";
+
 export const LANES = [
   // Tom, 6 Sep 2026 (buckets brief §4/§6, ⚑C1 ruled): the wizard's five
   // buckets are lanes of their own, so who has just enquired and who has
@@ -85,6 +87,10 @@ export type WorkOrderFact = {
 };
 
 export type AccountFacts = {
+  /** P4: the staff-set relationship state and, for `delayed`, its date; for `lost`, when it was set. */
+  relationshipState?: string | null;
+  stateUntil?: string | null;
+  stateSetAt?: string | null;
   estimates: EstimateFact[];
   workOrders: WorkOrderFact[];
   /** Only the types the lane rules read: visit_booked, visit_completed,
@@ -132,7 +138,28 @@ const isClosed = (e: EstimateFact) => e.status === "declined" || e.declined_at !
  * live job. The one exception is `past_customer`, which is only reached when
  * nothing is open at all.
  */
-export function stageFor(facts: AccountFacts, now: Date = new Date()): StageResult {
+export function stageFor(facts: AccountFacts, now: Date = new Date(), thresholds: Thresholds = THRESHOLDS): StageResult {
+  const r = stageInner(facts, now, thresholds);
+  // P4: "lost" is a decision, not a deduction. Marked lost by a person, the
+  // customer sits in the Lost lane whatever their estimates say — until a
+  // new estimate re-opens them (the database does that on its own).
+  if (facts.relationshipState === "lost") {
+    return { stage: "lost", because: "Marked lost", since: facts.stateSetAt ?? r.since,
+      flags: { ...r.flags, chaseDue: false, followupOverdue: false, goingCold: false, secondAttemptDue: false } };
+  }
+  // A quiet relationship state silences every chase flag — nobody rings a
+  // customer who said "not until March", or one who asked never to be called.
+  // A delayed customer whose date has passed is awake again, and flagged.
+  if (isQuiet(facts.relationshipState, facts.stateUntil, now)) {
+    return { ...r, flags: { ...r.flags, chaseDue: false, followupOverdue: false, goingCold: false, secondAttemptDue: false } };
+  }
+  return r;
+}
+
+export type StageThresholds = { chaseUnopenedDays: number; chaseOpenedDays: number; goingColdDays: number; secondAttemptDays: number; pastCustomerDays: number };
+type Thresholds = StageThresholds;
+
+function stageInner(facts: AccountFacts, now: Date, THRESHOLDS: Thresholds): StageResult {
   const est = facts.estimates;
   const open = est.filter((e) => !isClosed(e));
   const accepted = est.filter((e) => e.accepted_at || e.status === "accepted");
@@ -296,7 +323,8 @@ export const OPEN_LANES: LaneKey[] = LANES.map((l) => l.key).filter((k) => k !==
  *  snooze is for; an EXPIRED snooze puts the card back in the count, which is
  *  the mockup's "Snoozed until yesterday" card sitting there with a
  *  follow-up-overdue chip. */
-export function needsYouToday(r: StageResult): boolean {
+export function needsYouToday(r: StageResult, facts?: Pick<AccountFacts, "relationshipState" | "stateUntil">, now: Date = new Date()): boolean {
+  if (facts && delayEnded(facts.relationshipState, facts.stateUntil, now)) return true;
   if (r.flags.snoozed) return false;
   return r.flags.chaseDue || r.flags.followupOverdue || r.flags.goingCold || r.flags.secondAttemptDue;
 }

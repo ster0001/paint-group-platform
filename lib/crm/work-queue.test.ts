@@ -8,6 +8,9 @@ import {
   type LapsedEventRow,
   buildMessageItems,
   type InboundMessageRow,
+  buildDelayEndedItems,
+  suppressQuiet,
+  type DelayedAccountRow,
 } from "./work-queue";
 
 /** Mid-afternoon Melbourne, mid-week. Every test pins its own clock. */
@@ -279,5 +282,27 @@ describe("messages (CRM v2 P3) — unanswered and unmatched", () => {
     expect(item.title).toBe("A text from garry@example.com");
     expect(item.action.href).toBe("/crm/messages/m1");
     expect(item.accountId).toBeNull();
+  });
+});
+
+describe("delay_ended + quiet states (CRM v2 P4)", () => {
+  const now = new Date("2026-09-07T10:00:00+10:00");
+  const row = (until: string, over: Partial<DelayedAccountRow> = {}): DelayedAccountRow => ({
+    id: "acc1", name: "Garry Kennedy", email: null, phone: null, state_until: until, state_note: "Ring about the exterior", state_reason: null, ...over,
+  });
+
+  it("a delay whose date passed is an item carrying the note; one still holding is not", () => {
+    const [item] = buildDelayEndedItems([row("2026-09-06T23:00:00+10:00")], now);
+    expect(item.kind).toBe("delay_ended");
+    expect(item.title).toBe("Garry Kennedy — the delay is up");
+    expect(item.detail).toBe("Ring about the exterior");
+    expect(buildDelayEndedItems([row("2026-10-01T09:00:00+10:00")], now)).toHaveLength(0);
+  });
+
+  it("everything else about a quiet customer is dropped, but the delay-ended item survives", () => {
+    const [ended] = buildDelayEndedItems([row("2026-09-06T23:00:00+10:00")], now);
+    const other: WorkItem = { ...ended, key: "x", kind: "followup_due" };
+    const kept = suppressQuiet([ended, other], new Set(["acc1"]));
+    expect(kept.map((i) => i.kind)).toEqual(["delay_ended"]);
   });
 });

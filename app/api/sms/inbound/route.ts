@@ -74,6 +74,7 @@ export async function POST(req: Request) {
           await db.from("accounts")
             .update({ marketing_unsubscribed_at: new Date().toISOString() }).eq("id", a.id);
         }
+        await db.rpc("crm_set_permission", { p_account_id: a.id as string, p_channel: "sms", p_value: "declined", p_how: "sms_stop" });
         await db.rpc("crm_log_event", buildEvent({
           type: "campaign_unsubscribed",
           accountId: a.id as string,
@@ -89,6 +90,7 @@ export async function POST(req: Request) {
 
     if (kind === "start") {
       for (const a of matched) {
+        await db.rpc("crm_set_permission", { p_account_id: a.id as string, p_channel: "sms", p_value: "allowed", p_how: "sms_start" });
         await db.from("accounts").update({ marketing_unsubscribed_at: null }).eq("id", a.id);
         await db.rpc("crm_log_event", buildEvent({
           type: "sms_reply",

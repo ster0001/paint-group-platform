@@ -2298,3 +2298,34 @@ Verification: `e2e/crm-p3-messages.spec.ts` (6 journeys on C1, signing its own w
 `lib/messaging/record.test.ts`; manual test `docs/manual-tests/crm-v2-p3-messages.md` (the env to set,
 in order: `RESEND_WEBHOOK_SECRET`, then the receiving domain + `MESSAGES_INBOUND_SECRET`, then
 `REPLY_DOMAIN` last).
+
+## CRM v2 · Phase 4 — the status model (7 Sep 2026)
+
+Source: `docs/briefs/crm-v2-deep-dive.md` §4.5. Migration 20270125. "More buckets" is five INDEPENDENT
+dimensions, not one dropdown: stage (derived, unchanged) · relationship state (stored, staff-set:
+active / delayed-until / do_not_contact / lost-with-reason / archived) · per-channel contact permissions
+with provenance (`permit_email|sms|phone` + `permit_meta`) · temperature · tags (`crm_tags` registry +
+`accounts.tags`). Vocabulary and helpers in `lib/crm/states.ts` (`isQuiet`, `delayEnded`, `stateChip`,
+the five ruled lost reasons with their final wording).
+
+- **Rules**: `stageFor` (lib/crm/stage.ts) now takes the state — a quiet state (dnc / archived / holding
+  delay) clears every chase flag; a delay whose date passed is awake and needs you; `lost` set by a person
+  IS the Lost lane whatever the estimates say. `crm_set_state` clears follow-up/snooze for quiet states; the
+  `estimates` insert trigger re-opens a lost customer; either marketing channel declined keeps
+  `marketing_unsubscribed_at` set for the guard chain (P5 reads the columns directly). Decision 8.4: a
+  declined phone permission hides the "worth a call" prompt, never the number.
+- **Today**: `suppressQuiet` drops every item for a quiet customer; `delay_ended` is a derived item from
+  `accounts` (state delayed, date passed) carrying the note — no sweep, no stored task.
+- **Thresholds in Settings** (`lib/crm/thresholds.ts`, `settings.crm`, Settings → CRM): chase days,
+  going-cold, second attempt, past-customer, message/callback overdue hours, after-care, review window,
+  repaint years by job type. Read by the facts refresher (`stageFor(facts, now, thresholds)`,
+  `repaint_due_at`) and the work queue.
+- **Customers**: filters (state incl. "delay ended", tag, owner incl. nobody, temperature, lifecycle
+  after-care / review / repaint-due) ride the URL; archived is hidden except in search; saved views live in
+  `settings.crm_views` (`app/crm/customers/viewActions.ts`, `ViewSaver`).
+- **Record**: `StatusPanel` (state with date/reason/lost-reason forms, permissions with provenance, tag
+  toggles + new tag); the status line composes lane · because · state · permissions · tags.
+- The unsubscribe page and the SMS STOP/START route write `crm_set_permission` with provenance.
+
+Verification: `e2e/crm-p4-status.spec.ts` (5 journeys on C1); manual test
+`docs/manual-tests/crm-v2-p4-status.md`.
