@@ -224,6 +224,7 @@ export function toWizardState(draft: AnswerDraft, facts: AgentFacts, mode: "cust
       suburb: c.suburb ?? draft.address?.suburb ?? "",
       postcode: c.postcode ?? draft.address?.postcode ?? "",
       propertyKind: c.propertyKind,
+      ...(c.commercialKind ? { commercialKind: c.commercialKind } : {}),
       heritageListed: c.heritageListed,
       bodyCorporate: c.bodyCorporate,
       builtPre1970: c.builtPre1970,

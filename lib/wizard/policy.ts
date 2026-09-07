@@ -112,6 +112,7 @@ export function answersFromState(s: {
   customer: {
     postcode: string;
     propertyKind: "house" | "townhouse" | "unit_apartment" | "commercial";
+    commercialKind?: CommercialKind | null;
     heritageListed: "yes" | "no" | "unsure";
     bodyCorporate: "yes" | "no" | "unsure";
     builtPre1970: "yes" | "no" | "unsure";
@@ -124,6 +125,7 @@ export function answersFromState(s: {
   return {
     jobType: s.jobType,
     propertyKind: s.customer?.propertyKind ?? "house",
+    commercialKind: s.customer?.commercialKind ?? null,
     heritageListed: s.customer?.heritageListed ?? "no",
     bodyCorporate: s.customer?.bodyCorporate ?? "no",
     builtPre1970: s.customer?.builtPre1970 ?? "no",
@@ -138,9 +140,15 @@ export function answersFromState(s: {
   };
 }
 
+/** Tom, 8 Sep 2026: the three sorts of commercial job the wizard asks about. */
+export type CommercialKind = "small_interior" | "large_interior" | "strata";
+
 export type GuardrailAnswers = {
   jobType: "interior" | "exterior" | "both";
   propertyKind: "house" | "townhouse" | "unit_apartment" | "commercial";
+  /** Only meaningful when propertyKind is commercial; null = never asked
+   * (an older session, the assistant) — treated as "a person looks". */
+  commercialKind?: CommercialKind | null;
   heritageListed: "yes" | "no" | "unsure";
   bodyCorporate: "yes" | "no" | "unsure";
   builtPre1970: "yes" | "no" | "unsure";
@@ -213,7 +221,16 @@ export function evaluateGuardrails(
   }
 
   // ---- 3. human handoffs ----------------------------------------------------
-  if (a.propertyKind === "commercial") reasons.push("commercial_property");
+  // Tom, 8 Sep 2026: commercial is not one thing. A few rooms or offices is
+  // priced by the wizard like any interior (a person still signs it off —
+  // the visit tier); a large space or a strata / body-corporate building
+  // is seen first. No answer (older session, the assistant) = a person.
+  if (a.propertyKind === "commercial") {
+    if (a.commercialKind === "small_interior") reasons.push("commercial_small");
+    else if (a.commercialKind === "large_interior") reasons.push("commercial_large");
+    else if (a.commercialKind === "strata") reasons.push("commercial_strata");
+    else reasons.push("commercial_property");
+  }
   if (a.heritageListed !== "no") reasons.push(a.heritageListed === "yes" ? "heritage_listed" : "heritage_unsure");
   if (a.bodyCorporate === "yes") reasons.push("body_corporate");
   if (a.asbestosSuspected === "unsure") reasons.push("asbestos_unsure");
@@ -229,8 +246,8 @@ export function evaluateGuardrails(
   // asbestos YES and lead_paint_possible stay hard for everyone.
   const softForActor = new Set(
     tradeActor
-      ? ["heritage_unsure", "asbestos_unsure", "heritage_listed", "commercial_property", "body_corporate"]
-      : ["heritage_unsure", "asbestos_unsure"],
+      ? ["heritage_unsure", "asbestos_unsure", "heritage_listed", "commercial_property", "commercial_small", "commercial_large", "commercial_strata", "body_corporate"]
+      : ["heritage_unsure", "asbestos_unsure", "commercial_small"],
   );
   const hardReasons = reasons.filter((r) => !softForActor.has(r));
   if (hardReasons.length) {
@@ -261,9 +278,12 @@ export function evaluateGuardrails(
   if (requiresSiteCheck) softReasons.push("site_check_required");
   // A trade job that would have handed off still takes the VISIT tier — the
   // price shows as a range, but a person signs it off before acceptance.
-  if (tradeActor && reasons.some((r) => r === "commercial_property" || r === "body_corporate" || r === "heritage_listed")) {
+  if (tradeActor && reasons.some((r) => r.startsWith("commercial_") || r === "body_corporate" || r === "heritage_listed")) {
     walkthrough = true;
   }
+  // A small commercial job is priced online but a person confirms it on
+  // site before anything is booked (Tom, 8 Sep) — the visit tier.
+  if (reasons.includes("commercial_small")) walkthrough = true;
   const isExteriorish = a.jobType !== "interior";
   if (a.jobType === "both") {
     walkthrough = true; softReasons.push("mixed_scope");
@@ -300,6 +320,8 @@ export function evaluateGuardrails(
  */
 const WHY: Record<string, string> = {
   commercial_property: "Commercial properties are priced by a person — the scope and access are different from a home.",
+  commercial_large: "A larger commercial space is priced on site — the scope, access and working hours are different from a home, so a person comes and sees it.",
+  commercial_strata: "Strata and body-corporate work is priced on site — common areas, access and the owners corporation's requirements are confirmed by a person first.",
   heritage_listed: "A heritage listing changes what paints and methods are allowed, so a person confirms the details.",
   body_corporate: "Body-corporate work needs the owners corporation's requirements confirmed first.",
   lead_paint_possible: "A home that may be pre-1970 and in real need of repair is checked for lead paint before anything is priced.",

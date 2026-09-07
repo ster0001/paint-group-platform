@@ -3,6 +3,7 @@ import {
   bandsFromSettings,
   DEFAULT_POLICY,
   evaluateGuardrails,
+  guardrailWhy,
   policyFromSettings,
   rangeBandPct,
   rangeFromTotal,
@@ -93,7 +94,7 @@ describe("guardrails — service area", () => {
 });
 
 describe("guardrails — handoffs", () => {
-  it("commercial, heritage-listed and body-corporate all hand off", () => {
+  it("commercial (unanswered kind), heritage-listed and body-corporate all hand off", () => {
     for (const over of [
       { propertyKind: "commercial" as const },
       { heritageListed: "yes" as const },
@@ -103,6 +104,25 @@ describe("guardrails — handoffs", () => {
       expect(d.outcome).toBe("handoff");
       expect(d.canAccept).toBe(false);
     }
+  });
+
+  // Tom, 8 Sep 2026: commercial is three things, not one.
+  it("a few commercial rooms or offices price online on the visit tier; a large space or strata hands off", () => {
+    const small = evaluateGuardrails(clean({ propertyKind: "commercial", commercialKind: "small_interior" }), 800_000, 95, false);
+    expect(small.outcome).toBe("reveal");
+    expect(small.walkthroughRequired).toBe(true);
+    expect(small.canAccept).toBe(false);
+    expect(small.reasons).toContain("commercial_small");
+    for (const kind of ["large_interior", "strata"] as const) {
+      const d = evaluateGuardrails(clean({ propertyKind: "commercial", commercialKind: kind }), 800_000, 95, false);
+      expect(d.outcome).toBe("handoff");
+      expect(d.reasons).toContain(kind === "strata" ? "commercial_strata" : "commercial_large");
+      expect(guardrailWhy(d.reasons)).toMatch(/priced on site/);
+    }
+    // The kind means nothing on a home.
+    expect(evaluateGuardrails(clean({ commercialKind: "strata" }), 800_000, 95, false).outcome).toBe("reveal");
+    // Safety still wins over size.
+    expect(evaluateGuardrails(clean({ propertyKind: "commercial", commercialKind: "small_interior", asbestosSuspected: "yes" }), 800_000, 95, false).outcome).toBe("hard_stop");
   });
 
   it("asbestos 'not sure' is a visit-tier flag, never an online accept and never a dead end (Tom, 7 Sep)", () => {

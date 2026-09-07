@@ -298,6 +298,7 @@ test.describe("Tom's 7 Sep batch", () => {
     const ans = answer(page);
     const next = nextOf(page);
     await ans("What kind of property", "Commercial");
+    await ans("What sort of commercial job", "A few rooms or offices"); // Tom, 8 Sep
     await next(); // what are we painting
     await expect(page.getByRole("heading", { name: "What are we painting?" })).toBeVisible();
     await next(); // condition
