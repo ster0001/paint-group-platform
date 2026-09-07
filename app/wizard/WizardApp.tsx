@@ -1997,6 +1997,11 @@ function PageContact({ state, set, stepsTotal }: { state: WizardState; set: (p: 
         We use the phone only if there&rsquo;s something we can&rsquo;t work out from your answers.
         No spam, no obligation — and you can stop hearing from us in one click, any time.
       </p>
+      {/* Tom, 7 Sep (item 4): requesting an estimate = agreeing to hear about THIS job. */}
+      <p className="wz-chint wz-consent" data-testid="wizard-consent">
+        By requesting your estimate you agree to receive messages about your project — the estimate itself, visit
+        times, job updates and invoices — by email and text. You can change how we contact you any time in your account.
+      </p>
       <PagePaint state={state} set={set} embedded />
     </>
   );

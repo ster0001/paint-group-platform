@@ -117,7 +117,7 @@ export async function deliverCustomerUpdate(
   </td></tr>
 </table></td></tr></table>
 </body></html>`;
-      const r = await sendEmail({ to, subject: `An update on your painting at ${address}`, html });
+      const r = await sendEmail({ to, subject: `An update on your painting at ${address}`, html, ctx: { accountId: wo.estimates.account_id, estimateId: wo.estimate_id, kind: "job_update" } });
       out.email = r.status === "sent" ? "sent" : r.status === "not_configured" ? "not_configured" : "error";
       out.to = to;
       if (out.email === "error") {
@@ -135,7 +135,7 @@ export async function deliverCustomerUpdate(
         `Hi ${firstName}, an update on your painting at ${address}: ` +
         `${text.slice(0, 180)}${text.length > 180 ? "…" : ""}` +
         `${link ? ` See photos and details: ${link}` : ""}`;
-      const r = await sendSms({ to: phone, body });
+      const r = await sendSms({ to: phone, body, ctx: { accountId: wo.estimates.account_id, estimateId: wo.estimate_id, kind: "job_update" } });
       out.sms = r.status === "sent" ? "sent" : r.status === "not_configured" ? "not_configured" : "error";
       if (out.sms === "error") {
         reportError(new Error("update sms failed"), { where: "deliverCustomerUpdate.sms", extra: { updateId } });

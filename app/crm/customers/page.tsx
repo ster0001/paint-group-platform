@@ -34,7 +34,7 @@ const initials = (name: string) => {
  * believing they're covered (brief risk #4).
  */
 export default async function CustomersPage({ searchParams }: {
-  searchParams: Promise<{ view?: string; sort?: string; f?: string; q?: string; page?: string; state?: string; tag?: string; owner?: string; temp?: string; life?: string; v?: string }>;
+  searchParams: Promise<{ view?: string; sort?: string; f?: string; q?: string; page?: string; state?: string; tag?: string; owner?: string; temp?: string; life?: string; v?: string; archived?: string }>;
 }) {
   const params = await searchParams;
   const filters: ListFilters = {
@@ -46,10 +46,12 @@ export default async function CustomersPage({ searchParams }: {
     life: LIFECYCLE.some((l) => l.key === params.life) ? (params.life as string) : "",
   };
   const activeView = params.v ?? "";
-  const view = params.view === "board" ? "board" : "list";
+  // Tom, 7 Sep (item 16): Customers opens on the BOARD. A search is a list
+  // (you typed a name, you want rows); the toggle is always explicit.
+  const q = (params.q ?? "").slice(0, 80);
+  const view: "board" | "list" = params.view === "list" ? "list" : params.view === "board" ? "board" : q ? "list" : "board";
   const sort = (SORTS.some((s) => s.key === params.sort) ? params.sort : "quote-new") as SortKey;
   const filter = (GROUPS.some((g) => g.key === params.f) ? params.f : "all") as GroupKey;
-  const q = (params.q ?? "").slice(0, 80);
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
 
   const supabase = await createClient();
@@ -61,7 +63,8 @@ export default async function CustomersPage({ searchParams }: {
   const qs = (over: Partial<{ view: string; sort: string; f: string; q: string; page: number } & ListFilters & { v: string }>) => {
     const merged = { view, sort, f: filter, q, page, ...filters, v: activeView, ...over };
     const parts = [];
-    if (merged.view !== "list") parts.push(`view=${merged.view}`);
+    // The view rides the URL whenever it isn't what the URL would default to.
+    if (merged.view !== (merged.q ? "list" : "board")) parts.push(`view=${merged.view}`);
     if (merged.sort !== "quote-new") parts.push(`sort=${merged.sort}`);
     if (merged.f !== "all") parts.push(`f=${merged.f}`);
     if (merged.q) parts.push(`q=${encodeURIComponent(merged.q)}`);
@@ -70,7 +73,7 @@ export default async function CustomersPage({ searchParams }: {
     if (merged.page > 1) parts.push(`page=${merged.page}`);
     return `/crm/customers${parts.length ? "?" + parts.join("&") : ""}`;
   };
-  const currentParams: Record<string, string> = Object.fromEntries(Object.entries({ view, sort, f: filter, q, ...filters }).filter(([, v]) => v && v !== "list" && v !== "quote-new" && v !== "all"));
+  const currentParams: Record<string, string> = Object.fromEntries(Object.entries({ view, sort, f: filter, q, ...filters }).filter(([, v]) => v && v !== "board" && v !== "quote-new" && v !== "all"));
 
   const [board, list, views, { data: tagRows }, { data: staffRows }] = await Promise.all([
     view === "board" ? loadBoard(supabase, filter, q, 25, new Date(), filters) : Promise.resolve(null),
@@ -98,7 +101,8 @@ export default async function CustomersPage({ searchParams }: {
   return (
     <>
       <h2>{total.toLocaleString("en-AU")} customer{total === 1 ? "" : "s"}</h2>
-      <p className="sub">Same list, two shapes. The board is a view, not a separate place.</p>
+      <p className="sub">Same customers, two shapes — the board by stage, or the list to sort and search.</p>
+      {params.archived && <p className="said" data-testid="flash">Archived. They&rsquo;re out of every list and board now — search still finds them.</p>}
 
       <div className="bar">
         <div className="seg">
@@ -106,7 +110,7 @@ export default async function CustomersPage({ searchParams }: {
           <Link className={view === "board" ? "on" : ""} href={qs({ view: "board", page: 1 })}>Board</Link>
         </div>
         <form className="csearch" action="/crm/customers" method="get" role="search">
-          {view !== "list" && <input type="hidden" name="view" value={view} />}
+          {view !== "board" && <input type="hidden" name="view" value={view} />}
           {sort !== "quote-new" && <input type="hidden" name="sort" value={sort} />}
           {filter !== "all" && <input type="hidden" name="f" value={filter} />}
           <input className="field" type="search" name="q" defaultValue={q} placeholder="Name, phone, email, address" aria-label="Search customers" />
@@ -137,7 +141,7 @@ export default async function CustomersPage({ searchParams }: {
       </div>
 
       <form className="filters" action="/crm/customers" method="get" data-testid="filters">
-        {view !== "list" && <input type="hidden" name="view" value={view} />}
+        <input type="hidden" name="view" value={view} />
         {sort !== "quote-new" && <input type="hidden" name="sort" value={sort} />}
         {filter !== "all" && <input type="hidden" name="f" value={filter} />}
         {q && <input type="hidden" name="q" value={q} />}

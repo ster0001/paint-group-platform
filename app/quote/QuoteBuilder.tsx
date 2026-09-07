@@ -256,7 +256,7 @@ export default function QuoteBuilder({
   settings: Setting[];
   lineItems: LineItemRef[];
   areaNames: AreaNameRef[];
-  initial: { id: string | null; title: string | null; builder_state: unknown; share_token?: string | null; status?: string | null; sent_at?: string | null; valid_until?: string | null; presentation_id?: string | null; sent_snapshot?: unknown } | null;
+  initial: { id: string | null; title: string | null; builder_state: unknown; share_token?: string | null; status?: string | null; sent_at?: string | null; viewed_at?: string | null; accepted_at?: string | null; valid_until?: string | null; presentation_id?: string | null; sent_snapshot?: unknown } | null;
   company: CompanyProfile;
   contacts: Contact[];
   inclusionTemplates?: InclusionTemplate[];
@@ -1513,7 +1513,21 @@ export default function QuoteBuilder({
           >
             ← {backTo?.label ?? "Estimates"}
           </Link>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">{title || "New estimate"}</h1>
+          <div className="mt-1 flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight">{title || "New estimate"}</h1>
+            {/* Tom, 7 Sep (item 12): the status, at the very top, in the dark box. */}
+            {(() => {
+              const viewed = Boolean(initial?.viewed_at);
+              const s = estStatus;
+              const [label, cls] =
+                s === "accepted" ? ["Accepted", "bg-emerald-500 text-white"]
+                : s === "declined" ? ["Declined", "bg-rose-500 text-white"]
+                : s === "expired" ? ["Lapsed — past its valid date", "bg-amber-400 text-black"]
+                : s === "sent" ? (viewed ? ["Sent · viewed by the customer", "bg-sky-400 text-black"] : ["Sent · not opened yet", "bg-sky-200 text-sky-900"])
+                : quoteId ? ["Not sent yet", "bg-white/15 text-white"] : ["New — not saved", "bg-white/15 text-white"];
+              return <span className={`rounded-full px-3 py-1 text-xs font-semibold tracking-wide ${cls}`} data-testid="builder-status">{label}</span>;
+            })()}
+          </div>
           <p className="text-sm text-gray-400">
             Rate card v{rateCardVersion ?? "?"} · live pricing
             {quoteId ? " · saved draft" : ""}
@@ -2424,6 +2438,7 @@ export default function QuoteBuilder({
                     <p key={ch} className={`text-sm ${o.status === "sent" ? "text-emerald-700" : "text-amber-700"}`}>
                       {o.status === "sent" && `✓ ${label} sent`}
                       {o.status === "not_configured" && `${label} not sent — ${ch === "email" ? "email" : "SMS"} isn't set up yet (needs the ${ch === "email" ? "Resend" : "Twilio"} keys).`}
+                      {o.status === "suppressed" && `${label} not sent — ${o.message ?? "the customer switched this off in their account"}.`}
                       {o.status === "error" && `${label} failed — ${o.message ?? "unknown error"}`}
                     </p>
                   );

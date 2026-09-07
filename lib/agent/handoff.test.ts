@@ -54,10 +54,13 @@ describe("handoff — pure", () => {
     expect(s).toContain("Sam · 12 Test St — asked for a person.");
   });
 
-  it("the work item: Claim while waiting, Open chat once live, overdue past the SLA", () => {
+  it("the work item: 'Answer the chat' while waiting, Open chat once live, overdue past the SLA", () => {
     const row = { id: "h1", conversation_id: "c1", reason: "customer_asked", status: "requested", requested_at: new Date(TUE_10.getTime() - 400_000).toISOString(), escalated_at: null, claimed_by: null, agent_conversations: { account_id: "a1", estimate_id: null, accounts: { name: "Sam", email: "s@x.com" } } };
     const [waiting] = buildHandoffItems([row], TUE_10, 180);
-    expect(waiting).toMatchObject({ kind: "handoff_requested", title: "Sam is waiting for a person", action: { label: "Claim", href: "/crm/chat/c1" }, bucket: "overdue" });
+    // Tom, 7 Sep: the card says who asked, where they are and what to do — no "Claim".
+    expect(waiting).toMatchObject({ kind: "handoff_requested", title: "Sam wants to talk to a person", action: { label: "Answer the chat", href: "/crm/chat/c1" }, bucket: "overdue" });
+    expect(waiting.detail).toContain("website chat");
+    expect(waiting.detail).toContain("open the chat and answer them");
     const [live] = buildHandoffItems([{ ...row, status: "active" }], TUE_10, 180);
     expect(live).toMatchObject({ title: "Live chat with Sam", action: { label: "Open chat" }, bucket: "today" });
     expect(buildHandoffItems([{ ...row, status: "resolved" }], TUE_10)).toHaveLength(0);

@@ -101,6 +101,10 @@ export function LogSheetBody({ accountId, onDone, compact = false }: { accountId
 /** The "Log" button: opens the sheet in a popover under itself. */
 export default function LogSheet({ accountId, label = "Log" }: { accountId: string; label?: string }) {
   const [open, setOpen] = useState(false);
+  // Tom, 7 Sep (item 14): "the box sometimes doesn't come up". Two causes —
+  // the card's overflow:hidden clipped it (fixed in crm.css), and near the
+  // right edge it opened off-screen. Flip it to hang from the right instead.
+  const [flip, setFlip] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -112,11 +116,17 @@ export default function LogSheet({ accountId, label = "Log" }: { accountId: stri
     return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
   }, [open]);
 
+  const toggle = () => {
+    const r = ref.current?.getBoundingClientRect();
+    if (r) setFlip(r.left + 420 > window.innerWidth);
+    setOpen((o) => !o);
+  };
+
   return (
     <span className="logwrap" ref={ref}>
-      <button type="button" className="qgo logbtn" onClick={() => setOpen((o) => !o)} aria-expanded={open}>{label}</button>
+      <button type="button" className="qgo logbtn" onClick={toggle} aria-expanded={open} data-testid="log-open">{label}</button>
       {open && (
-        <div className="logpop" role="dialog" aria-label="Log something">
+        <div className={`logpop ${flip ? "flip" : ""}`} role="dialog" aria-label="Log something">
           <LogSheetBody accountId={accountId} compact onDone={() => setTimeout(() => setOpen(false), 700)} />
         </div>
       )}

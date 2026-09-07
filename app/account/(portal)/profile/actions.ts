@@ -9,7 +9,6 @@ import { createServiceClient } from "@/lib/supabase/service";
 const detailsSchema = z.object({
   name: z.string().trim().max(120),
   phone: z.string().trim().max(40),
-  marketingOptOut: z.boolean(),
 });
 
 /**
@@ -26,20 +25,18 @@ export async function saveProfileAction(formData: FormData): Promise<void> {
   const parsed = detailsSchema.safeParse({
     name: String(formData.get("name") ?? ""),
     phone: String(formData.get("phone") ?? ""),
-    marketingOptOut: formData.get("marketing") !== "on",
   });
   if (!parsed.success) redirect("/account/profile?error=invalid");
-  const { name, phone, marketingOptOut } = parsed.data;
+  const { name, phone } = parsed.data;
 
   const svc = createServiceClient();
   if (!svc) redirect("/account/profile?error=save");
 
   const own = ctx.accounts.filter((a) => a.email.toLowerCase() === ctx.email.toLowerCase());
   for (const account of own) {
-    const { data: row } = await svc.from("accounts").select("flags").eq("id", account.id).maybeSingle();
-    const flags = { ...((row?.flags ?? {}) as Record<string, unknown>), marketing_opt_out: marketingOptOut };
+    // The marketing tick moved to /account/notifications (7 Sep) — flags are untouched here.
     const { error } = await svc.from("accounts")
-      .update({ name: name || null, phone: phone || null, flags })
+      .update({ name: name || null, phone: phone || null })
       .eq("id", account.id);
     if (error) redirect("/account/profile?error=save");
   }

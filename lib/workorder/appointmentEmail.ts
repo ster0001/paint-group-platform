@@ -32,11 +32,11 @@ export async function sendAppointmentConfirmation(
 async function run(service: SupabaseClient, workOrderId: string): Promise<void> {
   const { data: w } = await service
     .from("work_orders")
-    .select("id, wo_ref, stage, start_date, contractor_id, wo_snapshot, estimates(title, accepted_name, builder_state, sent_snapshot)")
+    .select("id, wo_ref, stage, start_date, contractor_id, estimate_id, wo_snapshot, estimates(title, accepted_name, builder_state, sent_snapshot)")
     .eq("id", workOrderId)
     .maybeSingle();
   const wo = w as {
-    id: string; wo_ref: string; stage: string; start_date: string | null; contractor_id: string | null;
+    id: string; wo_ref: string; stage: string; start_date: string | null; contractor_id: string | null; estimate_id: string | null;
     wo_snapshot: { jobAddress?: string; jobTitle?: string } | null;
     estimates: {
       title: string | null; accepted_name: string | null;
@@ -118,6 +118,7 @@ async function run(service: SupabaseClient, workOrderId: string): Promise<void> 
 
   const result = emailConfigured()
     ? await sendEmail({
+        ctx: { estimateId: wo.estimate_id, workOrderId: wo.id, kind: "appointment" },
         to, subject, replyTo: company.email || undefined,
         html: buildPlainEmailHtml({
           heading: subject, message: body, companyName: vars.company_name,

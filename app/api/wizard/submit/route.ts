@@ -26,6 +26,7 @@ import {
 } from "@/lib/wizard/policy";
 import { reportError } from "@/lib/monitoring/report";
 import { ensureAccountAndProperty } from "@/lib/accounts/link";
+import { recordConsent } from "@/lib/accounts/consent";
 import { reconcileRoomAllowances, type AllowanceBlock } from "@/lib/wizard/allowances";
 import { builderContactFrom, upsertWizardContact } from "@/lib/wizard/contactCard";
 import { isTestEmail } from "@/lib/accounts/identity";
@@ -578,6 +579,9 @@ export async function POST(request: Request) {
           .update({ account_id: linked.accountId, property_id: linked.propertyId })
           .eq("id", estimateId);
         if (link.error) reportError(link.error, { where: "wizard.account.link", bestEffort: true });
+        // Item 4: the request IS the agreement to hear about this project (the
+        // line under the contact fields says so). Once per account; best-effort.
+        void recordConsent(db, linked.accountId, "project", "wizard_request", { estimateId });
 
         // 2.4 · first touch, written ONCE per account. The dedupe key is the
         // account, so a customer's second and third estimates never overwrite

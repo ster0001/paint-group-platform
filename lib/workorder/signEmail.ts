@@ -128,7 +128,7 @@ export async function sendSignedReportEmail(db: SupabaseClient, customerToken: s
       reportError(e, { where: "signEmail.pdf", bestEffort: true });
     }
 
-    const result = await sendEmail({ to: email, subject: msg.subject, html: msg.html, attachments });
+    const result = await sendEmail({ to: email, subject: msg.subject, html: msg.html, attachments, ctx: { estimateId: est?.id ?? null, workOrderId: s.work_order_id, kind: "signoff_report" } });
     if (result.status === "error") reportError(new Error(result.message), { where: "signEmail.send" });
 
     // ⚑6 (31 Aug): where the property carries an Assessor reference and we

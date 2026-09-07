@@ -22,7 +22,7 @@ import { reportError } from "@/lib/monitoring/report";
 
 export type MessageChannel = "email" | "sms" | "call" | "chat" | "portal" | "note";
 export type MessageProvider = "resend" | "twilio" | "manual" | "system" | "portal" | "assistant";
-export type MessageStatus = "queued" | "sent" | "delivered" | "opened" | "clicked" | "bounced" | "complained" | "failed" | "not_configured" | "received";
+export type MessageStatus = "queued" | "sent" | "delivered" | "opened" | "clicked" | "bounced" | "complained" | "failed" | "not_configured" | "received" | "suppressed";
 
 /** What a send site may say about the message it is sending. */
 export type MessageContext = {
@@ -163,7 +163,7 @@ export async function updateMessageStatus(
   if (!row) return null;
   const r = row as { id: string; account_id: string | null; status: MessageStatus; meta: Record<string, unknown> };
   // A status never goes backwards: "opened" after "delivered" is news; "delivered" after "opened" is not.
-  const RANK: Record<MessageStatus, number> = { queued: 0, not_configured: 0, sent: 1, delivered: 2, opened: 3, clicked: 4, received: 1, failed: 5, bounced: 5, complained: 6 };
+  const RANK: Record<MessageStatus, number> = { queued: 0, not_configured: 0, sent: 1, delivered: 2, opened: 3, clicked: 4, received: 1, failed: 5, bounced: 5, complained: 6, suppressed: 5 };
   if (RANK[status] <= RANK[r.status] && status !== r.status && RANK[status] < 5) return r;
   await db.from("messages").update({ status, status_at: at }).eq("id", r.id);
   return r;
