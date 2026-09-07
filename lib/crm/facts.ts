@@ -21,6 +21,10 @@ import { reportError } from "@/lib/monitoring/report";
  * A row that is stale is still shown — with yesterday's card — never hidden.
  */
 
+/** P5: the customer reaching in — a reply, a text, a callback, a chat. */
+const INBOUND_KINDS = new Set(["message_in", "sms_reply", "callback_requested", "website_chat"]);
+/** P5: a person here reaching out by hand (never a campaign send). */
+const STAFF_CONTACT_KINDS = new Set(["call_connected", "call_no_answer", "message_left", "email_logged", "sms_logged", "visit_completed"]);
 const CONTACT_KINDS = new Set(["call_connected", "call_no_answer", "message_left", "sms_reply", "estimate_sent", "campaign_message_sent", "visit_completed", "email_logged", "sms_logged", "message_in", "message_out"]);
 
 export type FactsRow = {
@@ -68,6 +72,21 @@ export type FactsRow = {
   permit_phone: string;
   last_job_completed_type: string | null;
   repaint_due_at: string | null;
+  /** P5 — the audience facts (migration 20270126). */
+  last_sent_at: string | null;
+  last_estimate_status: "none" | "draft" | "sent" | "accepted" | "declined" | "lapsed";
+  last_accepted_at: string | null;
+  last_declined_at: string | null;
+  decline_reason: string | null;
+  job_types: string[];
+  quoted_cents: number | null;
+  dwell_seconds: number;
+  invoice_state: "none" | "open" | "overdue" | "paid";
+  invoice_due_on: string | null;
+  campaigns_received: string[];
+  last_inbound_at: string | null;
+  last_inbound_call_at: string | null;
+  last_staff_contact_at: string | null;
   stale: false;
   refreshed_at: string;
 };
@@ -105,6 +124,27 @@ export function computeFactsRow(i: CustomerInput, now: Date = new Date(), t: Crm
   const lastType = i.jobTypes.find((j) => j.type)?.type ?? null;
   const years = lastType === "exterior" ? t.repaintExteriorYears : lastType === "interior" ? t.repaintInteriorYears : t.repaintUnknownYears;
   const repaintDue = lastJobCompleted ? addYears(lastJobCompleted, years) : null;
+
+  // P5 — the audience facts. The estimate list arrives newest first.
+  const newest = est[0];
+  const lastEstimateStatus: FactsRow["last_estimate_status"] = !newest ? "none"
+    : isWon(newest) ? "accepted"
+    : newest.declined_at || newest.status === "declined" ? "declined"
+    : newest.status === "expired" ? "lapsed"
+    : newest.sent_at || newest.status === "sent" ? "sent"
+    : "draft";
+  const jobTypes = new Set<string>();
+  for (const t of i.allJobTypes ?? []) {
+    const k = t.toLowerCase();
+    if (k === "interior" || k === "both") jobTypes.add("interior");
+    if (k === "exterior" || k === "both") jobTypes.add("exterior");
+  }
+  const inv = i.invoice ?? null;
+  const today = now.toISOString().slice(0, 10);
+  const invoiceState: FactsRow["invoice_state"] = !inv || inv.status === "draft" || inv.status === "void" || inv.status === "written_off" ? "none"
+    : inv.status === "paid" ? "paid"
+    : inv.dueOn && inv.dueOn < today ? "overdue"
+    : "open";
 
   return {
     account_id: i.accountId,
@@ -151,6 +191,20 @@ export function computeFactsRow(i: CustomerInput, now: Date = new Date(), t: Crm
     permit_phone: i.permitPhone ?? "unknown",
     last_job_completed_type: lastType,
     repaint_due_at: repaintDue,
+    last_sent_at: maxIso(...est.map((e) => e.sent_at)),
+    last_estimate_status: lastEstimateStatus,
+    last_accepted_at: maxIso(...est.map((e) => e.accepted_at)),
+    last_declined_at: maxIso(...est.map((e) => e.declined_at)),
+    decline_reason: i.declineReason ?? null,
+    job_types: [...jobTypes],
+    quoted_cents: newest?.total_cents ?? null,
+    dwell_seconds: i.dwellSeconds ?? 0,
+    invoice_state: invoiceState,
+    invoice_due_on: inv?.dueOn ?? null,
+    campaigns_received: i.campaignsReceived ?? [],
+    last_inbound_at: maxIso(...i.allEvents.filter((e) => INBOUND_KINDS.has(e.type)).map((e) => e.occurred_at)),
+    last_inbound_call_at: maxIso(...i.allEvents.filter((e) => e.type === "callback_requested" || (e.type === "message_in" && e.channel === "call")).map((e) => e.occurred_at)),
+    last_staff_contact_at: maxIso(...i.allEvents.filter((e) => STAFF_CONTACT_KINDS.has(e.type)).map((e) => e.occurred_at)),
     stale: false,
     refreshed_at: now.toISOString(),
   };

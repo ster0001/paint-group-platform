@@ -393,3 +393,23 @@
 .crm .perm .seg button:last-child{border-right:0}
 .crm .perm .seg button.on{background:var(--raised);color:var(--cyan)}
 .crm .perm .seg button:disabled{opacity:.5}
+
+/* ---- CRM v2 P5 · audiences with groups, campaign builder, queue ---- */
+.crm .rnot{padding:4px 9px;font-size:11px;min-width:34px}
+.crm .rnot.on{border-color:var(--clay);color:var(--clay)}
+.crm .kinds{display:grid;gap:9px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));margin-bottom:12px}
+.crm .kind{text-align:left;background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:12px 13px;color:var(--text);transition:border-color .15s}
+.crm .kind.on{border-color:var(--cyan)}
+.crm .kind b{display:block;font-size:13.5px;margin-bottom:3px}
+.crm .kind span{font-size:11.5px;color:var(--muted);line-height:1.45;display:block}
+.crm .switch{display:flex;align-items:center;gap:10px;font-size:13px}
+.crm .switch input{width:18px;height:18px;accent-color:var(--cyan)}
+.crm .exit{display:flex;align-items:flex-start;gap:9px;font-size:12.5px;padding:6px 0}
+.crm .exit input{margin-top:3px;accent-color:var(--cyan)}
+.crm .exit span{display:block;font-size:11px;color:var(--muted)}
+.crm .qsel{width:16px;height:16px;accent-color:var(--cyan);margin-right:8px;vertical-align:middle}
+.crm .funnel{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:7px;margin:10px 0 4px}
+.crm .funnel div{background:var(--graphite);border:1px solid var(--line);border-radius:10px;padding:9px 10px}
+.crm .funnel b{display:block;font-size:15px;font-weight:600}
+.crm .funnel span{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.crm .funnel em{font-style:normal;font-size:10.5px;color:var(--muted)}

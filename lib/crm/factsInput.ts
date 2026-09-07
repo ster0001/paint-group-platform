@@ -31,8 +31,19 @@ export type CustomerInput = BoardInput & {
   address: string | null;
   suburb: string | null;
   accountType: string;
-  /** Every event of the kinds the facts row counts (opens, contacts). */
-  allEvents: Array<{ type: string; occurred_at: string }>;
+  /** Every event of the kinds the facts row counts (opens, contacts). `channel` rides on message events. */
+  allEvents: Array<{ type: string; occurred_at: string; channel?: string | null }>;
+  /** P5 — the audience facts. All optional so older callers and tests keep working. */
+  /** Job types from ANY estimate or wizard draft (interior / exterior / both), newest first. */
+  allJobTypes?: string[];
+  /** What the newest declined estimate said. */
+  declineReason?: string | null;
+  /** Seconds spent on their estimate pages, every visit, every estimate. */
+  dwellSeconds?: number;
+  /** The newest invoice on any of their jobs. */
+  invoice?: { status: string; dueOn: string | null } | null;
+  /** Keys of campaigns that have SENT them a message. */
+  campaignsReceived?: string[];
 };
 
 /** Event kinds the stage rules and the facts counters read. Nothing else is loaded. */
@@ -41,9 +52,26 @@ export const FACT_EVENT_TYPES = [
   "call_connected", "call_no_answer", "message_left", "sms_reply", "estimate_sent", "campaign_message_sent",
   "job_completed", "invoice_paid", "estimate_accepted", "estimate_declined", "estimate_lapsed", "account_merged",
   "email_logged", "sms_logged", "message_in", "message_out",
+  // P5: "they wrote or rang us" — the exit rules and the audience fields read these.
+  "callback_requested", "website_chat",
 ] as const;
 
 const CHUNK = 100;
+/** Estimate ids per request — keeps the `in` URL well under the request-size limit. */
+const ID_SLICE = 120;
+
+async function byEstimate<T extends Record<string, unknown>>(
+  ids: string[],
+  run: (slice: string[]) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let i = 0; i < ids.length; i += ID_SLICE) {
+    const { data, error } = await run(ids.slice(i, i + ID_SLICE));
+    if (error) throw new Error(`facts load failed: ${error.message}`);
+    out.push(...(data ?? []));
+  }
+  return out;
+}
 
 export async function loadCustomerInputs(supabase: SupabaseClient, ids: string[]): Promise<CustomerInput[]> {
   const out: CustomerInput[] = [];
@@ -61,7 +89,7 @@ async function loadChunk(supabase: SupabaseClient, ids: string[]): Promise<Custo
         .select("id, name, email, phone, account_type, temperature, snoozed_until, followup_due_at, owner_id, relationship_state, state_until, state_note, state_set_at, lost_reason, tags, permit_email, permit_sms, permit_phone")
         .in("id", ids),
       supabase.from("estimates")
-        .select("id, account_id, status, total_cents, accepted_total_cents, created_at, sent_at, viewed_at, accepted_at, declined_at, title, job_kind, wizard_job_type:builder_state->wizard->state->>jobType")
+        .select("id, account_id, status, total_cents, accepted_total_cents, created_at, sent_at, viewed_at, accepted_at, declined_at, declined_reason, title, job_kind, wizard_job_type:builder_state->wizard->state->>jobType")
         .in("account_id", ids).order("created_at", { ascending: false }).limit(ids.length * 50),
       supabase.from("crm_events")
         .select("account_id, type, occurred_at, payload")
@@ -85,10 +113,17 @@ async function loadChunk(supabase: SupabaseClient, ids: string[]): Promise<Custo
     estByAccount.set(e.account_id as string, list);
   }
   const estimateIds = (estimates ?? []).map((e) => e.id as string);
-  const { data: workOrders, error: e6 } = estimateIds.length
-    ? await supabase.from("work_orders").select("estimate_id, status, start_date, end_date").in("estimate_id", estimateIds).limit(estimateIds.length * 3)
-    : { data: [], error: null };
-  if (e6) throw new Error(`facts load failed: ${e6.message}`);
+  // A hundred accounts can carry four hundred estimates, and an `in` list of
+  // that many uuids is a 15 KB URL the request layer refuses ("fetch failed",
+  // found on the C1 rebuild, 7 Sep). Estimate-keyed reads go in slices.
+  const [workOrders, views, invoices, { data: sentMsgs, error: e9 }] = await Promise.all([
+    byEstimate(estimateIds, (slice) => supabase.from("work_orders").select("estimate_id, status, start_date, end_date").in("estimate_id", slice).limit(slice.length * 3)),
+    // P5: dwell — every viewing session of every estimate, summed per account.
+    byEstimate(estimateIds, (slice) => supabase.from("estimate_views").select("estimate_id, dwell_ms").in("estimate_id", slice).limit(slice.length * 40)),
+    byEstimate(estimateIds, (slice) => supabase.from("invoices").select("estimate_id, status, due_on, created_at").in("estimate_id", slice).order("created_at", { ascending: false }).limit(slice.length * 5)),
+    supabase.from("campaign_messages").select("account_id, campaign_id, campaigns(key)").eq("state", "sent").in("account_id", ids).limit(ids.length * 50),
+  ]);
+  if (e9) throw new Error(`facts load failed: ${e9.message}`);
 
   // Work orders hang off an estimate, so they reach the account through it.
   const accountOfEstimate = new Map((estimates ?? []).map((e) => [e.id as string, e.account_id as string]));
@@ -99,6 +134,27 @@ async function loadChunk(supabase: SupabaseClient, ids: string[]): Promise<Custo
     const list = woByAccount.get(acc) ?? [];
     list.push({ status: w.status as string, start_date: w.start_date as string | null, end_date: w.end_date as string | null });
     woByAccount.set(acc, list);
+  }
+  const dwellByAccount = new Map<string, number>();
+  for (const v of views ?? []) {
+    const acc = accountOfEstimate.get(v.estimate_id as string);
+    if (!acc) continue;
+    dwellByAccount.set(acc, (dwellByAccount.get(acc) ?? 0) + Math.round(((v.dwell_ms as number) ?? 0) / 1000));
+  }
+  // Newest invoice per account (the list is ordered newest first).
+  const invoiceByAccount = new Map<string, { status: string; dueOn: string | null }>();
+  for (const inv of invoices ?? []) {
+    const acc = accountOfEstimate.get(inv.estimate_id as string);
+    if (!acc || invoiceByAccount.has(acc)) continue;
+    invoiceByAccount.set(acc, { status: String(inv.status ?? ""), dueOn: (inv.due_on as string | null) ?? null });
+  }
+  const campaignsByAccount = new Map<string, Set<string>>();
+  for (const m of sentMsgs ?? []) {
+    const key = (m.campaigns as { key?: string } | null)?.key;
+    if (!key) continue;
+    const set = campaignsByAccount.get(m.account_id as string) ?? new Set<string>();
+    set.add(key);
+    campaignsByAccount.set(m.account_id as string, set);
   }
   const evByAccount = new Map<string, Array<{ type: string; occurred_at: string; payload: Record<string, unknown> | null }>>();
   for (const e of events ?? []) {
@@ -170,7 +226,15 @@ async function loadChunk(supabase: SupabaseClient, ids: string[]): Promise<Custo
       address: prop ? [prop.address, prop.suburb, prop.state, prop.postcode].filter(Boolean).join(" ") || null : null,
       suburb: suburb || null,
       accountType: (a.account_type as string) ?? "residential",
-      allEvents: evs.map((e) => ({ type: e.type, occurred_at: e.occurred_at })),
+      allEvents: evs.map((e) => ({ type: e.type, occurred_at: e.occurred_at, channel: (e.payload?.channel as string | undefined) ?? null })),
+      allJobTypes: [
+        ...est.map((e) => (e.wizard_job_type as string | null) ?? null),
+        draftOf.get(a.id as string)?.jobType ?? null,
+      ].filter((t): t is string => !!t),
+      declineReason: (est.find((e) => e.declined_at || e.status === "declined")?.declined_reason as string | null) ?? null,
+      dwellSeconds: dwellByAccount.get(a.id as string) ?? 0,
+      invoice: invoiceByAccount.get(a.id as string) ?? null,
+      campaignsReceived: [...(campaignsByAccount.get(a.id as string) ?? [])],
       facts: {
         estimates: est.map((e) => ({
           id: e.id as string, status: e.status as string, total_cents: e.total_cents as number | null,

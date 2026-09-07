@@ -1,356 +1,281 @@
 /**
- * Segments (session 2.5) — one evaluator, shared by every surface.
+ * Audiences (CRM v2 P5, deep dive §4.3.1–4.3.4) — one evaluator, still.
  *
- * The brief's rule: the board, the preview, the campaign sweep and the
- * attention queue all call THIS. A campaign that enrols a different set from
- * the one the preview showed is the failure mode that makes an office stop
- * trusting the whole system, and it happens the moment a second copy of these
- * rules exists.
+ * An audience is a rule TREE one level deep: match ALL of the groups, where
+ * each group matches ANY or ALL of its rules, and any rule can be negated.
+ * That is the pivot-style if / and / or / not the office asked for. Deeper
+ * nesting is deliberately not offered — it is how lists quietly double.
  *
- * Two more rules, both from the brief and both visible in the mockup:
- *   · Criteria are a FORM, not a query language. Every rule below is a field,
- *     an operator and a value — nothing here parses text.
- *   · Dates are always RELATIVE ("completed more than 7 years ago"), so a list
- *     built once stays right without anyone editing it.
+ * Nothing here loads customers. A rule compiles to {col, op, v} primitives
+ * (lib/crm/fields.ts says which) and migration 20270126's crm_audience_*
+ * functions evaluate them in SQL over crm_account_facts. The preview, the
+ * campaign sweep, the dry run and the send-time guard all call those — so the
+ * number someone builds a list against is the number the campaign acts on.
  */
 
 import { z } from "zod";
-import { isWon } from "./stage";
+import { FIELD_BY_KEY, FIELDS, OPS, type FieldDef, type Primitive, type Rule } from "./fields";
 
-export type Comparison = "is" | "is_not" | "more_than" | "less_than" | "between";
+export type { Rule } from "./fields";
+export type RuleGroup = { match: "all" | "any"; rules: Rule[] };
+export type Audience = { groups: RuleGroup[] };
 
-/** The fields a segment can ask about. Adding one is a case here and a row in
- *  the builder — nothing else. */
-export type Criterion =
-  | { field: "job_type"; op: "is" | "is_not"; value: "interior" | "exterior" | "both" }
-  | { field: "has_job_type"; op: "is_not"; value: "interior" | "exterior" }
-  | { field: "completed"; op: "more_than" | "less_than"; months: number }
-  | { field: "job_value"; op: "between"; minCents: number; maxCents: number }
-  | { field: "quoted"; op: "is"; value: boolean }
-  /** Tom's ruling, 30 Aug: a "past customer" is someone who ACCEPTED a quote.
-   *  Not someone who asked for one, and not someone we quoted and lost. */
-  | { field: "is_customer"; op: "is"; value: boolean }
-  | { field: "last_contact"; op: "more_than" | "less_than"; months: number }
-  | { field: "suburb"; op: "is"; value: string[] }
-  | { field: "temperature"; op: "is"; value: Array<"hot" | "warm" | "cold"> }
-  | { field: "status"; op: "is_not"; value: Array<"unsubscribed" | "open_work" | "snoozed"> }
-  /**
-   * C15 · how far through their journey a FUTURE customer is. These read the
-   * autosaved wizard draft, so the funnels Tom described — "need a hand?",
-   * "still looking for a painter?" — are ordinary criteria, not special code.
-   */
-  | { field: "abandoned_draft"; op: "is"; value: boolean }
-  | { field: "draft_progress"; op: "more_than" | "less_than"; pct: number }
-  | { field: "draft_age"; op: "more_than" | "less_than"; hours: number }
-  | { field: "draft_uploaded"; op: "is"; value: boolean }
-  | { field: "draft_visits"; op: "more_than"; count: number };
+const ruleSchema = z.object({
+  field: z.string().min(1).max(40),
+  op: z.string().min(1).max(30),
+  value: z.unknown().optional(),
+  not: z.boolean().optional(),
+});
+export const audienceSchema: z.ZodType<Audience> = z.object({
+  groups: z.array(z.object({
+    match: z.enum(["all", "any"]),
+    rules: z.array(ruleSchema).max(20),
+  })).max(10),
+});
 
-/**
- * The same union, as a runtime check. Criteria now arrive from the segments
- * TABLE and the builder UI, and a malformed row must fail loudly at the edge —
- * a criterion the evaluator silently ignores is a list that quietly widens.
- */
-export const criterionSchema: z.ZodType<Criterion> = z.discriminatedUnion("field", [
-  z.object({ field: z.literal("job_type"), op: z.enum(["is", "is_not"]), value: z.enum(["interior", "exterior", "both"]) }),
-  z.object({ field: z.literal("has_job_type"), op: z.literal("is_not"), value: z.enum(["interior", "exterior"]) }),
-  z.object({ field: z.literal("completed"), op: z.enum(["more_than", "less_than"]), months: z.number().min(0).max(600) }),
-  z.object({ field: z.literal("job_value"), op: z.literal("between"), minCents: z.number().min(0), maxCents: z.number().min(0) }),
-  z.object({ field: z.literal("last_contact"), op: z.enum(["more_than", "less_than"]), months: z.number().min(0).max(600) }),
-  z.object({ field: z.literal("suburb"), op: z.literal("is"), value: z.array(z.string().min(1).max(80)).min(1).max(50) }),
-  z.object({ field: z.literal("temperature"), op: z.literal("is"), value: z.array(z.enum(["hot", "warm", "cold"])).min(1) }),
-  z.object({ field: z.literal("status"), op: z.literal("is_not"), value: z.array(z.enum(["unsubscribed", "open_work", "snoozed"])).min(1) }),
-  z.object({ field: z.literal("quoted"), op: z.literal("is"), value: z.boolean() }),
-  z.object({ field: z.literal("is_customer"), op: z.literal("is"), value: z.boolean() }),
-  z.object({ field: z.literal("abandoned_draft"), op: z.literal("is"), value: z.boolean() }),
-  z.object({ field: z.literal("draft_progress"), op: z.enum(["more_than", "less_than"]), pct: z.number().min(0).max(100) }),
-  z.object({ field: z.literal("draft_age"), op: z.enum(["more_than", "less_than"]), hours: z.number().min(0).max(24 * 365) }),
-  z.object({ field: z.literal("draft_uploaded"), op: z.literal("is"), value: z.boolean() }),
-  z.object({ field: z.literal("draft_visits"), op: z.literal("more_than"), count: z.number().int().min(1).max(50) }),
-]);
-export const criteriaSchema = z.array(criterionSchema).min(1).max(20);
+export const emptyAudience = (): Audience => ({ groups: [{ match: "all", rules: [] }] });
+
+export function ruleCount(a: Audience): number {
+  return a.groups.reduce((n, g) => n + g.rules.length, 0);
+}
 
 export type Segment = {
   key: string;
   name: string;
   /** Shown under the name in the builder, in the office's words. */
   description: string;
-  criteria: Criterion[];
-  /** A standing segment ships with the product and cannot be deleted. */
+  audience: Audience;
+  /** A standing segment ships with the product; editable like any other. */
   standing?: boolean;
 };
 
-/** One customer, flattened to the facts a criterion can ask about. */
-export type SegmentSubject = {
-  accountId: string;
-  name: string;
-  suburb: string | null;
-  /** Every job type this customer has ever had done, from won work. */
-  jobTypes: Array<"interior" | "exterior">;
-  /** Completion of the most recent won job. */
-  lastCompletedAt: string | null;
-  /** Total value of won work — what the campaign is worth talking to. */
-  wonCents: number;
-  /** Any contact at all: an event, a quote, a job. */
-  lastContactAt: string | null;
-  /** Has ever been sent or shown a price. */
-  everQuoted: boolean;
-  /** The OPEN autosaved wizard run, when one exists — a future customer who
-   *  started an estimate and has not finished it. Null otherwise. */
-  draft: { progressPct: number; uploaded: boolean; visits: number; lastSeenAt: string } | null;
-  temperature: "hot" | "warm" | "cold" | null;
-  unsubscribed: boolean;
-  hasOpenWork: boolean;
-  snoozed: boolean;
+// ---- compiling ---------------------------------------------------------------
+
+/** What the database receives: primitives only, never field names. */
+export type CompiledRules = { groups: Array<{ match: "all" | "any"; rules: Array<{ p: Primitive[]; not?: boolean }> }> };
+
+export class RuleError extends Error {}
+
+const strings = (v: unknown): string[] =>
+  (Array.isArray(v) ? v : []).map((x) => String(x).trim()).filter(Boolean);
+const num = (v: unknown, what: string): number => {
+  const n = typeof v === "number" ? v : Number(v);
+  if (!Number.isFinite(n)) throw new RuleError(`${what} needs a number.`);
+  return n;
+};
+const pair = (v: unknown, what: string): [number, number] => {
+  if (!Array.isArray(v) || v.length !== 2) throw new RuleError(`${what} needs two numbers.`);
+  const [a, b] = [num(v[0], what), num(v[1], what)];
+  return a <= b ? [a, b] : [b, a];
 };
 
-const monthsBetween = (iso: string | null, now: Date): number | null => {
-  if (!iso) return null;
-  const then = new Date(iso);
-  if (Number.isNaN(then.getTime())) return null;
-  return (now.getTime() - then.getTime()) / (86_400_000 * 30.4375);
-};
-
-/** Does one customer satisfy one criterion? */
-export function matchesCriterion(s: SegmentSubject, c: Criterion, now: Date): boolean {
-  switch (c.field) {
-    case "job_type": {
-      const has = c.value === "both"
-        ? s.jobTypes.includes("interior") && s.jobTypes.includes("exterior")
-        : s.jobTypes.includes(c.value);
-      return c.op === "is" ? has : !has;
+/** One rule → the primitives that mean it. Throws RuleError on a rule the form would never produce. */
+export function compileRule(rule: Rule): { p: Primitive[]; not?: boolean } {
+  const f: FieldDef | undefined = FIELD_BY_KEY[rule.field];
+  if (!f) throw new RuleError(`"${rule.field}" isn't a field.`);
+  if (!OPS[f.type].some((o) => o.op === rule.op)) throw new RuleError(`"${rule.op}" doesn't fit ${f.label}.`);
+  const col = f.col ?? "";
+  let p: Primitive[];
+  let not = rule.not === true;
+  switch (f.type) {
+    case "enum": {
+      const list = strings(rule.value);
+      if (list.length === 0) throw new RuleError(`${f.label}: pick at least one.`);
+      p = [{ col, op: rule.op === "is" ? "in" : "nin", v: list }];
+      break;
     }
-    case "has_job_type":
-      // "…and no exterior job" — the cross-sell rule.
-      return !s.jobTypes.includes(c.value);
-    case "completed": {
-      const m = monthsBetween(s.lastCompletedAt, now);
-      if (m == null) return false;   // never finished a job: not "completed X ago"
-      return c.op === "more_than" ? m > c.months : m < c.months;
+    case "bool": {
+      p = f.truthy ?? [];
+      if (rule.value === false) not = !not;
+      break;
     }
-    case "job_value":
-      return s.wonCents >= c.minCents && s.wonCents <= c.maxCents;
-    case "is_customer":
-      return (s.wonCents > 0) === c.value;
-    case "abandoned_draft":
-      return (s.draft != null) === c.value;
-    case "draft_progress": {
-      if (!s.draft) return false;
-      return c.op === "more_than" ? s.draft.progressPct > c.pct : s.draft.progressPct < c.pct;
+    case "number": case "money": case "minutes": {
+      if (rule.op === "between") { const [a, b] = pair(rule.value, f.label); p = [{ col, op: "between", v: [a, b] }]; }
+      else p = [{ col, op: rule.op === "more_than" ? "gt" : "lt", v: num(rule.value, f.label) }];
+      break;
     }
-    case "draft_age": {
-      if (!s.draft) return false;
-      const hours = (now.getTime() - new Date(s.draft.lastSeenAt).getTime()) / 3_600_000;
-      return c.op === "more_than" ? hours > c.hours : hours < c.hours;
+    case "days": {
+      if (rule.op === "never") p = [{ col, op: "null" }];
+      else if (rule.op === "ever") p = [{ col, op: "notnull" }];
+      else if (rule.op === "more_than_days") p = [{ col, op: f.neverIsOlder ? "older_or_never" : "older", v: num(rule.value, f.label) }];
+      else p = [{ col, op: "newer", v: num(rule.value, f.label) }];
+      break;
     }
-    case "draft_uploaded":
-      return s.draft != null && s.draft.uploaded === c.value;
-    case "draft_visits":
-      return s.draft != null && s.draft.visits > c.count;
-    case "quoted":
-      // "Never won" is not the same as "was quoted and said no". Without this,
-      // an account that only exists — no estimate at all — lands in a list
-      // built to chase people who saw a price. Caught by the live sample.
-      return s.everQuoted === c.value;
-    case "last_contact": {
-      const m = monthsBetween(s.lastContactAt, now);
-      // Never contacted counts as "more than", because it has been forever.
-      if (m == null) return c.op === "more_than";
-      return c.op === "more_than" ? m > c.months : m < c.months;
+    case "due": {
+      if (rule.op === "never") p = [{ col, op: "null" }];
+      else if (rule.op === "passed") p = [{ col, op: "past" }];
+      else if (rule.op === "ahead") p = [{ col, op: "future" }];
+      else p = [{ col, op: "within", v: num(rule.value, f.label) }, { col, op: "future" }];
+      break;
     }
-    case "suburb":
-      return s.suburb != null && c.value.some((v) => v.toLowerCase() === s.suburb!.toLowerCase());
-    case "temperature":
-      return s.temperature != null && c.value.includes(s.temperature);
-    case "status": {
-      // "and not: unsubscribed, or has open work" — the guard every campaign
-      // list needs, expressed as a criterion so it is visible in the builder
-      // rather than hidden in the sweep.
-      const bad = c.value.some((v) =>
-        (v === "unsubscribed" && s.unsubscribed) ||
-        (v === "open_work" && s.hasOpenWork) ||
-        (v === "snoozed" && s.snoozed));
-      return !bad;
+    case "text": {
+      const list = strings(rule.value);
+      if (list.length === 0) throw new RuleError(`${f.label}: type at least one.`);
+      p = [{ col, op: "in_ci", v: list }];
+      break;
+    }
+    case "tags": {
+      const list = strings(rule.value);
+      if (list.length === 0) throw new RuleError(`${f.label}: pick at least one.`);
+      if (rule.op === "has_none") { p = [{ col, op: "any", v: list }]; not = !not; }
+      else p = [{ col, op: rule.op === "has_all" ? "all" : "any", v: list }];
+      break;
+    }
+    case "owner": {
+      if (rule.op === "nobody") p = [{ col, op: "null" }];
+      else if (rule.op === "anybody") p = [{ col, op: "notnull" }];
+      else {
+        const list = strings(rule.value);
+        if (list.length === 0) throw new RuleError("Owner: pick someone.");
+        p = [{ col, op: "in", v: list }];
+      }
+      break;
+    }
+    case "campaign": {
+      const list = strings(rule.value);
+      if (list.length === 0) throw new RuleError("Pick a campaign.");
+      p = [{ col, op: "any", v: list }];
+      if (rule.op === "not_received") not = !not;
+      break;
     }
   }
+  return not ? { p, not: true } : { p };
 }
 
-/** Everyone who satisfies every criterion. AND throughout — an OR that nobody
- *  can see in the form is how a list quietly doubles. */
-export function evaluateSegment(subjects: SegmentSubject[], segment: Segment, now: Date = new Date()): SegmentSubject[] {
-  return subjects.filter((s) => segment.criteria.every((c) => matchesCriterion(s, c, now)));
-}
-
-export type SegmentPreview = {
-  count: number;
-  /** The mockup shows a handful of names under the count, so the office can
-   *  sanity-check a list before anything is sent to it. */
-  sample: Array<{ accountId: string; name: string; detail: string }>;
-  /** "Worth roughly $847k at your average job" — an ESTIMATE, and labelled as
-   *  one on screen. Null when there is no won work to average. */
-  worthCents: number | null;
-  averageCents: number | null;
-};
-
-export function previewSegment(
-  subjects: SegmentSubject[],
-  segment: Segment,
-  now: Date = new Date(),
-  sampleSize = 20,
-): SegmentPreview {
-  const matched = evaluateSegment(subjects, segment, now);
-
-  // The average comes from everyone who has ever had work done, not from the
-  // segment — a list of people who have never bought would average zero and
-  // make the whole list look worthless.
-  const priorJobs = subjects.filter((s) => s.wonCents > 0);
-  const averageCents = priorJobs.length
-    ? Math.round(priorJobs.reduce((n, s) => n + s.wonCents, 0) / priorJobs.length)
-    : null;
-
+/** The whole tree, ready for crm_audience_*. An audience with no finished rule matches nobody. */
+export function compileAudience(a: Audience): CompiledRules {
   return {
-    count: matched.length,
-    sample: matched.slice(0, sampleSize).map((s) => ({
-      accountId: s.accountId,
-      name: s.name,
-      detail: [s.suburb, s.lastCompletedAt
-        ? new Date(s.lastCompletedAt).toLocaleDateString("en-AU", { month: "short", year: "numeric" })
-        : null].filter(Boolean).join(" · "),
-    })),
-    worthCents: averageCents == null ? null : averageCents * matched.length,
-    averageCents,
+    groups: a.groups
+      .map((g) => ({ match: g.match, rules: g.rules.map(compileRule) }))
+      .filter((g) => g.rules.length > 0),
   };
 }
 
-/**
- * The standing segments — built in, not deletable.
- *
- * The cross-sell one is the brief's own recommendation (§4): people whose
- * inside you painted and whose outside you have never quoted. They already
- * trust you and have a surface you have never priced.
- */
+// ---- describing -----------------------------------------------------------------
+
+const money = (cents: number) => "$" + Math.round(cents / 100).toLocaleString("en-AU");
+const days = (n: number) => (n % 365 === 0 && n >= 365 ? `${n / 365} year${n === 365 ? "" : "s"}` : n % 30 === 0 && n >= 60 ? `${n / 30} months` : `${n} day${n === 1 ? "" : "s"}`);
+
+/** A rule in the office's words: { field, op, value } for a read-only row. */
+export function describeRule(
+  rule: Rule,
+  names: { owners?: Record<string, string>; campaigns?: Record<string, string>; tags?: Record<string, string> } = {},
+): { field: string; op: string; value: string; not: boolean } {
+  const f = FIELD_BY_KEY[rule.field];
+  const not = rule.not === true;
+  if (!f) return { field: rule.field, op: rule.op, value: String(rule.value ?? ""), not };
+  const opLabel = OPS[f.type].find((o) => o.op === rule.op)?.label ?? rule.op;
+  const label = (v: string) =>
+    f.options?.find((o) => o.value === v)?.label
+    ?? names.owners?.[v] ?? names.campaigns?.[v] ?? names.tags?.[v] ?? v;
+  const list = strings(rule.value).map(label).join(", ");
+  switch (f.type) {
+    case "bool": return { field: f.label, op: "is", value: rule.value === false ? "no" : "yes", not };
+    case "money": return {
+      field: f.label, op: opLabel.replace(" $", ""),
+      value: rule.op === "between" ? pair(rule.value, f.label).map(money).join(" – ") : money(num(rule.value, f.label)), not,
+    };
+    case "number": return { field: f.label, op: opLabel, value: rule.op === "between" ? pair(rule.value, f.label).join(" – ") : String(rule.value), not };
+    case "minutes": return { field: f.label, op: opLabel, value: `${Math.round(num(rule.value, f.label) / 60)} min`, not };
+    case "days":
+      if (rule.op === "never" || rule.op === "ever") return { field: f.label, op: opLabel, value: "", not };
+      return { field: f.label, op: rule.op === "more_than_days" ? "more than" : "within the last", value: `${days(num(rule.value, f.label))}${rule.op === "more_than_days" ? " ago" : ""}`, not };
+    case "due":
+      if (rule.op === "within_days") return { field: f.label, op: "within the next", value: days(num(rule.value, f.label)), not };
+      return { field: f.label, op: opLabel, value: "", not };
+    case "owner":
+      if (rule.op !== "is") return { field: f.label, op: opLabel, value: "", not };
+      return { field: f.label, op: "is", value: list, not };
+    default: return { field: f.label, op: opLabel, value: list, not };
+  }
+}
+
+// ---- the lists that ship --------------------------------------------------------
+
+const all = (rules: Rule[]): Audience => ({ groups: [{ match: "all", rules }] });
+
+/** Seed data and the fallback for a database the migration has not reached. */
 export const STANDING_SEGMENTS: Segment[] = [
   {
-    key: "interior_no_exterior",
-    name: "Interior customers with no exterior job",
-    description: "You painted their inside. Nobody has ever quoted their outside.",
-    standing: true,
-    criteria: [
-      { field: "is_customer", op: "is", value: true },
-      { field: "job_type", op: "is", value: "interior" },
-      { field: "has_job_type", op: "is_not", value: "exterior" },
-      { field: "status", op: "is_not", value: ["unsubscribed", "open_work"] },
-    ],
-  },
-  {
-    key: "exteriors_due_repaint",
-    name: "Exteriors due a repaint",
-    description: "Exterior work finished more than seven years ago, and quiet for a year.",
-    standing: true,
-    criteria: [
-      { field: "is_customer", op: "is", value: true },
-      { field: "job_type", op: "is", value: "exterior" },
-      { field: "completed", op: "more_than", months: 84 },
-      { field: "last_contact", op: "more_than", months: 12 },
-      { field: "status", op: "is_not", value: ["unsubscribed", "open_work"] },
-    ],
-  },
-  {
-    key: "past_customers",
-    name: "Past customers",
+    key: "past_customers", name: "Past customers", standing: true,
     description: "People who accepted a quote and had the work done. Not people we quoted and lost.",
-    standing: true,
-    criteria: [
+    audience: all([
       { field: "is_customer", op: "is", value: true },
-      { field: "status", op: "is_not", value: ["unsubscribed"] },
-    ],
+      { field: "permit_email", op: "is_not", value: ["declined"] },
+    ]),
+  },
+  {
+    key: "interior_no_exterior", name: "Interior customers with no exterior job", standing: true,
+    description: "You painted their inside. Nobody has ever quoted their outside.",
+    audience: all([
+      { field: "is_customer", op: "is", value: true },
+      { field: "job_types", op: "has_any", value: ["interior"] },
+      { field: "job_types", op: "has_any", value: ["exterior"], not: true },
+      { field: "permit_email", op: "is_not", value: ["declined"] },
+      { field: "stage", op: "is_not", value: ["job_on"] },
+    ]),
+  },
+  {
+    key: "exteriors_due_repaint", name: "Exteriors due a repaint", standing: true,
+    description: "Exterior work finished more than seven years ago, and quiet for a year.",
+    audience: all([
+      { field: "is_customer", op: "is", value: true },
+      { field: "last_job_completed_type", op: "is", value: ["exterior"] },
+      { field: "last_job_completed_at", op: "more_than_days", value: 2555 },
+      { field: "last_contact_at", op: "more_than_days", value: 365 },
+      { field: "permit_email", op: "is_not", value: ["declined"] },
+      { field: "stage", op: "is_not", value: ["job_on"] },
+    ]),
   },
 ];
 
-/** The criteria, written out for the builder's read-only rows. */
-export function describeCriterion(c: Criterion): { field: string; op: string; value: string } {
-  const money = (cents: number) => "$" + Math.round(cents / 100).toLocaleString("en-AU");
-  const years = (m: number) => (m % 12 === 0 ? `${m / 12} years` : `${m} months`);
-  switch (c.field) {
-    case "job_type": return { field: "Job type", op: c.op === "is" ? "is" : "is not", value: c.value };
-    case "has_job_type": return { field: "Has ever had", op: "no", value: `${c.value} job` };
-    case "completed": return { field: "Completed", op: c.op === "more_than" ? "more than" : "less than", value: `${years(c.months)} ago` };
-    case "job_value": return { field: "Job value", op: "between", value: `${money(c.minCents)} – ${money(c.maxCents)}` };
-    case "quoted": return { field: "Was quoted", op: "is", value: c.value ? "yes" : "no" };
-    case "is_customer": return { field: "Has had work done", op: "is", value: c.value ? "yes" : "no" };
-    case "abandoned_draft": return { field: "Unfinished estimate", op: "is", value: c.value ? "yes" : "no" };
-    case "draft_progress": return { field: "Estimate progress", op: c.op === "more_than" ? "more than" : "less than", value: `${c.pct}% answered` };
-    case "draft_age": return {
-      field: "Left it", op: c.op === "more_than" ? "more than" : "less than",
-      value: c.hours % 24 === 0 && c.hours >= 24 ? `${c.hours / 24} day${c.hours === 24 ? "" : "s"} ago` : `${c.hours} hours ago`,
-    };
-    case "draft_uploaded": return { field: "Uploaded a plan or photos", op: "is", value: c.value ? "yes" : "no" };
-    case "draft_visits": return { field: "Separate visits", op: "more than", value: String(c.count) };
-    case "last_contact": return { field: "Last contact", op: c.op === "more_than" ? "more than" : "less than", value: `${years(c.months)} ago` };
-    case "suburb": return { field: "Suburb", op: "is", value: c.value.join(", ") };
-    case "temperature": return { field: "Temperature", op: "is", value: c.value.join(", ") };
-    case "status": return {
-      field: "Status", op: "is not",
-      value: c.value.map((v) => v === "open_work" ? "has open work" : v === "snoozed" ? "snoozed" : "unsubscribed").join(", or "),
-    };
+// ---- lists built before P5 --------------------------------------------------------
+
+/**
+ * The flat AND list a segment carried until today, translated. Every rule that
+ * has a home becomes one; the few that read the wizard draft's progress have
+ * no facts column and are reported back so the office can re-check the list.
+ */
+export function legacyToAudience(criteria: unknown): { audience: Audience; dropped: string[] } {
+  const rules: Rule[] = [];
+  const dropped: string[] = [];
+  const months = (m: number) => Math.round(m * 30.4375);
+  for (const c of Array.isArray(criteria) ? (criteria as Array<Record<string, unknown>>) : []) {
+    const op = String(c.op ?? "");
+    switch (c.field) {
+      case "job_type": {
+        const v = String(c.value);
+        const rule: Rule = v === "both"
+          ? { field: "job_types", op: "has_all", value: ["interior", "exterior"] }
+          : { field: "job_types", op: "has_any", value: [v] };
+        rules.push(op === "is_not" ? { ...rule, not: true } : rule);
+        break;
+      }
+      case "has_job_type": rules.push({ field: "job_types", op: "has_any", value: [String(c.value)], not: true }); break;
+      case "completed": rules.push({ field: "last_job_completed_at", op: op === "more_than" ? "more_than_days" : "less_than_days", value: months(Number(c.months) || 0) }); break;
+      case "job_value": rules.push({ field: "won_cents", op: "between", value: [Number(c.minCents) || 0, Number(c.maxCents) || 0] }); break;
+      case "quoted": rules.push({ field: "was_quoted", op: "is", value: c.value !== false }); break;
+      case "is_customer": rules.push({ field: "is_customer", op: "is", value: c.value !== false }); break;
+      case "last_contact": rules.push({ field: "last_contact_at", op: op === "more_than" ? "more_than_days" : "less_than_days", value: months(Number(c.months) || 0) }); break;
+      case "suburb": rules.push({ field: "suburb", op: "is", value: strings(c.value) }); break;
+      case "temperature": rules.push({ field: "temperature", op: "is", value: strings(c.value) }); break;
+      case "status": {
+        for (const v of strings(c.value)) {
+          if (v === "unsubscribed") rules.push({ field: "permit_email", op: "is_not", value: ["declined"] });
+          else if (v === "open_work") rules.push({ field: "stage", op: "is_not", value: ["job_on"] });
+          else if (v === "snoozed") rules.push({ field: "next_followup_at", op: "ahead", not: true });
+        }
+        break;
+      }
+      case "abandoned_draft": rules.push({ field: "has_draft", op: "is", value: c.value !== false }); break;
+      case "draft_age": rules.push({ field: "draft_last_seen_at", op: op === "more_than" ? "more_than_days" : "less_than_days", value: Math.max(1, Math.round((Number(c.hours) || 0) / 24)) }); break;
+      case "draft_progress": case "draft_uploaded": case "draft_visits":
+        dropped.push(String(c.field)); break;
+      default: dropped.push(String(c.field ?? "?"));
+    }
   }
+  return { audience: all(rules), dropped };
 }
 
-/** Subjects, from the rows a page reads. Kept here so the board, the preview
- *  and the sweep all flatten the same way. */
-export function toSubject(input: {
-  accountId: string;
-  name: string;
-  suburb: string | null;
-  temperature: string | null;
-  snoozedUntil: string | null;
-  unsubscribed?: boolean;
-  /** `jobType` is the wizard's answer — "interior" | "exterior" | "both".
-   *  NOT estimates.job_kind, which is residential/commercial and says nothing
-   *  about which surfaces were painted. */
-  estimates: Array<{
-    status: string; accepted_at: string | null; jobType?: string | null;
-    total_cents: number | null; accepted_total_cents?: number | null;
-    /** A quote IS contact. Without these, a customer quoted last week looks
-     *  like one nobody has ever spoken to, and lands in every "gone quiet"
-     *  list — found by reading the sample under a live count, 29 Aug. */
-    created_at?: string | null; sent_at?: string | null;
-  }>;
-  workOrders: Array<{ status: string; end_date: string | null }>;
-  lastEventAt: string | null;
-  draft?: { progressPct: number; uploaded: boolean; visits: number; lastSeenAt: string } | null;
-}, now: Date = new Date()): SegmentSubject {
-  const wonEstimates = input.estimates.filter((e) => isWon({ status: e.status, accepted_at: e.accepted_at }));
-  const jobTypes = new Set<"interior" | "exterior">();
-  for (const e of wonEstimates) {
-    const kind = (e.jobType ?? "").toLowerCase();
-    if (kind === "interior" || kind === "both") jobTypes.add("interior");
-    if (kind === "exterior" || kind === "both") jobTypes.add("exterior");
-  }
-  const completed = input.workOrders.filter((w) => w.status === "complete" && w.end_date)
-    .map((w) => w.end_date!).sort().reverse();
-
-  const dates = [
-    ...wonEstimates.map((e) => e.accepted_at).filter(Boolean) as string[],
-    // Every quote counts, sent or merely built: both are the office touching
-    // this customer, and "last contact" is asking when that last happened.
-    ...input.estimates.flatMap((e) => [e.sent_at, e.created_at]).filter(Boolean) as string[],
-    ...completed,
-    input.lastEventAt ?? "",
-  ].filter(Boolean).sort().reverse();
-
-  return {
-    accountId: input.accountId,
-    name: input.name,
-    suburb: input.suburb,
-    jobTypes: [...jobTypes],
-    lastCompletedAt: completed[0] ?? wonEstimates.map((e) => e.accepted_at).filter(Boolean).sort().reverse()[0] ?? null,
-    wonCents: wonEstimates.reduce((n, e) => n + (e.accepted_total_cents ?? e.total_cents ?? 0), 0),
-    lastContactAt: dates[0] ?? null,
-    everQuoted: input.estimates.length > 0,
-    draft: input.draft ?? null,
-    temperature: (input.temperature as SegmentSubject["temperature"]) ?? null,
-    unsubscribed: input.unsubscribed ?? false,
-    hasOpenWork: input.workOrders.some((w) => w.status === "issued" || w.status === "in_progress"),
-    snoozed: input.snoozedUntil != null && new Date(input.snoozedUntil) > now,
-  };
-}
+/** Every field, for the builder's menu. Re-exported so screens import one module. */
+export { FIELDS, FIELD_BY_KEY };

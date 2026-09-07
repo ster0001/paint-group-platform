@@ -6,64 +6,70 @@ import Queue from "./Queue";
 export const dynamic = "force-dynamic";
 
 /**
- * "Waiting for you" — the mockup's approval queue.
+ * "Waiting for you" — the approval queue (P5: with approve-all).
  *
- * Nothing leaves until someone presses a button here, and pressing it re-runs
- * the guard chain against the customer as they are in that second. A message
- * queued last night for someone who accepted a quote this morning is refused
- * at the moment of approval, with the reason on screen.
+ * Nothing leaves until someone presses a button here (or the campaign has
+ * auto-send on), and pressing it re-runs the guard chain against the
+ * customer as they are in that second. A message queued last night for
+ * someone who accepted a quote this morning is refused at the moment of
+ * approval, with the reason on screen.
  */
-export default async function QueuePage() {
+export default async function QueuePage({ searchParams }: { searchParams: Promise<{ c?: string }> }) {
+  const { c: campaignFilter } = await searchParams;
   const supabase = await createClient();
 
-  const { data, error } = await supabase
+  let q = supabase
     .from("campaign_messages")
-    .select("id, account_id, template_id, step, state, reason, due_at, sent_at, enrolment_id, channel")
+    .select("id, account_id, template_id, step, state, reason, due_at, sent_at, enrolment_id, channel, campaign_id, approved_at, condition")
     .in("state", ["queued", "held", "stopped", "sent", "failed"])
     .order("due_at", { ascending: true })
-    .limit(200);
+    .limit(300);
+  if (campaignFilter) q = q.eq("campaign_id", campaignFilter);
+  const { data, error } = await q;
 
   const migrationPending = !!error && /does not exist/i.test(error.message);
   const rows = (data ?? []) as Array<Record<string, unknown>>;
 
   const accountIds = [...new Set(rows.map((r) => r.account_id as string))];
   const templateIds = [...new Set(rows.map((r) => r.template_id as string).filter(Boolean))];
-  const enrolmentIds = [...new Set(rows.map((r) => r.enrolment_id as string).filter(Boolean))];
 
-  const [{ data: accounts }, { data: templates }, { data: enrolments }] = await Promise.all([
-    accountIds.length ? supabase.from("accounts").select("id, name, email").in("id", accountIds)
+  const [{ data: accounts }, { data: templates }, { data: campaigns }] = await Promise.all([
+    accountIds.length ? supabase.from("accounts").select("id, name, email, phone").in("id", accountIds)
       : Promise.resolve({ data: [] as Record<string, unknown>[] }),
     templateIds.length ? supabase.from("campaign_templates").select("id, name, subject, approved_at").in("id", templateIds)
       : Promise.resolve({ data: [] as Record<string, unknown>[] }),
-    enrolmentIds.length ? supabase.from("campaign_enrolments").select("id, campaign_id").in("id", enrolmentIds)
-      : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+    supabase.from("campaigns").select("id, name, class, auto_send").order("updated_at", { ascending: false }).limit(100),
   ]);
-  const campaignIds = [...new Set((enrolments ?? []).map((e) => e.campaign_id as string))];
-  const { data: campaigns } = campaignIds.length
-    ? await supabase.from("campaigns").select("id, name").in("id", campaignIds)
-    : { data: [] as Record<string, unknown>[] };
 
   const accountOf = new Map((accounts ?? []).map((a) => [a.id as string, a]));
   const templateOf = new Map((templates ?? []).map((t) => [t.id as string, t]));
-  const campaignOfEnrolment = new Map((enrolments ?? []).map((e) => [e.id as string, e.campaign_id as string]));
-  const campaignName = new Map((campaigns ?? []).map((c) => [c.id as string, c.name as string]));
+  const campaignOf = new Map((campaigns ?? []).map((c) => [c.id as string, c]));
 
   const items = rows.map((r) => {
     const a = accountOf.get(r.account_id as string);
     const t = templateOf.get(r.template_id as string);
+    const c = campaignOf.get(r.campaign_id as string);
     return {
       id: r.id as string,
-      accountName: (a?.name as string) || (a?.email as string) || "Unknown",
-      email: (a?.email as string) ?? "",
-      campaign: campaignName.get(campaignOfEnrolment.get(r.enrolment_id as string) ?? "") ?? "Campaign",
+      accountId: r.account_id as string,
+      enrolmentId: r.enrolment_id as string,
+      accountName: (a?.name as string) || (a?.email as string) || (a?.phone as string) || "Unknown",
+      email: (r.channel as string) === "sms" ? ((a?.phone as string) ?? "") : ((a?.email as string) ?? ""),
+      campaign: (c?.name as string) ?? "Campaign",
+      campaignId: (r.campaign_id as string) ?? "",
+      campaignClass: (c?.class as string) === "followup" ? "followup" : "marketing",
+      autoSend: c?.auto_send === true,
       templateName: (t?.name as string) ?? "No email",
       templateId: (r.template_id as string) ?? null,
       subject: (t?.subject as string) ?? "",
       templateApproved: t?.approved_at != null,
       step: (r.step as number) ?? 1,
+      condition: (r.condition as string) ?? "none",
       channel: (r.channel as string) === "sms" ? "sms" : "email",
       state: r.state as string,
       reason: (r.reason as string) ?? null,
+      approved: r.approved_at != null,
+      dueAt: (r.due_at as string) ?? null,
     };
   });
 
@@ -83,10 +89,13 @@ export default async function QueuePage() {
               ? "Nothing waiting. Messages appear here when a live campaign sweeps."
               : `${waiting.length} message${waiting.length === 1 ? "" : "s"} to approve. Nothing leaves until you say so.`}
           </p>
-          <Queue waiting={waiting} done={done} />
+          <Queue waiting={waiting} done={done}
+            campaigns={(campaigns ?? []).map((c) => ({ id: c.id as string, name: c.name as string }))}
+            filter={campaignFilter ?? ""} />
           <p className="bhint" style={{ marginTop: 18 }}>
             Approving re-checks everything against the customer as they are right now — if they
-            accepted a quote this morning, it refuses and tells you.{" "}
+            accepted a quote this morning, it refuses and tells you. Approved outside the sending
+            window, it holds and goes out on its own at the next sweep inside it.{" "}
             <Link href="/crm/campaigns" style={{ textDecoration: "underline" }}>Campaigns</Link>
           </p>
         </>

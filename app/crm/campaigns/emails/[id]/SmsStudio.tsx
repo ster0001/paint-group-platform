@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { SMS_MAX_CHARS, SMS_OPT_OUT, renderSms, smsParts } from "@/lib/campaigns/sms";
 import { approveTemplate, saveSmsTemplate, sendTestSms } from "../../actions";
+import { TOKENS } from "@/lib/campaigns/personalise";
 
 /**
  * Writing a text (session: SMS in the campaign builder).
@@ -58,6 +59,9 @@ export default function SmsStudio({ id, initialName, initialBody, approvedAt, se
           <div className="chips" style={{ marginTop: 8 }}>
             <button className="chip" onClick={() => insert("{{estimate}}")}>+ Their estimate link</button>
             <button className="chip" onClick={() => insert("{{account}}")}>+ Their account link</button>
+            {TOKENS.filter((t) => t.token !== "company").map((t) => (
+              <button key={t.token} className="chip" title={`e.g. ${t.example}`} onClick={() => insert(`{{${t.token}}}`)}>+ {t.label}</button>
+            ))}
           </div>
           <p className="bhint" style={{ marginTop: 8 }}>
             Sender name and &ldquo;{SMS_OPT_OUT}&rdquo; are added for you — never your job to remember.

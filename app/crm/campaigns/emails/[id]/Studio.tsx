@@ -6,6 +6,7 @@ import {
   type Block, type BlockKind, type Template,
 } from "@/lib/campaigns/blocks";
 import { approveTemplate, saveTemplate, sendTestEmail, uploadCampaignPhoto, writeWithAi } from "../../actions";
+import { TOKENS } from "@/lib/campaigns/personalise";
 
 /**
  * The studio (session 3.5).
@@ -247,6 +248,11 @@ export default function Studio({ id, initialName, initialTemplate, approvedAt, s
           ))}
         </div>
 
+        <p className="bhint" style={{ marginTop: 14 }}>
+          Type a token anywhere in the words and it is filled per person:{" "}
+          {TOKENS.map((t) => <code key={t.token} style={{ marginRight: 6 }}>{`{{${t.token}}}`}</code>)}
+          — e.g. “Hi {"{{first_name}}"}, your {"{{estimate_total}}"} estimate…”.
+        </p>
         {warnings.length > 0 && (
           <div className="partial" style={{ marginTop: 16 }}>
             <ul>{warnings.map((w) => <li key={w}>{w}</li>)}</ul>

@@ -2,163 +2,149 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import type { Criterion } from "@/lib/crm/segments";
-import { deleteSegment, previewCriteria, saveSegment } from "./actions";
+import { FIELD_BY_KEY, FIELD_GROUPS, FIELDS, OPS, blankRule, type FieldDef, type Rule } from "@/lib/crm/fields";
+import type { Audience, RuleGroup } from "@/lib/crm/segments";
+import { deleteSegment, previewAudience, saveSegment, type AudiencePreview } from "./actions";
 
 /**
  * Building a list by hand (Tom, 30 Aug: "we need to have control over building
- * this, not a predefined list").
+ * this, not a predefined list") — P5: with groups.
+ *
+ * Everyone on the list matches EVERY group. Inside a group, the office picks
+ * "all of these" or "any of these", and any rule can be flipped to NOT. That
+ * is the pivot-style if / and / or Tom described; a second level of nesting is
+ * deliberately not offered.
  *
  * Every rule is a FORM ROW — a field, a comparison, a value — never a query
- * box. The menu below is the entire vocabulary, including the journey fields
- * the funnels need: unfinished estimate, how far through, how long ago they
- * left, whether they uploaded, how many times they came back.
- *
- * The preview under it runs the real evaluator over the real customers, so the
- * number someone builds against is the number the campaign will act on.
+ * box, and the menu is the field registry: nothing here knows a column name.
+ * The preview under it runs the real SQL evaluator over the facts layer, so
+ * the number someone builds against is the number the campaign acts on.
  */
 
-const MENU: Array<{ label: string; hint: string; blank: Criterion; group: string }> = [
-  // ---- who they are ----
-  { group: "Who they are", label: "Has had work done", hint: "A customer, or not yet", blank: { field: "is_customer", op: "is", value: true } },
-  { group: "Who they are", label: "Was quoted", hint: "Ever given a price", blank: { field: "quoted", op: "is", value: true } },
-  { group: "Who they are", label: "Job type", hint: "Interior, exterior, both", blank: { field: "job_type", op: "is", value: "interior" } },
-  { group: "Who they are", label: "Never had a…", hint: "The cross-sell rule", blank: { field: "has_job_type", op: "is_not", value: "exterior" } },
-  { group: "Who they are", label: "Suburb", hint: "One or more, comma-separated", blank: { field: "suburb", op: "is", value: [] } },
-  { group: "Who they are", label: "Temperature", hint: "Your own hot/warm/cold", blank: { field: "temperature", op: "is", value: ["hot"] } },
-  // ---- their history ----
-  { group: "Their history", label: "Job value", hint: "Total won work, between", blank: { field: "job_value", op: "between", minCents: 0, maxCents: 3_000_000 } },
-  { group: "Their history", label: "Completed", hint: "Time since the last job", blank: { field: "completed", op: "more_than", months: 12 } },
-  { group: "Their history", label: "Last contact", hint: "Any touch at all", blank: { field: "last_contact", op: "more_than", months: 6 } },
-  // ---- where they are in the journey ----
-  { group: "Their journey", label: "Unfinished estimate", hint: "Started the wizard, didn't finish", blank: { field: "abandoned_draft", op: "is", value: true } },
-  { group: "Their journey", label: "Estimate progress", hint: "How far through they got", blank: { field: "draft_progress", op: "less_than", pct: 80 } },
-  { group: "Their journey", label: "Left it", hint: "How long since they were in it", blank: { field: "draft_age", op: "more_than", hours: 24 } },
-  { group: "Their journey", label: "Uploaded a plan or photos", hint: "Real effort — nobody does it idly", blank: { field: "draft_uploaded", op: "is", value: true } },
-  { group: "Their journey", label: "Came back", hint: "Separate visits to their draft", blank: { field: "draft_visits", op: "more_than", count: 1 } },
-  // ---- guardrails ----
-  { group: "Never include", label: "Exclude…", hint: "Unsubscribed, open work, snoozed", blank: { field: "status", op: "is_not", value: ["unsubscribed", "open_work"] } },
-];
-
-type Preview = { count: number; sample: Array<{ accountId: string; name: string; detail: string }>; worthCents: number | null; averageCents: number | null };
+export type BuilderOptions = {
+  tags: Array<{ value: string; label: string }>;
+  owners: Array<{ value: string; label: string }>;
+  campaigns: Array<{ value: string; label: string }>;
+};
 
 const money = (c: number) => "$" + Math.round(c / 100).toLocaleString("en-AU");
 
-export default function SegmentBuilder({ initial }: {
-  initial: { key: string | null; name: string; description: string; criteria: Criterion[]; standing: boolean };
+export default function SegmentBuilder({ initial, options }: {
+  initial: { key: string | null; name: string; description: string; audience: Audience; standing: boolean; dropped?: string[]; legacy?: boolean };
+  options: BuilderOptions;
 }) {
   const [name, setName] = useState(initial.name);
   const [description, setDescription] = useState(initial.description);
-  const [criteria, setCriteria] = useState<Criterion[]>(initial.criteria);
-  const [preview, setPreview] = useState<Preview | null>(null);
+  const [audience, setAudience] = useState<Audience>(initial.audience.groups.length ? initial.audience : { groups: [{ match: "all", rules: [] }] });
+  const [preview, setPreview] = useState<AudiencePreview | null>(null);
   const [said, setSaid] = useState<{ ok: boolean; message: string } | null>(null);
   const [busy, start] = useTransition();
+  const [adding, setAdding] = useState<number | null>(null);
   const router = useRouter();
 
-  const patch = (i: number, next: Criterion) => {
-    setCriteria((cur) => cur.map((c, n) => (n === i ? next : c)));
+  const total = audience.groups.reduce((n, g) => n + g.rules.length, 0);
+  const setGroups = (fn: (groups: RuleGroup[]) => RuleGroup[]) => {
+    setAudience((cur) => ({ groups: fn(cur.groups) }));
     setPreview(null);   // the number on screen no longer matches the rules
   };
-  const remove = (i: number) => { setCriteria((cur) => cur.filter((_, n) => n !== i)); setPreview(null); };
-  const add = (blank: Criterion) => { setCriteria((cur) => [...cur, structuredClone(blank)]); setPreview(null); };
+  const patchRule = (g: number, i: number, next: Rule) =>
+    setGroups((groups) => groups.map((grp, n) => (n === g ? { ...grp, rules: grp.rules.map((r, m) => (m === i ? next : r)) } : grp)));
+  const removeRule = (g: number, i: number) =>
+    setGroups((groups) => groups.map((grp, n) => (n === g ? { ...grp, rules: grp.rules.filter((_, m) => m !== i) } : grp)));
+  const addRule = (g: number, key: string) => {
+    setGroups((groups) => groups.map((grp, n) => (n === g ? { ...grp, rules: [...grp.rules, blankRule(key)] } : grp)));
+    setAdding(null);
+  };
+  const setMatch = (g: number, match: "all" | "any") => setGroups((groups) => groups.map((grp, n) => (n === g ? { ...grp, match } : grp)));
+  const addGroup = () => setGroups((groups) => [...groups, { match: "any", rules: [] }]);
+  const removeGroup = (g: number) => setGroups((groups) => groups.filter((_, n) => n !== g));
 
-  const opSelect = (i: number, c: Criterion & { op: string }, ops: Array<[string, string]>) => (
-    <select className="field rop-select" value={c.op}
-      onChange={(e) => patch(i, { ...c, op: e.target.value } as Criterion)}>
-      {ops.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-    </select>
-  );
-  const num = (value: number, onChange: (n: number) => void, width = 90) => (
-    <input className="field" style={{ maxWidth: width, minWidth: width }} inputMode="numeric" value={String(value)}
-      onChange={(e) => onChange(Number(e.target.value.replace(/[^0-9]/g, "")) || 0)} />
+  const optionsFor = (f: FieldDef): Array<{ value: string; label: string }> =>
+    f.optionSource === "tags" ? options.tags
+    : f.optionSource === "owners" ? options.owners
+    : f.optionSource === "campaigns" ? options.campaigns
+    : f.options ?? [];
+
+  const num = (value: unknown, onChange: (n: number) => void, width = 80, scale = 1) => (
+    <input className="field" style={{ maxWidth: width, minWidth: width }} inputMode="numeric"
+      value={String(Math.round((Number(value) || 0) / scale))}
+      onChange={(e) => onChange((Number(e.target.value.replace(/[^0-9]/g, "")) || 0) * scale)} />
   );
 
-  const editor = (c: Criterion, i: number) => {
-    switch (c.field) {
-      case "is_customer": return null;   // rendered by editorWrapped below
-      case "quoted": return (<><span className="rfield">Was quoted</span>
-        <select className="field rop-select" value={c.value ? "yes" : "no"}
-          onChange={(e) => patch(i, { ...c, value: e.target.value === "yes" })}>
-          <option value="yes">yes</option><option value="no">no</option>
-        </select></>);
-      case "job_type": return (<><span className="rfield">Job type</span>
-        {opSelect(i, c, [["is", "is"], ["is_not", "is not"]])}
-        <select className="field rop-select" value={c.value}
-          onChange={(e) => patch(i, { ...c, value: e.target.value as typeof c.value })}>
-          <option value="interior">interior</option><option value="exterior">exterior</option><option value="both">both</option>
-        </select></>);
-      case "has_job_type": return (<><span className="rfield">Has never had</span>
-        <select className="field rop-select" value={c.value}
-          onChange={(e) => patch(i, { ...c, value: e.target.value as typeof c.value })}>
-          <option value="exterior">an exterior job</option><option value="interior">an interior job</option>
-        </select></>);
-      case "suburb": return (<><span className="rfield">Suburb</span><span className="rop">is</span>
-        <input className="field" placeholder="Camberwell, Kew, Balwyn" value={c.value.join(", ")}
-          onChange={(e) => patch(i, { ...c, value: e.target.value.split(",").map((v) => v.trim()).filter(Boolean) })} /></>);
-      case "temperature": return (<><span className="rfield">Temperature</span><span className="rop">is</span>
-        {(["hot", "warm", "cold"] as const).map((t) => (
-          <button key={t} className={`chip ${c.value.includes(t) ? "on" : ""}`}
-            onClick={() => patch(i, { ...c, value: c.value.includes(t) ? c.value.filter((v) => v !== t) : [...c.value, t] })}>{t}</button>
-        ))}</>);
-      case "job_value": return (<><span className="rfield">Job value</span><span className="rop">between $</span>
-        {num(Math.round(c.minCents / 100), (n) => patch(i, { ...c, minCents: n * 100 }))}
-        <span className="rop">and $</span>
-        {num(Math.round(c.maxCents / 100), (n) => patch(i, { ...c, maxCents: n * 100 }))}</>);
-      case "completed": return (<><span className="rfield">Completed</span>
-        {opSelect(i, c, [["more_than", "more than"], ["less_than", "less than"]])}
-        {num(c.months, (n) => patch(i, { ...c, months: n }), 70)}<span className="rop">months ago</span></>);
-      case "last_contact": return (<><span className="rfield">Last contact</span>
-        {opSelect(i, c, [["more_than", "more than"], ["less_than", "less than"]])}
-        {num(c.months, (n) => patch(i, { ...c, months: n }), 70)}<span className="rop">months ago</span></>);
-      case "abandoned_draft": return (<><span className="rfield">Unfinished estimate</span>
-        <select className="field rop-select" value={c.value ? "yes" : "no"}
-          onChange={(e) => patch(i, { ...c, value: e.target.value === "yes" })}>
-          <option value="yes">yes</option><option value="no">no</option>
-        </select></>);
-      case "draft_progress": return (<><span className="rfield">Estimate progress</span>
-        {opSelect(i, c, [["less_than", "less than"], ["more_than", "more than"]])}
-        {num(c.pct, (n) => patch(i, { ...c, pct: Math.min(100, n) }), 70)}<span className="rop">% answered</span></>);
-      case "draft_age": return (<><span className="rfield">Left it</span>
-        {opSelect(i, c, [["more_than", "more than"], ["less_than", "less than"]])}
-        {num(c.hours, (n) => patch(i, { ...c, hours: n }), 70)}<span className="rop">hours ago</span></>);
-      case "draft_uploaded": return (<><span className="rfield">Uploaded a plan or photos</span>
-        <select className="field rop-select" value={c.value ? "yes" : "no"}
-          onChange={(e) => patch(i, { ...c, value: e.target.value === "yes" })}>
-          <option value="yes">yes</option><option value="no">no</option>
-        </select></>);
-      case "draft_visits": return (<><span className="rfield">Came back</span><span className="rop">more than</span>
-        {num(c.count, (n) => patch(i, { ...c, count: Math.max(1, n) }), 60)}<span className="rop">time{c.count === 1 ? "" : "s"}</span></>);
-      case "status": return (<><span className="rfield">Never include</span>
-        {(["unsubscribed", "open_work", "snoozed"] as const).map((v) => (
-          <button key={v} className={`chip ${c.value.includes(v) ? "on" : ""}`}
-            onClick={() => patch(i, { ...c, value: c.value.includes(v) ? c.value.filter((x) => x !== v) : [...c.value, v] })}>
-            {v === "open_work" ? "has open work" : v}
-          </button>
-        ))}</>);
+  const chips = (list: Array<{ value: string; label: string }>, value: unknown, onChange: (v: string[]) => void) => {
+    const cur = Array.isArray(value) ? (value as string[]) : [];
+    return list.map((o) => (
+      <button key={o.value} type="button" className={`chip ${cur.includes(o.value) ? "on" : ""}`}
+        onClick={() => onChange(cur.includes(o.value) ? cur.filter((x) => x !== o.value) : [...cur, o.value])}>{o.label}</button>
+    ));
+  };
+
+  const valueEditor = (f: FieldDef, r: Rule, g: number, i: number) => {
+    const set = (value: unknown) => patchRule(g, i, { ...r, value });
+    switch (f.type) {
+      case "enum": case "tags": case "campaign":
+        return chips(optionsFor(f), r.value, set);
+      case "owner":
+        return r.op === "is" ? chips(optionsFor(f), r.value, set) : null;
+      case "bool":
+        return (
+          <select className="field rop-select" value={r.value === false ? "no" : "yes"} onChange={(e) => set(e.target.value === "yes")}>
+            <option value="yes">yes</option><option value="no">no</option>
+          </select>
+        );
+      case "text":
+        return (
+          <input className="field" placeholder="Camberwell, Kew, Balwyn" value={Array.isArray(r.value) ? (r.value as string[]).join(", ") : ""}
+            onChange={(e) => set(e.target.value.split(",").map((v) => v.trim()).filter(Boolean))} />
+        );
+      case "number":
+        return r.op === "between"
+          ? (<>{num(Array.isArray(r.value) ? r.value[0] : 0, (n) => set([n, Array.isArray(r.value) ? r.value[1] : n]))}<span className="rop">and</span>{num(Array.isArray(r.value) ? r.value[1] : 0, (n) => set([Array.isArray(r.value) ? r.value[0] : 0, n]))}</>)
+          : num(r.value, set);
+      case "money":
+        return r.op === "between"
+          ? (<>{num(Array.isArray(r.value) ? r.value[0] : 0, (n) => set([n, Array.isArray(r.value) ? r.value[1] : n]), 90, 100)}<span className="rop">and $</span>{num(Array.isArray(r.value) ? r.value[1] : 0, (n) => set([Array.isArray(r.value) ? r.value[0] : 0, n]), 90, 100)}</>)
+          : num(r.value, set, 90, 100);
+      case "minutes":
+        return (<>{num(r.value, set, 70, 60)}<span className="rop">minutes</span></>);
+      case "days":
+        return r.op === "more_than_days" || r.op === "less_than_days" ? (<>{num(r.value, set, 70)}<span className="rop">days{r.op === "more_than_days" ? " ago" : ""}</span></>) : null;
+      case "due":
+        return r.op === "within_days" ? (<>{num(r.value, set, 70)}<span className="rop">days</span></>) : null;
     }
   };
 
-  // The is_customer editor above cheats its select through the op slot; wire
-  // its change properly here to keep the switch readable.
-  const editorWrapped = (c: Criterion, i: number) => {
-    if (c.field === "is_customer") {
-      return (<><span className="rfield">Has had work done</span>
-        <select className="field rop-select" value={c.value ? "yes" : "no"}
-          onChange={(e) => patch(i, { ...c, value: e.target.value === "yes" })}>
-          <option value="yes">yes</option><option value="no">no</option>
-        </select></>);
-    }
-    return editor(c, i);
+  const ruleRow = (r: Rule, g: number, i: number) => {
+    const f = FIELD_BY_KEY[r.field];
+    if (!f) return <span className="rop">Unknown rule “{r.field}” — remove it.</span>;
+    const ops = OPS[f.type];
+    return (
+      <>
+        <button type="button" className={`chip rnot ${r.not ? "on" : ""}`} title="Flip this rule to NOT"
+          onClick={() => patchRule(g, i, { ...r, not: !r.not })}>{r.not ? "not" : "is"}</button>
+        <span className="rfield" title={f.help}>{f.label}</span>
+        {ops.length > 1 ? (
+          <select className="field rop-select" value={r.op} onChange={(e) => {
+            const op = e.target.value;
+            const fresh = blankRule(f.key);
+            // Keep the value when the shape still fits; otherwise start the operator clean.
+            const keep = (op === "between") === (r.op === "between") && !(f.type === "days" && (op === "never" || op === "ever"));
+            patchRule(g, i, { ...r, op, value: keep ? r.value : (op === "between" ? [0, 0] : fresh.value) });
+          }}>
+            {ops.map((o) => <option key={o.op} value={o.op}>{o.label}</option>)}
+          </select>
+        ) : <span className="rop">{ops[0].label}</span>}
+        {valueEditor(f, r, g, i)}
+      </>
+    );
   };
-
-  const groups = [...new Set(MENU.map((m) => m.group))];
 
   return (
     <>
       <div className="row">
-        <input className="field" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name the list — “Left their estimate, big job”" />
+        <input className="field" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name the list — “Quoted, opened it, gone quiet”" />
         <button className="go" disabled={busy} onClick={() => start(async () => {
-          const r = await saveSegment({ key: initial.key, name, description, criteria });
+          const r = await saveSegment({ key: initial.key, name, description, audience });
           setSaid(r);
           if (r.ok && !initial.key && r.data) router.push(`/crm/segments/${r.data.key}`);
         })}>{busy ? "Saving…" : "Save list"}</button>
@@ -167,45 +153,76 @@ export default function SegmentBuilder({ initial }: {
         onChange={(e) => setDescription(e.target.value)}
         placeholder="One line on who this is — future-you will thank you" />
 
-      <p className="plabel" style={{ marginTop: 18 }}>The rules — everyone on the list matches ALL of them</p>
-      {criteria.length === 0 && <p className="empty">No rules yet. Add one below — start with who they are.</p>}
-      <div className="rules" style={{ marginTop: 8 }}>
-        {criteria.map((c, i) => (
-          <div className="rule redit" key={i}>
-            {i > 0 && <i className="and">and</i>}
-            {editorWrapped(c, i)}
-            <button className="bbtn" aria-label="Remove rule" onClick={() => remove(i)}>×</button>
-          </div>
-        ))}
-      </div>
+      {initial.legacy && (
+        <p className="partial" style={{ marginTop: 12 }}>
+          This list was built before rule groups existed. It has been translated; check it reads right and save it once.
+          {initial.dropped?.length ? ` Rules with no home in the new builder were left out: ${initial.dropped.join(", ")}.` : ""}
+        </p>
+      )}
 
-      <p className="plabel" style={{ marginTop: 16 }}>Add a rule</p>
-      {groups.map((g) => (
-        <div key={g} style={{ marginTop: 8 }}>
-          <p className="bhint" style={{ margin: "0 0 5px" }}>{g}</p>
-          <div className="chips">
-            {MENU.filter((m) => m.group === g).map((m) => (
-              <button key={m.label} className="chip" title={m.hint} onClick={() => add(m.blank)}>+ {m.label}</button>
+      <p className="plabel" style={{ marginTop: 18 }}>The rules — everyone on the list matches every group</p>
+      {audience.groups.map((grp, g) => (
+        <div className="bcard" key={g} data-testid={`group-${g}`}>
+          <div className="bhead">
+            <span className="bkind">{g === 0 ? "Group 1" : `and group ${g + 1}`}</span>
+            <span className="rop">match</span>
+            <select className="field rop-select" value={grp.match} onChange={(e) => setMatch(g, e.target.value as "all" | "any")} aria-label={`Group ${g + 1} match`}>
+              <option value="all">all of these</option>
+              <option value="any">any of these</option>
+            </select>
+            {audience.groups.length > 1 && (
+              <button className="bbtn" aria-label={`Remove group ${g + 1}`} onClick={() => removeGroup(g)}>×</button>
+            )}
+          </div>
+          {grp.rules.length === 0 && <p className="bhint" style={{ margin: "8px 0 0" }}>No rules in this group yet.</p>}
+          <div className="rules" style={{ marginTop: 8 }}>
+            {grp.rules.map((r, i) => (
+              <div className="rule redit" key={i}>
+                {i > 0 && <i className="and">{grp.match === "any" ? "or" : "and"}</i>}
+                {ruleRow(r, g, i)}
+                <button className="bbtn" aria-label="Remove rule" onClick={() => removeRule(g, i)}>×</button>
+              </div>
             ))}
           </div>
+          {adding === g ? (
+            <div style={{ marginTop: 10 }}>
+              {FIELD_GROUPS.map((grpName) => (
+                <div key={grpName} style={{ marginTop: 6 }}>
+                  <p className="bhint" style={{ margin: "0 0 4px" }}>{grpName}</p>
+                  <div className="chips">
+                    {FIELDS.filter((f) => f.group === grpName).map((f) => (
+                      <button key={f.key} className="chip" title={f.help} onClick={() => addRule(g, f.key)}>+ {f.label}</button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <button className="chip" style={{ marginTop: 8 }} onClick={() => setAdding(null)}>Never mind</button>
+            </div>
+          ) : (
+            <button className="chip" style={{ marginTop: 10 }} onClick={() => setAdding(g)} data-testid={`add-rule-${g}`}>+ Add a rule</button>
+          )}
         </div>
       ))}
+      <button className="chip" onClick={addGroup} data-testid="add-group">+ Another group (and…)</button>
+      <p className="bhint" style={{ marginTop: 8 }}>
+        A second group is how you say “and one of these”: past customers, <b>and</b> (in Kew <b>or</b> tagged VIP).
+      </p>
 
       <div className="panel" style={{ marginTop: 18 }}>
         <div className="row">
-          <button className="go" disabled={busy || criteria.length === 0} onClick={() => start(async () => {
-            const r = await previewCriteria(criteria);
+          <button className="go" disabled={busy || total === 0} data-testid="preview" onClick={() => start(async () => {
+            const r = await previewAudience(audience);
             setSaid(r);
             setPreview(r.ok ? r.data ?? null : null);
           })}>{busy ? "Counting…" : "Who matches right now?"}</button>
           <p className="bhint" style={{ flex: 1, margin: 0 }}>
-            The same evaluator every campaign uses — this number is who a campaign would act on.
+            Counted by the database over every customer — the same question the campaign asks before each send.
           </p>
         </div>
         {preview && (
-          <div style={{ marginTop: 12 }}>
+          <div style={{ marginTop: 12 }} data-testid="preview-result">
             <div className="stats">
-              <div className="stat"><span>Match today</span><b>{preview.count}</b>
+              <div className="stat"><span>Match today</span><b>{preview.count.toLocaleString("en-AU")}</b>
                 <em>{preview.count === 1 ? "person" : "people"}</em></div>
               <div className="stat"><span>Worth roughly</span>
                 <b>{preview.worthCents == null ? "—" : money(preview.worthCents)}</b>

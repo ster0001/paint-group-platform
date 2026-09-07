@@ -16,6 +16,7 @@ import { recordMessage } from "@/lib/messaging/record";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { renderEmail, renderPlainText, type Brand, type Template } from "./blocks";
+import { trackLinks } from "./links";
 
 export const MARKETING_FROM = "hello@mail.paintgroup.com.au";
 export const MARKETING_REPLY_TO = "info@paintgroup.com.au";
@@ -99,7 +100,11 @@ export async function sendCampaignEmail(input: SendInput): Promise<SendResult> {
     .replaceAll("{{unsubscribe}}", link)
     .replaceAll("{{estimate}}", estimateUrl)
     .replaceAll("{{account}}", accountUrl);
-  const html = fill(renderEmail(input.template, { ...defaultBrand(), ...input.brand } as Brand));
+  // P5: every button and link in a real campaign send goes through /t/<token>,
+  // which is where `cta_clicked` and the click count come from. A test send
+  // and a message with no queue row keep their plain links.
+  const rendered = fill(renderEmail(input.template, { ...defaultBrand(), ...input.brand } as Brand));
+  const html = input.campaignMessageId && !input.isTest ? trackLinks(rendered, base, input.campaignMessageId) : rendered;
   const text = fill(renderPlainText(input.template, { ...defaultBrand(), ...input.brand } as Brand));
 
   const subject = input.isTest ? `[TEST] ${input.template.subject}` : input.template.subject;

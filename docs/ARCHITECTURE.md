@@ -2329,3 +2329,50 @@ the five ruled lost reasons with their final wording).
 
 Verification: `e2e/crm-p4-status.spec.ts` (5 journeys on C1); manual test
 `docs/manual-tests/crm-v2-p4-status.md`.
+
+## CRM v2 · Phase 5 — campaigns with real rules (7 Sep 2026)
+
+Source: `docs/briefs/crm-v2-deep-dive.md` §4.3, decisions 8.1 (two classes) and 8.9 (cron cadence). Migration
+20270126. Manual test `docs/manual-tests/crm-v2-p5-campaigns.md`; e2e `e2e/crm-p5-campaigns.spec.ts`.
+
+- **Audiences are a rule TREE, evaluated in SQL.** `{groups:[{match:"all"|"any", rules:[{field, op, value, not}]}]}`
+  — ALL of the groups, ANY/ALL within, NOT per rule; one level deep by design. `lib/crm/fields.ts` is the registry
+  (label, type, facts column, operators, option source); `lib/crm/segments.ts` compiles a rule to `{col, op, v}`
+  primitives; `crm_audience_where` (plpgsql, column whitelist, `%I`/`%L`) turns them into a WHERE over
+  `crm_account_facts`; `crm_audience_count / _sample / _ids / _match` are the only callers. The preview, the
+  sweep, the dry run and the send-time guard all go through `lib/crm/audience.ts` — one evaluator, no customer
+  loaded into memory (the 2,000-row cap is gone; `lib/crm/loadSubjects.ts` is deleted). Pre-P5 rows carry
+  `criteria`; `segmentsStore` translates on read, the next save writes `rules`.
+- **New facts columns** for the rules: last_sent_at, last_estimate_status, last_accepted/declined_at,
+  decline_reason, job_types (ANY estimate), quoted_cents, dwell_seconds (estimate_views), invoice_state/due_on,
+  campaigns_received, last_inbound_at / last_inbound_call_at (they wrote or rang), last_staff_contact_at (a person
+  here logged a call/email/text). Stale triggers on campaign_messages (sent) and invoices.
+- **Two classes** (`campaigns.class`): `followup` — service messages about a quote they asked for; allowed to
+  quoted-not-accepted; four steps max; ALWAYS exits on reply / accepted / declined; skips delayed, lost,
+  do-not-contact; exempt from the monthly marketing cap. `marketing` — C9a/C10/C11 as before; quiet states hold
+  or exit. Legal confirmation of 8.1 is still Tom's.
+- **Entry and anchor.** `entry = audience` (the list, re-asked every sweep) or `event` (`trigger_event` in
+  estimate_sent / estimate_viewed / estimate_lapsed / estimate_declined / job_completed / visit_completed /
+  invoice_paid, scanned from `events_since`). Enrolments carry `anchor_at` + `anchor_key` (the estimate; '' for
+  audience) — unique per (campaign, account, anchor), so a NEW quote starts the follow-up again. Steps carry
+  `afterDays` (+`afterHours`) FROM THE ANCHOR and a `condition` (unopened / opened_silent / not_replied /
+  not_accepted). Send keys include the anchor.
+- **The guard chain** (`lib/campaigns/guard.ts`) is now two halves: `judge` (consent per channel via
+  permit_email/permit_sms, relationship state, deliverability, exit rules measured from the anchor, marketing's
+  open-work rule, still-in-audience, the step condition) and `guardSend` (= judge + snooze, monthly cap for
+  marketing only, C11 window, template approval, human-or-auto). Verdicts say `exit` (enrolment over) or `skip`
+  (this step only). The sweep runs `judge` before queuing — a skipped step is written as a stopped row so the
+  key is consumed and the enrolment advances; an exit finishes the enrolment and stops its siblings.
+- **One delivery path** (`lib/campaigns/deliver.ts`): the queue's approve, approve-all, and the sweep's auto-send
+  (`campaigns.auto_send` → `SendPolicy.autoSend`, per campaign, off by default) all call `deliverMessage`. It
+  refreshes a stale facts row first, asks `guardSend`, personalises (`lib/campaigns/personalise.ts`:
+  first_name / name / suburb / estimate_total / last_job_date / estimator / company), tracks links
+  (`lib/campaigns/links.ts` → `/t/<token>`, HMAC, never the unsubscribe link) and sends. An approval outside the
+  window is remembered (`approved_at`) and the next sweep sends it inside the window.
+- **Analytics** in SQL: `crm_campaign_stats` (enrolled/active/exited, waiting/sent/stopped/failed,
+  delivered/opened/bounced from `messages` status via the P3 webhooks, clicked from `campaign_messages.clicks`,
+  replied = inbound message within 14 days of a send, unsubscribed = permission declined after a send,
+  converted/revenue from `crm_campaign_mark_conversions` — an estimate_accepted after the anchor inside
+  `conversion_days`, after a send). `cta_clicked` finally has a writer.
+- **Cron**: `campaign-sweep` moved to 22:30 UTC Mon–Fri (08:30 AEST) — it was 08:30 UTC, outside the window.
+  Every 30 min on Vercel Pro (decision 8.9); the sweep is idempotent either way.
