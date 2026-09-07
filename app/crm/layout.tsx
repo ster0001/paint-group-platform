@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { staffVisibility, gateStaffArea } from "@/lib/staff/gate";
 import CrmTabs from "./CrmTabs";
+import Search from "./Search";
 import { getWorkQueue } from "./queue";
 import "./crm.css";
 
@@ -45,6 +46,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
         <div className="topbar">
           <span className="mark"><span>PG</span></span>
           <span className="brand">Paint Group <em>· CRM</em></span>
+          <Search />
           <span className="who">{profile?.name || user.email}</span>
         </div>
         <CrmTabs initialCount={badge} />

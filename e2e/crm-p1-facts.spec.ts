@@ -190,7 +190,10 @@ test.describe("CRM v2 P1 — identity, lifecycle events, facts, lapsing", () => 
 
     // Somebody rings her: the item retires on its own.
     await page.goto(`/crm/customers/${accountId}`);
-    await page.getByRole("button", { name: /called — no answer/i }).click();
+    // P2: the chip picks the outcome; Save writes it.
+    const sheet = page.getByTestId("log-sheet").first();
+    await sheet.getByRole("button", { name: /called — no answer/i }).click();
+    await sheet.getByRole("button", { name: "Save" }).click();
     await expect(page.locator(".tl")).toContainText("Called — no answer");
     expect(await findOnToday()).toBe(false);
   });

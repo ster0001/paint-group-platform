@@ -2236,3 +2236,30 @@ three faults every other phase reads through: identity, the event log, and how l
 Verification: `e2e/crm-p1-facts.spec.ts` (serial, 4 journeys on C1), `lib/crm/facts.test.ts`,
 `lib/crm/stage.test.ts`, `lib/crm/work-queue.test.ts`; manual test
 `docs/manual-tests/crm-v2-p1-identity-facts.md`.
+
+## CRM v2 · Phase 2 — the customer record (7 Sep 2026)
+
+Source: `docs/briefs/crm-v2-deep-dive.md` §4.1. Migration 20270123 (`crm_update_account`, `crm_set_owner`,
+`crm_upsert_contact` / `crm_delete_contact`, `crm_create_account`; the facts trigger learns
+`email_logged` / `sms_logged`; and the `crm_account_facts` / `account_contacts` policies rewritten to
+`tenant_id = (select public.current_tenant())` — the bare call ran per row and the Customers list hit the
+8 s statement timeout at 27k rows).
+
+- **The record** (`app/crm/customers/[id]/page.tsx`): head with tap-to-call phone, mailto email, inline
+  edit (`RecordDetails`), owner select; a status line from the cached card; tiles (latest estimate, since
+  SENT, won so far, last contact by channel); every estimate / job / invoice / property listed with a deep
+  link; `Contacts` (people on the account); `DuplicateBanner` (crm_duplicate_candidates narrowed to this
+  account, one-click merge); the timeline. A stale facts row is recomputed before the page shows it.
+- **The log sheet** (`app/crm/LogSheet.tsx`): six outcomes + a line + "come back to this" (presets or a
+  date). Inline in `CustomerPanel`; a "Log" popover on every Today item. Server action `logContact` writes
+  the event and, when asked, the follow-up in one go. Follow-up / snooze take a calendar day
+  (`melbourneInstant`, never a hard-coded offset) with presets and a Clear chip.
+- **Quick add** (`app/crm/customers/QuickAdd.tsx`): name + phone; `crm_create_account` dedupes through
+  `crm_find_account` and owns the record to its creator (decision 8.5).
+- **Global search** (`app/crm/Search.tsx` + `/crm/api/search`): the facts `search` column (trigram) +
+  estimate titles; ⌘K / Ctrl+K.
+- All writes live in `app/crm/recordActions.ts`; shared vocab in `recordTypes.ts` (a `"use server"` file
+  may export only async functions).
+
+Verification: `e2e/crm-p2-record.spec.ts` (4 serial journeys on C1); manual test
+`docs/manual-tests/crm-v2-p2-record.md`.

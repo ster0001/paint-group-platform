@@ -280,3 +280,67 @@
 .crm .pagerlinks a{color:var(--cyan)}
 .crm .pagerlinks .off{opacity:.35}
 .crm .lanemore{display:block;margin:6px 0 2px;font-size:12px;color:var(--cyan)}
+
+/* CRM v2 P2 — record head, log sheet, contacts, quick add, global search */
+.crm .rhead{align-items:flex-start;flex-wrap:wrap}
+.crm .rmain{display:flex;flex-direction:column;gap:4px;flex:1;min-width:240px}
+.crm .rcontact{font-size:12.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.crm .rlink{color:var(--cyan)}
+.crm .rmiss{color:#5d666e;font-style:italic}
+.crm .rsep{opacity:.5}
+.crm .rtools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px}
+.crm .rowner{display:flex;gap:6px;align-items:center;font-size:11px;color:var(--muted)}
+.crm .field.sm{padding:5px 9px;font-size:12px;min-width:140px;flex:none}
+.crm .chip.sm{font-size:11.5px;padding:5px 10px}
+.crm .chip.ghost{border-style:dashed;color:var(--muted)}
+.crm .redit{display:grid;gap:8px;flex:1;min-width:260px}
+.crm .redit .field{min-width:0}
+.crm .statusline{display:flex;flex-wrap:wrap;gap:6px 10px;font-size:12px;color:var(--muted);margin:-6px 0 14px;font-family:var(--mono)}
+.crm .statusline b{color:var(--text);font-weight:600}
+.crm .statusline .hot{color:var(--clay)} .crm .statusline .warm{color:var(--amber)}
+.crm .logbody{display:grid;gap:9px}
+.crm .logbody.compact{gap:7px}
+.crm .logta{resize:vertical;min-height:38px;width:100%;font-family:inherit}
+.crm .logfollow{display:grid;gap:6px}
+.crm .datefield{flex:none;min-width:150px;padding:6px 10px;font-size:12px;color-scheme:dark}
+.crm .logwrap{position:relative;display:inline-block}
+.crm .logbtn{background:none;border:0;cursor:pointer;font:inherit;padding:0}
+.crm .logpop{position:absolute;z-index:30;top:calc(100% + 8px);left:0;width:min(420px,92vw);background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:12px;box-shadow:0 12px 32px rgba(0,0,0,.45)}
+.crm .rlist{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:16px}
+.crm .rrow{display:grid;grid-template-columns:1fr auto;gap:8px 14px;align-items:center;padding:10px 13px;border-top:1px solid var(--line);font-size:12.5px;color:inherit;text-decoration:none}
+.crm .rrow:first-child{border-top:0}
+.crm .rrow:hover{background:var(--graphite)}
+.crm .rrow .rt{font-weight:600}
+.crm .rrow .rsub{display:block;color:var(--muted);font-size:11.5px;margin-top:2px}
+.crm .rrow .rright{display:flex;gap:10px;align-items:center;white-space:nowrap}
+.crm .rrow .rgo{color:var(--cyan);font-size:11.5px}
+.crm .pill.gr{border-color:#2f5d3a;color:#7bd39a} .crm .pill.rd{border-color:#5d2f2f;color:#f27d7d} .crm .pill.gy{color:var(--muted)}
+.crm .contacts{display:grid;gap:8px;margin-bottom:16px}
+.crm .crow{display:grid;grid-template-columns:1fr 1fr auto;gap:8px 14px;align-items:center;background:var(--raised);border:1px solid var(--line);border-radius:var(--r);padding:10px 13px;font-size:12.5px}
+.crm .cwho{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.crm .chow{display:flex;gap:10px;flex-wrap:wrap;color:var(--muted)}
+.crm .cnotes{font-style:italic}
+.crm .cact{display:flex;gap:6px}
+.crm .cform{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;background:var(--raised);border:1px solid var(--line);border-radius:var(--r);padding:12px}
+.crm .cform .field{min-width:0}
+.crm .cform .row{grid-column:1 / -1}
+.crm .dupbanner{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:rgba(240,179,92,.08);border:1px solid rgba(240,179,92,.4);border-radius:var(--r);padding:10px 13px;margin-bottom:14px;font-size:12.5px}
+.crm .dupbanner b{color:var(--amber)}
+.crm .duphit{display:inline-flex;gap:8px;align-items:center}
+.crm .duphit a{color:var(--cyan)}
+.crm .duphit i{color:var(--muted);font-style:normal}
+.crm .quickadd{display:flex;flex-wrap:wrap;gap:8px;align-items:center;width:100%}
+.crm .quickadd .field{min-width:140px;flex:1}
+.crm .gsearch{position:relative;flex:1;max-width:420px;margin:0 14px}
+.crm .gsinput{width:100%;padding:7px 12px;font-size:12.5px;min-width:0}
+.crm .gsdrop{position:absolute;z-index:40;top:calc(100% + 6px);left:0;right:0;background:var(--raised);border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:0 12px 32px rgba(0,0,0,.45)}
+.crm .gshit{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;padding:9px 12px;border-top:1px solid var(--line);font-size:12.5px}
+.crm .gshit:first-child{border-top:0}
+.crm .gshit.on,.crm .gshit:hover{background:var(--graphite)}
+.crm .gskind{font-size:9px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);padding:2px 5px;border-radius:5px}
+.crm .gsmain b{display:block;font-weight:600}
+.crm .gsmain small{color:var(--muted);font-size:11px}
+.crm .gsempty{padding:12px;font-size:12px;color:var(--muted)}
+.crm .said{font-size:12px;color:var(--cyan);margin:6px 0 0}
+.crm .said.bad{color:var(--clay)}
+@media (max-width:640px){ .crm .gsearch{display:none} .crm .crow{grid-template-columns:1fr} }

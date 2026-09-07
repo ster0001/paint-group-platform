@@ -73,6 +73,14 @@ export const CRM_EVENT_SCHEMAS = {
   followup_set: z.object({ dueAt: z.string().datetime(), note: shortText.optional() }),
   temperature_set: z.object({ temperature: z.enum(["hot", "warm", "cold"]), previous: z.enum(["hot", "warm", "cold"]).nullable().default(null) }),
   snoozed: z.object({ until: z.string().datetime(), reason: shortText.optional() }),
+  /** CRM v2 P2 — the log sheet: the office emailed or texted the customer by hand. */
+  email_logged: z.object({ note: shortText.optional(), direction: z.enum(["out", "in"]).default("out") }),
+  sms_logged: z.object({ note: shortText.optional(), direction: z.enum(["out", "in"]).default("out") }),
+  /** CRM v2 P2 — the record's own writes, so the timeline never lies about who changed what. */
+  details_updated: z.object({ changed: z.array(z.string().max(20)).max(10), from: z.record(z.string(), z.unknown()).optional() }),
+  owner_set: z.object({ ownerId: z.string().uuid().nullable(), ownerName: z.string().max(120).optional() }),
+  contact_changed: z.object({ action: z.enum(["added", "updated", "removed"]), name: z.string().max(120).nullable().optional(), role: z.string().max(20).nullable().optional() }),
+  account_created: z.object({ via: z.enum(["quick_add", "wizard", "estimate", "portal", "import"]).default("quick_add") }),
   /** A derived work item waved away (shell brief §3.7). The reason is required
    *  because repeated dismissals of one kind are how a wrong threshold shows. */
   work_item_dismissed: z.object({ itemKey: z.string().max(200), reason: shortText, until: z.string().datetime().nullable().default(null) }),

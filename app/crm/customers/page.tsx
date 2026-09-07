@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import BoardView from "./BoardView";
+import QuickAdd from "./QuickAdd";
 import { GROUPS, LANE_GROUP, SORTS, loadBoard, loadCustomerPage, type FactsCard, type GroupKey, type SortKey } from "./data";
 import type { LaneKey } from "@/lib/crm/stage";
 
@@ -85,6 +86,7 @@ export default async function CustomersPage({ searchParams }: {
           <input className="field" type="search" name="q" defaultValue={q} placeholder="Name, phone, email, address" aria-label="Search customers" />
           {q && <Link className="clearq" href={qs({ q: "", page: 1 })} aria-label="Clear search">×</Link>}
         </form>
+        <QuickAdd />
         {view === "list" && (
           <details className="sortwrap">
             <summary className="sortbtn">{SORTS.find((s) => s.key === sort)!.label.split("—")[0].trim()} ▾</summary>

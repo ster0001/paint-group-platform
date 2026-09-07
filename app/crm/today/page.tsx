@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getWorkQueue } from "../queue";
 import { FILTER_GROUPS, GROUP_OF_KIND, type FilterGroup, type WorkItem } from "@/lib/crm/work-queue";
 import DismissControl from "./DismissControl";
+import LogSheet from "../LogSheet";
 import DroppedThisWeek from "./DroppedThisWeek";
 
 export const dynamic = "force-dynamic";
@@ -110,6 +111,7 @@ export default async function TodayPage({ searchParams }: {
                     <span className="qb">{item.detail}</span>
                     <span className="qact">
                       <Link href={item.action.href} className="qgo">{item.action.label} →</Link>
+                      {item.accountId && <LogSheet accountId={item.accountId} />}
                       <DismissControl itemKey={item.key} accountId={item.accountId} />
                     </span>
                   </span>
