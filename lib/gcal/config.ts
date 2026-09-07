@@ -5,5 +5,5 @@
 export type GcalStatus =
   | { kind: "unconfigured" }
   | { kind: "not_connected" }
-  | { kind: "connected"; email: string | null; connectedAt: string }
-  | { kind: "error"; email: string | null; message: string };
+  | { kind: "connected"; email: string | null; connectedAt: string; canRead?: boolean }
+  | { kind: "error"; email: string | null; message: string; canRead?: boolean };

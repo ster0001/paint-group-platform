@@ -7,6 +7,8 @@ import { moveVisitAction, visitOutcomeAction } from "./actions";
 import { melbourneInstantFromLocal, melbourneLocalParts } from "./time";
 
 export type Lane = { staffId: string | null; name: string; takesVisits: boolean };
+/** An entry from the estimator's own Google calendars (8 Sep) — shown, never editable here. */
+export type GoogleEntry = { staffId: string; startsAt: string; endsAt: string; label: string; calendar: string; allDay: boolean };
 
 /**
  * The Diary's first section (P6): estimator visits, one lane per estimator,
@@ -14,7 +16,7 @@ export type Lane = { staffId: string | null; name: string; takesVisits: boolean 
  * and a move. Nothing here computes availability; the server did that, and
  * the database refuses a double-booking whatever the form says.
  */
-export default function DiaryVisits({ lanes, visits, days }: { lanes: Lane[]; visits: VisitRow[]; days: string[] }) {
+export default function DiaryVisits({ lanes, visits, days, google = [] }: { lanes: Lane[]; visits: VisitRow[]; days: string[]; google?: GoogleEntry[] }) {
   const [said, setSaid] = useState<{ ok: boolean; message: string } | null>(null);
   const [busy, start] = useTransition();
   const [moving, setMoving] = useState<string | null>(null);
@@ -32,6 +34,9 @@ export default function DiaryVisits({ lanes, visits, days }: { lanes: Lane[]; vi
   const laneList: Lane[] = [...lanes.filter((l) => l.takesVisits || byLane.has(l.staffId ?? "none")), ...(byLane.has("none") ? [{ staffId: null, name: "Unassigned", takesVisits: false }] : [])];
   const time = (iso: string) => new Date(iso).toLocaleTimeString("en-AU", { timeZone: "Australia/Melbourne", hour: "numeric", minute: "2-digit" });
   const dayOf = (iso: string) => melbourneLocalParts(iso).date;
+  // A Google entry belongs to every day it touches (leave spans days).
+  const googleOn = (staffId: string | null, day: string) => google.filter((g) => g.staffId === staffId
+    && melbourneLocalParts(g.startsAt).date <= day && melbourneLocalParts(new Date(new Date(g.endsAt).getTime() - 1).toISOString()).date >= day);
 
   return (
     <>
@@ -45,11 +50,21 @@ export default function DiaryVisits({ lanes, visits, days }: { lanes: Lane[]; vi
               <div className="lanehead"><b>{lane.name}</b><span className="mono">{mine.filter((v) => v.status === "booked").length} booked</span></div>
               {days.map((day) => {
                 const todays = mine.filter((v) => dayOf(v.starts_at) === day);
-                if (days.length > 1 && todays.length === 0) return null;
+                const theirs = googleOn(lane.staffId, day);
+                if (days.length > 1 && todays.length === 0 && theirs.length === 0) return null;
                 return (
                   <div key={day}>
                     {days.length > 1 && <p className="laneday">{new Date(`${day}T12:00:00Z`).toLocaleDateString("en-AU", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" })}</p>}
-                    {todays.length === 0 && <p className="bhint" style={{ margin: "4px 0 8px" }}>Nothing booked.</p>}
+                    {todays.length === 0 && theirs.length === 0 && <p className="bhint" style={{ margin: "4px 0 8px" }}>Nothing booked.</p>}
+                    {theirs.map((g, i) => (
+                      <div className="visit google" key={`g-${g.startsAt}-${i}`} data-testid="google-entry" title={`From ${g.calendar}`}>
+                        <div className="vhead">
+                          <b className="mono">{g.allDay ? "All day" : `${time(g.startsAt)}–${time(g.endsAt)}`}</b>
+                          <span className="cchip">Google</span>
+                        </div>
+                        <p className="vwho">{g.label}<span className="vkind"> · {g.calendar}</span></p>
+                      </div>
+                    ))}
                     {todays.map((v) => (
                       <div className={`visit ${v.status}`} key={v.id} data-testid={`visit-${v.id}`}>
                         <div className="vhead">

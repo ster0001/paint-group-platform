@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { melbourneDate } from "@/lib/workorder/console";
 import { loadStaffAvailability, VISIT_COLUMNS } from "@/lib/visits/book";
 import { staffGcalStatus } from "@/lib/gcal/staff";
+import { readGoogleBusyForStaff, type GoogleBusy, type GoogleRead } from "@/lib/gcal/read";
 import type { VisitRow } from "@/lib/visits/types";
 import DiaryVisits from "./DiaryVisits";
 import GcalCard from "./GcalCard";
@@ -58,6 +59,10 @@ export default async function DiaryPage({ searchParams }: { searchParams: Promis
 
   const rows = (error ? [] : (wo ?? [])) as unknown as WoRow[];
   const visits = (visitRows ?? []) as VisitRow[];
+  // 8 Sep: what the estimators have in their OWN Google calendars for these
+  // days — shown in the lanes so "free" means free. Best effort.
+  const googleRead = await readGoogleBusyForStaff(staff.map((s) => s.staffId), from, to).catch(() => ({ busy: [] as GoogleBusy[], reads: {} as Record<string, GoogleRead> }));
+  const myRead = user ? googleRead.reads[user.id] : undefined;
   const running = rows.filter((w) => ON_SITE.has(w.stage));
   const upcoming = rows.filter((w) => !ON_SITE.has(w.stage) && w.start_date && w.start_date >= todayMel);
   const record = (w: WoRow) => w.estimates?.account_id ? `/crm/customers/${w.estimates.account_id}` : `/invoicing/job/${w.estimate_id}`;
@@ -88,6 +93,7 @@ export default async function DiaryPage({ searchParams }: { searchParams: Promis
         lanes={staff.map((s) => ({ staffId: s.staffId, name: s.name, takesVisits: s.takesVisits }))}
         visits={visits}
         days={days}
+        google={googleRead.busy}
       />
       <p className="bhint" style={{ margin: "8px 0 16px" }}>
         Book a visit from the customer&rsquo;s record (the Visits panel) — the estimator, the time, and the customer&rsquo;s invite all follow.
@@ -123,7 +129,7 @@ export default async function DiaryPage({ searchParams }: { searchParams: Promis
       ))}
 
       <div style={{ marginTop: 18 }}>
-        <GcalCard status={gcal} flash={sp.gcal ?? null} />
+        <GcalCard status={gcal} flash={sp.gcal ?? null} read={myRead ? { kind: myRead.kind, calendars: myRead.kind === "ok" ? myRead.calendars : [] } : null} />
       </div>
 
       <div className="note">

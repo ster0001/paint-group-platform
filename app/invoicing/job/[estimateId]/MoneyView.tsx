@@ -151,7 +151,7 @@ export default function MoneyView({
           data-testid="revise-scope-button"
           style={{
             display: "inline-block", marginTop: 12,
-            background: "var(--amber, #e0a83c)", color: "#141414",
+            background: "var(--amber, #e0a83c)", color: "var(--on-amber, #141414)",
             fontWeight: 700, fontSize: 13, padding: "10px 16px",
             borderRadius: 10, textDecoration: "none",
           }}

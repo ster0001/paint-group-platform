@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { exchangeCode, gcalEnv, verifyState } from "@/lib/gcal/oauth";
 import { reconcileContractorCalendar, saveGcalConnection } from "@/lib/gcal/sync";
 import { reconcileStaffCalendar, saveStaffConnection } from "@/lib/gcal/staff";
+import { forgetGoogleReads } from "@/lib/gcal/read";
 import { createClient } from "@/lib/supabase/server";
 import { requireStaff } from "@/lib/supabase/guards";
 import { reportError } from "@/lib/monitoring/report";
@@ -51,7 +52,8 @@ export async function GET(request: Request) {
     const tokens = await exchangeCode(code);
     if (!tokens.refreshToken) return fail("gcal exchange returned no refresh token");
     if (staffUser) {
-      await saveStaffConnection(admin, staffUser.id, tokens.refreshToken, tokens.email);
+      await saveStaffConnection(admin, staffUser.id, tokens.refreshToken, tokens.email, tokens.scope);
+      forgetGoogleReads(staffUser.id);
       await reconcileStaffCalendar(staffUser.id);
     } else {
       await saveGcalConnection(admin, session!.contractor!.id, tokens.refreshToken, tokens.email);

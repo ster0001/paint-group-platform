@@ -16,7 +16,7 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient } from "@/lib/supabase/service";
 import type { GcalStatus } from "./config";
-import { GcalAuthRevoked, gcalEnv, refreshAccessToken, revokeToken } from "./oauth";
+import { GcalAuthRevoked, gcalEnv, refreshAccessToken, revokeToken, scopesCanRead } from "./oauth";
 import {
   GcalApiError, calendarExists, createCalendar, deleteEvent, insertEvent, insertTimedEvent, patchEvent, patchTimedEvent,
   type GcalEventInput, type GcalTimedEventInput,
@@ -34,20 +34,22 @@ export type StaffGcalConnectionRow = {
   sync_error: string | null;
   push_jobs: boolean;
   connected_at: string;
+  /** Granted at connect time (8 Sep); null = a connection from before, write-only. */
+  scopes: string | null;
 };
 
 type MapRow = { id: string; kind: "visit" | "job"; ref_id: string; google_event_id: string; calendar_id: string; content_hash: string };
 
 export async function loadStaffConnection(admin: SupabaseClient, staffId: string): Promise<StaffGcalConnectionRow | null> {
   const { data } = await admin.from("staff_gcal_connections")
-    .select("staff_id, google_email, refresh_token, calendar_id, sync_error, push_jobs, connected_at")
+    .select("staff_id, google_email, refresh_token, calendar_id, sync_error, push_jobs, connected_at, scopes")
     .eq("staff_id", staffId).maybeSingle();
   return (data as StaffGcalConnectionRow | null) ?? null;
 }
 
-export async function saveStaffConnection(admin: SupabaseClient, staffId: string, refreshToken: string, googleEmail: string | undefined): Promise<void> {
+export async function saveStaffConnection(admin: SupabaseClient, staffId: string, refreshToken: string, googleEmail: string | undefined, scopes?: string): Promise<void> {
   const { error } = await admin.from("staff_gcal_connections").upsert(
-    { staff_id: staffId, refresh_token: refreshToken, google_email: googleEmail ?? null, sync_error: null },
+    { staff_id: staffId, refresh_token: refreshToken, google_email: googleEmail ?? null, sync_error: null, scopes: scopes ?? null },
     { onConflict: "staff_id" },
   );
   if (error) throw new Error(`staff gcal save: ${error.message}`);
@@ -66,8 +68,9 @@ export async function staffGcalStatus(staffId: string): Promise<GcalStatus & { p
   if (!admin || !gcalEnv()) return { kind: "unconfigured" };
   const conn = await loadStaffConnection(admin, staffId).catch(() => null);
   if (!conn) return { kind: "not_connected" };
-  if (conn.sync_error) return { kind: "error", email: conn.google_email, message: conn.sync_error, pushJobs: conn.push_jobs };
-  return { kind: "connected", email: conn.google_email, connectedAt: conn.connected_at, pushJobs: conn.push_jobs };
+  const canRead = scopesCanRead(conn.scopes);
+  if (conn.sync_error) return { kind: "error", email: conn.google_email, message: conn.sync_error, pushJobs: conn.push_jobs, canRead };
+  return { kind: "connected", email: conn.google_email, connectedAt: conn.connected_at, pushJobs: conn.push_jobs, canRead };
 }
 
 // ---- event building — pure, unit-tested ------------------------------------

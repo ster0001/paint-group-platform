@@ -49,6 +49,25 @@ const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
 const join = (...parts: unknown[]): string =>
   parts.map((p) => (p == null ? "" : String(p).trim())).filter(Boolean).join(" · ");
 
+/** "<1 min" / "4 min" / "1h 05m" — the wizard's own wording. */
+const minutesOf = (seconds: number): string => {
+  if (seconds < 60) return "<1 min";
+  const m = Math.round(seconds / 60);
+  if (m < 60) return `${m} min`;
+  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
+};
+
+/** "Tue 8 Sep, 8:42 pm" in Melbourne, or "" for a string that isn't a date. */
+const when = (iso: string): string => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  // Month from a fixed list, not Intl: ICU builds differ ("Sept").
+  const parts = new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "numeric", hour: "numeric", minute: "2-digit" }).formatToParts(d);
+  const get = (t: string) => parts.find((x) => x.type === t)?.value ?? "";
+  return `${get("weekday")} ${get("day")} ${MON[Number(get("month")) - 1] ?? ""}, ${get("hour")}:${get("minute")} ${get("dayPeriod").toLowerCase()}`.replace(/\s+/g, " ").trim();
+};
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
 /** A number that is actually there, or "". */
 const num = (v: unknown): string => (Number.isFinite(Number(v)) ? String(Number(v)) : "");
 
@@ -57,8 +76,13 @@ const RENDER: Record<CrmEventType, { label: string; kind: TimelineRow["kind"]; d
   // ---- the job's lifecycle ------------------------------------------------
   wizard_started: { label: "Started the estimate wizard", kind: "customer",
     detail: (p) => str(p.jobType) ? `${str(p.jobType)} job` : "" },
-  wizard_abandoned: { label: "Left the wizard unfinished", kind: "customer",
-    detail: (p) => join(num(p.lastStep) && `Reached step ${num(p.lastStep)}`,
+  wizard_abandoned: { label: "Dropped out of the online estimate", kind: "customer",
+    detail: (p) => join(
+      str(p.page)
+        ? `stopped on ${str(p.page)}${num(p.lastStep) && num(p.pagesTotal) ? ` (page ${num(p.lastStep)} of ${num(p.pagesTotal)})` : ""}`
+        : num(p.lastStep) && `reached page ${num(p.lastStep)}`,
+      Number(p.activeSeconds) > 0 ? `${minutesOf(Number(p.activeSeconds))} in the wizard` : "",
+      str(p.lastActiveAt) && `last active ${when(str(p.lastActiveAt))}`,
       p.emailCaptured ? "email captured" : "no email") },
   wizard_help_requested: { label: "Asked us to call — stuck in the wizard", kind: "customer",
     detail: (p) => join(str(p.page) && `on ${str(p.page)}`, str(p.phone), str(p.note)) },

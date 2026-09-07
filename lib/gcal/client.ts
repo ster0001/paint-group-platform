@@ -154,3 +154,31 @@ export async function patchTimedEvent(accessToken: string, calendarId: string, e
     end: { ...body.end, date: null },
   });
 }
+
+// ---- reading (staff only, scope calendar.readonly — 8 Sep) ------------------
+
+export type RawCalendar = { id: string; summary?: string; primary?: boolean; selected?: boolean; hidden?: boolean; accessRole?: string };
+export type RawEvent = {
+  id?: string; status?: string; summary?: string; transparency?: string; eventType?: string;
+  start?: { date?: string; dateTime?: string }; end?: { date?: string; dateTime?: string };
+  attendees?: Array<{ self?: boolean; responseStatus?: string }>;
+};
+
+/** Every calendar the account can see (their own, and ones shared with them). */
+export async function listCalendars(accessToken: string): Promise<RawCalendar[]> {
+  const q = new URLSearchParams({ minAccessRole: "reader", showHidden: "false", maxResults: "100",
+    fields: "items(id,summary,primary,selected,hidden,accessRole)" });
+  const r = await call<{ items?: RawCalendar[] }>(accessToken, "GET", `/users/me/calendarList?${q}`);
+  return r.items ?? [];
+}
+
+/** The events in one calendar between two instants, recurrences expanded. */
+export async function listEvents(accessToken: string, calendarId: string, timeMin: Date, timeMax: Date): Promise<RawEvent[]> {
+  const q = new URLSearchParams({
+    singleEvents: "true", orderBy: "startTime", maxResults: "250",
+    timeMin: timeMin.toISOString(), timeMax: timeMax.toISOString(),
+    fields: "items(id,status,summary,transparency,eventType,start,end,attendees(self,responseStatus))",
+  });
+  const r = await call<{ items?: RawEvent[] }>(accessToken, "GET", `/calendars/${encodeURIComponent(calendarId)}/events?${q}`);
+  return r.items ?? [];
+}

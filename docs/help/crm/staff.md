@@ -17,11 +17,12 @@ You need a staff login with the CRM area ticked (Settings → Staff logins). If 
 2. Each card names what it is (Message, Callback, Follow-up, Rebook, Approve, Invoice…) and has one action button. Do the thing, and the card leaves on its own — there is nothing to tick. If a card should not be there, **Dismiss** asks why.
 3. Find a customer: press **/** (or ⌘K) and type a name, phone or address. Enter opens the record.
 4. On the record, the **Log** button records a call, a text, an email or a note in one tap, with an optional follow-up date. The follow-up comes back to Today when it is due.
-5. **Visits → + Book a visit**: pick the estimator, date and time. The customer gets a calendar invite; the estimator's Google Calendar updates; the Diary shows it. A time already taken for that estimator is refused.
-6. **Diary**: day or week. On a visit: Done, No show, Rebook, Move, Cancel. A no-show comes back to Today as "rebook it".
+5. **Visits → + Book a visit**: pick the estimator, date and time. The day plan beside the date shows what they already have — booked visits and, once they have reconnected Google on the Diary, their own Google entries too — and the free blocks you can tap. The customer gets a calendar invite; the estimator's Google Calendar updates; the Diary shows it. A time already taken by a visit is refused; a time taken in Google is shown, and the choice is yours.
+6. **Diary**: day or week. On a visit: Done, No show, Rebook, Move, Cancel. A no-show comes back to Today as "rebook it". Dashed **Google** blocks in your lane are your own Google Calendar entries — the app reads them once you have connected (or reconnected, if you connected before 8 Sep) on the card at the bottom of the Diary — and customers are never offered those times online.
 7. **Customers**: opens on the board; the list is a toggle away (a search opens the list). Filters (status, tag, owner, temperature, lifecycle) can be saved as a view for the whole office. Under a customer's name, "Where they're at" says the stage and why; the strip below jumps to their estimates, jobs, invoices, visits and messages.
 8. **Campaigns**: audiences with real rules, quote follow-ups that start when an estimate is sent, and marketing to a list. Nothing sends until someone approves it, unless a campaign has auto-send on.
-9. Prefer light on a bright day? The **☀ / ☾** button top right switches the whole CRM. It remembers.
+9. Prefer light on a bright day? The **☀ / ☾** button top right switches the whole CRM — and Projects and Payments with it. It remembers.
+10. The logo top left is the way back to the main platform (Estimates). A customer who started an online estimate and stopped shows an **Online estimate** strip on their record: the page they stopped on, how long they spent, and when they were last active.
 
 ## What the colours and labels mean
 - **Amber** — waiting on something; the label says what.

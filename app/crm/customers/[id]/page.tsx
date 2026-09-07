@@ -6,6 +6,7 @@ import { refreshAccountFacts } from "@/lib/crm/facts";
 import { reportError } from "@/lib/monitoring/report";
 import CustomerPanel from "../../CustomerPanel";
 import RecordDetails, { type StaffOption } from "./RecordDetails";
+import { bucketPill, journeyFromRow, journeyLine, WIZARD_SESSION_COLUMNS } from "@/lib/wizard/journey";
 import Contacts, { type ContactRow } from "./Contacts";
 import DuplicateBanner, { type DuplicateHit } from "./DuplicateBanner";
 import Messages, { type MessageRow } from "./Messages";
@@ -160,12 +161,29 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
   }
 
   const timeline = buildTimeline((events ?? []) as Parameters<typeof buildTimeline>[0]);
+  // The latest online-estimate session for this customer, if any (8 Sep).
+  const { data: wizRow } = await supabase.from("wizard_drafts").select(WIZARD_SESSION_COLUMNS)
+    .eq("account_id", id).order("last_seen_at", { ascending: false, nullsFirst: false }).limit(1).maybeSingle();
+  const wiz = wizRow ? journeyFromRow(wizRow as unknown as Record<string, unknown>) : null;
+  const shortWhen = (iso: string) => {
+    // Month from a fixed list, not Intl: ICU builds differ ("Sept").
+    const parts = new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "numeric", hour: "numeric", minute: "2-digit" }).formatToParts(new Date(iso));
+    const g = (t: string) => parts.find((x) => x.type === t)?.value ?? "";
+    return `${g("weekday")} ${g("day")} ${MON[Number(g("month")) - 1] ?? ""}, ${g("hour")}:${g("minute")} ${g("dayPeriod").toLowerCase()}`;
+  };
+  const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const latest = est[0] ?? null;
   const staff = ((staffRows ?? []) as Array<{ id: string; name: string | null }>).map((s) => ({ id: s.id, name: s.name || "Staff" })) as StaffOption[];
   const ownerName = staff.find((s) => s.id === a.owner_id)?.name ?? null;
   const laneLabel = LANES.find((l) => l.key === facts?.stage)?.label ?? "";
   const snoozeLive = a.snoozed_until != null && new Date(a.snoozed_until) > new Date();
   const name = a.name || a.email || a.phone || "Unnamed";
+  // Tom, 8 Sep: the contact address beside the phone and email — the first
+  // property on file (the one the first estimate was for); the rest are
+  // counted and listed under Properties below.
+  const propList = ((props ?? []) as Array<{ address: string | null; suburb: string | null; state: string | null; postcode: string | null }>);
+  const firstAddr = propList.map((p) => [p.address, p.suburb, p.state, p.postcode].filter(Boolean).join(" ")).find(Boolean) ?? null;
+  const recordAddress = firstAddr ? { text: firstAddr, more: Math.max(0, propList.length - 1) } : null;
   const woOf = new Map<string, WoRow[]>();
   for (const w of (wos ?? []) as WoRow[]) { const l = woOf.get(w.estimate_id) ?? []; l.push(w); woOf.set(w.estimate_id, l); }
 
@@ -181,7 +199,7 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
           count, owner — sits in the TOP RIGHT of the screen beside the name,
           in large plain text. Stacks under the name on a phone. */}
       <div className="rtop">
-      <RecordDetails account={a} staff={staff} initials={initials(name)} />
+      <RecordDetails account={a} staff={staff} initials={initials(name)} address={recordAddress} />
 
       {(() => {
         const consents = parseConsents(a.consents);
@@ -228,6 +246,18 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
       </div>
 
       {/* Item 8: everything of theirs, one tap away. */}
+      {wiz && (
+        // Tom, 8 Sep: "if someone has dropped out in the wizard, does it record
+        // when?" — it records their last activity and the page they stopped on;
+        // this strip says so on the record, whatever bucket the session is in.
+        <div className="wizstrip" data-testid="wizard-strip">
+          <span className="wzlbl">Online estimate</span>
+          <span className={`wzpill ${bucketPill(wiz.bucket, wiz.jobType, wiz.furthestPage).tone}`}>{bucketPill(wiz.bucket, wiz.jobType, wiz.furthestPage).label}</span>
+          <span className="wzline">{journeyLine(wiz, new Date())}</span>
+          {wiz.bucket === "dropped" && wiz.lastActiveAt && <span className="wzline">left {shortWhen(wiz.lastActiveAt)}</span>}
+          <Link className="wzgo" href={`/estimates?status=wizard&open=${wiz.id}`}>Open the session →</Link>
+        </div>
+      )}
       <nav className="jumpstrip" aria-label="On this record" data-testid="jumpstrip">
         <a href="#estimates">Estimates<b>{est.length}</b></a>
         <a href="#jobs">Jobs<b>{(wos ?? []).length}</b></a>

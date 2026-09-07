@@ -18,6 +18,23 @@ const REVOKE_URL = "https://oauth2.googleapis.com/revoke";
  */
 export const GCAL_SCOPE = "openid email https://www.googleapis.com/auth/calendar.app.created";
 
+/**
+ * STAFF connections (8 Sep, Tom: "the calendar says the info@ calendar is free
+ * when it's not") also ask to READ the person's own calendars, so the Diary,
+ * the day plan and the wizard's offered windows see what is really there.
+ * calendar.readonly is a scope Google calls sensitive: the OAuth app must be
+ * "Internal" to the Workspace (it is a Paint Group login) or verified, or the
+ * consent screen shows an "unverified app" warning first. Contractors keep
+ * the narrow scope above — a painter's own calendar is never read.
+ */
+export const GCAL_READ_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
+export const GCAL_STAFF_SCOPE = `${GCAL_SCOPE} ${GCAL_READ_SCOPE}`;
+
+/** Did Google grant reading? Null scopes = a connection made before 8 Sep 2026. */
+export function scopesCanRead(scopes: string | null | undefined): boolean {
+  return typeof scopes === "string" && scopes.split(/\s+/).includes(GCAL_READ_SCOPE);
+}
+
 export function gcalEnv(): { clientId: string; clientSecret: string; redirectUri: string } | null {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -49,12 +66,12 @@ export function verifyState(clientSecret: string, state: string | null): boolean
   return timingSafeEqual(Buffer.from(given), Buffer.from(want));
 }
 
-export function authorizeUrl(clientId: string, redirectUri: string, state: string): string {
+export function authorizeUrl(clientId: string, redirectUri: string, state: string, scope: string = GCAL_SCOPE): string {
   const q = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: "code",
-    scope: GCAL_SCOPE,
+    scope,
     state,
     // offline + consent: Google only hands out a refresh token on a consent
     // screen, so force it even when the contractor reconnects.
@@ -71,6 +88,8 @@ export type GcalTokens = {
   expiresInSec: number;
   /** From the id_token, display only. */
   email?: string;
+  /** What Google actually granted (a person can untick a scope on the consent screen). */
+  scope?: string;
 };
 
 type RawTokenResponse = {
@@ -78,6 +97,7 @@ type RawTokenResponse = {
   refresh_token?: string;
   expires_in?: number;
   id_token?: string;
+  scope?: string;
   error?: string;
   error_description?: string;
 };
@@ -118,6 +138,7 @@ async function tokenRequest(form: Record<string, string>): Promise<GcalTokens> {
     refreshToken: body.refresh_token,
     expiresInSec: body.expires_in ?? 3600,
     email: emailFromIdToken(body.id_token),
+    scope: typeof body.scope === "string" ? body.scope : undefined,
   };
 }
 

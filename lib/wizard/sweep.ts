@@ -1,12 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { bucketFor, IDLE_MINUTES, type WizardOutcome } from "./journey";
+import { bucketFor, IDLE_MINUTES, pageLabel, type WizardOutcome } from "./journey";
 import { logCrmEvent } from "@/lib/crm/events";
 import { reportError } from "@/lib/monitoring/report";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { loadMessaging } from "@/lib/messaging/load";
 import { automationOn, renderTemplate, type MessagingSettings } from "@/lib/messaging/config";
 import { sendMagicLink } from "@/lib/portal/auth";
-import { pageLabel } from "./journey";
 
 // SERVER ONLY.
 /**
@@ -27,7 +26,7 @@ export type SweepResult = { checked: number; dropped: number; priced: number; em
 export async function sweepWizardSessions(db: SupabaseClient, minutes: number = IDLE_MINUTES, now = new Date()): Promise<SweepResult> {
   const cutoff = new Date(now.getTime() - minutes * 60_000).toISOString();
   const { data: rows, error } = await db.from("wizard_drafts")
-    .select("id, account_id, estimate_id, email, outcome, furthest_page, current_page, job_type, address, suburb, converted_at, last_seen_at")
+    .select("id, account_id, estimate_id, email, outcome, furthest_page, current_page, pages_total, job_type, address, suburb, active_seconds, converted_at, last_seen_at")
     .eq("bucket", "online_now").lte("last_seen_at", cutoff)
     .order("last_seen_at", { ascending: true }).limit(500);
   if (error) throw new Error(error.message);
@@ -35,7 +34,7 @@ export async function sweepWizardSessions(db: SupabaseClient, minutes: number = 
   let dropped = 0, priced = 0, emailed = 0;
   // Settings → Automations, read once per pass and only if a drop-out needs it.
   let messaging: { messaging: MessagingSettings; company: { name?: string | null } } | null = null;
-  for (const r of (rows ?? []) as Array<{ id: string; account_id: string | null; estimate_id: string | null; email: string | null; outcome: string; furthest_page: number; current_page: number | null; job_type: string | null; address: string | null; suburb: string | null; converted_at: string | null; last_seen_at: string }>) {
+  for (const r of (rows ?? []) as Array<{ id: string; account_id: string | null; estimate_id: string | null; email: string | null; outcome: string; furthest_page: number; current_page: number | null; pages_total: number | null; job_type: string | null; address: string | null; suburb: string | null; active_seconds: number | null; converted_at: string | null; last_seen_at: string }>) {
     const bucket = bucketFor({ completed: r.converted_at != null, outcome: (r.outcome as WizardOutcome) ?? "none", lastActiveAt: r.last_seen_at, now, idleMinutes: minutes });
     if (bucket === "online_now") continue;
     const { error: e2 } = await db.from("wizard_drafts").update({ bucket, dropped_at: now.toISOString() }).eq("id", r.id).eq("bucket", "online_now");
@@ -45,7 +44,14 @@ export async function sweepWizardSessions(db: SupabaseClient, minutes: number = 
       const eventId = await logCrmEvent(db, {
         type: "wizard_abandoned", source: "system",
         accountId: r.account_id, estimateId: r.estimate_id,
-        payload: { lastStep: Math.min(12, Math.max(1, r.furthest_page ?? 1)), emailCaptured: Boolean(r.email) },
+        // The moment they dropped out is their LAST ACTIVITY (last_seen_at);
+        // dropped_at on the row is only when this sweep noticed. The event
+        // carries the real one so the record reads "last active 8:42 pm".
+        payload: {
+          lastStep: Math.min(12, Math.max(1, r.furthest_page ?? 1)), emailCaptured: Boolean(r.email),
+          page: pageLabel(r.job_type, r.furthest_page ?? 1), pagesTotal: Math.min(12, Math.max(1, r.pages_total ?? 6)),
+          lastActiveAt: r.last_seen_at, activeSeconds: Math.max(0, Math.round(r.active_seconds ?? 0)),
+        },
         dedupeKey: `wizard-abandoned:${r.id}`,
       });
       // Tom, 7 Sep (evening): the drop-out email — a sign-in link that lands

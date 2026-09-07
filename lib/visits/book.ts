@@ -10,6 +10,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { readGoogleBusyForStaff } from "@/lib/gcal/read";
 import { DEFAULT_VISITS_SETTINGS, mergeVisitsSettings, type StaffAvailability, type VisitKind, type VisitRow, type VisitSource, type VisitsSettings } from "./types";
 import { blockIsFree, offeredWindows, pickSlot, type Busy, type Window } from "./availability";
 import { reconcileForVisit } from "@/lib/gcal/staff";
@@ -46,11 +47,21 @@ export async function loadStaffAvailability(db: SupabaseClient): Promise<StaffAv
   });
 }
 
-/** Booked visits between two instants — the busy list the availability engine subtracts. */
-export async function loadBusy(db: SupabaseClient, from: Date, to: Date): Promise<Array<Busy & { id: string }>> {
+/**
+ * Booked visits between two instants — the busy list the availability engine
+ * subtracts — plus, since 8 Sep, whatever a connected estimator has in their
+ * own Google calendars (lib/gcal/read.ts), so the wizard never offers a
+ * window that is really a dentist appointment. Google is best effort: no
+ * connection, an old one, or Google down simply adds nothing.
+ */
+export async function loadBusy(db: SupabaseClient, from: Date, to: Date, opts: { google?: boolean } = {}): Promise<Array<Busy & { id: string }>> {
   const { data } = await db.from("visits").select("id, staff_id, starts_at, ends_at")
     .eq("status", "booked").gte("ends_at", from.toISOString()).lte("starts_at", to.toISOString()).limit(5000);
-  return (data ?? []).map((v) => ({ id: v.id as string, staffId: v.staff_id as string | null, startsAt: v.starts_at as string, endsAt: v.ends_at as string }));
+  const visits = (data ?? []).map((v) => ({ id: v.id as string, staffId: v.staff_id as string | null, startsAt: v.starts_at as string, endsAt: v.ends_at as string }));
+  if (opts.google === false) return visits;
+  const staffIds = (await loadStaffAvailability(db)).filter((s) => s.takesVisits).map((s) => s.staffId);
+  const { busy } = await readGoogleBusyForStaff(staffIds, from, to).catch(() => ({ busy: [] }));
+  return [...visits, ...busy.map((g) => ({ id: `google:${g.staffId}:${g.startsAt}`, staffId: g.staffId, startsAt: g.startsAt, endsAt: g.endsAt }))];
 }
 
 /** The windows the wizard offers right now. */
@@ -103,7 +114,7 @@ export async function bookWindow(db: SupabaseClient, windowKey: string, input: O
 export async function moveVisit(db: SupabaseClient, visitId: string, startsAt: string, endsAt: string, staffId: string | null): Promise<BookResult> {
   const { data: before } = await db.from("visits").select("staff_id").eq("id", visitId).maybeSingle();
   if (staffId) {
-    const busy = await loadBusy(db, new Date(startsAt), new Date(endsAt));
+    const busy = await loadBusy(db, new Date(startsAt), new Date(endsAt), { google: false });
     if (!blockIsFree(staffId, startsAt, endsAt, busy, visitId)) return { ok: false, message: "That time is already taken for this estimator — pick another.", code: "double_booked" };
   }
   const { error } = await db.rpc("visit_move", { p_id: visitId, p_starts: startsAt, p_ends: endsAt, p_staff: staffId });

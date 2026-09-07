@@ -11,11 +11,14 @@ import { setOwner, updateDetails, type DetailsResult } from "../../recordActions
  * never rendered, and nothing in the CRM could change them.
  */
 export type StaffOption = { id: string; name: string };
+/** Tom, 8 Sep: the contact address sits with the phone and email, top-left. */
+export type RecordAddress = { text: string; more: number };
 
-export default function RecordDetails({ account, staff, initials }: {
+export default function RecordDetails({ account, staff, initials, address = null }: {
   account: { id: string; name: string | null; email: string | null; phone: string | null; account_type: string; owner_id: string | null };
   staff: StaffOption[];
   initials: string;
+  address?: RecordAddress | null;
 }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(account.name ?? "");
@@ -61,6 +64,14 @@ export default function RecordDetails({ account, staff, initials }: {
             {account.email ? <a href={`mailto:${account.email}`} className="rlink">{account.email}</a> : <span className="rmiss">no email</span>}
             <span className="rsep">·</span>
             <span>{account.account_type === "trade" ? "Trade" : "Residential"}</span>
+          </span>
+          <span className="raddr" data-testid="record-address">
+            {address
+              ? <>
+                  <a href={`https://maps.google.com/?q=${encodeURIComponent(address.text)}`} className="rlink" target="_blank" rel="noreferrer" title="Open in Google Maps">{address.text}</a>
+                  {address.more > 0 && <><span className="rsep">·</span><a href="#properties" className="rmore">+{address.more} more</a></>}
+                </>
+              : <span className="rmiss">no address yet</span>}
           </span>
           <span className="rtools">
             <button className="chip sm" onClick={() => setEditing(true)} data-testid="edit-details">Edit details</button>
