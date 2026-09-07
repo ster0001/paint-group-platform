@@ -6,7 +6,6 @@ import { isTestEmail } from "@/lib/accounts/identity";
 import { loadMessaging } from "@/lib/messaging/load";
 import { automationOn, renderTemplate, type MessagingSettings } from "@/lib/messaging/config";
 import { sendMagicLink } from "@/lib/portal/auth";
-import { pageLabel } from "./journey";
 
 // SERVER ONLY.
 /**
