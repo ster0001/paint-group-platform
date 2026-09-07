@@ -14,6 +14,13 @@ describe("the Brain seed parser (D14 import notes)", () => {
     expect(entries.find((e) => e.slug === "caulking-gaps")?.audience).toBe("both");
     expect(entries.find((e) => e.slug === "charge-out-vs-rev")?.audience).toBe("staff");
     expect(entries.find((e) => e.slug === "deposit")?.topic).toBe("Money & process");
+    // A slug containing the audience word must not leak the heading into the answer.
+    for (const slug of ["customer-prep", "customer-supplied-paint"]) {
+      const e = entries.find((x) => x.slug === slug)!;
+      expect(e.answerMd).not.toContain("·");
+      expect(e.answerMd).not.toMatch(/^-/);
+    }
+    expect(entries.find((e) => e.slug === "customer-prep")?.answerMd).toMatch(/^Please remove artwork/);
   });
 
   it("[TOM TO WRITE] entries import as needs_content — never a served placeholder", () => {

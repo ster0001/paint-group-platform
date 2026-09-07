@@ -24,7 +24,7 @@ export type BrainSeedEntry = {
   marker: "platform" | "tom_to_write" | "plain";
 };
 
-const HEADING = /^###\s+([a-z0-9-]+)\s*·\s*"([^"]+)"\s*·\s*(?:audience:\s*)?(customer|staff|both)\s*(?:—.*)?$/i;
+const HEADING = /^###\s+([a-z0-9-]+)\s*·\s*"([^"]+)"\s*·\s*(?:audience:\s*)?(customer|staff|both)\s*(?:—\s*(.*))?$/i;
 
 export function parseBrainSeed(md: string): BrainSeedEntry[] {
   const lines = md.split("\n");
@@ -51,8 +51,10 @@ export function parseBrainSeed(md: string): BrainSeedEntry[] {
     if (h) {
       flush();
       current = { slug: h[1].toLowerCase(), topic, question: h[2].trim(), answerMd: "", audience: h[3].toLowerCase() as BrainSeedEntry["audience"], needsContent: false, marker: "plain" };
-      // A one-line entry: "### slug · "Q" · customer — **[TOM TO WRITE]** (note)"
-      const tail = line.slice(line.indexOf(h[3]) + h[3].length).replace(/^\s*—\s*/, "").trim();
+      // A one-line entry: "### slug · "Q" · customer — **[TOM TO WRITE]** (note)".
+      // Captured by the regex, never by indexOf: a slug like "customer-prep"
+      // contains the audience word and used to leak the heading into the answer.
+      const tail = (h[4] ?? "").trim();
       if (tail) body.push(tail);
       continue;
     }
