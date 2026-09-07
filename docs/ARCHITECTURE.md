@@ -2414,8 +2414,9 @@ Source: `docs/briefs/crm-v2-deep-dive.md` §4.3, decisions 8.1 (two classes) and
   replied = inbound message within 14 days of a send, unsubscribed = permission declined after a send,
   converted/revenue from `crm_campaign_mark_conversions` — an estimate_accepted after the anchor inside
   `conversion_days`, after a send). `cta_clicked` finally has a writer.
-- **Cron**: `campaign-sweep` moved to 22:30 UTC Mon–Fri (08:30 AEST) — it was 08:30 UTC, outside the window.
-  Every 30 min on Vercel Pro (decision 8.9); the sweep is idempotent either way.
+- **Cron**: `campaign-sweep` and `crm-sweep` run every 30 minutes (Vercel Pro from 7 Sep, decision 6.9); the
+  chat hand-off sweep (`agent-sweep`, SLA escalations + abandoned guided conversations) every 15 minutes — it had
+  never been scheduled. `maxDuration` 300 on the sweeps: a full facts rebuild fits one call.
 
 ## CRM v2 · Phase 6 — visits, the Diary, staff Google Calendar (7 Sep 2026)
 

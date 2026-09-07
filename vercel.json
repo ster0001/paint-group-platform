@@ -9,7 +9,7 @@
     },
     {
       "path": "/api/cron/campaign-sweep",
-      "schedule": "30 22 * * 0-4"
+      "schedule": "*/30 * * * *"
     },
     {
       "path": "/api/cron/wizard-sweep",
@@ -17,7 +17,11 @@
     },
     {
       "path": "/api/cron/crm-sweep",
-      "schedule": "15 20 * * *"
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/agent-sweep",
+      "schedule": "*/15 * * * *"
     }
   ]
 }
