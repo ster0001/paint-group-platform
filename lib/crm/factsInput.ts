@@ -32,7 +32,7 @@ export const FACT_EVENT_TYPES = [
   "visit_booked", "visit_completed", "estimate_revised", "estimate_viewed", "note_added", "first_touch_recorded",
   "call_connected", "call_no_answer", "message_left", "sms_reply", "estimate_sent", "campaign_message_sent",
   "job_completed", "invoice_paid", "estimate_accepted", "estimate_declined", "estimate_lapsed", "account_merged",
-  "email_logged", "sms_logged",
+  "email_logged", "sms_logged", "message_in", "message_out",
 ] as const;
 
 const CHUNK = 100;

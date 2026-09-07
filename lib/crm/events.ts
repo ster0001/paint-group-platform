@@ -73,6 +73,9 @@ export const CRM_EVENT_SCHEMAS = {
   followup_set: z.object({ dueAt: z.string().datetime(), note: shortText.optional() }),
   temperature_set: z.object({ temperature: z.enum(["hot", "warm", "cold"]), previous: z.enum(["hot", "warm", "cold"]).nullable().default(null) }),
   snoozed: z.object({ until: z.string().datetime(), reason: shortText.optional() }),
+  /** CRM v2 P3 — one row in `messages` (any channel, either way); written by the messages trigger. */
+  message_in: z.object({ channel: z.string().max(10), subject: z.string().max(200).optional(), excerpt: z.string().max(200).optional(), messageId: z.string().uuid(), provider: z.string().max(20).optional(), status: z.string().max(20).optional() }),
+  message_out: z.object({ channel: z.string().max(10), subject: z.string().max(200).optional(), excerpt: z.string().max(200).optional(), messageId: z.string().uuid(), provider: z.string().max(20).optional(), status: z.string().max(20).optional() }),
   /** CRM v2 P2 — the log sheet: the office emailed or texted the customer by hand. */
   email_logged: z.object({ note: shortText.optional(), direction: z.enum(["out", "in"]).default("out") }),
   sms_logged: z.object({ note: shortText.optional(), direction: z.enum(["out", "in"]).default("out") }),

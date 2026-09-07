@@ -651,6 +651,60 @@ export function buildLapsedItems(rows: LapsedEventRow[], attempts: ContactEventR
   return items;
 }
 
+// ---- source: messages (CRM v2 P3) ------------------------------------------
+
+export type InboundMessageRow = {
+  id: string; account_id: string | null; channel: string; subject: string | null; body: string;
+  from_address: string | null; occurred_at: string; read_at: string | null;
+};
+export type OutboundTouchRow = { account_id: string; occurred_at: string };
+
+const MESSAGE_OVERDUE_HOURS = 4;   // ⚑7.8 — a customer message waits four hours, an unmatched one a day
+const excerpt = (m: InboundMessageRow) => (m.subject?.trim() || m.body.replace(/\s+/g, " ").trim()).slice(0, 120) || "(no text)";
+
+/**
+ * A customer wrote to us and nobody has written back. Answered = an outbound
+ * message to that account after it (any channel), or a logged call after it.
+ * An inbound message with no customer is a different item: attach it.
+ */
+export function buildMessageItems(
+  inbound: InboundMessageRow[], outbound: OutboundTouchRow[], attempts: ContactEventRow[], names: Map<string, string>, now: Date,
+): WorkItem[] {
+  const items: WorkItem[] = [];
+  for (const m of inbound) {
+    if (!m.account_id) {
+      items.push(finish({
+        key: itemKey("message_unmatched", "thread", m.id, "attach"),
+        kind: "message_unmatched",
+        accountId: null,
+        subjectRef: { type: "thread", id: m.id },
+        title: `A ${m.channel === "sms" ? "text" : m.channel} from ${m.from_address ?? "an unknown sender"}`,
+        detail: `${excerpt(m)} · not matched to a customer yet`,
+        since: m.occurred_at,
+        dueAt: new Date(new Date(m.occurred_at).getTime() + 24 * 3_600_000).toISOString(),
+        action: { label: "Attach", href: `/crm/messages/${m.id}` },
+      }, { valueCents: null, promisedToCustomer: false }, now));
+      continue;
+    }
+    const answered = outbound.some((o) => o.account_id === m.account_id && o.occurred_at > m.occurred_at)
+      || attempts.some((a) => a.account_id === m.account_id && a.occurred_at > m.occurred_at);
+    if (answered) continue;
+    const who = names.get(m.account_id) ?? "A customer";
+    items.push(finish({
+      key: itemKey("message_unanswered", "thread", m.id, "reply"),
+      kind: "message_unanswered",
+      accountId: m.account_id,
+      subjectRef: { type: "thread", id: m.id },
+      title: `${who} sent a ${m.channel === "sms" ? "text" : m.channel === "portal" ? "message" : m.channel}`,
+      detail: excerpt(m),
+      since: m.occurred_at,
+      dueAt: new Date(new Date(m.occurred_at).getTime() + MESSAGE_OVERDUE_HOURS * 3_600_000).toISOString(),
+      action: { label: "Reply", href: `/crm/customers/${m.account_id}#messages` },
+    }, { valueCents: null, promisedToCustomer: false }, now));
+  }
+  return items;
+}
+
 // ---- the loader ------------------------------------------------------------
 
 /**
@@ -658,8 +712,7 @@ export function buildLapsedItems(rows: LapsedEventRow[], attempts: ContactEventR
  * generous against today's volumes (5 accounts, 25 estimates) and the 2A.10
  * performance gate re-tests them at 25,000 accounts.
  *
- * Sources not yet feeding the registry (§5, 2A.9): message_unanswered and
- * message_unmatched wait on the inbox; visit_rebook waits on visit booking;
+ * Sources not yet feeding the registry (§5, 2A.9): visit_rebook waits on visit booking;
  * variation_pending, signoff_due, broadcast_incomplete and consent_missing
  * arrive with their modules. Each is one function plus a call here — never a
  * change to the queue itself.
@@ -669,7 +722,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   const since90d = new Date(now.getTime() - 90 * 86_400_000).toISOString();
 
   const since30d = new Date(now.getTime() - 30 * 86_400_000).toISOString();
-  const [snoozeAcc, invoices, callbacks, queued, dismissed, changeReqs, handoffs, wizardRows, lapsedEvents] = await Promise.all([
+  const [snoozeAcc, invoices, callbacks, queued, dismissed, changeReqs, handoffs, wizardRows, lapsedEvents, inboundMsgs] = await Promise.all([
     supabase.from("accounts")
       .select("id, name, email, snoozed_until, followup_due_at, followup_note")
       .or(`snoozed_until.lte.${nowIso},followup_due_at.lte.${nowIso}`)
@@ -718,7 +771,27 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
       .gte("occurred_at", new Date(now.getTime() - 60 * 86_400_000).toISOString())
       .order("occurred_at", { ascending: false })
       .limit(200),
+    // P3: what customers wrote to us in the last 30 days, matched or not.
+    supabase.from("messages")
+      .select("id, account_id, channel, subject, body, from_address, occurred_at, read_at")
+      .eq("direction", "in")
+      .gte("occurred_at", since30d)
+      .order("occurred_at", { ascending: false })
+      .limit(300),
   ]);
+  const inboundRows = (inboundMsgs.error ? [] : (inboundMsgs.data ?? [])) as unknown as InboundMessageRow[];
+  const inboundAccountIds = [...new Set(inboundRows.map((m) => m.account_id).filter((x): x is string => Boolean(x)))];
+  const [{ data: outboundTouches }, { data: inboundAttempts }, { data: inboundAccounts }] = inboundAccountIds.length
+    ? await Promise.all([
+        supabase.from("messages").select("account_id, occurred_at").eq("direction", "out")
+          .not("status", "in", "(failed,not_configured)").in("account_id", inboundAccountIds).gte("occurred_at", since30d).limit(900),
+        supabase.from("crm_events").select("account_id, occurred_at")
+          .in("type", ["call_connected", "call_no_answer", "message_left"]).in("account_id", inboundAccountIds).gte("occurred_at", since30d).limit(600),
+        supabase.from("accounts").select("id, name, email, phone").in("id", inboundAccountIds),
+      ])
+    : [{ data: [] }, { data: [] }, { data: [] }];
+  const inboundNames = new Map(((inboundAccounts ?? []) as Array<{ id: string; name: string | null; email: string | null; phone: string | null }>)
+    .map((a) => [a.id, a.name || a.email || a.phone || "A customer"]));
   const lapsedRows = (lapsedEvents.error ? [] : (lapsedEvents.data ?? [])) as unknown as LapsedEventRow[];
   const lapsedAccountIds = [...new Set(lapsedRows.map((r) => r.account_id).filter(Boolean))];
   const [{ data: lapsedAttempts }, { data: lapsedAccounts }] = lapsedAccountIds.length
@@ -810,6 +883,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...buildHandoffItems(((handoffs.error ? [] : handoffs.data) ?? []) as unknown as HandoffQueueRow[], now),
     ...buildWizardItems(wzRows, (wzAttempts ?? []) as ContactEventRow[], now),
     ...buildLapsedItems(lapsedRows, (lapsedAttempts ?? []) as ContactEventRow[], lapsedNames, now),
+    ...buildMessageItems(inboundRows, (outboundTouches ?? []) as OutboundTouchRow[], (inboundAttempts ?? []) as ContactEventRow[], inboundNames, now),
   ];
 
   // Until migration 20261217 runs, the dismissals table doesn't exist and the

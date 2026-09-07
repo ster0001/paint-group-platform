@@ -145,6 +145,10 @@ const RENDER: Record<CrmEventType, { label: string; kind: TimelineRow["kind"]; d
   // ---- attribution and offers ---------------------------------------------
   first_touch_recorded: { label: "First touch", kind: "system",
     detail: (p) => [str(p.source), str(p.detail)].filter(Boolean).join(" — ") },
+  message_in: { label: "They wrote to us", kind: "customer",
+    detail: (p) => join(str(p.channel) && `by ${str(p.channel)}`, str(p.subject), str(p.excerpt)) },
+  message_out: { label: "We sent", kind: "activity",
+    detail: (p) => join(str(p.channel), str(p.subject) || str(p.excerpt), str(p.status) === "failed" ? "— FAILED" : str(p.status) === "not_configured" ? "— not sent (channel not configured)" : "") },
   email_logged: { label: "Emailed them", kind: "activity", detail: (p) => join(str(p.direction) === "in" ? "They emailed us" : "", str(p.note)) },
   sms_logged: { label: "Texted them", kind: "activity", detail: (p) => join(str(p.direction) === "in" ? "They texted us" : "", str(p.note)) },
   details_updated: { label: "Details updated", kind: "activity",

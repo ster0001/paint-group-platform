@@ -6,6 +6,10 @@ import { createClient } from "@/lib/supabase/server";
 import { buildEvent, type CrmEventType } from "@/lib/crm/events";
 import { refreshAccountFacts } from "@/lib/crm/facts";
 import { melbourneInstant } from "@/lib/time/businessHours";
+import { recordMessage } from "@/lib/messaging/record";
+import { buildPlainEmailHtml, sendEmail, sendSms } from "@/lib/messaging/send";
+import { loadMessaging } from "@/lib/messaging/load";
+import { normalisePhoneAU } from "@/lib/messaging/config";
 import type { CrmResult } from "./actions";
 import { CONTACT_ROLES, LOG_KINDS, type LogKind } from "./recordTypes";
 
@@ -73,6 +77,19 @@ export async function logContact(accountId: string, input: LogInput): Promise<Cr
   const supabase = await createClient();
   const { error } = await supabase.rpc("crm_log_event", args);
   if (error) return { ok: false, message: error.message };
+
+  // P3: a call, an email or a text the office made by hand is a message row
+  // too — the one table every conversation lives in.
+  if (input.kind !== "note_added") {
+    const { data: { user } } = await supabase.auth.getUser();
+    await recordMessage({
+      channel: input.kind === "email_logged" ? "email" : input.kind === "sms_logged" ? "sms" : "call",
+      direction: input.direction ?? "out",
+      body: note || (input.kind === "voicemail" ? "Left a voicemail" : input.kind === "call_no_answer" ? "No answer" : input.kind === "call_connected" ? "Spoke" : ""),
+      provider: "manual", status: input.direction === "in" ? "received" : "sent",
+      accountId, actorProfileId: user?.id ?? null, kind: input.kind,
+    }, supabase);
+  }
 
   let extra = "";
   if (input.followupDay && isoDate.safeParse(input.followupDay).success) {
@@ -209,4 +226,59 @@ export async function mergeAccounts(keepId: string, dropId: string): Promise<Crm
   await refreshFor(supabase, keepId);
   revalidatePath("/crm", "layout");
   return { ok: true, message: "Merged into this record." };
+}
+
+// ---- P3: the Messages section ------------------------------------------------
+
+export type ReplyInput = { channel: "email" | "sms"; subject: string; body: string };
+
+/** A reply from the record: sent through the same primitives as everything
+ *  else, so it is recorded, routed and delivery-tracked like everything else. */
+export async function sendReply(accountId: string, input: ReplyInput): Promise<CrmResult> {
+  if (!uuid.safeParse(accountId).success) return { ok: false, message: "That isn't a customer id." };
+  const body = input.body.trim();
+  if (!body) return { ok: false, message: "Write something first." };
+  const supabase = await createClient();
+  const { data: account } = await supabase.from("accounts").select("id, name, email, phone").eq("id", accountId).maybeSingle();
+  const a = account as { id: string; name: string | null; email: string | null; phone: string | null } | null;
+  if (!a) return { ok: false, message: "That customer isn't here any more." };
+  const { data: { user } } = await supabase.auth.getUser();
+  const ctx = { accountId, actorProfileId: user?.id ?? null, kind: "reply" };
+
+  if (input.channel === "sms") {
+    const to = normalisePhoneAU(a.phone ?? "");
+    if (!to) return { ok: false, message: "No mobile number we can text on this record." };
+    const r = await sendSms({ to, body, ctx });
+    revalidatePath("/crm", "layout");
+    if (r.status === "sent") return { ok: true, message: "Text sent." };
+    if (r.status === "not_configured") return { ok: false, message: "Texting isn't configured on this server — recorded as not sent." };
+    return { ok: false, message: r.message };
+  }
+
+  if (!a.email) return { ok: false, message: "No email address on this record." };
+  const { company } = await loadMessaging(supabase);
+  const subject = input.subject.trim() || `A note from ${company.name || "Paint Group"}`;
+  const html = buildPlainEmailHtml({ heading: subject, message: body, companyName: company.name || "Paint Group", logoUrl: company.logoUrl, companyPhone: company.phone });
+  const r = await sendEmail({ to: a.email, subject, html, replyTo: company.email, ctx });
+  revalidatePath("/crm", "layout");
+  if (r.status === "sent") return { ok: true, message: "Email sent." };
+  if (r.status === "not_configured") return { ok: false, message: "Email isn't configured on this server — recorded as not sent." };
+  return { ok: false, message: r.message };
+}
+
+export async function markMessagesRead(accountId: string): Promise<void> {
+  if (!uuid.safeParse(accountId).success) return;
+  const supabase = await createClient();
+  await supabase.rpc("crm_mark_messages_read", { p_account_id: accountId });
+}
+
+/** An unmatched inbound message belongs to this customer. */
+export async function attachMessage(messageId: string, accountId: string): Promise<CrmResult> {
+  if (!uuid.safeParse(messageId).success || !uuid.safeParse(accountId).success) return { ok: false, message: "That isn't a customer id." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("crm_attach_message", { p_message_id: messageId, p_account_id: accountId });
+  if (error) return { ok: false, message: error.message };
+  await refreshFor(supabase, accountId);
+  revalidatePath("/crm", "layout");
+  return { ok: true, message: "Attached." };
 }

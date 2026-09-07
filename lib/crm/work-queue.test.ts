@@ -6,6 +6,8 @@ import {
   type WorkItem, type SnoozeAccountRow, type QueueInvoiceRow, type CallbackEventRow,
   buildLapsedItems,
   type LapsedEventRow,
+  buildMessageItems,
+  type InboundMessageRow,
 } from "./work-queue";
 
 /** Mid-afternoon Melbourne, mid-week. Every test pins its own clock. */
@@ -242,5 +244,40 @@ describe("estimate_lapsed (CRM v2 P1, decision 8.11) — lapsed is a decision, n
     const [a] = buildLapsedItems([row()], [], names, now);
     const [b] = buildLapsedItems([row({ id: "ev2", occurred_at: ago(1) })], [], names, now);
     expect(a.key).toBe(b.key);
+  });
+});
+
+describe("messages (CRM v2 P3) — unanswered and unmatched", () => {
+  const now = new Date("2026-09-07T10:00:00+10:00");
+  const ago = (h: number) => new Date(now.getTime() - h * 3_600_000).toISOString();
+  const names = new Map([["acc1", "Garry Kennedy"]]);
+  const inbound = (over: Partial<InboundMessageRow> = {}): InboundMessageRow => ({
+    id: "m1", account_id: "acc1", channel: "email", subject: "Re: your estimate", body: "Can you do the ceilings too?",
+    from_address: "garry@example.com", occurred_at: ago(6), read_at: null, ...over,
+  });
+
+  it("a customer's email with no reply is overdue after four hours, and points at the thread", () => {
+    const [item] = buildMessageItems([inbound()], [], [], names, now);
+    expect(item.kind).toBe("message_unanswered");
+    expect(item.title).toBe("Garry Kennedy sent a email");
+    expect(item.detail).toBe("Re: your estimate");
+    // Due two hours ago: buckets are Melbourne DAYS, so it is "today", not yet "overdue".
+    expect(item.bucket).toBe("today");
+    expect(new Date(item.dueAt!).getTime()).toBe(new Date(ago(2)).getTime());
+    expect(item.action.href).toBe("/crm/customers/acc1#messages");
+  });
+
+  it("dies when we wrote back after it, or rang them after it — not before", () => {
+    expect(buildMessageItems([inbound()], [{ account_id: "acc1", occurred_at: ago(1) }], [], names, now)).toHaveLength(0);
+    expect(buildMessageItems([inbound()], [{ account_id: "acc1", occurred_at: ago(9) }], [], names, now)).toHaveLength(1);
+    expect(buildMessageItems([inbound()], [], [{ account_id: "acc1", occurred_at: ago(1) }], names, now)).toHaveLength(0);
+  });
+
+  it("a message with no customer is an attach item, never dropped", () => {
+    const [item] = buildMessageItems([inbound({ account_id: null, channel: "sms", subject: null, body: "Hi is the quote still ok" })], [], [], names, now);
+    expect(item.kind).toBe("message_unmatched");
+    expect(item.title).toBe("A text from garry@example.com");
+    expect(item.action.href).toBe("/crm/messages/m1");
+    expect(item.accountId).toBeNull();
   });
 });

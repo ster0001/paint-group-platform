@@ -346,6 +346,7 @@ export async function approveAndSend(messageId: string): Promise<CampaignResult>
       body: smsBody,
       links: { estimateUrl: links.estimateUrl, accountUrl: links.accountUrl },
       companyName: company.name || "Paint Group",
+      ctx: { accountId: account.id as string, campaignMessageId: messageId },
     });
   } else if (parsed?.success) {
     sent = await sendCampaignEmail({
@@ -354,6 +355,7 @@ export async function approveAndSend(messageId: string): Promise<CampaignResult>
       template: parsed.data,
       brand: { companyName: company.name || "Paint Group", logoUrl: company.logoUrl || null },
       links,
+      campaignMessageId: messageId,
     });
   } else {
     // Unreachable — the email path already returned on a failed parse — but

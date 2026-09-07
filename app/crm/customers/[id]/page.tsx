@@ -7,6 +7,7 @@ import CustomerPanel from "../../CustomerPanel";
 import RecordDetails, { type StaffOption } from "./RecordDetails";
 import Contacts, { type ContactRow } from "./Contacts";
 import DuplicateBanner, { type DuplicateHit } from "./DuplicateBanner";
+import Messages, { type MessageRow } from "./Messages";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +71,7 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
   }
   const a = account as AccountRow;
 
-  const [{ data: events }, { data: estimates }, { data: props }, { data: contacts }, factsRead, { data: staffRows }, dupRead] = await Promise.all([
+  const [{ data: events }, { data: estimates }, { data: props }, { data: contacts }, factsRead, { data: staffRows }, dupRead, { data: messages }] = await Promise.all([
     supabase.from("crm_events")
       .select("id, type, payload, occurred_at, source")
       .eq("account_id", id).order("occurred_at", { ascending: false }).limit(200),
@@ -82,6 +83,8 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
     supabase.from("crm_account_facts").select("stage, because, opened_count, last_opened_at, quote_at, last_contact_at, last_contact_channel, won_cents, open_value_cents, estimates_count, stale").eq("account_id", id).maybeSingle(),
     supabase.from("profiles").select("id, name").eq("role", "staff").order("name", { ascending: true }).limit(50),
     supabase.rpc("crm_duplicate_candidates", { p_limit: 5, p_account: id }),
+    supabase.from("messages").select("id, channel, direction, subject, body, provider, status, status_at, read_at, occurred_at, to_address, from_address, meta")
+      .eq("account_id", id).order("occurred_at", { ascending: false }).limit(100),
   ]);
 
   // The card is a cache; a stale one is recomputed before it is shown.
@@ -167,6 +170,9 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
       </div>
 
       <CustomerPanel accountId={a.id} temperature={a.temperature} followupDueAt={a.followup_due_at} followupNote={a.followup_note} snoozedUntil={a.snoozed_until} />
+
+      <p className="plabel" id="messages">Messages</p>
+      <Messages accountId={a.id} messages={(messages ?? []) as MessageRow[]} hasEmail={Boolean(a.email)} hasPhone={Boolean(a.phone)} />
 
       <p className="plabel">Estimates</p>
       {est.length === 0 ? (

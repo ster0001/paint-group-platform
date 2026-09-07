@@ -12,6 +12,7 @@
  * guard.ts, and every message still passes through it first.
  */
 
+import { recordMessage } from "@/lib/messaging/record";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { renderEmail, renderPlainText, type Brand, type Template } from "./blocks";
@@ -61,6 +62,8 @@ export function unsubscribeUrl(accountId: string, baseUrl?: string): string {
 }
 
 export type SendInput = {
+  /** P3: the queue row this delivery is for — the messages row links to it. */
+  campaignMessageId?: string | null;
   to: string;
   template: Template;
   brand?: Partial<Brand>;
@@ -122,8 +125,17 @@ export async function sendCampaignEmail(input: SendInput): Promise<SendResult> {
       }),
     });
     const body = await res.json().catch(() => ({}));
+    const id = String((body as { id?: string }).id ?? "");
+    await recordMessage({
+      channel: "email", direction: "out", subject, body: text, bodyHtml: html,
+      provider: "resend", providerMessageId: res.ok && id ? id : null,
+      status: res.ok ? "sent" : "failed", toAddress: input.to, fromAddress: MARKETING_FROM,
+      accountId: input.accountId, campaignMessageId: input.campaignMessageId ?? null, kind: "campaign",
+      skipRecord: input.isTest === true,
+      meta: res.ok ? {} : { error: (body as { message?: string }).message ?? `Resend said ${res.status}.` },
+    });
     if (!res.ok) return { ok: false, error: (body as { message?: string }).message || `Resend said ${res.status}.` };
-    return { ok: true, id: String((body as { id?: string }).id ?? "") };
+    return { ok: true, id };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "The mail service is unreachable." };
   }

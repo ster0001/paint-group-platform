@@ -4,6 +4,8 @@ import {
   classifyInbound, matchAccountsByPhone, twimlEmpty, twimlReply, verifyTwilioSignature,
 } from "@/lib/campaigns/inboundSms";
 import { buildEvent, dedupeKey } from "@/lib/crm/events";
+import { recordMessage } from "@/lib/messaging/record";
+import { toE164Au } from "@/lib/campaigns/sms";
 import { reportError } from "@/lib/monitoring/report";
 
 /**
@@ -56,6 +58,15 @@ export async function POST(req: Request) {
     const { data: accounts } = await db.from("accounts")
       .select("id, phone, marketing_unsubscribed_at").not("phone", "is", null).limit(10000);
     const matched = matchAccountsByPhone(accounts ?? [], from);
+    // P3: the text itself is a row in `messages`, matched or not — an
+    // unmatched one is a Today item to attach, never a dropped reply.
+    const primary = (matched[0]?.id as string | undefined) ?? null;
+    await recordMessage({
+      channel: "sms", direction: "in", body: String(params.Body ?? "").slice(0, 2000),
+      provider: "twilio", providerMessageId: String(params.MessageSid ?? "") || null, status: "received",
+      fromAddress: toE164Au(from) ?? from, toAddress: String(params.To ?? "") || null,
+      accountId: primary, kind: kind === "stop" ? "stop" : kind === "start" ? "start" : kind === "help" ? "help" : "reply",
+    }, db);
 
     if (kind === "stop") {
       for (const a of matched) {

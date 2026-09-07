@@ -14,6 +14,8 @@
  *   TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM — SMS sender (number in E.164, or alphanumeric ID)
  */
 
+import { htmlToPlain, newReplyToken, recordMessage, replyAddress, type MessageContext } from "./record";
+
 export type DeliveryResult =
   | { status: "sent"; id?: string }
   | { status: "not_configured" }
@@ -37,6 +39,34 @@ export async function sendEmail(opts: {
   /** Resend attachment shape: content is BASE64 of the file bytes.
    *  contentType (→ Resend content_type) matters for .ics calendar invites —
    *  text/calendar is what makes mail clients offer "add to calendar". */
+  attachments?: { filename: string; content: string; contentType?: string }[];
+  /** CRM v2 P3: who this is about. Every send is recorded in `messages`
+   *  whether or not the caller says; saying links it to the estimate/job. */
+  ctx?: MessageContext;
+}): Promise<DeliveryResult> {
+  const token = newReplyToken();
+  // Decision 8.6: with REPLY_DOMAIN set, replies route back into the CRM
+  // thread (reply+<token>@…) instead of a mailbox the platform cannot see.
+  const routedReplyTo = replyAddress(token);
+  const result = await sendEmailRaw({ ...opts, replyTo: routedReplyTo ?? opts.replyTo });
+  await recordMessage({
+    channel: "email", direction: "out", subject: opts.subject,
+    body: htmlToPlain(opts.html), bodyHtml: opts.html,
+    provider: "resend", providerMessageId: result.status === "sent" ? result.id ?? null : null,
+    status: result.status === "sent" ? "sent" : result.status === "not_configured" ? "not_configured" : "failed",
+    toAddress: opts.to, fromAddress: process.env.EMAIL_FROM || DEFAULT_FROM,
+    replyToken: routedReplyTo ? token : null,
+    meta: result.status === "error" ? { error: result.message } : {},
+    ...(opts.ctx ?? {}),
+  });
+  return result;
+}
+
+async function sendEmailRaw(opts: {
+  to: string;
+  subject: string;
+  html: string;
+  replyTo?: string;
   attachments?: { filename: string; content: string; contentType?: string }[];
 }): Promise<DeliveryResult> {
   if (!emailConfigured()) return { status: "not_configured" };
@@ -75,9 +105,24 @@ export async function sendEmail(opts: {
   }
 }
 
-export async function sendSms(opts: { to: string; body: string }): Promise<DeliveryResult> {
+export async function sendSms(opts: { to: string; body: string; ctx?: MessageContext }): Promise<DeliveryResult> {
+  const result = await sendSmsRaw(opts);
+  await recordMessage({
+    channel: "sms", direction: "out", body: opts.body,
+    provider: "twilio", providerMessageId: result.status === "sent" ? result.id ?? null : null,
+    status: result.status === "sent" ? "sent" : result.status === "not_configured" ? "not_configured" : "failed",
+    toAddress: opts.to, fromAddress: process.env.TWILIO_FROM ?? null,
+    meta: result.status === "error" ? { error: result.message } : {},
+    ...(opts.ctx ?? {}),
+  });
+  return result;
+}
+
+async function sendSmsRaw(opts: { to: string; body: string }): Promise<DeliveryResult> {
   if (!smsConfigured()) return { status: "not_configured" };
   const sid = process.env.TWILIO_ACCOUNT_SID!;
+  // Delivery receipts land on /api/sms/status (P3) when the site knows its own URL.
+  const site = (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "");
   try {
     const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
       method: "POST",
@@ -89,6 +134,7 @@ export async function sendSms(opts: { to: string; body: string }): Promise<Deliv
         From: process.env.TWILIO_FROM!,
         To: opts.to,
         Body: opts.body,
+        ...(site.startsWith("https://") ? { StatusCallback: `${site}/api/sms/status` } : {}),
       }).toString(),
     });
     const body = (await res.json().catch(() => null)) as { sid?: string; message?: string } | null;

@@ -19,7 +19,7 @@ import { loadCustomerInputs, type CustomerInput } from "./factsInput";
  * A row that is stale is still shown — with yesterday's card — never hidden.
  */
 
-const CONTACT_KINDS = new Set(["call_connected", "call_no_answer", "message_left", "sms_reply", "estimate_sent", "campaign_message_sent", "visit_completed", "email_logged", "sms_logged"]);
+const CONTACT_KINDS = new Set(["call_connected", "call_no_answer", "message_left", "sms_reply", "estimate_sent", "campaign_message_sent", "visit_completed", "email_logged", "sms_logged", "message_in", "message_out"]);
 
 export type FactsRow = {
   account_id: string;

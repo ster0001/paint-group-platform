@@ -344,3 +344,20 @@
 .crm .said{font-size:12px;color:var(--cyan);margin:6px 0 0}
 .crm .said.bad{color:var(--clay)}
 @media (max-width:640px){ .crm .gsearch{display:none} .crm .crow{grid-template-columns:1fr} }
+
+/* CRM v2 P3 — messages */
+.crm .msgs{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+.crm .msg{display:grid;grid-template-columns:1fr auto;gap:6px 14px;padding:10px 13px;border:1px solid var(--line);border-radius:var(--r);background:var(--raised);font-size:12.5px}
+.crm .msg.in{border-left:3px solid var(--amber)}
+.crm .msg.out{border-left:3px solid var(--cyan)}
+.crm .msg.unread{background:rgba(240,179,92,.06)}
+.crm .msghead{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:11px;color:var(--muted)}
+.crm .msghead b{color:var(--text);font-size:12.5px}
+.crm .msgbody{white-space:pre-wrap;line-height:1.5;color:var(--text);margin-top:4px}
+.crm .msgbody.clip{max-height:120px;overflow:hidden;position:relative}
+.crm .msgstatus{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.crm .msgstatus.bad{color:var(--clay)} .crm .msgstatus.good{color:#7bd39a}
+.crm .reply{display:grid;gap:8px;background:var(--raised);border:1px solid var(--line);border-radius:var(--r);padding:12px;margin-bottom:16px}
+.crm .reply .field{min-width:0;width:100%}
+.crm .attach{display:grid;gap:8px;max-width:520px}
+.crm .attachhit{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--graphite)}

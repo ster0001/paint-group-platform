@@ -119,6 +119,8 @@ export async function sendCampaignSms(input: {
   body: string;
   links: { estimateUrl?: string | null; accountUrl: string };
   companyName?: string;
+  /** P3: recorded in `messages` against this customer and queue row. */
+  ctx?: { accountId?: string | null; campaignMessageId?: string | null; skipRecord?: boolean };
 }): Promise<SmsSendResult> {
   const to = toE164Au(input.toRawPhone);
   if (!to) return { ok: false, error: "No usable mobile number on file — needs an 04xx number." };
@@ -128,7 +130,7 @@ export async function sendCampaignSms(input: {
     return { ok: false, error: "That text is far too long — trim it or send an email instead." };
   }
 
-  const result = await sendSms({ to, body: rendered });
+  const result = await sendSms({ to, body: rendered, ctx: { kind: "campaign", ...(input.ctx ?? {}) } });
   if (result.status === "sent") return { ok: true, id: result.id ?? "" };
   if (result.status === "not_configured") return { ok: false, error: "SMS isn't configured on this server (Twilio keys)." };
   return { ok: false, error: result.message ?? "The SMS service refused it." };

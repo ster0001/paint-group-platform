@@ -2263,3 +2263,38 @@ Source: `docs/briefs/crm-v2-deep-dive.md` §4.1. Migration 20270123 (`crm_update
 
 Verification: `e2e/crm-p2-record.spec.ts` (4 serial journeys on C1); manual test
 `docs/manual-tests/crm-v2-p2-record.md`.
+
+## CRM v2 · Phase 3 — the messaging spine (7 Sep 2026)
+
+Source: `docs/briefs/crm-v2-deep-dive.md` §3 F3, §4.2. Migration 20270124: `messages` — every email, SMS,
+call, portal message (and later chat summary), in or out, one row with body, provider id, delivery status,
+thread and customer; `account_id` nullable so an unmatched inbound is STORED, never dropped.
+
+- **The funnel** (`lib/messaging/record.ts recordMessage`): the two send primitives in
+  `lib/messaging/send.ts` (`sendEmail`, `sendSms`) record every send themselves — body, provider id, status
+  (sent / failed / not_configured) — resolving the customer from the address through `crm_find_account`
+  when the caller passed no `ctx`. So all ~30 send sites are covered; the campaign senders record with
+  their `campaign_message_id`. `sendEmail` sets `Reply-To: reply+<token>@REPLY_DOMAIN` when that env is
+  set (decision 8.6); `sendSms` passes a `StatusCallback`.
+- **Inbound email**: `/api/inbound/messages` (svix-signed, `MESSAGES_INBOUND_SECRET`) — routes by the
+  reply token → the thread and customer; else by sender through `crm_find_account`; else unmatched.
+  Body hydrated from Resend's API like bills@.
+- **Delivery**: `/api/webhooks/resend` (`RESEND_WEBHOOK_SECRET`) updates status by provider id, never
+  downgrades (opened stays opened), sets `marketing_undeliverable_at` on a hard bounce and
+  `marketing_unsubscribed_at` on a complaint, and writes `campaign_bounced` for campaign mail.
+  `/api/sms/status` does the same for Twilio receipts. The SMS inbound route now records every text.
+- **Timeline**: the `messages` insert trigger writes `message_in` / `message_out` events (dedupe
+  `message:<id>`); the facts trigger reads their channel for "last contact". `estimate_messages` is
+  mirrored in by trigger and backfilled. `crm_attach_message` writes the event when a person matches an
+  unmatched row and adds the sender's address as a contact.
+- **Screens**: the record's Messages section (`app/crm/customers/[id]/Messages.tsx`) — one conversation,
+  reply-in-place by email or text (`sendReply`), marks inbound read on open; `/crm/messages/[id]` for an
+  unmatched message with a customer search and Attach. Today: `message_unanswered` (inbound with no
+  outbound message or logged call after it, due in 4 h) and `message_unmatched` (attach, due in a day) —
+  both were registered kinds with no producer since 2A.
+- The log sheet's call / email / text outcomes also write a `messages` row (provider `manual`).
+
+Verification: `e2e/crm-p3-messages.spec.ts` (6 journeys on C1, signing its own webhooks);
+`lib/messaging/record.test.ts`; manual test `docs/manual-tests/crm-v2-p3-messages.md` (the env to set,
+in order: `RESEND_WEBHOOK_SECRET`, then the receiving domain + `MESSAGES_INBOUND_SECRET`, then
+`REPLY_DOMAIN` last).
