@@ -65,6 +65,8 @@ export type SubjectRef = {
 };
 
 export type WorkItem = {
+  /** P7: the customer's owner (accounts.owner_id), for the mine / everyone scope. */
+  ownerId?: string | null;
   /** Deterministic and stable across recomputes — §3.4. Same fact, same key,
    *  every time, or dismissals and read-state break. */
   key: string;
@@ -564,10 +566,12 @@ export type WorkQueue = {
     total: number;
     byBucket: Record<WorkItemBucket, number>;
     byGroup: Record<Exclude<FilterGroup, "all">, number>;
+    /** P7: sources whose read hit its cap this run — never a silent truncation. */
+    truncated: string[];
   };
 };
 
-export function assembleQueue(raw: WorkItem[], dismissals: Dismissal[], now: Date): WorkQueue {
+export function assembleQueue(raw: WorkItem[], dismissals: Dismissal[], now: Date, truncated: string[] = []): WorkQueue {
   const items = sortItems(applyDismissals(raw, dismissals, now));
   const byBucket: WorkQueue["counts"]["byBucket"] = { overdue: 0, today: 0, waiting: 0 };
   const byGroup: WorkQueue["counts"]["byGroup"] = { messages: 0, followups: 0, approvals: 0, money: 0 };
@@ -575,7 +579,26 @@ export function assembleQueue(raw: WorkItem[], dismissals: Dismissal[], now: Dat
     byBucket[i.bucket] += 1;
     byGroup[GROUP_OF_KIND[i.kind]] += 1;
   }
-  return { items, counts: { total: items.length, byBucket, byGroup } };
+  return { items, counts: { total: items.length, byBucket, byGroup, truncated } };
+}
+
+/** P7: "mine" = my customers and anyone nobody owns; "all" = the team's queue. */
+export function scopeItems(items: WorkItem[], who: "mine" | "all", userId: string | null): WorkItem[] {
+  if (who === "all" || !userId) return items;
+  return items.filter((i) => !i.ownerId || i.ownerId === userId);
+}
+
+/** P7: items for one customer sit together — the lead card and the rest under it. */
+export function groupByAccount(items: WorkItem[]): Array<{ lead: WorkItem; rest: WorkItem[] }> {
+  const out: Array<{ lead: WorkItem; rest: WorkItem[] }> = [];
+  const seen = new Map<string, number>();
+  for (const i of items) {
+    const key = i.accountId ?? `item:${i.key}`;
+    const at = seen.get(key);
+    if (at == null) { seen.set(key, out.length); out.push({ lead: i, rest: [] }); }
+    else out[at].rest.push(i);
+  }
+  return out;
 }
 
 // ---- change requests (assistant S6) ------------------------------------------
@@ -775,6 +798,23 @@ export function suppressQuiet(items: WorkItem[], quietAccountIds: Set<string>): 
 
 // ---- the loader ------------------------------------------------------------
 
+
+/**
+ * P7: an `in` list of uuids is a URL, and ~400 of them is a 15 KB URL the
+ * request layer refuses (found on the P5 rebuild). Every id-keyed read here
+ * goes in slices; a source that hands over 500 invoices still reads its
+ * payments.
+ */
+const ID_SLICE = 120;
+async function inSlices<T>(ids: string[], run: (slice: string[]) => PromiseLike<{ data: T[] | null; error?: { message: string } | null }>): Promise<T[]> {
+  const out: T[] = [];
+  for (let i = 0; i < ids.length; i += ID_SLICE) {
+    const { data } = await run(ids.slice(i, i + ID_SLICE));
+    out.push(...(data ?? []));
+  }
+  return out;
+}
+
 /**
  * Every read is bounded and indexed; no source may scan a table. The caps are
  * generous against today's volumes (5 accounts, 25 estimates) and the 2A.10
@@ -790,21 +830,27 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   const since90d = new Date(now.getTime() - 90 * 86_400_000).toISOString();
 
   const since30d = new Date(now.getTime() - 30 * 86_400_000).toISOString();
-  const [snoozeAcc, invoices, callbacks, queued, dismissed, changeReqs, handoffs, wizardRows, lapsedEvents, inboundMsgs, quietAcc, thresholds] = await Promise.all([
+  // P7: every capped read is ORDERED by its urgency key (oldest first), and a
+  // read that fills its cap is reported on the queue rather than dropped silently.
+  const CAP = { followups: 500, invoices: 500, callbacks: 200, wizard: 300, lapsed: 300, inbound: 400, rebook: 200 };
+  const truncated: string[] = [];
+  const [snoozeAcc, invoices, callbacks, queued, dismissed, changeReqs, handoffs, wizardRows, lapsedEvents, inboundMsgs, delayedAcc, thresholds] = await Promise.all([
     supabase.from("accounts")
       .select("id, name, email, snoozed_until, followup_due_at, followup_note")
       .or(`snoozed_until.lte.${nowIso},followup_due_at.lte.${nowIso}`)
-      .limit(200),
+      .order("followup_due_at", { ascending: true, nullsFirst: false })
+      .limit(CAP.followups),
     supabase.from("invoices")
       .select("id, estimate_id, kind, status, total_inc_cents, due_on, issued_on, estimates(account_id, accepted_name, title, job_address:sent_snapshot->>jobAddress)")
       .in("status", [...OPEN_STATUSES])
-      .limit(200),
+      .order("due_on", { ascending: true, nullsFirst: false })
+      .limit(CAP.invoices),
     supabase.from("crm_events")
       .select("id, account_id, occurred_at, payload")
       .eq("type", "callback_requested")
       .gte("occurred_at", since90d)
-      .order("occurred_at", { ascending: false })
-      .limit(100),
+      .order("occurred_at", { ascending: true })
+      .limit(CAP.callbacks),
     supabase.from("campaign_messages")
       .select("id", { count: "exact", head: true })
       .eq("state", "queued"),
@@ -831,105 +877,89 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
       .in("bucket", ["ready_call", "ready_visit", "needs_help", "priced_no_request"])
       .gte("last_seen_at", since30d)
       .order("last_seen_at", { ascending: false })
-      .limit(200),
+      .limit(CAP.wizard),
     // P1: quotes that lapsed in the last 60 days, with the estimate as it is now.
     supabase.from("crm_events")
       .select("id, account_id, estimate_id, occurred_at, payload, estimates(status, title, viewed_at)")
       .eq("type", "estimate_lapsed")
       .gte("occurred_at", new Date(now.getTime() - 60 * 86_400_000).toISOString())
-      .order("occurred_at", { ascending: false })
-      .limit(200),
+      .order("occurred_at", { ascending: true })
+      .limit(CAP.lapsed),
     // P3: what customers wrote to us in the last 30 days, matched or not.
     supabase.from("messages")
       .select("id, account_id, channel, subject, body, from_address, occurred_at, read_at")
       .eq("direction", "in")
       .gte("occurred_at", since30d)
-      .order("occurred_at", { ascending: false })
-      .limit(300),
-    // P4: quiet states silence a customer's items; a delay that ended is its own item.
+      .order("occurred_at", { ascending: true })
+      .limit(CAP.inbound),
+    // P4/P7: a delay that ended is its own item — a state-bounded read, ordered by
+    // when it ended. (Quiet states are looked up for the queue's own customers below,
+    // not by scanning every non-active account.)
     supabase.from("accounts")
       .select("id, name, email, phone, relationship_state, state_until, state_note, state_reason")
-      .neq("relationship_state", "active")
-      .limit(2000),
+      .eq("relationship_state", "delayed").lte("state_until", nowIso)
+      .order("state_until", { ascending: true })
+      .limit(300),
     loadCrmThresholds(supabase),
   ]);
-  const quietRows = (quietAcc.error ? [] : (quietAcc.data ?? [])) as Array<DelayedAccountRow & { relationship_state: string }>;
-  const quietIds = new Set(quietRows.filter((r) => isQuiet(r.relationship_state, r.state_until, now)).map((r) => r.id));
-  const delayedRows = quietRows.filter((r) => r.relationship_state === "delayed");
+  const delayedRows = ((delayedAcc.error ? [] : (delayedAcc.data ?? [])) as Array<DelayedAccountRow & { relationship_state: string }>);
+  const hit = (name: string, rows: unknown[] | null | undefined, cap: number) => { if ((rows?.length ?? 0) >= cap) truncated.push(name); };
+  hit("follow-ups", snoozeAcc.data, CAP.followups); hit("invoices", invoices.data, CAP.invoices); hit("callbacks", callbacks.data, CAP.callbacks);
+  hit("online estimates", wizardRows.data, CAP.wizard); hit("lapsed quotes", lapsedEvents.data, CAP.lapsed); hit("messages", inboundMsgs.data, CAP.inbound);
   // P6: visits that didn't happen, and any booking since (which closes them).
   const since60d = new Date(now.getTime() - 60 * 86_400_000).toISOString();
   const [rebookRes, laterRes] = await Promise.all([
     supabase.from("visits").select("id, account_id, status, starts_at, outcome_at, updated_at, customer_name, address, customer_phone, outcome_note")
-      .in("status", ["no_show", "rebook"]).gte("updated_at", since60d).order("updated_at", { ascending: false }).limit(200),
+      .in("status", ["no_show", "rebook"]).gte("updated_at", since60d).order("updated_at", { ascending: true }).limit(CAP.rebook),
     supabase.from("visits").select("account_id, starts_at, created_at").eq("status", "booked").gte("created_at", since60d).limit(500),
   ]);
   const rebookRows = (rebookRes.error ? [] : (rebookRes.data ?? [])) as RebookVisitRow[];
   const laterBooked = (laterRes.error ? [] : (laterRes.data ?? [])) as Array<{ account_id: string | null; starts_at: string; created_at: string }>;
   const inboundRows = (inboundMsgs.error ? [] : (inboundMsgs.data ?? [])) as unknown as InboundMessageRow[];
   const inboundAccountIds = [...new Set(inboundRows.map((m) => m.account_id).filter((x): x is string => Boolean(x)))];
-  const [{ data: outboundTouches }, { data: inboundAttempts }, { data: inboundAccounts }] = inboundAccountIds.length
-    ? await Promise.all([
-        supabase.from("messages").select("account_id, occurred_at").eq("direction", "out")
-          .not("status", "in", "(failed,not_configured)").in("account_id", inboundAccountIds).gte("occurred_at", since30d).limit(900),
-        supabase.from("crm_events").select("account_id, occurred_at")
-          .in("type", ["call_connected", "call_no_answer", "message_left"]).in("account_id", inboundAccountIds).gte("occurred_at", since30d).limit(600),
-        supabase.from("accounts").select("id, name, email, phone").in("id", inboundAccountIds),
-      ])
-    : [{ data: [] }, { data: [] }, { data: [] }];
-  const inboundNames = new Map(((inboundAccounts ?? []) as Array<{ id: string; name: string | null; email: string | null; phone: string | null }>)
+  const [outboundTouches, inboundAttempts, inboundAccounts] = await Promise.all([
+    inSlices(inboundAccountIds, (ids) => supabase.from("messages").select("account_id, occurred_at").eq("direction", "out")
+      .not("status", "in", "(failed,not_configured)").in("account_id", ids).gte("occurred_at", since30d).limit(ids.length * 8)),
+    inSlices(inboundAccountIds, (ids) => supabase.from("crm_events").select("account_id, occurred_at")
+      .in("type", ["call_connected", "call_no_answer", "message_left"]).in("account_id", ids).gte("occurred_at", since30d).limit(ids.length * 5)),
+    inSlices(inboundAccountIds, (ids) => supabase.from("accounts").select("id, name, email, phone").in("id", ids)),
+  ]);
+  const inboundNames = new Map(((inboundAccounts) as Array<{ id: string; name: string | null; email: string | null; phone: string | null }>)
     .map((a) => [a.id, a.name || a.email || a.phone || "A customer"]));
   const lapsedRows = (lapsedEvents.error ? [] : (lapsedEvents.data ?? [])) as unknown as LapsedEventRow[];
   const lapsedAccountIds = [...new Set(lapsedRows.map((r) => r.account_id).filter(Boolean))];
-  const [{ data: lapsedAttempts }, { data: lapsedAccounts }] = lapsedAccountIds.length
-    ? await Promise.all([
-        supabase.from("crm_events").select("account_id, occurred_at")
-          .in("type", ["call_connected", "call_no_answer", "message_left", "estimate_sent", "sms_reply"]).in("account_id", lapsedAccountIds)
-          .gte("occurred_at", new Date(now.getTime() - 60 * 86_400_000).toISOString()).limit(600),
-        supabase.from("accounts").select("id, name, email, phone").in("id", lapsedAccountIds),
-      ])
-    : [{ data: [] }, { data: [] }];
-  const lapsedNames = new Map(((lapsedAccounts ?? []) as Array<{ id: string; name: string | null; email: string | null; phone: string | null }>)
+  const [lapsedAttempts, lapsedAccounts] = await Promise.all([
+    inSlices(lapsedAccountIds, (ids) => supabase.from("crm_events").select("account_id, occurred_at")
+      .in("type", ["call_connected", "call_no_answer", "message_left", "estimate_sent", "sms_reply"]).in("account_id", ids)
+      .gte("occurred_at", new Date(now.getTime() - 60 * 86_400_000).toISOString()).limit(ids.length * 5)),
+    inSlices(lapsedAccountIds, (ids) => supabase.from("accounts").select("id, name, email, phone").in("id", ids)),
+  ]);
+  const lapsedNames = new Map(((lapsedAccounts) as Array<{ id: string; name: string | null; email: string | null; phone: string | null }>)
     .map((a) => [a.id, a.name || a.email || a.phone || "A customer"]));
   const wzRows = (wizardRows.error ? [] : (wizardRows.data ?? [])) as unknown as WizardQueueRow[];
   const wzAccountIds = [...new Set(wzRows.map((r) => r.account_id).filter((x): x is string => Boolean(x)))];
-  const { data: wzAttempts } = wzAccountIds.length
-    ? await supabase.from("crm_events").select("account_id, occurred_at")
-        .in("type", ["call_connected", "call_no_answer", "message_left"]).in("account_id", wzAccountIds).gte("occurred_at", since30d).limit(300)
-    : { data: [] };
+  const wzAttempts = await inSlices(wzAccountIds, (ids) => supabase.from("crm_events").select("account_id, occurred_at")
+    .in("type", ["call_connected", "call_no_answer", "message_left"]).in("account_id", ids).gte("occurred_at", since30d).limit(ids.length * 5));
   // A change request is answered by a staff reply in that estimate's thread.
   const crRows = ((changeReqs.error ? [] : changeReqs.data) ?? []) as unknown as ChangeRequestRow[];
   const crEstimateIds = [...new Set(crRows.map((r) => r.estimate_id))];
-  const { data: staffReplies } = crEstimateIds.length
-    ? await supabase.from("estimate_messages").select("estimate_id, created_at").eq("direction", "staff").in("estimate_id", crEstimateIds).gte("created_at", since90d).limit(300)
-    : { data: [] };
+  const staffReplies = await inSlices(crEstimateIds, (ids) => supabase.from("estimate_messages").select("estimate_id, created_at").eq("direction", "staff").in("estimate_id", ids).gte("created_at", since90d).limit(ids.length * 5));
 
   // Callback items need the later call attempts and the names — two more
   // bounded reads, only when there are callbacks to judge.
   const cbRows = (callbacks.data ?? []) as CallbackEventRow[];
   const cbAccountIds = [...new Set(cbRows.map((c) => c.account_id))];
-  const [attempts, cbAccounts] = cbAccountIds.length
-    ? await Promise.all([
-        supabase.from("crm_events")
-          .select("account_id, occurred_at")
-          .in("type", ["call_connected", "call_no_answer", "message_left"])
-          .in("account_id", cbAccountIds)
-          .gte("occurred_at", since90d)
-          .limit(300),
-        supabase.from("accounts").select("id, name, email").in("id", cbAccountIds),
-      ])
-    : [{ data: [] }, { data: [] }];
+  const [attempts, cbAccounts] = await Promise.all([
+    inSlices(cbAccountIds, (ids) => supabase.from("crm_events").select("account_id, occurred_at")
+      .in("type", ["call_connected", "call_no_answer", "message_left"]).in("account_id", ids).gte("occurred_at", since90d).limit(ids.length * 5)),
+    inSlices(cbAccountIds, (ids) => supabase.from("accounts").select("id, name, email").in("id", ids)),
+  ]);
 
   // Snooze reasons live in the event log, not on the account row.
   const snoozeRows = (snoozeAcc.data ?? []) as SnoozeAccountRow[];
   const snoozedIds = snoozeRows.filter((a) => a.snoozed_until).map((a) => a.id);
-  const { data: reasons } = snoozedIds.length
-    ? await supabase.from("crm_events")
-        .select("account_id, payload, occurred_at")
-        .eq("type", "snoozed")
-        .in("account_id", snoozedIds)
-        .order("occurred_at", { ascending: false })
-        .limit(100)
-    : { data: [] };
+  const reasons = await inSlices(snoozedIds, (ids) => supabase.from("crm_events")
+    .select("account_id, payload, occurred_at").eq("type", "snoozed").in("account_id", ids).order("occurred_at", { ascending: false }).limit(ids.length * 3));
 
   type InvJoin = {
     id: string; estimate_id: string; kind: string; status: string;
@@ -949,34 +979,42 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     jobAddress: r.estimates?.job_address ?? null,
   }));
   const invIds = invRows.map((r) => r.id);
-  const { data: payRows } = invIds.length
-    ? await supabase.from("payments")
-        .select("invoice_id, amount_cents, status, paid_on")
-        .in("invoice_id", invIds)
-    : { data: [] };
-  const payments: DerivePayment[] = ((payRows ?? []) as Array<{ invoice_id: string; amount_cents: number; status: string; paid_on: string | null }>)
+  const payRows = await inSlices(invIds, (ids) => supabase.from("payments").select("invoice_id, amount_cents, status, paid_on").in("invoice_id", ids));
+  const payments: DerivePayment[] = ((payRows) as Array<{ invoice_id: string; amount_cents: number; status: string; paid_on: string | null }>)
     .map((p) => ({ invoiceId: p.invoice_id, amountCents: p.amount_cents, status: p.status, paidOn: p.paid_on }));
 
-  const names = new Map(((cbAccounts.data ?? []) as Array<{ id: string; name: string | null; email: string }>)
+  const names = new Map(((cbAccounts) as Array<{ id: string; name: string | null; email: string }>)
     .map((a) => [a.id, a.name || a.email]));
 
   const raw = [
-    ...buildSnoozeItems(snoozeRows, (reasons ?? []) as SnoozeReasonRow[], now),
+    ...buildSnoozeItems(snoozeRows, reasons as SnoozeReasonRow[], now),
     ...buildInvoiceItems(invRows, payments, now),
-    ...buildCallbackItems(cbRows, (attempts.data ?? []) as ContactEventRow[], names, now),
+    ...buildCallbackItems(cbRows, attempts as ContactEventRow[], names, now),
     ...buildApprovalItem(queued.count ?? 0, now),
-    ...buildChangeRequestItems(crRows, (staffReplies ?? []) as StaffReplyRow[], now),
+    ...buildChangeRequestItems(crRows, staffReplies as StaffReplyRow[], now),
     ...buildHandoffItems(((handoffs.error ? [] : handoffs.data) ?? []) as unknown as HandoffQueueRow[], now),
-    ...buildWizardItems(wzRows, (wzAttempts ?? []) as ContactEventRow[], now),
-    ...buildLapsedItems(lapsedRows, (lapsedAttempts ?? []) as ContactEventRow[], lapsedNames, now),
-    ...buildMessageItems(inboundRows, (outboundTouches ?? []) as OutboundTouchRow[], (inboundAttempts ?? []) as ContactEventRow[], inboundNames, now, thresholds.messageOverdueHours),
+    ...buildWizardItems(wzRows, wzAttempts as ContactEventRow[], now),
+    ...buildLapsedItems(lapsedRows, lapsedAttempts as ContactEventRow[], lapsedNames, now),
+    ...buildMessageItems(inboundRows, outboundTouches as OutboundTouchRow[], inboundAttempts as ContactEventRow[], inboundNames, now, thresholds.messageOverdueHours),
     ...buildDelayEndedItems(delayedRows, now),
     ...buildRebookItems(rebookRows, laterBooked, now),
   ];
+
+  // P7: the states and owners of the customers actually on the queue — a
+  // lookup by id, never a scan of every non-active account.
+  const rawAccountIds = [...new Set(raw.map((i) => i.accountId).filter((x): x is string => !!x))];
+  const quietIds = new Set<string>();
+  const ownerOf = new Map<string, string | null>();
+  const accs = await inSlices(rawAccountIds, (ids) => supabase.from("accounts").select("id, relationship_state, state_until, owner_id").in("id", ids));
+  for (const a of accs as Array<{ id: string; relationship_state: string; state_until: string | null; owner_id: string | null }>) {
+    if (isQuiet(a.relationship_state, a.state_until, now)) quietIds.add(a.id);
+    ownerOf.set(a.id, a.owner_id ?? null);
+  }
+  for (const i of raw) if (i.accountId) i.ownerId = ownerOf.get(i.accountId) ?? null;
 
   // Until migration 20261217 runs, the dismissals table doesn't exist and the
   // read errors; the queue must still stand up (house law: inert-but-safe).
   const dismissals = (dismissed.error ? [] : (dismissed.data ?? [])) as Dismissal[];
 
-  return assembleQueue(suppressQuiet(raw, quietIds), dismissals, now);
+  return assembleQueue(suppressQuiet(raw, quietIds), dismissals, now, truncated);
 }

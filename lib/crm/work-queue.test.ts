@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   itemKey, priorityOf, bucketFor, isCustomerVisible,
-  buildSnoozeItems, buildInvoiceItems, buildCallbackItems, buildApprovalItem, buildRebookItems, type RebookVisitRow,
+  buildSnoozeItems, buildInvoiceItems, buildCallbackItems, buildApprovalItem, buildRebookItems, type RebookVisitRow, scopeItems, groupByAccount,
   applyDismissals, sortItems, assembleQueue,
   type WorkItem, type SnoozeAccountRow, type QueueInvoiceRow, type CallbackEventRow,
   buildLapsedItems,
@@ -326,5 +326,27 @@ describe("buildRebookItems — P6", () => {
   });
   it("done and booked visits are never rebook items", () => {
     expect(buildRebookItems([row({ status: "done" }), row({ status: "booked" })], [], NOW6)).toHaveLength(0);
+  });
+});
+
+describe("P7 — scope and grouping", () => {
+  const NOW7 = new Date("2026-09-07T00:00:00Z");
+  const mk = (key: string, accountId: string | null, ownerId: string | null, bucket: "overdue" | "today" | "waiting" = "today") =>
+    ({ ...buildApprovalItem(1, NOW7)[0], key, accountId, ownerId, bucket, kind: "followup_due" as const });
+  it("mine = my customers and the unowned; everyone = all", () => {
+    const items = [mk("a", "acc1", "me"), mk("b", "acc2", "them"), mk("c", "acc3", null), mk("d", null, null)];
+    expect(scopeItems(items, "mine", "me").map((i) => i.key)).toEqual(["a", "c", "d"]);
+    expect(scopeItems(items, "all", "me")).toHaveLength(4);
+    expect(scopeItems(items, "mine", null)).toHaveLength(4);
+  });
+  it("a customer's items sit together under one lead, in queue order", () => {
+    const items = [mk("a", "acc1", null), mk("b", "acc2", null), mk("c", "acc1", null), mk("d", null, null)];
+    const groups = groupByAccount(items);
+    expect(groups.map((g) => [g.lead.key, g.rest.map((r) => r.key)])).toEqual([["a", ["c"]], ["b", []], ["d", []]]);
+  });
+  it("a capped source is reported, never silent", () => {
+    const q = assembleQueue([], [], NOW7, ["invoices"]);
+    expect(q.counts.truncated).toEqual(["invoices"]);
+    expect(assembleQueue([], [], NOW7).counts.truncated).toEqual([]);
   });
 });

@@ -33,6 +33,10 @@ export default function Search() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); box.current?.focus(); box.current?.select(); }
+      // P7: "/" from anywhere that isn't a text box (the one shortcut everyone learns first).
+      const tag = (e.target as HTMLElement | null)?.tagName ?? "";
+      const typing = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (e.target as HTMLElement | null)?.isContentEditable;
+      if (e.key === "/" && !typing && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); box.current?.focus(); box.current?.select(); }
     };
     const onDoc = (e: MouseEvent) => { if (wrap.current && !wrap.current.contains(e.target as Node)) setOpen(false); };
     document.addEventListener("keydown", onKey);

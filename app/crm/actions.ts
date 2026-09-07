@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { forgetBadge } from "@/lib/crm/badgeCache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { buildEvent, type CrmEventType } from "@/lib/crm/events";
@@ -125,6 +126,7 @@ export async function dismissWorkItem(
   }
   await refreshFor(supabase, accountId);
   if (accountId) revalidatePath(`/crm/customers/${accountId}`);
+  forgetBadge();   // P7: the tab badge must not keep counting a dismissed item
   revalidatePath("/crm/today");
   revalidatePath("/crm/customers");
   return { ok: true, message: days == null ? "Gone — and it's on the record why." : `Back in ${days} day${days === 1 ? "" : "s"}.` };

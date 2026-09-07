@@ -2448,3 +2448,21 @@ Manual test `docs/manual-tests/crm-v2-p6-diary.md`; e2e `e2e/crm-p6-diary.spec.t
 - **Diary** (`app/crm/diary`): day or week, estimator lanes with Done / No show / Rebook / Move / Cancel, then
   jobs running and booked jobs from the work orders, then the calendar card. Booking lives on the record's
   Visits panel (`VisitPanel.tsx`) — the diary is the day view, not a second scheduler.
+
+## CRM v2 · Phase 7 — the scale gate, dark / light (7 Sep 2026)
+
+Source: `docs/briefs/crm-v2-deep-dive.md` §4.7; decision 6.5. No migration. Manual test
+`docs/manual-tests/crm-v2-p7-scale.md`; e2e `e2e/crm-p7-scale.spec.ts` + the gate `e2e/crm-volume.spec.ts`.
+
+- **Today at volume** (`lib/crm/work-queue.ts`): every capped source is ordered by its urgency key, oldest first,
+  and a read that fills its cap is reported (`counts.truncated`) and shown as an amber line — never dropped
+  silently. Quiet states and owners are looked up for the queue's own customers by id (`inSlices`, 120 ids a
+  request), not by scanning every non-active account; "delay ended" is its own state-bounded read.
+- **Scope and grouping**: `scopeItems(items, "mine" | "all", userId)` — mine = my customers + unowned (decision
+  6.5); `groupByAccount` per bucket — one card per customer per bucket, the rest as "also" lines.
+- **Badge fast path** (`lib/crm/badgeCache.ts`): a 45 s per-user, per-instance cache the layout, the Today page and
+  `/crm/api/badge` share; `?fresh=1` rebuilds; a dismissal forgets it. The layout no longer builds the queue on
+  every CRM page.
+- **Theme**: `.crm[data-theme="light"]` redefines the palette; every former literal colour is a variable. The
+  choice rides the `crm_theme` cookie (server-rendered, no flash) and localStorage; `ThemeToggle.tsx` top right.
+- **Onboarding**: "/" focuses search; `docs/help/crm/staff.md` is the first-hour page in the help centre.
