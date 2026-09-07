@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getPortalContext } from "@/lib/portal/data";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -64,19 +65,20 @@ export default async function ProfilePage({
           defaultValue={own?.phone ?? ""} autoComplete="tel" inputMode="tel" placeholder="04xx xxx xxx"
         />
 
-        <div className="hr" />
-        <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
-          <input type="checkbox" name="marketing" defaultChecked={!marketingOptOut} style={{ marginTop: 4 }} />
-          <span className="sub">
-            Keep me posted — occasional tips and offers from Paint Group. Untick to receive
-            only messages about your own jobs and invoices.
-          </span>
-        </label>
-
         <div style={{ marginTop: 16 }}>
           <button className="btn btn-cyan" type="submit">Save</button>
         </div>
       </form>
+
+      {/* Tom, 7 Sep: alerts per type and per channel live on their own page —
+          one place, for residential and trade alike. */}
+      <Link href="/account/notifications" className="card" style={{ display: "block", textDecoration: "none" }} data-testid="notifications-link">
+        <h3>Notifications &amp; alerts →</h3>
+        <p className="sub" style={{ marginTop: 6 }}>
+          Choose what we send you — estimates, visits, job updates, invoices, replies — and whether by email or text.
+          {marketingOptOut ? " Offers and tips: off." : " Offers and tips: on."}
+        </p>
+      </Link>
 
       <SetPassword />
 

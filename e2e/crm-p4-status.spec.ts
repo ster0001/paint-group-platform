@@ -67,7 +67,7 @@ test.describe("CRM v2 P4 — the status model", () => {
     await loginAs(page, staff);
     await page.goto(`/crm/customers/${accountId}`);
     // Before: chase due (sent 20 days ago, never opened).
-    await expect(page.getByTestId("status-line")).toContainText("Estimate sent");
+    await expect(page.getByTestId("status-card")).toContainText("Estimate sent");
 
     await page.getByTestId("state-delayed").click();
     const form = page.getByTestId("delay-form");
@@ -75,7 +75,7 @@ test.describe("CRM v2 P4 — the status model", () => {
     await form.getByLabel("Delayed until").fill(day);
     await form.getByLabel("Delay note").fill(`Ring about the exterior in spring ${run}`);
     await form.getByRole("button", { name: /^Delay until/ }).click();
-    await expect(page.getByTestId("status-line")).toContainText("Delayed to");
+    await expect(page.getByTestId("status-card")).toContainText("Delayed to");
     await expect(page.locator(".tl")).toContainText("Status changed");
     const { data: facts } = await db!.from("crm_account_facts").select("relationship_state, needs_you, flags").eq("account_id", accountId).single();
     expect(facts?.relationship_state).toBe("delayed");
@@ -88,7 +88,7 @@ test.describe("CRM v2 P4 — the status model", () => {
     await expect(page.getByText(`${NAME} — the delay is up`)).toBeVisible();
     await expect(page.getByText(`Ring about the exterior in spring ${run}`)).toBeVisible();
     await page.goto(`/crm/customers/${accountId}`);
-    await expect(page.getByTestId("status-line")).toContainText("Delay ended");
+    await expect(page.getByTestId("status-card")).toContainText("Delay ended");
   });
 
   test("lost with a ruled reason; a new estimate re-opens them on its own", async ({ page }) => {
@@ -97,7 +97,7 @@ test.describe("CRM v2 P4 — the status model", () => {
     await page.getByTestId("state-lost").click();
     await page.getByTestId("lost-form").getByLabel("Lost reason").selectOption("too_expensive");
     await page.getByTestId("lost-form").getByRole("button", { name: "Mark lost" }).click();
-    await expect(page.getByTestId("status-line")).toContainText("Lost — Too expensive");
+    await expect(page.getByTestId("status-card")).toContainText("Lost — Too expensive");
     await expect(page.locator(".tl")).toContainText("too expensive");
 
     await page.goto(`/crm/customers?f=lost&q=${run}`);
@@ -113,14 +113,14 @@ test.describe("CRM v2 P4 — the status model", () => {
     await loginAs(page, staff);
     await page.goto(`/crm/customers/${accountId}`);
     await page.getByTestId("permit-sms").getByRole("button", { name: "No", exact: true }).click();
-    await expect(page.getByTestId("status-line")).toContainText("No texts");
+    await expect(page.getByTestId("status-card")).toContainText("No texts");
     await expect(page.locator(".tl")).toContainText("Contact permission changed");
     const { data: acc } = await db!.from("accounts").select("permit_sms, marketing_unsubscribed_at").eq("id", accountId).single();
     expect(acc?.permit_sms).toBe("declined");
     expect(acc?.marketing_unsubscribed_at).not.toBeNull();
 
     await page.getByTestId("tags").getByRole("button", { name: "Strata" }).click();
-    await expect(page.getByTestId("status-line")).toContainText("Strata");
+    await expect(page.getByTestId("status-card")).toContainText("Strata");
 
     await page.goto(`/crm/customers?tag=strata&q=${run}`);
     const row = page.locator(".prow", { hasText: NAME });
@@ -141,7 +141,9 @@ test.describe("CRM v2 P4 — the status model", () => {
     await page.goto(`/crm/customers/${accountId}`);
     page.once("dialog", (d) => d.accept());
     await page.getByTestId("state-archived").click();
-    await expect(page.getByTestId("status-line")).toContainText("Archived");
+    // Tom, 7 Sep (item 10): archiving lands you back on Customers, with a flash.
+    await page.waitForURL(/\/crm\/customers\?archived=1/);
+    await expect(page.getByTestId("flash")).toContainText("Archived");
     await page.goto("/crm/customers?f=all");
     // Not in the default list…
     await expect(page.locator(".prow", { hasText: NAME })).toHaveCount(0);

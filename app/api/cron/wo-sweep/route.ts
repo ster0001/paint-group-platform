@@ -31,6 +31,7 @@ import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;   // Vercel Pro (decision 6.9, 7 Sep)
 
 type TickRow = {
   id: string;

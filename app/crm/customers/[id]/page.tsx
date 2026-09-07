@@ -15,6 +15,10 @@ import { loadStaffAvailability, VISIT_COLUMNS } from "@/lib/visits/book";
 import type { VisitRow } from "@/lib/visits/types";
 import { melbourneDate } from "@/lib/workorder/console";
 import { LOST_REASONS, STATE_LABEL, delayEnded, type PermitChannel, type PermitValue, type RelationshipState } from "@/lib/crm/states";
+import { invoiceBalanceCents, invoiceIsOverdue, type DeriveInvoice, type DerivePayment } from "@/lib/invoicing/derive";
+import { OPEN_STATUSES } from "@/lib/invoicing/stateMachine";
+import { CONSENT_HOW_LABEL, CONSENT_LABEL, parseConsents, type ConsentKind } from "@/lib/accounts/consent";
+import { CHANNEL_LABEL, NOTIFY_TYPES, parseNotifyPrefs, switchedOff } from "@/lib/notifications/prefs";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +42,7 @@ type AccountRow = {
   owner_id: string | null;
   relationship_state: RelationshipState; state_until: string | null; state_note: string | null; state_reason: string | null; lost_reason: string | null;
   permit_email: PermitValue; permit_sms: PermitValue; permit_phone: PermitValue; permit_meta: Record<string, { how?: string; at?: string }> | null; tags: string[] | null;
+  consents: unknown; notify_prefs: unknown;
 };
 type FactsRow = {
   stage: string; because: string; opened_count: number; last_opened_at: string | null; quote_at: string | null;
@@ -46,7 +51,7 @@ type FactsRow = {
 };
 type EstimateRow = { id: string; title: string | null; status: string; total_cents: number | null; created_at: string; sent_at: string | null; viewed_at: string | null; accepted_at: string | null; valid_until: string | null };
 type WoRow = { id: string; estimate_id: string; wo_ref: string | null; stage: string | null; start_date: string | null; end_date: string | null };
-type InvoiceRow = { id: string; number: string | null; status: string; total_inc_cents: number | null; due_on: string | null; issued_on: string | null; kind: string | null };
+type InvoiceRow = { id: string; estimate_id: string | null; number: string | null; status: string; total_inc_cents: number | null; due_on: string | null; issued_on: string | null; kind: string | null };
 
 const STATUS_PILL: Record<string, string> = { sent: "cy", accepted: "gr", declined: "rd", expired: "am", draft: "gy" };
 const WO_LABEL: Record<string, string> = {
@@ -68,7 +73,7 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
   const supabase = await createClient();
 
   const { data: account } = await supabase.from("accounts")
-    .select("id, name, email, phone, account_type, temperature, snoozed_until, followup_due_at, followup_note, owner_id, relationship_state, state_until, state_note, state_reason, lost_reason, permit_email, permit_sms, permit_phone, permit_meta, tags")
+    .select("id, name, email, phone, account_type, temperature, snoozed_until, followup_due_at, followup_note, owner_id, relationship_state, state_until, state_note, state_reason, lost_reason, permit_email, permit_sms, permit_phone, permit_meta, tags, consents, notify_prefs")
     .eq("id", id).maybeSingle();
   if (!account) {
     return (
@@ -116,8 +121,31 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
   const estIds = est.map((e) => e.id);
   const [{ data: wos }, { data: invoices }] = await Promise.all([
     estIds.length ? supabase.from("work_orders").select("id, estimate_id, wo_ref, stage, start_date, end_date").in("estimate_id", estIds).order("start_date", { ascending: false, nullsFirst: false }).limit(50) : Promise.resolve({ data: [] }),
-    supabase.from("invoices").select("id, number, status, total_inc_cents, due_on, issued_on, kind").or(`account_id.eq.${id}${estIds.length ? `,estimate_id.in.(${estIds.join(",")})` : ""}`).order("created_at", { ascending: false }).limit(50),
+    supabase.from("invoices").select("id, estimate_id, number, status, total_inc_cents, due_on, issued_on, kind").or(`account_id.eq.${id}${estIds.length ? `,estimate_id.in.(${estIds.join(",")})` : ""}`).order("created_at", { ascending: false }).limit(50),
   ]);
+  // Item 13: overdue and "deposit unpaid" need the payments — the one rule the
+  // invoicing dashboard uses (lib/invoicing/derive), never a second one here.
+  const invRows = (invoices ?? []) as InvoiceRow[];
+  const { data: payRows } = invRows.length
+    ? await supabase.from("payments").select("invoice_id, amount_cents, status, paid_on").in("invoice_id", invRows.map((i) => i.id))
+    : { data: [] as Array<{ invoice_id: string; amount_cents: number; status: string; paid_on: string | null }> };
+  const payments: DerivePayment[] = ((payRows ?? []) as Array<{ invoice_id: string; amount_cents: number; status: string; paid_on: string | null }>)
+    .map((p) => ({ invoiceId: p.invoice_id, amountCents: p.amount_cents, status: p.status, paidOn: p.paid_on }));
+  const todayIso = melbourneDate(new Date());
+  const toDerive = (i: InvoiceRow): DeriveInvoice => ({
+    id: i.id, estimateId: i.estimate_id ?? "", kind: (i.kind ?? "standalone") as DeriveInvoice["kind"], status: i.status as DeriveInvoice["status"],
+    totalIncCents: i.total_inc_cents ?? 0, dueOn: i.due_on, issuedOn: i.issued_on,
+  });
+  const invoiceFlags = (i: InvoiceRow): { overdue: boolean; depositUnpaid: boolean; balanceCents: number; daysLate: number } => {
+    const d = toDerive(i);
+    const open = (OPEN_STATUSES as readonly string[]).includes(i.status);
+    const balance = open ? invoiceBalanceCents(d, payments) : 0;
+    const overdue = open && invoiceIsOverdue(d, payments, todayIso);
+    const daysLate = overdue && i.due_on ? Math.max(0, Math.round((Date.parse(todayIso + "T00:00:00Z") - Date.parse(i.due_on + "T00:00:00Z")) / 86_400_000)) : 0;
+    return { overdue, depositUnpaid: i.kind === "deposit" && open && balance > 0, balanceCents: balance, daysLate };
+  };
+  const lateInvoices = invRows.filter((i) => invoiceFlags(i).overdue);
+  const unpaidDeposits = invRows.filter((i) => invoiceFlags(i).depositUnpaid);
 
   // Names for the duplicate banner.
   const dupRows = ((dupRead.error ? [] : dupRead.data) ?? []) as Array<{ account_a: string; account_b: string; reason: string }>;
@@ -149,32 +177,65 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
 
       <DuplicateBanner keepId={a.id} hits={hits} />
 
+      {/* Tom, 7 Sep (item 7, clarified): the status block — stage, why, opened
+          count, owner — sits in the TOP RIGHT of the screen beside the name,
+          in large plain text. Stacks under the name on a phone. */}
+      <div className="rtop">
       <RecordDetails account={a} staff={staff} initials={initials(name)} />
 
-      {facts && (
-        <p className="statusline" data-testid="status-line">
-          <b>{laneLabel}</b>
-          {facts.because && <span>{facts.because}</span>}
-          {a.relationship_state !== "active" && (
-            <span className={a.relationship_state === "delayed" ? "warm" : "hot"}>
-              {a.relationship_state === "delayed"
-                ? (delayEnded(a.relationship_state, a.state_until, new Date()) ? "Delay ended" : `Delayed to ${shortDate(a.state_until)}`)
-                : a.relationship_state === "lost"
-                  ? `Lost${a.lost_reason ? ` — ${LOST_REASONS.find((r) => r.key === a.lost_reason)?.label ?? a.lost_reason}` : ""}`
-                  : STATE_LABEL[a.relationship_state]}
+      {(() => {
+        const consents = parseConsents(a.consents);
+        const off = switchedOff(parseNotifyPrefs(a.notify_prefs));
+        const hold = a.relationship_state !== "active";
+        const bad = a.relationship_state === "lost" || a.relationship_state === "do_not_contact" || lateInvoices.length > 0;
+        const stateText = a.relationship_state === "delayed"
+          ? (delayEnded(a.relationship_state, a.state_until, new Date()) ? "Delay ended — pick it back up" : `Delayed to ${shortDate(a.state_until)}`)
+          : a.relationship_state === "lost"
+            ? `Lost${a.lost_reason ? ` — ${LOST_REASONS.find((r) => r.key === a.lost_reason)?.label ?? a.lost_reason}` : ""}`
+            : STATE_LABEL[a.relationship_state];
+        return (
+          <div className={`stcard ${bad ? "bad" : hold ? "hold" : ""}`} data-testid="status-card">
+            <span className="stlabel">Where they&rsquo;re at</span>
+            <span className="ststage" data-testid="status-stage">{laneLabel || (facts ? "New" : "Working it out…")}</span>
+            {facts?.because && <span className="stwhy">{facts.because}</span>}
+            <span className="stflags">
+              {hold && <span className={`stflag ${a.relationship_state === "delayed" ? "warm" : "hot"}`}>{stateText}</span>}
+              {lateInvoices.length > 0 && <span className="stflag hot" data-testid="flag-overdue">{lateInvoices.length === 1 ? "An invoice is overdue" : `${lateInvoices.length} invoices overdue`}</span>}
+              {unpaidDeposits.length > 0 && lateInvoices.length === 0 && <span className="stflag warm" data-testid="flag-deposit">Deposit unpaid</span>}
+              {a.followup_due_at && <span className="stflag">Follow up {shortDate(a.followup_due_at)}</span>}
+              {snoozeLive && <span className="stflag">Snoozed to {shortDate(a.snoozed_until)}</span>}
+              {a.temperature && <span className={`stflag ${a.temperature === "hot" ? "hot" : a.temperature === "warm" ? "warm" : ""}`}>{a.temperature[0].toUpperCase() + a.temperature.slice(1)}</span>}
+              {a.permit_email === "declined" && <span className="stflag hot">No marketing email</span>}
+              {a.permit_sms === "declined" && <span className="stflag hot">No texts</span>}
+              {a.permit_phone === "declined" && <span className="stflag hot">No calls</span>}
+              {(a.tags ?? []).map((t) => <span key={t} className="stflag">{((tagRows ?? []) as TagOption[]).find((o) => o.key === t)?.label ?? t}</span>)}
             </span>
-          )}
-          {a.permit_email === "declined" && <span className="hot">No marketing email</span>}
-          {a.permit_sms === "declined" && <span className="hot">No texts</span>}
-          {a.permit_phone === "declined" && <span className="hot">No calls</span>}
-          {(a.tags ?? []).length > 0 && <span>{(a.tags ?? []).map((t) => ((tagRows ?? []) as TagOption[]).find((o) => o.key === t)?.label ?? t).join(", ")}</span>}
-          {facts.opened_count > 0 && <span>opened {facts.opened_count}×</span>}
-          {a.temperature && <span className={a.temperature}>{a.temperature[0].toUpperCase() + a.temperature.slice(1)}</span>}
-          {snoozeLive && <span>Snoozed to {shortDate(a.snoozed_until)}</span>}
-          {a.followup_due_at && <span>Follow up {shortDate(a.followup_due_at)}</span>}
-          {ownerName && <span>Owner: {ownerName}</span>}
-        </p>
-      )}
+            <span className="stmeta">
+              {facts && facts.opened_count > 0 && <span>Opened the estimate {facts.opened_count}×</span>}
+              <span>Owner: {ownerName ?? "nobody yet"}</span>
+              {(Object.keys(consents) as ConsentKind[]).map((k) => (
+                <span key={k} data-testid={`consent-${k}`}>{CONSENT_LABEL[k]}: agreed {shortDate(consents[k]!.at)} ({CONSENT_HOW_LABEL[consents[k]!.how] ?? consents[k]!.how})</span>
+              ))}
+              {off.length > 0 && (
+                <span data-testid="prefs-off">
+                  Switched off in their account: {off.map((o) => `${NOTIFY_TYPES.find((t) => t.key === o.type)?.label.toLowerCase()} by ${CHANNEL_LABEL[o.channel].toLowerCase()}`).join(", ")}
+                </span>
+              )}
+            </span>
+          </div>
+        );
+      })()}
+      </div>
+
+      {/* Item 8: everything of theirs, one tap away. */}
+      <nav className="jumpstrip" aria-label="On this record" data-testid="jumpstrip">
+        <a href="#estimates">Estimates<b>{est.length}</b></a>
+        <a href="#jobs">Jobs<b>{(wos ?? []).length}</b></a>
+        <a href="#invoices">Invoices<b>{invRows.length}</b></a>
+        <a href="#visits">Visits</a>
+        <a href="#messages">Messages</a>
+        <a href="#history">History</a>
+      </nav>
 
       <div className="stats">
         <div className="stat">
@@ -226,7 +287,7 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
       <p className="plabel" id="messages">Messages</p>
       <Messages accountId={a.id} messages={(messages ?? []) as MessageRow[]} hasEmail={Boolean(a.email)} hasPhone={Boolean(a.phone)} />
 
-      <p className="plabel">Estimates</p>
+      <p className="plabel" id="estimates">Estimates</p>
       {est.length === 0 ? (
         <p className="empty" style={{ marginBottom: 16 }}>No estimates yet. <Link href={`/quote?account=${a.id}`} style={{ color: "var(--cyan)" }}>Start one →</Link></p>
       ) : (
@@ -256,9 +317,11 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
         </div>
       )}
 
-      {(wos ?? []).length > 0 && (
+      <p className="plabel" id="jobs">Jobs</p>
+      {(wos ?? []).length === 0 ? (
+        <p className="empty" style={{ marginBottom: 16 }}>No job yet — one is created when an estimate is accepted.</p>
+      ) : (
         <>
-          <p className="plabel">Jobs</p>
           <div className="rlist" data-testid="jobs">
             {((wos ?? []) as WoRow[]).map((w) => (
               <Link key={w.id} className="rrow" href={`/pc/wo/${w.id}`}>
@@ -276,23 +339,30 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
         </>
       )}
 
-      {(invoices ?? []).length > 0 && (
+      <p className="plabel" id="invoices">Invoices</p>
+      {invRows.length === 0 ? (
+        <p className="empty" style={{ marginBottom: 16 }}>No invoices yet.</p>
+      ) : (
         <>
-          <p className="plabel">Invoices</p>
           <div className="rlist" data-testid="invoices">
-            {((invoices ?? []) as InvoiceRow[]).map((i) => (
-              <Link key={i.id} className="rrow" href={`/invoicing/inv/${i.id}`}>
+            {invRows.map((i) => {
+              const f = invoiceFlags(i);
+              return (
+              <Link key={i.id} className={`rrow ${f.overdue ? "late" : ""}`} href={`/invoicing/inv/${i.id}`} data-testid={`invoice-${i.id}`}>
                 <span>
                   <span className="rt">{i.number || "Draft invoice"}{i.kind ? ` · ${i.kind}` : ""}</span>
-                  <span className="rsub">{[i.issued_on ? `issued ${shortDate(i.issued_on)}` : null, i.due_on ? `due ${shortDate(i.due_on)}` : null].filter(Boolean).join(" · ") || "not issued"}</span>
+                  <span className="rsub">{[i.issued_on ? `issued ${shortDate(i.issued_on)}` : null, i.due_on ? `due ${shortDate(i.due_on)}` : null, f.balanceCents > 0 && f.balanceCents !== (i.total_inc_cents ?? 0) ? `${money(f.balanceCents)} still owing` : null].filter(Boolean).join(" · ") || "not issued"}</span>
                 </span>
                 <span className="rright">
+                  {f.overdue && <span className="pill alert" data-testid="pill-overdue">Overdue{f.daysLate > 0 ? ` · ${f.daysLate}d` : ""}</span>}
+                  {f.depositUnpaid && <span className="pill alert" data-testid="pill-deposit">Deposit unpaid</span>}
                   <span className={`pill ${i.status === "paid" ? "gr" : i.status === "void" || i.status === "written_off" ? "rd" : "cy"}`}>{i.status.replace("_", " ")}</span>
                   <span className="mono">{money(i.total_inc_cents)}</span>
                   <span className="rgo">Open →</span>
                 </span>
               </Link>
-            ))}
+              );
+            })}
           </div>
         </>
       )}
@@ -314,7 +384,7 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
       <p className="plabel">People on this account</p>
       <Contacts accountId={a.id} contacts={(contacts ?? []) as ContactRow[]} />
 
-      <p className="plabel" style={{ marginTop: 22 }}>Everything, in order</p>
+      <p className="plabel" id="history" style={{ marginTop: 22 }}>Everything, in order</p>
       {timeline.length === 0 ? (
         <p className="empty">
           Nothing logged yet. Anything you record above appears here, newest first —

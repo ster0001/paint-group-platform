@@ -15,11 +15,49 @@
  */
 
 import { htmlToPlain, newReplyToken, recordMessage, replyAddress, type MessageContext } from "./record";
+import { createServiceClient } from "@/lib/supabase/service";
+import { NOTIFY_TYPES, notifyAllowed, notifyTypeOfKind, parseNotifyPrefs, type NotifyChannel } from "@/lib/notifications/prefs";
 
 export type DeliveryResult =
   | { status: "sent"; id?: string }
   | { status: "not_configured" }
+  /** Tom, 7 Sep (item 3): the customer switched this kind off in their portal. Recorded, not sent. */
+  | { status: "suppressed"; message: string }
   | { status: "error"; message: string };
+
+/**
+ * The customer's own alert settings (accounts.notify_prefs). A send whose
+ * `ctx.kind` maps to a customer-facing type is checked against the account
+ * it is about — by accountId, or through the estimate / invoice it names.
+ * Untagged sends (sign-in links, office mail, campaigns) never come here.
+ * Any failure to look up = send as normal: a preference must never lose a
+ * message by accident.
+ */
+async function customerSwitchedOff(ctx: MessageContext | undefined, channel: NotifyChannel): Promise<string | null> {
+  const type = notifyTypeOfKind(ctx?.kind);
+  if (!type || ctx?.skipRecord) return null;
+  try {
+    const svc = createServiceClient();
+    if (!svc) return null;
+    let accountId = ctx?.accountId ?? null;
+    if (!accountId && ctx?.estimateId) {
+      const { data } = await svc.from("estimates").select("account_id").eq("id", ctx.estimateId).maybeSingle();
+      accountId = (data as { account_id?: string | null } | null)?.account_id ?? null;
+    }
+    if (!accountId && ctx?.invoiceId) {
+      const { data } = await svc.from("invoices").select("account_id").eq("id", ctx.invoiceId).maybeSingle();
+      accountId = (data as { account_id?: string | null } | null)?.account_id ?? null;
+    }
+    if (!accountId) return null;
+    const { data } = await svc.from("accounts").select("notify_prefs").eq("id", accountId).maybeSingle();
+    const prefs = parseNotifyPrefs((data as { notify_prefs?: unknown } | null)?.notify_prefs);
+    if (notifyAllowed(prefs, type, channel)) return null;
+    const label = NOTIFY_TYPES.find((t) => t.key === type)?.label ?? type;
+    return `Customer switched off ${channel === "sms" ? "texts" : "email"} for ${label.toLowerCase()} in their account.`;
+  } catch {
+    return null;
+  }
+}
 
 export function emailConfigured(): boolean {
   return Boolean(process.env.RESEND_API_KEY);
@@ -48,15 +86,16 @@ export async function sendEmail(opts: {
   // Decision 8.6: with REPLY_DOMAIN set, replies route back into the CRM
   // thread (reply+<token>@…) instead of a mailbox the platform cannot see.
   const routedReplyTo = replyAddress(token);
-  const result = await sendEmailRaw({ ...opts, replyTo: routedReplyTo ?? opts.replyTo });
+  const off = await customerSwitchedOff(opts.ctx, "email");
+  const result: DeliveryResult = off ? { status: "suppressed", message: off } : await sendEmailRaw({ ...opts, replyTo: routedReplyTo ?? opts.replyTo });
   await recordMessage({
     channel: "email", direction: "out", subject: opts.subject,
     body: htmlToPlain(opts.html), bodyHtml: opts.html,
     provider: "resend", providerMessageId: result.status === "sent" ? result.id ?? null : null,
-    status: result.status === "sent" ? "sent" : result.status === "not_configured" ? "not_configured" : "failed",
+    status: result.status === "sent" ? "sent" : result.status === "not_configured" ? "not_configured" : result.status === "suppressed" ? "suppressed" : "failed",
     toAddress: opts.to, fromAddress: process.env.EMAIL_FROM || DEFAULT_FROM,
-    replyToken: routedReplyTo ? token : null,
-    meta: result.status === "error" ? { error: result.message } : {},
+    replyToken: routedReplyTo && !off ? token : null,
+    meta: result.status === "error" ? { error: result.message } : result.status === "suppressed" ? { suppressed: result.message } : {},
     ...(opts.ctx ?? {}),
   });
   return result;
@@ -106,13 +145,14 @@ async function sendEmailRaw(opts: {
 }
 
 export async function sendSms(opts: { to: string; body: string; ctx?: MessageContext }): Promise<DeliveryResult> {
-  const result = await sendSmsRaw(opts);
+  const off = await customerSwitchedOff(opts.ctx, "sms");
+  const result: DeliveryResult = off ? { status: "suppressed", message: off } : await sendSmsRaw(opts);
   await recordMessage({
     channel: "sms", direction: "out", body: opts.body,
     provider: "twilio", providerMessageId: result.status === "sent" ? result.id ?? null : null,
-    status: result.status === "sent" ? "sent" : result.status === "not_configured" ? "not_configured" : "failed",
+    status: result.status === "sent" ? "sent" : result.status === "not_configured" ? "not_configured" : result.status === "suppressed" ? "suppressed" : "failed",
     toAddress: opts.to, fromAddress: process.env.TWILIO_FROM ?? null,
-    meta: result.status === "error" ? { error: result.message } : {},
+    meta: result.status === "error" ? { error: result.message } : result.status === "suppressed" ? { suppressed: result.message } : {},
     ...(opts.ctx ?? {}),
   });
   return result;

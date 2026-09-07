@@ -72,6 +72,7 @@ export async function sendPreStartChecklists(db: SupabaseClient, now = new Date(
     const body = renderTemplate(messaging.preStartBody, vars);
     const result = emailConfigured()
       ? await sendEmail({
+          ctx: { estimateId: j.estimate_id, workOrderId: j.id, kind: "pre_start" },
           to, subject, replyTo: company.email || undefined,
           html: buildPlainEmailHtml({
             heading: subject, message: body, companyName: vars.company_name,

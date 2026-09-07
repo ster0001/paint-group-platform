@@ -107,7 +107,7 @@ export default async function QuotePage({
     supabase.from("line_items").select("*").order("type").order("name"),
     supabase.from("area_names").select("area, type").order("type").order("area"),
     supabase.from("contacts").select("*").order("last_name"),
-    id ? supabase.from("estimates").select("id, title, builder_state, share_token, status, sent_at, valid_until, presentation_id, sent_snapshot").eq("id", id).single() : Promise.resolve({ data: null }),
+    id ? supabase.from("estimates").select("id, title, builder_state, share_token, status, sent_at, viewed_at, accepted_at, valid_until, presentation_id, sent_snapshot").eq("id", id).single() : Promise.resolve({ data: null }),
     id ? supabase.from("work_orders").select("*").eq("estimate_id", id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("contractors").select("id, profiles(name)").eq("active", true),
     supabase.from("presentations").select("id, name, is_default, presentation_blocks(kind, position, enabled, content)").order("name"),
@@ -146,7 +146,7 @@ export default async function QuotePage({
   // Load an existing saved quote (?id=), or start a NEW estimate pre-filled from
   // a saved template (?template=). A template opens with no id, so saving it
   // creates a fresh estimate rather than overwriting the template.
-  type Initial = { id: string | null; title: string | null; builder_state: unknown; share_token?: string | null; status?: string | null; sent_at?: string | null; valid_until?: string | null; presentation_id?: string | null };
+  type Initial = { id: string | null; title: string | null; builder_state: unknown; share_token?: string | null; status?: string | null; sent_at?: string | null; viewed_at?: string | null; accepted_at?: string | null; valid_until?: string | null; presentation_id?: string | null };
   let initial: Initial | null = null;
   if (id) {
     if (estimateRes.data) initial = estimateRes.data as Initial;

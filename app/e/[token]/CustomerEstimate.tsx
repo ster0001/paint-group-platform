@@ -277,8 +277,13 @@ export default function CustomerEstimate({
   return (
     <>
       <header className="topbar">
-        {fromPortal && (
+        {fromPortal ? (
           <a className="backlink print-hide" href="/account">← My account</a>
+        ) : (
+          /* Tom, 7 Sep (item 11): from the emailed link, straight back into the
+             portal — notifications, invoices, colours, updates. The login page
+             takes their email so it's one tap for the magic link. */
+          <a className="backlink print-hide" href={`/account/login?email=${encodeURIComponent(snap.contactEmail ?? "")}`} data-testid="portal-link">Your account →</a>
         )}
         {snap.company.logoUrl
           // eslint-disable-next-line @next/next/no-img-element
@@ -307,6 +312,9 @@ export default function CustomerEstimate({
               Estimate accepted{acceptedName ? ` by ${acceptedName}` : ""}. We&apos;ll be in touch shortly.
               {signatureSaved === false && (
                 <> Your acceptance is recorded, though we couldn&apos;t store the signature image &mdash; we may ask you to sign again.</>
+              )}
+              {!fromPortal && (
+                <> Everything about your job — updates, invoices, colours, messages — lives in <a href={`/account/login?email=${encodeURIComponent(snap.contactEmail ?? "")}`}>your account</a>.</>
               )}
             </span>
           </div>
@@ -606,6 +614,10 @@ export default function CustomerEstimate({
                     <SignaturePad onChange={setSignatureData} />
                   </div>
                   <p className="signnote">By signing, I confirm I&apos;m authorised to accept this estimate and that this signature is legally binding.</p>
+                  <p className="signnote" data-testid="marketing-smallprint">
+                    We&apos;ll keep you posted about this job by email and text. By accepting you also agree that {snap.company.name || "Paint Group"} may
+                    send you occasional offers and tips — every one has an unsubscribe link, and you can switch them off any time in your account.
+                  </p>
                   <button className="btn btn-primary" onClick={accept} disabled={busy}>{busy ? "Accepting…" : "Accept & continue"}</button>
                   {err && <p className="errline">{err}</p>}
                 </div>

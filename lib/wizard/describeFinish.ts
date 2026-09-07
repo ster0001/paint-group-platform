@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ensureAccountAndProperty } from "@/lib/accounts/link";
+import { recordConsent } from "@/lib/accounts/consent";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { sendMagicLink } from "@/lib/portal/auth";
 import { automationOn, renderTemplate } from "@/lib/messaging/config";
@@ -87,6 +88,7 @@ export async function finishDescribedEstimate(db: SupabaseClient, input: {
     if (linked.accountId) {
       const link = await db.from("estimates").update({ account_id: linked.accountId, property_id: linked.propertyId }).eq("id", estimateId);
       if (link.error) reportError(link.error, { where: "describe.finish.link", bestEffort: true });
+      void recordConsent(db, linked.accountId, "project", "wizard_describe", { estimateId });
     }
   } catch (e) { reportError(e, { where: "describe.finish.account", bestEffort: true }); }
 

@@ -261,7 +261,7 @@ export async function loadCustomerPage(db: SupabaseClient, query: ListQuery, now
 
 // ---- the board -------------------------------------------------------------
 
-export type BoardLane = { key: LaneKey; label: string; count: number; needsYou: number; cards: FactsCard[] };
+export type BoardLane = { key: LaneKey; label: string; count: number; needsYou: number; cards: FactsCard[]; /** The lane read timed out — the count is right, the cards are missing. */ failed?: boolean };
 export type BoardData = {
   lanes: BoardLane[];
   open: number;
@@ -288,9 +288,17 @@ export async function loadBoard(db: SupabaseClient, filter: GroupKey, q: string,
     countOf.set(r.stage, { cards: Number(r.cards), needsYou: Number(r.needs_you) });
   }
   const sessionCards = sessions.map((s) => sessionToCard(s, now));
-  const laneRows = await Promise.all(lanes.map((_, i) => {
+  // Tom, 7 Sep (item 16): the board is now the tab's landing, so a lane that
+  // times out on a cold database degrades to "didn't load" instead of taking
+  // the whole page down (the first request after a deploy did exactly that).
+  const failed: string[] = [];
+  const laneRows = await Promise.all(lanes.map((lane, i) => {
     const read = laneReads[i] as { data: unknown; error: { message: string } | null };
-    if (read.error) throw new Error(`board read failed: ${read.error.message}`);
+    if (read.error) {
+      reportError(new Error(`board lane read failed: ${read.error.message}`), { where: "loadBoard.lane", bestEffort: true, extra: { lane } });
+      failed.push(lane);
+      return Promise.resolve([] as FactsRowRead[]);
+    }
     return freshen(db, (read.data ?? []) as FactsRowRead[], now);
   }));
   const laneData: BoardLane[] = lanes.map((key, i) => {
@@ -303,6 +311,7 @@ export async function loadBoard(db: SupabaseClient, filter: GroupKey, q: string,
       count: c.cards + extra.length,
       needsYou: c.needsYou + extra.filter((s) => s.needsYou).length,
       cards: [...extra, ...cards],
+      failed: failed.includes(key),
     };
   });
   const t = ((tiles.data ?? []) as Array<{ overdue_followups: number; going_cold: number; open_value_cents: number; won_90d: number; lost_90d: number }>)[0];

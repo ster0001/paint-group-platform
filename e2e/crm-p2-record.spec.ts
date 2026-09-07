@@ -92,7 +92,7 @@ test.describe("CRM v2 P2 — the customer record", () => {
     expect(options.length).toBeGreaterThan(1);
     await owner.selectOption({ index: 1 });
     await expect(page.locator(".tl")).toContainText("Owner set");
-    await expect(page.getByTestId("status-line")).toContainText("Owner:");
+    await expect(page.getByTestId("status-card")).toContainText("Owner:");
 
     // Another person on the account.
     await page.getByTestId("add-contact").click();
@@ -111,14 +111,14 @@ test.describe("CRM v2 P2 — the customer record", () => {
     await sheet.getByRole("button", { name: "Save" }).click();
     await expect(page.locator(".tl")).toContainText("Spoke to customer");
     await expect(page.locator(".tl")).toContainText(`before Christmas ${run}`);
-    await expect(page.getByTestId("status-line")).toContainText("Follow up");
+    await expect(page.getByTestId("status-card")).toContainText("Follow up");
     await expect(page.locator(".stat", { hasText: "Last contact" })).toContainText("0d ago");
     await shot(page, "record-logged");
 
     // Clear the reminder.
     await page.getByTestId("clear-followup").click();
     await expect(page.getByTestId("clear-followup")).toHaveCount(0);
-    await expect(page.getByTestId("status-line")).not.toContainText("Follow up");
+    await expect(page.getByTestId("status-card")).not.toContainText("Follow up");
   });
 
   test("a second record with the same mobile shows the banner, and one click merges it", async ({ page }) => {

@@ -109,11 +109,11 @@ test.describe("CRM v2 P5 — campaigns with real rules", () => {
     await page.getByTestId("add-rule-1").click();
     await page.getByRole("button", { name: "+ Tags", exact: true }).click();
     await page.getByTestId("group-1").getByRole("button", { name: "VIP" }).click();
-    // A NOT: not tagged "Difficult access" in group 1.
+    // A NOT: not tagged "Heritage" in group 1 (7 Sep: Difficult access left the tag list).
     await page.getByTestId("add-rule-0").click();
     await page.getByRole("button", { name: "+ Tags", exact: true }).click();
     const group1 = page.getByTestId("group-0");
-    await group1.getByRole("button", { name: "Difficult access" }).click();
+    await group1.getByRole("button", { name: "Heritage" }).click();
     await group1.getByRole("button", { name: "is", exact: true }).last().click();
     await expect(group1.getByRole("button", { name: "not", exact: true })).toBeVisible();
 
@@ -165,7 +165,8 @@ test.describe("CRM v2 P5 — campaigns with real rules", () => {
     const dry = page.getByTestId("dry-run-result");
     await expect(dry).toBeVisible();
     await expect(dry).toContainText(people.opens.name);
-    await expect(dry).toContainText("Waiting for approval");
+    // A hold, whichever the clock gives: approval inside the window, hours or day outside it.
+    await expect(dry).toContainText(/Waiting for approval|Outside sending hours|Not a sending day/);
 
     // Olive opens her estimate; Reza replies. Then the sweep judges.
     await db!.from("estimate_views").insert({ estimate_id: people.opens.estimateId, session_id: randomUUID(), dwell_ms: 42_000 });
@@ -210,9 +211,12 @@ test.describe("CRM v2 P5 — campaigns with real rules", () => {
     await card.getByTestId("approve-one").click();
     await expect(page.getByTestId("queue-said")).toBeVisible({ timeout: 30_000 });
     const { data: after } = await db!.from("campaign_messages").select("state, reason, judged_at").eq("id", step2!.id).single();
-    expect(["sent", "failed"]).toContain(after?.state);
+    // Inside the C11 window a real delivery is attempted (no key on C1 → failed, honestly);
+    // outside it the guard holds the approved message for the morning sweep.
+    expect(["sent", "failed", "held"]).toContain(after?.state);
     expect(after?.judged_at).not.toBeNull();
     if (after?.state === "failed") expect(after.reason).toMatch(/key|Resend|mail/i);
+    if (after?.state === "held") expect(after.reason).toMatch(/sending hours|sending day/i);
   });
 
   test("marketing to the list: a declined permission is finished at the sweep; approve-all judges each one; a tracked link records the click", async ({ page }) => {

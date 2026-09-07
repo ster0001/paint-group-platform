@@ -7,6 +7,17 @@
   ],
   "files": [
     {
+      "feature": "crm",
+      "role": "staff",
+      "title": "Your first hour in the CRM",
+      "summary": "The four tabs, what Today is asking you to do, how to find any customer in two keystrokes, how to log a call or book a visit, and how to switch between dark and light.",
+      "path": "docs/help/crm/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": "93b8089cec",
+      "sources": []
+    },
+    {
       "feature": "help-centre",
       "role": "contractor",
       "title": "Find help inside the portal",
