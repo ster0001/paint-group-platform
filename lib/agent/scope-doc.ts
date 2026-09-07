@@ -32,7 +32,7 @@ import {
 } from "@/lib/wizard/sides";
 import { FREESTANDING_EXTRA_KEYS, applyExteriorToggle, applyToggle, hasFreestandingExtras } from "@/lib/wizard/scope-editor";
 import { INTERIOR_POOR_MODIFIER_CODE } from "@/lib/wizard/exteriorAnswers";
-import { applyWizardAnswers } from "@/lib/wizard/merge";
+import { applyWizardAnswers, conditionPhotoCount } from "@/lib/wizard/merge";
 import { markStarterProvenance, starterExtraction } from "@/lib/wizard/starter";
 import { buildDraft } from "@/lib/extract/draft";
 import { doorCodeFor, doorLineLabel, doorScopeOfCode, doorStyleOfCode, windowRateCode } from "@/lib/extract/scope";
@@ -70,7 +70,46 @@ export type AnswerDraft = {
   planRunIds?: string[];
   facadeRunIds?: string[];
   listingUrl?: string;
+  /** Condition photos (estimate_sources rows) the customer attached before the build. */
+  conditionSourceIds?: string[];
 };
+
+/** The wizard FORM's answers on the describe path (Tom, 7 Sep evening):
+ * condition + damage, the safety flags, occupancy, the exterior condition
+ * page. They land on the agent draft BEFORE the paragraph builds, so the
+ * build prices the stated condition and never assumes the flags clear. */
+export type FormAnswers = {
+  condition?: Partial<WizardState["condition"]>;
+  details?: Partial<WizardState["details"]>;
+  customer?: Partial<NonNullable<WizardState["customer"]>>;
+  exterior?: Partial<NonNullable<WizardState["exterior"]>>;
+  conditionSourceIds?: string[];
+};
+
+export function seedFormAnswers(doc: ScopeDoc, f: FormAnswers, opts: { /** The typed contact email — an anonymous run has no verified one, and the customer block needs one to build. */ email?: string | null } = {}): ScopeDoc {
+  const a = docAnswers(doc);
+  const email = (opts.email ?? "").trim().toLowerCase();
+  const customer = f.customer || email.includes("@") ? { ...(f.customer ?? {}), ...(email.includes("@") ? { email } : {}) } : null;
+  const patch: AnswerDraft = {
+    ...(customer ? { customer } : {}),
+    ...(f.condition ? { condition: f.condition } : {}),
+    ...(f.details ? { details: f.details } : {}),
+    ...(f.exterior ? { exterior: f.exterior } : {}),
+    ...(f.conditionSourceIds ? { conditionSourceIds: f.conditionSourceIds } : {}),
+  };
+  const c = f.customer;
+  const flagsKnown = Boolean(c && c.builtPre1970 && c.heritageListed && c.bodyCorporate && c.asbestosSuspected);
+  const photoCount = Math.max(f.conditionSourceIds?.length ?? 0, f.details?.damagePhotoCount ?? 0);
+  return withAgent(doc, {
+    answers: deepMerge(a, patch),
+    facts: {
+      ...(email.includes("@") && !docFacts(doc).email ? { email } : {}),
+      ...(f.details?.occupied ? { occupied: f.details.occupied === "yes" } : {}),
+      ...(flagsKnown ? { flagsAssumed: false } : {}),
+      ...(photoCount > 0 ? { photoCount } : {}),
+    },
+  });
+}
 
 export type ScopeDeps = { refs: TreeRefs; ctx: PricingContext; actor: "customer" | "staff" };
 
@@ -151,7 +190,7 @@ export function toWizardState(draft: AnswerDraft, facts: AgentFacts, mode: "cust
     listingUrl: draft.listingUrl ?? "",
     planRunIds: draft.planRunIds ?? [],
     facadeRunIds: draft.facadeRunIds ?? [],
-    conditionSourceIds: [],
+    conditionSourceIds: draft.conditionSourceIds ?? [],
     // The no-plan flag is the INTERIOR path's (the schema demands basics with
     // it); an exterior-only job never carries it.
     noPlan: draft.jobType === "exterior" ? false : (draft.noPlan ?? (draft.planRunIds?.length ? false : true)),
@@ -175,6 +214,7 @@ export function toWizardState(draft: AnswerDraft, facts: AgentFacts, mode: "cust
       damageTier: draft.details?.damageTier ?? (draft.jobType === "exterior" ? 0 : undefined),
       damageNote: draft.details?.damageNote ?? "",
       damagePhotoCount: draft.details?.damagePhotoCount ?? 0,
+      ...(draft.details?.occupied ? { occupied: draft.details.occupied } : facts.occupied == null ? {} : { occupied: facts.occupied ? "yes" as const : "no" as const }),
     },
     contact: { name: "", email: facts.email ?? "", phone: "" },
     paint: { brands: draft.paint?.brands ?? [], colourHelp: draft.paint?.colourHelp ?? null, waterBasedOnly: draft.paint?.waterBasedOnly ?? false, trimsOilBased: draft.paint?.trimsOilBased ?? null, base: draft.paint?.base ?? null },
@@ -221,8 +261,11 @@ export function tryBuild(doc: ScopeDoc, deps: ScopeDeps): { doc: ScopeDoc; built
   if (state.jobType !== "exterior" && !state.basics) return { doc, built: false };
   const tree = buildTreeFromState(state, deps.refs, deps.ctx);
   if ("skip" in tree) return { doc, built: false };
+  // Tom, 7 Sep: condition photos = estimator sign-off (the same rule the
+  // submit route applies) — the built estimate carries the site-check flag.
+  const photoSignOff = conditionPhotoCount(state) > 0;
   return {
-    doc: withState(doc, {
+    doc: withState({ ...doc, requiresSiteCheck: doc.requiresSiteCheck || photoSignOff }, {
       blocks: tree.areas, aiDeferred: tree.deferred, modSel: tree.modSel,
       interiorLoop: defaultInteriorLoop(), sidesLoop: defaultSidesLoop(),
       wizard: { state, builtAt: new Date().toISOString(), builtBy: "assistant" },
@@ -362,8 +405,8 @@ export function applyAnswer(doc: ScopeDoc, key: string, value: unknown, provenan
       return patchDraft({ exterior: { storeys: s } });
     }
     case "ext.substrates": {
-      const list = (Array.isArray(value) ? value : [value]).map(String).filter((s) => ["weatherboards", "render", "concrete", "brick"].includes(s)) as NonNullable<WizardState["exterior"]>["substrates"];
-      if (list.length === 0) return { ok: false, reason: "Weatherboards, render, brick or concrete?" };
+      const list = (Array.isArray(value) ? value : [value]).map(String).filter((s) => ["weatherboards", "render", "concrete", "brick", "stucco", "cement_sheet", "colorbond", "other"].includes(s)) as NonNullable<WizardState["exterior"]>["substrates"];
+      if (list.length === 0) return { ok: false, reason: "Weatherboards, render, brick, stucco, cement sheet, Colorbond or concrete?" };
       return patchDraft({ exterior: { substrates: list } });
     }
     case "ext.painting": {

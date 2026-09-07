@@ -26,6 +26,7 @@ import type { BriefExtraction } from "./brief-extract";
 import { gapsFor } from "./question-graph";
 import { addArea, addCustomLine, docAnswers, exteriorTicks, docBlocks, docDeferred, docFacts, graphInput, isBuilt, nextIdFrom, toWizardState, type AnswerDraft, type ScopeBlock, type ScopeDeps, type ScopeDoc } from "./scope-doc";
 import { assumptionSwings, priceScope } from "./scope-tools";
+import { conditionPhotoCount } from "@/lib/wizard/merge";
 import type { Assumption, Gap } from "./schemas";
 
 export type DiffSummary = {
@@ -112,7 +113,9 @@ function buildFromBrief(doc: ScopeDoc, x: BriefExtraction, deps: ScopeDeps, mode
   if (jobType !== "interior" && !x.exterior?.painting && !a.exterior?.painting) fillIns.push(fillIn("ext.painting", "Assumed: painting the walls, windows and doors, and the roofline outside — not the garage", "body,windowsDoors,roofline"));
   const coats = x.coats ?? a.condition?.tier ?? "change";
   if (!x.coats && !a.condition?.tier) fillIns.push(fillIn("condition.tier", "Assumed: two coats (a change of colour)", "change"));
-  const damageTier = x.defects.length ? Math.max(...x.defects.map((d) => d.severity)) : (a.details?.damageTier ?? 0);
+  // The form's stated damage (describe path, 7 Sep) and the defects the
+  // paragraph names: the worse of the two, never the paragraph alone.
+  const damageTier = Math.max(a.details?.damageTier ?? 0, ...x.defects.map((d) => d.severity));
   // A trade client's paragraph (Addendum A §3.3) builds at once: an unstated
   // property kind is assumed a house and said so; the four safety flags are
   // assumed clear and become a chip the person can flip (facts.flagsAssumed).
@@ -133,7 +136,8 @@ function buildFromBrief(doc: ScopeDoc, x: BriefExtraction, deps: ScopeDeps, mode
       doorStyle: x.doorStyle ?? a.details?.doorStyle ?? "unsure",
       windowStyle: x.windowStyle ?? a.details?.windowStyle ?? "unsure",
       ceilingHeight: x.ceilingHeight ?? a.details?.ceilingHeight ?? "unsure",
-      damageTier, damageNote: x.defects.map((d) => `${d.where ?? "somewhere"}: ${d.type} sev${d.severity}`).join("; ").slice(0, 2000),
+      damageTier,
+      damageNote: [a.details?.damageNote?.trim() ?? "", x.defects.map((d) => `${d.where ?? "somewhere"}: ${d.type} sev${d.severity}`).join("; ")].filter(Boolean).join(" · ").slice(0, 2000),
       damagePhotoCount: a.details?.damagePhotoCount ?? 0,
     },
     paint: { ...a.paint, colourHelp: x.colourMatch ? "advice" : (a.paint?.colourHelp ?? null) },
@@ -227,6 +231,9 @@ function buildFromBrief(doc: ScopeDoc, x: BriefExtraction, deps: ScopeDeps, mode
   }
   const working: ScopeDoc = {
     ...doc,
+    // Tom, 7 Sep: condition photos = estimator sign-off — the same rule the
+    // submit route and tryBuild apply; the customer cannot accept online.
+    requiresSiteCheck: doc.requiresSiteCheck || conditionPhotoCount(state) > 0,
     builderState: {
       ...doc.builderState,
       blocks: blocks as unknown as ScopeBlock[], aiDeferred: tree.deferred, modSel: tree.modSel,

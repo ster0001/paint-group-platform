@@ -433,6 +433,7 @@ const VISIT_WORDING: Record<ReturnType<typeof visitReason>, string> = {
   peeling: "Peeling paint needs eyes on it before we fix a price.",
   rot: "Rot needs eyes on it before we fix a price.",
   flagged: "Something was flagged for a check on site.",
+  photos: "Your photos are with your estimator, who signs off any extra preparation before the price is fixed.",
   big: "It's a bigger job, so we confirm it in person.",
   signoff: "This one is signed off in person before it's fixed.",
 };

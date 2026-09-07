@@ -39,9 +39,11 @@ test("R2 exterior journey: five exterior pages, no interior questions, priced by
     if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
   };
 
-  // Page 2 — the house questions (the contact page moved to the END, Tom 31 Aug).
+  // Page 2 — what are we painting + the house questions (Tom, 7 Sep: the
+  // targets, the cladding, the trims and the sides all live here).
   await next();
-  await expect(page.getByText(/What.s the building made of/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What are we painting?" })).toBeVisible();
+  await expect(page.getByText(/What.s the house made of/i)).toBeVisible();
   await expect(page.locator(".wz-step")).toContainText(/storey/i);
   // Tom, 29 Aug: each storey answer says the height it means.
   await expect(page.locator(".wz-step")).toContainText(/up to 4 metres/i);
@@ -49,14 +51,12 @@ test("R2 exterior journey: five exterior pages, no interior questions, priced by
   // Weatherboard rides pre-ticked from the default; the answer seeds the
   // editor's wall tiles.
   await expect(page.locator(".wz-tile.on", { hasText: "Weatherboard" })).toBeVisible();
-
-  // Page 3 — what are we painting. Roofline pre-ticked; no extent question.
-  await next();
-  await expect(page.getByText(/What are we painting/i)).toBeVisible();
-  await expect(page.locator(".wz-tile.on", { hasText: /Roofline|Fascias/i }).first()).toBeVisible();
+  // The trims are pre-ticked one by one; "where" defaults to the full exterior.
+  await expect(page.locator(".wz-tile.on", { hasText: /^Fascias/ })).toBeVisible();
+  await expect(page.getByTestId("ext-side-all")).toHaveClass(/\bon\b/);
   await expect(page.getByText(/How far around/i)).toHaveCount(0);
 
-  // Page 4 — condition + access. NO interior questions.
+  // Page 3 — condition + access (a house-only job has no follow-up page). NO interior questions.
   await next();
   await expect(page.getByText(/holding up|condition/i).first()).toBeVisible();
   await expect(page.getByText("Ceiling height")).toHaveCount(0);

@@ -94,6 +94,8 @@ export type CustomerPayload = {
   exteriorWidthMissing: boolean;
   /** Customer-worded "we confirm on site" notes — never internal reasons. */
   confirmOnSite: string[];
+  /** Tom, 7 Sep: condition photos are with the estimator — costs pending sign-off. */
+  photosPendingSignOff: boolean;
 };
 
 export function customerPayload(
@@ -135,10 +137,13 @@ export function customerPayload(
     exteriorWidthFromPlan: payload.exteriorWidthFromPlan,
     exteriorWidthMissing: payload.exteriorWidthMissing,
     confirmOnSite: payload.deferred.map((d) =>
-      d.room === "Whole job" || d.room === "Exterior"
-        ? `${d.what} — confirmed before your final quote`
-        : `${d.room}: ${d.what} — confirmed before your final quote`,
+      d.kind === "photo_review"
+        ? "Your photos are with your estimator — any extra preparation is priced and signed off before your final quote"
+        : d.room === "Whole job" || d.room === "Exterior"
+          ? `${d.what} — confirmed before your final quote`
+          : `${d.room}: ${d.what} — confirmed before your final quote`,
     ),
+    photosPendingSignOff: payload.deferred.some((d) => d.kind === "photo_review"),
   };
 }
 

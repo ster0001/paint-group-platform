@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createGateway } from "@/lib/agent/gateway";
 import { accountTypeOf, agentActor, agentDb, createDraftEstimate, loadOwnEstimate } from "@/lib/agent/session";
-import { graphInput, isBuilt } from "@/lib/agent/scope-doc";
+import { docWizard, graphInput, isBuilt, seedFormAnswers } from "@/lib/agent/scope-doc";
+import { surfaceKeySchema } from "@/lib/wizard/state";
 import { nextGap } from "@/lib/agent/question-graph";
 import { logCrmEvent } from "@/lib/crm/events";
 import { ScopeTools } from "@/lib/agent/scope-tools";
@@ -22,6 +23,7 @@ import { finishDescribedEstimate } from "@/lib/wizard/describeFinish";
 
 export const runtime = "nodejs";
 
+const TRI = z.enum(["yes", "no", "unsure"]);
 const bodySchema = z.object({
   estimateId: z.string().uuid().optional(),
   brief: z.string().trim().max(20000).optional(),
@@ -29,6 +31,34 @@ const bodySchema = z.object({
    * ride the build request so the estimate joins the customer record. */
   contact: z.object({ name: z.string().trim().max(120).default(""), email: z.string().trim().max(200).default(""), phone: z.string().trim().max(30).default("") }).optional(),
   address: z.object({ street: z.string().max(120).default(""), suburb: z.string().max(80).default(""), postcode: z.string().max(10).default(""), state: z.string().max(10).default("VIC"), formatted: z.string().max(250).default("") }).nullable().optional(),
+  /** Tom, 7 Sep (evening): the describe path asks the form's condition /
+   * details questions too — they seed the draft before the paragraph builds. */
+  answers: z.object({
+    condition: z.object({
+      tier: z.enum(["fresh", "change", "dark_to_light"]).optional(),
+      darkToLightSurfaces: z.array(surfaceKeySchema).max(30).optional(),
+    }).optional(),
+    details: z.object({
+      doorStyle: z.enum(["panel", "flat", "unsure", "na"]).optional(),
+      windowStyle: z.enum(["casement", "sash", "colonial", "winder", "unsure", "na"]).optional(),
+      ceilingHeight: z.enum(["2.4", "2.7", "3.0", "unsure"]).optional(),
+      damageTier: z.number().int().min(0).max(3).optional(),
+      damageNote: z.string().max(2000).optional(),
+      damagePhotoCount: z.number().int().min(0).max(24).optional(),
+      occupied: z.enum(["yes", "no"]).optional(),
+    }).optional(),
+    customer: z.object({
+      propertyKind: z.enum(["house", "townhouse", "unit_apartment", "commercial"]).optional(),
+      bodyCorporate: TRI.optional(), heritageListed: TRI.optional(), builtPre1970: TRI.optional(), asbestosSuspected: TRI.optional(),
+    }).optional(),
+    exterior: z.object({
+      storeys: z.enum(["single", "double"]).optional(),
+      condition: z.enum(["good", "weathered", "peeling"]).nullable().optional(),
+      access: z.array(z.enum(["steep", "tight", "high"])).optional(),
+      accessEquipment: z.array(z.enum(["scissor_lift", "boom_lift", "scaffold"])).optional(),
+    }).optional(),
+    conditionSourceIds: z.array(z.string().uuid()).max(12).optional(),
+  }).optional(),
 });
 
 export async function POST(request: Request) {
@@ -97,6 +127,31 @@ export async function POST(request: Request) {
     await tools.execute("answer_gap", { key: "q.address", value: addr, provenance: "customer_stated" }, { conversationId: conv.id, mode: "guided", view: "customer", estimateId, accountId, actorId: actor.userId }).catch(() => undefined);
   }
 
+  // The form's answers (condition, damage + photos, flags, occupancy) land on
+  // the draft first, so the paragraph build prices the stated condition.
+  const answers = parsed.data.answers;
+  const typedEmail = actor.verifiedEmail ?? parsed.data.contact?.email?.trim().toLowerCase() ?? "";
+  if (answers || typedEmail.includes("@")) {
+    const d = await gateway.scope.load(estimateId);
+    if (d) {
+      const cleaned = answers ? {
+        ...answers,
+        ...(answers.exterior ? { exterior: { ...answers.exterior, condition: answers.exterior.condition ?? undefined } } : {}),
+      } : {};
+      // An anonymous run has no verified email; the typed one lets the
+      // customer block validate (the build used to be refused without it).
+      await gateway.scope.save(seedFormAnswers(d, cleaned, { email: typedEmail }));
+    }
+  }
+  if (answers) {
+    // The damage photos were staged run-less; they belong to this estimate now.
+    if (answers.conditionSourceIds?.length) {
+      await db.from("estimate_sources").update({ estimate_id: estimateId })
+        .in("id", answers.conditionSourceIds).is("estimate_id", null)
+        .then((r) => { if (r.error) reportError(r.error, { where: "agent.start.claimPhotos", bestEffort: true }); });
+    }
+  }
+
   // Addendum A §3.3 "Describe the job": the paragraph IS the first turn —
   // the draft tree lands at once, priced as a range with every assumption a chip.
   let built = false;
@@ -125,6 +180,7 @@ export async function POST(request: Request) {
           contact: { name: contact?.name ?? "", email, phone: contact?.phone ?? "" },
           address: addr && (addr.street || addr.suburb) ? { street: addr.street, suburb: addr.suburb, state: addr.state, postcode: addr.postcode, formatted: addr.formatted || [addr.street, addr.suburb, addr.state, addr.postcode].filter(Boolean).join(" ") } : null,
           suburb: addr?.suburb ?? "", postcode: addr?.postcode ?? "", ipHash,
+          jobType: (after && docWizard(after)?.jobType) ?? undefined,
         });
       }
       const userMsg = await gateway.store.appendMessage({ conversationId: conv.id, role: "user", content: parsed.data.brief, modelId: null, tokensIn: 0, tokensOut: 0 });

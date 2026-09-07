@@ -50,7 +50,7 @@ function state(jobType: WizardState["jobType"], over: Partial<WizardState> = {})
     contact: { name: "", email: "", phone: "" },
     exterior: wantsExt ? {
       storeys: "single", substrates: ["weatherboards"], painting: { body: true, windowsDoors: true, roofline: true, garage: false },
-      condition: "weathered", access: [], accessEquipment: [], noPhotos: true,
+      condition: "weathered", access: [], accessEquipment: [], noPhotos: true, targets: ["house"], shed: null, wall: null, floor: null,
       extras: { deck: false, fence: false, fenceMetres: null, fenceType: "paling", pergola: false, balustrade: false },
     } : null,
     ...over,

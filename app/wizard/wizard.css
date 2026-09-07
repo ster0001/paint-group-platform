@@ -412,8 +412,8 @@
 .wz .il-progwrap { max-width: 1020px; margin: 9px auto 0; padding: 0 18px; }
 /* The confirm loop auto-scrolls the next card into view; the frozen stack
    above must never be what lands on top of it. */
-.wz .sc-rc { scroll-margin-top: 168px; }
-@media (max-width: 560px) { .wz .sc-rc { scroll-margin-top: 132px; } }
+.wz .sc-rc, .wz .sd-card { scroll-margin-top: 190px; }
+@media (max-width: 560px) { .wz .sc-rc, .wz .sd-card { scroll-margin-top: 150px; } }
 .wz .sc-rc.amber { border-color: var(--amber); border-left-width: 3px; }
 .wz .sc-rc.done { border-color: var(--cyan); border-left-width: 3px; }
 .wz .il-hm { font-family: var(--wz-mono); font-size: 11px; color: var(--muted); font-weight: 400; }

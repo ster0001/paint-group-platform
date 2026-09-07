@@ -53,6 +53,8 @@ export const WORK_ITEM_KINDS = [
   "estimate_lapsed",
   /** CRM v2 P4: a "delayed until" date has passed — the note says what to do. */
   "delay_ended",
+  /** Tom, 7 Sep: a customer attached condition photos — an estimator signs off the prep before the price is fixed. */
+  "photo_review",
 ] as const;
 
 export type WorkItemKind = (typeof WORK_ITEM_KINDS)[number];
@@ -111,6 +113,7 @@ const CUSTOMER_VISIBLE: ReadonlySet<WorkItemKind> = new Set([
   "handoff_requested",
   "wizard_ready",
   "wizard_help",
+  "photo_review",
 ]);
 
 export function isCustomerVisible(kind: WorkItemKind): boolean {
@@ -138,6 +141,7 @@ export const KIND_WEIGHT: Record<WorkItemKind, number> = {
   handoff_requested: 30,
   wizard_ready: 26,
   wizard_help: 28,
+  photo_review: 24,
   wizard_priced: 12,
   estimate_lapsed: 18,
   delay_ended: 20,
@@ -223,6 +227,7 @@ export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = 
   wizard_ready: "followups",
   wizard_help: "followups",
   wizard_priced: "followups",
+  photo_review: "approvals",
   estimate_lapsed: "followups",
   delay_ended: "followups",
 };
@@ -490,6 +495,41 @@ export function buildWizardItems(rows: WizardQueueRow[], attempts: ContactEventR
         action: { label: "Follow up", href },
       }, { valueCents: r.est_value_cents, promisedToCustomer: false }, now));
     }
+  }
+  return items;
+}
+
+// ---- source: photo_review (Tom, 7 Sep) -------------------------------------
+
+export type PhotoReviewRow = {
+  id: string; title: string | null; account_id: string | null; created_at: string; status: string;
+  builder_state: { aiDeferred?: Array<{ kind?: string; count?: number }> } | null;
+};
+
+/**
+ * One item per open estimate whose builder_state still carries the
+ * photo_review deferral (the merge raises it for every customer condition
+ * photo; the builder's "Signed off" button removes it). Due the next
+ * business morning — the customer's range says "pending estimator sign-off"
+ * until then.
+ */
+export function buildPhotoReviewItems(rows: PhotoReviewRow[], now: Date): WorkItem[] {
+  const items: WorkItem[] = [];
+  for (const r of rows) {
+    const d = (r.builder_state?.aiDeferred ?? []).find((x) => x?.kind === "photo_review");
+    if (!d) continue;
+    const n = Number(d.count) || 1;
+    items.push(finish({
+      key: itemKey("photo_review", "estimate", r.id, "photos"),
+      kind: "photo_review",
+      accountId: r.account_id,
+      subjectRef: { type: "estimate", id: r.id },
+      since: r.created_at,
+      title: `Sign off ${n} condition photo${n === 1 ? "" : "s"} — ${r.title?.trim() || "estimate"}`,
+      detail: "Price any extra preparation from the customer's photos, then mark them signed off in the builder",
+      dueAt: nextBusinessMorning(new Date(r.created_at)).toISOString(),
+      action: { label: "Review photos", href: `/quote?id=${r.id}` },
+    }, { valueCents: null, promisedToCustomer: true }, now));
   }
   return items;
 }
@@ -853,6 +893,13 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
       .limit(2000),
     loadCrmThresholds(supabase),
   ]);
+  // Tom, 7 Sep: open estimates still waiting on the estimator's photo sign-off.
+  const photoRes = await supabase.from("estimates")
+    .select("id, title, account_id, created_at, status, builder_state")
+    .eq("status", "draft").contains("builder_state", { aiDeferred: [{ kind: "photo_review" }] })
+    .gte("created_at", new Date(now.getTime() - 60 * 86_400_000).toISOString())
+    .order("created_at", { ascending: false }).limit(100);
+  const photoRows = (photoRes.error ? [] : (photoRes.data ?? [])) as unknown as PhotoReviewRow[];
   const quietRows = (quietAcc.error ? [] : (quietAcc.data ?? [])) as Array<DelayedAccountRow & { relationship_state: string }>;
   const quietIds = new Set(quietRows.filter((r) => isQuiet(r.relationship_state, r.state_until, now)).map((r) => r.id));
   const delayedRows = quietRows.filter((r) => r.relationship_state === "delayed");
@@ -972,6 +1019,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...buildMessageItems(inboundRows, (outboundTouches ?? []) as OutboundTouchRow[], (inboundAttempts ?? []) as ContactEventRow[], inboundNames, now, thresholds.messageOverdueHours),
     ...buildDelayEndedItems(delayedRows, now),
     ...buildRebookItems(rebookRows, laterBooked, now),
+    ...buildPhotoReviewItems(photoRows, now),
   ];
 
   // Until migration 20261217 runs, the dismissals table doesn't exist and the

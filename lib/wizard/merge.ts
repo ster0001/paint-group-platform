@@ -63,6 +63,15 @@ function deferredKind(what: string): "doors" | "windows" | "cornices" | null {
   return null;
 }
 
+/** The deferral kind every customer condition photo raises (merge + review gate + queue read it). */
+export const PHOTO_REVIEW_KIND = "photo_review";
+export const PHOTO_REVIEW_WHAT = "condition photos — estimator sign-off";
+
+/** Photos attached to show the condition: the claimed count or the rows kept, whichever is larger. */
+export function conditionPhotoCount(state: Pick<WizardState, "details" | "conditionSourceIds">): number {
+  return Math.max(state.details.damagePhotoCount ?? 0, state.conditionSourceIds?.length ?? 0);
+}
+
 export function applyWizardAnswers(
   draft: DraftResult,
   state: WizardState,
@@ -223,6 +232,18 @@ export function applyWizardAnswers(
       needs: state.details.damageNote.trim() !== ""
         ? `stated: "${state.details.damageNote.trim().slice(0, 160)}" — price the prep before send`
         : "significant damage stated with no photos — photos or a site visit before send",
+    });
+  }
+  // Tom, 7 Sep (evening): photos a customer attaches to show the condition
+  // are ALWAYS signed off by an estimator before the price is fixed — the
+  // reader (when it ran) proposes prep; a person prices it. Before this,
+  // attaching photos REMOVED the review flag (the block above), so a
+  // plausible AI read went out priced with no human look.
+  const photoCount = conditionPhotoCount(state);
+  if (photoCount > 0) {
+    deferred.push({
+      room: "Whole job", areaId: null, what: PHOTO_REVIEW_WHAT, count: photoCount, kind: PHOTO_REVIEW_KIND,
+      needs: `${photoCount} condition photo${photoCount === 1 ? "" : "s"} attached — review them and price any extra preparation before send`,
     });
   }
   if (state.jobType !== "interior") {

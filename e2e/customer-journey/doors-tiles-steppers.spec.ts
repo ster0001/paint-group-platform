@@ -100,9 +100,8 @@ test("exterior: every item can be taken off, and there is no accept-online butto
     const err = page.locator(".wz-err");
     if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
   };
-  await next(); // → page 2: the house
-  await next(); // → what are we painting
-  await next(); // → condition + access
+  await next(); // → page 2: what are we painting + the house (Tom, 7 Sep)
+  await next(); // → condition + access (no follow-up page for a house-only job)
   await page.getByRole("button", { name: /Good overall/i }).click();
   await answer(/built before 1970/, "No");
   await page.getByRole("button", { name: /None of these/i }).click();

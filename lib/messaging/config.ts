@@ -76,6 +76,9 @@ export type MessagingSettings = {
   /** Customer: the wizard saved their estimate (sign-in link). */
   wizardSavedSubject: string;
   wizardSavedBody: string;
+  /** Customer: they dropped out of the wizard — pick up where they left off (Tom, 7 Sep). */
+  wizardResumeSubject: string;
+  wizardResumeBody: string;
   /** Office: an estimate was accepted (Tom, 4 Sep). */
   officeEmail: string;
   acceptedOfficeSubject: string;
@@ -166,6 +169,12 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "{{accepted_name}} has accepted the estimate for {{estimate_title}}.\n\n" +
     "Total: {{total}} incl. GST\nDeposit: {{deposit}}\nAccepted: {{accepted_at}}\n\n" +
     "A work order has been created and the deposit invoice is drafted. Open the estimate to book it in.",
+  wizardResumeSubject: "Pick up where you left off — your estimate is saved",
+  wizardResumeBody:
+    "You were part-way through your {{company_name}} estimate for {{where}} — your answers are saved.\n\n" +
+    "The button below signs you straight in, no password needed. Your estimate is on your account page, " +
+    "marked \"not yet submitted\" — finish it whenever suits.\n\n" +
+    "The sign-in link lasts an hour; you can always ask for a fresh one from the account page.",
   wizardSavedSubject: "Your estimate is saved",
   wizardSavedBody:
     "Your estimate is saved in your {{company_name}} account.\n\n" +
@@ -225,6 +234,9 @@ export type TemplateVars = {
   bank_reference?: string;
   remittance_number?: string;
   next_step?: string;
+  /** Wizard resume (7 Sep): the address or suburb, and the page they stopped on. */
+  where?: string;
+  page?: string;
   accepted_name?: string;
   accepted_at?: string;
   deposit?: string;

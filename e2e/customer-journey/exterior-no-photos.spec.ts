@@ -31,9 +31,8 @@ test("an exterior job builds from answers alone — no listing, no photos", asyn
     const err = page.locator(".wz-err");
     if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
   };
-  await next(); // → the house (the gate accepted the no-photos path)
-  await next(); // → scope
-  await next(); // → condition
+  await next(); // → what are we painting + the house (the gate accepted the no-photos path)
+  await next(); // → condition (Tom, 7 Sep: no follow-up page for a house-only job)
   await page.getByRole("button", { name: /Good overall/i }).click();
   await answer(/built before 1970/, "No");
   await next(); // → extras + paint
