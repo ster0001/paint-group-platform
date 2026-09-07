@@ -34,7 +34,12 @@ const shortText = z.string().trim().min(1).max(2000);
 export const CRM_EVENT_SCHEMAS = {
   // ---- the job's own lifecycle, written by the system it happens in -------
   wizard_started: z.object({ jobType: z.string().max(20).optional(), mode: z.enum(["customer", "internal"]).optional() }),
-  wizard_abandoned: z.object({ lastStep: z.number().int().min(1).max(12), emailCaptured: z.boolean() }),
+  /** 8 Sep: the page they stopped on, when they were last active and how long they spent ride along, so the record can say it in words. */
+  wizard_abandoned: z.object({
+    lastStep: z.number().int().min(1).max(12), emailCaptured: z.boolean(),
+    page: z.string().max(40).optional(), pagesTotal: z.number().int().min(1).max(12).optional(),
+    lastActiveAt: z.string().max(40).optional(), activeSeconds: z.number().int().min(0).optional(),
+  }),
   /** Buckets brief §3: "I'm stuck, call me" from any wizard page. */
   wizard_help_requested: z.object({ phone: z.string().max(30).optional(), note: shortText.optional(), page: z.string().max(40).optional() }),
   /** Buckets brief §3: "Talk to a person" in the assistant — the question text rides along for the human reply. */

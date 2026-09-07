@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireContractor } from "@/lib/contractor/session";
 import { createClient } from "@/lib/supabase/server";
 import { requireStaff } from "@/lib/supabase/guards";
-import { authorizeUrl, gcalEnv, signState } from "@/lib/gcal/oauth";
+import { authorizeUrl, GCAL_SCOPE, GCAL_STAFF_SCOPE, gcalEnv, signState } from "@/lib/gcal/oauth";
 
 export const runtime = "nodejs";
 
@@ -32,7 +32,8 @@ export async function GET(request: Request) {
   }
 
   const state = signState(env.clientSecret);
-  const res = NextResponse.redirect(authorizeUrl(env.clientId, env.redirectUri, state));
+  // Staff also ask to READ their own calendars (8 Sep); contractors never do.
+  const res = NextResponse.redirect(authorizeUrl(env.clientId, env.redirectUri, state, staffFlow ? GCAL_STAFF_SCOPE : GCAL_SCOPE));
   res.cookies.set("gcal_oauth_state", state, {
     httpOnly: true,
     secure: true,

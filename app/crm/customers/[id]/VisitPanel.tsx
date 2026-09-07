@@ -75,10 +75,18 @@ export default function VisitPanel({ accountId, propertyId, estimateId, staff, v
                 <div className="dphead">
                   <b>{staff.find((s) => s.id === staffId)?.name ?? "Estimator"}</b>
                   <span>{plan.works ? `works ${plan.hours[0]}–${plan.hours[1]} that day` : "doesn't usually work that day"}</span>
-                  <span>{plan.busy.length === 0 ? "nothing booked yet" : `${plan.busy.length} visit${plan.busy.length === 1 ? "" : "s"} booked`}</span>
+                  <span>{(() => {
+                    const v = plan.busy.filter((b) => b.source === "visit").length, gN = plan.busy.length - v;
+                    const parts = [v ? `${v} visit${v === 1 ? "" : "s"} booked` : "", gN ? `${gN} in Google` : ""].filter(Boolean);
+                    return parts.length ? parts.join(" · ") : "nothing booked yet";
+                  })()}</span>
                 </div>
                 <div className="dpblocks">
-                  {plan.busy.map((b) => <span key={b.from} className="dpbusy" title={b.label}>{b.from}–{b.to} {b.label}</span>)}
+                  {plan.busy.map((b, i) => (
+                    <span key={`${b.source}-${b.from}-${i}`} className={`dpbusy ${b.source === "google" ? "google" : ""}`} title={b.label} data-testid={`busy-${b.source}`}>
+                      {b.allDay ? "all day" : `${b.from}–${b.to}`} {b.label}
+                    </span>
+                  ))}
                   {plan.free.map((f) => (
                     <button key={f.from} type="button" className={`dpfree ${time === f.from ? "on" : ""}`} onClick={() => setTime(f.from)} data-testid="free-block">
                       free {f.from}–{f.to}
@@ -88,7 +96,11 @@ export default function VisitPanel({ accountId, propertyId, estimateId, staff, v
                 </div>
                 <span className="dpnote">
                   Tap a free block to use its start. {plan.gcal.connected
-                    ? <>This visit will land in {plan.gcal.email ? <b>{plan.gcal.email}</b> : "their"} Google Calendar. Anything typed straight into Google isn&rsquo;t visible here — the app only sees the calendar it creates — so <a href={`https://calendar.google.com/calendar/r/day/${date.replace(/-/g, "/")}`} target="_blank" rel="noreferrer">check the day in Google ↗</a> if in doubt.</>
+                    ? plan.gcal.reads === "ok"
+                      ? <>This visit will land in {plan.gcal.email ? <b>{plan.gcal.email}</b> : "their"} Google Calendar, and their own Google entries are shown above{plan.gcal.calendars.length ? <> (reading {plan.gcal.calendars.join(", ")})</> : null}.</>
+                      : plan.gcal.reads === "needs_reconnect"
+                        ? <>This visit will land in {plan.gcal.email ? <b>{plan.gcal.email}</b> : "their"} Google Calendar, but their own Google entries aren&rsquo;t visible yet — <a href="/crm/diary#gcal">reconnect Google Calendar on the Diary</a> (a wider permission was added on 8 Sep) and they will be. Until then <a href={`https://calendar.google.com/calendar/r/day/${date.replace(/-/g, "/")}`} target="_blank" rel="noreferrer">check the day in Google ↗</a>.</>
+                        : <>This visit will land in {plan.gcal.email ? <b>{plan.gcal.email}</b> : "their"} Google Calendar. Google didn&rsquo;t answer just now, so their own entries aren&rsquo;t shown — <a href={`https://calendar.google.com/calendar/r/day/${date.replace(/-/g, "/")}`} target="_blank" rel="noreferrer">check the day in Google ↗</a>.</>
                     : plan.gcal.configured
                       ? <>Google Calendar isn&rsquo;t connected for this estimator — connect it from the Diary and booked visits sync there.</>
                       : <>Google Calendar isn&rsquo;t set up on this server yet.</>}

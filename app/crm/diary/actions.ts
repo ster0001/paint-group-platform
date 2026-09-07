@@ -7,6 +7,7 @@ import { requireStaff } from "@/lib/supabase/guards";
 import { bookVisit, moveVisit, setVisitStatus, loadStaffAvailability, VISIT_COLUMNS, type BookResult } from "@/lib/visits/book";
 import { freeStarts, at as melbourneAt } from "@/lib/visits/availability";
 import { staffGcalStatus } from "@/lib/gcal/staff";
+import { readStaffGoogleBusy, type GoogleReadKind } from "@/lib/gcal/read";
 import { melbourneLocalParts } from "./time";
 import type { VisitRow } from "@/lib/visits/types";
 
@@ -69,18 +70,22 @@ export type DayPlan = {
   works: boolean;
   hours: [string, string];
   visitMinutes: number;
-  /** What's already in the diary that day, in order. */
-  busy: Array<{ from: string; to: string; label: string }>;
+  /** What's already in the diary that day, in order — booked visits and, since 8 Sep, their Google entries. */
+  busy: Array<{ from: string; to: string; label: string; source: "visit" | "google"; allDay?: boolean }>;
   /** Free blocks of at least one visit, as "HH:MM" starts you can tap. */
   free: Array<{ from: string; to: string }>;
-  gcal: { connected: boolean; email: string | null; configured: boolean };
+  gcal: {
+    connected: boolean; email: string | null; configured: boolean;
+    /** How the read of their own Google calendars went (8 Sep). */
+    reads: GoogleReadKind; calendars: string[];
+  };
 };
 
 /**
  * Everything the diary knows about one estimator on one date, so a time can
- * be picked with the day in view instead of blind. Their Google Calendar
- * stays private by design (the app-created-calendar scope, see lib/gcal):
- * what they typed into Google directly is NOT here, and the panel says so.
+ * be picked with the day in view instead of blind. Since 8 Sep their own
+ * Google entries are here too (a connection made from that day reads them —
+ * lib/gcal/read.ts); an older connection is told to reconnect.
  */
 export async function dayPlanAction(staffId: string, date: string): Promise<DayPlan | { error: string }> {
   if (!uuid.safeParse(staffId).success) return { error: "That isn't an estimator." };
@@ -97,12 +102,26 @@ export async function dayPlanAction(staffId: string, date: string): Promise<DayP
     .gte("ends_at", melbourneAt(date, "00:00").toISOString()).lt("starts_at", melbourneAt(date, "23:59").toISOString())
     .order("starts_at", { ascending: true });
   const visits = (data ?? []) as VisitRow[];
-  const busy = visits.map((v) => ({
-    from: melbourneLocalParts(v.starts_at).time, to: melbourneLocalParts(v.ends_at).time,
-    label: [v.customer_name || "Visit", v.suburb].filter(Boolean).join(" · "),
-  }));
+  const day0 = melbourneAt(date, "00:00"), day24 = new Date(melbourneAt(date, "00:00").getTime() + 86_400_000);
+  const g = await readStaffGoogleBusy(staffId, day0, day24).catch(() => ({ kind: "error" as const, message: "read failed" }));
+  const google = g.kind === "ok" ? g.busy.filter((b) => new Date(b.startsAt) < day24 && new Date(b.endsAt) > day0) : [];
+  const clip = (iso: string, lo: Date, hi: Date) => new Date(Math.min(Math.max(new Date(iso).getTime(), lo.getTime()), hi.getTime())).toISOString();
+  const busy: DayPlan["busy"] = [
+    ...visits.map((v) => ({
+      from: melbourneLocalParts(v.starts_at).time, to: melbourneLocalParts(v.ends_at).time,
+      label: [v.customer_name || "Visit", v.suburb].filter(Boolean).join(" · "), source: "visit" as const,
+    })),
+    ...google.map((b) => ({
+      from: b.allDay ? "all day" : melbourneLocalParts(clip(b.startsAt, day0, day24)).time,
+      to: b.allDay ? "" : melbourneLocalParts(clip(b.endsAt, day0, day24)).time,
+      label: `${b.label} · ${b.calendar}`, source: "google" as const, allDay: b.allDay,
+    })),
+  ].sort((a, b) => (a.from === "all day" ? "" : a.from).localeCompare(b.from === "all day" ? "" : b.from));
   // Free = every 15-minute start with room for a whole visit; merged into ranges.
-  const starts = freeStarts(staffId, dayStart, dayEnd, staff.visitMinutes, visits.map((v) => ({ staffId, startsAt: v.starts_at, endsAt: v.ends_at })));
+  const starts = freeStarts(staffId, dayStart, dayEnd, staff.visitMinutes, [
+    ...visits.map((v) => ({ staffId, startsAt: v.starts_at, endsAt: v.ends_at })),
+    ...google.map((b) => ({ staffId, startsAt: b.startsAt, endsAt: b.endsAt })),
+  ]);
   const free: Array<{ from: string; to: string }> = [];
   for (const st of starts) {
     const end = new Date(st.getTime() + staff.visitMinutes * 60_000);
@@ -111,12 +130,15 @@ export async function dayPlanAction(staffId: string, date: string): Promise<DayP
     const endLocal = melbourneLocalParts(end.toISOString()).time;
     if (last && last.to >= stLocal) last.to = endLocal; else free.push({ from: stLocal, to: endLocal });
   }
-  const g = await staffGcalStatus(staffId).catch(() => ({ kind: "unconfigured" as const }));
+  const st = await staffGcalStatus(staffId).catch(() => ({ kind: "unconfigured" as const }));
   return {
     works: staff.days.includes(dow),
     hours: [staff.dayStart, staff.dayEnd],
     visitMinutes: staff.visitMinutes,
     busy, free,
-    gcal: { connected: g.kind === "connected" || g.kind === "error", email: "email" in g ? g.email : null, configured: g.kind !== "unconfigured" },
+    gcal: {
+      connected: st.kind === "connected" || st.kind === "error", email: "email" in st ? st.email : null, configured: st.kind !== "unconfigured",
+      reads: g.kind, calendars: g.kind === "ok" ? g.calendars : [],
+    },
   };
 }

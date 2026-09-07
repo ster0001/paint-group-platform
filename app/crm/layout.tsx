@@ -2,9 +2,13 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { staffVisibility, gateStaffArea } from "@/lib/staff/gate";
+import { firstVisibleHref } from "@/lib/staff/access";
+import { loadLogoUrl } from "@/lib/company/logo";
+import HomeMark from "@/app/components/HomeMark";
 import CrmTabs from "./CrmTabs";
 import Search from "./Search";
-import ThemeToggle, { THEME_COOKIE, type CrmTheme } from "./ThemeToggle";
+import ThemeToggle from "@/app/components/ThemeToggle";
+import { THEME_COOKIE, themeFromCookie } from "@/lib/theme/cookie";
 import { cachedBadge, rememberBadge } from "@/lib/crm/badgeCache";
 import { getWorkQueue } from "./queue";
 import "./crm.css";
@@ -31,7 +35,11 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
 
   const { data: profile } = await supabase.from("profiles").select("role, name").eq("id", user.id).single();
   if (profile?.role !== "staff") redirect("/portal");
-  await gateStaffArea(await staffVisibility(supabase, user.id), "crm");
+  const vis = await staffVisibility(supabase, user.id);
+  await gateStaffArea(vis, "crm");
+  // Tom, 8 Sep: the logo top-left is the way back to the main platform.
+  const logoUrl = await loadLogoUrl(supabase);
+  const home = firstVisibleHref(vis);
 
   const today = new Intl.DateTimeFormat("en-AU", {
     timeZone: "Australia/Melbourne", weekday: "long", day: "numeric", month: "long",
@@ -51,15 +59,13 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
   }
 
   // P7: dark or light for the whole CRM, chosen once, rendered right first time.
-  const themeCookie = (await cookies()).get(THEME_COOKIE)?.value;
-  const theme: CrmTheme = themeCookie === "light" ? "light" : "dark";
+  const theme = themeFromCookie((await cookies()).get(THEME_COOKIE)?.value);
 
   return (
     <div className="crm" data-theme={theme}>
       <div className="top">
         <div className="topbar">
-          <span className="mark"><span>PG</span></span>
-          <span className="brand">Paint Group <em>· CRM</em></span>
+          <HomeMark href={home} logoUrl={logoUrl} suffix="CRM" />
           <Search />
           <ThemeToggle initial={theme} />
           <span className="who">{profile?.name || user.email}</span>

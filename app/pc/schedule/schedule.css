@@ -298,3 +298,22 @@
   text-decoration: none; cursor: pointer; white-space: nowrap;
 }
 .sb .lane .wtpin:hover { background: rgba(59,216,233,.22); }
+
+/* ---- light mode (Tom, 8 Sep): follows the Projects shell's data-theme ---- */
+.pc[data-theme="light"] .sb{
+  --ink:#F1F4F6; --graphite:#FFFFFF; --raised:#FFFFFF; --line:#D9E0E6;
+  --text:#12161A; --muted:#5C6771; --cyan:#0E8C9C; --on-cyan:#FFFFFF;
+  --paint:#1A9DAE; --amber:#9A6A12; --emerald:#1F7A4A; --clay:#A3463A; --panel:#FFFFFF;
+}
+.pc[data-theme="light"] .sb .top{background:rgba(241,244,246,.95)}
+.pc[data-theme="light"] .sb .seg button:hover:not(.on),.pc[data-theme="light"] .sb .btn.gh:hover{background:rgba(0,0,0,.05)}
+.pc[data-theme="light"] .sb .crow,.pc[data-theme="light"] .sb .frow{border-bottom-color:rgba(217,224,230,.9)}
+.pc[data-theme="light"] .sb .lane .bgc{border-right-color:rgba(217,224,230,.8)}
+.pc[data-theme="light"] .sb .lane .bgc.we{background:rgba(0,0,0,.03)}
+.pc[data-theme="light"] .sb .dh .cell.we{color:#8A949C}
+.pc[data-theme="light"] .sb .blk.accepted{color:#14532D}
+.pc[data-theme="light"] .sb .blk.in_progress{color:#0B4F58}
+.pc[data-theme="light"] .sb .blk.offered,.pc[data-theme="light"] .sb .blk.proposed{color:#6B4A0A}
+.pc[data-theme="light"] .sb .err{color:#7A2E24}
+.pc[data-theme="light"] .sb .scrim{background:rgba(20,30,40,.35)}
+.pc[data-theme="light"] .sb .blk.dragging{box-shadow:0 12px 28px rgba(20,30,40,.2)}

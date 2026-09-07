@@ -24,10 +24,14 @@
 /* ---- chrome --------------------------------------------------------------- */
 .crm .top{position:sticky;top:0;z-index:40;background:var(--top);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
 .crm .topbar{display:flex;align-items:center;gap:12px;padding:14px 16px 10px;max-width:1100px;margin:0 auto}
-.crm .mark{width:26px;height:26px;border-radius:8px;background:var(--cyan);display:grid;place-items:center;flex:none}
-.crm .mark span{color:var(--on-cyan);font-size:13px;font-weight:700;letter-spacing:-.05em}
-.crm .brand{font-size:15px;font-weight:600;letter-spacing:-.02em}
-.crm .brand em{font-style:normal;color:var(--muted);font-weight:500}
+/* Tom, 8 Sep: the logo top-left IS the way home — tap it for the main platform. */
+.crm .homemark{display:inline-flex;align-items:center;gap:8px;flex:none;min-width:0;border-radius:8px;padding:2px 4px 2px 0}
+.crm .homemark:hover .hometext,.crm .homemark:hover .homesuffix{color:var(--cyan)}
+.crm .homelogo{height:26px;width:auto;max-width:150px;object-fit:contain;object-position:left;display:block}
+.crm .hometext{font-size:15px;font-weight:600;letter-spacing:-.02em;white-space:nowrap}
+.crm .homedot{color:var(--cyan)}
+.crm .homesuffix{font-size:15px;font-weight:500;color:var(--muted);white-space:nowrap}
+.crm .homesuffix::before{content:"· "}
 .crm .who{margin-left:auto;font-size:11px;color:var(--muted)}
 .crm .tabs{display:flex;gap:4px;padding:0 12px 10px;overflow-x:auto;scrollbar-width:none;max-width:1100px;margin:0 auto}
 .crm .tabs::-webkit-scrollbar{display:none}
@@ -293,6 +297,8 @@
 .crm .rmiss{color:var(--ph);font-style:italic}
 .crm .rsep{opacity:.5}
 .crm .rtools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px}
+.crm .raddr{font-size:12.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:-1px}
+.crm .rmore{color:var(--muted);text-decoration:underline;text-underline-offset:2px}
 .crm .rowner{display:flex;gap:6px;align-items:center;font-size:11px;color:var(--muted)}
 .crm .field.sm{padding:5px 9px;font-size:12px;min-width:140px;flex:none}
 .crm .chip.sm{font-size:11.5px;padding:5px 10px}
@@ -429,6 +435,18 @@
 .crm .laneday{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:10px 0 4px}
 .crm .visit{border:1px solid var(--line);border-radius:10px;padding:9px 10px;margin-bottom:8px;background:var(--graphite)}
 .crm .visit.done{opacity:.75}
+.crm .visit.google{border-style:dashed;background:transparent}
+.crm .visit.google .vwho{color:var(--fg2)}
+/* 8 Sep: the online-estimate strip on the record — where the wizard got to. */
+.crm .wizstrip{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;border:1px solid var(--line);border-radius:12px;padding:9px 12px;margin:-4px 0 14px;font-size:12.5px;background:var(--raised)}
+.crm .wizstrip .wzlbl{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.crm .wizstrip .wzpill{font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:999px;border:1px solid var(--line)}
+.crm .wizstrip .wzpill.clay{color:var(--clay);border-color:var(--bad-line)}
+.crm .wizstrip .wzpill.emerald{color:var(--good);border-color:var(--good-line)}
+.crm .wizstrip .wzpill.amber,.crm .wizstrip .wzpill.amber-outline{color:var(--amber)}
+.crm .wizstrip .wzline{color:var(--muted);font-family:var(--mono);font-size:11px}
+.crm .wizstrip .wzline+.wzline::before{content:"· "}
+.crm .wizstrip .wzgo{margin-left:auto;color:var(--cyan);font-weight:600}
 .crm .visit.no_show,.crm .visit.rebook{border-color:rgba(224,168,60,.45)}
 .crm .vhead{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:12px}
 .crm .vwho{margin:5px 0 0;font-size:13.5px;font-weight:600}
@@ -499,5 +517,6 @@
 .crm .dayplan .dpfree{font-size:12px;padding:5px 10px;border-radius:999px;border:1px solid var(--good-line);color:var(--good);background:var(--graphite)}
 .crm .dayplan .dpfree:hover,.crm .dayplan .dpfree.on{border-color:var(--cyan);color:var(--cyan)}
 .crm .dayplan .dpbusy{font-size:12px;padding:5px 10px;border-radius:999px;border:1px solid var(--bad-line);color:var(--bad-text);background:var(--graphite)}
+.crm .dayplan .dpbusy.google{border-style:dashed;color:var(--fg2);border-color:var(--cold-line)}
 .crm .dayplan .dpnote{font-size:11.5px;color:var(--muted);line-height:1.45}
 .crm .dayplan .dpnote a{color:var(--cyan)}
