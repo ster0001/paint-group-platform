@@ -70,6 +70,7 @@ const P = {
   receipt: ["{{first_name}}", "{{amount}}", "{{invoice_number}}", "{{receipt_number}}", "{{company_name}}"],
   remittance: ["{{contractor_company}}", "{{invoice_number}}", "{{wo_ref}}", "{{amount}}", "{{bank_reference}}", "{{remittance_number}}", "{{company_name}}"],
   wizardSaved: ["{{company_name}}", "{{next_step}}"],
+  wizardResume: ["{{company_name}}", "{{where}}", "{{page}}"],
   accepted: ["{{estimate_title}}", "{{accepted_name}}", "{{accepted_at}}", "{{total}}", "{{deposit}}", "{{company_name}}", "{{link}}"],
 };
 
@@ -277,8 +278,13 @@ export const AUTOMATIONS: Automation[] = [
     trigger: "An accepted estimate with no booking. Shows as a card on the CRM board; no automatic message.",
   },
   {
-    key: "wizard_abandoned", name: "Abandoned wizard follow-up", audience: "customer", channels: [], kind: "planned",
-    trigger: "A wizard run left unfinished. Logged as a CRM event so a campaign can pick it up; nothing sends by itself.",
+    key: "wizard_abandoned", name: "Abandoned wizard — pick up where you left off", audience: "customer", channels: ["email"], kind: "automatic",
+    trigger: "A wizard run sits idle for 45 minutes with an email on it. One sign-in link per run, landing on the customer's account page where the unfinished estimate waits. Sent by the sweep — daily on the current hosting plan, and whenever staff open CRM Today or Estimates → Wizard.",
+    templates: [
+      { field: "wizardResumeSubject", label: "Email subject", kind: "subject", placeholders: P.wizardResume },
+      { field: "wizardResumeBody", label: "Email body", kind: "body", placeholders: P.wizardResume },
+    ],
+    note: "Never sent to a run without an email (the contact page is last), nor to a test address.",
   },
 ];
 

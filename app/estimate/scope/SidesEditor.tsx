@@ -1,6 +1,7 @@
 "use client";
 
 import ContactCard from "./ContactCard";
+import { afterLayout, scrollCardToTop } from "./scrollCard";
 import { useRef, useState, useSyncExternalStore } from "react";
 import type { CustomerPayload } from "@/lib/wizard/view";
 import type { CustomerExteriorView } from "@/lib/wizard/scope-editor";
@@ -24,7 +25,7 @@ import type { EstimateDocuments } from "@/lib/wizard/documents";
 type Ladder = {
   tier: "self_serve" | "visit";
   /** C11: why it's the visit tier — the sticky line names it (mockup wording). */
-  reason?: "custom" | "peeling" | "rot" | "flagged" | "big" | "signoff" | null;
+  reason?: "custom" | "peeling" | "rot" | "flagged" | "photos" | "big" | "signoff" | null;
   visitSlots: string[];
 };
 
@@ -33,6 +34,7 @@ const VISIT_REASON_LINE: Record<NonNullable<Ladder["reason"]>, string> = {
   peeling: "Peeling paint needs a lead-safe check — ",
   rot: "Rot repair needs eyes on it — ",
   flagged: "You've flagged the photos — ",
+  photos: "Your photos are with your estimator, who signs off any extra preparation costs — ",
   big: "Bigger exterior — ",
   signoff: "Every exterior job is signed off by your estimator — ",
 };
@@ -272,7 +274,12 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
       : k === "dw" ? v.meta.done.dw : k === "sweep" ? v.meta.done.sweep
       : v.sides.find((s) => s.key === k)?.confirmed ?? false;
     const nxt = order.find((k) => !doneOf(k));
-    if (nxt) setOpen(nxt);
+    if (nxt) {
+      setOpen(nxt);
+      // Same rule as the interior loop: the next side's NAME lands under the
+      // sticky header, so the customer always sees which side they are on.
+      afterLayout(() => scrollCardToTop(document.querySelector(`[data-side="${nxt}"]`)));
+    }
   };
 
   const extrasTiles = exterior?.groups.find((g) => g.group === "extras")?.tiles ?? [];

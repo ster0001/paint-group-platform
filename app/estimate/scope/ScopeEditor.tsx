@@ -1,6 +1,7 @@
 "use client";
 
 import ContactCard from "./ContactCard";
+import { afterLayout, scrollCardToTop } from "./scrollCard";
 import { useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import type { CustomerPayload } from "@/lib/wizard/view";
@@ -125,10 +126,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
     // Beside the chat the cards are a preview — a tap opens the FULL editor.
     if (chatMode) { router.push(`/estimate/scope?id=${estimateId}`); return; }
     setOpenCard(key);
-    setTimeout(() => {
-      const el = document.querySelector(`[data-card="${key}"]`);
-      el?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 60);
+    // The card's NAME must land in view — not its middle (see scrollCard.ts).
+    afterLayout(() => scrollCardToTop(document.querySelector(`[data-card="${key}"]`)));
   }
   function nextUnconfirmed(il: InteriorLoopView): string {
     const room = il.rooms.find((r) => !r.confirmed);
@@ -522,7 +521,9 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
       ? "Accepted — our team gives it a final desk check, then your fixed price and booking confirmation follow."
       : selfServe
         ? `At ${payload.accuracyPct}% accuracy you can accept online. We confirm details before we start.`
-        : "The final step is a quick call or a visit with one of our people, so we can stand behind every number.";
+        : payload.photosPendingSignOff
+          ? "Your photos are with your estimator — pending sign-off for any extra preparation. Then a quick call or visit fixes your price."
+          : "The final step is a quick call or a visit with one of our people, so we can stand behind every number.";
 
   return (
     <div className={ready ? undefined : "wz-waking"} data-ready={ready ? "1" : undefined}>

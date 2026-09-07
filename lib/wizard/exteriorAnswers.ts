@@ -11,10 +11,10 @@
  * length.
  */
 
-import { exteriorExtrasNodes, SIZE_BAND_FACTOR, starterExteriorNodes } from "./starter";
+import { CLADDING_CODE, CLADDING_LABEL, exteriorExtrasNodes, extSurface, SIZE_BAND_FACTOR, starterExteriorNodes } from "./starter";
 import { applyFenceLength } from "./scope-editor";
 import { ALLOWANCE_CODES, rateFor, toggleExtrasItem, WEATHERED_MODIFIER_CODE, type LooseBlock } from "./sides";
-import type { WizardState, WizardSurfaceKey } from "./state";
+import { exteriorSides, type WizardState, type WizardSurfaceKey } from "./state";
 import type { DraftArea } from "@/lib/extract/draft";
 
 export type MergedBundle = {
@@ -53,11 +53,16 @@ export function applyExteriorAnswers(
   // Feature #2: an exterior/both job that measured NO exterior surfaces still
   // needs the exterior scaffold — otherwise the estimator sees interior only.
   const hasExteriorNodes = merged.areas.some((a) => a.type === "Exterior");
+  const house = state.exterior ? state.exterior.targets.includes("house") : true;
+  const wantsWalls = !state.exterior || (state.exterior.painting.body && !state.exterior.substrates.includes("none"));
   if (!hasExteriorNodes) {
-    const scaffold = starterExteriorNodes(nextId, tickedSurfaces);
+    const scaffold = starterExteriorNodes(nextId, tickedSurfaces, wantsWalls);
     merged.areas.push(...scaffold.areas);
     merged.deferred = merged.deferred.filter((d) => d.what !== "exterior envelope");
-    merged.deferred.push(...scaffold.deferred);
+    // Tom, 7 Sep: a job with no house in it (fence, shed, wall, floor only)
+    // keeps the four sides as the loop's frame, every one already answered
+    // "not painting" — nothing is measured, nothing is priced for them.
+    if (house) merged.deferred.push(...scaffold.deferred);
   }
 
   // A2: ticked whole-job extras are never measured by an elevation read —
@@ -68,6 +73,26 @@ export function applyExteriorAnswers(
 
   if (!state.exterior) return;
   const ext = state.exterior;
+
+  // Tom, 7 Sep: "Where are we painting?" — a side the customer left unticked
+  // arrives in the confirm loop as NOT PAINTING (an option outside the
+  // totals and the accuracy score), exactly as if they had skipped it there.
+  const painting = new Set<string>(house ? exteriorSides(ext) : []);
+  for (const a of merged.areas) {
+    if (a.type !== "Exterior" || a.areaType !== "surface") continue;
+    const key = sideKeyOfName(a.name);
+    if (!key || painting.has(key)) continue;
+    a.isOption = true;
+    (a as unknown as { customer?: { include: boolean | null; size: null; confirmed: boolean } }).customer = { include: false, size: null, confirmed: true };
+    merged.deferred = merged.deferred.filter((d) => d.areaId !== a.id);
+  }
+  if (house && ext.substrates.includes("other")) {
+    merged.deferred.push({
+      room: "Exterior", areaId: null, what: "wall cladding", count: 1,
+      needs: "customer answered \"other\" for what the house is made of — confirm the substrate on site (scaffolded as weatherboard)",
+    });
+  }
+  applyFreestandingTargets(merged, ext, nextId);
 
   // Storeys give every side its height; unmeasured sides take typical lengths
   // (12 m front/back, 14 m sides), tagged assumed until the confirm loop
@@ -123,7 +148,12 @@ export function applyExteriorAnswers(
       needs: "customer says this equipment is needed — NOT priced in the estimate; confirm hire, delivery and set-up with them",
     });
   }
-  if (ext.extras.fence) {
+  if (ext.extras.fence && ext.extras.fenceType === "metal") {
+    merged.deferred.push({
+      room: "Exterior", areaId: null, what: "metal fence", count: 1,
+      needs: `${ext.extras.fenceMetres != null ? `about ${ext.extras.fenceMetres} m of ` : ""}metal fence — no rate on the card yet; your estimator prices it`,
+    });
+  } else if (ext.extras.fence) {
     if (ext.extras.fenceMetres != null) {
       const priced = applyFenceLength(merged.areas as unknown as Parameters<typeof applyFenceLength>[0], ext.extras.fenceMetres);
       if (priced.ok) {
@@ -136,6 +166,72 @@ export function applyExteriorAnswers(
         needs: "customer isn't sure of the fence length — measure it on site",
       });
     }
+  }
+}
+
+/**
+ * Tom, 7 Sep: the freestanding targets — a shed (priced by the card's Shed
+ * row, its cladding noted), a wall (the cladding rate over an assumed
+ * 1.8 m height and the stated or a typical length), floor coatings (no rate
+ * row: the estimator prices them). Each lands on "Exterior - Extras" or its
+ * own area, and each says what was assumed.
+ */
+function applyFreestandingTargets(merged: MergedBundle, ext: NonNullable<WizardState["exterior"]>, nextId: () => number): void {
+  const extrasArea = () => {
+    let a = merged.areas.find((x) => x.type === "Exterior" && x.name === "Exterior - Extras");
+    if (!a) {
+      a = {
+        id: nextId(), kind: "area", name: "Exterior - Extras", type: "Exterior", areaType: "surface",
+        roomType: "exterior", storey: "ground", L: 0, W: 0, H: 0,
+        isOption: false, description: "", open: false, media: [],
+        origin: "ai_assumed", confidence: 0.4, assumedFields: ["exterior_envelope"], extractionSourceId: null,
+        surfaces: [],
+      } as unknown as MergedBundle["areas"][number];
+      merged.areas.push(a);
+    }
+    return a;
+  };
+  if (ext.targets.includes("shed")) {
+    const a = extrasArea();
+    const sub = ext.shed?.substrate ?? "colorbond";
+    const line = extSurface(nextId(), "Shed");
+    line.internalLabel = `Shed (${CLADDING_LABEL[sub] ?? sub})`;
+    line.clientLabel = "Garage / workshop / shed";
+    line.crewNote = `shed cladding: ${CLADDING_LABEL[sub] ?? sub}`;
+    a.surfaces.push(line);
+    merged.deferred.push({
+      room: "Exterior - Extras", areaId: a.id, what: "shed", count: 1,
+      needs: `${CLADDING_LABEL[sub] ?? sub} shed — priced at the card's Shed allowance; confirm its size on site`,
+    });
+  }
+  if (ext.targets.includes("wall")) {
+    const sub = ext.wall?.substrate ?? "brick";
+    const code = CLADDING_CODE[sub] ?? "Brick";
+    const L = ext.wall?.metres ?? 10;
+    const id = nextId();
+    const line = extSurface(nextId(), code);
+    line.internalLabel = `${code} — freestanding wall`;
+    line.clientLabel = "Wall";
+    merged.areas.push({
+      id, kind: "area", name: "Exterior - Wall", type: "Exterior", areaType: "surface",
+      roomType: "exterior", storey: "ground", L, W: 0, H: 1.8,
+      isOption: false, description: "Freestanding / boundary wall", open: false, media: [],
+      origin: "ai_assumed", confidence: 0.4,
+      assumedFields: ["H", ...(ext.wall?.metres != null ? [] : ["L"])], extractionSourceId: null,
+      surfaces: [line],
+    } as unknown as MergedBundle["areas"][number]);
+    merged.deferred.push({
+      room: "Exterior - Wall", areaId: id, what: "freestanding wall", count: 1,
+      needs: ext.wall?.metres != null
+        ? `${CLADDING_LABEL[sub] ?? sub} wall, about ${L} m long — height assumed 1.8 m, confirm on site`
+        : `${CLADDING_LABEL[sub] ?? sub} wall — length and height assumed (10 m × 1.8 m), measure on site`,
+    });
+  }
+  if (ext.targets.includes("floor")) {
+    merged.deferred.push({
+      room: "Exterior", areaId: null, what: "floor coating", count: 1,
+      needs: `floor coating${ext.floor?.m2 != null ? ` over about ${ext.floor.m2} m²` : ""} — no rate on the card; your estimator prices the product and preparation`,
+    });
   }
 }
 

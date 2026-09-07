@@ -36,7 +36,15 @@ export const SUBSTRATE_DEFS = [
 
   // ---- exterior -----------------------------------------------------------
   { key: "weatherboards", label: "Weatherboards", codes: ["Weatherboards"], defaultOn: true },
-  { key: "render", label: "Render", codes: ["Render", "Stucco"], defaultOn: true },
+  { key: "render", label: "Render", codes: ["Render"], defaultOn: true },
+  /** Tom, 7 Sep: stucco is its own answer on the exterior page (it rode
+   * Render's tick before; the card has had its own row all along). */
+  { key: "stucco", label: "Stucco", codes: ["Stucco"], defaultOn: false },
+  /** Cement sheet — prepared and coated like render; its rate row is a clone
+   * of Render (migration 20270128). Not offered until that row exists. */
+  { key: "cement_sheet", label: "Cement sheet", codes: ["Cement Sheet"], defaultOn: false },
+  /** Colorbond / metal cladding — the card's own row. */
+  { key: "colorbond", label: "Colorbond", codes: ["Colorbond Cladding"], defaultOn: false },
   /** Tilt slab / precast concrete panel. Tom, 29 Aug: "add another substrate
    * for tilt slab/concrete… duplicate render" — same preparation and coats as
    * render, so its rate row is a clone of Render (migration 20261204). It

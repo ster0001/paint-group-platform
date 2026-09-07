@@ -12,6 +12,7 @@ import { sanitiseClonedState, scopeSeed } from "@/lib/wizard/showcaseSeed";
 import { onlineEstimatesFrom, WIZARD_PUBLIC_KEY, type OnlineEstimates } from "@/lib/wizard/publicFlag";
 import HoldingCallback from "./HoldingCallback";
 import { serverResumeFrom, type ServerDraftRow } from "@/lib/wizard/resume";
+import { ACCOUNT_DRAFT_MAX_AGE_MS, adoptDraft, findOpenDraft } from "@/lib/wizard/draftOwner";
 
 /**
  * /estimate — Step 8's CUSTOMER wizard.
@@ -137,17 +138,16 @@ export default async function CustomerWizardPage({
   // Tom, 7 Sep: the way back into a half-finished walk from ANY device — the
   // autosaved draft for this user (anonymous or signed-in), when it is fresh
   // and unconverted. The wizard merges it with the browser copy, newest wins.
+  // Tom, 7 Sep (evening): a signed-in member also gets the walk their
+  // ANONYMOUS session left (account or verified-email door) — and takes it
+  // over, so the autosave keeps writing the same session. Statuses untouched.
   let resume: ReturnType<typeof serverResumeFrom> = null;
   if (user && svc && !rebookParam) {
-    const { data: draft } = await svc
-      .from("wizard_drafts")
-      .select("state, current_page, furthest_page, last_seen_at, converted_at")
-      .eq("user_id", user.id)
-      .is("converted_at", null)
-      .order("last_seen_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    resume = serverResumeFrom(draft as ServerDraftRow | null, new Date());
+    const found = await findOpenDraft(svc, { userId: user.id, verifiedEmail: memberEmail }, new Date());
+    if (found) {
+      if (!found.own) await adoptDraft(svc, found.row.id, user.id);
+      resume = serverResumeFrom(found.row as ServerDraftRow, new Date(), found.own ? undefined : ACCOUNT_DRAFT_MAX_AGE_MS);
+    }
   }
 
   // 3a-7: one-tap rebook — a member requotes a PRIOR JOB OF THEIR OWN. The

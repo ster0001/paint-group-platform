@@ -48,8 +48,7 @@ test.describe("the wizard drop-out funnel", () => {
     await next(); // surfaces
     await next(); // condition
     await next(); // details
-    await tap(/built before 1970/);
-    await tap(/asbestos/);
+    await tap(/asbestos/); // Tom, 7 Sep (late): the build year is no longer asked
     await page.locator(".wz-qhead", { hasText: "living there" }).locator("xpath=following-sibling::div[1]").getByRole("button", { name: /empty/ }).click();
     await next(); // → the contact page (paint preferences ride it — Phase 2)
 

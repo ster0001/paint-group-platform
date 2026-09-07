@@ -61,7 +61,9 @@ function labelFor(row: SourceRow, index: number): string {
 export async function estimateDocuments(
   db: SupabaseClient,
   estimateId: string,
+  opts: { /** Staff review (7 Sep): the facade photos too, not just condition + elevations. */ includeFacades?: boolean } = {},
 ): Promise<EstimateDocuments> {
+  const photoKinds: readonly string[] = opts.includeFacades ? [...PHOTO_KINDS, "exterior_photo"] : PHOTO_KINDS;
   try {
     const { data, error } = await db
       .from("estimate_sources")
@@ -73,7 +75,7 @@ export async function estimateDocuments(
 
     const rows = (data as SourceRow[]).filter((r) => !!r.storage_path);
     const plans = rows.filter((r) => PLAN_KINDS.includes(r.kind as typeof PLAN_KINDS[number]));
-    const photos = rows.filter((r) => PHOTO_KINDS.includes(r.kind as typeof PHOTO_KINDS[number]));
+    const photos = rows.filter((r) => photoKinds.includes(r.kind ?? ""));
 
     // An exterior job has no floorplan at all — the first facade photo is
     // the picture of the house, exactly as the submit route pins it.

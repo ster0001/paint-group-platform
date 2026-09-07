@@ -32,9 +32,8 @@ async function driveExteriorWizard(page: Page) {
     const err = page.locator(".wz-err");
     if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
   };
-  await next(); // → page 2: the house
-  await next(); // → scope
-  await next(); // → condition
+  await next(); // → page 2: what are we painting + the house
+  await next(); // → condition (Tom, 7 Sep: the follow-up page only exists for fence / shed / wall / floor)
   await page.getByRole("button", { name: /Good overall/i }).click();
   await answer(/built before 1970/, "No");
   await next(); // extras+paint
