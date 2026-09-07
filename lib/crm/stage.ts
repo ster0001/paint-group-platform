@@ -206,7 +206,12 @@ function stageInner(facts: AccountFacts, now: Date, THRESHOLDS: Thresholds): Sta
   }
 
   // ---- a visit that has happened, or is about to ---------------------------
-  const bookedAt = lastEventAt(facts, "visit_booked");
+  // P6: a booking that was cancelled or missed is no longer a booking — the
+  // lane falls through to whatever else is true (the quote, the enquiry).
+  const rawBookedAt = lastEventAt(facts, "visit_booked");
+  const clearedAt = [lastEventAt(facts, "visit_cancelled"), lastEventAt(facts, "visit_no_show")]
+    .filter((x): x is string => !!x).sort().reverse()[0] ?? null;
+  const bookedAt = rawBookedAt && (!clearedAt || clearedAt < rawBookedAt) ? rawBookedAt : null;
   const visitedAt = lastEventAt(facts, "visit_completed");
   if (bookedAt && (!visitedAt || visitedAt < bookedAt)) {
     return withCold({ stage: "visit_booked", because: "Visit booked", since: bookedAt });

@@ -2416,3 +2416,35 @@ Source: `docs/briefs/crm-v2-deep-dive.md` §4.3, decisions 8.1 (two classes) and
   `conversion_days`, after a send). `cta_clicked` finally has a writer.
 - **Cron**: `campaign-sweep` moved to 22:30 UTC Mon–Fri (08:30 AEST) — it was 08:30 UTC, outside the window.
   Every 30 min on Vercel Pro (decision 8.9); the sweep is idempotent either way.
+
+## CRM v2 · Phase 6 — visits, the Diary, staff Google Calendar (7 Sep 2026)
+
+Source: `docs/briefs/crm-v2-deep-dive.md` §4.6 and the visit-booking brief's rulings. Migration 20270127.
+Manual test `docs/manual-tests/crm-v2-p6-diary.md`; e2e `e2e/crm-p6-diary.spec.ts`.
+
+- **`visits`** finally exists: account / property / estimate / estimator, start and end, kind (quote, re-measure,
+  colour consult, walkthrough), status (booked, done, no_show, cancelled, rebook), source (wizard, staff, phone,
+  assistant), a frozen address / name / phone for the day, outcome, and the two sent-at stamps. Writes go through
+  `visit_book` / `visit_set_status` / `visit_move` (staff or service role); the browser never inserts.
+  **Double-booking is impossible by constraint** — an EXCLUDE over (staff_id, tstzrange) for booked visits.
+- **Events, atomically.** The table's trigger writes `visit_booked` (also on a move / re-book), `visit_completed`,
+  `visit_no_show`, `visit_cancelled`. `stageFor` treats a cancel or no-show newer than the booking as no booking;
+  the `visit_rebook` work item is derived from no_show / rebook rows with no later booking for that customer.
+- **Availability** (`lib/visits/availability.ts`, pure): per-estimator days / hours / visit length
+  (`staff_availability`, Settings → Estimator visits) and the global numbers (`settings.visits`: AM/PM windows,
+  horizon, cutoff, reminder hour). `offeredWindows` = the zone half-day windows with room left after booked
+  visits; `pickSlot` turns a chosen window into the freest estimator's earliest block. The wizard's slot strings
+  are now these labels (`lib/visits/wizard.ts`); a chosen label books a real visit via the service client, and a
+  window that filled since returns 409 with the list refreshed. A pinned `scope_editor.visitSlots` list still wins.
+- **One write path** (`lib/visits/book.ts`): book / move / status → the customer's confirmation with a `.ics`
+  (`lib/visits/notify.ts`, automation `visit_confirmation`; SEQUENCE climbs on a move; CANCEL on cancel) and the
+  estimator's calendar (`lib/gcal/staff.ts`). The day-before reminder text (`visit_reminder`) rides the 18:00
+  wo-sweep, once per visit, cleared by a move.
+- **Staff Google Calendar** reuses the contractor design whole: an app-created "Paint Group Visits" calendar
+  (scope `calendar.app.created`), a reconciler with claim-before-continue, hash-based patches, self-healing;
+  timed events for visits (`insertTimedEvent` / `patchTimedEvent` in `lib/gcal/client.ts`) and, with `push_jobs`,
+  the 07:30–15:30 job blocks. Same OAuth client and callback: `/api/gcal/connect?who=staff`, the callback
+  branches on the signed-in role; `/api/gcal/staff` = sync / push-jobs / disconnect.
+- **Diary** (`app/crm/diary`): day or week, estimator lanes with Done / No show / Rebook / Move / Cancel, then
+  jobs running and booked jobs from the work orders, then the calendar card. Booking lives on the record's
+  Visits panel (`VisitPanel.tsx`) — the diary is the day view, not a second scheduler.

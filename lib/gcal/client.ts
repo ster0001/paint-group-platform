@@ -115,3 +115,42 @@ export async function deleteEvent(accessToken: string, calendarId: string, event
     throw e;
   }
 }
+
+// ---------------------------------------------------------------------------
+// P6 — timed events (estimator visits). A visit is a real start and end, not
+// a day block; same calendar, same client, its own body shape.
+// ---------------------------------------------------------------------------
+
+export type GcalTimedEventInput = {
+  summary: string;
+  location?: string;
+  description?: string;
+  /** Instants (ISO). Google shows them in the calendar's own zone. */
+  startsAt: string;
+  endsAt: string;
+};
+
+export function toTimedEventBody(e: GcalTimedEventInput) {
+  return {
+    summary: e.summary,
+    location: e.location,
+    description: e.description,
+    start: { dateTime: e.startsAt, timeZone: GCAL_TIMEZONE },
+    end: { dateTime: e.endsAt, timeZone: GCAL_TIMEZONE },
+    recurrence: [],
+  };
+}
+
+export async function insertTimedEvent(accessToken: string, calendarId: string, event: GcalTimedEventInput): Promise<string> {
+  const res = await call<{ id: string }>(accessToken, "POST", `/calendars/${encodeURIComponent(calendarId)}/events`, toTimedEventBody(event));
+  return res.id;
+}
+
+export async function patchTimedEvent(accessToken: string, calendarId: string, eventId: string, event: GcalTimedEventInput): Promise<void> {
+  const body = toTimedEventBody(event);
+  await call(accessToken, "PATCH", `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`, {
+    ...body,
+    start: { ...body.start, date: null },
+    end: { ...body.end, date: null },
+  });
+}

@@ -182,7 +182,9 @@ test.describe("CRM shell + work queue (2A)", () => {
 
     await page.goto("/crm/diary");
     await expect(page.getByRole("heading", { name: "Diary" })).toBeVisible();
-    await expect(page.locator(".slab").first()).toContainText("Jobs running");
+    // P6: three sections — visits first, then the jobs.
+    await expect(page.locator(".slab").first()).toContainText("Estimate visits");
+    await expect(page.locator(".slab").nth(1)).toContainText("Jobs running");
   });
 
   test("a contractor gets no queue at all", async ({ page }) => {

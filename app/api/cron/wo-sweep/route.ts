@@ -7,6 +7,8 @@ import { sendPreStartChecklists } from "@/lib/workorder/preStart";
 import { sendAppointmentConfirmation } from "@/lib/workorder/appointmentEmail";
 import { sendWalkthroughInvites } from "@/lib/workorder/walkthroughInvite";
 import { reconcileAllConnected } from "@/lib/gcal/sync";
+import { reconcileAllStaff } from "@/lib/gcal/staff";
+import { sendVisitReminders } from "@/lib/visits/notify";
 import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 
 /**
@@ -180,6 +182,12 @@ async function sweep() {
   let gcal = { contractors: 0, errors: 0 };
   try { gcal = await reconcileAllConnected(); } catch (e) { reportError(e, { where: "wo-sweep.gcal" }); }
 
+  // P6: the estimators' calendars, and tomorrow's visit reminder texts.
+  let staffGcal = { staff: 0, errors: 0 };
+  let visitReminders = { sent: 0, skipped: 0 };
+  try { staffGcal = await reconcileAllStaff(); } catch (e) { reportError(e, { where: "wo-sweep.staffGcal" }); }
+  try { visitReminders = await sendVisitReminders(db, now); } catch (e) { reportError(e, { where: "wo-sweep.visitReminders" }); }
+
   // Appointment-confirmation backstop (Tom, 1 Sep): the accept-time ping does
   // the timely send; this catches a lost ping and the staff-approved-proposal
   // path. Recent acceptances only (3 days) — both sends are idempotent off
@@ -214,6 +222,9 @@ async function sweep() {
     apptConfirmed,
     gcalContractors: gcal.contractors,
     gcalErrors: gcal.errors,
+    staffGcal: staffGcal.staff,
+    staffGcalErrors: staffGcal.errors,
+    visitReminders,
   };
 }
 

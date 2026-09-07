@@ -10,6 +10,10 @@ import Contacts, { type ContactRow } from "./Contacts";
 import DuplicateBanner, { type DuplicateHit } from "./DuplicateBanner";
 import Messages, { type MessageRow } from "./Messages";
 import StatusPanel, { type TagOption } from "./StatusPanel";
+import VisitPanel from "./VisitPanel";
+import { loadStaffAvailability, VISIT_COLUMNS } from "@/lib/visits/book";
+import type { VisitRow } from "@/lib/visits/types";
+import { melbourneDate } from "@/lib/workorder/console";
 import { LOST_REASONS, STATE_LABEL, delayEnded, type PermitChannel, type PermitValue, type RelationshipState } from "@/lib/crm/states";
 
 export const dynamic = "force-dynamic";
@@ -104,6 +108,11 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
   }
 
   const est = (estimates ?? []) as EstimateRow[];
+  // P6: the account's visits and who can take one.
+  const [{ data: visitRows }, staffAvail] = await Promise.all([
+    supabase.from("visits").select(VISIT_COLUMNS).eq("account_id", id).order("starts_at", { ascending: false }).limit(20),
+    loadStaffAvailability(supabase),
+  ]);
   const estIds = est.map((e) => e.id);
   const [{ data: wos }, { data: invoices }] = await Promise.all([
     estIds.length ? supabase.from("work_orders").select("id, estimate_id, wo_ref, stage, start_date, end_date").in("estimate_id", estIds).order("start_date", { ascending: false, nullsFirst: false }).limit(50) : Promise.resolve({ data: [] }),
@@ -203,6 +212,15 @@ export default async function CustomerRecordPage({ params, searchParams }: { par
         permitMeta={a.permit_meta ?? {}}
         tags={a.tags ?? []}
         tagOptions={(tagRows ?? []) as TagOption[]}
+      />
+
+      <VisitPanel
+        accountId={a.id}
+        propertyId={((props ?? [])[0]?.id as string | undefined) ?? null}
+        estimateId={est.find((e) => e.status !== "declined" && e.status !== "expired")?.id ?? null}
+        staff={staffAvail.map((s) => ({ id: s.staffId, name: s.name, takesVisits: s.takesVisits, visitMinutes: s.visitMinutes }))}
+        visits={(visitRows ?? []) as VisitRow[]}
+        today={melbourneDate(new Date())}
       />
 
       <p className="plabel" id="messages">Messages</p>

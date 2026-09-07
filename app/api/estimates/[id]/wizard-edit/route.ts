@@ -15,7 +15,8 @@ import { reconcileRoomAllowances, type AllowanceBlock } from "@/lib/wizard/allow
 import { markStarterProvenance, starterExtraction, type TypicalSizeRow, FENCE_CODE, FENCE_TYPE_LABEL } from "@/lib/wizard/starter";
 import {
   applyCount, applyDoorScope, applyExtent, applyExteriorToggle, applyFenceLength, applyRename, applyToggle, applyWallsShare,
-  customerExteriorView, customerScopeRooms, FREESTANDING_EXTRA_KEYS, hasFreestandingExtras, offeredVisitSlots, applyFenceType } from "@/lib/wizard/scope-editor";
+  customerExteriorView, customerScopeRooms, FREESTANDING_EXTRA_KEYS, hasFreestandingExtras, applyFenceType } from "@/lib/wizard/scope-editor";
+import { bookWizardSlot, wizardVisitSlots } from "@/lib/visits/wizard";
 import { INTERIOR_POOR_MODIFIER_CODE } from "@/lib/wizard/exteriorAnswers";
 import {
   ALLOWANCE_CODES, SWEEP_PRICED_CODES, WEATHERED_MODIFIER_CODE,
@@ -551,9 +552,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           outcome: "visit_requested", outcome_at: new Date().toISOString(), bucket: "ready_visit",
         }).eq("estimate_id", id).then((r) => { if (r.error) reportError(r.error, { where: "wizard.edit.sessionVisit", bestEffort: true }); });
         const flags = (settingValue((await ctxPromise).settings, "scope_editor") ?? {}) as { visitSlots?: string[] };
-        if (!offeredVisitSlots(flags).includes(act.slot)) {
+        const slots = await wizardVisitSlots(db, flags);
+        if (!slots.labels.includes(act.slot)) {
           return { error: "Pick one of the offered times.", status: 400 };
         }
+        // P6: the window books a real visit — estimator, block, invite, calendar.
+        // A window that filled since it was offered says so, and offers again.
+        const booked = await bookWizardSlot(db, slots, act.slot, {
+          accountId: (estimate as { account_id?: string | null } | null)?.account_id ?? null, estimateId: id,
+          note: "Booked online from the estimate.",
+        });
+        if (booked && !booked.ok) return { error: booked.message, status: booked.code === "double_booked" ? 409 : 400 };
       }
       // The estimator's prep pack: scope summary, flags, not-sures and removed
       // substrates ride builder_state for the visit's capture verify mode.
@@ -1061,7 +1070,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ladder: {
         tier: selfServe ? "self_serve" : "visit",
         reason: selfServe ? null : visitReason(sidesMeta, newDeferred),
-        visitSlots: offeredVisitSlots(flags),
+        visitSlots: (await wizardVisitSlots(db, flags)).labels,
       },
     });
   }

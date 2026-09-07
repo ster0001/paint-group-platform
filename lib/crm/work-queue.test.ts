@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   itemKey, priorityOf, bucketFor, isCustomerVisible,
-  buildSnoozeItems, buildInvoiceItems, buildCallbackItems, buildApprovalItem,
+  buildSnoozeItems, buildInvoiceItems, buildCallbackItems, buildApprovalItem, buildRebookItems, type RebookVisitRow,
   applyDismissals, sortItems, assembleQueue,
   type WorkItem, type SnoozeAccountRow, type QueueInvoiceRow, type CallbackEventRow,
   buildLapsedItems,
@@ -304,5 +304,27 @@ describe("delay_ended + quiet states (CRM v2 P4)", () => {
     const other: WorkItem = { ...ended, key: "x", kind: "followup_due" };
     const kept = suppressQuiet([ended, other], new Set(["acc1"]));
     expect(kept.map((i) => i.kind)).toEqual(["delay_ended"]);
+  });
+});
+
+describe("buildRebookItems — P6", () => {
+  const NOW6 = new Date("2026-09-07T00:00:00Z");
+  const row = (over: Partial<RebookVisitRow> = {}): RebookVisitRow => ({
+    id: "v1", account_id: "a1", status: "no_show", starts_at: "2026-09-04T00:00:00Z", outcome_at: "2026-09-04T01:00:00Z", updated_at: "2026-09-04T01:00:00Z",
+    customer_name: "Olive", address: "1 Test St", customer_phone: "0400 000 000", outcome_note: null, ...over,
+  });
+  it("a no-show with no later booking is a rebook item, promised to the customer", () => {
+    const items = buildRebookItems([row()], [], NOW6);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ kind: "visit_rebook", accountId: "a1", title: "Olive — visit was a no-show, rebook it" });
+    expect(items[0].action.href).toBe("/crm/customers/a1");
+  });
+  it("a booking made after the no-show closes it", () => {
+    expect(buildRebookItems([row()], [{ account_id: "a1", starts_at: "2026-09-10T00:00:00Z", created_at: "2026-09-05T00:00:00Z" }], NOW6)).toHaveLength(0);
+    // …but an older booking (before the no-show) does not.
+    expect(buildRebookItems([row()], [{ account_id: "a1", starts_at: "2026-09-10T00:00:00Z", created_at: "2026-09-01T00:00:00Z" }], NOW6)).toHaveLength(1);
+  });
+  it("done and booked visits are never rebook items", () => {
+    expect(buildRebookItems([row({ status: "done" }), row({ status: "booked" })], [], NOW6)).toHaveLength(0);
   });
 });

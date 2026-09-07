@@ -64,6 +64,7 @@ const P = {
   variation: ["{{company_name}}", "{{wo_ref}}", "{{action}}", "{{link}}"],
   qaFail: ["{{company_name}}", "{{wo_ref}}", "{{link}}"],
   walkthrough: ["{{first_name}}", "{{customer_name}}", "{{painter_name}}", "{{painter_first_name}}", "{{walkthrough_when}}", "{{address}}", "{{company_name}}"],
+  visit: ["{{first_name}}", "{{estimator_name}}", "{{visit_when}}", "{{address}}", "{{company_name}}"],
   signed: ["{{first_name}}", "{{job_title}}", "{{signed_by}}", "{{company_name}}"],
   chat: ["{{company_name}}", "{{link}}"],
   receipt: ["{{first_name}}", "{{amount}}", "{{invoice_number}}", "{{receipt_number}}", "{{company_name}}"],
@@ -121,6 +122,22 @@ export const AUTOMATIONS: Automation[] = [
       { field: "preStartBody", label: "Checklist (email body)", kind: "body", placeholders: P.preStart },
     ],
     guard: "Once per job.",
+  },
+  {
+    key: "visit_confirmation", name: "Visit booked — calendar invite", audience: "customer", channels: ["email", "ics"], kind: "automatic",
+    trigger: "An estimator visit is booked — by the customer in the estimate, or by the office on the record or Diary. A move sends the updated invite; a cancellation pulls it.",
+    templates: [
+      { field: "visitConfirmSubject", label: "Subject", kind: "subject", placeholders: P.visit },
+      { field: "visitConfirmBody", label: "Email", kind: "body", placeholders: P.visit },
+    ],
+    guard: "One per booking (and one per move), recorded on the visit.",
+  },
+  {
+    key: "visit_reminder", name: "Visit reminder text", audience: "customer", channels: ["sms"], kind: "automatic",
+    trigger: "The evening before an estimator visit, to the customer's mobile.",
+    templates: [{ field: "visitReminderSms", label: "Text", kind: "sms", placeholders: P.visit }],
+    guard: "Once per visit; a moved visit is reminded again for its new day.",
+    note: "Rides the evening sweep (18:00 Melbourne).",
   },
   {
     key: "walkthrough_invite", name: "Final walkthrough calendar invite", audience: "customer", channels: ["email", "ics"], kind: "automatic",

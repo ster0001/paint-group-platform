@@ -11,7 +11,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadScopeRules } from "@/lib/extract/scope-cache";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
-import { customerExteriorView, customerScopeRooms, offeredVisitSlots, type CustomerExteriorView, type CustomerScopeRoom } from "@/lib/wizard/scope-editor";
+import { customerExteriorView, customerScopeRooms, type CustomerExteriorView, type CustomerScopeRoom } from "@/lib/wizard/scope-editor";
+import { wizardVisitSlots } from "@/lib/visits/wizard";
 import { customerPayload, editorPayload, type CustomerPayload, type WizardDeferred } from "@/lib/wizard/view";
 import {
   answersFromState, bandsFromSettings, evaluateGuardrails,
@@ -107,6 +108,8 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
     selfServeInteriorCapCents?: number; selfServeExteriorCapCents?: number; selfServeMinAccuracy?: number;
   };
   // B2 ladder: Settings-driven thresholds; the visit tier is an offer.
+  // P6: the windows a real estimator can do, minus booked visits.
+  const visitSlots = (await wizardVisitSlots(db, editorFlags)).labels;
   const hasExterior = blocks.some((b) => b.kind === "area" && b.type === "Exterior");
   const cap = hasExterior ? (editorFlags.selfServeExteriorCapCents ?? 1_200_000) : (editorFlags.selfServeInteriorCapCents ?? 600_000);
   const mid = (customer.rangeLoCents + customer.rangeHiCents) / 2;
@@ -134,7 +137,7 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
       initialLadder: {
         tier: selfServe ? "self_serve" : "visit",
         reason: selfServe ? null : visitReason(sidesMeta, deferred),
-        visitSlots: offeredVisitSlots(editorFlags),
+        visitSlots,
       },
       docs, logoUrl: headerLogoUrl, companyPhone,
     };
@@ -153,7 +156,7 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
   return {
     kind: "rooms", estimateId: id, initial: customer, initialRooms: interiorRooms, initialSides: sides,
     initialExterior: customerExteriorView(blocks),
-    initialLadder: { tier: selfServe ? "self_serve" : "visit", visitSlots: offeredVisitSlots(editorFlags) },
+    initialLadder: { tier: selfServe ? "self_serve" : "visit", visitSlots },
     initialInteriorLoop: interiorLoop, roomTypes, liveRange: editorFlags.liveRange !== false, docs, logoUrl: headerLogoUrl, companyPhone,
   };
 }

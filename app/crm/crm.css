@@ -413,3 +413,19 @@
 .crm .funnel b{display:block;font-size:15px;font-weight:600}
 .crm .funnel span{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .crm .funnel em{font-style:normal;font-size:10.5px;color:var(--muted)}
+
+/* ---- CRM v2 P6 · Diary lanes, visits, availability ---- */
+.crm .lanes{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));margin:10px 0 4px}
+.crm .lane{background:var(--raised);border:1px solid var(--line);border-radius:var(--r);padding:11px 12px}
+.crm .lanehead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.crm .lanehead b{font-size:13.5px}
+.crm .lanehead span{font-size:11px;color:var(--muted)}
+.crm .laneday{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:10px 0 4px}
+.crm .visit{border:1px solid var(--line);border-radius:10px;padding:9px 10px;margin-bottom:8px;background:var(--graphite)}
+.crm .visit.done{opacity:.75}
+.crm .visit.no_show,.crm .visit.rebook{border-color:rgba(224,168,60,.45)}
+.crm .vhead{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:12px}
+.crm .vwho{margin:5px 0 0;font-size:13.5px;font-weight:600}
+.crm .vkind{font-weight:400;color:var(--muted);font-size:12px}
+.crm .vmeta{margin:2px 0 0;font-size:11.5px;color:var(--muted);line-height:1.45}
+.crm .visitlist{display:flex;flex-direction:column;gap:6px;margin-top:8px}

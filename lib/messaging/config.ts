@@ -53,6 +53,10 @@ export type MessagingSettings = {
   variationReleasedSms: string;
   /** Painter: a failed quality check, areas to put right. */
   qaFailSms: string;
+  /** P6 — Customer: the estimator visit, confirmed with a calendar invite; and the text the evening before. */
+  visitConfirmSubject: string;
+  visitConfirmBody: string;
+  visitReminderSms: string;
   /** Customer + painter: the final walkthrough calendar invite. */
   walkthroughInviteSubject: string;
   walkthroughInviteCustomerBody: string;
@@ -122,6 +126,14 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "{{company_name}}: a variation on {{wo_ref}} is approved and waiting on you — {{action}} it in your dashboard: {{link}}",
   qaFailSms:
     "{{company_name}}: the quality check on {{wo_ref}} found areas that need rectifying. The details and photos are on the job in your portal: {{link}}",
+  visitConfirmSubject: "Your visit is booked — {{visit_when}}",
+  visitConfirmBody:
+    "Hello {{first_name}},\n\n" +
+    "{{estimator_name}} from {{company_name}} will be at {{address}} on {{visit_when}} to look at the job with you.\n\n" +
+    "The attached invite drops it into your calendar. It usually takes about an hour: we walk through what's being painted, check the surfaces, and confirm your price.\n\n" +
+    "If that time no longer suits, reply to this email or call us and we'll move it.",
+  visitReminderSms:
+    "{{company_name}}: a reminder that {{estimator_name}} is visiting {{address}} tomorrow, {{visit_when}}. Reply or call us if anything's changed.",
   walkthroughInviteSubject: "Final walk through — ({{customer_name}} x {{painter_name}})",
   walkthroughInviteCustomerBody:
     "Hello {{first_name}},\n\n" +
@@ -196,6 +208,8 @@ export type TemplateVars = {
   painter_name?: string;
   /** A whole sentence about the final walkthrough — booked or to-be-confirmed. */
   walkthrough_line?: string;
+  /** P6: "Tue 8 Sep at 10:00 am" for the visit confirmation and reminder. */
+  visit_when?: string;
   // Automations (3 Sep) — each template documents which of these it uses.
   wo_ref?: string;
   action?: string;

@@ -39,6 +39,10 @@ import { requestNowMs } from "@/lib/time/requestClock";
 import { AUTOMATIONS } from "@/lib/automations/registry";
 import WebsiteContentManager from "./WebsiteContentManager";
 import CrmSettings, { type TagRow as CrmTagRow } from "./CrmSettings";
+import VisitsSettingsPanel from "./VisitsSettings";
+import { loadStaffAvailability, loadVisitsSettings } from "@/lib/visits/book";
+import { DEFAULT_VISITS_SETTINGS } from "@/lib/visits/types";
+const mergeVisitsSettingsSafe = () => DEFAULT_VISITS_SETTINGS;
 import { CRM_SETTINGS_KEY, mergeThresholds } from "@/lib/crm/thresholds";
 import { WEBSITE_CONTENT_KEY, parseWebsiteContent } from "@/lib/marketing/siteContent";
 import { listShowcaseJobsForStaff } from "@/lib/showcase/staff";
@@ -192,6 +196,11 @@ export default async function SettingsPage() {
   const crmThresholds = mergeThresholds(allSettings.find((r) => r.key === CRM_SETTINGS_KEY)?.value);
   const crmTagsRes = await supabase.from("crm_tags").select("key, label, colour, sort_order").order("sort_order").order("label");
   const crmTags = ((crmTagsRes.error ? [] : crmTagsRes.data) ?? []) as CrmTagRow[];
+  // P6: estimator visits — who takes them, when, and the wizard's windows.
+  const [visitsSettings, staffAvailability] = await Promise.all([
+    loadVisitsSettings(supabase).catch(() => mergeVisitsSettingsSafe()),
+    loadStaffAvailability(supabase).catch(() => []),
+  ]);
 
   // ---- the buckets (Tom, 3 Sep 2026) --------------------------------------
   // Six sections, each a list of folders. Titles are what the office and the
@@ -220,6 +229,8 @@ export default async function SettingsPage() {
           ) },
         { id: "staff-logins", title: "Staff logins", subtitle: "Office logins for your team — the master user creates them and ticks which areas each person sees",
           content: <StaffAccountsManager /> },
+        { id: "estimator-visits", title: "Estimator visits", subtitle: "Who takes site visits, their days and hours, and the morning / afternoon windows customers can book online", count: staffAvailability.filter((s) => s.takesVisits).length,
+          content: <VisitsSettingsPanel initial={visitsSettings} staff={staffAvailability} /> },
         { id: "trade-accounts", title: "Trade accounts", subtitle: "Create a trade login or grant an existing customer the trade workspace — office-side only, never self-serve",
           content: (
             <>

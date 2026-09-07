@@ -90,6 +90,8 @@ const RENDER: Record<CrmEventType, { label: string; kind: TimelineRow["kind"]; d
   visit_booked: { label: "Visit booked", kind: "activity",
     detail: (p) => join(str(p.when), str(p.who)) },
   visit_completed: { label: "Visit done", kind: "activity", detail: (p) => str(p.outcome) },
+  visit_no_show: { label: "Visit — no show", kind: "activity", detail: (p) => join(str(p.when), str(p.note)) },
+  visit_cancelled: { label: "Visit cancelled", kind: "activity", detail: (p) => join(str(p.when), p.rebook ? "to rebook" : str(p.reason)) },
   job_started: { label: "Job started", kind: "system", detail: (p) => str(p.workOrderNo) },
   job_completed: { label: "Job completed", kind: "system", detail: (p) => str(p.workOrderNo) },
   invoice_sent: { label: "Invoice sent", kind: "system",

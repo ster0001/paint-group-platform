@@ -89,6 +89,25 @@ describe("stageFor — the lane comes from the facts, never from a column", () =
     expect(fresh.flags.secondAttemptDue).toBe(false);
   });
 
+  it("P6: a cancelled or missed visit is no longer a booking — the lane falls back to the quote", () => {
+    const cancelled = stageFor(facts({
+      estimates: [estimate({ status: "sent", sent_at: daysAgo(9) })],
+      events: [{ type: "visit_booked", occurred_at: daysAgo(3) }, { type: "visit_cancelled", occurred_at: daysAgo(1) }],
+    }), NOW);
+    expect(cancelled.stage).toBe("estimate_sent");
+    const missed = stageFor(facts({
+      estimates: [estimate({ status: "sent", sent_at: daysAgo(9) })],
+      events: [{ type: "visit_booked", occurred_at: daysAgo(3) }, { type: "visit_no_show", occurred_at: daysAgo(1) }],
+    }), NOW);
+    expect(missed.stage).toBe("estimate_sent");
+    // Booked again after the no-show: booked wins.
+    const again = stageFor(facts({
+      estimates: [estimate({ status: "sent", sent_at: daysAgo(9) })],
+      events: [{ type: "visit_no_show", occurred_at: daysAgo(2) }, { type: "visit_booked", occurred_at: daysAgo(1) }],
+    }), NOW);
+    expect(again.stage).toBe("visit_booked");
+  });
+
   it("a revised estimate is a negotiation, and counts the revisions", () => {
     const r = stageFor(facts({
       estimates: [estimate({ status: "sent", sent_at: daysAgo(6) })],

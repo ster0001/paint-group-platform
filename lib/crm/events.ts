@@ -58,8 +58,11 @@ export const CRM_EVENT_SCHEMAS = {
   estimate_declined: z.object({ reason: shortText.optional() }),
   /** CRM v2 P1: a sent estimate passed its valid_until (crm_lapse_estimates). Lapsed is not lost — decision 8.11. */
   estimate_lapsed: z.object({ totalCents: money.optional(), sentAt: z.string().nullable().optional(), validUntil: z.string().nullable().optional() }),
-  visit_booked: z.object({ when: z.string().max(40), who: z.string().max(80).optional() }),
-  visit_completed: z.object({ outcome: shortText.optional() }),
+  visit_booked: z.object({ when: z.string().max(40), who: z.string().max(80).optional(), visitId: z.string().uuid().optional(), kind: z.string().max(20).optional(), source: z.string().max(20).optional(), moved: z.boolean().optional(), rebooked: z.boolean().optional() }),
+  visit_completed: z.object({ outcome: z.string().max(2000).optional(), visitId: z.string().uuid().optional(), who: z.string().max(80).optional() }),
+  /** CRM v2 P6: the visits table's other outcomes. A no-show raises the rebook item; a cancel clears the "visit booked" lane. */
+  visit_no_show: z.object({ when: z.string().max(40).optional(), visitId: z.string().uuid().optional(), note: z.string().max(2000).optional() }),
+  visit_cancelled: z.object({ when: z.string().max(40).optional(), visitId: z.string().uuid().optional(), reason: z.string().max(2000).optional(), rebook: z.boolean().optional() }),
   job_started: z.object({ workOrderNo: z.string().max(30).optional() }),
   job_completed: z.object({ workOrderNo: z.string().max(30).optional() }),
   invoice_sent: z.object({ invoiceNo: z.string().max(30).optional(), amountCents: money }),

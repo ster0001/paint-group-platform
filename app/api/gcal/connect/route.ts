@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireContractor } from "@/lib/contractor/session";
+import { createClient } from "@/lib/supabase/server";
+import { requireStaff } from "@/lib/supabase/guards";
 import { authorizeUrl, gcalEnv, signState } from "@/lib/gcal/oauth";
 
 export const runtime = "nodejs";
@@ -9,17 +11,24 @@ export const runtime = "nodejs";
  * only; the signed state nonce rides an httpOnly cookie so the callback can
  * prove the round-trip started here. Same shape as /api/myob/connect.
  */
-export async function GET() {
-  const session = await requireContractor(); // redirects staff/customers/anon away
-  if (!session.contractor) {
-    return NextResponse.redirect(new URL("/portal", process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"));
+export async function GET(request: Request) {
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  // P6: the same OAuth client and callback serve staff (Diary → Connect). The
+  // callback tells the two apart by the signed-in profile's role, so Google's
+  // console needs no second redirect URI.
+  const staffFlow = new URL(request.url).searchParams.get("who") === "staff";
+  if (staffFlow) {
+    const supabase = await createClient();
+    if (!(await requireStaff(supabase))) return NextResponse.redirect(new URL("/login", base));
+  } else {
+    const session = await requireContractor(); // redirects staff/customers/anon away
+    if (!session.contractor) return NextResponse.redirect(new URL("/portal", base));
   }
 
   const env = gcalEnv();
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
   if (!env) {
     // Friendly bounce — the Calendar card explains it isn't set up yet.
-    return NextResponse.redirect(new URL("/portal/calendar?gcal=unconfigured", base));
+    return NextResponse.redirect(new URL(staffFlow ? "/crm/diary?gcal=unconfigured" : "/portal/calendar?gcal=unconfigured", base));
   }
 
   const state = signState(env.clientSecret);

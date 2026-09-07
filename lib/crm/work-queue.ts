@@ -393,6 +393,41 @@ export function buildCallbackItems(
   return items;
 }
 
+// ---- source: visit_rebook (P6) ---------------------------------------------
+
+export type RebookVisitRow = {
+  id: string; account_id: string | null; status: string; starts_at: string; outcome_at: string | null; updated_at: string;
+  customer_name: string | null; address: string | null; customer_phone: string | null; outcome_note: string | null;
+};
+
+/**
+ * A visit that didn't happen — a no-show, or one the office marked "rebook" —
+ * with no later booking for the same customer. Due the next business morning;
+ * the customer is waiting on us to call.
+ */
+export function buildRebookItems(rows: RebookVisitRow[], laterBooked: Array<{ account_id: string | null; starts_at: string; created_at: string }>, now: Date): WorkItem[] {
+  const items: WorkItem[] = [];
+  for (const v of rows) {
+    if (v.status !== "no_show" && v.status !== "rebook") continue;
+    const since = v.outcome_at ?? v.updated_at;
+    const rebooked = v.account_id && laterBooked.some((b) => b.account_id === v.account_id && b.created_at > since);
+    if (rebooked) continue;
+    const who = v.customer_name || "A customer";
+    items.push(finish({
+      key: itemKey("visit_rebook", "visit", v.id, v.status),
+      kind: "visit_rebook",
+      accountId: v.account_id,
+      subjectRef: { type: "visit", id: v.id },
+      title: v.status === "no_show" ? `${who} — visit was a no-show, rebook it` : `${who} — visit to rebook`,
+      detail: [v.address, v.customer_phone, v.outcome_note].filter(Boolean).join(" · ") || "No note with it.",
+      since,
+      dueAt: nextBusinessMorning(new Date(since)).toISOString(),
+      action: { label: "Rebook", href: v.account_id ? `/crm/customers/${v.account_id}` : "/crm/diary" },
+    }, { valueCents: null, promisedToCustomer: true }, now));
+  }
+  return items;
+}
+
 // ---- source: wizard buckets A / B / C+ (buckets brief §4) -------------------
 
 export type WizardQueueRow = {
@@ -821,6 +856,15 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   const quietRows = (quietAcc.error ? [] : (quietAcc.data ?? [])) as Array<DelayedAccountRow & { relationship_state: string }>;
   const quietIds = new Set(quietRows.filter((r) => isQuiet(r.relationship_state, r.state_until, now)).map((r) => r.id));
   const delayedRows = quietRows.filter((r) => r.relationship_state === "delayed");
+  // P6: visits that didn't happen, and any booking since (which closes them).
+  const since60d = new Date(now.getTime() - 60 * 86_400_000).toISOString();
+  const [rebookRes, laterRes] = await Promise.all([
+    supabase.from("visits").select("id, account_id, status, starts_at, outcome_at, updated_at, customer_name, address, customer_phone, outcome_note")
+      .in("status", ["no_show", "rebook"]).gte("updated_at", since60d).order("updated_at", { ascending: false }).limit(200),
+    supabase.from("visits").select("account_id, starts_at, created_at").eq("status", "booked").gte("created_at", since60d).limit(500),
+  ]);
+  const rebookRows = (rebookRes.error ? [] : (rebookRes.data ?? [])) as RebookVisitRow[];
+  const laterBooked = (laterRes.error ? [] : (laterRes.data ?? [])) as Array<{ account_id: string | null; starts_at: string; created_at: string }>;
   const inboundRows = (inboundMsgs.error ? [] : (inboundMsgs.data ?? [])) as unknown as InboundMessageRow[];
   const inboundAccountIds = [...new Set(inboundRows.map((m) => m.account_id).filter((x): x is string => Boolean(x)))];
   const [{ data: outboundTouches }, { data: inboundAttempts }, { data: inboundAccounts }] = inboundAccountIds.length
@@ -927,6 +971,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...buildLapsedItems(lapsedRows, (lapsedAttempts ?? []) as ContactEventRow[], lapsedNames, now),
     ...buildMessageItems(inboundRows, (outboundTouches ?? []) as OutboundTouchRow[], (inboundAttempts ?? []) as ContactEventRow[], inboundNames, now, thresholds.messageOverdueHours),
     ...buildDelayEndedItems(delayedRows, now),
+    ...buildRebookItems(rebookRows, laterBooked, now),
   ];
 
   // Until migration 20261217 runs, the dismissals table doesn't exist and the
