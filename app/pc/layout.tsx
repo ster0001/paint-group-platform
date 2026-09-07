@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { staffVisibility, gateStaffArea } from "@/lib/staff/gate";
 import { firstVisibleHref } from "@/lib/staff/access";
-import { loadLogoUrl } from "@/lib/company/logo";
+import { loadLogos } from "@/lib/company/logo";
 import HomeMark from "@/app/components/HomeMark";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import { THEME_COOKIE, themeFromCookie } from "@/lib/theme/cookie";
@@ -27,7 +27,7 @@ export default async function PcLayout({ children }: { children: React.ReactNode
   await gateStaffArea(vis, "projects");
   // Tom, 8 Sep: the logo top-left goes home; dark or light follows the one
   // cookie the CRM set (same toggle, same palette names).
-  const logoUrl = await loadLogoUrl(supabase);
+  const logos = await loadLogos(supabase);
   const theme = themeFromCookie((await cookies()).get(THEME_COOKIE)?.value);
 
   const today = new Intl.DateTimeFormat("en-AU", {
@@ -38,7 +38,7 @@ export default async function PcLayout({ children }: { children: React.ReactNode
     <div className="pc" data-theme={theme}>
       <div className="shell">
         <div className="topbar">
-          <HomeMark href={firstVisibleHref(vis)} logoUrl={logoUrl} suffix="Projects" />
+          <HomeMark href={firstVisibleHref(vis)} logos={logos} suffix="Projects" />
           <span className="meta"><span className="d">Dashboard · {today}</span></span>
           <ThemeToggle initial={theme} rootSelector=".pc" />
           <span className="who">
