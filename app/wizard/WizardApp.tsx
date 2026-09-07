@@ -238,12 +238,15 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   // questions the form asks up front — condition and damage (with photos),
   // the safety flags, occupancy — are still asked; the build was assuming
   // "no damage, built after 1970" for every described job.
+  // Tom, 7 Sep (late): a commercial property skips "Anything else out there?"
+  // (pergola, balustrades, paint preferences) — a person prices it anyway.
+  const commercial = isCustomer && state.customer?.propertyKind === "commercial";
   const pageKeys: PageKey[] = describing
     ? ["property", ...(state.jobType === "exterior" ? ["ext_condition" as const] : ["condition" as const, "details" as const]), ...(!contactDone ? ["contact" as const] : [])]
     : state.jobType === "exterior"
       // Tom, 7 Sep: the follow-up page exists only when something other than
       // the house was ticked (fence type, shed / wall material, floor area).
-      ? ["property", "house", ...(state.exterior?.targets.some((t) => t !== "house") ? ["scope" as const] : []), "ext_condition", "extras", ...(isCustomer && !contactDone ? ["contact" as const] : [])]
+      ? ["property", "house", ...(state.exterior?.targets.some((t) => t !== "house") ? ["scope" as const] : []), "ext_condition", ...(commercial ? [] : ["extras" as const]), ...(isCustomer && !contactDone ? ["contact" as const] : [])]
       : ["property", "surfaces", "condition", "details", ...(isCustomer && !contactDone ? ["contact" as const] : ["paint" as const])];
   const lastPage = pageKeys.length;
   const pageKey: PageKey = pageKeys[Math.min(page, lastPage) - 1];
@@ -925,14 +928,12 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       if (pageKey === "house" && ext?.targets.includes("house") && ext.substrates.length === 0) return "What's the house made of? Tick at least one — or “None” if the walls aren't being painted.";
       if (pageKey === "scope" && ext && !Object.values(ext.painting).some(Boolean)) return "Tick at least one thing we're painting.";
       if (pageKey === "ext_condition" && ext?.condition == null) return "How's the paintwork holding up?";
-      if (pageKey === "ext_condition" && isCustomer && !answered.pre1970) return "Was the home built before 1970? Yes, no or not sure.";
       return null;
     }
     if (pageKey === "surfaces" && state.surfaces.length === 0) return "Tick at least one surface.";
     if (pageKey === "condition" && state.condition.tier === "dark_to_light" && state.condition.darkToLightSurfaces.length === 0) {
       return "Which surfaces are going dark to light?";
     }
-    if (pageKey === "details" && isCustomer && !answered.pre1970) return "Was the home built before 1970? Yes, no or not sure.";
     if (pageKey === "details" && isCustomer && !answered.asbestos) return "Any chance of asbestos sheeting? Yes, no or not sure.";
     if (pageKey === "details" && isCustomer && state.details.occupied == null) return "Will anyone be living there while we paint? Yes or no.";
     if (pageKey === "condition" && state.details.damageTier >= 2 && state.details.damagePhotoCount === 0) {
@@ -1063,7 +1064,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             {pageKey === "surfaces" && <PageSurfaces state={state} set={set} substrates={substrates} stepsTotal={lastPage} />}
             {pageKey === "scope" && <PageExteriorScope state={state} set={set} substrates={substrates} stepsTotal={lastPage} stepNo={page} />}
             {pageKey === "ext_condition" && (
-              <PageExteriorCondition state={state} set={set} isCustomer={isCustomer} stepsTotal={lastPage} stepNo={page} answered={answered} markAnswered={markAnswered} />
+              <PageExteriorCondition state={state} set={set} stepsTotal={lastPage} stepNo={page} />
             )}
             {pageKey === "details" && (
               <PageDetails state={state} set={set} isCustomer={isCustomer} stepsTotal={lastPage} stepNo={page} answered={answered} markAnswered={markAnswered} />
@@ -1831,14 +1832,11 @@ function PageDetails({ state, set, isCustomer = false, stepsTotal, stepNo = 4, a
         </p>
       )}
 
+      {/* Tom, 7 Sep (late): "built before 1970" is not asked anywhere in the
+          wizard any more — the office finds the build year itself. The field
+          stays "unsure" in the state; the policy no longer acts on "unsure". */}
       {isCustomer && state.customer && (
         <>
-          <p className="wz-qhead">Was the home built before 1970? <small>— older paint can contain lead, and we handle it properly</small></p>
-          <Seg
-            options={[{ v: "no" as const, label: "No" }, { v: "yes" as const, label: "Yes" }, { v: "unsure" as const, label: "Not sure" }]}
-            value={answered.pre1970 ? state.customer.builtPre1970 : null}
-            onPick={(v) => { markAnswered("pre1970"); set({ customer: { ...state.customer!, builtPre1970: v } }); }}
-          />
           <p className="wz-qhead">Any chance of asbestos sheeting in the areas being painted?</p>
           <Seg
             options={[{ v: "no" as const, label: "No" }, { v: "yes" as const, label: "Yes" }, { v: "unsure" as const, label: "Not sure" }]}
@@ -1873,6 +1871,9 @@ function PageDetails({ state, set, isCustomer = false, stepsTotal, stepNo = 4, a
 
 function PagePaint({ state, set, embedded = false, stepsTotal = 5 }: { state: WizardState; set: (p: Partial<WizardState>) => void; embedded?: boolean; stepsTotal?: number }) {
   const p = state.paint;
+  // Tom, 7 Sep (late): the water/oil question (and its oil-trim follow-up)
+  // is interior-only, never for a commercial property.
+  const askBase = state.jobType !== "exterior" && state.customer?.propertyKind !== "commercial";
   // Tom, 1 Sep: five brands + Not sure. "Not sure" is exclusive — picking it
   // clears the brands, picking a brand clears it.
   const BRAND_LABEL = { dulux: "Dulux", haymes: "Haymes", taubmans: "Taubmans", porters: "Porters", wattyl: "Wattyl", unsure: "Not sure" } as const;
@@ -1939,6 +1940,7 @@ function PagePaint({ state, set, embedded = false, stepsTotal = 5 }: { state: Wi
       {/* Tom, 1 Sep: water vs oil is its own question. Picking "water" keeps
           the old waterBasedOnly flag in step, so the oil-trim prep follow-up
           and the merge deferrals behave exactly as before. */}
+      {askBase && (
       <div className="wz-follow">
         <p className="wz-q">Are you wanting to paint using water based or oil based paints?</p>
         <div className="wz-chips">
@@ -1965,8 +1967,9 @@ function PagePaint({ state, set, embedded = false, stepsTotal = 5 }: { state: Wi
           preparation will be required.
         </p>
       </div>
+      )}
 
-      {p.waterBasedOnly && (
+      {askBase && p.waterBasedOnly && (
         <div className="wz-follow">
           <p className="wz-q">Are the trims currently painted in oil-based enamel?</p>
           <div className="wz-chips">
@@ -2299,9 +2302,9 @@ function PageExteriorScope({ state, set, substrates, stepsTotal, stepNo = 3 }: {
   );
 }
 
-function PageExteriorCondition({ state, set, isCustomer, stepsTotal, stepNo = 4, answered, markAnswered }: {
-  state: WizardState; set: (p: Partial<WizardState>) => void; isCustomer: boolean;
-  stepsTotal: number; stepNo?: number; answered: SafetyAnswered; markAnswered: (k: keyof SafetyAnswered) => void;
+function PageExteriorCondition({ state, set, stepsTotal, stepNo = 4 }: {
+  state: WizardState; set: (p: Partial<WizardState>) => void;
+  stepsTotal: number; stepNo?: number;
 }) {
   const { ext, setExt } = useExt(state, set);
   const cond = (v: NonNullable<WizardExterior["condition"]>, b: string, s: string) => (
@@ -2344,21 +2347,7 @@ function PageExteriorCondition({ state, set, isCustomer, stepsTotal, stepNo = 4,
         {cond("peeling", "Peeling & flaking", "Coming away in places — needs a proper look before a fixed price.")}
       </div>
 
-      {isCustomer && state.customer && (
-        <>
-          <p className="wz-qhead">Was the home built before 1970? <small>— older paint can contain lead, and we handle it properly</small></p>
-          <Seg
-            options={[
-              { v: "yes" as const, label: "Yes" },
-              { v: "no" as const, label: "No" },
-              { v: "unsure" as const, label: "Not sure" },
-            ]}
-            value={answered.pre1970 ? state.customer.builtPre1970 : null}
-            onPick={(v) => { markAnswered("pre1970"); set({ customer: { ...state.customer!, builtPre1970: v } }); }}
-          />
-        </>
-      )}
-
+      {/* Tom, 7 Sep (late): the "built before 1970" question is gone — the office finds the build year itself. */}
       <p className="wz-qhead">Anything tricky about access? <small style={{ color: "var(--muted)", fontWeight: 400 }}>— tick any that apply</small></p>
       <div className="wz-chips">
         {acc("steep", "Steep block")}

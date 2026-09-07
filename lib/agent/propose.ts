@@ -121,8 +121,8 @@ function buildFromBrief(doc: ScopeDoc, x: BriefExtraction, deps: ScopeDeps, mode
   // assumed clear and become a chip the person can flip (facts.flagsAssumed).
   const propertyKind = x.propertyKind ?? a.customer?.propertyKind ?? "house";
   if (!x.propertyKind && !a.customer?.propertyKind) fillIns.push(fillIn("q.property_type", "Assumed: a house", "house"));
-  const flagsKnown = a.customer?.builtPre1970 != null && a.customer?.heritageListed != null && a.customer?.bodyCorporate != null && a.customer?.asbestosSuspected != null;
-  if (!flagsKnown) fillIns.push(fillIn("q.property_flags", "Assumed: built after 1970, not heritage-listed, no body corporate, no asbestos — tap to change", "clear"));
+  const flagsKnown = a.customer?.heritageListed != null && a.customer?.bodyCorporate != null && a.customer?.asbestosSuspected != null;
+  if (!flagsKnown) fillIns.push(fillIn("q.property_flags", "Assumed: not heritage-listed, no body corporate, no asbestos — tap to change", "clear"));
 
   const draft: AnswerDraft = {
     ...a,
@@ -141,7 +141,7 @@ function buildFromBrief(doc: ScopeDoc, x: BriefExtraction, deps: ScopeDeps, mode
       damagePhotoCount: a.details?.damagePhotoCount ?? 0,
     },
     paint: { ...a.paint, colourHelp: x.colourMatch ? "advice" : (a.paint?.colourHelp ?? null) },
-    customer: { ...a.customer, propertyKind, heritageListed: a.customer?.heritageListed ?? "no", bodyCorporate: a.customer?.bodyCorporate ?? "no", builtPre1970: a.customer?.builtPre1970 ?? "no", asbestosSuspected: a.customer?.asbestosSuspected ?? "no" },
+    customer: { ...a.customer, propertyKind, heritageListed: a.customer?.heritageListed ?? "no", bodyCorporate: a.customer?.bodyCorporate ?? "no", builtPre1970: a.customer?.builtPre1970 ?? "unsure", asbestosSuspected: a.customer?.asbestosSuspected ?? "no" },
     exterior: jobType !== "interior" ? {
       ...a.exterior,
       storeys,

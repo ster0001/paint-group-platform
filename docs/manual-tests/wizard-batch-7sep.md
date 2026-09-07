@@ -70,3 +70,10 @@ not scrolled off the top.
 
 Metal fence, floor coatings, "Other" cladding, a freestanding wall's height (assumed
 1.8 m), the shed's size (the card's flat Shed allowance).
+
+## 6. Same evening, the follow-ups
+
+- **No "built before 1970" anywhere**: interior Details asks only asbestos + living there; exterior Condition asks only condition, access, equipment. (The estimator looks the year up.)
+- **Commercial**: pick "Commercial" as the property kind on an exterior job — after Condition the next page is Your details; there is no "Anything else out there?" page. The paint block on the last page has no water/oil question.
+- **Exterior (any property)**: the last page's paint block has brand + colours only — no water/oil question.
+- **Proving window**: build an estimate through "Describe it" (or the chat); open Estimates → Proving. It counts in "Wizard estimates" straight away (it used to sit in "pre-snapshot"). Estimates built through Describe/chat before this fix stay pre-snapshot — they have no first price on record.

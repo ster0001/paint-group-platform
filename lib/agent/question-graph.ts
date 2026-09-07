@@ -162,9 +162,10 @@ export function gapsFor(input: GraphInput): Gap[] {
   if (!cust?.propertyKind) add(PHASE.qual, 0, { key: "q.property_type", kind: qualKind, acceptsNotSure: false, phrasingHint: "Is it a house, townhouse, unit or a commercial building?" });
   // The hard stops depend on these (§2 rule 5) — asked once, up front; a
   // brief build that assumed them clear asks as a tightening chip instead.
-  const flagsMissing = cust?.propertyKind && (cust.builtPre1970 == null || cust.heritageListed == null || cust.bodyCorporate == null || cust.asbestosSuspected == null);
+  // Tom, 7 Sep (late): the build year is the office's to find — not asked.
+  const flagsMissing = cust?.propertyKind && (cust.heritageListed == null || cust.bodyCorporate == null || cust.asbestosSuspected == null);
   if (flagsMissing || input.facts.flagsAssumed) {
-    add(input.facts.flagsAssumed && !flagsMissing ? PHASE.intGlobal : PHASE.qual, 0, { key: "q.property_flags", kind: input.facts.flagsAssumed && !flagsMissing ? "tightening" : "required", acceptsNotSure: true, swingCents: swing("q.property_flags"), phrasingHint: "Quick checks: was it built before 1970, is it heritage-listed, is there a body corporate, and any chance of asbestos? \"Not sure\" is fine for any of them." });
+    add(input.facts.flagsAssumed && !flagsMissing ? PHASE.intGlobal : PHASE.qual, 0, { key: "q.property_flags", kind: input.facts.flagsAssumed && !flagsMissing ? "tightening" : "required", acceptsNotSure: true, swingCents: swing("q.property_flags"), phrasingHint: "Quick checks: is it heritage-listed, is there a body corporate, and any chance of asbestos? \"Not sure\" is fine for any of them." });
   }
   const storeysKnown = (wantsInterior && (floorplan || st.basics?.storeys != null)) || (wantsExterior && st.exterior != null);
   if (jobType != null && !storeysKnown) add(PHASE.qual, 0, { key: "q.storeys", kind: "required", acceptsNotSure: false, phrasingHint: "Single storey or double?" });

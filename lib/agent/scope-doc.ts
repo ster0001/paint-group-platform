@@ -98,7 +98,7 @@ export function seedFormAnswers(doc: ScopeDoc, f: FormAnswers, opts: { /** The t
     ...(f.conditionSourceIds ? { conditionSourceIds: f.conditionSourceIds } : {}),
   };
   const c = f.customer;
-  const flagsKnown = Boolean(c && c.builtPre1970 && c.heritageListed && c.bodyCorporate && c.asbestosSuspected);
+  const flagsKnown = Boolean(c && c.heritageListed && c.bodyCorporate && c.asbestosSuspected);
   const photoCount = Math.max(f.conditionSourceIds?.length ?? 0, f.details?.damagePhotoCount ?? 0);
   return withAgent(doc, {
     answers: deepMerge(a, patch),

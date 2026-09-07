@@ -164,7 +164,8 @@ test.describe("Tom's 7 Sep batch", () => {
     // The details page — the safety flags and occupancy.
     await next();
     await expect(page.locator(".wz-kick")).toContainText("Step 3 of 4");
-    await ans(/built before 1970/, "No");
+    // Tom, 7 Sep (late): the build year is not asked — the office finds it.
+    await expect(page.locator(".wz-qhead", { hasText: /built before 1970/ })).toHaveCount(0);
     await ans(/asbestos/, "No");
     await ans(/living there/, "Yes — we'll be living there");
 
@@ -184,12 +185,15 @@ test.describe("Tom's 7 Sep batch", () => {
 
     // The build carried the answers — never "no damage, built after 1970".
     const { data: est } = await db!.from("estimates").select("requires_site_check, builder_state").eq("id", describedEstimateId!).single();
-    const st = (est!.builder_state as { wizard?: { state?: { details?: { damageTier?: number; occupied?: string }; customer?: { builtPre1970?: string; asbestosSuspected?: string } } }; aiDeferred?: Array<{ kind?: string; count?: number }> });
+    const st = (est!.builder_state as { wizard?: { snapshot?: { totalCents?: number }; submittedAt?: string; state?: { details?: { damageTier?: number; occupied?: string }; customer?: { builtPre1970?: string; asbestosSuspected?: string } } }; aiDeferred?: Array<{ kind?: string; count?: number }> });
     expect(est!.requires_site_check).toBe(true);
     expect(st.wizard?.state?.details?.damageTier).toBe(2);
     expect(st.wizard?.state?.details?.occupied).toBe("yes");
-    expect(st.wizard?.state?.customer?.builtPre1970).toBe("no");
     expect(st.wizard?.state?.customer?.asbestosSuspected).toBe("no");
+    // Tom, 7 Sep (late): "the proving window stopped pulling in jobs" — an
+    // assistant-built estimate freezes its first price like the form path.
+    expect(st.wizard?.snapshot?.totalCents).toBeGreaterThan(0);
+    expect(st.wizard?.submittedAt).toBeTruthy();
     expect(st.aiDeferred?.some((d) => d.kind === "photo_review")).toBe(true);
     const { count } = await db!.from("estimate_sources").select("id", { count: "exact", head: true }).eq("estimate_id", describedEstimateId!).eq("kind", "defect_photo");
     expect(count ?? 0).toBeGreaterThanOrEqual(1);
@@ -281,6 +285,31 @@ test.describe("Tom's 7 Sep batch", () => {
     expect(adopted.data!.user_id).not.toBe(before.data!.user_id);
     expect(adopted.data!.converted_at).toBeNull();
     await other.close();
+  });
+
+  test("late · commercial exterior: no build-year question, no 'anything else out there', no oil question", async ({ page }) => {
+    test.setTimeout(240_000);
+    await page.goto("/estimate");
+    await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
+    await page.getByRole("button", { name: "Exterior", exact: true }).click();
+    await page.getByTestId("entry-questions").click();
+    await page.getByPlaceholder("Suburb").fill("Murrumbeena");
+    await page.getByPlaceholder("Postcode").fill("3163");
+    const ans = answer(page);
+    const next = nextOf(page);
+    await ans("What kind of property", "Commercial");
+    await next(); // what are we painting
+    await expect(page.getByRole("heading", { name: "What are we painting?" })).toBeVisible();
+    await next(); // condition
+    await expect(page.getByText(/holding up/i).first()).toBeVisible();
+    await expect(page.locator(".wz-qhead", { hasText: /built before 1970/ })).toHaveCount(0);
+    await page.getByRole("button", { name: /Good overall/i }).click();
+    await page.getByRole("button", { name: /None of these/i }).click();
+    await next(); // → straight to the contact page: no extras page for a commercial property
+    await expect(page.getByRole("heading", { name: /Anything else out there/ })).toHaveCount(0);
+    await expect(page.locator(".wz-crow input").first()).toBeVisible();
+    await expect(page.getByText(/water based or oil based/i)).toHaveCount(0);
+    await expect(page.getByText(/oil-based enamel/i)).toHaveCount(0);
   });
 
   test("3 · confirming a room lands the next room's NAME under the sticky header (phone)", async ({ browser }) => {
