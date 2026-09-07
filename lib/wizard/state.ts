@@ -53,6 +53,11 @@ const customerSchema = z.object({
   // on the wizard page with no hint WHICH field (Tom, 28 Aug) — name it.
   postcode: z.string().max(10, "The postcode looks too long — just the 4 digits, e.g. 3167.").default(""),
   propertyKind: z.enum(["house", "townhouse", "unit_apartment", "commercial"]),
+  /** Tom, 8 Sep 2026: what SORT of commercial job. A few rooms or offices
+   * is priced by the wizard like any interior; a large space or a strata /
+   * body-corporate building is seen by a person first. Optional so every
+   * stored state still parses; a commercial job with no answer hands off. */
+  commercialKind: z.enum(["small_interior", "large_interior", "strata"]).optional(),
   heritageListed: z.enum(["yes", "no", "unsure"]),
   bodyCorporate: z.enum(["yes", "no", "unsure"]),
   builtPre1970: z.enum(["yes", "no", "unsure"]),

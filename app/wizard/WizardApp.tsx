@@ -934,8 +934,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     if (pageKey === "condition" && state.condition.tier === "dark_to_light" && state.condition.darkToLightSurfaces.length === 0) {
       return "Which surfaces are going dark to light?";
     }
-    if (pageKey === "details" && isCustomer && !answered.asbestos) return "Any chance of asbestos sheeting? Yes, no or not sure.";
-    if (pageKey === "details" && isCustomer && state.details.occupied == null) return "Will anyone be living there while we paint? Yes or no.";
+    if (pageKey === "property" && commercial && !state.customer?.commercialKind) return "What sort of commercial job is it? A few rooms, a larger space, or strata.";
+    if (pageKey === "details" && isCustomer && !commercial && !answered.asbestos) return "Any chance of asbestos sheeting? Yes, no or not sure.";
+    if (pageKey === "details" && isCustomer && !commercial && state.details.occupied == null) return "Will anyone be living there while we paint? Yes or no.";
     if (pageKey === "condition" && state.details.damageTier >= 2 && state.details.damagePhotoCount === 0) {
       // Customer mode is photos-only (Step 8 brief) - a note cannot be priced.
       if (isCustomer) return "Damage at this level needs photos — a quick phone shot of each area is perfect.";
@@ -1347,6 +1348,39 @@ function PageProperty({
             value={state.customer.propertyKind}
             onPick={(v) => set({ customer: { ...state.customer!, propertyKind: v } })}
           />
+          {/* Tom, 8 Sep: commercial is not one thing. A few rooms or offices is
+              priced here like any interior; a larger space or a strata /
+              body-corporate building is seen by a person first — say so now,
+              not at the end. */}
+          {state.customer.propertyKind === "commercial" && (
+            <>
+              <p className="wz-qhead">What sort of commercial job is it?</p>
+              <Seg
+                options={[
+                  { v: "small_interior" as const, label: "A few rooms or offices" },
+                  { v: "large_interior" as const, label: "A larger space — whole floor, shop or warehouse" },
+                  { v: "strata" as const, label: "Strata / body corporate" },
+                ]}
+                value={state.customer.commercialKind ?? null}
+                onPick={(v) => set({ customer: { ...state.customer!, commercialKind: v } })}
+              />
+              {state.customer.commercialKind === "small_interior" && (
+                <div className="wz-follow" data-testid="commercial-small-note">
+                  <p className="wz-q">Good — a few rooms or offices price the same way a home does. Keep going and you&rsquo;ll see a figure; one of us confirms it on site before anything is booked.</p>
+                </div>
+              )}
+              {(state.customer.commercialKind === "large_interior" || state.customer.commercialKind === "strata") && (
+                <div className="wz-follow" data-testid="commercial-visit-note">
+                  <p className="wz-q">{state.customer.commercialKind === "strata"
+                    ? "Strata and body-corporate work is priced on site — we\u2019ll need to see it."
+                    : "A space that size is priced on site — we\u2019ll need to see it."}</p>
+                  <p style={{ fontSize: 13.5, color: "var(--muted)", margin: 0 }}>
+                    Tell us the basics and how to reach you, and we&rsquo;ll book a time to come and look. No figure is shown online for this one.
+                  </p>
+                </div>
+              )}
+            </>
+          )}
           {/* Tom, 7 Sep: the heritage question is gone from page 1 — it is not a
               pricing input; heritageListed keeps its default and the policy
               treats it as "no". The assistant still asks it with the flags. */}
@@ -1835,7 +1869,9 @@ function PageDetails({ state, set, isCustomer = false, stepsTotal, stepNo = 4, a
       {/* Tom, 7 Sep (late): "built before 1970" is not asked anywhere in the
           wizard any more — the office finds the build year itself. The field
           stays "unsure" in the state; the policy no longer acts on "unsure". */}
-      {isCustomer && state.customer && (
+      {/* Tom, 8 Sep: a commercial job is not asked about asbestos sheeting or
+          whether anyone lives there — the site visit covers both. */}
+      {isCustomer && state.customer && state.customer.propertyKind !== "commercial" && (
         <>
           <p className="wz-qhead">Any chance of asbestos sheeting in the areas being painted?</p>
           <Seg
@@ -1848,12 +1884,16 @@ function PageDetails({ state, set, isCustomer = false, stepsTotal, stepNo = 4, a
 
       {/* Tom, 7 Sep: a lived-in home is set up and packed down every day —
           priced with the Staging modifier, and said out loud. */}
-      <p className="wz-qhead">Will anyone be living there while we paint?</p>
-      <Seg
-        options={[{ v: "no" as const, label: "No — it'll be empty" }, { v: "yes" as const, label: "Yes — we'll be living there" }]}
-        value={d.occupied ?? null}
-        onPick={(v) => set({ details: { ...d, occupied: v } })}
-      />
+      {state.customer?.propertyKind !== "commercial" && (
+        <>
+          <p className="wz-qhead">Will anyone be living there while we paint?</p>
+          <Seg
+            options={[{ v: "no" as const, label: "No — it'll be empty" }, { v: "yes" as const, label: "Yes — we'll be living there" }]}
+            value={d.occupied ?? null}
+            onPick={(v) => set({ details: { ...d, occupied: v } })}
+          />
+        </>
+      )}
       {d.occupied === "yes" && (
         <div className="wz-follow" data-testid="occupied-note">
           <p className="wz-q">That&rsquo;s fine — we set up and pack down each day, and it&rsquo;s allowed for.</p>
