@@ -604,3 +604,42 @@
 .wz .sc-details { margin: 14px 0 0; }
 .wz .sc-details .il-q { margin-top: 10px; }
 .wz .sc-lastchange { font-family: var(--wz-mono); font-size: 10.5px; letter-spacing: .06em; color: var(--muted); margin: 6px 0 0; }
+
+/* ---- Tom, 8 Sep: reach a person from any page ----------------------------- */
+.wz .wz-help { max-width: 720px; margin: 0 auto; padding: 6px 20px 150px; }
+.wz .wz-help-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; }
+.wz .wz-help-lead { font-size: 13px; color: var(--muted); width: 100%; text-align: center; margin-bottom: 2px; }
+.wz .wz-help-btn { font-family: var(--wz-sans); font-size: 13.5px; font-weight: 600; padding: 9px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--graphite); color: var(--text); cursor: pointer; text-decoration: none; }
+.wz .wz-help-btn:hover, .wz .wz-help-btn.on { border-color: var(--cyan); color: var(--cyan); }
+.wz .wz-help-form { margin-top: 12px; border: 1px dashed var(--line); border-radius: 12px; padding: 12px; }
+.wz .wz-help-windows { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; justify-content: center; }
+.wz .wz-help-win { font-family: var(--wz-sans); font-size: 13px; padding: 8px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--graphite); color: var(--text); cursor: pointer; }
+.wz .wz-help-win.on { border-color: var(--cyan); color: var(--cyan); }
+.wz .wz-help-note, .wz .wz-help-done { font-size: 13.5px; color: var(--muted); text-align: center; }
+.wz .wz-help-done { color: var(--cyan); margin: 0 0 10px; }
+.wz .wz-help-err { font-size: 13.5px; color: #f27d7d; text-align: center; margin: 8px 0 0; }
+.wz .wz-help-fields { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; }
+.wz .wz-help-fields input { flex: 1 1 160px; max-width: 260px; padding: 11px 13px; border-radius: 10px; border: 1px solid var(--line); background: var(--graphite); color: var(--text); font: inherit; font-size: 14px; }
+.wz .wz-help-fields .wz-btn { padding: 11px 18px; flex: 0 0 auto; }
+.wz .wz-help-fields .wz-linkish { margin: 0; }
+
+/* ---- Tom, 8 Sep: chat with us, bottom-left --------------------------------- */
+.wz .wz-chat { position: fixed; left: 14px; bottom: 86px; z-index: 45; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.wz .wz-chat-bubble { display: inline-flex; align-items: center; gap: 8px; padding: 11px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--cyan); color: var(--oncyan); font-family: var(--wz-sans); font-weight: 700; font-size: 14px; cursor: pointer; box-shadow: 0 10px 30px rgba(0,0,0,.35); position: relative; }
+.wz .wz-chat-badge { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: #B3574A; color: #fff; font-size: 11px; display: grid; place-items: center; }
+.wz .wz-chat-panel { width: min(360px, calc(100vw - 28px)); height: min(460px, calc(100vh - 190px)); display: flex; flex-direction: column; background: var(--graphite, #12161A); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 18px 50px rgba(0,0,0,.45); overflow: hidden; }
+.wz .wz-chat-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); font-size: 14px; }
+.wz .wz-chat-state { font-size: 11.5px; color: var(--muted); margin-left: auto; }
+.wz .wz-chat-x { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; padding: 2px 8px; cursor: pointer; font: inherit; }
+.wz .wz-chat-log { flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.wz .wz-chat-msg { max-width: 88%; padding: 8px 11px; border-radius: 12px; font-size: 14px; line-height: 1.45; display: flex; flex-direction: column; gap: 2px; }
+.wz .wz-chat-msg.me { align-self: flex-end; background: var(--cyan); color: var(--oncyan); }
+.wz .wz-chat-msg.them { align-self: flex-start; background: var(--raised, #171C21); border: 1px solid var(--line); }
+.wz .wz-chat-who { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.wz .wz-chat-note, .wz .wz-chat-err { font-size: 13px; color: var(--muted); margin: 0; }
+.wz .wz-chat-err { color: #f27d7d; }
+.wz .wz-chat-input { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--line); }
+.wz .wz-chat-input input { flex: 1; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised, #171C21); color: var(--text); font: inherit; font-size: 14px; }
+.wz .wz-chat-input button { padding: 10px 14px; border-radius: 10px; border: 0; background: var(--cyan); color: var(--oncyan); font: inherit; font-weight: 700; cursor: pointer; }
+.wz .wz-chat-input button:disabled { opacity: .5; cursor: default; }
+@media (max-width: 720px) { .wz .wz-chat { bottom: 92px; } .wz .wz-chat-bubble-lbl { display: none; } .wz .wz-chat-bubble { padding: 12px 14px; } }

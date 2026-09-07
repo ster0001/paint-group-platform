@@ -66,9 +66,11 @@ test.describe("assistant — human handoff", () => {
     // The card, in Today, with one action: Claim.
     await signIn(staffPage, staff!, /estimates/);
     await staffPage.goto("/crm/today?f=messages");
-    const card = staffPage.locator("text=Hannah Handoff is waiting for a person").first();
+    // Tom, 7 Sep (item 1): the card says who asked and what to do.
+    // Scoped to HER card: the test project's Today lists dozens of stale chats.
+    const card = staffPage.locator(".qitem", { hasText: "Hannah Handoff wants to talk to a person" }).first();
     await expect(card).toBeVisible({ timeout: 30_000 });
-    const claimLink = staffPage.getByRole("link", { name: /Claim/ }).first();
+    const claimLink = card.getByRole("link", { name: /Answer the chat|Open chat/ }).first();
     await claimLink.click();
     await expect(staffPage).toHaveURL(/\/crm\/chat\//);
     await staffPage.getByTestId("lc-claim").click();

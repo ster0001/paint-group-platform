@@ -8,6 +8,7 @@ import HomeMark from "@/app/components/HomeMark";
 import ThemeToggle from "@/app/components/ThemeToggle";
 import { THEME_COOKIE, themeFromCookie } from "@/lib/theme/cookie";
 import "./invoicing.css";
+import StaffChatDock from "@/app/components/StaffChatDock";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,7 @@ export default async function InvoicingLayout({ children }: { children: React.Re
         <ThemeToggle initial={theme} rootSelector=".invx" />
       </div>
       {children}
+      <StaffChatDock />
     </div>
   );
 }

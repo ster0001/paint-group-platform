@@ -467,6 +467,10 @@ export function buildWizardItems(rows: WizardQueueRow[], attempts: ContactEventR
     const base = { accountId: r.account_id, subjectRef: { type: "wizard_session" as const, id: r.id }, since };
     if (bucket === "ready_call" || bucket === "ready_visit") {
       const visit = bucket === "ready_visit";
+      // Tom, 8 Sep: a visit booked from the wizard's help bar is already in
+      // the Diary (a visits row, an invite sent) — the note says "Booked: …"
+      // and no "book visit" card is raised on top of it.
+      if (visit && (r.outcome_note ?? "").startsWith("Booked:")) continue;
       items.push(finish({
         ...base,
         key: itemKey("wizard_ready", "wizard_session", r.id, visit ? "visit" : "call"),
