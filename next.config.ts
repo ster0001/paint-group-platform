@@ -35,6 +35,12 @@ const nextConfig: NextConfig = {
   // Force the whole bin folder into every function that might render.
   outputFileTracingIncludes: {
     "/**": ["./node_modules/@sparticuz/chromium/bin/**"],
+    // The help centre reads docs/help/** (markdown + screenshots + films) with
+    // fs at request time — same blind spot for file tracing as the chromium
+    // binary above, so the same fix.
+    "/help/**": ["./docs/help/**"],
+    "/portal/help/**": ["./docs/help/**"],
+    "/api/help/**": ["./docs/help/**"],
   },
 };
 

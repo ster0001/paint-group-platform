@@ -154,6 +154,24 @@ customers), and regenerates all six films in one pass.
 Constraints (brief §4, A4): silent, captions only, under 60 seconds each,
 invented test data only. Phone films are 390 px wide, desktop films 960 px.
 
+## Guided tours — `docs/help/_tours/<role>.md`
+
+The first-sign-in tour of the contractor portal is help content too. One file
+per role under `_tours/`, front-matter like a guide (`feature: _tours`), then
+one card after another:
+
+```markdown
+## Requests
+target: /portal/requests
+Job offers land here with the dates, the hours and your price, and a 24-hour clock.
+```
+
+`scripts/help-index.ts` validates the cards (a `target:` route and a body on
+every card, at most ten cards), lists them under `tours` in `_index.json`, and
+stamps and stale-checks the file like every guide. The portal shows the tour
+once per account on a fresh sign-in (`contractors.tour_seen_at`, written only
+by the `contractor_tour_seen` RPC) and replays it from Help.
+
 ## Keeping help current — `verified_at_commit` and `sources`
 
 Two front-matter fields make stale help visible:

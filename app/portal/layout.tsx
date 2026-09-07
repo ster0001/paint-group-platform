@@ -3,7 +3,10 @@ import Link from "next/link";
 import "./portal.css";
 import { getContractorSession } from "@/lib/contractor/session";
 import { getCompanyContact } from "@/lib/portal/data";
+import { createClient } from "@/lib/supabase/server";
+import { loadTour } from "@/lib/help/content";
 import PortalTabs from "./PortalTabs";
+import PortalTour from "./PortalTour";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +30,20 @@ export default async function PortalLayout({ children }: { children: React.React
   // customer portal's whitelisted service read is the established door.
   const { logoUrl } = await getCompanyContact();
 
+  // The guided tour (help brief Phase C, C3): once, on a fresh account —
+  // nothing seen yet, not suspended, and no offer or job on the books, because
+  // a painter with work waiting came to act, not to browse. Help replays it.
+  let tourCards: Awaited<ReturnType<typeof loadTour>> = [];
+  if (contractor && !suspended && !contractor.tour_seen_at) {
+    const supabase = await createClient();
+    const [{ count: offers }, { count: jobs }] = await Promise.all([
+      supabase.from("booking_offers").select("id", { count: "exact", head: true })
+        .eq("contractor_id", contractor.id).in("state", ["offered", "proposed", "accepted"]),
+      supabase.from("work_orders").select("id", { count: "exact", head: true }).eq("contractor_id", contractor.id),
+    ]);
+    if (!offers && !jobs) tourCards = loadTour("contractor");
+  }
+
   return (
     <div className="pt">
       <div className="phone">
@@ -48,6 +65,7 @@ export default async function PortalLayout({ children }: { children: React.React
         {children}
 
         {!suspended && <PortalTabs />}
+        {tourCards.length > 0 && <PortalTour cards={tourCards} />}
       </div>
     </div>
   );

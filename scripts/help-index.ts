@@ -43,9 +43,21 @@ export type HelpIndexEntry = {
   sources: string[];
 };
 
+export type HelpTourEntry = {
+  role: Role;
+  title: string;
+  summary: string;
+  path: string;
+  cards: number;
+  verified_at_commit: string | null;
+  sources: string[];
+};
+
 export type HelpIndex = {
   roles: readonly Role[];
   files: HelpIndexEntry[];
+  /** Guided tours (docs/help/_tours/<role>.md) — help content too, validated and stamped alike. */
+  tours: HelpTourEntry[];
 };
 
 type Problem = { file: string; message: string };
@@ -189,9 +201,71 @@ function validateFile(featureDir: string, feature: string, fileName: string): { 
   };
 }
 
+/** docs/help/_tours/<role>.md: front-matter like a guide (feature `_tours`), then `## Card` / `target:` / body. */
+function validateTour(fileName: string): { entry: HelpTourEntry | null; problems: Problem[] } {
+  const filePath = join(helpRoot, "_tours", fileName);
+  const file = rel(filePath);
+  const problems: Problem[] = [];
+  const push = (message: string) => problems.push({ file, message });
+  const text = readFileSync(filePath, "utf8");
+  const fm = parseFrontMatter(text);
+  for (const p of fm.problems) push(p);
+  const role = fileName.replace(/\.md$/, "");
+  if (!isRole(role)) push(`file name must be one of ${ROLES.map((r) => r + ".md").join(", ")}`);
+  if ((fm.data.get("feature") ?? "") !== "_tours") push(`feature must be "_tours"`);
+  if ((fm.data.get("role") ?? "") !== role) push(`role "${fm.data.get("role") ?? ""}" does not match the file name "${fileName}"`);
+  for (const key of ["title", "summary"] as const) {
+    const v = fm.data.get(key);
+    if (!v || v.startsWith("<")) push(`missing or placeholder front-matter "${key}"`);
+  }
+  const verified = fm.data.get("verified_at_commit") ?? null;
+  if (verified !== null && !COMMIT.test(verified)) push(`verified_at_commit "${verified}" is not a git commit hash`);
+  const sources = (fm.data.get("sources") ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+  for (const src of sources) {
+    if (src.startsWith("/") || src.includes("..")) push(`sources entry "${src}" must be a repo-relative path`);
+    else if (!existsSync(join(repoRoot, src))) push(`sources entry "${src}" does not exist in the repo`);
+  }
+  const bodyStart = text.indexOf("\n---", 3);
+  const body = bodyStart >= 0 ? text.slice(bodyStart + 4) : "";
+  let cards = 0;
+  let current: { title: string; target: string; body: string } | null = null;
+  const finish = () => {
+    if (!current) return;
+    if (!current.target.startsWith("/")) push(`card "${current.title}": needs a \`target: /portal/...\` line`);
+    if (!current.body.trim()) push(`card "${current.title}": no text under the heading`);
+  };
+  for (const raw of body.split(/\r?\n/)) {
+    const line = raw.trim();
+    const h = /^##\s+(.+)$/.exec(line);
+    if (h) { finish(); current = { title: h[1].trim(), target: "", body: "" }; cards++; continue; }
+    if (!current) continue;
+    const t = /^target:\s*(\S+)\s*$/.exec(line);
+    if (t) current.target = t[1]; else if (line) current.body += line + " ";
+  }
+  finish();
+  if (cards === 0) push("no cards — each card is a `## Title`, a `target:` line and a sentence or two");
+  if (cards > 10) push(`${cards} cards is too many for a first-sign-in tour (keep it under a minute: at most 10)`);
+  if (problems.length || !isRole(role)) return { entry: null, problems };
+  return {
+    entry: { role, title: fm.data.get("title") ?? "", summary: fm.data.get("summary") ?? "", path: file, cards, verified_at_commit: verified, sources },
+    problems,
+  };
+}
+
 export function buildIndex(): { index: HelpIndex; problems: Problem[] } {
   const problems: Problem[] = [];
   const files: HelpIndexEntry[] = [];
+  const tours: HelpTourEntry[] = [];
+
+  const toursDir = join(helpRoot, "_tours");
+  if (existsSync(toursDir)) {
+    for (const child of readdirSync(toursDir).sort()) {
+      if (!child.endsWith(".md")) { problems.push({ file: rel(join(toursDir, child)), message: "only <role>.md tour files belong in _tours/" }); continue; }
+      const r = validateTour(child);
+      problems.push(...r.problems);
+      if (r.entry) tours.push(r.entry);
+    }
+  }
 
   for (const name of readdirSync(helpRoot).sort()) {
     if (name.startsWith("_") || name === "README.md") continue;
@@ -224,7 +298,7 @@ export function buildIndex(): { index: HelpIndex; problems: Problem[] } {
   }
 
   files.sort((a, b) => a.feature.localeCompare(b.feature) || a.role.localeCompare(b.role));
-  return { index: { roles: ROLES, files }, problems };
+  return { index: { roles: ROLES, files, tours }, problems };
 }
 
 function git(args: string[]): string {
@@ -241,7 +315,13 @@ function git(args: string[]): string {
  * Run it right after regenerating a feature's screenshots and walkthrough, so
  * the stamp names the source state the media was captured from.
  */
-function stamp(entries: HelpIndexEntry[], features: string[]): number {
+type Stampable = { path: string; verified_at_commit: string | null; sources: string[]; feature: string; role: Role };
+const asStampable = (i: HelpIndex): Stampable[] => [
+  ...i.files,
+  ...i.tours.map((t) => ({ path: t.path, verified_at_commit: t.verified_at_commit, sources: t.sources, feature: "_tours", role: t.role })),
+];
+
+function stamp(entries: Stampable[], features: string[]): number {
   const head = git(["rev-parse", "--short=10", "HEAD"]);
   if (!head) { console.error("help:index --stamp — not a git checkout, nothing stamped."); return 0; }
   let n = 0;
@@ -263,7 +343,7 @@ function stamp(entries: HelpIndexEntry[], features: string[]): number {
  * changes there), warn. GitHub renders `::warning::` lines as annotations. It
  * never fails the build — stale help is a chore, not a broken build.
  */
-function staleWarnings(entries: HelpIndexEntry[]): string[] {
+function staleWarnings(entries: Stampable[]): string[] {
   const out: string[] = [];
   for (const e of entries) {
     if (!e.verified_at_commit || e.sources.length === 0) continue;
@@ -298,7 +378,7 @@ function main(): void {
 
   if (stampAt >= 0) {
     const features = process.argv.slice(stampAt + 1).filter((a) => !a.startsWith("--"));
-    const n = stamp(index.files, features);
+    const n = stamp(asStampable(index), features);
     console.log(`help:index — stamped ${n} help file${n === 1 ? "" : "s"} with the current commit.`);
     // Re-read so the index carries the new stamps.
     const again = buildIndex();
@@ -307,7 +387,7 @@ function main(): void {
     return;
   }
 
-  for (const w of staleWarnings(index.files)) console.log(w);
+  for (const w of staleWarnings(asStampable(index))) console.log(w);
 
   const json = JSON.stringify(index, null, 2) + "\n";
   if (check) {
@@ -316,7 +396,7 @@ function main(): void {
       console.error(`${rel(indexPath)}: is stale — run \`npm run help:index\` and commit the result.`);
       process.exit(1);
     }
-    console.log(`help:index — ${index.files.length} help file${index.files.length === 1 ? "" : "s"} indexed, _index.json is current.`);
+    console.log(`help:index — ${index.files.length} help file${index.files.length === 1 ? "" : "s"} and ${index.tours.length} tour${index.tours.length === 1 ? "" : "s"} indexed, _index.json is current.`);
     return;
   }
   writeFileSync(indexPath, json);

@@ -28,6 +28,9 @@ const ALL_NAV = [
   { href: "/crm", label: "CRM", icon: "📣", area: "crm" },
   { href: "/contractors", label: "Contractors", icon: "🎨", area: "contractors" },
   { href: "/settings", label: "Settings", icon: "⚙️", area: "settings" },
+  // Help centre (brief Phase C). Not an "area": every staff login sees it,
+  // whatever the master user has hidden.
+  { href: "/help", label: "Help", icon: "❔", area: "help" },
 ];
 
 /**
@@ -44,7 +47,7 @@ export default function AppSidebar({ name, email, logoUrl = "", areas }: { name:
 
   // Tom, 5 Sep: the master user ticks which areas each staff login sees
   // (Settings → Staff logins). No list = everything, as before.
-  const NAV = areas ? ALL_NAV.filter((n) => areas.includes(n.area)) : ALL_NAV;
+  const NAV = areas ? ALL_NAV.filter((n) => n.area === "help" || areas.includes(n.area)) : ALL_NAV;
   const isActive = (href: string) => path === href || path.startsWith(href + "/");
   const current = NAV.find((n) => isActive(n.href));
 

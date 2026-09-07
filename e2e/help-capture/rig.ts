@@ -112,7 +112,7 @@ export async function destroyHelpJob(db: SupabaseClient, f: LoopFixture | null) 
   // the shared test project (6 Sep); a dozen small deletes never do.
   for (const t of [
     "contractor_invoices", "job_costs", "contractor_expenses", "expense_preapprovals", "material_costs",
-    "booking_offers", "wo_walkthroughs", "wo_qa_items", "wo_qa_checks", "wo_variations", "wo_photos",
+    "booking_offers", "wo_walkthroughs", "wo_qa_checks" /* wo_qa_items cascade from it */, "wo_variations", "wo_photos",
     "wo_updates", "wo_events", "wo_surfaces", "wo_checklist_items", "wo_signoff", "wo_reports",
   ]) {
     await db.from(t).delete().eq("work_order_id", f.workOrderId);
@@ -152,8 +152,10 @@ export async function pickCalendarDay(page: Page, sheet: import("@playwright/tes
   const toMonth = Number(targetIso.slice(0, 7).replace("-", ""));
   const forward = (toMonth % 100) - (fromMonth % 100) + 12 * (Math.floor(toMonth / 100) - Math.floor(fromMonth / 100));
   for (let i = 0; i < forward; i++) await sheet.locator("button.btn.gh.narrow").nth(1).click();
+  // A day the painter marked off, or a booked one, carries a <small> label
+  // after the number ("14OFF"); match the number, not the whole text.
   const day = String(Number(targetIso.slice(8, 10)));
-  await sheet.locator("button.cd2", { hasText: new RegExp(`^${day}$`) }).first().click();
+  await sheet.locator("button.cd2", { hasText: new RegExp(`^${day}(?:[A-Z]|$)`) }).first().click();
 }
 
 // ---- test photos + framing --------------------------------------------------

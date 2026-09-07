@@ -6,10 +6,14 @@
 export type Inline = { t: "text"; v: string } | { t: "b"; v: string } | { t: "a"; v: string; href: string };
 export type Block = Inline[][]; // paragraph → lines → inlines
 
-const LINK = /\[([^\]]+)\]\((https?:\/\/[^\s)]+|\/[^\s)]*|#[^\s)]*)\)/;
+// Absolute, site-relative, in-page — and, for the help files, a relative path
+// to another help file (`../self-invoicing/contractor.md`); lib/help/content.ts
+// resolves those to routes and drops the ones a reader may not follow.
+const LINK = /\[([^\]]+)\]\((https?:\/\/[^\s)]+|\/[^\s)]*|#[^\s)]*|(?:\.\.\/)+[A-Za-z0-9._\/-]+|[A-Za-z0-9_-]+\.md)\)/;
 const BOLD = /\*\*([^*]+)\*\*/;
 
-function inlines(line: string): Inline[] {
+/** Exported for the help renderer (lib/help/markdown.ts), which reuses the inline grammar. */
+export function inlines(line: string): Inline[] {
   const out: Inline[] = [];
   let rest = line;
   while (rest.length) {

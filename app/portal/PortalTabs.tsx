@@ -9,6 +9,8 @@ const TABS = [
   { href: "/portal/jobs", label: "JOBS", icon: "▤" },
   { href: "/portal/money", label: "INVOICING", icon: "$" },
   { href: "/portal/calendar", label: "CALENDAR", icon: "▦" },
+  // Help centre (brief Phase C): the painter's own manuals, in the portal.
+  { href: "/portal/help", label: "HELP", icon: "?" },
 ];
 
 export default function PortalTabs() {

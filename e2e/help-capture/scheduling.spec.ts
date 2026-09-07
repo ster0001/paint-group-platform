@@ -71,7 +71,7 @@ test("scheduling — staff offers, contractor responds, both sides captured", as
   await s.goto("/pc/schedule");
   await expect(s.getByTestId("lane").first()).toBeVisible({ timeout: 30_000 });
   const tray = s.locator(`[data-testid="tray-job"][data-wo-ref]`).filter({ hasText: /Interior repaint/ }).first();
-  await expect(tray).toBeVisible();
+  await expect(tray).toBeVisible({ timeout: 30_000 });
   const woRef = (await tray.getAttribute("data-wo-ref")) ?? "";
   await shot(s, F, "staff", "01", { fullPage: false });
 
@@ -86,8 +86,9 @@ test("scheduling — staff offers, contractor responds, both sides captured", as
   await s.getByTestId("walkthrough-time").fill("15:00");
   await shot(s, F, "staff", "02", { fullPage: false });
   await sendOffer.click();
-  await expect(s.locator(`[data-testid="tray-job"][data-wo-ref="${woRef}"]`)).toHaveCount(0);
-  await expect(s.locator(".blk.offered").first()).toBeVisible();
+  // The send is an RPC plus a board refresh; on a loaded test project it can take a while.
+  await expect(s.locator(`[data-testid="tray-job"][data-wo-ref="${woRef}"]`)).toHaveCount(0, { timeout: 30_000 });
+  await expect(s.locator(".blk.offered").first()).toBeVisible({ timeout: 30_000 });
   await shot(s, F, "staff", "03", { fullPage: false });
 
   // the offered block's detail sheet: countdown + "Cancel this offer"
@@ -162,7 +163,11 @@ test("scheduling — staff offers, contractor responds, both sides captured", as
   await c.goto(`/portal/jobs/${job!.workOrderId}`);
   await c.getByRole("button", { name: "Request a new start date" }).click();
   const rs = c.locator(".sheet");
-  const moved = addDaysIso(proposed, 3);
+  // Pick a day past the job's own span: tapping a day the job already covers
+  // opens the job instead of picking it, and the sheet's Send stays disabled.
+  const { data: bookedRow } = await db!.from("booking_offers").select("end_date").eq("work_order_id", job!.workOrderId).eq("state", "accepted").maybeSingle();
+  const bookedEnd = (bookedRow as { end_date: string | null } | null)?.end_date ?? proposed;
+  const moved = addDaysIso(bookedEnd > proposed ? bookedEnd : proposed, 3);
   await pickCalendarDay(c, rs, proposed, moved);
   await rs.getByPlaceholder(/Why\?/).fill("Running two days behind on the job before.");
   await shot(c, F, "contractor", "11");

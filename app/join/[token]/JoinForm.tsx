@@ -38,16 +38,19 @@ export default function JoinForm({
     setBusy(true);
     try {
       // Create the account, or sign in if they already started and came back.
-      const { error: signUpErr } = await supabase.auth.signUp({
+      // Supabase answers a sign-up for an email that already has an account
+      // with NO error and NO session (anti-enumeration), so "no session" is
+      // the signal to sign in, not just an error.
+      const { data: signUp, error: signUpErr } = await supabase.auth.signUp({
         email,
         password,
         options: { data: { name: fullName } },
       });
-      if (signUpErr) {
+      if (signUpErr || !signUp?.session) {
         const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
         if (signInErr) {
           throw new Error(
-            /already registered/i.test(signUpErr.message)
+            !signUpErr || /already registered/i.test(signUpErr.message)
               ? "There's already an account for this email. Sign in instead, or use a different password if you've forgotten it."
               : signUpErr.message,
           );
@@ -65,6 +68,7 @@ export default function JoinForm({
           "error:used": "This invitation has already been used. Try signing in instead.",
           "error:revoked": "Paint Group cancelled this invitation.",
           "error:not_found": "This link isn't valid any more.",
+          "error:not_signed_in": "We couldn't sign you in just now — try again in a moment.",
         };
         throw new Error(map[res] ?? res.replace("error:", ""));
       }

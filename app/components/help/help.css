@@ -1,0 +1,19 @@
+/* Help articles — one stylesheet for both shells. The portal (.pt) defines the
+   dark tokens; in the light staff app the fallbacks apply. Tokens only, no
+   ad-hoc colours beyond the fallback values. */
+.help-article { font-size: 14px; line-height: 1.55; color: var(--text, #1f2937); max-width: 720px; }
+.help-article h2 { font-size: 16px; font-weight: 600; margin: 22px 0 8px; color: var(--text, #111827); }
+.help-article h3 { font-size: 14px; font-weight: 600; margin: 18px 0 6px; color: var(--text, #111827); }
+.help-article p { margin: 0 0 10px; }
+.help-article ol, .help-article ul { margin: 0 0 12px; padding-left: 22px; }
+.help-article li { margin: 0 0 8px; }
+.help-article ul li::marker { color: var(--cyan, #0e7490); }
+.help-article ol li::marker { font-weight: 600; color: var(--cyan, #0e7490); }
+.help-article b { font-weight: 600; color: var(--text, #111827); }
+.help-article a { color: var(--cyan, #0e7490); text-decoration: underline; text-underline-offset: 2px; }
+.help-article figure { margin: 8px 0 14px; }
+.help-article figure img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line, #e5e7eb); border-radius: 12px; }
+/* Phone screenshots are 390px wide at 1x; don't blow them up on a laptop. */
+.help-article figure.shot img { max-width: min(100%, 420px); }
+.help-article figure.film img { max-width: min(100%, 480px); }
+.help-article.app figure.shot img, .help-article.app figure.film img { background: #0a0b0d; }
