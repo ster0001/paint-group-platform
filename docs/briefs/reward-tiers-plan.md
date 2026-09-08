@@ -79,7 +79,7 @@ Reads `wizard_bands` + `wizard_policy` only. The three call sites call it. `cust
 - Migration: `products.upgrade_product_id uuid null references products(id)` — "the premium this trade product upgrades to". Edited in Settings → Products (one dropdown per row). No grade column: the mapping *is* the grade.
 - At acceptance with Gold, `builder_state.rewards.paintUpgrade = { at, map: { [tradeProduct]: premiumProduct } }` is stamped from the mapping **as it stood that day**, so a later product change never rewrites an accepted job.
 - The **work order** and the Materials card resolve through the stamped map (the painter buys the premium); the **price** does not change — the accepted snapshot is frozen. The material-cost delta shows on the job as a reward cost line (feeds Phase 6 P&L).
-- The customer copy lists it under inclusions: *"Paint upgrade included: Dulux Wash&Wear → Dulux Wash&Wear+ (Gold)"*.
+- The customer copy lists it under inclusions: *"Paint upgrade included: Dulux Wash&Wear → Dulux Wash&Wear+ (Gold)"* — and the estimate's **"The paint we're supplying"** section renders the *upgraded* product with its photo and blurb from the catalogue (`products.image_url` / `blurb` exist), so the customer sees the better tin, not a line of text (Tom, 8 Sep).
 
 ### 3.6 Gold · the Dulux colour consult
 
@@ -127,7 +127,7 @@ One: `products.upgrade_product_id`. Plus one data statement stripping the dead `
 
 ## 7 · Decisions for Tom (⚑)
 
-1. **The upgrade map** — which premium each trade product becomes (filled in Settings → Products once PR 3 lands; the reward can't stamp until it's set).
+1. **The upgrade map** — Tom fills it in Settings → Products once PR 3 lands (ruled 8 Sep); the reward can't stamp until it's set.
 2. **Hold starts automatically at Silver** (my recommendation — it costs nothing) or only when the customer taps *Hold this price*?
 3. **Silver on exterior** — allowed (yes, in this plan) or Gold-only?
 4. **The desk-check promise wording** — "within one business day" is what the customer is told; confirm.

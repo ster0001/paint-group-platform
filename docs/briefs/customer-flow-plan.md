@@ -30,11 +30,13 @@ Two consequences. **Condition moves from step 3 of the form to the first questio
 - Inside · Outside · Both.
 - House · Townhouse · Unit/apartment · Commercial (commercial hands off exactly as today).
 - The three safety questions as one row of three toggles with *Not sure*: heritage-listed · body corporate · asbestos. No silent default (the 6 Sep ruling stands).
+- Under Continue, small and always there: **"Or just book a visit — no questions."** Address + mobile, straight to the visit times (`bookWizardSlot`, as the builder's *Send someone* does). The draft files into the `ready_visit` lane marked hot — the person who chooses this is the one who says yes on the day, and is treated as such on Today.
 
 ### Screen 2 · The place — three ways in
 - **Upload your floorplan** — a phone photo of the brochure is fine. The Gold road.
 - **Describe it** — type or **dictate** ("3-bed weatherboard, painting the front, left and back, walls and ceilings inside, a bit of peeling on the north side"). The existing describe build; it replaces screen 3 for anyone who'd rather talk. Voice = the browser's speech recognition into the same box; nothing new server-side.
 - **Three quick taps** — interior: bedrooms · storeys · rough size. Exterior: storeys · cladding · which sides.
+  **The starter list must be complete.** Today `starterRoomList` lays out bedrooms, living, kitchen, bathroom and hallway and leaves out WC, ensuite, laundry, garage and (double storey) landing — so a three-tap house is under-scoped before a single answer. The list becomes: 1 bed → +bath, WC-in-bath, laundry; 2–3 bed → +ensuite? (asked as a chip), separate WC, laundry; 4+ → +ensuite, WC, laundry, study; double → +landing/stairs; garage as a chip. Every added room is `assumedFields: presence` (a keep-it / remove-it chip in the builder, which exists). This is the one accuracy fix that is independent of any benchmark, and it lands in flow PR (a).
 - Small, under the cards: *"Just bought? Paste the listing and we'll try to pull the plan."* Never blocks — nothing found, the taps carry on with a one-line note. Primary for trade / real-estate accounts. Measured (every pull is an extraction run).
 
 ### Screen 3 · The job
@@ -50,10 +52,21 @@ Two consequences. **Condition moves from step 3 of the form to the first questio
 
 ### The builder home
 - The **range card** pinned at the top: range · tier chip · ring · *"Silver — two questions from Gold: confirm the ceiling height (narrows ~$380) · upload your floorplan."* The line comes from `assumptionSwings` + `nextUnlock`.
+- **The ring never names a target the current road can't reach.** A no-plan job's stated goal is Silver; Gold appears only as *"unlock with a floorplan"*. A plan-backed job is shown Gold. `ladderFor().nextUnlock` decides which, from the same reachability facts PR 1 pins with a test — a score that can't be hit reads as "you failed", so it is never shown as the goal.
 - The three doors, under the card and again in the sticky footer (the reach strip, which already exists).
 - **Tap or chat** — one switch. Every chip can be answered by tapping or by typing in the chat pane; both drive the same question list. (Today's "Chat it instead" side link becomes this switch.)
 - The **tightening list**, ordered by swing: *Condition — anything you can see?* (facts + per-area photos, pictures beside each option) · room sizes (the confirm loop as today) · door & window styles · ceiling height · cupboards · living there · paint brand.
 - The room / side cards as they are now, below.
+
+## 3b · Against the six problems this started from
+| Problem | Where it is solved |
+|---|---|
+| Under-scoped / mis-sized first number | Complete starter list (screen 2, flow PR a); measured sides + size band (exist); interval pricing (later); accuracy proven against actuals (step 0) |
+| Range in two minutes | Screens 1–4 |
+| "Send someone" first-class from page 1 | Screen 1 visit door + the three doors from the reveal on |
+| The walk as a gate | Finalise never disabled (shipped 8 Sep); the walk earns tiers; the reachable-target rule; the band widening by default = interval pricing (later, said plainly) |
+| Condition as facts + pictures, priced in the open | First tightening chip in the builder |
+| Measure for real | §11, both halves |
 
 ## 4 · Derived, never asked
 - **Coats** — from same/new + dark-to-light.
@@ -87,22 +100,25 @@ Nothing is written on top of a page that is no longer needed: each PR removes th
 With no plan, three taps + the full room walk lands in the low 70s → Silver. A plan or listing + the walk → 90 → Gold-eligible. PR 1 of the tiers brief pins those numbers with a test. The builder says which road the customer is on.
 
 ## 8 · The roadmap — one sequence, both briefs
+0. **Prove against actuals** — `/proving` reads work-order actuals (§11). The yardstick for everything after.
 1. **One ladder** (tiers PR 1) — the clean-up both halves sit on.
 2. **The flow** — this brief. Three PRs: (a) screens 1–3 + the describe/voice way in + listing demoted; (b) screen 4, the reveal, the contact switch; (c) the builder home: range card, Tap/Chat switch, the tightening list, condition as facts + photos.
 3. **Tightening as the game** — next-unlock line with swings, tier chip animation, "reward lost" explanation (tiers PR 4, moved up).
 4. **Silver** (tiers PR 2). 5. **Gold** (tiers PR 3, "book straight in" switch OFF). 6. Later: interval pricing, photo grading, exterior Gold, per-account auto-confirm.
 
 ## 9 · The PRs, e2e-first
-- **Flow (a)** — new screens 1–3; describe + voice on screen 2; listing demoted and non-blocking. *Gate:* the exterior-path / simpler-form / tom-batch specs rewritten to the new screens; a spec that the listing failing never blocks.
+- **Flow (a)** — new screens 1–3; describe (typed) on screen 2; the complete starter list; the screen-1 visit door; listing demoted and non-blocking. *Gate:* the exterior-path / simpler-form / tom-batch specs rewritten to the new screens; a spec that the listing failing never blocks; a unit test that a 3-bed three-tap house carries a WC, a laundry and an ensuite chip; a spec that the screen-1 visit door books a visit and lands hot on Today.
 - **Flow (b)** — screen 4 reveal, three doors, contact switch both ways. *Gate:* funnel-dropout and save-and-return rewritten; a spec per switch position.
 - **Flow (c)** — builder home. *Gate:* interior-loop / sides-editor / r5-editor rewritten; a spec that a chip answered in chat goes blue in the list and vice versa.
 - Every PR: `tsc` clean, eslint 0 errors, unit green, the named C1 specs green, ARCHITECTURE.md, a manual walk.
 
-## 10 · Decisions for Tom (⚑)
-1. Contact **before or after** the reveal at launch (the switch exists either way; I'd launch reveal-first and measure).
-2. The "up to" ceiling: today's +8/15% band, or the interval pricing's high case once it lands.
-3. Voice on screen 2 at launch, or after.
-4. Listing link: keep as the small option (this plan) or trade-accounts-only.
+## 10 · Tom's rulings (8 Sep 2026, late)
+1. **Range first** at launch (`wizard_contact_gate = reveal_first`); measured for a month.
+2. The "up to" ceiling: today's band until interval pricing lands, then its high case.
+3. **Voice on screen 2 after launch** — the describe box ships typed-only in flow PR (a); the microphone is its own small PR.
+4. **Listing link stays, small, for everyone**; primary for trade accounts.
 
-## 11 · Measurement
-Three numbers a week from the buckets that already exist: % of starts that reach a range · % that book / call / accept · the screen people leave on. Targets set before looking: 60% reach a range, 30% convert.
+## 11 · Measurement — two halves
+**The funnel.** Three numbers a week from the buckets that already exist: % of starts that reach a range · % that book / call / accept · the screen people leave on. Targets set before looking: 60% reach a range, 30% convert.
+
+**Accuracy — against actuals, never PaintScout.** The proving window compared the wizard's first number to PaintScout quotes that themselves lost money, so its "$2,489 under" is not a fact to build on (Tom, 8 Sep). `/proving` is re-pointed at the job's **actuals** — work-order hours × the charge-out plus materials off the WO doc (`lib/workorder/snapshot`) — for every completed wizard-born job, and reports the same three bands. That is the number the tier thresholds, the interval spreads and the Gold switch are all calibrated from. Small PR, sequenced first (step 0 below), because everything else is measured by it.
