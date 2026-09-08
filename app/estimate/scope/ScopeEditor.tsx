@@ -1,6 +1,7 @@
 "use client";
 
 import ContactCard from "./ContactCard";
+import ReachStrip from "./ReachStrip";
 import { afterLayout, scrollCardToTop } from "./scrollCard";
 import { useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
@@ -1169,6 +1170,21 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             act({ action: "request_contact", ...req }, "book");
             say(req.how === "visit" ? "Thanks — we'll ring you to lock in a visit time that suits." : "Thanks — we'll call you back to finalise your price.");
           }} />
+        )}
+        {/* Tom, 8 Sep: a person is reachable at ANY point of the walk — the
+            confirm prompt above stays, this never waits for it. */}
+        {!accepted && !booked && !slotsOpen && (
+          <ReachStrip companyPhone={companyPhone} visitSlots={ladder.visitSlots} busy={busyKeys.has("book")}
+            onBookSlot={(slot) => {
+              setBooked(`Visit booked — ${slot}`);
+              act({ action: "book_visit", slot }, "book");
+              say(`Booked — ${slot}. A calendar invite is on its way; keep confirming rooms if you like.`);
+            }}
+            onContact={(req) => {
+              setBooked(req.how === "visit" ? "Site visit requested" : "Call back requested");
+              act({ action: "request_contact", ...req }, "book");
+              say(req.how === "visit" ? "Thanks — we'll ring you to lock in a visit time that suits." : "Thanks — we'll call you back. Keep confirming rooms if you like.");
+            }} />
         )}
       </div>
 
