@@ -1,6 +1,6 @@
 # Reward tiers — Bronze · Silver · Gold
 
-*Tom's decision, 8 Sep 2026. Plan only; nothing built yet. Four PRs, one migration.*
+*Tom's decision, 8 Sep 2026. Plan only; nothing built yet. Four PRs, one migration. Sits behind the flow in `customer-flow-plan.md` — the tiers are the reward for tightening, and tightening only makes sense once the range comes first.*
 
 ## 1 · The decision
 
@@ -13,6 +13,10 @@
 Rewards are *applied to the job when the customer goes ahead*, and every one expires with the 30-day hold. Reaching a tier is what unlocks them; accepting is what earns them. No cash off, ever.
 
 **"Book straight in" means "sign now, we confirm within one business day."** A Gold acceptance goes to a desk check, not to auto-confirmation — the pending stage Tom asked for. Auto-confirm for proven B2B accounts is a later, per-account switch, not part of this plan.
+
+**Two rails added 8 Sep (Tom: "I'm still a little worried about offering Gold as no site contact required").**
+- The estimator has a **third desk-check outcome: Book a visit instead.** One tap turns the desk check into a site visit with times offered, and the customer keeps their Gold rewards. "No site visit" is the *default* outcome, never a promise we're locked into.
+- **"Book straight in" ships behind a Settings switch that starts OFF** (`wizard_rewards.goldSkipVisit`). At launch Gold = Silver + the paint upgrade + the colour consult, and a Gold acceptance reads *"Sign now — your estimator confirms it within a business day, at a desk or with a quick look."* Every Gold desk check records whether the confirmed price stayed inside the range; when twenty have, Tom flips the switch and the wording becomes "no site visit". The build is identical either way — the switch only changes what we promise.
 
 ## 2 · What a tier is
 
@@ -64,7 +68,7 @@ Reads `wizard_bands` + `wizard_policy` only. The three call sites call it. `cust
 
 **Built.**
 - `desk_check` work item kind: derived from `estimate_events.customer_accept_intent` on a draft, due next business morning, priority high, subject the estimate, killed by the outcome.
-- The desk-check outcome, in the builder: **Confirmed** (inside the range → status accepted, booking confirmation + the preferred start go to scheduling) or **Needs re-confirm** (moved outside the range → the customer gets the new figure and confirms again). Those are the only two things a customer ever sees. Messages ride the existing automation registry (`desk_check_confirmed`, `desk_check_reconfirm`, email + SMS templates).
+- The desk-check outcome, in the builder: **Confirmed** (inside the range → status accepted, booking confirmation + the preferred start go to scheduling), **Needs re-confirm** (moved outside the range → the customer gets the new figure and confirms again), or **Book a visit instead** (the estimator wants eyes on it → visit times offered, rewards kept). Messages ride the existing automation registry (`desk_check_confirmed`, `desk_check_reconfirm`, `desk_check_visit`, email + SMS templates). The item records `heldInRange: boolean` for the switch decision.
 - Gold acceptance carries the preferred-start pick with it; the confirmed job is created with that week as its target.
 
 ### 3.5 Gold · the paint upgrade
@@ -105,6 +109,8 @@ Nothing is written on top of these; each PR deletes as it replaces, and the e2e 
 
 ## 5 · The PRs — one each, e2e-first
 
+*Sequence across both briefs: ladder (PR 1 here) → the flow (three PRs in `customer-flow-plan.md`) → the unlock UX (PR 4 here, moved up) → Silver (PR 2) → Gold (PR 3). Rewards ship after the flow, or we'd be rewarding people for slogging through the long form.*
+
 **PR 1 · One ladder + Settings.** `lib/wizard/ladder.ts` + tests (bronze/silver/gold, every visit reason, the caps); the three call sites; delete the duplicates; Online estimates → Tiers + Rewards settings; the tier chip on the range card (no rewards behaviour yet). *Gate:* the existing ladder / sides-editor / interior-loop specs unchanged in behaviour; a new unit test pins what a no-plan interior reaches after a full walk (the Gold-reachability fact).
 
 **PR 2 · Silver.** Price hold on `valid_until`; the Preferred start picker and its surfaces (desk check, prep pack, WO creation, board chip); ContactCard folded into ReachStrip and deleted. *e2e:* reach Silver → hold date on the card and on `/e/[token]` → pick a start week → visible on the board's unscheduled card.
@@ -131,4 +137,4 @@ One: `products.upgrade_product_id`. Plus one data statement stripping the dead `
 - Auto-confirm for proven B2B accounts (per-account cap) — after twenty desk checks per slice show the change rate.
 - Exterior Gold — waits on photo condition grading.
 - Interval (low/high) pricing — separate brief; the tiers sit on the same bands, so it slots in without touching this.
-- Range-before-contact and the shortened question set — separate brief.
+- Range-before-contact and the shortened question set — `customer-flow-plan.md`, which this plan now sits behind.

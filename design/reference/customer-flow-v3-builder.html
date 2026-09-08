@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Customer flow v3 · the builder home · Paint Group</title>
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0A0B0D;--panel:#12161A;--panel2:#171C21;--line:#242B32;--text:#EDF0F2;--muted:#8C959D;
+--cyan:#3BD8E9;--oncyan:#03272D;--amber:#E0A83C;--emerald:#2FA46B;--clay:#B3574A;--silver:#C9D1D9;--gold:#E6C05A;
+--sans:"Switzer",-apple-system,sans-serif;--mono:"Martian Mono",ui-monospace,monospace}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--ink);color:var(--text);font-family:var(--sans);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;padding-bottom:150px}
+.top{position:sticky;top:0;z-index:50;background:rgba(10,11,13,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.top .row{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;max-width:1100px;margin:0 auto}
+.wm{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.22em}.wm span{color:var(--cyan)}
+.mode{display:inline-flex;border:1px solid var(--line);border-radius:100px;overflow:hidden}
+.mode button{font-family:var(--mono);font-size:9px;letter-spacing:.12em;padding:7px 13px;border:0;background:none;color:var(--muted);cursor:pointer}
+.mode button.on{background:var(--cyan);color:var(--oncyan)}
+.note{max-width:1100px;margin:14px auto 0;padding:0 18px;font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;color:var(--muted)}
+.wrap{max-width:1100px;margin:0 auto;padding:14px 18px}
+/* the range card */
+.rangecard{position:sticky;top:58px;z-index:40;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px;display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center;box-shadow:0 12px 30px rgba(0,0,0,.35)}
+@media(max-width:760px){.rangecard{grid-template-columns:auto 1fr;top:52px}.rangecard .doors{grid-column:1/-1}}
+.ring{width:56px;height:56px;border-radius:50%;background:conic-gradient(var(--silver) 0 76%,#242B32 76% 100%);display:grid;place-items:center;font-family:var(--mono);font-size:12px;position:relative}
+.ring::after{content:"";position:absolute;inset:6px;border-radius:50%;background:var(--panel)}.ring b{position:relative;z-index:1}
+.rc .t{font-family:var(--mono);font-size:8.5px;letter-spacing:.14em;color:var(--muted)}
+.rc .big{font-family:var(--mono);font-weight:700;font-size:clamp(18px,3.4vw,24px);line-height:1.15}
+.rc .big small{font-size:12px;font-weight:400;color:var(--muted);margin-left:8px}
+.tier{font-family:var(--mono);font-size:9px;letter-spacing:.14em;padding:5px 11px;border-radius:100px;border:1px solid;vertical-align:middle;margin-left:8px}
+.tier.silver{color:var(--silver);border-color:rgba(201,209,217,.55)}.tier.gold{color:var(--gold);border-color:rgba(230,192,90,.6)}
+.rc .next{font-size:13px;color:var(--muted);margin-top:4px}.rc .next b{color:var(--text)}
+.doors{display:flex;gap:8px;flex-wrap:wrap}
+.door{padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.door i{display:grid;place-items:center;width:26px;height:26px;border-radius:8px;background:rgba(59,216,233,.12);border:1px solid rgba(59,216,233,.45);color:var(--cyan);font-style:normal;font-size:13px}
+.door.primary{border-color:var(--cyan);background:rgba(59,216,233,.08)}
+/* layout */
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:18px;align-items:start;margin-top:14px}
+@media(max-width:900px){.grid{grid-template-columns:1fr}.chat{display:none}}
+.h2{font-size:15px;font-weight:600;margin:16px 0 8px;display:flex;align-items:center;justify-content:space-between}
+.h2 small{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;color:var(--muted);font-weight:400}
+/* tightening list */
+.tl{display:flex;flex-direction:column;gap:8px}
+.q{background:var(--panel);border:1px solid var(--amber);border-left-width:3px;border-radius:12px;padding:12px 14px;display:grid;grid-template-columns:1fr auto;gap:8px 14px;align-items:center}
+.q.done{border-color:var(--cyan)}.q.done .swing{color:var(--cyan)}
+.q b{font-size:14.5px;font-weight:600;display:block}.q span{font-size:12.5px;color:var(--muted)}
+.q .swing{font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--amber);text-align:right;white-space:nowrap}
+.q .chips{grid-column:1/-1;display:flex;gap:7px;flex-wrap:wrap;margin-top:4px}
+.chip{padding:8px 13px;border-radius:100px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);font-size:13px;cursor:pointer;font-family:var(--sans)}.chip.on{border-color:var(--cyan);color:var(--cyan)}
+.cond{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:6px}
+.cond button{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:0;overflow:hidden;cursor:pointer;color:var(--text);font-family:var(--sans);text-align:left}
+.cond button.on{border-color:var(--cyan)}
+.cond .pic{height:64px;background:linear-gradient(135deg,#2a3138,#1b2126);display:grid;place-items:center;font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;color:var(--muted)}
+.cond .lbl{padding:8px 10px;font-size:13px}.cond .lbl small{display:block;color:var(--muted);font-size:11px}
+.photo{grid-column:1/-1;margin-top:6px;padding:10px;border-radius:10px;border:1.5px dashed var(--line);background:none;color:var(--muted);font-family:var(--sans);font-size:13px;cursor:pointer}
+/* room cards (as today, collapsed) */
+.rcard{background:var(--panel);border:1px solid var(--amber);border-left-width:3px;border-radius:13px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.rcard.done{border-color:var(--cyan)}
+.rcard b{font-size:15px}.rcard b em{font-style:normal;color:var(--muted);font-weight:400;font-size:12.5px;margin-left:8px}
+.pill{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;padding:5px 11px;border-radius:100px;color:var(--amber);border:1px solid rgba(224,168,60,.5);white-space:nowrap}
+.rcard.done .pill{color:var(--cyan);border-color:rgba(59,216,233,.5)}
+/* chat pane */
+.chat{position:sticky;top:150px;background:var(--panel);border:1px solid var(--line);border-radius:14px;display:flex;flex-direction:column;height:520px}
+.chat .hd{padding:11px 13px;border-bottom:1px solid var(--line);font-size:13.5px;display:flex;justify-content:space-between}.chat .hd span{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;color:var(--muted)}
+.chat .log{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+.msg{max-width:88%;padding:8px 11px;border-radius:12px;font-size:13.5px;line-height:1.45}
+.msg.them{align-self:flex-start;background:var(--panel2);border:1px solid var(--line)}.msg.me{align-self:flex-end;background:var(--cyan);color:var(--oncyan)}
+.msg .did{display:block;font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;color:var(--cyan);margin-top:5px}
+.chat .in{display:flex;gap:8px;padding:10px;border-top:1px solid var(--line)}.chat input{flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font:inherit;font-size:13.5px}
+.chat button{padding:10px 14px;border-radius:10px;border:0;background:var(--cyan);color:var(--oncyan);font:inherit;font-weight:700}
+/* tiers strip */
+.tiers{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+@media(max-width:640px){.tiers{grid-template-columns:1fr}}
+.tc{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:12.5px;color:var(--muted)}
+.tc b{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.14em;margin-bottom:5px}
+.tc.silver{border-color:rgba(201,209,217,.5)}.tc.silver b{color:var(--silver)}.tc.gold b{color:var(--gold)}.tc.bronze b{color:var(--amber)}
+.tc.silver{background:rgba(201,209,217,.05)}
+.tc .got{color:var(--cyan)}
+/* footer */
+.foot{position:fixed;left:0;right:0;bottom:0;z-index:60;padding:11px 18px;background:rgba(10,11,13,.95);backdrop-filter:blur(14px);border-top:1px solid var(--line)}
+.foot .row{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.foot .pr{font-family:var(--mono);font-weight:700;font-size:15px}.foot .pr small{display:block;font-size:8px;font-weight:400;color:var(--muted);letter-spacing:.14em}
+.foot .sp{flex:1}
+.foot .lead{font-size:13.5px;font-weight:600}
+.annot{margin-top:18px;border-top:1px dashed var(--line);padding-top:12px;font-size:12.5px;color:var(--muted)}
+.annot b{color:var(--amber);font-family:var(--mono);font-size:9px;letter-spacing:.12em}
+</style>
+</head>
+<body>
+<div class="top"><div class="row"><div class="wm">PAINT<span>—</span>GROUP</div><div class="mode"><button class="on">TAP</button><button>CHAT</button></div></div></div>
+<p class="note">REFERENCE MOCKUP · CUSTOMER FLOW V3 · THE BUILDER HOME · RANGE CARD PINNED · TIGHTEN BY SWING · TAP OR CHAT</p>
+
+<div class="wrap">
+  <div class="rangecard">
+    <div class="ring"><b>76%</b></div>
+    <div class="rc">
+      <div class="t">YOUR ESTIMATE · INCL. GST</div>
+      <div class="big">Most likely $10,200 <small>up to $11,000</small><span class="tier silver">SILVER</span></div>
+      <div class="next"><b>Two questions from Gold:</b> confirm the ceiling height (narrows ~$380) · upload your floorplan. <b>Price held until 8 Oct.</b></div>
+    </div>
+    <div class="doors">
+      <button class="door"><i>📅</i>Send someone</button>
+      <button class="door primary"><i>▲</i>Tighten</button>
+      <button class="door"><i>💬</i>Ask us</button>
+    </div>
+  </div>
+
+  <div class="tiers">
+    <div class="tc bronze"><b>BRONZE ✓</b>A price range</div>
+    <div class="tc silver"><b>SILVER ✓ · YOU&rsquo;RE HERE</b><span class="got">30-day price hold · first pick of start dates</span></div>
+    <div class="tc gold"><b>GOLD · 2 QUESTIONS AWAY</b>Everything in Silver · paint upgrade · free Dulux colour consult · sign now, confirmed within a business day</div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="h2">Tighten your price <small>ORDERED BY WHAT MOVES IT MOST</small></div>
+      <div class="tl">
+        <div class="q">
+          <div><b>Anything you can see that needs work?</b><span>Tap what&rsquo;s there. A photo beats a guess &mdash; your estimator reads them before the price is fixed.</span></div>
+          <div class="swing">UP TO ~$1,300</div>
+          <div class="cond">
+            <button class="on"><div class="pic">[ PHOTO: SOUND PAINT ]</div><div class="lbl">Good overall<small>the odd mark</small></div></button>
+            <button><div class="pic">[ PHOTO: HAIRLINE CRACKS ]</div><div class="lbl">Small cracks<small>corners, cornices</small></div></button>
+            <button><div class="pic">[ PHOTO: PEELING ]</div><div class="lbl">Peeling or flaking<small>coming away</small></div></button>
+            <button><div class="pic">[ PHOTO: WATER MARK ]</div><div class="lbl">Water marks / mould<small>ceilings, wet areas</small></div></button>
+          </div>
+          <button class="photo">📷 Add a photo of the worst bit &mdash; per room, optional</button>
+        </div>
+        <div class="q done">
+          <div><b>Room sizes</b><span>6 of 8 confirmed &mdash; Bedroom 2 and the Hallway to go</span></div>
+          <div class="swing">~$900 · 6/8 ✓</div>
+        </div>
+        <div class="q">
+          <div><b>Ceiling height</b><span>Approximate is fine</span></div>
+          <div class="swing">~$380</div>
+          <div class="chips"><span class="chip">2.4 m</span><span class="chip">2.7 m</span><span class="chip">3 m+</span><span class="chip">Not sure</span></div>
+        </div>
+        <div class="q">
+          <div><b>Living there while we paint?</b><span>Daily set-up and pack-down is allowed for</span></div>
+          <div class="swing">~$600</div>
+          <div class="chips"><span class="chip">Yes</span><span class="chip">No, it&rsquo;s empty</span></div>
+        </div>
+        <div class="q">
+          <div><b>Door type, mostly</b><span>Flat or panelled</span></div>
+          <div class="swing">~$210</div>
+          <div class="chips"><span class="chip">Flat</span><span class="chip">Panelled</span><span class="chip">Not sure</span></div>
+        </div>
+        <div class="q">
+          <div><b>Cupboard doors and insides?</b><span>Kitchen, robes, vanities</span></div>
+          <div class="swing">~$150</div>
+        </div>
+        <div class="q">
+          <div><b>Paint preferences</b><span>Brand, water-based, colour help</span></div>
+          <div class="swing">DOESN&rsquo;T MOVE IT</div>
+        </div>
+      </div>
+
+      <div class="h2">Your rooms <small>TAP ONE TO CONFIRM ITS SIZE AND SURFACES</small></div>
+      <div class="tl">
+        <div class="rcard done"><b>Living / dining<em>6.2 × 4.1 m · confirmed</em></b><span class="pill">CONFIRMED ✓</span></div>
+        <div class="rcard done"><b>Kitchen<em>3.8 × 3.2 m · confirmed</em></b><span class="pill">CONFIRMED ✓</span></div>
+        <div class="rcard done"><b>Bedroom 1<em>4.0 × 3.6 m · updated by you</em></b><span class="pill">CONFIRMED ✓</span></div>
+        <div class="rcard"><b>Bedroom 2<em>3.5 × 3.2 m · typical</em></b><span class="pill">CONFIRM THIS ROOM</span></div>
+        <div class="rcard"><b>Hallway<em>typical</em></b><span class="pill">CONFIRM THIS ROOM</span></div>
+      </div>
+
+      <div class="annot"><b>WHAT CHANGED</b> The range card is pinned and carries the tier and the next unlock. The questions taken off the form come back here, ordered by dollar swing, each answerable by tap or in the chat. Condition is asked with pictures beside the options and a photo per room &mdash; the &times;1.35 lever, now where the customer can see it move. Room cards are the confirm loop exactly as built. The three doors follow you: card, footer, and the chat.</div>
+    </div>
+
+    <aside class="chat">
+      <div class="hd">Chat it instead <span>SAME QUESTIONS · SAME LIST</span></div>
+      <div class="log">
+        <div class="msg them">Two things would tighten your range most: the ceiling height, and whether anything you can see needs prep. Either one?</div>
+        <div class="msg me">Ceilings are 2.7, panel doors, and we&rsquo;ll be living here.</div>
+        <div class="msg them">Got all three. Ceiling height 2.7 m, panelled doors, and an allowance for working around you.<span class="did">✓ 3 CHIPS WENT BLUE · RANGE $10,200–11,000 → $10,350–10,900</span></div>
+        <div class="msg them">Anything peeling, cracked or marked that you can see? A photo of the worst bit is the quickest way.</div>
+      </div>
+      <div class="in"><input placeholder="Type, or tap the questions on the left"><button>Send</button></div>
+    </aside>
+  </div>
+</div>
+
+<div class="foot"><div class="row">
+  <div class="pr"><small>ESTIMATE · INCL. GST</small>$10,200 – $11,000</div>
+  <span class="sp"></span>
+  <span class="lead">Book in your estimator</span>
+  <button class="door"><i>📅</i>Book a site visit</button>
+  <button class="door"><i>📞</i>Call us <b style="margin-left:4px">03 9000 0000</b></button>
+  <button class="door"><i>↩</i>Request a call back</button>
+</div></div>
+<script>
+document.querySelectorAll('.chip,.cond button').forEach(b=>b.addEventListener('click',()=>{[...b.parentElement.children].forEach(c=>c.classList.remove('on'));b.classList.add('on');b.closest('.q').classList.add('done')}));
+document.querySelectorAll('.mode button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.mode button').forEach(c=>c.classList.remove('on'));b.classList.add('on')}));
+</script>
+</body>
+</html>

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Customer flow v3 · four screens to a range · Paint Group</title>
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0A0B0D;--panel:#12161A;--panel2:#171C21;--line:#242B32;--text:#EDF0F2;--muted:#8C959D;
+--cyan:#3BD8E9;--oncyan:#03272D;--amber:#E0A83C;--emerald:#2FA46B;--clay:#B3574A;--silver:#C9D1D9;--gold:#E6C05A;
+--sans:"Switzer",-apple-system,sans-serif;--mono:"Martian Mono",ui-monospace,monospace}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--ink);color:var(--text);font-family:var(--sans);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.top{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:13px 20px;background:rgba(10,11,13,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.wm{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.22em}.wm span{color:var(--cyan)}
+.dots{display:flex;gap:7px;align-items:center}.dots i{width:7px;height:7px;border-radius:50%;background:var(--line);transition:all .25s}.dots i.on{background:var(--cyan);width:20px;border-radius:100px}.dots i.done{background:var(--emerald)}
+.note{max-width:640px;margin:18px auto 0;padding:0 20px;font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;color:var(--muted)}
+.wrap{max-width:640px;margin:0 auto;padding:26px 20px 150px}
+.kick{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:var(--muted);margin-bottom:8px}
+h1{font-size:26px;font-weight:600;line-height:1.2;margin-bottom:6px}
+.sub{color:var(--muted);font-size:14.5px;margin-bottom:18px}
+.qhead{font-size:14.5px;font-weight:600;margin:20px 0 9px}.qhead small{color:var(--muted);font-weight:400}
+.field{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:12px;color:var(--text);font:inherit;font-size:15px;padding:13px 14px;outline:none}
+.field:focus{border-color:var(--cyan)}
+.seg{display:flex;gap:8px;flex-wrap:wrap}.seg button{flex:1;min-width:90px;padding:13px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--muted);font-family:var(--sans);font-size:14.5px;font-weight:500;cursor:pointer}
+.seg button.on{border-color:var(--cyan);color:var(--cyan);background:rgba(59,216,233,.07)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+.tile{padding:12px 13px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--muted);font-size:14px;cursor:pointer;text-align:left;font-family:var(--sans);position:relative}
+.tile.on{border-color:var(--cyan);color:var(--text);background:rgba(59,216,233,.07)}.tile.on::after{content:"✓";position:absolute;top:8px;right:10px;color:var(--cyan);font-size:11px}
+.tile small{display:block;color:var(--muted);font-size:11.5px;margin-top:2px}
+.safety{display:grid;grid-template-columns:1fr auto;gap:8px 12px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.safety .q{font-size:14px}.safety .tri{display:flex;gap:5px}.safety .tri button{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;padding:6px 10px;border-radius:100px;border:1px solid var(--line);background:none;color:var(--muted);cursor:pointer}
+.safety .tri button.on{border-color:var(--cyan);color:var(--cyan)}
+.cards{display:grid;gap:10px}.card{display:block;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;cursor:pointer;font-family:var(--sans);color:var(--text)}
+.card.on{border-color:var(--cyan);background:rgba(59,216,233,.06)}
+.card b{display:block;font-size:16px;margin-bottom:3px}.card span{color:var(--muted);font-size:13.5px}
+.card .tag{float:right;font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;color:var(--gold);border:1px solid rgba(230,192,90,.5);border-radius:100px;padding:4px 9px}
+.card .tag.cyan{color:var(--cyan);border-color:rgba(59,216,233,.5)}
+.describe{margin-top:10px;display:none}.describe.open{display:block}
+.describe textarea{width:100%;min-height:96px;background:var(--ink);border:1px solid var(--line);border-radius:12px;color:var(--text);font:inherit;font-size:14.5px;padding:12px 14px;outline:none;resize:vertical}
+.mic{display:inline-flex;align-items:center;gap:8px;margin-top:8px;padding:9px 14px;border-radius:100px;border:1px solid var(--cyan);background:rgba(59,216,233,.08);color:var(--cyan);font-family:var(--sans);font-size:13px;cursor:pointer}
+.taps{margin-top:10px;display:none}.taps.open{display:block}
+.listing{margin-top:14px;font-size:13px;color:var(--muted)}.listing a{color:var(--cyan);text-decoration:none}
+.chips{display:flex;gap:8px;flex-wrap:wrap}.chip{padding:9px 15px;border-radius:100px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);font-size:13.5px;cursor:pointer;font-family:var(--sans)}.chip.on{border-color:var(--cyan);color:var(--cyan)}
+.photo{margin-top:12px;width:100%;padding:12px;border-radius:12px;border:1.5px dashed var(--line);background:none;color:var(--muted);font-family:var(--sans);font-size:13.5px;cursor:pointer}
+.help{font-size:12.5px;color:var(--muted);margin-top:8px}
+/* the reveal */
+.rangecard{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px}
+.rangecard .t{font-family:var(--mono);font-size:8.5px;letter-spacing:.14em;color:var(--muted)}
+.rangecard .big{font-family:var(--mono);font-weight:700;font-size:clamp(22px,6vw,30px);margin:6px 0 2px}
+.rangecard .upto{font-family:var(--mono);font-size:13px;color:var(--muted)}
+.tierrow{display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap}
+.tier{font-family:var(--mono);font-size:9px;letter-spacing:.14em;padding:5px 11px;border-radius:100px;border:1px solid}
+.tier.bronze{color:var(--amber);border-color:rgba(224,168,60,.5)}.tier.silver{color:var(--silver);border-color:rgba(201,209,217,.5)}.tier.gold{color:var(--gold);border-color:rgba(230,192,90,.6)}
+.ring{width:44px;height:44px;border-radius:50%;background:conic-gradient(var(--amber) 0 41%,#242B32 41% 100%);display:grid;place-items:center;font-family:var(--mono);font-size:10px;position:relative}
+.ring::after{content:"";position:absolute;inset:5px;border-radius:50%;background:var(--panel)}.ring b{position:relative;z-index:1}
+.nextline{font-size:13.5px;color:var(--muted);margin-top:10px}.nextline b{color:var(--text)}
+.doors{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+@media(max-width:520px){.doors{grid-template-columns:1fr}}
+.door{padding:13px 12px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-family:var(--sans);font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:10px;text-align:left}
+.door i{display:grid;place-items:center;width:28px;height:28px;border-radius:8px;background:rgba(59,216,233,.12);border:1px solid rgba(59,216,233,.45);color:var(--cyan);font-style:normal;font-size:14px;flex-shrink:0}
+.door.primary{border-color:var(--cyan);background:rgba(59,216,233,.08)}
+.door small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+.keep{margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+.keep .t{font-size:14px;font-weight:600;margin-bottom:8px}.keep .row{display:flex;gap:8px}.keep input{flex:1}
+.keep button{padding:0 16px;border-radius:12px;border:0;background:var(--cyan);color:var(--oncyan);font-family:var(--sans);font-weight:700;cursor:pointer}
+.keep .why{font-size:12px;color:var(--muted);margin-top:8px}
+.switch{margin-top:10px;font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;color:var(--muted)}
+/* footer nav */
+.foot{position:fixed;left:0;right:0;bottom:0;z-index:60;padding:12px 20px;background:rgba(10,11,13,.95);backdrop-filter:blur(14px);border-top:1px solid var(--line)}
+.foot .row{max-width:640px;margin:0 auto;display:flex;align-items:center;gap:12px}
+.foot .sp{flex:1}
+.btn{padding:13px 20px;border-radius:10px;border:1px solid transparent;font-family:var(--sans);font-weight:600;font-size:15px;cursor:pointer;background:var(--cyan);color:var(--oncyan)}
+.btn.ghost{background:none;border-color:var(--line);color:var(--muted)}
+.foot .cnt{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--muted)}
+.screen{display:none}.screen.on{display:block;animation:in .3s}
+@keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.annot{margin-top:22px;border-top:1px dashed var(--line);padding-top:12px;font-size:12.5px;color:var(--muted)}
+.annot b{color:var(--amber);font-family:var(--mono);font-size:9px;letter-spacing:.12em}
+</style>
+</head>
+<body>
+<div class="top"><div class="wm">PAINT<span>—</span>GROUP</div><div class="dots" id="dots"><i class="on"></i><i></i><i></i><i></i></div></div>
+<p class="note">REFERENCE MOCKUP · CUSTOMER FLOW V3 · FOUR SCREENS TO A RANGE · CLICK THROUGH</p>
+
+<div class="wrap">
+
+<!-- SCREEN 1 -->
+<section class="screen on" data-n="1">
+  <p class="kick">1 of 4 · Where and what</p>
+  <h1>Where&rsquo;s the job?</h1>
+  <p class="sub">Two minutes to a real price range. No obligation, no one turning up unannounced.</p>
+  <input class="field" placeholder="Start typing the address" value="14 Beech Rise, Murrumbeena VIC 3163">
+  <p class="qhead">What are we painting?</p>
+  <div class="seg"><button class="on">Inside</button><button>Outside</button><button>Both</button></div>
+  <p class="qhead">What kind of place?</p>
+  <div class="tiles"><button class="tile on">House</button><button class="tile">Townhouse</button><button class="tile">Unit / apartment</button><button class="tile">Commercial <small>a person prices this</small></button></div>
+  <p class="qhead">Three quick ones <small>— they decide whether we can price it online</small></p>
+  <div class="safety">
+    <div class="q">Heritage-listed?</div><div class="tri"><button>YES</button><button class="on">NO</button><button>NOT SURE</button></div>
+    <div class="q">Body corporate?</div><div class="tri"><button>YES</button><button class="on">NO</button><button>NOT SURE</button></div>
+    <div class="q">Any asbestos you know of?</div><div class="tri"><button>YES</button><button class="on">NO</button><button>NOT SURE</button></div>
+  </div>
+  <div class="annot"><b>WHY HERE</b> Hard stops and hand-offs must come before any number is shown. Nothing on this screen changes the price; everything on it decides whether a price can exist.</div>
+</section>
+
+<!-- SCREEN 2 -->
+<section class="screen" data-n="2">
+  <p class="kick">2 of 4 · The place</p>
+  <h1>Tell us about the place &mdash; your way</h1>
+  <p class="sub">Pick whichever is easiest. A floorplan gets you the tightest price; three taps gets you a range in seconds.</p>
+  <div class="cards">
+    <button class="card" id="c-plan"><span class="tag">GOLD ROAD</span><b>Upload your floorplan</b><span>A phone photo of the agent&rsquo;s brochure is fine. Real room sizes &rarr; the tightest range.</span></button>
+    <button class="card" id="c-desc" onclick="openDesc()"><span class="tag cyan">TYPE OR TALK</span><b>Describe it</b><span>In your own words &mdash; rooms, what&rsquo;s being painted, anything you&rsquo;ve noticed.</span></button>
+    <div class="describe" id="desc">
+      <textarea>3 bed weatherboard, single storey. Painting the front, the left side and the back — not the right. Walls and ceilings inside, doors and skirting. Bit of peeling on the north side near the downpipe.</textarea>
+      <button class="mic">🎤 Say it instead</button>
+      <p class="help">We read the rooms and sides out of this and build the estimate from it. You&rsquo;ll see every assumption marked, and you can change any of them.</p>
+    </div>
+    <button class="card on" id="c-taps" onclick="openTaps()"><b>Three quick taps</b><span>Bedrooms, storeys, rough size. Typical sizes for now &mdash; you confirm them after you&rsquo;ve seen the range.</span></button>
+    <div class="taps open" id="taps">
+      <p class="qhead">Bedrooms</p><div class="seg"><button>1</button><button>2</button><button class="on">3</button><button>4</button><button>5+</button></div>
+      <p class="qhead">Storeys</p><div class="seg"><button class="on">Single</button><button>Double</button></div>
+      <p class="qhead">Roughly how big? <small>— near enough</small></p><div class="seg"><button>&lt;120 m²</button><button class="on">120–200</button><button>200+</button><button>Not sure</button></div>
+    </div>
+  </div>
+  <p class="listing">Just bought? <a href="#">Paste the listing</a> and we&rsquo;ll try to pull the plan. If we can&rsquo;t, the taps above carry on.</p>
+  <div class="annot"><b>WHY HERE</b> Size is the biggest lever &mdash; a 20% size error is 20% on everything &mdash; so it comes straight after &ldquo;can we price it&rdquo;. Three ways in, all peers. The listing is demoted to a line that never blocks; for trade accounts it becomes the first card.</div>
+</section>
+
+<!-- SCREEN 3 -->
+<section class="screen" data-n="3">
+  <p class="kick">3 of 4 · The job</p>
+  <h1>What are we painting?</h1>
+  <p class="sub">We&rsquo;ve ticked the usual. Untick anything that&rsquo;s staying as it is.</p>
+  <div class="tiles">
+    <button class="tile on">Walls</button><button class="tile on">Ceilings</button><button class="tile on">Doors</button><button class="tile on">Door frames</button><button class="tile on">Skirting</button><button class="tile on">Windows</button><button class="tile">Cupboard doors</button><button class="tile">Staircase</button>
+  </div>
+  <p class="qhead">Same colours, or new?</p>
+  <div class="seg"><button>Same colours</button><button class="on">New colours</button></div>
+  <p class="qhead">Any dark colours going light? <small>— that takes an extra coat</small></p>
+  <div class="chips"><span class="chip">Yes, some</span><span class="chip on">No</span><span class="chip">Not sure</span></div>
+  <button class="photo">📷 Anything you can see? Add a photo <small>(optional — peeling, cracks, water marks)</small></button>
+  <div class="annot"><b>WHY HERE</b> Scope is the second lever (ceilings are about a quarter of an interior). &ldquo;Same or new&rdquo; is the biggest multiplier a customer knows for certain &mdash; the engine turns it into one, two or three coats. <b>NOT ASKED</b> coats · damage tiers · door and window styles · ceiling height · cupboards · living there · paint brand &mdash; all come back after the price, priced.</div>
+</section>
+
+<!-- SCREEN 4 -->
+<section class="screen" data-n="4">
+  <p class="kick">4 of 4 · Your range</p>
+  <h1>Here&rsquo;s where it lands</h1>
+  <p class="sub">A real range from what you&rsquo;ve told us. Every answer from here narrows it &mdash; or we come and look.</p>
+  <div class="rangecard">
+    <div class="t">YOUR ESTIMATE · INCL. GST</div>
+    <div class="big">Most likely $9,400</div>
+    <div class="upto">up to $11,200 &nbsp;·&nbsp; based on typical room sizes</div>
+    <div class="tierrow"><div class="ring"><b>41%</b></div><span class="tier bronze">BRONZE</span><span style="font-size:13px;color:var(--muted)">It climbs as you confirm things</span></div>
+    <p class="nextline"><b>Two answers from Silver:</b> confirm the room sizes (narrows by ~$900) · anything you can see that needs prep (~$1,300).</p>
+    <div class="doors">
+      <button class="door"><i>📅</i><span>Send someone<small>a free visit, times now</small></span></button>
+      <button class="door primary"><i>▲</i><span>Tighten my price<small>2 questions to Silver</small></span></button>
+      <button class="door"><i>💬</i><span>Ask us<small>call · call back · chat</small></span></button>
+    </div>
+  </div>
+  <div class="keep">
+    <div class="t">Text me this range</div>
+    <div class="row"><input class="field" placeholder="Your mobile" inputmode="tel"><button>Send</button></div>
+    <p class="why">So you don&rsquo;t lose it &mdash; and so we can hold it. No calls unless you ask.</p>
+    <p class="switch">⚑ SETTINGS SWITCH: RANGE BEFORE THE MOBILE (SHOWN) · OR MOBILE BEFORE THE RANGE</p>
+  </div>
+  <div class="annot"><b>WHY HERE</b> Everything above is enough for an honest Bronze range. The top number is a ceiling, never a &ldquo;from&rdquo;. The ask for a mobile sits at the moment the range becomes worth keeping. The three doors are the same three the builder carries everywhere.</div>
+</section>
+
+</div>
+
+<div class="foot"><div class="row"><button class="btn ghost" onclick="go(-1)">Back</button><span class="cnt" id="cnt">SCREEN 1 OF 4 · ~11 TAPS TO A RANGE</span><span class="sp"></span><button class="btn" id="next" onclick="go(1)">Continue</button></div></div>
+
+<script>
+let n=1;
+function go(d){n=Math.max(1,Math.min(4,n+d));document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on',+s.dataset.n===n));
+document.querySelectorAll('#dots i').forEach((i,k)=>{i.className=k+1<n?'done':k+1===n?'on':''});
+document.getElementById('cnt').textContent=`SCREEN ${n} OF 4 · ~11 TAPS TO A RANGE`;
+document.getElementById('next').textContent=n===3?'See my range':n===4?'Tighten my price →':'Continue';window.scrollTo({top:0})}
+function openDesc(){document.getElementById('desc').classList.add('open');document.getElementById('taps').classList.remove('open');document.getElementById('c-desc').classList.add('on');document.getElementById('c-taps').classList.remove('on')}
+function openTaps(){document.getElementById('taps').classList.add('open');document.getElementById('desc').classList.remove('open');document.getElementById('c-taps').classList.add('on');document.getElementById('c-desc').classList.remove('on')}
+document.querySelectorAll('.seg button,.tile,.chip,.tri button').forEach(b=>b.addEventListener('click',e=>{const p=b.parentElement;if(p.classList.contains('tiles')||p.classList.contains('chips')){b.classList.toggle('on')}else{[...p.children].forEach(c=>c.classList.remove('on'));b.classList.add('on')}}));
+</script>
+</body>
+</html>
