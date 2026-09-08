@@ -207,7 +207,6 @@ export default async function CustomerWizardPage({
       substrates={substrates}
       mode="customer"
       logoUrl={company.logoUrl}
-      companyPhone={company.phone || null}
       resume={resume}
       prefill={memberEmail ? {
         email: memberEmail,

@@ -33,7 +33,6 @@ import AddressField from "./AddressField";
 import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
 import { RESUME_KEY, RESTART_KEY, decodeResume, encodeResume, restartedSince, resumeLine, type ResumeRecord, type SafetyAnswered } from "@/lib/wizard/resume";
 import Wordmark from "./Wordmark";
-import HelpBar from "./HelpBar";
 import ChatWidget from "./ChatWidget";
 
 /**
@@ -56,10 +55,6 @@ type PageKey = "property" | "surfaces" | "condition" | "details" | "paint" | "ho
 type EntryChoice = "describe" | "questions" | "upload";
 
 /** The page's name for a person (the "I'm stuck" note). */
-const PAGE_NAME: Record<PageKey, string> = {
-  property: "Property", surfaces: "Surfaces", condition: "Condition", details: "Details", paint: "Paint",
-  house: "House", scope: "Scope", ext_condition: "Condition", extras: "Extras", contact: "Contact",
-};
 
 /** What choosing a way in means for the state, per job type. Pure, so the
  * job-type switch and the entry cards write the same thing. */
@@ -115,15 +110,13 @@ const PROC_TIPS = [
   "Nothing is booked and nothing is charged until you say so.",
 ];
 
-export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, companyPhone = null, intent, resume = null }: {
+export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, intent, resume = null }: {
   roomTypes: string[];
   /** A2: the offered surface lists, derived server-side from the rate card. */
   substrates: SubstrateGroups;
   mode?: "internal" | "customer";
   /** The Settings logo (logo 1) for the header — wordmark when unset. */
   logoUrl?: string | null;
-  /** Tom, 8 Sep: the "Call us" button on the help bar under every page. */
-  companyPhone?: string | null;
   /** 3a-6: a signed-in portal customer arrives known — email from their
    * verified session (the gate page disappears), address from the chosen
    * property. Same component, same flow; a returning customer just starts
@@ -865,11 +858,6 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     return () => window.clearInterval(id);
   }, [isCustomer, screen, page, sessionWorthSaving]);
 
-  // Tom, 8 Sep: the help bar under every page (book a visit / call us /
-  // request a call back) replaced the "Stuck? Ask us to call you" strip —
-  // the same "needs help" outcome, plus a real visit booking.
-  const pageName = PAGE_NAME[pageKeys[page - 1] ?? "property"] ?? `Page ${page}`;
-
   // ---- client-side page gates (server re-validates everything) --------------
 
   function pageBlocker(): string | null {
@@ -1116,15 +1104,6 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
               label that claims a file is going up when none was chosen. */}
           {nav.note && <span className="wz-navnote">{nav.note}</span>}
         </nav>
-      )}
-      {screen === "pages" && isCustomer && (
-        <HelpBar
-          companyPhone={companyPhone}
-          page={page}
-          pageLabel={pageName}
-          defaults={{ name: state.contact.name, phone: state.contact.phone, email: state.contact.email || state.customer?.email || "" }}
-          address={state.address ? { street: state.address.street ?? "", suburb: state.address.suburb ?? "", postcode: state.address.postcode ?? "", state: state.address.state ?? "VIC" } : null}
-        />
       )}
       {isCustomer && <ChatWidget ready={ready} />}
     </div>

@@ -5,18 +5,17 @@ already exist). Two things to know first: **the chat is a direct line to a perso
 assistant model is not in this loop yet — flag if you want it answering first), and **browsers only play the chime
 after the person has clicked something on the page** (any click, once per tab).
 
-## 1. The help bar under every wizard page
-Open /estimate as a visitor. Under the Continue button on EVERY page: *Rather talk to a person? Any time:*
-**Book a site visit** · **Call us · <company phone>** · **Request a call back**.
-- **Request a call back** → name + phone (+ email) → *Call me* → "one of us will call you shortly". On Today it is the
-  session's *Reply to X — stuck at Property* card when the draft exists, else a *requested a call* card. The account
-  is made from the phone (an email is attached only if it isn't a test address).
-- **Book a site visit** → the real windows on offer (the same ones the end of the wizard offers) → pick → name +
-  phone + email → *Book it* → "Booked — Tue 9 Sep, 9:00 am with Sam". A `visits` row in the Diary, the .ics invite
-  to the email, the estimator's Google Calendar updated. Today raises NO "book visit" card for it (the draft note
-  says "Booked: …"). "No open times online right now" → request a call back instead.
-- **Call us** dials Settings → Company → phone.
-The old "Stuck? Ask us to call you" strip is gone — the bar replaces it.
+## 1. Reach a person from the builder — at any point (second pass, Tom 8 Sep)
+The question pages carry no "talk to a person" strip any more (Tom: the prompt belongs in the builder). In the
+BUILDER — the confirm-the-rooms (or sides) screen after "See my estimate" — the sticky footer keeps the confirm
+prompt ("Confirm every room and check to continue — 2 of 7", disabled until done) and, under it, always:
+*Rather talk to a person? Any time:* **Book a site visit** · **Call us · <phone>** · **Request a call back**.
+- **Book a site visit** → the real windows on offer → pick → *Book it* → the footer says "Visit booked — Tue 9 Sep ·
+  morning (9–12)". A `visits` row in the Diary, the .ics invite, the estimator's Google Calendar. The session's note
+  reads "Booked: …" so Today raises no "book visit" card (the Diary has it). No open windows → a request form
+  ("when suits you") that a person books.
+- **Request a call back** → mobile + window → "Call back requested"; Today: *X requested a call*.
+- **Call us** dials Settings → Company → phone. The chat bubble stays on the question pages AND the builder.
 
 ## 2. The chat bubble (bottom-left of the wizard)
 Tap **Chat with us** → panel opens with a greeting → type → send. The first message asks for a person: a card on

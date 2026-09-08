@@ -1,6 +1,7 @@
 "use client";
 
 import ContactCard from "./ContactCard";
+import ReachStrip from "./ReachStrip";
 import { afterLayout, scrollCardToTop } from "./scrollCard";
 import { useRef, useState, useSyncExternalStore } from "react";
 import type { CustomerPayload } from "@/lib/wizard/view";
@@ -853,6 +854,17 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
               : "Finalise my price"}
           </button>
         </div>
+        {booked == null && !slotsOpen && (
+          <ReachStrip prefix="sd" companyPhone={companyPhone} visitSlots={ladder.visitSlots}
+            onBookSlot={(slot) => {
+              act({ action: "book_visit", slot }, { done: `Booked — ${slot}. A calendar invite is on its way; keep confirming sides if you like.` });
+              setBooked(`Visit booked — ${slot}`);
+            }}
+            onContact={(req) => {
+              act({ action: "request_contact", ...req }, { done: req.how === "visit" ? "Thanks — we'll ring you to lock in a visit time that suits." : "Thanks — we'll call you back. Keep confirming sides if you like." });
+              setBooked(req.how === "visit" ? "Site visit requested" : "Call back requested");
+            }} />
+        )}
         {slotsOpen && booked == null && (
           <ContactCard prefix="sd" companyPhone={companyPhone} onSubmit={(req) => {
             act({ action: "request_contact", ...req }, { done: req.how === "visit" ? "Thanks — we'll ring you to lock in a visit time that suits." : "Thanks — we'll call you back to finalise your price." });

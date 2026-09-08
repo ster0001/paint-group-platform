@@ -236,6 +236,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // through the wizard, via the service client with an ownership check.
   const actor = await getWizardActor(supabase);
   if (actor.kind === "none") return NextResponse.json({ error: "Staff only." }, { status: 403 });
+  /** The wizard session behind this estimate. The "converted" save that
+   *  stamps estimate_id on the draft can land AFTER a request made from the
+   *  builder's footer (Tom, 8 Sep: reach a person at any point), so when no
+   *  row carries the estimate yet, the visitor's open draft is marked — and
+   *  linked — instead. Never throws; the request itself is already filed. */
+  const markSession = async (patch: Record<string, unknown>, where: string) => {
+    const db0 = createServiceClient();
+    if (!db0) return;
+    try {
+      const byEstimate = await db0.from("wizard_drafts").update(patch).eq("estimate_id", id).select("id");
+      if (byEstimate.error) throw byEstimate.error;
+      if ((byEstimate.data ?? []).length > 0 || actor.kind !== "customer") return;
+      const byUser = await db0.from("wizard_drafts").update({ ...patch, estimate_id: id }).eq("user_id", actor.user.id).is("converted_at", null);
+      if (byUser.error) throw byUser.error;
+    } catch (e) { reportError(e, { where, bestEffort: true }); }
+  };
   // A customer can never request the staff payload (totals, margin, hours).
   if (actor.kind === "customer" && viewParse.data.view === "staff") {
     return NextResponse.json({ error: "No such estimate." }, { status: 404 });
@@ -539,18 +555,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         dedupeKey: `contact:${id}:${act.how}:${act.window}:${act.phone}`,
       });
       // Buckets brief §3: the wizard session's outcome → bucket A on Today.
-      await db.from("wizard_drafts").update({
+      await markSession({
         outcome: visit ? "visit_requested" : "call_requested", outcome_at: new Date().toISOString(), outcome_note: note,
         bucket: visit ? "ready_visit" : "ready_call",
-      }).eq("estimate_id", id).then((r) => { if (r.error) reportError(r.error, { where: "wizard.edit.sessionOutcome", bestEffort: true }); });
+      }, "wizard.edit.sessionOutcome");
     }
 
     if (act.action === "accept_intent" || act.action === "book_visit") {
       if (act.action === "book_visit") {
         // Buckets brief §3: a booked visit is a visit requested, for the session's bucket.
-        await db.from("wizard_drafts").update({
-          outcome: "visit_requested", outcome_at: new Date().toISOString(), bucket: "ready_visit",
-        }).eq("estimate_id", id).then((r) => { if (r.error) reportError(r.error, { where: "wizard.edit.sessionVisit", bestEffort: true }); });
+        // Tom, 8 Sep: "Booked: …" is what keeps Today from raising a "book
+        // visit" card for a visit that is already in the Diary (work-queue).
+        await markSession({
+          outcome: "visit_requested", outcome_at: new Date().toISOString(), bucket: "ready_visit", outcome_note: `Booked: ${act.slot} (from the estimate builder)`,
+        }, "wizard.edit.sessionVisit");
         const flags = (settingValue((await ctxPromise).settings, "scope_editor") ?? {}) as { visitSlots?: string[] };
         const slots = await wizardVisitSlots(db, flags);
         if (!slots.labels.includes(act.slot)) {

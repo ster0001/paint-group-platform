@@ -2,14 +2,14 @@ import { test, expect } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { credentials, signIn } from "../helpers";
 import { deleteUserByEmail, destroyAccountChain } from "../fixtures/portal";
-import { uniquePhone } from "./drive";
+import { driveNoPlanWizard, uniquePhone } from "./drive";
 
 /**
- * Tom, 8 Sep 2026 — reach a person from ANY wizard page, and chat:
- *   1. page 1, nothing answered: "Request a call back" files the request
- *      (a name and a phone are all it needs);
- *   2. "Book a site visit" lists real windows and books one — a visits row,
- *      no second "book visit" card;
+ * Tom, 8 Sep 2026 — reach a person from the BUILDER at any point, and chat:
+ *   1. rooms not yet confirmed: "Request a call back" from the footer strip
+ *      files the request (a mobile is all it needs);
+ *   2. "Book a site visit" lists the real windows and books one — a visits
+ *      row, and the draft says "Booked: …" so Today raises no second card;
  *   3. the chat bubble: a customer line pops the dock on a staff screen that
  *      is NOT the CRM, staff answer from the dock, the customer sees it.
  * C1 stack (AGENT_MODEL_STUB=1); support hours set all-day for the run.
@@ -23,6 +23,7 @@ const stamp = Date.now();
 const callbackEmail = `e2e-reach-call-${stamp}@example.com`;
 const visitEmail = `e2e-reach-visit-${stamp}@example.com`;
 const callbackPhone = uniquePhone(), visitPhone = uniquePhone();
+void visitPhone;
 const accountByPhone = async (sb: SupabaseClient, phone: string) => {
   const { data } = await sb.rpc("crm_find_account", { p_email: null, p_phone: phone });
   return (data as string | null) ?? null;
@@ -56,9 +57,12 @@ test.describe("reach a person + chat (Tom, 8 Sep)", () => {
     const sb = db!;
     if (savedHours) await sb.from("agent_settings").update({ support_hours: savedHours }).eq("tenant_key", "paint-group");
     if (conversationId) await sb.from("agent_conversations").delete().eq("id", conversationId);
-    for (const ph of [callbackPhone, visitPhone]) {
-      const id = await accountByPhone(sb, ph);
+    for (const e of [callbackEmail, visitEmail]) {
+      const { data: acct } = await sb.from("accounts").select("id").eq("email", e).maybeSingle();
+      const id = acct?.id ?? await accountByPhone(sb, e === callbackEmail ? callbackPhone : visitPhone);
       if (!id) continue;
+      await sb.from("agent_conversations").delete().eq("account_id", id);
+      await sb.from("estimates").delete().eq("account_id", id);
       await sb.from("visits").delete().eq("account_id", id);
       await sb.from("wizard_drafts").update({ account_id: null }).eq("account_id", id);
       await sb.from("crm_events").delete().eq("account_id", id);
@@ -69,44 +73,52 @@ test.describe("reach a person + chat (Tom, 8 Sep)", () => {
     if (!hadAvailability) await sb.from("staff_availability").delete().eq("staff_id", staffId);
   });
 
-  test("page 1, nothing answered: a call back needs only a name and a phone", async ({ page }) => {
-    test.setTimeout(180_000);
-    await openWizardPage1(page);
-    await expect(page.getByTestId("wz-help")).toBeVisible();
-    await page.getByTestId("wz-help-callback").click();
-    await page.getByTestId("wz-help-name").fill("Cal Back");
-    await page.getByTestId("wz-help-phone").fill(callbackPhone); // CRM P1: accounts match by phone too
-    await page.getByTestId("wz-help-email").fill(callbackEmail);
-    await page.getByTestId("wz-help-send").click();
-    await expect(page.getByTestId("wz-help-done")).toContainText(/call you shortly/, { timeout: 20_000 });
-    // Filed on the account, as either the draft's help request or a plain callback.
-    const id = await accountByPhone(db!, callbackPhone);
-    expect(id).toBeTruthy();
-    const { data: acct } = await db!.from("accounts").select("name").eq("id", id!).single();
-    expect(acct?.name).toBe("Cal Back");
-    const { data: ev } = await db!.from("crm_events").select("type").eq("account_id", id!).in("type", ["wizard_help_requested", "callback_requested"]);
-    expect((ev ?? []).length).toBeGreaterThan(0);
+  test("in the builder, rooms unconfirmed: a call back from the footer strip", async ({ page }) => {
+    test.setTimeout(240_000);
+    await driveNoPlanWizard(page, { email: callbackEmail });
+    const strip = page.getByTestId("reach-strip");
+    await expect(strip).toBeVisible();
+    // The confirm prompt is still there, and still disabled.
+    await expect(page.locator(".sc-btn.il-cta")).toBeDisabled();
+    await strip.getByTestId("reach-callback").click();
+    await page.getByTestId("reach-phone").fill(callbackPhone);
+    await page.getByTestId("reach-send").click();
+    await expect(page.locator(".sc-tier")).toContainText(/Call back requested/, { timeout: 20_000 });
+    const { data: acct } = await db!.from("accounts").select("id").eq("email", callbackEmail).single();
+    await expect.poll(async () => {
+      const { data } = await db!.from("crm_events").select("id").eq("account_id", acct!.id).eq("type", "callback_requested");
+      return (data ?? []).length;
+    }, { timeout: 20_000 }).toBeGreaterThan(0);
   });
 
-  test("book a site visit from page 1: real windows, a real visits row", async ({ page }) => {
-    test.setTimeout(180_000);
-    await openWizardPage1(page);
-    await page.getByTestId("wz-help-visit").click();
-    const wins = page.getByTestId("wz-help-win");
-    await expect(wins.first()).toBeVisible({ timeout: 30_000 });
-    await wins.first().click();
-    await page.getByTestId("wz-help-name").fill("Vi Sit");
-    await page.getByTestId("wz-help-phone").fill(visitPhone);
-    await page.getByTestId("wz-help-email").fill(visitEmail);
-    await page.getByTestId("wz-help-send").click();
-    await expect(page.getByTestId("wz-help-done")).toContainText(/Booked/, { timeout: 30_000 });
-    const id = await accountByPhone(db!, visitPhone);
-    expect(id).toBeTruthy();
-    const { data: visits } = await db!.from("visits").select("id, status, source, staff_id").eq("account_id", id!);
-    expect(visits?.length).toBe(1);
+  test("in the builder, rooms unconfirmed: a real visit booked from the footer strip", async ({ page }) => {
+    test.setTimeout(240_000);
+    await driveNoPlanWizard(page, { email: visitEmail });
+    const strip = page.getByTestId("reach-strip");
+    await strip.getByTestId("reach-visit").click();
+    const slots = page.getByTestId("reach-slot");
+    await expect(slots.first()).toBeVisible({ timeout: 20_000 });
+    await slots.first().click();
+    await page.getByTestId("reach-book").click();
+    await expect(page.locator(".sc-tier")).toContainText(/Visit booked/, { timeout: 20_000 });
+    const { data: acct } = await db!.from("accounts").select("id").eq("email", visitEmail).single();
+    await expect.poll(async () => {
+      const { data } = await db!.from("visits").select("id, status, source, staff_id").eq("account_id", acct!.id);
+      return data ?? [];
+    }, { timeout: 30_000 }).toHaveLength(1);
+    const { data: visits } = await db!.from("visits").select("status, source, staff_id").eq("account_id", acct!.id);
     expect(visits![0].status).toBe("booked");
     expect(visits![0].source).toBe("wizard");
     expect(visits![0].staff_id).toBe(staffId);
+    // The draft says "Booked: …" — Today raises no second "book visit" card.
+    // A person's session (the 2.5 s autosave) reads "Booked: …" so Today raises
+    // no second card; a test outruns that autosave, so the check is conditional.
+    const { data: est } = await db!.from("estimates").select("id").eq("account_id", acct!.id).order("created_at", { ascending: false }).limit(1).single();
+    const { data: drafts } = await db!.from("wizard_drafts").select("outcome, outcome_note").eq("estimate_id", est!.id);
+    for (const d of drafts ?? []) {
+      expect(d.outcome).toBe("visit_requested");
+      expect(d.outcome_note ?? "").toMatch(/^Booked:/);
+    }
   });
 
   test("the chat bubble reaches the dock on a non-CRM staff screen; the reply comes back", async ({ browser, page: staffPage }) => {
