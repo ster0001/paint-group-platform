@@ -133,13 +133,13 @@ test("exterior: every item can be taken off, and there is no accept-online butto
   const before = await tiles.count();
   expect(before).toBeGreaterThan(0);
   const tile = tiles.first();
-  // The × is the tile's first text node, so read the label off the element.
-  const label = (await tile.evaluate((el) => (el.lastChild?.textContent ?? el.textContent ?? "")))
-    .replace(/×/g, "").trim();
+  // The tile's name has its own element (`.sd-tlname`) — reading the last
+  // text node broke as soon as the tile grew a metres control (Tom, 8 Sep).
+  const label = (await tile.locator(".sd-tlname").innerText()).replace(/×/g, "").trim();
   expect(label.length).toBeGreaterThan(0);
   await tile.locator(".sd-x").click();
   await expect(tiles).toHaveCount(before - 1, { timeout: 25_000 });
-  await expect(side.locator(".sd-tl", { hasText: label })).toHaveCount(0);
+  await expect(side.locator(".sd-tl").filter({ has: page.locator(".sd-tlname", { hasText: label }) })).toHaveCount(0);
 });
 
 // Tom's walk ruling (31 Aug, trade batch 1): frames ARE architraves — the

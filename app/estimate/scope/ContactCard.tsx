@@ -14,8 +14,12 @@ export type ContactHow = "callback" | "visit";
 export type ContactWindow = "am" | "pm" | "any";
 export type ContactRequest = { how: ContactHow; window: ContactWindow; phone: string; when: string };
 
-export default function ContactCard({ companyPhone, onSubmit, busy = false, prefix = "sc" }: {
+export default function ContactCard({ companyPhone, phoneHours = null, defaultPhone = null, onSubmit, busy = false, prefix = "sc" }: {
   companyPhone: string | null;
+  /** When the office answers — Settings → Company details owns the wording. */
+  phoneHours?: string | null;
+  /** Tom, 8 Sep 2026: the mobile they already gave us, pre-filled and editable. */
+  defaultPhone?: string | null;
   onSubmit: (req: ContactRequest) => void;
   busy?: boolean;
   /** "sc" on the rooms editor, "sd" on the sides editor — the class prefix each already styles. */
@@ -23,7 +27,7 @@ export default function ContactCard({ companyPhone, onSubmit, busy = false, pref
 }) {
   const [how, setHow] = useState<ContactHow | null>(null);
   const [win, setWin] = useState<ContactWindow>("any");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(defaultPhone?.trim() ?? "");
   const [when, setWhen] = useState("");
   const tel = companyPhone ? `tel:${companyPhone.replace(/\s+/g, "")}` : null;
   const phoneOk = phone.replace(/[^0-9+]/g, "").length >= 8;
@@ -36,6 +40,7 @@ export default function ContactCard({ companyPhone, onSubmit, busy = false, pref
         <button type="button" className={`${prefix}-contact-opt${how === "callback" ? " on" : ""}`} onClick={() => setHow("callback")} data-testid="contact-callback">Ask us to call you back</button>
         <button type="button" className={`${prefix}-contact-opt${how === "visit" ? " on" : ""}`} onClick={() => setHow("visit")} data-testid="contact-visit">Request a site visit</button>
       </div>
+      {tel && phoneHours && <p className={`${prefix}-reach-hours`} data-testid="contact-hours">Our lines are open {phoneHours}.</p>}
       {how && (
         <form
           className={`${prefix}-contact-form`}
@@ -50,6 +55,9 @@ export default function ContactCard({ companyPhone, onSubmit, busy = false, pref
             ))}
           </div>
           <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Your mobile number" inputMode="tel" aria-label="Your mobile number" data-testid="contact-phone" required />
+          {defaultPhone && phone.trim() === defaultPhone.trim() && (
+            <p className={`${prefix}-contact-t`} style={{ fontWeight: 400, fontSize: 12 }}>That&rsquo;s the number you gave us — change it if another one suits.</p>
+          )}
           {how === "visit" && (
             <input value={when} onChange={(e) => setWhen(e.target.value)} maxLength={300} placeholder="When suits you for a visit? e.g. weekday mornings, not Wednesdays" aria-label="When suits you" data-testid="contact-when" />
           )}

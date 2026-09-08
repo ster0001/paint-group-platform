@@ -61,7 +61,10 @@ const TITLE: Record<string, string> = {
   "Soffits / Exterior Ceilings": "Soffits",
   "Cutek": "Timber stain (Cutek)",
   "Deck Painting": "Deck",
-  "Hand Rails": "Balustrades & hand rails",
+  // Tom, 8 Sep 2026 asked for "handrails" and could not find the row — it was
+  // filed under B. The word he uses leads. (The INTERIOR tile keeps its own
+  // label from lib/estimate/substrates.ts.)
+  "Hand Rails": "Handrails & balustrades",
   "Roof": "Roof",
 };
 

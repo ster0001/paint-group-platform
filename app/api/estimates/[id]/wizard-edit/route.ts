@@ -21,8 +21,8 @@ import { INTERIOR_POOR_MODIFIER_CODE } from "@/lib/wizard/exteriorAnswers";
 import {
   ALLOWANCE_CODES, SWEEP_PRICED_CODES, WEATHERED_MODIFIER_CODE,
   addCatalogItem, addSideCustom, addSideSurface, addWallSurface, addWindowGroup, applySideCount, applySideDims,
-  applySideInclude, applySideSizeOk, applyWallShare, applyWindowSize, confirmSide, defaultSidesLoop,
-  extrasPrices, hasExtrasItem, rateFor, removeSideCustom, removeSideLine, sidesView, toggleExtrasItem, visitReason,
+  applySideInclude, applySideMetres, applySideNote, applySideRename, applySideSizeOk, applyWallShare, applyWindowSize, confirmSide, defaultSidesLoop,
+  extrasPrices, findSide, hasExtrasItem, linealCodes, rateFor, removeSideCustom, removeSideLine, sidesView, toggleExtrasItem, visitReason,
   wallOptionsFromRates,
   type SidesLoopMeta, hoursPerItemCodes } from "@/lib/wizard/sides";
 import {
@@ -139,6 +139,13 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("side_count"), side: z.enum(["front", "left", "right", "back"]), surfaceId: z.number().int().positive(), count: z.number().int().min(1).max(20) }),
   z.object({ action: z.literal("add_window_group"), side: z.enum(["front", "left", "right", "back"]) }),
   z.object({ action: z.literal("side_custom"), side: z.enum(["front", "left", "right", "back"]), name: z.string().min(1).max(120) }),
+  /** Tom, 8 Sep: the customer's own name for a side ("Courtyard"); "" restores the default. */
+  z.object({ action: z.literal("rename_side"), side: z.enum(["front", "left", "right", "back"]), name: z.string().max(40) }),
+  /** Tom, 8 Sep: the optional "anything worth mentioning" box on a side,
+   * with however many photos were attached alongside it. */
+  z.object({ action: z.literal("side_note"), side: z.enum(["front", "left", "right", "back"]), note: z.string().max(600).default(""), photos: z.number().int().min(0).max(12).default(0) }),
+  /** Tom, 8 Sep: the metres on a lineal run — handrails, gutters, fascias. */
+  z.object({ action: z.literal("side_metres"), side: z.enum(["front", "left", "right", "back"]), surfaceId: z.number().int().positive(), metres: z.number().min(0.1).max(200).nullable().default(null) }),
   /** Parity STOP-item 1: a priced catalogue item onto one side's tile grid. */
   z.object({ action: z.literal("add_catalog"), side: z.enum(["front", "left", "right", "back"]), code: z.enum(["Window Shutters", "Side Gate", "Security Door", "Meter Box"]) }),
   /** R5: any Exterior rate-card row onto one side — validated against the
@@ -615,6 +622,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (act.action === "side_include" || act.action === "side_size_ok" || act.action === "side_dims"
       || act.action === "wall_share" || act.action === "add_wall" || act.action === "win_size"
       || act.action === "side_count" || act.action === "add_window_group" || act.action === "side_custom"
+      || act.action === "rename_side" || act.action === "side_metres" || act.action === "side_note"
       || act.action === "add_catalog" || act.action === "add_side_surface"
       || act.action === "side_remove_line" || act.action === "side_remove_custom"
       || act.action === "confirm_side") {
@@ -657,6 +665,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         : act.action === "side_count" ? applySideCount(blocks, act.side, act.surfaceId, act.count)
         : act.action === "add_window_group" ? addWindowGroup(blocks, act.side, () => next++)
         : act.action === "side_custom" ? addSideCustom(blocks, act.side, act.name)
+        : act.action === "rename_side" ? applySideRename(blocks, act.side, act.name)
+        : act.action === "side_metres" ? applySideMetres(blocks, act.side, act.surfaceId, act.metres)
+        : act.action === "side_note" ? applySideNote(blocks, act.side, act.note, act.photos)
         : act.action === "add_catalog" ? addCatalogItem(blocks, act.side, act.code, () => next++, catalogRate!.chargeOutDollars)
         : act.action === "side_remove_line" ? removeSideLine(blocks, act.side, act.surfaceId)
         : act.action === "side_remove_custom" ? removeSideCustom(blocks, act.side, act.index)
@@ -677,6 +688,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           count: 1, needs: "price this WITH the customer on the visit — never silently", kind: "custom_surface",
         });
         await flagSiteCheck();
+      }
+      if (act.action === "side_note") {
+        // The note is the estimator's to read and price — an amber review
+        // line, never a silent number. Re-saving replaces the last one so a
+        // corrected note doesn't leave the old text on the sheet.
+        const room = `Exterior - ${act.side}`;
+        for (let i = deferred.length - 1; i >= 0; i--) {
+          if (deferred[i].room === room && deferred[i].kind === "side_note") deferred.splice(i, 1);
+        }
+        const text = act.note.trim().slice(0, 300);
+        const photos = (findSide(blocks, act.side)?.customerPhotos as number | undefined) ?? 0;
+        if (text || photos > 0) {
+          deferred.push({
+            room, areaId: null, kind: "side_note", count: 1,
+            what: `customer note on the ${act.side}${photos > 0 ? ` (+${photos} photo${photos > 1 ? "s" : ""})` : ""}`,
+            needs: text
+              ? `"${text}" — read this before pricing the prep on this side`
+              : "photos attached to this side — check them before pricing the prep",
+          });
+        }
       }
       if (act.action === "side_include" && !act.include) {
         // The exclusion is explicit on the quote; its open questions leave.
@@ -1070,7 +1101,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       sides: sidesView(blocks, sidesMeta, extrasPrices(ctx.rateItems),
         (() => { const sn = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
                  return sn.success ? (sn.data.exterior?.storeys ?? null) : null; })(),
-        exteriorAddOptions(ctx.rateItems), wallOptionsFromRates(ctx.rateItems), hoursPerItemCodes(ctx.rateItems)),
+        exteriorAddOptions(ctx.rateItems), wallOptionsFromRates(ctx.rateItems), hoursPerItemCodes(ctx.rateItems),
+        linealCodes(ctx.rateItems)),
       // R3: the interior confirm loop — rooms joined by areaId, plus the
       // totals check and sweep state. Cupboard questions are data-driven off
       // the live rate card.

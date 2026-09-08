@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useLiveConversation } from "@/app/estimate/assist/useLiveConversation";
+import "./chat.css";
 
 type Msg = { id: string; role: "user" | "assistant" | "staff" | "system"; text: string; createdAt: string };
 type Snap = { conversationId: string; status: string; handoff: { status: string } | null; transcript: Msg[] };
@@ -15,7 +16,19 @@ const KEY = "pg-wizard-chat";
  * and Realtime brings the reply here. The conversation id is kept in the
  * browser so a reload picks the same thread up.
  */
-export default function ChatWidget({ ready }: { ready: boolean }) {
+export default function ChatWidget({ ready, place = "wizard", ensureSession }: {
+  ready: boolean;
+  /** Where it is mounted — the marketing site sits above its own call bar. */
+  place?: "wizard" | "site";
+  /**
+   * Tom, 8 Sep 2026: the same bubble on the website. A visitor there has no
+   * anonymous session yet and we are not making one for every passer-by, so
+   * the host hands over a function that signs in ON THE FIRST OPEN. Supplying
+   * it also means the bubble renders before `ready` — the session is what the
+   * tap is for.
+   */
+  ensureSession?: () => Promise<boolean>;
+}) {
   const [open, setOpen] = useState(false);
   const [snap, setSnap] = useState<Snap | null>(null);
   const [text, setText] = useState("");
@@ -28,6 +41,10 @@ export default function ChatWidget({ ready }: { ready: boolean }) {
   async function start() {
     if (snap || busy) return;
     setBusy(true); setError(null);
+    if (ensureSession) {
+      const up = await ensureSession().catch(() => false);
+      if (!up) { setError("Chat isn't available just now — try again in a moment."); setBusy(false); return; }
+    }
     let saved: string | null = null;
     try { saved = window.localStorage.getItem(KEY); } catch { /* fine */ }
     try {
@@ -51,7 +68,7 @@ export default function ChatWidget({ ready }: { ready: boolean }) {
   // Opening the panel opens the conversation (once the wizard's session is
   // up). Deferred a tick: the lint rule keeps state changes out of effect bodies.
   useEffect(() => {
-    if (!open || !ready || snap) return;
+    if (!open || !(ready || ensureSession) || snap) return;
     const t = setTimeout(() => { void start(); }, 0);
     return () => clearTimeout(t);
   }, [open, ready]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -85,12 +102,12 @@ export default function ChatWidget({ ready }: { ready: boolean }) {
     finally { setBusy(false); }
   }
 
-  if (!ready) return null;
+  if (!ready && !ensureSession) return null;
   const waiting = snap?.status === "handed_off" && snap.handoff?.status === "requested";
   const live = snap?.status === "handed_off" && (snap.handoff?.status === "active" || snap.handoff?.status === "claimed");
 
   return (
-    <div className={`wz-chat ${open ? "open" : ""}`} data-testid="wz-chat">
+    <div className={`wz-chat ${place === "site" ? "site" : ""} ${open ? "open" : ""}`} data-testid="wz-chat">
       {open && (
         <div className="wz-chat-panel" role="dialog" aria-label="Chat with Paint Group" data-testid="wz-chat-panel" data-status={snap?.status ?? ""}>
           <div className="wz-chat-head">

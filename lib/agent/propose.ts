@@ -124,6 +124,13 @@ function buildFromBrief(doc: ScopeDoc, x: BriefExtraction, deps: ScopeDeps, mode
   const flagsKnown = a.customer?.heritageListed != null && a.customer?.bodyCorporate != null && a.customer?.asbestosSuspected != null;
   if (!flagsKnown) fillIns.push(fillIn("q.property_flags", "Assumed: not heritage-listed, no body corporate, no asbestos — tap to change", "clear"));
 
+  // Sides the brief singled out, or the ones already on the draft. All four
+  // is the whole exterior, which is what "unstated" already means.
+  const briefSides = x.exterior?.sides ?? null;
+  const statedSides = briefSides && briefSides.length > 0 && briefSides.length < 4
+    ? briefSides
+    : (a.exterior?.sides && a.exterior.sides.length > 0 && a.exterior.sides.length < 4 ? a.exterior.sides : null);
+
   const draft: AnswerDraft = {
     ...a,
     jobType,
@@ -148,6 +155,12 @@ function buildFromBrief(doc: ScopeDoc, x: BriefExtraction, deps: ScopeDeps, mode
       substrates: x.exterior?.substrates.length ? x.exterior.substrates : (a.exterior?.substrates ?? ["weatherboards"]),
       condition: x.exterior?.condition ?? a.exterior?.condition ?? "good",
       painting: x.exterior?.painting ?? a.exterior?.painting ?? { body: true, windowsDoors: true, roofline: true, garage: false },
+      // Tom, 8 Sep 2026: "I asked AI to build an exterior estimate with only
+      // the front, left side and back — it also included the right side."
+      // The brief now records the sides it names, and the build honours them:
+      // a side nobody asked about is not scaffolded, so it never reaches the
+      // quote (see applyExteriorAnswers).
+      ...(statedSides ? { sides: statedSides } : {}),
       noPhotos: true,
     } : a.exterior,
     noPlan: wantsInterior,
@@ -155,6 +168,7 @@ function buildFromBrief(doc: ScopeDoc, x: BriefExtraction, deps: ScopeDeps, mode
   if (jobType !== "interior") {
     if (!x.exterior?.substrates.length && !a.exterior?.substrates) fillIns.push(fillIn("ext.substrates", "Assumed: weatherboard walls outside", "weatherboards"));
     if (!x.exterior?.condition && !a.exterior?.condition) fillIns.push(fillIn("ext.condition", "Assumed: exterior paintwork in good condition", "good"));
+    if (statedSides) fillIns.push(fillIn("ext.sides", `Painting the ${statedSides.join(", ")} only — the other side${statedSides.length === 3 ? "" : "s"} ${statedSides.length === 3 ? "isn't" : "aren't"} in this estimate`, statedSides.join(",")));
   }
   // A brief build prices on typical sizes and assumed cupboards; the graph
   // confirms sizes in the sweep and asks cupboards as tightening (§3.3).
@@ -217,15 +231,19 @@ function buildFromBrief(doc: ScopeDoc, x: BriefExtraction, deps: ScopeDeps, mode
     const subs = state.exterior?.substrates ?? [];
     const extraWalls = subs.slice(1).map((k) => WALL_CODE_FOR[k]).filter((c): c is string => Boolean(c));
     let touched = false;
+    const painted = statedSides ? new Set<string>(statedSides) : null;
     for (const key of SIDE_KEYS) {
       if (!findSide(blocks, key)) continue;
+      // A side the brief did not name is not painted — the scaffold already
+      // dropped it, so anything still here belongs in the job.
+      if (painted && !painted.has(key)) continue;
       const inc = applySideInclude(blocks, key, true); if (inc.ok) blocks = inc.blocks;
       const ok = applySideSizeOk(blocks, key); if (ok.ok) blocks = ok.blocks;
       for (const code of extraWalls) { const w = addWallSurface(blocks, key, code, () => nextId++); if (w.ok) blocks = w.blocks; }
       touched = true;
     }
     if (touched) {
-      fillIns.push(fillIn("sides.all", "Assumed: all four sides painted, typical elevation sizes — confirm in the sweep", "all"));
+      if (!statedSides) fillIns.push(fillIn("sides.all", "Assumed: all four sides painted, typical elevation sizes — confirm in the sweep", "all"));
       if (extraWalls.length) fillIns.push(fillIn("sides.wall_split", `Assumed: ${subs.join(" and ")} split across each side (${subs[0]} the larger share) — adjust the split in the builder`, "split"));
     }
   }

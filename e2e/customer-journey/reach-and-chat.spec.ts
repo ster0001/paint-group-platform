@@ -78,8 +78,12 @@ test.describe("reach a person + chat (Tom, 8 Sep)", () => {
     await driveNoPlanWizard(page, { email: callbackEmail });
     const strip = page.getByTestId("reach-strip");
     await expect(strip).toBeVisible();
-    // The confirm prompt is still there, and still disabled.
-    await expect(page.locator(".sc-btn.il-cta")).toBeDisabled();
+    // Tom, 8 Sep (evening): the finalise button is no longer dead while cards
+    // are open — "make it clear… that they can click it before they have
+    // clicked all the details". It is live, it says so, and it hands the job
+    // to a person rather than ACCEPTING an unconfirmed scope.
+    await expect(page.locator(".sc-btn.il-cta")).toBeEnabled();
+    await expect(page.getByTestId("cta-hint")).toContainText(/don.t have to finish first/i);
     await strip.getByTestId("reach-callback").click();
     await page.getByTestId("reach-phone").fill(callbackPhone);
     await page.getByTestId("reach-send").click();

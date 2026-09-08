@@ -9,8 +9,8 @@ import { MONEY_RANGE, fillContactStep } from "./drive";
  * Eight loop items — Front / Left / Right / Back / Freestanding extras /
  * Condition & access / windows-doors totals / sweep. Everything starts
  * AMBER; a side turns CYAN only when its required questions are answered
- * and its wall mix adds to 100%; a skipped side reads NOT PAINTING; the CTA
- * stays disabled until all eight confirm.
+ * and its wall mix adds to 100%; a skipped side reads NOT PAINTING. The CTA
+ * is live throughout (Tom, 8 Sep evening) with a line saying how much is left.
  */
 
 async function driveExteriorWizard(page: Page) {
@@ -45,7 +45,7 @@ async function driveExteriorWizard(page: Page) {
   await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
 }
 
-test("R2b sides loop: amber to cyan, walls must total 100%, skip reads NOT PAINTING, CTA gates on all eight", async ({ page }) => {
+test("R2b sides loop: amber to cyan, walls must total 100%, skip reads NOT PAINTING, the loop tracks all eight", async ({ page }) => {
   test.setTimeout(240_000);
   page.on("response", async (r) => {
     if (r.url().includes("wizard-edit") && r.status() >= 400) {
@@ -54,9 +54,11 @@ test("R2b sides loop: amber to cyan, walls must total 100%, skip reads NOT PAINT
   });
   await driveExteriorWizard(page);
 
-  // Eight amber items, progress 0 of 8, CTA disabled.
+  // Eight amber items, progress 0 of 8. Tom, 8 Sep (evening): the CTA is no
+  // longer dead while cards are open — it is live from the start and says so.
   await expect(page.locator(".sd-prog")).toContainText("0 OF 8");
-  await expect(page.locator(".sd-cta")).toBeDisabled();
+  await expect(page.locator(".sd-cta")).toBeEnabled();
+  await expect(page.getByTestId("cta-hint")).toContainText(/don.t have to finish first/i);
 
   // FRONT: answer the loop. Are we painting this side? -> Yes.
   const front = page.locator(".sd-card", { hasText: "Front" }).first();
@@ -159,9 +161,10 @@ test("R2b sides loop: amber to cyan, walls must total 100%, skip reads NOT PAINT
   await expect(page.locator(".sd-toast")).toContainText(/Bungalow/i, { timeout: 30_000 });
   await sweep.getByRole("button", { name: /Confirm — nothing missing/i }).click();
 
-  // Everything blue: 8 of 8, CTA enabled, range still a range.
+  // Everything blue: 8 of 8, the "you can go early" line is gone, range still a range.
   await expect(page.locator(".sd-prog")).toContainText("8 OF 8", { timeout: 45_000 }); // production queue drain
   await expect(page.locator(".sd-cta")).toBeEnabled();
+  await expect(page.getByTestId("cta-hint")).toHaveCount(0);
   await expect(page.locator(".sc-r, .sd-range").first()).toHaveText(MONEY_RANGE);
 });
 

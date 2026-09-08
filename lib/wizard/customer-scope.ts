@@ -19,11 +19,19 @@ import {
   policyFromSettings, serviceAreaFromSettings, settingValue,
 } from "@/lib/wizard/policy";
 import { wizardStateSchema } from "@/lib/wizard/state";
-import { defaultSidesLoop, extrasPrices, hoursPerItemCodes, sidesView, visitReason, wallOptionsFromRates, type SidesLoopMeta, type SidesView } from "@/lib/wizard/sides";
+import { defaultSidesLoop, extrasPrices, hoursPerItemCodes, linealCodes, sidesView, visitReason, wallOptionsFromRates, type SidesLoopMeta, type SidesView } from "@/lib/wizard/sides";
 import { defaultInteriorLoop, interiorDwTotals, interiorProgress, roomLoopViews, type InteriorLoopMeta, type RoomLoopView } from "@/lib/wizard/rooms-loop";
 import { loopConfirmState } from "@/lib/wizard/confirm-state";
 import { estimateDocuments, type EstimateDocuments } from "@/lib/wizard/documents";
 import { exteriorAddOptions, interiorAddOptions, type AddOption } from "@/lib/wizard/add-catalogue";
+
+/**
+ * What the customer is told about our phone lines when Settings → Company
+ * details has not set `phoneHours` (Tom, 8 Sep 2026: "it needs to be clear
+ * that our lines are open from 08:30-16:30"). A licensee overrides it in
+ * Settings rather than in this file.
+ */
+export const DEFAULT_PHONE_HOURS = "8:30am \u2013 4:30pm, Monday to Friday";
 
 export type EstimateRow = {
   id: string; status: string; source?: string | null; created_by?: string | null;
@@ -44,11 +52,13 @@ export type CustomerScopeBundle =
       kind: "sides"; estimateId: string; initial: CustomerPayload; initialSides: SidesView; initialExterior: CustomerExteriorView | null;
       initialLadder: { tier: "self_serve" | "visit"; reason: ReturnType<typeof visitReason> | null; visitSlots: string[] };
       docs: EstimateDocuments; logoUrl: string | null; companyPhone: string | null;
+      phoneHours: string; customerPhone: string | null;
     }
   | {
       kind: "rooms"; estimateId: string; initial: CustomerPayload; initialRooms: CustomerScopeRoom[]; initialSides: SidesView | null;
       initialExterior: CustomerExteriorView | null; initialLadder: { tier: "self_serve" | "visit"; visitSlots: string[] };
       initialInteriorLoop: InteriorLoopView | null; roomTypes: string[]; liveRange: boolean; docs: EstimateDocuments; logoUrl: string | null; companyPhone: string | null;
+      phoneHours: string; customerPhone: string | null;
     };
 
 export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRow): Promise<CustomerScopeBundle> {
@@ -98,7 +108,16 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
 
   const customer = customerPayload(payload, blocks, decision, bandsFromSettings(settingValue(ctx.settings, "wizard_bands")));
   const headerLogoUrl = ((settingValue(ctx.settings, "company_profile") ?? {}) as { logoUrl?: string }).logoUrl || null;
-  const companyPhone = ((settingValue(ctx.settings, "company_profile") ?? {}) as { phone?: string }).phone?.trim() || null;
+  const profile = (settingValue(ctx.settings, "company_profile") ?? {}) as { phone?: string; phoneHours?: string };
+  const companyPhone = profile.phone?.trim() || null;
+  // Tom, 8 Sep: "it needs to be clear that our lines are open from
+  // 08:30-16:30" — Settings → Company details owns the wording, and the
+  // constant is what a licensee sees before they set their own.
+  const phoneHours = profile.phoneHours?.trim() || DEFAULT_PHONE_HOURS;
+  // Tom, 8 Sep: a call-back form must not ask again for a number the
+  // customer already typed on the contact page — it arrives filled in and
+  // stays editable.
+  const customerPhone = snap.success ? (snap.data.contact?.phone?.trim() || null) : null;
   const roomTypes = [...new Set(rules.map((r) => r.room_type))]
     .filter((t) => !["exterior", "exterior_elevation", "unknown", "excluded", "exterior_excluded"].includes(t))
     .sort();
@@ -121,7 +140,8 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
   const interiorRooms = customerScopeRooms(blocks, rules);
   const sides = sidesView(blocks, sidesMeta, extrasPrices(ctx.rateItems),
     snap.success ? (snap.data.exterior?.storeys ?? null) : null,
-    exteriorAddOptions(ctx.rateItems), wallOptionsFromRates(ctx.rateItems), hoursPerItemCodes(ctx.rateItems));
+    exteriorAddOptions(ctx.rateItems), wallOptionsFromRates(ctx.rateItems), hoursPerItemCodes(ctx.rateItems),
+    linealCodes(ctx.rateItems));
   // Batch 4: an estimate with exterior blocks but NO sides structure
   // predates the rebuild — the old editor is deleted, so it gets a polite
   // restart message, never a broken surface. (Tom's ruling: archive +
@@ -139,7 +159,7 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
         reason: selfServe ? null : visitReason(sidesMeta, deferred),
         visitSlots,
       },
-      docs, logoUrl: headerLogoUrl, companyPhone,
+      docs, logoUrl: headerLogoUrl, companyPhone, phoneHours, customerPhone,
     };
   }
 
@@ -157,6 +177,7 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
     kind: "rooms", estimateId: id, initial: customer, initialRooms: interiorRooms, initialSides: sides,
     initialExterior: customerExteriorView(blocks),
     initialLadder: { tier: selfServe ? "self_serve" : "visit", visitSlots },
-    initialInteriorLoop: interiorLoop, roomTypes, liveRange: editorFlags.liveRange !== false, docs, logoUrl: headerLogoUrl, companyPhone,
+    initialInteriorLoop: interiorLoop, roomTypes, liveRange: editorFlags.liveRange !== false, docs, logoUrl: headerLogoUrl,
+    companyPhone, phoneHours, customerPhone,
   };
 }

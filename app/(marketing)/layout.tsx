@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { marketingFontClass } from "./fonts";
 import ConsentSheet from "./_components/ConsentSheet";
+import SiteChat from "./_components/SiteChat";
 import "./marketing.css";
 
 /**
@@ -22,6 +23,8 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
   return (
     <div className={`mk ${marketingFontClass}`}>
       {children}
+      {/* Tom, 8 Sep 2026: the estimate's chat bubble, on the website too. */}
+      <SiteChat />
       <ConsentSheet />
     </div>
   );

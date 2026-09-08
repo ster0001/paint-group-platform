@@ -59,7 +59,11 @@ test("Both job: interior cards then sides, combined progress, single visit CTA",
 
   // Single CTA; mixed scope is ALWAYS the visit tier, and it says so.
   const cta = page.locator(".il-cta");
-  await expect(cta).toBeDisabled();
+  // Tom, 8 Sep (evening): the button is live from the start and says how much
+  // is left; it hands a mixed job to a person, and never accepts one online.
+  await expect(cta).toBeEnabled();
+  await expect(cta).not.toHaveText(/Accept estimate/);
+  await expect(page.getByTestId("cta-hint")).toContainText(/don.t have to finish first/i);
   await expect(page.locator(".sc-tier")).toContainText(/visit/i);
   await expect(page.locator(".sc-r")).toHaveText(MONEY_RANGE);
 });

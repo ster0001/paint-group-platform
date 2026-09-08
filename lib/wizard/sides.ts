@@ -36,6 +36,27 @@ export const SIDE_LABEL: Record<SideKey, string> = {
   front: "Front — street side", left: "Left side", right: "Right side", back: "Back",
 };
 
+/** The word the scaffold uses in the block name for each side. */
+const SIDE_WORD: Record<SideKey, string> = { front: "Front", left: "Left", right: "Right", back: "Rear" };
+
+/**
+ * Tom, 8 Sep 2026: "I can click left side and change the name to courtyard."
+ *
+ * A renamed side keeps its canonical block name AND gains the customer's
+ * word for it: `Exterior - Left (Courtyard)`. Every downstream reader — the
+ * quote, the work order, the job sheet — shows the whole string, so the
+ * painter reads the customer's language; `sideBaseName` strips the bracket
+ * before the side is matched, so a name like "Right of the shed" on the LEFT
+ * side can never make findSide("right") return the wrong block.
+ */
+export const sideBaseName = (name: unknown): string => String(name ?? "").split("(")[0].trim();
+
+/** The customer's own word for a side, or null when it is still the default. */
+export function sideCustomLabel(b: LooseBlock | null | undefined): string | null {
+  const raw = typeof b?.customerLabel === "string" ? b.customerLabel.trim() : "";
+  return raw || null;
+}
+
 /** Wall substrates a side can carry — data-driven from the rate card at the
  * route (these are the codes the scaffold and the registry use). */
 export const WALL_CODES: ReadonlyArray<{ code: string; label: string }> = [
@@ -136,6 +157,16 @@ export function hoursPerItemCodes(rateItems: ReadonlyArray<LooseRateItem>): Read
   return new Set(rateItems.filter((r) => String((r as { unit?: unknown }).unit ?? "") === "Hours Per Item").map((r) => String(r.code)));
 }
 
+/**
+ * Every rate code measured in LINEAL METRES — handrails, gutters, fascias,
+ * eaves, downpipe runs, a fence. These are the rows that get a "how many
+ * metres?" box on the side card (Tom, 8 Sep 2026); everything else measures
+ * from the elevation or counts as items.
+ */
+export function linealCodes(rateItems: ReadonlyArray<LooseRateItem>): ReadonlySet<string> {
+  return new Set(rateItems.filter((r) => String((r as { unit?: unknown }).unit ?? "") === "Lineal Metres").map((r) => String(r.code)));
+}
+
 export function extrasPrices(rateItems: ReadonlyArray<LooseRateItem>): Record<string, number> {
   const out: Record<string, number> = {};
   for (const { code } of [...CATALOG_CODES, ...SWEEP_PRICED_CODES]) {
@@ -152,6 +183,13 @@ export type LooseBlock = Record<string, unknown> & {
   surfaces?: LooseSurface[];
   customer?: { include: boolean | null; size: "yes" | "adjusted" | "ns" | null; confirmed: boolean };
   customerCustom?: string[];
+  /** The customer's own name for this side ("Courtyard") — display only. */
+  customerLabel?: string;
+  /** Tom, 8 Sep 2026: the optional "anything worth mentioning" box at the
+   * bottom of each side — extra prep the estimator should know about. */
+  customerNote?: string;
+  /** How many photos the customer attached to this side. */
+  customerPhotos?: number;
 };
 
 export type SidesLoopMeta = {
@@ -174,12 +212,12 @@ export function defaultSidesLoop(): SidesLoopMeta {
 
 export function isSideBlock(b: LooseBlock): boolean {
   return b.kind === "area" && b.type === "Exterior" && b.areaType === "surface"
-    && SIDE_KEYS.some((k) => SIDE_MATCH[k].test(String(b.name ?? "")));
+    && SIDE_KEYS.some((k) => SIDE_MATCH[k].test(sideBaseName(b.name)));
 }
 
 export function findSide(blocks: LooseBlock[], key: SideKey): LooseBlock | null {
   return blocks.find((b) => b.kind === "area" && b.type === "Exterior" && b.areaType === "surface"
-    && SIDE_MATCH[key].test(String(b.name ?? ""))) ?? null;
+    && SIDE_MATCH[key].test(sideBaseName(b.name))) ?? null;
 }
 
 function customerOf(b: LooseBlock) {
@@ -332,9 +370,18 @@ export function addWallSurface(
  * ride the count.
  */
 /** Codes a side may carry twice (Tom, 5 Sep 2026): a double-storey house
- * has upper and lower eaves, each running the full length of the side. */
-export const TWICE_OK_CODES: ReadonlySet<string> = new Set(["Eaves"]);
-const SECOND_ROW_LABEL: Record<string, [string, string]> = { Eaves: ["Eaves (lower)", "Eaves (upper)"] };
+ * has upper and lower eaves, each running the full length of the side.
+ * Tom, 8 Sep 2026: gutters and fascias run the same way — a two-storey
+ * elevation has a lower run over the ground floor and an upper run at the
+ * roofline, and a verandah or a skillion adds a second run on a single
+ * storey too. Each row measures on its own, so a second row is a second
+ * length, never a doubled rate. */
+export const TWICE_OK_CODES: ReadonlySet<string> = new Set(["Eaves", "Gutters", "Fascias"]);
+const SECOND_ROW_LABEL: Record<string, [string, string]> = {
+  Eaves: ["Eaves (lower)", "Eaves (upper)"],
+  Gutters: ["Gutters (lower)", "Gutters (upper)"],
+  Fascias: ["Fascias (lower)", "Fascias (upper)"],
+};
 
 export function addSideSurface(
   blocks: LooseBlock[], key: SideKey, code: string, label: string,
@@ -426,6 +473,67 @@ export function applySideCount(blocks: LooseBlock[], key: SideKey, surfaceId: nu
     // Catalogue items are per-item priced on a lineal-unit card row —
     // qtyOverride IS the count (see pricedItemLine).
     if (isCatalogLine(line)) line.qtyOverride = count;
+  });
+}
+
+/**
+ * The optional comments box at the bottom of a side (Tom, 8 Sep 2026):
+ * "any extra prep… anything worth mentioning to add it here to help with a
+ * more accurate estimate", plus however many photos came with it.
+ *
+ * It is a NOTE, never a price: the route raises an amber review line so the
+ * estimator reads it, and nothing here touches the tree's money.
+ */
+export function applySideNote(blocks: LooseBlock[], key: SideKey, note: string, addPhotos = 0): SidesResult {
+  return withSide(blocks, key, (b) => {
+    const clean = note.trim().slice(0, 600);
+    if (clean) b.customerNote = clean; else delete b.customerNote;
+    const photos = (Number(b.customerPhotos) || 0) + Math.max(0, addPhotos);
+    if (photos > 0) b.customerPhotos = photos; else delete b.customerPhotos;
+  });
+}
+
+/**
+ * Rename a side (Tom, 8 Sep 2026). An empty string puts the default back.
+ *
+ * The block name keeps its canonical word so `findSide` and every deferral
+ * that names a side still resolve; the customer's word rides in brackets so
+ * the quote and the job sheet read "Exterior - Left (Courtyard)".
+ */
+export function applySideRename(blocks: LooseBlock[], key: SideKey, name: string): SidesResult {
+  const clean = name.trim().replace(/[()]/g, "").slice(0, 40);
+  return withSide(blocks, key, (b) => {
+    if (clean) {
+      b.customerLabel = clean;
+      b.name = `Exterior - ${SIDE_WORD[key]} (${clean})`;
+    } else {
+      delete b.customerLabel;
+      b.name = `Exterior - ${SIDE_WORD[key]}`;
+    }
+  });
+}
+
+/**
+ * The metres on a lineal line — handrails, gutters, fascias, downpipe runs.
+ *
+ * Tom, 8 Sep 2026: "allow to choose the metres of handrail when it is
+ * added". A lineal row with no measure of its own prices off the side's
+ * LENGTH (computeQuantity), which is right for a gutter and wrong for a
+ * 6 m run of handrail on a 14 m side. Stating the metres pins `measureL`,
+ * which computeQuantity reads before it falls back to the elevation — and
+ * because `syncWallMeasures` only touches wall lines, a later change to the
+ * side's size leaves a stated run alone.
+ */
+export function applySideMetres(blocks: LooseBlock[], key: SideKey, surfaceId: number, metres: number | null): SidesResult {
+  if (metres != null && !(metres > 0 && metres <= 200)) return { ok: false, error: "Metres run 1–200." };
+  return withSide(blocks, key, (b) => {
+    const line = (b.surfaces ?? []).find((s) => Number(s.id) === surfaceId);
+    if (!line) return "That item isn't on this side.";
+    if (isWallLine(line)) return "Wall surfaces measure from the side's own size — set the % of wall instead.";
+    if (metres == null) { line.measureL = null; return; }
+    line.measureL = Math.round(metres * 10) / 10;
+    line.origin = "customer_stated";
+    line.confidence = 0.85;
   });
 }
 
@@ -563,14 +671,23 @@ export function visitReason(
   return "signoff";
 }
 
+/**
+ * The loop's progress. Tom, 8 Sep 2026: a side the customer never asked for
+ * is not scaffolded at all ("it gave me the right side as an option in the
+ * estimate — this shouldn't have been in there"), so the total counts the
+ * sides that EXIST plus the four whole-job checks, rather than a fixed 8.
+ */
 export function sidesDoneCount(blocks: LooseBlock[], meta: SidesLoopMeta): { done: number; total: number; allDone: boolean } {
   let done = 0;
+  let total = 4; // extras · condition · doors & windows · the sweep
   for (const key of SIDE_KEYS) {
     const b = findSide(blocks, key);
-    if (b?.customer?.confirmed) done++;
+    if (!b) continue;
+    total++;
+    if (b.customer?.confirmed) done++;
   }
   done += Number(meta.done.extras) + Number(meta.done.cond) + Number(meta.done.dw) + Number(meta.done.sweep);
-  return { done, total: 8, allDone: done === 8 };
+  return { done, total, allDone: done === total };
 }
 
 // ---- the view ---------------------------------------------------------------
@@ -584,8 +701,20 @@ export type SideView = {
   L: number; H: number;
   walls: Array<{ id: number; code: string; label: string; pct: number }>;
   wallSum: number;
-  tiles: Array<{ id: number; code: string; label: string; count: number; countable: boolean; window: boolean; sizeBand: "S" | "M" | "L" | null }>;
+  tiles: Array<{
+    id: number; code: string; label: string; count: number; countable: boolean; window: boolean;
+    sizeBand: "S" | "M" | "L" | null;
+    /** Measured in lineal metres — the card shows a metres box (Tom, 8 Sep). */
+    lineal: boolean;
+    /** The metres the customer stated, or null while it follows the side. */
+    metres: number | null;
+  }>;
   customs: string[];
+  /** The customer's own name for this side, or null on the default. */
+  customLabel: string | null;
+  /** The optional "anything worth mentioning" note, and its photo count. */
+  note: string | null;
+  notePhotos: number;
 };
 
 export type SidesView = {
@@ -613,6 +742,8 @@ export function sidesView(
   wallOptions: Array<{ code: string; label: string }> = WALL_CODES.map((w) => ({ ...w })),
   /** Rate codes priced per item — every one of them gets a − / + stepper. */
   countableCodes: ReadonlySet<string> = new Set(),
+  /** Rate codes measured in lineal metres — each gets a metres box. */
+  linealCodeSet: ReadonlySet<string> = new Set(),
 ): SidesView | null {
   if (!SIDE_KEYS.some((k) => findSide(blocks, k))) return null;
   const sides: SideView[] = [];
@@ -623,9 +754,11 @@ export function sidesView(
     const surfaces = b.surfaces ?? [];
     const wallsRaw = surfaces.filter(isWallLine);
     const defaulted = wallsRaw.length > 0 && wallsRaw.every((s) => s.sharePct == null);
+    const custom = sideCustomLabel(b);
     sides.push({
       key,
-      label: SIDE_LABEL[key],
+      label: custom ?? SIDE_LABEL[key],
+      customLabel: custom,
       include: c.include,
       size: c.size,
       confirmed: c.confirmed,
@@ -652,8 +785,12 @@ export function sidesView(
           || countableCodes.has(String(s.code ?? "")),
         window: isWindowLine(s),
         sizeBand: (s.sizeBand as "S" | "M" | "L" | undefined) ?? (isWindowLine(s) ? "M" : null),
+        lineal: linealCodeSet.has(String(s.code ?? "")),
+        metres: s.measureL == null ? null : Number(s.measureL),
       })),
       customs: b.customerCustom ?? [],
+      note: typeof b.customerNote === "string" && b.customerNote.trim() ? b.customerNote : null,
+      notePhotos: Number(b.customerPhotos) || 0,
     });
   }
   const substrates = [...new Set(sides.flatMap((sv) => sv.walls.map((w) => w.label)))];

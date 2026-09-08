@@ -301,6 +301,13 @@ export function gapsFor(input: GraphInput): Gap[] {
     if (!ext || (ext.substrates ?? []).length === 0) add(PHASE.extIntake, 0, { key: "ext.substrates", kind: "required", acceptsNotSure: false, phrasingHint: "What's the outside made of — weatherboards, render, brick, concrete?" });
     if (!ext || !Object.values(ext.painting ?? {}).some(Boolean)) add(PHASE.extIntake, 0, { key: "ext.painting", kind: "required", acceptsNotSure: false, phrasingHint: "What are we painting outside — the walls, windows and doors, the roofline, the garage?" });
     if (!ext || ext.condition == null) add(PHASE.extIntake, 0, { key: "ext.condition", kind: "required", acceptsNotSure: false, phrasingHint: "How's the paintwork holding up — good, weathered, or peeling?" });
+    // Tom, 8 Sep 2026: ask BEFORE the scaffold goes down, or the estimate
+    // quietly prices four sides the customer never mentioned. Answered once
+    // the sides exist — from then on the loop's own skip is the way to drop
+    // one, because that decision belongs on the quote.
+    if (ext && !input.sides && (ext.sides ?? []).length === 0) {
+      add(PHASE.extIntake, 0, { key: "ext.sides", kind: "recommended", acceptsNotSure: false, phrasingHint: "Which sides are we painting — the whole outside, or just some of them (front, left, right, back)?" });
+    }
     if (ext && input.facts.accessAnswered !== true && (ext.access ?? []).length === 0 && (ext.accessEquipment ?? []).length === 0) add(PHASE.extIntake, 0, { key: "ext.access", kind: "recommended", acceptsNotSure: true, phrasingHint: "Anything tricky about access — steep, tight, or high?" });
 
     // Sides loop, front → left → right → back.

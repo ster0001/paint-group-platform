@@ -32,19 +32,34 @@ test("an older saved state (no targets / elements / sides) still parses as 'the 
   assert.equal(exteriorSurfaceKeys(r.data.exterior!).includes("eaves"), true);
 });
 
-test("'Where are we painting?' — an unticked side arrives already skipped (NOT PAINTING), outside the totals", () => {
+test("'Where are we painting?' — a side nobody asked for never reaches the estimate", () => {
+  // Tom, 8 Sep 2026: "even though I asked the wizard to only price for the
+  // front, left and back, it gave me the right side as an option in the
+  // estimate — this shouldn't have been in there." An unticked side used to
+  // arrive as an option/exclusion on the quote; it is now not scaffolded at
+  // all. (A side the customer OPENS and skips in the confirm loop still shows
+  // as NOT PAINTING — that is a decision, and the quote should carry it.)
   const m = bundle();
   let n = 1;
   applyExteriorAnswers(m, ext({ sides: ["front", "left"] }), () => n++, new Set(["weatherboards", "fascias"]));
-  const front = sideOf(m, /Front/), back = sideOf(m, /Rear/), right = sideOf(m, /Right/);
+  const front = sideOf(m, /Front/);
   assert.equal(front.isOption, false);
-  assert.equal(back.isOption, true);
-  assert.equal(right.isOption, true);
-  const c = (back as unknown as { customer?: { include: boolean | null; confirmed: boolean } }).customer;
+  assert.equal(m.areas.some((a) => /Rear/.test(a.name)), false, "the back was never asked for");
+  assert.equal(m.areas.some((a) => /Right/.test(a.name)), false, "the right side was never asked for");
+  assert.equal(m.skipped.some((s) => /Rear/.test(s.name)), true, "it is recorded as skipped, not lost");
+  assert.equal(m.deferred.some((d) => /Rear/.test(d.room)), false, "no width-to-measure deferral for a side that isn't in the job");
+  assert.equal(m.deferred.some((d) => d.areaId === front.id), true, "the painted side keeps its measurement flag");
+});
+
+test("a job with no house in it keeps the four sides as the loop's frame, all NOT PAINTING", () => {
+  const m = bundle();
+  let n = 1;
+  applyExteriorAnswers(m, ext({ targets: ["fence"], extras: { deck: false, fence: true, fenceMetres: null, fenceType: "paling", pergola: false, balustrade: false } }), () => n++, new Set(["weatherboards"]));
+  const front = sideOf(m, /Front/);
+  assert.equal(front.isOption, true);
+  const c = (front as unknown as { customer?: { include: boolean | null; confirmed: boolean } }).customer;
   assert.equal(c?.include, false);
   assert.equal(c?.confirmed, true, "a skipped side counts as answered in the confirm loop");
-  assert.equal(m.deferred.some((d) => d.areaId === back.id), false, "no width-to-measure deferral for a side we aren't painting");
-  assert.equal(m.deferred.some((d) => d.areaId === front.id), true, "the painted side keeps its measurement flag");
 });
 
 test("cladding 'none' = trims only: the scaffold lays no wall line", () => {

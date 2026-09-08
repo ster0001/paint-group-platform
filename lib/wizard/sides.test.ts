@@ -21,6 +21,7 @@ import {
   ALLOWANCE_CODES, addCatalogItem, applySideDims, applyWallShare, confirmSide, defaultSidesLoop, extrasPrices, findSide,
   hasExtrasItem, rateFor, removeSideCustom, removeSideLine, toggleExtrasItem, visitReason,
   addSideCustom, addWallSurface, addSideSurface, wallOptionsFromRates, wallSumPct,
+  applySideMetres, applySideNote, applySideRename, linealCodes, sideCustomLabel, sidesDoneCount,
   type LooseBlock, type SidesLoopMeta,
 } from "./sides.ts";
 
@@ -308,4 +309,117 @@ test("a side confirms with wall shares under 100% — only over 100% refuses", (
   const empty = confirmSide(zero, "front") as { ok: false; error: string };
   assert.equal(empty.ok, false);
   assert.match(empty.error, /at least one wall/i);
+});
+
+// ---- Tom's 8 Sep batch ------------------------------------------------------
+
+test("gutters and fascias may go on a side twice, and each run is named", () => {
+  // Tom, 8 Sep 2026: a two-storey elevation has a lower and an upper run.
+  let blocks: LooseBlock[] = [sideBlock()];
+  let next = 50;
+  for (const code of ["Gutters", "Fascias"]) {
+    blocks = ok(addSideSurface(blocks, "front", code, code, () => next++));
+    blocks = ok(addSideSurface(blocks, "front", code, code, () => next++));
+    const rows = findSide(blocks, "front")!.surfaces!.filter((s) => s.code === code);
+    assert.equal(rows.length, 2, `${code} twice`);
+    assert.deepEqual(rows.map((r) => r.internalLabel), [`${code} (lower)`, `${code} (upper)`]);
+    const third = addSideSurface(blocks, "front", code, code, () => next++) as { ok: false; error: string };
+    assert.equal(third.ok, false, "never three");
+    assert.match(third.error, /already on this side twice/);
+  }
+  // Anything else still refuses the second one.
+  blocks = ok(addSideSurface(blocks, "front", "Downpipes", "Downpipes", () => next++));
+  const again = addSideSurface(blocks, "front", "Downpipes", "Downpipes", () => next++) as { ok: false };
+  assert.equal(again.ok, false);
+});
+
+test("a side takes the customer's own name, and keeps its canonical word", () => {
+  let blocks: LooseBlock[] = [sideBlock()];
+  blocks = ok(applySideRename(blocks, "front", "  Courtyard  "));
+  const side = findSide(blocks, "front")!;
+  assert.equal(side.customerLabel, "Courtyard");
+  assert.equal(side.name, "Exterior - Front (Courtyard)", "the quote and the job sheet read the customer's word");
+  assert.equal(sideCustomLabel(side), "Courtyard");
+  assert.equal(findSide(blocks, "front")?.id, 1, "still findable as the front");
+
+  // A name containing another side's word must not steal that side.
+  blocks = ok(applySideRename(blocks, "front", "Right of the shed"));
+  assert.equal(findSide(blocks, "right"), null, "the front does not become the right");
+  assert.equal(findSide(blocks, "front")?.id, 1);
+
+  // Empty puts the default back.
+  blocks = ok(applySideRename(blocks, "front", "   "));
+  assert.equal(findSide(blocks, "front")!.name, "Exterior - Front");
+  assert.equal(sideCustomLabel(findSide(blocks, "front")), null);
+});
+
+test("a lineal run can be told its metres, and the engine prices those metres", () => {
+  // Tom, 8 Sep 2026: "allow to choose the metres of handrail when it is
+  // added." Without this a 6 m handrail on a 14 m side priced as 14 m.
+  const card: RateItem[] = [...CARD, {
+    category: "Exterior", code: "Hand Rails", unit: "Lineal Metres", sub_category: "Exterior Trim",
+    rate_1_coat: 16.13, rate_2_coat: 9.22, rate_3_coat: 6.45, rate_4_coat: null,
+    charge_out_cents: 10000, default_product: "Dulux Weathershield",
+    metres_per_litre: 64, litres_per_item_per_coat: null, default_coats: 2,
+  } as unknown as RateItem];
+  assert.equal(linealCodes(card).has("Hand Rails"), true);
+  assert.equal(linealCodes(card).has("Weatherboards"), false, "M2 rows get no metres box");
+
+  let blocks: LooseBlock[] = [sideBlock()];
+  let next = 50;
+  blocks = ok(addSideSurface(blocks, "front", "Hand Rails", "Handrails & balustrades", () => next++));
+  const id = findSide(blocks, "front")!.surfaces!.find((s) => s.code === "Hand Rails")!.id as number;
+
+  const area = { ...findSide(blocks, "front") } as unknown as AreaInput;
+  const cardCtx: PricingContext = { ...ctx, rateItems: card };
+  const line = (b: LooseBlock[]): SurfaceInput =>
+    findSide(b, "front")!.surfaces!.find((s) => s.id === id) as unknown as SurfaceInput;
+  const before = priceSurface(area, line(blocks), cardCtx, adj, resolveRates(cardCtx, adj));
+  assert.equal(before.qty, 12, "with nothing stated it follows the side's 12 m");
+
+  blocks = ok(applySideMetres(blocks, "front", id, 6));
+  const after = priceSurface(area, line(blocks), cardCtx, adj, resolveRates(cardCtx, adj));
+  assert.equal(after.qty, 6, "the stated run wins");
+  assert.ok(after.totalCents < before.totalCents);
+
+  // Clearing it hands the run back to the side.
+  blocks = ok(applySideMetres(blocks, "front", id, null));
+  assert.equal(priceSurface(area, line(blocks), cardCtx, adj, resolveRates(cardCtx, adj)).qty, 12);
+
+  // A wall keeps its %-of-wall control.
+  const wall = applySideMetres(blocks, "front", 2, 5) as { ok: false; error: string };
+  assert.equal(wall.ok, false);
+  assert.match(wall.error, /% of wall/);
+  // And metres stay sane.
+  assert.equal((applySideMetres(blocks, "front", id, 900) as { ok: false }).ok, false);
+});
+
+test("the optional note and its photos ride on the side, and clear again", () => {
+  let blocks: LooseBlock[] = [sideBlock()];
+  blocks = ok(applySideNote(blocks, "front", "  boards under the window are flaking  ", 2));
+  let side = findSide(blocks, "front")!;
+  assert.equal(side.customerNote, "boards under the window are flaking");
+  assert.equal(side.customerPhotos, 2);
+  // Photos accumulate; the text replaces.
+  blocks = ok(applySideNote(blocks, "front", "and some rot by the downpipe", 1));
+  side = findSide(blocks, "front")!;
+  assert.equal(side.customerNote, "and some rot by the downpipe");
+  assert.equal(side.customerPhotos, 3);
+  // Neither prices anything.
+  assert.equal(side.surfaces!.length, 1);
+});
+
+test("the loop's total counts the sides that exist, not a fixed four", () => {
+  // Tom, 8 Sep: a side nobody asked for is not scaffolded, so "8 of 8" would
+  // be a bar the customer could never fill.
+  const three: LooseBlock[] = [
+    { ...sideBlock(), id: 1, name: "Exterior - Front" },
+    { ...sideBlock(), id: 10, name: "Exterior - Left" },
+    { ...sideBlock(), id: 20, name: "Exterior - Rear" },
+  ];
+  const meta: SidesLoopMeta = { ...defaultSidesLoop(), done: { extras: true, cond: true, dw: true, sweep: true } };
+  const p = sidesDoneCount(three, meta);
+  assert.equal(p.total, 7, "three sides plus the four whole-job checks");
+  assert.equal(p.done, 4);
+  assert.equal(p.allDone, false);
 });

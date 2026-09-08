@@ -2,6 +2,8 @@
 
 import ContactCard from "./ContactCard";
 import ReachStrip from "./ReachStrip";
+import SideNote from "./SideNote";
+import { SIDE_LABEL as SIDE_FALLBACK, TWICE_OK_CODES } from "@/lib/wizard/sides";
 import { afterLayout, scrollCardToTop } from "./scrollCard";
 import { useRef, useState, useSyncExternalStore } from "react";
 import type { CustomerPayload } from "@/lib/wizard/view";
@@ -10,6 +12,7 @@ import type { SidesView, SideView, SideKey } from "@/lib/wizard/sides";
 import { assertCustomerShape } from "@/lib/wizard/contract";
 import PlanPanel from "./PlanPanel";
 import { useCoalesced } from "./useCoalesced";
+import { useStickyRoom } from "./useStickyRoom";
 import type { EstimateDocuments } from "@/lib/wizard/documents";
 
 /**
@@ -63,7 +66,7 @@ function Chip({ on, label, onClick }: { on: boolean; label: string; onClick: () 
   return <button className={`sd-chip ${on ? "on" : ""}`} onClick={onClick}>{label}</button>;
 }
 
-export default function SidesEditor({ estimateId, initial, initialSides, initialExterior, initialLadder, embedded = false, onState, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null }: {
+export default function SidesEditor({ estimateId, initial, initialSides, initialExterior, initialLadder, embedded = false, onState, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null }: {
   estimateId: string;
   initial: CustomerPayload;
   initialSides: SidesView;
@@ -74,6 +77,10 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
   docs?: EstimateDocuments;
   logoUrl?: string | null;
   companyPhone?: string | null;
+  /** When the office answers the phone — Settings owns the wording. */
+  phoneHours?: string | null;
+  /** The mobile the customer already gave us (Tom, 8 Sep: don't ask twice). */
+  customerPhone?: string | null;
   /** Batch 4: Both-jobs render the sides stack INSIDE the interior editor —
    * embedded mode drops SidesEditor's own chrome (header/range/CTA) and
    * reports progress + range upward so the host owns one combined loop. */
@@ -88,6 +95,10 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
   const [adjusting, setAdjusting] = useState<SideKey | null>(null);
   const [dims, setDims] = useState({ L: "", H: "" });
   const [addOpen, setAddOpen] = useState<SideKey | null>(null);
+  /** Tom, 8 Sep: a side can be given the customer's own name ("Courtyard"). */
+  const [renaming, setRenaming] = useState<{ key: SideKey; value: string } | null>(null);
+  /** Tom, 8 Sep: the metres on a lineal run, keyed `${side}:${surfaceId}`. */
+  const [metres, setMetres] = useState<Record<string, string>>({});
   const [customText, setCustomText] = useState("");
   const [fenceText, setFenceText] = useState("");
   const [sweepOtherOpen, setSweepOtherOpen] = useState(false);
@@ -109,8 +120,11 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
   const [optimistic, setOptimistic] = useState<Record<string, string>>({});
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chainRef = useRef<Promise<void>>(Promise.resolve());
+  /** The fixed footer takes no space in the flow — reserve its real height. */
+  const stickRef = useRef<HTMLDivElement | null>(null);
   /** R5: a burst of stepper taps becomes ONE save (see useCoalesced). */
   const { queue, flush } = useCoalesced();
+  useStickyRoom(stickRef, !embedded);
 
   function say(m: string) {
     setToast(m);
@@ -255,11 +269,14 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
     const groups = new Map<string, SidesView["addable"]>();
     for (const o of sides.addable ?? []) {
       const on = onCount.get(o.key) ?? 0;
-      // Eaves may go on twice — upper and lower on a double storey (Tom, 5 Sep).
-      const secondOk = o.key === "Eaves" && on === 1;
+      // Eaves, gutters and fascias may go on twice — a lower run and an upper
+      // run (Tom, 5 Sep for eaves; 8 Sep for gutters and fascias). The set is
+      // sides.ts's own, so the panel and the server can never disagree about
+      // what a second row is allowed to be.
+      const secondOk = TWICE_OK_CODES.has(o.key) && on === 1;
       if ((on > 0 && !secondOk) || priced.has(o.key)) continue;
       if (!groups.has(o.group)) groups.set(o.group, []);
-      groups.get(o.group)!.push(secondOk ? { ...o, label: `${o.label} (second row, upper)` } : o);
+      groups.get(o.group)!.push(secondOk ? { ...o, label: `${o.label} (second run, upper)` } : o);
     }
     return [...groups.entries()];
   }
@@ -293,7 +310,36 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
     return (
       <section className={cls} key={s.key} data-side={s.key}>
         <div className="sd-hd" onClick={() => setOpen(s.key)}>
-          <b>{s.label}</b>
+          {renaming?.key === s.key ? (
+            /* Tom, 8 Sep: "I can click left side and change the name to
+               courtyard." The canonical side word stays in the block name so
+               nothing downstream loses track of which elevation this is. */
+            <form className="sd-rn" data-testid={`side-rename-${s.key}`} onClick={(e) => e.stopPropagation()}
+              onSubmit={(e) => {
+                e.preventDefault();
+                const name = renaming.value.trim().slice(0, 40);
+                setRenaming(null);
+                act({ action: "rename_side", side: s.key, name }, {
+                  done: name ? `Renamed to “${name}”.` : `Back to “${SIDE_FALLBACK[s.key]}”.`,
+                });
+              }}>
+              <input autoFocus value={renaming.value} maxLength={40} aria-label="Name for this side"
+                placeholder={SIDE_FALLBACK[s.key]}
+                onChange={(e) => setRenaming({ key: s.key, value: e.target.value })}
+                onKeyDown={(e) => { if (e.key === "Escape") setRenaming(null); }} />
+              <button type="submit" className="sd-x sd-xw">Save</button>
+              <button type="button" className="sd-x sd-xw" onClick={() => setRenaming(null)}>Cancel</button>
+            </form>
+          ) : (
+            <b>
+              {s.label}
+              <button type="button" className="sd-rename" data-testid={`side-rename-open-${s.key}`}
+                aria-label={`Rename ${s.label}`}
+                onClick={(e) => { e.stopPropagation(); setRenaming({ key: s.key, value: s.customLabel ?? "" }); }}>
+                Rename
+              </button>
+            </b>
+          )}
           <span className="sd-pill">{pill}</span>
         </div>
         {isOpen && (
@@ -414,12 +460,48 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                             quotes, all should be untickable." */}
                         <button className="sd-x" aria-label={`Remove ${t.label}`}
                           onClick={(e) => { e.stopPropagation(); removeLine(s.key, t.id, t.label); }}>×</button>
-                        {t.label}
+                        {/* The tile's own name, in its own element: it used to
+                            be a bare text node, which stopped being readable
+                            the moment a metres control joined the tile. */}
+                        <span className="sd-tlname">{t.label}</span>
                         {t.countable && (
                           <span className="sd-st" onClick={(e) => e.stopPropagation()}>
                             <button aria-label="fewer" onClick={() => shownCount(s.key, t) > 1 && stepCount(s.key, t, -1)}>−</button>
                             <b>{shownCount(s.key, t)}</b>
                             <button aria-label="more" onClick={() => stepCount(s.key, t, 1)}>+</button>
+                          </span>
+                        )}
+                        {t.lineal && !t.countable && (
+                          /* Tom, 8 Sep: "allow to choose the metres of
+                             handrail when it is added." A lineal run with no
+                             metres of its own prices off the whole side, which
+                             is right for a gutter and wrong for 6 m of
+                             handrail — so every lineal row can be told. */
+                          <span className="sd-mseg" onClick={(e) => e.stopPropagation()}>
+                            <i>Metres</i>
+                            <input
+                              inputMode="decimal"
+                              aria-label={`Metres of ${t.label}`}
+                              data-testid={`side-metres-${s.key}-${t.id}`}
+                              placeholder={t.metres == null ? `${s.L}` : ""}
+                              value={metres[`${s.key}:${t.id}`] ?? (t.metres == null ? "" : String(t.metres))}
+                              onChange={(e) => setMetres((m) => ({ ...m, [`${s.key}:${t.id}`]: e.target.value }))}
+                              onBlur={() => {
+                                const raw = metres[`${s.key}:${t.id}`];
+                                if (raw == null) return;
+                                setMetres((m) => { const n = { ...m }; delete n[`${s.key}:${t.id}`]; return n; });
+                                const v = parseFloat(raw.replace(/[^0-9.]/g, ""));
+                                if (raw.trim() === "") {
+                                  if (t.metres != null) act({ action: "side_metres", side: s.key, surfaceId: t.id, metres: null }, { describe: withDelta(`${t.label} back to the length of this side`) });
+                                  return;
+                                }
+                                if (isNaN(v) || v === t.metres) return;
+                                act({ action: "side_metres", side: s.key, surfaceId: t.id, metres: Math.min(200, Math.max(0.1, v)) }, {
+                                  describe: withDelta(`${t.label} set to ${Math.min(200, Math.max(0.1, v))} m`),
+                                });
+                              }}
+                            />
+                            <em>{t.metres == null ? "follows this side" : "you told us"}</em>
                           </span>
                         )}
                         {t.window && (
@@ -514,6 +596,22 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                     </div>
                   )}
                 </div>
+                {/* Tom, 8 Sep: the optional comments + photo box, at the
+                    bottom of every side. Neither prices anything — both ride
+                    to the estimator as an amber line on this side. */}
+                <SideNote
+                  estimateId={estimateId}
+                  sideKey={s.key}
+                  sideLabel={s.label}
+                  note={s.note}
+                  photoCount={s.notePhotos}
+                  busy={pendingCount > 0}
+                  onSave={(note, photos) => act({ action: "side_note", side: s.key, note, photos }, {
+                    done: photos > 0
+                      ? `Saved — your note and ${photos} photo${photos > 1 ? "s" : ""} are with your estimator.`
+                      : note ? "Saved — your estimator reads this before pricing the prep here." : "Note cleared.",
+                  })}
+                />
               </>
             )}
 
@@ -571,7 +669,9 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
   const m = sides.meta;
   const edgeClass = (k: SideKey) => {
     const s = sides.sides.find((x) => x.key === k);
-    if (!s) return "sd-edge";
+    // Tom, 8 Sep: a side the customer never asked for is not in the estimate
+    // at all — the plan shows it greyed rather than waiting to be confirmed.
+    if (!s) return "sd-edge gone";
     if (s.include === false) return "sd-edge skip";
     return s.confirmed ? "sd-edge done" : "sd-edge";
   };
@@ -831,7 +931,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
       </main>
 
       {!embedded && (
-      <div className="sd-stick">
+      <div className="sd-stick" ref={stickRef}>
         <div className={`sd-tier ${ladder.tier === "visit" ? "visit" : ""}`}>
           <i />
           {/* Tom, 21 Aug: exterior never accepts online. policy.ts puts every
@@ -839,23 +939,32 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
               here to fall through to. */}
           {booked
             ? `${booked} — we'll be in touch to finalise your price.`
-            : `${VISIT_REASON_LINE[ladder.reason ?? "signoff"]}a person finalises your price with you — call us, ask for a call back, or request a visit once everything's blue.`}
+            : `${VISIT_REASON_LINE[ladder.reason ?? "signoff"]}a person finalises your price with you — call us, ask for a call back, or request a visit whenever you like.`}
         </div>
         <div className="sd-row">
           <div className="sd-pr"><small>ESTIMATE · INCL. GST</small><span data-role="range">{range}</span></div>
           <div className="sd-sp" />
+          {/* Tom, 8 Sep 2026: "make it clear with the button… that they can
+              click it before they have clicked all the details." The button no
+              longer waits for the last blue tick — an exterior job is finalised
+              by a person either way, so stopping someone here only lost them.
+              The label says what is still open rather than refusing. */}
           <button
             className="sd-cta"
-            disabled={!allDone || booked != null}
+            disabled={booked != null}
             onClick={() => setSlotsOpen((v) => !v)}
           >
-            {booked ? booked
-              : !allDone ? "Confirm all sides to continue"
-              : "Finalise my price"}
+            {booked ? booked : "Finalise my price"}
           </button>
         </div>
+        {!allDone && booked == null && (
+          <p className="sd-ctahint" data-testid="cta-hint">
+            You don&rsquo;t have to finish first — {prog.done} of {prog.total} confirmed. Tap
+            <b> Finalise my price</b> whenever you like and we&rsquo;ll fill in the rest with you.
+          </p>
+        )}
         {booked == null && !slotsOpen && (
-          <ReachStrip prefix="sd" companyPhone={companyPhone} visitSlots={ladder.visitSlots}
+          <ReachStrip prefix="sd" companyPhone={companyPhone} phoneHours={phoneHours} defaultPhone={customerPhone} visitSlots={ladder.visitSlots}
             onBookSlot={(slot) => {
               act({ action: "book_visit", slot }, { done: `Booked — ${slot}. A calendar invite is on its way, and we're available Monday to Friday if anything changes; keep confirming sides if you like.` });
               setBooked(`Visit booked — ${slot}`);
@@ -866,7 +975,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
             }} />
         )}
         {slotsOpen && booked == null && (
-          <ContactCard prefix="sd" companyPhone={companyPhone} onSubmit={(req) => {
+          <ContactCard prefix="sd" companyPhone={companyPhone} phoneHours={phoneHours} defaultPhone={customerPhone} onSubmit={(req) => {
             act({ action: "request_contact", ...req }, { done: req.how === "visit" ? "Thanks — we'll ring you to lock in a visit time that suits. We're available Monday to Friday." : "Thanks — we'll call you back to finalise your price. We're available Monday to Friday." });
             setBooked(req.how === "visit" ? "Site visit requested" : "Call back requested");
             setSlotsOpen(false);
