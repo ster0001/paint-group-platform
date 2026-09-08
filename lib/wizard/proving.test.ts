@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { provingRow, provingSummary, type WizardSnapshot } from "./proving";
+import { exclusionFrom, provingRow, provingSummary, splitProving, type WizardSnapshot } from "./proving";
 
 const est = (over: Partial<{ id: string; title: string; status: string; source: string }> = {}) => ({
   id: "e1", title: "14 Smith St", status: "draft", source: "wizard", ...over,
@@ -64,5 +64,39 @@ describe("provingSummary", () => {
     expect(s.count).toBe(0);
     expect(s.medianAbsCorrectionCents).toBe(0);
     expect(s.gatePasses).toBe(false);
+  });
+});
+
+// ---- Tom, 9 Sep: setting rows aside -----------------------------------------
+
+describe("excluding a row that isn't a fair test", () => {
+  const rowFor = (id: string, currentCents: number) =>
+    provingRow(est({ id }), snap({ totalCents: 500_000 }), currentCents, null)!;
+
+  it("leaves every number on the page, and changes nothing about the estimate", () => {
+    const rows = [rowFor("a", 500_000), rowFor("b", 900_000), rowFor("c", 520_000)];
+    const all = provingSummary(rows);
+    const { kept, excluded } = splitProving(rows, {
+      b: { at: "2026-09-09T00:00:00.000Z", by: "staff-1", reason: "compared against PaintScout" },
+    });
+    expect(kept.map((r) => r.estimateId)).toEqual(["a", "c"]);
+    expect(excluded).toHaveLength(1);
+    expect(excluded[0].exclusion.reason).toBe("compared against PaintScout");
+
+    // The median moves because the outlier left the sample — the whole point.
+    const after = provingSummary(kept);
+    expect(all.count).toBe(3);
+    expect(after.count).toBe(2);
+    expect(after.medianAbsCorrectionCents).toBeLessThan(all.medianAbsCorrectionCents);
+
+    // The row itself is untouched — its frozen original is still there.
+    expect(rows[1].originalCents).toBe(500_000);
+  });
+
+  it("keeps only a usable record", () => {
+    expect(exclusionFrom(null)).toBeNull();
+    expect(exclusionFrom({ by: "x" })).toBeNull();
+    expect(exclusionFrom({ at: "2026-09-09T00:00:00.000Z" })).toEqual({ at: "2026-09-09T00:00:00.000Z", by: null, reason: "" });
+    expect(exclusionFrom({ at: "2026-09-09T00:00:00.000Z", by: "s", reason: "  not a fair test  " })?.reason).toBe("not a fair test");
   });
 });

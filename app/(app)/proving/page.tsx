@@ -3,9 +3,10 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { priceEstimateTotals, type BlockInput } from "@/lib/pricing/estimate";
-import { provingRow, provingSummary, type ProvingRow, type WizardSnapshot } from "@/lib/wizard/proving";
+import { exclusionFrom, provingRow, provingSummary, splitProving, type ProvingExclusion, type ProvingRow, type WizardSnapshot } from "@/lib/wizard/proving";
 import { correctionBreakdown, correctionFrom, type Correction } from "@/lib/wizard/correction";
 import CorrectionTags from "./CorrectionTags";
+import ExcludeButton from "./ExcludeButton";
 
 /**
  * /proving — the Step 9 proving-window dashboard (staff).
@@ -48,12 +49,15 @@ export default async function ProvingPage() {
   const rows: ProvingRow[] = [];
   // Phase 3 (6 Sep plan): WHY staff corrected each one, tagged on the row.
   const corrections: Record<string, Correction | null> = {};
+  // Tom, 9 Sep: rows he has set aside as not a fair test.
+  const exclusions: Record<string, ProvingExclusion | null> = {};
   for (const e of (estimates ?? []) as EstimateRow[]) {
     const state = (e.builder_state ?? {}) as {
       blocks?: unknown[];
-      wizard?: { submittedAt?: string; snapshot?: WizardSnapshot; correction?: unknown };
+      wizard?: { submittedAt?: string; snapshot?: WizardSnapshot; correction?: unknown; provingExcluded?: unknown };
     };
     corrections[e.id] = correctionFrom(state.wizard?.correction);
+    exclusions[e.id] = exclusionFrom(state.wizard?.provingExcluded);
     const snapshot = state.wizard?.snapshot ?? null;
     const blocks = Array.isArray(state.blocks) ? state.blocks : [];
     const totals = priceEstimateTotals(blocks as BlockInput[], ctx, adjustmentsFrom(state as Record<string, unknown>));
@@ -61,9 +65,11 @@ export default async function ProvingPage() {
     if (row) rows.push(row);
   }
 
-  const summary = provingSummary(rows);
+  // The set-aside rows are off every number on this page, not just the table.
+  const { kept, excluded } = splitProving(rows, exclusions);
+  const summary = provingSummary(kept);
   const pending = (estimates ?? []).length - rows.length;
-  const why = correctionBreakdown(rows.map((r) => ({ correction: corrections[r.estimateId] ?? null, correctionCents: r.correctionCents })));
+  const why = correctionBreakdown(kept.map((r) => ({ correction: corrections[r.estimateId] ?? null, correctionCents: r.correctionCents })));
 
   return (
     <div className="mx-auto max-w-6xl p-6">
@@ -72,6 +78,23 @@ export default async function ProvingPage() {
         Every wizard estimate, its first-guess price versus where staff took it. The gate opens when the
         median correction stays under $150 across a real run of jobs.
       </p>
+      {(kept.length > 0 || excluded.length > 0) && (
+        <div className="mt-3 flex flex-wrap items-center gap-3" data-testid="proving-bulk">
+          {kept.length > 0 && (
+            <ExcludeButton
+              ids={kept.map((r) => r.estimateId)}
+              excluded
+              bulk
+              label={`Remove all ${kept.length} from the window`}
+              testId="exclude-all"
+            />
+          )}
+          <span className="text-xs text-gray-400">
+            Removing takes a row off this page and out of every number on it. Nothing is deleted — the estimate,
+            its history and its first-guess snapshot stay exactly as they are, and you can put it back below.
+          </span>
+        </div>
+      )}
 
       {/* ---- the gate scoreboard ------------------------------------------- */}
       <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -113,7 +136,7 @@ export default async function ProvingPage() {
 
       {/* ---- per-estimate table ------------------------------------------- */}
       <div className="mt-6 overflow-x-auto rounded-lg border border-gray-200 bg-white">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm" data-testid="proving-table">
           <thead className="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
             <tr>
               <th className="px-3 py-2">Estimate</th>
@@ -124,15 +147,18 @@ export default async function ProvingPage() {
               <th className="px-3 py-2 text-right">Accuracy</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Why it changed</th>
+              <th className="px-3 py-2"></th>
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && (
-              <tr><td colSpan={8} className="px-3 py-6 text-center text-gray-400">
-                No wizard estimates carry a snapshot yet — new ones will appear here as they&rsquo;re submitted.
+            {kept.length === 0 && (
+              <tr><td colSpan={9} className="px-3 py-6 text-center text-gray-400">
+                {excluded.length > 0
+                  ? "Every row is set aside — new estimates will appear here as they\u2019re submitted."
+                  : "No wizard estimates carry a snapshot yet — new ones will appear here as they\u2019re submitted."}
               </td></tr>
             )}
-            {rows.map((r) => {
+            {kept.map((r) => {
               const big = r.correctionPct != null && Math.abs(r.correctionPct) > 10;
               return (
                 <tr key={r.estimateId} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
@@ -157,12 +183,39 @@ export default async function ProvingPage() {
                   <td className="px-3 py-2 align-top" style={{ minWidth: 220 }}>
                     <CorrectionTags estimateId={r.estimateId} initial={corrections[r.estimateId] ?? null} />
                   </td>
+                  <td className="px-3 py-2 text-right">
+                    <ExcludeButton ids={[r.estimateId]} excluded label="Remove" testId="exclude-one" />
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
+
+      {excluded.length > 0 && (
+        <div className="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4" data-testid="proving-excluded">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-sm font-semibold text-gray-900">Set aside · {excluded.length}</h2>
+            <ExcludeButton ids={excluded.map((r) => r.estimateId)} excluded={false} label="Put them all back" testId="restore-all" />
+          </div>
+          <p className="mt-1 text-xs text-gray-500">Off the window and out of the numbers above. The estimates themselves are untouched.</p>
+          <ul className="mt-3 divide-y divide-gray-200">
+            {excluded.map((r) => (
+              <li key={r.estimateId} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
+                <span className="text-sm">
+                  <Link href={`/quote?id=${r.estimateId}`} className="text-gray-800 hover:underline">{r.title}</Link>
+                  <span className="ml-2 text-xs text-gray-400">
+                    {r.submittedAt ? r.submittedAt.slice(0, 10) : r.source}
+                    {r.exclusion.reason ? ` · ${r.exclusion.reason}` : ""}
+                  </span>
+                </span>
+                <ExcludeButton ids={[r.estimateId]} excluded={false} label="Put back" testId="restore-one" />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <p className="mt-3 text-xs text-gray-400">
         &ldquo;Correction&rdquo; is how much the priced total moved after staff opened the estimate — the

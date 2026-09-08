@@ -62,6 +62,48 @@ export function provingRow(
   };
 }
 
+/**
+ * Tom, 9 Sep 2026: "add a delete button so I can delete all of the proving
+ * items which aren't relevant."
+ *
+ * The rows ARE estimates — some of them real jobs — so nothing here deletes
+ * one. Excluding takes the row off the page and out of every number on it,
+ * which is what "not relevant" means for a measurement, and it can be put
+ * back. Stored beside the correction tag on the estimate itself
+ * (`builder_state.wizard.provingExcluded`): no new column, no migration.
+ */
+export type ProvingExclusion = { at: string; by: string | null; reason: string };
+
+export function exclusionFrom(value: unknown): ProvingExclusion | null {
+  const v = (value && typeof value === "object" ? value : null) as Partial<ProvingExclusion> | null;
+  if (!v || typeof v.at !== "string" || !v.at) return null;
+  return {
+    at: v.at,
+    by: typeof v.by === "string" && v.by ? v.by : null,
+    reason: typeof v.reason === "string" ? v.reason.trim().slice(0, 200) : "",
+  };
+}
+
+/**
+ * The measured rows and the set-aside ones. The summary is computed from
+ * `kept` alone — that is the point of excluding: a benchmark nobody trusts
+ * must stop moving the median (Tom, 9 Sep: the proving comparisons were
+ * against PaintScout quotes that themselves lost money).
+ */
+export function splitProving<T extends { estimateId: string }>(
+  rows: T[],
+  exclusions: Record<string, ProvingExclusion | null>,
+): { kept: T[]; excluded: Array<T & { exclusion: ProvingExclusion }> } {
+  const kept: T[] = [];
+  const excluded: Array<T & { exclusion: ProvingExclusion }> = [];
+  for (const r of rows) {
+    const ex = exclusions[r.estimateId] ?? null;
+    if (ex) excluded.push({ ...r, exclusion: ex });
+    else kept.push(r);
+  }
+  return { kept, excluded };
+}
+
 export type ProvingSummary = {
   count: number;
   /** Median of |correctionCents| — the gate metric (target < $150 = 15000c). */
