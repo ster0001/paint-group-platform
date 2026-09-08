@@ -12,6 +12,7 @@ import type { SidesView } from "@/lib/wizard/sides";
 import SidesEditor from "./SidesEditor";
 import PlanPanel from "./PlanPanel";
 import { useCoalesced } from "./useCoalesced";
+import { useStickyRoom } from "./useStickyRoom";
 import type { EstimateDocuments } from "@/lib/wizard/documents";
 
 type Ladder = { tier: "self_serve" | "visit"; visitSlots: string[] };
@@ -84,7 +85,7 @@ const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
 const snapshotFalse = () => false;
 
-export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, chatMode = false }: {
+export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null, chatMode = false }: {
   estimateId: string;
   initial: CustomerPayload;
   initialRooms: CustomerScopeRoom[];
@@ -100,6 +101,10 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   docs?: EstimateDocuments;
   logoUrl?: string | null;
   companyPhone?: string | null;
+  /** When the office answers the phone — Settings owns the wording. */
+  phoneHours?: string | null;
+  /** The mobile the customer already gave us (Tom, 8 Sep: don't ask twice). */
+  customerPhone?: string | null;
   /** Phase 4 (6 Sep plan): mounted beside the assistant. The chat asks the
    * questions, so this pane is a quiet live preview — no amber list, no
    * details card, cards collapsed — instead of a pile of open questions
@@ -165,8 +170,11 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   const [accepted, setAccepted] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chainRef = useRef<Promise<void>>(Promise.resolve());
+  /** The fixed footer takes no space in the flow — reserve its real height. */
+  const stickRef = useRef<HTMLDivElement | null>(null);
   // R5: a burst of stepper taps becomes ONE save carrying the final count.
   const { queue, flush } = useCoalesced();
+  useStickyRoom(stickRef);
   /** What the customer has tapped a counter to, ahead of the server. The
    * stepper reads THIS, not the server's count — the old code stepped from
    * the server value, so a quick second tap recomputed the same number and
@@ -1134,19 +1142,29 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         </div>
       </main>
 
-      <div className="sc-stick">
+      <div className="sc-stick" ref={stickRef}>
         <div className={`sc-tier ${selfServe && !accepted && !booked ? "" : "visit"}`}><i />{tierLine}</div>
         {lastChange && <div className="sc-lastchange" data-testid="last-change">Last change: {lastChange}</div>}
+        {combined != null && !combined.allDone && !accepted && !booked && (
+          <p className="sd-ctahint" data-testid="cta-hint">
+            You don&rsquo;t have to finish first — {combined.done} of {combined.total} confirmed. Tap
+            <b> Finalise my price</b> whenever you like and a person picks up the rest with you.
+          </p>
+        )}
         <div className="sc-row">
           <div className="sc-pr"><small>ESTIMATE · INCL. GST</small><span>{rangeText}</span></div>
           <div className="sc-sp" />
           {!accepted && !booked && (
             <button
               className="sc-btn il-cta"
-              // R3: acceptance and sign-off sit BEHIND full confirmation.
-              disabled={combined != null && !combined.allDone}
+              // Tom, 8 Sep 2026: "make it clear with the button… that they can
+              // click it before they have clicked all the details" — so the
+              // button is never dead. R3's rule still holds where it matters:
+              // ACCEPTING a fixed price behind an unconfirmed scope is not on,
+              // so until everything is blue the same tap hands the job to a
+              // person (call back / visit) instead of accepting.
               onClick={() => {
-                if (selfServe) {
+                if (selfServe && (combined == null || combined.allDone)) {
                   setAccepted(true);
                   act({ action: "accept_intent" }, "accept");
                   say("Accepted — our team gives it a final desk check today, then your fixed price and booking confirmation follow.");
@@ -1156,7 +1174,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
               }}
             >
               {combined != null && !combined.allDone
-                ? `Confirm ${initialSides ? "everything" : "every room and check"} to continue — ${combined.done} of ${combined.total}`
+                ? "Finalise my price"
                 : selfServe ? "Accept estimate" : "Finalise my price"}
             </button>
           )}
@@ -1164,7 +1182,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         {/* Tom, 5 Sep 2026: call us, ask for a call back, or request a site
             visit with the customer's own availability — a person books it. */}
         {slotsOpen && !booked && (
-          <ContactCard companyPhone={companyPhone} onSubmit={(req) => {
+          <ContactCard companyPhone={companyPhone} phoneHours={phoneHours} defaultPhone={customerPhone} onSubmit={(req) => {
             setSlotsOpen(false);
             setBooked(req.how === "visit" ? "Site visit requested" : "Call back requested");
             act({ action: "request_contact", ...req }, "book");
@@ -1174,7 +1192,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         {/* Tom, 8 Sep: a person is reachable at ANY point of the walk — the
             confirm prompt above stays, this never waits for it. */}
         {!accepted && !booked && !slotsOpen && (
-          <ReachStrip companyPhone={companyPhone} visitSlots={ladder.visitSlots} busy={busyKeys.has("book")}
+          <ReachStrip companyPhone={companyPhone} phoneHours={phoneHours} defaultPhone={customerPhone} visitSlots={ladder.visitSlots} busy={busyKeys.has("book")}
             onBookSlot={(slot) => {
               setBooked(`Visit booked — ${slot}`);
               act({ action: "book_visit", slot }, "book");

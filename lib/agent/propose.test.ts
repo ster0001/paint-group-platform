@@ -234,6 +234,35 @@ describe("3 Sep — what Tom's first real run taught us", () => {
     expect(docBlocks(p.working).some((b) => b.type !== "Exterior" && b.kind === "area")).toBe(false);
   });
 
+  it("only the sides the brief names reach the estimate (Tom, 8 Sep)", () => {
+    // "even though I asked the wizard to only price for the front, left and
+    // back, it gave me the right side as an option in the estimate."
+    // (The rule-based reader takes the sides a brief NAMES; it cannot read a
+    // negation — "not the right side" — which is why the real extraction runs
+    // through the model with the schema and rule 5. Tom's own phrasing was
+    // "only the front, left side and back", which is what this pins.)
+    const x = heuristicExtract("Outside only. Single storey weatherboard house — painting the front, the left side and the back.");
+    expect(x.exterior?.sides).toEqual(["front", "left", "back"]);
+    const p = proposeFromBrief(emptyDoc("est-1", "residential"), x, staff, { mode: "cowork", gateCents: 15_000 });
+    expect(p.ok).toBe(true);
+    if (!p.ok) return;
+    const names = docBlocks(p.working).filter((b) => b.type === "Exterior" && b.areaType === "surface").map((b) => String(b.name));
+    expect(names.some((n) => /Right/.test(n))).toBe(false);
+    expect(names.length).toBe(3);
+    // And it is said out loud rather than assumed silently.
+    expect(p.summary.assumed.some((a) => a.key === "ext.sides")).toBe(true);
+    expect(p.summary.assumed.some((a) => a.key === "sides.all")).toBe(false);
+  });
+
+  it("a brief that doesn't talk about elevations still builds the whole exterior", () => {
+    const x = heuristicExtract("Outside only. 4 bedroom single storey house, weatherboards, weathered. We left it vacant.");
+    expect(x.exterior?.sides).toBe(null);
+    const p = proposeFromBrief(emptyDoc("est-1", "residential"), x, staff, { mode: "cowork", gateCents: 15_000 });
+    expect(p.ok).toBe(true);
+    if (!p.ok) return;
+    expect(docBlocks(p.working).filter((b) => b.type === "Exterior" && b.areaType === "surface").length).toBe(4);
+  });
+
   it("'change all walls to 3 coats' after the build re-coats every row", async () => {
     const scope = new MemoryScopeStore({ refs, ctx });
     scope.seed(emptyDoc("est-1", "residential"));

@@ -63,7 +63,13 @@ export default function SettingsForm({ initial }: { initial: CompanyProfile }) {
         {field("addressLine1", "Address line 1")}
         {field("addressLine2", "Address line 2")}
         {field("phone", "Phone")}
+        {/* Tom, 8 Sep 2026: the online estimate says when our lines are open
+            beside every "Call us" button — this is the wording it shows. */}
+        {field("phoneHours", "Phone hours")}
       </div>
+      <p className="mt-1 text-xs text-gray-500">
+        Phone hours appear beside “Call us” in the online estimate — e.g. “8:30am – 4:30pm, Monday to Friday”.
+      </p>
 
       {/* Logo — shown top-left on every estimate. Upload or replace here. */}
       <div className="mt-3">

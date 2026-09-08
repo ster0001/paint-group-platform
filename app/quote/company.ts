@@ -3,6 +3,10 @@ export type CompanyProfile = {
   addressLine1: string;
   addressLine2: string;
   phone: string;
+  /** When the office answers that phone — shown to customers in the online
+   * estimate beside "Call us" (Tom, 8 Sep 2026). Free text, e.g.
+   * "8:30am – 4:30pm, Monday to Friday". */
+  phoneHours: string;
   abn: string;
   logoUrl: string;
   /** A logo for LIGHT backgrounds (email, quote PDF). Falls back to logoUrl. */
@@ -59,6 +63,7 @@ export const DEFAULT_COMPANY: CompanyProfile = {
   addressLine1: "",
   addressLine2: "",
   phone: "",
+  phoneHours: "",
   abn: "",
   logoUrl: "",
   logoUrlLight: "",

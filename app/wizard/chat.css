@@ -1,0 +1,42 @@
+/*
+ * The chat bubble's own stylesheet.
+ *
+ * It used to live inside wizard.css scoped under `.wz`, which meant the only
+ * place the bubble could render was a page painted in the wizard's dark
+ * theme. Tom, 8 Sep 2026: "can we link the same chat bot as we have on the
+ * wizard screen on the website as well" — so the rules moved here, carry
+ * their own palette, and the component imports them wherever it is mounted.
+ * The wizard's own `.wz` variables still win when it renders inside one,
+ * because `--cyan` and friends are inherited custom properties.
+ */
+.wz-chat {
+  --cyan: #3bd8e9; --oncyan: #03272d; --line: #242b32; --muted: #8c959d;
+  --text: #edf0f2; --graphite: #12161a; --raised: #171c21;
+  --wz-sans: var(--font-sans, "Switzer", -apple-system, sans-serif);
+  color: var(--text);
+}
+
+.wz-chat { position: fixed; left: 14px; bottom: 86px; z-index: 45; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.wz-chat-bubble { display: inline-flex; align-items: center; gap: 8px; padding: 11px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--cyan); color: var(--oncyan); font-family: var(--wz-sans); font-weight: 700; font-size: 14px; cursor: pointer; box-shadow: 0 10px 30px rgba(0,0,0,.35); position: relative; }
+.wz-chat-badge { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: #B3574A; color: #fff; font-size: 11px; display: grid; place-items: center; }
+.wz-chat-panel { width: min(360px, calc(100vw - 28px)); height: min(460px, calc(100vh - 190px)); display: flex; flex-direction: column; background: var(--graphite, #12161A); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 18px 50px rgba(0,0,0,.45); overflow: hidden; }
+.wz-chat-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); font-size: 14px; }
+.wz-chat-state { font-size: 11.5px; color: var(--muted); margin-left: auto; }
+.wz-chat-x { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; padding: 2px 8px; cursor: pointer; font: inherit; }
+.wz-chat-log { flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.wz-chat-msg { max-width: 88%; padding: 8px 11px; border-radius: 12px; font-size: 14px; line-height: 1.45; display: flex; flex-direction: column; gap: 2px; }
+.wz-chat-msg.me { align-self: flex-end; background: var(--cyan); color: var(--oncyan); }
+.wz-chat-msg.them { align-self: flex-start; background: var(--raised, #171C21); border: 1px solid var(--line); }
+.wz-chat-who { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.wz-chat-note, .wz-chat-err { font-size: 13px; color: var(--muted); margin: 0; }
+.wz-chat-err { color: #f27d7d; }
+.wz-chat-input { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--line); }
+.wz-chat-input input { flex: 1; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised, #171C21); color: var(--text); font: inherit; font-size: 14px; }
+.wz-chat-input button { padding: 10px 14px; border-radius: 10px; border: 0; background: var(--cyan); color: var(--oncyan); font: inherit; font-weight: 700; cursor: pointer; }
+.wz-chat-input button:disabled { opacity: .5; cursor: default; }
+@media (max-width: 720px) { .wz-chat { bottom: 92px; } .wz-chat-bubble-lbl { display: none; } .wz-chat-bubble { padding: 12px 14px; } }
+
+/* On the marketing site there is no sticky estimate footer to clear — only
+   the mobile call bar, which is 56px tall. */
+.wz-chat.site { bottom: 20px; }
+@media (max-width: 720px) { .wz-chat.site { bottom: 76px; } }

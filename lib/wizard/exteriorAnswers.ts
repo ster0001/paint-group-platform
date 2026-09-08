@@ -78,13 +78,37 @@ export function applyExteriorAnswers(
   // arrives in the confirm loop as NOT PAINTING (an option outside the
   // totals and the accuracy score), exactly as if they had skipped it there.
   const painting = new Set<string>(house ? exteriorSides(ext) : []);
-  for (const a of merged.areas) {
-    if (a.type !== "Exterior" || a.areaType !== "surface") continue;
+  const unwanted = merged.areas.filter((a) => {
+    if (a.type !== "Exterior" || a.areaType !== "surface") return false;
     const key = sideKeyOfName(a.name);
-    if (!key || painting.has(key)) continue;
+    return !!key && !painting.has(key);
+  });
+  // Tom, 8 Sep 2026: "even though I asked the wizard to only price for the
+  // front, left and back, it gave me the right side as an option in the
+  // estimate — this shouldn't have been in there." A side the customer never
+  // asked about is not a decision they made, so it leaves the estimate
+  // altogether rather than sitting on the quote as an exclusion. (A side they
+  // OPEN and skip in the confirm loop still shows as NOT PAINTING — that IS
+  // a decision, and the quote should say so.)
+  //
+  // Two floors under it: a house job never loses every side (that would leave
+  // the sides editor with nothing to render), and a job with no house in it —
+  // fence, shed or wall only — keeps the four as the loop's frame, already
+  // answered "not painting", exactly as the 7 Sep ruling set it up.
+  const prune = house && unwanted.length > 0 && unwanted.length < merged.areas.filter((a) => a.type === "Exterior" && a.areaType === "surface" && sideKeyOfName(a.name)).length;
+  for (const a of unwanted) {
+    if (prune) {
+      merged.skipped.push({ name: a.name, reason: "not part of the job — the customer named the sides being painted" });
+      merged.deferred = merged.deferred.filter((d) => d.areaId !== a.id);
+      continue;
+    }
     a.isOption = true;
     (a as unknown as { customer?: { include: boolean | null; size: null; confirmed: boolean } }).customer = { include: false, size: null, confirmed: true };
     merged.deferred = merged.deferred.filter((d) => d.areaId !== a.id);
+  }
+  if (prune) {
+    const gone = new Set(unwanted.map((a) => a.id));
+    merged.areas = merged.areas.filter((a) => !gone.has(a.id));
   }
   if (house && ext.substrates.includes("other")) {
     merged.deferred.push({

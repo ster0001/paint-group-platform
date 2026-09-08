@@ -134,6 +134,15 @@ type Area = {
   open: boolean; // staff builder: expanded (editing) vs collapsed folder
   media: MediaItem[];
   surfaces: Surface[];
+  /**
+   * Things the CUSTOMER named that no rate row covers — "security bars",
+   * "the bungalow out the back". The online estimate records them against the
+   * area and never prices them (a customer must not buy something we have not
+   * scoped); until 8 Sep 2026 they then went nowhere a person could see, so
+   * Tom's "security bars" line vanished. They now sit in their own panel
+   * above the areas, amber until the estimator prices them or clears them.
+   */
+  customerCustom?: string[];
 };
 type LineBlock = {
   id: number;
@@ -347,6 +356,22 @@ export default function QuoteBuilder({
     }
     return [newArea()];
   });
+  /** Every customer-named extra still waiting on a person, with its area. */
+  const customerAsks = useMemo(
+    () => blocks.flatMap((b) => (b.kind === "area" && b.customerCustom?.length
+      ? b.customerCustom.map((text, index) => ({ areaId: b.id, areaName: b.name, text, index }))
+      : [])),
+    [blocks],
+  );
+  /** Take one off the area — the estimator has priced it, or it isn't real.
+   * The matching review-gate deferral goes with it, or the gate would keep
+   * refusing a send for something already dealt with. */
+  const clearCustomerAsk = (areaId: number, index: number, text: string) => {
+    setBlocks((bs) => bs.map((b) => (b.kind === "area" && b.id === areaId
+      ? { ...b, customerCustom: (b.customerCustom ?? []).filter((_, i) => i !== index) }
+      : b)));
+    setAiDeferred((ds) => ds.filter((d) => !(d.kind === "custom_surface" && d.what.includes(text))));
+  };
   const [modSel, setModSel] = useState<Record<string, string>>(() => loaded?.modSel ?? {});
   // Ideal crew size (Tom, 23 Aug) — the scheduler divides the estimated hours
   // by it to land the job with the right number of days.
@@ -2073,6 +2098,52 @@ export default function QuoteBuilder({
                       })}
                     </div>
                   )}
+                </section>
+              )}
+
+              {/* Tom, 8 Sep 2026: "when I added a line item that wasn't in the
+                  list (security bars) it hasn't mentioned it anywhere in the
+                  estimate as an unpriced option for me to pick up." The
+                  customer's own words, against the area they said it about,
+                  amber until a person prices it — and the send gate already
+                  refuses to let it through unnoticed. */}
+              {!customerView && customerAsks.length > 0 && (
+                <section className="rounded-xl border border-amber-400 bg-amber-50 p-4" data-testid="customer-asks-panel">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h2 className="text-sm font-semibold">
+                      Asked for by the customer
+                      <span className="ml-1 rounded-full bg-amber-500 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-white">
+                        {customerAsks.length} unpriced
+                      </span>
+                    </h2>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-700">
+                    Nothing here is on our rate card, so the estimate does not price any of it and the customer cannot
+                    accept online. Add each one as a line on its area (or as a priced line item), then clear it.
+                  </p>
+                  <ul className="mt-3 space-y-2">
+                    {customerAsks.map((a) => (
+                      <li key={`${a.areaId}:${a.index}`} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-300 bg-white px-3 py-2"
+                        data-testid="customer-ask">
+                        <span className="text-sm">
+                          <b className="font-semibold">&ldquo;{a.text}&rdquo;</b>
+                          <span className="ml-2 text-xs text-gray-500">on {a.areaName}</span>
+                        </span>
+                        <span className="flex gap-2">
+                          <button type="button" data-testid="customer-ask-price"
+                            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium hover:bg-gray-50"
+                            onClick={() => setSurfacePicker({ areaId: a.areaId, sid: null })}>
+                            Add a line on {a.areaName}
+                          </button>
+                          <button type="button" data-testid="customer-ask-clear"
+                            className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700"
+                            onClick={() => clearCustomerAsk(a.areaId, a.index, a.text)}>
+                            Priced / not needed ✓
+                          </button>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
                 </section>
               )}
 

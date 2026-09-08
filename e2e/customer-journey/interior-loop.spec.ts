@@ -12,7 +12,7 @@ import { MONEY_RANGE, driveNoPlanWizard, openScopeEditor } from "./drive";
  * windows totals check and the missed-rooms sweep (Hallway first) confirm.
  */
 
-test("R3 interior loop: L×W size question, confirm walk, dw check, sweep — CTA gates on completion", async ({ page }) => {
+test("R3 interior loop: L×W size question, confirm walk, dw check, sweep — accepting gates on completion, the CTA does not", async ({ page }) => {
   test.setTimeout(240_000);
   page.on("response", async (r) => {
     if (r.url().includes("wizard-edit") && r.status() >= 400) {
@@ -26,7 +26,12 @@ test("R3 interior loop: L×W size question, confirm walk, dw check, sweep — CT
   const prog = page.locator(".il-prog");
   await expect(prog).toContainText(/0 OF \d+/);
   const cta = page.locator(".il-cta");
-  await expect(cta).toBeDisabled();
+  // Tom, 8 Sep (evening): never disabled. Until every card is confirmed it
+  // opens the contact/visit flow instead of ACCEPTING a fixed price — R3's
+  // rule, kept where it actually matters.
+  await expect(cta).toBeEnabled();
+  await expect(cta).not.toHaveText(/Accept estimate/);
+  await expect(page.getByTestId("cta-hint")).toContainText(/don.t have to finish first/i);
 
   // Room cards are amber, and sizes read as L × W — never m².
   const cards = page.locator(".sc-rc[data-room]");
@@ -93,8 +98,9 @@ test("R3 interior loop: L×W size question, confirm walk, dw check, sweep — CT
   await sweep.getByRole("button", { name: /No — that.s everything/ }).click();
   await sweep.getByRole("button", { name: /Confirm — nothing missing/ }).click();
 
-  // Complete: header flips, CTA enables, the range survives.
+  // Complete: header flips, the "you can go early" line is gone, the range survives.
   await expect(prog).toContainText(/(\d+) OF \1/, { timeout: 45_000 }); // production queue drain
   await expect(cta).toBeEnabled({ timeout: 15_000 });
+  await expect(page.getByTestId("cta-hint")).toHaveCount(0, { timeout: 15_000 });
   await expect(page.locator(".sc-r")).toHaveText(MONEY_RANGE);
 });

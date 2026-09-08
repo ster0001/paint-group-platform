@@ -233,6 +233,10 @@ export function toWizardState(draft: AnswerDraft, facts: AgentFacts, mode: "cust
     exterior: wantsExterior ? {
       storeys: draft.exterior?.storeys ?? draft.basics?.storeys ?? "single",
       substrates: draft.exterior?.substrates ?? [],
+      // Tom, 8 Sep 2026: the sides the customer actually named. Absent = the
+      // whole exterior (exteriorSides); a subset means the others are never
+      // scaffolded, so they cannot appear on the quote as an option.
+      ...(draft.exterior?.sides?.length ? { sides: draft.exterior.sides } : {}),
       painting: draft.exterior?.painting ?? { body: true, windowsDoors: true, roofline: true, garage: false },
       condition: draft.exterior?.condition ?? null,
       access: draft.exterior?.access ?? [],
@@ -409,6 +413,21 @@ export function applyAnswer(doc: ScopeDoc, key: string, value: unknown, provenan
       const list = (Array.isArray(value) ? value : [value]).map(String).filter((s) => ["weatherboards", "render", "concrete", "brick", "stucco", "cement_sheet", "colorbond", "other"].includes(s)) as NonNullable<WizardState["exterior"]>["substrates"];
       if (list.length === 0) return { ok: false, reason: "Weatherboards, render, brick, stucco, cement sheet, Colorbond or concrete?" };
       return patchDraft({ exterior: { substrates: list } });
+    }
+    /**
+     * Tom, 8 Sep 2026: which sides are in the job. Before the build it
+     * narrows the scaffold (the others are never created); after it, the
+     * customer uses the loop's own "No — skip this side", which shows the
+     * decision on the quote.
+     */
+    case "ext.sides": {
+      const list = (Array.isArray(value) ? value : [value]).map(String)
+        .map((v) => (/rear/i.test(v) ? "back" : v.toLowerCase().trim()))
+        .filter((v) => ["front", "left", "right", "back"].includes(v)) as NonNullable<NonNullable<WizardState["exterior"]>["sides"]>;
+      if (list.length === 0) return { ok: false, reason: "Which sides — front, left, right, back?" };
+      const uniq = [...new Set(list)] as typeof list;
+      // All four is the whole exterior, which is what "unstated" means.
+      return patchDraft({ exterior: { sides: uniq.length === 4 ? undefined : uniq } });
     }
     case "ext.painting": {
       const v = obj(value);
