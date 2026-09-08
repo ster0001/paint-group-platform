@@ -1168,7 +1168,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             setSlotsOpen(false);
             setBooked(req.how === "visit" ? "Site visit requested" : "Call back requested");
             act({ action: "request_contact", ...req }, "book");
-            say(req.how === "visit" ? "Thanks — we'll ring you to lock in a visit time that suits." : "Thanks — we'll call you back to finalise your price.");
+            say(req.how === "visit" ? "Thanks — we'll ring you to lock in a visit time that suits. We're available Monday to Friday." : "Thanks — we'll call you back to finalise your price. We're available Monday to Friday.");
           }} />
         )}
         {/* Tom, 8 Sep: a person is reachable at ANY point of the walk — the
@@ -1178,12 +1178,12 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             onBookSlot={(slot) => {
               setBooked(`Visit booked — ${slot}`);
               act({ action: "book_visit", slot }, "book");
-              say(`Booked — ${slot}. A calendar invite is on its way; keep confirming rooms if you like.`);
+              say(`Booked — ${slot}. A calendar invite is on its way, and we're available Monday to Friday if anything changes; keep confirming rooms if you like.`);
             }}
             onContact={(req) => {
               setBooked(req.how === "visit" ? "Site visit requested" : "Call back requested");
               act({ action: "request_contact", ...req }, "book");
-              say(req.how === "visit" ? "Thanks — we'll ring you to lock in a visit time that suits." : "Thanks — we'll call you back. Keep confirming rooms if you like.");
+              say(req.how === "visit" ? "Thanks — we'll ring you to lock in a visit time that suits. We're available Monday to Friday." : "Thanks — we'll call you back — we're available Monday to Friday. Keep confirming rooms if you like.");
             }} />
         )}
       </div>

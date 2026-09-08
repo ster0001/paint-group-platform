@@ -273,6 +273,8 @@ export type StaffChatSession =
   | { kind: "holding"; line: string }
   | {
       kind: "ok"; conversationId: string; estimateId: string | null; estimateTitle: string | null; customerName: string | null; customerPhone: string | null;
+      /** The CRM record behind the chat, when the conversation is linked to an account (Tom, 8 Sep). */
+      accountId: string | null;
       status: "open" | "handed_off" | "closed"; handoff: import("./store").HandoffRecord | null; staffId: string;
       transcript: Array<{ id: string; role: "user" | "assistant" | "staff" | "system"; text: string; createdAt: string }>;
     };
@@ -294,7 +296,7 @@ export async function openStaffChat(conversationId: string): Promise<StaffChatSe
     conv.accountId ? db.from("accounts").select("name, phone").eq("id", conv.accountId).maybeSingle() : Promise.resolve({ data: null }),
   ]);
   return {
-    kind: "ok", conversationId: conv.id, estimateId: conv.estimateId, estimateTitle: (est.data as { title?: string } | null)?.title ?? null,
+    kind: "ok", conversationId: conv.id, estimateId: conv.estimateId, accountId: conv.accountId, estimateTitle: (est.data as { title?: string } | null)?.title ?? null,
     customerName: (acct.data as { name?: string } | null)?.name ?? null, customerPhone: (acct.data as { phone?: string } | null)?.phone ?? null,
     status: conv.status, handoff, staffId: actor.userId,
     transcript: messages.map((m) => ({ id: m.id, role: m.role, text: displayText(m.content), createdAt: m.createdAt })),

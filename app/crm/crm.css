@@ -115,8 +115,12 @@
 .crm .tile b{display:block;font-size:20px;font-weight:600;letter-spacing:-.03em}
 .crm .tile span{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 
-.crm .lanescroll{display:flex;gap:12px;overflow-x:auto;padding:0 0 8px;scroll-snap-type:x mandatory;scrollbar-width:none}
-.crm .lanescroll::-webkit-scrollbar{display:none}
+/* Tom, 8 Sep: a scroll bar you can see and drag — the board is wider than the screen. */
+.crm .lanescroll{display:flex;gap:12px;overflow-x:auto;padding:0 0 12px;scroll-snap-type:x mandatory;scrollbar-width:thin;scrollbar-color:var(--cold-line) var(--graphite)}
+.crm .lanescroll::-webkit-scrollbar{height:12px}
+.crm .lanescroll::-webkit-scrollbar-track{background:var(--graphite);border-radius:999px}
+.crm .lanescroll::-webkit-scrollbar-thumb{background:var(--cold-line);border-radius:999px;border:3px solid var(--graphite)}
+.crm .lanescroll::-webkit-scrollbar-thumb:hover{background:var(--muted)}
 .crm .lane{flex:0 0 268px;scroll-snap-align:start}
 .crm .lanehead{display:flex;align-items:baseline;gap:8px;padding:0 2px 9px}
 .crm .lanename{font-size:12px;font-weight:600}

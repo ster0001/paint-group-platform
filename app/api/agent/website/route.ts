@@ -58,14 +58,28 @@ export async function POST(request: Request) {
   };
 
   try {
-    if (body.action === "start") {
-      const existing = body.conversationId ? await own(body.conversationId) : null;
-      if (existing && existing.status !== "closed") return NextResponse.json(await snapshot(existing.id));
-      let accountId: string | null = null;
+    // The account behind this visitor, if the wizard has one (a verified
+    // member, or a draft that reached the contact page) — so the chat opens
+    // their CRM record for staff (Tom, 8 Sep).
+    const accountFor = async (): Promise<string | null> => {
       if (actor.verifiedEmail) {
         const { data } = await db.from("accounts").select("id").eq("email", actor.verifiedEmail).maybeSingle();
-        accountId = (data as { id?: string } | null)?.id ?? null;
+        if ((data as { id?: string } | null)?.id) return (data as { id: string }).id;
       }
+      const { data: d } = await db.from("wizard_drafts").select("account_id").eq("user_id", actor.userId).not("account_id", "is", null).order("last_seen_at", { ascending: false }).limit(1).maybeSingle();
+      return (d as { account_id?: string | null } | null)?.account_id ?? null;
+    };
+
+    if (body.action === "start") {
+      const existing = body.conversationId ? await own(body.conversationId) : null;
+      if (existing && existing.status !== "closed") {
+        if (!existing.accountId) {
+          const acct = await accountFor();
+          if (acct) await db.from("agent_conversations").update({ account_id: acct }).eq("id", existing.id);
+        }
+        return NextResponse.json(await snapshot(existing.id));
+      }
+      const accountId = await accountFor();
       const conv = await store.createConversation({ accountId, propertyId: null, estimateId: null, channel: "website", mode: "support", view: "customer", createdBy: actor.userId, anonToken: null, externalThreadId: null });
       await store.appendMessage({ conversationId: conv.id, role: "assistant", content: GREETING, modelId: null, tokensIn: 0, tokensOut: 0 });
       return NextResponse.json(await snapshot(conv.id));
@@ -74,6 +88,10 @@ export async function POST(request: Request) {
     const conv = await own(body.conversationId);
     if (!conv) return NextResponse.json({ error: "No such conversation." }, { status: 404 });
     if (conv.status === "closed") return NextResponse.json({ error: "This chat has ended — start a new one." }, { status: 409 });
+    if (!conv.accountId) {
+      const acct = await accountFor();
+      if (acct) await db.from("agent_conversations").update({ account_id: acct }).eq("id", conv.id);
+    }
     await store.appendMessage({ conversationId: conv.id, role: "user", content: body.text, modelId: null, tokensIn: 0, tokensOut: 0 });
 
     const open = await store.openHandoff(conv.id);

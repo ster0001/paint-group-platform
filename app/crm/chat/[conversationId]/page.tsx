@@ -14,6 +14,9 @@ export default async function StaffChatPage({ params }: { params: Promise<{ conv
       <a href="/crm/today" className="note">← Today</a>
       <h1 style={{ margin: "8px 0 2px" }}>{s.customerName ?? "Customer"}{s.estimateTitle ? ` · ${s.estimateTitle}` : ""}</h1>
       <p className="sub" style={{ marginBottom: 12 }}>
+        {/* Tom, 8 Sep: straight to their CRM record when the chat is linked to one. */}
+        {s.accountId && <a href={`/crm/customers/${s.accountId}`} data-testid="chat-record">Open their CRM record</a>}
+        {s.accountId && s.estimateId && <> · </>}
         {s.estimateId && <a href={`/quote?id=${s.estimateId}`}>Open the estimate</a>}
         {s.customerPhone && <> · <a href={`tel:${s.customerPhone.replace(/\s+/g, "")}`}>Call {s.customerPhone}</a></>}
       </p>
