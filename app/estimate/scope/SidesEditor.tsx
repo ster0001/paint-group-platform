@@ -4,6 +4,7 @@ import ContactCard from "./ContactCard";
 import ReachStrip from "./ReachStrip";
 import SideNote from "./SideNote";
 import { SIDE_LABEL as SIDE_FALLBACK, TWICE_OK_CODES } from "@/lib/wizard/sides";
+import { TIER_LABEL, type Ladder } from "@/lib/wizard/ladder";
 import { afterLayout, scrollCardToTop } from "./scrollCard";
 import { useRef, useState, useSyncExternalStore } from "react";
 import type { CustomerPayload } from "@/lib/wizard/view";
@@ -25,13 +26,6 @@ import type { EstimateDocuments } from "@/lib/wizard/documents";
  * items confirm amber → cyan; the CTA stays disabled until all eight are
  * blue; a skipped side reads NOT PAINTING and is an explicit exclusion.
  */
-
-type Ladder = {
-  tier: "self_serve" | "visit";
-  /** C11: why it's the visit tier — the sticky line names it (mockup wording). */
-  reason?: "custom" | "peeling" | "rot" | "flagged" | "photos" | "big" | "signoff" | null;
-  visitSlots: string[];
-};
 
 const VISIT_REASON_LINE: Record<NonNullable<Ladder["reason"]>, string> = {
   custom: "You've added something we'll price in person — ",
@@ -739,10 +733,12 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                 <div className="sc-num">{payload.accuracyPct}%</div>
               </div>
               <div className="sc-lbl">
-                <b>Confidence score</b>
-                <span>{allDone
-                  ? "Everything confirmed — this is as sure as we get before we see it"
-                  : "It climbs with every side you confirm"}</span>
+                <b>Confidence score <span className={`tier-chip ${ladder.tier}`} data-testid="tier-chip">{TIER_LABEL[ladder.tier].toUpperCase()}</span></b>
+                <span data-testid="tier-next">{ladder.nextUnlock
+                  ? `${ladder.nextUnlock.needs.length === 1 ? "One step" : `${ladder.nextUnlock.needs.length} steps`} to ${TIER_LABEL[ladder.nextUnlock.tier]}: ${ladder.nextUnlock.needs.join(" · ")}`
+                  : allDone
+                    ? "Everything confirmed — this is as sure as we get before we see it"
+                    : "It climbs with every side you confirm"}</span>
               </div>
             </div>
             <div className="sc-range" data-role="range"><small>YOUR ESTIMATE · INCL. GST</small><div className="sc-r">{range}</div></div>
@@ -932,7 +928,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
 
       {!embedded && (
       <div className="sd-stick" ref={stickRef}>
-        <div className={`sd-tier ${ladder.tier === "visit" ? "visit" : ""}`}>
+        <div className={`sd-tier ${!ladder.selfServe ? "visit" : ""}`}>
           <i />
           {/* Tom, 21 Aug: exterior never accepts online. policy.ts puts every
               exterior job on the visit tier, so there is no self-serve branch

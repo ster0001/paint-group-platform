@@ -679,3 +679,9 @@
 .wz .sd-house, .wz .sd-visual svg { max-width: 100%; height: auto; }
 .wz img, .wz svg, .wz canvas, .wz video { max-width: 100%; }
 .wz pre, .wz textarea, .wz input { max-width: 100%; box-sizing: border-box; }
+
+/* ---- Tiers (PR 1 of reward-tiers-plan): the chip on the range card ---------- */
+.wz .tier-chip { display: inline-block; margin-left: 8px; vertical-align: middle; font-family: var(--wz-mono); font-size: 8.5px; letter-spacing: .14em; padding: 4px 10px; border-radius: 100px; border: 1px solid; }
+.wz .tier-chip.bronze { color: var(--amber); border-color: rgba(224,168,60,.5); }
+.wz .tier-chip.silver { color: #c9d1d9; border-color: rgba(201,209,217,.55); }
+.wz .tier-chip.gold { color: #e6c05a; border-color: rgba(230,192,90,.6); background: rgba(230,192,90,.06); }

@@ -14,6 +14,13 @@ test("R4 ladder: below the accuracy bar lands the visit tier — slots offered, 
   await driveNoPlanWizard(page);
   await openScopeEditor(page);
 
+  // PR 1 of the tiers plan: the tier chip on the range card, and a next
+  // unlock that never names a target this road can't reach. A no-plan job
+  // starts Bronze; its stated goal is Silver, never Gold.
+  await expect(page.getByTestId("tier-chip")).toHaveText("BRONZE");
+  await expect(page.getByTestId("tier-next")).toContainText(/to Silver/);
+  await expect(page.getByTestId("tier-next")).not.toContainText(/to Gold/);
+
   // Complete the whole confirm loop quickly.
   const cards = page.locator(".sc-rc[data-room]");
   const count = await cards.count();

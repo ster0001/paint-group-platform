@@ -17,12 +17,13 @@ import {
   applyCount, applyDoorScope, applyExtent, applyExteriorToggle, applyFenceLength, applyRename, applyToggle, applyWallsShare,
   customerExteriorView, customerScopeRooms, FREESTANDING_EXTRA_KEYS, hasFreestandingExtras, applyFenceType } from "@/lib/wizard/scope-editor";
 import { bookWizardSlot, wizardVisitSlots } from "@/lib/visits/wizard";
+import { ladderFor } from "@/lib/wizard/ladder";
 import { INTERIOR_POOR_MODIFIER_CODE } from "@/lib/wizard/exteriorAnswers";
 import {
   ALLOWANCE_CODES, SWEEP_PRICED_CODES, WEATHERED_MODIFIER_CODE,
   addCatalogItem, addSideCustom, addSideSurface, addWallSurface, addWindowGroup, applySideCount, applySideDims,
   applySideInclude, applySideMetres, applySideNote, applySideRename, applySideSizeOk, applyWallShare, applyWindowSize, confirmSide, defaultSidesLoop,
-  extrasPrices, findSide, hasExtrasItem, linealCodes, rateFor, removeSideCustom, removeSideLine, sidesView, toggleExtrasItem, visitReason,
+  extrasPrices, findSide, hasExtrasItem, linealCodes, rateFor, removeSideCustom, removeSideLine, sidesView, toggleExtrasItem,
   wallOptionsFromRates,
   type SidesLoopMeta, hoursPerItemCodes } from "@/lib/wizard/sides";
 import {
@@ -1080,15 +1081,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // B2: the sign-off ladder — thresholds are Settings values (defaults
     // $6k interior / $12k exterior at ≥90%), and the visit tier is an offer,
     // never a block. Slots recompute server-side so booking can validate.
-    const cp = customerPayload(payload, blocks, decision, bandsFromSettings(settingValue(ctx.settings, "wizard_bands")));
-    const flags = (settingValue(ctx.settings, "scope_editor") ?? {}) as {
-      visitSlots?: string[]; selfServeInteriorCapCents?: number; selfServeExteriorCapCents?: number; selfServeMinAccuracy?: number;
-    };
+    const bands = bandsFromSettings(settingValue(ctx.settings, "wizard_bands"));
+    const cp = customerPayload(payload, blocks, decision, bands);
+    const flags = (settingValue(ctx.settings, "scope_editor") ?? {}) as { visitSlots?: string[] };
     const hasExterior = blocks.some((b) => b.kind === "area" && b.type === "Exterior");
-    const cap = hasExterior ? (flags.selfServeExteriorCapCents ?? 1_200_000) : (flags.selfServeInteriorCapCents ?? 600_000);
-    const mid = (cp.rangeLoCents + cp.rangeHiCents) / 2;
-    const selfServe = decision.canAccept && !decision.walkthroughRequired
-      && payload.accuracyPct >= (flags.selfServeMinAccuracy ?? (hasExterior ? 85 : 90)) && mid <= cap;
+    const wizSnap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
     return NextResponse.json({
       ...cp,
       // A batch that stopped part-way saved what applied; the refusal rides
@@ -1099,8 +1096,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       exterior: customerExteriorView(blocks),
       // R2b: the sides confirm loop's full view (null when no sides exist).
       sides: sidesView(blocks, sidesMeta, extrasPrices(ctx.rateItems),
-        (() => { const sn = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
-                 return sn.success ? (sn.data.exterior?.storeys ?? null) : null; })(),
+        wizSnap.success ? (wizSnap.data.exterior?.storeys ?? null) : null,
         exteriorAddOptions(ctx.rateItems), wallOptionsFromRates(ctx.rateItems), hoursPerItemCodes(ctx.rateItems),
         linealCodes(ctx.rateItems)),
       // R3: the interior confirm loop — rooms joined by areaId, plus the
@@ -1117,11 +1113,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       },
       // C11: the visit tier names its reason (custom > peeling > rot >
       // flagged > big) — the sticky line renders the mockup's wording.
-      ladder: {
-        tier: selfServe ? "self_serve" : "visit",
-        reason: selfServe ? null : visitReason(sidesMeta, newDeferred),
+      // ONE ladder (PR 1, reward-tiers-plan): tier + self-serve + reason + the
+      // next unlock, from the same decision the guardrails already made.
+      ladder: ladderFor({
+        accuracyPct: payload.accuracyPct, decision, bands,
+        sidesMeta, deferred: newDeferred, hasExterior,
+        hasPlan: wizSnap.success ? (wizSnap.data.planRunIds.length > 0 || Boolean(wizSnap.data.listingUrl?.trim())) : false,
+        pendingAreas: [...loopState.states.values()].filter((v) => v === "pending").length,
         visitSlots: (await wizardVisitSlots(db, flags)).labels,
-      },
+      }),
     });
   }
 

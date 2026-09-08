@@ -19,7 +19,8 @@ import {
   policyFromSettings, serviceAreaFromSettings, settingValue,
 } from "@/lib/wizard/policy";
 import { wizardStateSchema } from "@/lib/wizard/state";
-import { defaultSidesLoop, extrasPrices, hoursPerItemCodes, linealCodes, sidesView, visitReason, wallOptionsFromRates, type SidesLoopMeta, type SidesView } from "@/lib/wizard/sides";
+import { defaultSidesLoop, extrasPrices, hoursPerItemCodes, linealCodes, sidesView, wallOptionsFromRates, type SidesLoopMeta, type SidesView } from "@/lib/wizard/sides";
+import { ladderFor, type Ladder } from "@/lib/wizard/ladder";
 import { defaultInteriorLoop, interiorDwTotals, interiorProgress, roomLoopViews, type InteriorLoopMeta, type RoomLoopView } from "@/lib/wizard/rooms-loop";
 import { loopConfirmState } from "@/lib/wizard/confirm-state";
 import { estimateDocuments, type EstimateDocuments } from "@/lib/wizard/documents";
@@ -50,13 +51,13 @@ export type CustomerScopeBundle =
   | { kind: "holding"; line: string }
   | {
       kind: "sides"; estimateId: string; initial: CustomerPayload; initialSides: SidesView; initialExterior: CustomerExteriorView | null;
-      initialLadder: { tier: "self_serve" | "visit"; reason: ReturnType<typeof visitReason> | null; visitSlots: string[] };
+      initialLadder: Ladder;
       docs: EstimateDocuments; logoUrl: string | null; companyPhone: string | null;
       phoneHours: string; customerPhone: string | null;
     }
   | {
       kind: "rooms"; estimateId: string; initial: CustomerPayload; initialRooms: CustomerScopeRoom[]; initialSides: SidesView | null;
-      initialExterior: CustomerExteriorView | null; initialLadder: { tier: "self_serve" | "visit"; visitSlots: string[] };
+      initialExterior: CustomerExteriorView | null; initialLadder: Ladder;
       initialInteriorLoop: InteriorLoopView | null; roomTypes: string[]; liveRange: boolean; docs: EstimateDocuments; logoUrl: string | null; companyPhone: string | null;
       phoneHours: string; customerPhone: string | null;
     };
@@ -122,18 +123,19 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
     .filter((t) => !["exterior", "exterior_elevation", "unknown", "excluded", "exterior_excluded"].includes(t))
     .sort();
   // ⚑ pending Tom's final call: live range updates default ON, Settings-off.
-  const editorFlags = (settingValue(ctx.settings, "scope_editor") ?? {}) as {
-    liveRange?: boolean; visitSlots?: string[];
-    selfServeInteriorCapCents?: number; selfServeExteriorCapCents?: number; selfServeMinAccuracy?: number;
-  };
-  // B2 ladder: Settings-driven thresholds; the visit tier is an offer.
+  const editorFlags = (settingValue(ctx.settings, "scope_editor") ?? {}) as { liveRange?: boolean; visitSlots?: string[] };
   // P6: the windows a real estimator can do, minus booked visits.
   const visitSlots = (await wizardVisitSlots(db, editorFlags)).labels;
   const hasExterior = blocks.some((b) => b.kind === "area" && b.type === "Exterior");
-  const cap = hasExterior ? (editorFlags.selfServeExteriorCapCents ?? 1_200_000) : (editorFlags.selfServeInteriorCapCents ?? 600_000);
-  const mid = (customer.rangeLoCents + customer.rangeHiCents) / 2;
-  const selfServe = decision.canAccept && !decision.walkthroughRequired
-    && payload.accuracyPct >= (editorFlags.selfServeMinAccuracy ?? (hasExterior ? 85 : 90)) && mid <= cap;
+  // ONE ladder (PR 1, reward-tiers-plan): the decision already carries the
+  // caps and the accuracy bar from wizard_policy; this only names the tier.
+  const ladder = ladderFor({
+    accuracyPct: payload.accuracyPct, decision, bands: bandsFromSettings(settingValue(ctx.settings, "wizard_bands")),
+    sidesMeta, deferred, hasExterior,
+    hasPlan: snap.success ? (snap.data.planRunIds.length > 0 || Boolean(snap.data.listingUrl?.trim())) : false,
+    pendingAreas: [...loopState.states.values()].filter((v) => v === "pending").length,
+    visitSlots,
+  });
 
   // R2b: a job with exterior sides and no interior rooms gets the confirm-
   // loop sides editor (reference: customer-review-confirm-exterior-v2-sides).
@@ -154,11 +156,7 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
   if (sides && interiorRooms.length === 0) {
     return {
       kind: "sides", estimateId: id, initial: customer, initialSides: sides, initialExterior: customerExteriorView(blocks),
-      initialLadder: {
-        tier: selfServe ? "self_serve" : "visit",
-        reason: selfServe ? null : visitReason(sidesMeta, deferred),
-        visitSlots,
-      },
+      initialLadder: ladder,
       docs, logoUrl: headerLogoUrl, companyPhone, phoneHours, customerPhone,
     };
   }
@@ -176,7 +174,7 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
   return {
     kind: "rooms", estimateId: id, initial: customer, initialRooms: interiorRooms, initialSides: sides,
     initialExterior: customerExteriorView(blocks),
-    initialLadder: { tier: selfServe ? "self_serve" : "visit", visitSlots },
+    initialLadder: ladder,
     initialInteriorLoop: interiorLoop, roomTypes, liveRange: editorFlags.liveRange !== false, docs, logoUrl: headerLogoUrl,
     companyPhone, phoneHours, customerPhone,
   };
