@@ -73,6 +73,8 @@ test.describe("assistant — human handoff", () => {
     const claimLink = card.getByRole("link", { name: /Answer the chat|Open chat/ }).first();
     await claimLink.click();
     await expect(staffPage).toHaveURL(/\/crm\/chat\//);
+    // Tom, 8 Sep: the chat opens their CRM record when it is linked to one.
+    await expect(staffPage.getByTestId("chat-record")).toHaveAttribute("href", /\/crm\/customers\/[0-9a-f-]{36}/);
     await staffPage.getByTestId("lc-claim").click();
     await expect(staffPage.getByTestId("lc-summary")).toContainText(/asked for a person/, { timeout: 20_000 });
 

@@ -857,17 +857,17 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
         {booked == null && !slotsOpen && (
           <ReachStrip prefix="sd" companyPhone={companyPhone} visitSlots={ladder.visitSlots}
             onBookSlot={(slot) => {
-              act({ action: "book_visit", slot }, { done: `Booked — ${slot}. A calendar invite is on its way; keep confirming sides if you like.` });
+              act({ action: "book_visit", slot }, { done: `Booked — ${slot}. A calendar invite is on its way, and we're available Monday to Friday if anything changes; keep confirming sides if you like.` });
               setBooked(`Visit booked — ${slot}`);
             }}
             onContact={(req) => {
-              act({ action: "request_contact", ...req }, { done: req.how === "visit" ? "Thanks — we'll ring you to lock in a visit time that suits." : "Thanks — we'll call you back. Keep confirming sides if you like." });
+              act({ action: "request_contact", ...req }, { done: req.how === "visit" ? "Thanks — we'll ring you to lock in a visit time that suits. We're available Monday to Friday." : "Thanks — we'll call you back — we're available Monday to Friday. Keep confirming sides if you like." });
               setBooked(req.how === "visit" ? "Site visit requested" : "Call back requested");
             }} />
         )}
         {slotsOpen && booked == null && (
           <ContactCard prefix="sd" companyPhone={companyPhone} onSubmit={(req) => {
-            act({ action: "request_contact", ...req }, { done: req.how === "visit" ? "Thanks — we'll ring you to lock in a visit time that suits." : "Thanks — we'll call you back to finalise your price." });
+            act({ action: "request_contact", ...req }, { done: req.how === "visit" ? "Thanks — we'll ring you to lock in a visit time that suits. We're available Monday to Friday." : "Thanks — we'll call you back to finalise your price. We're available Monday to Friday." });
             setBooked(req.how === "visit" ? "Site visit requested" : "Call back requested");
             setSlotsOpen(false);
           }} />
