@@ -14,6 +14,8 @@ import TermsEditor, { TERMS_KEY } from "./TermsEditor";
 import AutomationsSettings from "./AutomationsSettings";
 import OnlineEstimatesSettings from "./OnlineEstimatesSettings";
 import { onlineEstimatesFrom, WIZARD_PUBLIC_KEY } from "@/lib/wizard/publicFlag";
+import PaintSystemsSettings from "./PaintSystemsSettings";
+import { PAINT_SYSTEMS_KEY, paintSystemsFrom } from "@/lib/pricing/systems";
 import InvoicingSettings from "./InvoicingSettings";
 import CostIntakeSettings from "./CostIntakeSettings";
 import { COST_INTAKE_KEY } from "@/lib/costs/intake";
@@ -152,6 +154,7 @@ export default async function SettingsPage() {
     .map((r) => r.code as string);
   const messaging = (allSettings.find((r) => r.key === MESSAGING_KEY)?.value as Partial<MessagingValues> | undefined) ?? null;
   const onlineEstimates = onlineEstimatesFrom(allSettings.find((r) => r.key === WIZARD_PUBLIC_KEY)?.value);
+  const paintSystems = paintSystemsFrom(allSettings.find((r) => r.key === PAINT_SYSTEMS_KEY)?.value);
   // Settings → Automations: the one wo_loop key the office can flip here.
   const variationRelease = ((allSettings.find((r) => r.key === "wo_loop")?.value as { variationRelease?: string } | undefined)?.variationRelease === "pc") ? "pc" as const : "auto" as const;
 
@@ -260,6 +263,8 @@ export default async function SettingsPage() {
       folders: [
         { id: "online-estimates", title: "Online estimates", subtitle: onlineEstimates.enabled ? "LIVE — the public can build an estimate at /estimate" : "HOLDING — the public sees the holding page with a call-me form; flip the switch to launch",
           content: <OnlineEstimatesSettings initial={onlineEstimates} /> },
+        { id: "paint-systems", title: "Paint systems", subtitle: "The coats and preparation we derive for each surface — walls, ceilings, trims, doors, windows — from the customer's colour intent and the condition. The customer is never asked to pick coats.",
+          content: <PaintSystemsSettings initial={paintSystems} /> },
         { id: "estimate-templates", title: "Estimate templates", subtitle: "Reusable starting points for new estimates", count: templates.length,
           content: <TemplatesManager initial={templates} /> },
         { id: "included-templates", title: "What's included templates", subtitle: "Reusable inclusion lists applied from the estimate builder", count: inclusionTemplates.length,

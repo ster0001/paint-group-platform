@@ -17,6 +17,10 @@
  */
 
 import { coatsFor } from "@/lib/wizard/state";
+import { substrateKeyForRateCode } from "@/lib/estimate/substrates";
+import {
+  colourIntentFromTier, conditionBandFromDamageTier, deriveSystem, groupForSubstrate,
+} from "@/lib/pricing/systems";
 import { DEFAULT_SURFACES, wizardStateSchema, windowStyleLabel, windowStyleToSchema, type WizardState } from "@/lib/wizard/state";
 import { parseAddressText } from "@/lib/wizard/addressText";
 import { buildTreeFromState, type TreeRefs } from "@/lib/wizard/build-tree";
@@ -391,13 +395,45 @@ export function applyAnswer(doc: ScopeDoc, key: string, value: unknown, provenan
       const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
       const t = oneOf(value, ["fresh", "change", "dark_to_light"] as const)
         ?? (/\b(3|three) coats?\b|dark to light/.test(raw) ? "dark_to_light" : /\b(1|one) coats?\b|freshen|same colour/.test(raw) ? "fresh" : /\b(2|two) coats?\b|change of colour|new colour/.test(raw) ? "change" : null);
-      if (!t) return { ok: false, reason: "Freshen up (one coat), change of colour (two), or dark to light (three)?" };
+      if (!t) return { ok: false, reason: "Same colours again, new colours, or going much lighter / bold?" };
       const patched = patchDraft({ condition: { tier: t } });
       if (!patched.ok || !isBuilt(doc)) return patched;
-      // After the build the rows carry their coats: re-coat every surface line.
-      const coats = coatsFor(t, t === "dark_to_light");
-      const blocks = docBlocks(patched.doc).map((b) => (b.kind === "area" || b.kind === "side" || b.surfaces ? { ...b, surfaces: (b.surfaces ?? []).map((s) => ({ ...s, coats })) } : b));
-      return { ok: true, doc: withState(patched.doc, { blocks }), note: `${coats} coat${coats === 1 ? "" : "s"} on every surface.` };
+      /**
+       * After the build the rows carry their coats, so a change of colour
+       * intent has to re-coat them. It re-coats PER SURFACE GROUP, not with
+       * one number for the house (estimator journey v2 §4.2): the same answer
+       * that puts two coats on new-colour walls leaves a white ceiling at one
+       * and takes enamel trims to three. Anything this module has no opinion
+       * on — exterior substrates especially — keeps the whole-job number.
+       */
+      const st = docState(patched.doc);
+      const answers = {
+        colourIntent: colourIntentFromTier(t),
+        condition: conditionBandFromDamageTier(st.details?.damageTier ?? 1),
+        glossTrims: st.paint?.trimsOilBased ?? "unsure",
+        ceilingsMarked: st.condition?.ceilingsMarked ?? false,
+        ceilingsChangingColour: st.condition?.ceilingsChangingColour ?? false,
+      } as const;
+      const d2l = new Set(t === "dark_to_light" ? (st.condition?.darkToLightSurfaces ?? []) : []);
+      const fallback = coatsFor(t, t === "dark_to_light");
+      const seen = new Set<number>();
+      const coatsForSurface = (code: string): number => {
+        const key = substrateKeyForRateCode(code);
+        const group = groupForSubstrate(key);
+        if (group == null) return coatsFor(t, key != null && d2l.has(key));
+        const n = deriveSystem(group, { ...answers, darkToLight: key != null && d2l.has(key) }).coats;
+        seen.add(n);
+        return n;
+      };
+      const blocks = docBlocks(patched.doc).map((b) => (b.kind === "area" || b.kind === "side" || b.surfaces
+        ? { ...b, surfaces: (b.surfaces ?? []).map((s) => ({ ...s, coats: coatsForSurface(String(s.code ?? "")) })) }
+        : b));
+      const note = seen.size === 1
+        ? `${[...seen][0]} coat${[...seen][0] === 1 ? "" : "s"} on every surface.`
+        : seen.size === 0
+          ? `${fallback} coat${fallback === 1 ? "" : "s"} on every surface.`
+          : "Coats reworked per surface — walls, ceilings and trims each take what they need.";
+      return { ok: true, doc: withState(patched.doc, { blocks }), note };
     }
     case "condition.damage": {
       const n = num(value);

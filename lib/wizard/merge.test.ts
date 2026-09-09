@@ -136,15 +136,76 @@ describe("applyWizardAnswers", () => {
 
   it("coats follow the tier, with dark-to-light only on its surfaces", () => {
     const s = state({
-      condition: { tier: "dark_to_light", darkToLightSurfaces: ["walls"] },
+      condition: { tier: "dark_to_light", darkToLightSurfaces: ["walls"], ceilingsMarked: false, ceilingsChangingColour: false },
     });
     const out = applyWizardAnswers(draft(), s, nextId);
     const living = out.areas.find((a) => a.name === "Living");
     expect(living?.surfaces.find((x) => x.code === "Walls")?.coats).toBe(3);
     expect(living?.surfaces.find((x) => x.code === "Ceilings")?.coats).toBe(2);
+  });
 
-    const fresh = applyWizardAnswers(draft(), state({ condition: { tier: "fresh", darkToLightSurfaces: [] } }), nextId);
-    expect(fresh.areas[0].surfaces.every((x) => x.coats === 1)).toBe(true);
+  /**
+   * The behaviour change of 9 Sep 2026 (estimator journey v2 §4.2, ⚑4).
+   *
+   * "Freshen up" used to mean ONE coat on every surface in the house —
+   * walls, ceilings, skirtings, doors alike. That is the accuracy gap the
+   * v2 plan names: a wall staying the same colour genuinely takes one coat,
+   * but enamel trims take two whatever the colour, and quoting them at one
+   * is a job that loses money. Coats are now derived per surface GROUP.
+   */
+  it("a same-colour job is one coat on the walls and two on the trims (⚑4)", () => {
+    const fresh = applyWizardAnswers(
+      draft(),
+      state({ condition: { tier: "fresh", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false } }),
+      nextId,
+    );
+    const living = fresh.areas.find((a) => a.name === "Living");
+    expect(living?.surfaces.find((x) => x.code === "Walls")?.coats).toBe(1);
+    expect(living?.surfaces.find((x) => x.code === "Ceilings")?.coats).toBe(1);
+    expect(living?.surfaces.find((x) => x.code === "Skirting Boards")?.coats).toBe(2);
+  });
+
+  /** ⚑4's other half: one coat on the trims only when the condition is good. */
+  it("drops same-colour trims to one coat when the job is in good condition", () => {
+    const base = state({ condition: { tier: "fresh", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false } });
+    const good = applyWizardAnswers(
+      draft(),
+      { ...base, details: { ...base.details, damageTier: 0 } },
+      nextId,
+    );
+    const living = good.areas.find((a) => a.name === "Living");
+    expect(living?.surfaces.find((x) => x.code === "Skirting Boards")?.coats).toBe(1);
+  });
+
+  /** ⚑3: white over white stays one coat even when the walls change colour. */
+  it("keeps ceilings at one coat on a new-colour job, and lifts them when marked", () => {
+    const base = state({ condition: { tier: "change", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false } });
+    const plain = applyWizardAnswers(draft(), base, nextId);
+    const living = plain.areas.find((a) => a.name === "Living");
+    expect(living?.surfaces.find((x) => x.code === "Walls")?.coats).toBe(2);
+    expect(living?.surfaces.find((x) => x.code === "Ceilings")?.coats).toBe(1);
+
+    const marked = applyWizardAnswers(
+      draft(),
+      { ...base, condition: { ...base.condition, ceilingsMarked: true } },
+      nextId,
+    );
+    const markedLiving = marked.areas.find((a) => a.name === "Living");
+    expect(markedLiving?.surfaces.find((x) => x.code === "Ceilings")?.coats).toBe(2);
+    expect(markedLiving?.surfaces.find((x) => x.code === "Ceilings")?.crewNote).toContain("stain-block");
+  });
+
+  /** ⚑5: the gloss answer is one field, and it reaches the trims as a primer. */
+  it("adds a bonding primer coat to the trims when the existing gloss is oil-based", () => {
+    const base = state({ condition: { tier: "fresh", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false } });
+    const oil = applyWizardAnswers(
+      draft(),
+      { ...base, paint: { ...base.paint, trimsOilBased: "yes" } },
+      nextId,
+    );
+    const skirting = oil.areas.find((a) => a.name === "Living")?.surfaces.find((x) => x.code === "Skirting Boards");
+    expect(skirting?.coats).toBe(3);
+    expect(skirting?.crewNote).toContain("bonding primer");
   });
 
   it("oil trims: crew note on trim lines plus one whole-job deferred item", () => {

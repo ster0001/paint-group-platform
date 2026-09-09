@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildDraft } from "@/lib/extract/draft";
 import { SCOPE_VERSION, type Alias, type ScopeRule } from "@/lib/extract/scope";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
+import { PAINT_SYSTEMS_KEY, paintSystemsFrom } from "@/lib/pricing/systems";
 import { applyWizardAnswers } from "@/lib/wizard/merge";
 import { wizardStateSchema } from "@/lib/wizard/state";
 import { applyDoorStyle, applyWindowStyle, DOOR_STYLE_DEFERRAL, WINDOW_STYLE_DEFERRAL } from "@/lib/wizard/styles";
@@ -426,8 +427,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const snapshot = (state.wizard as { state?: unknown } | undefined)?.state;
       const parsedSnap = wizardStateSchema.safeParse(snapshot);
       const roomDraft = { areas: draft.areas, skipped: draft.skipped, assumedCount: draft.assumedCount, deferred: draft.deferred };
+      // Same Settings table the submit route derives with — a room added
+      // later must follow the job's systems, not the file's defaults.
+      const paintSystems = paintSystemsFrom(settingValue((await ctxPromise).settings, PAINT_SYSTEMS_KEY));
       const mergedRoom = parsedSnap.success
-        ? applyWizardAnswers(roomDraft, parsedSnap.data, () => next++)
+        ? applyWizardAnswers(roomDraft, parsedSnap.data, () => next++, paintSystems)
         : roomDraft;
       if (mergedRoom.areas.length === 0) {
         return { error: "Nothing is selected for that room type on this job.", status: 422 };

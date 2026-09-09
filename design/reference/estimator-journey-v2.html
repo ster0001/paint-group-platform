@@ -1,0 +1,1128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Paint Group · Estimator journey v2 · prototype</title>
+<link rel="preconnect" href="https://api.fontshare.com">
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0A0B0D; --panel:#12161A; --panel2:#171C21; --line:#242B32; --line2:#2E363E;
+  --text:#EDF0F2; --muted:#8C959D; --dim:#5E6770;
+  --cyan:#3BD8E9; --cyan-soft:rgba(59,216,233,.12); --cyan-line:rgba(59,216,233,.55);
+  --amber:#E0A83C; --amber-soft:rgba(224,168,60,.12); --amber-line:rgba(224,168,60,.55);
+  --red:#E06A5A;
+  --sans:"Switzer","Inter",system-ui,-apple-system,sans-serif;
+  --mono:"Martian Mono","JetBrains Mono",ui-monospace,monospace;
+  --r:14px; --pad:20px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#050607;color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+body{font-size:16px;line-height:1.45}
+.device{position:relative;max-width:430px;margin:0 auto;height:100dvh;background:var(--ink);display:flex;flex-direction:column;overflow:hidden}
+@media (min-width:600px){.device{height:min(920px,calc(100vh - 48px));margin:24px auto;border:1px solid var(--line);border-radius:30px}}
+
+/* top bar */
+.top{position:sticky;top:0;z-index:20;background:var(--ink);border-bottom:1px solid var(--line);padding:14px var(--pad) 12px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.mark{font-family:var(--mono);font-size:12px;letter-spacing:.14em;font-weight:600}
+.mark i{color:var(--cyan);font-style:normal}
+.top .tools{display:flex;gap:8px;align-items:center}
+.iconbtn{font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:999px;padding:6px 10px;cursor:pointer}
+.iconbtn:hover{color:var(--text);border-color:var(--line2)}
+.dots{display:flex;gap:5px;align-items:center}
+.dots b{width:6px;height:6px;border-radius:99px;background:var(--line2);display:block;transition:all .25s}
+.dots b.on{background:var(--cyan);width:20px}
+.dots b.done{background:var(--cyan);opacity:.55}
+
+/* screens */
+.screen{display:none;flex:1;flex-direction:column;min-height:0}
+.screen.active{display:flex}
+.body{flex:1;min-height:0;overflow:auto;padding:24px var(--pad) 140px;scrollbar-width:none}
+.body.bar{padding-top:0}
+.body::-webkit-scrollbar{display:none}
+.kicker{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--muted);margin:0 0 10px}
+h1{font-size:26px;line-height:1.15;font-weight:600;letter-spacing:-.01em;margin:0 0 8px}
+h2{font-size:17px;font-weight:600;margin:26px 0 10px;letter-spacing:-.005em}
+h2 small{font-weight:400;color:var(--muted);font-size:14px}
+.sub{color:var(--muted);margin:0 0 20px;font-size:15px}
+p{margin:0 0 12px}
+.hint{color:var(--muted);font-size:13.5px;margin:10px 0 0}
+.mono{font-family:var(--mono)}
+a{color:var(--cyan);text-decoration:none}
+
+/* inputs */
+.field{display:block;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px 16px;color:var(--text);font:inherit;font-size:16px;outline:none}
+.field::placeholder{color:var(--dim)}
+.field:focus{border-color:var(--cyan-line)}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* tiles */
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.tiles.two{grid-template-columns:1fr 1fr}
+.tiles.one{grid-template-columns:1fr}
+.tiles.four{grid-template-columns:repeat(4,1fr)}
+.tiles.five{grid-template-columns:repeat(5,1fr)}
+.tile{display:block;width:100%;position:relative;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:15px 14px;color:var(--text);font:inherit;font-size:15px;text-align:left;cursor:pointer;min-height:54px;transition:border-color .15s,background .15s}
+.tile.center{text-align:center}
+.tile small{display:block;color:var(--muted);font-size:13px;margin-top:4px;line-height:1.35}
+.tile .tag{position:absolute;top:10px;right:12px;font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 7px}
+.tile[aria-pressed="true"]{border-color:var(--cyan-line);background:var(--cyan-soft)}
+.tile[aria-pressed="true"] .tag{color:var(--cyan);border-color:var(--cyan-line)}
+.tile[aria-pressed="true"]::after{content:"✓";position:absolute;top:9px;right:12px;color:var(--cyan);font-size:13px}
+.tile.notick[aria-pressed="true"]::after{content:none}
+.tile.center[aria-pressed="true"]::after{content:none}
+.tile.amberopt[aria-pressed="true"]{border-color:var(--amber-line);background:var(--amber-soft)}
+.tile.amberopt[aria-pressed="true"]::after{color:var(--amber)}
+.tile:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+
+/* rows / chips */
+.qrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0;border-bottom:1px solid var(--line)}
+.qrow:last-child{border-bottom:0}
+.qrow .q{font-size:15px;flex:1}
+.yn{display:flex;gap:6px}
+.yn button{font:inherit;font-size:13.5px;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:999px;padding:7px 13px;cursor:pointer}
+.yn button[aria-pressed="true"]{border-color:var(--cyan-line);background:var(--cyan-soft);color:var(--cyan)}
+.yn button.warn[aria-pressed="true"]{border-color:var(--amber-line);background:var(--amber-soft);color:var(--amber)}
+.chip{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;letter-spacing:.08em;border-radius:999px;padding:4px 9px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.chip.amber{color:var(--amber);border-color:var(--amber-line);background:var(--amber-soft)}
+.chip.cyan{color:var(--cyan);border-color:var(--cyan-line);background:var(--cyan-soft)}
+.chip.red{color:var(--red);border-color:rgba(224,106,90,.5)}
+.pills{display:flex;flex-wrap:wrap;gap:8px}
+.pill{font:inherit;font-size:14px;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:999px;padding:9px 14px;cursor:pointer}
+.pill[aria-pressed="true"]{border-color:var(--cyan-line);background:var(--cyan-soft);color:var(--cyan)}
+.stepper{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.stepper button{font:inherit;background:transparent;border:0;color:var(--text);width:34px;height:32px;cursor:pointer;font-size:18px}
+.stepper span{font-family:var(--mono);font-size:13px;min-width:26px;text-align:center}
+
+/* cards */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin:0 0 12px}
+.card.amber{border-color:var(--amber-line)}
+.card.cyan{border-color:var(--cyan-line)}
+.card.flat{background:transparent}
+.card h3{margin:0 0 6px;font-size:16px;font-weight:600}
+.card .lead{color:var(--muted);font-size:14px;margin:0}
+.card .lead b{color:var(--text);font-weight:500}
+.door{display:flex;gap:14px;align-items:flex-start;cursor:pointer;transition:border-color .15s}
+.door:hover{border-color:var(--line2)}
+.door .ic{width:40px;height:40px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);display:grid;place-items:center;flex:none;color:var(--cyan);font-size:18px}
+.door .go{margin-left:auto;color:var(--muted);align-self:center}
+.door.primary{border-color:var(--cyan-line);background:linear-gradient(180deg,rgba(59,216,233,.08),transparent)}
+.list{margin:0;padding:0;list-style:none}
+.list li{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);font-size:14.5px}
+.list li:last-child{border-bottom:0}
+.list li .dot{width:8px;height:8px;border-radius:99px;margin-top:7px;flex:none;background:var(--amber)}
+.list li .dot.cyan{background:var(--cyan)}
+.list li .dot.grey{background:var(--dim)}
+.list li .ed{margin-left:auto;color:var(--muted);font-size:13px;white-space:nowrap}
+
+/* rooms list */
+.room{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--amber-line);border-radius:var(--r);padding:14px 14px;margin-bottom:10px;cursor:pointer}
+.room.ok{border-color:var(--cyan-line)}
+.room .nm{font-weight:600;font-size:15.5px}
+.room .meta{color:var(--muted);font-size:13px;margin-top:2px}
+.room .meta .mono{font-size:12px}
+.room .st{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.room .arrow{color:var(--dim)}
+
+/* surface tiles in room */
+.surf{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.surf .tile{padding:12px 12px 10px}
+.surf .sys{display:block;color:var(--muted);font-size:12px;margin-top:6px;line-height:1.35}
+.surf .tile[aria-pressed="true"] .sys{color:#B9C1C8}
+.surf .ctr{margin-top:8px}
+
+/* range */
+.rangebar{position:sticky;top:0;z-index:15;background:var(--ink);border-bottom:1px solid var(--line);margin:0 calc(-1 * var(--pad)) 18px;padding:12px var(--pad)}
+.rangebar .lbl{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--muted)}
+.rangebar .val{font-family:var(--mono);font-size:19px;font-weight:600;letter-spacing:-.01em;margin-top:2px}
+.rangebar .val.bump{animation:bump .45s ease}
+@keyframes bump{0%{color:var(--cyan)}100%{color:var(--text)}}
+.meter{display:flex;gap:6px;margin-top:10px}
+.meter div{flex:1;text-align:center;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--dim);padding-top:7px;border-top:2px solid var(--line)}
+.meter div.on{color:var(--cyan);border-top-color:var(--cyan)}
+.meter div.was{color:var(--muted);border-top-color:var(--cyan);opacity:.5}
+.meter div.amber{color:var(--amber);border-top-color:var(--amber)}
+.bigrange{margin:18px 0 4px}
+.bigrange .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--muted)}
+.bigrange .val{font-family:var(--mono);font-size:34px;font-weight:600;letter-spacing:-.02em;line-height:1.1;margin-top:6px;position:relative;display:inline-block}
+.bigrange .inc{color:var(--muted);font-size:13.5px;margin-top:6px}
+.paint{position:relative;overflow:hidden;border-radius:6px}
+.paint .val{clip-path:inset(0 100% 0 0);animation:reveal 1.1s cubic-bezier(.7,0,.2,1) .15s forwards}
+.paint::after{content:"";position:absolute;top:-6px;bottom:-6px;width:14px;background:var(--cyan);border-radius:3px;left:-16px;animation:roller 1.1s cubic-bezier(.7,0,.2,1) .15s forwards;opacity:0;box-shadow:0 0 18px rgba(59,216,233,.55)}
+@keyframes reveal{to{clip-path:inset(0 0 0 0)}}
+@keyframes roller{0%{opacity:1}90%{opacity:1}100%{left:104%;opacity:0}}
+@media (prefers-reduced-motion:reduce){.paint .val{animation:none;clip-path:none}.paint::after{display:none}.rangebar .val.bump{animation:none}}
+.assume{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;margin-top:16px}
+.assume h3{margin:0 0 6px;font-size:14px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.assume h3 span{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--amber)}
+
+/* footer */
+.foot{position:absolute;left:0;right:0;bottom:0;z-index:18;background:linear-gradient(180deg,rgba(10,11,13,0),var(--ink) 28%);padding:18px var(--pad) calc(16px + env(safe-area-inset-bottom))}
+.foot .line{color:var(--muted);font-size:13px;margin:0 0 10px}
+.foot .line b{color:var(--text);font-weight:500}
+.btns{display:flex;gap:10px}
+.btn{font:inherit;font-size:16px;font-weight:600;border-radius:14px;padding:16px 18px;cursor:pointer;border:1px solid transparent;flex:1;text-align:center}
+.btn.primary{background:var(--cyan);color:#062229}
+.btn.primary:hover{filter:brightness(1.05)}
+.btn.ghost{background:transparent;border-color:var(--line);color:var(--text);flex:0 0 auto}
+.btn.soft{background:var(--panel);border-color:var(--line);color:var(--text)}
+.btn.amberline{background:transparent;border-color:var(--amber-line);color:var(--amber)}
+.btn:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.foot .range-mini{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.foot .range-mini .val{font-family:var(--mono);font-weight:600;font-size:17px}
+.foot .range-mini .lbl{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--muted)}
+.phone{display:flex;align-items:center;gap:10px;justify-content:center;color:var(--muted);font-size:13.5px;margin-top:14px}
+.phone a{color:var(--text)}
+
+/* bubble */
+.bubble{position:absolute;left:16px;bottom:150px;z-index:17;width:44px;height:44px;border-radius:99px;background:var(--cyan);color:#062229;display:grid;place-items:center;font-size:18px;box-shadow:0 8px 24px rgba(0,0,0,.45);cursor:pointer}
+
+/* notes drawer */
+.drawer{position:absolute;inset:0;z-index:40;background:rgba(5,6,7,.72);display:none;align-items:flex-end}
+.drawer.open{display:flex}
+.drawer .sheet{background:var(--panel);border-top:1px solid var(--line2);border-radius:22px 22px 0 0;padding:20px var(--pad) 28px;max-height:78%;overflow:auto;width:100%}
+.drawer h3{margin:0 0 4px;font-size:15px}
+.drawer .k{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--cyan);margin-bottom:12px}
+.drawer p,.drawer li{font-size:14px;color:#C9D0D6}
+.drawer ul{padding-left:18px;margin:6px 0 12px}
+.drawer .flag{color:var(--amber)}
+.drawer .close{float:right;font-family:var(--mono);font-size:10px;color:var(--muted);background:none;border:1px solid var(--line);border-radius:999px;padding:5px 10px;cursor:pointer}
+
+/* map */
+.map a{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line);color:var(--text);font-size:15px}
+.map a small{color:var(--muted);font-family:var(--mono);font-size:10px;letter-spacing:.08em}
+.map h2{margin-top:22px}
+
+/* house plan (exterior) */
+.plan{position:relative;height:250px;margin:6px 0 4px}
+.plan .side{position:absolute;border-radius:6px;background:var(--amber);cursor:pointer;opacity:.9}
+.plan .side.ok{background:var(--cyan)}
+.plan .side.no{background:transparent;border:2px dashed var(--dim)}
+.plan .lab{position:absolute;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--muted)}
+.plan .in{position:absolute;inset:44px 70px;border:1px solid var(--line2);border-radius:8px;background:var(--panel)}
+.plan .door{position:absolute;bottom:32px;left:50%;transform:translateX(-50%);width:30px;height:8px;background:var(--cyan);border-radius:2px}
+
+/* misc */
+.toast{position:absolute;left:50%;transform:translateX(-50%);bottom:190px;z-index:30;background:var(--panel2);border:1px solid var(--line2);border-radius:16px;padding:9px 14px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;max-width:calc(100% - 40px);text-align:center}
+.toast.show{opacity:1}
+.toast b{color:var(--cyan);font-family:var(--mono);font-weight:600;font-size:12px}
+.photo{display:flex;align-items:center;gap:10px;border:1px dashed var(--line2);border-radius:var(--r);padding:12px 14px;color:var(--muted);font-size:14px;cursor:pointer}
+.photo b{color:var(--text);font-weight:500}
+.thumbs{display:flex;gap:8px;margin-top:10px}
+.thumb{width:64px;height:64px;border-radius:10px;background:linear-gradient(135deg,#1c2329,#0f1317);border:1px solid var(--line2);position:relative;display:grid;place-items:center;color:var(--dim);font-size:11px;font-family:var(--mono)}
+.thumb i{position:absolute;bottom:-6px;right:-6px;font-style:normal;background:var(--amber);color:#1a1200;border-radius:999px;font-size:9px;font-family:var(--mono);padding:2px 5px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.slot{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center;cursor:pointer;font-size:14px}
+.slot small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.slot[aria-pressed="true"]{border-color:var(--cyan-line);background:var(--cyan-soft)}
+.spec{width:100%;border-collapse:collapse;font-size:13px}
+.spec th{text-align:left;font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;color:var(--muted);font-weight:500;padding:6px 6px;border-bottom:1px solid var(--line)}
+.spec td{padding:9px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+.spec td .mono{font-size:12px}
+.spec td.n{font-family:var(--mono);font-size:12px;text-align:right;white-space:nowrap}
+.note{background:var(--amber-soft);border:1px solid var(--amber-line);border-radius:12px;padding:12px 14px;font-size:13.5px;color:#EBD3A0;margin:14px 0 0}
+.note.blue{background:var(--cyan-soft);border-color:var(--cyan-line);color:#BDEFF5}
+.switch{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);cursor:pointer;margin-top:12px}
+.switch i{width:34px;height:20px;border-radius:99px;background:var(--line2);position:relative;display:block}
+.switch i::after{content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:99px;background:var(--text);transition:left .2s}
+.switch.on i{background:var(--cyan)}
+.switch.on i::after{left:17px;background:#062229}
+.steps{counter-reset:s;margin:0;padding:0;list-style:none}
+.steps li{position:relative;padding:0 0 14px 34px;font-size:14.5px}
+.steps li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:0;width:24px;height:24px;border-radius:99px;border:1px solid var(--cyan-line);color:var(--cyan);font-family:var(--mono);font-size:11px;display:grid;place-items:center}
+.steps li b{display:block;font-weight:600}
+.steps li span{color:var(--muted)}
+.sheetback{position:absolute;inset:0;background:rgba(5,6,7,.72);z-index:35;display:none;align-items:flex-end}
+.sheetback.open{display:flex}
+.sheetback .sheet{background:var(--panel);border-top:1px solid var(--line2);border-radius:22px 22px 0 0;padding:22px var(--pad) 30px;width:100%}
+</style>
+</head>
+<body>
+<div class="device" id="device">
+
+  <div class="top">
+    <div class="mark">PAINT<i>—</i>GROUP</div>
+    <div class="tools">
+      <div class="dots" id="dots"></div>
+      <button class="iconbtn" onclick="openNotes()">NOTES</button>
+      <button class="iconbtn" onclick="go('map')">MAP</button>
+    </div>
+  </div>
+
+  <!-- ============ MAP ============ -->
+  <section class="screen" id="s-map">
+    <div class="body map">
+      <p class="kicker">PROTOTYPE · 9 SEPTEMBER 2026</p>
+      <h1>The journey, screen by screen</h1>
+      <p class="sub">Tap any screen. The NOTES button on every screen explains the thinking and flags decisions for you (⚑).</p>
+      <h2>1 · Quick look <small>— a guide range in about a minute</small></h2>
+      <a onclick="go('start')">The address and the job <small>SCREEN 1</small></a>
+      <a onclick="go('place')">About the place <small>SCREEN 2</small></a>
+      <a onclick="go('job')">What's the job <small>SCREEN 3</small></a>
+      <a onclick="go('condition')">How's it looking <small>SCREEN 4</small></a>
+      <a onclick="go('reveal')">Your guide range — the fork <small>SCREEN 5</small></a>
+      <h2>2 · Tighten <small>— optional, always ends at a person</small></h2>
+      <a onclick="go('tighten')">The four things that tighten it <small>SCREEN 6</small></a>
+      <a onclick="openRoom(0)">A room, close up <small>SCREEN 7</small></a>
+      <a onclick="go('systems')">How we'll paint each surface <small>SCREEN 8</small></a>
+      <a onclick="go('access')">Site and access <small>SCREEN 9</small></a>
+      <h2>3 · Finish line</h2>
+      <a onclick="go('finish')">Your detailed range — confirm or send <small>SCREEN 10</small></a>
+      <a onclick="go('handoff')">Sent to your estimator <small>SCREEN 11</small></a>
+      <h2>Branches</h2>
+      <a onclick="go('commercial')">Commercial — the six gates <small>BRANCH</small></a>
+      <a onclick="go('ext-job')">Exterior quick look <small>BRANCH</small></a>
+      <a onclick="go('ext-sides')">Exterior — side by side <small>BRANCH</small></a>
+      <a onclick="go('ext-side')">A side, close up <small>BRANCH</small></a>
+      <a onclick="go('stop')">Hard stop — asbestos or lead <small>BRANCH</small></a>
+      <h2>Trade portal</h2>
+      <a onclick="go('trade')">Quote from a saved spec <small>TRADE</small></a>
+      <a onclick="go('trade-sheet')">The spec sheet <small>TRADE</small></a>
+      <p class="hint" style="margin-top:22px">All prices are illustrative and include GST. The range moves as you tap through, so you can feel how the narrowing works.</p>
+    </div>
+  </section>
+
+  <!-- ============ 1 START ============ -->
+  <section class="screen" id="s-start" data-stage="quick" data-step="1">
+    <div class="body">
+      <p class="kicker">A MINUTE TO A GUIDE RANGE</p>
+      <h1>Let's price your painting</h1>
+      <p class="sub">Four quick screens, then a guide range. Everything after that is optional — and nothing you say here is a commitment.</p>
+      <input class="field" placeholder="Start typing the address and pick it" value="14 Acacia Street, Northcote">
+      <h2>What's being painted?</h2>
+      <div class="tiles" data-group="job">
+        <button class="tile center" data-val="interior" aria-pressed="true" onclick="sel(this)">Inside</button>
+        <button class="tile center" data-val="exterior" onclick="sel(this)">Outside</button>
+        <button class="tile center" data-val="both" onclick="sel(this)">Both</button>
+      </div>
+      <p class="hint">Curious what similar homes cost? <a href="#">See real jobs and their prices</a></p>
+      <div class="phone">Rather talk it through? <a href="tel:0390000000">Call (03) 9000 0000</a></div>
+    </div>
+    <div class="foot">
+      <div class="btns"><button class="btn primary" onclick="nextFromStart()">Continue</button></div>
+    </div>
+  </section>
+
+  <!-- ============ 2 PLACE ============ -->
+  <section class="screen" id="s-place" data-stage="quick" data-step="2">
+    <div class="body">
+      <p class="kicker">ABOUT THE PLACE</p>
+      <h1>What kind of home is it?</h1>
+      <p class="sub">Near enough is fine — this seeds the rooms, and you can change any of them later.</p>
+      <div class="tiles two" data-group="kind">
+        <button class="tile" data-val="house" aria-pressed="true" onclick="sel(this)">House</button>
+        <button class="tile" data-val="town" onclick="sel(this)">Townhouse</button>
+        <button class="tile" data-val="unit" onclick="sel(this)">Unit or apartment</button>
+        <button class="tile" data-val="commercial" onclick="sel(this);go('commercial')">Commercial<small>Office, shop, strata, industrial</small></button>
+      </div>
+      <h2>How many bedrooms?</h2>
+      <div class="tiles five" data-group="beds">
+        <button class="tile center" data-val="1" onclick="sel(this)">1</button>
+        <button class="tile center" data-val="2" onclick="sel(this)">2</button>
+        <button class="tile center" data-val="3" aria-pressed="true" onclick="sel(this)">3</button>
+        <button class="tile center" data-val="4" onclick="sel(this)">4</button>
+        <button class="tile center" data-val="5" onclick="sel(this)">5+</button>
+      </div>
+      <h2>Storeys</h2>
+      <div class="tiles two" data-group="storeys">
+        <button class="tile" data-val="1" aria-pressed="true" onclick="sel(this)">Single storey</button>
+        <button class="tile" data-val="2" onclick="sel(this)">Two storeys<small>Adds the stairwell and upper hall</small></button>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="btns"><button class="btn ghost" onclick="back()">Back</button><button class="btn primary" onclick="go('job')">Continue</button></div>
+    </div>
+  </section>
+
+  <!-- ============ 3 JOB ============ -->
+  <section class="screen" id="s-job" data-stage="quick" data-step="3">
+    <div class="body">
+      <p class="kicker">THE JOB</p>
+      <h1>What's the job?</h1>
+      <p class="sub">We work out the coats and the preparation from these two answers — and you'll see exactly what we've allowed for.</p>
+      <div class="tiles one" data-group="scope">
+        <button class="tile" data-val="whole" aria-pressed="true" onclick="sel(this)">The whole interior<small>Walls, ceilings, skirtings, doors and frames — the usual full repaint</small></button>
+        <button class="tile" data-val="some" onclick="sel(this)">Some rooms<small>You'll pick which ones next</small></button>
+        <button class="tile" data-val="wallsceil" onclick="sel(this)">Walls and ceilings only</button>
+        <button class="tile" data-val="trims" onclick="sel(this)">Doors, skirtings and trims only</button>
+      </div>
+      <h2>Colours</h2>
+      <div class="tiles one" data-group="colour">
+        <button class="tile" data-val="same" onclick="sel(this)">The same colours again<small>Colour-matched — a freshen up</small></button>
+        <button class="tile" data-val="new" aria-pressed="true" onclick="sel(this)">New colours<small>Two coats, standard preparation</small></button>
+        <button class="tile" data-val="dark" onclick="sel(this)">Going much lighter, or a bold colour<small>An undercoat first, then two coats</small></button>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="btns"><button class="btn ghost" onclick="back()">Back</button><button class="btn primary" onclick="go('condition')">Continue</button></div>
+    </div>
+  </section>
+
+  <!-- ============ 4 CONDITION ============ -->
+  <section class="screen" id="s-condition" data-stage="quick" data-step="4">
+    <div class="body">
+      <p class="kicker">CONDITION</p>
+      <h1>How's it looking?</h1>
+      <p class="sub">Honest is best — it sets the preparation we allow for. You can point out particular spots later, with photos.</p>
+      <div class="tiles one" data-group="cond">
+        <button class="tile" data-val="good" onclick="sel(this)">Good — just tired<small>Sound surfaces, a light sand and it's ready</small></button>
+        <button class="tile" data-val="wear" aria-pressed="true" onclick="sel(this)">Some wear<small>Scuffs, marks, the odd hairline crack or nail hole</small></button>
+        <button class="tile" data-val="work" onclick="sel(this)">Needs work<small>Flaking, cracked plaster, water marks, damage</small></button>
+      </div>
+      <h2>Will anyone be living there while we paint?</h2>
+      <div class="tiles two" data-group="living">
+        <button class="tile" data-val="no" onclick="sel(this)">No, it'll be empty</button>
+        <button class="tile" data-val="yes" aria-pressed="true" onclick="sel(this)">Yes, we'll be there<small>We work room by room and pack down each day</small></button>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="btns"><button class="btn ghost" onclick="back()">Back</button><button class="btn primary" onclick="go('reveal')">See my guide range</button></div>
+    </div>
+  </section>
+
+  <!-- ============ 5 REVEAL ============ -->
+  <section class="screen" id="s-reveal" data-stage="range">
+    <div class="body">
+      <p class="kicker">YOUR GUIDE RANGE</p>
+      <div class="bigrange">
+        <div class="paint" id="paintwrap"><div class="val" id="bigval">$9,400 – $12,900</div></div>
+        <div class="inc">Includes GST. Excludes access equipment and structural repairs.</div>
+      </div>
+      <div class="meter" style="margin:14px 0 4px"><div class="amber">GUIDE</div><div>DETAILED</div><div>CONFIRMED</div></div>
+      <p class="hint" id="basis">Based on a 3-bedroom, single-storey house, the whole interior, new colours, some wear. If that's about right, this is about right.</p>
+
+      <div class="assume">
+        <h3>What we've assumed <span>TAP TO CHANGE</span></h3>
+        <ul class="list" id="assumeList"></ul>
+      </div>
+
+      <h2 style="margin-top:26px">Where would you like to go from here?</h2>
+
+      <div class="card door primary" onclick="go('tighten')">
+        <div class="ic">◫</div>
+        <div><h3>Tighten it online</h3><p class="lead">Confirm the rooms, the surfaces and the condition. About five minutes, with photos if you like — narrows this to within about 4%.</p></div>
+        <div class="go">›</div>
+      </div>
+      <div class="card door" onclick="go('handoff')">
+        <div class="ic">☎</div>
+        <div><h3>Book your estimator</h3><p class="lead">A visit or a call, whichever suits. We bring your answers with us, so it's quick.</p></div>
+        <div class="go">›</div>
+      </div>
+      <div class="card door" onclick="openSheet('keep')">
+        <div class="ic">✉</div>
+        <div><h3>Keep this estimate</h3><p class="lead">We'll email a link so you can pick it up any time. The price is held for 60 days.</p></div>
+        <div class="go">›</div>
+      </div>
+      <div class="phone">Or just talk to us — <a href="tel:0390000000">(03) 9000 0000</a></div>
+    </div>
+  </section>
+
+  <!-- ============ 6 TIGHTEN ============ -->
+  <section class="screen" id="s-tighten" data-stage="tighten">
+    <div class="body">
+      <div class="rangebar">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end">
+          <div><div class="lbl">YOUR RANGE · INCL. GST</div><div class="val range-live">$9,400 – $12,900</div></div>
+          <div class="chip amber" id="progressChip">0 OF 8 ROOMS</div>
+        </div>
+        <div class="meter" id="meterT"><div class="on">GUIDE</div><div>DETAILED</div><div>CONFIRMED</div></div>
+      </div>
+      <h1>Tighten your range</h1>
+      <p class="sub">Four things narrow it. Do any of them, in any order — and stop whenever you like.</p>
+
+      <h2>The rooms <small id="roomsHint">— tap one to check its size and surfaces</small></h2>
+      <div class="photo" onclick="toast('Floorplan read — 8 rooms sized','')" style="margin-bottom:12px"><span>⌂</span><span><b>Have a floorplan or a listing?</b> Upload it and we'll fill the rooms in for you.</span></div>
+      <div id="roomList"></div>
+      <button class="tile" style="width:100%;margin-top:2px" onclick="addRoom()">+ Add a room we've missed</button>
+      <p class="hint" style="text-align:right"><a onclick="confirmAll()">Prototype: confirm every room at once</a></p>
+
+      <h2>The other three</h2>
+      <div class="card door" id="doorSystems" onclick="go('systems')">
+        <div class="ic">▤</div>
+        <div><h3>How we'll paint each surface</h3><p class="lead" id="sysLead">Worked out from your answers — check it and change anything.</p></div>
+        <div class="st" style="margin-left:auto"><span class="chip amber" id="chipSys">CHECK</span></div>
+      </div>
+      <div class="card door" onclick="go('access')">
+        <div class="ic">⌗</div>
+        <div><h3>Site and access</h3><p class="lead">Furniture, floors, stairs, parking — the things that set our setup time.</p></div>
+        <div class="st" style="margin-left:auto"><span class="chip amber" id="chipAcc">CHECK</span></div>
+      </div>
+      <div class="card door" onclick="openSheet('extra')">
+        <div class="ic">＋</div>
+        <div><h3>Anything we haven't listed</h3><p class="lead">A feature wall, wallpaper to strip, a ceiling rose — name it and we'll price it.</p></div>
+        <div class="st" style="margin-left:auto"><span class="chip" id="chipExtra">OPTIONAL</span></div>
+      </div>
+    </div>
+    <div class="bubble" title="Chat with a person">✎</div>
+    <div class="foot">
+      <p class="line">You don't have to finish — <b id="footProg">0 of 8</b> confirmed. Send it whenever you like and a person picks up the rest.</p>
+      <div class="btns"><button class="btn ghost" onclick="go('reveal')">Back</button><button class="btn primary" onclick="go('finish')">Finish and send</button></div>
+    </div>
+  </section>
+
+  <!-- ============ 7 ROOM ============ -->
+  <section class="screen" id="s-room" data-stage="tighten">
+    <div class="body">
+      <div class="rangebar">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end">
+          <div><div class="lbl">YOUR RANGE · INCL. GST</div><div class="val range-live">$9,400 – $12,900</div></div>
+          <div class="chip amber" id="roomChip">ASSUMED</div>
+        </div>
+      </div>
+      <p class="kicker" id="roomKick">ROOM 1 OF 8</p>
+      <h1 id="roomName">Bed 1</h1>
+
+      <h2>Size</h2>
+      <div class="card">
+        <p style="margin:0 0 10px">We've assumed about <b class="mono" id="roomSize">3.5 × 3.25 m</b> — sound right?</p>
+        <div class="pills" data-group="rsize">
+          <button class="pill" data-val="ok" onclick="sel(this);hide('adjust')">Looks right</button>
+          <button class="pill" data-val="adj" onclick="sel(this);show('adjust')">Adjust it</button>
+        </div>
+        <div id="adjust" style="display:none;margin-top:12px">
+          <div class="fields"><input class="field" placeholder="Length m" value="3.5"><input class="field" placeholder="Width m" value="3.25"></div>
+          <p class="hint">Pace it out if you like — a big step is about a metre. Ceiling height is asked once, under Site and access.</p>
+        </div>
+      </div>
+
+      <h2>What's painted in here <small>— untick anything that isn't</small></h2>
+      <div class="surf" id="surfGrid">
+        <button class="tile" aria-pressed="true" onclick="tog(this)">Walls<span class="sys" id="sysWalls">New colour · two coats</span></button>
+        <button class="tile" aria-pressed="true" onclick="tog(this)">Ceiling<span class="sys" id="sysCeil">White again · one coat</span></button>
+        <button class="tile" aria-pressed="true" onclick="tog(this)">Cornice<span class="sys">With the ceiling · one coat</span></button>
+        <button class="tile" aria-pressed="true" onclick="tog(this)">Skirting<span class="sys">Sand · undercoat · two coats</span></button>
+        <div class="tile" role="button" tabindex="0" aria-pressed="true" onclick="tog(this)">Doors<span class="sys">Both sides, frames included</span><div class="ctr stepper"><button onclick="event.stopPropagation();step(this,-1)">−</button><span>1</span><button onclick="event.stopPropagation();step(this,1)">+</button></div></div>
+        <div class="tile" role="button" tabindex="0" aria-pressed="true" onclick="tog(this)">Windows<span class="sys">Frames and sashes · two coats</span><div class="ctr stepper"><button onclick="event.stopPropagation();step(this,-1)">−</button><span>1</span><button onclick="event.stopPropagation();step(this,1)">+</button></div></div>
+      </div>
+      <div class="qrow" style="margin-top:6px"><div class="q">Paint the built-in robe doors?</div><div class="yn" data-group="robe"><button data-val="yes" onclick="sel(this)">Yes</button><button data-val="no" aria-pressed="true" onclick="sel(this)">No</button></div></div>
+      <button class="tile" style="width:100%;margin-top:10px" onclick="toast('Everything on our rate card, grouped','')">+ Add a surface to this room</button>
+
+      <h2>Condition in here</h2>
+      <div class="pills" data-group="rcond">
+        <button class="pill" data-val="same" aria-pressed="true" onclick="sel(this)">Same as the rest — some wear</button>
+        <button class="pill" data-val="better" onclick="sel(this)">Better</button>
+        <button class="pill" data-val="worse" onclick="sel(this)">Worse</button>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <h3 style="font-size:15px">Point out a spot <span class="chip" style="margin-left:6px">OPTIONAL</span></h3>
+        <p class="lead" style="margin-bottom:10px">A photo and a tap. We price the repair from it, and your painter sees it before day one.</p>
+        <div class="photo" onclick="addFlag()"><span>📷</span><span><b>Add a photo</b> — then tell us what it is</span></div>
+        <div class="pills" style="margin-top:10px" data-group="ftag">
+          <button class="pill" data-val="crack" onclick="sel(this)">Crack</button>
+          <button class="pill" data-val="flake" onclick="sel(this)">Flaking</button>
+          <button class="pill" data-val="water" onclick="sel(this)">Water mark</button>
+          <button class="pill" data-val="hole" onclick="sel(this)">Hole or dent</button>
+          <button class="pill" data-val="mould" onclick="sel(this)">Mould</button>
+          <button class="pill" data-val="paper" onclick="sel(this)">Wallpaper</button>
+        </div>
+        <div class="thumbs" id="thumbs"></div>
+      </div>
+
+      <h2>Extras in this room</h2>
+      <div class="qrow"><div class="q">Feature wall<br><small style="color:var(--muted)">A different colour on one wall — priced as its own colour</small></div><div class="stepper"><button onclick="step(this,-1)">−</button><span>0</span><button onclick="step(this,1)">+</button></div></div>
+      <div class="qrow"><div class="q">Wallpaper to strip first</div><div class="yn" data-group="wp"><button data-val="yes" class="warn" onclick="sel(this)">Yes</button><button data-val="no" aria-pressed="true" onclick="sel(this)">No</button></div></div>
+      <div class="qrow"><div class="q">Something else in here?</div><a onclick="toast('Flagged for your estimator — never auto-priced','')">Name it</a></div>
+    </div>
+    <div class="foot">
+      <div class="btns"><button class="btn ghost" onclick="go('tighten')">Back</button><button class="btn primary" id="confirmRoomBtn" onclick="confirmRoom()">Confirm Bed 1 ✓</button></div>
+    </div>
+  </section>
+
+  <!-- ============ 8 SYSTEMS ============ -->
+  <section class="screen" id="s-systems" data-stage="tighten">
+    <div class="body">
+      <div class="rangebar">
+        <div><div class="lbl">YOUR RANGE · INCL. GST</div><div class="val range-live">$9,400 – $12,900</div></div>
+      </div>
+      <p class="kicker">HOW WE'LL PAINT EACH SURFACE</p>
+      <h1>Worked out from your answers</h1>
+      <p class="sub">This is the bit most quotes hide. Each line is what your painter will actually do. Change anything that isn't right.</p>
+
+      <div class="card">
+        <h3>Walls</h3>
+        <p class="lead"><b>New colour.</b> Fill nail holes and hairline cracks, light sand, spot-prime the fills, then two coats of low-sheen.</p>
+        <div class="pills" style="margin-top:10px" data-group="sysw">
+          <button class="pill" data-val="ok" aria-pressed="true" onclick="sel(this)">That's right</button>
+          <button class="pill" data-val="dark" onclick="sel(this);toast('Walls now undercoat + two coats','+$640')">Going much lighter</button>
+          <button class="pill" data-val="same" onclick="sel(this);toast('Walls now one coat, same colour','−$980')">Same colour actually</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Ceilings and cornices</h3>
+        <p class="lead"><b>White again.</b> One fresh coat of flat ceiling white over a sound surface. Two if we're covering marks or a colour.</p>
+        <div class="pills" style="margin-top:10px" data-group="sysc">
+          <button class="pill" data-val="ok" aria-pressed="true" onclick="sel(this)">That's right</button>
+          <button class="pill" data-val="two" onclick="sel(this);toast('Ceilings now two coats','+$410')">They're marked — two coats</button>
+          <button class="pill" data-val="skip" onclick="sel(this);toast('Ceilings removed','−$1,120')">Leave the ceilings</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Skirtings, architraves and door frames</h3>
+        <p class="lead"><b>Same white.</b> Sand and clean, fill any dents, then two coats of water-based enamel.</p>
+        <div class="qrow" style="margin-top:6px"><div class="q">Are they shiny at the moment — a gloss finish?<br><small style="color:var(--muted)">Old oil-based gloss needs a bonding primer first</small></div><div class="yn" data-group="gloss"><button data-val="yes" class="warn" onclick="sel(this);toast('Bonding primer added to trims','+$260')">Yes</button><button data-val="no" onclick="sel(this)">No</button><button data-val="ns" aria-pressed="true" onclick="sel(this)">Not sure</button></div></div>
+      </div>
+      <div class="card">
+        <h3>Doors</h3>
+        <p class="lead"><b>As the trims.</b> Both sides, edges and frame. 6 doors across the house so far.</p>
+        <div class="pills" style="margin-top:10px" data-group="sysd">
+          <button class="pill" data-val="panel" onclick="sel(this)">Panelled</button>
+          <button class="pill" data-val="flat" aria-pressed="true" onclick="sel(this)">Flat</button>
+          <button class="pill" data-val="ns" onclick="sel(this)">Not sure</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Windows</h3>
+        <p class="lead"><b>Timber, casement.</b> Sand, fill, two coats to frames and sashes. Glass edges cut in by hand.</p>
+        <div class="pills" style="margin-top:10px" data-group="sysx">
+          <button class="pill" data-val="case" aria-pressed="true" onclick="sel(this)">Casement</button>
+          <button class="pill" data-val="sash" onclick="sel(this)">Sash</button>
+          <button class="pill" data-val="alu" onclick="sel(this);toast('Aluminium windows removed from scope','−$540')">They're aluminium</button>
+        </div>
+      </div>
+      <p class="hint">Every job gets two coats by default unless a line above says otherwise. Bold accent colours sometimes need a third — if yours does, we'll tell you before we start that area, never after.</p>
+    </div>
+    <div class="foot">
+      <div class="btns"><button class="btn ghost" onclick="go('tighten')">Back</button><button class="btn primary" onclick="S.sys=true;go('tighten');toast('Paint systems confirmed','range narrowed')">This is right ✓</button></div>
+    </div>
+  </section>
+
+  <!-- ============ 9 ACCESS ============ -->
+  <section class="screen" id="s-access" data-stage="tighten">
+    <div class="body">
+      <div class="rangebar">
+        <div><div class="lbl">YOUR RANGE · INCL. GST</div><div class="val range-live">$9,400 – $12,900</div></div>
+      </div>
+      <p class="kicker">SITE AND ACCESS</p>
+      <h1>The things that set our setup</h1>
+      <p class="sub">None of these are a problem — they just change how long protection and packing down takes.</p>
+
+      <h2>Will the rooms be cleared before we start?</h2>
+      <div class="tiles" data-group="cleared">
+        <button class="tile center" data-val="yes" aria-pressed="true" onclick="sel(this)">Yes</button>
+        <button class="tile center" data-val="some" onclick="sel(this)">Mostly</button>
+        <button class="tile center" data-val="no" onclick="sel(this)">Furniture stays</button>
+      </div>
+      <h2>Floors</h2>
+      <div class="tiles" data-group="floors">
+        <button class="tile center" data-val="carpet" aria-pressed="true" onclick="sel(this)">Carpet</button>
+        <button class="tile center" data-val="hard" onclick="sel(this)">Hard floors</button>
+        <button class="tile center" data-val="mixed" onclick="sel(this)">Mixed</button>
+      </div>
+      <h2>Ceiling height</h2>
+      <div class="tiles four" data-group="height">
+        <button class="tile center" data-val="24" onclick="sel(this)">2.4 m</button>
+        <button class="tile center" data-val="27" aria-pressed="true" onclick="sel(this)">2.7 m</button>
+        <button class="tile center" data-val="30" onclick="sel(this)">3 m+</button>
+        <button class="tile center" data-val="ns" onclick="sel(this)">Not sure</button>
+      </div>
+      <div class="qrow" style="margin-top:14px"><div class="q">A stairwell or void with high walls?</div><div class="yn" data-group="void"><button data-val="yes" class="warn" onclick="sel(this)">Yes</button><button data-val="no" aria-pressed="true" onclick="sel(this)">No</button></div></div>
+      <div class="qrow"><div class="q">Where can we park?</div><div class="yn" data-group="park"><button data-val="drive" aria-pressed="true" onclick="sel(this)">Driveway</button><button data-val="street" onclick="sel(this)">Street</button><button data-val="hard" class="warn" onclick="sel(this)">Tricky</button></div></div>
+      <div class="qrow"><div class="q">Built before 1990, with any chance of asbestos sheeting in the areas being painted?</div><div class="yn" data-group="asb"><button data-val="no" aria-pressed="true" onclick="sel(this)">No</button><button data-val="ns" class="warn" onclick="sel(this)">Not sure</button><button data-val="yes" class="warn" onclick="sel(this);go('stop')">Yes</button></div></div>
+      <div class="qrow"><div class="q">Pets we should know about?</div><div class="yn" data-group="pets"><button data-val="yes" onclick="sel(this)">Yes</button><button data-val="no" aria-pressed="true" onclick="sel(this)">No</button></div></div>
+    </div>
+    <div class="foot">
+      <div class="btns"><button class="btn ghost" onclick="go('tighten')">Back</button><button class="btn primary" onclick="S.acc=true;go('tighten');toast('Site and access confirmed','range narrowed')">That's everything ✓</button></div>
+    </div>
+  </section>
+
+  <!-- ============ 10 FINISH ============ -->
+  <section class="screen" id="s-finish" data-stage="finish">
+    <div class="body">
+      <p class="kicker" id="finKick">YOUR DETAILED RANGE</p>
+      <div class="bigrange">
+        <div class="val range-live" style="font-size:32px">$9,400 – $12,900</div>
+        <div class="inc">Includes GST · <span id="finConf">8 of 8 rooms confirmed</span></div>
+      </div>
+      <div class="meter" id="meterF" style="margin:14px 0 4px"><div class="was">GUIDE</div><div class="on">DETAILED</div><div>CONFIRMED</div></div>
+
+      <div id="finBig">
+        <h2>Make it a fixed price</h2>
+        <div class="card door primary" onclick="go('handoff')">
+          <div class="ic">✓</div>
+          <div><h3>Send for confirmation</h3><p class="lead">One of our estimators checks your rooms, systems and photos and fixes your price — usually by the next working day, and usually without a visit. If we do need to see it, we'll say so and offer times.</p></div>
+          <div class="go">›</div>
+        </div>
+        <div class="card door" onclick="go('handoff')">
+          <div class="ic">☎</div>
+          <div><h3>Book a site visit instead</h3><p class="lead">Prefer someone to walk it with you? Pick a time. We arrive with your answers already on the tablet.</p></div>
+          <div class="go">›</div>
+        </div>
+      </div>
+      <div id="finSmall" style="display:none">
+        <h2>Make it a fixed price</h2>
+        <div class="card door primary" onclick="toast('Price fixed at $4,860 — held 60 days','')">
+          <div class="ic">✓</div>
+          <div><h3>Fix my price online</h3><p class="lead">Everything's confirmed and the job is within what we fix without a visit. Your price becomes <b class="mono">$4,860</b> inc. GST, held for 60 days. Nothing to pay now.</p></div>
+          <div class="go">›</div>
+        </div>
+        <div class="card door" onclick="go('handoff')">
+          <div class="ic">☎</div>
+          <div><h3>Have a person check it first</h3><p class="lead">Happy either way. Send it over and we'll confirm it, or book a visit.</p></div>
+          <div class="go">›</div>
+        </div>
+      </div>
+      <label class="switch" id="qualSwitch" onclick="toggleQual()"><i></i> Prototype: show the version for a job that qualifies to fix online</label>
+
+      <h2>What you've told us</h2>
+      <ul class="list">
+        <li><span class="dot cyan"></span><span id="toldRooms">8 rooms, sizes confirmed</span><span class="ed">Change</span></li>
+        <li><span class="dot cyan"></span>Walls new colour · ceilings one coat · trims two coats enamel<span class="ed">Change</span></li>
+        <li><span class="dot cyan"></span>3 spots flagged with photos — a crack, a water mark, flaking<span class="ed">Change</span></li>
+        <li><span class="dot cyan"></span>Rooms cleared, carpet, 2.7 m ceilings, living in it<span class="ed">Change</span></li>
+        <li><span class="dot"></span>1 feature wall, colour to be chosen<span class="ed">Change</span></li>
+      </ul>
+      <p class="hint">Not in this range: access equipment hire, structural repairs, anything we can't see. Your painter walks the job with you on the last day — nothing is finished until you say so.</p>
+      <div class="phone"><a href="tel:0390000000">Call (03) 9000 0000</a> · Request a call back</div>
+    </div>
+    <div class="foot">
+      <div class="btns"><button class="btn ghost" onclick="go('tighten')">Back</button><button class="btn primary" onclick="openSheet('keep')">Keep this estimate</button></div>
+    </div>
+  </section>
+
+  <!-- ============ 11 HANDOFF ============ -->
+  <section class="screen" id="s-handoff" data-stage="finish">
+    <div class="body">
+      <p class="kicker">SENT TO YOUR ESTIMATOR</p>
+      <h1>Thanks — Sarah has it</h1>
+      <p class="sub">Your answers, photos and range are with your estimator. Here's what happens next.</p>
+      <ol class="steps">
+        <li><b>We check what you've told us</b><span>8 rooms, 3 flagged spots and your photos. Anything unclear, we'll message rather than guess.</span></li>
+        <li><b>We fix your price</b><span>Usually by the next working day. It arrives by email, with everything itemised.</span></li>
+        <li><b>If we need a look in person, we'll say so</b><span>Most jobs like this one don't. If yours does, pick a time below and we'll come out.</span></li>
+      </ol>
+      <h2>Prefer a visit anyway? <small>— pick a time</small></h2>
+      <div class="grid2">
+        <button class="slot" data-group="slot" data-val="a" onclick="sel(this)">Thu 10 Sep<small>10:00 – 10:45</small></button>
+        <button class="slot" data-group="slot" data-val="b" onclick="sel(this)">Thu 10 Sep<small>2:00 – 2:45</small></button>
+        <button class="slot" data-group="slot" data-val="c" onclick="sel(this)">Fri 11 Sep<small>8:30 – 9:15</small></button>
+        <button class="slot" data-group="slot" data-val="d" onclick="sel(this)">Sat 12 Sep<small>9:00 – 9:45</small></button>
+      </div>
+      <div class="card" style="margin-top:22px">
+        <h3>Your estimate is saved</h3>
+        <p class="lead">We've sent a link to <b>tom@example.com</b>. Use it to see the price, your photos and where things are up to — no password needed.</p>
+      </div>
+      <div class="phone">Something urgent? <a href="tel:0390000000">Call (03) 9000 0000</a></div>
+    </div>
+    <div class="foot">
+      <div class="btns"><button class="btn soft" onclick="go('map')">Back to the map</button></div>
+    </div>
+  </section>
+
+  <!-- ============ COMMERCIAL ============ -->
+  <section class="screen" id="s-commercial" data-stage="quick" data-step="2">
+    <div class="body">
+      <p class="kicker">ABOUT THE SPACE</p>
+      <h1>What kind of space?</h1>
+      <p class="sub">Small offices and shop fronts can be priced online. Larger or more involved sites go to a commercial estimator — you'll still get an account and a booking straight away.</p>
+      <div class="tiles two" data-group="seg">
+        <button class="tile" data-val="office" aria-pressed="true" onclick="sel(this)">Office</button>
+        <button class="tile" data-val="shop" onclick="sel(this)">Shop front</button>
+        <button class="tile" data-val="strata" onclick="sel(this)">Strata or common property</button>
+        <button class="tile" data-val="industrial" onclick="sel(this)">Industrial or warehouse</button>
+        <button class="tile" data-val="health" onclick="sel(this)">Healthcare or aged care</button>
+        <button class="tile" data-val="other" onclick="sel(this)">Something else</button>
+      </div>
+      <h2>Six quick questions <small>— a yes to any of these means a person prices it</small></h2>
+      <div class="qrow"><div class="q">Is any of the work higher than a person can safely reach from a ladder?</div><div class="yn" data-group="g1"><button data-val="y" class="warn" onclick="sel(this)">Yes</button><button data-val="n" aria-pressed="true" onclick="sel(this)">No</button></div></div>
+      <div class="qrow"><div class="q">Will we need a lift, scaffold or boom to reach it?</div><div class="yn" data-group="g2"><button data-val="y" class="warn" onclick="sel(this)">Yes</button><button data-val="n" aria-pressed="true" onclick="sel(this)">No</button></div></div>
+      <div class="qrow"><div class="q">Does the work need to happen outside normal hours?</div><div class="yn" data-group="g3"><button data-val="y" class="warn" onclick="sel(this)">Yes</button><button data-val="n" aria-pressed="true" onclick="sel(this)">No</button></div></div>
+      <div class="qrow"><div class="q">Will it be done in stages, or over more than one visit?</div><div class="yn" data-group="g4"><button data-val="y" class="warn" onclick="sel(this)">Yes</button><button data-val="n" aria-pressed="true" onclick="sel(this)">No</button></div></div>
+      <div class="qrow"><div class="q">Does the site need an induction, permit or security clearance?</div><div class="yn" data-group="g5"><button data-val="y" class="warn" onclick="sel(this)">Yes</button><button data-val="n" aria-pressed="true" onclick="sel(this)">No</button></div></div>
+      <div class="qrow"><div class="q">Is the decision made by a committee or owners corporation?</div><div class="yn" data-group="g6"><button data-val="y" class="warn" onclick="sel(this)">Yes</button><button data-val="n" aria-pressed="true" onclick="sel(this)">No</button></div></div>
+      <div class="note blue">Trade or property manager? <a href="#" onclick="go('trade');return false">Sign in to your trade account</a> — saved specs, address book and one-tap rebook.</div>
+    </div>
+    <div class="foot">
+      <div class="btns"><button class="btn ghost" onclick="back()">Back</button><button class="btn primary" onclick="commercialNext()">Continue</button></div>
+    </div>
+  </section>
+
+  <!-- ============ EXTERIOR QUICK LOOK ============ -->
+  <section class="screen" id="s-ext-job" data-stage="quick" data-step="2">
+    <div class="body">
+      <p class="kicker">OUTSIDE</p>
+      <h1>About the house</h1>
+      <p class="sub">Three answers seed the sides. Every outside price is confirmed by your estimator before it's fixed — but you'll see a guide range in a moment.</p>
+      <h2>Storeys</h2>
+      <div class="tiles two" data-group="estorey">
+        <button class="tile" data-val="1" aria-pressed="true" onclick="sel(this)">Single<small>Up to about 4 m</small></button>
+        <button class="tile" data-val="2" onclick="sel(this)">Double<small>Over 4 m — ladders and platforms</small></button>
+      </div>
+      <h2>What's it made of? <small>— tick everything</small></h2>
+      <div class="tiles" data-group="mat">
+        <button class="tile center" aria-pressed="true" onclick="tog(this)">Weatherboard</button>
+        <button class="tile center" onclick="tog(this)">Render</button>
+        <button class="tile center" onclick="tog(this)">Brick</button>
+        <button class="tile center" onclick="tog(this)">Cement sheet</button>
+        <button class="tile center" onclick="tog(this)">Colorbond</button>
+        <button class="tile center" onclick="tog(this)">Other</button>
+      </div>
+      <h2>Painting</h2>
+      <div class="tiles two">
+        <button class="tile" aria-pressed="true" onclick="tog(this)">The house<small>Walls, eaves, fascias, gutters, windows, doors</small></button>
+        <button class="tile" onclick="tog(this)">Fence</button>
+        <button class="tile" onclick="tog(this)">Deck or floor</button>
+        <button class="tile" onclick="tog(this)">Garage or shed</button>
+      </div>
+      <h2>How's the paintwork holding up?</h2>
+      <div class="tiles" data-group="econd">
+        <button class="tile center" data-val="good" onclick="sel(this)">Good</button>
+        <button class="tile center" data-val="weathered" aria-pressed="true" onclick="sel(this)">Weathered</button>
+        <button class="tile center" data-val="peeling" onclick="sel(this)">Peeling</button>
+      </div>
+      <h2>Anything tricky about getting to it?</h2>
+      <div class="pills">
+        <button class="pill" onclick="tog(this)">Steep block</button>
+        <button class="pill" onclick="tog(this)">Tight side access</button>
+        <button class="pill" onclick="tog(this)">Double-height entry</button>
+        <button class="pill" onclick="tog(this);toast('A person prices access equipment','estimator')">Needs a lift or scaffold</button>
+        <button class="pill" aria-pressed="true" onclick="tog(this)">Nothing tricky</button>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="btns"><button class="btn ghost" onclick="back()">Back</button><button class="btn primary" onclick="S.job='exterior';go('reveal')">See my guide range</button></div>
+    </div>
+  </section>
+
+  <!-- ============ EXTERIOR SIDES ============ -->
+  <section class="screen" id="s-ext-sides" data-stage="tighten">
+    <div class="body">
+      <div class="rangebar">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end">
+          <div><div class="lbl">YOUR RANGE · INCL. GST</div><div class="val">$14,200 – $19,600</div></div>
+          <div class="chip amber">0 OF 4 SIDES</div>
+        </div>
+        <div class="meter"><div class="on">GUIDE</div><div>DETAILED</div><div>CONFIRMED</div></div>
+      </div>
+      <h1>Walk around the house</h1>
+      <p class="sub">Tap a side to check its length, what it's made of and what's on it. Take a photo of each side as you go — it does most of the work.</p>
+      <div class="plan">
+        <div class="lab" style="top:14px;left:50%;transform:translateX(-50%)">BACK</div>
+        <div class="lab" style="left:14px;top:50%;transform:translateY(-50%)">LEFT</div>
+        <div class="lab" style="right:12px;top:50%;transform:translateY(-50%)">RIGHT</div>
+        <div class="lab" style="bottom:6px;left:50%;transform:translateX(-50%)">FRONT · STREET</div>
+        <div class="in"></div>
+        <div class="side ok" style="left:70px;right:70px;bottom:36px;height:10px" onclick="go('ext-side')"></div>
+        <div class="side" style="left:70px;right:70px;top:36px;height:10px" onclick="go('ext-side')"></div>
+        <div class="side" style="left:62px;top:36px;bottom:36px;width:10px" onclick="go('ext-side')"></div>
+        <div class="side" style="right:62px;top:36px;bottom:36px;width:10px" onclick="go('ext-side')"></div>
+        <div class="door"></div>
+      </div>
+      <p class="hint" style="text-align:center;margin-bottom:14px">Amber = we've assumed it · Blue = you've checked it · Dashed = not painting</p>
+      <div class="room ok" onclick="go('ext-side')"><div><div class="nm">Front</div><div class="meta"><span class="mono">12 × 2.6 m</span> · weatherboard · 3 windows, 1 door · photo added</div></div><div class="st"><span class="chip cyan">CHECKED</span></div><span class="arrow">›</span></div>
+      <div class="room" onclick="go('ext-side')"><div><div class="nm">Left side</div><div class="meta"><span class="mono">15 × 2.6 m</span> · weatherboard · 2 windows</div></div><div class="st"><span class="chip amber">ASSUMED</span></div><span class="arrow">›</span></div>
+      <div class="room" onclick="go('ext-side')"><div><div class="nm">Right side</div><div class="meta"><span class="mono">15 × 2.6 m</span> · weatherboard · 2 windows</div></div><div class="st"><span class="chip amber">ASSUMED</span></div><span class="arrow">›</span></div>
+      <div class="room" onclick="go('ext-side')"><div><div class="nm">Back</div><div class="meta"><span class="mono">12 × 2.6 m</span> · weatherboard · 2 windows, 1 door</div></div><div class="st"><span class="chip amber">ASSUMED</span></div><span class="arrow">›</span></div>
+      <h2>Then</h2>
+      <div class="card door"><div class="ic">▤</div><div><h3>How we'll paint each surface</h3><p class="lead">Wash down, scrape and sand, prime bare timber, two coats of exterior low-sheen.</p></div><div class="st" style="margin-left:auto"><span class="chip amber">CHECK</span></div></div>
+      <div class="card door"><div class="ic">⌗</div><div><h3>Access and the garden</h3><p class="lead">Ladders, plants to protect, where the ute goes.</p></div><div class="st" style="margin-left:auto"><span class="chip amber">CHECK</span></div></div>
+    </div>
+    <div class="foot">
+      <p class="line">Every outside price is confirmed by your estimator. Send it whenever — <b>1 of 4</b> sides checked.</p>
+      <div class="btns"><button class="btn ghost" onclick="go('reveal')">Back</button><button class="btn primary" onclick="go('handoff')">Finish and send</button></div>
+    </div>
+  </section>
+
+  <!-- ============ EXTERIOR SIDE ============ -->
+  <section class="screen" id="s-ext-side" data-stage="tighten">
+    <div class="body">
+      <div class="rangebar">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end">
+          <div><div class="lbl">YOUR RANGE · INCL. GST</div><div class="val">$14,200 – $19,600</div></div>
+          <div class="chip amber">ASSUMED</div>
+        </div>
+      </div>
+      <p class="kicker">SIDE 2 OF 4</p>
+      <h1>Left side <a style="font-size:12px;font-family:var(--mono);margin-left:8px" onclick="toast('Renamed to Courtyard','')">RENAME</a></h1>
+      <div class="card">
+        <div class="photo" onclick="toast('Photo added — we read the windows and condition from it','')"><span>📷</span><span><b>Stand back and photograph this side</b> — we read windows, doors and condition from it</span></div>
+      </div>
+      <h2>Are we painting this side?</h2>
+      <div class="pills" data-group="sidepaint"><button class="pill" data-val="yes" aria-pressed="true" onclick="sel(this)">Yes</button><button class="pill" data-val="no" onclick="sel(this)">No</button></div>
+      <h2>Size</h2>
+      <div class="card"><p style="margin:0 0 10px">About <b class="mono">15 m long × 2.6 m high</b> — sound right?</p><div class="pills" data-group="ssize"><button class="pill" data-val="ok" onclick="sel(this)">Looks right</button><button class="pill" data-val="adj" onclick="sel(this)">Adjust it</button></div></div>
+      <h2>What's the wall made of here?</h2>
+      <div class="qrow"><div class="q">Weatherboard</div><div class="yn"><button aria-pressed="true">100%</button><button>75%</button><button>50%</button></div></div>
+      <div class="qrow"><div class="q">Brick <small style="color:var(--muted)">— not painting</small></div><div class="yn"><button>Paint it</button></div></div>
+      <h2>Also on this side</h2>
+      <div class="surf">
+        <div class="tile" role="button" tabindex="0" aria-pressed="true" onclick="tog(this)">Windows<div class="ctr stepper"><button onclick="event.stopPropagation();step(this,-1)">−</button><span>2</span><button onclick="event.stopPropagation();step(this,1)">+</button></div></div>
+        <div class="tile" role="button" tabindex="0" onclick="tog(this)">Doors<div class="ctr stepper"><button onclick="event.stopPropagation();step(this,-1)">−</button><span>0</span><button onclick="event.stopPropagation();step(this,1)">+</button></div></div>
+        <button class="tile" aria-pressed="true" onclick="tog(this)">Eaves and fascia<span class="sys">15 m run</span></button>
+        <button class="tile" aria-pressed="true" onclick="tog(this)">Gutters and downpipes<span class="sys">15 m · 2 downpipes</span></button>
+      </div>
+      <h2>Condition on this side</h2>
+      <div class="pills" data-group="scond"><button class="pill" data-val="same" aria-pressed="true" onclick="sel(this)">Same as the rest — weathered</button><button class="pill" data-val="worse" onclick="sel(this)">Worse — peeling</button></div>
+      <div class="card" style="margin-top:12px"><h3 style="font-size:15px">Point out a spot <span class="chip" style="margin-left:6px">OPTIONAL</span></h3><div class="pills" style="margin-top:8px"><button class="pill" onclick="tog(this)">Rotten timber</button><button class="pill" onclick="tog(this)">Peeling</button><button class="pill" onclick="tog(this)">Cracked render</button><button class="pill" onclick="tog(this)">Rust</button><button class="pill" onclick="tog(this)">Mould</button></div></div>
+    </div>
+    <div class="foot">
+      <div class="btns"><button class="btn ghost" onclick="go('ext-sides')">Back</button><button class="btn primary" onclick="go('ext-sides');toast('Left side checked','−$380')">Confirm left side ✓</button></div>
+    </div>
+  </section>
+
+  <!-- ============ HARD STOP ============ -->
+  <section class="screen" id="s-stop" data-stage="quick">
+    <div class="body">
+      <p class="kicker">BEFORE WE GO ANY FURTHER</p>
+      <h1>Let's have someone look at this first</h1>
+      <p class="sub">Where there's a chance of asbestos sheeting, we don't put a number on it online — it needs a proper assessment, and that's a job for a person, not a form.</p>
+      <div class="card"><h3>What we'll do</h3><p class="lead">We'll call you within one working day to talk it through and arrange an assessment. Everything you've told us is saved, so you won't have to repeat it.</p></div>
+      <div class="grid2" style="margin-top:8px"><button class="slot" onclick="toast('Call back requested','')">Request a call back<small>Within one working day</small></button><button class="slot" onclick="toast('Calling…','')">Call now<small>(03) 9000 0000</small></button></div>
+    </div>
+    <div class="foot"><div class="btns"><button class="btn ghost" onclick="back()">Back</button><button class="btn primary" onclick="openSheet('keep')">Save and request a call</button></div></div>
+  </section>
+
+  <!-- ============ TRADE ============ -->
+  <section class="screen" id="s-trade" data-stage="trade">
+    <div class="body">
+      <p class="kicker">TRADE · NORTHCOTE PROPERTY CO</p>
+      <h1>New quote</h1>
+      <p class="sub">Start from a saved spec or a property you've used before. Prices show immediately on trade accounts.</p>
+      <h2>Saved specs</h2>
+      <div class="card door primary" onclick="go('trade-sheet')"><div class="ic">▤</div><div><h3>End-of-lease repaint</h3><p class="lead">Whole interior · walls and ceilings one coat · trims two coats · vacant · Level 3</p></div><div class="go">›</div></div>
+      <div class="card door" onclick="go('trade-sheet')"><div class="ic">▤</div><div><h3>Vacate touch-up</h3><p class="lead">Walls only · same colour · vacant · patch and one coat</p></div><div class="go">›</div></div>
+      <div class="card door" onclick="go('trade-sheet')"><div class="ic">▤</div><div><h3>Common area refresh</h3><p class="lead">Halls, stairwells, entry · two coats · after-hours flag</p></div><div class="go">›</div></div>
+      <h2>Your properties</h2>
+      <div class="room ok" onclick="go('trade-sheet')"><div><div class="nm">4/22 Elm Grove, Thornbury</div><div class="meta">2-bed unit · last painted Mar 2026 · colour register on file</div></div><div class="st"><span class="chip cyan">REBOOK</span></div><span class="arrow">›</span></div>
+      <div class="room ok" onclick="go('trade-sheet')"><div><div class="nm">9 Beavers Road, Northcote</div><div class="meta">3-bed house · last painted Nov 2025 · 2 jobs</div></div><div class="st"><span class="chip cyan">REBOOK</span></div><span class="arrow">›</span></div>
+      <div class="room ok" style="border-color:var(--line)"><div><div class="nm">Somewhere new</div><div class="meta">Type an address — we'll seed the rooms</div></div><span class="arrow">›</span></div>
+      <h2>Also on your account</h2>
+      <ul class="list">
+        <li><span class="dot cyan"></span>Ask the tenant for photos — a link they open on their phone, pinned to the property<span class="ed">Send</span></li>
+        <li><span class="dot cyan"></span>Colour register per property — the spec the next manager inherits<span class="ed">Open</span></li>
+        <li><span class="dot cyan"></span>Every job in one pipeline, monthly statements, terms on account<span class="ed">Open</span></li>
+      </ul>
+    </div>
+    <div class="foot"><div class="btns"><button class="btn ghost" onclick="go('map')">Map</button><button class="btn primary" onclick="go('trade-sheet')">Start from End-of-lease repaint</button></div></div>
+  </section>
+
+  <!-- ============ TRADE SHEET ============ -->
+  <section class="screen" id="s-trade-sheet" data-stage="trade">
+    <div class="body">
+      <div class="rangebar">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end">
+          <div><div class="lbl">4/22 ELM GROVE · END-OF-LEASE · INCL. GST</div><div class="val">$3,420 – $3,780</div></div>
+          <div class="chip cyan">±5%</div>
+        </div>
+      </div>
+      <h1>The spec sheet</h1>
+      <p class="sub">Every room, every surface, every coat on one screen. Tap a cell to change it. The range updates as you go.</p>
+      <table class="spec">
+        <thead><tr><th>Room</th><th>Size</th><th>Walls</th><th>Ceil.</th><th>Trims</th><th>Doors</th></tr></thead>
+        <tbody>
+          <tr><td>Bed 1</td><td class="n">3.5×3.2</td><td><span class="mono">1c</span></td><td><span class="mono">1c</span></td><td><span class="mono">2c</span></td><td class="n">1</td></tr>
+          <tr><td>Bed 2</td><td class="n">3.0×3.0</td><td><span class="mono">1c</span></td><td><span class="mono">1c</span></td><td><span class="mono">2c</span></td><td class="n">1</td></tr>
+          <tr><td>Living</td><td class="n">4.5×4.0</td><td><span class="mono">1c</span></td><td><span class="mono">1c</span></td><td><span class="mono">2c</span></td><td class="n">1</td></tr>
+          <tr><td>Kitchen</td><td class="n">3.5×3.0</td><td><span class="mono">1c</span></td><td><span class="mono">1c</span></td><td><span class="mono">2c</span></td><td class="n">—</td></tr>
+          <tr><td>Bathroom</td><td class="n">2.0×1.8</td><td><span class="mono">1c</span></td><td><span class="mono">1c</span></td><td><span class="mono">—</span></td><td class="n">1</td></tr>
+          <tr><td>Hall</td><td class="n">5.0×1.2</td><td><span class="mono">1c</span></td><td><span class="mono">1c</span></td><td><span class="mono">2c</span></td><td class="n">2</td></tr>
+        </tbody>
+      </table>
+      <h2>Condition</h2>
+      <div class="pills"><button class="pill" aria-pressed="true">Standard make-good</button><button class="pill">Heavy — tenant damage</button><button class="pill" onclick="toast('Link sent to tenant','')">Ask the tenant for photos</button></div>
+      <h2>Colours</h2>
+      <div class="card"><p class="lead"><b>From the register:</b> walls Dulux Natural White · ceilings Ceiling White · trims Vivid White. Same again?</p><div class="pills" style="margin-top:8px"><button class="pill" aria-pressed="true">Same again</button><button class="pill">Change</button></div></div>
+      <div class="note blue">Trade accounts see the range immediately, run the wizard as often as they like, and a person still confirms every price before work starts.</div>
+    </div>
+    <div class="foot">
+      <div class="btns"><button class="btn ghost" onclick="go('trade')">Back</button><button class="btn primary" onclick="toast('Sent — Sarah confirms by tomorrow','')">Send for confirmation</button></div>
+    </div>
+  </section>
+
+  <!-- ============ SHEETS ============ -->
+  <div class="sheetback" id="sheet-keep" onclick="if(event.target===this)closeSheet()">
+    <div class="sheet">
+      <h2 style="margin-top:0">Keep this estimate</h2>
+      <p class="sub" style="margin-bottom:14px">We'll email a link that opens your estimate — no password. Your price is held for 60 days.</p>
+      <input class="field" placeholder="Your email" style="margin-bottom:10px">
+      <input class="field" placeholder="Your name" style="margin-bottom:10px">
+      <input class="field" placeholder="Mobile (optional — for the visit only)" style="margin-bottom:14px">
+      <div class="btns"><button class="btn primary" onclick="closeSheet();toast('Link sent','check your inbox')">Send me the link</button></div>
+      <p class="hint" style="text-align:center">We'll only use this for your estimate. No newsletter.</p>
+    </div>
+  </div>
+  <div class="sheetback" id="sheet-extra" onclick="if(event.target===this)closeSheet()">
+    <div class="sheet">
+      <h2 style="margin-top:0">Anything we haven't listed</h2>
+      <div class="pills" style="margin-bottom:12px">
+        <button class="pill" onclick="tog(this)">Feature wall</button><button class="pill" onclick="tog(this)">Strip wallpaper</button><button class="pill" onclick="tog(this)">Mould treatment</button><button class="pill" onclick="tog(this)">Ceiling rose</button><button class="pill" onclick="tog(this)">Timber stain or varnish</button><button class="pill" onclick="tog(this)">Help choosing colours</button>
+      </div>
+      <textarea class="field" rows="3" placeholder="Or describe it — we'll price it, or a person will if it's unusual"></textarea>
+      <div class="btns" style="margin-top:12px"><button class="btn primary" onclick="closeSheet();document.getElementById('chipExtra').className='chip cyan';document.getElementById('chipExtra').textContent='ADDED';toast('Feature wall added','+$180')">Add to my estimate</button></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- ============ NOTES DRAWER ============ -->
+  <div class="drawer" id="drawer" onclick="if(event.target===this)closeNotes()">
+    <div class="sheet"><button class="close" onclick="closeNotes()">CLOSE</button><div id="noteBody"></div></div>
+  </div>
+</div>
+
+<script>
+// ---------- state ----------
+const S={job:'interior',kind:'house',beds:3,storeys:1,scope:'whole',colour:'new',cond:'wear',living:'yes',rooms:[],confirmed:0,sys:false,acc:false,qual:false};
+const HIST=[];
+function money(n){return '$'+(Math.round(n/10)*10).toLocaleString('en-AU')}
+
+function base(){
+  const b={1:3400,2:5600,3:8400,4:10600,5:12800}[S.beds]||8400;
+  let v=b*(S.storeys==2?1.35:1)
+   *({whole:1,some:.55,wallsceil:.7,trims:.45}[S.scope]||1)
+   *({same:.82,new:1,dark:1.18}[S.colour]||1)
+   *({good:.95,wear:1,work:1.16}[S.cond]||1)
+   *(S.living=='yes'?1.04:1);
+  if(S.job=='exterior')v=16900;
+  return v;
+}
+function band(){
+  const n=S.rooms.length||8;
+  let b=16-(S.confirmed/n)*8; // 16 → 8 with rooms
+  if(S.sys)b-=2; if(S.acc)b-=2;
+  return Math.max(4,b);
+}
+function range(){const v=base(),b=band()/100;return [v*(1-b),v*(1+b)]}
+function paintRange(){
+  const [lo,hi]=range();const t=money(lo)+' – '+money(hi);
+  document.querySelectorAll('.range-live').forEach(e=>{if(e.textContent!==t){e.textContent=t;e.classList.remove('bump');void e.offsetWidth;e.classList.add('bump')}});
+  const big=document.getElementById('bigval');if(big)big.textContent=t;
+  const n=S.rooms.length;
+  document.getElementById('progressChip').textContent=S.confirmed+' OF '+n+' ROOMS';
+  document.getElementById('progressChip').className='chip '+(S.confirmed==n&&n>0?'cyan':'amber');
+  document.getElementById('footProg').textContent=S.confirmed+' of '+n;
+  document.getElementById('finConf').textContent=S.confirmed+' of '+n+' rooms confirmed · ±'+Math.round(band())+'%';
+  const detailed=band()<=8;document.getElementById('finKick').textContent=detailed?'YOUR DETAILED RANGE':'YOUR GUIDE RANGE — SO FAR';
+  const mf=document.getElementById('meterF');mf.children[0].className=detailed?'was':'on';mf.children[1].className=detailed?'on':'';
+  const told=document.getElementById('toldRooms');if(told)told.textContent=S.confirmed+' of '+n+' rooms, sizes '+(S.confirmed==n?'confirmed':'checked so far');
+  const m=document.getElementById('meterT');const lvl=band()<=8?1:0;
+  m.children[0].className=lvl>0?'was':'on';m.children[1].className=lvl==1?'on':(lvl==2?'was':'');m.children[2].className=lvl==2?'on':'';
+  document.getElementById('chipSys').className='chip '+(S.sys?'cyan':'amber');document.getElementById('chipSys').textContent=S.sys?'CHECKED':'CHECK';
+  document.getElementById('chipAcc').className='chip '+(S.acc?'cyan':'amber');document.getElementById('chipAcc').textContent=S.acc?'CHECKED':'CHECK';
+}
+
+// ---------- rooms ----------
+const TYP={bed:[3.5,3.25],living:[4.5,4],kitchen:[4,3.5],bath:[2.2,1.8],ens:[2,1.6],laundry:[2,1.5],hall:[6,1.2],stair:[3,2.5],uphall:[4,1.2],wc:[1.5,1]};
+function seedRooms(){
+  const r=[];const b=+S.beds;
+  for(let i=1;i<=b;i++)r.push({n:'Bed '+i,t:'bed'});
+  r.push({n:'Living room',t:'living'},{n:'Kitchen / meals',t:'kitchen'},{n:'Bathroom',t:'bath'});
+  if(b>=3)r.push({n:'Ensuite',t:'ens'});
+  r.push({n:'Laundry',t:'laundry'},{n:'Hall and entry',t:'hall'});
+  if(S.storeys==2)r.push({n:'Stairwell',t:'stair'},{n:'Upstairs hall',t:'uphall'});
+  S.rooms=r.map(x=>({...x,ok:false,size:TYP[x.t]}));S.confirmed=0;
+}
+function surfSummary(){return {whole:'walls, ceiling, cornice, skirting, doors',some:'walls, ceiling, cornice, skirting, doors',wallsceil:'walls, ceiling, cornice',trims:'skirting, doors, frames'}[S.scope]}
+function renderRooms(){
+  const el=document.getElementById('roomList');el.innerHTML='';
+  S.rooms.forEach((r,i)=>{
+    const d=document.createElement('div');d.className='room'+(r.ok?' ok':'');d.onclick=()=>openRoom(i);
+    d.innerHTML=`<div><div class="nm">${r.n}</div><div class="meta"><span class="mono">${r.size[0]} × ${r.size[1]} m</span> · ${surfSummary()}${r.flag?' · <span style="color:var(--amber)">1 spot flagged</span>':''}</div></div><div class="st"><span class="chip ${r.ok?'cyan':'amber'}">${r.ok?'CONFIRMED':'ASSUMED'}</span></div><span class="arrow">›</span>`;
+    el.appendChild(d);
+  });
+  paintRange();
+}
+let cur=0;
+function openRoom(i){cur=i;const r=S.rooms[i];
+  document.getElementById('roomName').textContent=r.n;
+  document.getElementById('roomKick').textContent='ROOM '+(i+1)+' OF '+S.rooms.length;
+  document.getElementById('roomSize').textContent=r.size[0]+' × '+r.size[1]+' m';
+  document.getElementById('confirmRoomBtn').textContent='Confirm '+r.n+' ✓';
+  document.getElementById('roomChip').className='chip '+(r.ok?'cyan':'amber');document.getElementById('roomChip').textContent=r.ok?'CONFIRMED':'ASSUMED';
+  document.getElementById('sysWalls').textContent={same:'Same colour · one coat',new:'New colour · two coats',dark:'Undercoat · two coats'}[S.colour];
+  document.getElementById('thumbs').innerHTML='';
+  go('room');
+}
+function confirmRoom(){const r=S.rooms[cur];if(!r.ok){r.ok=true;S.confirmed++;}renderRooms();go('tighten');toast(r.n+' confirmed','range narrowed');}
+function confirmAll(){S.rooms.forEach(r=>r.ok=true);S.confirmed=S.rooms.length;renderRooms();toast('All rooms confirmed','now a detailed range')}
+function addRoom(){S.rooms.push({n:'Study',t:'bed',ok:false,size:[3,2.8]});renderRooms();toast('Study added','+$620')}
+function addFlag(){const t=document.getElementById('thumbs');const d=document.createElement('div');d.className='thumb';d.textContent='IMG';d.innerHTML='IMG<i>CRACK</i>';t.appendChild(d);S.rooms[cur].flag=true;toast('Spot flagged — priced as a repair line','+$95')}
+function step(btn,d){const s=btn.parentElement.querySelector('span');s.textContent=Math.max(0,+s.textContent+d)}
+
+// ---------- selection ----------
+function sel(el){const g=el.closest('[data-group]');if(g){g.querySelectorAll('[data-val]').forEach(b=>b.setAttribute('aria-pressed','false'));const k=g.dataset.group;if(k in S)S[k]=el.dataset.val;}
+  el.setAttribute('aria-pressed','true');
+  if(['kind','beds','storeys','scope','colour','cond','living'].includes(g?.dataset.group)){seedRooms();renderAssume();}
+  paintRange();}
+function tog(el){el.setAttribute('aria-pressed',el.getAttribute('aria-pressed')==='true'?'false':'true')}
+function show(id){document.getElementById(id).style.display='block'}
+function hide(id){document.getElementById(id).style.display='none'}
+
+// ---------- assume list ----------
+function renderAssume(){
+  const n=S.rooms.length;
+  const kind={house:'house',town:'townhouse',unit:'unit'}[S.kind]||'house';
+  document.getElementById('basis').textContent=`Based on a ${S.beds}-bedroom, ${S.storeys==2?'two-storey':'single-storey'} ${kind}, ${({whole:'the whole interior',some:'some rooms',wallsceil:'walls and ceilings',trims:'trims and doors'})[S.scope]}, ${({same:'the same colours',new:'new colours',dark:'a big colour change'})[S.colour]}, ${({good:'good condition',wear:'some wear',work:'in need of work'})[S.cond]}. If that's about right, this is about right.`;
+  const items=[
+    [`${n} rooms at typical sizes — ${S.rooms.slice(0,3).map(r=>r.n).join(', ')}…`,'tighten'],
+    [{same:'One coat on walls and ceilings, two on trims',new:'Two coats on walls, one on ceilings, two on trims',dark:'Undercoat plus two coats on walls, one on ceilings, two on trims'}[S.colour],'systems'],
+    [{good:'A light sand and clean — no filling allowed for',wear:'Filling small cracks and nail holes, light sand throughout',work:'Patching, sanding back and sealing — a person confirms the worst areas'}[S.cond],'tighten'],
+    ['Ground-floor access, rooms cleared, carpet, 2.7 m ceilings','access'],
+    [S.living=='yes'?'You\'re living there — we work room by room and pack down daily':'Vacant — one setup, no daily pack-down','access']
+  ];
+  document.getElementById('assumeList').innerHTML=items.map(([t,g])=>`<li onclick="go('${g}')" style="cursor:pointer"><span class="dot"></span><span>${t}</span><span class="ed">›</span></li>`).join('');
+}
+
+// ---------- nav ----------
+const ORDER={quick:4};
+function go(id,push=true){
+  const cur=document.querySelector('.screen.active');if(push&&cur&&cur.id!=='s-'+id)HIST.push(cur.id.slice(2));
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  const s=document.getElementById('s-'+id);s.classList.add('active');s.querySelector('.body').scrollTop=0;
+  // dots
+  const d=document.getElementById('dots');d.innerHTML='';
+  if(s.dataset.stage==='quick'){const st=+s.dataset.step||0;for(let i=1;i<=4;i++){const b=document.createElement('b');if(i<st)b.className='done';if(i===st)b.className='on';d.appendChild(b)}}
+  if(id==='reveal'){const w=document.getElementById('paintwrap');w.classList.remove('paint');void w.offsetWidth;w.classList.add('paint');renderAssume();
+    document.querySelector('#s-reveal .kicker').textContent=S.job==='exterior'?'YOUR GUIDE RANGE · OUTSIDE':'YOUR GUIDE RANGE';
+    document.querySelector('#s-reveal .door.primary').onclick=()=>go(S.job==='exterior'?'ext-sides':'tighten');}
+  if(id==='tighten')renderRooms();
+  paintRange();
+  window.scrollTo(0,0);
+}
+function back(){const p=HIST.pop();if(p)go(p,false);}
+function nextFromStart(){go(S.job==='exterior'?'ext-job':'place')}
+function commercialNext(){
+  const yes=[...document.querySelectorAll('#s-commercial .yn [data-val="y"][aria-pressed="true"]')].length;
+  if(yes>0){document.querySelector('#s-handoff h1').textContent='Thanks — Mark has it';go('handoff');toast('A commercial estimator prices this','')}
+  else{go('job');toast('Small office — priced online with a wider range','a person confirms before you accept')}
+}
+function toggleQual(){S.qual=!S.qual;document.getElementById('qualSwitch').classList.toggle('on',S.qual);document.getElementById('finBig').style.display=S.qual?'none':'block';document.getElementById('finSmall').style.display=S.qual?'block':'none';
+  if(S.qual){document.querySelectorAll('#s-finish .range-live')[0].textContent='$4,680 – $5,040';document.getElementById('finConf').textContent='6 of 6 rooms confirmed · ±4%'}else paintRange();}
+
+// ---------- sheets / toast ----------
+function openSheet(k){document.getElementById('sheet-'+k).classList.add('open')}
+function closeSheet(){document.querySelectorAll('.sheetback').forEach(s=>s.classList.remove('open'))}
+let tt;function toast(a,b){const t=document.getElementById('toast');t.innerHTML=a+(b?' &nbsp;<b>'+b+'</b>':'');t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2200)}
+
+// ---------- notes ----------
+const NOTES={
+map:`<div class="k">READ ME FIRST</div><h3>How to use this prototype</h3><p>Walk it on your phone as a customer would: address → four screens → guide range → then choose. The range is simulated but moves the way the real engine would, so you can feel the narrowing.</p><p>Every screen has a NOTES drawer like this one — the reasoning, what changed from today's build, and decisions flagged <span class="flag">⚑</span> for you.</p>`,
+start:`<div class="k">SCREEN 1 · WHAT CHANGED</div><h3>Address and job only</h3><p>Today's screen 1 asks address, job, property kind <em>and</em> makes the customer choose a route (describe / questions / floorplan) before they've seen anything. That fork is gone. Describe-it becomes the assistant's job; floorplan upload moves to the tighten stage where it's useful.</p><ul><li>Two inputs. Address is the primary action, as on the homepage v2 hero.</li><li>"Inside / Outside" not "Interior / Exterior" — plainer, tested better with older visitors.</li><li>The phone number is on every screen from here on.</li></ul><p class="flag">⚑ Removing the describe-it route from screen 1 — keep it behind the chat bubble, or keep it as a card?</p>`,
+place:`<div class="k">SCREEN 2</div><h3>Bedrooms and storeys, not a surfaces grid</h3><p>Three taps that the engine can turn into a room tree with typical sizes (per business-inputs.md). Bedrooms + storeys is how people describe their own house; nobody thinks in room counts.</p><p>Commercial hands off to the six gate questions from the commercial pricing strategy — before the customer invests any more time.</p><p class="flag">⚑ Do we ask bathrooms too, or infer 1 for ≤2 beds and 2 for 3+? Suggested: infer, let them add.</p>`,
+job:`<div class="k">SCREEN 3 · THE ACCURACY FIX</div><h3>Colour intent replaces "how many coats"</h3><p>Today the customer picks "1 / 2 / 3 coats" for the whole job. That's wrong twice: the customer can't judge it, and coats differ by surface. Now they say what they want (same colours / new colours / big change) and the engine derives coats and prep per surface group — walls, ceilings, trims, doors, windows. Screen 8 shows them the result in plain English to correct.</p><ul><li>Single coat is only reachable via "same colours" — closes the warranty risk in allowances spec §7.6.</li><li>"Going much lighter or bold" seeds an undercoat, not a third topcoat.</li></ul><p class="flag">⚑ The coat and prep derivation table in the plan is a painting judgement call — yours to set.</p>`,
+condition:`<div class="k">SCREEN 4</div><h3>One condition question, then spots with photos later</h3><p>Overall condition sets the prep band and the width of the range. Specific problems are captured per room in the tighten stage as flagged spots with photos, each of which becomes a prep line — so "needs work" no longer relies on a free-text box the engine can't price.</p><p>Living in it is asked here (not at the end) because it feeds the occupied-property allowance and it's a one-tap answer.</p>`,
+reveal:`<div class="k">SCREEN 5 · THE FORK</div><h3>The guide range, and three honest doors</h3><p>This is the screen the whole redesign exists for. Under a minute in, the customer has a number, a plain-English list of what we assumed (each line tappable), and three choices with no pressure: tighten it, book a person, or keep it.</p><ul><li>The roller reveal is the one motion moment in the flow.</li><li>Bronze / Silver / Gold becomes Guide / Detailed / Confirmed — the same three accuracy tiers, named for what they mean.</li><li>Email is asked <em>after</em> the number, as "keep this".</li></ul><p class="flag">⚑ Big one: email capture moves from before the price to after. Better conversion to contact, but the started-not-finished retarget only fires once they've asked to keep it. Your call — the alternative is a soft "email me a copy" bar under the range.</p><p class="flag">⚑ 60-day price hold is shown as a promise here — confirm it applies to guide ranges, not just saved estimates.</p>`,
+tighten:`<div class="k">SCREEN 6 · THE LADDER</div><h3>Four things, any order, stop any time</h3><p>Today's builder is nine amber cards plus checks, all looking equally urgent. Now there are exactly four rungs, matched to your five accuracy questions: rooms (what's painted, where + condition + extras), paint systems (coats), site and access, and anything missed. Each visibly narrows the range.</p><ul><li>Floorplan upload lives here, where it saves work.</li><li>The footer always offers "Finish and send" — the person picks up whatever's left.</li><li>Guide → Detailed flips automatically at ±8%.</li></ul>`,
+room:`<div class="k">SCREEN 7 · A ROOM</div><h3>Size, surfaces, condition, extras — in that order</h3><p>Each surface tile shows its paint system in small text ("New colour · two coats") so the customer sees what they're paying for without a separate step. Condition per room defaults to the whole-house answer; "worse" plus a photo creates a repair line and pins to that room for the painter and estimator.</p><p>Feature walls are counted here, per room, as their own colour — that's how they cost.</p><p class="flag">⚑ Should a flagged spot auto-price from defect_prep_rates, or always go to estimator review? Suggested: auto-price minor tags (crack, nail hole), review the rest.</p>`,
+systems:`<div class="k">SCREEN 8 · THE TRANSPARENCY MOMENT</div><h3>The derived paint systems, in the painter's words</h3><p>This screen doesn't exist today. It turns the engine's coat and prep decisions into five plain sentences the customer can correct — and it's the strongest trust move in the flow, because no competitor's quote says what they'll actually do.</p><p>The gloss-trims question is the one prep detail worth asking a homeowner: oil-based gloss under water-based enamel needs a bonding primer, and it's a common cause of blown estimates.</p><p class="flag">⚑ Is the gloss question worth the friction, or should it default to "not sure → estimator checks"?</p><p class="flag">⚑ Ceilings default: one coat white-over-white, or two coats always?</p>`,
+access:`<div class="k">SCREEN 9</div><h3>The questions the allowances spec asked for</h3><p>Cleared rooms, floors, parking and lift booking are the four modifiers in the allowances spec §4, plus ceiling height (moved here from the room cards), stairwell or void, asbestos and pets. Interior access was never asked today.</p><p>Asbestos "yes" is the hard stop — routed to a person with everything saved.</p>`,
+finish:`<div class="k">SCREEN 10 · FINISH LINE</div><h3>Detailed range, then fix it</h3><p>Two versions, chosen by the existing policy ladder (lib/wizard/policy.ts): jobs under the self-serve cap at ≥90% accuracy can fix their price online; everything else goes to <b>remote confirmation</b> — a person confirms from the answers and photos without a visit, and only books one if needed. Flip the switch to see both.</p><p>Remote confirmation is the mechanism behind "quote jobs without looking at them". It's a new estimator-console action, not a new customer path.</p><p class="flag">⚑ Should "fix online" lock the top of the range, the midpoint, or a computed point? Today the builder shows a range even at Gold.</p><p class="flag">⚑ Raise the $6,000 interior self-serve cap once remote confirmation has fifty jobs behind it?</p>`,
+handoff:`<div class="k">SCREEN 11</div><h3>The hand-off is a start, not a dead end</h3><p>Named estimator, three concrete steps, an optional booking, and the estimate already saved in the portal. This is the "appointment path done properly" from the commercial strategy, applied to everyone.</p><p class="flag">⚑ Turnaround promise — "next working day" is written here. Confirm what you can hold to.</p>`,
+commercial:`<div class="k">BRANCH · COMMERCIAL</div><h3>Segment, then the six gates</h3><p>Straight from the commercial pricing strategy: any yes routes to a commercial estimator before the customer measures anything. All no, and a small office or shop front prices online with a wider band and no self-acceptance in v1.</p><p>Trade accounts skip this entirely — they land on the spec sheet.</p>`,
+'ext-job':`<div class="k">BRANCH · OUTSIDE</div><h3>Five answers to an outside guide range</h3><p>Storeys, material, what's included, condition, access — the exterior engine can seed four sides from this. "Needs a lift or scaffold" flags for a person; the range still shows, with equipment excluded and said so.</p><p class="flag">⚑ Exterior allowances per elevation don't exist yet (allowances spec §8) — that's a separate spec before the exterior range is trusted.</p>`,
+'ext-sides':`<div class="k">BRANCH · SIDES</div><h3>Photograph each side — it does the work</h3><p>The plan-from-above stays; it's the best bit of today's exterior builder. The change is asking for one photo per side up front. Windows, doors, downpipes and condition can be read from it (assistant plan-reader), and the estimator confirms from photos rather than driving out.</p>`,
+'ext-side':`<div class="k">BRANCH · A SIDE</div><h3>Same shape as a room</h3><p>Photo, painting it or not, size, materials with a share of the wall, what's on it with metre runs, condition and flagged spots. The rename control stays.</p>`,
+stop:`<div class="k">BRANCH · HARD STOP</div><h3>No number, but not a dead end</h3><p>Asbestos or lead: no price shown, a person within a working day, everything saved. Same tone as the rest — plain, unhurried, phone number visible.</p><p class="flag">⚑ Three hard-stop scripts are already flagged for legal review — this copy joins that set.</p>`,
+trade:`<div class="k">TRADE PORTAL</div><h3>Speed and repetition are the product</h3><p>A property manager's problem is forty repaints a year, not one. So: saved specs as templates, an address book that seeds rooms, one-tap rebook from the last job tree, a tenant photo link, and the colour register per property. Prices show immediately; a person still confirms before work starts.</p><ul><li>Real estate agents: end-of-lease specs, speed, tenant photos.</li><li>Facilities managers: repeatable specs, after-hours flags, statements.</li><li>Insurers: scope matched to a claim, photos as evidence — later phase.</li></ul><p class="flag">⚑ Trade self-acceptance: never, or under a cap per account?</p>`,
+'trade-sheet':`<div class="k">TRADE · SPEC SHEET</div><h3>The same estimate tree, shown as a grid</h3><p>Rooms × surfaces × coats on one screen, editable cell by cell, range in the header. It is the room builder without the hand-holding — the same tree, the same engine, a denser view. Colours pull from the property's register by default.</p><p class="flag">⚑ Does a trade account ever run the guided flow, or always the sheet? Suggested: sheet by default, guided for a new address.</p>`
+};
+function openNotes(){const id=document.querySelector('.screen.active').id.slice(2);document.getElementById('noteBody').innerHTML=NOTES[id]||'<p>No notes for this screen.</p>';document.getElementById('drawer').classList.add('open')}
+function closeNotes(){document.getElementById('drawer').classList.remove('open')}
+
+// ---------- init ----------
+document.querySelectorAll('.rangebar').forEach(r=>r.closest('.body').classList.add('bar'));
+seedRooms();renderAssume();go('map');
+</script>
+</body>
+</html>

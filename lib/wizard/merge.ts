@@ -2,6 +2,10 @@ import type { DraftArea, DraftResult } from "@/lib/extract/draft";
 import { makeDraftSurface } from "@/lib/extract/draft";
 import { ARCHITRAVE_CODE, doorCodeFor, doorLineLabel, doorStyleOfCode, windowRateCode } from "@/lib/extract/scope";
 import { substrateKeyForRateCode } from "@/lib/estimate/substrates";
+import {
+  DEFAULT_PAINT_SYSTEMS, colourIntentFromTier, conditionBandFromDamageTier,
+  deriveSystem, groupForSubstrate, type PaintSystems, type SystemAnswers,
+} from "@/lib/pricing/systems";
 import { coatsFor, windowStyleLabel, windowStyleToSchema, type WizardState, type WizardSurfaceKey } from "./state";
 
 /**
@@ -10,7 +14,13 @@ import { coatsFor, windowStyleLabel, windowStyleToSchema, type WizardState, type
  * ways the answers justify:
  *
  *   - Page 2's ticks FILTER surfaces (untick ceilings, no ceiling lines).
- *   - Page 3's tier sets COATS (1 / 2 / 3 on the dark-to-light surfaces).
+ *   - Page 3's colour intent and the condition band DERIVE the coats, per
+ *     surface group (lib/pricing/systems.ts). Until 9 Sep 2026 the tier
+ *     stamped ONE coat count on every surface in the tree — new-colour walls
+ *     and a white-on-white ceiling both got two — which the estimator journey
+ *     v2 plan calls the single biggest accuracy gap (§2.2). Exterior
+ *     substrates keep the whole-job number: the per-elevation allowances
+ *     spec they would need does not exist yet (plan §4.4).
  *   - Page 4's "mostly" door/window styles RESOLVE the reader's deferred
  *     openings into priced lines — a floorplan cannot show a door style, but
  *     the person who lives there can. "Not sure" prices at the DEFAULT rate
@@ -76,12 +86,31 @@ export function applyWizardAnswers(
   draft: DraftResult,
   state: WizardState,
   nextId: () => number,
+  /** Tom's coat/prep table (Settings → Estimates → Paint systems). Defaulted
+   * so every caller that cannot reach the database still merges; the routes
+   * that CAN load settings pass the live row. */
+  systems: PaintSystems = DEFAULT_PAINT_SYSTEMS,
 ): DraftResult {
   const ticked = new Set<WizardSurfaceKey>(state.surfaces);
   const d2l = new Set<WizardSurfaceKey>(
     state.condition.tier === "dark_to_light" ? state.condition.darkToLightSurfaces : [],
   );
   const tier = state.condition.tier;
+  /**
+   * The two answers the customer can actually judge, plus the flags the
+   * paint-systems screen collects. `trimsOilBased` IS ⚑5's gloss question —
+   * one field, asked in one more place, never a second copy of the same
+   * question. null (never asked) reads as "not sure", which prices as "no"
+   * and routes the check to the estimator rather than guessing confidently.
+   */
+  const systemAnswers = (darkToLight: boolean): SystemAnswers => ({
+    colourIntent: colourIntentFromTier(tier),
+    condition: conditionBandFromDamageTier(state.details.damageTier),
+    glossTrims: state.paint.trimsOilBased ?? "unsure",
+    ceilingsMarked: state.condition.ceilingsMarked,
+    ceilingsChangingColour: state.condition.ceilingsChangingColour,
+    darkToLight,
+  });
 
   const areas: DraftArea[] = [];
   const skipped = [...draft.skipped];
@@ -191,7 +220,19 @@ export function applyWizardAnswers(
 
     for (const s of kept) {
       const key = surfaceKeyForRateCode(s.code);
-      s.coats = coatsFor(tier, key != null && d2l.has(key));
+      const darkToLight = key != null && d2l.has(key);
+      const group = groupForSubstrate(key);
+      if (group == null) {
+        // Exterior, staircase, or a code no substrate claims — the whole-job
+        // number, exactly as before (plan §4.4).
+        s.coats = coatsFor(tier, darkToLight);
+      } else {
+        const system = deriveSystem(group, systemAnswers(darkToLight), systems);
+        s.coats = system.coats;
+        if (system.crewNote !== "") {
+          s.crewNote = [s.crewNote, system.crewNote].filter(Boolean).join(" | ");
+        }
+      }
       if (state.paint.waterBasedOnly && state.paint.trimsOilBased === "yes" && key && TRIM_KEYS.includes(key)) {
         s.crewNote = [s.crewNote, "oil-based enamel underneath — adhesion prep before water-based topcoats"]
           .filter(Boolean).join(" | ");
