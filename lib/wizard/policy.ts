@@ -19,6 +19,8 @@
  *                   visit". Never for a job carrying requires_site_check.
  */
 
+import { routeCommercial, type CommercialSegment } from "./commercial";
+
 /** v2 (19 Aug 2026): supersedes v1's $7k/$15k/80–90 ladder. The $15k
  * always-walkthrough rule is DELETED — the per-jobtype caps replace it.
  * All four numbers are Settings values (wizard_policy). */
@@ -134,6 +136,8 @@ export function answersFromState(s: {
     postcode: string;
     propertyKind: "house" | "townhouse" | "unit_apartment" | "commercial";
     commercialKind?: CommercialKind | null;
+    commercialSegment?: CommercialSegment | null;
+    commercialGates?: Record<string, "yes" | "no"> | null;
     heritageListed: "yes" | "no" | "unsure";
     bodyCorporate: "yes" | "no" | "unsure";
     builtPre1970: "yes" | "no" | "unsure";
@@ -147,6 +151,8 @@ export function answersFromState(s: {
     jobType: s.jobType,
     propertyKind: s.customer?.propertyKind ?? "house",
     commercialKind: s.customer?.commercialKind ?? null,
+    commercialSegment: s.customer?.commercialSegment ?? null,
+    commercialGates: s.customer?.commercialGates ?? {},
     heritageListed: s.customer?.heritageListed ?? "no",
     bodyCorporate: s.customer?.bodyCorporate ?? "no",
     builtPre1970: s.customer?.builtPre1970 ?? "no",
@@ -170,6 +176,9 @@ export type GuardrailAnswers = {
   /** Only meaningful when propertyKind is commercial; null = never asked
    * (an older session, the assistant) — treated as "a person looks". */
   commercialKind?: CommercialKind | null;
+  /** Phase 7: the segment, and the routing gates. */
+  commercialSegment?: CommercialSegment | null;
+  commercialGates?: Record<string, "yes" | "no"> | null;
   heritageListed: "yes" | "no" | "unsure";
   bodyCorporate: "yes" | "no" | "unsure";
   builtPre1970: "yes" | "no" | "unsure";
@@ -247,7 +256,23 @@ export function evaluateGuardrails(
   // the visit tier); a large space or a strata / body-corporate building
   // is seen first. No answer (older session, the assistant) = a person.
   if (a.propertyKind === "commercial") {
-    if (a.commercialKind === "small_interior") reasons.push("commercial_small");
+    /**
+     * Phase 7 (commercial pricing strategy §"The routing gate"): when the
+     * segment question has been answered, the GATES decide — any single one
+     * sends the job to an appointment, with no scoring and no override.
+     *
+     * The older `commercialKind` answer (Tom, 8 Sep) is kept as the fallback
+     * for every session that predates the segment question, and for the
+     * assistant, which does not ask it. Two routes to the same decision is one
+     * too many, so the gates win wherever they exist.
+     */
+    if (a.commercialSegment != null) {
+      const routing = routeCommercial(a.commercialSegment, a.commercialGates ?? {});
+      if (!routing.canPriceOnline) {
+        reasons.push(...routing.tripped.map((t) => `commercial_gate_${t}`));
+        if (routing.tripped.length === 0) reasons.push("commercial_gates_unanswered");
+      }
+    } else if (a.commercialKind === "small_interior") reasons.push("commercial_small");
     else if (a.commercialKind === "large_interior") reasons.push("commercial_large");
     else if (a.commercialKind === "strata") reasons.push("commercial_strata");
     else reasons.push("commercial_property");
@@ -351,6 +376,23 @@ const WHY: Record<string, string> = {
   nothing_priced: "We couldn't read any rooms from what was uploaded, so there was nothing to price yet — the quick questions (three taps) work every time.",
   outside_service_area: "The address is outside the area we currently cover.",
   below_minimum: "The job is smaller than our minimum call-out, so we confirm the price directly.",
+  /**
+   * Phase 7 — the routing gates. The brief is explicit that a gate must SAY
+   * WHY: "we'll need to see it" with no reason reads as a brush-off, and a
+   * facilities manager who knows exactly why we're coming will trust us more
+   * for saying it. So every gate has its own line, in the customer's terms
+   * rather than the estimator's.
+   */
+  commercial_gate_healthcare: "Hospitals, aged care and medical rooms are priced on site — infection control, clearances and approvals shape the job more than the paint does.",
+  commercial_gate_strata: "Strata and common property is priced on site — the owners corporation's requirements and the common areas are confirmed by a person first.",
+  commercial_gate_height: "Some of this work is above safe ladder height, which changes both the method and the cost — so we look at it rather than guess.",
+  commercial_gate_equipment: "This one needs a lift, scaffold or boom. Hire is a real cost we quote rather than estimate, so a person sizes it up first.",
+  commercial_gate_hours: "Work outside normal hours is negotiated rather than calculated, so we talk it through before putting a number on it.",
+  commercial_gate_stages: "Coming back in stages carries setup cost a calculator can't see, so we plan it with you first.",
+  commercial_gate_compliance: "Site inductions, permits and paperwork take real time before a brush is lifted — a person confirms what's needed.",
+  commercial_gate_occupied: "Painting around people in use needs protection, staging and supervision that a home repaint doesn't, so we see it first.",
+  commercial_gate_committee: "Where a committee or building owner approves the work, we're quoting a process rather than a person — so we do it properly, in person.",
+  commercial_gates_unanswered: "We still need a few answers about the site before we can price it — one of our estimators will pick it up with you.",
 };
 
 export function guardrailWhy(reasons: string[]): string | null {

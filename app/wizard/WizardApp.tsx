@@ -34,6 +34,10 @@ import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
 import { RESUME_KEY, RESTART_KEY, decodeResume, encodeResume, restartedSince, resumeLine, type ResumeRecord, type SafetyAnswered } from "@/lib/wizard/resume";
 import Wordmark from "./Wordmark";
 import ChatWidget from "./ChatWidget";
+import {
+  ALWAYS_APPOINTMENT, COMMERCIAL_GATES, COMMERCIAL_SEGMENTS, SEGMENT_LABEL,
+  gateMessage, routeCommercial, type CommercialSegment,
+} from "@/lib/wizard/commercial";
 
 /**
  * W1: the five paginated pages, exactly per the workflow doc — Property →
@@ -914,7 +918,17 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     if (pageKey === "condition" && state.condition.tier === "dark_to_light" && state.condition.darkToLightSurfaces.length === 0) {
       return "Which surfaces are going dark to light?";
     }
-    if (pageKey === "property" && commercial && !state.customer?.commercialKind) return "What sort of commercial job is it? A few rooms, a larger space, or strata.";
+    /**
+     * Phase 7: the segment question is what a commercial job must answer now.
+     * The gates themselves are NOT gated here — an unanswered gate routes to a
+     * person (the ladder's job), and blocking the page on seven questions
+     * would lose the enquiry the brief explicitly says to capture: "capture
+     * everything they've already told you… don't throw it away because you
+     * can't price it."
+     */
+    if (pageKey === "property" && commercial && !state.customer?.commercialSegment && !state.customer?.commercialKind) {
+      return "What sort of place is it? Pick the closest one.";
+    }
     if (pageKey === "details" && isCustomer && !commercial && !answered.asbestos) return "Any chance of asbestos sheeting? Yes, no or not sure.";
     if (pageKey === "details" && isCustomer && !commercial && state.details.occupied == null) return "Will anyone be living there while we paint? Yes or no.";
     if (pageKey === "condition" && state.details.damageTier >= 2 && state.details.damagePhotoCount === 0) {
@@ -1318,22 +1332,38 @@ function PageProperty({
               not at the end. */}
           {state.customer.propertyKind === "commercial" && (
             <>
-              <p className="wz-qhead">What sort of commercial job is it?</p>
+              {/*
+                Phase 7 (commercial pricing strategy): the SEGMENT question.
+                One answer that selects the sector band, the substrate set and
+                which gates matter. It REPLACES the 8 Sep "what sort of job"
+                question for anyone answering it now; that answer stays in the
+                state and in the ladder as the fallback for every session that
+                predates this and for the assistant, which does not ask it.
+              */}
+              <p className="wz-qhead">What sort of place is it?</p>
               <Seg
-                options={[
-                  { v: "small_interior" as const, label: "A few rooms or offices" },
-                  { v: "large_interior" as const, label: "A larger space — whole floor, shop or warehouse" },
-                  { v: "strata" as const, label: "Strata / body corporate" },
-                ]}
-                value={state.customer.commercialKind ?? null}
-                onPick={(v) => set({ customer: { ...state.customer!, commercialKind: v } })}
+                options={COMMERCIAL_SEGMENTS.map((v) => ({ v, label: SEGMENT_LABEL[v] }))}
+                value={state.customer.commercialSegment ?? null}
+                onPick={(v) => set({ customer: { ...state.customer!, commercialSegment: v } })}
               />
-              {state.customer.commercialKind === "small_interior" && (
+              {state.customer.commercialSegment != null && (
+                <CommercialGates
+                  segment={state.customer.commercialSegment}
+                  answers={state.customer.commercialGates ?? {}}
+                  onAnswer={(key, value) => set({
+                    customer: {
+                      ...state.customer!,
+                      commercialGates: { ...(state.customer!.commercialGates ?? {}), [key]: value },
+                    },
+                  })}
+                />
+              )}
+              {state.customer.commercialSegment == null && state.customer.commercialKind === "small_interior" && (
                 <div className="wz-follow" data-testid="commercial-small-note">
                   <p className="wz-q">Good — a few rooms or offices price the same way a home does. Keep going and you&rsquo;ll see a figure; one of us confirms it on site before anything is booked.</p>
                 </div>
               )}
-              {(state.customer.commercialKind === "large_interior" || state.customer.commercialKind === "strata") && (
+              {state.customer.commercialSegment == null && (state.customer.commercialKind === "large_interior" || state.customer.commercialKind === "strata") && (
                 <div className="wz-follow" data-testid="commercial-visit-note">
                   <p className="wz-q">{state.customer.commercialKind === "strata"
                     ? "Strata and body-corporate work is priced on site — we\u2019ll need to see it."
@@ -2447,5 +2477,72 @@ function PageExteriorExtras({ state, set, stepsTotal, stepNo = 5, embedPaint = t
       </div>
       {embedPaint && <PagePaint state={state} set={set} embedded stepsTotal={stepsTotal} />}
     </>
+  );
+}
+
+
+/**
+ * Phase 7 — the routing gates (commercial pricing strategy, "The routing gate").
+ *
+ * Seven plain questions. Any single "yes" sends the job to an appointment, and
+ * the customer is told SO, and told why: "we'll need to see it" with no reason
+ * reads as a brush-off, and a facilities manager who knows exactly why we are
+ * coming will trust us more for saying it.
+ *
+ * Healthcare and strata never see the questions at all — asking a customer to
+ * self-declare infection control or an owners corporation is asking them to
+ * talk us out of visiting.
+ */
+function CommercialGates({ segment, answers, onAnswer }: {
+  segment: CommercialSegment;
+  answers: Record<string, "yes" | "no">;
+  onAnswer: (key: string, value: "yes" | "no") => void;
+}) {
+  const routing = routeCommercial(segment, answers);
+  if (ALWAYS_APPOINTMENT.has(segment)) {
+    return (
+      <div className="wz-follow" data-testid="commercial-segment-stop">
+        <p className="wz-q">{routing.reasons[0]}.</p>
+        <p style={{ fontSize: 13.5, color: "var(--muted)", margin: 0 }}>
+          Tell us the basics and how to reach you, and we&rsquo;ll book a time to come and look.
+          No figure is shown online for this one.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="wz-follow" data-testid="commercial-gates">
+      <p className="wz-q">A few things about the site — they decide whether we can price it from here.</p>
+      {COMMERCIAL_GATES.map((g) => (
+        <div className="wz-qrow" key={g.key} data-testid={`gate-${g.key}`}>
+          <div className="wz-qtext">
+            {g.question}
+            <span className="wz-qhint">{g.hint}</span>
+          </div>
+          <div className="wz-chips">
+            {(["no", "yes"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                className={`wz-chip ${answers[g.key] === v ? "on" : ""}`}
+                aria-pressed={answers[g.key] === v}
+                data-testid={`gate-${g.key}-${v}`}
+                onClick={() => onAnswer(g.key, v)}
+              >{v === "yes" ? "Yes" : "No"}</button>
+            ))}
+          </div>
+        </div>
+      ))}
+      {!routing.canPriceOnline && (
+        <p className="wz-q" style={{ marginTop: 12 }} data-testid="commercial-gate-message">
+          {gateMessage(routing)}
+        </p>
+      )}
+      {routing.canPriceOnline && (
+        <p className="wz-q" style={{ marginTop: 12 }} data-testid="commercial-gate-ok">
+          Nothing there stops us pricing it online. Keep going — one of us still confirms it before anything is booked.
+        </p>
+      )}
+    </div>
   );
 }

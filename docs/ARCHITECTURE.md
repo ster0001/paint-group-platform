@@ -2845,3 +2845,44 @@ the "one source of truth for every list and badge" rule doing its job.
 - `wizardStateSchema` refuses a state that neither uploaded a plan nor took the quick basics, so
   a seeded snapshot has to look like a real run. The page's polite "wasn't built in the wizard"
   holding is the correct response to one that does not.
+
+## Estimator journey v2 · Phase 7a — commercial segment and routing gates (9 Sep 2026)
+
+Branch `feat/paint-systems-screen`. **No migration, and no pricing.** Plan §9.7;
+`docs/briefs/commercial-pricing-strategy.md`.
+
+That brief's own sequencing, kept: **"First — routing, no pricing."** `lib/wizard/commercial.ts`
+decides who gets seen and captures why; it touches the pricing engine nowhere and contains no
+dollar figure. The sector bands and per-segment caps are a later step and need `commercial_rates`
+data this repository does not have.
+
+**The segment question** replaces the 8 Sep "what sort of commercial job" for anyone answering it
+now: office · hospital/aged care/medical · strata · industrial · shop front · other. One answer
+that selects the sector band, the substrate set and which gates matter.
+
+**The gates.** Seven yes/no questions; **any single one sends the job to an appointment — no
+scoring, no override.** A gate is not a risk weight to balance against a good lead; it is a
+statement that we cannot price this from a form. The brief's principle: *price online where the
+variables are bounded, and refuse to guess where they aren't.*
+
+- **Two segments trip before a question is asked.** Healthcare is the brief's regulated-environment
+  gate and strata its owners-corporation gate; asking a customer to self-declare either is asking
+  them to talk us out of visiting.
+- **An unanswered gate is never a "no."** A blank is the least bounded answer there is, so an
+  incomplete set cannot price online — but it is not "tripped" either, and says so differently
+  ("some of the site questions aren't answered yet" vs "we'll need to see this one").
+- **The page is not blocked on the gates**, only on the segment. The brief says capture everything
+  they have already told you and don't throw it away because you can't price it.
+- The 8 Sep `commercialKind` answer stays as the fallback for every session that predates the
+  segment question and for the assistant, which does not ask it. Two routes to one decision is one
+  too many, so the gates win wherever they exist.
+
+**A gap the e2e caught.** The gates routed correctly but `guardrailWhy` had no wording for the new
+reason codes, so the customer got the generic handoff line. The brief is explicit that a gate must
+SAY WHY — "we'll need to see it" with no reason reads as a brush-off, and a facilities manager who
+knows exactly why we are coming will trust us more for saying it. Every gate now has its own line,
+and a unit test asserts a WHY exists for every code the ladder can raise.
+
+**Still blocked: the exterior quick look**, §9.7's other half. It needs the per-elevation
+allowances spec (§4.4, §8), which is not in the repository — the same gap that has held exterior
+work out of phases 3, 4 and 5.

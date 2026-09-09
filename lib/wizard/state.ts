@@ -58,6 +58,20 @@ const customerSchema = z.object({
    * body-corporate building is seen by a person first. Optional so every
    * stored state still parses; a commercial job with no answer hands off. */
   commercialKind: z.enum(["small_interior", "large_interior", "strata"]).optional(),
+  /**
+   * Phase 7 (commercial pricing strategy): the SEGMENT question. One answer
+   * that selects the sector band, the substrate set and which gates to ask.
+   * Optional so every stored state still parses; absent = a person, which is
+   * where a commercial enquiry has always gone.
+   */
+  commercialSegment: z.enum(["office", "healthcare", "strata", "industrial", "shopfront", "other"]).optional(),
+  /**
+   * The routing gates, `{ height: "yes" | "no" }`. Any one "yes" sends the job
+   * to an appointment — no scoring, no override (the brief's rule). An
+   * UNANSWERED gate is not a "no": a blank is the least bounded answer there
+   * is, and the whole point of the gate is refusing to guess.
+   */
+  commercialGates: z.record(z.string().max(30), z.enum(["yes", "no"])).default({}),
   heritageListed: z.enum(["yes", "no", "unsure"]),
   bodyCorporate: z.enum(["yes", "no", "unsure"]),
   builtPre1970: z.enum(["yes", "no", "unsure"]),
@@ -390,7 +404,7 @@ export type WizardCustomer = z.infer<typeof customerSchema>;
 export function defaultCustomer(): WizardCustomer {
   return {
     email: "", suburb: "", postcode: "",
-    propertyKind: "house", heritageListed: "unsure", bodyCorporate: "no",
+    propertyKind: "house", commercialGates: {}, heritageListed: "unsure", bodyCorporate: "no",
     builtPre1970: "unsure", asbestosSuspected: "no",
   };
 }

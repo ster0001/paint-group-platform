@@ -41,7 +41,7 @@ function state(jobType: WizardState["jobType"], over: Partial<WizardState> = {})
   return {
     mode: "customer", jobType, title: "", listingUrl: "", planRunIds: [], facadeRunIds: [], conditionSourceIds: [], noPlan: true,
     address: { street: "1 Test St", suburb: "Kew", state: "VIC", postcode: "3101", formatted: "1 Test St, Kew VIC 3101" },
-    customer: { email: "tester@example.com", suburb: "Kew", postcode: "3101", propertyKind: "house", heritageListed: "no", bodyCorporate: "no", builtPre1970: "no", asbestosSuspected: "no" },
+    customer: { email: "tester@example.com", suburb: "Kew", postcode: "3101", propertyKind: "house", commercialGates: {}, heritageListed: "no", bodyCorporate: "no", builtPre1970: "no", asbestosSuspected: "no" },
     basics: { bedrooms: 3, storeys: "single", sizeBand: "s120_200", openPlanKitchenLiving: false },
     surfaces: ["walls", "ceilings", "doors", "windows"],
     condition: { tier: "change", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, surfaceFlags: {} },

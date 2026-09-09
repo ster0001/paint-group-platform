@@ -225,6 +225,7 @@ describe("guardrails — floor and walkthrough policy", () => {
 
 // ---- audit-fix pins (19 Aug) ------------------------------------------------
 import { GUARDRAIL_MESSAGES as MSGS } from "./policy";
+import { COMMERCIAL_GATES } from "./commercial";
 
 it("a zero total is 'nothing priced' -> handoff, never below_floor", () => {
   const d = evaluateGuardrails(clean(), 0, 90, false);
@@ -239,4 +240,65 @@ it("a null postcode (internal mode) skips the service-area check; an empty custo
   expect(internal.outcome).toBe("reveal");
   const customerBlank = evaluateGuardrails({ ...clean(), postcode: "" }, 500_000, 90, false, undefined, configured);
   expect(customerBlank.outcome).toBe("outside_area");
+});
+
+describe("commercial routing gates (phase 7)", () => {
+  const allNo = Object.fromEntries(COMMERCIAL_GATES.map((g) => [g.key, "no" as const]));
+  const commercial = (over: Partial<GuardrailAnswers> = {}): GuardrailAnswers => ({
+    jobType: "interior", propertyKind: "commercial",
+    heritageListed: "no", bodyCorporate: "no", builtPre1970: "no", asbestosSuspected: "no",
+    damageTier: 1, postcode: null, ...over,
+  });
+
+  it("lets a clean office through the handoff step", () => {
+    const d = evaluateGuardrails(
+      commercial({ commercialSegment: "office", commercialGates: allNo }),
+      500_000, 95, false, DEFAULT_POLICY, [],
+    );
+    expect(d.outcome).toBe("reveal");
+  });
+
+  it("hands off on a single tripped gate", () => {
+    const d = evaluateGuardrails(
+      commercial({ commercialSegment: "office", commercialGates: { ...allNo, equipment: "yes" } }),
+      500_000, 95, false, DEFAULT_POLICY, [],
+    );
+    expect(d.outcome).toBe("handoff");
+    expect(d.reasons).toContain("commercial_gate_equipment");
+  });
+
+  it("hands off while a gate is unanswered", () => {
+    const { hours: _h, ...rest } = allNo;
+    const d = evaluateGuardrails(
+      commercial({ commercialSegment: "office", commercialGates: rest }),
+      500_000, 95, false, DEFAULT_POLICY, [],
+    );
+    expect(d.outcome).toBe("handoff");
+    expect(d.reasons).toContain("commercial_gates_unanswered");
+  });
+
+  it("hands off healthcare and strata before any gate is asked", () => {
+    for (const seg of ["healthcare", "strata"] as const) {
+      const d = evaluateGuardrails(
+        commercial({ commercialSegment: seg, commercialGates: allNo }),
+        500_000, 95, false, DEFAULT_POLICY, [],
+      );
+      expect(d.outcome, seg).toBe("handoff");
+      expect(d.reasons, seg).toContain(`commercial_gate_${seg}`);
+    }
+  });
+
+  /**
+   * Two routes to the same decision is one too many. Every session that
+   * predates the segment question, and the assistant (which does not ask it),
+   * keeps the 8 Sep commercialKind behaviour exactly.
+   */
+  it("falls back to commercialKind when no segment was asked", () => {
+    const small = evaluateGuardrails(
+      commercial({ commercialKind: "small_interior" }), 500_000, 95, false, DEFAULT_POLICY, [],
+    );
+    expect(small.reasons).toContain("commercial_small");
+    const none = evaluateGuardrails(commercial(), 500_000, 95, false, DEFAULT_POLICY, []);
+    expect(none.reasons).toContain("commercial_property");
+  });
 });
