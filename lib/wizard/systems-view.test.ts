@@ -183,3 +183,62 @@ describe("the shared answers reader", () => {
     expect(a.glossTrims).toBe("unsure");
   });
 });
+
+describe("per-surface flags on the card (Tom, 9 Sep)", () => {
+  it("offers each group only the flags that apply to it", () => {
+    const lines = paintSystemsView(state(), tree());
+    const labels = (g: string) => lines.find((l) => l.group === g)!.flagChips.map((c) => c.label);
+    expect(labels("doors")).toContain("They're stained");
+    expect(labels("doors")).toContain("Bare or raw timber");
+    expect(labels("walls")).toContain("New plaster");
+    expect(labels("walls")).not.toContain("Bare or raw timber");
+  });
+
+  it("never offers the marked-ceiling flag twice", () => {
+    const ceilings = paintSystemsView(state(), tree()).find((l) => l.group === "ceilings")!;
+    // It lives in `chips` (⚑3's own stored field); the flag list must not repeat it.
+    expect(ceilings.chips.some((c) => c.label === "They're marked — two coats")).toBe(true);
+    expect(ceilings.flagChips.some((c) => c.label === "They're marked")).toBe(false);
+  });
+
+  it("shows a flag as on once it is set, and offers to take it off", () => {
+    const s = state();
+    s.condition.surfaceFlags = { doors: ["stained"] };
+    const doors = paintSystemsView(s, tree()).find((l) => l.group === "doors")!;
+    const chip = doors.flagChips.find((c) => c.label === "They're stained")!;
+    expect(chip.on).toBe(true);
+    expect(chip.patch).toEqual({ field: "surfaceFlag", group: "doors", flag: "stained", value: false });
+    expect(doors.coats).toBe(3);
+  });
+
+  it("adds and removes a flag, and forgets the group when its last one goes", () => {
+    const added = applySystemPatch(state(), { field: "surfaceFlag", group: "doors", flag: "stained", value: true });
+    expect(added.condition.surfaceFlags).toEqual({ doors: ["stained"] });
+
+    const s = state();
+    s.condition.surfaceFlags = { doors: ["stained"] };
+    const removed = applySystemPatch(s, { field: "surfaceFlag", group: "doors", flag: "stained", value: false });
+    // Absent, not an empty array: absence reads as "not asked", [] as "none".
+    expect(removed.condition.surfaceFlags).toEqual({});
+  });
+
+  it("keeps other groups' flags when one group changes", () => {
+    const s = state();
+    s.condition.surfaceFlags = { walls: ["new_plaster"] };
+    const out = applySystemPatch(s, { field: "surfaceFlag", group: "doors", flag: "stained", value: true });
+    expect(out.condition.surfaceFlags).toEqual({ walls: ["new_plaster"], doors: ["stained"] });
+  });
+
+  it("re-derives only the flagged group in the tree", () => {
+    const s = state({ condition: { ...defaultWizardState().condition, tier: "fresh" } });
+    s.condition.surfaceFlags = { doors: ["stained"] };
+    const out = applyPaintSystems(tree(), s);
+    const living = out.find((b) => b.name === "Living")!;
+    const coats = (code: string) => living.surfaces!.find((x) => x.code === code)!.coats;
+    expect(coats("Flat Door and Frame (1 Side)")).toBe(3);
+    expect(coats("Walls")).toBe(1);
+    expect(coats("Skirting Boards")).toBe(2);
+    expect(living.surfaces!.find((x) => x.code === "Flat Door and Frame (1 Side)")!.crewNote)
+      .toContain("stain-blocking primer");
+  });
+});

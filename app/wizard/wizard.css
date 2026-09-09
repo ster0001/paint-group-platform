@@ -687,3 +687,4 @@
 .wz .sc-systems .sc-sys-say { margin: 4px 0 0; font-size: 14.5px; line-height: 1.45; color: var(--wz-text, #EDF0F2); }
 .wz .sc-systems .sc-sys-why { margin: 6px 0 0; font-size: 13px; color: var(--wz-muted, #8C959D); }
 .wz .sc-systems .il-q + .il-q { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--wz-line, #242B32); }
+.wz .sc-systems .sc-sys-flags { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--wz-line, #242B32); }

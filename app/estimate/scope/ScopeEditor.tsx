@@ -708,6 +708,39 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     ))}
                   </div>
                 )}
+                {/*
+                  Tom, 9 Sep: "what if the doors need 3 coats because they're
+                  all stained, but the rest are 2?" — the customer says what is
+                  THERE on this surface and the engine derives the coats. Never
+                  a coat picker: a picked coat count would walk straight past
+                  the coverage rule and tell the painter nothing.
+                */}
+                {line.flagChips.length > 0 && (
+                  <div className="sc-sys-flags">
+                    <p className="sc-sys-why" style={{ marginBottom: 6 }}>
+                      Anything different about {line.group === "walls" ? "the walls" : line.title.toLowerCase()}?
+                    </p>
+                    <div className="sc-chips">
+                      {line.flagChips.map((chip) => (
+                        <button
+                          key={chip.patch.field === "surfaceFlag" ? chip.patch.flag : chip.label}
+                          type="button"
+                          className={`sd-chip il-chip ${chip.on ? "on" : ""}`}
+                          aria-pressed={chip.on}
+                          data-testid={`system-flag-${line.group}-${chip.patch.field === "surfaceFlag" ? chip.patch.flag : ""}`}
+                          onClick={() => chip.patch.field === "surfaceFlag" && act(
+                            {
+                              action: "set_paint_system", field: "surfaceFlag",
+                              group: chip.patch.group, flag: chip.patch.flag, value: chip.patch.value,
+                            },
+                            `sysflag:${line.group}:${chip.patch.flag}`,
+                            () => chip.said,
+                          )}
+                        >{chip.label}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {line.review && (
                   <p className="sc-sys-why" data-testid={`system-review-${line.group}`}>
                     We&rsquo;ll check this one ourselves before your price is fixed.

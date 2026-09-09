@@ -128,6 +128,22 @@ export const wizardStateShapeSchema = z.object({
      * apart from `tier` because white-on-white is not a colour change, and
      * that distinction is what lets ⚑3's single coat past the coverage rule. */
     ceilingsChangingColour: z.boolean().default(false),
+    /**
+     * Per-surface condition flags (Tom, 9 Sep: "what if the doors need 3
+     * coats because they're all stained, but the rest are 2?").
+     *
+     * `{ doors: ["stained"], walls: ["new_plaster"] }` — the customer says
+     * what is THERE, per surface group, and the engine derives the coats
+     * (lib/pricing/systems.ts). Deliberately not a coat count per group: the
+     * customer never picks coats, a picked "1" over a colour change is a
+     * warranty claim, and a number tells the painter nothing that "they're
+     * stained" doesn't tell them better.
+     *
+     * Keys are validated against the Settings catalogue at derivation time,
+     * not here — Tom can add a flag without a migration, and a key that no
+     * longer exists simply stops applying.
+     */
+    surfaceFlags: z.record(z.string().max(40), z.array(z.string().max(40)).max(8)).default({}),
   }),
 
   details: z.object({
@@ -372,7 +388,7 @@ export function defaultWizardState(): WizardState {
     noPlan: false,
     basics: null,
     surfaces: [...DEFAULT_SURFACES],
-    condition: { tier: "change", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false },
+    condition: { tier: "change", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, surfaceFlags: {} },
     details: {
       doorStyle: "unsure",
       doorScope: "frame",

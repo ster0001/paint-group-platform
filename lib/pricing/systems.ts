@@ -142,6 +142,109 @@ export type SystemRule = {
   sentence: string;
 };
 
+/**
+ * What a marked ceiling actually gets. Kept beside the table rather than in
+ * it: it is the ⚑3 branch's sentence, not a fourth colour-intent column, and
+ * it has to move whenever `ceilingsMarkedCoats` lifts the coats.
+ */
+export const MARKED_CEILINGS_SENTENCE =
+  "White again, over the marks. We block the water marks and stains first so they can't ghost through, then two coats of flat ceiling white.";
+
+/**
+ * A PER-SURFACE condition flag (Tom, 9 Sep: "what if the doors need 3 coats
+ * because they're all stained, but the rest are 2?").
+ *
+ * The gap this closes: every correction on the systems card was either
+ * job-wide (colour intent) or a single yes/no (marked ceilings, gloss trims).
+ * A customer could not say that one surface GROUP needs more work than the
+ * rest — which is one of the commonest things they actually know.
+ *
+ * The fix is deliberately NOT a coat picker per group. Three reasons, and
+ * they are the same three that put the derivation here in the first place:
+ *
+ *   1. Plan §4.2 — the customer never picks coats. They describe what is
+ *      there; we work out what it takes. A flag is a description.
+ *   2. A customer who picks "1" over a colour change has bought a warranty
+ *      claim, not a saving (§7.6). A flag cannot reach past the coverage
+ *      guard; a number would try to.
+ *   3. A number tells the painter nothing. "They're stained" tells them to
+ *      stain-block, rides to the work order as a crew note, and tells the
+ *      estimator whether the price is right.
+ *
+ * Each flag names the groups it can apply to and what it does to the system:
+ * a floor on the coats, a ceiling on them, whether one of those coats is a
+ * primer, and the words the customer and the painter each read.
+ */
+export type SurfaceFlagRule = {
+  key: string;
+  /** What the customer taps — "They're stained". */
+  label: string;
+  /** The groups that offer it. A flag set on any other group is ignored. */
+  groups: SystemGroup[];
+  /** Floor on the derived coats (a stained door needs a blocking primer + 2). */
+  minCoats?: number;
+  /** Cap on them — only reachable where the surface is not changing colour. */
+  maxCoats?: number;
+  /** True when the extra coat is a primer/sealer rather than a topcoat. */
+  undercoat?: boolean;
+  /** Replaces the cell's sentence, which was written for the plain system. */
+  sentence: string;
+  /** Rides to the work order. */
+  crewNote: string;
+  /** The half-sentence after "Because…" on the card. */
+  reason: string;
+  /** True when a person should still look at it. */
+  review?: boolean;
+};
+
+/**
+ * The starting catalogue. Settings-editable like everything else here (⚑2).
+ *
+ * `marked` is ⚑3's "they're marked" tap, expressed as a flag rather than as a
+ * branch of its own — one mechanism, so the ceilings card and the doors card
+ * cannot drift apart. `ceilingsMarkedCoats` still owns its number.
+ */
+export const DEFAULT_SURFACE_FLAGS: SurfaceFlagRule[] = [
+  {
+    key: "marked", label: "They're marked", groups: ["ceilings"],
+    // minCoats comes from ceilingsMarkedCoats at derivation time (⚑3's number).
+    sentence: MARKED_CEILINGS_SENTENCE,
+    crewNote: "ceilings marked — stain-block the water marks before the topcoats",
+    reason: "the ceilings are marked or already coloured",
+  },
+  {
+    key: "stained", label: "They're stained", groups: ["walls", "ceilings", "trims", "doors"],
+    minCoats: 3, undercoat: true,
+    sentence: "Stained. We seal the stains with a blocking primer so they can't ghost through, then two full coats.",
+    crewNote: "stained — stain-blocking primer before the topcoats, or the stain returns",
+    reason: "they're stained and need sealing first",
+  },
+  {
+    key: "bare_timber", label: "Bare or raw timber", groups: ["trims", "doors", "windows"],
+    minCoats: 3, undercoat: true,
+    sentence: "Bare timber. Sand, then a timber primer to seal it, then two coats of enamel.",
+    crewNote: "bare timber — primer before the topcoats",
+    reason: "bare timber has to be primed before it will hold paint",
+  },
+  {
+    key: "new_plaster", label: "New plaster", groups: ["walls", "ceilings"],
+    minCoats: 3, undercoat: true,
+    sentence: "New plaster. A sealer coat first so the plaster stops drinking the paint, then two full coats.",
+    crewNote: "new plaster — sealer before the topcoats",
+    reason: "new plaster drinks the first coat and has to be sealed",
+  },
+  {
+    key: "sound", label: "They're sound — one coat is plenty", groups: ["ceilings", "walls", "trims"],
+    maxCoats: 1,
+    sentence: "Sound and staying the same colour. One fresh coat is all it needs.",
+    crewNote: "customer says sound — one coat agreed; flag it on the day if it needs more",
+    reason: "you've told us they're sound and staying the same colour",
+    // A customer talking the price down is exactly the case a person should
+    // see. The coverage guard already refuses this over a colour change.
+    review: true,
+  },
+];
+
 export type PaintSystems = {
   walls: Record<ColourIntent, SystemRule>;
   ceilings: Record<ColourIntent, SystemRule>;
@@ -169,15 +272,9 @@ export type PaintSystems = {
    * set prices from (Tom, 8 and 9 Sep 2026).
    */
   prepHrPerUnit: Record<ConditionBand, number>;
+  /** The per-surface condition flags on offer, and what each one does. */
+  surfaceFlags: SurfaceFlagRule[];
 };
-
-/**
- * What a marked ceiling actually gets. Kept beside the table rather than in
- * it: it is the ⚑3 branch's sentence, not a fourth colour-intent column, and
- * it has to move whenever `ceilingsMarkedCoats` lifts the coats.
- */
-export const MARKED_CEILINGS_SENTENCE =
-  "White again, over the marks. We block the water marks and stains first so they can't ghost through, then two coats of flat ceiling white.";
 
 const rule = (coats: number, undercoat: boolean, sentence: string): SystemRule => ({ coats, undercoat, sentence });
 
@@ -221,6 +318,7 @@ export const DEFAULT_PAINT_SYSTEMS: PaintSystems = {
   trimsGoodConditionCoats: 1,
   glossBondingPrimer: true,
   prepHrPerUnit: { good: 0, wear: 0, work: 0 },
+  surfaceFlags: DEFAULT_SURFACE_FLAGS,
 };
 
 // ---------------------------------------------------------------------------
@@ -243,6 +341,19 @@ const intentsSchema = z.object({
   same: ruleSchema, new: ruleSchema, bold: ruleSchema,
 });
 
+const surfaceFlagSchema = z.object({
+  key: z.string().trim().min(1).max(40),
+  label: z.string().trim().min(1).max(80),
+  groups: z.array(z.enum(SYSTEM_GROUPS)).min(1),
+  minCoats: z.number().int().min(COATS_MIN).max(COATS_MAX).optional(),
+  maxCoats: z.number().int().min(COATS_MIN).max(COATS_MAX).optional(),
+  undercoat: z.boolean().optional(),
+  sentence: z.string().trim().min(1).max(400),
+  crewNote: z.string().trim().max(300),
+  reason: z.string().trim().max(200),
+  review: z.boolean().optional(),
+});
+
 export const paintSystemsSchema = z.object({
   walls: intentsSchema,
   ceilings: intentsSchema,
@@ -257,6 +368,7 @@ export const paintSystemsSchema = z.object({
     wear: z.number().min(0).max(2),
     work: z.number().min(0).max(2),
   }),
+  surfaceFlags: z.array(surfaceFlagSchema),
 });
 
 /**
@@ -304,6 +416,13 @@ export function paintSystemsFrom(value: unknown): PaintSystems {
       wear: hrs(prep.wear, DEFAULT_PAINT_SYSTEMS.prepHrPerUnit.wear),
       work: hrs(prep.work, DEFAULT_PAINT_SYSTEMS.prepHrPerUnit.work),
     },
+    // Whole-list fallback, not per-flag: a half-written catalogue would offer
+    // the customer taps that price nothing. Either Tom's list parses, or the
+    // one that shipped is used.
+    surfaceFlags: (() => {
+      const parsed = z.array(surfaceFlagSchema).safeParse(v.surfaceFlags);
+      return parsed.success && parsed.data.length > 0 ? parsed.data : DEFAULT_SURFACE_FLAGS;
+    })(),
   };
 }
 
@@ -337,6 +456,12 @@ export type SystemAnswers = {
    * whatever the job-wide intent was.
    */
   darkToLight?: boolean;
+  /**
+   * Per-group condition flags — "the doors are stained", "the walls are new
+   * plaster". The answer to Tom's question of 9 Sep: one group needing more
+   * work than the rest, said as a DESCRIPTION rather than as a coat count.
+   */
+  flags?: Partial<Record<SystemGroup, string[]>>;
 };
 
 export type PaintSystem = {
@@ -353,7 +478,24 @@ export type PaintSystem = {
   review: boolean;
   /** Why the derived coats differ from the table cell, if they do. */
   reason: string;
+  /** The flag keys that actually applied to this line, in the order applied. */
+  flags: string[];
 };
+
+/**
+ * Join crew notes rather than replace them.
+ *
+ * Every rule below can have something for the painter, and more than one can
+ * apply to the same line — a stained door on a job whose trims might be oil
+ * gloss needs BOTH notes. Replacing lost whichever ran first, which is how a
+ * painter ends up told to bond-prime a door and not told to stain-block it.
+ * Duplicates are dropped so a re-derivation cannot grow the note.
+ */
+function addNote(existing: string, note: string): string {
+  if (note === "") return existing;
+  const parts = existing === "" ? [] : existing.split(" | ");
+  return parts.includes(note) ? existing : [...parts, note].join(" | ");
+}
 
 /**
  * Allowances spec §7.6, enforced over Settings: one coat only where the
@@ -385,18 +527,45 @@ export function deriveSystem(
 
   // ⚑3 — ceilings. The colour question is the ceiling's own, not the job's.
   const ceilingsChanging = group === "ceilings" && answers.ceilingsChangingColour === true;
-  if (group === "ceilings") {
-    if (answers.ceilingsMarked === true && systems.ceilingsMarkedCoats > coats) {
-      coats = systems.ceilingsMarkedCoats;
-      reason = "the ceilings are marked or already coloured";
-      crewNote = "ceilings marked — stain-block the water marks before the topcoats";
-      // The cell's sentence describes the ONE-coat system it was written for
-      // ("One fresh coat of flat ceiling white"). Leaving it here put "2 coats"
-      // in the heading above a sentence promising one — the card contradicting
-      // itself, which is the exact failure it exists to prevent. Caught on the
-      // real screen, 9 Sep.
-      sentence = MARKED_CEILINGS_SENTENCE;
-    }
+
+  /**
+   * The per-group condition flags (Tom, 9 Sep). ⚑3's "they're marked" tap is
+   * one of them rather than a branch of its own, so the ceilings card and the
+   * doors card can never drift apart — one mechanism, one place to change it.
+   * `ceilingsMarked` is the stored field the ceilings card still writes, so
+   * it is folded in here rather than read separately.
+   */
+  const asked = new Set(answers.flags?.[group] ?? []);
+  if (group === "ceilings" && answers.ceilingsMarked === true) asked.add("marked");
+
+  const applied: string[] = [];
+  for (const rule of systems.surfaceFlags) {
+    if (!asked.has(rule.key) || !rule.groups.includes(group)) continue;
+    // ⚑3's number stays ⚑3's: the marked flag takes its floor from the
+    // Settings field that has always owned it.
+    const floor = rule.key === "marked" && rule.minCoats == null ? systems.ceilingsMarkedCoats : rule.minCoats;
+
+    if (floor != null && floor > coats) coats = floor;
+    if (rule.maxCoats != null && rule.maxCoats < coats) coats = rule.maxCoats;
+
+    applied.push(rule.key);
+    if (rule.undercoat === true) undercoat = true;
+    if (rule.review === true) review = true;
+    /**
+     * The sentence, the reason and the note apply whenever the flag does —
+     * NOT only when the coat count moved.
+     *
+     * Caught on the real screen (9 Sep): on a new-colour job the doors already
+     * derive three coats, so "they're stained" hit its own floor and moved
+     * nothing. The customer tapped it and the line was unchanged — same
+     * number, same words — even though the system genuinely differs (a
+     * stain-blocking primer, not a plain undercoat). A flag that changes what
+     * the painter does has to change what the card says, or the tap looks
+     * broken and the estimate hides the reason it is priced as it is.
+     */
+    if (rule.sentence !== "") sentence = rule.sentence;
+    if (rule.reason !== "") reason = rule.reason;
+    if (rule.crewNote !== "") crewNote = addNote(crewNote, rule.crewNote);
   }
 
   // ⚑4 — "one only when condition is good", and only on a same-colour job.
@@ -413,13 +582,17 @@ export function deriveSystem(
     if (answers.glossTrims === "yes") {
       coats += 1;
       undercoat = true;
-      crewNote = "existing gloss is oil-based — bonding primer before the water-based enamel";
+      // APPEND. A stained door carries the stain-block note from its flag,
+      // and overwriting it here lost the reason the door was three coats in
+      // the first place — the painter would have arrived told to bond-prime
+      // and not told to stain-block.
+      crewNote = addNote(crewNote, "existing gloss is oil-based — bonding primer before the water-based enamel");
       reason = reason || "the existing trims are an oil-based gloss";
       sentence = `${sentence} A bonding primer first, because the existing gloss is oil-based.`;
     } else if (answers.glossTrims === "unsure" || answers.glossTrims == null) {
       // Priced as "no" — the common case — but a person confirms it.
       review = true;
-      crewNote = "check on site whether the existing trim enamel is oil-based; bonding primer if it is";
+      crewNote = addNote(crewNote, "check on site whether the existing trim enamel is oil-based; bonding primer if it is");
     }
   }
 
@@ -440,6 +613,7 @@ export function deriveSystem(
     crewNote,
     review,
     reason,
+    flags: applied,
   };
 }
 

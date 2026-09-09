@@ -74,7 +74,23 @@ export const maxDuration = 30;
  * becomes a 400 rather than a silently dropped answer. Returning null beats
  * coercing: a customer who taps a chip and sees nothing move has been lied to.
  */
-function systemPatchFrom(field: string, value: unknown): SystemPatch | null {
+function systemPatchFrom(
+  field: string,
+  value: unknown,
+  group?: string,
+  flag?: string,
+): SystemPatch | null {
+  if (field === "surfaceFlag") {
+    // The flag KEY is not checked against the catalogue here on purpose: Tom
+    // can add or rename one in Settings without a deploy, and a key that no
+    // longer exists simply stops applying at derivation time rather than
+    // 400-ing a customer who is looking at a stale page.
+    const groups = ["walls", "ceilings", "trims", "doors", "windows"] as const;
+    const g = groups.find((x) => x === group);
+    if (g == null || typeof value !== "boolean") return null;
+    if (typeof flag !== "string" || flag.length === 0 || flag.length > 40) return null;
+    return { field: "surfaceFlag", group: g, flag, value };
+  }
   if (field === "colourIntent") {
     return value === "same" || value === "new" || value === "bold" ? { field, value } : null;
   }
@@ -103,7 +119,10 @@ const actionSchema = z.discriminatedUnion("action", [
    */
   z.object({
     action: z.literal("set_paint_system"),
-    field: z.enum(["colourIntent", "ceilingsMarked", "ceilingsChangingColour", "glossTrims"]),
+    field: z.enum(["colourIntent", "ceilingsMarked", "ceilingsChangingColour", "glossTrims", "surfaceFlag"]),
+    /** surfaceFlag only: which line, and which flag on it. */
+    group: z.enum(["walls", "ceilings", "trims", "doors", "windows"]).optional(),
+    flag: z.string().max(40).optional(),
     // Flat rather than a nested discriminated union: nesting one inside
     // `actionSchema` collapses its own "action" discriminator. The field and
     // value are paired by `systemPatchFrom` below, which returns null on any
@@ -419,7 +438,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
      *      validated exterior table to re-derive them from (plan §4.4).
      */
     if (act.action === "set_paint_system") {
-      const patch = systemPatchFrom(act.field, act.value);
+      const patch = systemPatchFrom(act.field, act.value, act.group, act.flag);
       if (!patch) return { error: "That isn't an answer we recognise.", status: 400 };
 
       const snap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);

@@ -2631,3 +2631,37 @@ ceiling has to remove the ceilings line, and that arrives as a `toggle_surface`.
   staying the same.
 - The card is hidden in `chatMode` like the other question cards — the assistant asks these
   in conversation, and a pane of open questions beside the chat repeats it.
+
+### Per-surface condition flags (Tom, 9 Sep 2026)
+
+Tom: *"what if the doors need 3 coats because they're all stained, but the rest are 2?"*
+Every correction on the systems card was job-wide (colour intent) or a single yes/no; nothing
+let a customer say one surface GROUP needs more than the rest.
+
+The fix is a **condition flag per group, not a coat picker** — plan §4.2 says the customer
+never picks coats, a picked "1" over a colour change is a warranty claim (§7.6), and a number
+tells the painter nothing that "they're stained" doesn't tell them better.
+
+`SurfaceFlagRule` is a Settings-editable catalogue: the groups a flag applies to, a floor
+and/or ceiling on the coats, whether the extra coat is a primer, the customer's sentence and
+the painter's note. Answers live at `condition.surfaceFlags` (`{ doors: ["stained"] }`).
+Shipped: stained · bare timber · new plaster · marked (⚑3) · sound (≤ 1 coat, sets `review`).
+
+**⚑3's marked ceiling became one of these** rather than staying its own branch, so the
+ceilings card and the doors card cannot drift apart. `ceilingsMarked` remains the stored field
+the chip writes and is folded into the flag set inside `deriveSystem`; `ceilingsMarkedCoats`
+still owns its number.
+
+**Traps.**
+- Flag keys are deliberately NOT validated against the catalogue in the zod schema. Tom can
+  add or rename a flag in Settings without a migration; an unknown key stops applying rather
+  than 400-ing somebody on a stale page.
+- The catalogue falls back **whole-list**, not per flag: a half-parsed list would offer the
+  customer taps that price nothing.
+- `addNote` — crew notes ACCUMULATE. ⚑5's gloss note used to overwrite, so a stained door on
+  a job with possible oil gloss reached the painter told to bond-prime and not to stain-block.
+  De-duplicated, so re-derivation cannot grow them.
+- Removing a group's last flag deletes the key rather than storing `[]`: absence reads as
+  "not asked", `[]` as "asked and answered none", and the CRM and work order read this state.
+- Adding `surfaceFlags` to `condition` broke seven hand-built state literals (zod defaults, so
+  only tsc caught them) — the same trap the two ⚑3 fields sprang. Copy `defaultWizardState()`.

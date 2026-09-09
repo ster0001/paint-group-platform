@@ -44,7 +44,7 @@ function state(jobType: WizardState["jobType"], over: Partial<WizardState> = {})
     customer: { email: "tester@example.com", suburb: "Kew", postcode: "3101", propertyKind: "house", heritageListed: "no", bodyCorporate: "no", builtPre1970: "no", asbestosSuspected: "no" },
     basics: { bedrooms: 3, storeys: "single", sizeBand: "s120_200", openPlanKitchenLiving: false },
     surfaces: ["walls", "ceilings", "doors", "windows"],
-    condition: { tier: "change", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false },
+    condition: { tier: "change", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, surfaceFlags: {} },
     details: { doorStyle: "unsure", doorScope: "frame", windowStyle: "unsure", ceilingHeight: "2.4", damageTier: 1, damageNote: "", damagePhotoCount: 0 },
     paint: { brands: [], colourHelp: null, waterBasedOnly: false, trimsOilBased: null, base: null },
     contact: { name: "", email: "", phone: "" },
