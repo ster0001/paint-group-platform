@@ -168,6 +168,24 @@ export const wizardStateShapeSchema = z.object({
      * pack-down (the Staging modifier). Interior jobs; optional so every
      * stored state still parses. */
     occupied: z.enum(["yes", "no"]).optional(),
+    /**
+     * Site and access (plan §4.4) — the things that set our setup time, and
+     * which the flow never asked at all (§2.4): furniture, floors, stairwells
+     * and voids, parking, the lift booking in a unit, and pets.
+     *
+     * Every field optional: an unanswered screen costs nothing and flags
+     * nothing. Pricing is by MODIFIER (lib/wizard/site-access.ts) so the
+     * numbers stay Tom's in Settings → Pricing → Modifiers, and none of them
+     * are written here or in that module.
+     */
+    siteAccess: z.object({
+      cleared: z.enum(["yes", "some", "no"]).optional(),
+      floors: z.enum(["carpet", "hard", "mixed"]).optional(),
+      stairwell: z.enum(["yes", "no"]).optional(),
+      parking: z.enum(["drive", "street", "hard"]).optional(),
+      lift: z.enum(["yes", "no"]).optional(),
+      pets: z.enum(["yes", "no"]).optional(),
+    }).default({}),
   }),
 
   /**
@@ -396,7 +414,7 @@ export function defaultWizardState(): WizardState {
       ceilingHeight: "unsure",
       damageTier: 1,
       damageNote: "",
-      damagePhotoCount: 0,
+      damagePhotoCount: 0, siteAccess: {},
     },
     contact: { name: "", email: "", phone: "" },
     paint: { brands: [], colourHelp: null, waterBasedOnly: false, trimsOilBased: null, base: null },

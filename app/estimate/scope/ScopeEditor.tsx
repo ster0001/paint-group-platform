@@ -10,6 +10,8 @@ import { assertCustomerShape } from "@/lib/wizard/contract";
 import type { CustomerExteriorView, CustomerScopeRoom } from "@/lib/wizard/scope-editor";
 import type { PaintSystemLine } from "@/lib/wizard/systems-view";
 import RoomSpots from "./RoomSpots";
+import SiteAccessCard from "./SiteAccess";
+import type { SiteAccess } from "@/lib/wizard/site-access";
 import type { SidesView } from "@/lib/wizard/sides";
 import SidesEditor from "./SidesEditor";
 import PlanPanel from "./PlanPanel";
@@ -50,6 +52,7 @@ export type InteriorLoopView = {
 type Payload = CustomerPayload & {
   scopeRooms?: CustomerScopeRoom[];
   paintSystems?: PaintSystemLine[];
+  siteAccess?: SiteAccess;
   exterior?: CustomerExteriorView | null;
   ladder?: Ladder;
   interiorLoop?: InteriorLoopView;
@@ -88,7 +91,7 @@ const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
 const snapshotFalse = () => false;
 
-export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialSystems = [], roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null, chatMode = false }: {
+export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialSystems = [], initialAccess = { answers: {}, asksLift: false }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null, chatMode = false }: {
   estimateId: string;
   initial: CustomerPayload;
   initialRooms: CustomerScopeRoom[];
@@ -117,11 +120,14 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
    * derived, in the painter's words, with a correction per line. Empty on an
    * exterior-only job or an estimate with no readable wizard snapshot. */
   initialSystems?: PaintSystemLine[];
+  /** §4.4 — the site and access answers, and whether a lift applies. */
+  initialAccess?: { answers: SiteAccess; asksLift: boolean };
 }) {
   const [payload, setPayload] = useState<CustomerPayload>(initial);
   const [rooms, setRooms] = useState<CustomerScopeRoom[]>(initialRooms);
   const [iloop, setIloop] = useState<InteriorLoopView | null>(initialInteriorLoop);
   const [systems, setSystems] = useState<PaintSystemLine[]>(initialSystems);
+  const [access, setAccess] = useState<SiteAccess>(initialAccess.answers);
   const [sidesProg, setSidesProg] = useState<SidesView["progress"] | null>(initialSides?.progress ?? null);
   const [sizeDrafts, setSizeDrafts] = useState<Record<number, { L: string; W: string; open: boolean }>>({});
   // A3: the confirmation walk — one card open at a time; confirming opens
@@ -280,6 +286,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         setPayload(j);
         if (j.scopeRooms) setRooms(j.scopeRooms);
         if (j.paintSystems) setSystems(j.paintSystems);
+        if (j.siteAccess) setAccess(j.siteAccess);
         if (j.ladder) setLadder(j.ladder);
         if (j.interiorLoop) setIloop(j.interiorLoop);
         if (liveRange) setFlash((n) => n + 1);
@@ -371,6 +378,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         setPayload(j);
         if (j.scopeRooms) setRooms(j.scopeRooms);
         if (j.paintSystems) setSystems(j.paintSystems);
+        if (j.siteAccess) setAccess(j.siteAccess);
         if (j.interiorLoop) setIloop(j.interiorLoop);
         if (j.ladder) setLadder(j.ladder);
         say(done);
@@ -750,6 +758,24 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
               </div>
             ))}
           </section>
+        )}
+        {/* §4.4 — the four allowance modifiers plus parking, the lift and pets. */}
+        {!chatMode && (
+          <SiteAccessCard
+            answers={access}
+            asksLift={initialAccess.asksLift}
+            busy={pendingCount > 0}
+            onAnswer={(field, value) => {
+              // Optimistic, so the chip lights the moment it is tapped; the
+              // server's answer replaces it on the next response.
+              setAccess((a) => ({ ...a, [field]: value }));
+              act(
+                { action: "set_site_access", field, value },
+                `access:${field}`,
+                () => "Noted — that's in your setup allowance",
+              );
+            }}
+          />
         )}
         {!chatMode && payload.confirmOnSite.length > 0 && (
           <p className="wz-note wz-confirmonsite" style={{ margin: "14px 0 0" }}>

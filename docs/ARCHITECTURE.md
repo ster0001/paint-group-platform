@@ -2716,3 +2716,45 @@ instead, so the reader's defects and the customer's spots are one list of repair
 - "wallpaper" is the one tag with no row in the defect vocabulary — stripping paper is work,
   not a defect. It is review-only, so it never tries to auto-price, and the unmatched code
   takes the engine's no-rate-item path (prep hours charged, nothing else, cannot throw).
+
+## Estimator journey v2 · Phase 5a — site and access (9 Sep 2026)
+
+Branch `feat/paint-systems-screen`. **No migration, and no multipliers.**
+
+**The gap** (plan §2.4): interior access was **never asked**. Stairwells, voids, furniture,
+floors, parking and lift bookings had no home in the flow, so the things that decide how long
+protection and packing down take had no bearing on the price at all.
+
+**Why there are no numbers in `lib/wizard/site-access.ts`.** The plan says this screen is the
+allowances spec §4's four modifiers "verbatim", and §9.1 gates the phase on that spec being
+merged. **It is not in the repository.** Writing four multipliers would be inventing prices
+nobody has validated — the same thing the exterior derivation was refused for.
+
+So it follows the pattern `applyConditionPricing` already set for weathered exteriors and
+occupied homes: each answer names a MODIFIER CODE, and
+
+- if Tom has seeded that modifier (Settings → Pricing → Modifiers) it applies, at his multiplier;
+- if he has not, the answer becomes an **amber deferral naming the code to seed**.
+
+Never a silent no-op, never an invented number. The questions can be asked today and start
+pricing the moment Tom sets a multiplier, with no deploy.
+
+**Only answers that imply extra work raise anything.** "The rooms will be cleared", carpet, a
+driveway and "no pets" cost nothing and must not flag — a screen that flags every answer
+teaches the estimator to ignore the flags. Pets are a crew note, never a price.
+
+**Ceiling height and asbestos are deliberately NOT on this screen**, though plan §4.4 lists
+them: height is already the details card's `confirm_height` question and asbestos is a hard
+stop the policy ladder owns. Asking either twice invites two answers. The e2e asserts their
+absence.
+
+**Traps.**
+- One selection per modifier GROUP wins (`jobModifier`), so staging and access are separate
+  groups and "part cleared" cannot collide with "furniture stays".
+- Re-answering **clears the previous note and modifier before re-applying** — the handler
+  strips every `SITE_ACCESS_DEFERRAL` and both groups from `modSel`, then re-derives from the
+  whole answer set. Changing back to "the rooms will be cleared" must not leave yesterday's
+  flag behind.
+- Hard and mixed floors share a code and a reason; `because` is de-duplicated.
+- The chip lights optimistically, so a pressed chip does NOT mean the save landed. An e2e that
+  reloads must first wait for `.sd-saving` to clear, or it races the last write.

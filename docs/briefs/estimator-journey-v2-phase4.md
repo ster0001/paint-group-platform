@@ -171,3 +171,42 @@ the real screen: stained doors go to three coats while the walls stay at two and
 stay at one; sound ceilings drop to one while the walls stay at two and the line is flagged
 for review. The e2e also asserts there is **no number input anywhere on the card** — the point
 of the design, and the thing a future change would quietly break.
+
+---
+
+# Phase 5a — site and access
+
+§4.4 and the first third of §9.5. **No migration, and no multipliers.**
+
+Interior access was never asked (§2.4). It is now: rooms cleared · floors · stairwell or void ·
+parking · lift booking (units only) · pets.
+
+**The spec this screen is supposed to be "verbatim" is not in the repository.** Plan §8 says the
+allowances spec "must land first" and §9.1 gates the phase on it. Rather than invent four
+multipliers, each answer names a modifier code and follows the pattern already used for
+weathered exteriors and occupied homes: **use Tom's modifier if he has seeded it, raise an amber
+note naming the code if he has not.** The note says exactly where to seed it.
+
+So the screen is live and honest today, and starts pricing the moment Tom sets a multiplier in
+Settings → Pricing → Modifiers — no deploy, no code change.
+
+| Answer | Modifier code | Group |
+|---|---|---|
+| Mostly cleared | `ACC-PART-CLEARED` | Staging |
+| Furniture stays | `ACC-FURNITURE-STAYS` | Staging |
+| Hard or mixed floors | `ACC-HARD-FLOORS` | Access |
+| Stairwell or void | `ACC-STAIRWELL` | Access |
+| Tricky parking | `ACC-PARKING` | Access |
+| Lift booking | `ACC-LIFT-BOOKING` | Access |
+
+Cleared rooms, carpet, a driveway and "no pets" cost nothing and raise nothing.
+
+**⚑ For Tom:** seed those six modifiers with your own multipliers and the screen starts pricing.
+Until then every costly answer reaches the estimator as an amber note, so nothing is lost — but
+nothing is charged either.
+
+**Still open in phase 5:** the whole-job extras sheet (§4.5 — mould treatment, ceiling roses,
+stain or varnish, help choosing colours, plus a description box) and the per-room extras
+(feature walls priced as their own colour, wallpaper to strip). The finish line's
+policy-driven options largely exist already (the ladder, "Finalise my price", "Book a site
+visit", "Request a call back").

@@ -11,6 +11,7 @@ import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { PAINT_SYSTEMS_KEY, paintSystemsFrom } from "@/lib/pricing/systems";
 import { applyPaintSystems, applySystemPatch, paintSystemsView, type SystemPatch } from "@/lib/wizard/systems-view";
 import { roomConditionDeferred, spotLine } from "@/lib/wizard/spots";
+import { SITE_ACCESS_GROUP, STAGING_GROUP, applySiteAccess } from "@/lib/wizard/site-access";
 import type { DefectRate } from "@/lib/capture/commit";
 import { applyWizardAnswers } from "@/lib/wizard/merge";
 import { wizardStateSchema } from "@/lib/wizard/state";
@@ -105,6 +106,22 @@ function systemPatchFrom(
   return null;
 }
 
+/** The `what` shape site-and-access notes use, so re-answering clears them. */
+const SITE_ACCESS_DEFERRAL = /^(cleared|floors|stairwell|parking|lift) — /;
+
+/** One site-access answer, narrowed. Null for a value that field can't take. */
+function siteAccessValue(field: string, value: string): string | null {
+  const allowed: Record<string, string[]> = {
+    cleared: ["yes", "some", "no"],
+    floors: ["carpet", "hard", "mixed"],
+    stairwell: ["yes", "no"],
+    parking: ["drive", "street", "hard"],
+    lift: ["yes", "no"],
+    pets: ["yes", "no"],
+  };
+  return allowed[field]?.includes(value) ? value : null;
+}
+
 /** The customer-facing name of a spot line, for clearing its amber note. */
 function spotLabelFor(surface: Record<string, unknown>): string {
   return String(surface.internalLabel ?? "").replace(/^Repair — /, "").replace(/ \(to price\)$/, "");
@@ -140,6 +157,16 @@ const actionSchema = z.discriminatedUnion("action", [
     action: z.literal("remove_spot"),
     areaId: z.number().int().positive(),
     surfaceId: z.number().int().positive(),
+  }),
+  /**
+   * Phase 5 (§4.4): site and access — the things that set our setup time and
+   * which the flow never asked at all. One answer per post; the server maps
+   * it to a modifier, or raises an amber note when Tom has not seeded one.
+   */
+  z.object({
+    action: z.literal("set_site_access"),
+    field: z.enum(["cleared", "floors", "stairwell", "parking", "lift", "pets"]),
+    value: z.string().min(1).max(12),
   }),
   /** §4.3: how THIS room sits against the job's condition band. */
   z.object({
@@ -483,6 +510,41 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
       const systems = paintSystemsFrom(settingValue((await ctxPromise).settings, PAINT_SYSTEMS_KEY));
       blocks = applyPaintSystems(blocks, next, systems) as typeof blocks;
+    }
+
+    /**
+     * §4.4 — site and access.
+     *
+     * The answer is written to the wizard snapshot and the whole set is then
+     * re-applied, so changing an answer REPLACES its modifier and its amber
+     * note rather than stacking a second one. Nothing here invents a price:
+     * `applySiteAccess` uses a modifier when Tom has seeded it and defers to
+     * a person when he has not (the allowances spec §4 is not in the repo).
+     */
+    if (act.action === "set_site_access") {
+      const snap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
+      if (!snap.success) {
+        return { error: "This estimate predates the site and access questions — a person will confirm them.", status: 409 };
+      }
+      const parsed = siteAccessValue(act.field, act.value);
+      if (parsed == null) return { error: "That isn't an answer we recognise.", status: 400 };
+
+      const access = { ...(snap.data.details.siteAccess ?? {}), [act.field]: parsed };
+      const wiz = state.wizard as { state?: { details?: Record<string, unknown> } } | undefined;
+      if (wiz?.state?.details) wiz.state.details.siteAccess = access;
+
+      const ctxNow = await ctxPromise;
+      const outcome = applySiteAccess(access, ctxNow.modifiers);
+      // Every note this module has ever raised goes, then the current set is
+      // re-raised — an answer changed back to "the rooms will be cleared"
+      // must not leave yesterday's flag behind.
+      newDeferred = newDeferred.filter((d) => !SITE_ACCESS_DEFERRAL.test(d.what));
+      newDeferred = [...newDeferred, ...outcome.deferred];
+
+      const modSel = { ...((state.modSel as Record<string, string>) ?? {}) };
+      for (const group of [SITE_ACCESS_GROUP, STAGING_GROUP]) delete modSel[group];
+      Object.assign(modSel, outcome.modSel);
+      (state as Record<string, unknown>).modSel = modSel;
     }
 
     /**
@@ -1293,6 +1355,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         return sn.success
           ? paintSystemsView(sn.data, blocks, paintSystemsFrom(settingValue(ctx.settings, PAINT_SYSTEMS_KEY)))
           : [];
+      })(),
+      // §4.4 — the answers as stored, so the card reconciles with the server.
+      siteAccess: (() => {
+        const sn = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
+        return sn.success ? (sn.data.details.siteAccess ?? {}) : {};
       })(),
       exterior: customerExteriorView(blocks),
       // R2b: the sides confirm loop's full view (null when no sides exist).
