@@ -10,6 +10,8 @@ import { SCOPE_VERSION, type Alias, type ScopeRule } from "@/lib/extract/scope";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { PAINT_SYSTEMS_KEY, paintSystemsFrom } from "@/lib/pricing/systems";
 import { applyPaintSystems, applySystemPatch, paintSystemsView, type SystemPatch } from "@/lib/wizard/systems-view";
+import { roomConditionDeferred, spotLine } from "@/lib/wizard/spots";
+import type { DefectRate } from "@/lib/capture/commit";
 import { applyWizardAnswers } from "@/lib/wizard/merge";
 import { wizardStateSchema } from "@/lib/wizard/state";
 import { applyDoorStyle, applyWindowStyle, DOOR_STYLE_DEFERRAL, WINDOW_STYLE_DEFERRAL } from "@/lib/wizard/styles";
@@ -103,6 +105,11 @@ function systemPatchFrom(
   return null;
 }
 
+/** The customer-facing name of a spot line, for clearing its amber note. */
+function spotLabelFor(surface: Record<string, unknown>): string {
+  return String(surface.internalLabel ?? "").replace(/^Repair — /, "").replace(/ \(to price\)$/, "");
+}
+
 const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("confirm_height"), heightM: z.number().min(2).max(6) }),
   /** Phase 2 (6 Sep plan): the door / window style left "Not sure" in the
@@ -117,6 +124,29 @@ const actionSchema = z.discriminatedUnion("action", [
    * is the same boundary the rest of this route keeps: answers in, never
    * geometry or money.
    */
+  /**
+   * Phase 4 (§4.3): "point out a spot" — a photo and a tag, which becomes a
+   * repair line pinned to the room. The customer posts the TAG, never hours:
+   * ⚑6 decides on the server which tags auto-price and which go to a person.
+   */
+  z.object({
+    action: z.literal("add_spot"),
+    areaId: z.number().int().positive(),
+    tag: z.string().min(1).max(40),
+    sourceId: z.string().uuid().nullable().optional(),
+    note: z.string().max(300).optional(),
+  }),
+  z.object({
+    action: z.literal("remove_spot"),
+    areaId: z.number().int().positive(),
+    surfaceId: z.number().int().positive(),
+  }),
+  /** §4.3: how THIS room sits against the job's condition band. */
+  z.object({
+    action: z.literal("set_room_condition"),
+    areaId: z.number().int().positive(),
+    condition: z.enum(["same", "better", "worse"]),
+  }),
   z.object({
     action: z.literal("set_paint_system"),
     field: z.enum(["colourIntent", "ceilingsMarked", "ceilingsChangingColour", "glossTrims", "surfaceFlag"]),
@@ -453,6 +483,67 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
       const systems = paintSystemsFrom(settingValue((await ctxPromise).settings, PAINT_SYSTEMS_KEY));
       blocks = applyPaintSystems(blocks, next, systems) as typeof blocks;
+    }
+
+    /**
+     * §4.3 — the customer points out a spot.
+     *
+     * The line is created whether or not it prices (⚑6): a spot that became
+     * only an amber note in a queue would be the free-text box §2.3 complains
+     * about, wearing a tag. The rates come from `defect_prep_rates`, which is
+     * the same table the plan reader's own defects price from — one defect
+     * vocabulary, one price for the same damage however it was spotted.
+     */
+    if (act.action === "add_spot") {
+      const idx = blocks.findIndex((b) => b.kind === "area" && Number(b.id) === act.areaId);
+      if (idx < 0) return { error: "No such room.", status: 404 };
+      const area = blocks[idx];
+      let next = Math.max(0, ...blocks.flatMap((b) => [Number(b.id) || 0, ...(b.surfaces ?? []).map((x) => Number(x.id) || 0)])) + 1;
+      const { data: rateRows } = await db
+        .from("defect_prep_rates")
+        .select("defect_type, unit, hours_sev1, hours_sev2, hours_sev3")
+        .eq("version", SCOPE_VERSION);
+      const line = spotLine(
+        { tag: act.tag, sourceId: act.sourceId ?? null, note: act.note },
+        { id: act.areaId, name: String(area.name ?? "this room") },
+        (rateRows ?? []) as DefectRate[],
+        () => next++,
+      );
+      if (line == null) return { error: "We don't know that one — pick a tag from the list.", status: 400 };
+      blocks = blocks.map((b, i) => (i === idx
+        ? { ...b, surfaces: [...(b.surfaces ?? []), line.surface as unknown as Record<string, unknown>] }
+        : b));
+      if (line.deferred) newDeferred = [...newDeferred, line.deferred];
+    }
+
+    if (act.action === "remove_spot") {
+      const idx = blocks.findIndex((b) => b.kind === "area" && Number(b.id) === act.areaId);
+      if (idx < 0) return { error: "No such room.", status: 404 };
+      const gone = (blocks[idx].surfaces ?? []).find((x) => Number(x.id) === act.surfaceId);
+      // Only a spot may be removed this way — the action must never become a
+      // way to delete a painting line the customer is meant to untick.
+      if (!gone || !String(gone.internalLabel ?? "").startsWith("Repair — ")) {
+        return { error: "That isn't a flagged spot.", status: 400 };
+      }
+      blocks = blocks.map((b, i) => (i === idx
+        ? { ...b, surfaces: (b.surfaces ?? []).filter((x) => Number(x.id) !== act.surfaceId) }
+        : b));
+      // Its amber note goes with it, or the estimator chases a spot that no
+      // longer exists.
+      newDeferred = newDeferred.filter((d) => !(d.areaId === act.areaId && d.what.startsWith(`${spotLabelFor(gone)} `)));
+    }
+
+    if (act.action === "set_room_condition") {
+      const idx = blocks.findIndex((b) => b.kind === "area" && Number(b.id) === act.areaId);
+      if (idx < 0) return { error: "No such room.", status: 404 };
+      const name = String(blocks[idx].name ?? "this room");
+      const area: LooseBlock = { ...blocks[idx], roomCondition: act.condition };
+      blocks = blocks.map((b, i) => (i === idx ? area : b));
+      // Re-raised from scratch each time, so changing the answer back to
+      // "same" clears the flag rather than leaving a stale one behind.
+      newDeferred = newDeferred.filter((d) => !(d.areaId === act.areaId && d.what === "worse than the rest"));
+      const raised = roomConditionDeferred({ id: act.areaId, name }, act.condition);
+      if (raised) newDeferred = [...newDeferred, raised];
     }
 
     if (act.action === "confirm_room") {

@@ -9,6 +9,7 @@ import type { CustomerPayload } from "@/lib/wizard/view";
 import { assertCustomerShape } from "@/lib/wizard/contract";
 import type { CustomerExteriorView, CustomerScopeRoom } from "@/lib/wizard/scope-editor";
 import type { PaintSystemLine } from "@/lib/wizard/systems-view";
+import RoomSpots from "./RoomSpots";
 import type { SidesView } from "@/lib/wizard/sides";
 import SidesEditor from "./SidesEditor";
 import PlanPanel from "./PlanPanel";
@@ -1115,6 +1116,35 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                 )}
                 <div className="sc-inc">Includes filling minor cracks and sanding — allowances set by us</div>
                 {room.allowances?.map((a) => <div className="sc-inc" key={a} data-testid="room-allowance">🔒 {a} — allowed for by us</div>)}
+                {/* §4.3 — how this room compares, and where the damage is. */}
+                {!chatMode && (
+                  <RoomSpots
+                    estimateId={estimateId}
+                    areaId={room.areaId}
+                    roomName={room.name}
+                    side="interior"
+                    spots={room.spots}
+                    condition={room.condition}
+                    busy={pendingCount > 0}
+                    onAdd={(tag, sourceId) => act(
+                      { action: "add_spot", areaId: room.areaId, tag, sourceId },
+                      `spot:${room.areaId}:${tag}`,
+                      () => `Noted in ${room.name} — your painter sees it before day one`,
+                    )}
+                    onRemove={(surfaceId) => act(
+                      { action: "remove_spot", areaId: room.areaId, surfaceId },
+                      `spotrm:${room.areaId}:${surfaceId}`,
+                      () => "Spot removed",
+                    )}
+                    onCondition={(c) => act(
+                      { action: "set_room_condition", areaId: room.areaId, condition: c },
+                      `cond:${room.areaId}`,
+                      () => c === "worse" ? `${room.name} flagged as worse — we'll allow for it`
+                        : c === "better" ? `${room.name} noted as better than the rest`
+                        : `${room.name} same as the rest`,
+                    )}
+                  />
+                )}
                 {loop && (
                   <button
                     className={`sd-confirm il-confirm ${loop.confirmed ? "done" : ""}`}

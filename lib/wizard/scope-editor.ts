@@ -39,6 +39,22 @@ export type CustomerTile = {
   wallsPct?: number;
 };
 
+/**
+ * A repair pinned to this room (plan §4.3) — the customer's flagged spot, or
+ * a defect the plan reader saw in a photo. One list, because they are the
+ * same thing: something to fix before the paint goes on.
+ */
+export type RoomSpot = {
+  surfaceId: number;
+  /** "Water damage" — the platform's own word for it. */
+  label: string;
+  /** Prep hours, when it auto-priced (⚑6). 0 = a person is pricing it. */
+  prepHr: number;
+  /** True when the customer flagged it, false when a photo read did. */
+  fromCustomer: boolean;
+  crewNote: string;
+};
+
 export type CustomerScopeRoom = {
   areaId: number;
   name: string;
@@ -46,11 +62,17 @@ export type CustomerScopeRoom = {
   tiles: CustomerTile[];
   /** Tom, 7 Sep: the engine's per-room allowances, read as inclusions. */
   allowances?: string[];
+  /** §4.3: the repairs pinned to this room. */
+  spots: RoomSpot[];
+  /** §4.3: how this room sits against the job's condition band. */
+  condition: "same" | "better" | "worse";
 };
 
 type LooseBlock = Record<string, unknown> & {
   id?: number; kind?: string; name?: string; type?: string; roomType?: string;
   L?: number; W?: number;
+  /** §4.3 — how this room sits against the job's condition band. */
+  roomCondition?: string;
   surfaces?: Array<Record<string, unknown>>;
 };
 
@@ -180,6 +202,12 @@ export function customerRoomView(block: LooseBlock, rules: ScopeRule[]): Custome
   for (const s of surfaces) {
     const code = String(s.code ?? "");
     if (s.allowance === true) continue; // the engine's own allowances are inclusions, not tiles
+    // A REPAIR is not a paintable surface. Prep lines — the customer's flagged
+    // spots and the plan reader's photo-read defects alike — used to fall
+    // through to the catalogue branch below and render as a tile with a count
+    // stepper, inviting the customer to order "3 water damages". They are
+    // listed as `spots` instead (plan §4.3).
+    if (isPrepLine(s)) continue;
     if (cupboardCodes.has(code)) continue; // the cupboard question owns these
     const key = substrateKeyForRateCode(code);
     if (key != null && ruleKeys.has(String(key))) continue;
@@ -203,7 +231,28 @@ export function customerRoomView(block: LooseBlock, rules: ScopeRule[]): Custome
       : null,
     tiles,
     allowances: roomAllowanceLabels(surfaces),
+    spots: surfaces.filter(isPrepLine).map((s) => ({
+      surfaceId: Number(s.id),
+      label: String(s.internalLabel ?? s.code ?? "Repair")
+        .replace(/^(Repair|Prep) — /, "")
+        .replace(/ \(to price\)$/, ""),
+      prepHr: Number(s.prepHr) || 0,
+      // The customer's own spots are stamped customer_stated; the plan
+      // reader's are ai_assumed. Worth showing apart: one is a claim they
+      // made, the other a guess we made from their photo.
+      fromCustomer: s.origin === "customer_stated",
+      crewNote: String(s.crewNote ?? ""),
+    })),
+    condition: block.roomCondition === "better" || block.roomCondition === "worse"
+      ? block.roomCondition
+      : "same",
   };
+}
+
+/** A repair line: its own row on the room, hours on prepHr, nothing painted. */
+function isPrepLine(s: Record<string, unknown>): boolean {
+  const assumed = Array.isArray(s.assumedFields) ? (s.assumedFields as string[]) : [];
+  return assumed.includes("prep");
 }
 
 export function customerScopeRooms(blocks: LooseBlock[], rules: ScopeRule[]): CustomerScopeRoom[] {

@@ -2665,3 +2665,54 @@ still owns its number.
   "not asked", `[]` as "asked and answered none", and the CRM and work order read this state.
 - Adding `surfaceFlags` to `condition` broke seven hand-built state literals (zod defaults, so
   only tsc caught them) — the same trap the two ⚑3 fields sprang. Copy `defaultWizardState()`.
+
+## Estimator journey v2 · Phase 4b — flagged spots as repair lines (9 Sep 2026)
+
+Branch `feat/paint-systems-screen`. **No migration** — the rates table
+(`defect_prep_rates`) and the photo pipeline already existed.
+
+**The gap** (plan §2.3): condition was ONE global answer for the house, and "needs repair"
+opened a free-text box the engine could not price. Nothing pinned a defect to a room, so the
+commonest thing a customer knows — "a water mark on the hall ceiling, a crack behind the
+kitchen door" — arrived as prose an estimator had to re-read and re-price by hand.
+
+**`lib/wizard/spots.ts`.** A spot is a photo and a tag. The tags are the CUSTOMER'S words for
+defect types the platform already has (`lib/extract/photos.ts` `defectTypes`, priced by
+`defect_prep_rates`) — a relabelling, never a second list, so the plan reader's `water_damage`
+and the customer's "Water mark" price identically. The repair line uses the plan reader's own
+shape: its own surface row on the room, hours on `prepHr`, `assumedFields: ["prep"]`. Prep
+hours are charged at charge-out whether or not the code matches a rate row, so this needed no
+new rate rows.
+
+- **⚑6 lives in `AUTO_PRICED`** and nowhere else: a crack and a nail hole auto-price (their
+  repair is genuinely standard); everything else is recorded, shown, and left for a person.
+- **Severity is always 1.** A customer cannot judge severity and should not be asked to; 1 is
+  the honest floor and the estimator raises it on the photo.
+- **The line is created whether or not it prices.** A spot that became only an amber note in a
+  queue would be the free-text box again, wearing a tag. An auto-priced tag with no rate row
+  is not silently free — it raises the same "needs pricing" deferral the plan reader raises.
+- Per-room condition (`same | better | worse`) is not a second condition band: the job's band
+  still sets the paint system. Only "worse" raises a deferral, and changing back to "same"
+  clears it rather than leaving a stale one.
+
+**A bug this found in existing code.** Prep lines fell through `customerRoomView`'s catalogue
+branch and rendered as ordinary surface TILES with a count stepper — inviting the customer to
+order "3 water damages". That was already true of the plan reader's photo-read defects before
+this work. `isPrepLine` now excludes them from tiles and surfaces them as `room.spots`
+instead, so the reader's defects and the customer's spots are one list of repairs.
+
+**Traps.**
+- `RoomSpots` MUST pass `estimateId` to `/api/extract/photos`, or the photo row is written
+  with `estimate_id` null and nothing ever sets it — the orphaned-photo bug that left 92 rows
+  unreachable (R5).
+- A failed photo upload still records the spot. The customer told us something true about
+  their house; the photo is evidence, not the point.
+- `remove_spot` refuses anything whose label is not `Repair — …`, so the action can never
+  become a way to delete a painting line the customer is meant to untick. Removing a spot also
+  drops its deferral, or the estimator chases a spot that no longer exists.
+- There is deliberately **no `spotLabel()`**. The card reads a spot's name off the line
+  (`customerRoomView` strips the prefix), so the customer sees the word they tapped. Two ways
+  to name a spot is two ways for them to disagree — the same rule `roomDoorScope` follows.
+- "wallpaper" is the one tag with no row in the defect vocabulary — stripping paper is work,
+  not a defect. It is review-only, so it never tries to auto-price, and the unmatched code
+  takes the engine's no-rate-item path (prep hours charged, nothing else, cannot throw).
