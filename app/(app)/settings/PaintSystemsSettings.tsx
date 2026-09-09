@@ -28,6 +28,7 @@ const GROUP_LABEL: Record<SystemGroup, string> = {
   trims: "Skirtings and architraves",
   doors: "Doors",
   windows: "Windows",
+  exterior: "Outside — every exterior surface",
 };
 
 const INTENT_LABEL: Record<ColourIntent, string> = {

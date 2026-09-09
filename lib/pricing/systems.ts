@@ -78,7 +78,7 @@ export const CONDITION_BANDS = ["good", "wear", "work"] as const;
 export type ConditionBand = (typeof CONDITION_BANDS)[number];
 
 /** The surface groups the table is keyed on (plan §4.2). */
-export const SYSTEM_GROUPS = ["walls", "ceilings", "trims", "doors", "windows"] as const;
+export const SYSTEM_GROUPS = ["walls", "ceilings", "trims", "doors", "windows", "exterior"] as const;
 export type SystemGroup = (typeof SYSTEM_GROUPS)[number];
 
 /** The stored `condition.tier` → colour intent. */
@@ -124,6 +124,29 @@ export function groupForSubstrate(key: SubstrateKey | null | undefined): SystemG
     case "skirting": case "architraves": return "trims";
     case "doors": return "doors";
     case "windows": return "windows";
+
+    // ---- exterior (Tom, 9 Sep) --------------------------------------------
+    /**
+     * ONE exterior rule, not one per substrate. Tom: *"these are just groups
+     * to make it easier to find the substrate, not because they share anything
+     * in common"* — so there is no grouping to invent, and the coat rule is
+     * the same question asked once: same colour 1, new colour 2, bold 2 with a
+     * heads-up about a possible third.
+     *
+     * `brick_unpainted` is deliberately ABSENT. Its rate row already carries
+     * `default_coats: 3` (sealer plus two topcoats, migration 20260925), and
+     * the card is the authority on a substrate that needs more than the rule.
+     * Overriding it to 2 here would quietly under-coat bare brick.
+     *
+     * `staircase` stays absent too — it has no rate row at all.
+     */
+    case "weatherboards": case "render": case "stucco": case "cement_sheet":
+    case "colorbond": case "concrete": case "brick":
+    case "eaves": case "fascias": case "gutters": case "downpipes":
+    case "exterior_windows": case "exterior_doors": case "garage_doors":
+    case "deck": case "fence": case "pergola": case "balustrade":
+      return "exterior";
+
     default: return null;
   }
 }
@@ -251,6 +274,7 @@ export type PaintSystems = {
   trims: Record<ColourIntent, SystemRule>;
   doors: Record<ColourIntent, SystemRule>;
   windows: Record<ColourIntent, SystemRule>;
+  exterior: Record<ColourIntent, SystemRule>;
   /** ⚑3 — the two-coat tap when the ceilings are marked or already coloured. */
   ceilingsMarkedCoats: number;
   /**
@@ -327,9 +351,25 @@ export const DEFAULT_PAINT_SYSTEMS: PaintSystems = {
     bold: rule(3, true, "As the trims. Both sides, edges and frame — an undercoat and two coats of water-based enamel."),
   },
   windows: {
-    same: rule(2, false, "Sand back, then two coats to frames and sashes. Glass edges cut in by hand."),
+    // ONE coat on a same-colour job (Tom, 9 Sep) — the same answer as the trims.
+    same: rule(1, false, "Sand back, spot-prime any bare patches, then one coat to frames and sashes. Glass edges cut in by hand."),
     new: rule(2, false, "Sand and fill, then two coats to frames and sashes. Glass edges cut in by hand."),
     bold: rule(2, false, "Sand and fill, then two coats to frames and sashes. Glass edges cut in by hand."),
+  },
+  /**
+   * Exterior (Tom, 9 Sep). *"Same colour is generally 1 coat. Bold colours can
+   * sometimes be 3, but we would usually price for 2 and then give the client
+   * a heads up if a 3rd coat is required and add it as a variation. Painting
+   * from dark colours to white can also sometimes require 3 coats."*
+   *
+   * So bold is priced at TWO and says so — the third coat is a conversation
+   * before it is a charge, which is the opposite of quoting three and hoping.
+   * Note this differs from the interior, where dark-to-white is ALWAYS three.
+   */
+  exterior: {
+    same: rule(1, false, "Same colour again. Wash down, scrape and sand any loose paint, spot-prime the bare patches, then one full coat."),
+    new: rule(2, false, "New colour. Wash down, scrape and sand back to sound, prime the bare patches, then two full coats."),
+    bold: rule(2, false, "A bold colour, or going to white. Wash down, prepare and prime, then two full coats — some colours need a third for full coverage, and we'll tell you before we start that wall rather than after."),
   },
   ceilingsMarkedCoats: 2,
   trimsGoodConditionCoats: 1,
@@ -377,6 +417,7 @@ export const paintSystemsSchema = z.object({
   trims: intentsSchema,
   doors: intentsSchema,
   windows: intentsSchema,
+  exterior: intentsSchema,
   ceilingsMarkedCoats: z.number().int().min(COATS_MIN).max(COATS_MAX),
   trimsGoodConditionCoats: z.number().int().min(COATS_MIN).max(COATS_MAX),
   glossBondingPrimer: z.boolean(),
@@ -425,6 +466,7 @@ export function paintSystemsFrom(value: unknown): PaintSystems {
     trims: groupOf("trims"),
     doors: groupOf("doors"),
     windows: groupOf("windows"),
+    exterior: groupOf("exterior"),
     ceilingsMarkedCoats: int(v.ceilingsMarkedCoats, DEFAULT_PAINT_SYSTEMS.ceilingsMarkedCoats),
     trimsGoodConditionCoats: int(v.trimsGoodConditionCoats, DEFAULT_PAINT_SYSTEMS.trimsGoodConditionCoats),
     glossBondingPrimer: typeof v.glossBondingPrimer === "boolean" ? v.glossBondingPrimer : DEFAULT_PAINT_SYSTEMS.glossBondingPrimer,

@@ -3026,3 +3026,56 @@ is a colour match, priced from its own rate row (Tom, 7 Sep). No second mechanis
 per surface — so a white-on-white **ceiling on a new-colour job is one coat and gets no allowance**.
 By Tom's own reasoning it should. Keying it on the derived coats instead would fix it, and would
 add cost to every new-colour job, so it is his call rather than mine.
+
+### Tom's rulings of 9 Sep, actioned — and the movement lands at zero
+
+**Windows on a same-colour job: one coat** ("generally 1"). With the trims already reversed to
+one, a same-colour job now prices at **exactly what it priced before** — +0.0% on the impact
+script. That is Tom's *"our current production rates are pretty accurate already"*, confirmed by
+the engine rather than asserted.
+
+| | before these rulings | now |
+|---|---|---|
+| Same colours | +17% → +25% | **+0.0%** |
+| New colours | −2.0% | −2.0% (⚑3's ceiling) |
+| Much lighter / bold | +25.6% | +25.6% |
+
+The bold figure **overstates the real change**: the script compares against the old whole-job
+count with no surfaces ticked dark-to-light, where in practice the customer ticks the walls and
+the old code already gave those three. Interior bold-to-white being *always* three is Tom's own
+ruling, so the direction is right.
+
+**Exterior derives now** — the thing that had blocked phases 3, 4, 5 and 7. Tom: *"these are just
+groups to make it easier to find the substrate, not because they share anything in common"*, so
+there is no grouping to invent and one rule covers every exterior substrate: **same 1 · new 2 ·
+bold 2**, with the sentence saying a third coat may be needed and that we will say so *before* we
+start that wall — Tom prices two and raises a variation rather than quoting three and hoping.
+Two substrates stay out: `brick_unpainted`, whose rate row already carries `default_coats: 3`
+(the card is the authority where a substrate needs more than the rule), and `staircase`, which has
+no rate row at all. **Interior bold stays at three** — inside, dark-to-white is always three.
+
+The systems CARD stays interior-only: the exterior editor is the sides builder, and deriving
+exterior coats is a separate decision from showing them on a screen that exterior customers
+never see.
+
+**Ceilings without walls is a 30% RATE UPLIFT, not a flat line.** Tom: *"if ceilings are being
+painted and walls aren't, we need to charge the ceiling and cornice at a 30% higher rate."* The
+flat `Ceilings Only Allowance` line under-charged a big living room and over-charged a WC. A new
+per-surface `upliftPct` on `SurfaceInput` multiplies that surface's painting hours; absent or 0
+changes nothing, so every existing estimate prices identically. It is set on the ceiling and
+cornice when the walls are off and **cleared the moment they come back on**, so unticking the
+walls by mistake is not a permanent 30%.
+
+**Migration `20270133000000_occupancy_modifiers.sql`** seeds `STG-EMPTY` 1.02,
+`STG-PART-CLEARED` 1.02 and `STG-FURNISHED` 1.04 in the **Staging** group, on Tom's approval.
+Applied to C1 and verified. Parking and the lift are deliberately absent — they do not scale with
+the job and are flat hours in code, needing no row.
+
+**`scripts/prep-hours-sheet.ts`** produces the worksheet Tom asked for: every substrate against
+the FOUR cases he named (peeling · raw MDF or bare timber · badly damaged · oil needing
+water-based), times the three extent columns `defect_prep_rates` already carries. There is
+deliberately no general "prep" column — the standard rate covers minor sanding, caulking and
+filling, and a column for prep-in-general would invite a number that double-counts it. Each case
+appears only against substrates it can happen to (77 rows, not 119: no "raw MDF on the walls").
+Two of the four cases — raw timber and oil-to-water — have **no defect type yet**; both are real,
+and get seeded with the hours.

@@ -128,12 +128,23 @@ const TITLE: Record<SystemGroup, string> = {
   trims: "Skirtings, architraves and door frames",
   doors: "Doors",
   windows: "Windows",
+  exterior: "Outside",
 };
 
 /** Interior surface rows only — an exterior block never reaches the table. */
 function isInteriorArea(b: LooseBlock): boolean {
   return b.kind === "area" && b.type !== "Exterior";
 }
+
+/**
+ * The card stays INTERIOR-ONLY even now that exterior systems are derived.
+ *
+ * The exterior editor is the sides builder, not this card, and a customer
+ * shaping a house's outside has never seen this screen. Deriving exterior
+ * coats (which now happens) and showing them here are separate decisions —
+ * the second one belongs with the exterior quick look, not smuggled in.
+ */
+const CARD_GROUPS: ReadonlySet<SystemGroup> = new Set(["walls", "ceilings", "trims", "doors", "windows"]);
 
 /**
  * Which groups this estimate actually contains, and how many rows each holds.
@@ -198,6 +209,7 @@ export function paintSystemsView(
   const lines: PaintSystemLine[] = [];
 
   for (const group of SYSTEM_GROUPS) {
+    if (!CARD_GROUPS.has(group)) continue;
     const surfaceCount = counts.get(group);
     if (surfaceCount == null) continue;
     const s = deriveSystem(group, answers, systems);

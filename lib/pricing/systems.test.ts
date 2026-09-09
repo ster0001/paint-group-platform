@@ -87,16 +87,23 @@ describe("the acceptance criteria (plan §9.3)", () => {
    * — doors follow the trims row, so they move with trims; ceilings (white
    * again) and windows do not move at all.
    */
-  it("differs between a same-colour and a new-colour job only in walls and trims", () => {
+  /**
+   * The plan's §9.3 criterion was "a same-colour and a new-colour job differ
+   * only in walls and trims". That held for the plan's OWN proposed table.
+   * Tom's rulings of 9 Sep changed it: same-colour windows are one coat
+   * ("generally 1"), so windows moves too, and exterior now derives at all.
+   *
+   * What still holds — and is the point the criterion was protecting — is that
+   * CEILINGS do not move: a white ceiling is a white ceiling whatever the
+   * walls are doing.
+   */
+  it("moves the surfaces that change colour, and never the ceilings", () => {
     const moved: SystemGroup[] = [];
     for (const group of SYSTEM_GROUPS) {
-      const same = coatsOf(group, { colourIntent: "same" });
-      const fresh = coatsOf(group, { colourIntent: "new" });
-      if (same !== fresh) moved.push(group);
+      if (coatsOf(group, { colourIntent: "same" }) !== coatsOf(group, { colourIntent: "new" })) moved.push(group);
     }
-    expect(moved).toEqual(["walls", "trims", "doors"]);
+    expect(moved).toEqual(["walls", "trims", "doors", "windows", "exterior"]);
     expect(coatsOf("ceilings", { colourIntent: "same" })).toBe(coatsOf("ceilings", { colourIntent: "new" }));
-    expect(coatsOf("windows", { colourIntent: "same" })).toBe(coatsOf("windows", { colourIntent: "new" }));
   });
 });
 
@@ -202,18 +209,53 @@ describe("substrate → group", () => {
     expect(groupForSubstrate("windows")).toBe("windows");
   });
 
-  /** Plan §4.4: the exterior per-elevation spec does not exist yet. */
-  it("has no opinion on exterior substrates, so they keep their existing coats", () => {
-    for (const key of ["weatherboards", "render", "eaves", "fascias", "gutters", "deck", "fence"] as const) {
-      expect(groupForSubstrate(key)).toBeNull();
+  /**
+   * Exterior derives now (Tom, 9 Sep). One rule for every exterior substrate,
+   * because the substrate list is a way of FINDING things, not a claim that
+   * they share a system — Tom's own correction.
+   */
+  it("puts every exterior substrate on the one exterior rule", () => {
+    for (const key of ["weatherboards", "render", "eaves", "fascias", "gutters", "deck", "fence", "brick"] as const) {
+      expect(groupForSubstrate(key), key).toBe("exterior");
     }
+  });
+
+  /**
+   * The two exceptions, and why. Bare brick's rate row already carries
+   * `default_coats: 3` — the card is the authority on a substrate that needs
+   * more than the rule, and overriding it to 2 would quietly under-coat it.
+   * A staircase has no rate row at all.
+   */
+  it("leaves bare brick and the staircase to the rate card", () => {
+    expect(groupForSubstrate("brick_unpainted")).toBeNull();
     expect(groupForSubstrate("staircase")).toBeNull();
     expect(groupForSubstrate(null)).toBeNull();
   });
 
+  /**
+   * Tom: "same colour is generally 1 coat; bold can sometimes be 3, but we'd
+   * price for 2 and give the client a heads up if a 3rd is required and add it
+   * as a variation." So bold is TWO and says so — the third coat is a
+   * conversation before it is a charge.
+   */
+  it("prices exterior at 1 / 2 / 2, and warns about the third coat", () => {
+    expect(coatsOf("exterior", { colourIntent: "same" })).toBe(1);
+    expect(coatsOf("exterior", { colourIntent: "new" })).toBe(2);
+    const bold = deriveSystem("exterior", answers({ colourIntent: "bold" }));
+    expect(bold.coats).toBe(2);
+    expect(bold.sentence).toMatch(/need a third/i);
+    expect(bold.sentence).toMatch(/before we start that wall/i);
+  });
+
+  /** Inside, going from a bold colour to white is ALWAYS three (Tom, 9 Sep). */
+  it("keeps interior bold at three coats, unlike the exterior", () => {
+    expect(coatsOf("walls", { colourIntent: "bold" })).toBe(3);
+    expect(coatsOf("exterior", { colourIntent: "bold" })).toBe(2);
+  });
+
   it("lists one line per group the job actually has, in the painter's order", () => {
     const lines = systemsForSurfaces(["skirting", "walls", "ceilings", "cornices", "weatherboards"], answers());
-    expect(lines.map((l) => l.group)).toEqual(["walls", "ceilings", "trims"]);
+    expect(lines.map((l) => l.group)).toEqual(["walls", "ceilings", "trims", "exterior"]);
   });
 
   it("leaves out groups with nothing ticked", () => {
