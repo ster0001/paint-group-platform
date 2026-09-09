@@ -30,11 +30,14 @@ test("site and access is asked, answered and remembered", async ({ page }) => {
   await expect(card).toContainText(/None of these are a problem/i);
 
   // The plan's questions, all present.
-  for (const q of ["cleared", "floors", "stairwell", "parking", "pets"]) {
+  for (const q of ["cleared", "stairwell", "parking", "pets"]) {
     await expect(page.getByTestId(`access-${q}`)).toBeVisible();
   }
   // A house is never asked about a lift booking (units and apartments only).
   await expect(page.getByTestId("access-lift")).toHaveCount(0);
+  // Floors is gone: Tom prices it inside the empty/furnished allowance, and a
+  // question that changes nothing wastes the customer's patience.
+  await expect(page.getByTestId("access-floors")).toHaveCount(0);
 
   // Height and asbestos are NOT re-asked here — they belong to the details
   // card and the policy ladder, and asking twice invites two answers.
@@ -42,13 +45,12 @@ test("site and access is asked, answered and remembered", async ({ page }) => {
   await expect(card).not.toContainText(/asbestos/i);
 
   // Nothing is answered to begin with.
-  await expect(card).toContainText("0 OF 5");
+  await expect(card).toContainText("0 OF 4");
 
   await page.getByTestId("access-cleared-no").click();
   await expect(page.getByTestId("access-cleared-no")).toHaveAttribute("aria-pressed", "true");
-  await expect(card).toContainText("1 OF 5", { timeout: 30_000 });
+  await expect(card).toContainText("1 OF 4", { timeout: 30_000 });
 
-  await page.getByTestId("access-floors-hard").click();
   await page.getByTestId("access-stairwell-yes").click();
   await page.getByTestId("access-parking-drive").click();
   await page.getByTestId("access-pets-yes").click();

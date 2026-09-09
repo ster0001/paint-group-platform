@@ -98,15 +98,32 @@ describe("what the estimator is shown", () => {
     expect(pack().systems.map((l) => l.group)).toEqual(["walls", "ceilings"]);
   });
 
+  /**
+   * The pack reads the access answers through the SAME function that prices
+   * them, so it can never describe an allowance the job did not get. The three
+   * shapes all have to reach the estimator: the percentage, the flat hours,
+   * and the notes that carry no price at all.
+   */
   it("turns the access answers into the words that explain the time", () => {
     const s = state();
-    s.details.siteAccess = { cleared: "no", stairwell: "yes", parking: "drive", pets: "yes" };
+    s.details.siteAccess = { cleared: "no", stairwell: "yes", parking: "hard", lift: "yes", pets: "yes" };
     const p = pack({}, tree(), s);
-    expect(p.access.some((a) => /furniture stays/i.test(a))).toBe(true);
-    expect(p.access.some((a) => /stairwell/i.test(a))).toBe(true);
-    expect(p.access).toContain("pets on site");
-    // A driveway costs nothing and must not fill the pack with noise.
-    expect(p.access.some((a) => /driveway/i.test(a))).toBe(false);
+    // The percentage — the answer and what it earns.
+    expect(p.access.some((a) => /furniture stays/i.test(a) && /4%/.test(a))).toBe(true);
+    // The flat hours, with their number.
+    expect(p.access.some((a) => /parking/i.test(a) && /2\.5 h/.test(a))).toBe(true);
+    expect(p.access.some((a) => /lift/i.test(a) && /1 h/.test(a))).toBe(true);
+    // The notes that carry no price.
+    expect(p.access.some((a) => /trestles or a platform/i.test(a))).toBe(true);
+    expect(p.access.some((a) => /doors and gates/i.test(a))).toBe(true);
+  });
+
+  it("says nothing about an answer that costs nothing", () => {
+    const s = state();
+    s.details.siteAccess = { cleared: "yes", floors: "hard", parking: "drive", pets: "no" };
+    const p = pack({}, tree(), s);
+    // A driveway, carpet-or-not and no pets must not fill the pack with noise.
+    expect(p.access.some((a) => /driveway|floors/i.test(a))).toBe(false);
   });
 });
 

@@ -11,7 +11,10 @@ import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { PAINT_SYSTEMS_KEY, paintSystemsFrom } from "@/lib/pricing/systems";
 import { applyPaintSystems, applySystemPatch, paintSystemsView, type SystemPatch } from "@/lib/wizard/systems-view";
 import { roomConditionDeferred, spotLine } from "@/lib/wizard/spots";
-import { SITE_ACCESS_GROUP, STAGING_GROUP, applySiteAccess } from "@/lib/wizard/site-access";
+import { makeDraftSurface } from "@/lib/extract/draft";
+import {
+  SITE_ACCESS_HOURS_KEY, STAGING_GROUP, applySiteAccess, hourAllowancesFrom,
+} from "@/lib/wizard/site-access";
 import { extraNoteDeferral } from "@/lib/wizard/extras";
 import type { DefectRate } from "@/lib/capture/commit";
 import { applyWizardAnswers } from "@/lib/wizard/merge";
@@ -112,8 +115,13 @@ function prettifyExtra(code: string): string {
   return code.replace(/\s*\(1 Side\)/i, "").trim();
 }
 
+/** The whole-job block the site-access hour allowances live on. */
+function isSiteAccessBlock(b: { kind?: string; name?: string }): boolean {
+  return b.kind === "area" && String(b.name ?? "").toLowerCase() === "site access";
+}
+
 /** The `what` shape site-and-access notes use, so re-answering clears them. */
-const SITE_ACCESS_DEFERRAL = /^(cleared|floors|stairwell|parking|lift) — /;
+const SITE_ACCESS_DEFERRAL = /^(cleared|floors|stairwell|parking|lift|furniture stays|rooms cleared)\b/;
 
 /** One site-access answer, narrowed. Null for a value that field can't take. */
 function siteAccessValue(field: string, value: string): string | null {
@@ -590,7 +598,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (wiz?.state?.details) wiz.state.details.siteAccess = access;
 
       const ctxNow = await ctxPromise;
-      const outcome = applySiteAccess(access, ctxNow.modifiers);
+      const outcome = applySiteAccess(
+        access,
+        ctxNow.modifiers,
+        hourAllowancesFrom(settingValue(ctxNow.settings, SITE_ACCESS_HOURS_KEY)),
+      );
       // Every note this module has ever raised goes, then the current set is
       // re-raised — an answer changed back to "the rooms will be cleared"
       // must not leave yesterday's flag behind.
@@ -598,9 +610,43 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       newDeferred = [...newDeferred, ...outcome.deferred];
 
       const modSel = { ...((state.modSel as Record<string, string>) ?? {}) };
-      for (const group of [SITE_ACCESS_GROUP, STAGING_GROUP]) delete modSel[group];
+      delete modSel[STAGING_GROUP];
       Object.assign(modSel, outcome.modSel);
       (state as Record<string, unknown>).modSel = modSel;
+
+      /**
+       * The flat-hour allowances (Tom, 9 Sep: tricky parking ≈ 2–3 h, a lift
+       * booking ≈ 1 h). They do NOT scale with the job, so they are hours on
+       * a whole-job line rather than a percentage — a percentage would
+       * under-price the small job the walk hurts most.
+       *
+       * Rebuilt from scratch every time: an answer taken back must take its
+       * hours with it, and re-answering must not stack a second copy.
+       */
+      let nextId = Math.max(0, ...blocks.flatMap((b) => [Number(b.id) || 0, ...(b.surfaces ?? []).map((x) => Number(x.id) || 0)])) + 1;
+      blocks = blocks.map((b) => (isSiteAccessBlock(b)
+        ? { ...b, surfaces: (b.surfaces ?? []).filter((x) => !String(x.code ?? "").startsWith("Site Access — ")) }
+        : b));
+      if (outcome.hours.length > 0) {
+        const lines = outcome.hours.map((h) => {
+          const line = makeDraftSurface(nextId++, `Site Access — ${h.label}`, h.label, 1, "customer_stated", 0.9, ["prep"]) as unknown as Record<string, unknown>;
+          line.prepHr = h.hours;
+          line.crewNote = h.note;
+          return line;
+        });
+        const idx = blocks.findIndex(isSiteAccessBlock);
+        if (idx >= 0) {
+          blocks = blocks.map((b, i) => (i === idx ? { ...b, surfaces: [...(b.surfaces ?? []), ...lines] } : b));
+        } else {
+          blocks = [...blocks, {
+            id: nextId++, kind: "area", name: "Site access", type: "Interior", areaType: "surface",
+            roomType: "interior", storey: "ground", L: 0, W: 0, H: 0,
+            isOption: false, description: "", open: false, media: [],
+            origin: "customer_stated", confidence: 0.9, assumedFields: [], extractionSourceId: null,
+            surfaces: lines,
+          } as unknown as typeof blocks[number]];
+        }
+      }
     }
 
     /**

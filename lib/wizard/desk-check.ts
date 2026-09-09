@@ -25,7 +25,7 @@
 import { remoteConfirmVerdict, type RemoteConfirmVerdict, type WizardPolicySettings } from "./policy";
 import { paintSystemsView, type PaintSystemLine } from "./systems-view";
 import { customerRoomView, type CustomerScopeRoom } from "./scope-editor";
-import { SITE_ACCESS_RULES, type SiteAccess } from "./site-access";
+import { applySiteAccess, type SiteAccess } from "./site-access";
 import { ROOM_CONDITION_LABEL } from "./spots";
 import type { PaintSystems } from "@/lib/pricing/systems";
 import type { ScopeRule } from "@/lib/extract/scope";
@@ -106,13 +106,20 @@ export function deskCheckPack(
   }
 
   const allSpots = rooms.flatMap((r) => r.spots);
-  const access: string[] = [];
+  /**
+   * The access answers in the estimator's words. Read through the SAME
+   * function that prices them, so the pack can never describe an allowance
+   * the job did not get — the percentage, the flat hours, and the notes that
+   * carry no price at all.
+   */
   const answers = (state.details as { siteAccess?: SiteAccess }).siteAccess ?? {};
-  for (const [field, value] of Object.entries(answers)) {
-    const rule = SITE_ACCESS_RULES[`${field}:${value}`];
-    if (rule) access.push(rule.needs);
-  }
-  if (answers.pets === "yes") access.push("pets on site");
+  const site = applySiteAccess(answers, []);
+  const access: string[] = [
+    // The answer AND what it earns — "furniture stays — allow about 4%…".
+    ...site.deferred.map((d) => `${d.what} — ${d.needs}`),
+    ...site.hours.map((h) => `${h.label} — ${h.hours} h allowed`),
+    ...site.notes,
+  ];
 
   return {
     verdict,

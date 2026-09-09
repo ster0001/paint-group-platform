@@ -2956,3 +2956,36 @@ a job on one of their own accounts, checked by id against the portal context.
 - `getRebookCandidates` keys `hasWizard` on `builder_state->wizard->**version**`, not on the state.
   A seeded job without it never reaches the repeatable list, so the save control has nothing to
   sit on. The submit route writes `{ version: 1, state, submittedAt }`.
+
+### Phase 5a REWORKED on Tom's numbers — multipliers were the wrong shape (9 Sep 2026)
+
+Tom, asked whether multipliers were right for site and access, gave the figures instead:
+empty or mostly empty ≈ **2% of job value**, furnished ≈ **4%**, hard/mixed floors **not
+factored** (already inside that prep), stairwell/void **not allowed for**, tricky parking
+≈ **2–3 hours**, lift access ≈ **1 hour**.
+
+That is two different shapes, and only one of them is a multiplier:
+
+- **OCCUPANCY scales with the job** — a furnished six-bedroom takes more covering than a
+  furnished flat — so it is a percentage, which is exactly what a modifier already is
+  (`paintingHr = base × jobMod`). `STG-EMPTY` / `STG-PART-CLEARED` / `STG-FURNISHED`, in the
+  **Staging** group, so they can never compound with the lived-in-home modifier already there.
+- **PARKING and a LIFT BOOKING do not scale at all.** Carrying gear from a side street costs the
+  same two hours whether it is one room or ten. A percentage would under-price the small job it
+  hurts most and over-price the big one. They are **flat hours** on a "Site access" block, riding
+  `prepHr` — which needs no rate row, the same reason the plastering and raw-timber allowances do.
+
+**Two questions were removed rather than repriced.** Floors is gone from the screen: Tom prices it
+inside the empty/furnished figure, and a question that changes nothing wastes the customer's
+patience. The stairwell stays — the painter needs to know — but as a **note with no price**, and
+its hint no longer implies one.
+
+This also **deleted the one-per-group flaw** the first cut had: with parking and the lift no longer
+modifiers, the Access group carries nothing, and occupancy is one answer in one group.
+
+**The hour allowances are Settings-editable** (`site_access_hours`), per-entry fallback, so Tom can
+move parking to 3 h without a deploy.
+
+**The desk-check pack reads the access answers through the same function that PRICES them**, so it
+can never describe an allowance the job did not get — the percentage, the flat hours and the
+unpriced notes each reach the estimator in their own words.

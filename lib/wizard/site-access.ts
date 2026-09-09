@@ -1,96 +1,52 @@
 /**
  * Site and access — plan §4.4, prototype screen 9.
  *
- * The gap this closes (plan §2.4): **interior access is never asked.**
- * Stairwells, voids, furniture, floors, parking and lift bookings have no
- * home in the flow at all, so the things that decide how long protection and
- * packing down take are simply absent from the price.
+ * The gap this closes (plan §2.4): interior access was never asked at all, so
+ * the things that decide how long protection and packing down take had no
+ * bearing on the price.
  *
  * ────────────────────────────────────────────────────────────────────────
- * WHY THERE ARE NO NUMBERS IN THIS FILE
+ * REBUILT 9 SEP 2026 ON TOM'S ACTUAL NUMBERS — AND MULTIPLIERS WERE WRONG
  *
- * The plan says this screen is the allowances spec §4's four modifiers
- * "verbatim" — and §9.1 gates the whole phase on that spec being merged.
- * **It is not in the repository.** Writing four multipliers here would be
- * inventing prices nobody has validated, which is the same thing the exterior
- * derivation was refused for (§4.4).
+ * The first cut made all six answers modifier multipliers, which was the
+ * wrong shape twice over. Tom's own figures:
  *
- * So this follows the pattern `applyConditionPricing` already established for
- * weathered exteriors and occupied homes: each answer names a MODIFIER CODE,
- * and
+ *   · empty or mostly empty      ≈ 2% of job value
+ *   · furnished                  ≈ 4% of job value
+ *   · hard or mixed floors       NOT factored — it is already inside the
+ *                                empty/furnished prep
+ *   · stairwell or void          not allowed for today
+ *   · tricky parking             ≈ 2–3 HOURS
+ *   · lift access                ≈ 1 HOUR
  *
- *   · if Tom has seeded that modifier — Settings → Pricing → Modifiers —
- *     it applies, at his multiplier;
- *   · if he has not, the answer becomes an amber deferral so the estimator
- *     allows for it by hand.
+ * Two different shapes, and only one of them is a multiplier:
  *
- * Never a silent no-op, never an invented number. The questions can be asked
- * today and start pricing the moment Tom sets a multiplier, with no deploy.
+ *   OCCUPANCY scales with the job — a furnished six-bedroom takes more
+ *   covering than a furnished flat — so it is a percentage, which is what a
+ *   modifier already is (`paintingHr = base × jobMod`).
+ *
+ *   PARKING and a LIFT BOOKING do not scale with the job at all. Carrying
+ *   gear from a side street costs the same two hours whether it is one room
+ *   or ten. A percentage would under-price the small job it hurts most and
+ *   over-price the big one. They are FLAT HOURS.
+ *
+ * And two questions are gone: floors, because Tom does not price it
+ * separately, and pricing it here would double-count the occupancy
+ * allowance; and the stairwell, which is now a note for the estimator rather
+ * than a question that changes nothing.
  */
 
 import type { WizardDeferred } from "./view";
 
-/** One answer that costs something, and the modifier that prices it. */
-export type SiteAccessRule = {
-  /** The modifier code Tom seeds in Settings → Pricing → Modifiers. */
-  code: string;
-  /** The group the modifier belongs to — one selection per group applies. */
-  group: string;
-  /** What the estimator is told when the modifier is not seeded. */
-  needs: string;
-  /** What the customer is told about why we asked. */
-  because: string;
-};
-
-export const SITE_ACCESS_GROUP = "Access";
-export const STAGING_GROUP = "Staging";
-
-/**
- * Only the answers that IMPLY EXTRA WORK appear here. "The rooms will be
- * cleared" and "no pets" cost nothing and must not raise an amber note — a
- * screen that flags every answer teaches the estimator to ignore the flags.
- */
-export const SITE_ACCESS_RULES: Record<string, SiteAccessRule> = {
-  "cleared:some": {
-    code: "ACC-PART-CLEARED", group: STAGING_GROUP,
-    needs: "some furniture stays — allow for moving and re-covering it each day",
-    because: "we work around what's left and cover it each day",
-  },
-  "cleared:no": {
-    code: "ACC-FURNITURE-STAYS", group: STAGING_GROUP,
-    needs: "furniture stays in the rooms — allow for moving, covering and re-setting each day",
-    because: "we move it to the middle, cover it and put it back each day",
-  },
-  "floors:hard": {
-    code: "ACC-HARD-FLOORS", group: SITE_ACCESS_GROUP,
-    needs: "hard floors — allow for full drop-sheeting and protection",
-    because: "hard floors need more protection than carpet",
-  },
-  "floors:mixed": {
-    code: "ACC-HARD-FLOORS", group: SITE_ACCESS_GROUP,
-    needs: "mixed floors — allow for protection on the hard-floor areas",
-    because: "hard floors need more protection than carpet",
-  },
-  "stairwell:yes": {
-    code: "ACC-STAIRWELL", group: SITE_ACCESS_GROUP,
-    needs: "stairwell or void with high walls — allow for trestles or a platform, and slower cutting in",
-    because: "high walls over a stairwell need a platform, and take longer to cut in",
-  },
-  "parking:hard": {
-    code: "ACC-PARKING", group: SITE_ACCESS_GROUP,
-    needs: "difficult parking — allow for carrying gear in and out each day",
-    because: "carrying gear a long way adds time at each end of the day",
-  },
-  "lift:yes": {
-    code: "ACC-LIFT-BOOKING", group: SITE_ACCESS_GROUP,
-    needs: "lift and building booking required — check the building's hours and book the lift before the start date",
-    because: "we book the lift and work to the building's hours",
-  },
-};
-
 /** The stored answers. Every one optional — an unanswered screen costs nothing. */
 export type SiteAccess = {
+  /** Empty · mostly empty · furniture stays. The occupancy allowance. */
   cleared?: "yes" | "some" | "no";
+  /**
+   * Kept in the type so a stored answer from before 9 Sep still parses, and
+   * deliberately NOT priced: Tom's floors allowance lives inside the
+   * empty/furnished figure, and charging it again here would double-count.
+   */
   floors?: "carpet" | "hard" | "mixed";
   stairwell?: "yes" | "no";
   parking?: "drive" | "street" | "hard";
@@ -99,63 +55,123 @@ export type SiteAccess = {
   pets?: "yes" | "no";
 };
 
-/** The answers as `${question}:${answer}` keys, for looking rules up. */
-function answerKeys(a: SiteAccess): string[] {
-  return Object.entries(a)
-    .filter(([, v]) => typeof v === "string" && v.length > 0)
-    .map(([k, v]) => `${k}:${v}`);
+/**
+ * The occupancy allowance, as a multiplier on painting hours.
+ *
+ * Tom's percentages, expressed the way `jobModifier` consumes them. They live
+ * in the Staging group, which is the group the lived-in-home modifier already
+ * uses — ONE selection per group, so they can never compound with it.
+ */
+export const OCCUPANCY_MODIFIERS: Record<NonNullable<SiteAccess["cleared"]>, { code: string; pct: number }> = {
+  yes: { code: "STG-EMPTY", pct: 2 },
+  some: { code: "STG-PART-CLEARED", pct: 2 },
+  no: { code: "STG-FURNISHED", pct: 4 },
+};
+
+export const STAGING_GROUP = "Staging";
+
+/** A flat hours allowance — the cost that does not scale with the job. */
+export type HourAllowance = {
+  key: string;
+  /** The line the customer and the painter both read. */
+  label: string;
+  hours: number;
+  /** What the painter is told. */
+  note: string;
+};
+
+/**
+ * Tom's hours, 9 Sep. Settings-editable like everything else that decides
+ * money — `site_access_hours`, below.
+ */
+export const DEFAULT_HOUR_ALLOWANCES: Record<string, HourAllowance> = {
+  "parking:hard": {
+    key: "parking:hard",
+    label: "Difficult parking — carrying gear in and out",
+    hours: 2.5,
+    note: "no parking at the door — allow time carrying gear in and out each day",
+  },
+  "lift:yes": {
+    key: "lift:yes",
+    label: "Lift and building booking",
+    hours: 1,
+    note: "book the lift and work to the building's hours",
+  },
+};
+
+export const SITE_ACCESS_HOURS_KEY = "site_access_hours";
+
+/** The settings row → the hour allowances, per-entry fallback. */
+export function hourAllowancesFrom(value: unknown): Record<string, HourAllowance> {
+  const v = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  const out: Record<string, HourAllowance> = {};
+  for (const [key, def] of Object.entries(DEFAULT_HOUR_ALLOWANCES)) {
+    const raw = v[key] as { hours?: unknown } | undefined;
+    const hours = typeof raw?.hours === "number" && raw.hours >= 0 && raw.hours <= 40 ? raw.hours : def.hours;
+    out[key] = { ...def, hours };
+  }
+  return out;
 }
 
 export type SiteAccessOutcome = {
   /** Modifier selections to merge into the estimate's `modSel`. */
   modSel: Record<string, string>;
-  /** Amber notes for every answer whose modifier Tom has not seeded yet. */
+  /** Flat-hour lines to put on the job. */
+  hours: HourAllowance[];
+  /** Notes for the estimator and the painter that carry no price. */
+  notes: string[];
+  /** Raised only when a priced answer has no modifier row to price it. */
   deferred: WizardDeferred[];
-  /** The lines the customer reads back — "why we asked". */
-  because: string[];
 };
 
 /**
- * Answers → modifiers, or amber notes where the modifier does not exist.
+ * Answers → what they cost.
  *
- * One selection per modifier GROUP wins, which is how `jobModifier` works —
- * so "furniture stays" and "part cleared" cannot both apply, and the LAST
- * rule in a group is the one kept. The rules are ordered so that is the
- * heavier answer.
+ * The occupancy modifier still follows the rule `applyConditionPricing` set:
+ * use Tom's seeded modifier if it exists, and raise an amber note naming the
+ * code if it does not. The HOURS need no seeded row at all — prep hours are
+ * charged at the charge-out rate whether or not a rate code matches
+ * (lib/pricing/estimate.ts), which is the same reason the plastering and
+ * raw-timber allowances ride `prepHr`.
  */
 export function applySiteAccess(
   access: SiteAccess,
   modifiers: ReadonlyArray<{ code: string; multiplier: number }>,
+  allowances: Record<string, HourAllowance> = DEFAULT_HOUR_ALLOWANCES,
 ): SiteAccessOutcome {
   const modSel: Record<string, string> = {};
+  const hours: HourAllowance[] = [];
+  const notes: string[] = [];
   const deferred: WizardDeferred[] = [];
-  const because: string[] = [];
 
-  for (const key of answerKeys(access)) {
-    const rule = SITE_ACCESS_RULES[key];
-    if (rule == null) continue;               // an answer that costs nothing
-    because.push(rule.because);
-    const seeded = modifiers.find((m) => m.code === rule.code);
-    if (seeded) {
-      modSel[rule.group] = rule.code;
+  if (access.cleared) {
+    const rule = OCCUPANCY_MODIFIERS[access.cleared];
+    if (modifiers.some((m) => m.code === rule.code)) {
+      modSel[STAGING_GROUP] = rule.code;
     } else {
       deferred.push({
-        room: "Whole job", areaId: null,
-        what: key.replace(":", " — "),
-        count: 1,
-        // Named so Tom can act on it directly rather than wondering where the
-        // number was meant to come from.
-        needs: `${rule.needs}. (Seed the "${rule.code}" modifier in Settings → Pricing → Modifiers to price this automatically.)`,
+        room: "Whole job", areaId: null, count: 1,
+        what: access.cleared === "no" ? "furniture stays" : "rooms cleared",
+        needs: `allow about ${rule.pct}% for protection, moving and packing down. `
+          + `(Seed the "${rule.code}" modifier at ${(1 + rule.pct / 100).toFixed(2)} in Settings → Pricing → Modifiers to price this automatically.)`,
       });
     }
   }
-  // De-duplicate: hard and mixed floors share a code and a reason.
-  return { modSel, deferred, because: [...new Set(because)] };
-}
 
-/** Pets are a note for the painter, never a price. */
-export function petsNote(access: SiteAccess): string | null {
-  return access.pets === "yes" ? "pets on site — keep doors and gates shut, check before opening up" : null;
+  for (const key of ["parking:hard", "lift:yes"] as const) {
+    const [field, value] = key.split(":") as [keyof SiteAccess, string];
+    if (access[field] === value && allowances[key]) hours.push(allowances[key]);
+  }
+
+  // Not priced, on Tom's own ruling — but the painter still has to know.
+  if (access.stairwell === "yes") {
+    notes.push("stairwell or void with high walls — trestles or a platform, and slower cutting in");
+  }
+  if (access.pets === "yes") {
+    notes.push("pets on site — keep doors and gates shut, check before opening up");
+  }
+
+  return { modSel, hours, notes, deferred };
 }
 
 /** Whether the lift question applies at all (units and apartments only). */

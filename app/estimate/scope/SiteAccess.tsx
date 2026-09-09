@@ -13,6 +13,12 @@ import type { SiteAccess as Answers } from "@/lib/wizard/site-access";
  * Ceiling height and asbestos are deliberately NOT here. Height is already
  * the details card's question (`confirm_height`) and asbestos is a hard stop
  * the policy ladder owns — asking either a second time invites two answers.
+ *
+ * FLOORS is gone (Tom, 9 Sep): he does not price it separately — the
+ * allowance is already inside the empty/furnished figure — and a question
+ * that changes nothing is a question that wastes the customer's patience.
+ * The stairwell stays because the painter needs to know, and its hint no
+ * longer implies a price it does not carry.
  */
 
 type Q = {
@@ -32,16 +38,8 @@ const QUESTIONS: Q[] = [
     ],
   },
   {
-    field: "floors", label: "Floors",
-    options: [
-      { value: "carpet", label: "Carpet" },
-      { value: "hard", label: "Hard floors" },
-      { value: "mixed", label: "Mixed" },
-    ],
-  },
-  {
     field: "stairwell", label: "A stairwell or void with high walls?",
-    hint: "High walls over a stairwell need a platform, and take longer to cut in.",
+    hint: "So your painter arrives with the right gear.",
     options: [{ value: "no", label: "No" }, { value: "yes", label: "Yes", warn: true }],
   },
   {
