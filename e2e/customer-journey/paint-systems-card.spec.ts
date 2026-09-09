@@ -74,3 +74,52 @@ test("the systems card shows the derived coats and a tap corrects them", async (
 
   await card.screenshot({ path: "test-results/paint-systems-card.png" });
 });
+
+/**
+ * Tom's question, 9 Sep: "what if the customer wants to update the number of
+ * coats on doors to 3 because they're all stained, but the rest are 2? Or the
+ * ceilings to 1 coat, but everything else 2?"
+ *
+ * The answer is a per-surface condition FLAG, not a coat picker: the customer
+ * says what is there and the engine derives the coats. This drives both of
+ * his cases on the real screen.
+ */
+test("one surface can need more than the rest, said as a condition not a coat count", async ({ page }) => {
+  test.setTimeout(240_000);
+  await driveNoPlanWizard(page);
+  await openScopeEditor(page);
+  await expect(page.getByTestId("systems-card")).toBeVisible();
+
+  // Nowhere on the card can a customer type a coat count — that is the point.
+  await expect(page.getByTestId("systems-card").locator("input[type=number]")).toHaveCount(0);
+
+  // Tom's case needs a job whose doors are at two, so start from same colours.
+  // (On a new-colour job the doors already derive three, which is a different
+  // and less interesting proof — covered by the unit tests.)
+  await page.getByTestId("system-chip-walls-colourIntent-same").click();
+  await expect(page.getByTestId("system-doors")).toContainText("2 coats", { timeout: 30_000 });
+  await expect(page.getByTestId("system-trims")).toContainText("2 coats");
+
+  // "The doors are all stained" → three coats on the DOORS only.
+  await page.getByTestId("system-flag-doors-stained").click();
+  await expect(page.getByTestId("system-doors")).toContainText("3 coats", { timeout: 30_000 });
+  await expect(page.getByTestId("system-say-doors")).toContainText(/blocking primer/i);
+  await expect(page.getByTestId("system-why-doors")).toContainText(/stained/i);
+  // …and the rest of the job is exactly where it was. This IS Tom's question.
+  await expect(page.getByTestId("system-trims")).toContainText("2 coats");
+  await expect(page.getByTestId("system-walls")).toContainText("1 coat");
+  await expect(page.getByTestId("system-ceilings")).toContainText("1 coat");
+
+  // Tapping it again takes it back off.
+  await page.getByTestId("system-flag-doors-stained").click();
+  await expect(page.getByTestId("system-doors")).toContainText("2 coats", { timeout: 30_000 });
+
+  // The other case: the ceilings are sound — one coat, everything else put.
+  await page.getByTestId("system-flag-ceilings-sound").click();
+  await expect(page.getByTestId("system-ceilings")).toContainText("1 coat", { timeout: 30_000 });
+  await expect(page.getByTestId("system-trims")).toContainText("2 coats");
+  // Talking the price down is a case a person should see.
+  await expect(page.getByTestId("system-review-ceilings")).toBeVisible();
+
+  await page.getByTestId("systems-card").screenshot({ path: "test-results/paint-systems-flags.png" });
+});

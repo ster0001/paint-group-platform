@@ -19,6 +19,8 @@
  *                   visit". Never for a job carrying requires_site_check.
  */
 
+import { routeCommercial, type CommercialSegment } from "./commercial";
+
 /** v2 (19 Aug 2026): supersedes v1's $7k/$15k/80–90 ladder. The $15k
  * always-walkthrough rule is DELETED — the per-jobtype caps replace it.
  * All four numbers are Settings values (wizard_policy). */
@@ -28,6 +30,20 @@ export type WizardPolicySettings = {
   exteriorSelfServeCapCents: number;
   exteriorSelfServeMinAccuracyPct: number;
   minJobCents: number;
+  /**
+   * ⚑7 (Tom, 9 Sep) — remote confirmation: the job an estimator may fix
+   * WITHOUT going to look at it. "Interior only, ≤ $12,000, fifty jobs then
+   * review."
+   *
+   * This is the plan's whole "quote it without seeing it" capability (§5), so
+   * it is a deliberately narrow door: over the cap, or with any exterior, the
+   * desk check still happens but its recommendation is a visit. The cap is a
+   * Settings value because widening it is a business decision Tom makes with
+   * fifty jobs of evidence, not a deploy.
+   */
+  remoteConfirmCapCents: number;
+  /** ⚑7 — exterior never, in v1. `false` opens it, and is Tom's call to make. */
+  remoteConfirmInteriorOnly: boolean;
 };
 
 export const DEFAULT_POLICY: WizardPolicySettings = {
@@ -36,6 +52,9 @@ export const DEFAULT_POLICY: WizardPolicySettings = {
   exteriorSelfServeCapCents: 1_200_000,
   exteriorSelfServeMinAccuracyPct: 85,
   minJobCents: 200_000,
+  // ⚑7's own numbers, as the plan proposed them.
+  remoteConfirmCapCents: 1_200_000,
+  remoteConfirmInteriorOnly: true,
 };
 
 export type BandSettings = {
@@ -58,6 +77,10 @@ export function policyFromSettings(value: unknown): WizardPolicySettings {
     exteriorSelfServeCapCents: num(v.exteriorSelfServeCapCents, DEFAULT_POLICY.exteriorSelfServeCapCents),
     exteriorSelfServeMinAccuracyPct: num(v.exteriorSelfServeMinAccuracyPct, DEFAULT_POLICY.exteriorSelfServeMinAccuracyPct),
     minJobCents: num(v.minJobCents, DEFAULT_POLICY.minJobCents),
+    remoteConfirmCapCents: num(v.remoteConfirmCapCents, DEFAULT_POLICY.remoteConfirmCapCents),
+    remoteConfirmInteriorOnly: typeof v.remoteConfirmInteriorOnly === "boolean"
+      ? v.remoteConfirmInteriorOnly
+      : DEFAULT_POLICY.remoteConfirmInteriorOnly,
   };
 }
 
@@ -113,6 +136,8 @@ export function answersFromState(s: {
     postcode: string;
     propertyKind: "house" | "townhouse" | "unit_apartment" | "commercial";
     commercialKind?: CommercialKind | null;
+    commercialSegment?: CommercialSegment | null;
+    commercialGates?: Record<string, "yes" | "no"> | null;
     heritageListed: "yes" | "no" | "unsure";
     bodyCorporate: "yes" | "no" | "unsure";
     builtPre1970: "yes" | "no" | "unsure";
@@ -126,6 +151,8 @@ export function answersFromState(s: {
     jobType: s.jobType,
     propertyKind: s.customer?.propertyKind ?? "house",
     commercialKind: s.customer?.commercialKind ?? null,
+    commercialSegment: s.customer?.commercialSegment ?? null,
+    commercialGates: s.customer?.commercialGates ?? {},
     heritageListed: s.customer?.heritageListed ?? "no",
     bodyCorporate: s.customer?.bodyCorporate ?? "no",
     builtPre1970: s.customer?.builtPre1970 ?? "no",
@@ -149,6 +176,9 @@ export type GuardrailAnswers = {
   /** Only meaningful when propertyKind is commercial; null = never asked
    * (an older session, the assistant) — treated as "a person looks". */
   commercialKind?: CommercialKind | null;
+  /** Phase 7: the segment, and the routing gates. */
+  commercialSegment?: CommercialSegment | null;
+  commercialGates?: Record<string, "yes" | "no"> | null;
   heritageListed: "yes" | "no" | "unsure";
   bodyCorporate: "yes" | "no" | "unsure";
   builtPre1970: "yes" | "no" | "unsure";
@@ -226,7 +256,23 @@ export function evaluateGuardrails(
   // the visit tier); a large space or a strata / body-corporate building
   // is seen first. No answer (older session, the assistant) = a person.
   if (a.propertyKind === "commercial") {
-    if (a.commercialKind === "small_interior") reasons.push("commercial_small");
+    /**
+     * Phase 7 (commercial pricing strategy §"The routing gate"): when the
+     * segment question has been answered, the GATES decide — any single one
+     * sends the job to an appointment, with no scoring and no override.
+     *
+     * The older `commercialKind` answer (Tom, 8 Sep) is kept as the fallback
+     * for every session that predates the segment question, and for the
+     * assistant, which does not ask it. Two routes to the same decision is one
+     * too many, so the gates win wherever they exist.
+     */
+    if (a.commercialSegment != null) {
+      const routing = routeCommercial(a.commercialSegment, a.commercialGates ?? {});
+      if (!routing.canPriceOnline) {
+        reasons.push(...routing.tripped.map((t) => `commercial_gate_${t}`));
+        if (routing.tripped.length === 0) reasons.push("commercial_gates_unanswered");
+      }
+    } else if (a.commercialKind === "small_interior") reasons.push("commercial_small");
     else if (a.commercialKind === "large_interior") reasons.push("commercial_large");
     else if (a.commercialKind === "strata") reasons.push("commercial_strata");
     else reasons.push("commercial_property");
@@ -276,10 +322,24 @@ export function evaluateGuardrails(
   // An unsure asbestos answer is settled by a person on site, never online.
   if (reasons.includes("asbestos_unsure")) walkthrough = true;
   if (requiresSiteCheck) softReasons.push("site_check_required");
-  // A trade job that would have handed off still takes the VISIT tier — the
-  // price shows as a range, but a person signs it off before acceptance.
-  if (tradeActor && reasons.some((r) => r.startsWith("commercial_") || r === "body_corporate" || r === "heritage_listed")) {
+  /**
+   * ⚑11 (Tom, 9 Sep): "Trade self-acceptance: never in v1."
+   *
+   * Not only for a trade job that would otherwise have handed off — for EVERY
+   * trade job. The relaxation above already put commercial, body-corporate and
+   * heritage work on the visit tier; a plain trade interior under the cap
+   * could still accept its own price online, which is the exposure the ruling
+   * closes. Volume is exactly what makes a trade account worth having and
+   * exactly what makes an unchecked price expensive: the same wrong assumption
+   * goes out forty times.
+   *
+   * The price still SHOWS as a range — nothing here hides a number. A person
+   * signs it off before acceptance, which is §7's own rule: "a person confirms
+   * every trade price before work starts (v1)."
+   */
+  if (tradeActor) {
     walkthrough = true;
+    softReasons.push("trade_signoff");
   }
   // A small commercial job is priced online but a person confirms it on
   // site before anything is booked (Tom, 8 Sep) — the visit tier.
@@ -330,9 +390,67 @@ const WHY: Record<string, string> = {
   nothing_priced: "We couldn't read any rooms from what was uploaded, so there was nothing to price yet — the quick questions (three taps) work every time.",
   outside_service_area: "The address is outside the area we currently cover.",
   below_minimum: "The job is smaller than our minimum call-out, so we confirm the price directly.",
+  trade_signoff: "Trade pricing is signed off by one of our estimators before work starts — you'll see the range now and the fixed price from us shortly.",
+  /**
+   * Phase 7 — the routing gates. The brief is explicit that a gate must SAY
+   * WHY: "we'll need to see it" with no reason reads as a brush-off, and a
+   * facilities manager who knows exactly why we're coming will trust us more
+   * for saying it. So every gate has its own line, in the customer's terms
+   * rather than the estimator's.
+   */
+  commercial_gate_healthcare: "Hospitals, aged care and medical rooms are priced on site — infection control, clearances and approvals shape the job more than the paint does.",
+  commercial_gate_strata: "Strata and common property is priced on site — the owners corporation's requirements and the common areas are confirmed by a person first.",
+  commercial_gate_height: "Some of this work is above safe ladder height, which changes both the method and the cost — so we look at it rather than guess.",
+  commercial_gate_equipment: "This one needs a lift, scaffold or boom. Hire is a real cost we quote rather than estimate, so a person sizes it up first.",
+  commercial_gate_hours: "Work outside normal hours is negotiated rather than calculated, so we talk it through before putting a number on it.",
+  commercial_gate_stages: "Coming back in stages carries setup cost a calculator can't see, so we plan it with you first.",
+  commercial_gate_compliance: "Site inductions, permits and paperwork take real time before a brush is lifted — a person confirms what's needed.",
+  commercial_gate_occupied: "Painting around people in use needs protection, staging and supervision that a home repaint doesn't, so we see it first.",
+  commercial_gate_committee: "Where a committee or building owner approves the work, we're quoting a process rather than a person — so we do it properly, in person.",
+  commercial_gates_unanswered: "We still need a few answers about the site before we can price it — one of our estimators will pick it up with you.",
 };
 
 export function guardrailWhy(reasons: string[]): string | null {
   for (const r of reasons) if (WHY[r]) return WHY[r];
   return null;
+}
+
+
+// ---------------------------------------------------------------------------
+// ⚑7 — remote confirmation
+// ---------------------------------------------------------------------------
+
+export type RemoteConfirmVerdict = {
+  /** True when an estimator may fix this price without going to look at it. */
+  eligible: boolean;
+  /** Why not, in the estimator's own words. "" when eligible. */
+  reason: string;
+};
+
+/**
+ * May this job be confirmed from the desk?
+ *
+ * Plan §5: "Start it on interiors under a cap you're comfortable with,
+ * measure fifty, then widen." So the door is narrow on purpose, and the two
+ * things that close it are the two the plan names — an exterior anywhere in
+ * the job, and a total over the cap.
+ *
+ * A job that fails is NOT dropped: the desk check still happens, and the
+ * estimator's recommendation becomes a visit. That distinction is the whole
+ * point of the mechanism — somebody still looks at every job, they just do
+ * not always drive to it.
+ */
+export function remoteConfirmVerdict(
+  totalCents: number,
+  hasExterior: boolean,
+  policy: WizardPolicySettings = DEFAULT_POLICY,
+): RemoteConfirmVerdict {
+  if (policy.remoteConfirmInteriorOnly && hasExterior) {
+    return { eligible: false, reason: "it has exterior work — v1 confirms interiors only" };
+  }
+  if (totalCents > policy.remoteConfirmCapCents) {
+    const cap = Math.round(policy.remoteConfirmCapCents / 100).toLocaleString("en-AU");
+    return { eligible: false, reason: `it is over the $${cap} remote-confirmation cap` };
+  }
+  return { eligible: true, reason: "" };
 }

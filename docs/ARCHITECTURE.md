@@ -2631,3 +2631,550 @@ ceiling has to remove the ceilings line, and that arrives as a `toggle_surface`.
   staying the same.
 - The card is hidden in `chatMode` like the other question cards — the assistant asks these
   in conversation, and a pane of open questions beside the chat repeats it.
+
+### Per-surface condition flags (Tom, 9 Sep 2026)
+
+Tom: *"what if the doors need 3 coats because they're all stained, but the rest are 2?"*
+Every correction on the systems card was job-wide (colour intent) or a single yes/no; nothing
+let a customer say one surface GROUP needs more than the rest.
+
+The fix is a **condition flag per group, not a coat picker** — plan §4.2 says the customer
+never picks coats, a picked "1" over a colour change is a warranty claim (§7.6), and a number
+tells the painter nothing that "they're stained" doesn't tell them better.
+
+`SurfaceFlagRule` is a Settings-editable catalogue: the groups a flag applies to, a floor
+and/or ceiling on the coats, whether the extra coat is a primer, the customer's sentence and
+the painter's note. Answers live at `condition.surfaceFlags` (`{ doors: ["stained"] }`).
+Shipped: stained · bare timber · new plaster · marked (⚑3) · sound (≤ 1 coat, sets `review`).
+
+**⚑3's marked ceiling became one of these** rather than staying its own branch, so the
+ceilings card and the doors card cannot drift apart. `ceilingsMarked` remains the stored field
+the chip writes and is folded into the flag set inside `deriveSystem`; `ceilingsMarkedCoats`
+still owns its number.
+
+**Traps.**
+- Flag keys are deliberately NOT validated against the catalogue in the zod schema. Tom can
+  add or rename a flag in Settings without a migration; an unknown key stops applying rather
+  than 400-ing somebody on a stale page.
+- The catalogue falls back **whole-list**, not per flag: a half-parsed list would offer the
+  customer taps that price nothing.
+- `addNote` — crew notes ACCUMULATE. ⚑5's gloss note used to overwrite, so a stained door on
+  a job with possible oil gloss reached the painter told to bond-prime and not to stain-block.
+  De-duplicated, so re-derivation cannot grow them.
+- Removing a group's last flag deletes the key rather than storing `[]`: absence reads as
+  "not asked", `[]` as "asked and answered none", and the CRM and work order read this state.
+- Adding `surfaceFlags` to `condition` broke seven hand-built state literals (zod defaults, so
+  only tsc caught them) — the same trap the two ⚑3 fields sprang. Copy `defaultWizardState()`.
+
+## Estimator journey v2 · Phase 4b — flagged spots as repair lines (9 Sep 2026)
+
+Branch `feat/paint-systems-screen`. **No migration** — the rates table
+(`defect_prep_rates`) and the photo pipeline already existed.
+
+**The gap** (plan §2.3): condition was ONE global answer for the house, and "needs repair"
+opened a free-text box the engine could not price. Nothing pinned a defect to a room, so the
+commonest thing a customer knows — "a water mark on the hall ceiling, a crack behind the
+kitchen door" — arrived as prose an estimator had to re-read and re-price by hand.
+
+**`lib/wizard/spots.ts`.** A spot is a photo and a tag. The tags are the CUSTOMER'S words for
+defect types the platform already has (`lib/extract/photos.ts` `defectTypes`, priced by
+`defect_prep_rates`) — a relabelling, never a second list, so the plan reader's `water_damage`
+and the customer's "Water mark" price identically. The repair line uses the plan reader's own
+shape: its own surface row on the room, hours on `prepHr`, `assumedFields: ["prep"]`. Prep
+hours are charged at charge-out whether or not the code matches a rate row, so this needed no
+new rate rows.
+
+- **⚑6 lives in `AUTO_PRICED`** and nowhere else: a crack and a nail hole auto-price (their
+  repair is genuinely standard); everything else is recorded, shown, and left for a person.
+- **Severity is always 1.** A customer cannot judge severity and should not be asked to; 1 is
+  the honest floor and the estimator raises it on the photo.
+- **The line is created whether or not it prices.** A spot that became only an amber note in a
+  queue would be the free-text box again, wearing a tag. An auto-priced tag with no rate row
+  is not silently free — it raises the same "needs pricing" deferral the plan reader raises.
+- Per-room condition (`same | better | worse`) is not a second condition band: the job's band
+  still sets the paint system. Only "worse" raises a deferral, and changing back to "same"
+  clears it rather than leaving a stale one.
+
+**A bug this found in existing code.** Prep lines fell through `customerRoomView`'s catalogue
+branch and rendered as ordinary surface TILES with a count stepper — inviting the customer to
+order "3 water damages". That was already true of the plan reader's photo-read defects before
+this work. `isPrepLine` now excludes them from tiles and surfaces them as `room.spots`
+instead, so the reader's defects and the customer's spots are one list of repairs.
+
+**Traps.**
+- `RoomSpots` MUST pass `estimateId` to `/api/extract/photos`, or the photo row is written
+  with `estimate_id` null and nothing ever sets it — the orphaned-photo bug that left 92 rows
+  unreachable (R5).
+- A failed photo upload still records the spot. The customer told us something true about
+  their house; the photo is evidence, not the point.
+- `remove_spot` refuses anything whose label is not `Repair — …`, so the action can never
+  become a way to delete a painting line the customer is meant to untick. Removing a spot also
+  drops its deferral, or the estimator chases a spot that no longer exists.
+- There is deliberately **no `spotLabel()`**. The card reads a spot's name off the line
+  (`customerRoomView` strips the prefix), so the customer sees the word they tapped. Two ways
+  to name a spot is two ways for them to disagree — the same rule `roomDoorScope` follows.
+- "wallpaper" is the one tag with no row in the defect vocabulary — stripping paper is work,
+  not a defect. It is review-only, so it never tries to auto-price, and the unmatched code
+  takes the engine's no-rate-item path (prep hours charged, nothing else, cannot throw).
+
+## Estimator journey v2 · Phase 5a — site and access (9 Sep 2026)
+
+Branch `feat/paint-systems-screen`. **No migration, and no multipliers.**
+
+**The gap** (plan §2.4): interior access was **never asked**. Stairwells, voids, furniture,
+floors, parking and lift bookings had no home in the flow, so the things that decide how long
+protection and packing down take had no bearing on the price at all.
+
+**Why there are no numbers in `lib/wizard/site-access.ts`.** The plan says this screen is the
+allowances spec §4's four modifiers "verbatim", and §9.1 gates the phase on that spec being
+merged. **It is not in the repository.** Writing four multipliers would be inventing prices
+nobody has validated — the same thing the exterior derivation was refused for.
+
+So it follows the pattern `applyConditionPricing` already set for weathered exteriors and
+occupied homes: each answer names a MODIFIER CODE, and
+
+- if Tom has seeded that modifier (Settings → Pricing → Modifiers) it applies, at his multiplier;
+- if he has not, the answer becomes an **amber deferral naming the code to seed**.
+
+Never a silent no-op, never an invented number. The questions can be asked today and start
+pricing the moment Tom sets a multiplier, with no deploy.
+
+**Only answers that imply extra work raise anything.** "The rooms will be cleared", carpet, a
+driveway and "no pets" cost nothing and must not flag — a screen that flags every answer
+teaches the estimator to ignore the flags. Pets are a crew note, never a price.
+
+**Ceiling height and asbestos are deliberately NOT on this screen**, though plan §4.4 lists
+them: height is already the details card's `confirm_height` question and asbestos is a hard
+stop the policy ladder owns. Asking either twice invites two answers. The e2e asserts their
+absence.
+
+**Traps.**
+- One selection per modifier GROUP wins (`jobModifier`), so staging and access are separate
+  groups and "part cleared" cannot collide with "furniture stays".
+- Re-answering **clears the previous note and modifier before re-applying** — the handler
+  strips every `SITE_ACCESS_DEFERRAL` and both groups from `modSel`, then re-derives from the
+  whole answer set. Changing back to "the rooms will be cleared" must not leave yesterday's
+  flag behind.
+- Hard and mixed floors share a code and a reason; `because` is de-duplicated.
+- The chip lights optimistically, so a pressed chip does NOT mean the save landed. An e2e that
+  reloads must first wait for `.sd-saving` to clear, or it races the last write.
+
+## Estimator journey v2 · Phase 5b — the whole-job extras sheet (9 Sep 2026)
+
+Branch `feat/paint-systems-screen`. **No migration.** Plan §4.5, §9.5.
+
+**The gap** (plan §2.5): extras were never asked. "Anything else" was flagged and never priced,
+so mould treatment, a ceiling rose, a stain or varnish job and a colour consult fell out of the
+estimate entirely.
+
+**§4.5's rule, verbatim: named extras price; unusual ones flag.** Those are the only two
+outcomes, and they are deliberately different controls so the customer can see which is which —
+the listed ones show a price and move the range, the sentence shows none and says so.
+
+- **The list is derived from the rate card**, reusing `interiorAddOptions`' judgement about what
+  a customer may add and what another control owns (cabinetry, allowances, style variants)
+  rather than restating it. Nothing is hardcoded: add a row tomorrow and it appears. A row with
+  no charge-out is dropped — it cannot be presented as a price, and a tick that cannot price is
+  a lie.
+- **The note is never priced.** `extraNoteDeferral` returns the amber note and says so in the
+  words the estimator reads ("not on our card, so it is NOT priced"). Re-raised from scratch, so
+  editing the sentence replaces the note instead of stacking a second.
+- **"Help me choose the colours"** is not a rate row and never was — it rides
+  `paint.colourHelp = "advice"`, the field the CRM already reads to raise a colour-advice
+  follow-up (1 Sep). The sheet is a second way in, not a second field.
+
+**`toggleExtrasItem` was generalised, not copied**, to take a side. An interior extra priced in
+the `Exterior - Extras` block would be charged at the exterior rate and read as an exterior line
+on the customer's estimate. `EXTRAS_BLOCK` now matches either, and the exterior default keeps
+every pre-phase-5 caller unchanged.
+
+**What is ON is read off the TREE**, not from a stored list, in both the loader and the
+response — an estimator who removes an extras line in the builder must see the sheet agree with
+them.
+
+**Traps.**
+- The card renders even when the rate card carries no extras rows: the "something else" box is
+  exactly what a card cannot cover.
+- The e2e asserts the MECHANISM, not a row. A test hardcoding "Ceiling Rose" would fail the day
+  Tom renamed it and pass the day the sheet broke.
+
+**The finish line** (§9.5's third item) already existed before this phase — the policy ladder's
+CTA (`selfServe ? "Accept estimate" : "Finalise my price"`), "Book a site visit" and "Request a
+call back" on the reach strip. Nothing was rebuilt.
+
+## Estimator journey v2 · Phase 6 — remote confirmation (9 Sep 2026)
+
+Branch `feat/paint-systems-screen`. **No migration.** Plan §5, §9.6, ⚑7.
+
+**The gap.** `accept_intent` has always written a prep pack and pushed a deferral, and raised
+**nothing on Today**. The customer was told a person would confirm their price; no person was
+ever told. This is the plan's whole "how jobs get quoted without being looked at" (§5), and it
+had no estimator-facing surface at all.
+
+**⚑7 — the door** (`remoteConfirmVerdict`, `lib/wizard/policy.ts`): interior only, ≤ $12,000,
+both Settings values on `wizard_policy` so widening is a business decision Tom makes with fifty
+jobs of evidence, not a deploy. A job that FAILS ⚑7 is not dropped — the desk check still
+happens and its recommendation becomes a visit. Somebody still looks at every job; they just do
+not always drive to it. That is the difference between this and self-serve.
+
+**The pack** (`lib/wizard/desk-check.ts`, pure) assembles what already exists into the order a
+person decides in: can I fix this at all (⚑7) → what is still open → what did they say is wrong
+(spots + photos) → what did we assume (systems) → what makes it slower (access) → the tree. It
+invents nothing and duplicates nothing; the total is passed IN because pricing is the engine's
+job and this must never become a second opinion about money.
+
+**The page** `/quote/desk-check?id=` is deliberately READ-ONLY, and the three outcomes §5 names
+are links to the flows that already own them: prices change in the builder, questions go to the
+thread the customer is already in, visits go to the visit flow. A fourth place to change money
+would be a fourth place for it to go wrong. `recommendedOutcome` highlights one and nothing
+more — a recommendation that could not be overridden would be self-serve wearing a person's name.
+
+**The queue.** A new `desk_check` work-item kind, built from estimates carrying the prep pack.
+Adding it forced classification in all three registries (weight, filter group, Today's tag) —
+the "one source of truth for every list and badge" rule doing its job.
+
+**Traps, all found by the e2e.**
+- `estimates.total_inc_cents` **does not exist** — it is an *invoices* column; the estimates one
+  is `total_cents`. Selecting the wrong one makes the query error and the surface show nothing
+  at all, silently, in both the queue and the page.
+- The page prices the tree **LIVE**, so a stored `total_cents` does not drive its verdict. A
+  test that seeds a big number and expects the over-cap path is testing nothing; the TREE has
+  to be over the cap. The queue uses the stored total to order itself and says so.
+- The route sits under `app/quote`, so it inherits that segment's "Loading estimate…" state and
+  streams. An e2e must wait for the page's own testid, not for `goto`.
+- `wizardStateSchema` refuses a state that neither uploaded a plan nor took the quick basics, so
+  a seeded snapshot has to look like a real run. The page's polite "wasn't built in the wizard"
+  holding is the correct response to one that does not.
+
+## Estimator journey v2 · Phase 7a — commercial segment and routing gates (9 Sep 2026)
+
+Branch `feat/paint-systems-screen`. **No migration, and no pricing.** Plan §9.7;
+`docs/briefs/commercial-pricing-strategy.md`.
+
+That brief's own sequencing, kept: **"First — routing, no pricing."** `lib/wizard/commercial.ts`
+decides who gets seen and captures why; it touches the pricing engine nowhere and contains no
+dollar figure. The sector bands and per-segment caps are a later step and need `commercial_rates`
+data this repository does not have.
+
+**The segment question** replaces the 8 Sep "what sort of commercial job" for anyone answering it
+now: office · hospital/aged care/medical · strata · industrial · shop front · other. One answer
+that selects the sector band, the substrate set and which gates matter.
+
+**The gates.** Seven yes/no questions; **any single one sends the job to an appointment — no
+scoring, no override.** A gate is not a risk weight to balance against a good lead; it is a
+statement that we cannot price this from a form. The brief's principle: *price online where the
+variables are bounded, and refuse to guess where they aren't.*
+
+- **Two segments trip before a question is asked.** Healthcare is the brief's regulated-environment
+  gate and strata its owners-corporation gate; asking a customer to self-declare either is asking
+  them to talk us out of visiting.
+- **An unanswered gate is never a "no."** A blank is the least bounded answer there is, so an
+  incomplete set cannot price online — but it is not "tripped" either, and says so differently
+  ("some of the site questions aren't answered yet" vs "we'll need to see this one").
+- **The page is not blocked on the gates**, only on the segment. The brief says capture everything
+  they have already told you and don't throw it away because you can't price it.
+- The 8 Sep `commercialKind` answer stays as the fallback for every session that predates the
+  segment question and for the assistant, which does not ask it. Two routes to one decision is one
+  too many, so the gates win wherever they exist.
+
+**A gap the e2e caught.** The gates routed correctly but `guardrailWhy` had no wording for the new
+reason codes, so the customer got the generic handoff line. The brief is explicit that a gate must
+SAY WHY — "we'll need to see it" with no reason reads as a brush-off, and a facilities manager who
+knows exactly why we are coming will trust us more for saying it. Every gate now has its own line,
+and a unit test asserts a WHY exists for every code the ladder can raise.
+
+**Still blocked: the exterior quick look**, §9.7's other half. It needs the per-elevation
+allowances spec (§4.4, §8), which is not in the repository — the same gap that has held exterior
+work out of phases 3, 4 and 5.
+
+## Estimator journey v2 · Phase 8a — trade saved specs, and ⚑11 (9 Sep 2026)
+
+Branch `feat/paint-systems-screen`. **No migration.** Plan §7, §9.8, ⚑11.
+
+**Most of §7 already existed.** The trade portal v2 work (merged) built the property spine,
+the timeline, approvals, money and the colour register (`colour_records`); one-tap rebook and
+the saved-property list were already on `/account/new-estimate`. What was missing was **saved
+specs** — and they had been deliberately declined, in a comment on that very page: *"rebook
+covers the end-of-lease-in-2-minutes promise without a second store of specs."*
+
+**That decision is reversed, and the comment now records why.** They answer different questions:
+
+- **Rebook** is *"this property again"* — the whole prior job, rooms included, because the rooms
+  have not moved.
+- **A spec** is *"this way of working, somewhere new"* — the answers only. Its rooms come from
+  the new address, which is the entire point.
+
+So it is not a second store of the same thing. `lib/wizard/saved-specs.ts` holds **no tree and
+no price**: storing a tree would make a spec a copy of one job rather than a way of working, and
+would also be a way around the boundary this codebase keeps everywhere else (the client posts
+answers, the server rebuilds the tree, the engine prices it).
+
+**Storage is `accounts.flags.savedSpecs`** — the jsonb column that already holds `flags.unlimited`.
+No migration: a trade account has a handful of specs, not a table's worth. `flags` is now selected
+in `getPortalContext`, so the portal needs no second query.
+
+**The colour policy is a NOTE and is applied to nothing.** The per-property colour register is the
+machine-readable answer; a second source for the same question is how two of them come to disagree.
+
+**⚑11 — "trade self-acceptance: never in v1."** The existing relaxation only forced a visit for a
+trade job that would *otherwise* have handed off; a plain trade interior under the cap could still
+accept its own price online. Every trade job now takes the visit tier. The price still shows as a
+range — the ruling is about acceptance, not visibility. Volume is exactly what makes a trade
+account worth having and exactly what makes an unchecked price expensive: the same wrong
+assumption goes out forty times.
+
+**A bug the e2e caught, and the reason to write it.** `?spec=` parsed the seeded state with
+`wizardStateSchema`, whose cross-field rules a *submittable* state must pass ("upload a floorplan,
+or choose the quick basics instead"). A seed has not been near those questions, so the parse
+failed silently and the customer got the defaults — specs would have shipped doing nothing at all.
+It now uses `wizardStateShapeSchema`, the same choice `showcaseSeed` makes for the same reason.
+
+**Traps.**
+- `account_users` keys on **`profile_id`**, not `user_id`.
+- `/estimate` treats a signed-in user as a MEMBER only when `profiles.role === "customer"`;
+  without it `?spec=` and `?rebook=` are both ignored and the wizard opens on the defaults.
+- The portal is passwordless, so a browser test signs in with a real magic link redeemed on
+  `/account/auth` (the `_look-portal` pattern) — there is no password field to fill.
+- Surface tiles carry their state in `.wz-tile.on`, not `aria-pressed`. Asserting only that Walls
+  is ticked proves nothing: it is ticked by default too. Assert something the spec REMOVED.
+
+### Phase 8b — making a spec (9 Sep 2026)
+
+Phase 8a shipped saved specs with no way to create one. A spec is a **NAME on a job the member
+already did**, not a builder: nobody sits down to invent "end-of-lease repaint" in the abstract —
+they do the job, notice they will do it forty more times, and name it. So the control sits on the
+repeatable-jobs list `/account/new-estimate` already renders, and the only thing it asks for is
+what to call it (plus an optional colour note).
+
+The answers are read from the estimate's stored wizard state **server-side**, so the client never
+posts the spec's contents — the same boundary the wizard keeps everywhere. A member may only name
+a job on one of their own accounts, checked by id against the portal context.
+
+**Traps.**
+- A non-draft estimate must carry `level_of_finish`, and it is a **smallint** (3), not a modifier
+  code ("FIN-3").
+- `getRebookCandidates` keys `hasWizard` on `builder_state->wizard->**version**`, not on the state.
+  A seeded job without it never reaches the repeatable list, so the save control has nothing to
+  sit on. The submit route writes `{ version: 1, state, submittedAt }`.
+
+### Phase 5a REWORKED on Tom's numbers — multipliers were the wrong shape (9 Sep 2026)
+
+Tom, asked whether multipliers were right for site and access, gave the figures instead:
+empty or mostly empty ≈ **2% of job value**, furnished ≈ **4%**, hard/mixed floors **not
+factored** (already inside that prep), stairwell/void **not allowed for**, tricky parking
+≈ **2–3 hours**, lift access ≈ **1 hour**.
+
+That is two different shapes, and only one of them is a multiplier:
+
+- **OCCUPANCY scales with the job** — a furnished six-bedroom takes more covering than a
+  furnished flat — so it is a percentage, which is exactly what a modifier already is
+  (`paintingHr = base × jobMod`). `STG-EMPTY` / `STG-PART-CLEARED` / `STG-FURNISHED`, in the
+  **Staging** group, so they can never compound with the lived-in-home modifier already there.
+- **PARKING and a LIFT BOOKING do not scale at all.** Carrying gear from a side street costs the
+  same two hours whether it is one room or ten. A percentage would under-price the small job it
+  hurts most and over-price the big one. They are **flat hours** on a "Site access" block, riding
+  `prepHr` — which needs no rate row, the same reason the plastering and raw-timber allowances do.
+
+**Two questions were removed rather than repriced.** Floors is gone from the screen: Tom prices it
+inside the empty/furnished figure, and a question that changes nothing wastes the customer's
+patience. The stairwell stays — the painter needs to know — but as a **note with no price**, and
+its hint no longer implies one.
+
+This also **deleted the one-per-group flaw** the first cut had: with parking and the lift no longer
+modifiers, the Access group carries nothing, and occupancy is one answer in one group.
+
+**The hour allowances are Settings-editable** (`site_access_hours`), per-entry fallback, so Tom can
+move parking to 3 h without a deploy.
+
+**The desk-check pack reads the access answers through the same function that PRICES them**, so it
+can never describe an allowance the job did not get — the percentage, the flat hours and the
+unpriced notes each reach the estimator in their own words.
+
+### ⚑4 REVERSED, and condition priced by EXTENT (9 Sep 2026, Tom)
+
+**⚑4 was wrong and I shipped it.** Tom: *"on a same colour job with sound trims our crew would
+put 1 coat generally, with a spot prime for scuff marks."* The plan proposed two coats and phase 3
+took them there; that was most of the **+17–25%** same-colour movement. `trims.same` and
+`doors.same` are now **one coat** with spot-priming in the sentence, and the same-colour movement
+falls to **+10.7%**.
+
+What was genuinely missing is not a second coat nobody applies — it is **prep on damaged trims**,
+which is now priced by extent.
+
+**Extent, not presence.** Tom: *"on some jobs there may be peeling in 1 or 2 spots, which wouldn't
+require a 1.8 margin, whereas others are peeling across the whole job."* That is the verdict on a
+job-wide condition multiplier. `defect_prep_rates` already carries `hours_sev1/2/3` per defect —
+which IS "a couple of spots / patches here and there / most of it". Phase 4b hard-coded severity 1
+on the reasoning that a customer cannot judge severity; that was wrong. Nobody can answer "is this
+a severity 2", but anyone standing in the room can answer "a couple of spots, or most of it". The
+words are the customer's, the severity is ours (`EXTENT_SEVERITY`).
+
+**What prices, and why.** A crack or a nail hole prices from words alone (⚑6 — the repair is
+standard). Anything else prices **only with a photo**: extent is the whole question for flaking or
+rot, and a photo is the only thing that settles it — a sentence is a claim, a photo is evidence.
+Without one it is still recorded, still shown, still on the work order; it just goes to a person.
+**Photos earn a price, words earn an estimator**, which is the incentive we want and loses nothing
+either way. A photo-priced spot raises `confirm the prep` for sign-off before the price is fixed
+(the `photo_review` rule, Tom 7 Sep).
+
+**The one-coat prep allowance already existed.** Tom: *"generally for 1 coat jobs I would allow
+some additional prep time across the job, for spot priming and filling."* That is
+`ROOM_ALLOWANCES.colourMatch` — the **Colour Match Allowance**, one per interior room when the job
+is a colour match, priced from its own rate row (Tom, 7 Sep). No second mechanism was built.
+
+**⚑ A gap this opens.** That allowance keys on the JOB's tier (`fresh`), but coats are now derived
+per surface — so a white-on-white **ceiling on a new-colour job is one coat and gets no allowance**.
+By Tom's own reasoning it should. Keying it on the derived coats instead would fix it, and would
+add cost to every new-colour job, so it is his call rather than mine.
+
+### Tom's rulings of 9 Sep, actioned — and the movement lands at zero
+
+**Windows on a same-colour job: one coat** ("generally 1"). With the trims already reversed to
+one, a same-colour job now prices at **exactly what it priced before** — +0.0% on the impact
+script. That is Tom's *"our current production rates are pretty accurate already"*, confirmed by
+the engine rather than asserted.
+
+| | before these rulings | now |
+|---|---|---|
+| Same colours | +17% → +25% | **+0.0%** |
+| New colours | −2.0% | −2.0% (⚑3's ceiling) |
+| Much lighter / bold | +25.6% | +25.6% |
+
+The bold figure **overstates the real change**: the script compares against the old whole-job
+count with no surfaces ticked dark-to-light, where in practice the customer ticks the walls and
+the old code already gave those three. Interior bold-to-white being *always* three is Tom's own
+ruling, so the direction is right.
+
+**Exterior derives now** — the thing that had blocked phases 3, 4, 5 and 7. Tom: *"these are just
+groups to make it easier to find the substrate, not because they share anything in common"*, so
+there is no grouping to invent and one rule covers every exterior substrate: **same 1 · new 2 ·
+bold 2**, with the sentence saying a third coat may be needed and that we will say so *before* we
+start that wall — Tom prices two and raises a variation rather than quoting three and hoping.
+Two substrates stay out: `brick_unpainted`, whose rate row already carries `default_coats: 3`
+(the card is the authority where a substrate needs more than the rule), and `staircase`, which has
+no rate row at all. **Interior bold stays at three** — inside, dark-to-white is always three.
+
+The systems CARD stays interior-only: the exterior editor is the sides builder, and deriving
+exterior coats is a separate decision from showing them on a screen that exterior customers
+never see.
+
+**Ceilings without walls is a 30% RATE UPLIFT, not a flat line.** Tom: *"if ceilings are being
+painted and walls aren't, we need to charge the ceiling and cornice at a 30% higher rate."* The
+flat `Ceilings Only Allowance` line under-charged a big living room and over-charged a WC. A new
+per-surface `upliftPct` on `SurfaceInput` multiplies that surface's painting hours; absent or 0
+changes nothing, so every existing estimate prices identically. It is set on the ceiling and
+cornice when the walls are off and **cleared the moment they come back on**, so unticking the
+walls by mistake is not a permanent 30%.
+
+**Migration `20270133000000_occupancy_modifiers.sql`** seeds `STG-EMPTY` 1.02,
+`STG-PART-CLEARED` 1.02 and `STG-FURNISHED` 1.04 in the **Staging** group, on Tom's approval.
+Applied to C1 and verified. Parking and the lift are deliberately absent — they do not scale with
+the job and are flat hours in code, needing no row.
+
+**`scripts/prep-hours-sheet.ts`** produces the worksheet Tom asked for: every substrate against
+the FOUR cases he named (peeling · raw MDF or bare timber · badly damaged · oil needing
+water-based), times the three extent columns `defect_prep_rates` already carries. There is
+deliberately no general "prep" column — the standard rate covers minor sanding, caulking and
+filling, and a column for prep-in-general would invite a number that double-counts it. Each case
+appears only against substrates it can happen to (77 rows, not 119: no "raw MDF on the walls").
+Two of the four cases — raw timber and oil-to-water — have **no defect type yet**; both are real,
+and get seeded with the hours.
+
+## Estimator journey v2 · Phase 9 — the plan-reader on customer photos (9 Sep 2026)
+
+Branch `feat/paint-systems-screen`. **No migration.** Plan §8, §9.9.
+
+**The gap.** `/api/extract/photos` had always KEPT the customer's condition photos and never READ
+them — its own comment said *"no AI analysis, no silent drop"*, because the analysed path needed
+a floorplan run to fold findings into and the no-plan path has none. So the commonest case (three
+taps, no floorplan, two photos of a damp patch) stored evidence nobody looked at until an
+estimator opened it by hand. Tom, 9 Sep, asked for exactly this: *"do they add photos which AI
+reads and it automatically adds prep hours for these things?"*
+
+Everything needed already existed and was unused on this path: `readPropertyPhoto` has a
+**`damage` purpose** written for customer-submitted damage photos, returning typed defects with a
+severity and a confidence.
+
+**`lib/wizard/photo-defects.ts` is the translation, and only that.** The model says
+`water_damage, severity 2`; the customer's screen says "Water mark — patches here and there". One
+is the other, and this is the single place that mapping is written. It calls no model and touches
+no database, so what a reading MEANS is testable without an API key.
+
+- **ONE suggestion, never a list.** A customer who photographed a damp patch is telling us about
+  that patch; handing back four checkboxes turns a helpful gesture into a form. The rest of what
+  the model saw still rides to the estimator on the photo.
+- **Strongest by SEVERITY, then confidence.** A confident scuff matters less than a probable case
+  of rot, and the estimator would rather be pointed at the worse thing.
+- **0.7 confidence bar** — the same one `mergePhotoFindings` uses to accept a door style. Below
+  it we say nothing and let the customer tag it themselves.
+- **Phrased as a question, never a finding:** *"From your photo that looks like flaking in patches
+  here and there — does that look right?"* Told "we found flaking", a customer will not argue;
+  asked whether it looks right, they will happily say no — and their answer is what we price.
+
+**The reading is opt-in per request** (`analyse`), because it costs money and most uploads are not
+asking a question, and **best effort**: storage runs first, so a model outage costs a suggestion
+and never the evidence.
+
+**The upload moved to the moment the photo is CHOSEN**, not when the tag is tapped — a suggestion
+that arrives after the customer has already answered is a suggestion nobody needs, and the slow
+part now happens while they read the question rather than while they wait on a button.
+
+### ⚑ Phase 9's other half is BLOCKED by a conflict between two of Tom's own decisions
+
+⚑14 says move "Describe it" off screen 1 and **behind the chat bubble**. But:
+
+- The wizard's bubble is **a direct line to the office, not the AI** (Tom, 8 Sep: *"so they can
+  talk to us"* — `ChatWidget`). Putting an AI build-from-brief behind it would mean tapping "chat
+  to a person" and getting a robot.
+- Tom's 8 Sep flow ruling was that the three ways in are **peers** (floorplan / describe / three
+  taps), which is the opposite of demoting one of them.
+
+The AI assistant is a *different* widget (`AssistantWidget`, on `/estimate/assist` and
+`/estimate/scope`) and is not on screen 1 at all. Honouring ⚑14 literally would mean adding a
+second bubble to screen 1, which is worse than the problem.
+
+**Nothing was moved.** The real goal behind ⚑14 is §2.1 — *stop making the customer choose a route
+before they have seen any value* — and that is a flow decision for Tom, not a mechanism to pick
+unilaterally.
+
+### ⚑14 resolved by dissolving it — describe it ALONGSIDE (Tom, 9 Sep)
+
+Tom, on being shown the conflict: *"Maybe we can add describe it alongside the other features —
+like floorplan plus describe it, or describe the condition overall and tell us if there is
+anything which needs extra work — then it could come back asking for photos? We still want the
+customer to be able to live chat with the office… but this shouldn't have anything to do with the
+describe it function, and should run separately."*
+
+That is a better answer than any of the three options put to him, because it removes the
+either/or rather than picking a side. **A floorplan and a description were never alternatives** —
+a plan says where the rooms are, a description says what state they are in, and no drawing has
+ever shown that.
+
+**Nothing was demoted.** The three ways in stay exactly as they were, so the Describe route and
+the assistant door behind it are untouched (four e2e specs depend on that card, and it is the
+customer's main way into the AI). What is NEW is an additive **condition box** on the two routes
+that are not already a description.
+
+**It is narrower than "describe the whole job" on purpose:** the condition is the part a
+floorplan cannot answer and the part that decides the preparation.
+
+**`lib/wizard/condition-brief.ts` is a MATCHER, not a model call.** Tom's own list is the whole
+vocabulary — *"it is only when the paint is peeling, is raw MDF, is badly damaged, or is painted
+in oil and needs waterbased top coats that additional prep is required"* — and it is short,
+concrete and written in words people actually use. So it costs nothing, runs as they type, can
+only notice words they actually wrote, and is testable without an API key. The patterns are
+written from how a homeowner describes a wall ("the paint is coming off"), not how a painter does
+— anything needing a trade word is a rule that will never fire.
+
+- **It answers with a photo ask, not a price**, because it cannot judge how bad something is.
+  That is the photo reader's job (phase 9), and this only notices that somebody said something
+  worth photographing.
+- **At most two asks.** A customer who wrote three sentences and got back six photo requests has
+  been punished for being helpful — the fastest way to teach them to write nothing next time.
+- **Raw MDF and oil-based paint come back as NOTES, not photo asks**: they are properties of a
+  surface rather than damage in a place, so a photo of "the raw MDF" is not a photo of a spot.
+  Both still mean real extra hours, so the estimator is told.
+- **A clean description is answered as clean** — no photo chased for nothing.
+
+**The live chat bubble is untouched**, which was Tom's other point: it is a direct line to the
+office and has nothing to do with any of this.

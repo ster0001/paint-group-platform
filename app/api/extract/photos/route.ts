@@ -7,15 +7,32 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { normaliseUpload } from "@/lib/extract/normalise";
 import { isOwnIncomingPath } from "@/lib/uploads/incoming";
 import { reportError } from "@/lib/monitoring/report";
+import { readPropertyPhoto } from "@/lib/extract/photos";
+import { suggestFromDefects, type SuggestedSpot } from "@/lib/wizard/photo-defects";
 
 /**
  * POST /api/extract/photos — R1.3: condition photos WITHOUT a plan run.
  *
  * Condition photos are their own document type; they must never require a
  * floorplan. When there is no plan run to fold them into (the no-plan path),
- * the photos are still validated, kept as evidence (kind=defect_photo) and
- * ride to the estimator — no AI analysis, no silent drop. The analysed path
- * stays at /api/extract/:runId/photos.
+ * the photos are validated, kept as evidence (kind=defect_photo) and ride to
+ * the estimator. The analysed path for a PLAN reading stays at
+ * /api/extract/:runId/photos.
+ *
+ * PHASE 9 (estimator journey v2 §8, §9.9): this route now READS them too.
+ * It used to say "no AI analysis" — which meant the commonest case (three
+ * taps, no floorplan, two photos of a damp patch) stored evidence nobody
+ * looked at until an estimator opened it by hand. Tom, 9 Sep, asked for
+ * exactly this: *"do they add photos which AI reads and it automatically adds
+ * prep hours for these things?"*
+ *
+ * The reading is OPT-IN per request (`analyse`), because it costs money and
+ * most photo uploads are not asking a question. It is also BEST EFFORT: a
+ * failed or unusable read must never lose the photo, so the storage path runs
+ * first and the suggestion is an extra on the way out.
+ *
+ * What comes back is a SUGGESTION for the customer to confirm, never a
+ * finding applied behind them — `lib/wizard/photo-defects.ts` explains why.
  */
 
 export const runtime = "nodejs";
@@ -43,6 +60,8 @@ export async function POST(request: Request) {
      *  (the wizard claims at submit instead). A customer may only claim their
      *  own draft — the same rule the assistant session uses. */
     estimateId: z.string().uuid().optional(),
+    /** Phase 9: read the photo for defects and suggest what it shows. */
+    analyse: z.boolean().optional().default(false),
   }).safeParse(await request.json().catch(() => null));
   if (!staged.success) return NextResponse.json({ error: "Send the staged photo paths." }, { status: 400 });
   let claimEstimateId: string | null = null;
@@ -53,7 +72,7 @@ export async function POST(request: Request) {
     claimEstimateId = est.data!.id as string;
   }
 
-  const perPhoto: Array<{ file: string; error?: string; kept?: boolean }> = [];
+  const perPhoto: Array<{ file: string; error?: string; kept?: boolean; suggestion?: SuggestedSpot }> = [];
   const stagedToClean: string[] = [];
   /** R5: the rows we create, handed back so submit can CLAIM them for the
    * estimate. Without this they were written with estimate_id = null and
@@ -98,7 +117,23 @@ export async function POST(request: Request) {
       continue;
     }
     kept++;
-    perPhoto.push({ file: u.name, kept: true });
+
+    /**
+     * The reading. AFTER the photo is safely stored, so a model outage or a
+     * bad response costs a suggestion and never the evidence. One photo's
+     * failure does not touch the others.
+     */
+    let suggestion: SuggestedSpot | null = null;
+    if (staged.data.analyse) {
+      try {
+        const read = await readPropertyPhoto(bytes, "damage");
+        if (read.ok) suggestion = suggestFromDefects(read.read.defects);
+        else reportError(new Error(read.message), { where: "extract.conditionPhotoRead", bestEffort: true });
+      } catch (e) {
+        reportError(e, { where: "extract.conditionPhotoRead", bestEffort: true });
+      }
+    }
+    perPhoto.push({ file: u.name, kept: true, ...(suggestion ? { suggestion } : {}) });
   }
 
   if (stagedToClean.length) {

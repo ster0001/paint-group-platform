@@ -70,6 +70,8 @@ export function systemAnswersFromState(
     glossTrims: state.paint?.trimsOilBased ?? "unsure",
     ceilingsMarked: state.condition?.ceilingsMarked ?? false,
     ceilingsChangingColour: state.condition?.ceilingsChangingColour ?? false,
+    // Tom, 9 Sep: "the doors need 3 coats because they're stained, the rest 2".
+    flags: (state.condition?.surfaceFlags ?? {}) as SystemAnswers["flags"],
     darkToLight,
   };
 }
@@ -89,7 +91,9 @@ export type SystemChip = {
     | { field: "colourIntent"; value: ColourIntent }
     | { field: "ceilingsMarked"; value: boolean }
     | { field: "ceilingsChangingColour"; value: boolean }
-    | { field: "glossTrims"; value: "yes" | "no" | "unsure" };
+    | { field: "glossTrims"; value: "yes" | "no" | "unsure" }
+    /** A per-group condition flag, on or off. `group` is which line it sits on. */
+    | { field: "surfaceFlag"; group: SystemGroup; flag: string; value: boolean };
 };
 
 export type PaintSystemLine = {
@@ -107,6 +111,13 @@ export type PaintSystemLine = {
   /** The note that rides to the work order, when there is one. */
   crewNote: string;
   chips: SystemChip[];
+  /**
+   * The condition flags this line offers, each already knowing whether it is
+   * on. Kept apart from `chips` because they are a different kind of answer:
+   * `chips` are one-of (the colour intent, the gloss answer), flags are
+   * many-of and each toggles.
+   */
+  flagChips: SystemChip[];
   /** How many surfaces in the tree this line governs — "6 doors so far". */
   surfaceCount: number;
 };
@@ -117,12 +128,23 @@ const TITLE: Record<SystemGroup, string> = {
   trims: "Skirtings, architraves and door frames",
   doors: "Doors",
   windows: "Windows",
+  exterior: "Outside",
 };
 
 /** Interior surface rows only — an exterior block never reaches the table. */
 function isInteriorArea(b: LooseBlock): boolean {
   return b.kind === "area" && b.type !== "Exterior";
 }
+
+/**
+ * The card stays INTERIOR-ONLY even now that exterior systems are derived.
+ *
+ * The exterior editor is the sides builder, not this card, and a customer
+ * shaping a house's outside has never seen this screen. Deriving exterior
+ * coats (which now happens) and showing them here are separate decisions —
+ * the second one belongs with the exterior quick look, not smuggled in.
+ */
+const CARD_GROUPS: ReadonlySet<SystemGroup> = new Set(["walls", "ceilings", "trims", "doors", "windows"]);
 
 /**
  * Which groups this estimate actually contains, and how many rows each holds.
@@ -187,10 +209,24 @@ export function paintSystemsView(
   const lines: PaintSystemLine[] = [];
 
   for (const group of SYSTEM_GROUPS) {
+    if (!CARD_GROUPS.has(group)) continue;
     const surfaceCount = counts.get(group);
     if (surfaceCount == null) continue;
     const s = deriveSystem(group, answers, systems);
+    const on = new Set(answers.flags?.[group] ?? []);
+    const flagChips: SystemChip[] = systems.surfaceFlags
+      // ⚑3's marked ceiling has its own dedicated chip in `chips` above — it
+      // is the one flag with a stored field of its own, and offering it twice
+      // would let the two disagree.
+      .filter((f) => f.groups.includes(group) && f.key !== "marked")
+      .map((f) => ({
+        label: f.label,
+        on: on.has(f.key),
+        said: on.has(f.key) ? `${f.label} — removed` : f.reason !== "" ? `Noted: ${f.reason}` : f.label,
+        patch: { field: "surfaceFlag", group, flag: f.key, value: !on.has(f.key) },
+      }));
     lines.push({
+      flagChips,
       group,
       title: TITLE[group],
       sentence: s.sentence,
@@ -254,6 +290,18 @@ export function applySystemPatch(
     case "glossTrims":
       paint.trimsOilBased = patch.value;
       break;
+    case "surfaceFlag": {
+      const all = { ...(condition.surfaceFlags ?? {}) } as Record<string, string[]>;
+      const current = new Set(all[patch.group] ?? []);
+      if (patch.value) current.add(patch.flag); else current.delete(patch.flag);
+      // An empty list is deleted rather than stored as [] — the state is read
+      // by the CRM and the work order, and an empty array reads as "asked and
+      // answered none" where absence reads as "not asked".
+      if (current.size === 0) delete all[patch.group];
+      else all[patch.group] = [...current];
+      condition.surfaceFlags = all;
+      break;
+    }
   }
   return { condition, paint };
 }

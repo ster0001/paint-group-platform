@@ -57,6 +57,20 @@ export type SurfaceInput = {
   priceOverride?: number | null;
   /** null = follow the global material choice; set = pinned to this product. */
   productName?: string | null;
+  /**
+   * A percentage uplift on THIS surface's painting hours (Tom, 9 Sep:
+   * *"if ceilings are being painted and walls aren't, we need to charge the
+   * ceiling and cornice at a 30% higher rate"*).
+   *
+   * Per-surface, because that is what the rule is about — the same ceiling
+   * costs more when it is the only thing in the room being painted, and
+   * nothing else in the job changes. A job-wide modifier could not express it,
+   * and a flat allowance line under-charges a big room and over-charges a
+   * small one.
+   *
+   * Absent or 0 changes nothing, so every existing estimate prices identically.
+   */
+  upliftPct?: number | null;
 };
 
 export type AreaInput = {
@@ -348,7 +362,8 @@ export function priceSurface(
   const dispRate = s.rateOverride ?? (isItem ? baseHpu : 1 / baseHpu);
   const baseHours = isItem ? dispRate * qty : dispRate > 0 ? qty / dispRate : 0;
   const sizeMul = windowSizeMultiplier(item, s.size, rates);
-  const paintingHr = s.paintingHrOverride ?? baseHours * jobMod * sizeMul;
+  const uplift = 1 + (Number(s.upliftPct) || 0) / 100;
+  const paintingHr = s.paintingHrOverride ?? baseHours * jobMod * sizeMul * uplift;
   const labourCents = Math.round((paintingHr + s.prepHr) * chargeBase);
 
   const prodName = productNameFor(area.type, s, adj.materials, items);

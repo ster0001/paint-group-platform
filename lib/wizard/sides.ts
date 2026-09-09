@@ -576,7 +576,15 @@ export function addCatalogItem(
   });
 }
 
-const EXTRAS_BLOCK = /Exterior - Extras/i;
+const EXTRAS_BLOCK = /(Exterior|Interior) - Extras/i;
+
+/**
+ * Whole-job extras need a home in a tree made of rooms and sides, so they get
+ * their own block. There is one per SIDE: an interior extra priced in the
+ * "Exterior - Extras" block would be charged at the exterior rate and would
+ * read as an exterior line on the customer's estimate.
+ */
+export type ExtrasSide = "Interior" | "Exterior";
 
 export function hasExtrasItem(blocks: LooseBlock[], code: string): boolean {
   const b = blocks.find((x) => x.kind === "area" && EXTRAS_BLOCK.test(String(x.name ?? "")));
@@ -589,8 +597,11 @@ export function hasExtrasItem(blocks: LooseBlock[], code: string): boolean {
 export function toggleExtrasItem(
   blocks: LooseBlock[], code: string, label: string, on: boolean,
   nextId: () => number, chargeOutDollars: number,
+  /** Defaults to Exterior — every caller before phase 5 was an exterior one. */
+  side: ExtrasSide = "Exterior",
 ): SidesResult {
-  const existing = blocks.find((x) => x.kind === "area" && EXTRAS_BLOCK.test(String(x.name ?? "")));
+  const blockName = `${side} - Extras`;
+  const existing = blocks.find((x) => x.kind === "area" && String(x.name ?? "").toLowerCase() === blockName.toLowerCase());
   if (!on) {
     if (!existing || !(existing.surfaces ?? []).some((s) => String(s.code) === code)) return { ok: true, blocks };
     const copy = { ...existing, surfaces: (existing.surfaces ?? []).filter((s) => String(s.code) !== code) };
@@ -603,8 +614,8 @@ export function toggleExtrasItem(
     return { ok: true, blocks: blocks.map((b) => (b === existing ? copy : b)) };
   }
   const area: LooseBlock = {
-    id: nextId(), kind: "area", name: "Exterior - Extras", type: "Exterior", areaType: "surface",
-    roomType: "exterior", storey: "ground",
+    id: nextId(), kind: "area", name: blockName, type: side, areaType: "surface",
+    roomType: side === "Interior" ? "interior" : "exterior", storey: "ground",
     L: 0, W: 0, H: 0,
     isOption: false, description: "", open: false, media: [],
     origin: "customer_stated", confidence: 0.9,

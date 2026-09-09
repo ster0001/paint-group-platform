@@ -101,3 +101,112 @@ auto-price from `defect_prep_rates`, the rest to estimator review) and the **per
 (§4.5: feature walls, wallpaper to strip, "something else in here"). Neither is built. The
 room card, its surface tiles, counts, walls-share and allowances already existed before this
 phase; per-room condition and spots do not.
+
+---
+
+# Addendum — per-surface condition flags (Tom, 9 September)
+
+> *"What if the customer wants to update the number of coats on doors to 3 coats cause they
+> are all stained, but the rest are 2? Or if the customer wants to update the ceilings to 1
+> coat, but everything else 2?"*
+
+## The two cases are not the same
+
+**Ceilings at 1 while everything else is 2 already worked.** Ceilings derive independently of
+the walls, so white-on-white is one coat on a job whose walls take two — that is ⚑3, shipped
+in phase 3.
+
+**Doors at 3 because they are stained could not be said at all.** Every correction on the card
+was either job-wide (colour intent) or a single yes/no (marked ceilings, gloss trims). Nothing
+let a customer say that one surface GROUP needs more work than the rest — which is one of the
+commonest things they actually know about their own house. A real gap.
+
+## Why the fix is not a coat picker
+
+The obvious answer — a number box per group — is wrong for three reasons, and they are the
+same three that put the derivation in the engine in the first place:
+
+1. **Plan §4.2: the customer never picks coats.** They describe what is there; we work out
+   what it takes. A flag is a description. A number is us handing the judgement back.
+2. **A picked "1" over a colour change is a warranty claim, not a saving** (§7.6). A flag
+   cannot reach past the coverage guard. A number would try to, and someone would eventually
+   let it.
+3. **A number tells the painter nothing.** "They're stained" tells them to stain-block, rides
+   to the work order as a crew note, and tells the estimator whether the price is right.
+
+## What ships
+
+`SurfaceFlagRule` — a Settings-editable catalogue. Each flag names the groups it applies to
+and what it does: a floor on the coats, a ceiling on them, whether the extra coat is a primer,
+the sentence the customer reads and the note the painter gets.
+
+| Flag | Groups | Effect |
+|---|---|---|
+| They're stained | walls, ceilings, trims, doors | ≥ 3 coats, blocking primer |
+| Bare or raw timber | trims, doors, windows | ≥ 3 coats, timber primer |
+| New plaster | walls, ceilings | ≥ 3 coats, sealer |
+| They're marked | ceilings | ⚑3's number (`ceilingsMarkedCoats`) |
+| They're sound — one coat is plenty | ceilings, walls, trims | ≤ 1 coat, **and flags the line for review** |
+
+**⚑3 became one of these rather than staying a branch of its own**, so the ceilings card and
+the doors card cannot drift apart — one mechanism, one place to change it. `ceilingsMarked` is
+still the stored field the ceilings chip writes; it is folded into the flag set at derivation.
+
+The customer's answers live at `condition.surfaceFlags` — `{ doors: ["stained"] }`. Keys are
+**not** validated against the catalogue in the schema: Tom can add or rename a flag in
+Settings without a migration, and a key that no longer exists simply stops applying rather
+than 400-ing somebody on a stale page.
+
+## A bug this found
+
+`⚑5`'s gloss note **overwrote** the crew note instead of appending, so a stained door on a job
+whose trims might be oil gloss arrived at the painter told to bond-prime and *not* told to
+stain-block. Crew notes now accumulate (`addNote`), de-duplicated so a re-derivation cannot
+grow them. Two tests hold it.
+
+## Verification
+
+1,865 unit tests green. Both of Tom's cases are asserted by name, in the engine and again on
+the real screen: stained doors go to three coats while the walls stay at two and the ceilings
+stay at one; sound ceilings drop to one while the walls stay at two and the line is flagged
+for review. The e2e also asserts there is **no number input anywhere on the card** — the point
+of the design, and the thing a future change would quietly break.
+
+---
+
+# Phase 5a — site and access
+
+§4.4 and the first third of §9.5. **No migration, and no multipliers.**
+
+Interior access was never asked (§2.4). It is now: rooms cleared · floors · stairwell or void ·
+parking · lift booking (units only) · pets.
+
+**The spec this screen is supposed to be "verbatim" is not in the repository.** Plan §8 says the
+allowances spec "must land first" and §9.1 gates the phase on it. Rather than invent four
+multipliers, each answer names a modifier code and follows the pattern already used for
+weathered exteriors and occupied homes: **use Tom's modifier if he has seeded it, raise an amber
+note naming the code if he has not.** The note says exactly where to seed it.
+
+So the screen is live and honest today, and starts pricing the moment Tom sets a multiplier in
+Settings → Pricing → Modifiers — no deploy, no code change.
+
+| Answer | Modifier code | Group |
+|---|---|---|
+| Mostly cleared | `ACC-PART-CLEARED` | Staging |
+| Furniture stays | `ACC-FURNITURE-STAYS` | Staging |
+| Hard or mixed floors | `ACC-HARD-FLOORS` | Access |
+| Stairwell or void | `ACC-STAIRWELL` | Access |
+| Tricky parking | `ACC-PARKING` | Access |
+| Lift booking | `ACC-LIFT-BOOKING` | Access |
+
+Cleared rooms, carpet, a driveway and "no pets" cost nothing and raise nothing.
+
+**⚑ For Tom:** seed those six modifiers with your own multipliers and the screen starts pricing.
+Until then every costly answer reaches the estimator as an amber note, so nothing is lost — but
+nothing is charged either.
+
+**Still open in phase 5:** the whole-job extras sheet (§4.5 — mould treatment, ceiling roses,
+stain or varnish, help choosing colours, plus a description box) and the per-room extras
+(feature walls priced as their own colour, wallpaper to strip). The finish line's
+policy-driven options largely exist already (the ladder, "Finalise my price", "Book a site
+visit", "Request a call back").

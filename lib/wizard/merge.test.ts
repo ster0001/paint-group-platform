@@ -136,7 +136,7 @@ describe("applyWizardAnswers", () => {
 
   it("coats follow the tier, with dark-to-light only on its surfaces", () => {
     const s = state({
-      condition: { tier: "dark_to_light", darkToLightSurfaces: ["walls"], ceilingsMarked: false, ceilingsChangingColour: false },
+      condition: { tier: "dark_to_light", darkToLightSurfaces: ["walls"], ceilingsMarked: false, ceilingsChangingColour: false, surfaceFlags: {} },
     });
     const out = applyWizardAnswers(draft(), s, nextId);
     const living = out.areas.find((a) => a.name === "Living");
@@ -153,21 +153,23 @@ describe("applyWizardAnswers", () => {
    * but enamel trims take two whatever the colour, and quoting them at one
    * is a job that loses money. Coats are now derived per surface GROUP.
    */
-  it("a same-colour job is one coat on the walls and two on the trims (⚑4)", () => {
+  it("a same-colour job is one coat on the walls and one on the trims", () => {
     const fresh = applyWizardAnswers(
       draft(),
-      state({ condition: { tier: "fresh", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false } }),
+      state({ condition: { tier: "fresh", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, surfaceFlags: {} } }),
       nextId,
     );
     const living = fresh.areas.find((a) => a.name === "Living");
     expect(living?.surfaces.find((x) => x.code === "Walls")?.coats).toBe(1);
     expect(living?.surfaces.find((x) => x.code === "Ceilings")?.coats).toBe(1);
-    expect(living?.surfaces.find((x) => x.code === "Skirting Boards")?.coats).toBe(2);
+    // Tom, 9 Sep: sound trims on a same-colour job take ONE coat and a spot
+    // prime — ⚑4's two was the plan's proposal, not the crew's practice.
+    expect(living?.surfaces.find((x) => x.code === "Skirting Boards")?.coats).toBe(1);
   });
 
   /** ⚑4's other half: one coat on the trims only when the condition is good. */
   it("drops same-colour trims to one coat when the job is in good condition", () => {
-    const base = state({ condition: { tier: "fresh", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false } });
+    const base = state({ condition: { tier: "fresh", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, surfaceFlags: {} } });
     const good = applyWizardAnswers(
       draft(),
       { ...base, details: { ...base.details, damageTier: 0 } },
@@ -179,7 +181,7 @@ describe("applyWizardAnswers", () => {
 
   /** ⚑3: white over white stays one coat even when the walls change colour. */
   it("keeps ceilings at one coat on a new-colour job, and lifts them when marked", () => {
-    const base = state({ condition: { tier: "change", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false } });
+    const base = state({ condition: { tier: "change", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, surfaceFlags: {} } });
     const plain = applyWizardAnswers(draft(), base, nextId);
     const living = plain.areas.find((a) => a.name === "Living");
     expect(living?.surfaces.find((x) => x.code === "Walls")?.coats).toBe(2);
@@ -197,14 +199,15 @@ describe("applyWizardAnswers", () => {
 
   /** ⚑5: the gloss answer is one field, and it reaches the trims as a primer. */
   it("adds a bonding primer coat to the trims when the existing gloss is oil-based", () => {
-    const base = state({ condition: { tier: "fresh", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false } });
+    const base = state({ condition: { tier: "fresh", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, surfaceFlags: {} } });
     const oil = applyWizardAnswers(
       draft(),
       { ...base, paint: { ...base.paint, trimsOilBased: "yes" } },
       nextId,
     );
     const skirting = oil.areas.find((a) => a.name === "Living")?.surfaces.find((x) => x.code === "Skirting Boards");
-    expect(skirting?.coats).toBe(3);
+    // One coat + the bonding primer.
+    expect(skirting?.coats).toBe(2);
     expect(skirting?.crewNote).toContain("bonding primer");
   });
 

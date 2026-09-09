@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
@@ -34,6 +34,11 @@ import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
 import { RESUME_KEY, RESTART_KEY, decodeResume, encodeResume, restartedSince, resumeLine, type ResumeRecord, type SafetyAnswered } from "@/lib/wizard/resume";
 import Wordmark from "./Wordmark";
 import ChatWidget from "./ChatWidget";
+import { photoAsk, readConditionBrief } from "@/lib/wizard/condition-brief";
+import {
+  ALWAYS_APPOINTMENT, COMMERCIAL_GATES, COMMERCIAL_SEGMENTS, SEGMENT_LABEL,
+  gateMessage, routeCommercial, type CommercialSegment,
+} from "@/lib/wizard/commercial";
 
 /**
  * W1: the five paginated pages, exactly per the workflow doc — Property →
@@ -914,7 +919,17 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     if (pageKey === "condition" && state.condition.tier === "dark_to_light" && state.condition.darkToLightSurfaces.length === 0) {
       return "Which surfaces are going dark to light?";
     }
-    if (pageKey === "property" && commercial && !state.customer?.commercialKind) return "What sort of commercial job is it? A few rooms, a larger space, or strata.";
+    /**
+     * Phase 7: the segment question is what a commercial job must answer now.
+     * The gates themselves are NOT gated here — an unanswered gate routes to a
+     * person (the ladder's job), and blocking the page on seven questions
+     * would lose the enquiry the brief explicitly says to capture: "capture
+     * everything they've already told you… don't throw it away because you
+     * can't price it."
+     */
+    if (pageKey === "property" && commercial && !state.customer?.commercialSegment && !state.customer?.commercialKind) {
+      return "What sort of place is it? Pick the closest one.";
+    }
     if (pageKey === "details" && isCustomer && !commercial && !answered.asbestos) return "Any chance of asbestos sheeting? Yes, no or not sure.";
     if (pageKey === "details" && isCustomer && !commercial && state.details.occupied == null) return "Will anyone be living there while we paint? Yes or no.";
     if (pageKey === "condition" && state.details.damageTier >= 2 && state.details.damagePhotoCount === 0) {
@@ -1171,6 +1186,9 @@ function PageProperty({
   const [addressText, setAddressText] = useState(initialAddressText);
   const [outOfArea, setOutOfArea] = useState(false);
   // Phase 2: a customer sees the controls of the way in they chose; staff see everything.
+  // Read as they type: a matcher, not a model call, so it costs nothing and
+  // can only notice words they actually wrote (lib/wizard/condition-brief.ts).
+  const conditionRead = useMemo(() => readConditionBrief(brief), [brief]);
   const showListing = !isCustomer || entry === "upload";
   const showBasics = Boolean(state.noPlan && basics) && state.jobType !== "exterior" && (!isCustomer || entry === "questions");
   const showFacades = needsFacades && (!isCustomer || entry === "upload");
@@ -1318,22 +1336,38 @@ function PageProperty({
               not at the end. */}
           {state.customer.propertyKind === "commercial" && (
             <>
-              <p className="wz-qhead">What sort of commercial job is it?</p>
+              {/*
+                Phase 7 (commercial pricing strategy): the SEGMENT question.
+                One answer that selects the sector band, the substrate set and
+                which gates matter. It REPLACES the 8 Sep "what sort of job"
+                question for anyone answering it now; that answer stays in the
+                state and in the ladder as the fallback for every session that
+                predates this and for the assistant, which does not ask it.
+              */}
+              <p className="wz-qhead">What sort of place is it?</p>
               <Seg
-                options={[
-                  { v: "small_interior" as const, label: "A few rooms or offices" },
-                  { v: "large_interior" as const, label: "A larger space — whole floor, shop or warehouse" },
-                  { v: "strata" as const, label: "Strata / body corporate" },
-                ]}
-                value={state.customer.commercialKind ?? null}
-                onPick={(v) => set({ customer: { ...state.customer!, commercialKind: v } })}
+                options={COMMERCIAL_SEGMENTS.map((v) => ({ v, label: SEGMENT_LABEL[v] }))}
+                value={state.customer.commercialSegment ?? null}
+                onPick={(v) => set({ customer: { ...state.customer!, commercialSegment: v } })}
               />
-              {state.customer.commercialKind === "small_interior" && (
+              {state.customer.commercialSegment != null && (
+                <CommercialGates
+                  segment={state.customer.commercialSegment}
+                  answers={state.customer.commercialGates ?? {}}
+                  onAnswer={(key, value) => set({
+                    customer: {
+                      ...state.customer!,
+                      commercialGates: { ...(state.customer!.commercialGates ?? {}), [key]: value },
+                    },
+                  })}
+                />
+              )}
+              {state.customer.commercialSegment == null && state.customer.commercialKind === "small_interior" && (
                 <div className="wz-follow" data-testid="commercial-small-note">
                   <p className="wz-q">Good — a few rooms or offices price the same way a home does. Keep going and you&rsquo;ll see a figure; one of us confirms it on site before anything is booked.</p>
                 </div>
               )}
-              {(state.customer.commercialKind === "large_interior" || state.customer.commercialKind === "strata") && (
+              {state.customer.commercialSegment == null && (state.customer.commercialKind === "large_interior" || state.customer.commercialKind === "strata") && (
                 <div className="wz-follow" data-testid="commercial-visit-note">
                   <p className="wz-q">{state.customer.commercialKind === "strata"
                     ? "Strata and body-corporate work is priced on site — we\u2019ll need to see it."
@@ -1361,11 +1395,23 @@ function PageProperty({
         </>
       )}
 
-      {/* Phase 2 (6 Sep plan): the three ways in. "Describe it" is the
-          assistant's build-from-brief, promoted from a textarea above the
-          form to a first-class choice; the other two are the wizard paths
-          that already existed, now chosen deliberately instead of by which
-          link you happened to notice. */}
+      {/*
+        The three ways in — unchanged. What changed on 9 Sep (Tom, resolving
+        ⚑14) is that "Describe it" is no longer the ONLY place a description
+        belongs: the condition box below is additive, and appears on the other
+        two routes as well.
+        
+        *"Floorplan plus describe it"* is a real combination and they were never
+        alternatives — a plan says where the rooms are, a description says what
+        state they are in, and no drawing has ever shown that. Making it
+        additive is also what answers plan §2.1 without demoting anything: the
+        route choice stays a fact about what the customer HAS, and the
+        description stops depending on which card they happened to pick.
+        
+        The live chat bubble is untouched and unrelated — a direct line to the
+        office (Tom, 8 Sep). Putting an AI feature behind it would mean tapping
+        "talk to us" and getting a robot.
+      */}
       {isCustomer && (
         <>
           <p className="wz-qhead">How would you like to do this?</p>
@@ -1402,6 +1448,48 @@ function PageProperty({
           <p style={{ marginTop: 8 }}>
             <button type="button" className="wz-linkbtn" data-testid="chat-it" disabled={sessionPhase !== "ready" || startingChat} onClick={() => startChat(false)}>
               {startingChat ? "Opening the assistant…" : "Prefer a back-and-forth? Chat it through instead →"}
+            </button>
+          </p>
+        </div>
+      )}
+
+      {/*
+        The condition box — ADDITIVE, on the two routes that are not already a
+        description (Tom, 9 Sep: *"floorplan plus describe it… describe the
+        condition overall and tell us if there is anything which needs extra
+        work — then it could come back asking for photos?"*).
+        
+        Narrower than "describe the whole job" on purpose: the condition is the
+        part a floorplan cannot answer and the part that decides the
+        preparation. It reads as they type and comes back asking for a photo of
+        whatever it heard — no model call, no cost, and it can only notice
+        words they actually wrote.
+      */}
+      {isCustomer && (entry === "questions" || entry === "upload") && (
+        <div className="wz-follow wz-alt" data-testid="condition-box">
+          <p className="wz-q">
+            How&rsquo;s it looking? <span className="wz-opt">OPTIONAL</span>
+          </p>
+          <p className="wz-chint" style={{ marginTop: 0, marginBottom: 8 }}>
+            In your own words — the condition overall, and anything that needs more than a coat of paint.
+            This is the part a floorplan can&rsquo;t tell us.
+          </p>
+          <textarea className="wz-brief" data-testid="describe-condition" rows={3} value={brief} onChange={(e) => setBrief(e.target.value)}
+            placeholder="e.g. generally sound, but the paint is peeling above the shower and there's a water mark on the hall ceiling…" />
+          {conditionRead.findings.length > 0 && (
+            <p className="wz-q" style={{ marginTop: 10 }} data-testid="condition-photo-ask">{photoAsk(conditionRead)}</p>
+          )}
+          {conditionRead.notes.map((n: string) => (
+            <p className="wz-chint" style={{ marginTop: 6 }} key={n} data-testid="condition-note">Noted — {n}.</p>
+          ))}
+          {conditionRead.readAndClear && (
+            <p className="wz-chint" style={{ marginTop: 8 }} data-testid="condition-clear">
+              Thanks — nothing there needs extra preparation, so we&rsquo;ll price it as a straightforward repaint.
+            </p>
+          )}
+          <p style={{ marginTop: 8 }}>
+            <button type="button" className="wz-linkbtn" data-testid="chat-condition" disabled={sessionPhase !== "ready" || startingChat} onClick={() => startChat(false)}>
+              {startingChat ? "Opening the assistant…" : "Rather talk it through? Chat it with our assistant →"}
             </button>
           </p>
         </div>
@@ -2447,5 +2535,72 @@ function PageExteriorExtras({ state, set, stepsTotal, stepNo = 5, embedPaint = t
       </div>
       {embedPaint && <PagePaint state={state} set={set} embedded stepsTotal={stepsTotal} />}
     </>
+  );
+}
+
+
+/**
+ * Phase 7 — the routing gates (commercial pricing strategy, "The routing gate").
+ *
+ * Seven plain questions. Any single "yes" sends the job to an appointment, and
+ * the customer is told SO, and told why: "we'll need to see it" with no reason
+ * reads as a brush-off, and a facilities manager who knows exactly why we are
+ * coming will trust us more for saying it.
+ *
+ * Healthcare and strata never see the questions at all — asking a customer to
+ * self-declare infection control or an owners corporation is asking them to
+ * talk us out of visiting.
+ */
+function CommercialGates({ segment, answers, onAnswer }: {
+  segment: CommercialSegment;
+  answers: Record<string, "yes" | "no">;
+  onAnswer: (key: string, value: "yes" | "no") => void;
+}) {
+  const routing = routeCommercial(segment, answers);
+  if (ALWAYS_APPOINTMENT.has(segment)) {
+    return (
+      <div className="wz-follow" data-testid="commercial-segment-stop">
+        <p className="wz-q">{routing.reasons[0]}.</p>
+        <p style={{ fontSize: 13.5, color: "var(--muted)", margin: 0 }}>
+          Tell us the basics and how to reach you, and we&rsquo;ll book a time to come and look.
+          No figure is shown online for this one.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="wz-follow" data-testid="commercial-gates">
+      <p className="wz-q">A few things about the site — they decide whether we can price it from here.</p>
+      {COMMERCIAL_GATES.map((g) => (
+        <div className="wz-qrow" key={g.key} data-testid={`gate-${g.key}`}>
+          <div className="wz-qtext">
+            {g.question}
+            <span className="wz-qhint">{g.hint}</span>
+          </div>
+          <div className="wz-chips">
+            {(["no", "yes"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                className={`wz-chip ${answers[g.key] === v ? "on" : ""}`}
+                aria-pressed={answers[g.key] === v}
+                data-testid={`gate-${g.key}-${v}`}
+                onClick={() => onAnswer(g.key, v)}
+              >{v === "yes" ? "Yes" : "No"}</button>
+            ))}
+          </div>
+        </div>
+      ))}
+      {!routing.canPriceOnline && (
+        <p className="wz-q" style={{ marginTop: 12 }} data-testid="commercial-gate-message">
+          {gateMessage(routing)}
+        </p>
+      )}
+      {routing.canPriceOnline && (
+        <p className="wz-q" style={{ marginTop: 12 }} data-testid="commercial-gate-ok">
+          Nothing there stops us pricing it online. Keep going — one of us still confirms it before anything is booked.
+        </p>
+      )}
+    </div>
   );
 }

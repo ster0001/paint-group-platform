@@ -10,6 +10,13 @@ import { SCOPE_VERSION, type Alias, type ScopeRule } from "@/lib/extract/scope";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { PAINT_SYSTEMS_KEY, paintSystemsFrom } from "@/lib/pricing/systems";
 import { applyPaintSystems, applySystemPatch, paintSystemsView, type SystemPatch } from "@/lib/wizard/systems-view";
+import { roomConditionDeferred, spotLine } from "@/lib/wizard/spots";
+import { makeDraftSurface } from "@/lib/extract/draft";
+import {
+  SITE_ACCESS_HOURS_KEY, STAGING_GROUP, applySiteAccess, hourAllowancesFrom,
+} from "@/lib/wizard/site-access";
+import { extraNoteDeferral } from "@/lib/wizard/extras";
+import type { DefectRate } from "@/lib/capture/commit";
 import { applyWizardAnswers } from "@/lib/wizard/merge";
 import { wizardStateSchema } from "@/lib/wizard/state";
 import { applyDoorStyle, applyWindowStyle, DOOR_STYLE_DEFERRAL, WINDOW_STYLE_DEFERRAL } from "@/lib/wizard/styles";
@@ -74,7 +81,23 @@ export const maxDuration = 30;
  * becomes a 400 rather than a silently dropped answer. Returning null beats
  * coercing: a customer who taps a chip and sees nothing move has been lied to.
  */
-function systemPatchFrom(field: string, value: unknown): SystemPatch | null {
+function systemPatchFrom(
+  field: string,
+  value: unknown,
+  group?: string,
+  flag?: string,
+): SystemPatch | null {
+  if (field === "surfaceFlag") {
+    // The flag KEY is not checked against the catalogue here on purpose: Tom
+    // can add or rename one in Settings without a deploy, and a key that no
+    // longer exists simply stops applying at derivation time rather than
+    // 400-ing a customer who is looking at a stale page.
+    const groups = ["walls", "ceilings", "trims", "doors", "windows"] as const;
+    const g = groups.find((x) => x === group);
+    if (g == null || typeof value !== "boolean") return null;
+    if (typeof flag !== "string" || flag.length === 0 || flag.length > 40) return null;
+    return { field: "surfaceFlag", group: g, flag, value };
+  }
   if (field === "colourIntent") {
     return value === "same" || value === "new" || value === "bold" ? { field, value } : null;
   }
@@ -85,6 +108,37 @@ function systemPatchFrom(field: string, value: unknown): SystemPatch | null {
     return typeof value === "boolean" ? { field, value } : null;
   }
   return null;
+}
+
+/** A rate code as a customer reads it — the add panel's own prettifier rule. */
+function prettifyExtra(code: string): string {
+  return code.replace(/\s*\(1 Side\)/i, "").trim();
+}
+
+/** The whole-job block the site-access hour allowances live on. */
+function isSiteAccessBlock(b: { kind?: string; name?: string }): boolean {
+  return b.kind === "area" && String(b.name ?? "").toLowerCase() === "site access";
+}
+
+/** The `what` shape site-and-access notes use, so re-answering clears them. */
+const SITE_ACCESS_DEFERRAL = /^(cleared|floors|stairwell|parking|lift|furniture stays|rooms cleared)\b/;
+
+/** One site-access answer, narrowed. Null for a value that field can't take. */
+function siteAccessValue(field: string, value: string): string | null {
+  const allowed: Record<string, string[]> = {
+    cleared: ["yes", "some", "no"],
+    floors: ["carpet", "hard", "mixed"],
+    stairwell: ["yes", "no"],
+    parking: ["drive", "street", "hard"],
+    lift: ["yes", "no"],
+    pets: ["yes", "no"],
+  };
+  return allowed[field]?.includes(value) ? value : null;
+}
+
+/** The customer-facing name of a spot line, for clearing its amber note. */
+function spotLabelFor(surface: Record<string, unknown>): string {
+  return String(surface.internalLabel ?? "").replace(/^Repair — /, "").replace(/ \(to price\)$/, "");
 }
 
 const actionSchema = z.discriminatedUnion("action", [
@@ -101,9 +155,58 @@ const actionSchema = z.discriminatedUnion("action", [
    * is the same boundary the rest of this route keeps: answers in, never
    * geometry or money.
    */
+  /**
+   * Phase 4 (§4.3): "point out a spot" — a photo and a tag, which becomes a
+   * repair line pinned to the room. The customer posts the TAG, never hours:
+   * ⚑6 decides on the server which tags auto-price and which go to a person.
+   */
+  z.object({
+    action: z.literal("add_spot"),
+    areaId: z.number().int().positive(),
+    tag: z.string().min(1).max(40),
+    /** How much of it there is — the customer's words, our severity. */
+    extent: z.enum(["spots", "patches", "most"]).optional(),
+    sourceId: z.string().uuid().nullable().optional(),
+    note: z.string().max(300).optional(),
+  }),
+  z.object({
+    action: z.literal("remove_spot"),
+    areaId: z.number().int().positive(),
+    surfaceId: z.number().int().positive(),
+  }),
+  /**
+   * Phase 5 (§4.5): the whole-job extras sheet. Named extras price from the
+   * card; an unusual one is a sentence that is flagged and never priced.
+   */
+  z.object({
+    action: z.literal("toggle_job_extra"),
+    code: z.string().min(1).max(80),
+    on: z.boolean(),
+  }),
+  z.object({ action: z.literal("set_colour_help"), want: z.boolean() }),
+  z.object({ action: z.literal("extra_note"), note: z.string().max(400) }),
+  /**
+   * Phase 5 (§4.4): site and access — the things that set our setup time and
+   * which the flow never asked at all. One answer per post; the server maps
+   * it to a modifier, or raises an amber note when Tom has not seeded one.
+   */
+  z.object({
+    action: z.literal("set_site_access"),
+    field: z.enum(["cleared", "floors", "stairwell", "parking", "lift", "pets"]),
+    value: z.string().min(1).max(12),
+  }),
+  /** §4.3: how THIS room sits against the job's condition band. */
+  z.object({
+    action: z.literal("set_room_condition"),
+    areaId: z.number().int().positive(),
+    condition: z.enum(["same", "better", "worse"]),
+  }),
   z.object({
     action: z.literal("set_paint_system"),
-    field: z.enum(["colourIntent", "ceilingsMarked", "ceilingsChangingColour", "glossTrims"]),
+    field: z.enum(["colourIntent", "ceilingsMarked", "ceilingsChangingColour", "glossTrims", "surfaceFlag"]),
+    /** surfaceFlag only: which line, and which flag on it. */
+    group: z.enum(["walls", "ceilings", "trims", "doors", "windows"]).optional(),
+    flag: z.string().max(40).optional(),
     // Flat rather than a nested discriminated union: nesting one inside
     // `actionSchema` collapses its own "action" discriminator. The field and
     // value are paired by `systemPatchFrom` below, which returns null on any
@@ -419,7 +522,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
      *      validated exterior table to re-derive them from (plan §4.4).
      */
     if (act.action === "set_paint_system") {
-      const patch = systemPatchFrom(act.field, act.value);
+      const patch = systemPatchFrom(act.field, act.value, act.group, act.flag);
       if (!patch) return { error: "That isn't an answer we recognise.", status: 400 };
 
       const snap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
@@ -434,6 +537,179 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
       const systems = paintSystemsFrom(settingValue((await ctxPromise).settings, PAINT_SYSTEMS_KEY));
       blocks = applyPaintSystems(blocks, next, systems) as typeof blocks;
+    }
+
+    /**
+     * §4.5 — a named extra. Priced from the CARD, never from a constant: the
+     * row's own charge-out is the price, and a code the card does not carry
+     * is refused rather than added at nothing.
+     */
+    if (act.action === "toggle_job_extra") {
+      const ctxNow = await ctxPromise;
+      const row = ctxNow.rateItems.find((r) => r.code === act.code && r.category === "Interior");
+      const cents = Number(row?.charge_out_cents ?? 0);
+      if (!row || cents <= 0) return { error: "We don't offer that one — pick from the list.", status: 400 };
+      let next = Math.max(0, ...blocks.flatMap((b) => [Number(b.id) || 0, ...(b.surfaces ?? []).map((x) => Number(x.id) || 0)])) + 1;
+      const res = toggleExtrasItem(
+        blocks as unknown as Parameters<typeof toggleExtrasItem>[0],
+        act.code, prettifyExtra(act.code), act.on, () => next++, cents / 100, "Interior",
+      );
+      if (!res.ok) return { error: res.error, status: 400 };
+      blocks = res.blocks as unknown as typeof blocks;
+    }
+
+    /** §4.5's fourth extra. Not a rate row — it rides the field that already
+     *  exists, which the CRM reads to raise a colour-advice follow-up. */
+    if (act.action === "set_colour_help") {
+      const wiz = state.wizard as { state?: { paint?: Record<string, unknown> } } | undefined;
+      if (wiz?.state?.paint) wiz.state.paint.colourHelp = act.want ? "advice" : "known";
+    }
+
+    /**
+     * §4.5 — an unusual extra. Recorded and flagged, NEVER auto-priced (the
+     * rule `addSideCustom` follows). Re-raised from scratch so editing the
+     * sentence replaces the note instead of stacking a second one.
+     */
+    if (act.action === "extra_note") {
+      newDeferred = newDeferred.filter((d) => d.what !== "an extra the customer asked for");
+      const raised = extraNoteDeferral(act.note);
+      if (raised) newDeferred = [...newDeferred, { room: "Whole job", areaId: null, count: 1, ...raised }];
+      const wiz = state.wizard as { state?: { details?: Record<string, unknown> } } | undefined;
+      if (wiz?.state?.details) wiz.state.details.extraNote = act.note.trim().slice(0, 400);
+    }
+
+    /**
+     * §4.4 — site and access.
+     *
+     * The answer is written to the wizard snapshot and the whole set is then
+     * re-applied, so changing an answer REPLACES its modifier and its amber
+     * note rather than stacking a second one. Nothing here invents a price:
+     * `applySiteAccess` uses a modifier when Tom has seeded it and defers to
+     * a person when he has not (the allowances spec §4 is not in the repo).
+     */
+    if (act.action === "set_site_access") {
+      const snap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
+      if (!snap.success) {
+        return { error: "This estimate predates the site and access questions — a person will confirm them.", status: 409 };
+      }
+      const parsed = siteAccessValue(act.field, act.value);
+      if (parsed == null) return { error: "That isn't an answer we recognise.", status: 400 };
+
+      const access = { ...(snap.data.details.siteAccess ?? {}), [act.field]: parsed };
+      const wiz = state.wizard as { state?: { details?: Record<string, unknown> } } | undefined;
+      if (wiz?.state?.details) wiz.state.details.siteAccess = access;
+
+      const ctxNow = await ctxPromise;
+      const outcome = applySiteAccess(
+        access,
+        ctxNow.modifiers,
+        hourAllowancesFrom(settingValue(ctxNow.settings, SITE_ACCESS_HOURS_KEY)),
+      );
+      // Every note this module has ever raised goes, then the current set is
+      // re-raised — an answer changed back to "the rooms will be cleared"
+      // must not leave yesterday's flag behind.
+      newDeferred = newDeferred.filter((d) => !SITE_ACCESS_DEFERRAL.test(d.what));
+      newDeferred = [...newDeferred, ...outcome.deferred];
+
+      const modSel = { ...((state.modSel as Record<string, string>) ?? {}) };
+      delete modSel[STAGING_GROUP];
+      Object.assign(modSel, outcome.modSel);
+      (state as Record<string, unknown>).modSel = modSel;
+
+      /**
+       * The flat-hour allowances (Tom, 9 Sep: tricky parking ≈ 2–3 h, a lift
+       * booking ≈ 1 h). They do NOT scale with the job, so they are hours on
+       * a whole-job line rather than a percentage — a percentage would
+       * under-price the small job the walk hurts most.
+       *
+       * Rebuilt from scratch every time: an answer taken back must take its
+       * hours with it, and re-answering must not stack a second copy.
+       */
+      let nextId = Math.max(0, ...blocks.flatMap((b) => [Number(b.id) || 0, ...(b.surfaces ?? []).map((x) => Number(x.id) || 0)])) + 1;
+      blocks = blocks.map((b) => (isSiteAccessBlock(b)
+        ? { ...b, surfaces: (b.surfaces ?? []).filter((x) => !String(x.code ?? "").startsWith("Site Access — ")) }
+        : b));
+      if (outcome.hours.length > 0) {
+        const lines = outcome.hours.map((h) => {
+          const line = makeDraftSurface(nextId++, `Site Access — ${h.label}`, h.label, 1, "customer_stated", 0.9, ["prep"]) as unknown as Record<string, unknown>;
+          line.prepHr = h.hours;
+          line.crewNote = h.note;
+          return line;
+        });
+        const idx = blocks.findIndex(isSiteAccessBlock);
+        if (idx >= 0) {
+          blocks = blocks.map((b, i) => (i === idx ? { ...b, surfaces: [...(b.surfaces ?? []), ...lines] } : b));
+        } else {
+          blocks = [...blocks, {
+            id: nextId++, kind: "area", name: "Site access", type: "Interior", areaType: "surface",
+            roomType: "interior", storey: "ground", L: 0, W: 0, H: 0,
+            isOption: false, description: "", open: false, media: [],
+            origin: "customer_stated", confidence: 0.9, assumedFields: [], extractionSourceId: null,
+            surfaces: lines,
+          } as unknown as typeof blocks[number]];
+        }
+      }
+    }
+
+    /**
+     * §4.3 — the customer points out a spot.
+     *
+     * The line is created whether or not it prices (⚑6): a spot that became
+     * only an amber note in a queue would be the free-text box §2.3 complains
+     * about, wearing a tag. The rates come from `defect_prep_rates`, which is
+     * the same table the plan reader's own defects price from — one defect
+     * vocabulary, one price for the same damage however it was spotted.
+     */
+    if (act.action === "add_spot") {
+      const idx = blocks.findIndex((b) => b.kind === "area" && Number(b.id) === act.areaId);
+      if (idx < 0) return { error: "No such room.", status: 404 };
+      const area = blocks[idx];
+      let next = Math.max(0, ...blocks.flatMap((b) => [Number(b.id) || 0, ...(b.surfaces ?? []).map((x) => Number(x.id) || 0)])) + 1;
+      const { data: rateRows } = await db
+        .from("defect_prep_rates")
+        .select("defect_type, unit, hours_sev1, hours_sev2, hours_sev3")
+        .eq("version", SCOPE_VERSION);
+      const line = spotLine(
+        { tag: act.tag, extent: act.extent, sourceId: act.sourceId ?? null, note: act.note },
+        { id: act.areaId, name: String(area.name ?? "this room") },
+        (rateRows ?? []) as DefectRate[],
+        () => next++,
+      );
+      if (line == null) return { error: "We don't know that one — pick a tag from the list.", status: 400 };
+      blocks = blocks.map((b, i) => (i === idx
+        ? { ...b, surfaces: [...(b.surfaces ?? []), line.surface as unknown as Record<string, unknown>] }
+        : b));
+      if (line.deferred) newDeferred = [...newDeferred, line.deferred];
+    }
+
+    if (act.action === "remove_spot") {
+      const idx = blocks.findIndex((b) => b.kind === "area" && Number(b.id) === act.areaId);
+      if (idx < 0) return { error: "No such room.", status: 404 };
+      const gone = (blocks[idx].surfaces ?? []).find((x) => Number(x.id) === act.surfaceId);
+      // Only a spot may be removed this way — the action must never become a
+      // way to delete a painting line the customer is meant to untick.
+      if (!gone || !String(gone.internalLabel ?? "").startsWith("Repair — ")) {
+        return { error: "That isn't a flagged spot.", status: 400 };
+      }
+      blocks = blocks.map((b, i) => (i === idx
+        ? { ...b, surfaces: (b.surfaces ?? []).filter((x) => Number(x.id) !== act.surfaceId) }
+        : b));
+      // Its amber note goes with it, or the estimator chases a spot that no
+      // longer exists.
+      newDeferred = newDeferred.filter((d) => !(d.areaId === act.areaId && d.what.startsWith(`${spotLabelFor(gone)} `)));
+    }
+
+    if (act.action === "set_room_condition") {
+      const idx = blocks.findIndex((b) => b.kind === "area" && Number(b.id) === act.areaId);
+      if (idx < 0) return { error: "No such room.", status: 404 };
+      const name = String(blocks[idx].name ?? "this room");
+      const area: LooseBlock = { ...blocks[idx], roomCondition: act.condition };
+      blocks = blocks.map((b, i) => (i === idx ? area : b));
+      // Re-raised from scratch each time, so changing the answer back to
+      // "same" clears the flag rather than leaving a stale one behind.
+      newDeferred = newDeferred.filter((d) => !(d.areaId === act.areaId && d.what === "worse than the rest"));
+      const raised = roomConditionDeferred({ id: act.areaId, name }, act.condition);
+      if (raised) newDeferred = [...newDeferred, raised];
     }
 
     if (act.action === "confirm_room") {
@@ -1183,6 +1459,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         return sn.success
           ? paintSystemsView(sn.data, blocks, paintSystemsFrom(settingValue(ctx.settings, PAINT_SYSTEMS_KEY)))
           : [];
+      })(),
+      // §4.5 — what is on, read off the TREE so the estimator's own edits win.
+      jobExtras: (() => {
+        const sn = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
+        return {
+          on: blocks
+            .filter((b) => String(b.name ?? "").toLowerCase() === "interior - extras")
+            .flatMap((b) => (b.surfaces ?? []))
+            .map((x) => String(x.code ?? "")),
+          colourHelp: sn.success ? sn.data.paint.colourHelp === "advice" : false,
+          note: sn.success ? String(sn.data.details.extraNote ?? "") : "",
+        };
+      })(),
+      // §4.4 — the answers as stored, so the card reconciles with the server.
+      siteAccess: (() => {
+        const sn = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
+        return sn.success ? (sn.data.details.siteAccess ?? {}) : {};
       })(),
       exterior: customerExteriorView(blocks),
       // R2b: the sides confirm loop's full view (null when no sides exist).

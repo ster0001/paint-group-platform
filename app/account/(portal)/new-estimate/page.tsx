@@ -2,15 +2,29 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getPortalContext, getRebookCandidates } from "@/lib/portal/data";
 import { moneyFmt } from "@/lib/portal/money";
+import { specSummary, specsFromFlags } from "@/lib/wizard/saved-specs";
+import { RemoveSpec, SaveAsSpec } from "./SpecControls";
 
 export const dynamic = "force-dynamic";
 
 /**
  * 3a-7 · New estimate (§6 W2): the trade account's fast lane — repeat a
  * previous job in one tap (the prior answers seed the wizard), start from a
- * saved property, or from scratch. Unlimited, always (decided). Named
- * saved-spec templates are a deliberate follow-up — rebook covers the
- * end-of-lease-in-2-minutes promise without a second store of specs.
+ * saved property, or from scratch. Unlimited, always (decided).
+ *
+ * SAVED SPECS (phase 8, estimator journey v2 §7 — 9 Sep 2026). This page used
+ * to say they were a deliberate follow-up, because "rebook covers the
+ * end-of-lease-in-2-minutes promise without a second store of specs". Tom's v2
+ * plan asks for them by name, and they turn out to answer a different question:
+ *
+ *   · REBOOK is "this property again" — the whole prior job, including its
+ *     rooms, because the rooms have not moved.
+ *   · A SPEC is "this way of working, somewhere new" — the answers only. Its
+ *     rooms come from the new address, which is the entire point.
+ *
+ * So it is not a second store of the same thing. A spec holds no tree and no
+ * price (lib/wizard/saved-specs.ts), and rebook still wins wherever both are
+ * asked for.
  */
 export default async function NewEstimatePage() {
   const ctx = await getPortalContext();
@@ -20,6 +34,9 @@ export default async function NewEstimatePage() {
   const accountIds = ctx.accounts.map((a) => a.id);
   const rebooks = await getRebookCandidates(accountIds);
   const orgName = ctx.accounts.find((a) => a.account_type === "trade")?.name ?? "";
+  // Specs live on the account's own flags column, so they arrive with the
+  // portal context — no second query and no table.
+  const specs = ctx.accounts.flatMap((a) => specsFromFlags(a.flags));
   const propertyById = new Map(ctx.properties.map((p) => [p.id, p]));
   const label = (pid: string | null, fallback: string | null) => {
     const p = pid ? propertyById.get(pid) : null;
@@ -60,6 +77,40 @@ export default async function NewEstimatePage() {
                 >
                   Requote this in one tap
                 </Link>
+              </div>
+              {/* A spec is a NAME on a job you already did — see actions.ts. */}
+              <div className="row" style={{ marginTop: 8 }}>
+                <SaveAsSpec estimateId={r.id} label={label(r.property_id, r.title)} />
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
+      {specs.length > 0 && (
+        <>
+          <h2>Your saved specs</h2>
+          <p className="sub" style={{ marginTop: -4 }}>
+            The answers you give every time, kept. The rooms come from the address.
+          </p>
+          {specs.map((sp) => (
+            <div className="job" key={sp.id}>
+              <div className="row">
+                <div className="addr">{sp.name}</div>
+                <span className="chip mut nodot">Spec</span>
+              </div>
+              <div className="meta">{specSummary(sp)}</div>
+              {sp.colourPolicy && <div className="meta">Colours: {sp.colourPolicy}</div>}
+              <div className="row" style={{ marginTop: 8 }}>
+                <Link
+                  className="btn btn-cyan"
+                  style={{ padding: 12, fontSize: 15, flex: 1 }}
+                  href={`/estimate?spec=${sp.id}`}
+                  data-testid={`use-spec-${sp.id}`}
+                >
+                  Start a job from this spec
+                </Link>
+                <RemoveSpec id={sp.id} name={sp.name} />
               </div>
             </div>
           ))}

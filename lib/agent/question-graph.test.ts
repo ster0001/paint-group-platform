@@ -41,11 +41,11 @@ function state(jobType: WizardState["jobType"], over: Partial<WizardState> = {})
   return {
     mode: "customer", jobType, title: "", listingUrl: "", planRunIds: [], facadeRunIds: [], conditionSourceIds: [], noPlan: true,
     address: { street: "1 Test St", suburb: "Kew", state: "VIC", postcode: "3101", formatted: "1 Test St, Kew VIC 3101" },
-    customer: { email: "tester@example.com", suburb: "Kew", postcode: "3101", propertyKind: "house", heritageListed: "no", bodyCorporate: "no", builtPre1970: "no", asbestosSuspected: "no" },
+    customer: { email: "tester@example.com", suburb: "Kew", postcode: "3101", propertyKind: "house", commercialGates: {}, heritageListed: "no", bodyCorporate: "no", builtPre1970: "no", asbestosSuspected: "no" },
     basics: { bedrooms: 3, storeys: "single", sizeBand: "s120_200", openPlanKitchenLiving: false },
     surfaces: ["walls", "ceilings", "doors", "windows"],
-    condition: { tier: "change", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false },
-    details: { doorStyle: "unsure", doorScope: "frame", windowStyle: "unsure", ceilingHeight: "2.4", damageTier: 1, damageNote: "", damagePhotoCount: 0 },
+    condition: { tier: "change", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, surfaceFlags: {} },
+    details: { doorStyle: "unsure", doorScope: "frame", windowStyle: "unsure", ceilingHeight: "2.4", damageTier: 1, damageNote: "", siteAccess: {}, extraNote: "", damagePhotoCount: 0 },
     paint: { brands: [], colourHelp: null, waterBasedOnly: false, trimsOilBased: null, base: null },
     contact: { name: "", email: "", phone: "" },
     exterior: wantsExt ? {
@@ -86,7 +86,7 @@ const F2 = () => input({
 });
 /** F3 interior, everything answered — only the sweep is left. */
 const F3 = () => input({
-  state: state("interior", { details: { doorStyle: "flat", doorScope: "frame", windowStyle: "casement", ceilingHeight: "2.4", damageTier: 0, damageNote: "", damagePhotoCount: 0 }, paint: { brands: ["dulux"], colourHelp: "known", waterBasedOnly: false, trimsOilBased: null, base: null } }),
+  state: state("interior", { details: { doorStyle: "flat", doorScope: "frame", windowStyle: "casement", ceilingHeight: "2.4", damageTier: 0, damageNote: "", siteAccess: {}, extraNote: "", damagePhotoCount: 0 }, paint: { brands: ["dulux"], colourHelp: "known", waterBasedOnly: false, trimsOilBased: null, base: null } }),
   blocks: [
     room(2, "hallway", "Hallway", { customer: { size: "yes", cup: null, confirmed: false }, customerCustom: ["nothing"] }),
     room(1, "bedroom", "Bedroom 1", { customer: { size: "yes", cup: true, cupInterior: false, confirmed: false }, customerCustom: ["nothing"] }),

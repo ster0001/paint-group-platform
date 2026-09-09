@@ -58,6 +58,20 @@ const customerSchema = z.object({
    * body-corporate building is seen by a person first. Optional so every
    * stored state still parses; a commercial job with no answer hands off. */
   commercialKind: z.enum(["small_interior", "large_interior", "strata"]).optional(),
+  /**
+   * Phase 7 (commercial pricing strategy): the SEGMENT question. One answer
+   * that selects the sector band, the substrate set and which gates to ask.
+   * Optional so every stored state still parses; absent = a person, which is
+   * where a commercial enquiry has always gone.
+   */
+  commercialSegment: z.enum(["office", "healthcare", "strata", "industrial", "shopfront", "other"]).optional(),
+  /**
+   * The routing gates, `{ height: "yes" | "no" }`. Any one "yes" sends the job
+   * to an appointment — no scoring, no override (the brief's rule). An
+   * UNANSWERED gate is not a "no": a blank is the least bounded answer there
+   * is, and the whole point of the gate is refusing to guess.
+   */
+  commercialGates: z.record(z.string().max(30), z.enum(["yes", "no"])).default({}),
   heritageListed: z.enum(["yes", "no", "unsure"]),
   bodyCorporate: z.enum(["yes", "no", "unsure"]),
   builtPre1970: z.enum(["yes", "no", "unsure"]),
@@ -128,6 +142,22 @@ export const wizardStateShapeSchema = z.object({
      * apart from `tier` because white-on-white is not a colour change, and
      * that distinction is what lets ⚑3's single coat past the coverage rule. */
     ceilingsChangingColour: z.boolean().default(false),
+    /**
+     * Per-surface condition flags (Tom, 9 Sep: "what if the doors need 3
+     * coats because they're all stained, but the rest are 2?").
+     *
+     * `{ doors: ["stained"], walls: ["new_plaster"] }` — the customer says
+     * what is THERE, per surface group, and the engine derives the coats
+     * (lib/pricing/systems.ts). Deliberately not a coat count per group: the
+     * customer never picks coats, a picked "1" over a colour change is a
+     * warranty claim, and a number tells the painter nothing that "they're
+     * stained" doesn't tell them better.
+     *
+     * Keys are validated against the Settings catalogue at derivation time,
+     * not here — Tom can add a flag without a migration, and a key that no
+     * longer exists simply stops applying.
+     */
+    surfaceFlags: z.record(z.string().max(40), z.array(z.string().max(40)).max(8)).default({}),
   }),
 
   details: z.object({
@@ -152,6 +182,27 @@ export const wizardStateShapeSchema = z.object({
      * pack-down (the Staging modifier). Interior jobs; optional so every
      * stored state still parses. */
     occupied: z.enum(["yes", "no"]).optional(),
+    /**
+     * Site and access (plan §4.4) — the things that set our setup time, and
+     * which the flow never asked at all (§2.4): furniture, floors, stairwells
+     * and voids, parking, the lift booking in a unit, and pets.
+     *
+     * Every field optional: an unanswered screen costs nothing and flags
+     * nothing. Pricing is by MODIFIER (lib/wizard/site-access.ts) so the
+     * numbers stay Tom's in Settings → Pricing → Modifiers, and none of them
+     * are written here or in that module.
+     */
+    /** §4.5 — the "anything we haven't listed" sentence. Recorded and flagged,
+     *  never priced; the amber note is raised by the route. */
+    extraNote: z.string().max(400).default(""),
+    siteAccess: z.object({
+      cleared: z.enum(["yes", "some", "no"]).optional(),
+      floors: z.enum(["carpet", "hard", "mixed"]).optional(),
+      stairwell: z.enum(["yes", "no"]).optional(),
+      parking: z.enum(["drive", "street", "hard"]).optional(),
+      lift: z.enum(["yes", "no"]).optional(),
+      pets: z.enum(["yes", "no"]).optional(),
+    }).default({}),
   }),
 
   /**
@@ -353,7 +404,7 @@ export type WizardCustomer = z.infer<typeof customerSchema>;
 export function defaultCustomer(): WizardCustomer {
   return {
     email: "", suburb: "", postcode: "",
-    propertyKind: "house", heritageListed: "unsure", bodyCorporate: "no",
+    propertyKind: "house", commercialGates: {}, heritageListed: "unsure", bodyCorporate: "no",
     builtPre1970: "unsure", asbestosSuspected: "no",
   };
 }
@@ -372,7 +423,7 @@ export function defaultWizardState(): WizardState {
     noPlan: false,
     basics: null,
     surfaces: [...DEFAULT_SURFACES],
-    condition: { tier: "change", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false },
+    condition: { tier: "change", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, surfaceFlags: {} },
     details: {
       doorStyle: "unsure",
       doorScope: "frame",
@@ -380,7 +431,7 @@ export function defaultWizardState(): WizardState {
       ceilingHeight: "unsure",
       damageTier: 1,
       damageNote: "",
-      damagePhotoCount: 0,
+      damagePhotoCount: 0, siteAccess: {}, extraNote: "",
     },
     contact: { name: "", email: "", phone: "" },
     paint: { brands: [], colourHelp: null, waterBasedOnly: false, trimsOilBased: null, base: null },

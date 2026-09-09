@@ -5,7 +5,8 @@ import { substrateOptionsFromRates, type SubstrateGroups } from "@/lib/estimate/
 import WizardApp from "../wizard/WizardApp";
 import Wordmark from "../wizard/Wordmark";
 import { getCompanyContact } from "@/lib/portal/data";
-import { clampAddress, wizardStateSchema, type WizardState } from "@/lib/wizard/state";
+import { clampAddress, defaultWizardState, wizardStateSchema, type WizardState, wizardStateShapeSchema } from "@/lib/wizard/state";
+import { applySpec, specsFromFlags } from "@/lib/wizard/saved-specs";
 import { parseEstimateIntent } from "@/lib/marketing/prefill";
 import { showcaseJobBySlug } from "@/lib/showcase/queries";
 import { sanitiseClonedState, scopeSeed } from "@/lib/wizard/showcaseSeed";
@@ -33,9 +34,9 @@ export const metadata = {
 export default async function CustomerWizardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ property?: string; rebook?: string; address?: string; mode?: string; scope?: string; from?: string; src?: string }>;
+  searchParams: Promise<{ property?: string; rebook?: string; spec?: string; address?: string; mode?: string; scope?: string; from?: string; src?: string }>;
 }) {
-  const { property: propertyParam, rebook: rebookParam, address: addressParam, mode: modeParam, scope: scopeParam, from: fromParam, src: srcParam } = await searchParams;
+  const { property: propertyParam, rebook: rebookParam, spec: specParam, address: addressParam, mode: modeParam, scope: scopeParam, from: fromParam, src: srcParam } = await searchParams;
   // Homepage hand-off (homepage brief §4.2): the typed address and the
   // home/business chip arrive on the URL. Intent only — parsed and clamped
   // by lib/marketing/prefill.ts; nothing is created and nothing fires.
@@ -178,6 +179,43 @@ export default async function CustomerWizardPage({
           conditionSourceIds: [],
         });
         if (stripped.success) prefillState = stripped.data;
+      }
+    }
+  }
+
+  /**
+   * Phase 8 (§7) — a trade SAVED SPEC. "End-of-lease repaint" carries the
+   * answers that repeat; the address and the rooms are this job's.
+   *
+   * Deliberately AFTER rebook and before the showcase seed: rebook is the
+   * stronger signal (this property, again, with everything it had), a spec is
+   * a way of working applied to a new address. A spec never overrides a
+   * rebook — if a member somehow asks for both, the job they actually did
+   * wins over the template.
+   *
+   * Ownership is the same account chain rebook uses, and the spec is applied
+   * over a DEFAULT state rather than a stored one, so there is nothing of any
+   * previous job in it and nothing to strip.
+   */
+  if (!prefillState && memberEmail && specParam && svc) {
+    const { data: memberships } = await supabase.from("account_users").select("account_id");
+    const ids = (memberships ?? []).map((m) => m.account_id as string);
+    if (ids.length > 0) {
+      const { data: accts } = await svc.from("accounts").select("flags").in("id", ids);
+      const spec = (accts ?? [])
+        .flatMap((a) => specsFromFlags((a as { flags?: unknown }).flags))
+        .find((x) => x.id === specParam);
+      if (spec) {
+        /**
+         * The SHAPE schema, not the full one — the same choice showcaseSeed
+         * makes, and for the same reason. `wizardStateSchema` adds the
+         * cross-field rules a SUBMITTABLE state must pass ("upload a floorplan,
+         * or choose the quick basics instead"), and a seed has not been near
+         * those questions yet. Parsing a seed against it fails silently and the
+         * customer gets the defaults, which is exactly what happened first time.
+         */
+        const seeded = wizardStateShapeSchema.safeParse(applySpec(defaultWizardState(), spec));
+        if (seeded.success) prefillState = seeded.data;
       }
     }
   }

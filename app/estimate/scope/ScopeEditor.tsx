@@ -9,6 +9,11 @@ import type { CustomerPayload } from "@/lib/wizard/view";
 import { assertCustomerShape } from "@/lib/wizard/contract";
 import type { CustomerExteriorView, CustomerScopeRoom } from "@/lib/wizard/scope-editor";
 import type { PaintSystemLine } from "@/lib/wizard/systems-view";
+import RoomSpots from "./RoomSpots";
+import SiteAccessCard from "./SiteAccess";
+import JobExtras from "./JobExtras";
+import type { JobExtra } from "@/lib/wizard/extras";
+import type { SiteAccess } from "@/lib/wizard/site-access";
 import type { SidesView } from "@/lib/wizard/sides";
 import SidesEditor from "./SidesEditor";
 import PlanPanel from "./PlanPanel";
@@ -49,6 +54,8 @@ export type InteriorLoopView = {
 type Payload = CustomerPayload & {
   scopeRooms?: CustomerScopeRoom[];
   paintSystems?: PaintSystemLine[];
+  siteAccess?: SiteAccess;
+  jobExtras?: { on: string[]; colourHelp: boolean; note: string };
   exterior?: CustomerExteriorView | null;
   ladder?: Ladder;
   interiorLoop?: InteriorLoopView;
@@ -87,7 +94,7 @@ const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
 const snapshotFalse = () => false;
 
-export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialSystems = [], roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null, chatMode = false }: {
+export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialSystems = [], initialAccess = { answers: {}, asksLift: false }, initialExtras = { offer: [], on: [], colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null, chatMode = false }: {
   estimateId: string;
   initial: CustomerPayload;
   initialRooms: CustomerScopeRoom[];
@@ -116,11 +123,17 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
    * derived, in the painter's words, with a correction per line. Empty on an
    * exterior-only job or an estimate with no readable wizard snapshot. */
   initialSystems?: PaintSystemLine[];
+  /** §4.4 — the site and access answers, and whether a lift applies. */
+  initialAccess?: { answers: SiteAccess; asksLift: boolean };
+  /** §4.5 — the extras on offer, which are on, the colour tick and the note. */
+  initialExtras?: { offer: JobExtra[]; on: string[]; colourHelp: boolean; note: string };
 }) {
   const [payload, setPayload] = useState<CustomerPayload>(initial);
   const [rooms, setRooms] = useState<CustomerScopeRoom[]>(initialRooms);
   const [iloop, setIloop] = useState<InteriorLoopView | null>(initialInteriorLoop);
   const [systems, setSystems] = useState<PaintSystemLine[]>(initialSystems);
+  const [access, setAccess] = useState<SiteAccess>(initialAccess.answers);
+  const [extras, setExtras] = useState({ on: initialExtras.on, colourHelp: initialExtras.colourHelp, note: initialExtras.note });
   const [sidesProg, setSidesProg] = useState<SidesView["progress"] | null>(initialSides?.progress ?? null);
   const [sizeDrafts, setSizeDrafts] = useState<Record<number, { L: string; W: string; open: boolean }>>({});
   // A3: the confirmation walk — one card open at a time; confirming opens
@@ -279,6 +292,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         setPayload(j);
         if (j.scopeRooms) setRooms(j.scopeRooms);
         if (j.paintSystems) setSystems(j.paintSystems);
+        if (j.siteAccess) setAccess(j.siteAccess);
+        if (j.jobExtras) setExtras(j.jobExtras);
         if (j.ladder) setLadder(j.ladder);
         if (j.interiorLoop) setIloop(j.interiorLoop);
         if (liveRange) setFlash((n) => n + 1);
@@ -370,6 +385,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         setPayload(j);
         if (j.scopeRooms) setRooms(j.scopeRooms);
         if (j.paintSystems) setSystems(j.paintSystems);
+        if (j.siteAccess) setAccess(j.siteAccess);
+        if (j.jobExtras) setExtras(j.jobExtras);
         if (j.interiorLoop) setIloop(j.interiorLoop);
         if (j.ladder) setLadder(j.ladder);
         say(done);
@@ -708,6 +725,39 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     ))}
                   </div>
                 )}
+                {/*
+                  Tom, 9 Sep: "what if the doors need 3 coats because they're
+                  all stained, but the rest are 2?" — the customer says what is
+                  THERE on this surface and the engine derives the coats. Never
+                  a coat picker: a picked coat count would walk straight past
+                  the coverage rule and tell the painter nothing.
+                */}
+                {line.flagChips.length > 0 && (
+                  <div className="sc-sys-flags">
+                    <p className="sc-sys-why" style={{ marginBottom: 6 }}>
+                      Anything different about {line.group === "walls" ? "the walls" : line.title.toLowerCase()}?
+                    </p>
+                    <div className="sc-chips">
+                      {line.flagChips.map((chip) => (
+                        <button
+                          key={chip.patch.field === "surfaceFlag" ? chip.patch.flag : chip.label}
+                          type="button"
+                          className={`sd-chip il-chip ${chip.on ? "on" : ""}`}
+                          aria-pressed={chip.on}
+                          data-testid={`system-flag-${line.group}-${chip.patch.field === "surfaceFlag" ? chip.patch.flag : ""}`}
+                          onClick={() => chip.patch.field === "surfaceFlag" && act(
+                            {
+                              action: "set_paint_system", field: "surfaceFlag",
+                              group: chip.patch.group, flag: chip.patch.flag, value: chip.patch.value,
+                            },
+                            `sysflag:${line.group}:${chip.patch.flag}`,
+                            () => chip.said,
+                          )}
+                        >{chip.label}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {line.review && (
                   <p className="sc-sys-why" data-testid={`system-review-${line.group}`}>
                     We&rsquo;ll check this one ourselves before your price is fixed.
@@ -716,6 +766,51 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
               </div>
             ))}
           </section>
+        )}
+        {/* §4.5 — named extras price from the card; unusual ones flag. */}
+        {/* Shown even when the card carries no extras rows: the "something
+            else" box is exactly what a rate card cannot cover. */}
+        {!chatMode && (
+          <JobExtras
+            offer={initialExtras.offer}
+            on={extras.on}
+            colourHelp={extras.colourHelp}
+            note={extras.note}
+            busy={pendingCount > 0}
+            onToggle={(code, on) => {
+              setExtras((e) => ({ ...e, on: on ? [...e.on, code] : e.on.filter((c) => c !== code) }));
+              act({ action: "toggle_job_extra", code, on }, `extra:${code}`,
+                () => (on ? `${code} added` : `${code} removed`));
+            }}
+            onColourHelp={(want) => {
+              setExtras((e) => ({ ...e, colourHelp: want }));
+              act({ action: "set_colour_help", want }, "extra:colour",
+                () => want ? "We'll help you choose the colours" : "Colour help removed");
+            }}
+            onNote={(text) => {
+              setExtras((e) => ({ ...e, note: text }));
+              act({ action: "extra_note", note: text }, "extra:note",
+                () => text ? "Noted — one of our people will price that properly" : "Note cleared");
+            }}
+          />
+        )}
+        {/* §4.4 — the four allowance modifiers plus parking, the lift and pets. */}
+        {!chatMode && (
+          <SiteAccessCard
+            answers={access}
+            asksLift={initialAccess.asksLift}
+            busy={pendingCount > 0}
+            onAnswer={(field, value) => {
+              // Optimistic, so the chip lights the moment it is tapped; the
+              // server's answer replaces it on the next response.
+              setAccess((a) => ({ ...a, [field]: value }));
+              act(
+                { action: "set_site_access", field, value },
+                `access:${field}`,
+                () => "Noted — that's in your setup allowance",
+              );
+            }}
+          />
         )}
         {!chatMode && payload.confirmOnSite.length > 0 && (
           <p className="wz-note wz-confirmonsite" style={{ margin: "14px 0 0" }}>
@@ -1082,6 +1177,35 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                 )}
                 <div className="sc-inc">Includes filling minor cracks and sanding — allowances set by us</div>
                 {room.allowances?.map((a) => <div className="sc-inc" key={a} data-testid="room-allowance">🔒 {a} — allowed for by us</div>)}
+                {/* §4.3 — how this room compares, and where the damage is. */}
+                {!chatMode && (
+                  <RoomSpots
+                    estimateId={estimateId}
+                    areaId={room.areaId}
+                    roomName={room.name}
+                    side="interior"
+                    spots={room.spots}
+                    condition={room.condition}
+                    busy={pendingCount > 0}
+                    onAdd={(tag, extent, sourceId) => act(
+                      { action: "add_spot", areaId: room.areaId, tag, extent, sourceId },
+                      `spot:${room.areaId}:${tag}`,
+                      () => `Noted in ${room.name} — your painter sees it before day one`,
+                    )}
+                    onRemove={(surfaceId) => act(
+                      { action: "remove_spot", areaId: room.areaId, surfaceId },
+                      `spotrm:${room.areaId}:${surfaceId}`,
+                      () => "Spot removed",
+                    )}
+                    onCondition={(c) => act(
+                      { action: "set_room_condition", areaId: room.areaId, condition: c },
+                      `cond:${room.areaId}`,
+                      () => c === "worse" ? `${room.name} flagged as worse — we'll allow for it`
+                        : c === "better" ? `${room.name} noted as better than the rest`
+                        : `${room.name} same as the rest`,
+                    )}
+                  />
+                )}
                 {loop && (
                   <button
                     className={`sd-confirm il-confirm ${loop.confirmed ? "done" : ""}`}

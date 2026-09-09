@@ -687,3 +687,28 @@
 .wz .sc-systems .sc-sys-say { margin: 4px 0 0; font-size: 14.5px; line-height: 1.45; color: var(--wz-text, #EDF0F2); }
 .wz .sc-systems .sc-sys-why { margin: 6px 0 0; font-size: 13px; color: var(--wz-muted, #8C959D); }
 .wz .sc-systems .il-q + .il-q { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--wz-line, #242B32); }
+.wz .sc-systems .sc-sys-flags { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--wz-line, #242B32); }
+
+/* §4.3 · flagged spots on the room card. The list reads as a record of what
+   the customer told us, not as another set of controls — a repair is not a
+   surface, and must never look like one. */
+.wz .sc-spots { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--wz-line, #242B32); }
+.wz .sc-spotlist { list-style: none; margin: 10px 0 0; padding: 0; }
+.wz .sc-spotlist li { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--wz-line, #242B32); font-size: 14px; }
+.wz .sc-spotlist li:last-child { border-bottom: 0; }
+.wz .sc-spot-name { font-weight: 500; }
+.wz .sc-spot-state { color: var(--wz-muted, #8C959D); font-size: 12.5px; margin-left: auto; }
+.wz .sc-spot-panel { margin-top: 10px; }
+.wz .sc-spot-panel input[type="file"] { font-size: 13px; color: var(--wz-muted, #8C959D); max-width: 100%; }
+.wz .sc-spot-add { margin-top: 10px; }
+.wz .sc-spot-err { color: var(--wz-amber, #E0A83C); font-size: 12.5px; margin: 8px 0 0; }
+.wz .sc-extras .sc-extra-note { width: 100%; margin: 8px 0; padding: 10px 12px; border-radius: 12px; background: var(--wz-panel, #12161A); border: 1px solid var(--wz-line, #242B32); color: var(--wz-text, #EDF0F2); font: inherit; font-size: 15px; }
+
+/* Phase 7 · the commercial routing gates. The hint is what makes each question
+   answerable by someone who has never let a job, so it must read as part of
+   the question and not as fine print. */
+.wz .wz-qrow { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.wz .wz-qrow:last-of-type { border-bottom: 0; }
+.wz .wz-qtext { flex: 1; font-size: 15px; }
+.wz .wz-qhint { display: block; margin-top: 3px; font-size: 13px; color: var(--muted); }
+.wz .sc-spots .sc-spot-suggest { margin: 10px 0 0; font-size: 14px; color: var(--wz-text, #EDF0F2); }

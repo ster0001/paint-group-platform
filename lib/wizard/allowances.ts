@@ -26,6 +26,22 @@ export const ROOM_ALLOWANCES = {
   ceilingsOnly: { code: "Ceilings Only Allowance", label: "Ceilings on their own — extra set-up and masking" },
 } as const;
 
+/**
+ * Ceilings without walls, as a RATE UPLIFT (Tom, 9 Sep: *"if ceilings are
+ * being painted and walls aren't, we need to charge the ceiling and cornice at
+ * a 30% higher rate"*).
+ *
+ * This replaces the flat `Ceilings Only Allowance` line for the same job.
+ * A flat half-hour under-charges a big living room and over-charges a WC;
+ * a percentage on the ceiling and cornice hours is what Tom actually does.
+ * The old line is still REMOVED when it is present, so a job priced under the
+ * previous rule reprices cleanly rather than carrying both.
+ */
+export const CEILINGS_ONLY_UPLIFT_PCT = 30;
+
+/** The surfaces the uplift applies to — the ceiling and its cornice. */
+const CEILING_KEYS = new Set(["ceilings", "cornices"]);
+
 export type AllowanceSurface = Record<string, unknown> & { id?: number; code?: string; allowance?: boolean; internalLabel?: string };
 export type AllowanceBlock = Record<string, unknown> & {
   id?: number; kind?: string; type?: string; areaType?: string; name?: string; surfaces?: AllowanceSurface[];
@@ -36,7 +52,12 @@ const isInteriorRoom = (b: AllowanceBlock) => b.kind === "area" && b.type !== "E
 
 export function reconcileRoomAllowances<B extends AllowanceBlock>(
   blocks: B[],
-  opts: { tier: string | null | undefined; rateItems: ReadonlyArray<AllowanceRateRow> },
+  opts: {
+    tier: string | null | undefined;
+    rateItems: ReadonlyArray<AllowanceRateRow>;
+    /** Tom's percentage; defaults to CEILINGS_ONLY_UPLIFT_PCT. */
+    ceilingsOnlyUpliftPct?: number;
+  },
   nextId: () => number,
 ): { blocks: B[]; changed: number } {
   const row = (code: string) => opts.rateItems.find((r) => r.code === code) ?? null;
@@ -45,9 +66,12 @@ export function reconcileRoomAllowances<B extends AllowanceBlock>(
     if (!isInteriorRoom(b)) return b;
     const surfaces = b.surfaces ?? [];
     const has = (key: string) => surfaces.some((s) => s.allowance !== true && substrateKeyForRateCode(String(s.code ?? "")) === key);
+    // Ceilings without walls is now a rate uplift, not a line (see below), so
+    // the only allowance LINE left is the colour match.
+    const ceilingsOnly = has("ceilings") && !has("walls");
     const wants: Array<[keyof typeof ROOM_ALLOWANCES, boolean]> = [
       ["colourMatch", opts.tier === "fresh"],
-      ["ceilingsOnly", has("ceilings") && !has("walls")],
+      ["ceilingsOnly", false],
     ];
     let next: AllowanceSurface[] = surfaces;
     for (const [k, want] of wants) {
@@ -69,7 +93,26 @@ export function reconcileRoomAllowances<B extends AllowanceBlock>(
         changed++;
       }
     }
-    return next === surfaces ? b : { ...b, surfaces: next };
+    /**
+     * The uplift itself. Set on the ceiling and cornice when the walls are
+     * off, cleared the moment they come back on — so unticking and reticking
+     * the walls is reversible, which a stored one-way flag would not be.
+     */
+    const pct = opts.ceilingsOnlyUpliftPct ?? CEILINGS_ONLY_UPLIFT_PCT;
+    let touched = next !== surfaces;
+    next = next.map((sf) => {
+      if (sf.allowance === true) return sf;
+      const key = substrateKeyForRateCode(String(sf.code ?? ""));
+      if (key == null || !CEILING_KEYS.has(key)) return sf;
+      const want = ceilingsOnly ? pct : 0;
+      const current = Number((sf as { upliftPct?: unknown }).upliftPct) || 0;
+      if (current === want) return sf;
+      touched = true;
+      changed++;
+      return { ...sf, upliftPct: want };
+    });
+
+    return touched ? { ...b, surfaces: next } : b;
   });
   return { blocks: out, changed };
 }

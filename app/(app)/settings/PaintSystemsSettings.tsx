@@ -28,6 +28,7 @@ const GROUP_LABEL: Record<SystemGroup, string> = {
   trims: "Skirtings and architraves",
   doors: "Doors",
   windows: "Windows",
+  exterior: "Outside — every exterior surface",
 };
 
 const INTENT_LABEL: Record<ColourIntent, string> = {
@@ -51,6 +52,10 @@ export default function PaintSystemsSettings({ initial }: { initial: PaintSystem
   };
   const setTop = <K extends keyof PaintSystems>(k: K, v: PaintSystems[K]) => {
     setForm((f) => ({ ...f, [k]: v })); setDirty(true);
+  };
+  const setFlag = (i: number, patch: Partial<PaintSystems["surfaceFlags"][number]>) => {
+    setForm((f) => ({ ...f, surfaceFlags: f.surfaceFlags.map((x, j) => (j === i ? { ...x, ...patch } : x)) }));
+    setDirty(true);
   };
 
   /** Cells that would not cover. Named, so the message can point at them. */
@@ -185,6 +190,53 @@ export default function PaintSystemsSettings({ initial }: { initial: PaintSystem
             </label>
           ))}
         </div>
+      </div>
+
+      <div className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-3" data-testid="surface-flags">
+        <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
+          &ldquo;Anything different about these?&rdquo; — per-surface flags
+        </div>
+        <p className="text-xs text-gray-500">
+          One group often needs more than the rest — stained doors on an otherwise two-coat job, new plaster on
+          one wall. The customer taps what&rsquo;s THERE and we work out the coats; they never pick a number.
+          Each flag sets a floor (or a ceiling) on the coats for the groups it applies to, and its note goes to
+          the painter on the work order. The coverage rule still wins: a flag can never take a surface that&rsquo;s
+          changing colour down to one coat.
+        </p>
+        {form.surfaceFlags.map((flag, i) => (
+          <div key={flag.key} className="grid gap-2 rounded border border-gray-200 bg-white p-2 md:grid-cols-[1fr_auto_auto]">
+            <div>
+              <input
+                value={flag.label} maxLength={80}
+                onChange={(e) => setFlag(i, { label: e.target.value })}
+                className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+                aria-label={`${flag.key} label`} data-testid={`flag-label-${flag.key}`}
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                {flag.groups.join(" · ")} — {flag.crewNote || "no note for the painter"}
+              </p>
+            </div>
+            <label className="flex items-center gap-1 text-xs text-gray-700">
+              at least
+              <input
+                type="number" min={1} max={4} value={flag.minCoats ?? ""}
+                placeholder={flag.key === "marked" ? String(form.ceilingsMarkedCoats) : "—"}
+                onChange={(e) => setFlag(i, { minCoats: e.target.value === "" ? undefined : Number(e.target.value) })}
+                className="w-14 rounded border border-gray-300 px-2 py-1 text-sm"
+                data-testid={`flag-min-${flag.key}`}
+              />
+            </label>
+            <label className="flex items-center gap-1 text-xs text-gray-700">
+              at most
+              <input
+                type="number" min={1} max={4} value={flag.maxCoats ?? ""} placeholder="—"
+                onChange={(e) => setFlag(i, { maxCoats: e.target.value === "" ? undefined : Number(e.target.value) })}
+                className="w-14 rounded border border-gray-300 px-2 py-1 text-sm"
+                data-testid={`flag-max-${flag.key}`}
+              />
+            </label>
+          </div>
+        ))}
       </div>
 
       {blocking.length > 0 && (
