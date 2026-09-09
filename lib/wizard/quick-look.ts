@@ -1,5 +1,5 @@
 import {
-  DEFAULT_SURFACES, defaultWizardState,
+  DEFAULT_SURFACES, defaultExterior, defaultWizardState,
   type WizardState, type WizardSurfaceKey,
 } from "./state";
 
@@ -210,6 +210,21 @@ export function quickLookToState(q: QuickLook, base?: WizardState): WizardState 
       builtPre1970: s.customer?.builtPre1970 ?? "unsure",
       asbestosSuspected: s.customer?.asbestosSuspected ?? "unsure",
     },
+    /**
+     * A job with an outside to it needs an `exterior` block or the sides never
+     * get built from answers — the same thing `entryPatch` did for the old
+     * "answer a few questions" route. `noPhotos` is what says "size it from
+     * what they told us" rather than from an elevation read.
+     *
+     * ⚑ It does NOT name the sides. Which sides are being painted is the
+     * exterior question set's job, and a job that never answered it prices all
+     * four — the fault behind "I asked for front, left and back and it gave me
+     * the right side too". A `both` job therefore still has to walk the
+     * exterior pages; the quick look only settles the inside.
+     */
+    exterior: q.jobType === "interior"
+      ? s.exterior
+      : { ...(s.exterior ?? defaultExterior()), noPhotos: true },
     surfaces: interior ? SCOPE_SURFACES[q.scope] : s.surfaces,
     condition: {
       ...s.condition,

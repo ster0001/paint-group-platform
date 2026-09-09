@@ -8,6 +8,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { getWizardActor } from "@/lib/supabase/guards";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildDraft, type DraftArea, type DraftResult } from "@/lib/extract/draft";
+import { EXTERIOR_ALLOWANCES_KEY, exteriorAllowancesFrom } from "@/lib/wizard/exterior-allowances";
 import { elevationReadSchema, mergeSitePlanWidths, sitePlanReadSchema, type SitePlanRead } from "@/lib/extract/elevation";
 import { computeEnvelope, envelopeToAreaNodes, type ElevationRead } from "@/lib/extract/exterior";
 import { extractionSchema } from "@/lib/extract/schema";
@@ -415,12 +416,19 @@ export async function POST(request: Request) {
     const h = Math.max(0, ...r.cladding.filter((c) => c.heightM != null && c.heightBasis !== "none" && c.confidence >= 0.6).map((c) => c.heightM as number));
     if (h > 0 && !measuredSides[k]?.H) measuredSides[k] = { ...measuredSides[k], H: Math.round(h * 10) / 10 };
   }
-  applyExteriorAnswers(merged, effectiveState, () => nextId++, tickedSurfaces, measuredSides);
+  // The rate card and Settings are needed by the exterior allowances below as
+  // well as by the pricing that follows, so the context loads first.
+  const ctx = await loadPricingContext(db);
+  applyExteriorAnswers(
+    merged, effectiveState, () => nextId++, tickedSurfaces, measuredSides,
+    // ⚑ My proposed figures until Tom's own land — Settings → Estimates →
+    // Exterior access. Every job that uses one is flagged for correction.
+    exteriorAllowancesFrom(settingValue(ctx.settings, EXTERIOR_ALLOWANCES_KEY)),
+  );
 
   // Tom, 31 Aug: condition answers PRICE from the first reveal — the same
   // modifier/allowance the loop's Condition card applies, applied up front so
   // the opening number is the worst case, not a jump at the end.
-  const ctx = await loadPricingContext(db);
   const conditionModSel = applyConditionPricing(merged, effectiveState, () => nextId++, ctx);
   // Tom, 7 Sep: the engine's own per-room allowances (colour match, ceilings only).
   merged.areas = reconcileRoomAllowances(merged.areas as unknown as AllowanceBlock[], { tier: effectiveState.condition.tier, rateItems: ctx.rateItems }, () => nextId++).blocks as unknown as typeof merged.areas;

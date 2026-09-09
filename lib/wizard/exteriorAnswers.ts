@@ -13,7 +13,12 @@
 
 import { CLADDING_CODE, CLADDING_LABEL, exteriorExtrasNodes, extSurface, SIZE_BAND_FACTOR, starterExteriorNodes } from "./starter";
 import { applyFenceLength } from "./scope-editor";
+import { makeDraftSurface } from "@/lib/extract/draft";
 import { ALLOWANCE_CODES, rateFor, toggleExtrasItem, WEATHERED_MODIFIER_CODE, type LooseBlock } from "./sides";
+import {
+  DEFAULT_EXTERIOR_ALLOWANCES, exteriorAccessAllowances,
+  type ExteriorAllowanceSettings,
+} from "./exterior-allowances";
 import { exteriorSides, type WizardState, type WizardSurfaceKey } from "./state";
 import type { DraftArea } from "@/lib/extract/draft";
 
@@ -46,6 +51,8 @@ export function applyExteriorAnswers(
   nextId: () => number,
   tickedSurfaces: ReadonlySet<WizardSurfaceKey>,
   measured: MeasuredSides = {},
+  /** ⚑ Tom's numbers once he has them; my proposal until then. */
+  accessSettings: ExteriorAllowanceSettings = DEFAULT_EXTERIOR_ALLOWANCES,
 ): void {
   const wantsExterior = state.jobType === "exterior" || state.jobType === "both";
   if (!wantsExterior) return;
@@ -171,6 +178,42 @@ export function applyExteriorAnswers(
       count: 1,
       needs: "customer says this equipment is needed — NOT priced in the estimate; confirm hire, delivery and set-up with them",
     });
+  }
+
+  /**
+   * GETTING TO THE WORK (allowances spec §8, which does not exist — these are
+   * my proposed figures, Settings-editable, and every job that uses one is
+   * flagged so actuals can correct them).
+   *
+   * Flat hours, not multipliers: a second storey does not slow the brush down,
+   * it adds set-up and pack-down, and that costs the same whether the wall is
+   * 6 m or 16 m. Applied per SIDE BEING PAINTED, so a job that named three
+   * sides is not charged for four.
+   */
+  const sidesPainted = merged.areas.filter((a) =>
+    a.type === "Exterior" && a.areaType === "surface" && sideKeyOfName(a.name) != null
+    && a.isOption !== true).length;
+  const access = exteriorAccessAllowances({
+    storeys: ext.storeys,
+    access: ext.access,
+    accessEquipment: ext.accessEquipment,
+    sidesPainted,
+  }, accessSettings);
+  merged.deferred.push(...access.deferred);
+  if (access.allowances.length > 0) {
+    const lines = access.allowances.map((a) => {
+      const line = makeDraftSurface(nextId(), `Exterior Access — ${a.label}`, a.label, 1, "customer_stated", 0.9, ["prep"]);
+      line.prepHr = a.hours;
+      line.crewNote = a.note;
+      return line;
+    });
+    merged.areas.push({
+      id: nextId(), kind: "area", name: "Exterior - Access", type: "Exterior", areaType: "surface",
+      roomType: "exterior", storey: "ground", L: 0, W: 0, H: 0,
+      isOption: false, description: "", open: false, media: [],
+      origin: "customer_stated", confidence: 0.9, assumedFields: [], extractionSourceId: null,
+      surfaces: lines,
+    } as unknown as (typeof merged.areas)[number]);
   }
   if (ext.extras.fence && ext.extras.fenceType === "metal") {
     merged.deferred.push({

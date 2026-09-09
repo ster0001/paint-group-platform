@@ -304,9 +304,18 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   // Tom, 7 Sep (late): a commercial property skips "Anything else out there?"
   // (pergola, balustrades, paint preferences) — a person prices it anyway.
   const commercial = isCustomer && state.customer?.propertyKind === "commercial";
+  /**
+   * A BOTH job whose quick look is done has had its INSIDE answered and its
+   * outside not asked about at all, so what remains is the exterior question
+   * set — which sides, the wall materials, the exterior condition. Branching
+   * on jobType alone sent it back through the interior pages it had just
+   * finished, and left the sides unnamed (a job that never names its sides
+   * prices all four).
+   */
+  const bothOutsideLeft = isCustomer && state.jobType === "both" && state.quickLook != null;
   const pageKeys: PageKey[] = describing
     ? ["property", ...(state.jobType === "exterior" ? ["ext_condition" as const] : ["condition" as const, "details" as const]), ...(!contactDone ? ["contact" as const] : [])]
-    : state.jobType === "exterior"
+    : state.jobType === "exterior" || bothOutsideLeft
       // Tom, 7 Sep: the follow-up page exists only when something other than
       // the house was ticked (fence type, shed / wall material, floor area).
       ? ["property", "house", ...(state.exterior?.targets.some((t) => t !== "house") ? ["scope" as const] : []), "ext_condition", ...(commercial ? [] : ["extras" as const]), ...(isCustomer && !contactDone ? ["contact" as const] : [])]
@@ -325,7 +334,10 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    * Exterior keeps the existing pages: its own five-answer quick look is the
    * other half of §9.7, still blocked on the per-elevation allowances spec.
    */
-  const quickActive = isCustomer && entry === "questions" && state.jobType !== "exterior";
+  const quickActive = isCustomer && entry === "questions"
+    && state.jobType !== "exterior"
+    // A both job that has finished the quick look is on the exterior pages now.
+    && !bothOutsideLeft;
   const lastPage = quickActive ? stepsFor(quick.jobType).length : pageKeys.length;
   const pageKey: PageKey = pageKeys[Math.min(page, lastPage) - 1];
   const chooseEntry = (e: EntryChoice) => {
@@ -1083,6 +1095,26 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         : "Which address should we price? Start typing and pick it from the list.");
       return;
     }
+    /**
+     * ⚑ A COMMERCIAL property leaves the quick look at the place screen.
+     *
+     * The segment question and the seven routing gates live on the property
+     * page, and phase 7a's whole rule is that ANY tripped gate sends the job
+     * to an appointment — no scoring, no override. A commercial job that
+     * walked the quick look to a price would have skipped every one of them,
+     * which is not a shortcut, it is the safety check missing. Healthcare and
+     * strata do not even get asked; they go to a person on the segment alone.
+     */
+    if (quick.propertyKind === "commercial") {
+      setState((s) => ({
+        ...s,
+        customer: s.customer ? { ...s.customer, propertyKind: "commercial" } : s.customer,
+      }));
+      setEntry(null);
+      setPage(1);
+      window.scrollTo({ top: 0 });
+      return;
+    }
     // An outside-only job leaves the quick look after the place and takes the
     // exterior question set, which asks about elevations rather than rooms.
     if (quick.jobType === "exterior") {
@@ -1096,9 +1128,23 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       window.scrollTo({ top: 0 });
       return;
     }
+    const derived = quickLookToState(quick, state);
+    /**
+     * A BOTH job has only had its inside answered. Which sides are being
+     * painted is a question nobody has asked yet, and a job that never
+     * answers it prices all four — exactly the "I asked for front, left and
+     * back and it gave me the right side too" fault. So the inside finishes
+     * here and the exterior question set takes over.
+     */
+    if (quick.jobType === "both") {
+      setState(derived);
+      setEntry("questions");
+      setPage(2);
+      window.scrollTo({ top: 0 });
+      return;
+    }
     // Last screen: derive the full state and price it. Handed straight to the
     // submit rather than through setState, which would not have landed yet.
-    const derived = quickLookToState(quick, state);
     setState(derived);
     void runSubmit(derived);
   }

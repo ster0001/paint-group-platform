@@ -8,6 +8,7 @@ import {
 } from "@/lib/pricing/estimate";
 import { accuracyScore, roomConfidencePct, type ScoredArea } from "./accuracy";
 import type { LoopConfirmState } from "./confirm-state";
+import { SCAFFOLD_EXCLUSION } from "./exterior-allowances";
 import { rangeBandPct, rangeFromTotal, type BandSettings, type GuardrailDecision } from "./policy";
 
 /**
@@ -139,9 +140,18 @@ export function customerPayload(
     confirmOnSite: payload.deferred.map((d) =>
       d.kind === "photo_review"
         ? "Your photos are with your estimator — any extra preparation is priced and signed off before your final quote"
-        : d.room === "Whole job" || d.room === "Exterior"
-          ? `${d.what} — confirmed before your final quote`
-          : `${d.room}: ${d.what} — confirmed before your final quote`,
+        // Access equipment is an EXCLUSION, not a thing to confirm. "Scaffold
+        // — confirmed before your final quote" reads as though it is in the
+        // price and only the detail is outstanding, which is the opposite of
+        // true: nothing for it is in this estimate, and the customer has to
+        // be able to see that before they compare us with anyone.
+        : d.kind === "exterior_access_equipment"
+          ? SCAFFOLD_EXCLUSION
+          : d.kind === "exterior_access_allowance"
+            ? "Getting to the upper levels and awkward ground is allowed for — your estimator checks it before your final quote"
+            : d.room === "Whole job" || d.room === "Exterior"
+              ? `${d.what} — confirmed before your final quote`
+              : `${d.room}: ${d.what} — confirmed before your final quote`,
     ),
     photosPendingSignOff: payload.deferred.some((d) => d.kind === "photo_review"),
   };

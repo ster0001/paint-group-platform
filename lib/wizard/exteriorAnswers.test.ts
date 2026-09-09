@@ -132,7 +132,10 @@ test("a plan-read width and a photo-read height replace the 12/14 × 2.6 constan
 test("nothing measured → exactly the old behaviour", () => {
   const b = bundle();
   applyExteriorAnswers(b, exteriorState({ storeys: "double" }), (() => { let n = 1; return () => n++; })(), new Set(["weatherboards"]));
-  for (const a of b.areas.filter((a) => a.type === "Exterior" && a.areaType === "surface")) {
+  // SIDES only. "Exterior - Extras" and "Exterior - Access" are whole-job
+  // blocks with no elevation of their own, and asserting a storey height on
+  // them tests nothing.
+  for (const a of b.areas.filter((a) => a.type === "Exterior" && a.areaType === "surface" && sideKeyOfName(a.name) != null)) {
     assert.equal(a.H, 5.2);
     assert.ok(a.assumedFields.includes("L") && a.assumedFields.includes("H"));
   }
