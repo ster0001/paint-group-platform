@@ -26,6 +26,7 @@ import { estimateDocuments, type EstimateDocuments } from "@/lib/wizard/document
 import { exteriorAddOptions, interiorAddOptions, type AddOption } from "@/lib/wizard/add-catalogue";
 import { paintSystemsView, type PaintSystemLine } from "@/lib/wizard/systems-view";
 import { asksLift, type SiteAccess } from "@/lib/wizard/site-access";
+import { jobExtras, type JobExtra } from "@/lib/wizard/extras";
 import { PAINT_SYSTEMS_KEY, paintSystemsFrom } from "@/lib/pricing/systems";
 
 /**
@@ -67,6 +68,8 @@ export type CustomerScopeBundle =
       initialSystems: PaintSystemLine[];
       /** §4.4 — the site and access answers so far, and whether to ask about a lift. */
       initialAccess: { answers: SiteAccess; asksLift: boolean };
+      /** §4.5 — the extras on offer, which are on, the colour-help tick and the note. */
+      initialExtras: { offer: JobExtra[]; on: string[]; colourHelp: boolean; note: string };
     };
 
 export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRow): Promise<CustomerScopeBundle> {
@@ -190,6 +193,17 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
     // Phase 4: the systems the engine derived, ready to be shown back and
     // corrected. An estimate with no readable wizard snapshot (a staff-built
     // tree, an old draft) gets no card rather than a card of guesses.
+    initialExtras: {
+      offer: jobExtras(ctx.rateItems),
+      // What is ON is read off the TREE, not a stored list — an estimator can
+      // remove an extras line in the builder and the sheet must agree with it.
+      on: blocks
+        .filter((b) => String(b.name ?? "").toLowerCase() === "interior - extras")
+        .flatMap((b) => (Array.isArray(b.surfaces) ? (b.surfaces as Array<{ code?: unknown }>) : []))
+        .map((x) => String(x.code ?? "")),
+      colourHelp: snap.success ? snap.data.paint.colourHelp === "advice" : false,
+      note: snap.success ? String(snap.data.details.extraNote ?? "") : "",
+    },
     initialAccess: {
       answers: snap.success ? (snap.data.details.siteAccess ?? {}) : {},
       asksLift: snap.success ? asksLift(snap.data.customer?.propertyKind) : false,

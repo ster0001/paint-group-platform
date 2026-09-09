@@ -2758,3 +2758,46 @@ absence.
 - Hard and mixed floors share a code and a reason; `because` is de-duplicated.
 - The chip lights optimistically, so a pressed chip does NOT mean the save landed. An e2e that
   reloads must first wait for `.sd-saving` to clear, or it races the last write.
+
+## Estimator journey v2 · Phase 5b — the whole-job extras sheet (9 Sep 2026)
+
+Branch `feat/paint-systems-screen`. **No migration.** Plan §4.5, §9.5.
+
+**The gap** (plan §2.5): extras were never asked. "Anything else" was flagged and never priced,
+so mould treatment, a ceiling rose, a stain or varnish job and a colour consult fell out of the
+estimate entirely.
+
+**§4.5's rule, verbatim: named extras price; unusual ones flag.** Those are the only two
+outcomes, and they are deliberately different controls so the customer can see which is which —
+the listed ones show a price and move the range, the sentence shows none and says so.
+
+- **The list is derived from the rate card**, reusing `interiorAddOptions`' judgement about what
+  a customer may add and what another control owns (cabinetry, allowances, style variants)
+  rather than restating it. Nothing is hardcoded: add a row tomorrow and it appears. A row with
+  no charge-out is dropped — it cannot be presented as a price, and a tick that cannot price is
+  a lie.
+- **The note is never priced.** `extraNoteDeferral` returns the amber note and says so in the
+  words the estimator reads ("not on our card, so it is NOT priced"). Re-raised from scratch, so
+  editing the sentence replaces the note instead of stacking a second.
+- **"Help me choose the colours"** is not a rate row and never was — it rides
+  `paint.colourHelp = "advice"`, the field the CRM already reads to raise a colour-advice
+  follow-up (1 Sep). The sheet is a second way in, not a second field.
+
+**`toggleExtrasItem` was generalised, not copied**, to take a side. An interior extra priced in
+the `Exterior - Extras` block would be charged at the exterior rate and read as an exterior line
+on the customer's estimate. `EXTRAS_BLOCK` now matches either, and the exterior default keeps
+every pre-phase-5 caller unchanged.
+
+**What is ON is read off the TREE**, not from a stored list, in both the loader and the
+response — an estimator who removes an extras line in the builder must see the sheet agree with
+them.
+
+**Traps.**
+- The card renders even when the rate card carries no extras rows: the "something else" box is
+  exactly what a card cannot cover.
+- The e2e asserts the MECHANISM, not a row. A test hardcoding "Ceiling Rose" would fail the day
+  Tom renamed it and pass the day the sheet broke.
+
+**The finish line** (§9.5's third item) already existed before this phase — the policy ladder's
+CTA (`selfServe ? "Accept estimate" : "Finalise my price"`), "Book a site visit" and "Request a
+call back" on the reach strip. Nothing was rebuilt.

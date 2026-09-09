@@ -11,6 +11,8 @@ import type { CustomerExteriorView, CustomerScopeRoom } from "@/lib/wizard/scope
 import type { PaintSystemLine } from "@/lib/wizard/systems-view";
 import RoomSpots from "./RoomSpots";
 import SiteAccessCard from "./SiteAccess";
+import JobExtras from "./JobExtras";
+import type { JobExtra } from "@/lib/wizard/extras";
 import type { SiteAccess } from "@/lib/wizard/site-access";
 import type { SidesView } from "@/lib/wizard/sides";
 import SidesEditor from "./SidesEditor";
@@ -53,6 +55,7 @@ type Payload = CustomerPayload & {
   scopeRooms?: CustomerScopeRoom[];
   paintSystems?: PaintSystemLine[];
   siteAccess?: SiteAccess;
+  jobExtras?: { on: string[]; colourHelp: boolean; note: string };
   exterior?: CustomerExteriorView | null;
   ladder?: Ladder;
   interiorLoop?: InteriorLoopView;
@@ -91,7 +94,7 @@ const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
 const snapshotFalse = () => false;
 
-export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialSystems = [], initialAccess = { answers: {}, asksLift: false }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null, chatMode = false }: {
+export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialSystems = [], initialAccess = { answers: {}, asksLift: false }, initialExtras = { offer: [], on: [], colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null, chatMode = false }: {
   estimateId: string;
   initial: CustomerPayload;
   initialRooms: CustomerScopeRoom[];
@@ -122,12 +125,15 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   initialSystems?: PaintSystemLine[];
   /** §4.4 — the site and access answers, and whether a lift applies. */
   initialAccess?: { answers: SiteAccess; asksLift: boolean };
+  /** §4.5 — the extras on offer, which are on, the colour tick and the note. */
+  initialExtras?: { offer: JobExtra[]; on: string[]; colourHelp: boolean; note: string };
 }) {
   const [payload, setPayload] = useState<CustomerPayload>(initial);
   const [rooms, setRooms] = useState<CustomerScopeRoom[]>(initialRooms);
   const [iloop, setIloop] = useState<InteriorLoopView | null>(initialInteriorLoop);
   const [systems, setSystems] = useState<PaintSystemLine[]>(initialSystems);
   const [access, setAccess] = useState<SiteAccess>(initialAccess.answers);
+  const [extras, setExtras] = useState({ on: initialExtras.on, colourHelp: initialExtras.colourHelp, note: initialExtras.note });
   const [sidesProg, setSidesProg] = useState<SidesView["progress"] | null>(initialSides?.progress ?? null);
   const [sizeDrafts, setSizeDrafts] = useState<Record<number, { L: string; W: string; open: boolean }>>({});
   // A3: the confirmation walk — one card open at a time; confirming opens
@@ -287,6 +293,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         if (j.scopeRooms) setRooms(j.scopeRooms);
         if (j.paintSystems) setSystems(j.paintSystems);
         if (j.siteAccess) setAccess(j.siteAccess);
+        if (j.jobExtras) setExtras(j.jobExtras);
         if (j.ladder) setLadder(j.ladder);
         if (j.interiorLoop) setIloop(j.interiorLoop);
         if (liveRange) setFlash((n) => n + 1);
@@ -379,6 +386,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         if (j.scopeRooms) setRooms(j.scopeRooms);
         if (j.paintSystems) setSystems(j.paintSystems);
         if (j.siteAccess) setAccess(j.siteAccess);
+        if (j.jobExtras) setExtras(j.jobExtras);
         if (j.interiorLoop) setIloop(j.interiorLoop);
         if (j.ladder) setLadder(j.ladder);
         say(done);
@@ -758,6 +766,33 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
               </div>
             ))}
           </section>
+        )}
+        {/* §4.5 — named extras price from the card; unusual ones flag. */}
+        {/* Shown even when the card carries no extras rows: the "something
+            else" box is exactly what a rate card cannot cover. */}
+        {!chatMode && (
+          <JobExtras
+            offer={initialExtras.offer}
+            on={extras.on}
+            colourHelp={extras.colourHelp}
+            note={extras.note}
+            busy={pendingCount > 0}
+            onToggle={(code, on) => {
+              setExtras((e) => ({ ...e, on: on ? [...e.on, code] : e.on.filter((c) => c !== code) }));
+              act({ action: "toggle_job_extra", code, on }, `extra:${code}`,
+                () => (on ? `${code} added` : `${code} removed`));
+            }}
+            onColourHelp={(want) => {
+              setExtras((e) => ({ ...e, colourHelp: want }));
+              act({ action: "set_colour_help", want }, "extra:colour",
+                () => want ? "We'll help you choose the colours" : "Colour help removed");
+            }}
+            onNote={(text) => {
+              setExtras((e) => ({ ...e, note: text }));
+              act({ action: "extra_note", note: text }, "extra:note",
+                () => text ? "Noted — one of our people will price that properly" : "Note cleared");
+            }}
+          />
         )}
         {/* §4.4 — the four allowance modifiers plus parking, the lift and pets. */}
         {!chatMode && (

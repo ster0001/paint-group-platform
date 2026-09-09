@@ -12,6 +12,7 @@ import { PAINT_SYSTEMS_KEY, paintSystemsFrom } from "@/lib/pricing/systems";
 import { applyPaintSystems, applySystemPatch, paintSystemsView, type SystemPatch } from "@/lib/wizard/systems-view";
 import { roomConditionDeferred, spotLine } from "@/lib/wizard/spots";
 import { SITE_ACCESS_GROUP, STAGING_GROUP, applySiteAccess } from "@/lib/wizard/site-access";
+import { extraNoteDeferral } from "@/lib/wizard/extras";
 import type { DefectRate } from "@/lib/capture/commit";
 import { applyWizardAnswers } from "@/lib/wizard/merge";
 import { wizardStateSchema } from "@/lib/wizard/state";
@@ -106,6 +107,11 @@ function systemPatchFrom(
   return null;
 }
 
+/** A rate code as a customer reads it — the add panel's own prettifier rule. */
+function prettifyExtra(code: string): string {
+  return code.replace(/\s*\(1 Side\)/i, "").trim();
+}
+
 /** The `what` shape site-and-access notes use, so re-answering clears them. */
 const SITE_ACCESS_DEFERRAL = /^(cleared|floors|stairwell|parking|lift) — /;
 
@@ -158,6 +164,17 @@ const actionSchema = z.discriminatedUnion("action", [
     areaId: z.number().int().positive(),
     surfaceId: z.number().int().positive(),
   }),
+  /**
+   * Phase 5 (§4.5): the whole-job extras sheet. Named extras price from the
+   * card; an unusual one is a sentence that is flagged and never priced.
+   */
+  z.object({
+    action: z.literal("toggle_job_extra"),
+    code: z.string().min(1).max(80),
+    on: z.boolean(),
+  }),
+  z.object({ action: z.literal("set_colour_help"), want: z.boolean() }),
+  z.object({ action: z.literal("extra_note"), note: z.string().max(400) }),
   /**
    * Phase 5 (§4.4): site and access — the things that set our setup time and
    * which the flow never asked at all. One answer per post; the server maps
@@ -510,6 +527,45 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
       const systems = paintSystemsFrom(settingValue((await ctxPromise).settings, PAINT_SYSTEMS_KEY));
       blocks = applyPaintSystems(blocks, next, systems) as typeof blocks;
+    }
+
+    /**
+     * §4.5 — a named extra. Priced from the CARD, never from a constant: the
+     * row's own charge-out is the price, and a code the card does not carry
+     * is refused rather than added at nothing.
+     */
+    if (act.action === "toggle_job_extra") {
+      const ctxNow = await ctxPromise;
+      const row = ctxNow.rateItems.find((r) => r.code === act.code && r.category === "Interior");
+      const cents = Number(row?.charge_out_cents ?? 0);
+      if (!row || cents <= 0) return { error: "We don't offer that one — pick from the list.", status: 400 };
+      let next = Math.max(0, ...blocks.flatMap((b) => [Number(b.id) || 0, ...(b.surfaces ?? []).map((x) => Number(x.id) || 0)])) + 1;
+      const res = toggleExtrasItem(
+        blocks as unknown as Parameters<typeof toggleExtrasItem>[0],
+        act.code, prettifyExtra(act.code), act.on, () => next++, cents / 100, "Interior",
+      );
+      if (!res.ok) return { error: res.error, status: 400 };
+      blocks = res.blocks as unknown as typeof blocks;
+    }
+
+    /** §4.5's fourth extra. Not a rate row — it rides the field that already
+     *  exists, which the CRM reads to raise a colour-advice follow-up. */
+    if (act.action === "set_colour_help") {
+      const wiz = state.wizard as { state?: { paint?: Record<string, unknown> } } | undefined;
+      if (wiz?.state?.paint) wiz.state.paint.colourHelp = act.want ? "advice" : "known";
+    }
+
+    /**
+     * §4.5 — an unusual extra. Recorded and flagged, NEVER auto-priced (the
+     * rule `addSideCustom` follows). Re-raised from scratch so editing the
+     * sentence replaces the note instead of stacking a second one.
+     */
+    if (act.action === "extra_note") {
+      newDeferred = newDeferred.filter((d) => d.what !== "an extra the customer asked for");
+      const raised = extraNoteDeferral(act.note);
+      if (raised) newDeferred = [...newDeferred, { room: "Whole job", areaId: null, count: 1, ...raised }];
+      const wiz = state.wizard as { state?: { details?: Record<string, unknown> } } | undefined;
+      if (wiz?.state?.details) wiz.state.details.extraNote = act.note.trim().slice(0, 400);
     }
 
     /**
@@ -1355,6 +1411,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         return sn.success
           ? paintSystemsView(sn.data, blocks, paintSystemsFrom(settingValue(ctx.settings, PAINT_SYSTEMS_KEY)))
           : [];
+      })(),
+      // §4.5 — what is on, read off the TREE so the estimator's own edits win.
+      jobExtras: (() => {
+        const sn = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
+        return {
+          on: blocks
+            .filter((b) => String(b.name ?? "").toLowerCase() === "interior - extras")
+            .flatMap((b) => (b.surfaces ?? []))
+            .map((x) => String(x.code ?? "")),
+          colourHelp: sn.success ? sn.data.paint.colourHelp === "advice" : false,
+          note: sn.success ? String(sn.data.details.extraNote ?? "") : "",
+        };
       })(),
       // §4.4 — the answers as stored, so the card reconciles with the server.
       siteAccess: (() => {

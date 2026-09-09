@@ -702,3 +702,4 @@
 .wz .sc-spot-panel input[type="file"] { font-size: 13px; color: var(--wz-muted, #8C959D); max-width: 100%; }
 .wz .sc-spot-add { margin-top: 10px; }
 .wz .sc-spot-err { color: var(--wz-amber, #E0A83C); font-size: 12.5px; margin: 8px 0 0; }
+.wz .sc-extras .sc-extra-note { width: 100%; margin: 8px 0; padding: 10px 12px; border-radius: 12px; background: var(--wz-panel, #12161A); border: 1px solid var(--wz-line, #242B32); color: var(--wz-text, #EDF0F2); font: inherit; font-size: 15px; }

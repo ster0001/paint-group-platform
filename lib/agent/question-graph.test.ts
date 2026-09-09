@@ -45,7 +45,7 @@ function state(jobType: WizardState["jobType"], over: Partial<WizardState> = {})
     basics: { bedrooms: 3, storeys: "single", sizeBand: "s120_200", openPlanKitchenLiving: false },
     surfaces: ["walls", "ceilings", "doors", "windows"],
     condition: { tier: "change", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, surfaceFlags: {} },
-    details: { doorStyle: "unsure", doorScope: "frame", windowStyle: "unsure", ceilingHeight: "2.4", damageTier: 1, damageNote: "", siteAccess: {}, damagePhotoCount: 0 },
+    details: { doorStyle: "unsure", doorScope: "frame", windowStyle: "unsure", ceilingHeight: "2.4", damageTier: 1, damageNote: "", siteAccess: {}, extraNote: "", damagePhotoCount: 0 },
     paint: { brands: [], colourHelp: null, waterBasedOnly: false, trimsOilBased: null, base: null },
     contact: { name: "", email: "", phone: "" },
     exterior: wantsExt ? {
@@ -86,7 +86,7 @@ const F2 = () => input({
 });
 /** F3 interior, everything answered — only the sweep is left. */
 const F3 = () => input({
-  state: state("interior", { details: { doorStyle: "flat", doorScope: "frame", windowStyle: "casement", ceilingHeight: "2.4", damageTier: 0, damageNote: "", siteAccess: {}, damagePhotoCount: 0 }, paint: { brands: ["dulux"], colourHelp: "known", waterBasedOnly: false, trimsOilBased: null, base: null } }),
+  state: state("interior", { details: { doorStyle: "flat", doorScope: "frame", windowStyle: "casement", ceilingHeight: "2.4", damageTier: 0, damageNote: "", siteAccess: {}, extraNote: "", damagePhotoCount: 0 }, paint: { brands: ["dulux"], colourHelp: "known", waterBasedOnly: false, trimsOilBased: null, base: null } }),
   blocks: [
     room(2, "hallway", "Hallway", { customer: { size: "yes", cup: null, confirmed: false }, customerCustom: ["nothing"] }),
     room(1, "bedroom", "Bedroom 1", { customer: { size: "yes", cup: true, cupInterior: false, confirmed: false }, customerCustom: ["nothing"] }),

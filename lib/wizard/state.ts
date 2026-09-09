@@ -178,6 +178,9 @@ export const wizardStateShapeSchema = z.object({
      * numbers stay Tom's in Settings → Pricing → Modifiers, and none of them
      * are written here or in that module.
      */
+    /** §4.5 — the "anything we haven't listed" sentence. Recorded and flagged,
+     *  never priced; the amber note is raised by the route. */
+    extraNote: z.string().max(400).default(""),
     siteAccess: z.object({
       cleared: z.enum(["yes", "some", "no"]).optional(),
       floors: z.enum(["carpet", "hard", "mixed"]).optional(),
@@ -414,7 +417,7 @@ export function defaultWizardState(): WizardState {
       ceilingHeight: "unsure",
       damageTier: 1,
       damageNote: "",
-      damagePhotoCount: 0, siteAccess: {},
+      damagePhotoCount: 0, siteAccess: {}, extraNote: "",
     },
     contact: { name: "", email: "", phone: "" },
     paint: { brands: [], colourHelp: null, waterBasedOnly: false, trimsOilBased: null, base: null },
