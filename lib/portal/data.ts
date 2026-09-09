@@ -19,6 +19,10 @@ export type PortalAccount = {
   email: string;
   name: string | null;
   phone: string | null;
+  /** The account's small settings blob — `unlimited`, and the trade saved
+   * specs (lib/wizard/saved-specs.ts). Selected here so the portal does not
+   * need a second query for them. */
+  flags: Record<string, unknown> | null;
 };
 
 export type PortalProperty = {
@@ -68,7 +72,7 @@ export async function getPortalContext(): Promise<PortalContext | null> {
   const [{ data: memberships }, { data: profile }, company] = await Promise.all([
     supabase
       .from("account_users")
-      .select("account_id, role, accounts(id, account_type, email, name, phone, properties(id, account_id, address, suburb, postcode))"),
+      .select("account_id, role, accounts(id, account_type, email, name, phone, flags, properties(id, account_id, address, suburb, postcode))"),
     supabase.from("profiles").select("name").eq("id", user.id).maybeSingle(),
     getCompanyContact(),
   ]);

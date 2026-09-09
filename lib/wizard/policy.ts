@@ -322,10 +322,24 @@ export function evaluateGuardrails(
   // An unsure asbestos answer is settled by a person on site, never online.
   if (reasons.includes("asbestos_unsure")) walkthrough = true;
   if (requiresSiteCheck) softReasons.push("site_check_required");
-  // A trade job that would have handed off still takes the VISIT tier — the
-  // price shows as a range, but a person signs it off before acceptance.
-  if (tradeActor && reasons.some((r) => r.startsWith("commercial_") || r === "body_corporate" || r === "heritage_listed")) {
+  /**
+   * ⚑11 (Tom, 9 Sep): "Trade self-acceptance: never in v1."
+   *
+   * Not only for a trade job that would otherwise have handed off — for EVERY
+   * trade job. The relaxation above already put commercial, body-corporate and
+   * heritage work on the visit tier; a plain trade interior under the cap
+   * could still accept its own price online, which is the exposure the ruling
+   * closes. Volume is exactly what makes a trade account worth having and
+   * exactly what makes an unchecked price expensive: the same wrong assumption
+   * goes out forty times.
+   *
+   * The price still SHOWS as a range — nothing here hides a number. A person
+   * signs it off before acceptance, which is §7's own rule: "a person confirms
+   * every trade price before work starts (v1)."
+   */
+  if (tradeActor) {
     walkthrough = true;
+    softReasons.push("trade_signoff");
   }
   // A small commercial job is priced online but a person confirms it on
   // site before anything is booked (Tom, 8 Sep) — the visit tier.
@@ -376,6 +390,7 @@ const WHY: Record<string, string> = {
   nothing_priced: "We couldn't read any rooms from what was uploaded, so there was nothing to price yet — the quick questions (three taps) work every time.",
   outside_service_area: "The address is outside the area we currently cover.",
   below_minimum: "The job is smaller than our minimum call-out, so we confirm the price directly.",
+  trade_signoff: "Trade pricing is signed off by one of our estimators before work starts — you'll see the range now and the fixed price from us shortly.",
   /**
    * Phase 7 — the routing gates. The brief is explicit that a gate must SAY
    * WHY: "we'll need to see it" with no reason reads as a brush-off, and a

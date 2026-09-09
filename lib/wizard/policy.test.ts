@@ -268,7 +268,8 @@ describe("commercial routing gates (phase 7)", () => {
   });
 
   it("hands off while a gate is unanswered", () => {
-    const { hours: _h, ...rest } = allNo;
+    const rest = { ...allNo };
+    delete rest.hours;
     const d = evaluateGuardrails(
       commercial({ commercialSegment: "office", commercialGates: rest }),
       500_000, 95, false, DEFAULT_POLICY, [],
@@ -300,5 +301,47 @@ describe("commercial routing gates (phase 7)", () => {
     expect(small.reasons).toContain("commercial_small");
     const none = evaluateGuardrails(commercial(), 500_000, 95, false, DEFAULT_POLICY, []);
     expect(none.reasons).toContain("commercial_property");
+  });
+});
+
+describe("⚑11 — trade never self-accepts in v1", () => {
+  const trade = (over: Partial<GuardrailAnswers> = {}) => evaluateGuardrails(
+    {
+      jobType: "interior", propertyKind: "house",
+      heritageListed: "no", bodyCorporate: "no", builtPre1970: "no", asbestosSuspected: "no",
+      damageTier: 1, postcode: null, ...over,
+    },
+    // Well inside the interior self-serve cap, at a high accuracy score:
+    // exactly the job a residential customer WOULD be allowed to accept.
+    400_000, 95, false, DEFAULT_POLICY, [], true,
+  );
+
+  it("puts a plain trade interior on the visit tier, not self-serve", () => {
+    const d = trade();
+    expect(d.outcome).toBe("reveal");
+    expect(d.walkthroughRequired).toBe(true);
+    expect(d.canAccept).toBe(false);
+    expect(d.reasons).toContain("trade_signoff");
+  });
+
+  it("still shows the price — the ruling is about acceptance, not visibility", () => {
+    expect(trade().outcome).toBe("reveal");
+  });
+
+  it("says why, in the customer's terms", () => {
+    expect(guardrailWhy(["trade_signoff"])).toMatch(/signed off by one of our estimators/i);
+  });
+
+  it("leaves a residential job of the same size able to accept", () => {
+    const d = evaluateGuardrails(
+      {
+        jobType: "interior", propertyKind: "house",
+        heritageListed: "no", bodyCorporate: "no", builtPre1970: "no", asbestosSuspected: "no",
+        damageTier: 1, postcode: null,
+      },
+      400_000, 95, false, DEFAULT_POLICY, [], false,
+    );
+    expect(d.canAccept).toBe(true);
+    expect(d.reasons).not.toContain("trade_signoff");
   });
 });

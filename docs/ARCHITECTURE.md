@@ -2886,3 +2886,54 @@ and a unit test asserts a WHY exists for every code the ladder can raise.
 **Still blocked: the exterior quick look**, §9.7's other half. It needs the per-elevation
 allowances spec (§4.4, §8), which is not in the repository — the same gap that has held exterior
 work out of phases 3, 4 and 5.
+
+## Estimator journey v2 · Phase 8a — trade saved specs, and ⚑11 (9 Sep 2026)
+
+Branch `feat/paint-systems-screen`. **No migration.** Plan §7, §9.8, ⚑11.
+
+**Most of §7 already existed.** The trade portal v2 work (merged) built the property spine,
+the timeline, approvals, money and the colour register (`colour_records`); one-tap rebook and
+the saved-property list were already on `/account/new-estimate`. What was missing was **saved
+specs** — and they had been deliberately declined, in a comment on that very page: *"rebook
+covers the end-of-lease-in-2-minutes promise without a second store of specs."*
+
+**That decision is reversed, and the comment now records why.** They answer different questions:
+
+- **Rebook** is *"this property again"* — the whole prior job, rooms included, because the rooms
+  have not moved.
+- **A spec** is *"this way of working, somewhere new"* — the answers only. Its rooms come from
+  the new address, which is the entire point.
+
+So it is not a second store of the same thing. `lib/wizard/saved-specs.ts` holds **no tree and
+no price**: storing a tree would make a spec a copy of one job rather than a way of working, and
+would also be a way around the boundary this codebase keeps everywhere else (the client posts
+answers, the server rebuilds the tree, the engine prices it).
+
+**Storage is `accounts.flags.savedSpecs`** — the jsonb column that already holds `flags.unlimited`.
+No migration: a trade account has a handful of specs, not a table's worth. `flags` is now selected
+in `getPortalContext`, so the portal needs no second query.
+
+**The colour policy is a NOTE and is applied to nothing.** The per-property colour register is the
+machine-readable answer; a second source for the same question is how two of them come to disagree.
+
+**⚑11 — "trade self-acceptance: never in v1."** The existing relaxation only forced a visit for a
+trade job that would *otherwise* have handed off; a plain trade interior under the cap could still
+accept its own price online. Every trade job now takes the visit tier. The price still shows as a
+range — the ruling is about acceptance, not visibility. Volume is exactly what makes a trade
+account worth having and exactly what makes an unchecked price expensive: the same wrong
+assumption goes out forty times.
+
+**A bug the e2e caught, and the reason to write it.** `?spec=` parsed the seeded state with
+`wizardStateSchema`, whose cross-field rules a *submittable* state must pass ("upload a floorplan,
+or choose the quick basics instead"). A seed has not been near those questions, so the parse
+failed silently and the customer got the defaults — specs would have shipped doing nothing at all.
+It now uses `wizardStateShapeSchema`, the same choice `showcaseSeed` makes for the same reason.
+
+**Traps.**
+- `account_users` keys on **`profile_id`**, not `user_id`.
+- `/estimate` treats a signed-in user as a MEMBER only when `profiles.role === "customer"`;
+  without it `?spec=` and `?rebook=` are both ignored and the wizard opens on the defaults.
+- The portal is passwordless, so a browser test signs in with a real magic link redeemed on
+  `/account/auth` (the `_look-portal` pattern) — there is no password field to fill.
+- Surface tiles carry their state in `.wz-tile.on`, not `aria-pressed`. Asserting only that Walls
+  is ticked proves nothing: it is ticked by default too. Assert something the spec REMOVED.

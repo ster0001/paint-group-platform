@@ -39,7 +39,8 @@ describe("an unanswered gate is never a no", () => {
    * unbounded, and a blank is the least bounded answer there is.
    */
   it("cannot price online while a gate is unanswered", () => {
-    const { height: _h, ...rest } = allNo;
+    const rest = { ...allNo };
+    delete rest.height;
     const r = routeCommercial("office", rest);
     expect(r.canPriceOnline).toBe(false);
     expect(r.complete).toBe(false);
