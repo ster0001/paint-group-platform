@@ -679,3 +679,11 @@
 .wz .sd-house, .wz .sd-visual svg { max-width: 100%; height: auto; }
 .wz img, .wz svg, .wz canvas, .wz video { max-width: 100%; }
 .wz pre, .wz textarea, .wz input { max-width: 100%; box-sizing: border-box; }
+
+/* Phase 4 · the paint-systems card (estimator journey v2 §4.2).
+   The sentence is the point of the card, so it reads as prose rather than as
+   another control; the "why" line is quieter still — it explains a number the
+   customer did not choose, and must never compete with the correction chips. */
+.wz .sc-systems .sc-sys-say { margin: 4px 0 0; font-size: 14.5px; line-height: 1.45; color: var(--wz-text, #EDF0F2); }
+.wz .sc-systems .sc-sys-why { margin: 6px 0 0; font-size: 13px; color: var(--wz-muted, #8C959D); }
+.wz .sc-systems .il-q + .il-q { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--wz-line, #242B32); }

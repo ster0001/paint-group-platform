@@ -24,6 +24,8 @@ import { defaultInteriorLoop, interiorDwTotals, interiorProgress, roomLoopViews,
 import { loopConfirmState } from "@/lib/wizard/confirm-state";
 import { estimateDocuments, type EstimateDocuments } from "@/lib/wizard/documents";
 import { exteriorAddOptions, interiorAddOptions, type AddOption } from "@/lib/wizard/add-catalogue";
+import { paintSystemsView, type PaintSystemLine } from "@/lib/wizard/systems-view";
+import { PAINT_SYSTEMS_KEY, paintSystemsFrom } from "@/lib/pricing/systems";
 
 /**
  * What the customer is told about our phone lines when Settings → Company
@@ -59,6 +61,9 @@ export type CustomerScopeBundle =
       initialExterior: CustomerExteriorView | null; initialLadder: { tier: "self_serve" | "visit"; visitSlots: string[] };
       initialInteriorLoop: InteriorLoopView | null; roomTypes: string[]; liveRange: boolean; docs: EstimateDocuments; logoUrl: string | null; companyPhone: string | null;
       phoneHours: string; customerPhone: string | null;
+      /** Phase 4: the derived coats and prep, in the painter's words, with a
+       * correction per line. Empty on an exterior-only job (plan §4.4). */
+      initialSystems: PaintSystemLine[];
     };
 
 export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRow): Promise<CustomerScopeBundle> {
@@ -179,5 +184,11 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
     initialLadder: { tier: selfServe ? "self_serve" : "visit", visitSlots },
     initialInteriorLoop: interiorLoop, roomTypes, liveRange: editorFlags.liveRange !== false, docs, logoUrl: headerLogoUrl,
     companyPhone, phoneHours, customerPhone,
+    // Phase 4: the systems the engine derived, ready to be shown back and
+    // corrected. An estimate with no readable wizard snapshot (a staff-built
+    // tree, an old draft) gets no card rather than a card of guesses.
+    initialSystems: snap.success
+      ? paintSystemsView(snap.data, blocks, paintSystemsFrom(settingValue(ctx.settings, PAINT_SYSTEMS_KEY)))
+      : [],
   };
 }

@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import type { CustomerPayload } from "@/lib/wizard/view";
 import { assertCustomerShape } from "@/lib/wizard/contract";
 import type { CustomerExteriorView, CustomerScopeRoom } from "@/lib/wizard/scope-editor";
+import type { PaintSystemLine } from "@/lib/wizard/systems-view";
 import type { SidesView } from "@/lib/wizard/sides";
 import SidesEditor from "./SidesEditor";
 import PlanPanel from "./PlanPanel";
@@ -47,6 +48,7 @@ export type InteriorLoopView = {
 
 type Payload = CustomerPayload & {
   scopeRooms?: CustomerScopeRoom[];
+  paintSystems?: PaintSystemLine[];
   exterior?: CustomerExteriorView | null;
   ladder?: Ladder;
   interiorLoop?: InteriorLoopView;
@@ -85,7 +87,7 @@ const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
 const snapshotFalse = () => false;
 
-export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null, chatMode = false }: {
+export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialSystems = [], roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null, chatMode = false }: {
   estimateId: string;
   initial: CustomerPayload;
   initialRooms: CustomerScopeRoom[];
@@ -110,10 +112,15 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
    * details card, cards collapsed — instead of a pile of open questions
    * repeating what the chat is already asking. */
   chatMode?: boolean;
+  /** Phase 4 (estimator journey v2 §4.2): the coats and preparation we
+   * derived, in the painter's words, with a correction per line. Empty on an
+   * exterior-only job or an estimate with no readable wizard snapshot. */
+  initialSystems?: PaintSystemLine[];
 }) {
   const [payload, setPayload] = useState<CustomerPayload>(initial);
   const [rooms, setRooms] = useState<CustomerScopeRoom[]>(initialRooms);
   const [iloop, setIloop] = useState<InteriorLoopView | null>(initialInteriorLoop);
+  const [systems, setSystems] = useState<PaintSystemLine[]>(initialSystems);
   const [sidesProg, setSidesProg] = useState<SidesView["progress"] | null>(initialSides?.progress ?? null);
   const [sizeDrafts, setSizeDrafts] = useState<Record<number, { L: string; W: string; open: boolean }>>({});
   // A3: the confirmation walk — one card open at a time; confirming opens
@@ -271,6 +278,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         }
         setPayload(j);
         if (j.scopeRooms) setRooms(j.scopeRooms);
+        if (j.paintSystems) setSystems(j.paintSystems);
         if (j.ladder) setLadder(j.ladder);
         if (j.interiorLoop) setIloop(j.interiorLoop);
         if (liveRange) setFlash((n) => n + 1);
@@ -361,6 +369,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         }
         setPayload(j);
         if (j.scopeRooms) setRooms(j.scopeRooms);
+        if (j.paintSystems) setSystems(j.paintSystems);
         if (j.interiorLoop) setIloop(j.interiorLoop);
         if (j.ladder) setLadder(j.ladder);
         say(done);
@@ -639,6 +648,73 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                 </div>
               </div>
             )}
+          </section>
+        )}
+        {/*
+          Phase 4 (estimator journey v2 §4.2, prototype screen 8) — "How we'll
+          paint each surface".
+
+          This is the card that makes the derivation honest. The customer was
+          never asked to pick coats; they are shown what we worked out, in the
+          painter's own words, with one tap per line to correct it. Hidden in
+          chat mode like the other question cards — the assistant asks these
+          in conversation instead.
+        */}
+        {!chatMode && systems.length > 0 && (
+          <section className="sc-rc il-card sc-systems" data-card="systems" data-testid="systems-card">
+            <div className="sc-hd il-hd">
+              <b>How we&rsquo;ll paint each surface</b>
+              <span className="il-pill">WORKED OUT FOR YOU</span>
+            </div>
+            <p className="wz-note" style={{ margin: "2px 0 12px" }}>
+              You never had to pick coats — we work them out per surface from your colours and the
+              condition. Change anything that isn&rsquo;t right.
+            </p>
+            {systems.map((line) => (
+              <div className="il-q" key={line.group} data-testid={`system-${line.group}`}>
+                <p className="il-ql">
+                  {line.title}
+                  <span className="il-hm">
+                    {" · "}{line.coats} coat{line.coats === 1 ? "" : "s"}
+                    {line.undercoat ? " (one an undercoat)" : ""}
+                    {line.group === "doors" && line.surfaceCount > 0 ? ` · ${line.surfaceCount} so far` : ""}
+                  </span>
+                </p>
+                <p className="sc-sys-say" data-testid={`system-say-${line.group}`}>{line.sentence}</p>
+                {line.reason !== "" && (
+                  <p className="sc-sys-why" data-testid={`system-why-${line.group}`}>Because {line.reason}.</p>
+                )}
+                {line.group === "trims" && (
+                  <p className="il-ql" style={{ marginTop: 10 }}>
+                    Are the trims shiny at the moment — a gloss finish?
+                    <span className="il-hm"> Old oil-based gloss needs a bonding primer first.</span>
+                  </p>
+                )}
+                {line.chips.length > 0 && (
+                  <div className="sc-chips">
+                    {line.chips.map((chip) => (
+                      <button
+                        key={chip.label}
+                        type="button"
+                        className={`sd-chip il-chip ${chip.on ? "on" : ""}`}
+                        aria-pressed={chip.on}
+                        data-testid={`system-chip-${line.group}-${chip.patch.field}-${String(chip.patch.value)}`}
+                        onClick={() => act(
+                          { action: "set_paint_system", field: chip.patch.field, value: chip.patch.value },
+                          `sys:${line.group}:${chip.label}`,
+                          () => chip.said,
+                        )}
+                      >{chip.label}</button>
+                    ))}
+                  </div>
+                )}
+                {line.review && (
+                  <p className="sc-sys-why" data-testid={`system-review-${line.group}`}>
+                    We&rsquo;ll check this one ourselves before your price is fixed.
+                  </p>
+                )}
+              </div>
+            ))}
           </section>
         )}
         {!chatMode && payload.confirmOnSite.length > 0 && (

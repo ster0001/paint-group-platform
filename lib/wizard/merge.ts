@@ -3,9 +3,10 @@ import { makeDraftSurface } from "@/lib/extract/draft";
 import { ARCHITRAVE_CODE, doorCodeFor, doorLineLabel, doorStyleOfCode, windowRateCode } from "@/lib/extract/scope";
 import { substrateKeyForRateCode } from "@/lib/estimate/substrates";
 import {
-  DEFAULT_PAINT_SYSTEMS, colourIntentFromTier, conditionBandFromDamageTier,
-  deriveSystem, groupForSubstrate, type PaintSystems, type SystemAnswers,
+  DEFAULT_PAINT_SYSTEMS, deriveSystem, groupForSubstrate,
+  type PaintSystems, type SystemAnswers,
 } from "@/lib/pricing/systems";
+import { systemAnswersFromState } from "./systems-view";
 import { coatsFor, windowStyleLabel, windowStyleToSchema, type WizardState, type WizardSurfaceKey } from "./state";
 
 /**
@@ -98,19 +99,13 @@ export function applyWizardAnswers(
   const tier = state.condition.tier;
   /**
    * The two answers the customer can actually judge, plus the flags the
-   * paint-systems screen collects. `trimsOilBased` IS ⚑5's gloss question —
-   * one field, asked in one more place, never a second copy of the same
-   * question. null (never asked) reads as "not sure", which prices as "no"
-   * and routes the check to the estimator rather than guessing confidently.
+   * paint-systems screen collects. ONE reader (systems-view.ts), shared with
+   * the screen that explains these systems and the editor action that
+   * re-derives them — three copies of this mapping would be three chances
+   * for the screen to describe a system the tree does not carry.
    */
-  const systemAnswers = (darkToLight: boolean): SystemAnswers => ({
-    colourIntent: colourIntentFromTier(tier),
-    condition: conditionBandFromDamageTier(state.details.damageTier),
-    glossTrims: state.paint.trimsOilBased ?? "unsure",
-    ceilingsMarked: state.condition.ceilingsMarked,
-    ceilingsChangingColour: state.condition.ceilingsChangingColour,
-    darkToLight,
-  });
+  const systemAnswers = (darkToLight: boolean): SystemAnswers =>
+    systemAnswersFromState(state, darkToLight);
 
   const areas: DraftArea[] = [];
   const skipped = [...draft.skipped];

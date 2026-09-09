@@ -271,3 +271,47 @@ describe("the settings row", () => {
     }
   });
 });
+
+describe("the card never contradicts itself", () => {
+  /**
+   * Caught on the real screen (9 Sep): the heading read "Ceilings · 2 coats"
+   * above a sentence that still promised "One fresh coat of flat ceiling
+   * white". A card whose whole job is to show the derivation honestly cannot
+   * say two different things about the same line.
+   */
+  it("changes the ceilings sentence when 'they're marked' changes the coats", () => {
+    const plain = deriveSystem("ceilings", answers());
+    const marked = deriveSystem("ceilings", answers({ ceilingsMarked: true }));
+    expect(marked.coats).toBeGreaterThan(plain.coats);
+    expect(marked.sentence).not.toBe(plain.sentence);
+    expect(marked.sentence).not.toMatch(/one fresh coat/i);
+  });
+
+  /**
+   * The general rule, over every reachable combination.
+   *
+   * Scoped to lines with NO undercoat, and deliberately. "One coat of enamel,
+   * a bonding primer first" alongside a heading of "2 coats (one an
+   * undercoat)" is consistent — the sentence is counting topcoats and the
+   * heading is counting labour coats, and the heading says which. The failure
+   * this guards is the other one: a heading of two coats over a sentence that
+   * offers one and explains nothing.
+   */
+  it("never promises one coat in a sentence while deriving more than one", () => {
+    for (const group of SYSTEM_GROUPS) {
+      for (const intent of ["same", "new", "bold"] as ColourIntent[]) {
+        for (const condition of ["good", "wear", "work"] as const) {
+          for (const gloss of ["yes", "no", "unsure"] as const) {
+            for (const marked of [true, false]) {
+              const s = deriveSystem(group, answers({ colourIntent: intent, condition, glossTrims: gloss, ceilingsMarked: marked }));
+              if (s.coats > 1 && !s.undercoat) {
+                expect(s.sentence, `${group}/${intent}/${condition}/gloss:${gloss}/marked:${marked}`)
+                  .not.toMatch(/\bone (fresh )?coat\b/i);
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+});

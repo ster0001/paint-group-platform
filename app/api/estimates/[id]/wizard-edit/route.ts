@@ -9,6 +9,7 @@ import { buildDraft } from "@/lib/extract/draft";
 import { SCOPE_VERSION, type Alias, type ScopeRule } from "@/lib/extract/scope";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { PAINT_SYSTEMS_KEY, paintSystemsFrom } from "@/lib/pricing/systems";
+import { applyPaintSystems, applySystemPatch, paintSystemsView, type SystemPatch } from "@/lib/wizard/systems-view";
 import { applyWizardAnswers } from "@/lib/wizard/merge";
 import { wizardStateSchema } from "@/lib/wizard/state";
 import { applyDoorStyle, applyWindowStyle, DOOR_STYLE_DEFERRAL, WINDOW_STYLE_DEFERRAL } from "@/lib/wizard/styles";
@@ -65,6 +66,27 @@ import { reportError } from "@/lib/monitoring/report";
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
+/**
+ * Pair a paint-system field with its value, or refuse.
+ *
+ * The posted shape is deliberately flat (see the schema), so this is where a
+ * boolean sent for `glossTrims` — or "bold" sent for `ceilingsMarked` —
+ * becomes a 400 rather than a silently dropped answer. Returning null beats
+ * coercing: a customer who taps a chip and sees nothing move has been lied to.
+ */
+function systemPatchFrom(field: string, value: unknown): SystemPatch | null {
+  if (field === "colourIntent") {
+    return value === "same" || value === "new" || value === "bold" ? { field, value } : null;
+  }
+  if (field === "glossTrims") {
+    return value === "yes" || value === "no" || value === "unsure" ? { field, value } : null;
+  }
+  if (field === "ceilingsMarked" || field === "ceilingsChangingColour") {
+    return typeof value === "boolean" ? { field, value } : null;
+  }
+  return null;
+}
+
 const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("confirm_height"), heightM: z.number().min(2).max(6) }),
   /** Phase 2 (6 Sep plan): the door / window style left "Not sure" in the
@@ -72,6 +94,23 @@ const actionSchema = z.discriminatedUnion("action", [
    * the answered rate; the amber flag clears. */
   z.object({ action: z.literal("set_door_style"), style: z.enum(["flat", "panel"]) }),
   z.object({ action: z.literal("set_window_style"), style: z.enum(["casement", "sash", "colonial", "winder"]) }),
+  /**
+   * Phase 4 (estimator journey v2 §4.2): a correction on the paint-systems
+   * card. The customer never posts coats — they post the ANSWER, and the
+   * server re-derives every interior surface from Tom's Settings table. That
+   * is the same boundary the rest of this route keeps: answers in, never
+   * geometry or money.
+   */
+  z.object({
+    action: z.literal("set_paint_system"),
+    field: z.enum(["colourIntent", "ceilingsMarked", "ceilingsChangingColour", "glossTrims"]),
+    // Flat rather than a nested discriminated union: nesting one inside
+    // `actionSchema` collapses its own "action" discriminator. The field and
+    // value are paired by `systemPatchFrom` below, which returns null on any
+    // combination that does not exist — an unpaired value is a 400, not a
+    // silently ignored answer.
+    value: z.union([z.enum(["same", "new", "bold"]), z.enum(["yes", "no", "unsure"]), z.boolean()]),
+  }),
   z.object({
     action: z.literal("confirm_room"),
     areaId: z.number().int().positive(),
@@ -360,6 +399,41 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       // builds new rooms at the answered style too.
       const wiz = state.wizard as { state?: { details?: Record<string, unknown> } } | undefined;
       if (wiz?.state?.details) wiz.state.details[act.action === "set_door_style" ? "doorStyle" : "windowStyle"] = act.style;
+    }
+
+    /**
+     * Phase 4 (estimator journey v2 §4.2): a tap on the paint-systems card.
+     *
+     * The customer posts an ANSWER — "same colour actually", "they're
+     * marked", "yes, the trims are shiny" — and the server re-derives every
+     * interior surface's coats from Tom's Settings table. Three things this
+     * order gets right:
+     *
+     *   1. The SNAPSHOT is written first, so a room added later merges at the
+     *      corrected answer (the same rule set_door_style follows).
+     *   2. The whole tree is re-derived, not the line that was tapped.
+     *      Colour intent is job-wide: "same colour actually" on the walls has
+     *      to move the trims too, or the estimate holds two answers to one
+     *      question.
+     *   3. Exterior rows are untouched by applyPaintSystems — there is no
+     *      validated exterior table to re-derive them from (plan §4.4).
+     */
+    if (act.action === "set_paint_system") {
+      const patch = systemPatchFrom(act.field, act.value);
+      if (!patch) return { error: "That isn't an answer we recognise.", status: 400 };
+
+      const snap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
+      if (!snap.success) {
+        return { error: "This estimate predates the paint systems screen — a person will confirm the coats.", status: 409 };
+      }
+      const { condition, paint } = applySystemPatch(snap.data, patch);
+      const next = { ...snap.data, condition, paint };
+
+      const wiz = state.wizard as { state?: Record<string, unknown> } | undefined;
+      if (wiz?.state) { wiz.state.condition = condition; wiz.state.paint = paint; }
+
+      const systems = paintSystemsFrom(settingValue((await ctxPromise).settings, PAINT_SYSTEMS_KEY));
+      blocks = applyPaintSystems(blocks, next, systems) as typeof blocks;
     }
 
     if (act.action === "confirm_room") {
@@ -1100,6 +1174,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       // customer still hears why the last tap didn't take.
       ...(refusal ? { error: refusal.error, appliedCount: applied } : {}),
       scopeRooms: customerScopeRooms(blocks, rules),
+      // Phase 4: the derived systems, recomputed from the tree that this
+      // request just changed. It rides EVERY response, not only a
+      // set_paint_system one — removing the last ceiling has to remove the
+      // ceilings line, and that arrives as a toggle_surface.
+      paintSystems: (() => {
+        const sn = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
+        return sn.success
+          ? paintSystemsView(sn.data, blocks, paintSystemsFrom(settingValue(ctx.settings, PAINT_SYSTEMS_KEY)))
+          : [];
+      })(),
       exterior: customerExteriorView(blocks),
       // R2b: the sides confirm loop's full view (null when no sides exist).
       sides: sidesView(blocks, sidesMeta, extrasPrices(ctx.rateItems),

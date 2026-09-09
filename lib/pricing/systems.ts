@@ -171,6 +171,14 @@ export type PaintSystems = {
   prepHrPerUnit: Record<ConditionBand, number>;
 };
 
+/**
+ * What a marked ceiling actually gets. Kept beside the table rather than in
+ * it: it is the ⚑3 branch's sentence, not a fourth colour-intent column, and
+ * it has to move whenever `ceilingsMarkedCoats` lifts the coats.
+ */
+export const MARKED_CEILINGS_SENTENCE =
+  "White again, over the marks. We block the water marks and stains first so they can't ghost through, then two coats of flat ceiling white.";
+
 const rule = (coats: number, undercoat: boolean, sentence: string): SystemRule => ({ coats, undercoat, sentence });
 
 /**
@@ -382,6 +390,12 @@ export function deriveSystem(
       coats = systems.ceilingsMarkedCoats;
       reason = "the ceilings are marked or already coloured";
       crewNote = "ceilings marked — stain-block the water marks before the topcoats";
+      // The cell's sentence describes the ONE-coat system it was written for
+      // ("One fresh coat of flat ceiling white"). Leaving it here put "2 coats"
+      // in the heading above a sentence promising one — the card contradicting
+      // itself, which is the exact failure it exists to prevent. Caught on the
+      // real screen, 9 Sep.
+      sentence = MARKED_CEILINGS_SENTENCE;
     }
   }
 

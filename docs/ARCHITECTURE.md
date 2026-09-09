@@ -2577,3 +2577,57 @@ object literals that build a state by hand (they are `z.default`s, so only TypeS
 noticed); `defaultWizardState()` is the one to copy. Two existing tests asserted the old
 "one number on every row" behaviour (`merge.test.ts`, `propose.test.ts`) and were
 rewritten to the per-group rule rather than deleted — they are the record of the change.
+
+## Estimator journey v2 · Phase 4 — the paint-systems card (9 Sep 2026)
+
+Branch `feat/paint-systems-screen`, stacked on phase 3's `feat/paint-systems-derivation`.
+**No migration.** Plan §3 and §4.2; prototype screen 8.
+
+**Why it exists.** Phase 3 stopped asking the customer to pick coats and derived them per
+surface instead. On its own that trades a question they could not answer for an assumption
+they could not see — worse, not better. This card is the other half: it shows what was
+derived, in the painter's own words, with one tap per line to correct it.
+
+**`lib/wizard/systems-view.ts`** is the whole surface, and it is pure:
+- `systemAnswersFromState` — the ONE reader of the customer's answers, now shared by
+  `merge.ts` (which stamps the coats), the view (which explains them) and the editor
+  action (which re-derives after a correction). Three copies would be three chances for
+  the screen to describe a system the tree does not carry.
+- `paintSystemsView(state, blocks, table)` → one `PaintSystemLine` per group, each with the
+  sentence, the coats, the chips that can move it, `review`, and the reason the coats
+  differ from the plain table cell.
+- `applySystemPatch` → the corrected answers. `applyPaintSystems` → the re-derived tree.
+
+**Three rules the module keeps**, each with a test:
+1. **Groups come from the TREE, not the wizard's ticks.** By the editor the customer has
+   already added and removed surfaces; a ceilings line on a job whose ceilings were removed
+   is a lie, and the tick list would still say yes.
+2. **Interior only.** An exterior-only job gets no card at all rather than numbers nobody
+   validated (plan §4.4).
+3. **A correction re-derives the WHOLE tree.** Colour intent is job-wide: "same colour
+   actually" on the walls has to move the trims too, or the estimate holds two answers to
+   one question.
+
+**The route.** `set_paint_system` posts a FIELD and a VALUE — never coats. The customer
+cannot post geometry or money here any more than anywhere else on this route; the server
+re-derives from Tom's Settings table. The snapshot is written before the tree is re-derived,
+so a room added later merges at the corrected answer (the rule `set_door_style` follows).
+`paintSystems` rides EVERY response, not only a `set_paint_system` one — removing the last
+ceiling has to remove the ceilings line, and that arrives as a `toggle_surface`.
+
+**Traps.**
+- Nesting a `z.discriminatedUnion("field", …)` inside `actionSchema` via `.and()` collapses
+  the outer `action` discriminator and every `act.` narrowing in the file breaks. The posted
+  shape is flat; `systemPatchFrom` pairs field to value and returns null (a 400) rather than
+  coercing — a customer who taps a chip and sees nothing move has been lied to.
+- The crew note is REPLACED, not appended. This runs on every correction, so appending grew
+  "check the trims | check the trims | …" on a second tap. `stripSystemNotes` removes only
+  the notes this module writes, so a note from anywhere else survives.
+- "That's right" on the ceilings clears BOTH ceiling flags. Clearing `ceilingsMarked` while
+  leaving `ceilingsChangingColour` set would keep the line at two coats and make the card
+  argue with itself.
+- Changing colour intent away from bold clears `darkToLightSurfaces`. That list belongs to
+  the old per-surface question; leaving it would lift surfaces the customer just said are
+  staying the same.
+- The card is hidden in `chatMode` like the other question cards — the assistant asks these
+  in conversation, and a pane of open questions beside the chat repeats it.
