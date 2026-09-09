@@ -1281,7 +1281,10 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
 
               <section className={`sc-rc il-card ${iloop.meta.done.sweep ? "done" : "amber"} ${shakeCard === "sweep" ? "shake" : ""}`} data-card="sweep">
                 <div className="sc-hd il-hd" onClick={() => openAndScroll("sweep")} style={{ cursor: "pointer" }}>
-                  <b>Last check — anything we haven&rsquo;t listed?</b>
+                  {/* Named for ROOMS, not "anything": phase 5b's job-extras card is
+                      already called "Anything we haven't listed", and two cards on
+                      one screen saying the same sentence is a card nobody reads. */}
+                  <b>Last check — any rooms we&rsquo;ve missed?</b>
                   <span className={`il-pill ${iloop.meta.done.sweep ? "done" : ""}`}>{iloop.meta.done.sweep ? "CONFIRMED ✓" : "CONFIRM THIS"}</span>
                 </div>
                 {openCard === "sweep" && (<>

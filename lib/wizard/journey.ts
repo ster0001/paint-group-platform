@@ -47,9 +47,19 @@ export function bucketFor(i: BucketInput): WizardBucket {
 
 // ---- pages ------------------------------------------------------------------
 
-// Phase 2 (6 Sep plan): condition + damage share a page and the paint
-// preferences ride the last page, so interior is five pages.
-const INTERIOR_PAGES = ["Property", "Surfaces", "Condition", "Details", "Your details"] as const;
+/**
+ * Estimator journey v2 phase 2: a customer's interior walk is the QUICK LOOK —
+ * four screens, and no contact page at all (⚑1 moved the email to the reveal).
+ * These names are what the CRM board says a lead dropped on, so they have to
+ * be the screens the customer actually saw.
+ *
+ * ⚑ The describe and upload routes still walk the older pages (property →
+ * condition → details → contact), and one label list cannot name both. The
+ * quick look is the default and the overwhelming majority, so it wins; a
+ * described job that dropped on page 3 reads "The job" rather than "Details".
+ * Worth a route field on the draft if the board ever needs to tell them apart.
+ */
+const INTERIOR_PAGES = ["The address", "The place", "The job", "Condition"] as const;
 const EXTERIOR_PAGES = ["Property", "House", "Scope", "Condition", "Extras", "Your details"] as const;
 
 /** The page's name for a person. "both" runs the interior pages (WizardApp branches on exterior only). */

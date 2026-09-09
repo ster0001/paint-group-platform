@@ -49,7 +49,7 @@ test("arriving from the homepage with a DIFFERENT address starts fresh; the same
 });
 
 test("the welcome-back line names the wizard's own page", () => {
-  assert.equal(resumeLine(2, "interior"), "you were at Surfaces");
+  assert.equal(resumeLine(2, "interior"), "you were at The place");
   assert.equal(resumeLine(3, "exterior"), "you were at Scope");
   assert.equal(resumeLine(1, "interior"), "your answers are back");
 });

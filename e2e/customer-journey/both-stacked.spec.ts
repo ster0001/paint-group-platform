@@ -47,7 +47,7 @@ test("Both job: interior cards then sides, combined progress, single visit CTA",
   const roomCards = page.locator(".sc-rc[data-room]");
   expect(await roomCards.count()).toBeGreaterThan(2);
   await expect(page.locator(".sd-card", { hasText: "Front" })).toBeVisible();
-  await expect(page.locator(".sd-card", { hasText: /anything we haven.t listed/i })).toBeVisible();
+  await expect(page.locator('[data-side="sweep"]')).toBeVisible();
 
   // ONE combined progress: rooms + dw + sweep + 8 exterior items.
   const rooms = await roomCards.count();

@@ -89,6 +89,14 @@ function entryPatch(e: EntryChoice, jobType: WizardState["jobType"], ext: Wizard
 
 /** A restored walk: which way in do its answers imply? */
 function entryFromState(s: WizardState): EntryChoice | null {
+  /**
+   * The quick look leaves its own fingerprint, and it has to be checked FIRST.
+   * `noPlan` is only set when the quick look SUBMITS, so a walk abandoned
+   * halfway looked like "no route chosen" and resumed onto the old entry
+   * cards — the answers were all restored and the screen showing them was
+   * not. The presence of the eight answers is the honest signal.
+   */
+  if (s.quickLook) return "questions";
   if (s.jobType === "exterior") {
     if (s.exterior?.noPhotos) return "questions";
     if (s.facadeRunIds.length > 0 || s.listingUrl.trim()) return "upload";
@@ -191,13 +199,29 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    * still here and still reached by the describe and upload routes, which ask
    * different questions; this is the default way in.
    */
-  const [quick, setQuick] = useState<QuickLookAnswers>(() => ({
+  /**
+   * The quick look's answers live on the STATE, not here — autosave and resume
+   * only know about the state, so held in React alone a reload lost all eight.
+   * The screen the customer is on is the ordinary `page`, for the same reason:
+   * the resume record already restores it, and two notions of "where am I"
+   * would need keeping in step forever.
+   */
+  const quick: QuickLookAnswers = state.quickLook ?? {
     ...DEFAULT_QUICK_LOOK,
     ...(intent?.propertyKind ? { propertyKind: intent.propertyKind } : {}),
-  }));
-  const [quickIdx, setQuickIdx] = useState(0);
-  /** The quick look's own address field state (PageProperty keeps its own). */
-  const [quickAddress, setQuickAddress] = useState(intent?.addressText ?? "");
+  };
+  const setQuick = (patch: Partial<QuickLookAnswers>) => set({ quickLook: { ...quick, ...patch } });
+
+  /**
+   * The typed address rides `state.title` — the field the schema already
+   * describes as "the job's name/address" — so it survives a reload like
+   * every other answer. Held in component state it was lost on resume, and
+   * the suburb/postcode fallback it reveals vanished with it, so a returning
+   * customer saw an empty first screen with their later answers intact.
+   * (Customer submits build the title from the address itself, so nothing
+   * downstream reads this.)
+   */
+  const quickAddress = state.title || intent?.addressText || "";
   const [quickOutOfArea, setQuickOutOfArea] = useState(false);
   /** The revealed range, held on the client so the three doors can act on it. */
   const [reveal, setReveal] = useState<{ payload: CustomerPayload; estimateId: string } | null>(null);
@@ -287,7 +311,22 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       // the house was ticked (fence type, shed / wall material, floor area).
       ? ["property", "house", ...(state.exterior?.targets.some((t) => t !== "house") ? ["scope" as const] : []), "ext_condition", ...(commercial ? [] : ["extras" as const]), ...(isCustomer && !contactDone ? ["contact" as const] : [])]
       : ["property", "surfaces", "condition", "details", ...(isCustomer && !contactDone ? ["contact" as const] : ["paint" as const])];
-  const lastPage = pageKeys.length;
+  // The quick look has its own, shorter walk — the header dots must count IT,
+  // not the pages it replaced, or four screens show five dots and the last
+  // one never fills.
+  /**
+   * The quick look is the DEFAULT customer route, not a fourth choice.
+   *
+   * §2.1's first complaint is that screen 1 made people choose a route before
+   * they had seen any value. So "answer a few questions" is simply where a
+   * customer starts, and the other two ways in stay on the screen as offers
+   * for the people who have a floorplan or would rather write a paragraph.
+   *
+   * Exterior keeps the existing pages: its own five-answer quick look is the
+   * other half of §9.7, still blocked on the per-elevation allowances spec.
+   */
+  const quickActive = isCustomer && entry === "questions" && state.jobType !== "exterior";
+  const lastPage = quickActive ? stepsFor(quick.jobType).length : pageKeys.length;
   const pageKey: PageKey = pageKeys[Math.min(page, lastPage) - 1];
   const chooseEntry = (e: EntryChoice) => {
     setEntry(e);
@@ -316,7 +355,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     try { localStorage.setItem(RESTART_KEY, new Date().toISOString()); } catch { /* storage may be unavailable */ }
     void fetch("/api/wizard/draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state: {}, reset: true }), keepalive: true }).catch(() => {});
     setResumed(null);
-    setEntry(null);
+    // A customer starting again lands back on the quick look, which is where
+    // they started — not on a route choice they were never asked to make.
+    setEntry(isCustomer ? "questions" : null);
     setState(makeInitialState());
     setAnswered({ heritage: false, pre1970: false, asbestos: false });
     setPage(1);
@@ -1020,20 +1061,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
 
   // ---- the quick look -------------------------------------------------------
 
-  /**
-   * The quick look is the DEFAULT customer route, not a fourth choice.
-   *
-   * §2.1's first complaint is that screen 1 made people choose a route before
-   * they had seen any value. So "answer a few questions" is simply where a
-   * customer starts, and the other two ways in stay on the screen as offers
-   * for the people who have a floorplan or would rather write a paragraph.
-   *
-   * Exterior keeps the existing pages: its own five-answer quick look is the
-   * other half of §9.7, still blocked on the per-elevation allowances spec.
-   */
-  const quickActive = isCustomer && entry === "questions" && state.jobType !== "exterior";
   const quickSteps = stepsFor(quick.jobType);
-  const quickStep = quickSteps[Math.min(quickIdx, quickSteps.length - 1)];
+  const quickStep = quickSteps[Math.min(Math.max(page, 1), quickSteps.length) - 1];
 
   function quickNext() {
     setError(null);
@@ -1054,13 +1083,12 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     // exterior question set, which asks about elevations rather than rooms.
     if (quick.jobType === "exterior") {
       setState((s) => ({ ...s, jobType: "exterior", ...entryPatch("questions", "exterior", s.exterior, s.basics) }));
-      setQuickIdx(0);
       setPage(2);
       window.scrollTo({ top: 0 });
       return;
     }
-    if (quickIdx < quickSteps.length - 1) {
-      setQuickIdx(quickIdx + 1);
+    if (page < quickSteps.length) {
+      setPage(page + 1);
       window.scrollTo({ top: 0 });
       return;
     }
@@ -1073,7 +1101,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
 
   function quickBack() {
     setError(null);
-    if (quickIdx > 0) { setQuickIdx(quickIdx - 1); window.scrollTo({ top: 0 }); }
+    if (page > 1) { setPage(page - 1); window.scrollTo({ top: 0 }); }
   }
 
   // ---- render ---------------------------------------------------------------
@@ -1092,7 +1120,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    * thing, and none of them is the "real" one:
    *   · tighten — the editor, which is the four rungs phases 4-5 built
    *   · book    — the reach-a-person flow the editor already owns
-   *   · keep    — the email capture, which is where ⚑1's gate went
+   *   · keep    — the email capture, which is where ⚑1's gate went. It asks
+   *               in place rather than routing: sending them to another
+   *               screen to give an address is the toll we just removed.
    */
   if (screen === "reveal" && reveal) {
     return (
@@ -1105,7 +1135,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           phone={companyPhone}
           onTighten={() => router.push(`/estimate/scope?id=${reveal.estimateId}`)}
           onBook={() => router.push(`/estimate/scope?id=${reveal.estimateId}#reach`)}
-          onKeep={() => router.push(`/estimate/scope?id=${reveal.estimateId}#keep`)}
+          prefillEmail={prefill?.email}
         />
       </div>
     );
@@ -1179,24 +1209,24 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
               <QuickLook
                 step={quickStep}
                 quick={quick}
-                onQuick={(patch) => setQuick((q) => ({ ...q, ...patch }))}
-                stepNo={quickIdx + 1}
+                onQuick={setQuick}
+                stepNo={Math.min(page, quickSteps.length)}
                 stepsTotal={quickSteps.length}
                 error={error}
                 canContinue={!nav.disabled}
                 busy={uploading}
-                onBack={quickIdx > 0 ? quickBack : null}
+                onBack={page > 1 ? quickBack : null}
                 onNext={quickNext}
                 addressField={
                   <>
                     <AddressField
                       placeholder="Your address — start typing and pick it"
                       value={state.address ? state.address.formatted : quickAddress}
-                      onText={(text) => { setQuickAddress(text); set({ address: null }); }}
+                      onText={(text) => set({ title: text, address: null })}
                       onPick={(a, inArea) => {
-                        setQuickAddress(a.formatted);
                         setQuickOutOfArea(inArea === false);
                         set({
+                          title: a.formatted,
                           address: a,
                           customer: state.customer
                             ? { ...state.customer, suburb: a.suburb || state.customer.suburb, postcode: a.postcode || state.customer.postcode }
@@ -1209,7 +1239,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                         OUTSIDE THE SERVICE AREA — a handoff caused by our
                         outage, not their address. These two appear only when
                         they have typed something the lookup did not resolve. */}
-                    {quickAddress.trim() !== "" && !state.address && state.customer && (
+                    {(quickAddress.trim() !== "" || state.customer?.suburb.trim() || state.customer?.postcode.trim())
+                      && !state.address && state.customer && (
                       <div className="wz-crow wz-quick-fallback">
                         <input
                           className="wz-in" placeholder="Suburb" value={state.customer.suburb}

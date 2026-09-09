@@ -114,6 +114,29 @@ export const wizardStateShapeSchema = z.object({
    * nothing ever set it. */
   conditionSourceIds: z.array(z.string().uuid()).max(12).default([]),
   noPlan: z.boolean().default(false),
+
+  /**
+   * The QUICK LOOK's eight answers (estimator journey v2 §3, phase 2).
+   *
+   * They live on the state, not in the component, for one reason: **autosave
+   * and resume only know about the state.** Held in React alone, a reload lost
+   * all eight and dropped the customer back on screen 1 with nothing — and the
+   * drop-out funnel had nothing to chase either, because the draft it stored
+   * carried the DERIVED state without any record of what was actually tapped.
+   *
+   * Optional, so every stored state written before this still parses; absent
+   * means the walk came through the old pages, the describe route or upload.
+   */
+  quickLook: z.object({
+    jobType: z.enum(["interior", "exterior", "both"]),
+    propertyKind: z.enum(["house", "townhouse", "unit_apartment", "commercial"]),
+    bedrooms: z.number().int().min(1).max(8),
+    storeys: z.enum(["single", "double"]),
+    scope: z.enum(["whole", "some_rooms", "walls_ceilings", "trims_doors"]),
+    colour: z.enum(["same", "new", "bold"]),
+    condition: z.enum(["good", "wear", "needs_work"]),
+    occupied: z.enum(["yes", "no"]),
+  }).nullable().default(null),
   basics: basicsSchema.nullable().default(null),
 
   surfaces: z.array(surfaceKeySchema).min(1),
@@ -433,6 +456,7 @@ export function defaultWizardState(): WizardState {
     conditionSourceIds: [],
     noPlan: false,
     basics: null,
+    quickLook: null,
     surfaces: [...DEFAULT_SURFACES],
     condition: { tier: "change", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, surfaceFlags: {} },
     details: {

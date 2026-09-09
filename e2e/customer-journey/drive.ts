@@ -21,6 +21,9 @@ export type DriveOptions = {
   propertyKind?: "house" | "townhouse" | "unit_apartment" | "commercial";
   /** Stop on the reveal screen instead of walking through to the editor. */
   stopAtReveal?: boolean;
+  /** A suburb unique to this run — the handle an ANONYMOUS walk is known by
+   *  now that no email is asked for before the price (⚑1). */
+  suburb?: string;
 };
 
 /**
@@ -47,7 +50,7 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
   // That fallback is the thing under test as much as anything: without a
   // postcode the service-area check hands the job off.
   await page.getByPlaceholder(/Your address/).fill("14 Acacia Street, Northcote");
-  await page.getByPlaceholder("Suburb").fill("Murrumbeena");
+  await page.getByPlaceholder("Suburb").fill(opts.suburb ?? "Murrumbeena");
   await page.getByPlaceholder("Postcode").fill("3163");
   await quickNext(page);
 

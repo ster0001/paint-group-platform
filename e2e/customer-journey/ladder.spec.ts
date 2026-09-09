@@ -32,7 +32,7 @@ test("R4 ladder: below the accuracy bar lands the visit tier — slots offered, 
   const dw = page.locator(".il-card", { hasText: /doors & windows/i });
   await dw.getByRole("button", { name: /That.s right/ }).click();
   await dw.getByRole("button", { name: /Confirm counts/ }).click();
-  const sweep = page.locator(".il-card", { hasText: /anything we haven.t listed/i });
+  const sweep = page.locator('[data-card="sweep"]');
   await sweep.getByRole("button", { name: /No — that.s everything/ }).click();
   await sweep.getByRole("button", { name: /Confirm — nothing missing/ }).click();
 

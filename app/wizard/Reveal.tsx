@@ -36,18 +36,50 @@ const fmt = (cents: number) =>
   `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
 export default function Reveal({
-  payload, quick, estimateId, onTighten, onBook, onKeep, phone,
+  payload, quick, estimateId, onTighten, onBook, phone, prefillEmail,
 }: {
   payload: CustomerPayload;
   quick: QuickLook;
   estimateId: string;
   onTighten: () => void;
   onBook: () => void;
-  onKeep: () => void;
   phone: string | null;
+  /** A signed-in member already gave us this — don't ask again. */
+  prefillEmail?: string;
 }) {
   const [openAssumed, setOpenAssumed] = useState(false);
+  const [keepOpen, setKeepOpen] = useState(false);
+  const [email, setEmail] = useState(prefillEmail ?? "");
+  const [keeping, setKeeping] = useState(false);
+  const [kept, setKept] = useState<{ emailed: boolean } | null>(null);
+  const [keepError, setKeepError] = useState<string | null>(null);
   const assumptions = assumedList(quick);
+
+  /**
+   * ⚑1's gate, in the one place a customer actually wants to give an address:
+   * they have seen a number and want it back later. The button must never
+   * claim more than happened — if the send fails, the estimate is still saved
+   * and we say so, rather than promising an email that is not coming.
+   */
+  async function keep() {
+    if (keeping) return;
+    setKeeping(true);
+    setKeepError(null);
+    try {
+      const res = await fetch("/api/wizard/keep", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ estimateId, email: email.trim() }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setKeepError(j.error ?? "That didn't save — try again in a moment."); return; }
+      setKept({ emailed: j.emailed === true });
+    } catch {
+      setKeepError("That didn't save — check your connection and try again.");
+    } finally {
+      setKeeping(false);
+    }
+  }
 
   return (
     <div className="wz-wrap wz-reveal" data-testid="reveal" data-estimate-id={estimateId}>
@@ -110,10 +142,41 @@ export default function Reveal({
           testId="door-book" icon="☎" title="Book your estimator" onClick={onBook}
           body="A visit or a call, whichever suits. We bring your answers with us, so it's quick."
         />
-        <Door
-          testId="door-keep" icon="✉" title="Keep this estimate" onClick={onKeep}
-          body="We'll email a link so you can pick it up any time. The price is held for 60 days."
-        />
+        {kept ? (
+          <p className="wz-kept" data-testid="reveal-kept">
+            {kept.emailed
+              ? <>Saved, and the link is on its way to <b>{email.trim()}</b>. It opens straight to this price.</>
+              : <>Saved to <b>{email.trim()}</b>. The email is taking its time — you can carry on here, and it&rsquo;ll be waiting in your account.</>}
+          </p>
+        ) : !keepOpen ? (
+          <Door
+            testId="door-keep" icon="✉" title="Keep this estimate" onClick={() => setKeepOpen(true)}
+            body="We'll email a link so you can pick it up any time. The price is held for 60 days."
+          />
+        ) : (
+          <div className="wz-keep" data-testid="reveal-keep-form">
+            <p className="wz-keep-q">Where should we send it?</p>
+            <input
+              className="wz-in" type="email" inputMode="email" autoComplete="email"
+              placeholder="Your email" value={email} data-testid="reveal-keep-email"
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <div className="wz-keep-row">
+              <button
+                type="button" className="wz-btn wz-bp" data-testid="reveal-keep-send"
+                disabled={keeping || !email.includes("@")}
+                onClick={() => void keep()}
+              >{keeping ? "Saving…" : "Email me the link"}</button>
+              <button type="button" className="wz-linkish" onClick={() => { setKeepOpen(false); setKeepError(null); }}>
+                Not now
+              </button>
+            </div>
+            {keepError && <p className="wz-err" data-testid="reveal-keep-error">{keepError}</p>}
+            <p className="wz-keep-note">
+              For your estimate — we won&rsquo;t pass it on, and you can ask us to forget it any time.
+            </p>
+          </div>
+        )}
       </div>
 
       {phone && (

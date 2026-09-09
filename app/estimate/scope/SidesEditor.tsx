@@ -892,7 +892,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
               </div>
             ), "Confirm counts ✓")}
 
-            {metaCard("sweep", "Last check — anything we haven't listed?", (
+            {metaCard("sweep", "Last check — any sides we've missed?", (
               <div className={`sd-q ${m.sweepAns ? "ok" : ""}`}>
                 <p className="sd-ql">Sheds, side gates and the fence behind the house are the usual missing ones. <span className="sd-req">REQUIRED</span><span className="sd-okc">✓</span></p>
                 <div className="sd-chips">

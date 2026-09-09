@@ -153,7 +153,7 @@ test("R2b sides loop: amber to cyan, walls must total 100%, skip reads NOT PAINT
 
   // Tom, 31 Aug: "+ Something else" opens a box to SAY what — the typed name
   // answers the sweep, so "No — that's everything" isn't needed on top.
-  const sweep = page.locator(".sd-card", { hasText: /anything we haven't listed/i });
+  const sweep = page.locator('[data-side="sweep"]');
   await sweep.locator(".sd-hd").click();
   await sweep.getByRole("button", { name: /\+ Something else/ }).click();
   await sweep.getByPlaceholder(/What else needs painting/).fill("Bungalow");
@@ -237,7 +237,7 @@ test("priced extras: condition/access, catalogue chips and sweep items move the 
 
   // The sweep: Shed prices on (✓) and off again; Rear fence is gone;
   // Carport stays the amber visit flag.
-  const sweep = page.locator(".sd-card", { hasText: /anything we haven't listed/i });
+  const sweep = page.locator('[data-side="sweep"]');
   await sweep.locator(".sd-hd").click();
   await expect(sweep.getByRole("button", { name: /Rear fence/ })).toHaveCount(0);
   const shedChip = sweep.getByRole("button", { name: /Shed — \$[\d,]+/ });

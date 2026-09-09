@@ -793,3 +793,18 @@
 .wz .wz-door-text span { display: block; margin-top: 3px; font-size: 13px; line-height: 1.45; color: var(--wz-muted, #8C959D); }
 .wz .wz-door-go { color: var(--wz-muted, #8C959D); font-size: 18px; }
 .wz .wz-reveal-call { margin-top: 18px; font-size: 13px; color: var(--wz-muted, #8C959D); text-align: center; }
+
+/* "Keep this estimate" — ⚑1's gate, asked in place. Sending them to another
+   screen to type an address would be the toll the quick look just removed. */
+.wz .wz-keep {
+  padding: 14px; border-radius: 14px;
+  background: var(--wz-panel, #12161A); border: 1px solid var(--wz-accent, #22B8CF);
+}
+.wz .wz-keep-q { margin: 0 0 8px; font-size: 15.5px; font-weight: 600; }
+.wz .wz-keep .wz-in { width: 100%; margin-bottom: 10px; }
+.wz .wz-keep-row { display: flex; align-items: center; gap: 12px; }
+.wz .wz-keep-note { margin: 10px 0 0; font-size: 12px; color: var(--wz-muted, #8C959D); }
+.wz .wz-kept {
+  margin: 0; padding: 14px; border-radius: 14px; font-size: 14.5px; line-height: 1.5;
+  background: var(--wz-panel, #12161A); border: 1px solid var(--wz-line, #242B32);
+}

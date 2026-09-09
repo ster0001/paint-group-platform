@@ -162,6 +162,9 @@ export function quickLookToState(q: QuickLook, base?: WizardState): WizardState 
   return {
     ...s,
     jobType: q.jobType,
+    // The answers as tapped, so autosave and resume can put them back — the
+    // derived state below cannot be read backwards into eight chips.
+    quickLook: q,
     // The no-plan path: the starter list builds the room tree from these.
     noPlan: true,
     basics: {

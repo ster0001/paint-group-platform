@@ -32,36 +32,46 @@ test.describe("save-and-return", () => {
     await destroyAccountChain(db, returnEmail);
   });
 
-  test("same device: a reload puts the answers back on the page they were on; Start again wipes them", async ({ browser }) => {
+  test("same device: a reload puts the quick look's answers back; Start again wipes them", async ({ browser }) => {
     const ctx = await browser.newContext({ ...devices["iPhone 13"] });
     const page = await ctx.newPage();
     await page.goto("/estimate");
-    await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
-    await page.getByRole("button", { name: /There isn't a floorplan to hand/ }).click();
+    await expect(page.locator("[data-quick-step='start']")).toBeVisible({ timeout: 20_000 });
+    await page.getByPlaceholder(/Your address/).fill("14 Acacia Street, Northcote");
     await page.getByPlaceholder("Suburb").fill("Murrumbeena");
     await page.getByPlaceholder("Postcode").fill("3163");
-    await page.getByRole("button", { name: "4", exact: true }).click(); // bedrooms
-    await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.getByText("Step 2 of 5", { exact: false })).toBeVisible();
-    await page.getByRole("button", { name: "Windows", exact: true }).click(); // an extra tick
+    await page.getByTestId("ql-next").click();
+    await page.getByTestId("ql-bedrooms-4").click();
+    await page.getByTestId("ql-storeys-double").click();
     await page.waitForTimeout(800); // the browser copy is written a beat after the change
 
+    /**
+     * ⚑ THE BUG THIS CATCHES. The quick look's eight answers first lived in
+     * component state, where autosave could not see them — a reload dropped
+     * the customer back on screen 1 with nothing, and the draft the funnel
+     * stored carried the derived state with no record of what was tapped.
+     * They ride `state.quickLook` now, and the screen is the ordinary `page`.
+     */
     await page.reload();
-    await expect(page.getByTestId("wz-resume")).toContainText(/you were at Surfaces/);
-    await expect(page.getByText("Step 2 of 5", { exact: false })).toBeVisible();
-    await expect(page.getByRole("button", { name: /^Windows/ })).toHaveClass(/\bon\b/);
-    await page.getByRole("button", { name: "Back" }).click();
+    await expect(page.getByTestId("wz-resume")).toContainText(/you were at The place/);
+    await expect(page.locator("[data-quick-step='place']")).toBeVisible();
+    await expect(page.getByTestId("ql-bedrooms-4")).toHaveClass(/\bon\b/);
+    await expect(page.getByTestId("ql-storeys-double")).toHaveClass(/\bon\b/);
+    await page.getByTestId("ql-back").click();
     await expect(page.getByPlaceholder("Suburb")).toHaveValue("Murrumbeena");
-    await expect(page.getByRole("button", { name: "4", exact: true })).toHaveClass(/\bon\b/);
 
     await page.getByTestId("wz-start-again").click();
     await expect(page.getByTestId("wz-resume")).toHaveCount(0);
-    await expect(page.getByPlaceholder("Suburb")).toHaveValue("");
+    // The address field always renders; the suburb/postcode pair only appears
+    // once something has been typed that the lookup could not resolve, so an
+    // emptied screen correctly has no pair to check.
+    await expect(page.getByPlaceholder(/Your address/)).toHaveValue("");
+    await expect(page.getByPlaceholder("Suburb")).toHaveCount(0);
     await page.reload();
     await expect(page.getByTestId("wz-resume")).toHaveCount(0);
 
     // A different address from the homepage is a new job — no resume.
-    await page.getByRole("button", { name: /There isn't a floorplan to hand/ }).click();
+    await page.getByPlaceholder(/Your address/).fill("2 Wattle Road, Malvern");
     await page.getByPlaceholder("Suburb").fill("Malvern");
     await page.getByPlaceholder("Postcode").fill("3144");
     await page.waitForTimeout(800);
@@ -69,6 +79,9 @@ test.describe("save-and-return", () => {
     await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
     await page.waitForTimeout(500);
     await expect(page.getByTestId("wz-resume")).toHaveCount(0);
+    // The homepage's address is MEANT to arrive prefilled — what must not come
+    // back is the previous walk, so the field shows Bentleigh, never Malvern.
+    await expect(page.getByPlaceholder(/Your address/)).toHaveValue(/Bentleigh/);
     await expect(page.getByPlaceholder("Suburb")).toHaveValue("");
     await ctx.close();
   });
@@ -78,9 +91,18 @@ test.describe("save-and-return", () => {
     // Build and finish as an anonymous customer.
     const anon = await browser.newContext({ ...devices["iPhone 13"] });
     const p1 = await anon.newPage();
-    await driveNoPlanWizard(p1, { email: returnEmail });
-    const estimateId = new URL(p1.url()).searchParams.get("id");
+    /**
+     * ⚑1 in practice: nothing asked for an email on the way to the price, so
+     * the customer gives one at the REVEAL, through "Keep this estimate" —
+     * which is also what creates the account the magic link then signs into.
+     */
+    await driveNoPlanWizard(p1, { stopAtReveal: true });
+    const estimateId = await p1.getByTestId("reveal").getAttribute("data-estimate-id");
     expect(estimateId).toBeTruthy();
+    await p1.getByTestId("door-keep").click();
+    await p1.getByTestId("reveal-keep-email").fill(returnEmail);
+    await p1.getByTestId("reveal-keep-send").click();
+    await expect(p1.getByTestId("reveal-kept")).toContainText(returnEmail, { timeout: 30_000 });
     await anon.close();
 
     // A fresh browser (no anonymous session) with the emailed link.
