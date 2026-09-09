@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openQuickLook, fillQuickAddress, quickNext } from "./drive";
 
 /**
  * "Anything we should know?" — the additive condition description
@@ -14,30 +15,43 @@ import { test, expect } from "@playwright/test";
  * and calls no model, so this drives the real screen with no API key.
  */
 
-async function startWizard(page: import("@playwright/test").Page) {
-  await page.goto("/estimate");
-  await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
-  await page.getByPlaceholder("Suburb").fill("Murrumbeena");
-  await page.getByPlaceholder("Postcode").fill("3163");
+/** The quick look, walked to its CONDITION screen — where ⚑14's box lives. */
+async function toConditionScreen(page: import("@playwright/test").Page) {
+  await openQuickLook(page);
+  await fillQuickAddress(page);
+  await quickNext(page); // → the place
+  await quickNext(page); // → the job
+  await quickNext(page); // → condition
+  await expect(page.locator("[data-quick-step='condition']")).toBeVisible();
 }
 
 test("the condition box rides alongside the other ways in, and asks for photos", async ({ page }) => {
   test.setTimeout(180_000);
-  await startWizard(page);
-
-  // It is NOT on screen until a route is chosen, and never on the Describe
-  // route — that box already IS a description.
+  /**
+   * ⚑ WHERE THIS BOX LIVES CHANGED, and for the better (v2 phase 2).
+   *
+   * It used to sit on the property page beside an address field, and appeared
+   * only once a route was chosen. The quick look replaced that page for every
+   * customer, which briefly made the one feature Tom asked for by name
+   * unreachable. It is now on the quick look's CONDITION screen — directly
+   * under "how's it looking?", extending that question instead of arriving
+   * beside an address. The three bands are a tap; this is where somebody says
+   * the thing a tap cannot carry.
+   */
+  await openQuickLook(page);
+  // Not on the first screen — nothing to describe before they have said where.
   await expect(page.getByTestId("condition-box")).toHaveCount(0);
+  // And never on the Describe route: that box already IS a description.
   await page.getByTestId("entry-describe").click();
   await expect(page.getByTestId("condition-box")).toHaveCount(0);
   await expect(page.getByTestId("describe-box")).toBeVisible();
 
-  // On the no-floorplan route it appears, alongside — not instead of.
-  await page.getByTestId("entry-questions").click();
+  await toConditionScreen(page);
   const box = page.getByTestId("condition-box");
   await expect(box).toBeVisible();
   await expect(box).toContainText(/the part a floorplan can.t tell us/i);
-  await expect(page.getByTestId("wz-entry")).toBeVisible();
+  // Alongside the question, not instead of it — the bands are still there.
+  await expect(page.getByTestId("ql-condition")).toBeVisible();
 
   // A clean description is answered as such — no photo chased for nothing.
   await page.getByTestId("describe-condition").fill("Three bedroom house, all in good order, just after a refresh");

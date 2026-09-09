@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { driveNoPlanWizard, setStylesInEditor, openScopeEditor, fillContactStep } from "./drive";
+import { driveNoPlanWizard, setStylesInEditor, openScopeEditor, fillContactStep , openQuickLook } from "./drive";
 
 /**
  * Tom's 21 Aug batch, driven on the real screen.
@@ -21,7 +21,15 @@ import { driveNoPlanWizard, setStylesInEditor, openScopeEditor, fillContactStep 
 test("doors carry their frame/architrave answer, core tiles are always there, and every stepper moves on the tap", async ({ page }) => {
   test.setTimeout(300_000);
   await driveNoPlanWizard(page);
-  await setStylesInEditor(page, { doorStyle: "Panel", windowStyle: "Winder" });
+  /**
+   * Doors only. WINDOWS are `defaultOn: false` on the rate card, so a default
+   * interior job has none — and the editor's details card only asks about a
+   * style it can actually price, which is the right behaviour. The old wizard
+   * asked the window question regardless and stored an answer for a surface
+   * nobody was painting; this is better, and the window-style path is covered
+   * by openings-priced.spec.ts, which adds windows first.
+   */
+  await setStylesInEditor(page, { doorStyle: "Panel" });
   await openScopeEditor(page);
 
   // ---- the size question leads the card ------------------------------------
@@ -83,9 +91,12 @@ test("doors carry their frame/architrave answer, core tiles are always there, an
 
 test("exterior: every item can be taken off, and there is no accept-online button", async ({ page }) => {
   test.setTimeout(300_000);
-  await page.goto("/estimate");
-  await page.getByRole("button", { name: "Exterior", exact: true }).click();
-  await page.getByTestId("entry-upload").click(); // Phase 2: the way in is a card
+  // v2 phase 2: the job type is a chip on the quick look's first screen, and
+  // the answer reaches the state as it is tapped — so the upload route it hands
+  // to offers facade photos and a listing, never a floorplan.
+  await openQuickLook(page);
+  await page.getByTestId("ql-jobtype-exterior").click();
+  await page.getByTestId("entry-upload").click();
   await page.getByPlaceholder(/listing URL/).fill("https://www.realestate.com.au/property-house-vic-murrumbeena-1400001");
   await page.getByPlaceholder("Suburb").fill("Murrumbeena");
   await page.getByPlaceholder("Postcode").fill("3163");
