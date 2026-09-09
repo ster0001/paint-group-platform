@@ -368,14 +368,25 @@ export const wizardStateSchema = wizardStateShapeSchema.superRefine((s, ctx) => 
   if (s.paint.waterBasedOnly && s.paint.trimsOilBased == null) {
     ctx.addIssue({ code: "custom", path: ["paint", "trimsOilBased"], message: "Are the trims currently oil-based enamel?" });
   }
-  // Step 8: customer mode demands the property answers (the guardrails run on
-  // them) and the email gate before anything is revealed.
-  if (s.mode === "customer") {
-    if (!s.customer) {
-      ctx.addIssue({ code: "custom", path: ["customer"], message: "A few details about the property first, please." });
-    } else if (s.customer.email.trim() === "") {
-      ctx.addIssue({ code: "custom", path: ["customer", "email"], message: "Where should the estimate go?" });
-    }
+  /**
+   * Customer mode demands the property answers — the guardrails run on them,
+   * and a hazard question nobody answered must not read as "no".
+   *
+   * ⚑ THE EMAIL GATE IS GONE (estimator journey v2 ⚑1, phase 2). This rule
+   * used to read "and the email gate before anything is revealed", and it was
+   * the single biggest thing standing between a visitor and a number: §2.6
+   * calls it "reasonable for retargeting; costly for conversion", and Tom's
+   * ruling was "after, with a soft 'email me a copy' bar under the range".
+   *
+   * So a state can now be PRICED without an email. What still needs one is
+   * KEEPING it — the reveal screen's "Keep this estimate" door, which is the
+   * email capture wearing its honest purpose. Nothing downstream assumed a
+   * non-empty address: the submit route already falls back to the contact
+   * block and then to "", and the contact upsert only fires when a name or an
+   * email is actually there.
+   */
+  if (s.mode === "customer" && !s.customer) {
+    ctx.addIssue({ code: "custom", path: ["customer"], message: "A few details about the property first, please." });
   }
 });
 

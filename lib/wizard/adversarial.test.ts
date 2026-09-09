@@ -25,10 +25,25 @@ describe("schema attacks fail safely", () => {
     expect(wizardStateSchema.safeParse({ ...customerState(), customer: null }).success).toBe(false);
   });
 
-  it("customer mode without an email is rejected", () => {
+  /**
+   * ⚑ REVERSED by estimator journey v2 ⚑1 (phase 2). The email gate used to
+   * sit here, before the price. It now sits on the reveal screen's "Keep this
+   * estimate" door instead — priced without an email, kept only with one.
+   *
+   * What must NOT relax with it is the property block: the guardrails read
+   * those answers, and a hazard question nobody answered must never be
+   * allowed to read as "no". That is the assertion worth keeping.
+   */
+  it("prices customer mode without an email — the gate moved, it did not vanish", () => {
     const s = customerState();
     s.customer!.email = "";
-    expect(wizardStateSchema.safeParse(s).success).toBe(false);
+    expect(wizardStateSchema.safeParse(s).success).toBe(true);
+  });
+
+  it("still refuses customer mode with no property answers at all", () => {
+    const s = customerState();
+    s.customer!.email = "";
+    expect(wizardStateSchema.safeParse({ ...s, customer: null }).success).toBe(false);
   });
 
   it("run-id smuggling: non-uuid planRunIds are rejected", () => {

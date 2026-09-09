@@ -92,7 +92,12 @@ test("R3 interior loop: L×W size question, confirm walk, dw check, sweep — ac
   await expect(dw).toHaveClass(/done/, { timeout: 15_000 });
 
   // The sweep: Hallway is the FIRST chip; "that's everything" completes.
-  const sweep = page.locator(".il-card", { hasText: /anything we haven.t listed/i });
+  // ⚑ Addressed by data-card, not by its words: phase 5b's job-extras card
+  // ("Anything we haven't listed — OPTIONAL") reads almost identically to the
+  // sweep ("Last check — anything we haven't listed?"), so a text locator
+  // matches both. Worth renaming one of them in the product; until then the
+  // stable handle is the card id.
+  const sweep = page.locator('[data-card="sweep"]');
   await sweep.locator(".il-hd").click();
   await expect(sweep.locator(".sd-chip, .il-chip").first()).toContainText("Hallway");
   await sweep.getByRole("button", { name: /No — that.s everything/ }).click();

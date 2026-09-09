@@ -2,100 +2,92 @@ import { test, expect, devices } from "@playwright/test";
 import { driveNoPlanWizard, MONEY_RANGE } from "./drive";
 
 /**
- * Phase 2 of the 6 Sep estimator plan — the simpler form, as an anonymous
- * customer on a phone.
+ * The QUICK LOOK — estimator journey v2 §3, phase 2.
  *
- *  1. Page 1 offers three ways in — Describe it · Answer a few questions ·
- *     Upload the plan or listing — and the kicker counts FIVE steps for an
- *     interior job (paint preferences ride the last page with the contact
- *     details; condition and damage are one page).
- *  2. "Roughly how big" changes the typical room sizes the starter list
- *     prices: a 200+ home's Bed 1 is bigger than a <120 home's.
- *  3. In the editor, the door style left "Not sure" is answerable: a
- *     Details-to-confirm card with Panel / Flat; tapping Panel clears the
- *     amber "door style to confirm" lines and moves the range.
+ * This file used to describe the five-page form the plan replaced ("three
+ * ways in, five honest steps, paint with the contact details"). §1's target
+ * is now the thing under test instead: **under a minute, under ten taps, and
+ * the price before the contact form.**
+ *
+ *  1. Four screens, and the last button says "See my guide range" — then a
+ *     range appears with the customer's own answers read back under it, with
+ *     no name, email or phone asked for anywhere along the way (⚑1).
+ *  2. The answers really do drive the room tree: a 5-bedroom home prices
+ *     above a 2-bedroom one, from the same four screens.
+ *  3. The door style, which the quick look deliberately never asks, is still
+ *     answerable in the editor and still clears the amber lines.
  */
-const gate = (page: import("@playwright/test").Page) => page.locator(".wz-err");
 
-async function toBasics(page: import("@playwright/test").Page, sizeBand: string) {
-  await page.goto("/estimate");
-  await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
-  await expect(page.getByText("Step 1 of 5", { exact: false })).toBeVisible();
-  await page.getByPlaceholder("Suburb").fill("Murrumbeena");
-  await page.getByPlaceholder("Postcode").fill("3163");
-  // The three ways in.
-  const ways = page.getByTestId("wz-entry");
-  await expect(ways.getByRole("button", { name: /Describe it/ })).toBeVisible();
-  await expect(ways.getByRole("button", { name: /Upload the floorplan or listing/ })).toBeVisible();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(gate(page)).toContainText(/How would you like/);
-  await ways.getByRole("button", { name: /Answer a few questions/ }).click();
-  await expect(page.getByText(/thirty seconds of basics/i)).toBeVisible();
-  await page.getByRole("button", { name: sizeBand, exact: true }).click();
-}
-
-test.describe("the simpler form", () => {
-  test("three ways in, five honest steps, condition + damage on one page, paint with the contact details", async ({ browser }) => {
+test.describe("the quick look", () => {
+  test("four screens to a guide range, and not one contact field on the way", async ({ browser }) => {
     test.setTimeout(120_000);
     const ctx = await browser.newContext({ ...devices["iPhone 13"] });
     const page = await ctx.newPage();
-    await toBasics(page, "120–200");
-    const next = () => page.getByRole("button", { name: /Continue|Nearly there/ }).first().click();
-    await next();
-    await expect(page.getByText("Step 2 of 5", { exact: false })).toBeVisible();
-    await next();
-    await expect(page.getByText("Step 3 of 5", { exact: false })).toBeVisible();
-    await expect(page.getByText("Which describes it best?")).toBeVisible();
-    await expect(page.getByText("Any damage we should know about?")).toBeVisible();
-    await next();
-    await expect(page.getByText("Step 4 of 5", { exact: false })).toBeVisible();
-    await expect(page.getByText("Any damage we should know about?")).toHaveCount(0);
-    await expect(page.locator(".wz-qhead", { hasText: /built before 1970/ })).toHaveCount(0); // Tom, 7 Sep (late)
-    for (const q of [/asbestos/, /living there/]) {
-      await page.locator(".wz-qhead", { hasText: q }).locator("xpath=following-sibling::div[1]").getByRole("button", { name: /^No(\s|$)/ }).click();
+    await page.goto("/estimate");
+    await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
+
+    // Screen 1 — no route choice in the way of the first question (§2.1);
+    // the other two ways in are offers, not a gate.
+    await expect(page.locator("[data-quick-step='start']")).toBeVisible();
+    await expect(page.getByTestId("ql-jobtype-interior")).toBeVisible();
+    const ways = page.getByTestId("wz-entry");
+    await expect(ways.getByTestId("entry-describe")).toBeVisible();
+    await expect(ways.getByTestId("entry-upload")).toBeVisible();
+
+    // An address is the one thing screen 1 insists on — without a postcode
+    // the service-area check would hand the job off for our own reasons.
+    await page.getByTestId("ql-next").click();
+    await expect(page.getByTestId("ql-error")).toContainText(/address/i);
+    await page.getByPlaceholder(/Your address/).fill("14 Acacia Street, Northcote");
+    await page.getByPlaceholder("Suburb").fill("Murrumbeena");
+    await page.getByPlaceholder("Postcode").fill("3163");
+    await page.getByTestId("ql-next").click();
+
+    await expect(page.locator("[data-quick-step='place']")).toBeVisible();
+    await page.getByTestId("ql-bedrooms-4").click();
+    await page.getByTestId("ql-next").click();
+
+    await expect(page.locator("[data-quick-step='job']")).toBeVisible();
+    await page.getByTestId("ql-colour-same").click();
+    await page.getByTestId("ql-next").click();
+
+    await expect(page.locator("[data-quick-step='condition']")).toBeVisible();
+    await expect(page.getByTestId("ql-next")).toHaveText(/See my guide range/);
+
+    // ⚑1: nothing has asked who they are. That is the whole point.
+    await expect(page.locator(".wz-crow input")).toHaveCount(0);
+    await expect(page.getByText(/Who should we send your estimate to/)).toHaveCount(0);
+
+    await page.getByTestId("ql-next").click();
+
+    // The reveal: a RANGE, their own answers read back, and three doors.
+    await expect(page.getByTestId("reveal")).toBeVisible({ timeout: 90_000 });
+    await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE);
+    await expect(page.getByTestId("reveal-restatement")).toContainText("4-bedroom");
+    await expect(page.getByTestId("reveal-restatement")).toContainText("the same colours");
+    for (const door of ["door-tighten", "door-book", "door-keep"]) {
+      await expect(page.getByTestId(door)).toBeVisible();
     }
-    await next();
-    await expect(page.getByText("Step 5 of 5", { exact: false })).toBeVisible();
-    await expect(page.getByText("Who should we send your estimate to?")).toBeVisible();
-    await expect(page.getByText("Paint preferences", { exact: false })).toBeVisible();
-    await expect(page.getByRole("button", { name: "See my estimate" })).toBeVisible();
+    // Every assumption we made for them is listed, not hidden.
+    await page.getByTestId("reveal-assumed-toggle").click();
+    await expect(page.getByTestId("reveal-assumed-hazards")).toBeVisible();
+    await expect(page.getByTestId("reveal-assumed-rooms")).toBeVisible();
     await ctx.close();
   });
 
-  test("the size band scales the starter rooms", async ({ browser }) => {
+  test("the answers scale the starter rooms", async ({ browser }) => {
     test.setTimeout(240_000);
-    const sizes: Record<string, string> = {};
-    for (const band of ["<120 m²", "200+"]) {
+    const totals: Record<string, number> = {};
+    for (const bedrooms of [2, 5] as const) {
       const ctx = await browser.newContext({ ...devices["iPhone 13"] });
       const page = await ctx.newPage();
-      await toBasics(page, band);
-      if (band === "200+") {
-        // Phase 3: the extra rooms the list used to assume away.
-        await page.getByRole("button", { name: "2", exact: true }).last().click(); // bathrooms
-        await page.getByTestId("basics-extras").getByRole("button", { name: "Garage" }).click();
-      }
-      const next = () => page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ }).first().click();
-      await next(); await next(); await next();
-      for (const q of [/asbestos/, /living there/]) { // Tom, 7 Sep (late): no build-year question
-        await page.locator(".wz-qhead", { hasText: q }).locator("xpath=following-sibling::div[1]").getByRole("button", { name: /^No(\s|$)/ }).click();
-      }
-      await next();
-      const contact = page.locator(".wz-crow input");
-      await contact.nth(0).fill("E2E Size Band");
-      await contact.nth(1).fill(`e2e-size-${Date.now()}@example.com`);
-      await contact.nth(2).fill("0400 000 111");
-      await page.getByRole("button", { name: "See my estimate" }).click();
-      await expect(page.locator(".sc-r").first()).toHaveText(MONEY_RANGE, { timeout: 90_000 });
-      sizes[band] = await page.locator('[data-card^="room:"] .sc-hd').first().innerText();
-      if (band === "200+") {
-        const names = await page.locator('[data-card^="room:"] .sc-hd').allInnerTexts();
-        expect(names.join(" | ")).toMatch(/Ensuite/);
-        expect(names.join(" | ")).toMatch(/Garage/);
-      }
+      await driveNoPlanWizard(page, { bedrooms, stopAtReveal: true });
+      const text = await page.getByTestId("reveal-range").innerText();
+      totals[bedrooms] = Number(text.split("–")[0].replace(/[^0-9]/g, ""));
+      await expect(page.getByTestId("reveal-restatement")).toContainText(`${bedrooms}-bedroom`);
       await ctx.close();
     }
-    const dims = (s: string) => { const m = s.match(/([\d.]+) × ([\d.]+) m/); return m ? Number(m[1]) * Number(m[2]) : 0; };
-    expect(dims(sizes["200+"])).toBeGreaterThan(dims(sizes["<120 m²"]));
+    expect(totals[5]).toBeGreaterThan(totals[2]);
   });
 
   test("the door style is answerable in the editor and clears the amber lines", async ({ page }) => {

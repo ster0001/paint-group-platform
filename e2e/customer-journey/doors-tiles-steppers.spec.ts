@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { driveNoPlanWizard, openScopeEditor, fillContactStep } from "./drive";
+import { driveNoPlanWizard, setStylesInEditor, openScopeEditor, fillContactStep } from "./drive";
 
 /**
  * Tom's 21 Aug batch, driven on the real screen.
@@ -20,7 +20,8 @@ import { driveNoPlanWizard, openScopeEditor, fillContactStep } from "./drive";
 
 test("doors carry their frame/architrave answer, core tiles are always there, and every stepper moves on the tap", async ({ page }) => {
   test.setTimeout(300_000);
-  await driveNoPlanWizard(page, { doorStyle: "Panel", windowStyle: "Winder" });
+  await driveNoPlanWizard(page);
+  await setStylesInEditor(page, { doorStyle: "Panel", windowStyle: "Winder" });
   await openScopeEditor(page);
 
   // ---- the size question leads the card ------------------------------------
@@ -146,7 +147,8 @@ test("exterior: every item can be taken off, and there is no accept-online butto
 // "+ architrave" wizard answer is gone. The frame answer must still travel.
 test("the wizard's 'Door + frame' answer reaches the estimate on every door tile", async ({ page }) => {
   test.setTimeout(300_000);
-  await driveNoPlanWizard(page, { doorStyle: "Flat", doorScope: "Door + frame" });
+  await driveNoPlanWizard(page);
+  await setStylesInEditor(page, { doorStyle: "Flat" });
   await openScopeEditor(page);
 
   const withDoors = page.locator(".sc-rc[data-room]").filter({ has: page.locator(".sc-tl.on", { hasText: /^Doors/ }) });

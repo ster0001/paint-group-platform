@@ -712,3 +712,84 @@
 .wz .wz-qtext { flex: 1; font-size: 15px; }
 .wz .wz-qhint { display: block; margin-top: 3px; font-size: 13px; color: var(--muted); }
 .wz .sc-spots .sc-spot-suggest { margin: 10px 0 0; font-size: 14px; color: var(--wz-text, #EDF0F2); }
+
+/* ---- Estimator journey v2 · phase 2: the quick look and the guide range ----
+   Four screens, about nine taps, then a range. The visual job here is to make
+   a screen with three questions on it feel like progress rather than a form —
+   so the type is large, the choices are the whole tap target, and nothing but
+   the answer is competing for attention. */
+
+.wz .wz-quick h1 { margin-bottom: 6px; }
+.wz .wz-quick .wz-qhead { margin-top: 22px; }
+/* The two ways in that are no longer a toll gate (§2.1) — present, findable,
+   and quiet. A customer who has a floorplan will look for this; nobody else
+   should have to read past it to reach the first question. */
+.wz .wz-otherways {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px;
+  margin: 12px 0 4px; font-size: 13px; color: var(--wz-muted, #8C959D);
+}
+.wz .wz-quick-fallback { margin-top: 10px; display: flex; gap: 8px; }
+.wz .wz-quick-fallback .wz-in { flex: 1; min-width: 0; }
+.wz .wz-steps { margin-top: 14px; font-size: 12px; color: var(--wz-muted, #8C959D); text-align: center; }
+
+/* ---- the reveal ---------------------------------------------------------- */
+
+.wz .wz-reveal { padding-bottom: 40px; }
+/* A RANGE, never a number — the type size is the argument that this is the
+   answer they came for, and the doors below are equals, not a funnel. */
+.wz .wz-range {
+  margin: 10px 0 6px; font-size: clamp(30px, 9vw, 44px); font-weight: 650;
+  letter-spacing: -0.02em; color: var(--wz-text, #EDF0F2);
+}
+.wz .wz-range-note { margin: 0 0 16px; font-size: 12.5px; color: var(--wz-muted, #8C959D); }
+
+.wz .wz-tiers { display: flex; gap: 6px; margin-bottom: 16px; }
+.wz .wz-tiers span {
+  flex: 1; text-align: center; padding: 6px 4px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  background: var(--wz-panel, #12161A); color: var(--wz-muted, #8C959D);
+  border: 1px solid var(--wz-line, #242B32);
+}
+.wz .wz-tiers span.on {
+  background: var(--wz-accent, #22B8CF); color: #06212A; border-color: transparent;
+}
+
+.wz .wz-restate { margin: 0 0 16px; font-size: 15px; line-height: 1.5; }
+
+.wz .wz-assumed-head {
+  display: flex; width: 100%; align-items: center; justify-content: space-between;
+  padding: 12px 0; border-top: 1px solid var(--wz-line, #242B32);
+  border-bottom: 1px solid var(--wz-line, #242B32);
+  background: none; border-left: 0; border-right: 0; color: inherit;
+  font: inherit; font-weight: 600; cursor: pointer;
+}
+.wz .wz-assumed-head em {
+  font-style: normal; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--wz-muted, #8C959D);
+}
+.wz .wz-assumed { list-style: none; margin: 0; padding: 4px 0 0; }
+.wz .wz-assumed li { padding: 12px 0; border-bottom: 1px solid var(--wz-line, #242B32); }
+.wz .wz-assumed li b { display: block; font-size: 14.5px; }
+.wz .wz-assumed li span { display: block; margin-top: 3px; font-size: 13px; color: var(--wz-muted, #8C959D); }
+
+.wz .wz-reveal-flag {
+  margin: 14px 0 0; padding: 10px 12px; font-size: 13.5px; line-height: 1.45;
+  background: rgba(224, 168, 60, 0.10); border-left: 3px solid var(--wz-amber, #E0A83C);
+  border-radius: 0 10px 10px 0;
+}
+
+.wz .wz-doors-head { margin: 26px 0 10px; font-size: 17px; }
+.wz .wz-doors { display: flex; flex-direction: column; gap: 10px; }
+.wz .wz-door {
+  display: flex; align-items: flex-start; gap: 12px; width: 100%; text-align: left;
+  padding: 14px; border-radius: 14px; cursor: pointer;
+  background: var(--wz-panel, #12161A); border: 1px solid var(--wz-line, #242B32);
+  color: var(--wz-text, #EDF0F2); font: inherit;
+}
+.wz .wz-door:hover { border-color: var(--wz-accent, #22B8CF); }
+.wz .wz-door-icon { font-size: 18px; line-height: 1.3; color: var(--wz-accent, #22B8CF); }
+.wz .wz-door-text { flex: 1; min-width: 0; }
+.wz .wz-door-text b { display: block; font-size: 15.5px; }
+.wz .wz-door-text span { display: block; margin-top: 3px; font-size: 13px; line-height: 1.45; color: var(--wz-muted, #8C959D); }
+.wz .wz-door-go { color: var(--wz-muted, #8C959D); font-size: 18px; }
+.wz .wz-reveal-call { margin-top: 18px; font-size: 13px; color: var(--wz-muted, #8C959D); text-align: center; }

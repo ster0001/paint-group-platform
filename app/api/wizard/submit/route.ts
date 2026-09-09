@@ -130,9 +130,13 @@ export async function POST(request: Request) {
     const limits = (limitRow?.value ?? {}) as { maxEstimatesPerVisitor?: number; holdMessage?: string };
     const max = typeof limits.maxEstimatesPerVisitor === "number" ? limits.maxEstimatesPerVisitor : 2;
     const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+    // ⚑1 (phase 2): a visitor can now reach a price without giving an email,
+    // so `email` is legitimately empty here. `email.eq.` would match every
+    // emailless lead ever written and rate-limit the whole world after two —
+    // an emailless run is identified by its IP hash alone.
     const { count } = await db.from("wizard_leads")
       .select("id", { count: "exact", head: true })
-      .or(`email.eq.${email},ip_hash.eq.${ipHash}`)
+      .or(email ? `email.eq.${email},ip_hash.eq.${ipHash}` : `ip_hash.eq.${ipHash}`)
       .neq("outcome", "rate_limited")
       .gte("created_at", since);
     if ((count ?? 0) >= max) {
