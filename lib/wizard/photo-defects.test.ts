@@ -11,10 +11,20 @@ describe("the model's vocabulary becomes the customer's", () => {
     expect(suggestFromDefects([d({ type: "timber_rot" })])?.tag).toBe("rot");
   });
 
-  it("maps severity onto the extent words", () => {
-    expect(suggestFromDefects([d({ severity: 1 })])?.extent).toBe("spots");
-    expect(suggestFromDefects([d({ severity: 2 })])?.extent).toBe("patches");
-    expect(suggestFromDefects([d({ severity: 3 })])?.extent).toBe("most");
+  /**
+   * Two axes, not one (Tom's question of 9 Sep exposed the conflation):
+   * QTY is how much of it — the customer's words. SEVERITY is how bad per
+   * unit — the model's judgement, which a customer is never asked for.
+   */
+  it("maps the observed QUANTITY onto the extent words", () => {
+    expect(suggestFromDefects([d({ qty: 1 })])?.extent).toBe("spots");
+    expect(suggestFromDefects([d({ qty: 3 })])?.extent).toBe("patches");
+    expect(suggestFromDefects([d({ qty: 9 })])?.extent).toBe("most");
+  });
+
+  it("carries the model's severity through untouched", () => {
+    expect(suggestFromDefects([d({ severity: 1 })])?.severity).toBe(1);
+    expect(suggestFromDefects([d({ severity: 3 })])?.severity).toBe(3);
   });
 
   it("says nothing about a defect type the customer has no word for", () => {
@@ -77,14 +87,14 @@ describe("how it is put to the customer", () => {
    * will happily say no — and their answer is what we price.
    */
   it("asks rather than announces", () => {
-    const line = suggestionLine({ tag: "flaking", extent: "patches", confidence: 0.9 });
+    const line = suggestionLine({ tag: "flaking", extent: "patches", severity: 2, confidence: 0.9 });
     expect(line).toMatch(/does that look right\?$/);
     expect(line).toMatch(/looks like flaking in patches here and there/i);
     expect(line).not.toMatch(/we found|we have detected|confirmed/i);
   });
 
   it("says how much of it in the customer's own words", () => {
-    expect(suggestionLine({ tag: "water", extent: "most", confidence: 0.9 })).toMatch(/across most of it/);
-    expect(suggestionLine({ tag: "water", extent: "spots", confidence: 0.9 })).toMatch(/in a couple of spots/);
+    expect(suggestionLine({ tag: "water", extent: "most", severity: 2, confidence: 0.9 })).toMatch(/across most of it/);
+    expect(suggestionLine({ tag: "water", extent: "spots", severity: 2, confidence: 0.9 })).toMatch(/in a couple of spots/);
   });
 });

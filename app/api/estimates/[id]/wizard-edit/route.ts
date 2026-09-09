@@ -10,7 +10,7 @@ import { SCOPE_VERSION, type Alias, type ScopeRule } from "@/lib/extract/scope";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { PAINT_SYSTEMS_KEY, paintSystemsFrom } from "@/lib/pricing/systems";
 import { applyPaintSystems, applySystemPatch, paintSystemsView, type SystemPatch } from "@/lib/wizard/systems-view";
-import { roomConditionDeferred, spotLine } from "@/lib/wizard/spots";
+import { SPOT_EXTENT_QTY_KEY, extentQtyFrom, roomConditionDeferred, spotLine } from "@/lib/wizard/spots";
 import { makeDraftSurface } from "@/lib/extract/draft";
 import {
   SITE_ACCESS_HOURS_KEY, STAGING_GROUP, applySiteAccess, hourAllowancesFrom,
@@ -164,8 +164,10 @@ const actionSchema = z.discriminatedUnion("action", [
     action: z.literal("add_spot"),
     areaId: z.number().int().positive(),
     tag: z.string().min(1).max(40),
-    /** How much of it there is — the customer's words, our severity. */
+    /** How much of it there is — the customer's words, as a quantity. */
     extent: z.enum(["spots", "patches", "most"]).optional(),
+    /** How bad per unit — the PHOTO READER's judgement, never the customer's. */
+    severity: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
     sourceId: z.string().uuid().nullable().optional(),
     note: z.string().max(300).optional(),
   }),
@@ -670,10 +672,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         .select("defect_type, unit, hours_sev1, hours_sev2, hours_sev3")
         .eq("version", SCOPE_VERSION);
       const line = spotLine(
-        { tag: act.tag, extent: act.extent, sourceId: act.sourceId ?? null, note: act.note },
+        { tag: act.tag, extent: act.extent, severity: act.severity, sourceId: act.sourceId ?? null, note: act.note },
         { id: act.areaId, name: String(area.name ?? "this room") },
         (rateRows ?? []) as DefectRate[],
         () => next++,
+        // Tom's quantities per extent — how much "most of it" actually means.
+        extentQtyFrom(settingValue((await ctxPromise).settings, SPOT_EXTENT_QTY_KEY)),
       );
       if (line == null) return { error: "We don't know that one — pick a tag from the list.", status: 400 };
       blocks = blocks.map((b, i) => (i === idx

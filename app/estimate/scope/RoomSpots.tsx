@@ -36,7 +36,7 @@ export default function RoomSpots({
   spots: RoomSpot[];
   condition: RoomCondition;
   busy?: boolean;
-  onAdd: (tag: string, extent: SpotExtent, sourceId: string | null) => void;
+  onAdd: (tag: string, extent: SpotExtent, severity: 1 | 2 | 3 | undefined, sourceId: string | null) => void;
   onRemove: (surfaceId: number) => void;
   onCondition: (c: RoomCondition) => void;
 }) {
@@ -118,7 +118,7 @@ export default function RoomSpots({
   function addSpot(tag: string) {
     if (busy || pending || reading) return;
     setPending(tag);
-    onAdd(tag, extent, sourceId);
+    onAdd(tag, extent, suggested?.severity, sourceId);
     setSourceId(null);
     setSuggested(null);
     setExtent("spots");
