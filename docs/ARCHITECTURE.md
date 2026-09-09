@@ -3136,3 +3136,45 @@ second bubble to screen 1, which is worse than the problem.
 **Nothing was moved.** The real goal behind ⚑14 is §2.1 — *stop making the customer choose a route
 before they have seen any value* — and that is a flow decision for Tom, not a mechanism to pick
 unilaterally.
+
+### ⚑14 resolved by dissolving it — describe it ALONGSIDE (Tom, 9 Sep)
+
+Tom, on being shown the conflict: *"Maybe we can add describe it alongside the other features —
+like floorplan plus describe it, or describe the condition overall and tell us if there is
+anything which needs extra work — then it could come back asking for photos? We still want the
+customer to be able to live chat with the office… but this shouldn't have anything to do with the
+describe it function, and should run separately."*
+
+That is a better answer than any of the three options put to him, because it removes the
+either/or rather than picking a side. **A floorplan and a description were never alternatives** —
+a plan says where the rooms are, a description says what state they are in, and no drawing has
+ever shown that.
+
+**Nothing was demoted.** The three ways in stay exactly as they were, so the Describe route and
+the assistant door behind it are untouched (four e2e specs depend on that card, and it is the
+customer's main way into the AI). What is NEW is an additive **condition box** on the two routes
+that are not already a description.
+
+**It is narrower than "describe the whole job" on purpose:** the condition is the part a
+floorplan cannot answer and the part that decides the preparation.
+
+**`lib/wizard/condition-brief.ts` is a MATCHER, not a model call.** Tom's own list is the whole
+vocabulary — *"it is only when the paint is peeling, is raw MDF, is badly damaged, or is painted
+in oil and needs waterbased top coats that additional prep is required"* — and it is short,
+concrete and written in words people actually use. So it costs nothing, runs as they type, can
+only notice words they actually wrote, and is testable without an API key. The patterns are
+written from how a homeowner describes a wall ("the paint is coming off"), not how a painter does
+— anything needing a trade word is a rule that will never fire.
+
+- **It answers with a photo ask, not a price**, because it cannot judge how bad something is.
+  That is the photo reader's job (phase 9), and this only notices that somebody said something
+  worth photographing.
+- **At most two asks.** A customer who wrote three sentences and got back six photo requests has
+  been punished for being helpful — the fastest way to teach them to write nothing next time.
+- **Raw MDF and oil-based paint come back as NOTES, not photo asks**: they are properties of a
+  surface rather than damage in a place, so a photo of "the raw MDF" is not a photo of a spot.
+  Both still mean real extra hours, so the estimator is told.
+- **A clean description is answered as clean** — no photo chased for nothing.
+
+**The live chat bubble is untouched**, which was Tom's other point: it is a direct line to the
+office and has nothing to do with any of this.

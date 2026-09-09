@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
@@ -34,6 +34,7 @@ import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
 import { RESUME_KEY, RESTART_KEY, decodeResume, encodeResume, restartedSince, resumeLine, type ResumeRecord, type SafetyAnswered } from "@/lib/wizard/resume";
 import Wordmark from "./Wordmark";
 import ChatWidget from "./ChatWidget";
+import { photoAsk, readConditionBrief } from "@/lib/wizard/condition-brief";
 import {
   ALWAYS_APPOINTMENT, COMMERCIAL_GATES, COMMERCIAL_SEGMENTS, SEGMENT_LABEL,
   gateMessage, routeCommercial, type CommercialSegment,
@@ -1185,6 +1186,9 @@ function PageProperty({
   const [addressText, setAddressText] = useState(initialAddressText);
   const [outOfArea, setOutOfArea] = useState(false);
   // Phase 2: a customer sees the controls of the way in they chose; staff see everything.
+  // Read as they type: a matcher, not a model call, so it costs nothing and
+  // can only notice words they actually wrote (lib/wizard/condition-brief.ts).
+  const conditionRead = useMemo(() => readConditionBrief(brief), [brief]);
   const showListing = !isCustomer || entry === "upload";
   const showBasics = Boolean(state.noPlan && basics) && state.jobType !== "exterior" && (!isCustomer || entry === "questions");
   const showFacades = needsFacades && (!isCustomer || entry === "upload");
@@ -1391,11 +1395,23 @@ function PageProperty({
         </>
       )}
 
-      {/* Phase 2 (6 Sep plan): the three ways in. "Describe it" is the
-          assistant's build-from-brief, promoted from a textarea above the
-          form to a first-class choice; the other two are the wizard paths
-          that already existed, now chosen deliberately instead of by which
-          link you happened to notice. */}
+      {/*
+        The three ways in — unchanged. What changed on 9 Sep (Tom, resolving
+        ⚑14) is that "Describe it" is no longer the ONLY place a description
+        belongs: the condition box below is additive, and appears on the other
+        two routes as well.
+        
+        *"Floorplan plus describe it"* is a real combination and they were never
+        alternatives — a plan says where the rooms are, a description says what
+        state they are in, and no drawing has ever shown that. Making it
+        additive is also what answers plan §2.1 without demoting anything: the
+        route choice stays a fact about what the customer HAS, and the
+        description stops depending on which card they happened to pick.
+        
+        The live chat bubble is untouched and unrelated — a direct line to the
+        office (Tom, 8 Sep). Putting an AI feature behind it would mean tapping
+        "talk to us" and getting a robot.
+      */}
       {isCustomer && (
         <>
           <p className="wz-qhead">How would you like to do this?</p>
@@ -1432,6 +1448,48 @@ function PageProperty({
           <p style={{ marginTop: 8 }}>
             <button type="button" className="wz-linkbtn" data-testid="chat-it" disabled={sessionPhase !== "ready" || startingChat} onClick={() => startChat(false)}>
               {startingChat ? "Opening the assistant…" : "Prefer a back-and-forth? Chat it through instead →"}
+            </button>
+          </p>
+        </div>
+      )}
+
+      {/*
+        The condition box — ADDITIVE, on the two routes that are not already a
+        description (Tom, 9 Sep: *"floorplan plus describe it… describe the
+        condition overall and tell us if there is anything which needs extra
+        work — then it could come back asking for photos?"*).
+        
+        Narrower than "describe the whole job" on purpose: the condition is the
+        part a floorplan cannot answer and the part that decides the
+        preparation. It reads as they type and comes back asking for a photo of
+        whatever it heard — no model call, no cost, and it can only notice
+        words they actually wrote.
+      */}
+      {isCustomer && (entry === "questions" || entry === "upload") && (
+        <div className="wz-follow wz-alt" data-testid="condition-box">
+          <p className="wz-q">
+            How&rsquo;s it looking? <span className="wz-opt">OPTIONAL</span>
+          </p>
+          <p className="wz-chint" style={{ marginTop: 0, marginBottom: 8 }}>
+            In your own words — the condition overall, and anything that needs more than a coat of paint.
+            This is the part a floorplan can&rsquo;t tell us.
+          </p>
+          <textarea className="wz-brief" data-testid="describe-condition" rows={3} value={brief} onChange={(e) => setBrief(e.target.value)}
+            placeholder="e.g. generally sound, but the paint is peeling above the shower and there's a water mark on the hall ceiling…" />
+          {conditionRead.findings.length > 0 && (
+            <p className="wz-q" style={{ marginTop: 10 }} data-testid="condition-photo-ask">{photoAsk(conditionRead)}</p>
+          )}
+          {conditionRead.notes.map((n: string) => (
+            <p className="wz-chint" style={{ marginTop: 6 }} key={n} data-testid="condition-note">Noted — {n}.</p>
+          ))}
+          {conditionRead.readAndClear && (
+            <p className="wz-chint" style={{ marginTop: 8 }} data-testid="condition-clear">
+              Thanks — nothing there needs extra preparation, so we&rsquo;ll price it as a straightforward repaint.
+            </p>
+          )}
+          <p style={{ marginTop: 8 }}>
+            <button type="button" className="wz-linkbtn" data-testid="chat-condition" disabled={sessionPhase !== "ready" || startingChat} onClick={() => startChat(false)}>
+              {startingChat ? "Opening the assistant…" : "Rather talk it through? Chat it with our assistant →"}
             </button>
           </p>
         </div>
