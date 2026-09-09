@@ -85,6 +85,11 @@ test.describe("reach a person + chat (Tom, 8 Sep)", () => {
     await expect(page.locator(".sc-btn.il-cta")).toBeEnabled();
     await expect(page.getByTestId("cta-hint")).toContainText(/don.t have to finish first/i);
     await strip.getByTestId("reach-callback").click();
+    // The number is stated when we already have one; the box is behind
+    // "use a different number" (Tom, 9 Sep).
+    if (await page.getByTestId("reach-phone-change").count()) {
+      await page.getByTestId("reach-phone-change").click();
+    }
     await page.getByTestId("reach-phone").fill(callbackPhone);
     await page.getByTestId("reach-send").click();
     await expect(page.locator(".sc-tier")).toContainText(/Call back requested/, { timeout: 20_000 });

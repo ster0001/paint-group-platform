@@ -571,9 +571,14 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
       <div className="sc-freeze">
         <header className="wz-top">
           <Wordmark logoUrl={logoUrl} />
+          {/* Tom, 9 Sep: "estimate confirmed" was the wrong word for this
+              moment — WE have not confirmed anything yet, and the customer has
+              not accepted. All it means is that they have checked every card
+              and the ball is back in their court. Saying so removes a promise
+              nobody had made. */}
           {iloop && (
             <span className={`sd-status ${combined!.allDone ? "ok" : ""}`}>
-              {combined!.allDone ? "ESTIMATE CONFIRMED ✓" : initialSides ? "IN REVIEW · INSIDE THEN OUTSIDE" : "IN REVIEW · CONFIRM EACH ROOM"}
+              {combined!.allDone ? "AWAITING YOUR SIGN-OFF" : initialSides ? "IN REVIEW · INSIDE THEN OUTSIDE" : "IN REVIEW · CONFIRM EACH ROOM"}
             </span>
           )}
         </header>
