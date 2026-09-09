@@ -2801,3 +2801,47 @@ them.
 **The finish line** (§9.5's third item) already existed before this phase — the policy ladder's
 CTA (`selfServe ? "Accept estimate" : "Finalise my price"`), "Book a site visit" and "Request a
 call back" on the reach strip. Nothing was rebuilt.
+
+## Estimator journey v2 · Phase 6 — remote confirmation (9 Sep 2026)
+
+Branch `feat/paint-systems-screen`. **No migration.** Plan §5, §9.6, ⚑7.
+
+**The gap.** `accept_intent` has always written a prep pack and pushed a deferral, and raised
+**nothing on Today**. The customer was told a person would confirm their price; no person was
+ever told. This is the plan's whole "how jobs get quoted without being looked at" (§5), and it
+had no estimator-facing surface at all.
+
+**⚑7 — the door** (`remoteConfirmVerdict`, `lib/wizard/policy.ts`): interior only, ≤ $12,000,
+both Settings values on `wizard_policy` so widening is a business decision Tom makes with fifty
+jobs of evidence, not a deploy. A job that FAILS ⚑7 is not dropped — the desk check still
+happens and its recommendation becomes a visit. Somebody still looks at every job; they just do
+not always drive to it. That is the difference between this and self-serve.
+
+**The pack** (`lib/wizard/desk-check.ts`, pure) assembles what already exists into the order a
+person decides in: can I fix this at all (⚑7) → what is still open → what did they say is wrong
+(spots + photos) → what did we assume (systems) → what makes it slower (access) → the tree. It
+invents nothing and duplicates nothing; the total is passed IN because pricing is the engine's
+job and this must never become a second opinion about money.
+
+**The page** `/quote/desk-check?id=` is deliberately READ-ONLY, and the three outcomes §5 names
+are links to the flows that already own them: prices change in the builder, questions go to the
+thread the customer is already in, visits go to the visit flow. A fourth place to change money
+would be a fourth place for it to go wrong. `recommendedOutcome` highlights one and nothing
+more — a recommendation that could not be overridden would be self-serve wearing a person's name.
+
+**The queue.** A new `desk_check` work-item kind, built from estimates carrying the prep pack.
+Adding it forced classification in all three registries (weight, filter group, Today's tag) —
+the "one source of truth for every list and badge" rule doing its job.
+
+**Traps, all found by the e2e.**
+- `estimates.total_inc_cents` **does not exist** — it is an *invoices* column; the estimates one
+  is `total_cents`. Selecting the wrong one makes the query error and the surface show nothing
+  at all, silently, in both the queue and the page.
+- The page prices the tree **LIVE**, so a stored `total_cents` does not drive its verdict. A
+  test that seeds a big number and expects the over-cap path is testing nothing; the TREE has
+  to be over the cap. The queue uses the stored total to order itself and says so.
+- The route sits under `app/quote`, so it inherits that segment's "Loading estimate…" state and
+  streams. An e2e must wait for the page's own testid, not for `goto`.
+- `wizardStateSchema` refuses a state that neither uploaded a plan nor took the quick basics, so
+  a seeded snapshot has to look like a real run. The page's polite "wasn't built in the wizard"
+  holding is the correct response to one that does not.

@@ -28,6 +28,20 @@ export type WizardPolicySettings = {
   exteriorSelfServeCapCents: number;
   exteriorSelfServeMinAccuracyPct: number;
   minJobCents: number;
+  /**
+   * ⚑7 (Tom, 9 Sep) — remote confirmation: the job an estimator may fix
+   * WITHOUT going to look at it. "Interior only, ≤ $12,000, fifty jobs then
+   * review."
+   *
+   * This is the plan's whole "quote it without seeing it" capability (§5), so
+   * it is a deliberately narrow door: over the cap, or with any exterior, the
+   * desk check still happens but its recommendation is a visit. The cap is a
+   * Settings value because widening it is a business decision Tom makes with
+   * fifty jobs of evidence, not a deploy.
+   */
+  remoteConfirmCapCents: number;
+  /** ⚑7 — exterior never, in v1. `false` opens it, and is Tom's call to make. */
+  remoteConfirmInteriorOnly: boolean;
 };
 
 export const DEFAULT_POLICY: WizardPolicySettings = {
@@ -36,6 +50,9 @@ export const DEFAULT_POLICY: WizardPolicySettings = {
   exteriorSelfServeCapCents: 1_200_000,
   exteriorSelfServeMinAccuracyPct: 85,
   minJobCents: 200_000,
+  // ⚑7's own numbers, as the plan proposed them.
+  remoteConfirmCapCents: 1_200_000,
+  remoteConfirmInteriorOnly: true,
 };
 
 export type BandSettings = {
@@ -58,6 +75,10 @@ export function policyFromSettings(value: unknown): WizardPolicySettings {
     exteriorSelfServeCapCents: num(v.exteriorSelfServeCapCents, DEFAULT_POLICY.exteriorSelfServeCapCents),
     exteriorSelfServeMinAccuracyPct: num(v.exteriorSelfServeMinAccuracyPct, DEFAULT_POLICY.exteriorSelfServeMinAccuracyPct),
     minJobCents: num(v.minJobCents, DEFAULT_POLICY.minJobCents),
+    remoteConfirmCapCents: num(v.remoteConfirmCapCents, DEFAULT_POLICY.remoteConfirmCapCents),
+    remoteConfirmInteriorOnly: typeof v.remoteConfirmInteriorOnly === "boolean"
+      ? v.remoteConfirmInteriorOnly
+      : DEFAULT_POLICY.remoteConfirmInteriorOnly,
   };
 }
 
@@ -335,4 +356,44 @@ const WHY: Record<string, string> = {
 export function guardrailWhy(reasons: string[]): string | null {
   for (const r of reasons) if (WHY[r]) return WHY[r];
   return null;
+}
+
+
+// ---------------------------------------------------------------------------
+// ⚑7 — remote confirmation
+// ---------------------------------------------------------------------------
+
+export type RemoteConfirmVerdict = {
+  /** True when an estimator may fix this price without going to look at it. */
+  eligible: boolean;
+  /** Why not, in the estimator's own words. "" when eligible. */
+  reason: string;
+};
+
+/**
+ * May this job be confirmed from the desk?
+ *
+ * Plan §5: "Start it on interiors under a cap you're comfortable with,
+ * measure fifty, then widen." So the door is narrow on purpose, and the two
+ * things that close it are the two the plan names — an exterior anywhere in
+ * the job, and a total over the cap.
+ *
+ * A job that fails is NOT dropped: the desk check still happens, and the
+ * estimator's recommendation becomes a visit. That distinction is the whole
+ * point of the mechanism — somebody still looks at every job, they just do
+ * not always drive to it.
+ */
+export function remoteConfirmVerdict(
+  totalCents: number,
+  hasExterior: boolean,
+  policy: WizardPolicySettings = DEFAULT_POLICY,
+): RemoteConfirmVerdict {
+  if (policy.remoteConfirmInteriorOnly && hasExterior) {
+    return { eligible: false, reason: "it has exterior work — v1 confirms interiors only" };
+  }
+  if (totalCents > policy.remoteConfirmCapCents) {
+    const cap = Math.round(policy.remoteConfirmCapCents / 100).toLocaleString("en-AU");
+    return { eligible: false, reason: `it is over the $${cap} remote-confirmation cap` };
+  }
+  return { eligible: true, reason: "" };
 }

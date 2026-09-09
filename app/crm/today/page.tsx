@@ -34,6 +34,7 @@ const KIND_TAG: Record<WorkItem["kind"], string> = {
   handoff_requested: "Live chat",
   wizard_ready: "Ready", wizard_help: "Needs help", wizard_priced: "Priced",
   photo_review: "Photos",
+  desk_check: "Desk check",
 };
 
 const GROUP_ICON: Record<Exclude<FilterGroup, "all">, string> = {

@@ -4,6 +4,10 @@ import { loadCrmThresholds } from "./thresholds";
 import { invoiceIsOverdue, invoiceBalanceCents, type DeriveInvoice, type DerivePayment } from "@/lib/invoicing/derive";
 import { OPEN_STATUSES } from "@/lib/invoicing/stateMachine";
 import { bucketPill, journeyLine, journeyWho, pageLabel, type WizardBucket } from "@/lib/wizard/journey";
+import {
+  DEFAULT_POLICY, policyFromSettings, remoteConfirmVerdict, settingValue,
+  type WizardPolicySettings,
+} from "@/lib/wizard/policy";
 import { addBusinessHours, nextBusinessMorning } from "@/lib/time/businessHours";
 
 /**
@@ -55,6 +59,13 @@ export const WORK_ITEM_KINDS = [
   "delay_ended",
   /** Tom, 7 Sep: a customer attached condition photos — an estimator signs off the prep before the price is fixed. */
   "photo_review",
+  /**
+   * Estimator journey v2 §5 (⚑7, 9 Sep): a customer finished their estimate
+   * and asked us to fix the price. THE point of the plan — a job quoted
+   * without anybody driving to it. Before this the customer's "finalise my
+   * price" wrote a prep pack and raised nothing anyone would ever see.
+   */
+  "desk_check",
 ] as const;
 
 export type WorkItemKind = (typeof WORK_ITEM_KINDS)[number];
@@ -144,6 +155,9 @@ export const KIND_WEIGHT: Record<WorkItemKind, number> = {
   wizard_ready: 26,
   wizard_help: 28,
   photo_review: 24,
+  // A customer was promised a fixed price by the next working day and is
+  // waiting on it. Ranks with the other promised-to-customer work.
+  desk_check: 26,
   wizard_priced: 12,
   estimate_lapsed: 18,
   delay_ended: 20,
@@ -230,6 +244,8 @@ export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = 
   wizard_help: "followups",
   wizard_priced: "followups",
   photo_review: "approvals",
+  // It is a price to approve and send, not a follow-up to chase.
+  desk_check: "approvals",
   estimate_lapsed: "followups",
   delay_ended: "followups",
 };
@@ -536,6 +552,72 @@ export function buildPhotoReviewItems(rows: PhotoReviewRow[], now: Date): WorkIt
       dueAt: nextBusinessMorning(new Date(r.created_at)).toISOString(),
       action: { label: "Review photos", href: `/quote?id=${r.id}` },
     }, { valueCents: null, promisedToCustomer: true }, now));
+  }
+  return items;
+}
+
+// ---- source: desk_check (estimator journey v2 §5, ⚑7) ----------------------
+
+export type DeskCheckRow = {
+  id: string; title: string | null; account_id: string | null; status: string;
+  /** `estimates.total_cents`, written by the builder on save — NOT
+   * `total_inc_cents`, which is an invoices column. Selecting the wrong one
+   * made the whole query error and the queue show nothing at all. */
+  total_cents: number | null;
+  builder_state: {
+    prepPack?: { kind?: string; at?: string; flags?: string[] };
+    blocks?: Array<{ kind?: string; type?: string }>;
+  } | null;
+};
+
+/**
+ * One item per estimate whose customer has asked us to fix their price.
+ *
+ * The gap this closes: `accept_intent` has always written a prep pack and
+ * pushed a deferral, and raised NOTHING on Today. The customer was told a
+ * person would confirm their price, and no person was ever told.
+ *
+ * ⚑7 decides what the item ASKS FOR, never whether it exists. An eligible job
+ * says "fix it without a visit"; one over the cap or carrying exterior work
+ * says so and asks for a visit instead. Every job is still looked at by a
+ * person — that is the difference between this and self-serve.
+ */
+export function buildDeskCheckItems(
+  rows: DeskCheckRow[],
+  policy: WizardPolicySettings,
+  now: Date,
+): WorkItem[] {
+  const items: WorkItem[] = [];
+  for (const r of rows) {
+    const pack = r.builder_state?.prepPack;
+    if (pack?.kind !== "desk_check") continue;
+    const hasExterior = (r.builder_state?.blocks ?? [])
+      .some((b) => b?.kind === "area" && b?.type === "Exterior");
+    // The stored total, so the queue does not price every candidate. It can
+    // lag a builder edit, which is why the desk-check PAGE re-derives the
+    // verdict live — that one is authoritative, this one orders the queue.
+    const total = Number(r.total_cents) || 0;
+    const verdict = remoteConfirmVerdict(total, hasExterior, policy);
+    const since = pack.at ?? new Date(now).toISOString();
+    const flags = pack.flags?.length ?? 0;
+    const name = r.title?.trim() || "estimate";
+    items.push(finish({
+      key: itemKey("desk_check", "estimate", r.id, "confirm"),
+      kind: "desk_check",
+      accountId: r.account_id,
+      subjectRef: { type: "estimate", id: r.id },
+      since,
+      title: verdict.eligible
+        ? `Fix the price without a visit — ${name}`
+        : `Desk check, then book a visit — ${name}`,
+      detail: verdict.eligible
+        ? `The customer confirmed their scope and asked us to fix it.${flags > 0 ? ` ${flags} thing${flags === 1 ? "" : "s"} flagged.` : ""}`
+        : `The customer asked us to fix it, but ${verdict.reason}.${flags > 0 ? ` ${flags} thing${flags === 1 ? "" : "s"} flagged.` : ""}`,
+      // The plan promises "usually by the next working day" on the hand-off
+      // screen, so the queue has to want it by then too.
+      dueAt: nextBusinessMorning(new Date(since)).toISOString(),
+      action: { label: "Open the desk check", href: `/quote/desk-check?id=${r.id}` },
+    }, { valueCents: total || null, promisedToCustomer: true }, now));
   }
   return items;
 }
@@ -961,6 +1043,16 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     .gte("created_at", new Date(now.getTime() - 60 * 86_400_000).toISOString())
     .order("created_at", { ascending: false }).limit(100);
   const photoRows = (photoRes.error ? [] : (photoRes.data ?? [])) as unknown as PhotoReviewRow[];
+  // §5 (⚑7): estimates whose customer asked us to fix the price from the desk.
+  const deskRes = await supabase.from("estimates")
+    .select("id, title, account_id, status, total_cents, builder_state")
+    .eq("status", "draft")
+    .contains("builder_state", { prepPack: { kind: "desk_check" } })
+    .limit(200);
+  const deskRows = (deskRes.error ? [] : (deskRes.data ?? [])) as unknown as DeskCheckRow[];
+  const deskPolicy: WizardPolicySettings = await supabase
+    .from("settings").select("key, value").eq("key", "wizard_policy").maybeSingle()
+    .then((r) => (r.data ? policyFromSettings(settingValue([r.data as { key: string; value: unknown }], "wizard_policy")) : DEFAULT_POLICY));
   // P6: visits that didn't happen, and any booking since (which closes them).
   const since60d = new Date(now.getTime() - 60 * 86_400_000).toISOString();
   const [rebookRes, laterRes] = await Promise.all([
@@ -1054,6 +1146,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...buildDelayEndedItems(delayedRows, now),
     ...buildRebookItems(rebookRows, laterBooked, now),
     ...buildPhotoReviewItems(photoRows, now),
+    ...buildDeskCheckItems(deskRows, deskPolicy, now),
   ];
 
   // P7: the states and owners of the customers actually on the queue — a
