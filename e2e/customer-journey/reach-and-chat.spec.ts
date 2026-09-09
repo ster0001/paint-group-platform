@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { credentials, signIn } from "../helpers";
 import { deleteUserByEmail, destroyAccountChain } from "../fixtures/portal";
-import { driveNoPlanWizard, uniquePhone } from "./drive";
+import { driveNoPlanWizard, uniquePhone , openQuickLook, fillQuickAddress } from "./drive";
 
 /**
  * Tom, 8 Sep 2026 — reach a person from the BUILDER at any point, and chat:
@@ -30,12 +30,10 @@ const accountByPhone = async (sb: SupabaseClient, phone: string) => {
 };
 const ALL_DAY = { timezone: "Australia/Melbourne", days: { mon: ["00:00", "23:59"], tue: ["00:00", "23:59"], wed: ["00:00", "23:59"], thu: ["00:00", "23:59"], fri: ["00:00", "23:59"], sat: ["00:00", "23:59"], sun: ["00:00", "23:59"] }, strongCoverageDays: [] };
 
+/** The quick look's first screen, with an address on it (v2 phase 2). */
 async function openWizardPage1(page: import("@playwright/test").Page) {
-  await page.goto("/estimate");
-  await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 60_000 });
-  await page.getByRole("button", { name: /There isn't a floorplan to hand/ }).click();
-  await page.getByPlaceholder("Suburb").fill("Murrumbeena");
-  await page.getByPlaceholder("Postcode").fill("3163");
+  await openQuickLook(page);
+  await fillQuickAddress(page);
 }
 
 test.describe("reach a person + chat (Tom, 8 Sep)", () => {
@@ -85,6 +83,11 @@ test.describe("reach a person + chat (Tom, 8 Sep)", () => {
     await expect(page.locator(".sc-btn.il-cta")).toBeEnabled();
     await expect(page.getByTestId("cta-hint")).toContainText(/don.t have to finish first/i);
     await strip.getByTestId("reach-callback").click();
+    // The number is stated when we already have one; the box is behind
+    // "use a different number" (Tom, 9 Sep).
+    if (await page.getByTestId("reach-phone-change").count()) {
+      await page.getByTestId("reach-phone-change").click();
+    }
     await page.getByTestId("reach-phone").fill(callbackPhone);
     await page.getByTestId("reach-send").click();
     await expect(page.locator(".sc-tier")).toContainText(/Call back requested/, { timeout: 20_000 });

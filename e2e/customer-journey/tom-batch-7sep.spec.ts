@@ -1,6 +1,6 @@
 import { test, expect, devices, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { driveNoPlanWizard, fillContactStep, MONEY_RANGE } from "./drive";
+import { driveNoPlanWizard, fillContactStep, MONEY_RANGE , openQuickLook, fillQuickAddress, quickNext } from "./drive";
 import { credentials, signIn } from "../helpers";
 import { deleteUserByEmail, destroyAccountChain, magicLinkFor } from "../fixtures/portal";
 
@@ -57,19 +57,21 @@ test.describe("Tom's 7 Sep batch", () => {
 
   test("2 · exterior: no interior basics; targets → follow-ups → sides left unticked arrive NOT PAINTING", async ({ page }) => {
     test.setTimeout(240_000);
-    await page.goto("/estimate");
-    await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
-    // The bug: pick the questions card first, then switch to Exterior — the
-    // interior bedrooms/open-plan questions used to stay on the page.
-    await page.getByTestId("entry-questions").click();
-    await page.getByRole("button", { name: "Exterior", exact: true }).click();
-    await expect(page.getByTestId("entry-questions")).toHaveClass(/\bon\b/);
-    await expect(page.getByText(/thirty seconds of basics/i)).toHaveCount(0);
+    await openQuickLook(page);
+    /**
+     * The same bug, in the quick look's shape: switch to Outside and the
+     * INTERIOR questions must go. They do, structurally — bedrooms and storeys
+     * are hidden behind the property kind, and an outside job leaves the quick
+     * look after the place screen rather than answering about rooms at all.
+     */
+    await fillQuickAddress(page);
+    await page.getByTestId("ql-jobtype-exterior").click();
+    await quickNext(page);
+    await expect(page.locator("[data-quick-step='place']")).toBeVisible();
+    await quickNext(page);
+    // Now on the exterior question set — no interior basics anywhere.
     await expect(page.locator(".wz-qhead", { hasText: /^Bedrooms/ })).toHaveCount(0);
     await expect(page.locator(".wz-qhead", { hasText: /Open-plan kitchen/ })).toHaveCount(0);
-
-    await page.getByPlaceholder("Suburb").fill("Murrumbeena");
-    await page.getByPlaceholder("Postcode").fill("3163");
     const ans = answer(page);
     const next = nextOf(page);
     await ans("What kind of property", "House");
@@ -234,26 +236,30 @@ test.describe("Tom's 7 Sep batch", () => {
   test("4 · a drop-out signs back in: the portal lists the unsubmitted estimate; tapping it resumes; the portal read moves no status", async ({ browser, request }) => {
     test.setTimeout(300_000);
     test.skip(!cronSecret, "CRON_SECRET drives the sweep");
-    const anon = await browser.newContext({ ...devices["iPhone 13"] });
-    const p1 = await anon.newPage();
-    await p1.goto("/estimate");
-    await expect(p1.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
-    await p1.getByRole("button", { name: /There isn't a floorplan to hand/ }).click();
-    await p1.getByPlaceholder("Suburb").fill("Murrumbeena");
-    await p1.getByPlaceholder("Postcode").fill("3163");
-    const ans = answer(p1);
-    const next = nextOf(p1);
-    await ans("What kind of property", "House");
-    await next(); await next(); await next();
-    await ans(/built before 1970/, "No");
-    await ans(/asbestos/, "No");
-    await ans(/living there/, "No — it'll be empty");
-    await next(); // the contact page — typed, then walked away from
-    await fillContactStep(p1, dropEmail);
+    /**
+     * ⚑ WHO THIS DROP-OUT IS CHANGED, and it had to (⚑1, v2 phase 2).
+     *
+     * It used to be an anonymous visitor who typed their details on the
+     * contact page and walked away. There is no contact page now — the price
+     * comes first — so an anonymous drop-out leaves no email and cannot be
+     * sent a sign-in link at all. That is the trade §2.6 describes.
+     *
+     * The reachable version is the one that matters more anyway: a SIGNED-IN
+     * member starts a new estimate and walks away. Their account already knows
+     * them, so the draft carries the email from the first answer, and the
+     * resume link is a real promise rather than a hope.
+     */
+    const member = await browser.newContext({ ...devices["iPhone 13"] });
+    const p1 = await member.newPage();
+    await p1.goto(await magicLinkFor(db!, dropEmail));
+    await openQuickLook(p1);
+    await fillQuickAddress(p1);
+    await quickNext(p1);
+    await quickNext(p1);
     await p1.waitForTimeout(4_000); // past the autosave debounce
     const before = await db!.from("wizard_drafts").select("id, user_id, bucket").eq("email", dropEmail).maybeSingle();
     expect(before.data, "the drop-out left a draft").toBeTruthy();
-    await anon.close();
+    await member.close();
 
     // The sweep files it as dropped (and would email a real address here).
     const sweep = await request.get("/api/cron/wizard-sweep?minutes=0", { headers: { authorization: `Bearer ${cronSecret}` } });

@@ -187,7 +187,14 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   const [advice, setAdvice] = useState<{ areaId: number; key: string } | null>(null);
   const [notes, setNotes] = useState<Record<number | string, string>>({});
   const [noteChips, setNoteChips] = useState<Record<number | string, string>>({});
-  const [accepted, setAccepted] = useState(false);
+  /**
+   * There is no `accepted` state here any more. Accepting moved to the finish
+   * line (§3, screen 10) and lands on the hand-off screen, and this page
+   * never sees an accepted estimate anyway — /estimate/scope refuses one
+   * outright ("this estimate is accepted — its scope is locked in"). A flag
+   * that can only ever be false is three dead branches pretending to be
+   * behaviour.
+   */
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chainRef = useRef<Promise<void>>(Promise.resolve());
   /** The fixed footer takes no space in the flow — reserve its real height. */
@@ -552,9 +559,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   // The visit tier is an offer, never a block (mockup copy verbatim).
   const tierLine = booked
     ? `${booked} — we'll be in touch to finalise your price.`
-    : accepted
-      ? "Accepted — our team gives it a final desk check, then your fixed price and booking confirmation follow."
-      : selfServe
+    : selfServe
         ? `At ${payload.accuracyPct}% accuracy you can accept online. We confirm details before we start.`
         : payload.photosPendingSignOff
           ? "Your photos are with your estimator — pending sign-off for any extra preparation. Then a quick call or visit fixes your price."
@@ -571,9 +576,14 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
       <div className="sc-freeze">
         <header className="wz-top">
           <Wordmark logoUrl={logoUrl} />
+          {/* Tom, 9 Sep: "estimate confirmed" was the wrong word for this
+              moment — WE have not confirmed anything yet, and the customer has
+              not accepted. All it means is that they have checked every card
+              and the ball is back in their court. Saying so removes a promise
+              nobody had made. */}
           {iloop && (
             <span className={`sd-status ${combined!.allDone ? "ok" : ""}`}>
-              {combined!.allDone ? "ESTIMATE CONFIRMED ✓" : initialSides ? "IN REVIEW · INSIDE THEN OUTSIDE" : "IN REVIEW · CONFIRM EACH ROOM"}
+              {combined!.allDone ? "AWAITING YOUR SIGN-OFF" : initialSides ? "IN REVIEW · INSIDE THEN OUTSIDE" : "IN REVIEW · CONFIRM EACH ROOM"}
             </span>
           )}
         </header>
@@ -1281,7 +1291,10 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
 
               <section className={`sc-rc il-card ${iloop.meta.done.sweep ? "done" : "amber"} ${shakeCard === "sweep" ? "shake" : ""}`} data-card="sweep">
                 <div className="sc-hd il-hd" onClick={() => openAndScroll("sweep")} style={{ cursor: "pointer" }}>
-                  <b>Last check — anything we haven&rsquo;t listed?</b>
+                  {/* Named for ROOMS, not "anything": phase 5b's job-extras card is
+                      already called "Anything we haven't listed", and two cards on
+                      one screen saying the same sentence is a card nobody reads. */}
+                  <b>Last check — any rooms we&rsquo;ve missed?</b>
                   <span className={`il-pill ${iloop.meta.done.sweep ? "done" : ""}`}>{iloop.meta.done.sweep ? "CONFIRMED ✓" : "CONFIRM THIS"}</span>
                 </div>
                 {openCard === "sweep" && (<>
@@ -1343,9 +1356,9 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
       </main>
 
       <div className="sc-stick" ref={stickRef}>
-        <div className={`sc-tier ${selfServe && !accepted && !booked ? "" : "visit"}`}><i />{tierLine}</div>
+        <div className={`sc-tier ${selfServe && !booked ? "" : "visit"}`}><i />{tierLine}</div>
         {lastChange && <div className="sc-lastchange" data-testid="last-change">Last change: {lastChange}</div>}
-        {combined != null && !combined.allDone && !accepted && !booked && (
+        {combined != null && !combined.allDone && !booked && (
           <p className="sd-ctahint" data-testid="cta-hint">
             You don&rsquo;t have to finish first — {combined.done} of {combined.total} confirmed. Tap
             <b> Finalise my price</b> whenever you like and a person picks up the rest with you.
@@ -1354,24 +1367,28 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         <div className="sc-row">
           <div className="sc-pr"><small>ESTIMATE · INCL. GST</small><span>{rangeText}</span></div>
           <div className="sc-sp" />
-          {!accepted && !booked && (
+          {!booked && (
             <button
               className="sc-btn il-cta"
-              // Tom, 8 Sep 2026: "make it clear with the button… that they can
-              // click it before they have clicked all the details" — so the
-              // button is never dead. R3's rule still holds where it matters:
-              // ACCEPTING a fixed price behind an unconfirmed scope is not on,
-              // so until everything is blue the same tap hands the job to a
-              // person (call back / visit) instead of accepting.
-              onClick={() => {
-                if (selfServe && (combined == null || combined.allDone)) {
-                  setAccepted(true);
-                  act({ action: "accept_intent" }, "accept");
-                  say("Accepted — our team gives it a final desk check today, then your fixed price and booking confirmation follow.");
-                } else {
-                  setSlotsOpen((v) => !v);
-                }
-              }}
+              /**
+               * The FINISH LINE owns this moment (§3, prototype screen 10).
+               * Accepting used to happen right here — one tap at the bottom
+               * of a long scroll, with nothing in front of the customer to
+               * check the number against.
+               *
+               * It goes there whatever state the loop is in, and R3's rule is
+               * not weakened by that: "fix my price online" appears on the
+               * finish screen ONLY when `payload.canAccept`, which is the
+               * server's verdict, so a fixed price behind an unconfirmed
+               * scope is still impossible. Gating the NAVIGATION as well
+               * meant a half-finished job jumped straight to a contact form
+               * without ever seeing its own summary — and it made the button
+               * depend on a second reading of "is the loop done", which is
+               * exactly the kind of duplicate judgement that drifts.
+               *
+               * Tom, 8 Sep: the button is never dead. It still isn't.
+               */
+              onClick={() => router.push(`/estimate/finish?id=${estimateId}`)}
             >
               {combined != null && !combined.allDone
                 ? "Finalise my price"
@@ -1391,7 +1408,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         )}
         {/* Tom, 8 Sep: a person is reachable at ANY point of the walk — the
             confirm prompt above stays, this never waits for it. */}
-        {!accepted && !booked && !slotsOpen && (
+        {!booked && !slotsOpen && (
           <ReachStrip companyPhone={companyPhone} phoneHours={phoneHours} defaultPhone={customerPhone} visitSlots={ladder.visitSlots} busy={busyKeys.has("book")}
             onBookSlot={(slot) => {
               setBooked(`Visit booked — ${slot}`);

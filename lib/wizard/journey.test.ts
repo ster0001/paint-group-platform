@@ -29,10 +29,10 @@ describe("bucketFor — brief §4, every combination of completed × outcome × 
 
 describe("wording", () => {
   it("pages are named per job type; the dropped pill carries the page", () => {
-    expect(pageLabel("interior", 2)).toBe("Surfaces");
-    expect(pageLabel("both", 3)).toBe("Condition");
+    expect(pageLabel("interior", 2)).toBe("The place");   // the quick look, v2 phase 2
+    expect(pageLabel("both", 3)).toBe("The job");
     expect(pageLabel("exterior", 2)).toBe("House");
-    expect(bucketPill("dropped", "interior", 3)).toEqual({ label: "Dropped · Condition", tone: "clay" });
+    expect(bucketPill("dropped", "interior", 3)).toEqual({ label: "Dropped · The job", tone: "clay" });
     expect(bucketPill("ready_visit", null, 6).label).toBe("Ready · visit");
     expect(bucketPill("online_now", null, 1).label).toBe("Online now"); // never "In progress"
   });
@@ -47,7 +47,7 @@ describe("wording", () => {
     const steps = journeySteps(j);
     expect(steps.length).toBe(6);
     expect(steps.reduce((s, x) => s + x.seconds, 0)).toBe(j.activeSeconds);
-    expect(steps[1]).toMatchObject({ label: "Surfaces", seconds: 90, reached: true });
+    expect(steps[1]).toMatchObject({ label: "The place", seconds: 90, reached: true });
     expect(steps[2].reached).toBe(false);
   });
 });

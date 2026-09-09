@@ -718,7 +718,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
       <header className="sd-top">
         <div className="sd-row">
           {logoUrl ? <img className="wz-logo" src={logoUrl} alt="Paint Group" /> : <div className="sd-wm">PAINT<span>—</span>GROUP</div>}
-          <span className={`sd-status ${allDone ? "ok" : ""}`}>{allDone ? "ESTIMATE CONFIRMED ✓" : "IN REVIEW · CONFIRM EACH SIDE"}</span>
+          <span className={`sd-status ${allDone ? "ok" : ""}`}>{allDone ? "AWAITING YOUR SIGN-OFF" : "IN REVIEW · CONFIRM EACH SIDE"}</span>
         </div>
         <div className="sd-progwrap">
           <div className="sd-lbl"><span className="sd-prog">{prog.done} OF {prog.total} CONFIRMED</span><span>ORANGE = TO CONFIRM · BLUE = CONFIRMED</span></div>
@@ -892,7 +892,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
               </div>
             ), "Confirm counts ✓")}
 
-            {metaCard("sweep", "Last check — anything we haven't listed?", (
+            {metaCard("sweep", "Last check — any sides we've missed?", (
               <div className={`sd-q ${m.sweepAns ? "ok" : ""}`}>
                 <p className="sd-ql">Sheds, side gates and the fence behind the house are the usual missing ones. <span className="sd-req">REQUIRED</span><span className="sd-okc">✓</span></p>
                 <div className="sd-chips">

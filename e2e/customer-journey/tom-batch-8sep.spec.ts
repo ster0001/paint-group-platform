@@ -143,8 +143,13 @@ test("Tom, 8 Sep evening: book in your estimator — the lead, the hours, the nu
   }
 
   // --- 6 · the number they already gave us -----------------------------------
+  // Tom, 9 Sep: it is STATED, not offered as a box to fill in — a pre-filled
+  // input still reads as a form. The box only appears if they ask to change it.
   await strip.getByTestId("reach-callback").click();
-  await expect(page.getByTestId("reach-phone")).toHaveValue(PHONE, { timeout: 20_000 });
+  await expect(page.getByTestId("reach-phone-known")).toContainText(PHONE, { timeout: 20_000 });
+  await expect(page.getByTestId("reach-phone")).toHaveCount(0);
+  await page.getByTestId("reach-phone-change").click();
+  await expect(page.getByTestId("reach-phone")).toHaveValue(PHONE);
 });
 
 test("Tom, 8 Sep evening: the estimate page fits the screen at every width", async ({ page }) => {

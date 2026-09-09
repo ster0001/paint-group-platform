@@ -52,6 +52,18 @@ export default function ReachStrip({ prefix = "sc", companyPhone, phoneHours, vi
   // Tom, 8 Sep: "copy the number across that they have previously provided…
   // they can edit the number if required before submitting the request."
   const [phone, setPhone] = useState(defaultPhone?.trim() ?? "");
+  /**
+   * Tom, 9 Sep: *"remove the box to take a mobile number — we already take
+   * their details at the start of the estimate; we could have their number
+   * prewritten with a button to say change the number instead."*
+   *
+   * An input pre-filled with what they already told us still reads as a form
+   * to fill in. Showing the number as a fact with a way to correct it is one
+   * less thing between them and the call they asked for. Someone we have NO
+   * number for still gets the box — that is the one case where it is a real
+   * question rather than a repeated one.
+   */
+  const [editingPhone, setEditingPhone] = useState(!defaultPhone?.trim());
   const [when, setWhen] = useState("");
   const tel = companyPhone ? `tel:${companyPhone.replace(/\s+/g, "")}` : null;
   const phoneOk = phone.replace(/[^0-9+]/g, "").length >= 8;
@@ -101,9 +113,14 @@ export default function ReachStrip({ prefix = "sc", companyPhone, phoneHours, vi
               </button>
             ))}
           </div>
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Your mobile number" inputMode="tel" aria-label="Your mobile number" data-testid="reach-phone" required />
-          {defaultPhone && phone.trim() === defaultPhone.trim() && (
-            <p className={`${p}-contact-t`} style={{ fontWeight: 400, fontSize: 12 }}>That&rsquo;s the number you gave us — change it if another one suits.</p>
+          {editingPhone ? (
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Your mobile number" inputMode="tel" aria-label="Your mobile number" data-testid="reach-phone" required autoFocus={Boolean(defaultPhone)} />
+          ) : (
+            <p className={`${p}-contact-t`} data-testid="reach-phone-known" style={{ fontWeight: 400, fontSize: 13 }}>
+              We&rsquo;ll ring <b>{phone}</b>.{" "}
+              <button type="button" className="wz-linkish" data-testid="reach-phone-change"
+                onClick={() => setEditingPhone(true)}>Use a different number</button>
+            </p>
           )}
           {mode === "visit" && (
             <input value={when} onChange={(e) => setWhen(e.target.value)} maxLength={300} placeholder="When suits you for a visit?" aria-label="When suits you" />

@@ -13,6 +13,9 @@ import InclusionTemplatesManager from "./InclusionTemplatesManager";
 import TermsEditor, { TERMS_KEY } from "./TermsEditor";
 import AutomationsSettings from "./AutomationsSettings";
 import OnlineEstimatesSettings from "./OnlineEstimatesSettings";
+import AccessAllowancesSettings from "./AccessAllowancesSettings";
+import { EXTERIOR_ALLOWANCES_KEY, exteriorAllowancesFrom } from "@/lib/wizard/exterior-allowances";
+import { SITE_ACCESS_HOURS_KEY, hourAllowancesFrom } from "@/lib/wizard/site-access";
 import { onlineEstimatesFrom, WIZARD_PUBLIC_KEY } from "@/lib/wizard/publicFlag";
 import PaintSystemsSettings from "./PaintSystemsSettings";
 import { PAINT_SYSTEMS_KEY, paintSystemsFrom } from "@/lib/pricing/systems";
@@ -154,6 +157,8 @@ export default async function SettingsPage() {
     .map((r) => r.code as string);
   const messaging = (allSettings.find((r) => r.key === MESSAGING_KEY)?.value as Partial<MessagingValues> | undefined) ?? null;
   const onlineEstimates = onlineEstimatesFrom(allSettings.find((r) => r.key === WIZARD_PUBLIC_KEY)?.value);
+  const exteriorAccess = exteriorAllowancesFrom(allSettings.find((r) => r.key === EXTERIOR_ALLOWANCES_KEY)?.value);
+  const interiorAccess = hourAllowancesFrom(allSettings.find((r) => r.key === SITE_ACCESS_HOURS_KEY)?.value);
   const paintSystems = paintSystemsFrom(allSettings.find((r) => r.key === PAINT_SYSTEMS_KEY)?.value);
   // Settings → Automations: the one wo_loop key the office can flip here.
   const variationRelease = ((allSettings.find((r) => r.key === "wo_loop")?.value as { variationRelease?: string } | undefined)?.variationRelease === "pc") ? "pc" as const : "auto" as const;
@@ -261,6 +266,9 @@ export default async function SettingsPage() {
       id: "estimates", title: "Estimates", icon: "📄",
       blurb: "Templates and wording that shape every estimate the customer reads.",
       folders: [
+        { id: "access-allowances", title: "Access allowances",
+          subtitle: "The hours allowed for getting to the work — upper levels, awkward ground, parking, a lift booking",
+          content: <AccessAllowancesSettings interior={interiorAccess} exterior={exteriorAccess} /> },
         { id: "online-estimates", title: "Online estimates", subtitle: onlineEstimates.enabled ? "LIVE — the public can build an estimate at /estimate" : "HOLDING — the public sees the holding page with a call-me form; flip the switch to launch",
           content: <OnlineEstimatesSettings initial={onlineEstimates} /> },
         { id: "paint-systems", title: "Paint systems", subtitle: "The coats and preparation we derive for each surface — walls, ceilings, trims, doors, windows — from the customer's colour intent and the condition. The customer is never asked to pick coats.",

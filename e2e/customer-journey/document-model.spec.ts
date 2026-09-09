@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { fillContactStep } from "./drive";
+import { openQuickLook, driveNoPlanWizard } from "./drive";
 
 /**
  * R1.3 — the document model (diagnostic #2 and #3).
@@ -20,10 +20,10 @@ const FIXTURES = "e2e/fixtures";
 test.describe("R1.3 document model", () => {
   test("floorplan intake is exactly one file — a second upload replaces", async ({ page }) => {
     test.setTimeout(120_000);
-    await page.goto("/estimate");
+    await openQuickLook(page);
 
     // The input is single-file at the DOM level, not just by convention.
-    await page.getByTestId("entry-upload").click(); // Phase 2: the way in is a card
+    await page.getByTestId("entry-upload").click();
     const [chooserA] = await Promise.all([
       page.waitForEvent("filechooser"),
       page.getByRole("button", { name: /Upload a floorplan/ }).click(),
@@ -46,10 +46,12 @@ test.describe("R1.3 document model", () => {
   });
 
   test("the exterior path has no floorplan field anywhere", async ({ page }) => {
-    await page.goto("/estimate");
-    await page.getByRole("button", { name: "Exterior", exact: true }).click();
-
-    await page.getByTestId("entry-upload").click(); // Phase 2: the way in is a card
+    await openQuickLook(page);
+    // v2 phase 2: the chip reads "Outside", and the answer reaches the state
+    // immediately — the upload route branches on it, so a customer who picked
+    // Outside must not be offered a floorplan field.
+    await page.getByTestId("ql-jobtype-exterior").click();
+    await page.getByTestId("entry-upload").click();
     await expect(page.getByRole("button", { name: /Upload a floorplan/ })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /floorplan to hand/ })).toHaveCount(0);
     // The facade intake is what exterior offers instead.
@@ -64,48 +66,27 @@ test.describe("R1.3 document model", () => {
         console.log("API", r.status(), r.url().split("/api/")[1], (await r.text().catch(() => "")).slice(0, 300));
       }
     });
-    await page.goto("/estimate");
-
-    // No-plan path (no plan run = the damage reader has nowhere to go —
-    // exactly the precondition that used to fail into silence).
-    await page.getByRole("button", { name: /There isn't a floorplan to hand/ }).click();
-    await page.getByPlaceholder("Suburb").fill("Murrumbeena");
-    await page.getByPlaceholder("Postcode").fill("3163");
-    const answer = async (heading: string | RegExp, label: string) => {
-      const row = page.locator(".wz-qhead", { hasText: heading })
-        .locator("xpath=following-sibling::div[1]")
-        .getByRole("button", { name: label, exact: true });
-      if (await row.count()) await row.first().click();
-    };
-    await answer("What kind of property", "House");
-    const next = async () => {
-      await page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ }).first().click();
-      const err = page.locator(".wz-err");
-      if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
-    };
-    await next(); // → page 2: surfaces
-    await next(); // condition — damage lives here now (Phase 2)
-    await page.getByRole("button", { name: /a few areas of concern/i }).click();
-    const [chooser] = await Promise.all([
-      page.waitForEvent("filechooser"),
-      page.locator(".wz-photo-stub").click(),
-    ]);
-    await chooser.setFiles(`${FIXTURES}/condition-photo.png`);
-    await next(); // details
-    await answer(/built before 1970/, "No");
-    await answer(/asbestos/, "No"); // Phase 0: unanswered until tapped
-    await answer(/living there/, "No — it'll be empty"); // Tom, 7 Sep
-    await next(); // → contact, the LAST page — paint preferences ride it (Phase 2)
-    await fillContactStep(page, `e2e-docmodel-${Date.now()}@example.com`);
-    await page.getByRole("button", { name: "See my estimate" }).click();
-    // 28 Aug: straight into the editor — the amber trace lives there now.
-    await expect(page.locator(".sc-r").first()).toBeVisible({ timeout: 90_000 });
+    /**
+     * v2 phase 2: the customer's condition photos arrive through the EDITOR's
+     * spots, not a stub on a wizard page — the quick look asks eight questions
+     * and none of them is "attach a photo of the damage". The precondition this
+     * spec exists for is unchanged and now universal: a quick-look job has no
+     * plan run, so the damage reader has nowhere to go, and that used to fail
+     * into silence.
+     */
+    await driveNoPlanWizard(page);
+    const areaId = await page.locator("[data-room]").first().getAttribute("data-room");
+    await page.locator(`[data-room="${areaId}"] .il-hd`).click();
+    await page.getByTestId(`spot-open-${areaId}`).click();
+    await page.getByTestId(`spot-photo-${areaId}`).setInputFiles(`${FIXTURES}/condition-photo.png`);
+    await page.getByTestId(`spot-tag-${areaId}-water`).click();
+    await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
 
     // The customer is TOLD what happened to their photos — an amber trace,
     // never silence. Either the analysed-prep path or the flagged-for-review
     // path is acceptable; invisibility is not.
     await expect(
-      page.locator(".wz-photonote, .wz-confirmonsite", { hasText: /photo|damage|review|site/i }).first(),
-    ).toBeVisible({ timeout: 10_000 });
+      page.locator(".wz-photonote, .wz-confirmonsite, .sc-spots", { hasText: /photo|damage|water|review|site/i }).first(),
+    ).toBeVisible({ timeout: 15_000 });
   });
 });
