@@ -1,6 +1,6 @@
 import { test, expect, devices } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { driveNoPlanWizard, uniquePhone } from "./drive";
+import { driveNoPlanWizard, uniquePhone , openQuickLook, fillQuickAddress, quickNext, MONEY_RANGE } from "./drive";
 import { DEFAULT_ONLINE_ESTIMATES } from "../../lib/wizard/publicFlag";
 
 /**
@@ -74,36 +74,51 @@ test.describe("holding page + honest defaults", () => {
     expect(JSON.stringify(cb!.payload)).toContain("9 Holding Court");
   });
 
-  test("ON: safety answers are unanswered until tapped; six honest steps; rooms and checks counted apart", async ({ browser }) => {
+  /**
+   * ⚑ REWRITTEN for v2 phase 2, and the subject genuinely changed.
+   *
+   * This used to assert that the asbestos and living-there questions were
+   * unanswered until tapped and GATED Continue. The quick look does not ask
+   * the hazard questions at all — eight questions, none of them about
+   * asbestos — so the honest-defaults rule moved rather than went away:
+   *
+   *   the four hazard answers default to "unsure", NEVER to "no"
+   *   the range still shows (an unasked question is not a dead end)
+   *   and the job can never accept itself online while they are unanswered
+   *
+   * That last line is the one that matters. If this test ever starts finding
+   * "Accept estimate" on a quick-look job, something has turned an unanswered
+   * hazard question into a "no".
+   */
+  test("ON: the hazard questions are not asked, default to unsure, and block self-acceptance", async ({ browser }) => {
     test.setTimeout(180_000);
     await db!.from("settings").upsert({ key: "wizard_public", value: { ...DEFAULT_ONLINE_ESTIMATES, enabled: true } }, { onConflict: "key" });
     const ctx = await browser.newContext({ ...devices["iPhone 13"] });
     const page = await ctx.newPage();
-    await page.goto("/estimate");
-    await expect(page.getByText("Step 1 of 5", { exact: false })).toBeVisible(); // Phase 2: five interior steps
-    await page.getByRole("button", { name: /There isn't a floorplan to hand/ }).click();
-    await page.getByPlaceholder("Suburb").fill("Murrumbeena");
-    await page.getByPlaceholder("Postcode").fill("3163");
-    // Tom, 7 Sep: no heritage question on page 1 any more — nothing to tap before Continue.
-    await expect(page.locator(".wz-qhead", { hasText: "Heritage listed" })).toHaveCount(0);
-    await page.getByRole("button", { name: /Continue|Nearly there/ }).click();
-    await expect(page.getByText("Step 2 of 5", { exact: false })).toBeVisible();
-    await page.getByRole("button", { name: /Continue|Nearly there/ }).click(); // → condition
-    await page.getByRole("button", { name: /Continue|Nearly there/ }).click(); // → details
-    await expect(page.getByText("Step 4 of 5", { exact: false })).toBeVisible();
-    // Tom, 7 Sep (late): the build year is not asked any more — the office finds it.
-    await expect(page.locator(".wz-qhead", { hasText: /built before 1970/ })).toHaveCount(0);
-    await page.getByRole("button", { name: /Continue|Nearly there/ }).click();
-    await expect(page.locator(".wz-err")).toContainText(/asbestos/i);
-    const asbRow = page.locator(".wz-qhead", { hasText: /asbestos/ }).locator("xpath=following-sibling::div[1]");
-    await asbRow.getByRole("button", { name: "No", exact: true }).click();
-    // Tom, 7 Sep: living there or empty — asked, never assumed.
-    await page.getByRole("button", { name: /Continue|Nearly there/ }).click();
-    await expect(page.locator(".wz-err")).toContainText(/living there/);
-    await page.locator(".wz-qhead", { hasText: "living there" }).locator("xpath=following-sibling::div[1]").getByRole("button", { name: /empty/ }).click();
-    await page.getByRole("button", { name: /Continue|Nearly there/ }).click();
-    await expect(page.getByText("Step 5 of 5", { exact: false })).toBeVisible();
-    await expect(page.getByText("Who should we send your estimate to?")).toBeVisible();
+
+    await openQuickLook(page);
+    // Four screens, and not one of them asks about asbestos, lead or heritage.
+    for (const step of ["start", "place", "job", "condition"]) {
+      if (step !== "start") await quickNext(page);
+      else await fillQuickAddress(page);
+      await expect(page.locator(`[data-quick-step='${step}']`)).toBeVisible();
+      await expect(page.getByText(/asbestos/i)).toHaveCount(0);
+      await expect(page.getByText(/built before 1970/i)).toHaveCount(0);
+      await expect(page.getByText(/heritage/i)).toHaveCount(0);
+    }
+    await quickNext(page);
+
+    // The range still shows — declining to guess is not declining to quote.
+    await expect(page.getByTestId("reveal")).toBeVisible({ timeout: 90_000 });
+    await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE);
+    // And we say out loud that a person checks it.
+    await page.getByTestId("reveal-assumed-toggle").click();
+    await expect(page.getByTestId("reveal-assumed-hazards")).toContainText(/asbestos|lead/i);
+
+    // The price is a range and the job cannot fix itself online.
+    await page.getByTestId("door-tighten").click();
+    await expect(page.locator(".sc-r").first()).toHaveText(MONEY_RANGE, { timeout: 60_000 });
+    await expect(page.locator(".il-cta")).not.toHaveText(/Accept estimate/);
     await ctx.close();
   });
 

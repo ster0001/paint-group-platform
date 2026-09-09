@@ -21,6 +21,9 @@ export type DriveOptions = {
   propertyKind?: "house" | "townhouse" | "unit_apartment" | "commercial";
   /** Stop on the reveal screen instead of walking through to the editor. */
   stopAtReveal?: boolean;
+  /** Inside, outside, or both. Anything but "interior" leaves the quick look
+   *  for the exterior question set — which sides, materials, condition. */
+  jobType?: "interior" | "exterior" | "both";
   /** A suburb unique to this run — the handle an ANONYMOUS walk is known by
    *  now that no email is asked for before the price (⚑1). */
   suburb?: string;
@@ -41,9 +44,7 @@ export type DriveOptions = {
  * upload route; they are simply no longer the customer's default way in.
  */
 export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
-  await page.goto("/estimate");
-  await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
-  await expect(page.locator("[data-quick-step='start']")).toBeVisible({ timeout: 20_000 });
+  await openQuickLook(page);
 
   // Screen 1 — the address. Places is not available in the test stack, so the
   // lookup degrades to a plain input and the suburb/postcode fallback appears.
@@ -52,6 +53,9 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
   await page.getByPlaceholder(/Your address/).fill("14 Acacia Street, Northcote");
   await page.getByPlaceholder("Suburb").fill(opts.suburb ?? "Murrumbeena");
   await page.getByPlaceholder("Postcode").fill("3163");
+  if (opts.jobType && opts.jobType !== "interior") {
+    await page.getByTestId(`ql-jobtype-${opts.jobType}`).click();
+  }
   await quickNext(page);
 
   // Screen 2 — the place.
@@ -59,6 +63,15 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
   if (opts.bedrooms) await page.getByTestId(`ql-bedrooms-${opts.bedrooms}`).click();
   if (opts.storeys) await page.getByTestId(`ql-storeys-${opts.storeys}`).click();
   await quickNext(page);
+
+  /**
+   * A COMMERCIAL property and an OUTSIDE-ONLY job both leave the quick look
+   * here, by design — commercial for the segment question and its seven
+   * routing gates, exterior for the elevation questions. Neither can be
+   * answered by the interior screens, and skipping them is the safety check
+   * missing rather than a shortcut. The caller drives what follows.
+   */
+  if (opts.propertyKind === "commercial" || opts.jobType === "exterior") return;
 
   // Screen 3 — the job.
   if (opts.scope) await page.getByTestId(`ql-scope-${opts.scope}`).click();
@@ -80,9 +93,25 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
   await expect(page.locator(".sc-r").first()).toHaveText(MONEY_RANGE, { timeout: 60_000 });
 }
 
+/** Open /estimate and wait for the quick look's first screen. */
+export async function openQuickLook(page: Page) {
+  await page.goto("/estimate");
+  await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
+  await expect(page.locator("[data-quick-step='start']")).toBeVisible({ timeout: 20_000 });
+}
+
+/** The address screen, filled. Places is unavailable in the test stack, so the
+ *  lookup degrades to a plain input and the suburb/postcode fallback appears —
+ *  without a postcode the service-area check hands the job off. */
+export async function fillQuickAddress(page: Page, opts: { suburb?: string; postcode?: string } = {}) {
+  await page.getByPlaceholder(/Your address/).fill("14 Acacia Street, Northcote");
+  await page.getByPlaceholder("Suburb").fill(opts.suburb ?? "Murrumbeena");
+  await page.getByPlaceholder("Postcode").fill(opts.postcode ?? "3163");
+}
+
 /** Advance one quick-look screen, failing loudly on a gate rather than
  *  silently sitting on the same screen until a later assertion times out. */
-async function quickNext(page: Page) {
+export async function quickNext(page: Page) {
   await page.getByTestId("ql-next").click();
   const err = page.getByTestId("ql-error");
   if (await err.count()) throw new Error(`quick look gate: ${await err.first().innerText()}`);

@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { fillContactStep, MONEY_RANGE } from "./drive";
+import { fillContactStep, MONEY_RANGE , openQuickLook, fillQuickAddress, quickNext } from "./drive";
 import { deleteUserByEmail, destroyAccountChain } from "../fixtures/portal";
 
 /**
@@ -31,14 +31,19 @@ const nextOf = (page: Page) => async () => {
   if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
 };
 
+/**
+ * v2 phase 2: a COMMERCIAL property leaves the quick look at the place screen
+ * and takes the segment question and the seven routing gates. That is the
+ * point — phase 7a's rule is that any tripped gate sends the job to an
+ * appointment, so a commercial job that walked the quick look to a price would
+ * have skipped every one of them. Not a shortcut; the safety check missing.
+ */
 async function startCommercial(page: Page) {
-  await page.goto("/estimate");
-  await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
-  await page.getByRole("button", { name: /There isn't a floorplan to hand/ }).click();
-  await expect(page.getByText(/thirty seconds of basics/i)).toBeVisible();
-  await page.getByPlaceholder("Suburb").fill("Murrumbeena");
-  await page.getByPlaceholder("Postcode").fill("3163");
-  await answer(page)("What kind of property", "Commercial");
+  await openQuickLook(page);
+  await fillQuickAddress(page);
+  await quickNext(page);
+  await page.getByTestId("ql-kind-commercial").click();
+  await quickNext(page);
   await expect(page.locator(".wz-qhead", { hasText: "What sort of place is it" })).toBeVisible();
 }
 

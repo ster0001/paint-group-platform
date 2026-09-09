@@ -2,7 +2,6 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { customerOwnsDraft, getWizardActor } from "@/lib/supabase/guards";
 import { loadCustomerScope, type EstimateRow } from "@/lib/wizard/customer-scope";
-import { getCompanyContact } from "@/lib/portal/data";
 import Wordmark from "@/app/wizard/Wordmark";
 import Finish from "./Finish";
 import "../../wizard/wizard.css";

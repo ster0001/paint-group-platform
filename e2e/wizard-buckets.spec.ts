@@ -25,7 +25,6 @@ test.describe("wizard sessions → buckets", () => {
   const db = missing ? null : createClient(url!, serviceKey!);
   const stamp = Date.now();
   const dropAddress = `12 Elm Street, Malvern VIC 3144 e2e${stamp}`;
-  const finishEmail = `e2e-buckets-${stamp}@example.com`;
   // ⚑1: an anonymous quick look never asks for an email, so the suburb it
   // typed is what identifies the run — the same handle funnel-dropout uses.
   const finishSuburb = `E2E Buckets ${stamp}`;

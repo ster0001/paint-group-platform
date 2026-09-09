@@ -210,7 +210,20 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     ...DEFAULT_QUICK_LOOK,
     ...(intent?.propertyKind ? { propertyKind: intent.propertyKind } : {}),
   };
-  const setQuick = (patch: Partial<QuickLookAnswers>) => set({ quickLook: { ...quick, ...patch } });
+  /**
+   * The quick look's answers, written to the state as they are tapped.
+   *
+   * ⚑ `jobType` is mirrored onto the state IMMEDIATELY rather than waiting for
+   * `quickLookToState` at submit. Everything else in the wizard branches on it
+   * — the page list, the exterior question set, the describe and upload routes
+   * — so a customer who picked "Outside" and then tapped "Upload a floorplan"
+   * landed on an INTERIOR page asking for a floorplan of a house exterior.
+   * One answer, one meaning, from the moment it is given.
+   */
+  const setQuick = (patch: Partial<QuickLookAnswers>) => set({
+    quickLook: { ...quick, ...patch },
+    ...(patch.jobType ? { jobType: patch.jobType } : {}),
+  });
 
   /**
    * The typed address rides `state.title` — the field the schema already
@@ -222,6 +235,13 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    * downstream reads this.)
    */
   const quickAddress = state.title || intent?.addressText || "";
+  /**
+   * Has the quick look handed over? Explicit, because every way of INFERRING
+   * it has a case where it is wrong: an outside job sets `jobType` on screen 1
+   * and would vanish mid-quick-look, and counting screens cannot tell "on
+   * screen 2 of the quick look" from "on page 2 of the exterior questions".
+   */
+  const [quickDone, setQuickDone] = useState(false);
   const [quickOutOfArea, setQuickOutOfArea] = useState(false);
   /** The revealed range, held on the client so the three doors can act on it. */
   const [reveal, setReveal] = useState<{ payload: CustomerPayload; estimateId: string } | null>(null);
@@ -304,18 +324,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   // Tom, 7 Sep (late): a commercial property skips "Anything else out there?"
   // (pergola, balustrades, paint preferences) — a person prices it anyway.
   const commercial = isCustomer && state.customer?.propertyKind === "commercial";
-  /**
-   * A BOTH job whose quick look is done has had its INSIDE answered and its
-   * outside not asked about at all, so what remains is the exterior question
-   * set — which sides, the wall materials, the exterior condition. Branching
-   * on jobType alone sent it back through the interior pages it had just
-   * finished, and left the sides unnamed (a job that never names its sides
-   * prices all four).
-   */
-  const bothOutsideLeft = isCustomer && state.jobType === "both" && state.quickLook != null;
   const pageKeys: PageKey[] = describing
     ? ["property", ...(state.jobType === "exterior" ? ["ext_condition" as const] : ["condition" as const, "details" as const]), ...(!contactDone ? ["contact" as const] : [])]
-    : state.jobType === "exterior" || bothOutsideLeft
+    : state.jobType === "exterior"
       // Tom, 7 Sep: the follow-up page exists only when something other than
       // the house was ticked (fence type, shed / wall material, floor area).
       ? ["property", "house", ...(state.exterior?.targets.some((t) => t !== "house") ? ["scope" as const] : []), "ext_condition", ...(commercial ? [] : ["extras" as const]), ...(isCustomer && !contactDone ? ["contact" as const] : [])]
@@ -334,13 +345,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    * Exterior keeps the existing pages: its own five-answer quick look is the
    * other half of §9.7, still blocked on the per-elevation allowances spec.
    */
-  const quickActive = isCustomer && entry === "questions"
-    && state.jobType !== "exterior"
-    // A both job that has finished the quick look is on the exterior pages now.
-    && !bothOutsideLeft;
+  const quickActive = isCustomer && entry === "questions" && !quickDone;
   const lastPage = quickActive ? stepsFor(quick.jobType).length : pageKeys.length;
   const pageKey: PageKey = pageKeys[Math.min(page, lastPage) - 1];
   const chooseEntry = (e: EntryChoice) => {
+    setQuickDone(true);
     setEntry(e);
     set(entryPatch(e, state.jobType, state.exterior, state.basics));
   };
@@ -369,6 +378,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     setResumed(null);
     // A customer starting again lands back on the quick look, which is where
     // they started — not on a route choice they were never asked to make.
+    setQuickDone(false);
     setEntry(isCustomer ? "questions" : null);
     setState(makeInitialState());
     setAnswered({ heritage: false, pre1970: false, asbestos: false });
@@ -1109,8 +1119,18 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       setState((s) => ({
         ...s,
         customer: s.customer ? { ...s.customer, propertyKind: "commercial" } : s.customer,
+        // The old pages gate on `noPlan` + `basics` ("upload a floorplan, or
+        // choose the quick basics instead") — the very thing the entry card
+        // used to set. The quick look only writes them at submit, so a
+        // hand-off has to set them here or the customer meets a gate about a
+        // question nobody asked them.
+        ...entryPatch("questions", s.jobType, s.exterior, s.basics),
       }));
-      setEntry(null);
+      setQuickDone(true);
+      // They have already chosen the questions route by being here — setting
+      // this to null made the property page demand "pick one of the three"
+      // from somebody who had just answered two screens of them.
+      setEntry("questions");
       setPage(1);
       window.scrollTo({ top: 0 });
       return;
@@ -1119,6 +1139,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     // exterior question set, which asks about elevations rather than rooms.
     if (quick.jobType === "exterior") {
       setState((s) => ({ ...s, jobType: "exterior", ...entryPatch("questions", "exterior", s.exterior, s.basics) }));
+      setQuickDone(true);
       setPage(2);
       window.scrollTo({ top: 0 });
       return;
@@ -1130,19 +1151,21 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     }
     const derived = quickLookToState(quick, state);
     /**
-     * A BOTH job has only had its inside answered. Which sides are being
-     * painted is a question nobody has asked yet, and a job that never
-     * answers it prices all four — exactly the "I asked for front, left and
-     * back and it gave me the right side too" fault. So the inside finishes
-     * here and the exterior question set takes over.
+     * ⚑ A BOTH JOB SUBMITS FROM HERE, and still does not name its sides.
+     *
+     * I tried handing it to the exterior question set so it could — a job that
+     * never names its sides prices all four, which is the same fault as "I
+     * asked for front, left and back and it gave me the right side too". It
+     * does not work yet: those pages' surface ticks write to the SAME
+     * `surfaces` array the interior uses, so walking them replaced walls and
+     * ceilings with fascias and gutters, every interior room lost its
+     * surfaces, and the submit refused with "every room was skipped".
+     *
+     * So this is the pre-phase-2 behaviour, unchanged: the inside is answered
+     * and the outside is sized from the answers (`noPhotos`). A both job has
+     * never been asked which sides — that gap is older than the quick look and
+     * wants the surfaces model split by side before it can be closed.
      */
-    if (quick.jobType === "both") {
-      setState(derived);
-      setEntry("questions");
-      setPage(2);
-      window.scrollTo({ top: 0 });
-      return;
-    }
     // Last screen: derive the full state and price it. Handed straight to the
     // submit rather than through setState, which would not have landed yet.
     setState(derived);

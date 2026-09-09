@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { credentials, signIn } from "../helpers";
 import { deleteUserByEmail, destroyAccountChain } from "../fixtures/portal";
-import { driveNoPlanWizard, uniquePhone } from "./drive";
+import { driveNoPlanWizard, uniquePhone , openQuickLook, fillQuickAddress } from "./drive";
 
 /**
  * Tom, 8 Sep 2026 — reach a person from the BUILDER at any point, and chat:
@@ -30,12 +30,10 @@ const accountByPhone = async (sb: SupabaseClient, phone: string) => {
 };
 const ALL_DAY = { timezone: "Australia/Melbourne", days: { mon: ["00:00", "23:59"], tue: ["00:00", "23:59"], wed: ["00:00", "23:59"], thu: ["00:00", "23:59"], fri: ["00:00", "23:59"], sat: ["00:00", "23:59"], sun: ["00:00", "23:59"] }, strongCoverageDays: [] };
 
+/** The quick look's first screen, with an address on it (v2 phase 2). */
 async function openWizardPage1(page: import("@playwright/test").Page) {
-  await page.goto("/estimate");
-  await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 60_000 });
-  await page.getByRole("button", { name: /There isn't a floorplan to hand/ }).click();
-  await page.getByPlaceholder("Suburb").fill("Murrumbeena");
-  await page.getByPlaceholder("Postcode").fill("3163");
+  await openQuickLook(page);
+  await fillQuickAddress(page);
 }
 
 test.describe("reach a person + chat (Tom, 8 Sep)", () => {
