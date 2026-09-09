@@ -891,8 +891,12 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   // a suburb, or moving off page 1) — not from the email, which is now the
   // LAST page. "An address is a lead in this business." A visitor who lands
   // and bounces still leaves nothing.
+  // The quick look stores what they typed on `state.title` (see quickAddress),
+  // so the draft's address signal and the browser resume copy must read it —
+  // otherwise a walk with a typed-but-unresolved address looks addressless and
+  // `sessionWorthSaving` never turns on.
   const addressText = (state.address as { formatted?: string } | null | undefined)?.formatted?.trim()
-    || intent?.addressText?.trim() || "";
+    || state.title.trim() || intent?.addressText?.trim() || "";
   const sessionWorthSaving = page > 1 || Boolean(addressText) || Boolean((state.customer?.suburb ?? "").trim());
   useEffect(() => {
     if (!isCustomer) return;
@@ -1280,7 +1284,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 state={state} set={set} isCustomer={isCustomer} substrates={substrates}
                 stepsTotal={lastPage}
                 entry={entry} onEntry={chooseEntry} brief={brief} setBrief={setBrief} startChat={startChat} startingChat={startingChat} sessionPhase={sessionPhase}
-                initialAddressText={intent?.addressText ?? ""}
+                initialAddressText={state.title.trim() || intent?.addressText || ""}
                 planFileCount={planFileCount} facadeFileCount={facadeFileCount}
                 uploading={uploading}
                 /* P1: a fast tap before anonymous sign-in completed got a
