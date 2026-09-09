@@ -44,11 +44,18 @@ test("R4 ladder: below the accuracy bar lands the visit tier — slots offered, 
 
   // Tom, 5 Sep: call us / call back / site visit with availability — a
   // person schedules it. Requesting sticks.
+  //
+  // Since v2 screen 10 the completed loop's CTA opens the FINISH LINE, which
+  // is where the plan puts this decision: the range, the answers read back,
+  // and the two options the ladder chose. The contact card lives on that
+  // screen rather than bouncing back here.
   await cta.click();
+  await expect(page.getByTestId("finish")).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("finish-book_visit").click();
   await expect(page.getByTestId("contact-card")).toBeVisible();
   await page.getByTestId("contact-visit").click();
   await page.getByTestId("contact-phone").fill("0400 000 000");
   await page.getByTestId("contact-when").fill("weekday mornings, not Wednesdays");
   await page.getByTestId("contact-send").click();
-  await expect(page.locator(".sc-tier")).toContainText(/Site visit requested/i, { timeout: 15_000 });
+  await expect(page.getByTestId("finish-requested")).toContainText(/visit time that suits/i, { timeout: 15_000 });
 });

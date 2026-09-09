@@ -41,7 +41,7 @@ export default function Sent({
       const res = await fetch(`/api/estimates/${estimateId}/wizard-edit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "book_visit", slot: pick }),
+        body: JSON.stringify({ action: "book_visit", slot: pick, view: "customer" }),
       });
       if (res.ok) setBooked(pick);
     } finally {

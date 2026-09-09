@@ -63,6 +63,8 @@ export default async function FinishPage({ searchParams }: { searchParams: Promi
       <Finish
         estimateId={bundle.estimateId}
         companyPhone={bundle.companyPhone}
+        phoneHours={bundle.phoneHours}
+        customerPhone={bundle.customerPhone}
         // The midpoint of the range the engine produced — the "computed
         // central estimate" ⚑8 asks for, never the top of the band.
         fixedPriceCents={Math.round((bundle.initial.rangeLoCents + bundle.initial.rangeHiCents) / 2)}

@@ -6,6 +6,7 @@ import {
   NOT_INCLUDED, finishOptions, summaryRows,
   type SummaryInput,
 } from "@/lib/wizard/finish-line";
+import ContactCard from "@/app/estimate/scope/ContactCard";
 
 /**
  * SCREEN 10 — "Your detailed range: confirm or send."
@@ -24,34 +25,44 @@ import {
 const fmt = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
 export default function Finish({
-  estimateId, input, fixedPriceCents, companyPhone, busy = false,
+  estimateId, input, fixedPriceCents, companyPhone, phoneHours, customerPhone, busy = false,
 }: {
   estimateId: string;
   input: SummaryInput;
   /** The single number a self-serve customer would be accepting. */
   fixedPriceCents: number;
   companyPhone: string | null;
+  phoneHours: string | null;
+  customerPhone: string | null;
   busy?: boolean;
 }) {
   const router = useRouter();
   const [sending, setSending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [contactOpen, setContactOpen] = useState(false);
+  const [requested, setRequested] = useState<string | null>(null);
   const { payload } = input;
   const rows = summaryRows(input);
   const options = finishOptions(payload, fmt(fixedPriceCents));
 
   async function choose(key: string) {
     if (sending || busy) return;
-    // A visit is a conversation, not a commitment — it goes back to the
-    // editor's reach strip, which already owns slots and call-backs.
-    if (key === "book_visit") { router.push(`/estimate/scope?id=${estimateId}#reach`); return; }
+    /**
+     * A visit opens the contact card HERE rather than bouncing back to the
+     * editor's reach strip. They have just come from that screen; sending
+     * them back to it to answer a question this screen asked is the kind of
+     * round trip that makes people give up and ring instead.
+     */
+    if (key === "book_visit") { setContactOpen((v) => !v); return; }
     setSending(key);
     setError(null);
     try {
       const res = await fetch(`/api/estimates/${estimateId}/wizard-edit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "accept_intent" }),
+        // `view` is what tells the route to answer with the CUSTOMER payload —
+        // the same declaration every tap in the editor makes.
+        body: JSON.stringify({ action: "accept_intent", view: "customer" }),
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
@@ -100,6 +111,51 @@ export default function Finish({
         ))}
       </div>
       {error && <p className="wz-err" data-testid="finish-error">{error}</p>}
+
+      {requested ? (
+        <p className="wz-kept" data-testid="finish-requested">{requested}</p>
+      ) : contactOpen && (
+        <ContactCard
+          companyPhone={companyPhone}
+          phoneHours={phoneHours}
+          defaultPhone={customerPhone}
+          busy={busy}
+          /**
+           * AWAITED, and the promise comes after it lands — not before.
+           *
+           * The first cut fired this off and showed "we'll ring you" straight
+           * away. That is a lie waiting to happen: a request that fails, or
+           * one cut off because the customer closes the tab a second later,
+           * leaves somebody certain they are getting a call that nobody was
+           * ever told to make. The spinner is worth the honesty.
+           */
+          onSubmit={async (req) => {
+            if (sending) return;
+            setSending("contact");
+            setError(null);
+            try {
+              const res = await fetch(`/api/estimates/${estimateId}/wizard-edit`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "request_contact", ...req, view: "customer" }),
+              });
+              if (!res.ok) {
+                const j = await res.json().catch(() => ({}));
+                setError(j.error ?? "That didn't send — try again, or give us a ring.");
+                return;
+              }
+              setContactOpen(false);
+              setRequested(req.how === "visit"
+                ? "Thanks — we'll ring you to lock in a visit time that suits. We're available Monday to Friday."
+                : "Thanks — we'll call you back to finalise your price. We're available Monday to Friday.");
+            } catch {
+              setError("That didn't send — check your connection, or give us a ring.");
+            } finally {
+              setSending(null);
+            }
+          }}
+        />
+      )}
 
       <h2 className="wz-doors-head">What you&rsquo;ve told us</h2>
       <ul className="wz-summary" data-testid="finish-summary">
