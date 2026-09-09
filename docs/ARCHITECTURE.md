@@ -3079,3 +3079,60 @@ filling, and a column for prep-in-general would invite a number that double-coun
 appears only against substrates it can happen to (77 rows, not 119: no "raw MDF on the walls").
 Two of the four cases — raw timber and oil-to-water — have **no defect type yet**; both are real,
 and get seeded with the hours.
+
+## Estimator journey v2 · Phase 9 — the plan-reader on customer photos (9 Sep 2026)
+
+Branch `feat/paint-systems-screen`. **No migration.** Plan §8, §9.9.
+
+**The gap.** `/api/extract/photos` had always KEPT the customer's condition photos and never READ
+them — its own comment said *"no AI analysis, no silent drop"*, because the analysed path needed
+a floorplan run to fold findings into and the no-plan path has none. So the commonest case (three
+taps, no floorplan, two photos of a damp patch) stored evidence nobody looked at until an
+estimator opened it by hand. Tom, 9 Sep, asked for exactly this: *"do they add photos which AI
+reads and it automatically adds prep hours for these things?"*
+
+Everything needed already existed and was unused on this path: `readPropertyPhoto` has a
+**`damage` purpose** written for customer-submitted damage photos, returning typed defects with a
+severity and a confidence.
+
+**`lib/wizard/photo-defects.ts` is the translation, and only that.** The model says
+`water_damage, severity 2`; the customer's screen says "Water mark — patches here and there". One
+is the other, and this is the single place that mapping is written. It calls no model and touches
+no database, so what a reading MEANS is testable without an API key.
+
+- **ONE suggestion, never a list.** A customer who photographed a damp patch is telling us about
+  that patch; handing back four checkboxes turns a helpful gesture into a form. The rest of what
+  the model saw still rides to the estimator on the photo.
+- **Strongest by SEVERITY, then confidence.** A confident scuff matters less than a probable case
+  of rot, and the estimator would rather be pointed at the worse thing.
+- **0.7 confidence bar** — the same one `mergePhotoFindings` uses to accept a door style. Below
+  it we say nothing and let the customer tag it themselves.
+- **Phrased as a question, never a finding:** *"From your photo that looks like flaking in patches
+  here and there — does that look right?"* Told "we found flaking", a customer will not argue;
+  asked whether it looks right, they will happily say no — and their answer is what we price.
+
+**The reading is opt-in per request** (`analyse`), because it costs money and most uploads are not
+asking a question, and **best effort**: storage runs first, so a model outage costs a suggestion
+and never the evidence.
+
+**The upload moved to the moment the photo is CHOSEN**, not when the tag is tapped — a suggestion
+that arrives after the customer has already answered is a suggestion nobody needs, and the slow
+part now happens while they read the question rather than while they wait on a button.
+
+### ⚑ Phase 9's other half is BLOCKED by a conflict between two of Tom's own decisions
+
+⚑14 says move "Describe it" off screen 1 and **behind the chat bubble**. But:
+
+- The wizard's bubble is **a direct line to the office, not the AI** (Tom, 8 Sep: *"so they can
+  talk to us"* — `ChatWidget`). Putting an AI build-from-brief behind it would mean tapping "chat
+  to a person" and getting a robot.
+- Tom's 8 Sep flow ruling was that the three ways in are **peers** (floorplan / describe / three
+  taps), which is the opposite of demoting one of them.
+
+The AI assistant is a *different* widget (`AssistantWidget`, on `/estimate/assist` and
+`/estimate/scope`) and is not on screen 1 at all. Honouring ⚑14 literally would mean adding a
+second bubble to screen 1, which is worse than the problem.
+
+**Nothing was moved.** The real goal behind ⚑14 is §2.1 — *stop making the customer choose a route
+before they have seen any value* — and that is a flow decision for Tom, not a mechanism to pick
+unilaterally.

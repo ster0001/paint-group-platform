@@ -6,6 +6,7 @@ import {
   EXTENT_LABEL, ROOM_CONDITION_LABEL, ROOM_CONDITIONS, SPOT_EXTENTS, tagsFor,
   type RoomCondition, type SpotExtent,
 } from "@/lib/wizard/spots";
+import { suggestionLine, type SuggestedSpot } from "@/lib/wizard/photo-defects";
 import type { RoomSpot } from "@/lib/wizard/scope-editor";
 
 /**
@@ -43,14 +44,46 @@ export default function RoomSpots({
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
-  const [file, setFile] = useState<File | null>(null);
+  const [sourceId, setSourceId] = useState<string | null>(null);
   // Tom, 9 Sep: two spots of peeling is not a peeling house. "A couple of
   // spots" is the safe floor, so it is the one that starts selected.
   const [extent, setExtent] = useState<SpotExtent>("spots");
+  // What the photo reader thinks it can see — offered for confirmation, never
+  // applied behind them (lib/wizard/photo-defects.ts).
+  const [suggested, setSuggested] = useState<SuggestedSpot | null>(null);
+  const [reading, setReading] = useState(false);
 
-  /** Stage one photo and claim it for this estimate. Null when there is none. */
-  async function uploadPhoto(): Promise<string | null> {
-    if (!file) return null;
+  /**
+   * Upload as soon as the photo is CHOSEN, not when the tag is tapped.
+   *
+   * The whole point is that the reading arrives before the customer answers —
+   * a suggestion offered after they have already tagged it is a suggestion
+   * nobody needs. It also means the slow part happens while they are reading
+   * the question rather than while they wait on a button.
+   */
+  async function onFileChosen(f: File | null) {
+    setSuggested(null);
+    setSourceId(null);
+    if (!f) return;
+    setReading(true);
+    setError(null);
+    try {
+      const r = await uploadPhoto(f);
+      setSourceId(r.sourceId);
+      if (r.suggestion) {
+        setSuggested(r.suggestion);
+        setExtent(r.suggestion.extent);
+      }
+    } catch (e) {
+      // The spot is still worth recording — the photo is evidence, not the point.
+      setError(e instanceof Error ? `${e.message} You can still tell us what it is.` : "That photo didn't upload — you can still tell us what it is.");
+    } finally {
+      setReading(false);
+    }
+  }
+
+  /** Stage one photo, claim it, and read it. */
+  async function uploadPhoto(file: File): Promise<{ sourceId: string | null; suggestion: SuggestedSpot | null }> {
     const supabase = createBrowserClient();
     const prep = await fetch("/api/extract/upload-url", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -71,27 +104,23 @@ export default function RoomSpots({
       body: JSON.stringify({
         uploads: [{ path: slot.path, name: `${roomName} — ${file.name}`.slice(0, 200) }],
         estimateId,
+        // Phase 9: read it, so the customer confirms rather than types.
+        analyse: true,
       }),
     });
     const j = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(j.error ?? "That photo couldn't be saved.");
     const ids: string[] = Array.isArray(j.sourceIds) ? j.sourceIds : [];
-    return ids[0] ?? null;
+    const per = Array.isArray(j.perPhoto) ? j.perPhoto : [];
+    return { sourceId: ids[0] ?? null, suggestion: per[0]?.suggestion ?? null };
   }
 
-  async function addSpot(tag: string) {
-    if (busy || pending) return;
-    setPending(tag); setError(null);
-    let sourceId: string | null = null;
-    try {
-      sourceId = await uploadPhoto();
-    } catch (e) {
-      // The spot is still worth recording — the customer told us something
-      // true about their house and the photo is the evidence, not the point.
-      setError(e instanceof Error ? `${e.message} We've noted the spot anyway.` : "The photo didn't upload — we've noted the spot anyway.");
-    }
+  function addSpot(tag: string) {
+    if (busy || pending || reading) return;
+    setPending(tag);
     onAdd(tag, extent, sourceId);
-    setFile(null);
+    setSourceId(null);
+    setSuggested(null);
     setExtent("spots");
     if (fileRef.current) fileRef.current.value = "";
     setPending(null);
@@ -150,8 +179,12 @@ export default function RoomSpots({
           <input
             ref={fileRef} type="file" accept="image/*" capture="environment"
             data-testid={`spot-photo-${areaId}`}
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            onChange={(e) => void onFileChosen(e.target.files?.[0] ?? null)}
           />
+          {reading && <p className="sc-sys-why" data-testid={`spot-reading-${areaId}`}>Reading your photo…</p>}
+          {suggested && (
+            <p className="sc-spot-suggest" data-testid={`spot-suggestion-${areaId}`}>{suggestionLine(suggested)}</p>
+          )}
           <p className="sc-sys-why" style={{ marginTop: 10, marginBottom: 4 }}>How much of it is there?</p>
           <div className="sc-chips">
             {SPOT_EXTENTS.map((e) => (

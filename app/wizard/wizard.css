@@ -711,3 +711,4 @@
 .wz .wz-qrow:last-of-type { border-bottom: 0; }
 .wz .wz-qtext { flex: 1; font-size: 15px; }
 .wz .wz-qhint { display: block; margin-top: 3px; font-size: 13px; color: var(--muted); }
+.wz .sc-spots .sc-spot-suggest { margin: 10px 0 0; font-size: 14px; color: var(--wz-text, #EDF0F2); }
