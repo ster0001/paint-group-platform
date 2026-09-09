@@ -4,66 +4,85 @@ import { expect, type Page } from "@playwright/test";
 export const MONEY_RANGE = /\$[\d,]+\s*–\s*\$[\d,]+/;
 
 export type DriveOptions = {
-  /** Page-4 door style to pick; omit to leave it untouched ("unsure"). */
-  doorStyle?: "Panel" | "Flat";
-  /** Page-4 window style to pick; omit to leave it untouched ("unsure"). */
-  windowStyle?: "Casement" | "Sash" | "Colonial" | "Winder";
-  /** Page-4 "what gets painted with each door"; omit to leave the default
-   * ("Door + frame", which is what every pre-21-Aug estimate means).
-   * "+ architrave" left with Tom's frames-are-architraves ruling (31 Aug). */
-  doorScope?: "Door only" | "Door + frame";
-  /** Email for the gate; defaults to a throwaway e2e address. */
+  /** Email for the "keep this estimate" door; defaults to a throwaway. */
   email?: string;
-  /** Linger after the contact step so the 2.5s autosave debounce fires.
-   *  Playwright outruns it — no human answers four pages in two seconds —
+  /** Linger after the last screen so the 2.5s autosave debounce fires.
+   *  Playwright outruns it — no human answers four screens in two seconds —
    *  so a spec asserting on the DRAFT must pace like a person. */
   settleAfterContactMs?: number;
+  /** Quick-look answers to change from the defaults (3-bed single-storey
+   *  house, whole interior, new colours, some wear, empty). */
+  bedrooms?: 1 | 2 | 3 | 4 | 5;
+  storeys?: "single" | "double";
+  scope?: "whole" | "some_rooms" | "walls_ceilings" | "trims_doors";
+  colour?: "same" | "new" | "bold";
+  condition?: "good" | "wear" | "needs_work";
+  occupied?: "yes" | "no";
+  propertyKind?: "house" | "townhouse" | "unit_apartment" | "commercial";
+  /** Stop on the reveal screen instead of walking through to the editor. */
+  stopAtReveal?: boolean;
 };
 
 /**
- * Drive the no-plan customer wizard from /estimate to the result screen.
- * The no-plan path prices from typical sizes, so it needs no fixture files
- * and completes in seconds — the workhorse for every journey spec.
+ * Drive the customer QUICK LOOK from /estimate to the guide range, and then
+ * (unless `stopAtReveal`) through the "tighten it online" door into the scope
+ * editor — the landing every journey spec asserts against.
+ *
+ * ⚑ REWRITTEN for estimator journey v2 phase 2. This used to walk five pages
+ * — property, surfaces, condition, details, contact — because that is what
+ * the wizard was. The quick look asks eight questions across four screens and
+ * shows the price BEFORE the contact form (⚑1), so there is no contact step
+ * to fill in on the way through any more.
+ *
+ * The old pages still exist and still serve staff, the describe route and the
+ * upload route; they are simply no longer the customer's default way in.
  */
 export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
   await page.goto("/estimate");
   await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
-  await page.getByRole("button", { name: /There isn't a floorplan to hand/ }).click();
-  await expect(page.getByText(/thirty seconds of basics/i)).toBeVisible();
+  await expect(page.locator("[data-quick-step='start']")).toBeVisible({ timeout: 20_000 });
 
+  // Screen 1 — the address. Places is not available in the test stack, so the
+  // lookup degrades to a plain input and the suburb/postcode fallback appears.
+  // That fallback is the thing under test as much as anything: without a
+  // postcode the service-area check hands the job off.
+  await page.getByPlaceholder(/Your address/).fill("14 Acacia Street, Northcote");
   await page.getByPlaceholder("Suburb").fill("Murrumbeena");
   await page.getByPlaceholder("Postcode").fill("3163");
-  const answer = async (heading: string | RegExp, label: string) => {
-    const row = page
-      .locator(".wz-qhead", { hasText: heading })
-      .locator("xpath=following-sibling::div[1]")
-      .getByRole("button", { name: label, exact: true });
-    if (await row.count()) await row.first().click();
-  };
-  await answer("What kind of property", "House");
+  await quickNext(page);
 
-  const next = async () => {
-    await page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ }).first().click();
-    const err = page.locator(".wz-err");
-    if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
-  };
-  await next(); // → page 2: surfaces
-  await next(); // → condition
-  await next(); // → details
-  if (opts.doorStyle) await page.getByRole("button", { name: opts.doorStyle, exact: true }).click();
-  if (opts.windowStyle) await page.getByRole("button", { name: opts.windowStyle, exact: true }).click();
-  if (opts.doorScope) await page.getByRole("button", { name: opts.doorScope, exact: true }).click();
-  await answer(/built before 1970/, "No");
-  await answer(/asbestos/, "No"); // Phase 0: unanswered until tapped
-  await answer(/living there/, "No — it'll be empty"); // Tom, 7 Sep: occupied or empty
-  await next(); // → the contact page, with the paint preferences on it (Phase 2)
-  await fillContactStep(page, opts.email);
+  // Screen 2 — the place.
+  if (opts.propertyKind) await page.getByTestId(`ql-kind-${opts.propertyKind}`).click();
+  if (opts.bedrooms) await page.getByTestId(`ql-bedrooms-${opts.bedrooms}`).click();
+  if (opts.storeys) await page.getByTestId(`ql-storeys-${opts.storeys}`).click();
+  await quickNext(page);
+
+  // Screen 3 — the job.
+  if (opts.scope) await page.getByTestId(`ql-scope-${opts.scope}`).click();
+  if (opts.colour) await page.getByTestId(`ql-colour-${opts.colour}`).click();
+  await quickNext(page);
+
+  // Screen 4 — condition.
+  if (opts.condition) await page.getByTestId(`ql-condition-${opts.condition}`).click();
+  if (opts.occupied) await page.getByTestId(`ql-occupied-${opts.occupied}`).click();
   if (opts.settleAfterContactMs) await page.waitForTimeout(opts.settleAfterContactMs);
-  await page.getByRole("button", { name: "See my estimate" }).click();
+  await quickNext(page);
 
-  // 28 Aug (Tom): no interstitial result screen — a revealed estimate lands
-  // straight in the confirm-loop editor.
-  await expect(page.locator(".sc-r").first()).toHaveText(MONEY_RANGE, { timeout: 90_000 });
+  // The guide range. Pricing runs server-side, so this waits like a submit.
+  await expect(page.getByTestId("reveal")).toBeVisible({ timeout: 90_000 });
+  await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE);
+  if (opts.stopAtReveal) return;
+
+  await page.getByTestId("door-tighten").click();
+  await expect(page.locator(".sc-r").first()).toHaveText(MONEY_RANGE, { timeout: 60_000 });
+}
+
+/** Advance one quick-look screen, failing loudly on a gate rather than
+ *  silently sitting on the same screen until a later assertion times out. */
+async function quickNext(page: Page) {
+  await page.getByTestId("ql-next").click();
+  const err = page.getByTestId("ql-error");
+  if (await err.count()) throw new Error(`quick look gate: ${await err.first().innerText()}`);
 }
 
 /** Ensure the scope editor is open and hydrated (P1: pre-hydration clicks
@@ -101,4 +120,28 @@ export async function fillContactStep(page: Page, email?: string) {
 export function uniquePhone(): string {
   const d = String(Date.now()).slice(-8);
   return `04${d.slice(0, 2)} ${d.slice(2, 5)} ${d.slice(5, 8)}`;
+}
+
+/**
+ * Door and window style, set in the SCOPE EDITOR — which is where the product
+ * now asks them (the "a few details to settle" card).
+ *
+ * ⚑ The quick look deliberately does not ask: §2's whole complaint is that a
+ * customer cannot reliably tell a panel door from a flat one before they have
+ * been shown their own room list, and asking anyway buys a tap and a wrong
+ * number. Both questions moved to the editor, beside the rooms they price.
+ */
+export async function setStylesInEditor(page: Page, opts: {
+  doorStyle?: "Panel" | "Flat";
+  windowStyle?: "Casement" | "Sash" | "Colonial" | "Winder";
+}) {
+  const card = page.getByTestId("details-card");
+  await expect(card).toBeVisible({ timeout: 30_000 });
+  for (const label of [opts.doorStyle, opts.windowStyle]) {
+    if (!label) continue;
+    await card.getByRole("button", { name: label, exact: true }).click();
+    // Optimistic chips light before the save lands — wait it out or the next
+    // click races the write (the site-access trap, 9 Sep).
+    await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
+  }
 }

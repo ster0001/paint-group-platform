@@ -28,8 +28,14 @@ import {
   SESSION_SLOW_TEXT,
   type SessionPhase,
 } from "@/lib/wizard/session";
-import type { WizardEditorPayload } from "@/lib/wizard/view";
+import type { CustomerPayload, WizardEditorPayload } from "@/lib/wizard/view";
 import AddressField from "./AddressField";
+import QuickLook from "./QuickLook";
+import Reveal from "./Reveal";
+import {
+  DEFAULT_QUICK_LOOK, quickLookToState, stepsFor,
+  type QuickLook as QuickLookAnswers,
+} from "@/lib/wizard/quick-look";
 import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
 import { RESUME_KEY, RESTART_KEY, decodeResume, encodeResume, restartedSince, resumeLine, type ResumeRecord, type SafetyAnswered } from "@/lib/wizard/resume";
 import Wordmark from "./Wordmark";
@@ -52,7 +58,7 @@ import {
  * most of the model work is already done.
  */
 
-type Screen = "pages" | "processing" | "editor";
+type Screen = "pages" | "processing" | "editor" | "reveal";
 
 /** Phase 2 (6 Sep plan): the wizard's pages are a LIST per job type, not numbers. */
 type PageKey = "property" | "surfaces" | "condition" | "details" | "paint" | "house" | "scope" | "ext_condition" | "extras" | "contact";
@@ -115,13 +121,15 @@ const PROC_TIPS = [
   "Nothing is booked and nothing is charged until you say so.",
 ];
 
-export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, intent, resume = null }: {
+export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, companyPhone = null, intent, resume = null }: {
   roomTypes: string[];
   /** A2: the offered surface lists, derived server-side from the rate card. */
   substrates: SubstrateGroups;
   mode?: "internal" | "customer";
   /** The Settings logo (logo 1) for the header — wordmark when unset. */
   logoUrl?: string | null;
+  /** The office number, for the reveal screen's "or just talk to us" line. */
+  companyPhone?: string | null;
   /** 3a-6: a signed-in portal customer arrives known — email from their
    * verified session (the gate page disappears), address from the chosen
    * property. Same component, same flow; a returning customer just starts
@@ -177,6 +185,23 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const isCustomer = mode === "customer";
   const [outcome, setOutcome] = useState<CustomerOutcome | null>(null);
 
+  /**
+   * THE QUICK LOOK (estimator journey v2 §3, phase 2) — the four screens that
+   * replace the five-page interior wizard for a customer. The old pages are
+   * still here and still reached by the describe and upload routes, which ask
+   * different questions; this is the default way in.
+   */
+  const [quick, setQuick] = useState<QuickLookAnswers>(() => ({
+    ...DEFAULT_QUICK_LOOK,
+    ...(intent?.propertyKind ? { propertyKind: intent.propertyKind } : {}),
+  }));
+  const [quickIdx, setQuickIdx] = useState(0);
+  /** The quick look's own address field state (PageProperty keeps its own). */
+  const [quickAddress, setQuickAddress] = useState(intent?.addressText ?? "");
+  const [quickOutOfArea, setQuickOutOfArea] = useState(false);
+  /** The revealed range, held on the client so the three doors can act on it. */
+  const [reveal, setReveal] = useState<{ payload: CustomerPayload; estimateId: string } | null>(null);
+
   // A customer needs an identity before they can upload or submit —
   // an anonymous Supabase session, promoted to an account if they save.
   // S0: this is a three-state thing, not a boolean. "failed" is a place the
@@ -231,7 +256,19 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   // exterior each have their own; condition and damage share a page; the
   // paint preferences ride the LAST page (the contact details for a customer,
   // their own page for staff and members whose details are already known).
-  const [entry, setEntry] = useState<EntryChoice | null>(null);
+  /**
+   * ⚑ §2.1's first complaint: *"screen 1 asks the customer to choose a route
+   * before they've seen any value. That's a decision about OUR mechanics, not
+   * their house."* So a customer no longer chooses — they start on the quick
+   * look, and the other two ways in are offers on that first screen for
+   * people who have a floorplan or would rather write it out. Staff and the
+   * resumed-walk path are unchanged.
+   */
+  const [entry, setEntry] = useState<EntryChoice | null>(
+    mode === "customer" && !prefillState && entryFromState(resume?.state ?? defaultWizardState()) == null
+      ? "questions"
+      : null,
+  );
   // Tom, 7 Sep: "Describe it" is one request — the property page, then the
   // contact details (still the LAST question before the build), then the
   // build lands in the editor. Nothing else is asked.
@@ -573,13 +610,13 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
 
   // ---- submit ---------------------------------------------------------------
 
-  async function runSubmit() {
+  async function runSubmit(override?: WizardState) {
     draftHaltRef.current = true;   // no autosave may race the conversion
 
     setScreen("processing");
     setError(null);
     try {
-      await runSubmitInner();
+      await runSubmitInner(override);
     } catch (e) {
       // A dropped connection must never strand the customer on the spinner -
       // their answers are all still in state, so send them back to retry.
@@ -653,7 +690,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     return issues;
   }
 
-  async function runSubmitInner() {
+  async function runSubmitInner(override?: WizardState) {
     setProcLine(1);
     // 1. Let every background read finish.
     await Promise.all(readsRef.current);
@@ -690,13 +727,18 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     // so the old client-side zeroing both lied and broke the customer gate.)
     // The contact email doubles as the property email — synced HERE, not via
     // setState, because this closure still reads the pre-set state.
-    const customer = state.customer && !state.customer.email.trim() && state.contact.email.trim()
-      ? { ...state.customer, email: state.contact.email.trim() }
-      : state.customer;
+    // The quick look derives its state at the moment the customer taps "See my
+    // guide range" and hands it in directly — a setState here would not have
+    // landed by the time this closure reads it, and the submit would price
+    // yesterday's answers.
+    const src = override ?? state;
+    const customer = src.customer && !src.customer.email.trim() && src.contact.email.trim()
+      ? { ...src.customer, email: src.contact.email.trim() }
+      : src.customer;
     const submitState = {
-      ...state,
+      ...src,
       customer,
-      planRunIds: footprintRunId ? [...state.planRunIds, footprintRunId] : state.planRunIds,
+      planRunIds: footprintRunId ? [...src.planRunIds, footprintRunId] : src.planRunIds,
       conditionSourceIds: conditionSourceIdsRef.current,
     };
     const res = await fetch("/api/wizard/submit", {
@@ -722,13 +764,29 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       return;
     }
     if (isCustomer) {
-      // Tom (28 Aug): no interstitial result screen — a revealed estimate
-      // goes STRAIGHT to the confirm-loop editor, same landing as staff
-      // (R1.1 parity). Guardrail outcomes still render CustomerResult
-      // above; photo-analysis issues ride the estimate as review
-      // deferrals, which the editor surfaces itself.
+      const landedId = (j as { estimateId: string }).estimateId;
+      /**
+       * ⚑ THE 28 AUG RULING IS REVERSED FOR THE QUICK LOOK (v2 phase 2).
+       *
+       * "No interstitial result screen — a revealed estimate goes STRAIGHT to
+       * the confirm-loop editor" was right for a wizard that only reached a
+       * price after 25-30 answers and a contact form: by then another screen
+       * was a toll on somebody already committed. The quick look's promise is
+       * the opposite — a number in under a minute, no commitment — so the
+       * reveal IS the product, and the three doors are how §1's "one flow,
+       * two speeds" actually reaches a time-poor customer.
+       *
+       * The describe and upload routes still land straight in the editor:
+       * they asked the long questions, so they have earned the editor.
+       */
+      if (quickActive) {
+        setReveal({ payload: j as CustomerPayload, estimateId: landedId });
+        setScreen("reveal");
+        clearResume();
+        return;
+      }
       clearResume();
-      router.push(`/estimate/scope?id=${(j as { estimateId: string }).estimateId}`);
+      router.push(`/estimate/scope?id=${landedId}`);
       return;
     }
     // Tom (20 Aug): staff land in the NEW confirm-loop editor — the same
@@ -960,6 +1018,64 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     if (page > 1) { setPage(page - 1); window.scrollTo({ top: 0 }); }
   }
 
+  // ---- the quick look -------------------------------------------------------
+
+  /**
+   * The quick look is the DEFAULT customer route, not a fourth choice.
+   *
+   * §2.1's first complaint is that screen 1 made people choose a route before
+   * they had seen any value. So "answer a few questions" is simply where a
+   * customer starts, and the other two ways in stay on the screen as offers
+   * for the people who have a floorplan or would rather write a paragraph.
+   *
+   * Exterior keeps the existing pages: its own five-answer quick look is the
+   * other half of §9.7, still blocked on the per-elevation allowances spec.
+   */
+  const quickActive = isCustomer && entry === "questions" && state.jobType !== "exterior";
+  const quickSteps = stepsFor(quick.jobType);
+  const quickStep = quickSteps[Math.min(quickIdx, quickSteps.length - 1)];
+
+  function quickNext() {
+    setError(null);
+    /**
+     * Screen 1 needs somewhere to paint. A picked suggestion carries the
+     * suburb and postcode; typing alone does not, and the postcode is what
+     * the service-area check runs on — an empty one reads as "outside the
+     * area" and hands off a job we could have priced.
+     */
+    if (quickStep === "start" && !state.address
+        && !(state.customer?.suburb.trim() && state.customer.postcode.trim())) {
+      setError(quickAddress.trim()
+        ? "We couldn't look that address up — pop the suburb and postcode in and we'll carry on."
+        : "Which address should we price? Start typing and pick it from the list.");
+      return;
+    }
+    // An outside-only job leaves the quick look after the place and takes the
+    // exterior question set, which asks about elevations rather than rooms.
+    if (quick.jobType === "exterior") {
+      setState((s) => ({ ...s, jobType: "exterior", ...entryPatch("questions", "exterior", s.exterior, s.basics) }));
+      setQuickIdx(0);
+      setPage(2);
+      window.scrollTo({ top: 0 });
+      return;
+    }
+    if (quickIdx < quickSteps.length - 1) {
+      setQuickIdx(quickIdx + 1);
+      window.scrollTo({ top: 0 });
+      return;
+    }
+    // Last screen: derive the full state and price it. Handed straight to the
+    // submit rather than through setState, which would not have landed yet.
+    const derived = quickLookToState(quick, state);
+    setState(derived);
+    void runSubmit(derived);
+  }
+
+  function quickBack() {
+    setError(null);
+    if (quickIdx > 0) { setQuickIdx(quickIdx - 1); window.scrollTo({ top: 0 }); }
+  }
+
   // ---- render ---------------------------------------------------------------
 
   /** Why Continue is unavailable, kept apart from what it is unavailable FOR. */
@@ -969,6 +1085,30 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   // screen only renders the guardrail outcomes.
   if (screen === "editor" && isCustomer && outcome) {
     return <CustomerResult outcome={outcome} reveal={null} roomTypes={roomTypes} logoUrl={logoUrl} />;
+  }
+
+  /**
+   * The guide range and its three doors (§3). Each door does exactly one
+   * thing, and none of them is the "real" one:
+   *   · tighten — the editor, which is the four rungs phases 4-5 built
+   *   · book    — the reach-a-person flow the editor already owns
+   *   · keep    — the email capture, which is where ⚑1's gate went
+   */
+  if (screen === "reveal" && reveal) {
+    return (
+      <div data-ready="1">
+        <header className="wz-top"><Wordmark logoUrl={logoUrl} /></header>
+        <Reveal
+          payload={reveal.payload}
+          quick={quick}
+          estimateId={reveal.estimateId}
+          phone={companyPhone}
+          onTighten={() => router.push(`/estimate/scope?id=${reveal.estimateId}`)}
+          onBook={() => router.push(`/estimate/scope?id=${reveal.estimateId}#reach`)}
+          onKeep={() => router.push(`/estimate/scope?id=${reveal.estimateId}#keep`)}
+        />
+      </div>
+    );
   }
 
   return (
@@ -1031,6 +1171,78 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
               <button type="button" className="wz-linkish" onClick={startAgain} data-testid="wz-start-again">Start again</button>
             </div>
           )}
+          {/* §3's quick look replaces the interior question pages for a
+              customer. The pages themselves are untouched and still serve
+              staff, the describe route and the upload route. */}
+          {quickActive ? (
+            <div className="wz-step" key={`quick-${quickStep}`}>
+              <QuickLook
+                step={quickStep}
+                quick={quick}
+                onQuick={(patch) => setQuick((q) => ({ ...q, ...patch }))}
+                stepNo={quickIdx + 1}
+                stepsTotal={quickSteps.length}
+                error={error}
+                canContinue={!nav.disabled}
+                busy={uploading}
+                onBack={quickIdx > 0 ? quickBack : null}
+                onNext={quickNext}
+                addressField={
+                  <>
+                    <AddressField
+                      placeholder="Your address — start typing and pick it"
+                      value={state.address ? state.address.formatted : quickAddress}
+                      onText={(text) => { setQuickAddress(text); set({ address: null }); }}
+                      onPick={(a, inArea) => {
+                        setQuickAddress(a.formatted);
+                        setQuickOutOfArea(inArea === false);
+                        set({
+                          address: a,
+                          customer: state.customer
+                            ? { ...state.customer, suburb: a.suburb || state.customer.suburb, postcode: a.postcode || state.customer.postcode }
+                            : state.customer,
+                        });
+                      }}
+                    />
+                    {/* The lookup degrades to a plain input when Places is
+                        unavailable, and a job with no postcode reads as
+                        OUTSIDE THE SERVICE AREA — a handoff caused by our
+                        outage, not their address. These two appear only when
+                        they have typed something the lookup did not resolve. */}
+                    {quickAddress.trim() !== "" && !state.address && state.customer && (
+                      <div className="wz-crow wz-quick-fallback">
+                        <input
+                          className="wz-in" placeholder="Suburb" value={state.customer.suburb}
+                          onChange={(e) => set({ customer: { ...state.customer!, suburb: e.target.value } })}
+                        />
+                        <input
+                          className="wz-in" placeholder="Postcode" value={state.customer.postcode} inputMode="numeric"
+                          onChange={(e) => set({ customer: { ...state.customer!, postcode: e.target.value } })}
+                        />
+                      </div>
+                    )}
+                    {quickOutOfArea && (
+                      <div className="wz-err">
+                        That looks to be outside the areas we cover — send it anyway and we&rsquo;ll tell you honestly.
+                      </div>
+                    )}
+                    {/* ⚑14 stands: nothing was demoted. The other two ways in
+                        stay on the first screen — they are simply no longer a
+                        toll gate in front of the price (§2.1). */}
+                    <div className="wz-otherways" data-testid="wz-entry">
+                      <span>Or start another way:</span>
+                      <button type="button" className="wz-linkish" data-testid="entry-describe" onClick={() => chooseEntry("describe")}>
+                        Describe it in your own words
+                      </button>
+                      <button type="button" className="wz-linkish" data-testid="entry-upload" onClick={() => chooseEntry("upload")}>
+                        Upload a floorplan or listing
+                      </button>
+                    </div>
+                  </>
+                }
+              />
+            </div>
+          ) : (
           <div className="wz-step" key={page}>
             {pageKey === "property" && (
               <PageProperty
@@ -1104,10 +1316,13 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
               </div>
             )}
           </div>
+          )}
         </div>
       )}
 
-      {screen === "pages" && (
+      {/* The quick look carries its OWN nav (its last button says "See my
+          guide range", not "See my estimate"), so the page nav stands down. */}
+      {screen === "pages" && !quickActive && (
         <nav className="wz-nav">
           <button className="wz-btn wz-bg" onClick={back} style={{ visibility: page > 1 ? "visible" : "hidden" }}>
             Back

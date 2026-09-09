@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { MONEY_RANGE, driveNoPlanWizard, openScopeEditor } from "./drive";
+import { MONEY_RANGE, driveNoPlanWizard, setStylesInEditor, openScopeEditor } from "./drive";
 
 /**
  * R1.2 — doors and windows priced by default (diagnostic #4 and part of #5).
@@ -16,7 +16,8 @@ import { MONEY_RANGE, driveNoPlanWizard, openScopeEditor } from "./drive";
 test.describe("R1.2 openings priced", () => {
   test("styles answered: every room's doors/windows are on, priced, steppered", async ({ page }) => {
     test.setTimeout(180_000);
-    await driveNoPlanWizard(page, { doorStyle: "Panel", windowStyle: "Sash" });
+    await driveNoPlanWizard(page);
+    await setStylesInEditor(page, { doorStyle: "Panel", windowStyle: "Sash" });
     await openScopeEditor(page);
 
     // Doors are on wherever the room type carries them, with steppers.
