@@ -215,7 +215,12 @@ export function editorPayload(
       contractorHours: Math.round(totals.contractorHours * 100) / 100,
       marginCents: totals.marginCents,
     },
-    accuracyPct: accuracyScore(scored, deferred.length, loop?.checksDone ?? 0),
+    // A room the customer says is MOSTLY gone holds the range wide however
+    // much else they confirmed — see MAJOR_DEFECT_CAP (Tom, 9 Sep).
+    accuracyPct: accuracyScore(
+      scored, deferred.length, loop?.checksDone ?? 0,
+      deferred.some((d) => d.kind === "major_defect"),
+    ),
     deferred,
     heightUnconfirmed,
     exteriorWidthFromPlan,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AUTO_PRICED, DEFAULT_EXTENT_QTY, ROOM_CONDITION_LABEL, SPOT_EXTENTS, SPOT_TAGS,
-  extentQtyFrom, roomConditionDeferred, spotLine, tagByKey, tagsFor,
+  extentQtyFrom, majorExtentNotice, roomConditionDeferred, spotLine, tagByKey, tagsFor,
 } from "./spots";
 import { defectTypes } from "@/lib/extract/photos";
 import type { DefectRate } from "@/lib/capture/commit";
@@ -130,11 +130,13 @@ describe("⚑6 — the auto-price boundary", () => {
   });
 
   it("records a water mark WITHOUT a photo but leaves the price to a person", () => {
-    const out = spotLine({ tag: "water", extent: "most" }, room, rates, nextId)!;
+    // Held at "patches" so this tests the ⚑6 boundary and nothing else —
+    // "most of it" takes its own route (see the 9 Sep block at the bottom).
+    const out = spotLine({ tag: "water", extent: "patches" }, room, rates, nextId)!;
     expect(out.surface.prepHr).toBe(0);
     expect(out.surface.internalLabel).toContain("to price");
     expect(out.deferred?.needs).toContain("no photo");
-    expect(out.deferred?.needs).toContain("most of it");
+    expect(out.deferred?.needs).toContain("patches here and there");
   });
 
   it("puts the extent on the line the painter reads", () => {
@@ -220,5 +222,61 @@ describe("extent is a quantity, and rises with how much there is", () => {
     const q = SPOT_EXTENTS.map((e) => DEFAULT_EXTENT_QTY[e]);
     expect(q).toEqual([...q].sort((a, b) => a - b));
     expect(new Set(q).size).toBe(q.length);
+  });
+});
+
+/**
+ * Tom, 9 Sep 2026 — "most of it" is a routing decision, not just a bigger number.
+ *
+ * "A couple of spots and patches here and there is fine — but most of the room
+ * for walls, if it was mostly peeling, this would be a concern and adequate
+ * prep would be required. For anyone who ticks most of it, it should trigger a
+ * photo asked (not required), and messaging that it needs to be looked at by an
+ * estimator… we should keep their range broad, and red flag it."
+ */
+describe("most of it (Tom, 9 Sep)", () => {
+  const peel: DefectRate[] = [
+    { defect_type: "flaking", unit: "m2", hours_sev1: 0.3, hours_sev2: 0.6, hours_sev3: 1 },
+  ];
+  const living = { id: 4, name: "Living" };
+
+  it("leaves a couple of spots and a few patches alone", () => {
+    for (const extent of ["spots", "patches"] as const) {
+      // A crack from words alone is the one case that raises nothing at all —
+      // so if "most of it" changed the ordinary path, this would go amber.
+      const line = spotLine({ tag: "crack", extent }, living, rates, nextId);
+      expect(line?.major, extent).toBe(false);
+      expect(line?.wantsPhoto, extent).toBe(false);
+      expect(line?.deferred, extent).toBeNull();
+    }
+  });
+
+  it("flags 'most of it' for an estimator even with a photo and a price", () => {
+    const line = spotLine({ tag: "flaking", extent: "most", sourceId: "s1" }, living, peel, nextId);
+    expect(line?.major).toBe(true);
+    expect(line?.deferred?.kind).toBe("major_defect");
+    expect(line?.deferred?.room).toBe("Living");
+    // Still priced — the allowance is a placeholder, never a refusal to quote.
+    expect(line?.surface.prepHr).toBeGreaterThan(0);
+    expect(line?.deferred?.needs).toMatch(/placeholder/i);
+    // It already has a photo, so we must not nag for one.
+    expect(line?.wantsPhoto).toBe(false);
+  });
+
+  it("asks for a photo when 'most of it' arrives without one", () => {
+    const line = spotLine({ tag: "flaking", extent: "most" }, living, peel, nextId);
+    expect(line?.wantsPhoto).toBe(true);
+    expect(line?.deferred?.needs).toMatch(/NO photo/);
+  });
+
+  it("says a person will look, and never demands the photo", () => {
+    const asked = majorExtentNotice(false);
+    expect(asked).toMatch(/estimator/i);
+    expect(asked).toMatch(/range wide/i);
+    expect(asked).toMatch(/don.t have to/i);
+    const got = majorExtentNotice(true);
+    expect(got).toMatch(/estimator/i);
+    expect(got).toMatch(/range wide/i);
+    expect(got).not.toMatch(/don.t have to/i);
   });
 });
