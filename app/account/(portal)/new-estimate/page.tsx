@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getPortalContext, getRebookCandidates } from "@/lib/portal/data";
 import { moneyFmt } from "@/lib/portal/money";
 import { specSummary, specsFromFlags } from "@/lib/wizard/saved-specs";
+import { RemoveSpec, SaveAsSpec } from "./SpecControls";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +78,10 @@ export default async function NewEstimatePage() {
                   Requote this in one tap
                 </Link>
               </div>
+              {/* A spec is a NAME on a job you already did — see actions.ts. */}
+              <div className="row" style={{ marginTop: 8 }}>
+                <SaveAsSpec estimateId={r.id} label={label(r.property_id, r.title)} />
+              </div>
             </div>
           ))}
         </>
@@ -105,6 +110,7 @@ export default async function NewEstimatePage() {
                 >
                   Start a job from this spec
                 </Link>
+                <RemoveSpec id={sp.id} name={sp.name} />
               </div>
             </div>
           ))}

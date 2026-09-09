@@ -69,6 +69,60 @@ test.describe("trade saved specs", () => {
     if (member.id) await sb.auth.admin.deleteUser(member.id);
   });
 
+  /**
+   * The other half: a spec is MADE by naming a job the member already did.
+   * Without this, specs can only be seeded by hand and the feature does not
+   * exist for a real agent.
+   */
+  test("a member names one of their own jobs as a spec", async ({ page }) => {
+    test.setTimeout(180_000);
+    const sb = db!;
+
+    // A finished job on this account, with answers worth keeping.
+    const st = defaultWizardState();
+    st.noPlan = true;
+    st.basics = { bedrooms: 2, storeys: "single", sizeBand: "lt120", openPlanKitchenLiving: false };
+    st.surfaces = ["walls", "ceilings", "doors"];
+    const est = await sb.from("estimates").insert({
+      // A non-draft estimate must carry a level of finish
+      // (estimates_finish_required_when_sent — a smallint, not a modifier code),
+      // and "sent" is what puts it in
+      // the member's repeatable list.
+      title: `Vacate job ${run}`, status: "sent", level_of_finish: 3,
+      source: "manual", account_id: accountId,
+      builder_state: {
+        blocks: [], modSel: {}, materials: {},
+        // `version` is what getRebookCandidates keys hasWizard on — without it
+        // the job never reaches the member's repeatable list, and the
+        // save-as-spec control has nothing to sit on. The submit route writes
+        // exactly this shape.
+        wizard: { version: 1, state: st, submittedAt: new Date().toISOString() },
+      },
+    }).select("id").single();
+    if (est.error) throw new Error(`estimate: ${est.error.message}`);
+    const estimateId = est.data.id as string;
+
+    try {
+      const link = await sb.auth.admin.generateLink({ type: "magiclink", email: member.email });
+      await page.goto(`/account/auth?token_hash=${encodeURIComponent(link.data!.properties!.hashed_token)}`);
+      await page.waitForURL(/\/account$/, { timeout: 30_000 });
+      await page.goto("/account/new-estimate");
+
+      await page.getByTestId(`save-spec-open-${estimateId}`).click();
+      await page.getByTestId(`save-spec-name-${estimateId}`).fill(`Vacate touch-up ${run}`);
+      await page.getByTestId(`save-spec-submit-${estimateId}`).click();
+      await expect(page.getByTestId(`spec-saved-${estimateId}`)).toBeVisible({ timeout: 30_000 });
+
+      // It is on the list, described by what it does — and it kept the job's
+      // three surfaces, not the wizard's default six.
+      await page.reload();
+      await expect(page.getByText(`Vacate touch-up ${run}`)).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByText("3 surfaces · new colours · some wear")).toBeVisible();
+    } finally {
+      await sb.from("estimates").delete().eq("id", estimateId);
+    }
+  });
+
   test("a spec opens the wizard on its answers, not the defaults", async ({ page }) => {
     test.setTimeout(180_000);
 

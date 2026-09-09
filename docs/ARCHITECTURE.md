@@ -2937,3 +2937,22 @@ It now uses `wizardStateShapeSchema`, the same choice `showcaseSeed` makes for t
   `/account/auth` (the `_look-portal` pattern) — there is no password field to fill.
 - Surface tiles carry their state in `.wz-tile.on`, not `aria-pressed`. Asserting only that Walls
   is ticked proves nothing: it is ticked by default too. Assert something the spec REMOVED.
+
+### Phase 8b — making a spec (9 Sep 2026)
+
+Phase 8a shipped saved specs with no way to create one. A spec is a **NAME on a job the member
+already did**, not a builder: nobody sits down to invent "end-of-lease repaint" in the abstract —
+they do the job, notice they will do it forty more times, and name it. So the control sits on the
+repeatable-jobs list `/account/new-estimate` already renders, and the only thing it asks for is
+what to call it (plus an optional colour note).
+
+The answers are read from the estimate's stored wizard state **server-side**, so the client never
+posts the spec's contents — the same boundary the wizard keeps everywhere. A member may only name
+a job on one of their own accounts, checked by id against the portal context.
+
+**Traps.**
+- A non-draft estimate must carry `level_of_finish`, and it is a **smallint** (3), not a modifier
+  code ("FIN-3").
+- `getRebookCandidates` keys `hasWizard` on `builder_state->wizard->**version**`, not on the state.
+  A seeded job without it never reaches the repeatable list, so the save control has nothing to
+  sit on. The submit route writes `{ version: 1, state, submittedAt }`.
