@@ -12,7 +12,11 @@
  * systems — and prints the difference for each colour intent and condition
  * band. Run it after changing the table in Settings → Estimates → Paint
  * systems, or before turning "fix online" on, so the movement is a number
- * somebody has looked at rather than a surprise in the proving window.
+ * somebody has looked at rather than a surprise later.
+ *
+ * It is a COMPARISON of two coat rules on one rate card, not a claim about
+ * what a job should cost. Judge the table itself against actuals — work-order
+ * hours × charge-out plus materials — never against the proving window.
  */
 import { readFileSync } from "node:fs";
 import { priceEstimateTotals, type BlockInput, type PricingContext } from "@/lib/pricing/estimate.ts";

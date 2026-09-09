@@ -171,7 +171,7 @@ export default function PaintSystemsSettings({ initial }: { initial: PaintSystem
         <p className="text-xs text-gray-500">
           Hours per unit (m², lineal metre or item) added to every derived surface. <b>All three are zero</b> until you set
           them: prep already reaches the tree from the defect photos and the prep stepper, and a number here on day one
-          would reprice every job at once. Set these against worked hours once the proving window has them.
+          would reprice every job at once. Set them against ACTUALS — the hours the work order really took, times the charge-out rate, plus materials. Not against the proving window, and never against an old PaintScout quote.
         </p>
         <div className="grid grid-cols-3 gap-2">
           {(["good", "wear", "work"] as const).map((band) => (

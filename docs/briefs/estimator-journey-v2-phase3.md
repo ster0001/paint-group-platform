@@ -91,7 +91,10 @@ on** — the calibration gate (plan §8) is unchanged by this work.
 - **Prep hours are zero on all three bands.** Prep already reaches the tree from
   `defect_prep_rates` (the photo pipeline) and the manual stepper. A non-zero default here
   would silently reprice every job on day one, and would double-count against those two.
-  The band has a home; the hours wait for worked hours from the proving window (⚑2).
+  The band has a home; the hours wait for **actuals** — work-order hours × charge-out
+  plus materials (⚑2). **Not the proving window**: Tom's ruling of 8 and 9 Sep is that it
+  benchmarked the wizard against PaintScout quotes that themselves lost money, so it is not
+  a baseline to set prices from.
   They are also not yet multiplied into a line — that needs the priced quantity, which
   lives in `lib/pricing/estimate.ts`, and belongs with phase 5's allowance wiring.
 - **No paint-systems SCREEN.** That is phase 4. `systemsForSurfaces()` is its body and is

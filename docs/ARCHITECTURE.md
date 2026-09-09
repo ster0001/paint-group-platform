@@ -2562,7 +2562,9 @@ question is asked, "not sure" is the default, prices as no and sets `review`.
 **Prep hours default to ZERO** on all three bands. Prep already reaches the tree from
 `defect_prep_rates` (the photo pipeline) and the manual stepper; a non-zero default here
 would silently reprice every job the day it shipped. The band has a home now; the numbers
-wait for worked hours from the proving window.
+wait for ACTUALS — work-order hours × charge-out plus materials. NOT the proving
+window: it benchmarked the wizard against PaintScout quotes that themselves lost
+money (Tom, 8 and 9 Sep 2026), so it is not a baseline to set prices from.
 
 **What it moves.** `scripts/paint-systems-impact.ts` prices a 3-bed single-storey interior
 both ways on the golden rate card (reads only, no database). Same colours +17% to +25%

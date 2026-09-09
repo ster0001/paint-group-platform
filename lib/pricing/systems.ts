@@ -22,7 +22,7 @@
  * Every coat count below is a DEFAULT, not a constant: the whole table is a
  * `paint_systems` settings row, editable at Settings → Estimates → Paint
  * systems (⚑2 — "ship as Settings values; validate against worked hours in
- * the proving window"). This file holds the shape, the fallbacks and the
+ * against actuals"). This file holds the shape, the fallbacks and the
  * safety rules; Tom holds the numbers, exactly as he holds the rate card.
  *
  * ⚑ RULINGS APPLIED (plan §10, Tom 9 Sep — "use your suggestions, flag them")
@@ -162,8 +162,11 @@ export type PaintSystems = {
    * that are measured rather than assumed — `defect_prep_rates` via the
    * photo/defect pipeline (lib/extract/draft.ts) and the manual prep stepper —
    * and a non-zero default here would silently reprice every existing job the
-   * moment this shipped. The band gets a HOME now; Tom sets the hours once
-   * the proving window has worked hours to set them against (⚑2).
+   * moment this shipped. The band gets a HOME now; Tom sets the hours
+   * against ACTUALS — work-order hours × charge-out plus materials (⚑2).
+   * NOT against the proving window: it benchmarked the wizard against
+   * PaintScout quotes that themselves lost money, so it is not a baseline to
+   * set prices from (Tom, 8 and 9 Sep 2026).
    */
   prepHrPerUnit: Record<ConditionBand, number>;
 };
