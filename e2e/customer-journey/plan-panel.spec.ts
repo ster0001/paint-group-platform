@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openQuickLook } from "./drive";
 import { existsSync } from "node:fs";
 
 /**
@@ -23,7 +24,9 @@ test("the plan panel is big enough to read, and opens bigger still", async ({ pa
   test.skip(!existsSync(PLAN), `regression plan not on this machine: ${PLAN}`);
   test.setTimeout(420_000);
   await page.setViewportSize({ width: 1512, height: 900 });
-  await page.goto("/estimate");
+  // v2 phase 2: the upload route is an offer on the quick look's first screen.
+  await openQuickLook(page);
+  await page.getByTestId("entry-upload").click();
 
   const [chooser] = await Promise.all([
     page.waitForEvent("filechooser"),

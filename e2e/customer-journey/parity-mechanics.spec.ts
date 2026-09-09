@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { MONEY_RANGE, driveNoPlanWizard, fillContactStep, openScopeEditor } from "./drive";
+import { MONEY_RANGE, driveNoPlanWizard, fillContactStep, openScopeEditor, openExteriorPages } from "./drive";
 
 /**
  * Parity PR — loop mechanics (Inventory A3, B4/B5, C1 + exterior $ toasts):
@@ -52,9 +52,7 @@ test("interior: cards collapse, confirm auto-advances + scrolls, window groups i
 
 test("exterior: geometry chips + flag flip the tier; toasts carry $ amounts", async ({ page }) => {
   test.setTimeout(240_000);
-  await page.goto("/estimate");
-  await page.getByRole("button", { name: "Exterior", exact: true }).click();
-  await page.getByTestId("entry-upload").click(); // Phase 2: the way in is a card
+  await openExteriorPages(page, { via: "upload" });
   await page.getByPlaceholder(/listing URL/).fill("https://www.realestate.com.au/property-house-vic-murrumbeena-1400031");
   await page.getByPlaceholder("Suburb").fill("Murrumbeena");
   await page.getByPlaceholder("Postcode").fill("3163");

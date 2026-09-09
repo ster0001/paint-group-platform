@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { MONEY_RANGE, fillContactStep } from "./drive";
+import { MONEY_RANGE, fillContactStep, openExteriorPages } from "./drive";
 
 /**
  * Tom, 31 Aug: exterior FROM SCRATCH — no listing, no floorplan, no photos.
@@ -9,16 +9,13 @@ import { MONEY_RANGE, fillContactStep } from "./drive";
  */
 test("an exterior job builds from answers alone — no listing, no photos", async ({ page }) => {
   test.setTimeout(240_000);
-  await page.goto("/estimate");
-  await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
-  await page.getByRole("button", { name: "Exterior", exact: true }).click();
-
-  // The old gate demanded a listing or two facades; the third way is explicit.
-  await page.getByRole("button", { name: /No photos to hand/ }).click();
-  await expect(page.getByTestId("entry-questions")).toHaveClass(/\bon\b/); // Phase 2: the way in is a card
-
-  await page.getByPlaceholder("Suburb").fill("Murrumbeena");
-  await page.getByPlaceholder("Postcode").fill("3163");
+  /**
+   * v2 phase 2: "no photos to hand" is no longer a card to tap — walking the
+   * quick look as an outside job IS the answers route, and it arrives at the
+   * exterior questions with `noPhotos` already set. The subject is unchanged
+   * and is the one that matters: the job builds from answers alone.
+   */
+  await openExteriorPages(page);
   const answer = async (heading: string | RegExp, label: string) => {
     const row = page.locator(".wz-qhead", { hasText: heading })
       .locator("xpath=following-sibling::div[1]")

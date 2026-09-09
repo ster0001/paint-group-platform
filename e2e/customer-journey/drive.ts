@@ -177,3 +177,32 @@ export async function setStylesInEditor(page: Page, opts: {
     await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
   }
 }
+
+/**
+ * Open the EXTERIOR question set from the quick look (v2 phase 2).
+ *
+ * Every exterior spec used to start the same way: click "Exterior" on page 1,
+ * pick a way in, then type a suburb. The quick look changed all three — the
+ * chip reads "Outside", the ways in are offers rather than a gate, and the
+ * suburb/postcode pair only appears once an address has been typed that the
+ * lookup could not resolve. This is that entry, once, so the specs describe
+ * what they are testing rather than how to get there.
+ *
+ * `via: "answers"` walks the quick look's two screens and lands on the
+ * exterior pages with `noPhotos` already set, which is what "no photos to
+ * hand — we'll size it from your answers" now means. `via: "upload"` hands
+ * straight to the upload route, for a listing or facade photos.
+ */
+export async function openExteriorPages(page: Page, opts: { via?: "answers" | "upload" } = {}) {
+  await openQuickLook(page);
+  await fillQuickAddress(page);
+  await page.getByTestId("ql-jobtype-exterior").click();
+  if (opts.via === "upload") {
+    await page.getByTestId("entry-upload").click();
+    return;
+  }
+  await quickNext(page);                 // → the place
+  await expect(page.locator("[data-quick-step='place']")).toBeVisible();
+  await quickNext(page);                 // → the exterior question set
+  await expect(page.locator(".wz-step")).toBeVisible({ timeout: 20_000 });
+}
