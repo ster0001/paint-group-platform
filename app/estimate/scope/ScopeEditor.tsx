@@ -1317,8 +1317,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     condition={room.condition}
                     colourTier={initialColourTier}
                     busy={pendingCount > 0}
-                    onAdd={(tag, extent, sourceId) => act(
-                      { action: "add_spot", areaId: room.areaId, tag, extent, sourceId },
+                    onAdd={(tag, extent, severity, sourceId) => act(
+                      { action: "add_spot", areaId: room.areaId, tag, extent, severity, sourceId },
                       `spot:${room.areaId}:${tag}`,
                       () => `Noted in ${room.name} — your painter sees it before day one`,
                     )}
