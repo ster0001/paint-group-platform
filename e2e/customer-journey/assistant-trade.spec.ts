@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { deleteUserByEmail, destroyAccountChain, magicLinkFor } from "../fixtures/portal";
+import { openQuickLook, fillQuickAddress } from "./drive";
 
 /**
  * Addendum A2 — "Describe the job" (C1 stack, AGENT_MODEL_STUB=1).
@@ -39,20 +40,46 @@ test.describe("Addendum A2 — describe the job", () => {
       const email = type === "trade" ? emails.trade : emails.res;
       await member(sb, email, type);
       await page.goto(await magicLinkFor(sb, email));
-      await page.goto("/estimate");
-      await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
-      await page.getByPlaceholder("Suburb").fill("Murrumbeena");
-      await page.getByPlaceholder("Postcode").fill("3163");
+      /**
+       * v2 phase 2: the quick look's first screen leads with the ADDRESS, and
+       * the suburb/postcode pair only appears once something has been typed
+       * that the lookup could not resolve. Filling "Suburb" straight away hung
+       * here for the full ten-minute test timeout — which read like a broken
+       * describe route and was a missing field.
+       */
+      await openQuickLook(page);
+      await fillQuickAddress(page);
       await page.getByTestId("entry-describe").click();
       await page.getByTestId("describe-job").fill(TOM);
-      // Tom, 7 Sep: the contact details are still the last question, then the build.
-      await page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ }).first().click();
-      const contact = page.locator(".wz-crow input");
-      if (await contact.count()) {
-        await contact.nth(0).fill("E2E Describe");
-        if (!(await contact.nth(1).inputValue())) await contact.nth(1).fill(email);
-        await contact.nth(2).fill("0400 000 111");
-        await page.getByRole("button", { name: "See my estimate" }).click();
+      /**
+       * Walk to the build rather than counting pages. The describe route's page
+       * list is conditional — the contact page disappears for a member whose
+       * account already carries name, email and phone — so "press Continue
+       * once and look for the contact fields" only ever worked for one shape of
+       * customer, and silently did nothing for the other.
+       */
+      for (let i = 0; i < 7; i++) {
+        if (/\/estimate\/scope\?id=/.test(page.url())) break;
+        const contact = page.locator(".wz-crow input");
+        if (await contact.count()) {
+          await contact.nth(0).fill("E2E Describe");
+          if (!(await contact.nth(1).inputValue())) await contact.nth(1).fill(email);
+          await contact.nth(2).fill("0400 000 111");
+        }
+        // The describe route still asks its own questions — the hazard flag
+        // and whether anyone is living there. They are not assumed, which is
+        // the point (the build used to assume "no damage, built after 1970").
+        for (const [q, label] of [[/asbestos/, "No"], [/living there/, "empty"]] as const) {
+          const row = page.locator(".wz-qhead", { hasText: q }).locator("xpath=following-sibling::div[1]");
+          if (await row.count()) {
+            const btn = row.getByRole("button", { name: new RegExp(label) }).first();
+            if (await btn.count()) await btn.click();
+          }
+        }
+        await page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ }).first().click();
+        const err = page.locator(".wz-err");
+        if (await err.count()) throw new Error(`describe gate: ${await err.first().innerText()}`);
+        await page.waitForTimeout(500);
       }
       await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 120_000 });
       // The editor: a range, the rooms the paragraph named, and the open assumptions as amber lines.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useMemo } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
@@ -31,6 +31,7 @@ import {
 import type { CustomerPayload, WizardEditorPayload } from "@/lib/wizard/view";
 import AddressField from "./AddressField";
 import QuickLook from "./QuickLook";
+import ConditionBox from "./ConditionBox";
 import Reveal from "./Reveal";
 import {
   DEFAULT_QUICK_LOOK, quickLookToState, stepsFor,
@@ -40,7 +41,6 @@ import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
 import { RESUME_KEY, RESTART_KEY, decodeResume, encodeResume, restartedSince, resumeLine, type ResumeRecord, type SafetyAnswered } from "@/lib/wizard/resume";
 import Wordmark from "./Wordmark";
 import ChatWidget from "./ChatWidget";
-import { photoAsk, readConditionBrief } from "@/lib/wizard/condition-brief";
 import {
   ALWAYS_APPOINTMENT, COMMERCIAL_GATES, COMMERCIAL_SEGMENTS, SEGMENT_LABEL,
   gateMessage, routeCommercial, type CommercialSegment,
@@ -1290,6 +1290,15 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 busy={uploading}
                 onBack={page > 1 ? quickBack : null}
                 onNext={quickNext}
+                conditionBox={
+                  <ConditionBox
+                    brief={brief} setBrief={setBrief}
+                    heading="Anything worth mentioning?"
+                    sessionReady={sessionPhase === "ready"}
+                    startingChat={startingChat}
+                    onChat={() => startChat(false)}
+                  />
+                }
                 addressField={
                   <>
                     <AddressField
@@ -1507,7 +1516,6 @@ function PageProperty({
   // Phase 2: a customer sees the controls of the way in they chose; staff see everything.
   // Read as they type: a matcher, not a model call, so it costs nothing and
   // can only notice words they actually wrote (lib/wizard/condition-brief.ts).
-  const conditionRead = useMemo(() => readConditionBrief(brief), [brief]);
   const showListing = !isCustomer || entry === "upload";
   const showBasics = Boolean(state.noPlan && basics) && state.jobType !== "exterior" && (!isCustomer || entry === "questions");
   const showFacades = needsFacades && (!isCustomer || entry === "upload");
@@ -1773,45 +1781,20 @@ function PageProperty({
       )}
 
       {/*
-        The condition box — ADDITIVE, on the two routes that are not already a
-        description (Tom, 9 Sep: *"floorplan plus describe it… describe the
-        condition overall and tell us if there is anything which needs extra
-        work — then it could come back asking for photos?"*).
-        
-        Narrower than "describe the whole job" on purpose: the condition is the
-        part a floorplan cannot answer and the part that decides the
-        preparation. It reads as they type and comes back asking for a photo of
-        whatever it heard — no model call, no cost, and it can only notice
-        words they actually wrote.
+        The condition box (⚑14) now lives in ConditionBox.tsx and on the quick
+        look's condition screen, which is where it belongs — under "how's it
+        looking?", extending that question instead of arriving beside an address
+        field. It stays HERE for the UPLOAD route, which is the other way in
+        that is not already a description.
       */}
-      {isCustomer && (entry === "questions" || entry === "upload") && (
-        <div className="wz-follow wz-alt" data-testid="condition-box">
-          <p className="wz-q">
-            How&rsquo;s it looking? <span className="wz-opt">OPTIONAL</span>
-          </p>
-          <p className="wz-chint" style={{ marginTop: 0, marginBottom: 8 }}>
-            In your own words — the condition overall, and anything that needs more than a coat of paint.
-            This is the part a floorplan can&rsquo;t tell us.
-          </p>
-          <textarea className="wz-brief" data-testid="describe-condition" rows={3} value={brief} onChange={(e) => setBrief(e.target.value)}
-            placeholder="e.g. generally sound, but the paint is peeling above the shower and there's a water mark on the hall ceiling…" />
-          {conditionRead.findings.length > 0 && (
-            <p className="wz-q" style={{ marginTop: 10 }} data-testid="condition-photo-ask">{photoAsk(conditionRead)}</p>
-          )}
-          {conditionRead.notes.map((n: string) => (
-            <p className="wz-chint" style={{ marginTop: 6 }} key={n} data-testid="condition-note">Noted — {n}.</p>
-          ))}
-          {conditionRead.readAndClear && (
-            <p className="wz-chint" style={{ marginTop: 8 }} data-testid="condition-clear">
-              Thanks — nothing there needs extra preparation, so we&rsquo;ll price it as a straightforward repaint.
-            </p>
-          )}
-          <p style={{ marginTop: 8 }}>
-            <button type="button" className="wz-linkbtn" data-testid="chat-condition" disabled={sessionPhase !== "ready" || startingChat} onClick={() => startChat(false)}>
-              {startingChat ? "Opening the assistant…" : "Rather talk it through? Chat it with our assistant →"}
-            </button>
-          </p>
-        </div>
+      {isCustomer && entry === "upload" && (
+        <ConditionBox
+          brief={brief} setBrief={setBrief}
+          heading="How&rsquo;s it looking?"
+          sessionReady={sessionPhase === "ready"}
+          startingChat={startingChat}
+          onChat={() => startChat(false)}
+        />
       )}
 
       {showListing && (

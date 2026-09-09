@@ -28,13 +28,15 @@ import {
 const BEDROOMS = [1, 2, 3, 4, 5];
 
 export default function QuickLook({
-  step, quick, onQuick, addressField, error, canContinue, busy, onBack, onNext, stepNo, stepsTotal,
+  step, quick, onQuick, addressField, conditionBox, error, canContinue, busy, onBack, onNext, stepNo, stepsTotal,
 }: {
   step: QuickLookStep;
   quick: QuickLook;
   onQuick: (patch: Partial<QuickLook>) => void;
   /** The address input, wired by WizardApp (Places lookup + service area). */
   addressField: ReactNode;
+  /** ⚑14's condition box, on the screen that asks about condition. */
+  conditionBox: ReactNode;
   error: string | null;
   canContinue: boolean;
   busy: boolean;
@@ -115,6 +117,14 @@ export default function QuickLook({
             spots later, with photos.
           </p>
           <Cards options={CONDITION_BANDS} value={quick.condition} onPick={(condition) => onQuick({ condition })} name="condition" />
+
+          {/*
+            ⚑14, in its proper place: the three bands are a tap, and this is
+            where somebody says the thing a tap cannot carry — "peeling above
+            the shower". It reads as they type and asks for a photo of whatever
+            it heard. Optional, and never in the way of the Continue button.
+          */}
+          {conditionBox}
 
           <p className="wz-qhead">Will anyone be living there while we paint?</p>
           <Cards options={OCCUPIED} value={quick.occupied} onPick={(occupied) => onQuick({ occupied })} name="occupied" />
