@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  AUTO_PRICED, ROOM_CONDITION_LABEL, SPOT_TAGS, roomConditionDeferred,
-  spotLine, tagByKey, tagsFor,
+  AUTO_PRICED, EXTENT_SEVERITY, ROOM_CONDITION_LABEL, SPOT_EXTENTS, SPOT_TAGS,
+  roomConditionDeferred, spotLine, tagByKey, tagsFor,
 } from "./spots";
 import { defectTypes } from "@/lib/extract/photos";
 import type { DefectRate } from "@/lib/capture/commit";
@@ -52,20 +52,56 @@ describe("⚑6 — the auto-price boundary", () => {
     expect([...AUTO_PRICED].sort()).toEqual(["crack", "hole"]);
   });
 
-  it("prices a crack from defect_prep_rates and raises no review", () => {
+  it("prices a crack from words alone and raises no review", () => {
     const out = spotLine({ tag: "crack" }, room, rates, nextId)!;
     expect(out.surface.prepHr).toBe(0.25);
     expect(out.surface.code).toBe("plaster_cracks");
-    expect(out.surface.internalLabel).toBe("Repair — Crack");
     expect(out.deferred).toBeNull();
   });
 
-  it("records a water mark as a line but leaves the price to a person", () => {
-    const out = spotLine({ tag: "water", sourceId: "src-1" }, room, rates, nextId)!;
+  /**
+   * Tom, 9 Sep: peeling in two spots is not peeling across a whole job. The
+   * customer's words map onto the severity columns defect_prep_rates already
+   * carries — nobody can answer "is this severity 2", but anyone standing in
+   * the room can answer "a couple of spots, or most of it".
+   */
+  it("prices by EXTENT, not by presence", () => {
+    const spots = spotLine({ tag: "water", extent: "spots", sourceId: "s1" }, room, rates, nextId)!;
+    const patches = spotLine({ tag: "water", extent: "patches", sourceId: "s1" }, room, rates, nextId)!;
+    const most = spotLine({ tag: "water", extent: "most", sourceId: "s1" }, room, rates, nextId)!;
+    expect(spots.surface.prepHr).toBe(0.4);
+    expect(patches.surface.prepHr).toBe(0.9);
+    expect(most.surface.prepHr).toBe(1.6);
+  });
+
+  it("treats a missing extent as the safe floor, not the worst case", () => {
+    expect(spotLine({ tag: "water", sourceId: "s1" }, room, rates, nextId)!.surface.prepHr).toBe(0.4);
+  });
+
+  /**
+   * Photos earn a price; words earn an estimator. Extent IS the question for
+   * flaking or rot, and a photo is the only thing that settles it — a sentence
+   * is a claim, a photo is evidence. Nothing is lost either way: the line is
+   * on the job and the work order regardless.
+   */
+  it("prices a water mark WITH a photo, and sends it for sign-off", () => {
+    const out = spotLine({ tag: "water", extent: "patches", sourceId: "src-1" }, room, rates, nextId)!;
+    expect(out.surface.prepHr).toBe(0.9);
+    expect(out.deferred?.what).toContain("confirm the prep");
+    expect(out.deferred?.needs).toContain("sign the prep off");
+  });
+
+  it("records a water mark WITHOUT a photo but leaves the price to a person", () => {
+    const out = spotLine({ tag: "water", extent: "most" }, room, rates, nextId)!;
     expect(out.surface.prepHr).toBe(0);
     expect(out.surface.internalLabel).toContain("to price");
-    expect(out.deferred?.areaId).toBe(7);
-    expect(out.deferred?.needs).toContain("with a photo");
+    expect(out.deferred?.needs).toContain("no photo");
+    expect(out.deferred?.needs).toContain("most of it");
+  });
+
+  it("puts the extent on the line the painter reads", () => {
+    const out = spotLine({ tag: "flaking", extent: "most", sourceId: "s1" }, room, rates, nextId)!;
+    expect(out.surface.crewNote).toContain("extent: most of it");
   });
 
   /**
@@ -75,7 +111,7 @@ describe("⚑6 — the auto-price boundary", () => {
    */
   it("always pins a line to the room, priced or not", () => {
     for (const tag of SPOT_TAGS) {
-      const out = spotLine({ tag: tag.key }, room, rates, nextId)!;
+      const out = spotLine({ tag: tag.key, extent: "patches" }, room, rates, nextId)!;
       expect(out.surface, tag.key).toBeTruthy();
       expect(out.surface.crewNote, tag.key).toContain("customer flagged");
     }
@@ -85,13 +121,12 @@ describe("⚑6 — the auto-price boundary", () => {
   it("raises 'needs pricing' when the rate table has no row for it", () => {
     const out = spotLine({ tag: "crack" }, room, [], nextId)!;
     expect(out.surface.prepHr).toBe(0);
-    expect(out.deferred?.what).toContain("needs pricing");
+    expect(out.deferred?.what).toContain("repair to price");
     expect(out.deferred?.needs).toContain("seed defect_prep_rates");
   });
 
-  it("always uses severity 1 — a customer cannot judge severity", () => {
-    // sev1 for a crack is 0.25; sev2 would be 0.5.
-    expect(spotLine({ tag: "crack" }, room, rates, nextId)!.surface.prepHr).toBe(0.25);
+  it("scales an auto-priced tag by extent too", () => {
+    expect(spotLine({ tag: "crack", extent: "most" }, room, rates, nextId)!.surface.prepHr).toBe(1);
   });
 
   it("carries the customer's own words and notes the photo", () => {
@@ -137,5 +172,11 @@ describe("labels", () => {
     const out = spotLine({ tag: "water" }, room, rates, nextId)!;
     expect(out.surface.internalLabel).toContain("Water mark");
     expect(tagByKey("crack")?.defectType).toBe("plaster_cracks");
+  });
+});
+
+describe("extent maps onto the table that already exists", () => {
+  it("uses all three severity columns", () => {
+    expect(SPOT_EXTENTS.map((e) => EXTENT_SEVERITY[e])).toEqual([1, 2, 3]);
   });
 });

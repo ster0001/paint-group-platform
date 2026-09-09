@@ -34,6 +34,8 @@ test("a flagged spot becomes a repair line on the room it's in", async ({ page }
   // A crack: ⚑6 says this one auto-prices.
   const before = await page.locator(".sc-r").first().innerText();
   await page.getByTestId(`spot-open-${areaId}`).click();
+  // "A couple of spots" is the safe floor and starts selected.
+  await expect(page.getByTestId(`spot-extent-${areaId}-spots`)).toHaveAttribute("aria-pressed", "true");
   await page.getByTestId(`spot-tag-${areaId}-crack`).click();
 
   const list = page.getByTestId(`spot-list-${areaId}`);
@@ -47,7 +49,10 @@ test("a flagged spot becomes a repair line on the room it's in", async ({ page }
   expect(await after.innerText()).not.toBe(before);
 
   // A water mark: ⚑6 says a person prices this one.
+  // A water mark with no photo: recorded, priced by a person (⚑6) — and the
+  // extent goes with it so they know whether it is two spots or the whole wall.
   await page.getByTestId(`spot-open-${areaId}`).click();
+  await page.getByTestId(`spot-extent-${areaId}-most`).click();
   await page.getByTestId(`spot-tag-${areaId}-water`).click();
   await expect(list).toContainText("Water mark", { timeout: 30_000 });
   await expect(list).toContainText("we'll price this one");

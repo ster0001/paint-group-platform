@@ -123,12 +123,22 @@ describe("the table (plan §4.2 with ⚑3/⚑4/⚑5)", () => {
     expect(s.reason).toBe("one coat will not cover a colour change");
   });
 
-  it("⚑4 trims: two on a same-colour job, one only when condition is good", () => {
-    expect(coatsOf("trims", { colourIntent: "same", condition: "wear" })).toBe(2);
-    expect(coatsOf("trims", { colourIntent: "same", condition: "work" })).toBe(2);
-    const good = deriveSystem("trims", answers({ colourIntent: "same", condition: "good" }));
-    expect(good.coats).toBe(1);
-    expect(good.reason).toBe("the trims are in good condition and staying the same colour");
+  /**
+   * ⚑4 REVERSED (Tom, 9 Sep): "on a same colour job with sound trims our crew
+   * would put 1 coat generally, with a spot prime for scuff marks." The plan
+   * proposed two and I shipped it; it was most of the +17–25% same-colour
+   * movement and it was wrong. Damage is priced as PREP now, not as a coat of
+   * paint nobody applies.
+   */
+  it("trims: ONE coat on a same-colour job, whatever the condition", () => {
+    for (const condition of ["good", "wear", "work"] as const) {
+      expect(coatsOf("trims", { colourIntent: "same", condition }), condition).toBe(1);
+    }
+    expect(deriveSystem("trims", answers({ colourIntent: "same" })).sentence).toMatch(/spot-prime/i);
+  });
+
+  it("doors follow the trims on a same-colour job", () => {
+    expect(coatsOf("doors", { colourIntent: "same" })).toBe(1);
   });
 
   it("⚑4: good condition does NOT drop new-colour trims to one coat", () => {
@@ -327,7 +337,7 @@ describe("per-surface condition flags (Tom, 9 Sep)", () => {
     const a = answers({ colourIntent: "same", flags: { doors: ["stained"] } });
     expect(deriveSystem("doors", a).coats).toBe(3);
     expect(deriveSystem("walls", a).coats).toBe(1);   // same colours
-    expect(deriveSystem("trims", a).coats).toBe(2);
+    expect(deriveSystem("trims", a).coats).toBe(1);   // one coat + spot prime
     expect(deriveSystem("ceilings", a).coats).toBe(1);
 
     const doors = deriveSystem("doors", a);

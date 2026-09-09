@@ -2,7 +2,10 @@
 
 import { useRef, useState } from "react";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
-import { ROOM_CONDITION_LABEL, ROOM_CONDITIONS, tagsFor, type RoomCondition } from "@/lib/wizard/spots";
+import {
+  EXTENT_LABEL, ROOM_CONDITION_LABEL, ROOM_CONDITIONS, SPOT_EXTENTS, tagsFor,
+  type RoomCondition, type SpotExtent,
+} from "@/lib/wizard/spots";
 import type { RoomSpot } from "@/lib/wizard/scope-editor";
 
 /**
@@ -32,7 +35,7 @@ export default function RoomSpots({
   spots: RoomSpot[];
   condition: RoomCondition;
   busy?: boolean;
-  onAdd: (tag: string, sourceId: string | null) => void;
+  onAdd: (tag: string, extent: SpotExtent, sourceId: string | null) => void;
   onRemove: (surfaceId: number) => void;
   onCondition: (c: RoomCondition) => void;
 }) {
@@ -41,6 +44,9 @@ export default function RoomSpots({
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [file, setFile] = useState<File | null>(null);
+  // Tom, 9 Sep: two spots of peeling is not a peeling house. "A couple of
+  // spots" is the safe floor, so it is the one that starts selected.
+  const [extent, setExtent] = useState<SpotExtent>("spots");
 
   /** Stage one photo and claim it for this estimate. Null when there is none. */
   async function uploadPhoto(): Promise<string | null> {
@@ -84,8 +90,9 @@ export default function RoomSpots({
       // true about their house and the photo is the evidence, not the point.
       setError(e instanceof Error ? `${e.message} We've noted the spot anyway.` : "The photo didn't upload — we've noted the spot anyway.");
     }
-    onAdd(tag, sourceId);
+    onAdd(tag, extent, sourceId);
     setFile(null);
+    setExtent("spots");
     if (fileRef.current) fileRef.current.value = "";
     setPending(null);
     setOpen(false);
@@ -137,14 +144,28 @@ export default function RoomSpots({
       ) : (
         <div className="sc-spot-panel" data-testid={`spot-panel-${areaId}`}>
           <p className="sc-sys-why">
-            A photo and a tap. We price the repair from it, and your painter sees it before day one.
+            A photo and a tap. With a photo we can price the repair straight away; without one we still
+            record it and one of our people prices it. Either way your painter sees it before day one.
           </p>
           <input
             ref={fileRef} type="file" accept="image/*" capture="environment"
             data-testid={`spot-photo-${areaId}`}
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
           />
-          <div className="sc-chips" style={{ marginTop: 8 }}>
+          <p className="sc-sys-why" style={{ marginTop: 10, marginBottom: 4 }}>How much of it is there?</p>
+          <div className="sc-chips">
+            {SPOT_EXTENTS.map((e) => (
+              <button
+                key={e} type="button"
+                className={`sd-chip il-chip ${extent === e ? "on" : ""}`}
+                aria-pressed={extent === e}
+                data-testid={`spot-extent-${areaId}-${e}`}
+                onClick={() => setExtent(e)}
+              >{EXTENT_LABEL[e]}</button>
+            ))}
+          </div>
+          <p className="sc-sys-why" style={{ marginTop: 10, marginBottom: 4 }}>What is it?</p>
+          <div className="sc-chips">
             {tagsFor(side).map((t) => (
               <button
                 key={t.key} type="button" className="sd-chip il-chip"

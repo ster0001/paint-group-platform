@@ -164,6 +164,8 @@ const actionSchema = z.discriminatedUnion("action", [
     action: z.literal("add_spot"),
     areaId: z.number().int().positive(),
     tag: z.string().min(1).max(40),
+    /** How much of it there is — the customer's words, our severity. */
+    extent: z.enum(["spots", "patches", "most"]).optional(),
     sourceId: z.string().uuid().nullable().optional(),
     note: z.string().max(300).optional(),
   }),
@@ -668,7 +670,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         .select("defect_type, unit, hours_sev1, hours_sev2, hours_sev3")
         .eq("version", SCOPE_VERSION);
       const line = spotLine(
-        { tag: act.tag, sourceId: act.sourceId ?? null, note: act.note },
+        { tag: act.tag, extent: act.extent, sourceId: act.sourceId ?? null, note: act.note },
         { id: act.areaId, name: String(area.name ?? "this room") },
         (rateRows ?? []) as DefectRate[],
         () => next++,

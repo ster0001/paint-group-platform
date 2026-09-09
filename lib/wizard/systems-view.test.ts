@@ -129,7 +129,7 @@ describe("re-deriving the tree after a correction", () => {
     const coats = (code: string) => living.surfaces!.find((x) => x.code === code)!.coats;
     expect(coats("Walls")).toBe(1);
     expect(coats("Ceilings")).toBe(1);
-    expect(coats("Skirting Boards")).toBe(2);
+    expect(coats("Skirting Boards")).toBe(1);
   });
 
   it("leaves exterior surfaces exactly as they were (plan §4.4)", () => {
@@ -237,7 +237,7 @@ describe("per-surface flags on the card (Tom, 9 Sep)", () => {
     const coats = (code: string) => living.surfaces!.find((x) => x.code === code)!.coats;
     expect(coats("Flat Door and Frame (1 Side)")).toBe(3);
     expect(coats("Walls")).toBe(1);
-    expect(coats("Skirting Boards")).toBe(2);
+    expect(coats("Skirting Boards")).toBe(1);
     expect(living.surfaces!.find((x) => x.code === "Flat Door and Frame (1 Side)")!.crewNote)
       .toContain("stain-blocking primer");
   });

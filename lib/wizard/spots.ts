@@ -82,19 +82,51 @@ export const SPOT_TAGS: SpotTag[] = [
 ];
 
 /**
- * ⚑6 — the auto-price boundary, and the only place it is written.
+ * ⚑6 — the tags whose repair is standard enough to price from words alone.
  *
- * A crack and a nail hole are the two defects whose repair is genuinely
- * standard: a known number of minutes each, the same in every house. Everything
- * else — flaking, water marks, mould, rot — is priced by how far it has gone,
- * and how far it has gone is exactly what a photo cannot settle. Those are
- * recorded, shown to the customer, and left for a person.
+ * A crack and a nail hole take a known number of minutes, the same in every
+ * house. Everything else — flaking, water marks, mould, rot — is priced by how
+ * far it has gone, and that is what a PHOTO settles and a sentence does not.
  */
 export const AUTO_PRICED: ReadonlySet<string> = new Set(["crack", "hole"]);
+
+/**
+ * How much of it there is (Tom, 9 Sep).
+ *
+ * *"On some jobs there may be peeling in 1 or 2 spots, which wouldn't require
+ * a 1.8 margin, whereas others are peeling across the whole job — this
+ * difference needs to be differentiated."*
+ *
+ * That is the verdict on a job-wide condition multiplier, and the fix is the
+ * `defect_prep_rates` table this codebase already has: it carries
+ * `hours_sev1 / sev2 / sev3` per defect type, which IS "a couple of spots /
+ * patches here and there / most of it".
+ *
+ * Phase 4b hard-coded severity 1 on the reasoning that a customer cannot judge
+ * severity. That was wrong, and Tom's framing shows why: nobody can answer
+ * "is this a severity 2", but anyone standing in the room can answer "a couple
+ * of spots, or most of it?". The words are the customer's; the severity is
+ * ours.
+ */
+export const SPOT_EXTENTS = ["spots", "patches", "most"] as const;
+export type SpotExtent = (typeof SPOT_EXTENTS)[number];
+
+export const EXTENT_LABEL: Record<SpotExtent, string> = {
+  spots: "A couple of spots",
+  patches: "Patches here and there",
+  most: "Most of it",
+};
+
+/** Extent → the severity column in `defect_prep_rates`. */
+export const EXTENT_SEVERITY: Record<SpotExtent, 1 | 2 | 3> = {
+  spots: 1, patches: 2, most: 3,
+};
 
 /** A spot as the customer left it. */
 export type Spot = {
   tag: string;
+  /** How much of it there is. Absent = a couple of spots, the safe floor. */
+  extent?: SpotExtent;
   /** The uploaded photo's extraction-source id, when they added one. */
   sourceId?: string | null;
   /** Their own words, when they typed any. */
@@ -137,18 +169,37 @@ export function spotLine(
   const tag = tagByKey(spot.tag);
   if (tag == null) return null;
 
-  const auto = AUTO_PRICED.has(tag.key);
-  const hours = auto ? defectHours({ type: tag.defectType, severity: 1, qty: 1 }, rates) : 0;
+  const extent: SpotExtent = spot.extent ?? "spots";
+  const severity = EXTENT_SEVERITY[extent];
 
-  const label = auto
-    ? `Repair — ${tag.label}`
+  /**
+   * WHAT PRICES, AND WHY (Tom's framing, 9 Sep).
+   *
+   *   · A crack or a nail hole prices from words alone — ⚑6, and its repair is
+   *     standard whatever the room looks like.
+   *   · Anything else prices only WITH A PHOTO. Extent is the whole question
+   *     for flaking or rot, and a photo is the only thing that settles it — a
+   *     sentence is a claim, a photo is evidence.
+   *   · Without a photo it is still recorded, still shown, still on the work
+   *     order — it just goes to a person to price.
+   *
+   * That gives the customer a real reason to take the photo: photos earn a
+   * price, words earn an estimator. Nothing is lost either way.
+   */
+  const hasPhoto = spot.sourceId != null && spot.sourceId !== "";
+  const prices = AUTO_PRICED.has(tag.key) || hasPhoto;
+  const hours = prices ? defectHours({ type: tag.defectType, severity, qty: 1 }, rates) : 0;
+
+  const label = prices
+    ? `Repair — ${tag.label} (${EXTENT_LABEL[extent].toLowerCase()})`
     : `Repair — ${tag.label} (to price)`;
   const surface = makeDraftSurface(nextId(), tag.defectType, label, 1, "customer_stated", 0.8, ["prep"]);
   surface.prepHr = hours;
   surface.crewNote = [
     tag.crewNote,
+    `extent: ${EXTENT_LABEL[extent].toLowerCase()}`,
     spot.note ? `customer said: "${spot.note.trim().slice(0, 160)}"` : "",
-    spot.sourceId ? "photo attached" : "",
+    hasPhoto ? "photo attached" : "",
   ].filter(Boolean).join(" | ");
 
   /**
@@ -157,17 +208,28 @@ export function spotLine(
    * missing is NOT quietly free — it becomes the same "needs pricing"
    * deferral an unseeded table has always raised.
    */
+  /**
+   * Three amber paths, because a defect must never vanish silently:
+   *   · priced from a PHOTO — a person signs the prep off before the price is
+   *     fixed (the photo_review rule, Tom 7 Sep). Priced, but not final.
+   *   · priced from words (⚑6's two tags) with no rate row — "needs pricing",
+   *     never silently free.
+   *   · not priced at all — the estimator judges it.
+   * A crack or nail hole that priced cleanly from words raises nothing.
+   */
   const deferred: WizardDeferred | null =
-    auto && hours > 0
+    prices && hours > 0 && !hasPhoto
       ? null
       : {
           room: room.name,
           areaId: room.id,
-          what: auto ? `${tag.label} — needs pricing` : `${tag.label} — repair to price`,
+          what: hours > 0 ? `${tag.label} — confirm the prep` : `${tag.label} — repair to price`,
           count: 1,
-          needs: auto
-            ? `the customer flagged a ${tag.label.toLowerCase()} but no prep rate matches it — price it by hand (or seed defect_prep_rates)`
-            : `the customer flagged a ${tag.label.toLowerCase()}${spot.sourceId ? " with a photo" : ""} — judge it and price the repair`,
+          needs: hours > 0
+            ? `${hours}h allowed from the customer's photo (${EXTENT_LABEL[extent].toLowerCase()}) — sign the prep off before the price is fixed`
+            : prices
+              ? `the customer flagged a ${tag.label.toLowerCase()} but no prep rate matches it — price it by hand (or seed defect_prep_rates)`
+              : `the customer flagged a ${tag.label.toLowerCase()} (${EXTENT_LABEL[extent].toLowerCase()}) with no photo — judge it and price the repair`,
         };
 
   return { surface, deferred };

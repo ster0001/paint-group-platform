@@ -253,7 +253,12 @@ export type PaintSystems = {
   windows: Record<ColourIntent, SystemRule>;
   /** ⚑3 — the two-coat tap when the ceilings are marked or already coloured. */
   ceilingsMarkedCoats: number;
-  /** ⚑4 — same-colour trims on a job in good condition. */
+  /**
+   * Was ⚑4's "one only when condition is good". Same-colour trims are now one
+   * coat whatever the condition (Tom, 9 Sep) and damage is priced as PREP, so
+   * this only still exists to let Tom put the two-coat behaviour back from
+   * Settings if his crews differ by job. It can only ever LOWER the count.
+   */
   trimsGoodConditionCoats: number;
   /** ⚑5 — a "yes" to the gloss question adds a bonding primer (+1 coat). */
   glossBondingPrimer: boolean;
@@ -298,14 +303,26 @@ export const DEFAULT_PAINT_SYSTEMS: PaintSystems = {
     bold: rule(2, false, "A new ceiling colour. Two coats of flat ceiling paint."),
   },
   trims: {
-    // ⚑4: two, not the §4.2 table's one. `trimsGoodConditionCoats` is the
-    // "one only when condition is good" half of the same ruling.
-    same: rule(2, false, "Same white. Sand and clean, fill any dents, then two coats of water-based enamel."),
+    /**
+     * ONE coat (Tom, 9 Sep): *"on a same colour job with sound trims our crew
+     * would put 1 coat generally, with a spot prime for scuff marks."*
+     *
+     * This REVERSES ⚑4, which said two. ⚑4 was the plan's own proposal and I
+     * shipped it; it was most of the +17–25% that same-colour jobs moved, and
+     * it was wrong. Tom's actual practice is one coat, and the thing that was
+     * genuinely missing is not a second coat — it is PREP on trims that are
+     * damaged, which is now priced by extent rather than by adding paint
+     * nobody applies.
+     */
+    same: rule(1, false, "Same white. Sand and clean, fill any dents, spot-prime the scuff marks, then one coat of water-based enamel."),
     new: rule(3, true, "New colour. Sand and clean, fill any dents, then an undercoat and two coats of water-based enamel."),
     bold: rule(3, true, "New colour. Sand and clean, fill any dents, then an undercoat and two coats of water-based enamel."),
   },
   doors: {
-    same: rule(2, false, "As the trims. Both sides, edges and frame — two coats of water-based enamel."),
+    // "As the trims" is §4.2's own rule for doors, so they follow the same
+    // one-coat answer. ⚑ Extended from Tom's trims answer rather than stated
+    // by him — say so if a door is different from a skirting here.
+    same: rule(1, false, "As the trims. Both sides, edges and frame — spot-primed and one coat of water-based enamel."),
     new: rule(3, true, "As the trims. Both sides, edges and frame — an undercoat and two coats of water-based enamel."),
     bold: rule(3, true, "As the trims. Both sides, edges and frame — an undercoat and two coats of water-based enamel."),
   },

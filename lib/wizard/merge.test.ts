@@ -153,7 +153,7 @@ describe("applyWizardAnswers", () => {
    * but enamel trims take two whatever the colour, and quoting them at one
    * is a job that loses money. Coats are now derived per surface GROUP.
    */
-  it("a same-colour job is one coat on the walls and two on the trims (⚑4)", () => {
+  it("a same-colour job is one coat on the walls and one on the trims", () => {
     const fresh = applyWizardAnswers(
       draft(),
       state({ condition: { tier: "fresh", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, surfaceFlags: {} } }),
@@ -162,7 +162,9 @@ describe("applyWizardAnswers", () => {
     const living = fresh.areas.find((a) => a.name === "Living");
     expect(living?.surfaces.find((x) => x.code === "Walls")?.coats).toBe(1);
     expect(living?.surfaces.find((x) => x.code === "Ceilings")?.coats).toBe(1);
-    expect(living?.surfaces.find((x) => x.code === "Skirting Boards")?.coats).toBe(2);
+    // Tom, 9 Sep: sound trims on a same-colour job take ONE coat and a spot
+    // prime — ⚑4's two was the plan's proposal, not the crew's practice.
+    expect(living?.surfaces.find((x) => x.code === "Skirting Boards")?.coats).toBe(1);
   });
 
   /** ⚑4's other half: one coat on the trims only when the condition is good. */
@@ -204,7 +206,8 @@ describe("applyWizardAnswers", () => {
       nextId,
     );
     const skirting = oil.areas.find((a) => a.name === "Living")?.surfaces.find((x) => x.code === "Skirting Boards");
-    expect(skirting?.coats).toBe(3);
+    // One coat + the bonding primer.
+    expect(skirting?.coats).toBe(2);
     expect(skirting?.crewNote).toContain("bonding primer");
   });
 

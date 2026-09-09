@@ -2989,3 +2989,40 @@ move parking to 3 h without a deploy.
 **The desk-check pack reads the access answers through the same function that PRICES them**, so it
 can never describe an allowance the job did not get — the percentage, the flat hours and the
 unpriced notes each reach the estimator in their own words.
+
+### ⚑4 REVERSED, and condition priced by EXTENT (9 Sep 2026, Tom)
+
+**⚑4 was wrong and I shipped it.** Tom: *"on a same colour job with sound trims our crew would
+put 1 coat generally, with a spot prime for scuff marks."* The plan proposed two coats and phase 3
+took them there; that was most of the **+17–25%** same-colour movement. `trims.same` and
+`doors.same` are now **one coat** with spot-priming in the sentence, and the same-colour movement
+falls to **+10.7%**.
+
+What was genuinely missing is not a second coat nobody applies — it is **prep on damaged trims**,
+which is now priced by extent.
+
+**Extent, not presence.** Tom: *"on some jobs there may be peeling in 1 or 2 spots, which wouldn't
+require a 1.8 margin, whereas others are peeling across the whole job."* That is the verdict on a
+job-wide condition multiplier. `defect_prep_rates` already carries `hours_sev1/2/3` per defect —
+which IS "a couple of spots / patches here and there / most of it". Phase 4b hard-coded severity 1
+on the reasoning that a customer cannot judge severity; that was wrong. Nobody can answer "is this
+a severity 2", but anyone standing in the room can answer "a couple of spots, or most of it". The
+words are the customer's, the severity is ours (`EXTENT_SEVERITY`).
+
+**What prices, and why.** A crack or a nail hole prices from words alone (⚑6 — the repair is
+standard). Anything else prices **only with a photo**: extent is the whole question for flaking or
+rot, and a photo is the only thing that settles it — a sentence is a claim, a photo is evidence.
+Without one it is still recorded, still shown, still on the work order; it just goes to a person.
+**Photos earn a price, words earn an estimator**, which is the incentive we want and loses nothing
+either way. A photo-priced spot raises `confirm the prep` for sign-off before the price is fixed
+(the `photo_review` rule, Tom 7 Sep).
+
+**The one-coat prep allowance already existed.** Tom: *"generally for 1 coat jobs I would allow
+some additional prep time across the job, for spot priming and filling."* That is
+`ROOM_ALLOWANCES.colourMatch` — the **Colour Match Allowance**, one per interior room when the job
+is a colour match, priced from its own rate row (Tom, 7 Sep). No second mechanism was built.
+
+**⚑ A gap this opens.** That allowance keys on the JOB's tier (`fresh`), but coats are now derived
+per surface — so a white-on-white **ceiling on a new-colour job is one coat and gets no allowance**.
+By Tom's own reasoning it should. Keying it on the derived coats instead would fix it, and would
+add cost to every new-colour job, so it is his call rather than mine.
