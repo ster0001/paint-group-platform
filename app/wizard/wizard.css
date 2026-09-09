@@ -808,3 +808,29 @@
   margin: 0; padding: 14px; border-radius: 14px; font-size: 14.5px; line-height: 1.5;
   background: var(--wz-panel, #12161A); border: 1px solid var(--wz-line, #242B32);
 }
+
+/* ---- Screens 10 and 11: the finish line, and the hand-off ---------------- */
+
+.wz .wz-summary { list-style: none; margin: 4px 0 0; padding: 0; }
+.wz .wz-summary li {
+  display: flex; align-items: flex-start; gap: 12px; padding: 12px 0;
+  border-bottom: 1px solid var(--wz-line, #242B32); font-size: 14.5px; line-height: 1.45;
+}
+.wz .wz-summary li > span { flex: 1; min-width: 0; }
+.wz .wz-notincluded {
+  margin: 18px 0 0; padding: 12px 14px; border-radius: 12px; font-size: 13px; line-height: 1.5;
+  color: var(--wz-muted, #8C959D); background: var(--wz-panel, #12161A);
+  border: 1px solid var(--wz-line, #242B32);
+}
+
+.wz .wz-steps-list { list-style: none; margin: 18px 0 0; padding: 0; }
+.wz .wz-steps-list li { display: flex; gap: 12px; padding: 12px 0; }
+.wz .wz-steps-list li > span:last-child { flex: 1; min-width: 0; }
+.wz .wz-steps-list b { display: block; font-size: 15px; }
+.wz .wz-steps-list b + span { display: block; margin-top: 3px; font-size: 13.5px; line-height: 1.45; color: var(--wz-muted, #8C959D); }
+.wz .wz-step-n {
+  flex: 0 0 24px; height: 24px; border-radius: 999px; display: grid; place-items: center;
+  font-size: 12px; font-weight: 700; background: var(--wz-accent, #22B8CF); color: #06212A;
+}
+.wz .wz-sent-slots { margin-top: 22px; }
+.wz .wz-sent .wz-kept { margin-top: 20px; }

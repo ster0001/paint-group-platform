@@ -1371,11 +1371,23 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
               // ACCEPTING a fixed price behind an unconfirmed scope is not on,
               // so until everything is blue the same tap hands the job to a
               // person (call back / visit) instead of accepting.
+              /**
+               * The FINISH LINE now owns this moment (§3, prototype screen
+               * 10). Accepting used to happen right here: one tap at the
+               * bottom of a long scroll, with nothing in front of the
+               * customer to check the number against. They go to a screen
+               * that reads their own answers back, states what is not in the
+               * range, and offers the options the LADDER chose — then that
+               * screen sends it and lands them on the hand-off.
+               *
+               * A job that has not finished the loop still opens the contact
+               * card here: R3's rule holds — a fixed price behind an
+               * unconfirmed scope is not on, and "talk to a person" is not a
+               * decision that needs a summary screen first.
+               */
               onClick={() => {
-                if (selfServe && (combined == null || combined.allDone)) {
-                  setAccepted(true);
-                  act({ action: "accept_intent" }, "accept");
-                  say("Accepted — our team gives it a final desk check today, then your fixed price and booking confirmation follow.");
+                if (combined == null || combined.allDone) {
+                  router.push(`/estimate/finish?id=${estimateId}`);
                 } else {
                   setSlotsOpen((v) => !v);
                 }
