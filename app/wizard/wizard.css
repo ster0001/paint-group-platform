@@ -742,6 +742,16 @@
 .wz .sc-spot-panel input[type="file"] { font-size: 13px; color: var(--wz-muted, #8C959D); max-width: 100%; }
 .wz .sc-spot-add { margin-top: 10px; }
 .wz .sc-spot-err { color: var(--wz-amber, #E0A83C); font-size: 12.5px; margin: 8px 0 0; }
+/* "Most of it" — Tom, 9 Sep. Flagged, not styled like a validation error:
+   the customer has not done anything wrong, we are telling them what happens
+   next. The amber rule is the same one the estimator's open items use. */
+.wz .sc-spot-major {
+  margin: 10px 0 0; padding: 10px 12px; font-size: 13.5px; line-height: 1.45;
+  color: var(--wz-text, #EDF0F2);
+  background: rgba(224, 168, 60, 0.10);
+  border-left: 3px solid var(--wz-amber, #E0A83C);
+  border-radius: 0 10px 10px 0;
+}
 .wz .sc-extras .sc-extra-note { width: 100%; margin: 8px 0; padding: 10px 12px; border-radius: 12px; background: var(--wz-panel, #12161A); border: 1px solid var(--wz-line, #242B32); color: var(--wz-text, #EDF0F2); font: inherit; font-size: 15px; }
 
 /* Phase 7 · the commercial routing gates. The hint is what makes each question

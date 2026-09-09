@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import {
-  EXTENT_LABEL, prepPrompt, ROOM_CONDITION_LABEL, ROOM_CONDITIONS, SPOT_EXTENTS, tagsFor,
+  EXTENT_LABEL, majorExtentNotice, prepPrompt, ROOM_CONDITION_LABEL, ROOM_CONDITIONS, SPOT_EXTENTS, tagsFor,
   type RoomCondition, type SpotExtent,
 } from "@/lib/wizard/spots";
 import { suggestionLine, type SuggestedSpot } from "@/lib/wizard/photo-defects";
@@ -206,6 +206,14 @@ export default function RoomSpots({
               >{EXTENT_LABEL[e]}</button>
             ))}
           </div>
+          {/* Tom, 9 Sep: "most of it" gets an estimator, a wide range, and a
+              photo ASK — never a block. It reads the moment they tap it, not
+              after they have committed to a tag. */}
+          {extent === "most" && (
+            <p className="sc-spot-major" data-testid={`spot-major-${areaId}`}>
+              {majorExtentNotice(sourceId != null)}
+            </p>
+          )}
           <p className="sc-sys-why" style={{ marginTop: 10, marginBottom: 4 }}>What is it?</p>
           <div className="sc-chips">
             {tagsFor(side).map((t) => (

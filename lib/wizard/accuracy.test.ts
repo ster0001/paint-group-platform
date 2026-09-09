@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { accuracyScore, roomConfidencePct, type ScoredArea } from "./accuracy";
+import { accuracyScore, MAJOR_DEFECT_CAP, roomConfidencePct, type ScoredArea } from "./accuracy";
+import { rangeBandPct } from "./policy";
 
 const area = (over: Partial<ScoredArea> = {}): ScoredArea => ({
   priceCents: 100_000,
@@ -88,5 +89,38 @@ describe("accuracyScore", () => {
     expect(roomConfidencePct(a, 0)).toBe(100);
     expect(roomConfidencePct(a, 3)).toBe(94);
     expect(roomConfidencePct(a, 40)).toBe(88);
+  });
+});
+
+/**
+ * Tom, 9 Sep 2026: "if someone ticks that most of their 8×8 living room has
+ * peeling ceilings — we should keep their range broad, and red flag it."
+ *
+ * A form cannot tell a day of scraping from three. Confirming every room does
+ * not make that knowable, so the score must not climb as though it did.
+ */
+describe("a mostly-gone room holds the range wide", () => {
+  const confirmed: ScoredArea[] = Array.from({ length: 6 }, () => ({
+    priceCents: 400_000, origin: "human_confirmed", confidence: 1,
+    assumedFields: [], confirmState: "confirmed" as const,
+  }));
+
+  it("scores high on a fully confirmed job with no major defect", () => {
+    const score = accuracyScore(confirmed, 0, 3);
+    expect(score).toBeGreaterThan(MAJOR_DEFECT_CAP);
+    // High enough for the tight band.
+    expect(rangeBandPct(score)).toBeLessThanOrEqual(8);
+  });
+
+  it("caps that same job the moment one room is mostly gone", () => {
+    const score = accuracyScore(confirmed, 1, 3, true);
+    expect(score).toBeLessThanOrEqual(MAJOR_DEFECT_CAP);
+    // Under 70 is the widest band — that is what "keep their range broad" means.
+    expect(rangeBandPct(score)).toBe(15);
+  });
+
+  it("never RAISES a score that was already lower", () => {
+    const weak: ScoredArea[] = [{ priceCents: 100_000, origin: "ai_assumed", confidence: 0.4, assumedFields: ["height"] }];
+    expect(accuracyScore(weak, 4, 0, true)).toBeLessThanOrEqual(accuracyScore(weak, 4, 0, false));
   });
 });

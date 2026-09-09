@@ -91,7 +91,31 @@ export function roomConfidencePct(a: ScoredArea, roomDeferredCount = 0): number 
 const UNVERIFIED_CAP = 65;
 const VERIFIED_ORIGINS = new Set(["human_confirmed", "customer_stated", "ai_extracted", ""]);
 
-export function accuracyScore(areas: ScoredArea[], deferredCount = 0, checksDone = 0): number {
+/**
+ * A room the customer says is MOSTLY gone caps the score, whatever else they
+ * confirmed (Tom, 9 Sep).
+ *
+ * *"Most of the room for walls, if it was mostly peeling — this would be a
+ * concern and adequate prep would be required… we should keep their range
+ * broad, and red flag it with a message to ask for a photo and for an
+ * estimator to look at it."*
+ *
+ * A couple of spots and a few patches are ordinary and price fine. "Most of
+ * it" is a different claim: an 8×8 living room with a mostly peeling ceiling
+ * could be a day of scraping or three, and no form can tell which. Confirming
+ * every room does not make that knowable, so the score must not climb as if it
+ * did — 65 puts the range in the widest band (±15%) and keeps self-acceptance
+ * shut, which is the honest answer until somebody looks.
+ */
+export const MAJOR_DEFECT_CAP = 65;
+
+export function accuracyScore(
+  areas: ScoredArea[],
+  deferredCount = 0,
+  checksDone = 0,
+  /** True when any room carries a "most of it" defect. */
+  hasMajorDefect = false,
+): number {
   if (areas.length === 0) return 0;
 
   const positive = areas.filter((a) => a.priceCents > 0);
@@ -115,5 +139,6 @@ export function accuracyScore(areas: ScoredArea[], deferredCount = 0, checksDone
   // no-plan path is assumptions until they answer, and their answers are
   // exactly what lifts it off the floor.
   const verified = areas.some((a) => VERIFIED_ORIGINS.has(a.origin) || a.confirmState === "confirmed");
-  return verified ? score : Math.min(score, UNVERIFIED_CAP);
+  const capped = verified ? score : Math.min(score, UNVERIFIED_CAP);
+  return hasMajorDefect ? Math.min(capped, MAJOR_DEFECT_CAP) : capped;
 }

@@ -198,6 +198,13 @@ export type SpotLine = {
   surface: ReturnType<typeof makeDraftSurface>;
   /** Raised when the spot is real but must not be auto-priced (⚑6). */
   deferred: WizardDeferred | null;
+  /**
+   * "Most of it" — the range stays broad, a person looks, and we ask for a
+   * photo if there is not one. Never blocks: the customer can still finish.
+   */
+  major: boolean;
+  /** True when we should ask for a photo they have not added. */
+  wantsPhoto: boolean;
 };
 
 /**
@@ -213,6 +220,20 @@ export type SpotLine = {
  * who prices these for a living. Severity 1 is the honest floor; the estimator
  * raises it on the photo.
  */
+/**
+ * What we say when someone taps "most of it" (Tom, 9 Sep).
+ *
+ * Three things at once, because all three are true: a person will look, we
+ * are keeping the range wide until they have, and a photo would help. The
+ * photo is ASKED FOR and never required — the customer who cannot get one
+ * still has to be able to finish, and their answer is evidence either way.
+ */
+export function majorExtentNotice(hasPhoto: boolean): string {
+  return hasPhoto
+    ? "Most of the room is a different job from a few patches, so one of our estimators will look at your photo and settle the prep before your price is fixed. Until then we'll keep your range wide."
+    : "Most of the room is a different job from a few patches, so one of our estimators will look at this and settle the prep before your price is fixed. Until then we'll keep your range wide. A photo would help them a lot — you don't have to add one.";
+}
+
 export function spotLine(
   spot: Spot,
   room: { id: number; name: string },
@@ -244,6 +265,15 @@ export function spotLine(
    * price, words earn an estimator. Nothing is lost either way.
    */
   const hasPhoto = spot.sourceId != null && spot.sourceId !== "";
+  /**
+   * "Most of it" is a different claim from the other two (Tom, 9 Sep).
+   *
+   * A couple of spots and a few patches are ordinary. A mostly-peeling ceiling
+   * in an 8×8 living room could be a day of scraping or three, and no form can
+   * tell which — so it still carries an allowance, but it also keeps the range
+   * broad, asks for a photo, and says plainly that a person will look.
+   */
+  const major = extent === "most";
   const prices = AUTO_PRICED.has(tag.key) || hasPhoto;
   const hours = prices ? defectHours({ type: tag.defectType, severity, qty }, rates) : 0;
 
@@ -274,9 +304,21 @@ export function spotLine(
    *   · not priced at all — the estimator judges it.
    * A crack or nail hole that priced cleanly from words raises nothing.
    */
+  // "Most of it" ALWAYS reaches a person, priced or not — that is the point.
   const deferred: WizardDeferred | null =
-    prices && hours > 0 && !hasPhoto
+    !major && prices && hours > 0 && !hasPhoto
       ? null
+      : major
+      ? {
+          room: room.name,
+          areaId: room.id,
+          kind: "major_defect",
+          what: `${tag.label} — most of it`,
+          count: 1,
+          needs: hasPhoto
+            ? `the customer says most of this room is affected and has sent a photo — judge the real prep before the price is fixed; ${hours}h is a placeholder allowance`
+            : `the customer says most of this room is affected, with NO photo — ask for one, then judge the real prep; ${hours}h is a placeholder allowance`,
+        }
       : {
           room: room.name,
           areaId: room.id,
@@ -289,7 +331,7 @@ export function spotLine(
               : `the customer flagged a ${tag.label.toLowerCase()} (${EXTENT_LABEL[extent].toLowerCase()}) with no photo — judge it and price the repair`,
         };
 
-  return { surface, deferred };
+  return { surface, deferred, major, wantsPhoto: major && !hasPhoto };
 }
 
 /**
