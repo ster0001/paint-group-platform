@@ -100,6 +100,7 @@ export default async function ScopeEditorPage({
         initialExterior={bundle.initialExterior}
         initialLadder={bundle.initialLadder}
         initialInteriorLoop={bundle.initialInteriorLoop}
+        initialSystems={bundle.initialSystems}
         roomTypes={bundle.roomTypes}
         liveRange={bundle.liveRange}
         companyPhone={bundle.companyPhone}

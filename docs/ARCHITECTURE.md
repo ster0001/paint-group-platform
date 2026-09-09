@@ -2511,3 +2511,123 @@ Twelve items from two messages, one branch (`feat/wizard-batch-8sep-b`), **no mi
 **A customer's own item, in the staff builder** (Tom: "security bars… hasn't been mentioned anywhere as an unpriced option for me to pick up"). `customerCustom` was written by the online estimate and read by nothing a person could see. `QuoteBuilder` now renders an amber `customer-asks-panel` above the areas listing each one with its area, an *Add a line on <area>* button (opens the surface picker there) and *Priced / not needed ✓* which clears it and its `custom_surface` review-gate entry. Until then the send gate still refuses to let the estimate out unnoticed and the customer cannot accept online.
 
 Tests: `lib/wizard/sides.test.ts` (+5), `lib/wizard/exteriorTargets.test.ts` (rewritten for the new ruling, +1), `lib/agent/propose.test.ts` (+2), `e2e/customer-journey/tom-batch-8sep.spec.ts` (4 — the controls, the reach strip, fit-to-screen with screenshots, the website bubble) and `e2e/customer-asks-panel.spec.ts` (1, as staff). Three existing specs asserted the two rulings this batch reversed and were updated: `sides-editor` (CTA disabled), `interior-loop` + `both-stacked` (`.il-cta` disabled), `reach-and-chat` (`.sc-btn.il-cta` disabled), `exteriorTargets` (the unticked-side option). `doors-tiles-steppers` read a tile's label off its last text node, which the metres control displaced — the tile name now has its own `.sd-tlname` element.
+
+## Estimator journey v2 · Phase 3 — coats and preparation derived per surface (9 Sep 2026)
+
+From Tom's brief of 9 Sep (`docs/briefs/estimator-journey-v2-plan.md`, §4.2 and §9.3),
+built on `feat/paint-systems-derivation`. **No migration** — the table is a `settings` row.
+
+**The gap.** The wizard asked the customer to pick coats for the whole job, from a card
+that said "1 COAT / 2 COATS / 3 COATS", and `coatsFor(tier, isDarkToLight)` stamped that
+one number onto every surface in the tree. Coats differ by surface — new-colour walls
+need two, a white-on-white ceiling usually one, enamel trims two plus preparation — and a
+homeowner cannot judge that. The plan calls it the single biggest accuracy gap (§2.2).
+
+**The shape.** `lib/pricing/systems.ts` is a pure lookup: `deriveSystem(group, answers,
+table)` over five surface groups (walls · ceilings+cornices · trims · doors · windows)
+× three colour intents (same · new · bold), with the condition band and three flags on
+top. It returns coats, an undercoat flag, prep hours per unit, the customer-facing
+sentence, the painter's crew note, and a `review` flag. `systemsForSurfaces()` is the
+body of the paint-systems screen phase 4 will render.
+
+- The customer answers **colour intent** and **condition**; nothing else changed in what
+  is asked. `condition.tier` keeps its stored values (`fresh|change|dark_to_light`) —
+  `colourIntentFromTier` maps them to `same|new|bold`, so every snapshot, seed and replay
+  fixture still parses. The field is now documented as the colour question it always was.
+- **Exterior is deliberately excluded.** `groupForSubstrate` returns null for every
+  exterior substrate and for `staircase`, and those surfaces keep the whole-job coat
+  count. Plan §4.4: the per-elevation allowances spec does not exist yet, so deriving
+  exterior systems would be inventing unvalidated numbers.
+- **Two rules override Settings.** A single coat is only reachable where that surface is
+  not changing colour (allowances spec §7.6) — enforced in `deriveSystem` AND in the
+  Settings UI, so a mistyped "1" cannot ship a job that will not cover. Coats stay
+  *effective labour coats*: an undercoat or bonding primer is +1, priced by the card's own
+  marginal-coat rule. Nothing touches `coatMultiplier` or the card's 1-coat column.
+
+**Where it is wired.** `applyWizardAnswers` takes the table as an optional 4th argument
+(defaulted, so every caller still compiles); `app/api/wizard/submit` and the wizard-edit
+route pass the live settings row. `lib/agent/scope-doc.ts` re-coats per group after a
+colour-intent change instead of stamping one number on every row.
+
+**Settings → Estimates → Paint systems** (`PaintSystemsSettings.tsx`, `paint_systems` row).
+Every coat count, both judgement calls, the gloss switch and the prep hours are Tom's,
+editable without a deploy (⚑2).
+
+**⚑ rulings applied** (Tom, 9 Sep — "use your suggestions, flag them"): ⚑3 ceilings one
+coat white-on-white, "they're marked" is the two-coat tap · ⚑4 same-colour trims two
+coats, one only when condition is good — note this **contradicts §4.2's own table**
+(which says one coat); ⚑4 is the later explicit ruling and is what ships · ⚑5 the gloss
+question is asked, "not sure" is the default, prices as no and sets `review`.
+
+**Prep hours default to ZERO** on all three bands. Prep already reaches the tree from
+`defect_prep_rates` (the photo pipeline) and the manual stepper; a non-zero default here
+would silently reprice every job the day it shipped. The band has a home now; the numbers
+wait for ACTUALS — work-order hours × charge-out plus materials. NOT the proving
+window: it benchmarked the wizard against PaintScout quotes that themselves lost
+money (Tom, 8 and 9 Sep 2026), so it is not a baseline to set prices from.
+
+**What it moves.** `scripts/paint-systems-impact.ts` prices a 3-bed single-storey interior
+both ways on the golden rate card (reads only, no database). Same colours +17% to +25%
+(trims 1→2 coats), new colours −2% (ceilings 2→1, offset by trims 2→3), bold +26%.
+Run it before turning "fix online" on.
+
+**Traps.** `coatsFor` is still exported and still correct — it is the exterior and
+unmapped-code path, not dead code. Adding the two ⚑3 answers to `condition` broke four
+object literals that build a state by hand (they are `z.default`s, so only TypeScript
+noticed); `defaultWizardState()` is the one to copy. Two existing tests asserted the old
+"one number on every row" behaviour (`merge.test.ts`, `propose.test.ts`) and were
+rewritten to the per-group rule rather than deleted — they are the record of the change.
+
+## Estimator journey v2 · Phase 4 — the paint-systems card (9 Sep 2026)
+
+Branch `feat/paint-systems-screen`, stacked on phase 3's `feat/paint-systems-derivation`.
+**No migration.** Plan §3 and §4.2; prototype screen 8.
+
+**Why it exists.** Phase 3 stopped asking the customer to pick coats and derived them per
+surface instead. On its own that trades a question they could not answer for an assumption
+they could not see — worse, not better. This card is the other half: it shows what was
+derived, in the painter's own words, with one tap per line to correct it.
+
+**`lib/wizard/systems-view.ts`** is the whole surface, and it is pure:
+- `systemAnswersFromState` — the ONE reader of the customer's answers, now shared by
+  `merge.ts` (which stamps the coats), the view (which explains them) and the editor
+  action (which re-derives after a correction). Three copies would be three chances for
+  the screen to describe a system the tree does not carry.
+- `paintSystemsView(state, blocks, table)` → one `PaintSystemLine` per group, each with the
+  sentence, the coats, the chips that can move it, `review`, and the reason the coats
+  differ from the plain table cell.
+- `applySystemPatch` → the corrected answers. `applyPaintSystems` → the re-derived tree.
+
+**Three rules the module keeps**, each with a test:
+1. **Groups come from the TREE, not the wizard's ticks.** By the editor the customer has
+   already added and removed surfaces; a ceilings line on a job whose ceilings were removed
+   is a lie, and the tick list would still say yes.
+2. **Interior only.** An exterior-only job gets no card at all rather than numbers nobody
+   validated (plan §4.4).
+3. **A correction re-derives the WHOLE tree.** Colour intent is job-wide: "same colour
+   actually" on the walls has to move the trims too, or the estimate holds two answers to
+   one question.
+
+**The route.** `set_paint_system` posts a FIELD and a VALUE — never coats. The customer
+cannot post geometry or money here any more than anywhere else on this route; the server
+re-derives from Tom's Settings table. The snapshot is written before the tree is re-derived,
+so a room added later merges at the corrected answer (the rule `set_door_style` follows).
+`paintSystems` rides EVERY response, not only a `set_paint_system` one — removing the last
+ceiling has to remove the ceilings line, and that arrives as a `toggle_surface`.
+
+**Traps.**
+- Nesting a `z.discriminatedUnion("field", …)` inside `actionSchema` via `.and()` collapses
+  the outer `action` discriminator and every `act.` narrowing in the file breaks. The posted
+  shape is flat; `systemPatchFrom` pairs field to value and returns null (a 400) rather than
+  coercing — a customer who taps a chip and sees nothing move has been lied to.
+- The crew note is REPLACED, not appended. This runs on every correction, so appending grew
+  "check the trims | check the trims | …" on a second tap. `stripSystemNotes` removes only
+  the notes this module writes, so a note from anywhere else survives.
+- "That's right" on the ceilings clears BOTH ceiling flags. Clearing `ceilingsMarked` while
+  leaving `ceilingsChangingColour` set would keep the line at two coats and make the card
+  argue with itself.
+- Changing colour intent away from bold clears `darkToLightSurfaces`. That list belongs to
+  the old per-surface question; leaving it would lift surfaces the customer just said are
+  staying the same.
+- The card is hidden in `chatMode` like the other question cards — the assistant asks these
+  in conversation, and a pane of open questions beside the chat repeats it.

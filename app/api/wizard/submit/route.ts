@@ -14,6 +14,7 @@ import { extractionSchema } from "@/lib/extract/schema";
 import { SCOPE_VERSION, type Alias, type ScopeRule } from "@/lib/extract/scope";
 import type { DefectRate } from "@/lib/capture/commit";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
+import { PAINT_SYSTEMS_KEY, paintSystemsFrom } from "@/lib/pricing/systems";
 import { applyWizardAnswers, conditionPhotoCount, filterSurfacesByTicks } from "@/lib/wizard/merge";
 import { ceilingHeightFrom, wizardStateSchema, type WizardSurfaceKey } from "@/lib/wizard/state";
 import { backfillTypicalSizes, markStarterProvenance, starterExtraction, starterRoomList, type TypicalSizeRow } from "@/lib/wizard/starter";
@@ -336,7 +337,16 @@ export async function POST(request: Request) {
   }
 
   // ---- the wizard's answers, applied over the drafted tree -----------------
-  const merged = applyWizardAnswers({ areas, skipped, assumedCount, deferred }, effectiveState, () => nextId++);
+  // Tom's coat/prep table rides in from Settings (⚑2 — every number in the
+  // derivation is his to change without a deploy). loadPricingContext is
+  // cached and is awaited again below for the pricing itself, so this costs
+  // nothing but has to happen HERE: the merge is where coats are stamped.
+  const paintSystems = paintSystemsFrom(
+    settingValue((await loadPricingContext(db)).settings, PAINT_SYSTEMS_KEY),
+  );
+  const merged = applyWizardAnswers(
+    { areas, skipped, assumedCount, deferred }, effectiveState, () => nextId++, paintSystems,
+  );
 
   if (merged.areas.length === 0 && wantsInterior) {
     return NextResponse.json(

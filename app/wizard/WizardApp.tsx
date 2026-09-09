@@ -1611,10 +1611,19 @@ function PageCondition({ state, set, substrates, stepsTotal, stepNo = 3, damageI
 }) {
   const labelFor = (k: WizardSurfaceKey) =>
     [...substrates.interior, ...substrates.exterior].find((o) => o.key === k)?.label ?? k;
+  /**
+   * COLOUR INTENT, not coats (estimator journey v2 §4.2, 9 Sep 2026).
+   *
+   * These cards used to say "1 COAT / 2 COATS / 3 COATS" and the line under
+   * them said "this sets how many coats we allow for" — it did, for every
+   * surface in the house at once. Coats differ BY SURFACE and a homeowner
+   * cannot judge them, so the question is now the one they CAN answer, and
+   * lib/pricing/systems.ts derives the coats per surface group from it.
+   */
   const tiers = [
-    { v: "fresh" as const, coats: "1 COAT", b: "Freshen up", s: "Same colours, colour-matched — one coat brings it back to life." },
-    { v: "change" as const, coats: "2 COATS", b: "Change of colour", s: "New colours throughout — generally two coats to all surfaces." },
-    { v: "dark_to_light" as const, coats: "3 COATS", b: "Dark to light", s: "Covering dark colours or stains — usually three coats to cover properly." },
+    { v: "fresh" as const, coats: "SAME", b: "The same colours again", s: "Colour-matched — a freshen up." },
+    { v: "change" as const, coats: "NEW", b: "New colours", s: "New colours through the rooms we're painting." },
+    { v: "dark_to_light" as const, coats: "BOLD", b: "Going much lighter, or a bold colour", s: "Covering a dark colour, or a strong accent." },
   ];
   const d = state.details;
   const damage = [
@@ -1627,7 +1636,10 @@ function PageCondition({ state, set, substrates, stepsTotal, stepNo = 3, damageI
     <>
       <p className="wz-kick">Step {stepNo} of {stepsTotal} · Condition</p>
       <h1>Which describes it best?</h1>
-      <p className="wz-sub">Coats first, then any damage — together they set the preparation we allow for.</p>
+      <p className="wz-sub">
+        Colours first, then any damage. We work out the coats and the preparation for each surface from these two
+        answers — you&rsquo;ll see exactly what we&rsquo;ve allowed for, and you can change any of it.
+      </p>
       <div className="wz-cards">
         {tiers.map((t) => (
           <button

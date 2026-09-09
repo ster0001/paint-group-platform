@@ -263,6 +263,13 @@ describe("3 Sep — what Tom's first real run taught us", () => {
     expect(docBlocks(p.working).filter((b) => b.type === "Exterior" && b.areaType === "surface").length).toBe(4);
   });
 
+  /**
+   * The re-coat still happens and the price still rises; what changed on
+   * 9 Sep 2026 is that it re-coats PER SURFACE GROUP rather than stamping one
+   * number on every row (estimator journey v2 §4.2). "Dark to light" takes
+   * the walls to three coats; the ceiling above them is still white over
+   * white and stays at the two coats a bold job allows it.
+   */
   it("'change all walls to 3 coats' after the build re-coats every row", async () => {
     const scope = new MemoryScopeStore({ refs, ctx });
     scope.seed(emptyDoc("est-1", "residential"));
@@ -273,7 +280,11 @@ describe("3 Sep — what Tom's first real run taught us", () => {
     const r = await tools.execute("answer_gap", { key: "condition.tier", value: "3 coats", provenance: "human_confirmed" }, tctx);
     expect(r.status).toBe("ok");
     const live = (await scope.load("est-1"))!;
-    for (const b of docBlocks(live)) for (const l of b.surfaces ?? []) expect(l.coats).toBe(3);
+    const rows = docBlocks(live).flatMap((b) => b.surfaces ?? []);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const l of rows) {
+      expect(l.coats, String(l.code)).toBe(l.code === "Walls" ? 3 : 2);
+    }
     const after = (await tools.execute("price_scope", {}, tctx) as { data: { totalCents: number } }).data.totalCents;
     expect(after).toBeGreaterThan(before);
   });

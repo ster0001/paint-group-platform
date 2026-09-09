@@ -105,10 +105,29 @@ export const wizardStateShapeSchema = z.object({
   surfaces: z.array(surfaceKeySchema).min(1),
 
   condition: z.object({
-    /** Sets coats: freshen up = 1, change of colour = 2, dark to light = 3. */
+    /**
+     * COLOUR INTENT, despite the field's name (estimator journey v2 §4.2).
+     * fresh = the same colours again · change = new colours · dark_to_light =
+     * going much lighter or bold. It used to set one coat count for the whole
+     * job (1 / 2 / 3); coats are now derived PER SURFACE GROUP from this plus
+     * the condition band — lib/pricing/systems.ts. The stored values are
+     * unchanged so every snapshot, seed and replay fixture still parses;
+     * `colourIntentFromTier` maps them across.
+     */
     tier: z.enum(["fresh", "change", "dark_to_light"]),
     /** W1 rule: the dark-to-light follow-up is limited to ticked surfaces. */
     darkToLightSurfaces: z.array(surfaceKeySchema).default([]),
+    /**
+     * ⚑3 (Tom, 9 Sep): ceilings are one coat of white over white by default;
+     * "they're marked" is the two-coat tap. Asked on the paint-systems screen,
+     * so both default false — an old snapshot reads as a sound white ceiling,
+     * which is what the one-coat default always meant.
+     */
+    ceilingsMarked: z.boolean().default(false),
+    /** The ceilings are getting a NEW colour rather than white again. Kept
+     * apart from `tier` because white-on-white is not a colour change, and
+     * that distinction is what lets ⚑3's single coat past the coverage rule. */
+    ceilingsChangingColour: z.boolean().default(false),
   }),
 
   details: z.object({
@@ -353,7 +372,7 @@ export function defaultWizardState(): WizardState {
     noPlan: false,
     basics: null,
     surfaces: [...DEFAULT_SURFACES],
-    condition: { tier: "change", darkToLightSurfaces: [] },
+    condition: { tier: "change", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false },
     details: {
       doorStyle: "unsure",
       doorScope: "frame",
