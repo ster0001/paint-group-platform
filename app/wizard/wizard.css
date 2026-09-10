@@ -371,11 +371,34 @@
 .wz .sd-wseg button { width: 30px; height: 26px; border-radius: 7px; border: 1px solid var(--line); background: none; color: var(--muted); font-family: var(--wz-mono); font-size: 10px; cursor: pointer; }
 .wz .sd-wseg button.on { border-color: var(--cyan); color: var(--cyan); }
 .wz .sd-wseg i { font-style: normal; font-size: 10.5px; color: var(--muted); align-self: center; }
-.wz .sd-pcts { display: flex; gap: 5px; margin-top: 8px; flex-wrap: wrap; }
-.wz .sd-pcts i { font-style: normal; font-size: 10.5px; color: var(--muted); align-self: center; }
-.wz .sd-pc { width: 36px; height: 26px; border-radius: 7px; border: 1px solid var(--line); background: none; color: var(--muted); font-family: var(--wz-mono); font-size: 9.5px; cursor: pointer; }
+/* ---- The wall share row (Tom, 10 Sep: "the walls % isn't sitting in the box
+   cleanly") ------------------------------------------------------------------
+
+   A wall is not the same shape of thing as a surface tile. `.sd-tgrid` columns
+   are `minmax(150px, 1fr)`, and four 36px percent buttons plus a "% of wall"
+   label need a good 200px — so inside a 150px column they wrapped into ragged
+   rows and spilled past the tile's rounded corner. A wall row now spans the
+   full grid width, because it carries a CONTROL and not just a name, and the
+   buttons share the space evenly instead of each insisting on 36px. */
+.wz .sd-wall { grid-column: 1 / -1; padding-right: 34px; }
+.wz .sd-pcts {
+  display: grid; grid-template-columns: auto repeat(4, minmax(0, 1fr));
+  align-items: center; gap: 6px; margin-top: 8px;
+}
+.wz .sd-pcts i { font-style: normal; font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+/* Narrow phones: the label takes its own line rather than squeezing the
+   buttons to nothing. */
+@media (max-width: 420px) {
+  .wz .sd-pcts { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .wz .sd-pcts i { grid-column: 1 / -1; margin-bottom: 2px; }
+}
+.wz .sd-pc { width: 100%; min-width: 0; height: 26px; border-radius: 7px; border: 1px solid var(--line); background: none; color: var(--muted); font-family: var(--wz-mono); font-size: 9.5px; cursor: pointer; }
 .wz .sd-pc.on { border-color: var(--cyan); color: var(--cyan); }
-.wz .sd-wallsum { font-family: var(--wz-mono); font-size: 9px; letter-spacing: .1em; color: var(--emerald); margin-top: 9px; }
+/* It reads as a sentence, not a code — 9px with .1em tracking was unreadable
+   at the one moment it matters (an over-committed mix refusing to confirm). */
+.wz .sd-wallsum {
+  font-size: 12px; line-height: 1.4; color: var(--emerald); margin-top: 10px;
+}
 .wz .sd-wallsum.bad { color: var(--amber); }
 .wz .sd-mrow { display: flex; gap: 8px; margin-top: 9px; align-items: center; }
 .wz .sd-mrow input { width: 130px; background: var(--ink); border: 1px solid var(--line); border-radius: 9px; color: var(--text); font-family: var(--wz-mono); font-size: 13px; padding: 9px 11px; outline: none; }
