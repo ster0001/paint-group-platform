@@ -411,7 +411,11 @@ export default function CustomerEstimate({
         {/* PHOTOS */}
         {!invoiceMode && snap.areas.some((a) => a.photos.length) && (
           <section>
-            <h2>Your home, as we saw it</h2>
+            {/* Tom, 10 Sep: "property", not "home" — the same estimate document
+                goes to agents, facilities managers and commercial jobs, and
+                calling an office block somebody's home reads as a mail merge
+                that did not know who it was writing to. */}
+            <h2>Your property, as we saw it</h2>
             <p className="sub">Photos from your enquiry and our site notes. Your estimate is scoped to these exact rooms and surfaces.</p>
             <div className="photos">
               {snap.areas.flatMap((a) => a.photos).slice(0, 9).map((src, i) => (
