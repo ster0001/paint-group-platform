@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { customerOwnsDraft, getWizardActor } from "@/lib/supabase/guards";
+import { ensureAccount } from "@/lib/accounts/link";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildDraft } from "@/lib/extract/draft";
 import { SCOPE_VERSION, type Alias, type ScopeRule } from "@/lib/extract/scope";
@@ -86,7 +87,23 @@ function systemPatchFrom(
   value: unknown,
   group?: string,
   flag?: string,
+  areaId?: number,
 ): SystemPatch | null {
+  /**
+   * CEILINGS — all of them, some rooms, or none (Tom, 11 Sep). The scope and the
+   * room list are two actions on purpose: a room tap must not have to resend the
+   * whole list, and the scope chip must not have to know which rooms exist.
+   */
+  if (field === "darkToLightCeilings") {
+    return value === "all" || value === "some" || value === null
+      ? { field: "darkToLightCeilings", value }
+      : null;
+  }
+  if (field === "darkToLightCeilingRoom") {
+    if (typeof areaId !== "number" || !Number.isInteger(areaId) || areaId <= 0) return null;
+    if (typeof value !== "boolean") return null;
+    return { field: "darkToLightCeilingRoom", areaId, value };
+  }
   if (field === "surfaceFlag") {
     // The flag KEY is not checked against the catalogue here on purpose: Tom
     // can add or rename one in Settings without a deploy, and a key that no
@@ -212,17 +229,25 @@ const actionSchema = z.discriminatedUnion("action", [
   }),
   z.object({
     action: z.literal("set_paint_system"),
-    field: z.enum(["colourIntent", "ceilingsMarked", "ceilingsChangingColour", "glossTrims", "surfaceFlag", "darkToLight"]),
+    field: z.enum([
+      "colourIntent", "ceilingsMarked", "ceilingsChangingColour", "glossTrims", "surfaceFlag", "darkToLight",
+      "darkToLightCeilings", "darkToLightCeilingRoom",
+    ]),
     /** surfaceFlag: which line, and which flag on it. darkToLight: which
      *  SURFACE is going dark → light (a substrate key, checked in the parser). */
     group: z.string().max(40).optional(),
     flag: z.string().max(40).optional(),
+    /** darkToLightCeilingRoom: which room's ceiling (Tom, 11 Sep). */
+    areaId: z.number().int().positive().optional(),
     // Flat rather than a nested discriminated union: nesting one inside
     // `actionSchema` collapses its own "action" discriminator. The field and
     // value are paired by `systemPatchFrom` below, which returns null on any
     // combination that does not exist — an unpaired value is a 400, not a
     // silently ignored answer.
-    value: z.union([z.enum(["same", "new", "bold"]), z.enum(["yes", "no", "unsure"]), z.boolean()]),
+    value: z.union([
+      z.enum(["same", "new", "bold"]), z.enum(["yes", "no", "unsure"]),
+      z.enum(["all", "some"]), z.boolean(), z.null(),
+    ]),
   }),
   z.object({
     action: z.literal("confirm_room"),
@@ -532,7 +557,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
      *      validated exterior table to re-derive them from (plan §4.4).
      */
     if (act.action === "set_paint_system") {
-      const patch = systemPatchFrom(act.field, act.value, act.group, act.flag);
+      const patch = systemPatchFrom(act.field, act.value, act.group, act.flag, act.areaId);
       if (!patch) return { error: "That isn't an answer we recognise.", status: 400 };
 
       const snap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
@@ -916,11 +941,45 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         estimate_id: id, type: visit ? "visit_requested" : "callback_requested",
         payload: { window: act.window, phone: act.phone, when: act.when },
       }).then((r) => { if (r.error) reportError(r.error, { where: "wizard.edit.contact", bestEffort: true }); });
+      /**
+       * ⚑ A call back has to leave somebody to call back.
+       *
+       * Since ⚑1 took the contact form out from in FRONT of the price, an
+       * estimate reaches this point with no account at all — so the CRM event
+       * was filed against account_id null and the office's own timeline never
+       * heard about the request. The number they just typed IS the handle:
+       * accounts are found by email OR phone (crm_find_account, CRM v2 P1), so
+       * a phone alone is enough to file one and link the estimate to it. No new
+       * question is asked — this is the number the form already demands.
+       *
+       * Best effort on purpose: they asked us to ring them, and the request is
+       * already recorded on the estimate. A stumble here costs a timeline entry,
+       * never the call back.
+       */
+      let contactAccountId = (estimate as { account_id?: string | null } | null)?.account_id ?? null;
+      if (!contactAccountId) {
+        try {
+          const ensured = await ensureAccount(db, { phone: act.phone });
+          if (ensured.accountId) {
+            contactAccountId = ensured.accountId;
+            await db.from("estimates").update({ account_id: ensured.accountId }).eq("id", id);
+          } else {
+            // Not silent. "A call back nobody can be called back on" is exactly
+            // the kind of thing that hides for weeks behind a best-effort catch.
+            reportError(
+              new Error(`no account filed from "${act.phone}"${ensured.migrationPending ? " (migration pending)" : ""}`),
+              { where: "wizard.edit.contactAccount", bestEffort: true },
+            );
+          }
+        } catch (e) {
+          reportError(e, { where: "wizard.edit.contactAccount", bestEffort: true });
+        }
+      }
       // … and the CRM event that puts it on Today and the account timeline
       // (a booking never wrote one, so the office was never told).
       await logCrmEvent(db, {
         type: "callback_requested", source: "customer",
-        accountId: (estimate as { account_id?: string | null } | null)?.account_id ?? null,
+        accountId: contactAccountId,
         estimateId: id,
         payload: { phone: act.phone, note },
         dedupeKey: `contact:${id}:${act.how}:${act.window}:${act.phone}`,

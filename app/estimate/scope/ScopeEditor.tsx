@@ -108,7 +108,7 @@ const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
 const snapshotFalse = () => false;
 
-export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialDarkToLight = { asked: false, surfaces: [], someWalls: false }, initialColourTier = "change", initialAccess = { answers: {}, asksLift: false }, initialExtras = { offer: [], on: [], colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null, chatMode = false }: {
+export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialDarkToLight = { asked: false, surfaces: [], someWalls: false, ceilings: null, ceilingRooms: [] }, initialColourTier = "change", initialAccess = { answers: {}, asksLift: false }, initialExtras = { offer: [], on: [], colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null, chatMode = false }: {
   estimateId: string;
   initial: CustomerPayload;
   initialRooms: CustomerScopeRoom[];
@@ -136,7 +136,10 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   /** Phase 4 (estimator journey v2 §4.2): the coats and preparation we
    * derived, in the painter's words, with a correction per line. Empty on an
    * exterior-only job or an estimate with no readable wizard snapshot. */
-  initialDarkToLight?: { asked: boolean; surfaces: string[]; someWalls: boolean };
+  initialDarkToLight?: {
+    asked: boolean; surfaces: string[]; someWalls: boolean;
+    ceilings: "all" | "some" | null; ceilingRooms: number[];
+  };
   initialColourTier?: "fresh" | "change" | "dark_to_light";
   /** §4.4 — the site and access answers, and whether a lift applies. */
   initialAccess?: { answers: SiteAccess; asksLift: boolean };
@@ -162,6 +165,18 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   const [darkToLight, setDarkToLight] = useState<string[]>(initialDarkToLight.surfaces);
   /** "Some walls" — an answer we record and a person prices; never a guess. */
   const [someWalls, setSomeWalls] = useState(initialDarkToLight.someWalls);
+  /**
+   * CEILINGS — the one surface where "some" is answerable (Tom, 11 Sep: *"it
+   * isn't typical for a ceiling to go from dark to light… ceilings some rooms,
+   * or all ceilings — if it's some rooms, then it adds an option to choose the
+   * rooms in the room builder"*).
+   *
+   * "Some walls" has to stay a note because we cannot know which walls. The
+   * rooms, by contrast, are right there on the screen — so this one earns a real
+   * price instead of an estimator's follow-up.
+   */
+  const [ceilingScope, setCeilingScope] = useState<"all" | "some" | null>(initialDarkToLight.ceilings);
+  const [ceilingRooms, setCeilingRooms] = useState<number[]>(initialDarkToLight.ceilingRooms);
   const [access, setAccess] = useState<SiteAccess>(initialAccess.answers);
   const [extras, setExtras] = useState({ on: initialExtras.on, colourHelp: initialExtras.colourHelp, note: initialExtras.note });
   const [sidesProg, setSidesProg] = useState<SidesView["progress"] | null>(initialSides?.progress ?? null);
@@ -797,6 +812,68 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                 going dark to light and adds the third coat to those — you&rsquo;ll see it before the price is fixed.
               </p>
             )}
+            {/*
+              ⚑ CEILINGS GET THEIR OWN ROW, and Tom's reason is the right one:
+              *"it isn't typical for a ceiling to go from dark to light."* A plain
+              chip alongside the walls and doors would invite a tap that adds a
+              third coat to every ceiling in the house — so the question is asked
+              as the two answers that are actually true, and the unusual one
+              (some rooms) hands the choice to the room cards where the rooms are.
+            */}
+            <div className="sc-d2lceil" data-testid="darklight-ceilings-row">
+              <p className="il-ql">The ceilings — any of them going dark to light?</p>
+              {/*
+                ⚑ Says "the extra coat", NOT "three coats". The ceilings row of
+                the paint-system table reads "a new ceiling colour — two coats of
+                flat ceiling paint", where a wall going dark to light is three.
+                That row is Tom's to set in Settings, so the card describes what
+                it does rather than quoting a number the table might not agree
+                with. Promising three and charging two is how a quote and an
+                estimate stop matching.
+              */}
+              <p className="wz-note" style={{ margin: "2px 0 8px" }}>
+                Not common — a ceiling is usually white over white. Where one is going lighter we allow the
+                extra coat it needs.
+              </p>
+              <div className="sc-chips">
+                {([["all", "All ceilings"], ["some", "Some rooms"]] as const).map(([v, label]) => {
+                  const on = ceilingScope === v;
+                  return (
+                    <button
+                      key={v}
+                      className={`sd-chip il-chip ${on ? "on" : ""}`}
+                      aria-pressed={on}
+                      data-testid={`darklight-ceilings-${v}`}
+                      onClick={() => {
+                        // Tapping the chip that is already on turns it OFF —
+                        // the usual answer is "none", and it must be reachable
+                        // without a third chip that says nothing.
+                        const value = on ? null : v;
+                        setCeilingScope(value);
+                        if (value !== "some") setCeilingRooms([]);
+                        act(
+                          { action: "set_paint_system", field: "darkToLightCeilings", value },
+                          "d2l:ceilings",
+                          (d) => value === "all"
+                            ? `Every ceiling gets the extra coat${liveRange && Math.abs(d) >= 100 ? ` — about ${d > 0 ? "+" : "−"}${fmt(Math.abs(d))}` : ""}`
+                            : value === "some"
+                              ? "Pick the rooms on the cards below — the rest stay at the standard"
+                              : "Ceilings back to the standard",
+                          ["d2l:ceilings", value ?? "off"],
+                        );
+                      }}
+                    >{label}</button>
+                  );
+                })}
+              </div>
+              {ceilingScope === "some" && (
+                <p className="wz-note" data-testid="darklight-ceilings-some-note">
+                  {ceilingRooms.length === 0
+                    ? "Tick the ceiling on each room below. Until you do, every ceiling is quoted at the standard — we'd rather ask than add a coat you didn't."
+                    : `${ceilingRooms.length} ${ceilingRooms.length === 1 ? "ceiling" : "ceilings"} with the extra coat; the rest at the standard.`}
+                </p>
+              )}
+            </div>
           </section>
         )}
         {/* ⚑ Tom, 10 Sep: "'anything we haven't listed' and 'site and access'
@@ -1163,6 +1240,38 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                 {noteChips[room.areaId] && (
                   <div className="sc-notechip">⚑ &ldquo;{noteChips[room.areaId]}&rdquo; — we&rsquo;ll confirm this area on the site visit</div>
                 )}
+                {/*
+                  ⚑ Tom, 11 Sep — the per-room half of the ceilings answer.
+                  It appears ONLY when the job-wide card says "some rooms", and
+                  only on a room whose ceiling is actually being painted. On every
+                  other job it costs nothing and is not on the screen: a tick that
+                  cannot change a price is noise on a card somebody is trying to
+                  read.
+                */}
+                {!chatMode && ceilingScope === "some" && room.tiles.some((t) => t.key === "ceilings" && t.on) && (() => {
+                  const on = ceilingRooms.includes(room.areaId);
+                  return (
+                    <div className={`il-q ${on ? "ok" : ""}`} data-testid={`room-ceiling-d2l-${room.areaId}`}>
+                      <p className="il-ql">Is this ceiling going from dark to light?</p>
+                      <div className="sc-chips">
+                        <button
+                          className={`sd-chip il-chip ${on ? "on" : ""}`}
+                          aria-pressed={on}
+                          data-testid={`room-ceiling-d2l-btn-${room.areaId}`}
+                          onClick={() => {
+                            setCeilingRooms((cur) => on ? cur.filter((r) => r !== room.areaId) : [...cur, room.areaId]);
+                            act(
+                              { action: "set_paint_system", field: "darkToLightCeilingRoom", areaId: room.areaId, value: !on },
+                              `d2lc:${room.areaId}`,
+                              (d) => `${room.name}'s ceiling ${!on ? "gets the extra coat" : "back to the standard"}${liveRange && Math.abs(d) >= 100 ? ` — about ${d > 0 ? "+" : "−"}${fmt(Math.abs(d))}` : ""}`,
+                              [`d2lc:${room.areaId}`, !on ? "on" : "off"],
+                            );
+                          }}
+                        >{on ? "Yes — the extra coat is in" : "Yes, this one"}</button>
+                      </div>
+                    </div>
+                  );
+                })()}
                 <div className="sc-inc">Includes filling minor cracks and sanding — allowances set by us</div>
                 {room.allowances?.map((a) => <div className="sc-inc" key={a} data-testid="room-allowance">🔒 {a} — allowed for by us</div>)}
                 {/* §4.3 — how this room compares, and where the damage is. */}
