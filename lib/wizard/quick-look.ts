@@ -126,12 +126,12 @@ const SCOPE_SURFACES: Record<ScopePreset, WizardSurfaceKey[]> = {
  * 2 from 3 by eye and asking them to is how you get a wrong answer confidently
  * given.
  *
- * ⚑ "Needs work" maps to 2, NOT 3. At quick-look resolution "flaking, cracked
- * plaster, water marks" is a job with real preparation in it, not a
- * restoration — and the guide range must not overstate. Tier 3 stays reachable
- * where it is actually earned: the per-room spots in the tighten stage, where
- * the customer points at the damage and a photo settles it. Tom's call if he
- * wants the guide to lead with the higher number instead.
+ * "Needs work" maps to 2, NOT 3 — **Tom's decision, 10 Sep**, taking the
+ * recommendation. At quick-look resolution "flaking, cracked plaster, water
+ * marks" is a job with real preparation in it, not a restoration, and the guide
+ * range must not overstate. Tier 3 stays reachable where it is actually earned:
+ * the per-room spots in the tighten stage, where the customer points at the
+ * damage and a photo settles it. Settled — not an open question.
  */
 const CONDITION_DAMAGE_TIER: Record<ConditionBand, number> = {
   good: 0,

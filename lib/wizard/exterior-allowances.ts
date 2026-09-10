@@ -6,11 +6,14 @@ import type { WizardDeferred } from "./view";
  * it is why `groupForSubstrate` returns nothing for exterior and why the
  * exterior quick look was never built.
  *
- * ⚑⚑ THESE NUMBERS ARE A PROPOSAL, NOT TOM'S. He asked for a recommendation
- * ("I'll take your advice", 9 Sep) rather than supplying figures, so every
- * one of them is a Settings value under `exterior_access_hours`, and every
- * job that uses one is FLAGGED — fifty jobs of work-order actuals should
- * correct them, not a deploy and not my judgement.
+ * ⚑ WHERE THESE NUMBERS CAME FROM. Tom asked for a recommendation rather than
+ * supplying figures ("I'll take your advice", 9 Sep) and **accepted them as the
+ * starting point on 10 Sep**. They are therefore agreed, not guessed — but they
+ * are still UNMEASURED, which is a different thing. Every one is a Settings
+ * value under `exterior_access_hours` and every job that uses one is FLAGGED,
+ * so fifty jobs of work-order actuals can correct them without a deploy. That
+ * is the mechanism Tom agreed to, and it is the part that matters: the numbers
+ * are a starting point with a correction path, not a decision nobody can revisit.
  *
  * ────────────────────────────────────────────────────────────────────────
  * WHY HOURS AND NOT MULTIPLIERS — the same argument that rebuilt site access.
@@ -58,7 +61,8 @@ export type ExteriorAllowanceSettings = {
   difficultGroundPerSide: number;
 };
 
-/** ⚑ My proposal (9 Sep). Settings-editable; correct them against actuals. */
+/** Agreed with Tom 10 Sep as a starting point. Settings-editable; correct them
+ *  against work-order actuals rather than treating them as measured. */
 export const DEFAULT_EXTERIOR_ALLOWANCES: ExteriorAllowanceSettings = {
   upperStoreyPerSide: 2,
   difficultGroundPerSide: 1.5,

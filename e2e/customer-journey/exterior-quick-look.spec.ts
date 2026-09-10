@@ -70,4 +70,35 @@ test("an outside job answers five things on one screen and gets a range", async 
   await front.locator(".sd-hd").click();
   await front.getByRole("button", { name: "Yes", exact: true }).click();
   await expect(front.locator(".sd-size")).toContainText(/m long/i);
+
+  /**
+   * Tom, 10 Sep: "the walls % isn't sitting in the box cleanly." It is a wall
+   * ROW now, spanning the grid, with the four percent buttons sharing the width
+   * — so the measurable claim is that they sit INSIDE the tile rather than
+   * spilling past its rounded corner. Asserted rather than eyeballed, at the
+   * width where it broke.
+   */
+  const wall = front.locator(".sd-wall").first();
+  await wall.scrollIntoViewIfNeeded();
+  const tile = await wall.boundingBox();
+  const pcts = await wall.locator(".sd-pcts").boundingBox();
+  expect(pcts!.x).toBeGreaterThanOrEqual(tile!.x - 1);
+  expect(pcts!.x + pcts!.width).toBeLessThanOrEqual(tile!.x + tile!.width + 1);
+  // And the four buttons are on ONE row — the ragged wrap was the complaint.
+  const rows = new Set(await wall.locator(".sd-pc").evaluateAll(
+    (els) => els.map((e) => Math.round((e as HTMLElement).getBoundingClientRect().top)),
+  ));
+  expect(rows.size, "the four percent buttons must sit on one row").toBe(1);
+  // And at PHONE width, which is where it broke: a 150px grid column could not
+  // hold four 36px buttons plus the label, so they wrapped raggedly and spilled
+  // past the tile's corner.
+  await page.setViewportSize({ width: 390, height: 1500 });
+  await wall.evaluate((el) => el.scrollIntoView({ block: "center" }));
+  const narrow = await wall.boundingBox();
+  const narrowPcts = await wall.locator(".sd-pcts").boundingBox();
+  expect(narrowPcts!.x + narrowPcts!.width).toBeLessThanOrEqual(narrow!.x + narrow!.width + 1);
+  const phoneRows = new Set(await wall.locator(".sd-pc").evaluateAll(
+    (els) => els.map((e) => Math.round((e as HTMLElement).getBoundingClientRect().top)),
+  ));
+  expect(phoneRows.size, "one row on a phone too").toBe(1);
 });

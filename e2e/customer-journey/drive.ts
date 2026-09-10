@@ -112,7 +112,13 @@ export async function fillQuickAddress(page: Page, opts: { suburb?: string; post
 /** Advance one quick-look screen, failing loudly on a gate rather than
  *  silently sitting on the same screen until a later assertion times out. */
 export async function quickNext(page: Page) {
-  await page.getByTestId("ql-next").click();
+  // Wait for it to be ENABLED, not merely present. Continue is disabled while
+  // the anonymous session connects, and a spec that clicks in that window sits
+  // on the same screen until a later assertion times out — which reads as a
+  // broken flow and is a race.
+  const next = page.getByTestId("ql-next");
+  await expect(next).toBeEnabled({ timeout: 30_000 });
+  await next.click();
   const err = page.getByTestId("ql-error");
   if (await err.count()) throw new Error(`quick look gate: ${await err.first().innerText()}`);
 }

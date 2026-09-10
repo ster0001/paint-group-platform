@@ -17,12 +17,12 @@ import { SITE_ACCESS_HOURS_KEY, type HourAllowance } from "@/lib/wizard/site-acc
  * room or ten, and a second storey adds set-up and pack-down, not painting
  * time.
  *
- * ⚑ The EXTERIOR numbers are a proposal, not Tom's — he asked for a
- * recommendation rather than supplying figures (9 Sep). Every job that uses
+ * ⚑ The EXTERIOR numbers were recommended rather than measured — Tom asked for
+ * advice and accepted them as a starting point (10 Sep). Every job that uses
  * one is flagged on the estimate, so the honest way to settle them is to
  * compare a few jobs' allowances against the hours they actually took and
- * change them here. That is why this screen exists at all: a number nobody
- * can reach is a number nobody can correct.
+ * change them here. That is why this screen exists at all: a number nobody can
+ * reach is a number nobody can correct.
  */
 export default function AccessAllowancesSettings({ interior, exterior }: {
   interior: Record<string, HourAllowance>;
