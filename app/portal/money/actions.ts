@@ -4,7 +4,9 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { ensureContractorInvoicePdf } from "@/lib/invoicing/pdf";
+import { staffContractorInvoice } from "@/lib/staff/notify";
 
 /**
  * The contractor's one tap (Step 5). Everything money-shaped happens in
@@ -34,7 +36,10 @@ export async function submitContractorInvoiceAction(raw: unknown): Promise<Submi
   if (s === "ok:submitted") {
     revalidatePath("/portal/money");
     // Their invoice document renders behind the response — heal-on-view backs it up.
-    after(async () => { await ensureContractorInvoicePdf(parsed.data.id); });
+    after(async () => {
+      await ensureContractorInvoicePdf(parsed.data.id);
+      const svc = createServiceClient(); if (svc) await staffContractorInvoice(svc, parsed.data.id); // Tom, 10 Sep: staff alert
+    });
     return { ok: true };
   }
   if (s.startsWith("error:profile_incomplete:")) {
@@ -94,7 +99,10 @@ export async function requestClaimAction(raw: unknown): Promise<ClaimResult> {
   if (s.startsWith("ok:")) {
     const id = s.slice(3);
     revalidatePath("/portal/money");
-    after(async () => { await ensureContractorInvoicePdf(id); });
+    after(async () => {
+      await ensureContractorInvoicePdf(id);
+      const svc = createServiceClient(); if (svc) await staffContractorInvoice(svc, id); // Tom, 10 Sep: staff alert
+    });
     return { ok: true, id };
   }
   if (s.startsWith("error:profile_incomplete:")) {

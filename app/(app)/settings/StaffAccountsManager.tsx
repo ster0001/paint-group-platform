@@ -22,6 +22,7 @@ export default function StaffAccountsManager() {
   // create form
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [newOwner, setNewOwner] = useState(false);
   const [newAccess, setNewAccess] = useState<Record<string, boolean>>({});
@@ -37,10 +38,10 @@ export default function StaffAccountsManager() {
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
     setMsg(null); setBusy(true);
-    const r = await createStaffAction({ email, name, password, isOwner: newOwner, access: newAccess }).catch(() => null);
+    const r = await createStaffAction({ email, name, phone, password, isOwner: newOwner, access: newAccess }).catch(() => null);
     setBusy(false);
     if (!r || r.status === "error") { setMsg({ ok: false, text: r?.message ?? "That didn't save — try again." }); return; }
-    setEmail(""); setName(""); setPassword(""); setNewOwner(false); setNewAccess({});
+    setEmail(""); setName(""); setPhone(""); setPassword(""); setNewOwner(false); setNewAccess({});
     setMsg({ ok: true, text: r.message });
     load();
   };
@@ -51,7 +52,7 @@ export default function StaffAccountsManager() {
     setMsg(null); setBusy(true);
     const access: Record<string, boolean> = {};
     for (const a of STAFF_AREAS) access[a.key] = row.access[a.key] !== false;
-    const r = await updateStaffAction({ id: row.id, isOwner: row.isOwner, access, name: row.name }).catch(() => null);
+    const r = await updateStaffAction({ id: row.id, isOwner: row.isOwner, access, name: row.name, phone: row.phone }).catch(() => null);
     setBusy(false);
     setMsg(r ? { ok: r.status === "ok", text: r.message } : { ok: false, text: "That didn't save — try again." });
     if (r?.status === "ok") load();
@@ -102,6 +103,12 @@ export default function StaffAccountsManager() {
                 />
                 <span className="text-sm text-gray-600">{row.email}</span>
                 {row.self && <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase text-gray-500">you</span>}
+                <input
+                  className="w-36 rounded-md border border-gray-300 px-2 py-1 text-sm"
+                  value={row.phone} disabled={!isOwner} placeholder="Mobile (for texts)" inputMode="tel"
+                  onChange={(e) => setRows((rs) => rs.map((x) => (x.id === row.id ? { ...x, phone: e.target.value } : x)))}
+                  data-testid={`staff-phone-${row.email}`}
+                />
                 <label className={`ml-auto flex items-center gap-1.5 text-sm ${isOwner ? "text-gray-700" : "text-gray-400"}`}>
                   <input type="checkbox" disabled={!isOwner} checked={row.isOwner}
                     onChange={(e) => setRows((rs) => rs.map((x) => (x.id === row.id ? { ...x, isOwner: e.target.checked } : x)))} />
@@ -126,9 +133,10 @@ export default function StaffAccountsManager() {
       {canManage && (
         <form onSubmit={create} className="rounded-lg border border-gray-200 bg-gray-50 p-4" data-testid="staff-create">
           <h3 className="text-sm font-semibold text-gray-800">Add a staff login</h3>
-          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <label className="text-xs text-gray-600">Email<input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm" data-testid="staff-email" /></label>
             <label className="text-xs text-gray-600">Name<input value={name} onChange={(e) => setName(e.target.value)} className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm" data-testid="staff-name" /></label>
+            <label className="text-xs text-gray-600">Mobile (for text alerts)<input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="04xx xxx xxx" className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm" data-testid="staff-phone" /></label>
             <label className="text-xs text-gray-600">Starting password<input type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm" data-testid="staff-password" /></label>
           </div>
           <label className="mt-3 flex items-center gap-1.5 text-sm text-gray-700">
@@ -143,7 +151,7 @@ export default function StaffAccountsManager() {
           <button type="submit" disabled={busy} className="mt-4 rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50" data-testid="staff-submit">
             {busy ? "Saving…" : "Create login"}
           </button>
-          <p className="mt-2 text-xs text-gray-500">Hand the password over in person or by phone. They sign in at /login and can change it afterwards.</p>
+          <p className="mt-2 text-xs text-gray-500">Hand the password over in person or by phone. They sign in at /login and can change it afterwards. Which alerts each person gets is under Communications → Automations → Staff.</p>
         </form>
       )}
       {msg && <p className={`text-sm ${msg.ok ? "text-emerald-700" : "text-red-600"}`} data-testid="staff-msg">{msg.text}</p>}

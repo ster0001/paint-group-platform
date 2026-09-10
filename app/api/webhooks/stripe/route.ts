@@ -5,6 +5,7 @@ import { verifyStripeSignature } from "@/lib/invoicing/stripeSig";
 import { fetchStripeFeeCents, stripeWebhookConfigured } from "@/lib/invoicing/stripe";
 import { ensureReceiptPdf } from "@/lib/invoicing/pdf";
 import { sendReceiptEmail } from "@/lib/invoicing/sendInvoice";
+import { staffInvoicePaid } from "@/lib/staff/notify";
 import { reportError } from "@/lib/monitoring/report";
 
 // Cold-start Chromium + render can pass 10s — give the pdf paths room.
@@ -85,6 +86,7 @@ export async function POST(req: Request) {
           if (paymentId) {
             await ensureReceiptPdf(paymentId);
             await sendReceiptEmail(service, paymentId);
+            await staffInvoicePaid(service, paymentId); // Tom, 10 Sep: staff alert
           }
         });
       }

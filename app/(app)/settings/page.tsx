@@ -254,7 +254,7 @@ export default async function SettingsPage() {
       id: "communications", title: "Communications & automations", icon: "✉️",
       blurb: "Every message the platform sends, and what the assistant may say.",
       folders: [
-        { id: "automations", title: "Automations", subtitle: "Every email, text and calendar invite sent to customers and painters — what fires it, switch it off, change the wording", count: AUTOMATION_COUNT,
+        { id: "automations", title: "Automations", subtitle: "Every email, text and calendar invite sent to customers, contractors and staff — what fires it, switch it off, change the wording; who on staff gets each alert", count: AUTOMATION_COUNT,
           content: <AutomationsSettings initial={messaging} initialVariationRelease={variationRelease} /> },
         { id: "brain", title: "Brain", subtitle: "What the assistant may say about how Paint Group works — approve each entry; unwritten ones are never served", count: brainRows.length,
           content: <BrainManager rows={brainRows} /> },

@@ -1,4 +1,5 @@
 import { expect, type Page } from "@playwright/test";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 export type Credentials = { email: string; password: string };
 
@@ -24,6 +25,23 @@ export async function signIn(page: Page, creds: Credentials, expectPath: RegExp)
   await page.getByLabel("Password").fill(creds.password);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(expectPath, { timeout: 20_000 });
+}
+
+/**
+ * The auth user id behind an e2e login. `auth.admin.listUsers` is paged and
+ * C1 carries thousands of anon wizard sessions, so paging to find one staff
+ * login stopped working (10 Sep); signing the credentials in through the
+ * anon client answers directly.
+ */
+export async function userIdFor(creds: Credentials): Promise<string | null> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) return null;
+  const sb = createSupabaseClient(url, key, { auth: { persistSession: false } });
+  const { data } = await sb.auth.signInWithPassword({ email: creds.email, password: creds.password });
+  const id = data.user?.id ?? null;
+  await sb.auth.signOut().catch(() => {});
+  return id;
 }
 
 export async function signOutIfPossible(page: Page) {

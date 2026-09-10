@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { pingGcalSync } from "@/lib/gcal/ping";
 import { pingAppointmentConfirm } from "@/lib/workorder/appointmentPing";
+import { notifyOfferRespondedAction } from "@/app/portal/offerNotifyAction";
 import { formatCountdown, msRemaining } from "@/lib/scheduling/offers";
 
 /**
@@ -54,6 +55,7 @@ export default function OfferBar({ offerId, workOrderId, expiresAt, priceCents }
         router.refresh();
         return;
       }
+      void notifyOfferRespondedAction({ offerId }); // Tom, 10 Sep: staff alert, fire-and-forget
       pingGcalSync(); // accepted/declined changes what belongs in Google Calendar
       if (action === "accept") pingAppointmentConfirm(workOrderId); // customer confirmation + walkthrough invites
       router.refresh();
