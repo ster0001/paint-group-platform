@@ -60,7 +60,17 @@ test("Tom, 8 Sep evening: rename a side, gutters twice, handrails by the metre, 
   const front = page.locator('.sd-card[data-side="front"]');
   await front.locator(".sd-hd").click();
   await front.getByRole("button", { name: "Yes", exact: true }).click();
-  await front.getByRole("button", { name: /Looks right/ }).click();
+  /**
+   * ⚑ Tom, 10 Sep: "the sizing needs to be added in and not assumed for
+   * exterior." A side's size is no longer an assumption to agree with, so the
+   * one-tap "Looks right" is gone — the boxes are there from the start and the
+   * real numbers go in. Everything after this line is about the SIDE, not the
+   * size, and only needed a size on the card to get there.
+   */
+  await front.getByPlaceholder("length m").fill("12");
+  await front.getByPlaceholder("height m").fill("2.6");
+  await front.getByTestId("side-dims-front").getByRole("button", { name: "Update", exact: true }).click();
+  await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
 
   // --- 2 · the customer's own name for a side --------------------------------
   // Address the card by its side, not by its text: the moment the rename form

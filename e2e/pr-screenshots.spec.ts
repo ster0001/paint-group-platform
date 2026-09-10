@@ -56,7 +56,11 @@ test("capture: exterior sides loop", async ({ page }) => {
   const front = page.locator(".sd-card", { hasText: "Front" }).first();
   await front.locator(".sd-hd").click();
   await front.getByRole("button", { name: "Yes", exact: true }).click();
-  await front.getByRole("button", { name: /Looks right/ }).click();
+  // 10 Sep: an exterior side's size is asked, not assumed — no "Looks right".
+  await front.getByPlaceholder("length m").fill("12");
+  await front.getByPlaceholder("height m").fill("2.6");
+  await front.locator('[data-testid^="side-dims-"]').first()
+    .getByRole("button", { name: "Update", exact: true }).click();
   await front.getByRole("button", { name: /Add a surface/ }).click();
   await front.getByRole("button", { name: /Render — wall surface/ }).click();
   await expect(front.locator(".sd-wall")).toHaveCount(2, { timeout: 15_000 });

@@ -40,6 +40,12 @@ These rules are mandatory for all work in this repo. If a task conflicts with a 
 - **Creating a storage bucket is half the job**; `storage.objects` needs its own policies or every upload dies at the signed-URL step behind a 502.
 - The service key is **not** a shortcut for staff: it carries no JWT claims, so `is_staff()` is false under it and staff-gated RPCs answer `not_staff`.
 
+- **Every migration ends by registering itself.** Production is applied by hand, so the repo alone has never been proof of what ran. `public._prod_migrations(name, applied_at)` is that proof (`20270135000000_prod_migrations.sql`). The last statement of EVERY new migration file is:
+  ```sql
+  insert into public._prod_migrations(name) values ('<this exact filename>.sql') on conflict (name) do nothing;
+  ```
+  It goes in the same paste as the statements it records, so there is no separate bookkeeping step to forget. A migration file with no row in that table has **not** been applied — treat "no row" as "not live", never as "unknown". Never insert a row for a migration you did not just apply, and never execute the SQL yourself: it goes in the PR body for Tom.
+
 ## Dates
 - **`toISOString().slice(0,10)` is the UTC date, not the local one.** Before 10am Melbourne it silently reports yesterday, which shifted a sparkline by a day and made "days until start" come out one short. Bucket by calendar day with an `Intl` formatter pinned to `Australia/Melbourne`.
 - **Never hardcode `+10:00`.** Melbourne is +11 from October to April. Measure the offset from the zone; don't write one down.

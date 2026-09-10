@@ -72,7 +72,11 @@ export type CustomerScopeBundle =
        * or bolder — on any other job there is nothing to pick, and a card
        * offering the choice would invent a question.
        */
-      initialDarkToLight: { asked: boolean; surfaces: string[]; someWalls: boolean };
+      initialDarkToLight: {
+        asked: boolean; surfaces: string[]; someWalls: boolean;
+        /** Ceilings (Tom, 11 Sep): all of them, a named list of rooms, or none. */
+        ceilings: "all" | "some" | null; ceilingRooms: number[];
+      };
       /** The job's colour intent — it words each room's prep question. */
       initialColourTier: "fresh" | "change" | "dark_to_light";
       /** §4.4 — the site and access answers so far, and whether to ask about a lift. */
@@ -223,6 +227,8 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
       surfaces: snap.success ? [...(snap.data.condition.darkToLightSurfaces ?? [])] : [],
       someWalls: snap.success
         && (snap.data.condition.surfaceFlags?.walls ?? []).includes("some_dark_to_light"),
+      ceilings: snap.success ? (snap.data.condition.darkToLightCeilings ?? null) : null,
+      ceilingRooms: snap.success ? [...(snap.data.condition.darkToLightCeilingRooms ?? [])] : [],
     },
     initialSystems: snap.success
       ? paintSystemsView(snap.data, blocks, paintSystemsFrom(settingValue(ctx.settings, PAINT_SYSTEMS_KEY)))

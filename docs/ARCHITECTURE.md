@@ -3178,3 +3178,50 @@ written from how a homeowner describes a wall ("the paint is coming off"), not h
 
 **The live chat bubble is untouched**, which was Tom's other point: it is a direct line to the
 office and has nothing to do with any of this.
+
+## Ceilings that go from dark to light — all of them, or named rooms (11 Sep 2026)
+
+Tom, 11 Sep: *"It isn't typical for a ceiling to go from dark to light — so maybe it could be
+added to the dark to light as ceilings some rooms, or all ceilings; if it's some rooms, then it
+adds an option to choose the rooms in the room builder."*
+
+This closes the gap the 10 Sep dark-to-light change opened and flagged in its own commit
+message: the ceilings-changing-colour question lived on the paint-systems card, that card is
+gone, and ceilings were not on Tom's tick list — so a bold job derived its ceilings at one coat
+and nothing asked.
+
+**Why ceilings are the one surface answered per ROOM.** "Some walls" has to stay a note for the
+estimator because we cannot know *which* walls, and ticking them all over-quotes a whole house
+for one feature wall. Ceilings are different: the rooms are already on the screen. So "some" is
+a real list of rooms and earns a real price, instead of a follow-up.
+
+- `condition.darkToLightCeilings` (`"all" | "some" | null`, default null — the usual answer) and
+  `condition.darkToLightCeilingRooms` (area ids). Ceilings are deliberately NOT written into
+  `darkToLightSurfaces` by the card: one field owns the answer, so the two cannot disagree.
+- The job-wide row is `darklight-ceilings-row`; tapping the chip that is already on turns it
+  **off**, because "none" is the common answer and must not need a third chip.
+- The per-room tick (`room-ceiling-d2l-btn-<areaId>`) renders only when the answer is "some"
+  *and* that room has a ceiling being painted. It sits inside the room card, so it is reached
+  the same way — and in the same rhythm — as the size, the cupboards and the spots.
+- `applyPaintSystems` is the only place that reads it, and it already walks the blocks with the
+  area in hand; that is why per-room cost almost nothing. A ceiling going dark to light also
+  forces `ceilingsChangingColour` for that surface — it IS a colour change, and without it ⚑3's
+  coverage guard would read a repainted ceiling as "white again".
+- **"some" with no room named prices every ceiling at the standard**, and the card says so. No
+  room chosen means no coat added; it never guesses upward.
+- **Back compat:** the assistant maps a whole-job "dark to light" onto the surface list,
+  ceilings included, and so do older snapshots. A ticked `"ceilings"` in that list still means
+  "all" unless the new field says otherwise — reading only the new field would quietly drop a
+  coat those jobs were already quoted for.
+
+### ⚑ A bold ceiling is TWO coats, not three — and that is Tom's Settings row
+
+`DEFAULT_PAINT_SYSTEMS.ceilings.bold` is `rule(2, …, "A new ceiling colour. Two coats of flat
+ceiling paint.")`, where walls, trims and doors on the bold system are three. So a ceiling going
+lighter gets one extra coat (1 → 2), not the third coat the card's pill promises for walls.
+
+The derivation follows the table rather than inventing a number, and the card says *"we allow
+the extra coat it needs"* — never "three coats". Promising three and charging two is how a quote
+and an estimate stop matching. If Tom wants three over a genuinely dark ceiling, it is a
+one-row Settings change, and the unit tests read the table so they follow him instead of
+failing.
