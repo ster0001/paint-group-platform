@@ -28,8 +28,13 @@ test("a bold job picks its dark-to-light surfaces, and nothing else asks about c
   await expect(card).toBeVisible();
   await expect(card).toContainText(/dark to light/i);
 
-  await page.getByTestId("darklight-ceilings").click();
-  await expect(page.getByTestId("darklight-ceilings")).toHaveAttribute("aria-pressed", "true");
+  // Tom's own list: All walls · Some walls · Doors · Architraves · Skirting
+  // boards · Window frames. Ceilings are deliberately not on it.
+  await expect(page.getByTestId("darklight-walls")).toContainText("All walls");
+  await expect(page.getByTestId("darklight-some-walls")).toBeVisible();
+  await expect(card).toContainText(/two coats as standard/i);
+  await page.getByTestId("darklight-doors").click();
+  await expect(page.getByTestId("darklight-doors")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
   await expect(page.locator(".sc-r").first()).toHaveText(MONEY_RANGE);
 

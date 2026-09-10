@@ -92,7 +92,6 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
   const [exterior, setExterior] = useState<CustomerExteriorView | null>(initialExterior);
   const [ladder, setLadder] = useState<Ladder>(initialLadder);
   const [open, setOpen] = useState<string>("front");
-  const [adjusting, setAdjusting] = useState<SideKey | null>(null);
   const [dims, setDims] = useState({ L: "", H: "" });
   const [addOpen, setAddOpen] = useState<SideKey | null>(null);
   /** Tom, 8 Sep: a side can be given the customer's own name ("Courtyard"). */
@@ -364,21 +363,32 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
             {s.include === true && (
               <>
                 <div className={`sd-q il-first ${s.size != null ? "ok" : ""}`}>
+                  {/*
+                    ⚑ Tom, 10 Sep: "the sizing needs to be added in and not
+                    assumed for exterior."
+
+                    This used to READ the assumption back — "this side's about
+                    12 m long × 5.5 m high, sound right?" — with "Looks right"
+                    as the easy tap. On an exterior the range is mostly length ×
+                    height, so accepting a guess with one tap is how a quote
+                    ends up confidently wrong. The boxes are there from the
+                    start and empty: the assumption is shown as what we USED,
+                    not as an answer to agree with, and "not sure" is still
+                    there for somebody who genuinely does not know.
+                  */}
                   <p className="il-kick">FIRST — THE SIZE OF THIS SIDE</p>
                   <p className="sd-ql">
-                    This side&rsquo;s about{" "}
-                    <span className="sd-size">
-                      {s.size === "ns" ? `${s.L} × ${s.H} m (we'll measure)` : `${s.L} m long × ${s.H} m high`}
-                      {s.size === "adjusted" ? " · updated by you" : ""}
-                    </span>{" "}
-                    — sound right? <span className="sd-req">REQUIRED</span><span className="sd-okc">✓</span>
+                    How big is this side? <span className="sd-req">REQUIRED</span><span className="sd-okc">✓</span>
                   </p>
-                  <div className="sd-chips">
-                    <button className={`sd-chip ${sel(`size:${s.key}`, s.size === "yes", "yes") ? "on" : ""}`} onClick={() => act({ action: "side_size_ok", side: s.key }, { opt: [`size:${s.key}`, "yes"] })}>Looks right</button>
-                    <button className={`sd-chip ${s.size === "adjusted" || adjusting === s.key ? "on" : ""}`} onClick={() => { setAdjusting(s.key); setDims({ L: "", H: "" }); }}>Adjust it</button>
-                  </div>
-                  {adjusting === s.key && (
-                    <div className="sd-mrow">
+                  <p className="sd-help" data-testid={`side-assumed-${s.key}`}>
+                    {s.size === "ns"
+                      ? `We'll measure this side on the day — your range stays wider until then.`
+                      : s.size === "adjusted" || s.size === "yes"
+                        ? `Recorded: ${s.L} m long × ${s.H} m high.`
+                        : `Your guide range used ${s.L} m × ${s.H} m — pace it out and put the real numbers in.`}
+                  </p>
+                  {(
+                    <div className="sd-mrow" data-testid={`side-dims-${s.key}`}>
                       <input placeholder="length m" inputMode="decimal" value={dims.L} onChange={(e) => setDims({ ...dims, L: e.target.value })} />
                       <span>×</span>
                       <input placeholder="height m" inputMode="decimal" value={dims.H} onChange={(e) => setDims({ ...dims, H: e.target.value })} />
@@ -390,7 +400,6 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                             act({ action: "side_dims", side: s.key, notSure: true }, {
                               done: "Not a problem — we'll measure this side on the day; your range widens a touch until then.",
                             });
-                            setAdjusting(null);
                             return;
                           }
                           // The gentle clamp (3–40 m long, 2–8 m high) — the
@@ -409,7 +418,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                               ? `${s.label} set to ${L ?? "—"} × ${H ?? "—"} m (sides run 3–40 × 2–8 m) — repriced.`
                               : `${s.label} repriced — walls and roofline follow the new size.`,
                           });
-                          setAdjusting(null);
+                          setDims({ L: "", H: "" });
                         }}
                       >
                         Update

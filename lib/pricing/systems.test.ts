@@ -108,12 +108,20 @@ describe("the acceptance criteria (plan §9.3)", () => {
 });
 
 describe("the table (plan §4.2 with ⚑3/⚑4/⚑5)", () => {
-  it("walls: one coat same, two new, undercoat + two bold", () => {
+  it("walls: one coat same, two new, undercoat + two when TICKED dark-to-light", () => {
     expect(coatsOf("walls", { colourIntent: "same" })).toBe(1);
     expect(coatsOf("walls", { colourIntent: "new" })).toBe(2);
-    const bold = deriveSystem("walls", answers({ colourIntent: "bold" }));
-    expect(bold.coats).toBe(3);
-    expect(bold.undercoat).toBe(true);
+    /**
+     * ⚑ Tom, 10 Sep: on a dark-to-light job the TICK earns the extra coat —
+     * "anything not ticked will be quoted with 2 coats as standard". A bold
+     * job used to put every surface on the bold system, which made the
+     * question theatre and quoted a third coat on surfaces nobody said were
+     * changing.
+     */
+    expect(coatsOf("walls", { colourIntent: "bold" })).toBe(2);
+    const ticked = deriveSystem("walls", answers({ colourIntent: "bold", darkToLight: true }));
+    expect(ticked.coats).toBe(3);
+    expect(ticked.undercoat).toBe(true);
   });
 
   it("⚑3 ceilings: one coat white-on-white, two when they're marked", () => {
@@ -241,15 +249,20 @@ describe("substrate → group", () => {
   it("prices exterior at 1 / 2 / 2, and warns about the third coat", () => {
     expect(coatsOf("exterior", { colourIntent: "same" })).toBe(1);
     expect(coatsOf("exterior", { colourIntent: "new" })).toBe(2);
-    const bold = deriveSystem("exterior", answers({ colourIntent: "bold" }));
+    // Outside, the third coat is a heads-up rather than a tick — the sentence
+    // is the promise, so it must survive the interior rule change.
+    const bold = deriveSystem("exterior", answers({ colourIntent: "bold", darkToLight: true }));
     expect(bold.coats).toBe(2);
     expect(bold.sentence).toMatch(/need a third/i);
     expect(bold.sentence).toMatch(/before we start that wall/i);
   });
 
   /** Inside, going from a bold colour to white is ALWAYS three (Tom, 9 Sep). */
-  it("keeps interior bold at three coats, unlike the exterior", () => {
-    expect(coatsOf("walls", { colourIntent: "bold" })).toBe(3);
+  it("takes interior walls to three only when TICKED; the exterior stays at two", () => {
+    // Tom, 10 Sep: the tick is what earns the coat, inside. Outside is two
+    // either way, with the heads-up about a possible third (Tom, 9 Sep).
+    expect(coatsOf("walls", { colourIntent: "bold", darkToLight: true })).toBe(3);
+    expect(coatsOf("walls", { colourIntent: "bold" })).toBe(2);
     expect(coatsOf("exterior", { colourIntent: "bold" })).toBe(2);
   });
 
@@ -395,7 +408,9 @@ describe("per-surface condition flags (Tom, 9 Sep)", () => {
    * but everything else 2".
    */
   it("takes sound ceilings down to one coat while the rest stay at two", () => {
-    const a = answers({ colourIntent: "bold", flags: { ceilings: ["sound"] } });
+    // A bold job where the walls and trims ARE ticked dark-to-light, so the
+    // flag is what takes the ceilings back down rather than the tier.
+    const a = answers({ colourIntent: "bold", darkToLight: true, flags: { ceilings: ["sound"] } });
     expect(deriveSystem("ceilings", a).coats).toBe(1);
     expect(deriveSystem("walls", a).coats).toBe(3);
     expect(deriveSystem("trims", a).coats).toBe(3);

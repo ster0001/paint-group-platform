@@ -415,13 +415,26 @@ export function applyAnswer(doc: ScopeDoc, key: string, value: unknown, provenan
         ceilingsChangingColour: st.condition?.ceilingsChangingColour ?? false,
       } as const;
       const d2l = new Set(t === "dark_to_light" ? (st.condition?.darkToLightSurfaces ?? []) : []);
+      /**
+       * ⚑ Tom, 10 Sep changed what a dark-to-light TIER means: on the customer
+       * form only the surfaces they TICK get the extra coat, and the rest are
+       * quoted at the standard for that surface.
+       *
+       * This path is different, and deliberately so. It is somebody telling
+       * the assistant "three coats" or "dark to light" about the WHOLE job —
+       * there is no tick list to read, and quoting them two would be the
+       * opposite of what they just said. So every surface takes the bold
+       * system here, and the ticks stay the customer form's mechanism.
+       */
+      const wholeJob = t === "dark_to_light";
       const fallback = coatsFor(t, t === "dark_to_light");
       const seen = new Set<number>();
       const coatsForSurface = (code: string): number => {
         const key = substrateKeyForRateCode(code);
         const group = groupForSubstrate(key);
-        if (group == null) return coatsFor(t, key != null && d2l.has(key));
-        const n = deriveSystem(group, { ...answers, darkToLight: key != null && d2l.has(key) }).coats;
+        const dark = wholeJob || (key != null && d2l.has(key));
+        if (group == null) return coatsFor(t, dark);
+        const n = deriveSystem(group, { ...answers, darkToLight: dark }).coats;
         seen.add(n);
         return n;
       };

@@ -69,7 +69,10 @@ test("an outside job answers five things on one screen and gets a range", async 
   const front = page.locator('[data-side="front"]');
   await front.locator(".sd-hd").click();
   await front.getByRole("button", { name: "Yes", exact: true }).click();
-  await expect(front.locator(".sd-size")).toContainText(/m long/i);
+  // ⚑ Tom, 10 Sep: the size is ASKED, not read back for agreement — the boxes
+  // are there from the start, with what we assumed shown as what we USED.
+  await expect(front.getByTestId("side-assumed-front")).toContainText(/5\.5 m/);
+  await expect(front.getByTestId("side-dims-front")).toBeVisible();
 
   /**
    * Tom, 10 Sep: "the walls % isn't sitting in the box cleanly." It is a wall

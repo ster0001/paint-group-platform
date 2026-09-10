@@ -28,11 +28,10 @@ type Ladder = { tier: "self_serve" | "visit"; visitSlots: string[] };
  * other surface answer does.
  */
 const DARK_TO_LIGHT_SURFACES: Array<[string, string]> = [
-  ["walls", "Walls"],
-  ["ceilings", "Ceilings"],
+  ["walls", "All walls"],
   ["doors", "Doors"],
-  ["skirting", "Skirting boards"],
   ["architraves", "Architraves"],
+  ["skirting", "Skirting boards"],
   ["windows", "Window frames"],
 ];
 
@@ -109,7 +108,7 @@ const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
 const snapshotFalse = () => false;
 
-export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialDarkToLight = { asked: false, surfaces: [] }, initialColourTier = "change", initialAccess = { answers: {}, asksLift: false }, initialExtras = { offer: [], on: [], colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null, chatMode = false }: {
+export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialDarkToLight = { asked: false, surfaces: [], someWalls: false }, initialColourTier = "change", initialAccess = { answers: {}, asksLift: false }, initialExtras = { offer: [], on: [], colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null, chatMode = false }: {
   estimateId: string;
   initial: CustomerPayload;
   initialRooms: CustomerScopeRoom[];
@@ -137,7 +136,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   /** Phase 4 (estimator journey v2 §4.2): the coats and preparation we
    * derived, in the painter's words, with a correction per line. Empty on an
    * exterior-only job or an estimate with no readable wizard snapshot. */
-  initialDarkToLight?: { asked: boolean; surfaces: string[] };
+  initialDarkToLight?: { asked: boolean; surfaces: string[]; someWalls: boolean };
   initialColourTier?: "fresh" | "change" | "dark_to_light";
   /** §4.4 — the site and access answers, and whether a lift applies. */
   initialAccess?: { answers: SiteAccess; asksLift: boolean };
@@ -161,6 +160,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
    */
   const darkToLightAsked = initialDarkToLight.asked;
   const [darkToLight, setDarkToLight] = useState<string[]>(initialDarkToLight.surfaces);
+  /** "Some walls" — an answer we record and a person prices; never a guess. */
+  const [someWalls, setSomeWalls] = useState(initialDarkToLight.someWalls);
   const [access, setAccess] = useState<SiteAccess>(initialAccess.answers);
   const [extras, setExtras] = useState({ on: initialExtras.on, colourHelp: initialExtras.colourHelp, note: initialExtras.note });
   const [sidesProg, setSidesProg] = useState<SidesView["progress"] | null>(initialSides?.progress ?? null);
@@ -740,8 +741,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
               <span className="il-pill">THREE COATS</span>
             </div>
             <p className="wz-note" style={{ margin: "2px 0 12px" }}>
-              Covering a dark colour with a light one takes a third coat. Tick the ones that are —
-              everything else we&rsquo;ll do in two.
+              Covering a dark colour with a light one takes a third coat. Tick everything that applies —
+              anything you don&rsquo;t tick is quoted at two coats as standard.
             </p>
             <div className="sc-chips">
               {DARK_TO_LIGHT_SURFACES.map(([key, label]) => {
@@ -764,7 +765,38 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                   >{label}</button>
                 );
               })}
+              {/*
+                ⚑ "SOME WALLS" IS NOT A QUANTITY, so it must not become one.
+                Ticking every wall for a third coat when one feature wall is
+                changing over-quotes a whole house; leaving it at two
+                under-quotes the wall that is. Neither is a number we know, so
+                this records the answer, prices the standard, and puts it in
+                front of a person — the same rule the rest of the estimate
+                follows when a customer tells us something we cannot measure.
+              */}
+              <button
+                className={`sd-chip il-chip ${someWalls ? "on" : ""}`}
+                aria-pressed={someWalls}
+                data-testid="darklight-some-walls"
+                onClick={() => {
+                  setSomeWalls((v) => !v);
+                  act(
+                    { action: "set_paint_system", field: "surfaceFlag", group: "walls", flag: "some_dark_to_light", value: !someWalls },
+                    "d2l:some",
+                    () => !someWalls
+                      ? "Noted — your estimator confirms which walls need the third coat before your price is fixed"
+                      : "Removed",
+                    ["d2l:some", !someWalls ? "on" : "off"],
+                  );
+                }}
+              >Some walls</button>
             </div>
+            {someWalls && (
+              <p className="wz-note" data-testid="darklight-some-note">
+                We&rsquo;ve quoted the walls at the standard two coats. Your estimator confirms which ones are
+                going dark to light and adds the third coat to those — you&rsquo;ll see it before the price is fixed.
+              </p>
+            )}
           </section>
         )}
         {/* ⚑ Tom, 10 Sep: "'anything we haven't listed' and 'site and access'
