@@ -777,56 +777,12 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             ))}
           </section>
         )}
-        {/* §4.5 — named extras price from the card; unusual ones flag. */}
-        {/* Shown even when the card carries no extras rows: the "something
-            else" box is exactly what a rate card cannot cover. */}
-        {!chatMode && (
-          <JobExtras
-            offer={initialExtras.offer}
-            on={extras.on}
-            colourHelp={extras.colourHelp}
-            note={extras.note}
-            busy={pendingCount > 0}
-            onToggle={(code, on) => {
-              setExtras((e) => ({ ...e, on: on ? [...e.on, code] : e.on.filter((c) => c !== code) }));
-              act({ action: "toggle_job_extra", code, on }, `extra:${code}`,
-                () => (on ? `${code} added` : `${code} removed`));
-            }}
-            onColourHelp={(want) => {
-              setExtras((e) => ({ ...e, colourHelp: want }));
-              act({ action: "set_colour_help", want }, "extra:colour",
-                () => want ? "We'll help you choose the colours" : "Colour help removed");
-            }}
-            onNote={(text) => {
-              setExtras((e) => ({ ...e, note: text }));
-              act({ action: "extra_note", note: text }, "extra:note",
-                () => text ? "Noted — one of our people will price that properly" : "Note cleared");
-            }}
-          />
-        )}
-        {/* §4.4 — the four allowance modifiers plus parking, the lift and pets. */}
-        {!chatMode && (
-          <SiteAccessCard
-            answers={access}
-            asksLift={initialAccess.asksLift}
-            busy={pendingCount > 0}
-            onAnswer={(field, value) => {
-              // Optimistic, so the chip lights the moment it is tapped; the
-              // server's answer replaces it on the next response.
-              setAccess((a) => ({ ...a, [field]: value }));
-              act(
-                { action: "set_site_access", field, value },
-                `access:${field}`,
-                () => "Noted — that's in your setup allowance",
-              );
-            }}
-          />
-        )}
-        {!chatMode && payload.confirmOnSite.length > 0 && (
-          <p className="wz-note wz-confirmonsite" style={{ margin: "14px 0 0" }}>
-            {payload.confirmOnSite.map((n, i) => <span key={i}>⚑ {n}<br /></span>)}
-          </p>
-        )}
+        {/* ⚑ Tom, 10 Sep: "'anything we haven't listed' and 'site and access'
+            can move to underneath the rooms — they shouldn't be at the top."
+            He is right about the order of the work: the rooms ARE the estimate,
+            and two whole-job cards sitting above them pushed the thing somebody
+            came to check below the fold. They now follow the rooms, where they
+            read as the last two questions rather than the first two. */}
         <div className="sc-cols">
         <div className="sc-cards">
           {rooms.map((room) => {
@@ -1261,6 +1217,56 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             </div>
           )}
 
+        {/* §4.5 — named extras price from the card; unusual ones flag. */}
+        {/* Shown even when the card carries no extras rows: the "something
+            else" box is exactly what a rate card cannot cover. */}
+        {!chatMode && (
+          <JobExtras
+            offer={initialExtras.offer}
+            on={extras.on}
+            colourHelp={extras.colourHelp}
+            note={extras.note}
+            busy={pendingCount > 0}
+            onToggle={(code, on) => {
+              setExtras((e) => ({ ...e, on: on ? [...e.on, code] : e.on.filter((c) => c !== code) }));
+              act({ action: "toggle_job_extra", code, on }, `extra:${code}`,
+                () => (on ? `${code} added` : `${code} removed`));
+            }}
+            onColourHelp={(want) => {
+              setExtras((e) => ({ ...e, colourHelp: want }));
+              act({ action: "set_colour_help", want }, "extra:colour",
+                () => want ? "We'll help you choose the colours" : "Colour help removed");
+            }}
+            onNote={(text) => {
+              setExtras((e) => ({ ...e, note: text }));
+              act({ action: "extra_note", note: text }, "extra:note",
+                () => text ? "Noted — one of our people will price that properly" : "Note cleared");
+            }}
+          />
+        )}
+        {/* §4.4 — the four allowance modifiers plus parking, the lift and pets. */}
+        {!chatMode && (
+          <SiteAccessCard
+            answers={access}
+            asksLift={initialAccess.asksLift}
+            busy={pendingCount > 0}
+            onAnswer={(field, value) => {
+              // Optimistic, so the chip lights the moment it is tapped; the
+              // server's answer replaces it on the next response.
+              setAccess((a) => ({ ...a, [field]: value }));
+              act(
+                { action: "set_site_access", field, value },
+                `access:${field}`,
+                () => "Noted — that's in your setup allowance",
+              );
+            }}
+          />
+        )}
+        {!chatMode && payload.confirmOnSite.length > 0 && (
+          <p className="wz-note wz-confirmonsite" style={{ margin: "14px 0 0" }}>
+            {payload.confirmOnSite.map((n, i) => <span key={i}>⚑ {n}<br /></span>)}
+          </p>
+        )}
           {iloop && (
             <>
               <section className={`sc-rc il-card ${iloop.meta.done.dw ? "done" : "amber"} ${shakeCard === "dw" ? "shake" : ""}`} data-card="dw">

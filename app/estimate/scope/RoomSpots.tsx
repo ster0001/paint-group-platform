@@ -7,6 +7,7 @@ import {
   type RoomCondition, type SpotExtent,
 } from "@/lib/wizard/spots";
 import { suggestionLine, type SuggestedSpot } from "@/lib/wizard/photo-defects";
+import PhotoDrop from "./PhotoDrop";
 import type { RoomSpot } from "@/lib/wizard/scope-editor";
 
 /**
@@ -176,10 +177,14 @@ export default function RoomSpots({
             A photo and a tap. With a photo we can price the repair straight away; without one we still
             record it and one of our people prices it. Either way your painter sees it before day one.
           </p>
-          <input
-            ref={fileRef} type="file" accept="image/*" capture="environment"
-            data-testid={`spot-photo-${areaId}`}
-            onChange={(e) => void onFileChosen(e.target.files?.[0] ?? null)}
+          <PhotoDrop
+            inputRef={fileRef}
+            testId={`spot-photo-${areaId}`}
+            title="Take a photo of the spot"
+            hint="With a photo we price the repair straight away. Without one, a person prices it."
+            ready={sourceId ? "Photo added" : null}
+            disabled={reading}
+            onFiles={(f) => void onFileChosen(f[0] ?? null)}
           />
           {reading && <p className="sc-sys-why" data-testid={`spot-reading-${areaId}`}>Reading your photo…</p>}
           {suggested && (
