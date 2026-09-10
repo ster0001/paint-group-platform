@@ -62,8 +62,15 @@ test("R2b sides loop: amber to cyan, walls must total 100%, skip reads NOT PAINT
   const front = page.locator(".sd-card", { hasText: "Front" }).first();
   await front.locator(".sd-hd").click();
   await front.getByRole("button", { name: "Yes", exact: true }).click();
-  // Size question: Looks right.
-  await front.getByRole("button", { name: /Looks right/ }).click();
+  /**
+   * ⚑ Tom, 10 Sep: "the sizing needs to be added in and not assumed for
+   * exterior." There is no "Looks right" on an assumed number any more — the
+   * boxes are there from the start and the real numbers go in.
+   */
+  await front.getByPlaceholder("length m").fill("12");
+  await front.getByPlaceholder("height m").fill("2.6");
+  await front.getByTestId("side-dims-front").getByRole("button", { name: "Update", exact: true }).click();
+  await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
   // The wall grid shows ONLY the wizard's substrate answer (weatherboard).
   await expect(front.locator(".sd-wall")).toHaveCount(1);
   await expect(front.locator(".sd-wall").first()).toContainText(/Weatherboard/i);
@@ -97,7 +104,10 @@ test("R2b sides loop: amber to cyan, walls must total 100%, skip reads NOT PAINT
   const left = page.locator(".sd-card", { hasText: "Left" }).first();
   await left.locator(".sd-hd").click();
   await left.getByRole("button", { name: "Yes", exact: true }).click();
-  await left.getByRole("button", { name: /Looks right/ }).click();
+  await left.getByPlaceholder("length m").fill("14");
+  await left.getByPlaceholder("height m").fill("2.6");
+  await left.getByTestId("side-dims-left").getByRole("button", { name: "Update", exact: true }).click();
+  await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
   await left.locator(".sd-pc", { hasText: "50" }).first().click();
   await expect(left.locator(".sd-wallsum")).toContainText(/Painting 50%/i);
   await left.getByRole("button", { name: /Confirm left/i }).click();
@@ -123,10 +133,11 @@ test("R2b sides loop: amber to cyan, walls must total 100%, skip reads NOT PAINT
   const back = page.locator(".sd-card", { hasText: "Back" }).first();
   await back.locator(".sd-hd").click();
   await back.getByRole("button", { name: "Yes", exact: true }).click();
-  await back.getByRole("button", { name: /Adjust it/ }).click();
+  // ⚑ No "Adjust it" any more — the boxes are there from the start (Tom,
+  // 10 Sep: the sizing is added in, not assumed).
   await back.getByPlaceholder("length m").fill("not sure");
-  await back.getByRole("button", { name: "Update", exact: true }).click();
-  await expect(back.locator(".sd-size")).toContainText(/measure/i);
+  await back.getByTestId("side-dims-back").getByRole("button", { name: "Update", exact: true }).click();
+  await expect(back.getByTestId("side-assumed-back")).toContainText(/measure/i);
   await back.getByRole("button", { name: /Confirm back/i }).click();
   await expect(back).toHaveClass(/done/, { timeout: 15_000 });
 
@@ -215,10 +226,9 @@ test("priced extras: condition/access, catalogue chips and sweep items move the 
   await front.getByRole("button", { name: "Yes", exact: true }).click();
   // Batch 2: out-of-range dims CLAMP and proceed (3–40 × 2–8) — the gentle
   // clamp, never a refusal; the toast names the recorded size.
-  await front.getByRole("button", { name: /Adjust it/ }).click();
   await front.getByPlaceholder("length m").fill("50");
   await front.getByPlaceholder("height m").fill("9");
-  await front.getByRole("button", { name: "Update", exact: true }).click();
+  await front.getByTestId("side-dims-front").getByRole("button", { name: "Update", exact: true }).click();
   await expect(page.locator(".sd-toast")).toContainText(/40 × 8.*3–40/, { timeout: 30_000 });
   await settled();
   await front.getByRole("button", { name: /Add a surface/ }).click();

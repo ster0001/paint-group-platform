@@ -141,7 +141,17 @@ describe("applyWizardAnswers", () => {
     const out = applyWizardAnswers(draft(), s, nextId);
     const living = out.areas.find((a) => a.name === "Living");
     expect(living?.surfaces.find((x) => x.code === "Walls")?.coats).toBe(3);
-    expect(living?.surfaces.find((x) => x.code === "Ceilings")?.coats).toBe(2);
+    /**
+     * ⚑ Tom, 10 Sep: an UNTICKED surface on a dark-to-light job takes the
+     * standard colour-change system, and for a ceiling that is ONE coat —
+     * white over white, because a new wall colour does not mean the ceiling
+     * changes. It used to be two, purely because the job was bold.
+     *
+     * ⚑ A GAP THIS OPENS: the ceilings-changing-colour question lived on the
+     * systems card, which is gone, and ceilings are not in Tom's tick list —
+     * so nothing asks about them any more. Flagged to Tom.
+     */
+    expect(living?.surfaces.find((x) => x.code === "Ceilings")?.coats).toBe(1);
   });
 
   /**

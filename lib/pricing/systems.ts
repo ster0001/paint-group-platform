@@ -574,7 +574,25 @@ export function deriveSystem(
   answers: SystemAnswers,
   systems: PaintSystems = DEFAULT_PAINT_SYSTEMS,
 ): PaintSystem {
-  const intent: ColourIntent = answers.darkToLight ? "bold" : answers.colourIntent;
+  /**
+   * ⚑ Tom, 10 Sep: on a dark-to-light job the TICK is what earns the extra
+   * coat — *"anything not ticked will be quoted with 2 coats as standard."*
+   *
+   * Before this, choosing "going much lighter or a bold colour" put EVERY
+   * surface on the bold system, so ticking "the walls are going dark to light"
+   * changed nothing: they were already three coats. That made the question
+   * theatre and quietly quoted a third coat on surfaces nobody said were
+   * changing.
+   *
+   * So a ticked surface takes the bold system, and an unticked one on a bold
+   * job falls back to the standard COLOUR CHANGE — which is two coats on walls
+   * and ceilings, and the trims' own standard (an undercoat and two) on trims
+   * and doors. "As standard" means the standard for that surface, not two
+   * everywhere: dropping a trim's undercoat would under-quote it.
+   */
+  const intent: ColourIntent = answers.darkToLight
+    ? "bold"
+    : answers.colourIntent === "bold" ? "new" : answers.colourIntent;
   const base = systems[group][intent];
 
   let coats = base.coats;
