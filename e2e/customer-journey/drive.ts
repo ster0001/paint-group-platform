@@ -84,9 +84,45 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
   if (opts.settleAfterContactMs) await page.waitForTimeout(opts.settleAfterContactMs);
   await quickNext(page);
 
+  /**
+   * Screen 5 — the OUTSIDE screen, which a BOTH job also walks: `stepsFor`
+   * returns all five for "both", because a mixed job has an outside to size as
+   * well as rooms and the exterior quick look (prototype `s-ext-job`) is where
+   * that is asked. This helper used to stop after the condition screen and wait
+   * for a reveal that was one screen away, so every both-job spec sat on the
+   * outside screen until it timed out — which read as "a both job can't get a
+   * price" and was really "nobody answered screen 5".
+   *
+   * The prototype's defaults ARE an answer — weatherboards, the house, sound
+   * condition — so this accepts them, exactly as a customer who changes nothing
+   * would. A spec that cares about the exterior answers drives them itself.
+   */
+  if (opts.jobType === "both") {
+    await expect(page.locator("[data-quick-step='outside']")).toBeVisible({ timeout: 20_000 });
+    await quickNext(page);
+  }
+
   // The guide range. Pricing runs server-side, so this waits like a submit.
   await expect(page.getByTestId("reveal")).toBeVisible({ timeout: 90_000 });
   await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE);
+
+  /**
+   * "Keep this estimate" — the door that files an ACCOUNT.
+   *
+   * ⚑ `opts.email` was accepted and then ignored for the whole of phase 2: the
+   * five-page wizard used to end on a contact form, the quick look shows the
+   * price first (⚑1), and when the helper was rewritten the email stopped going
+   * anywhere. Six specs kept passing one and kept believing an account existed,
+   * so their later lookups failed on a null row and read as missing CRM events
+   * and missing visits. This is the keep door, walked — which is how a customer
+   * who wants to be reachable becomes reachable now.
+   */
+  if (opts.email) {
+    await page.getByTestId("door-keep").click();
+    await page.getByTestId("reveal-keep-email").fill(opts.email);
+    await page.getByTestId("reveal-keep-send").click();
+    await expect(page.getByTestId("reveal-kept")).toBeVisible({ timeout: 30_000 });
+  }
   if (opts.stopAtReveal) return;
 
   await page.getByTestId("door-tighten").click();

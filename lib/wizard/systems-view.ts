@@ -103,7 +103,18 @@ export type SystemChip = {
      * genuinely varies room to room, a colour change does not. If the doors are
      * going dark to light, it is all the doors.
      */
-    | { field: "darkToLight"; key: WizardSurfaceKey; value: boolean };
+    | { field: "darkToLight"; key: WizardSurfaceKey; value: boolean }
+    /**
+     * CEILINGS, the one surface where "some" can be a real list.
+     *
+     * ⚑ Tom, 11 Sep: *"it isn't typical for a ceiling to go from dark to light —
+     * so maybe it could be added to the dark to light as ceilings some rooms, or
+     * all ceilings; if it's some rooms, then it adds an option to choose the
+     * rooms in the room builder."* The rooms are already on the screen, so
+     * unlike "some walls" this does not need an estimator to resolve it.
+     */
+    | { field: "darkToLightCeilings"; value: "all" | "some" | null }
+    | { field: "darkToLightCeilingRoom"; areaId: number; value: boolean };
 };
 
 export type PaintSystemLine = {
@@ -306,6 +317,22 @@ export function applySystemPatch(
       condition.darkToLightSurfaces = [...on];
       break;
     }
+    case "darkToLightCeilings":
+      condition.darkToLightCeilings = patch.value;
+      // Going back to "all" or to nothing makes the room list meaningless —
+      // leaving it would have a stale set of rooms waiting to surprise somebody
+      // who picks "some rooms" again a week later.
+      if (patch.value !== "some") condition.darkToLightCeilingRooms = [];
+      break;
+    case "darkToLightCeilingRoom": {
+      const rooms = new Set(condition.darkToLightCeilingRooms ?? []);
+      if (patch.value) rooms.add(patch.areaId); else rooms.delete(patch.areaId);
+      condition.darkToLightCeilingRooms = [...rooms].sort((a, b) => a - b);
+      // Naming a room IS choosing "some rooms" — a tap in the room builder must
+      // not depend on the card above still being in the right mode.
+      if (condition.darkToLightCeilingRooms.length > 0) condition.darkToLightCeilings = "some";
+      break;
+    }
     case "surfaceFlag": {
       const all = { ...(condition.surfaceFlags ?? {}) } as Record<string, string[]>;
       const current = new Set(all[patch.group] ?? []);
@@ -339,16 +366,53 @@ export function applyPaintSystems(
   state: Pick<WizardState, "condition" | "details" | "paint">,
   systems: PaintSystems = DEFAULT_PAINT_SYSTEMS,
 ): LooseBlock[] {
-  const d2l = new Set(
-    state.condition?.tier === "dark_to_light" ? (state.condition.darkToLightSurfaces ?? []) : [],
+  const bold = state.condition?.tier === "dark_to_light";
+  const d2l = new Set(bold ? (state.condition?.darkToLightSurfaces ?? []) : []);
+  /**
+   * ⚑ Tom, 11 Sep — ceilings are answered per ROOM, not per job.
+   *
+   * "All ceilings" behaves like any other ticked surface. "Some rooms" is a
+   * list of area ids, and this is the only place in the derivation that looks at
+   * which room it is in — which is why it can be per-room at all without
+   * re-deriving anything twice: the blocks walk past here already.
+   *
+   * An empty list under "some" means no ceiling is dark to light. That is the
+   * honest reading of "some rooms" with no room named, and it is the safe one:
+   * it quotes the standard rather than a third coat nobody asked for.
+   */
+  /**
+   * ⚑ BACK COMPAT, and it matters: the ASSISTANT path maps "the whole job is
+   * going dark to light" onto the surface LIST — ceilings included — and so do
+   * snapshots taken before this field existed. Reading only the new field would
+   * have silently dropped a coat those jobs were already quoted for. A ticked
+   * "ceilings" in the old list therefore means "all", unless the new answer says
+   * otherwise. Same rule the assistant's own comment states: told three coats,
+   * they meant the lot.
+   */
+  const ceilingScope = bold
+    ? (state.condition?.darkToLightCeilings ?? (d2l.has("ceilings") ? "all" : null))
+    : null;
+  const ceilingRooms = new Set(
+    ceilingScope === "some" ? (state.condition?.darkToLightCeilingRooms ?? []) : [],
   );
   return blocks.map((b) => {
     if (!isInteriorArea(b)) return b;
+    const areaId = Number(b.id);
     const surfaces = (b.surfaces ?? []).map((s) => {
       const key = substrateKeyForRateCode(String(s.code ?? ""));
       const group = groupForSubstrate(key);
       if (group == null) return s;
-      const sys = deriveSystem(group, systemAnswersFromState(state, key != null && d2l.has(key)), systems);
+      const darkHere = group === "ceilings"
+        ? ceilingScope === "all" || (ceilingScope === "some" && ceilingRooms.has(areaId))
+        : key != null && d2l.has(key);
+      const answers = systemAnswersFromState(state, darkHere);
+      /**
+       * A ceiling going from dark to light IS a colour change, whatever ⚑3's
+       * white-over-white question was answered. Saying otherwise would let the
+       * coverage guard read a three-coat ceiling as "white again".
+       */
+      if (darkHere && group === "ceilings") answers.ceilingsChangingColour = true;
+      const sys = deriveSystem(group, answers, systems);
       const kept = stripSystemNotes(String(s.crewNote ?? ""));
       const crewNote = [kept, sys.crewNote].filter(Boolean).join(" | ");
       return { ...s, coats: sys.coats, crewNote };

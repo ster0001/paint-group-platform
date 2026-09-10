@@ -155,6 +155,32 @@ export const wizardStateShapeSchema = z.object({
     /** W1 rule: the dark-to-light follow-up is limited to ticked surfaces. */
     darkToLightSurfaces: z.array(surfaceKeySchema).default([]),
     /**
+     * CEILINGS, which are not like the other surfaces on that list.
+     *
+     * ⚑ Tom, 11 Sep: *"it isn't typical for a ceiling to go from dark to light —
+     * so maybe it could be added to the dark to light as ceilings some rooms, or
+     * all ceilings; if it's some rooms, then it adds an option to choose the
+     * rooms in the room builder."*
+     *
+     * Every other surface on the list is answered once for the whole job,
+     * because we cannot know WHICH walls or WHICH doors (that is why "some
+     * walls" is a note for the estimator and not a quantity). Ceilings are the
+     * exception: the rooms are already on the screen, so "some" can be an actual
+     * list and earn an actual price instead of a flag.
+     *
+     * `null` — the usual answer, and the default: no ceiling is going dark to
+     * light, so they follow ⚑3's white-over-white rule as before.
+     */
+    darkToLightCeilings: z.enum(["all", "some"]).nullable().default(null),
+    /**
+     * The rooms whose ceilings are, when the answer is "some" — area ids.
+     *
+     * "some" with an EMPTY list prices every ceiling at the standard. Nobody has
+     * named a room yet, so no ceiling has earned a third coat, and the card says
+     * exactly that rather than guessing in either direction.
+     */
+    darkToLightCeilingRooms: z.array(z.number().int()).default([]),
+    /**
      * ⚑3 (Tom, 9 Sep): ceilings are one coat of white over white by default;
      * "they're marked" is the two-coat tap. Asked on the paint-systems screen,
      * so both default false — an old snapshot reads as a sound white ceiling,
@@ -468,7 +494,7 @@ export function defaultWizardState(): WizardState {
     basics: null,
     quickLook: null,
     surfaces: [...DEFAULT_SURFACES],
-    condition: { tier: "change", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, surfaceFlags: {} },
+    condition: { tier: "change", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, darkToLightCeilings: null, darkToLightCeilingRooms: [], surfaceFlags: {} },
     details: {
       doorStyle: "unsure",
       doorScope: "frame",

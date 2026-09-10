@@ -3,7 +3,7 @@ import {
   applyPaintSystems, applySystemPatch, groupsInTree, paintSystemsView, systemAnswersFromState,
 } from "./systems-view";
 import { defaultWizardState, type WizardState } from "./state";
-import { paintSystemsFrom } from "@/lib/pricing/systems";
+import { DEFAULT_PAINT_SYSTEMS, paintSystemsFrom } from "@/lib/pricing/systems";
 
 const state = (over: Partial<WizardState> = {}): WizardState => ({ ...defaultWizardState(), ...over });
 
@@ -118,6 +118,115 @@ describe("applying a correction to the answers", () => {
 
   it("writes the gloss answer to the one field that already holds it", () => {
     expect(applySystemPatch(state(), { field: "glossTrims", value: "yes" }).paint.trimsOilBased).toBe("yes");
+  });
+});
+
+/**
+ * ⚑ Tom, 11 Sep: *"it isn't typical for a ceiling to go from dark to light — so
+ * maybe it could be added to the dark to light as ceilings some rooms, or all
+ * ceilings; if it's some rooms, then it adds an option to choose the rooms in
+ * the room builder."*
+ *
+ * This is the only per-ROOM answer in the colour derivation, so these tests are
+ * about the thing that makes it different: two rooms, one answer each.
+ */
+describe("ceilings going dark to light — all of them, or named rooms", () => {
+  const twoRooms = () => ([
+    { id: 1, kind: "area", name: "Living", type: "Interior", surfaces: [surface("Walls"), surface("Ceilings")] },
+    { id: 7, kind: "area", name: "Bedroom 1", type: "Interior", surfaces: [surface("Walls"), surface("Ceilings")] },
+  ]);
+  const bold = (over: Partial<WizardState["condition"]> = {}) => state({
+    condition: { ...defaultWizardState().condition, tier: "dark_to_light", ...over },
+  });
+  const ceilingCoats = (blocks: ReturnType<typeof applyPaintSystems>, name: string) =>
+    blocks.find((b) => b.name === name)!.surfaces!.find((x) => x.code === "Ceilings")!.coats;
+
+  it("a bold job with no ceiling answer leaves every ceiling at the standard", () => {
+    const out = applyPaintSystems(twoRooms(), bold({ darkToLightSurfaces: ["walls"] }));
+    expect(ceilingCoats(out, "Living")).toBe(1);
+    expect(ceilingCoats(out, "Bedroom 1")).toBe(1);
+  });
+
+  /**
+   * ⚑ THE NUMBER COMES FROM TOM'S TABLE, not from "dark to light means three".
+   *
+   * The ceilings/bold row reads "a new ceiling colour — two coats of flat
+   * ceiling paint", so a ceiling going dark to light is TWO where a wall is
+   * three. That is a Settings row Tom owns, and these tests read it rather than
+   * hardcoding a number — so if he raises it, they follow instead of failing.
+   */
+  const BOLD_CEILING = DEFAULT_PAINT_SYSTEMS.ceilings.bold.coats;
+
+  it('"all ceilings" puts every one of them on the bold system', () => {
+    const out = applyPaintSystems(twoRooms(), bold({ darkToLightCeilings: "all" }));
+    expect(ceilingCoats(out, "Living")).toBe(BOLD_CEILING);
+    expect(ceilingCoats(out, "Bedroom 1")).toBe(BOLD_CEILING);
+    expect(BOLD_CEILING).toBeGreaterThan(1);
+  });
+
+  it('"some rooms" lifts ONLY the named room — the point of the whole feature', () => {
+    const out = applyPaintSystems(twoRooms(), bold({ darkToLightCeilings: "some", darkToLightCeilingRooms: [7] }));
+    expect(ceilingCoats(out, "Living")).toBe(1);
+    expect(ceilingCoats(out, "Bedroom 1")).toBe(BOLD_CEILING);
+  });
+
+  it('"some rooms" with nothing named adds no coat anywhere — it never guesses upward', () => {
+    const out = applyPaintSystems(twoRooms(), bold({ darkToLightCeilings: "some", darkToLightCeilingRooms: [] }));
+    expect(ceilingCoats(out, "Living")).toBe(1);
+    expect(ceilingCoats(out, "Bedroom 1")).toBe(1);
+  });
+
+  it("the walls keep their own job-wide answer while the ceilings differ per room", () => {
+    const out = applyPaintSystems(twoRooms(), bold({
+      darkToLightSurfaces: ["walls"], darkToLightCeilings: "some", darkToLightCeilingRooms: [1],
+    }));
+    const wallCoats = (name: string) =>
+      out.find((b) => b.name === name)!.surfaces!.find((x) => x.code === "Walls")!.coats;
+    expect(wallCoats("Living")).toBe(3);
+    expect(wallCoats("Bedroom 1")).toBe(3);
+    expect(ceilingCoats(out, "Living")).toBe(BOLD_CEILING);
+    expect(ceilingCoats(out, "Bedroom 1")).toBe(1);
+  });
+
+  it("a ceiling answer on a job that is NOT dark to light changes nothing", () => {
+    // ⚑3 still owns the ordinary ceiling: white over white is ONE coat, and a
+    // stale ceiling answer on a non-bold job must not quietly lift it.
+    const out = applyPaintSystems(twoRooms(), state({
+      condition: { ...defaultWizardState().condition, tier: "change", darkToLightCeilings: "all" },
+    }));
+    expect(ceilingCoats(out, "Living")).toBe(1);
+  });
+
+  it("an OLD snapshot that ticked ceilings in the surface list still means all of them", () => {
+    // The assistant maps a whole-job "dark to light" onto the surface list, and
+    // every snapshot taken before the ceilings field existed did the same. If
+    // this ever reads 1, those jobs quietly lost a coat they were quoted for.
+    const out = applyPaintSystems(twoRooms(), bold({ darkToLightSurfaces: ["walls", "ceilings"] }));
+    expect(ceilingCoats(out, "Living")).toBe(BOLD_CEILING);
+    expect(ceilingCoats(out, "Bedroom 1")).toBe(BOLD_CEILING);
+  });
+
+  it("the new answer WINS over that old list — 'some rooms' is not overruled by it", () => {
+    const out = applyPaintSystems(twoRooms(), bold({
+      darkToLightSurfaces: ["walls", "ceilings"],
+      darkToLightCeilings: "some", darkToLightCeilingRooms: [7],
+    }));
+    expect(ceilingCoats(out, "Living")).toBe(1);
+    expect(ceilingCoats(out, "Bedroom 1")).toBe(BOLD_CEILING);
+  });
+
+  it("naming a room IS choosing 'some rooms', so a tap in the builder stands alone", () => {
+    const after = applySystemPatch(bold(), { field: "darkToLightCeilingRoom", areaId: 7, value: true });
+    expect(after.condition.darkToLightCeilings).toBe("some");
+    expect(after.condition.darkToLightCeilingRooms).toEqual([7]);
+  });
+
+  it("going back to 'all' throws the room list away rather than leaving it to surprise somebody", () => {
+    const some = applySystemPatch(bold(), { field: "darkToLightCeilingRoom", areaId: 7, value: true });
+    const all = applySystemPatch({ ...bold(), condition: some.condition }, { field: "darkToLightCeilings", value: "all" });
+    expect(all.condition.darkToLightCeilingRooms).toEqual([]);
+    const off = applySystemPatch({ ...bold(), condition: all.condition }, { field: "darkToLightCeilings", value: null });
+    expect(off.condition.darkToLightCeilings).toBeNull();
   });
 });
 

@@ -29,7 +29,8 @@ test("a bold job picks its dark-to-light surfaces, and nothing else asks about c
   await expect(card).toContainText(/dark to light/i);
 
   // Tom's own list: All walls · Some walls · Doors · Architraves · Skirting
-  // boards · Window frames. Ceilings are deliberately not on it.
+  // boards · Window frames — plus ceilings, which get their own row below
+  // because they are answered per room (Tom, 11 Sep).
   await expect(page.getByTestId("darklight-walls")).toContainText("All walls");
   await expect(page.getByTestId("darklight-some-walls")).toBeVisible();
   await expect(card).toContainText(/two coats as standard/i);
@@ -50,6 +51,78 @@ test("a bold job picks its dark-to-light surfaces, and nothing else asks about c
    * and the table prices it — which is the safe direction, because it can only
    * ever quote the heavier system rather than the lighter one.
    */
+});
+
+/**
+ * ⚑ Tom, 11 Sep: *"it isn't typical for a ceiling to go from dark to light — so
+ * maybe it could be added to the dark to light as ceilings some rooms, or all
+ * ceilings; if it's some rooms, then it adds an option to choose the rooms in
+ * the room builder."*
+ *
+ * The per-room tick is the whole point, so that is what this drives: turn on
+ * "some rooms", tick ONE room, and prove the others were not quietly lifted
+ * with it.
+ */
+test("ceilings: all of them, or the rooms the customer names", async ({ page }) => {
+  test.setTimeout(240_000);
+  await driveNoPlanWizard(page, { colour: "bold" });
+
+  const row = page.getByTestId("darklight-ceilings-row");
+  await expect(row).toBeVisible();
+  // Said out loud, because it is the reason the question is shaped this way.
+  await expect(row).toContainText(/usually white over white/i);
+  // No per-room tick until the job-wide answer asks for one — on most jobs this
+  // never appears at all. (Checked with a room card OPEN, so an absent tick is
+  // the answer rather than a collapsed card.)
+  await page.locator(".sc-rc[data-room]").first().locator(".sc-hd").click();
+  await expect(page.locator('[data-testid^="room-ceiling-d2l-"]')).toHaveCount(0);
+
+  await page.getByTestId("darklight-ceilings-some").click();
+  await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
+  await expect(page.getByTestId("darklight-ceilings-some-note")).toContainText(/quoted at the standard/i);
+
+  /**
+   * The tick lives INSIDE the room card, which opens one room at a time — the
+   * same place, and the same rhythm, as every other per-room question (the size,
+   * the cupboards, the spots). So this opens a room to answer it rather than
+   * expecting every room to be showing at once.
+   */
+  const cards = page.locator(".sc-rc[data-room]");
+  const openRoom = async (i: number) => {
+    const card = cards.nth(i);
+    await card.locator(".sc-hd").click();
+    await card.scrollIntoViewIfNeeded();
+    return card;
+  };
+  const first = await openRoom(0);
+  const firstTick = first.locator('[data-testid^="room-ceiling-d2l-btn-"]');
+  await expect(firstTick).toBeVisible();
+  await firstTick.click();
+  await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
+  await expect(firstTick).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("darklight-ceilings-some-note")).toContainText(/1 ceiling with the extra coat/i);
+  await expect(page.locator(".sc-r").first()).toHaveText(MONEY_RANGE);
+
+  // ⚑ The next room is UNTOUCHED — that is the whole point of "some rooms".
+  const second = await openRoom(1);
+  await expect(second.locator('[data-testid^="room-ceiling-d2l-btn-"]'))
+    .toHaveAttribute("aria-pressed", "false");
+
+  // It SURVIVES a reload — the answer is on the estimate, not in the tab.
+  await page.reload();
+  await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 30_000 });
+  await expect(page.getByTestId("darklight-ceilings-some")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("darklight-ceilings-some-note")).toContainText(/1 ceiling with the extra coat/i);
+  const again = await openRoom(0);
+  await expect(again.locator('[data-testid^="room-ceiling-d2l-btn-"]'))
+    .toHaveAttribute("aria-pressed", "true");
+
+  // "All ceilings" replaces the room list rather than stacking on it — and the
+  // per-room question disappears, because there is nothing left to choose.
+  await page.getByTestId("darklight-ceilings-all").click();
+  await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
+  await expect(page.getByTestId("darklight-ceilings-some-note")).toHaveCount(0);
+  await expect(page.locator('[data-testid^="room-ceiling-d2l-"]')).toHaveCount(0);
 });
 
 test("a same-colour job is never asked which surfaces are going dark to light", async ({ page }) => {

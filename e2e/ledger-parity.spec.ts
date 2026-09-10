@@ -57,6 +57,17 @@ let fixture: LoopFixture | null = null;
 let invoiceIds: string[] = [];
 
 const tok = () => Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+/**
+ * ⚑ Invoice numbers are UNIQUE per run, not fixed.
+ *
+ * They used to be literal — "E2E-LP-3" — and `invoices_number_key` is a unique
+ * index, so the first run that died before its afterAll left those numbers in
+ * the test project and EVERY run after it failed in beforeAll with "duplicate
+ * key value violates unique constraint". That is what a 0 ms failure in CI
+ * means here: not a ledger disagreement, a leftover row from days ago. The
+ * stamp makes the runs independent; the constraint still does its job.
+ */
+const LP = `E2E-LP-${Date.now().toString(36)}`;
 
 test.describe("the TS ledger and the SQL ledger agree", () => {
   test.skip(!staff || !contractor || !db, missingCreds("STAFF"));
@@ -92,7 +103,7 @@ test.describe("the TS ledger and the SQL ledger agree", () => {
     // to agree, so a draft carries no number and the rest do.
     const inv = (status: string, total: number, n: number) => ({
       estimate_id: fixture!.estimateId, kind: "progress", status,
-      number: status === "draft" ? null : `E2E-LP-${n}`,
+      number: status === "draft" ? null : `${LP}-${n}`,
       token: tok(),
       subtotal_ex_cents: total - Math.round(total / 11),
       gst_cents: Math.round(total / 11),

@@ -73,7 +73,12 @@ test.describe("reach a person + chat (Tom, 8 Sep)", () => {
 
   test("in the builder, rooms unconfirmed: a call back from the footer strip", async ({ page }) => {
     test.setTimeout(240_000);
-    await driveNoPlanWizard(page, { email: callbackEmail });
+    /**
+     * ⚑ ANONYMOUS on purpose — no email, no keep door. Since ⚑1 this is the
+     * common case: the price comes before any contact form, so most people who
+     * ask for a call back have given us nothing but the number in the box.
+     */
+    await driveNoPlanWizard(page);
     const strip = page.getByTestId("reach-strip");
     await expect(strip).toBeVisible();
     // Tom, 8 Sep (evening): the finalise button is no longer dead while cards
@@ -91,9 +96,33 @@ test.describe("reach a person + chat (Tom, 8 Sep)", () => {
     await page.getByTestId("reach-phone").fill(callbackPhone);
     await page.getByTestId("reach-send").click();
     await expect(page.locator(".sc-tier")).toContainText(/Call back requested/, { timeout: 20_000 });
-    const { data: acct } = await db!.from("accounts").select("id").eq("email", callbackEmail).single();
+    /**
+     * ⚑ THE BANNER IS OPTIMISTIC — it is set on the tap, before the POST.
+     *
+     * So "Call back requested" on screen is not evidence the request landed, and
+     * a spec that goes straight to the database from here is racing the save.
+     * That is exactly how this one failed intermittently while the feature
+     * worked. (It is also worth knowing as a PRODUCT fact: a customer can be
+     * told we will ring them a moment before anything is recorded.)
+     */
+    await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
+    /**
+     * ⚑ Found by PHONE, not by email.
+     *
+     * This used to look the account up by an address the walk typed in. Since
+     * ⚑1 the walk types no address at all — the price comes before any contact
+     * form — so the only handle a call back leaves is the number in the box,
+     * and the account is filed from it (crm_find_account takes either key).
+     * Looking for an email here failed on a null account and read like a
+     * missing CRM event when the event was the thing that worked.
+     */
+    let accountId: string | null = null;
     await expect.poll(async () => {
-      const { data } = await db!.from("crm_events").select("id").eq("account_id", acct!.id).eq("type", "callback_requested");
+      accountId = await accountByPhone(db!, callbackPhone);
+      return accountId;
+    }, { timeout: 30_000, message: "a call back must leave an account to call back" }).toBeTruthy();
+    await expect.poll(async () => {
+      const { data } = await db!.from("crm_events").select("id").eq("account_id", accountId!).eq("type", "callback_requested");
       return (data ?? []).length;
     }, { timeout: 20_000 }).toBeGreaterThan(0);
   });
@@ -108,7 +137,19 @@ test.describe("reach a person + chat (Tom, 8 Sep)", () => {
     await slots.first().click();
     await page.getByTestId("reach-book").click();
     await expect(page.locator(".sc-tier")).toContainText(/Visit booked/, { timeout: 20_000 });
-    const { data: acct } = await db!.from("accounts").select("id").eq("email", visitEmail).single();
+    /**
+     * This one DID keep its estimate (the drive walked the keep door with
+     * `visitEmail`), so there is an account and the booking lands on it.
+     *
+     * ⚑⚑ A GAP WORTH KNOWING, flagged not papered over: booking a slot asks for
+     * a SLOT and nothing else. Had this customer not kept their estimate, the
+     * visit would carry no account and no phone — an estimator with an address
+     * and a time, and an office with no way to ring if anything changes. The
+     * call-back door on the same strip demands a number; this one probably
+     * should too. Tom's call.
+     */
+    const { data: acct } = await db!.from("accounts").select("id").eq("email", visitEmail).maybeSingle();
+    expect(acct, "keeping the estimate files the account the visit hangs off").toBeTruthy();
     await expect.poll(async () => {
       const { data } = await db!.from("visits").select("id, status, source, staff_id").eq("account_id", acct!.id);
       return data ?? [];
