@@ -239,6 +239,41 @@ export const AUTOMATIONS: Automation[] = [
       { field: "acceptedOfficeBody", label: "Email body", kind: "body", placeholders: P.accepted },
     ],
     guard: "Once per estimate.",
+    note: "Also reaches each staff member who has ticked it under Staff alerts below.",
+  },
+  // Tom, 10 Sep: the staff alerts. Who gets each one, and by email or text, is
+  // per person — the routing table under the Staff heading on the screen
+  // (profiles.staff_notify, lib/staff/notifyEvents.ts). The switch here is the
+  // master kill for everyone.
+  {
+    key: "office_job_accepted", name: "Job accepted by the painter", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    trigger: "A painter accepts a job offer, or accepts it with a different start date proposed.",
+    wording: "Fixed wording — painter, job, date, their note.",
+    guard: "Once per offer.",
+  },
+  {
+    key: "office_job_declined", name: "Job declined by the painter", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    trigger: "A painter declines a job offer — the job is back with the office to re-offer.",
+    wording: "Fixed wording — painter, job, their reason.",
+    guard: "Once per offer.",
+  },
+  {
+    key: "office_invoice_paid", name: "Invoice paid", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    trigger: "A payment is recorded against a customer invoice — by the office, or by card through the payment page.",
+    wording: "Fixed wording — who, how much, which invoice.",
+    guard: "Once per payment.",
+  },
+  {
+    key: "office_variation_raised", name: "Variation raised", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    trigger: "A painter raises a variation from their portal — it is waiting to be priced.",
+    wording: "Fixed wording — painter, job, category, their comment.",
+    guard: "Once per variation.",
+  },
+  {
+    key: "office_contractor_invoice", name: "Contractor invoice submitted", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    trigger: "A painter submits an invoice or a payment claim — it is waiting for approval in Payments.",
+    wording: "Fixed wording — painter, amount, job.",
+    guard: "Once per invoice.",
   },
   {
     key: "external_approval", name: "External approval request", audience: "customer", channels: ["email"], kind: "automatic",
@@ -288,10 +323,11 @@ export const AUTOMATIONS: Automation[] = [
   },
 ];
 
+// Tom, 10 Sep: the screen is broken into Customers / Contractors / Staff.
 export const AUDIENCE_LABEL: Record<Audience, string> = {
   customer: "Customers",
-  painter: "Painters",
-  office: "Office",
+  painter: "Contractors",
+  office: "Staff",
 };
 
 export const CHANNEL_LABEL: Record<Channel, string> = {

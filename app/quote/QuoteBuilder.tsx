@@ -50,6 +50,7 @@ import type { WOPhoto } from "@/lib/workorder/photos";
 import type { EstimateDocuments } from "@/lib/wizard/documents";
 import { PHOTO_REVIEW_KIND } from "@/lib/wizard/merge";
 import { acceptAttr, checkUpload } from "@/lib/uploads/validate";
+import { downscale, SCREEN_MAX_EDGE } from "@/lib/uploads/downscale";
 import { reportIfError, errorMessage } from "@/lib/monitoring/report";
 import RevisionPanel, { type ExistingRevisionVariation } from "./RevisionPanel";
 import InvoiceSheet, { type SheetLine } from "@/app/i/[token]/InvoiceSheet";
@@ -589,6 +590,61 @@ export default function QuoteBuilder({
       copy.splice(from < to ? insertAt + 1 : insertAt, 0, moved);
       return copy;
     });
+  // Tom, 10 Sep: reordering on a phone or iPad. HTML5 drag events never fire
+  // from a finger, so the grip also understands a HOLD: keep a finger (or a
+  // pen) still on it for a second and the row lifts — slide it over another
+  // row and let go. Moving before the second is up is a scroll, not a drag,
+  // and cancels the hold. A mouse keeps the native drag it always had.
+  const HOLD_MS = 1000;
+  const holdTimer = useRef<number | null>(null);
+  const holdStart = useRef<{ x: number; y: number } | null>(null);
+  const touchDrag = useRef<{ id: number; over: number | null } | null>(null);
+  const clearHold = () => {
+    if (holdTimer.current != null) window.clearTimeout(holdTimer.current);
+    holdTimer.current = null;
+    holdStart.current = null;
+  };
+  const gripDown = (id: number) => (e: React.PointerEvent<HTMLSpanElement>) => {
+    if (e.pointerType === "mouse") { setDragEnabledId(id); return; }
+    clearHold();
+    holdStart.current = { x: e.clientX, y: e.clientY };
+    const el = e.currentTarget;
+    const pointerId = e.pointerId;
+    holdTimer.current = window.setTimeout(() => {
+      holdTimer.current = null;
+      touchDrag.current = { id, over: null };
+      setDragId(id);
+      try { el.setPointerCapture(pointerId); } catch { /* the finger already lifted */ }
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate?.(30);
+    }, HOLD_MS);
+  };
+  const gripMove = (e: React.PointerEvent<HTMLSpanElement>) => {
+    const d = touchDrag.current;
+    if (d) {
+      e.preventDefault();
+      const under = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>("[data-block-id]");
+      const over = under ? Number(under.dataset.blockId) : null;
+      if (over !== d.over) { d.over = over; setOverId(over != null && over !== d.id ? over : null); }
+      // Near the top or bottom of the screen the page creeps so a long list can be crossed.
+      const edge = 72;
+      if (e.clientY < edge) window.scrollBy(0, -12);
+      else if (e.clientY > window.innerHeight - edge) window.scrollBy(0, 12);
+      return;
+    }
+    if (holdStart.current && Math.hypot(e.clientX - holdStart.current.x, e.clientY - holdStart.current.y) > 8) clearHold();
+  };
+  const gripUp = (drop: boolean) => (e: React.PointerEvent<HTMLSpanElement>) => {
+    const d = touchDrag.current;
+    if (d) {
+      touchDrag.current = null;
+      if (drop && d.over != null && d.over !== d.id) moveBlock(d.id, d.over);
+      setDragId(null); setOverId(null);
+      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* already released */ }
+      return;
+    }
+    clearHold();
+    if (e.pointerType === "mouse") setDragEnabledId(null);
+  };
   const [saveMsg, setSaveMsg] = useState("");
   const [saving, setSaving] = useState(false);
   /** Embedded assistant bridge (see builderBridge.ts): unsaved edits are
@@ -1496,6 +1552,7 @@ export default function QuoteBuilder({
   const renderDraggable = (b: Block) => (
     <div
       key={b.id}
+      data-block-id={b.id}
       draggable={dragEnabledId === b.id}
       onDragStart={(e) => { setDragId(b.id); e.dataTransfer.effectAllowed = "move"; }}
       onDragEnd={() => { setDragId(null); setDragEnabledId(null); setOverId(null); }}
@@ -1504,11 +1561,16 @@ export default function QuoteBuilder({
       className={`flex items-stretch gap-1 rounded-xl transition ${dragId === b.id ? "opacity-40" : ""} ${overId === b.id && dragId !== b.id ? "ring-2 ring-blue-400" : ""}`}
     >
       <span
-        onMouseDown={() => setDragEnabledId(b.id)}
-        onMouseUp={() => setDragEnabledId(null)}
-        className="mt-3 flex h-7 w-5 shrink-0 cursor-grab items-center justify-center rounded text-lg leading-none text-gray-300 hover:bg-gray-100 hover:text-gray-600 active:cursor-grabbing"
-        title="Drag to reorder"
+        onPointerDown={gripDown(b.id)}
+        onPointerMove={gripMove}
+        onPointerUp={gripUp(true)}
+        onPointerCancel={gripUp(false)}
+        onContextMenu={(e) => e.preventDefault()}
+        style={{ touchAction: "none", WebkitUserSelect: "none", userSelect: "none", WebkitTouchCallout: "none" } as React.CSSProperties}
+        className={`mt-3 flex h-7 w-6 shrink-0 cursor-grab items-center justify-center rounded text-lg leading-none hover:bg-gray-100 hover:text-gray-600 active:cursor-grabbing ${dragId === b.id ? "bg-blue-100 text-blue-600" : "text-gray-300"}`}
+        title="Drag to reorder — on a phone, hold for a second then slide"
         aria-label="Drag to reorder"
+        data-testid={`grip-${b.id}`}
       >⠿</span>
       <div className="min-w-0 flex-1">{renderFolderRow(b)}</div>
     </div>
@@ -1579,7 +1641,7 @@ export default function QuoteBuilder({
             {quoteId ? " · saved draft" : ""}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* View switcher — Builder | Customer view | Work order (mono labels) */}
           <div className="inline-flex overflow-hidden rounded-md border border-line2" style={{ fontFamily: "var(--font-mono, monospace)" }}>
             {([
@@ -2623,9 +2685,20 @@ export default function QuoteBuilder({
             subGroups={subGroups[area.type]}
             onPick={(code) => {
               if (surfacePicker.sid == null) {
-                // adding a new surface → open its editable folder straight away
-                const sid = addSurfaceWithCode(surfacePicker.areaId, code);
-                setView({ type: "surface", areaId: surfacePicker.areaId, sid });
+                /**
+                 * ⚑ Tom, 10 Sep: "just add the substrate which is clicked
+                 * straight to the list."
+                 *
+                 * It used to ADD the surface and then open its folder to
+                 * adjust — so picking Colonial windows put you inside a
+                 * colonial-window editor you had not asked for, and on an iPad
+                 * that folder's first field took focus and threw the keyboard
+                 * up over the screen. Two complaints, one cause.
+                 *
+                 * The folder is still one tap away on the row itself, which is
+                 * where you go when you actually want to change something.
+                 */
+                addSurfaceWithCode(surfacePicker.areaId, code);
               } else {
                 selectSubstrate(surfacePicker.areaId, surfacePicker.sid, code);
               }
@@ -2689,6 +2762,28 @@ export default function QuoteBuilder({
   );
 }
 
+/**
+ * Focus a search box on a MOUSE, never on a touch screen.
+ *
+ * ⚑ Tom, 10 Sep: "every time I click on a substrate to add, it comes up with
+ * the keyboard on my iPad — I just want it to add the substrate." `autoFocus`
+ * on a picker's search field is a real convenience with a keyboard already in
+ * front of you: open it, start typing. On an iPad it throws a keyboard over
+ * half the screen for a list you were going to TAP.
+ *
+ * `pointer: fine` is the honest test — it asks what the person is pointing
+ * with, not how wide their screen is, so a laptop in a narrow window still
+ * gets the focus and a big tablet does not.
+ */
+function useFocusIfMouse<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.matchMedia?.("(pointer: fine)").matches) ref.current?.focus();
+  }, []);
+  return ref;
+}
+
 // ---------------- Add-area picker ----------------
 function AreaPicker({
   areaNames, onPick, onClose,
@@ -2709,6 +2804,7 @@ function AreaPicker({
     ];
   }, [areaNames, query]);
 
+  const areaSearchRef = useFocusIfMouse<HTMLInputElement>();
   const add = (name: string, type: "Interior" | "Exterior") => {
     onPick({ name, type });
     setAdded((n) => n + 1);
@@ -2730,7 +2826,7 @@ function AreaPicker({
 
         <div className="px-5 pt-4">
           <input
-            autoFocus
+            ref={areaSearchRef}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             placeholder="Search areas…"
             value={query}
@@ -2793,6 +2889,7 @@ function SurfacePicker({
 }) {
   const [folder, setFolder] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const surfaceSearchRef = useFocusIfMouse<HTMLInputElement>();
   const folders = useMemo(() => Object.keys(subGroups).sort(), [subGroups]);
   const q = query.trim().toLowerCase();
   const searchHits = q
@@ -2818,7 +2915,7 @@ function SurfacePicker({
 
         <div className="px-5 pt-4">
           <input
-            autoFocus
+            ref={surfaceSearchRef}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             placeholder="Search all surfaces…"
             value={query}
@@ -3500,36 +3597,47 @@ function LineCard({
 }
 
 function MediaUploader({ items, onChange }: { items: MediaItem[]; onChange: (m: MediaItem[]) => void }) {
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<{ done: number; total: number } | null>(null);
   const [err, setErr] = useState("");
   const list = items ?? [];
 
   async function onFiles(files: FileList | null) {
     if (!files || !files.length) return;
+    const picked = Array.from(files);
     // Check the whole selection first: uploading half a batch and then failing
     // leaves the user guessing which photos made it.
-    for (const f of Array.from(files)) {
+    for (const f of picked) {
       const bad = checkUpload(f, "image");
       if (bad) { setErr(`${f.name}: ${bad}`); return; }
     }
-    setBusy(true);
+    setBusy({ done: 0, total: picked.length });
     setErr("");
     const supabase = createClient();
-    const added: MediaItem[] = [];
     try {
-      for (const f of Array.from(files)) {
-        const ext = f.name.split(".").pop() || "jpg";
+      // Tom, 10 Sep: "photo uploads are slow when adding them in the estimate."
+      // Two things, neither of which changes what the customer sees: every
+      // photo goes up at once instead of one after another, and each is
+      // shrunk in the browser to what a screen can show (lib/uploads/downscale)
+      // — a 5 MB phone photo becomes ~600 KB with no visible difference. A
+      // photo the browser can't decode (HEIC on Chrome) goes up as it is.
+      const added = await Promise.all(picked.map(async (f) => {
+        const blob = await downscale(f, SCREEN_MAX_EDGE);
+        const body: Blob = blob ?? f;
+        const ext = blob ? "jpg" : (f.name.split(".").pop() || "jpg");
         const path = `${crypto.randomUUID()}.${ext}`;
-        const { error } = await supabase.storage.from("estimate-media").upload(path, f);
+        const { error } = await supabase.storage.from("estimate-media").upload(path, body, {
+          contentType: blob ? "image/jpeg" : f.type || undefined, cacheControl: "31536000",
+        });
         if (error) throw error;
+        setBusy((b) => (b ? { ...b, done: b.done + 1 } : b));
         const { data } = supabase.storage.from("estimate-media").getPublicUrl(path);
-        added.push({ path, url: data.publicUrl });
-      }
+        return { path, url: data.publicUrl } as MediaItem;
+      }));
       onChange([...list, ...added]);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Upload failed");
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
   async function remove(m: MediaItem) {
@@ -3555,8 +3663,8 @@ function MediaUploader({ items, onChange }: { items: MediaItem[]; onChange: (m: 
           </div>
         ))}
         <label className="flex h-16 w-16 cursor-pointer items-center justify-center rounded border border-dashed border-gray-300 text-center text-[11px] text-gray-400 hover:bg-white">
-          {busy ? "…" : "+ Photo"}
-          <input type="file" accept={acceptAttr("image")} multiple className="hidden" onChange={(e) => onFiles(e.target.files)} />
+          {busy ? (busy.total > 1 ? `${busy.done}/${busy.total}` : "…") : "+ Photo"}
+          <input type="file" accept={acceptAttr("image")} multiple className="hidden" disabled={!!busy} onChange={(e) => { onFiles(e.target.files); e.target.value = ""; }} />
         </label>
       </div>
       {err && <p className="mt-1 text-xs text-red-600">{err}</p>}

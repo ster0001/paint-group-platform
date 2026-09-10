@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { ensureInvoicePdf, ensureReceiptPdf, ensureRemittancePdf, signedDocUrl } from "@/lib/invoicing/pdf";
 import { sendInvoiceEmail, sendInvoiceSms, sendReceiptEmail, sendRemittanceEmail } from "@/lib/invoicing/sendInvoice";
+import { staffInvoicePaid } from "@/lib/staff/notify";
 import { COST_DOCS_BUCKET, isOwnReceiptPath } from "@/lib/costs/store";
 import { sniffKind } from "@/lib/extract/normalise";
 
@@ -165,6 +166,7 @@ export async function recordPaymentAction(raw: unknown): Promise<InvoicingResult
       if (!paymentId) return;
       await ensureReceiptPdf(paymentId);
       await sendReceiptEmail(service, paymentId);
+      await staffInvoicePaid(service, paymentId); // Tom, 10 Sep: staff alert
     });
   }
   return result;

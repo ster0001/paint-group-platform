@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
-import { credentials, missingCreds, signIn } from "./helpers";
+import { credentials, missingCreds, signIn, userIdFor } from "./helpers";
 import { serviceClient } from "./fixtures/woLoop";
 
 /**
@@ -39,7 +39,7 @@ test.describe("Settings → Staff logins", () => {
 
   test.beforeAll(async () => {
     // The e2e staff login plays the master for this spec; put it back after.
-    masterId = (await userIdByEmail(db!, staff!.email)) ?? "";
+    masterId = (await userIdFor(staff!)) ?? "";
     if (!masterId) throw new Error("e2e staff login not found");
     const { data } = await db!.from("profiles").select("is_owner").eq("id", masterId).single();
     masterWasOwner = data?.is_owner === true;

@@ -15,6 +15,7 @@ import { loadMessaging } from "@/lib/messaging/load";
 import { buildEstimateEmailHtml, emailConfigured, sendEmail } from "@/lib/messaging/send";
 import { siteUrl } from "@/lib/invoicing/pdf";
 import { reportError } from "@/lib/monitoring/report";
+import { notifyStaff } from "@/lib/staff/notify";
 
 const money = (c: number | null | undefined) => "$" + ((c ?? 0) / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -38,7 +39,6 @@ export async function notifyOfficeOfAcceptance(service: SupabaseClient, estimate
     const { messaging, company } = await loadMessaging(service);
     if (!automationOn(messaging, "office_estimate_accepted")) return "skipped";
     const to = (messaging.officeEmail || company.email || "").trim();
-    if (!to) return "skipped";
 
     const total = est.accepted_total_cents ?? est.sent_snapshot?.totalCents ?? est.total_cents ?? 0;
     // The deposit the RPC drafted: the snapshot's percentage of the accepted total.
@@ -53,9 +53,12 @@ export async function notifyOfficeOfAcceptance(service: SupabaseClient, estimate
     const subject = renderTemplate(messaging.acceptedOfficeSubject, vars);
     const intro = renderTemplate(messaging.acceptedOfficeBody, vars);
 
-    let outcome = "not_configured";
-    if (!emailConfigured()) {
+    let outcome = "no_office_address";
+    if (!to) {
+      // No shared office address — the per-person routing below still runs.
+    } else if (!emailConfigured()) {
       console.log(`[office-accept:log-driver] to=${to} subject="${subject}" link=${link}`);
+      outcome = "not_configured";
     } else {
       const r = await sendEmail({
         to, subject,
@@ -65,6 +68,11 @@ export async function notifyOfficeOfAcceptance(service: SupabaseClient, estimate
       if (r.status === "error") reportError(new Error(r.message), { where: "officeAccept.send", extra: { estimateId } });
     }
     await service.from("estimate_events").insert({ estimate_id: estimateId, type: "office_accept_notified", payload: { to, outcome } });
+    // Tom, 10 Sep: the same news to each staff member who ticked it (email
+    // and/or text), skipping the office address just told.
+    await notifyStaff(service, {
+      key: "office_estimate_accepted", entityId: estimateId, subject, message: intro, link, skipEmails: to ? [to] : [],
+    });
     return "sent";
   } catch (e) {
     reportError(e, { where: "notifyOfficeOfAcceptance", extra: { estimateId } });

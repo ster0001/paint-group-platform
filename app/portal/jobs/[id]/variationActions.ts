@@ -1,8 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { staffVariationRaised } from "@/lib/staff/notify";
 import { VARIATION_CATEGORIES } from "@/lib/workorder/variations";
 
 /**
@@ -52,8 +55,11 @@ export async function raiseVariationAction(raw: unknown): Promise<RaiseResult> {
 
   const s = String(data ?? "");
   if (s.startsWith("ok:")) {
+    const id = s.slice(3);
     revalidatePath("/portal/jobs");
-    return { ok: true, id: s.slice(3) };
+    // Tom, 10 Sep: staff alert — behind the response, never a gate on it.
+    after(async () => { const svc = createServiceClient(); if (svc) await staffVariationRaised(svc, id); });
+    return { ok: true, id };
   }
   const reason = s.replace("error:", "");
   return { ok: false, message: WORDING[reason] ?? "Couldn't send that variation." };

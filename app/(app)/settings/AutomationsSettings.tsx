@@ -7,11 +7,14 @@ import {
   AUDIENCE_LABEL, AUTOMATIONS, CHANNEL_LABEL,
   type Audience, type Automation, type TemplateField,
 } from "@/lib/automations/registry";
+import StaffAlertsMatrix from "./StaffAlertsMatrix";
 
 /**
  * Settings → Automations (Tom, 3 Sep 2026): every message the platform sends
- * to customers and painters, in one place — what fires it, an on/off switch
- * for the automatic ones, and the wording where it is a template.
+ * to customers, contractors and staff, in one place — what fires it, an
+ * on/off switch for the automatic ones, and the wording where it is a
+ * template. Tom, 10 Sep: broken into Customers / Contractors / Staff, and the
+ * Staff section carries the per-person routing table (StaffAlertsMatrix).
  *
  * Two rows are saved: `messaging` (switches + templates, written whole) and
  * the `variationRelease` key on `wo_loop` (the "approved variations go
@@ -116,6 +119,7 @@ export default function AutomationsSettings({
               />
             ))}
           </div>
+          {g.audience === "office" && <StaffAlertsMatrix />}
         </section>
       ))}
 
