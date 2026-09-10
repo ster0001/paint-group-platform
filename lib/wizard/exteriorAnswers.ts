@@ -33,7 +33,7 @@ export type MergedBundle = {
  * photo heights) but did not make it into a priced envelope — usually
  * because a photo read a height and no width, which the envelope gate
  * refuses. Tom, 5 Sep 2026: "always gives the same measurement" — these
- * now beat the 12 / 14 × 2.6 constants. */
+ * now beat the 12 / 14 × 2.6 (5.5 for a double storey) constants. */
 export type MeasuredSides = Partial<Record<"front" | "back" | "left" | "right", { L?: number; H?: number }>>;
 
 export function sideKeyOfName(name: string): keyof MeasuredSides | null {
@@ -128,7 +128,17 @@ export function applyExteriorAnswers(
   // Storeys give every side its height; unmeasured sides take typical lengths
   // (12 m front/back, 14 m sides), tagged assumed until the confirm loop
   // settles them.
-  const sideH = ext.storeys === "double" ? 5.2 : 2.6;
+  /**
+   * ⚑ Tom, 10 Sep: a double storey is assumed at 5.5 m, not the 5.2 that was
+   * here (and never at an interior ceiling height — the guide range for a
+   * two-storey elevation is mostly this number, so getting it low quietly
+   * under-quotes every double-storey exterior).
+   *
+   * It is what the SIDES editor then shows as "about 12 m long × 5.5 m high —
+   * sound right?", so the customer corrects it against the real house rather
+   * than us guessing twice.
+   */
+  const sideH = ext.storeys === "double" ? 5.5 : 2.6;
   // Phase 3 (6 Sep plan): the footprint band scales the typical lengths —
   // a 200+ m² home is not 12 m across the front.
   const sideF = SIZE_BAND_FACTOR[ext.sizeBand ?? "unsure"] ?? 1;

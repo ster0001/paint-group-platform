@@ -40,7 +40,7 @@ import {
   type ColourIntent, type PaintSystems, type SystemAnswers, type SystemGroup,
 } from "@/lib/pricing/systems";
 import { substrateKeyForRateCode } from "@/lib/estimate/substrates";
-import type { WizardState } from "./state";
+import type { WizardState, WizardSurfaceKey } from "./state";
 
 type LooseBlock = Record<string, unknown> & {
   id?: number; kind?: string; type?: string;
@@ -93,7 +93,17 @@ export type SystemChip = {
     | { field: "ceilingsChangingColour"; value: boolean }
     | { field: "glossTrims"; value: "yes" | "no" | "unsure" }
     /** A per-group condition flag, on or off. `group` is which line it sits on. */
-    | { field: "surfaceFlag"; group: SystemGroup; flag: string; value: boolean };
+    | { field: "surfaceFlag"; group: SystemGroup; flag: string; value: boolean }
+    /**
+     * Which surfaces are going from a dark colour to a light one — job-wide,
+     * and three coats each (Tom, 10 Sep: "immediately pick the areas which are
+     * going dark to light… then assume that everything else is 2 coats").
+     *
+     * Job-wide and not per room ON PURPOSE, and that is Tom's ruling: prep
+     * genuinely varies room to room, a colour change does not. If the doors are
+     * going dark to light, it is all the doors.
+     */
+    | { field: "darkToLight"; key: WizardSurfaceKey; value: boolean };
 };
 
 export type PaintSystemLine = {
@@ -290,6 +300,12 @@ export function applySystemPatch(
     case "glossTrims":
       paint.trimsOilBased = patch.value;
       break;
+    case "darkToLight": {
+      const on = new Set(condition.darkToLightSurfaces ?? []);
+      if (patch.value) on.add(patch.key); else on.delete(patch.key);
+      condition.darkToLightSurfaces = [...on];
+      break;
+    }
     case "surfaceFlag": {
       const all = { ...(condition.surfaceFlags ?? {}) } as Record<string, string[]>;
       const current = new Set(all[patch.group] ?? []);

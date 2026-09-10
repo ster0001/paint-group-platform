@@ -136,7 +136,10 @@ test("nothing measured → exactly the old behaviour", () => {
   // blocks with no elevation of their own, and asserting a storey height on
   // them tests nothing.
   for (const a of b.areas.filter((a) => a.type === "Exterior" && a.areaType === "surface" && sideKeyOfName(a.name) != null)) {
-    assert.equal(a.H, 5.2);
+    // ⚑ Tom, 10 Sep: a double storey is 5.5 m. The guide range for a two-storey
+    // elevation is mostly this number, so a low assumption under-quotes every
+    // one of them.
+    assert.equal(a.H, 5.5);
     assert.ok(a.assumedFields.includes("L") && a.assumedFields.includes("H"));
   }
   assert.equal(sideKeyOfName("Exterior - Rear"), "back");

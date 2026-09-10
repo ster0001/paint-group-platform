@@ -37,9 +37,16 @@ describe("wizardStateSchema", () => {
     expect(wizardStateSchema.safeParse(s).success).toBe(true);
   });
 
-  it("dark to light needs at least one surface, and only ticked ones", () => {
+  it("dark to light may have NONE picked yet, but only ever ticked ones", () => {
+    /**
+     * ⚑ REVERSED, and it was a bug rather than a preference. Refusing an empty
+     * list meant a customer who chose "going much lighter, or a bold colour"
+     * could not reach a price at all: the quick look has four screens and this
+     * is not one of them, so nothing could ever fill it in. The list is asked
+     * in the EDITOR now, and until then every surface is two coats.
+     */
     const none = { ...valid(), condition: { tier: "dark_to_light" as const, darkToLightSurfaces: [] } };
-    expect(wizardStateSchema.safeParse(none).success).toBe(false);
+    expect(wizardStateSchema.safeParse(none).success).toBe(true);
 
     const unticked = {
       ...valid(),

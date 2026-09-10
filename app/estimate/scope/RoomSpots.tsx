@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import {
-  EXTENT_LABEL, ROOM_CONDITION_LABEL, ROOM_CONDITIONS, SPOT_EXTENTS, tagsFor,
+  EXTENT_LABEL, prepPrompt, ROOM_CONDITION_LABEL, ROOM_CONDITIONS, SPOT_EXTENTS, tagsFor,
   type RoomCondition, type SpotExtent,
 } from "@/lib/wizard/spots";
 import { suggestionLine, type SuggestedSpot } from "@/lib/wizard/photo-defects";
@@ -28,7 +28,7 @@ import type { RoomSpot } from "@/lib/wizard/scope-editor";
  * answer because their photo failed would be the worst of both.
  */
 export default function RoomSpots({
-  estimateId, areaId, roomName, side, spots, condition, busy, onAdd, onRemove, onCondition,
+  estimateId, areaId, roomName, side, spots, condition, colourTier = "change", busy, onAdd, onRemove, onCondition,
 }: {
   estimateId: string;
   areaId: number;
@@ -36,11 +36,14 @@ export default function RoomSpots({
   side: "interior" | "exterior";
   spots: RoomSpot[];
   condition: RoomCondition;
+  /** The job's colour intent — it decides what this room is asked to look for. */
+  colourTier?: "fresh" | "change" | "dark_to_light";
   busy?: boolean;
   onAdd: (tag: string, extent: SpotExtent, sourceId: string | null) => void;
   onRemove: (surfaceId: number) => void;
   onCondition: (c: RoomCondition) => void;
 }) {
+  const prompt = prepPrompt(colourTier);
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -170,9 +173,10 @@ export default function RoomSpots({
         <button
           type="button" className="sd-chip il-chip sc-spot-add"
           data-testid={`spot-open-${areaId}`} onClick={() => setOpen(true)}
-        >+ Point out a spot</button>
+        >{prompt.cta}</button>
       ) : (
         <div className="sc-spot-panel" data-testid={`spot-panel-${areaId}`}>
+          <p className="sc-sys-why">{prompt.why}</p>
           <p className="sc-sys-why">
             A photo and a tap. With a photo we can price the repair straight away; without one we still
             record it and one of our people prices it. Either way your painter sees it before day one.

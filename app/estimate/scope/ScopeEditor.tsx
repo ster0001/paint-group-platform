@@ -8,7 +8,6 @@ import { useRouter } from "next/navigation";
 import type { CustomerPayload } from "@/lib/wizard/view";
 import { assertCustomerShape } from "@/lib/wizard/contract";
 import type { CustomerExteriorView, CustomerScopeRoom } from "@/lib/wizard/scope-editor";
-import type { PaintSystemLine } from "@/lib/wizard/systems-view";
 import RoomSpots from "./RoomSpots";
 import SiteAccessCard from "./SiteAccess";
 import JobExtras from "./JobExtras";
@@ -22,6 +21,20 @@ import { useStickyRoom } from "./useStickyRoom";
 import type { EstimateDocuments } from "@/lib/wizard/documents";
 
 type Ladder = { tier: "self_serve" | "visit"; visitSlots: string[] };
+
+/**
+ * The surfaces a customer can say are going dark → light, in their words.
+ * Substrate keys, so the answer means the same thing to the engine as every
+ * other surface answer does.
+ */
+const DARK_TO_LIGHT_SURFACES: Array<[string, string]> = [
+  ["walls", "Walls"],
+  ["ceilings", "Ceilings"],
+  ["doors", "Doors"],
+  ["skirting", "Skirting boards"],
+  ["architraves", "Architraves"],
+  ["windows", "Window frames"],
+];
 
 /**
  * Part B (interior + shared): the customer scope editor, matching
@@ -53,7 +66,9 @@ export type InteriorLoopView = {
 
 type Payload = CustomerPayload & {
   scopeRooms?: CustomerScopeRoom[];
-  paintSystems?: PaintSystemLine[];
+  /** Still sent on every response (the derivation is untouched); no longer
+   *  rendered here, so the editor does not need its shape. */
+  paintSystems?: unknown;
   siteAccess?: SiteAccess;
   jobExtras?: { on: string[]; colourHelp: boolean; note: string };
   exterior?: CustomerExteriorView | null;
@@ -94,7 +109,7 @@ const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
 const snapshotFalse = () => false;
 
-export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialSystems = [], initialAccess = { answers: {}, asksLift: false }, initialExtras = { offer: [], on: [], colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null, chatMode = false }: {
+export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialDarkToLight = { asked: false, surfaces: [] }, initialColourTier = "change", initialAccess = { answers: {}, asksLift: false }, initialExtras = { offer: [], on: [], colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null, chatMode = false }: {
   estimateId: string;
   initial: CustomerPayload;
   initialRooms: CustomerScopeRoom[];
@@ -122,7 +137,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   /** Phase 4 (estimator journey v2 §4.2): the coats and preparation we
    * derived, in the painter's words, with a correction per line. Empty on an
    * exterior-only job or an estimate with no readable wizard snapshot. */
-  initialSystems?: PaintSystemLine[];
+  initialDarkToLight?: { asked: boolean; surfaces: string[] };
+  initialColourTier?: "fresh" | "change" | "dark_to_light";
   /** §4.4 — the site and access answers, and whether a lift applies. */
   initialAccess?: { answers: SiteAccess; asksLift: boolean };
   /** §4.5 — the extras on offer, which are on, the colour tick and the note. */
@@ -131,7 +147,20 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   const [payload, setPayload] = useState<CustomerPayload>(initial);
   const [rooms, setRooms] = useState<CustomerScopeRoom[]>(initialRooms);
   const [iloop, setIloop] = useState<InteriorLoopView | null>(initialInteriorLoop);
-  const [systems, setSystems] = useState<PaintSystemLine[]>(initialSystems);
+  /**
+   * ⚑ The derived paint systems no longer have a screen (Tom, 10 Sep), so the
+   * editor no longer holds them. `paintSystems` still rides every response —
+   * the DERIVATION is untouched and the work order still reads it — it simply
+   * has no card to render into. Keeping the state would be a list nothing shows.
+   */
+  /**
+   * ⚑ Tom, 10 Sep. The one job-wide coat question that survived the systems
+   * card: which surfaces are going dark → light, and therefore take three
+   * coats. Job-wide and not per room is Tom's own ruling — prep varies room to
+   * room, a colour change does not.
+   */
+  const darkToLightAsked = initialDarkToLight.asked;
+  const [darkToLight, setDarkToLight] = useState<string[]>(initialDarkToLight.surfaces);
   const [access, setAccess] = useState<SiteAccess>(initialAccess.answers);
   const [extras, setExtras] = useState({ on: initialExtras.on, colourHelp: initialExtras.colourHelp, note: initialExtras.note });
   const [sidesProg, setSidesProg] = useState<SidesView["progress"] | null>(initialSides?.progress ?? null);
@@ -298,7 +327,6 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         }
         setPayload(j);
         if (j.scopeRooms) setRooms(j.scopeRooms);
-        if (j.paintSystems) setSystems(j.paintSystems);
         if (j.siteAccess) setAccess(j.siteAccess);
         if (j.jobExtras) setExtras(j.jobExtras);
         if (j.ladder) setLadder(j.ladder);
@@ -391,7 +419,6 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         }
         setPayload(j);
         if (j.scopeRooms) setRooms(j.scopeRooms);
-        if (j.paintSystems) setSystems(j.paintSystems);
         if (j.siteAccess) setAccess(j.siteAccess);
         if (j.jobExtras) setExtras(j.jobExtras);
         if (j.interiorLoop) setIloop(j.interiorLoop);
@@ -687,94 +714,57 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
           chat mode like the other question cards — the assistant asks these
           in conversation instead.
         */}
-        {!chatMode && systems.length > 0 && (
-          <section className="sc-rc il-card sc-systems" data-card="systems" data-testid="systems-card">
+        {/*
+          ⚑ "HOW WE'LL PAINT EACH SURFACE" IS GONE (Tom, 10 Sep).
+
+          *"It doesn't provide a great deal of value — the client has already
+          confirmed if they want a colour change, colour match or dark to
+          light."* He is right, and the card was answering a question nobody
+          had asked twice: it restated a derivation from answers already given,
+          then offered corrections most people never made. What actually
+          decides the price is the EXCEPTIONS, and those are per room.
+
+          What replaced it:
+            · the one job-wide question that genuinely changes coats — which
+              surfaces are going dark to light — asked here, once (below)
+            · everything else per room, in the room's own prep question
+
+          The derivation itself is untouched. lib/pricing/systems.ts still
+          works the coats out per surface group; it is the SCREEN that has gone,
+          not the thinking behind it.
+        */}
+        {!chatMode && darkToLightAsked && (
+          <section className="sc-rc il-card sc-darklight" data-card="darklight" data-testid="darklight-card">
             <div className="sc-hd il-hd">
-              <b>How we&rsquo;ll paint each surface</b>
-              <span className="il-pill">WORKED OUT FOR YOU</span>
+              <b>Which surfaces are going from dark to light?</b>
+              <span className="il-pill">THREE COATS</span>
             </div>
             <p className="wz-note" style={{ margin: "2px 0 12px" }}>
-              You never had to pick coats — we work them out per surface from your colours and the
-              condition. Change anything that isn&rsquo;t right.
+              Covering a dark colour with a light one takes a third coat. Tick the ones that are —
+              everything else we&rsquo;ll do in two.
             </p>
-            {systems.map((line) => (
-              <div className="il-q" key={line.group} data-testid={`system-${line.group}`}>
-                <p className="il-ql">
-                  {line.title}
-                  <span className="il-hm">
-                    {" · "}{line.coats} coat{line.coats === 1 ? "" : "s"}
-                    {line.undercoat ? " (one an undercoat)" : ""}
-                    {line.group === "doors" && line.surfaceCount > 0 ? ` · ${line.surfaceCount} so far` : ""}
-                  </span>
-                </p>
-                <p className="sc-sys-say" data-testid={`system-say-${line.group}`}>{line.sentence}</p>
-                {line.reason !== "" && (
-                  <p className="sc-sys-why" data-testid={`system-why-${line.group}`}>Because {line.reason}.</p>
-                )}
-                {line.group === "trims" && (
-                  <p className="il-ql" style={{ marginTop: 10 }}>
-                    Are the trims shiny at the moment — a gloss finish?
-                    <span className="il-hm"> Old oil-based gloss needs a bonding primer first.</span>
-                  </p>
-                )}
-                {line.chips.length > 0 && (
-                  <div className="sc-chips">
-                    {line.chips.map((chip) => (
-                      <button
-                        key={chip.label}
-                        type="button"
-                        className={`sd-chip il-chip ${chip.on ? "on" : ""}`}
-                        aria-pressed={chip.on}
-                        data-testid={`system-chip-${line.group}-${chip.patch.field}-${String(chip.patch.value)}`}
-                        onClick={() => act(
-                          { action: "set_paint_system", field: chip.patch.field, value: chip.patch.value },
-                          `sys:${line.group}:${chip.label}`,
-                          () => chip.said,
-                        )}
-                      >{chip.label}</button>
-                    ))}
-                  </div>
-                )}
-                {/*
-                  Tom, 9 Sep: "what if the doors need 3 coats because they're
-                  all stained, but the rest are 2?" — the customer says what is
-                  THERE on this surface and the engine derives the coats. Never
-                  a coat picker: a picked coat count would walk straight past
-                  the coverage rule and tell the painter nothing.
-                */}
-                {line.flagChips.length > 0 && (
-                  <div className="sc-sys-flags">
-                    <p className="sc-sys-why" style={{ marginBottom: 6 }}>
-                      Anything different about {line.group === "walls" ? "the walls" : line.title.toLowerCase()}?
-                    </p>
-                    <div className="sc-chips">
-                      {line.flagChips.map((chip) => (
-                        <button
-                          key={chip.patch.field === "surfaceFlag" ? chip.patch.flag : chip.label}
-                          type="button"
-                          className={`sd-chip il-chip ${chip.on ? "on" : ""}`}
-                          aria-pressed={chip.on}
-                          data-testid={`system-flag-${line.group}-${chip.patch.field === "surfaceFlag" ? chip.patch.flag : ""}`}
-                          onClick={() => chip.patch.field === "surfaceFlag" && act(
-                            {
-                              action: "set_paint_system", field: "surfaceFlag",
-                              group: chip.patch.group, flag: chip.patch.flag, value: chip.patch.value,
-                            },
-                            `sysflag:${line.group}:${chip.patch.flag}`,
-                            () => chip.said,
-                          )}
-                        >{chip.label}</button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {line.review && (
-                  <p className="sc-sys-why" data-testid={`system-review-${line.group}`}>
-                    We&rsquo;ll check this one ourselves before your price is fixed.
-                  </p>
-                )}
-              </div>
-            ))}
+            <div className="sc-chips">
+              {DARK_TO_LIGHT_SURFACES.map(([key, label]) => {
+                const on = darkToLight.includes(key);
+                return (
+                  <button
+                    key={key}
+                    className={`sd-chip il-chip ${sel(`d2l:${key}`, on, on ? "on" : "off") ? "on" : ""}`}
+                    aria-pressed={on}
+                    data-testid={`darklight-${key}`}
+                    onClick={() => {
+                      setDarkToLight((cur) => (on ? cur.filter((k) => k !== key) : [...cur, key]));
+                      act(
+                      { action: "set_paint_system", field: "darkToLight", group: key, value: !on },
+                      `d2l:${key}`,
+                      (d) => `${label} ${!on ? "in three coats" : "back to two"}${liveRange && Math.abs(d) >= 100 ? ` — about ${d > 0 ? "+" : "−"}${fmt(Math.abs(d))}` : ""}`,
+                      [`d2l:${key}`, !on ? "on" : "off"],
+                      );
+                    }}
+                  >{label}</button>
+                );
+              })}
+            </div>
           </section>
         )}
         {/* ⚑ Tom, 10 Sep: "'anything we haven't listed' and 'site and access'
@@ -1152,6 +1142,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     side="interior"
                     spots={room.spots}
                     condition={room.condition}
+                    colourTier={initialColourTier}
                     busy={pendingCount > 0}
                     onAdd={(tag, extent, sourceId) => act(
                       { action: "add_spot", areaId: room.areaId, tag, extent, sourceId },

@@ -343,9 +343,19 @@ export const wizardStateSchema = wizardStateShapeSchema.superRefine((s, ctx) => 
     ctx.addIssue({ code: "custom", path: ["planRunIds"], message: "Upload a floorplan, or choose the quick basics instead." });
   }
   if (s.condition.tier === "dark_to_light") {
-    if (s.condition.darkToLightSurfaces.length === 0) {
-      ctx.addIssue({ code: "custom", path: ["condition", "darkToLightSurfaces"], message: "Which surfaces are going dark to light?" });
-    }
+    /**
+     * ⚑ A BOLD JOB MAY SUBMIT WITH NONE PICKED YET, and that rule change fixed
+     * a bug I shipped in phase 2: this used to REFUSE an empty list, the quick
+     * look never asks (it has four screens and this is not one of them), and so
+     * a customer who chose "going much lighter, or a bold colour" could not get
+     * a price at all — the submit 400'd and dropped them back on the job screen
+     * with a question that had no answer on it.
+     *
+     * The list is asked in the EDITOR now (Tom, 10 Sep — the one job-wide coat
+     * question that survived the systems card), and until they answer it every
+     * surface is two coats. That is Tom's own default: "assume that everything
+     * else is 2 coats".
+     */
     for (const k of s.condition.darkToLightSurfaces) {
       if (!s.surfaces.includes(k)) {
         ctx.addIssue({ code: "custom", path: ["condition", "darkToLightSurfaces"], message: "Dark-to-light only applies to surfaces being painted." });
