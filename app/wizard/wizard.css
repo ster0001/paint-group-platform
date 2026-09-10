@@ -915,3 +915,16 @@
 .wz .sc-photodrop-text b { display: block; font-size: 14.5px; }
 .wz .sc-photodrop-text b + span { display: block; margin-top: 2px; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
 .wz .sc-photodrop-row { margin-top: 10px; }
+/* ---- Accuracy tiers (C1): the chip on the range card ------------------------
+   The class IS the tier value — ScopeEditor renders `tier-chip ${ladder.tier}` —
+   so these three selectors must track lib/wizard/ladder.ts's Tier union exactly.
+   Renaming the tiers without renaming these leaves the chip unstyled and says
+   nothing about it.
+
+   Colours come from the locked palette, not from a metal: amber = assumed, the
+   accent cyan = confirmed. Detailed sits between them in plain text. Ruling G —
+   these describe how much we know, never a prize. */
+.wz .tier-chip { display: inline-block; margin-left: 8px; vertical-align: middle; font-family: var(--wz-mono); font-size: 8.5px; letter-spacing: .14em; padding: 4px 10px; border-radius: 100px; border: 1px solid; }
+.wz .tier-chip.guide { color: var(--amber); border-color: rgba(224,168,60,.5); }
+.wz .tier-chip.detailed { color: var(--text); border-color: rgba(237,240,242,.45); }
+.wz .tier-chip.confirmed { color: var(--cyan); border-color: rgba(59,216,233,.55); background: rgba(59,216,233,.07); }

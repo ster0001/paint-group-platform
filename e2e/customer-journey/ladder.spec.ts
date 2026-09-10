@@ -14,6 +14,13 @@ test("R4 ladder: below the accuracy bar lands the visit tier — slots offered, 
   await driveNoPlanWizard(page);
   await openScopeEditor(page);
 
+  // PR 1 of the tiers plan: the tier chip on the range card, and a next
+  // unlock that never names a target this road can't reach. A no-plan job
+  // starts Guide; its stated goal is Detailed, never Confirmed.
+  await expect(page.getByTestId("tier-chip")).toHaveText("GUIDE");
+  await expect(page.getByTestId("tier-next")).toContainText(/to Detailed/);
+  await expect(page.getByTestId("tier-next")).not.toContainText(/to Confirmed/);
+
   // Complete the whole confirm loop quickly.
   const cards = page.locator(".sc-rc[data-room]");
   const count = await cards.count();

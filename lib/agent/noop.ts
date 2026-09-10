@@ -10,6 +10,7 @@
 
 import { ok, refused, toolSpec, type ToolContext, type ToolExecutor, type ToolResult } from "./schemas";
 import type { AgentSettings } from "./settings";
+import { DEFAULT_POLICY } from "@/lib/wizard/policy";
 
 export const NOOP_PRICE_SAMPLE = {
   totalCents: 482_000,
@@ -50,7 +51,9 @@ export class NoopTools implements ToolExecutor {
       case "add_custom_line": return ok({ ref: "noop-note", amber: true, visitTier: true });
       case "attach_document": return refused("Documents aren't wired into the assistant yet — upload it in the builder and I'll read the tree from there.");
       case "price_scope": return ok(NOOP_PRICE_SAMPLE);
-      case "check_thresholds": return ok({ outcome: "visit", reasons: ["Some areas are not confirmed yet."], accuracyPct: 62, minAccuracyPct: 90, capCents: 600_000, guardrail: "reveal" });
+      // C1: the cap comes from the settings default, never a literal — the one
+      // ladder owns that number and a stub must not hold a second copy of it.
+      case "check_thresholds": return ok({ outcome: "visit", reasons: ["Some areas are not confirmed yet."], accuracyPct: 62, minAccuracyPct: DEFAULT_POLICY.interiorSelfServeMinAccuracyPct, capCents: DEFAULT_POLICY.interiorSelfServeCapCents, guardrail: "reveal" });
       case "propose_diff": return ok({ diffId: "noop-diff", added: [], assumed: [], gaps: [], injectedInstructions: [] });
       case "apply_diff": return ok({ applied: true, rows: 0 });
       case "lookup_brain": return ok({ found: false, entries: [] });

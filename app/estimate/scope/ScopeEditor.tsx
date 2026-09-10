@@ -20,7 +20,7 @@ import { useCoalesced } from "./useCoalesced";
 import { useStickyRoom } from "./useStickyRoom";
 import type { EstimateDocuments } from "@/lib/wizard/documents";
 
-type Ladder = { tier: "self_serve" | "visit"; visitSlots: string[] };
+import { TIER_LABEL, type Ladder } from "@/lib/wizard/ladder";
 
 /**
  * The surfaces a customer can say are going dark → light, in their words.
@@ -218,7 +218,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
     const o = optimistic[key];
     return o != null ? o === val : serverOn;
   };
-  const [ladder, setLadder] = useState<Ladder>(initialLadder ?? { tier: "visit", visitSlots: [] });
+  const [ladder, setLadder] = useState<Ladder>(initialLadder ?? { tier: "guide", selfServe: false, reason: null, visitSlots: [], nextUnlock: null });
   const [slotsOpen, setSlotsOpen] = useState(false);
   const [sweepOtherOpen, setSweepOtherOpen] = useState(false);
   const [sweepOtherText, setSweepOtherText] = useState("");
@@ -598,7 +598,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   }
 
   const rangeText = `${fmt(payload.rangeLoCents)} – ${fmt(payload.rangeHiCents)}`;
-  const selfServe = ladder.tier === "self_serve";
+  const selfServe = ladder.selfServe;
   // The visit tier is an offer, never a block (mockup copy verbatim).
   const tierLine = booked
     ? `${booked} — we'll be in touch to finalise your price.`
@@ -658,10 +658,15 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                 <div className="sc-num">{payload.accuracyPct}%</div>
               </div>
               <div className="sc-lbl">
-                <b>Confidence score</b>
-                <span>{combined?.allDone
-                  ? "Everything confirmed — this is as sure as we get before we see it"
-                  : "It climbs with every room you confirm — we\u2019ll reprice as you go"}</span>
+                <b>Confidence score <span className={`tier-chip ${ladder.tier}`} data-testid="tier-chip">{TIER_LABEL[ladder.tier].toUpperCase()}</span></b>
+                {/* PR 1 of the tiers plan: the next unlock never names a target this
+                    road can't reach — a no-plan job is shown Detailed as its goal and
+                    Confirmed as "upload your floorplan". */}
+                <span data-testid="tier-next">{ladder.nextUnlock
+                  ? `${ladder.nextUnlock.needs.length === 1 ? "One step" : `${ladder.nextUnlock.needs.length} steps`} to ${TIER_LABEL[ladder.nextUnlock.tier]}: ${ladder.nextUnlock.needs.join(" · ")}`
+                  : combined?.allDone
+                    ? "Everything confirmed — this is as sure as we get before we see it"
+                    : "It climbs with every room you confirm — we\u2019ll reprice as you go"}</span>
               </div>
             </div>
             <div className="sc-range" key={flash}>
