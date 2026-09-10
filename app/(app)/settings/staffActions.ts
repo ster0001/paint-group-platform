@@ -32,6 +32,24 @@ export type StaffRow = {
 
 type Caller = { id: string; isOwner: boolean; ownerExists: boolean; canManage: boolean };
 
+/**
+ * Until 20270134 is run on a database, profiles has neither phone nor
+ * staff_notify: a select of them comes back 42703 and an update carrying them
+ * comes back PGRST204 ("Could not find the 'staff_notify' column of 'profiles'
+ * in the schema cache"). Both mean the same thing to whoever is looking at the
+ * screen, so say which update is missing rather than passing the driver's
+ * string on. Same answer if the columns are there but PostgREST's cache is
+ * stale — running the migration again is idempotent and reloads it.
+ */
+const NEEDS_20270134 =
+  "Staff alerts need the 10 Sep database update — run supabase/migrations/20270134000000_staff_notifications.sql on this database, then try again.";
+
+function missingStaffColumns(err: { code?: string; message?: string } | null | undefined): boolean {
+  if (!err) return false;
+  if (err.code !== "PGRST204" && err.code !== "42703") return false;
+  return /staff_notify|\bphone\b/.test(err.message ?? "");
+}
+
 async function caller(): Promise<Caller | null> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -61,7 +79,7 @@ async function emailsById(svc: NonNullable<ReturnType<typeof createServiceClient
 }
 
 export type StaffListResult =
-  | { status: "ok"; rows: StaffRow[]; canManage: boolean; isOwner: boolean; ownerExists: boolean }
+  | { status: "ok"; rows: StaffRow[]; canManage: boolean; isOwner: boolean; ownerExists: boolean; needsMigration: boolean }
   | { status: "error"; message: string };
 
 export async function listStaffAction(): Promise<StaffListResult> {
@@ -69,8 +87,12 @@ export async function listStaffAction(): Promise<StaffListResult> {
   if (!c) return { status: "error", message: "Staff only." };
   const svc = createServiceClient()!;
   const full = await svc.from("profiles").select("id, name, is_owner, staff_access, phone, staff_notify").eq("role", "staff").order("created_at");
-  // Pre-20270134 the phone / staff_notify columns 42703 the select — retry without them.
-  const { data, error } = full.error
+  // Pre-20270134 the phone / staff_notify columns 42703 the select — retry
+  // without them, and tell the screen, so the alerts table says the update is
+  // missing instead of showing every tick empty and failing on save. Any other
+  // error is that error: it is not retried away.
+  const needsMigration = missingStaffColumns(full.error);
+  const { data, error } = needsMigration
     ? await svc.from("profiles").select("id, name, is_owner, staff_access").eq("role", "staff").order("created_at")
     : full;
   if (error) return { status: "error", message: error.message };
@@ -86,7 +108,7 @@ export async function listStaffAction(): Promise<StaffListResult> {
     notify: parseStaffNotify((r as { staff_notify?: unknown }).staff_notify),
     self: r.id === c.id,
   }));
-  return { status: "ok", rows, canManage: c.canManage, isOwner: c.isOwner, ownerExists: c.ownerExists };
+  return { status: "ok", rows, canManage: c.canManage, isOwner: c.isOwner, ownerExists: c.ownerExists, needsMigration };
 }
 
 const accessSchema = z.record(z.string(), z.boolean()).transform((m) => {
@@ -138,7 +160,7 @@ export async function createStaffAction(input: { email: string; name: string; ph
     if (!userId) throw new Error("no user id back from auth");
     // handle_new_user made a customer profile on insert; make it staff.
     const upd = await svc.from("profiles").upsert({ id: userId, role: "staff", name: name || null, is_owner: isOwner, staff_access: isOwner ? {} : access, ...(phone !== undefined ? { phone: phone || null } : {}) }, { onConflict: "id" });
-    if (upd.error) throw new Error(upd.error.message);
+    if (upd.error) throw new Error(missingStaffColumns(upd.error) ? NEEDS_20270134 : upd.error.message);
     return { status: "ok", message: `${email} can sign in at /login with that password.${isOwner ? " They are a master user." : ""}` };
   } catch (e) {
     reportError(e, { where: "settings.createStaff" });
@@ -164,7 +186,7 @@ export async function updateStaffAction(input: { id: string; isOwner: boolean; a
     if ((count ?? 0) <= 1) return { status: "error", message: "You are the only master user — make someone else master first." };
   }
   const upd = await svc.from("profiles").update({ is_owner: isOwner, staff_access: isOwner ? {} : access, ...(name !== undefined ? { name: name || null } : {}), ...(phone !== undefined ? { phone: phone || null } : {}) }).eq("id", id).eq("role", "staff");
-  if (upd.error) return { status: "error", message: upd.error.message };
+  if (upd.error) return { status: "error", message: missingStaffColumns(upd.error) ? NEEDS_20270134 : upd.error.message };
   return { status: "ok", message: "Saved." };
 }
 
@@ -192,7 +214,7 @@ export async function updateStaffNotifyAction(input: { id: string; notify: Recor
   if (!c.isOwner && parsed.data.id !== c.id) return { status: "error", message: "Only the master user can change someone else's alerts." };
   const svc = createServiceClient()!;
   const upd = await svc.from("profiles").update({ staff_notify: parsed.data.notify }).eq("id", parsed.data.id).eq("role", "staff");
-  if (upd.error) return { status: "error", message: upd.error.message };
+  if (upd.error) return { status: "error", message: missingStaffColumns(upd.error) ? NEEDS_20270134 : upd.error.message };
   return { status: "ok", message: "Saved." };
 }
 

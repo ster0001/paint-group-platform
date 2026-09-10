@@ -15,6 +15,8 @@ export default function StaffAlertsMatrix() {
   const [rows, setRows] = useState<StaffRow[]>([]);
   const [isOwner, setIsOwner] = useState(false);
   const [loadMsg, setLoadMsg] = useState("");
+  /** The database hasn't had 20270134 run on it: nothing here can be saved yet. */
+  const [needsMigration, setNeedsMigration] = useState(false);
   const [dirty, setDirty] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -22,12 +24,12 @@ export default function StaffAlertsMatrix() {
   const load = useCallback(async () => {
     const r = await listStaffAction().catch(() => null);
     if (!r || r.status === "error") { setLoadMsg(r?.status === "error" ? r.message : "Couldn't load the staff list."); return; }
-    setRows(r.rows); setIsOwner(r.isOwner); setLoadMsg(""); setDirty(new Set());
+    setRows(r.rows); setIsOwner(r.isOwner); setNeedsMigration(r.needsMigration); setLoadMsg(""); setDirty(new Set());
   }, []);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
 
-  const canEdit = (row: StaffRow) => isOwner || row.self;
+  const canEdit = (row: StaffRow) => !needsMigration && (isOwner || row.self);
   const has = (m: StaffNotifyMap, k: StaffEventKey, c: StaffNotifyChannel) => (m[k] ?? []).includes(c);
   const tick = (row: StaffRow, k: StaffEventKey, c: StaffNotifyChannel, on: boolean) => {
     setRows((rs) => rs.map((x) => {
@@ -61,6 +63,12 @@ export default function StaffAlertsMatrix() {
           Tick Email and/or Text per person. {isOwner ? "You can set everyone's." : "You can change your own row; the master user sets the rest."} Text needs a mobile on the login (Company → Staff logins).
         </p>
       </div>
+      {needsMigration && (
+        <p className="border-b border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-800" data-testid="staff-alerts-needs-migration">
+          This database hasn&rsquo;t had the staff-alerts update run on it yet, so nothing here can be saved.
+          Run <code className="font-mono text-xs">supabase/migrations/20270134000000_staff_notifications.sql</code>, then reload this page.
+        </p>
+      )}
       {loadMsg && <p className="px-4 py-3 text-sm text-red-600">{loadMsg}</p>}
       {!loadMsg && rows.length === 0 && <p className="px-4 py-3 text-sm text-gray-500">Loading staff…</p>}
       {rows.length > 0 && (
