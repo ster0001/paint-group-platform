@@ -115,31 +115,86 @@ const EXTERIOR_ELEVATION_TILES: SurfaceTile[] = [
     })),
 ];
 
+const isExteriorRoomType = (rt: string) => rt.startsWith("exterior");
+
+/**
+ * A rule as a tile. `defaultOn` deliberately reads the DATABASE's `countable`
+ * rather than the derived one below: a door has always been pre-ticked in a
+ * bedroom, and making it tappable must not quietly untick it.
+ */
+function ruleToTile(r: TileRule, sortBump = 0): SurfaceTile {
+  const basis = BASIS_BY_SURFACE[r.surface_type] ?? "manual_m2";
+  return {
+    id: `${r.room_type}:${r.surface_type}`,
+    surfaceType: r.surface_type,
+    label: r.surface_type,
+    tileLabel: TILE_LABELS[r.surface_type] ?? r.surface_type,
+    rateCode: SURFACE_TO_RATE_CODE[r.surface_type] ?? r.surface_type,
+    measureBasis: basis,
+    group: (GROUPS.has(r.tile_group) ? r.tile_group : "extras") as SurfaceTile["group"],
+    defaultOn: !r.is_option && !r.countable,
+    /**
+     * ⚑ Tom, 10 Sep: "any substrate that has a count can be multi tapped to add
+     * more, similar to windows." Countability is a fact about the SURFACE, not
+     * a column somebody remembered to tick — every rule in the table has
+     * `countable: false`, including doors and windows, so nothing counted at
+     * all. Anything measured per item is countable by definition: you cannot
+     * have two and a half doors, and you can certainly have three.
+     */
+    countable: r.countable || basis === "per_item",
+    requiresConfirm: r.requires_confirm,
+    sortOrder: r.sort_order + sortBump,
+    // Every Walls tile taps through 100 → 75 → 50 → 25% → off (Tom, 30 Aug:
+    // partial repaints aren't a wet-area special). Descending because a room
+    // is usually ALL walls and sometimes some of them.
+    fractional: r.surface_type === "Walls",
+    descending: r.surface_type === "Walls",
+  };
+}
+
 export function tilesForRoomType(roomType: string, rules: TileRule[]): SurfaceTile[] {
   if ((roomType === "exterior_elevation" || roomType === "exterior")
       && !rules.some((r) => r.room_type === roomType)) {
     return EXTERIOR_ELEVATION_TILES;
   }
-  return rules
-    .filter((r) => r.room_type === roomType)
-    .map((r): SurfaceTile => ({
-      id: `${r.room_type}:${r.surface_type}`,
-      surfaceType: r.surface_type,
-      label: r.surface_type,
-      tileLabel: TILE_LABELS[r.surface_type] ?? r.surface_type,
-      rateCode: SURFACE_TO_RATE_CODE[r.surface_type] ?? r.surface_type,
-      measureBasis: BASIS_BY_SURFACE[r.surface_type] ?? "manual_m2",
-      group: (GROUPS.has(r.tile_group) ? r.tile_group : "extras") as SurfaceTile["group"],
-      defaultOn: !r.is_option && !r.countable,
-      countable: r.countable,
-      requiresConfirm: r.requires_confirm,
-      sortOrder: r.sort_order,
-      // Every Walls tile taps through 100 → 75 → 50 → 25% → off (Tom, 30 Aug:
-      // partial repaints aren't a wet-area special). Descending because a room
-      // is usually ALL walls and sometimes some of them.
-      fractional: r.surface_type === "Walls",
-      descending: r.surface_type === "Walls",
-    }))
+  const own = rules.filter((r) => r.room_type === roomType);
+
+  /**
+   * ⚑ Tom, 10 Sep: "all substrates need to be added in all areas, interior and
+   * exterior."
+   *
+   * The rules table says which surfaces a room type USUALLY has, and it was
+   * being read as which surfaces a room type may EVER have. A bathroom carried
+   * no Walls and no Windows tile at all; a garage carried two of the eight. On
+   * site that means leaving capture and going back to the builder for a window
+   * that is plainly there in front of you.
+   *
+   * So every surface known to any room on the same side is offered, and the
+   * ones this room type does not usually have arrive switched OFF and sorted
+   * after its own. Nothing already priced changes — an off tile costs nothing
+   * until somebody taps it.
+   */
+  const exterior = isExteriorRoomType(roomType);
+  const ownTypes = new Set(own.map((r) => r.surface_type));
+  const extras: TileRule[] = [];
+  const seen = new Set<string>();
+  for (const r of rules) {
+    if (isExteriorRoomType(r.room_type) !== exterior) continue;
+    if (ownTypes.has(r.surface_type) || seen.has(r.surface_type)) continue;
+    seen.add(r.surface_type);
+    /**
+     * Borrowed from another room, so it belongs to THIS one: same id shape,
+     * never pre-ticked, and never a required confirm it did not ask for.
+     *
+     * They go in the EXTRAS group, which is what they are — things this room
+     * does not usually have. Left in their own group they interleaved with the
+     * room's real set (a kitchen's cabinets landing between a bedroom's ceiling
+     * and its doors), which buries the tiles somebody actually came for.
+     */
+    extras.push({ ...r, room_type: roomType, is_option: true, requires_confirm: false, tile_group: "extras" });
+  }
+
+  return [...own.map((r) => ruleToTile(r)), ...extras.map((r) => ruleToTile(r, 900))]
     .sort(
       (a, b) =>
         GROUP_ORDER[a.group] - GROUP_ORDER[b.group] ||

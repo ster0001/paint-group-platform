@@ -2623,9 +2623,20 @@ export default function QuoteBuilder({
             subGroups={subGroups[area.type]}
             onPick={(code) => {
               if (surfacePicker.sid == null) {
-                // adding a new surface → open its editable folder straight away
-                const sid = addSurfaceWithCode(surfacePicker.areaId, code);
-                setView({ type: "surface", areaId: surfacePicker.areaId, sid });
+                /**
+                 * ⚑ Tom, 10 Sep: "just add the substrate which is clicked
+                 * straight to the list."
+                 *
+                 * It used to ADD the surface and then open its folder to
+                 * adjust — so picking Colonial windows put you inside a
+                 * colonial-window editor you had not asked for, and on an iPad
+                 * that folder's first field took focus and threw the keyboard
+                 * up over the screen. Two complaints, one cause.
+                 *
+                 * The folder is still one tap away on the row itself, which is
+                 * where you go when you actually want to change something.
+                 */
+                addSurfaceWithCode(surfacePicker.areaId, code);
               } else {
                 selectSubstrate(surfacePicker.areaId, surfacePicker.sid, code);
               }
@@ -2689,6 +2700,28 @@ export default function QuoteBuilder({
   );
 }
 
+/**
+ * Focus a search box on a MOUSE, never on a touch screen.
+ *
+ * ⚑ Tom, 10 Sep: "every time I click on a substrate to add, it comes up with
+ * the keyboard on my iPad — I just want it to add the substrate." `autoFocus`
+ * on a picker's search field is a real convenience with a keyboard already in
+ * front of you: open it, start typing. On an iPad it throws a keyboard over
+ * half the screen for a list you were going to TAP.
+ *
+ * `pointer: fine` is the honest test — it asks what the person is pointing
+ * with, not how wide their screen is, so a laptop in a narrow window still
+ * gets the focus and a big tablet does not.
+ */
+function useFocusIfMouse<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.matchMedia?.("(pointer: fine)").matches) ref.current?.focus();
+  }, []);
+  return ref;
+}
+
 // ---------------- Add-area picker ----------------
 function AreaPicker({
   areaNames, onPick, onClose,
@@ -2709,6 +2742,7 @@ function AreaPicker({
     ];
   }, [areaNames, query]);
 
+  const areaSearchRef = useFocusIfMouse<HTMLInputElement>();
   const add = (name: string, type: "Interior" | "Exterior") => {
     onPick({ name, type });
     setAdded((n) => n + 1);
@@ -2730,7 +2764,7 @@ function AreaPicker({
 
         <div className="px-5 pt-4">
           <input
-            autoFocus
+            ref={areaSearchRef}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             placeholder="Search areas…"
             value={query}
@@ -2793,6 +2827,7 @@ function SurfacePicker({
 }) {
   const [folder, setFolder] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const surfaceSearchRef = useFocusIfMouse<HTMLInputElement>();
   const folders = useMemo(() => Object.keys(subGroups).sort(), [subGroups]);
   const q = query.trim().toLowerCase();
   const searchHits = q
@@ -2818,7 +2853,7 @@ function SurfacePicker({
 
         <div className="px-5 pt-4">
           <input
-            autoFocus
+            ref={surfaceSearchRef}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             placeholder="Search all surfaces…"
             value={query}

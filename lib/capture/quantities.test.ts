@@ -83,14 +83,47 @@ describe("tilesForRoomType", () => {
     rule({ room_type: "kitchen", surface_type: "Cabinets" }),
   ];
 
-  it("filters to the room type and orders core before openings", () => {
+  /**
+   * ⚑ Tom, 10 Sep: "all substrates need to be added in all areas." The rules
+   * table says what a room type USUALLY has; it was being read as what a room
+   * type may EVER have, so a bathroom carried no window tile at all. Every
+   * surface on the same side is offered now — the room's own first, the rest
+   * after and switched off.
+   */
+  it("orders the room's own surfaces first, core before openings", () => {
     const tiles = tilesForRoomType("bedroom", rules);
-    expect(tiles.map((t) => t.surfaceType)).toEqual(["Walls", "Ceiling", "Door & Frame", "Windows"]);
+    expect(tiles.slice(0, 4).map((t) => t.surfaceType)).toEqual(["Walls", "Ceiling", "Door & Frame", "Windows"]);
+  });
+  it("offers a surface this room type does not usually have, switched off", () => {
+    const tiles = tilesForRoomType("bedroom", rules);
+    const cabinets = tiles.find((t) => t.surfaceType === "Cabinets");
+    expect(cabinets, "a bedroom can still have cabinets in it").toBeTruthy();
+    expect(cabinets!.defaultOn).toBe(false);
+    // Borrowed from the kitchen rule, but it belongs to THIS room now.
+    expect(cabinets!.id).toBe("bedroom:Cabinets");
+    // And it sorts LAST — in "extras", which is what it is here. Left in its
+    // own group it interleaved with the room's real set.
+    expect(cabinets!.group).toBe("extras");
+    expect(tiles.indexOf(cabinets!)).toBe(tiles.length - 1);
   });
   it("core measured tiles are pre-selected, countables are offered not selected", () => {
     const tiles = tilesForRoomType("bedroom", rules);
     expect(tiles.find((t) => t.surfaceType === "Walls")?.defaultOn).toBe(true);
     expect(tiles.find((t) => t.surfaceType === "Windows")?.defaultOn).toBe(false);
+  });
+  /**
+   * ⚑ Tom, 10 Sep: "any substrate that has a count can be multi tapped to add
+   * more, similar to windows." Every rule in the live table has
+   * `countable: false` — including doors and windows — so nothing counted.
+   * Anything measured PER ITEM is countable by definition.
+   */
+  it("makes per-item surfaces countable however the row was set", () => {
+    const tiles = tilesForRoomType("bedroom", rules);
+    expect(tiles.find((t) => t.surfaceType === "Windows")?.countable).toBe(true);
+    expect(tiles.find((t) => t.surfaceType === "Door & Frame")?.countable).toBe(true);
+    // Area and length surfaces are not counted — they are measured.
+    expect(tiles.find((t) => t.surfaceType === "Walls")?.countable).toBe(false);
+    expect(tiles.find((t) => t.surfaceType === "Ceiling")?.countable).toBe(false);
   });
   it("maps measure bases and falls back to manual for unknown surfaces", () => {
     const tiles = tilesForRoomType("bedroom", rules);
