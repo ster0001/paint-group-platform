@@ -590,6 +590,61 @@ export default function QuoteBuilder({
       copy.splice(from < to ? insertAt + 1 : insertAt, 0, moved);
       return copy;
     });
+  // Tom, 10 Sep: reordering on a phone or iPad. HTML5 drag events never fire
+  // from a finger, so the grip also understands a HOLD: keep a finger (or a
+  // pen) still on it for a second and the row lifts — slide it over another
+  // row and let go. Moving before the second is up is a scroll, not a drag,
+  // and cancels the hold. A mouse keeps the native drag it always had.
+  const HOLD_MS = 1000;
+  const holdTimer = useRef<number | null>(null);
+  const holdStart = useRef<{ x: number; y: number } | null>(null);
+  const touchDrag = useRef<{ id: number; over: number | null } | null>(null);
+  const clearHold = () => {
+    if (holdTimer.current != null) window.clearTimeout(holdTimer.current);
+    holdTimer.current = null;
+    holdStart.current = null;
+  };
+  const gripDown = (id: number) => (e: React.PointerEvent<HTMLSpanElement>) => {
+    if (e.pointerType === "mouse") { setDragEnabledId(id); return; }
+    clearHold();
+    holdStart.current = { x: e.clientX, y: e.clientY };
+    const el = e.currentTarget;
+    const pointerId = e.pointerId;
+    holdTimer.current = window.setTimeout(() => {
+      holdTimer.current = null;
+      touchDrag.current = { id, over: null };
+      setDragId(id);
+      try { el.setPointerCapture(pointerId); } catch { /* the finger already lifted */ }
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate?.(30);
+    }, HOLD_MS);
+  };
+  const gripMove = (e: React.PointerEvent<HTMLSpanElement>) => {
+    const d = touchDrag.current;
+    if (d) {
+      e.preventDefault();
+      const under = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>("[data-block-id]");
+      const over = under ? Number(under.dataset.blockId) : null;
+      if (over !== d.over) { d.over = over; setOverId(over != null && over !== d.id ? over : null); }
+      // Near the top or bottom of the screen the page creeps so a long list can be crossed.
+      const edge = 72;
+      if (e.clientY < edge) window.scrollBy(0, -12);
+      else if (e.clientY > window.innerHeight - edge) window.scrollBy(0, 12);
+      return;
+    }
+    if (holdStart.current && Math.hypot(e.clientX - holdStart.current.x, e.clientY - holdStart.current.y) > 8) clearHold();
+  };
+  const gripUp = (drop: boolean) => (e: React.PointerEvent<HTMLSpanElement>) => {
+    const d = touchDrag.current;
+    if (d) {
+      touchDrag.current = null;
+      if (drop && d.over != null && d.over !== d.id) moveBlock(d.id, d.over);
+      setDragId(null); setOverId(null);
+      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* already released */ }
+      return;
+    }
+    clearHold();
+    if (e.pointerType === "mouse") setDragEnabledId(null);
+  };
   const [saveMsg, setSaveMsg] = useState("");
   const [saving, setSaving] = useState(false);
   /** Embedded assistant bridge (see builderBridge.ts): unsaved edits are
@@ -1497,6 +1552,7 @@ export default function QuoteBuilder({
   const renderDraggable = (b: Block) => (
     <div
       key={b.id}
+      data-block-id={b.id}
       draggable={dragEnabledId === b.id}
       onDragStart={(e) => { setDragId(b.id); e.dataTransfer.effectAllowed = "move"; }}
       onDragEnd={() => { setDragId(null); setDragEnabledId(null); setOverId(null); }}
@@ -1505,11 +1561,16 @@ export default function QuoteBuilder({
       className={`flex items-stretch gap-1 rounded-xl transition ${dragId === b.id ? "opacity-40" : ""} ${overId === b.id && dragId !== b.id ? "ring-2 ring-blue-400" : ""}`}
     >
       <span
-        onMouseDown={() => setDragEnabledId(b.id)}
-        onMouseUp={() => setDragEnabledId(null)}
-        className="mt-3 flex h-7 w-5 shrink-0 cursor-grab items-center justify-center rounded text-lg leading-none text-gray-300 hover:bg-gray-100 hover:text-gray-600 active:cursor-grabbing"
-        title="Drag to reorder"
+        onPointerDown={gripDown(b.id)}
+        onPointerMove={gripMove}
+        onPointerUp={gripUp(true)}
+        onPointerCancel={gripUp(false)}
+        onContextMenu={(e) => e.preventDefault()}
+        style={{ touchAction: "none", WebkitUserSelect: "none", userSelect: "none", WebkitTouchCallout: "none" } as React.CSSProperties}
+        className={`mt-3 flex h-7 w-6 shrink-0 cursor-grab items-center justify-center rounded text-lg leading-none hover:bg-gray-100 hover:text-gray-600 active:cursor-grabbing ${dragId === b.id ? "bg-blue-100 text-blue-600" : "text-gray-300"}`}
+        title="Drag to reorder — on a phone, hold for a second then slide"
         aria-label="Drag to reorder"
+        data-testid={`grip-${b.id}`}
       >⠿</span>
       <div className="min-w-0 flex-1">{renderFolderRow(b)}</div>
     </div>
@@ -1580,7 +1641,7 @@ export default function QuoteBuilder({
             {quoteId ? " · saved draft" : ""}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* View switcher — Builder | Customer view | Work order (mono labels) */}
           <div className="inline-flex overflow-hidden rounded-md border border-line2" style={{ fontFamily: "var(--font-mono, monospace)" }}>
             {([

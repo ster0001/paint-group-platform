@@ -119,8 +119,8 @@ export default async function InvoicesPage({
       </div>
 
       {rows.length > 0 ? (
-        <div className="mt-4 overflow-hidden rounded-lg border border-gray-200 bg-white">
-          <table className="w-full text-sm" data-testid="invoices-table">
+        <div className="relative mt-4 overflow-x-auto rounded-lg border border-gray-200 bg-white">
+          <table className="w-full min-w-[640px] text-sm" data-testid="invoices-table">
             <thead>
               <tr className="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-400">
                 <th className="px-4 py-3">Job</th>

@@ -21,91 +21,33 @@ reasoning rather than the diff.
 
 ---
 
-## Left (3 of 8)
+## Done and pushed (6–8), 10 Sep evening — see docs/manual-tests/tom-batch-10sep-part2.md
 
-### A · "Speed up photo upload without reducing the quality"
+| # | Item | Where |
+|---|---|---|
+| 6 | Estimate line photos: parallel upload + 2048 px screen-size downscale | `app/quote/QuoteBuilder.tsx` (MediaUploader), `lib/uploads/downscale.ts` (lifted from the showcase) |
+| 7 | Staff alerts: six office events, routed per staff member by email/text; Automations page split Customers / Contractors / Staff; mobile on Staff logins | `lib/staff/notifyEvents.ts` (client), `lib/staff/notify.ts` (server), `app/(app)/settings/StaffAlertsMatrix.tsx`, `staffActions.ts`, migration `20270134` |
+| 8 | Phone view: tables scroll inside their card, builder toolbar wraps; hold-for-a-second drag on touch | `EstimatesTable`, `invoices/page`, `contacts/page`, `WizardSessionsTable`, `QuoteBuilder.tsx` (grip pointer handlers) |
 
-**What I found before stopping.** Uploads already go STRAIGHT to storage on a
-signed URL (`app/api/extract/upload-url` → `supabase.storage.uploadToSignedUrl`),
-so there is no server hop to remove. `MAX_UPLOAD_BYTES` is **25 MB**
-(`lib/extract/normalise.ts:35`). **There is NO client-side downscaling anywhere
-in the app** — I grepped for `createImageBitmap` / `canvas` / `toBlob` and found
-none. A modern phone photo is 3–6 MB at ~4032×3024, and that is what goes over
-the wire today.
+**Tom's rulings that shaped these (his reply, 10 Sep):** A = "photo uploads are slow when adding them in the
+estimate (the ones visible for the client)" → the line-item uploader only; B = "add it to our existing
+notifications page and break up into staff and contractor"; C = the black screen was NOT the issue — "the software
+isn't mobile friendly, you can't scroll left to right in phone view", plus hold-to-drag on mobile/tablet.
 
-**Measure before changing anything.** The honest first step is a timing on a
-real phone photo over a real connection, not a guess about where the seconds go.
+**Where the hooks are.** Accepted → `lib/estimate/acceptedNotify.ts` (extended). Job accepted/declined → the painter's
+browser calls `respond_to_offer` directly (no server seam), so `OfferCard`/`OfferBar` ping
+`app/portal/offerNotifyAction.ts` after the RPC. Invoice paid → next to `sendReceiptEmail` in
+`app/invoicing/actions.ts` and the Stripe webhook. Variation raised → `raiseVariationAction`. Contractor invoice →
+`submitContractorInvoiceAction` + `requestClaimAction`. All behind `after()`, all once-only via `staff_notifications`.
 
-**Then, in the order I would try them:**
-
-1. **Upload in PARALLEL.** Several call sites upload files in a `for` loop and
-   await each one. Concurrency is free speed and changes no pixels.
-2. **Start on CHOICE, not on submit.** `RoomSpots` already does this
-   (`app/estimate/scope/RoomSpots.tsx` — the upload begins when the photo is
-   chosen, so the slow part happens while the customer reads the next question).
-   Other call sites do not.
-3. **Downscale — but only where the pixels are never consumed.** ⚑ This is the
-   big win and it needs Tom's ruling, because he said "without reducing the
-   quality". The honest argument is narrow: photos that exist to be READ by the
-   plan reader or the defect reader are downsampled by the model anyway, so
-   uploading 4032 px is quality that never reaches anything. Photos that exist
-   as EVIDENCE — site photos on a work order, before/after, anything that could
-   end up in a dispute — must keep their original. **Do not blanket-compress.
-   Ask which is which.**
-
-### B · Staff notifications
-
-**⚑ Do not build a second system.** There is already an automations registry
-with exactly this shape:
-
-- `lib/automations/registry.ts` — every automated message, keyed, with
-  `audience: "customer" | "painter" | "office"` (**"office" already exists**),
-  `channels: ("email" | "sms" | "ics" | "pdf")[]` and
-  `kind: "automatic" | "manual" | "planned"`.
-- `app/(app)/settings/AutomationsSettings.tsx` — the per-send on/off switches.
-- `lib/messaging/send.ts` — `sendEmail` / `sendSms`. **Every send goes through
-  here and is recorded in `messages`**, with the customer's alert settings
-  honoured and suppression recorded. New code must go THROUGH it, not around it.
-
-So Tom's ask is: add the office/staff events he listed (contract accepted, job
-approved, job declined, invoice paid, variation requested, contractor invoice
-made), and make each one routable **per staff member**.
-
-**The two things that do not exist yet:**
-
-1. **A staff phone number.** `profiles` has `id, name, role, is_owner,
-   staff_access, contact` — `contact` is a single TEXT column holding an email.
-   There is no phone, so the SMS option needs a migration. Consider whether
-   `contact` should become jsonb (`{email, phone}`) or a new `phone` column —
-   the second is smaller and safer.
-2. **A per-event → staff map.** Follow the existing shape rather than inventing
-   one: `staff_access` on `profiles` is already a jsonb map of what a login can
-   see (`lib/staff/access.ts`). A sibling `staff_notify` jsonb —
-   `{ invoice_paid: ["email","sms"], job_declined: ["email"] }` — keeps it on
-   the person, which is where "which staff member sees each of these" belongs,
-   and needs no join table.
-
-**Watch for:** the events Tom named fire in several places already (accept →
-work order, invoice paid, variation approved). Find the existing emitters
-before adding new ones — `lib/crm/events.ts` and the work-order loop already log
-most of these, and a notification should hang off the event that is already
-recorded rather than a second trigger that can disagree with it.
-
-### C · "The full software doesn't work in mobile view — scrolling goes to a black screen"
-
-**I have no lead on this one and did not want to guess.** What I know:
-
-- `app/(app)/layout.tsx` is the staff shell: `flex min-h-screen`, sidebar as a
-  fixed off-canvas drawer under `md`, content `min-w-0 flex-1 pt-[52px] md:pt-0`.
-- A black screen on scroll usually means a fixed/absolute layer with a dark
-  background is being scrolled OVER the content, or a `100vh` element plus the
-  mobile URL bar. The wizard shell (`.wz`) paints a dark ground; the staff app is
-  `bg-gray-50`. A dark full-bleed layer appearing on a staff page would be worth
-  looking at first.
-- **Start by asking Tom WHICH page** — "the full software" could be the staff
-  app, the PC console or the portal, and they have different shells.
-
----
+**Three more traps found on the way:**
+- `auth.admin.listUsers` paging (20 × 200) stopped finding the staff login on C1 — the wizard's anon sessions pushed
+  it past 4,000 users. `emailsById` in staffActions now does one `getUserById` per staff id; e2e resolves the id by
+  signing the creds in (`userIdFor` in e2e/helpers.ts). `settings-staff.spec` was red for this reason, not the code.
+- A Tailwind `sr-only` span is `position:absolute`; inside an `overflow-x-auto` card that is NOT positioned it
+  escapes the card and widens the page on a phone (that is why /estimates zoomed out). Scroll wrappers are `relative`.
+- Playwright's `touchscreen` only taps; the hold-to-drag spec drives real touches through CDP
+  (`Input.dispatchTouchEvent`) — and must keep both rows on screen, because a fast slide scrolls.
 
 ## ⚑ Traps that will cost you an hour each
 
@@ -132,8 +74,9 @@ recorded rather than a second trigger that can disagree with it.
 
 ## Where things are
 
-Branch `fix/tom-batch-10sep`, off `main` at `ba191a2`. 2,059 unit tests green,
-tsc and eslint clean, production build green. Nothing is uncommitted.
+Branch `fix/tom-batch-10sep`, off `main` at `ba191a2`. 2,065 unit tests green,
+tsc and eslint clean (4 warnings, the ratchet), production build green.
+Migration `20270134` applied on C1, **queued for production**.
 
 Everything from estimator journey v2 phase 2 is already merged (PRs #53, #54,
 #56, #57) — see `docs/briefs/estimator-journey-v2-phase2.md`.

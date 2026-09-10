@@ -169,10 +169,16 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
           Fixed layout with declared widths, the two open-ended columns
           truncated, and `overflow-x-auto` as the floor — so even a column that
           somehow outgrows its share scrolls inside the card instead of
-          stretching the page. */}
+          stretching the page. On a phone the table keeps a 960px floor and
+          the card scrolls sideways (Tom, 10 Sep) — the declared columns already
+          sum to 768, so anything less leaves the Title column no width at all
+          and the headings print on top of each other. `relative` matters: the
+          sr-only "Select all" label is position:absolute, and without a
+          positioned scroll container it escaped the card and widened the
+          page on a phone. */}
       <div className="mt-4 overflow-hidden rounded-lg border border-gray-200 bg-white">
-        <div className="overflow-x-auto">
-        <table className="w-full table-fixed text-sm">
+        <div className="relative overflow-x-auto">
+        <table className="w-full min-w-[960px] table-fixed text-sm">
           <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
             <tr>
               <th className="w-8 px-3 py-2">

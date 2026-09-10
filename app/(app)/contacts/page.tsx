@@ -11,9 +11,9 @@ export default async function ContactsPage() {
   return (
     <div className="p-6">
       <h1 className="text-xl font-semibold tracking-tight">Contacts</h1>
-      <div className="mt-4 overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <div className="relative mt-4 overflow-x-auto rounded-lg border border-gray-200 bg-white">
         {contacts.length > 0 ? (
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[560px] text-sm">
             <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
               <tr>
                 <th className="px-4 py-2 font-medium">Name</th>

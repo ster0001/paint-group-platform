@@ -14,8 +14,8 @@ export default function WizardSessionsTable({ sessions, openId = null }: { sessi
   const [open, setOpen] = useState<WizardJourney | null>(() => sessions.find((s) => s.id === openId) ?? null);
   return (
     <>
-      <div className="mt-4 overflow-hidden rounded-lg border border-gray-200 bg-white">
-        <table className="w-full text-sm">
+      <div className="relative mt-4 overflow-x-auto rounded-lg border border-gray-200 bg-white">
+        <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
             <tr>
               <th className="px-4 py-2 font-medium">Who</th>
