@@ -50,6 +50,7 @@ import type { WOPhoto } from "@/lib/workorder/photos";
 import type { EstimateDocuments } from "@/lib/wizard/documents";
 import { PHOTO_REVIEW_KIND } from "@/lib/wizard/merge";
 import { acceptAttr, checkUpload } from "@/lib/uploads/validate";
+import { downscale, SCREEN_MAX_EDGE } from "@/lib/uploads/downscale";
 import { reportIfError, errorMessage } from "@/lib/monitoring/report";
 import RevisionPanel, { type ExistingRevisionVariation } from "./RevisionPanel";
 import InvoiceSheet, { type SheetLine } from "@/app/i/[token]/InvoiceSheet";
@@ -3535,36 +3536,47 @@ function LineCard({
 }
 
 function MediaUploader({ items, onChange }: { items: MediaItem[]; onChange: (m: MediaItem[]) => void }) {
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<{ done: number; total: number } | null>(null);
   const [err, setErr] = useState("");
   const list = items ?? [];
 
   async function onFiles(files: FileList | null) {
     if (!files || !files.length) return;
+    const picked = Array.from(files);
     // Check the whole selection first: uploading half a batch and then failing
     // leaves the user guessing which photos made it.
-    for (const f of Array.from(files)) {
+    for (const f of picked) {
       const bad = checkUpload(f, "image");
       if (bad) { setErr(`${f.name}: ${bad}`); return; }
     }
-    setBusy(true);
+    setBusy({ done: 0, total: picked.length });
     setErr("");
     const supabase = createClient();
-    const added: MediaItem[] = [];
     try {
-      for (const f of Array.from(files)) {
-        const ext = f.name.split(".").pop() || "jpg";
+      // Tom, 10 Sep: "photo uploads are slow when adding them in the estimate."
+      // Two things, neither of which changes what the customer sees: every
+      // photo goes up at once instead of one after another, and each is
+      // shrunk in the browser to what a screen can show (lib/uploads/downscale)
+      // — a 5 MB phone photo becomes ~600 KB with no visible difference. A
+      // photo the browser can't decode (HEIC on Chrome) goes up as it is.
+      const added = await Promise.all(picked.map(async (f) => {
+        const blob = await downscale(f, SCREEN_MAX_EDGE);
+        const body: Blob = blob ?? f;
+        const ext = blob ? "jpg" : (f.name.split(".").pop() || "jpg");
         const path = `${crypto.randomUUID()}.${ext}`;
-        const { error } = await supabase.storage.from("estimate-media").upload(path, f);
+        const { error } = await supabase.storage.from("estimate-media").upload(path, body, {
+          contentType: blob ? "image/jpeg" : f.type || undefined, cacheControl: "31536000",
+        });
         if (error) throw error;
+        setBusy((b) => (b ? { ...b, done: b.done + 1 } : b));
         const { data } = supabase.storage.from("estimate-media").getPublicUrl(path);
-        added.push({ path, url: data.publicUrl });
-      }
+        return { path, url: data.publicUrl } as MediaItem;
+      }));
       onChange([...list, ...added]);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Upload failed");
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
   async function remove(m: MediaItem) {
@@ -3590,8 +3602,8 @@ function MediaUploader({ items, onChange }: { items: MediaItem[]; onChange: (m: 
           </div>
         ))}
         <label className="flex h-16 w-16 cursor-pointer items-center justify-center rounded border border-dashed border-gray-300 text-center text-[11px] text-gray-400 hover:bg-white">
-          {busy ? "…" : "+ Photo"}
-          <input type="file" accept={acceptAttr("image")} multiple className="hidden" onChange={(e) => onFiles(e.target.files)} />
+          {busy ? (busy.total > 1 ? `${busy.done}/${busy.total}` : "…") : "+ Photo"}
+          <input type="file" accept={acceptAttr("image")} multiple className="hidden" disabled={!!busy} onChange={(e) => { onFiles(e.target.files); e.target.value = ""; }} />
         </label>
       </div>
       {err && <p className="mt-1 text-xs text-red-600">{err}</p>}
