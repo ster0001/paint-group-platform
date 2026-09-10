@@ -76,7 +76,14 @@ test.describe("Addendum A2 — describe the job", () => {
             if (await btn.count()) await btn.click();
           }
         }
-        await page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ }).first().click();
+        /**
+         * The nav disappears once the build starts — the processing screen has
+         * no Continue. Waiting for it there is how this loop hung for the full
+         * ten-minute timeout on a page that was doing exactly the right thing.
+         */
+        const nav = page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ }).first();
+        if (!(await nav.count())) break;
+        await nav.click({ timeout: 15_000 }).catch(() => {});
         const err = page.locator(".wz-err");
         if (await err.count()) throw new Error(`describe gate: ${await err.first().innerText()}`);
         await page.waitForTimeout(500);

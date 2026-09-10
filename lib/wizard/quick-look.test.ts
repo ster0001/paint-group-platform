@@ -172,13 +172,18 @@ describe("what the customer reads back", () => {
 });
 
 describe("the screens", () => {
-  it("walks four for an interior job", () => {
-    expect(stepsFor("interior")).toHaveLength(4);
-    expect(stepsFor("both")).toHaveLength(4);
+  it("walks four for an inside job — no outside screen to answer", () => {
+    expect(stepsFor("interior")).toEqual(["start", "place", "job", "condition"]);
   });
 
-  it("hands an outside-only job to the exterior pages after the place", () => {
-    expect(stepsFor("exterior")).toEqual(["start", "place"]);
+  it("sends an outside-only job to the exterior screen, skipping the rooms", () => {
+    // No scope preset and no colour question: there are no rooms to apply them
+    // to, and asking anyway is the toll §2 is about.
+    expect(stepsFor("exterior")).toEqual(["start", "place", "outside"]);
+  });
+
+  it("walks a both job through the inside and then the outside", () => {
+    expect(stepsFor("both")).toEqual(["start", "place", "job", "condition", "outside"]);
   });
 
   it("offers every choice with a label, and a hint where one is needed", () => {

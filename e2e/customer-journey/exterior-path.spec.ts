@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { MONEY_RANGE } from "./drive";
+import { MONEY_RANGE, openExteriorPages } from "./drive";
 
 /**
  * R2 — the exterior wizard path (diagnostic #7: "exterior asks interior
@@ -18,11 +18,8 @@ import { MONEY_RANGE } from "./drive";
 
 test("R2 exterior journey: five exterior pages, no interior questions, priced by sides", async ({ page }) => {
   test.setTimeout(180_000);
-  await page.goto("/estimate");
-
   // Page 1 — exterior with a listing as the visual evidence.
-  await page.getByRole("button", { name: "Exterior", exact: true }).click();
-  await page.getByTestId("entry-upload").click(); // Phase 2: the way in is a card
+  await openExteriorPages(page, { via: "upload" });
   await page.getByPlaceholder(/listing URL/).fill("https://www.realestate.com.au/property-house-vic-murrumbeena-1400001");
   await page.getByPlaceholder("Suburb").fill("Murrumbeena");
   await page.getByPlaceholder("Postcode").fill("3163");

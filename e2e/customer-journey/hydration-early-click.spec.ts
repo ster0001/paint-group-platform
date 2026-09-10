@@ -28,10 +28,13 @@ test("a tap within 500ms of load is never lost — the hydration gate holds it",
   // silently lost before the gate. Under 6× throttle hydration reliably
   // takes longer than these two statements.
   expect(await page.locator("[data-ready='1']").count()).toBe(0);
-  const exterior = page.getByRole("button", { name: "Exterior", exact: true });
-  await exterior.click({ timeout: 60_000 });
+  // v2 phase 2: the first tap on the screen is the job-type chip ("Outside"),
+  // which is the same test — a control that looks live before React has
+  // hydrated, tapped at the worst possible moment.
+  const outside = page.getByTestId("ql-jobtype-exterior");
+  await outside.click({ timeout: 60_000 });
 
-  // The early tap must have COUNTED: Exterior is selected, page is live.
-  await expect(exterior).toHaveClass(/on/, { timeout: 15_000 });
+  // The early tap must have COUNTED: Outside is selected, page is live.
+  await expect(outside).toHaveClass(/on/, { timeout: 15_000 });
   await expect(page.locator("[data-ready='1']")).toBeAttached();
 });

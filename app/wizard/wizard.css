@@ -834,3 +834,19 @@
 }
 .wz .wz-sent-slots { margin-top: 22px; }
 .wz .wz-sent .wz-kept { margin-top: 20px; }
+
+/* ---- The gate (prototype s-stop) ----------------------------------------
+   It used to be a heading and a sentence with nothing to do. The point of the
+   block below is that the customer leaves with something ASKED FOR, not just
+   something explained. */
+.wz .wz-stop-what {
+  margin: 18px 0 0; padding: 14px; border-radius: 12px;
+  background: var(--wz-panel, #12161A); border: 1px solid var(--wz-line, #242B32);
+}
+.wz .wz-stop-what b { display: block; font-size: 14.5px; }
+.wz .wz-stop-what span { display: block; margin-top: 4px; font-size: 13.5px; line-height: 1.5; color: var(--wz-muted, #8C959D); }
+.wz .wz-stop-ask { margin-top: 20px; }
+.wz .wz-stop-ask .wz-in, .wz .wz-stop-ask .wz-brief { width: 100%; margin-bottom: 10px; }
+.wz .wz-stop-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.wz .wz-stop-row .wz-btn { text-decoration: none; }
+.wz .wz-stop-note { margin-top: 18px; font-size: 13px; color: var(--wz-muted, #8C959D); }

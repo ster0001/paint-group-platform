@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { fillContactStep, uniquePhone } from "./drive";
+import { fillContactStep, uniquePhone, openExteriorPages } from "./drive";
 
 /**
  * Tom's 8 September 2026 (evening) batch, driven on the real screen.
@@ -22,9 +22,7 @@ import { fillContactStep, uniquePhone } from "./drive";
 const PHONE = uniquePhone();
 
 async function driveExteriorWizard(page: Page) {
-  await page.goto("/estimate");
-  await page.getByRole("button", { name: "Exterior", exact: true }).click();
-  await page.getByTestId("entry-upload").click();
+  await openExteriorPages(page, { via: "upload" });
   await page.getByPlaceholder(/listing URL/).fill("https://www.realestate.com.au/property-house-vic-murrumbeena-1400002");
   await page.getByPlaceholder("Suburb").fill("Murrumbeena");
   await page.getByPlaceholder("Postcode").fill("3163");

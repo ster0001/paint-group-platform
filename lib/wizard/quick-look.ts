@@ -342,16 +342,23 @@ export function assumedList(q: QuickLook): Assumption[] {
   return out;
 }
 
-/** The four quick-look screens, in order. */
-export const QUICK_LOOK_STEPS = ["start", "place", "job", "condition"] as const;
+/** Every quick-look screen, in order. */
+export const QUICK_LOOK_STEPS = ["start", "place", "job", "condition", "outside"] as const;
 export type QuickLookStep = (typeof QUICK_LOOK_STEPS)[number];
 
 /**
- * Which screens a job type actually walks. An exterior job has no interior
- * scope preset and no interior colour question — its own five-answer quick
- * look is §3's exterior branch and phase 7's other half, so for now an
- * outside job takes the existing exterior pages after screen 2.
+ * Which screens a job type actually walks.
+ *
+ * An OUTSIDE-ONLY job skips the interior scope preset and the colour question —
+ * it has no rooms — and takes the exterior quick look (`s-ext-job`) instead.
+ * A BOTH job walks all five: the inside is answered, then the outside.
+ *
+ * ⚑ This is what replaced the hand-off to the old five-page exterior question
+ * set. It was "for now" while the per-elevation allowances (§8) did not exist;
+ * they do now, so the reason is gone.
  */
 export function stepsFor(jobType: QuickLook["jobType"]): QuickLookStep[] {
-  return jobType === "exterior" ? ["start", "place"] : [...QUICK_LOOK_STEPS];
+  if (jobType === "exterior") return ["start", "place", "outside"];
+  if (jobType === "both") return [...QUICK_LOOK_STEPS];
+  return ["start", "place", "job", "condition"];
 }
