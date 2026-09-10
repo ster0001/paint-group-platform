@@ -1,3 +1,108 @@
+# 11 Sep 2026 — C0: the production migration ledger, the reference set, the straggler. ONE migration: 20270135 (`_prod_migrations`, additive). Branch `chore/c0-estimator-v2-groundwork`.
+
+First chunk of the estimator v2 run sheet (`docs/briefs/estimator-v2-runsheet.md`). No product
+changes — this session buys ground truth before C1 and C2 make self-sign safe.
+
+## FIFTEEN MIGRATIONS AWAIT TOM ON PROD (since 6 Sep)
+
+Paste in filename order. **Confirm each one before the next chunk starts** — the run sheet
+will not begin a chunk until the previous chunk's migrations are confirmed live.
+
+    20270114000000_contractor_tour_seen.sql
+    20270120000000_crm_identity_contacts.sql
+    20270121000000_crm_lifecycle_events.sql
+    20270122000000_crm_account_facts.sql
+    20270123000000_crm_record_writes.sql
+    20270124000000_crm_messages.sql
+    20270125000000_crm_status_model.sql
+    20270126000000_crm_campaigns_v2.sql
+    20270127000000_crm_visits.sql
+    20270128000000_cement_sheet_rate.sql
+    20270129000000_crm_batch_7sep.sql
+    20270130000000_agent_tone_kb.sql
+    20270131000000_staff_gcal_scopes.sql
+    20270133000000_occupancy_modifiers.sql
+    20270134000000_staff_notifications.sql
+
+Session notes from 7–10 Sep claim several of these were pasted at the time (20270128 → 20270131,
+20270134, and 20270130 via a direct SQL run). **That claim is exactly what this chunk exists to
+stop trusting.** Nothing here is treated as live until it has a row in `_prod_migrations`. These
+fifteen are the ones to check hardest when you prune the backfill, because they are the ones
+where the paper trail and the database are most likely to disagree.
+
+## The ledger itself — migration 20270135
+
+`public._prod_migrations(name text primary key, applied_at timestamptz default now())`. RLS on,
+staff read, writes revoked from `anon`/`authenticated` — it is written from the SQL editor, which
+is where migrations are applied. It self-registers as its own last statement.
+
+**From now on every migration file ends with its own insert.** The rule is in `CLAUDE.md` under
+Migrations and RLS. A file with no row in that table has NOT been applied — "no row" means
+"not live", never "unknown".
+
+**Backfill is a one-off and it is yours.** The PR body carries an `insert` naming all 180 existing
+files. Its default is the opposite of the list above: it assumes applied, and you **delete the
+lines you know are not live** before pasting. Take the fifteen above out if you have not run them.
+
+## What the migration folder actually looks like (the audit was right)
+
+- **180 files**, and **seven duplicate numbers** on main: `20260917`, `20261211`, `20261212`,
+  `20261213`, `20261214`, `20261229`, `20270110`. Same timestamp, different file — so a number
+  alone does not identify a migration. That is why the ledger keys on the **filename**.
+- **A five-number gap**: `20270115` → `20270119` exist nowhere in the repo, on any branch.
+- **Three numbers referenced by session notes as "queued" are not on main at all** — they are
+  sitting on unmerged branches: `20270112` (`fix/qa-recheck`), `20270113`
+  (`fix/console-tick-index`), `20270132` (`feat/one-ladder`, which C1 merges).
+- **A live collision on disk**: the main checkout has an untracked
+  `20270111000000_contractor_invoice_submit_remainder.sql` while main carries
+  `20270111000000_room_allowances.sql` at the same number.
+
+## The 262-behind branch stack — ruling D says close them, cherry-pick only what main provably lacks
+
+Nested, all three forked from `4e5329c` (28 Aug, PR #9) and **264 commits behind main**:
+`fix/ci-secret-names` ⊂ `fix/f1-02-seed-wizard` ⊂ `fix/a2-02-ratecard-transaction`. So only the
+outermost matters — it contains the other two entirely. Nothing was merged here.
+
+What main **provably lacks** (checked file by file against `origin/main`, not from the branch names):
+
+| Still only on the stack | What it is | Worth cherry-picking? |
+|---|---|---|
+| `scripts/seed-target.mjs` + guards in six seed scripts | The production-write guard | **Yes — first.** See below. |
+| `lib/format/money.ts` + `money.test.ts` | One money formatter (A2-03) | Yes — but it is a 34-file refactor; its own PR, after Phase 0 |
+| `lib/invoicing/documents.test.ts` | 124 lines of document tests | Yes, rides with the formatter |
+| `lib/monitoring/deliver.ts` + `deliver.test.ts` | A4-03, errors reach a human | Your call — no one is watching them today |
+| `supabase/migrations/20261203000000_settings_rows_save_rpc.sql` | Settings save in one transaction | **No.** Orphaned — nothing on main calls `settings_rows_save`; the calling code (A2-02) is on the branch. Take the pair or neither. |
+| `.github/workflows/ci.yml` secret-name fixes | CI reads the secret names that exist | Overlaps C17's CI work — fold it in there rather than now |
+
+**The one that is not a tidy-up.** Six seed scripts on main resolve their connection by reading
+`.env.local` — production — and **ignore the environment entirely**. Exporting the test project's
+values does nothing; they write to production by construction. `scripts/c1/seed.mjs`,
+`scripts/portal/seed-demo-customer.mjs`, `scripts/seed-demo-loop.ts`, `scripts/create-test-customer.ts`,
+`scripts/create-test-contractors.ts`, `scripts/seed-extraction-settings.ts` — zero guards on main
+today. The branch's own note records what that already cost: on 28 Aug it turned `wizard_public`
+**off** and reset `wizard_limits.maxEstimatesPerVisitor` from the proving window's 500 back to 2,
+**on the live site**, while the operator believed they were seeding the test project — and it is
+the likeliest explanation for 638 of 648 production users being driver output.
+
+That fix is four months old, sitting on a dead branch, and every seed run between now and C17 is
+exposed to it. **Recommend cherry-picking `scripts/seed-target.mjs` and its six call-site guards
+as their own small PR before C1.** It is not in C0's block, so it is not in this PR — say the word.
+
+## Also landed
+
+- **The straggler**, `a646aae` "Ceilings go dark to light all together or by room, and CI's e2e
+  gets its real failures back" — one commit past PR #61, no migration. It touches
+  `lib/wizard/customer-scope.ts` and `lib/wizard/state.ts`, which C1 and C2 both edit, so it
+  lands first rather than becoming a conflict.
+- **The estimator v2 reference set**, at the paths the run sheet expects — the operating plan, the
+  ledger, the run sheet, the detailed brief and its commercial addendum, the commercial estimator
+  experience, the plan of record, the 11 Sep audit, the 9 Sep current-flow capture, and the
+  **v2.5 prototype** (`design/reference/estimator-journey-v2.html`), which REPLACES the 9 Sep file
+  that was on main. The v2.5 file is the one carrying `s-both`, `sheet-save`, the five `s-com-*`
+  commercial screens and the `SEG`/`BRIEF` seed objects that C12 and C14 lift.
+- `docs/briefs/commercial-pricing-strategy.md`, cited by `lib/wizard/commercial.ts:3` and
+  `docs/ARCHITECTURE.md`, was untracked on disk since 20 Aug. Committed.
+
 # 6 Sep 2026 — Scheduling: reschedule request re-redacted the job · Approve moved start only. ONE migration: 20270110 (QUEUED for prod; applied + proven on C1). Branch `fix/reschedule-redaction-dates`.
 
 Both found running `e2e/help-capture/scheduling.spec.ts` as a real contractor + staff.
