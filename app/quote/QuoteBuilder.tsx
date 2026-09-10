@@ -1,5 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 import { registerBuilder } from "./builderBridge";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -457,6 +459,9 @@ export default function QuoteBuilder({
   const [discountFixedCents, setDiscountFixedCents] = useState<number>(() => loaded?.discountFixedCents ?? 0);
   const [title, setTitle] = useState(initial?.title ?? "");
   const [quoteId, setQuoteId] = useState<string | null>(initial?.id ?? null);
+  /** Capture on an unsaved estimate saves first — this is that moment. */
+  const [capturing, setCapturing] = useState(false);
+  const router = useRouter();
   // Customer-view / send state. The share_token is minted on first save so the
   // link is stable; the estimate stays a draft until Sent, and locks on accept.
   const [shareToken, setShareToken] = useState<string | null>(initial?.share_token ?? null);
@@ -1606,16 +1611,31 @@ export default function QuoteBuilder({
               PAYMENTS
             </a>
           )}
-          {/* On-site room-loop capture - a different way IN to this same estimate. */}
-          {initial?.id && !locked && !revision && (
-            <a
-              href={`/quote/capture?id=${initial.id}`}
-              className="rounded-md border border-line2 px-3 py-2 text-[11px] font-medium tracking-wider text-gray-300 hover:bg-white/5"
+          {/* On-site room-loop capture — a different way IN to this same estimate.
+              ⚑ Tom, 10 Sep: "the capture button disappeared on a new estimate at
+              the top — you have to click Capture in the estimate view page." It
+              was gated on `initial?.id`, so a brand-new estimate never showed
+              it: capture needs a row to write rooms into, and a new estimate has
+              none until it is saved. That is our problem to solve, not the
+              estimator's — the button saves first and then opens capture. */}
+          {!locked && !revision && (
+            <button
+              type="button"
+              disabled={capturing}
+              onClick={async () => {
+                if (quoteId) { router.push(`/quote/capture?id=${quoteId}`); return; }
+                setCapturing(true);
+                const { id } = await save();
+                if (id) router.push(`/quote/capture?id=${id}`);
+                else setCapturing(false); // save() already said why
+              }}
+              className="rounded-md border border-line2 px-3 py-2 text-[11px] font-medium tracking-wider text-gray-300 hover:bg-white/5 disabled:opacity-50"
               style={{ fontFamily: "var(--font-mono, monospace)" }}
               title="On-site room-loop capture"
+              data-testid="capture-button"
             >
-              CAPTURE
-            </a>
+              {capturing ? "SAVING…" : "CAPTURE"}
+            </button>
           )}
           {locked && (
             <>

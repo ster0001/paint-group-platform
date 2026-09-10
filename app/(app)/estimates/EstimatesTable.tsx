@@ -159,8 +159,20 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
         </div>
       )}
 
+      {/* Tom, 10 Sep: "the estimates page is too big for the screen and needs
+          to fit to screen on desktop". `table-auto` sizes to its CONTENT, and
+          two columns here have no natural width — a job title is as long as the
+          address somebody typed, and the wizard journey line ("3 of 4 · 9 min ·
+          last active 2h ago") is mono and does not wrap. Between them they
+          pushed the table past the viewport and took the page with it.
+
+          Fixed layout with declared widths, the two open-ended columns
+          truncated, and `overflow-x-auto` as the floor — so even a column that
+          somehow outgrows its share scrolls inside the card instead of
+          stretching the page. */}
       <div className="mt-4 overflow-hidden rounded-lg border border-gray-200 bg-white">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full table-fixed text-sm">
           <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
             <tr>
               <th className="w-8 px-3 py-2">
@@ -174,11 +186,11 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
                 />
               </th>
               <th className="px-4 py-2 font-medium">Title</th>
-              <th className="px-4 py-2 font-medium">Status</th>
-              <th className="px-4 py-2 font-medium">Wizard status</th>
-              <th className="px-4 py-2 font-medium">Date</th>
-              <th className="px-4 py-2 text-right font-medium">Value</th>
-              <th className="px-4 py-2 text-right font-medium"><span className="sr-only">Actions</span></th>
+              <th className="w-24 px-4 py-2 font-medium">Status</th>
+              <th className="w-64 px-4 py-2 font-medium">Wizard status</th>
+              <th className="w-28 px-4 py-2 font-medium">Date</th>
+              <th className="w-28 px-4 py-2 text-right font-medium">Value</th>
+              <th className="w-40 px-4 py-2 text-right font-medium"><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -197,8 +209,12 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
                     <span className="text-gray-300" title="Accepted estimates are kept as the record of what the customer agreed to" />
                   )}
                 </td>
-                <td className="px-4 py-2.5">
-                  <Link href={`/quote?id=${e.id}`} className="font-medium hover:underline">
+                <td className="min-w-0 px-4 py-2.5">
+                  <Link
+                    href={`/quote?id=${e.id}`}
+                    className="block truncate font-medium hover:underline"
+                    title={e.title || "Untitled estimate"}
+                  >
                     {e.title || "Untitled estimate"}
                   </Link>
                   {/* Tom, 7 Sep: the customer's own confirm-loop editor, opened by staff
@@ -214,7 +230,7 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
                 >
                   {displayStatus(e)}
                 </td>
-                <td className="px-4 py-2.5">
+                <td className="min-w-0 px-4 py-2.5">
                   {e.wizard ? <WizardPill j={e.wizard} onOpen={() => setJourney(e.wizard!)} /> : <span className="text-xs text-gray-300">—</span>}
                 </td>
                 <td className="px-4 py-2.5 text-gray-500">
@@ -242,6 +258,7 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
             ))}
           </tbody>
         </table>
+        </div>
       </div>
       {journey && <JourneyDrawer j={journey} onClose={() => setJourney(null)} />}
     </>

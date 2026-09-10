@@ -4,28 +4,19 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-// Create a new account. New users get the 'customer' role automatically
-// (via the handle_new_user trigger in the database).
-export async function signup(formData: FormData) {
-  const supabase = await createClient();
-
-  const email = String(formData.get("email") ?? "");
-  const password = String(formData.get("password") ?? "");
-  const name = String(formData.get("name") ?? "");
-
-  const { error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: { data: { name } },
-  });
-
-  if (error) {
-    redirect(`/login?error=${encodeURIComponent(error.message)}`);
-  }
-
-  revalidatePath("/", "layout");
-  redirect("/estimates");
-}
+/**
+ * ⚑ THE SELF-SIGNUP ACTION IS GONE (Tom, 10 Sep: "remove 'create user'").
+ *
+ * Removing the button and leaving the action would have been theatre — a
+ * server action with no caller is still an endpoint, and this one minted an
+ * account for anybody who could reach the login page and type an email.
+ *
+ * The two ways in that remain are both decisions somebody makes:
+ *   · STAFF — Settings → Staff logins, where the areas they can see are set
+ *   · CUSTOMERS — the portal's magic link (lib/portal/auth.ts), which creates
+ *     the auth user at verification, against an account the estimate already
+ *     made
+ */
 
 // Where a signed-in user belongs, by role. Staff get the estimating app,
 // contractors get the portal, everyone else the customer account (3a-2).

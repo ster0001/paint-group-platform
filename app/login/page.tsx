@@ -1,4 +1,4 @@
-import { login, signup } from "@/app/auth/actions";
+import { login } from "@/app/auth/actions";
 import { requestLinkAction } from "@/app/account/login/actions";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ export default async function LoginPage({
           Paint Group Platform
         </h1>
         <p className="mt-1 text-center text-sm text-gray-500">
-          Sign in, or create an account.
+          Sign in to your account.
         </p>
 
         {error ? (
@@ -27,22 +27,6 @@ export default async function LoginPage({
         ) : null}
 
         <form className="mt-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium" htmlFor="name">
-              Name{" "}
-              <span className="font-normal text-gray-400">
-                (only needed to create an account)
-              </span>
-            </label>
-            <input
-              id="name"
-              name="name"
-              type="text"
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-              placeholder="Jane Painter"
-            />
-          </div>
-
           <div>
             <label className="block text-sm font-medium" htmlFor="email">
               Email
@@ -72,18 +56,18 @@ export default async function LoginPage({
             />
           </div>
 
-          <div className="flex gap-3 pt-2">
+          {/* Tom, 10 Sep: no self-signup here. Anybody who can reach this page
+              and type an email should not be able to mint themselves an
+              account — staff logins are created in Settings → Staff logins,
+              where somebody decides what they can see, and customers arrive
+              through the portal's magic link below. The Name box went with the
+              button: it only ever existed to create an account. */}
+          <div className="pt-2">
             <button
               formAction={login}
-              className="flex-1 rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
+              className="w-full rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
             >
               Sign in
-            </button>
-            <button
-              formAction={signup}
-              className="flex-1 rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50"
-            >
-              Create account
             </button>
           </div>
 
