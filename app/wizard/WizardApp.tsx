@@ -37,6 +37,11 @@ import {
   DEFAULT_QUICK_LOOK, quickLookToState, stepsFor,
   type QuickLook as QuickLookAnswers,
 } from "@/lib/wizard/quick-look";
+import {
+  applyExteriorQuickLook,
+  type ExteriorQuickLook as ExteriorQuickLookAnswers,
+  type ExteriorSubstrate, type ExteriorTarget,
+} from "@/lib/wizard/exterior-quick-look";
 import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
 import { RESUME_KEY, RESTART_KEY, decodeResume, encodeResume, restartedSince, resumeLine, type ResumeRecord, type SafetyAnswered } from "@/lib/wizard/resume";
 import Wordmark from "./Wordmark";
@@ -220,6 +225,27 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    * landed on an INTERIOR page asking for a floorplan of a house exterior.
    * One answer, one meaning, from the moment it is given.
    */
+  /**
+   * The exterior quick look's five answers (prototype `s-ext-job`). They live
+   * on `state.exterior`, which is where the engine reads them — so there is no
+   * second copy to keep in step, and a reload restores them like everything
+   * else. The screen edits that block directly through `applyExteriorQuickLook`.
+   */
+  const outside: ExteriorQuickLookAnswers = {
+    storeys: state.exterior?.storeys === "double" ? "double" : "single",
+    substrates: (state.exterior?.substrates ?? ["weatherboards"])
+      .filter((x): x is ExteriorSubstrate => x !== "none" && x !== "stucco" && x !== "concrete"),
+    targets: (state.exterior?.targets ?? ["house"])
+      .filter((t): t is ExteriorTarget => t === "house" || t === "fence" || t === "deck" || t === "shed"),
+    condition: state.exterior?.condition ?? "good",
+    access: [
+      ...(state.exterior?.access ?? []),
+      ...((state.exterior?.accessEquipment ?? []).length > 0 ? ["lift" as const] : []),
+    ],
+  };
+  const setOutside = (patch: Partial<ExteriorQuickLookAnswers>) =>
+    setState((s) => applyExteriorQuickLook({ ...outside, ...patch }, s));
+
   const setQuick = (patch: Partial<QuickLookAnswers>) => set({
     quickLook: { ...quick, ...patch },
     ...(patch.jobType ? { jobType: patch.jobType } : {}),
@@ -1135,39 +1161,25 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       window.scrollTo({ top: 0 });
       return;
     }
-    // An outside-only job leaves the quick look after the place and takes the
-    // exterior question set, which asks about elevations rather than rooms.
-    if (quick.jobType === "exterior") {
-      setState((s) => ({ ...s, jobType: "exterior", ...entryPatch("questions", "exterior", s.exterior, s.basics) }));
-      setQuickDone(true);
-      setPage(2);
-      window.scrollTo({ top: 0 });
-      return;
-    }
     if (page < quickSteps.length) {
       setPage(page + 1);
       window.scrollTo({ top: 0 });
       return;
     }
-    const derived = quickLookToState(quick, state);
     /**
-     * ⚑ A BOTH JOB SUBMITS FROM HERE, and still does not name its sides.
+     * The last screen. Both halves of the answer set are already on the state —
+     * the interior from `quickLookToState`, the exterior from the outside
+     * screen writing through `applyExteriorQuickLook` — so this derives and
+     * submits.
      *
-     * I tried handing it to the exterior question set so it could — a job that
-     * never names its sides prices all four, which is the same fault as "I
-     * asked for front, left and back and it gave me the right side too". It
-     * does not work yet: those pages' surface ticks write to the SAME
-     * `surfaces` array the interior uses, so walking them replaced walls and
-     * ceilings with fascias and gutters, every interior room lost its
-     * surfaces, and the submit refused with "every room was skipped".
-     *
-     * So this is the pre-phase-2 behaviour, unchanged: the inside is answered
-     * and the outside is sized from the answers (`noPhotos`). A both job has
-     * never been asked which sides — that gap is older than the quick look and
-     * wants the surfaces model split by side before it can be closed.
+     * ⚑ WHICH SIDES is deliberately not asked here. `s-ext-sides` ("walk around
+     * the house", amber for assumed, dashed for not painting) is a TIGHTEN rung
+     * and the sides editor already builds it. Four sides start assumed; saying
+     * no to one there makes it an explicit exclusion on the quote, which is
+     * where that decision belongs — in front of the customer, on the side
+     * itself, rather than as a tick on a screen before they have seen a plan.
      */
-    // Last screen: derive the full state and price it. Handed straight to the
-    // submit rather than through setState, which would not have landed yet.
+    const derived = quickLookToState(quick, state);
     setState(derived);
     void runSubmit(derived);
   }
@@ -1185,7 +1197,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   // Reveals route straight to /estimate/scope now (Tom, 28 Aug) — this
   // screen only renders the guardrail outcomes.
   if (screen === "editor" && isCustomer && outcome) {
-    return <CustomerResult outcome={outcome} reveal={null} roomTypes={roomTypes} logoUrl={logoUrl} />;
+    return <CustomerResult outcome={outcome} reveal={null} roomTypes={roomTypes} logoUrl={logoUrl} companyPhone={companyPhone} />;
   }
 
   /**
@@ -1290,6 +1302,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 busy={uploading}
                 onBack={page > 1 ? quickBack : null}
                 onNext={quickNext}
+                outside={outside}
+                onOutside={setOutside}
                 conditionBox={
                   <ConditionBox
                     brief={brief} setBrief={setBrief}

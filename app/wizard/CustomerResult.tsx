@@ -7,6 +7,7 @@ import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import type { CustomerPayload } from "@/lib/wizard/view";
 import { assertCustomerShape } from "@/lib/wizard/contract";
 import Wordmark from "./Wordmark";
+import HardStop from "./HardStop";
 
 /**
  * Step 8: what the customer sees after submitting — either a guardrail
@@ -42,11 +43,13 @@ const OUTCOME_HEADINGS: Record<CustomerOutcome["outcome"], string> = {
   rate_limited: "Looks like you're busy",
 };
 
-export default function CustomerResult({ outcome, reveal, roomTypes, logoUrl }: {
+export default function CustomerResult({ outcome, reveal, roomTypes, logoUrl, companyPhone = null }: {
   outcome: CustomerOutcome | null;
   reveal: Reveal | null;
   roomTypes: string[];
   logoUrl?: string | null;
+  /** The office number, for the gate screen's "call now" (prototype s-stop). */
+  companyPhone?: string | null;
 }) {
   const [payload, setPayload] = useState<CustomerPayload | null>(reveal);
   const [openRoom, setOpenRoom] = useState<number | null>(null);
@@ -59,21 +62,23 @@ export default function CustomerResult({ outcome, reveal, roomTypes, logoUrl }: 
 
   if (outcome || !reveal || !payload) {
     const o = outcome ?? { outcome: "handoff" as const, message: "We'll be in touch shortly." };
+    /**
+     * ⚑ THIS USED TO BE A DEAD END. A heading, a sentence, and nothing to do —
+     * on the asbestos path we had often not even asked for a phone number yet,
+     * so "we'll be in touch" rested on something we might not have. The gate
+     * screen (prototype `s-stop`) says what we will do, by when, and gives them
+     * a way to ask for it.
+     */
     return (
       <>
         <header className="wz-top"><Wordmark logoUrl={logoUrl} /></header>
-        <div className="wz-wrap" style={{ textAlign: "center", paddingTop: 70 }}>
-          <h1>{OUTCOME_HEADINGS[o.outcome]}</h1>
-          <p className="wz-sub" style={{ marginTop: 14 }}>{o.message}</p>
-          {o.why && <p className="wz-q" style={{ marginTop: 10 }} data-testid="outcome-why">{o.why}</p>}
-          {o.canRetry ? (
-            <p style={{ marginTop: 14 }}><a className="wz-btn wz-bp" href="/estimate" style={{ display: "inline-block", textDecoration: "none" }}>Try the quick questions instead</a></p>
-          ) : (
-            <p style={{ fontSize: 13.5, color: "var(--muted)" }}>
-              We have everything you entered — nothing needs doing again.
-            </p>
-          )}
-        </div>
+        <HardStop
+          heading={OUTCOME_HEADINGS[o.outcome]}
+          message={o.message}
+          why={o.why}
+          companyPhone={companyPhone}
+          canRetry={o.canRetry === true}
+        />
       </>
     );
   }

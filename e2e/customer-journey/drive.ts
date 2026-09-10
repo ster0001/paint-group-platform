@@ -189,9 +189,10 @@ export async function setStylesInEditor(page: Page, opts: {
  * what they are testing rather than how to get there.
  *
  * `via: "answers"` walks the quick look's two screens and lands on the
- * exterior pages with `noPhotos` already set, which is what "no photos to
+ * EXTERIOR QUICK LOOK (prototype `s-ext-job`), which is what "no photos to
  * hand — we'll size it from your answers" now means. `via: "upload"` hands
- * straight to the upload route, for a listing or facade photos.
+ * straight to the upload route and its old pages, for a listing or facade
+ * photos.
  */
 export async function openExteriorPages(page: Page, opts: { via?: "answers" | "upload" } = {}) {
   await openQuickLook(page);
@@ -203,6 +204,6 @@ export async function openExteriorPages(page: Page, opts: { via?: "answers" | "u
   }
   await quickNext(page);                 // → the place
   await expect(page.locator("[data-quick-step='place']")).toBeVisible();
-  await quickNext(page);                 // → the exterior question set
-  await expect(page.locator(".wz-step")).toBeVisible({ timeout: 20_000 });
+  await quickNext(page);                 // → the exterior quick look (s-ext-job)
+  await expect(page.locator("[data-quick-step='outside']")).toBeVisible({ timeout: 20_000 });
 }

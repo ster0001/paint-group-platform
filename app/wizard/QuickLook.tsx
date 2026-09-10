@@ -5,6 +5,11 @@ import {
   COLOUR_INTENTS, CONDITION_BANDS, JOB_TYPES, OCCUPIED, PROPERTY_KINDS,
   SCOPE_PRESETS, STOREYS, type Choice, type QuickLook, type QuickLookStep,
 } from "@/lib/wizard/quick-look";
+import {
+  EXTERIOR_PROMISE, EXT_ACCESS, EXT_CONDITIONS, EXT_STOREYS, EXT_SUBSTRATES, EXT_TARGETS,
+  toggleAccess, toggleKeeping,
+  type ExteriorQuickLook, type ExteriorSubstrate, type ExteriorTarget,
+} from "@/lib/wizard/exterior-quick-look";
 
 /**
  * The QUICK LOOK — four screens, about nine taps, then a range.
@@ -28,11 +33,14 @@ import {
 const BEDROOMS = [1, 2, 3, 4, 5];
 
 export default function QuickLook({
-  step, quick, onQuick, addressField, conditionBox, error, canContinue, busy, onBack, onNext, stepNo, stepsTotal,
+  step, quick, onQuick, outside, onOutside, addressField, conditionBox, error, canContinue, busy, onBack, onNext, stepNo, stepsTotal,
 }: {
   step: QuickLookStep;
   quick: QuickLook;
   onQuick: (patch: Partial<QuickLook>) => void;
+  /** The exterior answers (prototype `s-ext-job`), for outside and both jobs. */
+  outside: ExteriorQuickLook;
+  onOutside: (patch: Partial<ExteriorQuickLook>) => void;
   /** The address input, wired by WizardApp (Places lookup + service area). */
   addressField: ReactNode;
   /** ⚑14's condition box, on the screen that asks about condition. */
@@ -45,7 +53,7 @@ export default function QuickLook({
   stepNo: number;
   stepsTotal: number;
 }) {
-  const last = step === "condition" || (step === "place" && quick.jobType === "exterior");
+  const last = quick.jobType === "interior" ? step === "condition" : step === "outside";
 
   return (
     <div className="wz-wrap wz-quick" data-quick-step={step}>
@@ -131,6 +139,50 @@ export default function QuickLook({
         </>
       )}
 
+      {/*
+        THE EXTERIOR QUICK LOOK — prototype `s-ext-job`, "About the house".
+        Five answers on one screen, because an outside job has no rooms to seed
+        and these five are the whole basis of the number. The access row is the
+        one that could not exist until the per-elevation allowances did.
+      */}
+      {step === "outside" && (
+        <>
+          <p className="wz-kick">Outside</p>
+          <h1>About the house</h1>
+          <p className="wz-sub">{EXTERIOR_PROMISE}</p>
+
+          <p className="wz-qhead">Storeys</p>
+          <Cards options={EXT_STOREYS} value={outside.storeys} onPick={(storeys) => onOutside({ storeys })} name="ext-storeys" />
+
+          <p className="wz-qhead">What&rsquo;s it made of? <span className="wz-opt">TICK EVERYTHING</span></p>
+          <Multi
+            options={EXT_SUBSTRATES} on={outside.substrates} name="ext-substrate"
+            onPick={(v) => onOutside({ substrates: toggleKeeping<ExteriorSubstrate>(outside.substrates, v, "weatherboards") })}
+          />
+
+          <p className="wz-qhead">Painting</p>
+          <MultiCards
+            options={EXT_TARGETS} on={outside.targets} name="ext-target"
+            onPick={(v) => onOutside({ targets: toggleKeeping<ExteriorTarget>(outside.targets, v, "house") })}
+          />
+
+          <p className="wz-qhead">How&rsquo;s the paintwork holding up?</p>
+          <Chips options={EXT_CONDITIONS} value={outside.condition} onPick={(condition) => onOutside({ condition })} name="ext-condition" />
+
+          <p className="wz-qhead">Anything tricky about getting to it?</p>
+          <Multi
+            options={EXT_ACCESS} on={outside.access} name="ext-access"
+            onPick={(v) => onOutside({ access: toggleAccess(outside.access, v) })}
+          />
+          {outside.access.includes("lift") && (
+            <p className="wz-chint" data-testid="ext-lift-note" style={{ marginTop: 10 }}>
+              Nothing for scaffolding or a lift is in this price. If the job needs one we&rsquo;ll quote it with
+              you before we start, as a separate line — never a surprise on the invoice.
+            </p>
+          )}
+        </>
+      )}
+
       {error && <div className="wz-err" data-testid="ql-error">{error}</div>}
 
       <div className="wz-nav">
@@ -165,6 +217,47 @@ function Chips<T extends string>({ options, value, onPick, name }: {
           data-testid={`ql-${name}-${o.value}`}
           onClick={() => onPick(o.value)}
         >{o.label}</button>
+      ))}
+    </div>
+  );
+}
+
+/** A row of chips where several can be on at once. */
+function Multi<T extends string>({ options, on, onPick, name }: {
+  options: Choice<T>[]; on: readonly T[]; onPick: (v: T) => void; name: string;
+}) {
+  return (
+    <div className="wz-chips" data-testid={`ql-${name}`}>
+      {options.map((o) => (
+        <button
+          key={o.value} type="button"
+          className={`wz-tile ${on.includes(o.value) ? "on" : ""}`}
+          aria-pressed={on.includes(o.value)}
+          data-testid={`ql-${name}-${o.value}`}
+          onClick={() => onPick(o.value)}
+        >{o.label}</button>
+      ))}
+    </div>
+  );
+}
+
+/** The same, as cards — for the ones that need their scope spelled out. */
+function MultiCards<T extends string>({ options, on, onPick, name }: {
+  options: Choice<T>[]; on: readonly T[]; onPick: (v: T) => void; name: string;
+}) {
+  return (
+    <div className="wz-cards" data-testid={`ql-${name}`}>
+      {options.map((o) => (
+        <button
+          key={o.value} type="button"
+          className={`wz-card ${on.includes(o.value) ? "on" : ""}`}
+          aria-pressed={on.includes(o.value)}
+          data-testid={`ql-${name}-${o.value}`}
+          onClick={() => onPick(o.value)}
+        >
+          <b>{o.label}</b>
+          {o.hint && <span>{o.hint}</span>}
+        </button>
       ))}
     </div>
   );
