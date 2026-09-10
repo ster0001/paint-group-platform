@@ -155,7 +155,17 @@
 .wz .wz-addrooms { margin-top: 6px; border: 1.5px dashed var(--line); border-radius: 13px; padding: 16px; }
 .wz .wz-addrooms .wz-q { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
 .wz .wz-addrooms .wz-s { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
-.wz .wz-note { grid-column: 1 / -1; font-family: var(--wz-mono); font-size: 9px; letter-spacing: .08em; color: var(--muted); border: 1px dashed var(--line); border-radius: 10px; padding: 10px 14px; margin-top: 8px; }
+/* ⚑ Tom, 10 Sep: "this font needs to go — it's too hard to read."
+   9px monospace with letter-spacing is a fine LABEL and a terrible SENTENCE,
+   and this class carries sentences: the site-access explainer, the extras
+   note, the confirm-on-site flags. The file already admitted it — the comment
+   above .wz-waiting reads "readable sans, not the 9px mono of .wz-note".
+   Mono stays everywhere it is doing label work (kickers, pills, the progress
+   line); prose gets a font somebody can read on a phone. */
+.wz .wz-note {
+  grid-column: 1 / -1; font-size: 13px; line-height: 1.55; color: var(--muted);
+  border: 1px dashed var(--line); border-radius: 10px; padding: 11px 14px; margin-top: 8px;
+}
 .wz .wz-stick { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: rgba(10,11,13,.95); backdrop-filter: blur(14px); border-top: 1px solid var(--line); flex-wrap: wrap; }
 .wz .wz-stick .wz-pr { font-family: var(--wz-mono); font-weight: 700; font-size: 15px; line-height: 1.25; }
 .wz .wz-stick .wz-pr small { display: block; font-size: 8px; font-weight: 400; color: var(--muted); letter-spacing: .14em; }
@@ -237,7 +247,7 @@
 .wz .sc-rn { display: flex; gap: 6px; align-items: center; flex: 1; min-width: 0; }
 .wz .sc-rn input { flex: 1; min-width: 0; background: rgba(255,255,255,0.04); border: 1px solid var(--line); color: inherit; border-radius: 8px; padding: 6px 9px; font: inherit; font-size: 14px; }
 .wz .sc-tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 8px; margin-top: 13px; }
-.wz .sc-tl { position: relative; border: 1px solid var(--line); background: var(--panel2); border-radius: 10px; padding: 11px 12px; cursor: pointer; font-size: 13.5px; color: var(--muted); user-select: none; }
+.wz .sc-tl { position: relative; min-width: 0; border: 1px solid var(--line); background: var(--panel2); border-radius: 10px; padding: 11px 12px; cursor: pointer; font-size: 13.5px; color: var(--muted); user-select: none; }
 .wz .sc-tl.on { border-color: var(--cyan); color: var(--text); background: rgba(59,216,233,.07); }
 .wz .sc-tl.on::after { content: "✓"; position: absolute; top: 8px; right: 10px; color: var(--cyan); font-size: 11px; }
 .wz .sc-tl.busy { opacity: .6; }
@@ -367,10 +377,15 @@
 .wz .sd-st { display: flex; align-items: center; gap: 9px; margin-top: 8px; }
 .wz .sd-st button { width: 24px; height: 24px; border-radius: 7px; border: 1px solid var(--line); background: none; color: var(--text); font-size: 13px; cursor: pointer; line-height: 1; }
 .wz .sd-st b { font-family: var(--wz-mono); font-size: 12px; min-width: 18px; text-align: center; }
-.wz .sd-wseg { display: flex; gap: 5px; margin-top: 8px; }
+/* ⚑ Tom, 10 Sep: "door and frame still doesn't fit inside the box properly."
+   Same shape of fault as the walls %: a no-wrap flex row of "With each" plus
+   two auto-width buttons inside a `minmax(148px, 1fr)` grid cell. The label
+   takes its own line and the buttons share what is left, so the control fits
+   the tile instead of the tile having to fit the control. */
+.wz .sd-wseg { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 8px; }
 .wz .sd-wseg button { width: 30px; height: 26px; border-radius: 7px; border: 1px solid var(--line); background: none; color: var(--muted); font-family: var(--wz-mono); font-size: 10px; cursor: pointer; }
 .wz .sd-wseg button.on { border-color: var(--cyan); color: var(--cyan); }
-.wz .sd-wseg i { font-style: normal; font-size: 10.5px; color: var(--muted); align-self: center; }
+.wz .sd-wseg i { flex: 1 0 100%; font-style: normal; font-size: 10.5px; color: var(--muted); }
 /* ---- The wall share row (Tom, 10 Sep: "the walls % isn't sitting in the box
    cleanly") ------------------------------------------------------------------
 
@@ -531,7 +546,9 @@
 .wz .il-first .sd-chips button, .wz .il-first .sc-chips button { padding: 9px 15px; font-size: 13.5px; }
 
 /* ---- 21 Aug: "with each door" segment on the Doors tile -------------------- */
-.wz .sd-wseg button.dsg { width: auto; padding: 0 9px; }
+/* The door-scope buttons carry words ("Door only", "+ frame"), so they share
+   the row rather than each demanding its own width. */
+.wz .sd-wseg button.dsg { width: auto; min-width: 0; flex: 1 1 auto; padding: 0 9px; }
 
 /* ---- 21 Aug: every exterior item can be taken off -------------------------- */
 .wz .sd-tl .sd-x, .wz .sc-tl .sd-x {
@@ -873,3 +890,28 @@
 .wz .wz-stop-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .wz .wz-stop-row .wz-btn { text-decoration: none; }
 .wz .wz-stop-note { margin-top: 18px; font-size: 13px; color: var(--wz-muted, #8C959D); }
+
+/* ---- The add-a-photo control (Tom, 10 Sep: "make the box clearer — it is
+   just pre written text to be clicked") ---------------------------------------
+   A photo is the most useful thing a customer can give us: it turns "some
+   flaking" into a priced repair instead of a visit. So it reads as an
+   invitation to press, not as a caption. */
+.wz .sc-photodrop {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 14px; border-radius: 12px; cursor: pointer;
+  border: 1.5px dashed var(--line); background: var(--panel2);
+  color: var(--text); transition: border-color .15s, background .15s;
+}
+.wz .sc-photodrop:hover { border-color: var(--cyan); background: rgba(59,216,233,.05); }
+.wz .sc-photodrop.ready { border-style: solid; border-color: var(--cyan); background: rgba(59,216,233,.07); }
+.wz .sc-photodrop.off { opacity: .5; cursor: default; }
+.wz .sc-photodrop input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.wz .sc-photodrop-icon {
+  flex: 0 0 36px; height: 36px; border-radius: 9px; display: grid; place-items: center;
+  font-size: 17px; background: rgba(255,255,255,.05);
+}
+.wz .sc-photodrop.ready .sc-photodrop-icon { color: var(--cyan); }
+.wz .sc-photodrop-text { min-width: 0; }
+.wz .sc-photodrop-text b { display: block; font-size: 14.5px; }
+.wz .sc-photodrop-text b + span { display: block; margin-top: 2px; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
+.wz .sc-photodrop-row { margin-top: 10px; }

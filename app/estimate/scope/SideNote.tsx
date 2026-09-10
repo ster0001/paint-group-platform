@@ -1,5 +1,7 @@
 "use client";
 
+import PhotoDrop from "./PhotoDrop";
+
 import { useRef, useState } from "react";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 
@@ -104,17 +106,15 @@ export default function SideNote({ estimateId, sideKey, sideLabel, note, photoCo
         onChange={(e) => setText(e.target.value)}
       />
       <div className="sd-noterow">
-        <label className="sd-photobtn">
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            data-testid={`side-note-photo-${sideKey}`}
-            onChange={(e) => { setFiles(Array.from(e.target.files ?? []).slice(0, MAX_PHOTOS)); setError(null); }}
-          />
-          <span>{files.length > 0 ? `${files.length} photo${files.length > 1 ? "s" : ""} ready` : "Add a photo (optional)"}</span>
-        </label>
+        <PhotoDrop
+          inputRef={inputRef}
+          testId={`side-note-photo-${sideKey}`}
+          multiple
+          title="Take a photo of this side"
+          hint="Optional, and the fastest way for us to price the preparation properly."
+          ready={files.length > 0 ? `${files.length} photo${files.length > 1 ? "s" : ""} ready to send` : null}
+          onFiles={(f) => { setFiles(f.slice(0, MAX_PHOTOS)); setError(null); }}
+        />
         <button type="button" className="sd-notesave" disabled={!dirty || uploading || busy}
           data-testid={`side-note-save-${sideKey}`} onClick={() => void save()}>
           {uploading ? "Saving…" : "Save this note"}

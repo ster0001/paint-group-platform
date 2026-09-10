@@ -266,3 +266,32 @@ export function roomConditionDeferred(
     needs: "the customer says this room is in worse condition than the others — check the prep allowance",
   };
 }
+
+/**
+ * The per-room prep question, worded by what the customer already told us about
+ * colour (Tom, 10 Sep).
+ *
+ * *"We just need to establish, when going through the room by room: if it's a
+ * colour match, are there any areas which look like they need extra prep or
+ * coats; if it's a colour change, any areas which need extra prep."*
+ *
+ * The old prompt — "point out a spot" — described the MECHANISM. This asks the
+ * question the estimator actually needs answered, and asks it differently
+ * depending on the job, because the thing to look for genuinely differs: on a
+ * colour match the risk is a wall that will not cover, on a colour change it is
+ * preparation the new paint cannot hide.
+ */
+export function prepPrompt(tier: "fresh" | "change" | "dark_to_light"): { cta: string; why: string } {
+  if (tier === "fresh") {
+    return {
+      cta: "+ Anything needing extra work in here?",
+      why: "Same colour again, so most of this room is a straight repaint. Tell us about anything that "
+        + "won't cover in one — a patched wall, a stain coming through, a surface that has been left too long.",
+    };
+  }
+  return {
+    cta: "+ Anything needing extra prep in here?",
+    why: "New colour, so two coats over sound surfaces. What changes the price is preparation — flaking or "
+      + "peeling paint, bare or filled patches, water marks. Point at anything like that here.",
+  };
+}

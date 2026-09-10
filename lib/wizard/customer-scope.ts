@@ -66,6 +66,15 @@ export type CustomerScopeBundle =
       /** Phase 4: the derived coats and prep, in the painter's words, with a
        * correction per line. Empty on an exterior-only job (plan §4.4). */
       initialSystems: PaintSystemLine[];
+      /**
+       * ⚑ Tom, 10 Sep: the ONE job-wide question that still changes coats.
+       * `asked` is true only when the customer said they are going much lighter
+       * or bolder — on any other job there is nothing to pick, and a card
+       * offering the choice would invent a question.
+       */
+      initialDarkToLight: { asked: boolean; surfaces: string[] };
+      /** The job's colour intent — it words each room's prep question. */
+      initialColourTier: "fresh" | "change" | "dark_to_light";
       /** §4.4 — the site and access answers so far, and whether to ask about a lift. */
       initialAccess: { answers: SiteAccess; asksLift: boolean };
       /** §4.5 — the extras on offer, which are on, the colour-help tick and the note. */
@@ -207,6 +216,11 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
     initialAccess: {
       answers: snap.success ? (snap.data.details.siteAccess ?? {}) : {},
       asksLift: snap.success ? asksLift(snap.data.customer?.propertyKind) : false,
+    },
+    initialColourTier: snap.success ? snap.data.condition.tier : "change",
+    initialDarkToLight: {
+      asked: snap.success && snap.data.condition.tier === "dark_to_light",
+      surfaces: snap.success ? [...(snap.data.condition.darkToLightSurfaces ?? [])] : [],
     },
     initialSystems: snap.success
       ? paintSystemsView(snap.data, blocks, paintSystemsFrom(settingValue(ctx.settings, PAINT_SYSTEMS_KEY)))

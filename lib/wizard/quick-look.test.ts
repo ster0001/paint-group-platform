@@ -23,6 +23,24 @@ describe("the quick look produces a priceable job", () => {
     expect(parsed.success, JSON.stringify(parsed.success ? {} : parsed.error.issues)).toBe(true);
   });
 
+  /**
+   * ⚑ THE BUG THIS CATCHES. `wizardStateSchema` refused a dark-to-light job
+   * with no surfaces picked, and the quick look never asks — so choosing
+   * "going much lighter, or a bold colour" could not reach a price at all.
+   * The list is asked in the editor now; until then, two coats everywhere.
+   */
+  it("prices a BOLD job, which is asked about surfaces later", () => {
+    const state = quickLookToState(q({ colour: "bold" }), { ...defaultWizardState(), mode: "customer" });
+    expect(state.condition.tier).toBe("dark_to_light");
+    expect(state.condition.darkToLightSurfaces).toEqual([]);
+    const parsed = wizardStateSchema.safeParse({
+      ...state,
+      customer: { ...state.customer!, suburb: "Murrumbeena", postcode: "3163" },
+      contact: { ...state.contact, name: "A", email: "a@example.com", phone: "0400000000" },
+    });
+    expect(parsed.success, JSON.stringify(parsed.success ? {} : parsed.error.issues)).toBe(true);
+  });
+
   it("takes the no-plan path, so the starter list builds the rooms", () => {
     const state = quickLookToState(q({ bedrooms: 4, storeys: "double" }));
     expect(state.noPlan).toBe(true);

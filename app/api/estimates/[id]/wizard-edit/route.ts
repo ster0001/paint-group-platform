@@ -18,7 +18,7 @@ import {
 import { extraNoteDeferral } from "@/lib/wizard/extras";
 import type { DefectRate } from "@/lib/capture/commit";
 import { applyWizardAnswers } from "@/lib/wizard/merge";
-import { wizardStateSchema } from "@/lib/wizard/state";
+import { WIZARD_SURFACE_KEYS, wizardStateSchema } from "@/lib/wizard/state";
 import { applyDoorStyle, applyWindowStyle, DOOR_STYLE_DEFERRAL, WINDOW_STYLE_DEFERRAL } from "@/lib/wizard/styles";
 import { reconcileRoomAllowances, type AllowanceBlock } from "@/lib/wizard/allowances";
 import { markStarterProvenance, starterExtraction, type TypicalSizeRow, FENCE_CODE, FENCE_TYPE_LABEL } from "@/lib/wizard/starter";
@@ -97,6 +97,15 @@ function systemPatchFrom(
     if (g == null || typeof value !== "boolean") return null;
     if (typeof flag !== "string" || flag.length === 0 || flag.length > 40) return null;
     return { field: "surfaceFlag", group: g, flag, value };
+  }
+  if (field === "darkToLight") {
+    // Which surfaces are going dark → light, and therefore take three coats.
+    // Validated against the substrate registry, unlike a Settings-owned flag
+    // key: this one drives COATS, and an unknown key must not slip through and
+    // silently price nothing.
+    const key = WIZARD_SURFACE_KEYS.find((k) => k === group);
+    if (key == null || typeof value !== "boolean") return null;
+    return { field: "darkToLight", key, value };
   }
   if (field === "colourIntent") {
     return value === "same" || value === "new" || value === "bold" ? { field, value } : null;
@@ -203,9 +212,10 @@ const actionSchema = z.discriminatedUnion("action", [
   }),
   z.object({
     action: z.literal("set_paint_system"),
-    field: z.enum(["colourIntent", "ceilingsMarked", "ceilingsChangingColour", "glossTrims", "surfaceFlag"]),
-    /** surfaceFlag only: which line, and which flag on it. */
-    group: z.enum(["walls", "ceilings", "trims", "doors", "windows"]).optional(),
+    field: z.enum(["colourIntent", "ceilingsMarked", "ceilingsChangingColour", "glossTrims", "surfaceFlag", "darkToLight"]),
+    /** surfaceFlag: which line, and which flag on it. darkToLight: which
+     *  SURFACE is going dark → light (a substrate key, checked in the parser). */
+    group: z.string().max(40).optional(),
     flag: z.string().max(40).optional(),
     // Flat rather than a nested discriminated union: nesting one inside
     // `actionSchema` collapses its own "action" discriminator. The field and
