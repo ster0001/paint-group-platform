@@ -70,7 +70,8 @@ export type SendInput = {
   brand?: Partial<Brand>;
   /** The account this is going to, so the unsubscribe link is theirs. */
   accountId: string;
-  /** Per-recipient link targets for the {{estimate}} / {{account}} button
+  /** Per-recipient link targets for the {{estimate}} / {{estimate_in_account}}
+   *  / {{account}} button
    *  tokens. Resolved by the caller (it has the database); absent tokens fall
    *  back to the account page, which is always safe to land on. */
   links?: { estimateUrl?: string | null; accountUrl?: string | null };
@@ -82,6 +83,37 @@ export type SendInput = {
 export type SendResult = { ok: true; id: string } | { ok: false; error: string };
 
 /**
+ * The per-recipient LINK substitutions, as one function over a string — so the
+ * HTML and the plain-text part cannot drift, and so the resolution is testable
+ * without a send. (The wording tokens are personalise.ts's job.)
+ *
+ * {{estimate}}            their newest sent estimate
+ * {{estimate_in_account}} the same estimate, opened inside their account
+ * {{account}}             their account
+ *
+ * No estimate to link? The account page is where their saved work lives, so
+ * the button still lands somewhere true rather than 404ing.
+ */
+export function fillLinkTokens(urls: {
+  unsubscribe: string;
+  accountUrl: string;
+  estimateUrl: string | null;
+}): (v: string) => string {
+  const estimate = urls.estimateUrl || urls.accountUrl;
+  // ?portal=1 puts a "← My account" link on the estimate, so the button lands
+  // them IN their account rather than at a loose document. With nothing sent
+  // the fallback is already the account page, which needs no flag.
+  const estimateInAccount = urls.estimateUrl
+    ? `${urls.estimateUrl}${urls.estimateUrl.includes("?") ? "&" : "?"}portal=1`
+    : urls.accountUrl;
+  return (v: string) => v
+    .replaceAll("{{unsubscribe}}", urls.unsubscribe)
+    .replaceAll("{{estimate_in_account}}", estimateInAccount)
+    .replaceAll("{{estimate}}", estimate)
+    .replaceAll("{{account}}", urls.accountUrl);
+}
+
+/**
  * One email. Both parts, always — a marketing HTML email with no plain-text
  * alternative is a spam signal before anyone has even read it.
  */
@@ -90,16 +122,14 @@ export async function sendCampaignEmail(input: SendInput): Promise<SendResult> {
   if (!key) return { ok: false, error: "No marketing email key is set on this server." };
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.to)) return { ok: false, error: "That isn't an email address." };
 
+  // Named, because the List-Unsubscribe header below carries the same URL.
   const link = unsubscribeUrl(input.accountId, input.baseUrl);
   const base = (input.baseUrl || process.env.NEXT_PUBLIC_SITE_URL || "https://paintgroup.com.au").replace(/\/$/, "");
-  const accountUrl = input.links?.accountUrl || `${base}/account`;
-  // No estimate to link? The account page is where their saved work lives, so
-  // the button still lands somewhere true rather than 404ing.
-  const estimateUrl = input.links?.estimateUrl || accountUrl;
-  const fill = (v: string) => v
-    .replaceAll("{{unsubscribe}}", link)
-    .replaceAll("{{estimate}}", estimateUrl)
-    .replaceAll("{{account}}", accountUrl);
+  const fill = fillLinkTokens({
+    unsubscribe: link,
+    accountUrl: input.links?.accountUrl || `${base}/account`,
+    estimateUrl: input.links?.estimateUrl ?? null,
+  });
   // P5: every button and link in a real campaign send goes through /t/<token>,
   // which is where `cta_clicked` and the click count come from. A test send
   // and a message with no queue row keep their plain links.

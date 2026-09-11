@@ -221,7 +221,7 @@ export async function sendTestEmail(id: string): Promise<StudioResult<{ to: stri
   if (parsed.data.blocks.length === 0) return { ok: false, message: "There's nothing in it to send." };
   if (!parsed.data.subject.trim()) return { ok: false, message: "It needs a subject line first." };
 
-  const company = (profileRow?.value ?? {}) as { name?: string; logoUrl?: string };
+  const company = (profileRow?.value ?? {}) as { name?: string; logoUrl?: string; logoUrlLight?: string };
 
   // A test carries the STAFF member's own account id in the unsubscribe link,
   // if they have one — so clicking it in a test unsubscribes the tester and
@@ -232,7 +232,8 @@ export async function sendTestEmail(id: string): Promise<StudioResult<{ to: stri
     to,
     accountId: (account?.id as string) ?? "00000000-0000-0000-0000-000000000000",
     template: parsed.data,
-    brand: { companyName: company.name || "Paint Group", logoUrl: company.logoUrl || null },
+    // White card → the light-background logo (the black wordmark).
+    brand: { companyName: company.name || "Paint Group", logoUrl: company.logoUrlLight || company.logoUrl || null },
     isTest: true,
     // A test resolves the tokens against the TESTER, so the buttons in the
     // test email are clickable and honest about where they'd go.

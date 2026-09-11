@@ -266,7 +266,7 @@ export async function sendReply(accountId: string, input: ReplyInput): Promise<C
   if (!a.email) return { ok: false, message: "No email address on this record." };
   const { company } = await loadMessaging(supabase);
   const subject = input.subject.trim() || `A note from ${company.name || "Paint Group"}`;
-  const html = buildPlainEmailHtml({ heading: subject, message: body, companyName: company.name || "Paint Group", logoUrl: company.logoUrl, companyPhone: company.phone });
+  const html = buildPlainEmailHtml({ heading: subject, message: body, companyName: company.name || "Paint Group", logoUrl: company.logoUrlLight || company.logoUrl, companyPhone: company.phone });
   const r = await sendEmail({ to: a.email, subject, html, replyTo: company.email, ctx });
   revalidateRecord(accountId);
   if (r.status === "sent") return { ok: true, message: "Email sent." };

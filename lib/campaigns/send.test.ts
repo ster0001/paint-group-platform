@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { accountFromToken, unsubscribeToken, unsubscribeUrl } from "./send";
+import { accountFromToken, fillLinkTokens, unsubscribeToken, unsubscribeUrl } from "./send";
 
 const ACCOUNT = "268fc431-7732-4092-91d9-fc50d1a58081";
 
@@ -34,5 +34,43 @@ describe("the unsubscribe link", () => {
     const url = unsubscribeUrl(ACCOUNT, "https://paintgroup.com.au/");
     expect(url.startsWith("https://paintgroup.com.au/u/")).toBe(true);
     expect(url).not.toContain("//u/");
+  });
+});
+
+describe("the per-recipient button links", () => {
+  const urls = {
+    unsubscribe: "https://pg.au/u/tok",
+    accountUrl: "https://pg.au/account",
+    estimateUrl: "https://pg.au/e/abc123",
+  };
+
+  it("sends {{estimate}} to the bare estimate and {{estimate_in_account}} into the portal", () => {
+    // Tom, 11 Sep: a button can now land them on the estimate INSIDE their
+    // account — the same document, with the way back to their other jobs.
+    const fill = fillLinkTokens(urls);
+    expect(fill('href="{{estimate}}"')).toBe('href="https://pg.au/e/abc123"');
+    expect(fill('href="{{estimate_in_account}}"')).toBe('href="https://pg.au/e/abc123?portal=1"');
+    expect(fill('href="{{account}}"')).toBe('href="https://pg.au/account"');
+    expect(fill("{{unsubscribe}}")).toBe("https://pg.au/u/tok");
+  });
+
+  it("keeps the longer token whole — {{estimate}} must not eat its prefix", () => {
+    // Substitution order is the trap: replace {{estimate}} first and
+    // {{estimate_in_account}} would survive as a half-filled string.
+    const out = fillLinkTokens(urls)("a {{estimate_in_account}} b {{estimate}} c");
+    expect(out).toBe("a https://pg.au/e/abc123?portal=1 b https://pg.au/e/abc123 c");
+    expect(out).not.toContain("{{");
+  });
+
+  it("a query already on the link gets an &, not a second ?", () => {
+    const fill = fillLinkTokens({ ...urls, estimateUrl: "https://pg.au/e/abc123?ref=sms" });
+    expect(fill("{{estimate_in_account}}")).toBe("https://pg.au/e/abc123?ref=sms&portal=1");
+  });
+
+  it("nothing sent yet: both estimate tokens land on the account page, unflagged", () => {
+    const fill = fillLinkTokens({ ...urls, estimateUrl: null });
+    expect(fill("{{estimate}}")).toBe("https://pg.au/account");
+    // ?portal=1 on the account page itself would mean nothing.
+    expect(fill("{{estimate_in_account}}")).toBe("https://pg.au/account");
   });
 });

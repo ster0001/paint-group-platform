@@ -95,6 +95,9 @@ export function renderSms(
 ): string {
   const estimate = opts.estimateUrl || opts.accountUrl;
   let out = gsmNormalise(body)
+    // The SMS studio offers only the two chips, but a token typed by hand
+    // must never go out raw. A text has no portal chrome to land in.
+    .replaceAll("{{estimate_in_account}}", estimate)
     .replaceAll("{{estimate}}", estimate)
     .replaceAll("{{account}}", opts.accountUrl)
     .replaceAll("{{unsubscribe}}", "")   // an email token; STOP is the SMS answer

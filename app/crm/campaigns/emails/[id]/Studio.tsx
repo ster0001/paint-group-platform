@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import {
-  BLOCK_MENU, blankBlock, renderEmail, templateWarnings,
+  BLOCK_MENU, BUTTON_TARGETS, blankBlock, renderEmail, templateWarnings,
   type Block, type BlockKind, type Template,
 } from "@/lib/campaigns/blocks";
 import { approveTemplate, saveTemplate, sendTestEmail, uploadCampaignPhoto, writeWithAi } from "../../actions";
@@ -120,34 +120,31 @@ export default function Studio({ id, initialName, initialTemplate, approvedAt, s
         {field("What they said", b.body, (v) => patch(i, { body: v }), true)}
         {field("Who said it", b.attribution, (v) => patch(i, { attribution: v }))}
       </>);
-      case "button": return (<>
-        {field("Button says", b.label, (v) => patch(i, { label: v }))}
-        <label className="bfield">
-          <span>Where it goes</span>
-          <select
-            className="field"
-            value={b.url === "{{estimate}}" ? "{{estimate}}" : b.url === "{{account}}" ? "{{account}}" : "custom"}
-            onChange={(e) => {
-              const v = e.target.value;
-              patch(i, { url: v === "custom" ? "https://" : v });
-            }}
-          >
-            <option value="{{estimate}}">Their estimate — each person&rsquo;s own</option>
-            <option value="{{account}}">Their account</option>
-            <option value="custom">A link I&rsquo;ll paste</option>
-          </select>
-        </label>
-        {b.url !== "{{estimate}}" && b.url !== "{{account}}" &&
-          field("The link", b.url, (v) => patch(i, { url: v }))}
-        {(b.url === "{{estimate}}" || b.url === "{{account}}") && (
-          <p className="bhint">
-            Filled in per person at send time{b.url === "{{estimate}}"
-              ? " — their newest sent estimate, or their account page if nothing has been sent yet."
-              : "."}
-          </p>
-        )}
-        {field("Small print under it", b.note, (v) => patch(i, { note: v }))}
-      </>);
+      case "button": {
+        // A token destination, or a link they paste. The list is BUTTON_TARGETS
+        // so the dropdown and the schema can never drift apart.
+        const target = BUTTON_TARGETS.find((x) => x.value === b.url);
+        return (<>
+          {field("Button says", b.label, (v) => patch(i, { label: v }))}
+          <label className="bfield">
+            <span>Where it goes</span>
+            <select
+              className="field"
+              value={target?.value ?? "custom"}
+              onChange={(e) => {
+                const v = e.target.value;
+                patch(i, { url: v === "custom" ? "https://" : v });
+              }}
+            >
+              {BUTTON_TARGETS.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+              <option value="custom">A link I&rsquo;ll paste</option>
+            </select>
+          </label>
+          {!target && field("The link", b.url, (v) => patch(i, { url: v }))}
+          {target && <p className="bhint">{target.hint}</p>}
+          {field("Small print under it", b.note, (v) => patch(i, { note: v }))}
+        </>);
+      }
       case "offer": return (<>
         {field("The offer", b.headline, (v) => patch(i, { headline: v }))}
         {field("Detail", b.detail, (v) => patch(i, { detail: v }), true)}

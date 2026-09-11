@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  BLOCK_MENU, blankBlock, blockSchema, renderEmail, renderPlainText,
+  BLOCK_MENU, BUTTON_TARGETS, blankBlock, blockSchema, renderEmail, renderPlainText,
   templateSchema, templateWarnings, type Template,
 } from "./blocks";
 
@@ -144,9 +144,10 @@ describe("templateSchema", () => {
 });
 
 describe("per-recipient button links", () => {
-  it("accepts the two tokens and real URLs, refuses anything else", () => {
+  it("accepts the three tokens and real URLs, refuses anything else", () => {
     const button = (url: string) => blockSchema.safeParse({ kind: "button", label: "Open", url, note: "" });
     expect(button("{{estimate}}").success).toBe(true);
+    expect(button("{{estimate_in_account}}").success).toBe(true);
     expect(button("{{account}}").success).toBe(true);
     expect(button("https://paintgroup.com.au/estimate").success).toBe(true);
     // A token typo must not slip through as a literal href.
@@ -159,5 +160,22 @@ describe("per-recipient button links", () => {
       blocks: [{ kind: "button", label: "Open my estimate", url: "{{estimate}}", note: "" }],
     }));
     expect(html).toContain('href="{{estimate}}"');
+  });
+
+  it("offers every token the schema accepts — the dropdown cannot drift", () => {
+    // The studio builds its "Where it goes" list from BUTTON_TARGETS, so an
+    // option the schema would refuse could not be added by accident.
+    for (const target of BUTTON_TARGETS) {
+      expect(blockSchema.safeParse({ kind: "button", label: "Open", url: target.value, note: "" }).success).toBe(true);
+      expect(target.label.trim().length).toBeGreaterThan(0);
+      expect(target.hint.trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  it("renders the in-their-account token too (Tom, 11 Sep)", () => {
+    const html = renderEmail(template({
+      blocks: [{ kind: "button", label: "Open my estimate", url: "{{estimate_in_account}}", note: "" }],
+    }));
+    expect(html).toContain('href="{{estimate_in_account}}"');
   });
 });

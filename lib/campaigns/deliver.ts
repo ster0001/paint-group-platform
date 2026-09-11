@@ -189,7 +189,7 @@ export async function deliverMessage(db: SupabaseClient, messageId: string, opts
 
   // Send.
   const { sendCampaignEmail, resolveRecipientLinks } = await import("./send");
-  const company = (profileRow?.value ?? {}) as { name?: string; logoUrl?: string };
+  const company = (profileRow?.value ?? {}) as { name?: string; logoUrl?: string; logoUrlLight?: string };
   const companyName = company.name || "Paint Group";
   const [links, tokens] = await Promise.all([
     resolveRecipientLinks(db, account.id as string, opts.baseUrl),
@@ -210,7 +210,8 @@ export async function deliverMessage(db: SupabaseClient, messageId: string, opts
       to: (account.email as string | null) ?? (facts.email as string),
       accountId: account.id as string,
       template: personaliseTemplate(parsed.data, tokens),
-      brand: { companyName, logoUrl: company.logoUrl || null },
+      // White card → the light-background logo (the black wordmark).
+      brand: { companyName, logoUrl: company.logoUrlLight || company.logoUrl || null },
       links,
       campaignMessageId: messageId,
       baseUrl: opts.baseUrl,

@@ -33,6 +33,34 @@ export type Brand = { [K in keyof typeof BRAND]: string } & { logoUrl?: string |
 
 const text = (max = 2000) => z.string().trim().max(max);
 
+/**
+ * Where a button can point.
+ *
+ * The tokens are filled in per recipient by the send path — the writer cannot
+ * know 63 different share tokens, and should never have to. Anything else is
+ * a link they paste themselves.
+ */
+export const BUTTON_TARGETS = [
+  {
+    value: "{{estimate}}",
+    label: "Their estimate — each person’s own",
+    hint: "Filled in per person at send time — their newest sent estimate, or their account page if nothing has been sent yet.",
+  },
+  {
+    value: "{{estimate_in_account}}",
+    label: "Their estimate, opened in their account",
+    hint: "The same estimate, dressed as part of their account — it carries a “My account” link back to the rest of their jobs. Their account page if nothing has been sent yet.",
+  },
+  {
+    value: "{{account}}",
+    label: "Their account",
+    hint: "Filled in per person at send time.",
+  },
+] as const;
+
+/** Just the token strings — what the schema will accept in place of a URL. */
+export const BUTTON_TOKENS: readonly string[] = BUTTON_TARGETS.map((t) => t.value);
+
 export const blockSchemas = {
   hero: z.object({
     kind: z.literal("hero"),
@@ -69,14 +97,9 @@ export const blockSchemas = {
   button: z.object({
     kind: z.literal("button"),
     label: text(60),
-    /**
-     * A real URL, or one of two per-recipient tokens the sender resolves:
-     * {{estimate}} — their own estimate page; {{account}} — their account.
-     * Tokens rather than typed links, because the writer cannot know 63
-     * different share tokens, and should never have to.
-     */
+    /** A real URL, or one of the per-recipient tokens in BUTTON_TARGETS. */
     url: z.string().max(500).refine(
-      (u) => /^https?:\/\//.test(u) || u === "{{estimate}}" || u === "{{account}}",
+      (u) => /^https?:\/\//.test(u) || BUTTON_TOKENS.includes(u),
       "A web address, or a their-estimate / their-account link",
     ),
     /** Sub-label under the button: "Takes two minutes", "No obligation". */
@@ -262,7 +285,10 @@ export function renderEmail(t: Template, brand: Brand = BRAND): string {
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background:${b.paper};border-radius:14px;overflow:hidden;">
   <tr><td style="padding:24px 32px 0;">
     ${b.logoUrl
-      ? `<img src="${esc(b.logoUrl)}" alt="${esc(company)}" height="26" style="display:block;height:26px;width:auto;border:0;" />`
+      // 40px, like every other email we send: the light logo carries the
+      // PAINTING · PLASTERING · RESTORATION line under the wordmark, and at
+      // the old 26px that line was too small to read.
+      ? `<img src="${esc(b.logoUrl)}" alt="${esc(company)}" height="40" style="display:block;height:40px;width:auto;max-width:240px;border:0;" />`
       : `<p style="margin:0;font:600 16px/1 -apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:${b.ink};letter-spacing:-.02em;">${esc(company)}</p>`}
   </td></tr>
   ${t.blocks.map((blk) => renderBlock(blk, b)).join("\n  ")}
