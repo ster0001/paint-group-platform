@@ -116,6 +116,11 @@ const RENDER: Record<CrmEventType, { label: string; kind: TimelineRow["kind"]; d
       p.kind === "visit"
         ? "A visit, to confirm it on site"
         : "From what they have given us — no visit needed" },
+  price_fixed: { label: "Price fixed", kind: "activity",
+    detail: (p: Record<string, unknown>) =>
+      p.kind === "visit" ? "Confirmed after a visit" : "Confirmed without a visit" },
+  visit_booked_from_wizard: { label: "Visit booked from the estimate", kind: "activity",
+    detail: (p: Record<string, unknown>) => String(p.when ?? "") },
   visit_booked: { label: "Visit booked", kind: "activity",
     detail: (p) => join(str(p.when), str(p.who)) },
   visit_completed: { label: "Visit done", kind: "activity", detail: (p) => str(p.outcome) },
