@@ -12,7 +12,7 @@
  *
  * Run:  npx tsx scripts/create-test-customer.ts
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { resolveSeedTarget } from "./seed-target.mjs";
@@ -25,7 +25,18 @@ const SEED = {
 };
 
 function loadEnv() {
-  const raw = readFileSync(resolve(process.cwd(), ".env.local"), "utf8");
+  /**
+   * `.env.local` is a FALLBACK, not a requirement.
+   *
+   * This threw ENOENT when the file was absent, which is every git worktree —
+   * it is gitignored and lives in the main checkout. So in a worktree the
+   * script died here, BEFORE resolveSeedTarget could say a word, and the
+   * operator saw a stack trace instead of the guard. Exporting the test
+   * project's values is a complete answer on its own and must be enough.
+   */
+  const path = resolve(process.cwd(), ".env.local");
+  if (!existsSync(path)) return;
+  const raw = readFileSync(path, "utf8");
   for (const line of raw.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
@@ -61,37 +72,57 @@ async function main() {
     console.log("auth: signed in as staff");
   }
 
-  const authClient = createClient(url, anon, { auth: { persistSession: false } });
+  /**
+   * THE ADMIN API, not anon signUp.
+   *
+   * `auth.signUp` with the anon key does not fail for an email that already
+   * exists — Supabase returns an OBFUSCATED user with a random id and no
+   * session, deliberately, so a stranger cannot probe which addresses are
+   * registered. A seed script read that as "account created", took the fake id
+   * and wrote it onward, and every insert after it died on a foreign key to
+   * auth.users. Both runs today said "created" and neither had.
+   *
+   * createUser is unambiguous: it either makes the user or says it exists.
+   * When it exists, generateLink hands back the real row — `listUsers` would
+   * page through 10,000+ users to find one, which is its own trap.
+   */
   let userId: string | null = null;
-
-  const { data: signUp, error: signUpErr } = await authClient.auth.signUp({
+  const created = await admin.auth.admin.createUser({
     email: SEED.email,
     password: SEED.password,
-    options: { data: { name: SEED.name } },
+    email_confirm: true,
+    user_metadata: { name: SEED.name },
   });
-
-  if (signUpErr) {
-    const { data: signIn, error: signInErr } = await authClient.auth.signInWithPassword({
-      email: SEED.email,
-      password: SEED.password,
-    });
-    if (signInErr) throw new Error(`${SEED.email}: ${signUpErr.message} / ${signInErr.message}`);
-    userId = signIn.user?.id ?? null;
-    console.log(`· ${SEED.email}: already existed, re-using`);
-  } else {
-    userId = signUp.user?.id ?? null;
+  if (!created.error) {
+    userId = created.data.user?.id ?? null;
     console.log(`+ ${SEED.email}: account created`);
+  } else {
+    const link = await admin.auth.admin.generateLink({ type: "magiclink", email: SEED.email });
+    if (link.error) throw new Error(`${SEED.email}: ${created.error.message} / ${link.error.message}`);
+    userId = link.data.user?.id ?? null;
+    console.log(`· ${SEED.email}: already existed, re-using`);
   }
 
   if (!userId) throw new Error(`${SEED.email}: no user id returned (is email confirmation on?)`);
 
   // Role stays 'customer' from sign-up; name/contact are worth having for the
   // walkthrough screens, which greet the customer by name.
+  /**
+   * UPSERT, not update.
+   *
+   * This assumed a trigger on auth.users had already made the profile row. On
+   * the C1 test project it had not, so the update matched zero rows — which is
+   * not an error — and the customers insert below then died on
+   * `customers_profile_id_fkey`. The script reported "account created" and left
+   * a user with no profile behind it, and the CI specs that look the E2E
+   * customer up failed for the rest of the day.
+   *
+   * A seed script must not depend on a trigger it cannot see.
+   */
   const { error: pErr } = await admin
     .from("profiles")
-    .update({ name: SEED.name, contact: SEED.contact })
-    .eq("id", userId);
-  if (pErr) throw new Error(`profile update: ${pErr.message}`);
+    .upsert({ id: userId, role: "customer", name: SEED.name, contact: SEED.contact }, { onConflict: "id" });
+  if (pErr) throw new Error(`profile upsert: ${pErr.message}`);
 
   const { data: profile } = await admin.from("profiles").select("role").eq("id", userId).single();
 

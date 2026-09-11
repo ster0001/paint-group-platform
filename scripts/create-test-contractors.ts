@@ -16,7 +16,7 @@
  *
  * Run:  npx tsx scripts/create-test-contractors.ts
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { resolveSeedTarget } from "./seed-target.mjs";
@@ -71,7 +71,18 @@ const SEEDS: Seed[] = [
 ];
 
 function loadEnv() {
-  const raw = readFileSync(resolve(process.cwd(), ".env.local"), "utf8");
+  /**
+   * `.env.local` is a FALLBACK, not a requirement.
+   *
+   * This threw ENOENT when the file was absent, which is every git worktree —
+   * it is gitignored and lives in the main checkout. So in a worktree the
+   * script died here, BEFORE resolveSeedTarget could say a word, and the
+   * operator saw a stack trace instead of the guard. Exporting the test
+   * project's values is a complete answer on its own and must be enough.
+   */
+  const path = resolve(process.cwd(), ".env.local");
+  if (!existsSync(path)) return;
+  const raw = readFileSync(path, "utf8");
   for (const line of raw.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;

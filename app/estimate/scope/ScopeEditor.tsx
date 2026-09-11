@@ -1532,6 +1532,11 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                * Tom, 8 Sep: the button is never dead. It still isn't.
                */
               onClick={() => router.push(`/estimate/finish?id=${estimateId}`)}
+              /* The label changes with the ladder — "Finalise my price" or
+                 "Accept estimate", and C7 renames it again to "Send to <name>".
+                 A test that matches on the words breaks every time the copy
+                 does, which is how the send path went uncovered. */
+              data-testid="scope-finalise"
             >
               {combined != null && !combined.allDone
                 ? "Finalise my price"
