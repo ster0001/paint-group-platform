@@ -18,6 +18,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { resolveSeedTarget } from "./seed-target.mjs";
 
 function loadEnv() {
   const raw = readFileSync(resolve(process.cwd(), ".env.local"), "utf8");
@@ -107,6 +108,8 @@ async function makeJob(
 
 async function main() {
   loadEnv();
+  // F1-03: 14 write call sites. Refuse production unless asked.
+  resolveSeedTarget("seed-demo-loop");
   const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { persistSession: false } });
 
