@@ -12,6 +12,11 @@ on:
   push:
     branches: ["**"]
   pull_request:
+  # C7 · a branch with no PR open can still be exercised against the test
+  # project deliberately — Actions → CI → Run workflow. The point of the gate
+  # below is to stop e2e running on EVERY push automatically, not to make it
+  # unavailable.
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -85,6 +90,21 @@ jobs:
     name: e2e (test project)
     runs-on: ubuntu-latest
     needs: gate
+    # WHY e2e DOES NOT RUN ON EVERY PUSH (11 Sep 2026).
+    #
+    # `pull_request` already re-runs on every push to a branch that has a PR
+    # open (the `synchronize` event), so `push: branches: ["**"]` was giving
+    # the SAME COMMIT two e2e runs. Checked against the run list: #360/#361 are
+    # both bc32a13, #364/#365 are both 05ae971. Half of every e2e run against
+    # the one test project was a duplicate of the other half.
+    #
+    # So e2e runs on pull_request, on main, and on demand. The only coverage
+    # lost is a branch with NO pull request open — which is a branch nobody is
+    # asking to merge yet, and `workflow_dispatch` covers it when you do want
+    # it. `gate` (typecheck · lint · unit) is untouched and still runs on every
+    # push: it needs no secrets and no database, so it costs the test project
+    # nothing.
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
     # ONE e2e RUN AT A TIME, ACROSS THE WHOLE REPOSITORY (11 Sep 2026).
     #
     # The workflow-level group above is keyed on `github.ref`, so it only ever
