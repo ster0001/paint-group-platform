@@ -35,7 +35,8 @@ describe("what lands on the queue", () => {
     const [item] = buildDeskCheckItems([row()], DEFAULT_POLICY, NOW);
     expect(item.kind).toBe("desk_check");
     expect(item.subjectRef).toEqual({ type: "estimate", id: "est-1" });
-    expect(item.action?.href).toBe("/quote/desk-check?id=est-1");
+    // C7b — the pack is a tab on the estimate, not a route of its own.
+    expect(item.action?.href).toBe("/quote?id=est-1&tab=pack");
     expect(item.accountId).toBe("acct-1");
   });
 

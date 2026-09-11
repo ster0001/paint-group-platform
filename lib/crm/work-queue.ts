@@ -677,7 +677,10 @@ export function buildDeskCheckItems(
        * mechanism to keep in step.
        */
       dueAt: addBusinessHours(new Date(since), turnaround.hours).toISOString(),
-      action: { label: "Open the desk check", href: `/quote/desk-check?id=${r.estimate_id}` },
+      // C7b: the pack is a TAB on the estimate now, not a screen of its own —
+      // "open the desk check" and "open the estimate" were two destinations
+      // for one record.
+      action: { label: "Open the pack", href: `/quote?id=${r.estimate_id}&tab=pack` },
     }, { valueCents: total || null, promisedToCustomer: true }, now));
   }
   return items;

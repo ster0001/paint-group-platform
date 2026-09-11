@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { loadScopeRules } from "@/lib/extract/scope-cache";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
@@ -10,7 +9,7 @@ import { PAINT_SYSTEMS_KEY, paintSystemsFrom } from "@/lib/pricing/systems";
 import { deskCheckPack, recommendedOutcome } from "@/lib/wizard/desk-check";
 import { packDrift } from "@/lib/wizard/confirmation";
 import { estimateDocuments } from "@/lib/wizard/documents";
-import Outcomes from "./Outcomes";
+import Outcomes from "./PackOutcomes";
 
 /**
  * /quote/desk-check?id= — remote confirmation (estimator journey v2 §5, ⚑7).
@@ -29,19 +28,25 @@ import Outcomes from "./Outcomes";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Desk check · Paint Group", robots: { index: false, follow: false } };
 
-export default async function DeskCheckPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ id?: string }>;
-}) {
-  const { id } = await searchParams;
+/**
+ * C7b — the pack, as a TAB on the estimate rather than a screen of its own.
+ *
+ * It was `/quote/desk-check?id=…`: a second place to look at an estimate that
+ * already has an editor. The reading view and the editing view are two views
+ * of ONE record, and splitting them across routes is what made "open the desk
+ * check" a different destination from "open the estimate".
+ *
+ * Nothing about what it renders has changed. It still re-derives the pack LIVE
+ * from the tree (see the note at `deskCheckPack` below) and still compares
+ * that against the copy frozen at send via `packDrift` — a builder edit after
+ * sending must never be hidden. The only change is where it appears.
+ *
+ * Staff-only is enforced by the shell that renders it (`app/quote/page.tsx`
+ * already redirects a non-staff user), so the duplicate check is gone rather
+ * than being asserted twice in two places that could drift.
+ */
+export default async function PackPane({ id }: { id: string | undefined }) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  if (profile?.role !== "staff") {
-    return <main className="mx-auto max-w-2xl p-6"><h1 className="text-xl font-semibold">Staff only</h1></main>;
-  }
   if (!id) return <Holding line="That link is missing its estimate." />;
 
   const { data: estimate } = await supabase
