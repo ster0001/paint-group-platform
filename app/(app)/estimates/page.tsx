@@ -7,6 +7,8 @@ import EstimatesTable, { type EstimateRow } from "./EstimatesTable";
 import AssistantFab from "@/app/quote/AssistantFab";
 import { LIST_FILTERS as FILTERS, filterQuery } from "@/lib/estimate/displayStatus";
 import WizardSessionsTable from "./WizardSessionsTable";
+import WaitingTable from "./WaitingTable";
+import { getWorkQueue } from "@/app/crm/queue";
 import { journeyFromRow, WIZARD_BUCKETS, WIZARD_SESSION_COLUMNS, type WizardBucket, type WizardJourney } from "@/lib/wizard/journey";
 
 export const dynamic = "force-dynamic";
@@ -25,11 +27,11 @@ export default async function EstimatesPage({
   const tabs = (
     <div className="mt-4 flex flex-wrap gap-1 border-b border-gray-200">
       {FILTERS.map((f) => {
-        const active = (status ?? "all") === f;
+        const active = (status ?? "waiting") === f;
         return (
           <Link
             key={f}
-            href={f === "all" ? "/estimates" : `/estimates?status=${f}`}
+            href={f === "waiting" ? "/estimates" : `/estimates?status=${f}`}
             className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium capitalize ${
               active ? "border-gray-900 text-gray-900" : "border-transparent text-gray-500 hover:text-gray-800"
             }`}
@@ -41,6 +43,33 @@ export default async function EstimatesPage({
       })}
     </div>
   );
+
+  /**
+   * C7b — "Waiting on you", first and default.
+   *
+   * `getWorkQueue()` is the SAME call CRM Today makes (`app/crm/today/page.tsx`),
+   * through the one evaluator in `lib/crm/work-queue.ts`. This tab does not
+   * query, sort, bucket or count anything itself — it filters the queue to the
+   * subjects this page is about and renders what comes back. That is the whole
+   * ruling: a confirmation waiting on an estimator is an attention item like
+   * any other, and two answers to "what needs attention?" is the bug class
+   * phase 0 spent itself removing.
+   */
+  if ((status ?? "waiting") === "waiting") {
+    const queue = await getWorkQueue();
+    const mine = queue.items.filter((i) => i.subjectRef.type === "estimate" || i.subjectRef.type === "wizard_session");
+    return (
+      <div className="mx-auto max-w-6xl px-6 py-8">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-xl font-semibold">Estimates</h1>
+          <NewEstimateButton templates={templates0} />
+        </div>
+        {tabs}
+        <WaitingTable items={mine} now={new Date()} />
+        <AssistantFab estimateId={null} />
+      </div>
+    );
+  }
 
   // Buckets brief §5 — the Wizard tab: open sessions (no estimate yet), with
   // bucket / source / mode filters; Ready sorts oldest request first.
