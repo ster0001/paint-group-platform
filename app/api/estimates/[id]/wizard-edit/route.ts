@@ -1476,25 +1476,30 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (confirmationIntent) {
     try {
       const deskPolicy = policyFromSettings(settingValue(ctx.settings, "wizard_policy"));
+      /**
+       * The ROW matters more than the frozen pack. An estimate whose wizard
+       * state will not parse still has a customer waiting for a call, and
+       * throwing here would have skipped the promise entirely to protect a
+       * nice-to-have — the failure mode this whole chunk exists to stop.
+       */
       const snapForPack = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
-      if (!snapForPack.success) throw new Error("no wizard state to freeze a pack from");
-      const pack = deskCheckPack(blocks, snapForPack.data, {
+      const pack = snapForPack.success ? deskCheckPack(blocks, snapForPack.data, {
         totalCents: payload.totals.totalCents,
         rules: await loadScopeRules(db),
         deferred: newDeferred,
         policy: deskPolicy,
         systems: paintSystemsFrom(settingValue(ctx.settings, PAINT_SYSTEMS_KEY)),
-      });
+      }) : null;
       const postcode = snapForPack.success ? (snapForPack.data.customer?.postcode ?? null) : null;
       const { data: staffRows } = await db.from("profiles")
         .select("id, patch_postcodes").not("patch_postcodes", "is", null);
-      const draft = confirmationDraft({
+      const draft = pack ? confirmationDraft({
         pack,
         postcode,
         staff: ((staffRows ?? []) as Array<{ id: string; patch_postcodes: string[] | null }>)
           .map((r) => ({ id: r.id, postcodes: r.patch_postcodes ?? [] })),
         requestedBy: view === "customer" ? "customer" : "staff",
-      });
+      }) : { kind: "visit" as const, suggestedAction: "visit" as const, assignedTo: null, why: "we could not read the scope, so a person looks" };
       // The customer asked for a visit: that is what they get, whatever the
       // ladder would have allowed. Their choice outranks our eligibility.
       const kind = confirmationIntent === "visit" ? "visit" : draft.kind;
@@ -1505,7 +1510,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         status: "requested",
         suggested_action: draft.suggestedAction,
         assigned_to: draft.assignedTo,
-        pack: pack as unknown as Record<string, unknown>,
+        pack: (pack ?? {}) as unknown as Record<string, unknown>,
       });
       // 23505 = the one-open-request-per-estimate index. A double tap is not an
       // error: the promise already exists and one is what we want — and the

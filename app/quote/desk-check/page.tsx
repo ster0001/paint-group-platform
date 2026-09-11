@@ -4,10 +4,11 @@ import { createClient } from "@/lib/supabase/server";
 import { loadScopeRules } from "@/lib/extract/scope-cache";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { editorPayload, type WizardDeferred } from "@/lib/wizard/view";
-import { policyFromSettings, settingValue } from "@/lib/wizard/policy";
+import { bandsFromSettings, policyFromSettings, rangeBandPct, rangeFromTotal, settingValue } from "@/lib/wizard/policy";
 import { wizardStateSchema } from "@/lib/wizard/state";
 import { PAINT_SYSTEMS_KEY, paintSystemsFrom } from "@/lib/pricing/systems";
 import { deskCheckPack, recommendedOutcome } from "@/lib/wizard/desk-check";
+import { packDrift } from "@/lib/wizard/confirmation";
 import { estimateDocuments } from "@/lib/wizard/documents";
 import Outcomes from "./Outcomes";
 
@@ -57,11 +58,48 @@ export default async function DeskCheckPage({
   const deferred: WizardDeferred[] = Array.isArray(state.aiDeferred) ? (state.aiDeferred as WizardDeferred[]) : [];
   const snap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
 
-  const [rules, ctx, docs] = await Promise.all([
+  const [rules, ctx, docs, requestRes] = await Promise.all([
     loadScopeRules(supabase),
     loadPricingContext(supabase),
     estimateDocuments(supabase, id),
+    /**
+     * C5 — the promise itself. The pack below is re-derived LIVE, deliberately:
+     * a builder edit after sending must never be hidden from the person about
+     * to fix a price. This row is what the customer was actually told, and the
+     * two can disagree — which is the one thing an estimator must not find out
+     * from the customer.
+     */
+    supabase.from("confirmation_requests")
+      .select("id, requested_at, requested_by, kind, status, suggested_action, assigned_to, pack")
+      .eq("estimate_id", id).in("status", ["requested", "question_asked"])
+      .order("requested_at", { ascending: false }).limit(1).maybeSingle(),
+    /**
+     * §2.6: "contact and property history". What we have quoted this account
+     * before — the second quote on an address should start from what the first
+     * one learned, not from scratch.
+     */
   ]);
+  const request = (requestRes?.data ?? null) as {
+    id: string; requested_at: string; requested_by: string; kind: string; status: string;
+    suggested_action: "fix" | "ask" | "visit" | null; assigned_to: string | null;
+    pack: { totalCents?: number } | null;
+  } | null;
+  const assignee = request?.assigned_to
+    ? (await supabase.from("profiles").select("full_name, email").eq("id", request.assigned_to).maybeSingle()).data
+    : null;
+  /**
+   * §2.6: "contact and property history" — what we have quoted this account
+   * before. Scoped to the account, which is only known once the estimate has
+   * loaded, so it cannot join the parallel batch above. An estimate with no
+   * account (the pre-spine ones) simply has no history to show.
+   */
+  const history = estimate.account_id
+    ? (((await supabase.from("estimates")
+        .select("id, title, status, total_cents, created_at")
+        .eq("account_id", estimate.account_id).neq("id", id)
+        .order("created_at", { ascending: false }).limit(6)).data) ?? []) as Array<{
+          id: string; title: string | null; status: string; total_cents: number | null; created_at: string }>
+    : [];
   const payload = editorPayload(blocks, ctx, adjustmentsFrom(state), deferred);
 
   if (!snap.success) {
@@ -76,6 +114,14 @@ export default async function DeskCheckPage({
     systems: paintSystemsFrom(settingValue(ctx.settings, PAINT_SYSTEMS_KEY)),
   });
   const recommended = recommendedOutcome(pack);
+  // What has moved since the promise (null when nothing has, or when a
+  // backfilled row has no frozen total to compare against).
+  const drift = packDrift({ promisedCents: request?.pack?.totalCents ?? null, liveCents: pack.totalCents });
+  // §2.6: the range and its band, not just the midpoint — an estimator fixing
+  // a price should see how wide the honest answer still is.
+  const bands = bandsFromSettings(settingValue(ctx.settings, "wizard_bands"));
+  const bandPct = rangeBandPct(payload.accuracyPct, bands);
+  const range = rangeFromTotal(pack.totalCents, bandPct);
   const money = (c: number) => `$${(c / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 })}`;
 
   return (
@@ -88,6 +134,40 @@ export default async function DeskCheckPage({
         </p>
       </header>
 
+      {/* 0 — WHAT WE PROMISED. Before anything we have derived: the estimator
+              needs to know what the customer was actually told, because that is
+              the number they will hold us to. */}
+      {request && (
+        <section className="rounded-md border border-gray-200 bg-white p-3" data-testid="desk-check-promise">
+          <div className="text-xs font-medium uppercase tracking-wide text-gray-500">What we promised</div>
+          <p className="mt-1 text-sm text-gray-800">
+            {request.kind === "visit"
+              ? "They asked for a person to come and look."
+              : "They asked us to confirm it without a visit."}
+            {" "}
+            <span className="text-gray-500">
+              {new Date(request.requested_at).toLocaleString("en-AU", { dateStyle: "medium", timeStyle: "short" })}
+              {request.requested_by === "staff" ? " · entered by staff" : ""}
+            </span>
+          </p>
+          <p className="mt-1 text-xs text-gray-600">
+            {assignee?.full_name || assignee?.email
+              ? <>Assigned to <b>{assignee.full_name || assignee.email}</b>.</>
+              : "Not assigned to anyone — nobody covers this postcode, so it is here for whoever picks it up."}
+            {request.suggested_action && request.suggested_action !== recommended && (
+              <> {" "}The rules suggested <b>{request.suggested_action}</b> at the time; they say <b>{recommended}</b> now.</>
+            )}
+          </p>
+          {drift && (
+            <p className="mt-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900" data-testid="desk-check-drift">
+              The price has moved {drift.direction} by {money(Math.abs(drift.deltaCents))} since they were told.
+              They were shown <b>{money(request.pack?.totalCents ?? 0)}</b>; the tree now prices at <b>{money(pack.totalCents)}</b>.
+              Fix the price they SAW, or tell them why it changed — never quote a number they have not seen.
+            </p>
+          )}
+        </section>
+      )}
+
       {/* 1 — can this be fixed from here at all? */}
       <section
         className={`rounded-md border p-3 ${pack.verdict.eligible ? "border-emerald-300 bg-emerald-50" : "border-amber-300 bg-amber-50"}`}
@@ -98,6 +178,10 @@ export default async function DeskCheckPage({
             ? `This one can be fixed without a visit — ${money(pack.totalCents)}`
             : `This one needs a visit — ${pack.verdict.reason}`}
         </div>
+        <p className="mt-1 text-xs text-gray-700" data-testid="desk-check-band">
+          The honest range is {money(range.loCents)} – {money(range.hiCents)} (±{bandPct}% at {payload.accuracyPct}% confidence).
+          Fixing a price closes that band to one number, so read the open items first.
+        </p>
         <p className="mt-1 text-xs text-gray-600">
           {pack.clean
             ? "Nothing is left open. Check it reads right, then fix the price and send it."
@@ -106,6 +190,27 @@ export default async function DeskCheckPage({
               : "Read it through before you fix a price."}
         </p>
       </section>
+
+      {history.length > 0 && (
+        <Card title="This customer, before" testid="desk-check-history">
+          <ul className="space-y-1.5 text-sm">
+            {history.map((h) => (
+              <li key={h.id} className="flex items-baseline justify-between gap-3">
+                <Link href={`/quote?id=${h.id}`} className="text-gray-700 hover:underline">
+                  {h.title?.trim() || "Untitled estimate"}
+                </Link>
+                <span className="shrink-0 text-xs text-gray-500">
+                  {h.status}{h.total_cents ? ` · ${money(h.total_cents)}` : ""}
+                  {" · "}{new Date(h.created_at).toLocaleDateString("en-AU", { dateStyle: "medium" })}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-gray-500">
+            What we quoted this account before. A second quote on an address should start from what the first one learned.
+          </p>
+        </Card>
+      )}
 
       {/* 6 — what is still open, first: it decides everything below it. */}
       {pack.open.length > 0 && (

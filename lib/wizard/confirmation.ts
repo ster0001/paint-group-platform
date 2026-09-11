@@ -124,3 +124,26 @@ export function sortQueue<T extends { totalCents: number; suggestedAction: DeskC
     return a.requestedAt.localeCompare(b.requestedAt);
   });
 }
+
+/**
+ * Has the job moved since we made the promise?
+ *
+ * The pack is frozen at send and the desk-check page re-derives live, which is
+ * right: a builder edit after sending must never be hidden from the person
+ * about to fix a price. But the two CAN disagree, and the estimator needs to
+ * know which number the customer was actually shown — quoting them a figure
+ * they have never seen is how a "fixed price" becomes an argument.
+ *
+ * Returns null when there is nothing to say. A tolerance of one dollar keeps
+ * rounding out of it.
+ */
+export function packDrift(input: {
+  promisedCents: number | null | undefined;
+  liveCents: number;
+}): { deltaCents: number; direction: "up" | "down" } | null {
+  const promised = input.promisedCents;
+  if (promised == null || !Number.isFinite(promised) || promised <= 0) return null;
+  const delta = input.liveCents - promised;
+  if (Math.abs(delta) < 100) return null;
+  return { deltaCents: delta, direction: delta > 0 ? "up" : "down" };
+}

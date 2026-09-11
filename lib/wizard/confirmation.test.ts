@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { confirmationDraft, estimatorForPostcode, queueScore, sortQueue, type EstimatorPatch } from "./confirmation";
+import { confirmationDraft, estimatorForPostcode, packDrift, queueScore, sortQueue, type EstimatorPatch } from "./confirmation";
 import type { DeskCheckPack } from "./desk-check";
 
 /**
@@ -133,5 +133,26 @@ describe("the queue's order — value × readiness", () => {
     const copy = [...rows];
     sortQueue(rows);
     expect(rows).toEqual(copy);
+  });
+});
+
+describe("has the job moved since we promised", () => {
+  test("no movement says nothing", () => {
+    expect(packDrift({ promisedCents: 480_000, liveCents: 480_000 })).toBeNull();
+  });
+  test("rounding is not movement", () => {
+    expect(packDrift({ promisedCents: 480_000, liveCents: 480_050 })).toBeNull();
+  });
+  test("a real rise is reported with its direction", () => {
+    expect(packDrift({ promisedCents: 480_000, liveCents: 520_000 }))
+      .toEqual({ deltaCents: 40_000, direction: "up" });
+  });
+  test("a fall is reported too — the customer was promised MORE than it now costs", () => {
+    expect(packDrift({ promisedCents: 520_000, liveCents: 480_000 }))
+      .toEqual({ deltaCents: -40_000, direction: "down" });
+  });
+  test("a backfilled row with no frozen total says nothing rather than guessing", () => {
+    expect(packDrift({ promisedCents: null, liveCents: 480_000 })).toBeNull();
+    expect(packDrift({ promisedCents: 0, liveCents: 480_000 })).toBeNull();
   });
 });
