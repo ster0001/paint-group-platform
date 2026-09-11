@@ -6,7 +6,7 @@ import {
   type Block, type BlockKind, type Template,
 } from "@/lib/campaigns/blocks";
 import { approveTemplate, saveTemplate, sendTestEmail, uploadCampaignPhoto, writeWithAi } from "../../actions";
-import { TOKENS } from "@/lib/campaigns/personalise";
+import { TOKENS, exampleValues, personaliseTemplate } from "@/lib/campaigns/personalise";
 
 /**
  * The studio (session 3.5).
@@ -40,7 +40,10 @@ export default function Studio({ id, initialName, initialTemplate, approvedAt, s
   const [ctaUrl, setCtaUrl] = useState("https://paintgroup.com.au/estimate");
   const [tone, setTone] = useState<"warm" | "plain" | "brief">("warm");
 
-  const html = useMemo(() => renderEmail(t, {
+  // The preview fills the personalisation tokens with their examples: an
+  // email that reads "Hi {{first_name}}," cannot be judged as a sentence, and
+  // this pane's whole job is showing what they will actually read.
+  const html = useMemo(() => renderEmail(personaliseTemplate(t, exampleValues(brand.companyName)), {
     ink: "#12161A", text: "#333B42", muted: "#6B747C", line: "#E4E8EB",
     paper: "#FFFFFF", wash: "#F6F8F9", accent: "#2FB9CB", onAccent: "#FFFFFF",
     companyName: brand.companyName, logoUrl: brand.logoUrl,
@@ -281,6 +284,7 @@ export default function Studio({ id, initialName, initialTemplate, approvedAt, s
         <iframe title="Email preview" className="preview" srcDoc={html} sandbox="" />
         <p className="bhint">
           The real renderer, not an impression of it — this is the HTML that would be sent.
+          Names, suburbs and totals here are examples; each person gets their own.
         </p>
       </div>
     </div>

@@ -34,6 +34,18 @@ export const TOKENS: Array<{ token: keyof TokenValues; label: string; example: s
 
 const LINK_TOKENS = new Set(["estimate", "account", "unsubscribe"]);
 
+/**
+ * The values a PREVIEW and a TEST SEND use (Tom, 11 Sep: "{{first_name}} didn't
+ * give me their name in the email"). Both used to show the raw braces, which
+ * is the one thing a preview must never do — you cannot judge "Hi {{first_name}},"
+ * as a sentence. They are TOKENS' own examples, so the chips under the editor
+ * and the preview agree by construction.
+ */
+export function exampleValues(company?: string): TokenValues {
+  const byToken = Object.fromEntries(TOKENS.map((t) => [t.token, t.example])) as TokenValues;
+  return company ? { ...byToken, company, estimator: company } : byToken;
+}
+
 /** Every {{token}} filled; an unknown one is left as typed so it is visible in a test send. */
 export function fillTokens(text: string, v: TokenValues): string {
   return text.replace(/\{\{\s*([a-z_]+)\s*\}\}/g, (whole, key: string) => {
@@ -85,7 +97,9 @@ export function tokenValues(input: {
   lastJobCompletedAt: string | null; estimator: string | null; company: string;
 }): TokenValues {
   return {
-    first_name: firstNameOf(input.name),
+    // No usable first name on file? "Hi there," — never "Hi ,", which is how
+    // a real customer learns we do not know who they are.
+    first_name: firstNameOf(input.name) || "there",
     name: String(input.name ?? "").trim(),
     suburb: String(input.suburb ?? "").trim(),
     estimate_total: money(input.estimateTotalCents),

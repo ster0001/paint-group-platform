@@ -7,6 +7,7 @@ import { templateSchema, type Template } from "@/lib/campaigns/blocks";
 import { generateEmail } from "@/lib/campaigns/ai";
 import { resolveRecipientLinks, sendCampaignEmail } from "@/lib/campaigns/send";
 import { getSegment } from "@/lib/crm/segmentsStore";
+import { exampleValues, fillTokens, personaliseTemplate } from "@/lib/campaigns/personalise";
 
 export type StudioResult<T = undefined> =
   | { ok: true; message: string; data?: T }
@@ -88,12 +89,13 @@ export async function sendTestSms(id: string): Promise<StudioResult<{ to: string
   const base = (process.env.NEXT_PUBLIC_SITE_URL || "https://paintgroup.com.au").replace(/\/$/, "");
   const result = await sendCampaignSms({
     toRawPhone: company.phone,
-    body: `[TEST] ${body}`,
+    // Same as the email test: examples, never the raw braces.
+    body: `[TEST] ${fillTokens(body, exampleValues(company.name || "Paint Group"))}`,
     links: { estimateUrl: null, accountUrl: `${base}/account` },
     companyName: company.name || "Paint Group",
   });
   if (!result.ok) return { ok: false, message: result.error };
-  return { ok: true, message: `Sent to ${to} — the company mobile.`, data: { to } };
+  return { ok: true, message: `Sent to ${to} — the company mobile. The name and totals in it are examples.`, data: { to } };
 }
 
 /**
@@ -228,10 +230,16 @@ export async function sendTestEmail(id: string): Promise<StudioResult<{ to: stri
   // nobody else. With no account, the link is inert.
   const { data: account } = await supabase.from("accounts").select("id").eq("email", to.toLowerCase()).maybeSingle();
 
+  // A test is personalised with the EXAMPLE values (Tom, 11 Sep). It used to
+  // go out with the raw {{first_name}} in it, because only the real send
+  // called personaliseTemplate — so the one email you look at before pressing
+  // send was the one email that never showed what they would read. Examples,
+  // not the tester's own facts: the tester is staff, and "Hi there," would
+  // teach you nothing about the sentence.
   const result = await sendCampaignEmail({
     to,
     accountId: (account?.id as string) ?? "00000000-0000-0000-0000-000000000000",
-    template: parsed.data,
+    template: personaliseTemplate(parsed.data, exampleValues(company.name || "Paint Group")),
     // White card → the light-background logo (the black wordmark).
     brand: { companyName: company.name || "Paint Group", logoUrl: company.logoUrlLight || company.logoUrl || null },
     isTest: true,
@@ -240,7 +248,7 @@ export async function sendTestEmail(id: string): Promise<StudioResult<{ to: stri
     links: account?.id ? await resolveRecipientLinks(supabase, account.id as string) : undefined,
   });
   if (!result.ok) return { ok: false, message: result.error };
-  return { ok: true, message: `Sent to ${to}. It'll say [TEST] in the subject.`, data: { to } };
+  return { ok: true, message: `Sent to ${to}. It'll say [TEST] in the subject, and the name, suburb and totals in it are examples.`, data: { to } };
 }
 
 /**
