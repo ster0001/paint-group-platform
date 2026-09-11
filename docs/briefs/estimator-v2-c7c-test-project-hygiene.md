@@ -1,5 +1,14 @@
 # C7c — the test project stops filling up
 
+> **SUPERSEDED, 11 Sep 2026.** The canonical C7c brief is
+> `docs/briefs/claude-code-brief-c7c-test-hygiene.md`, which arrived in
+> hand-over rev 2 and is more complete — it adds the seeded-login exclusion
+> list, teardown after a *failing* suite, a query-plan requirement, and the
+> incident note. The two things this draft had that it did not are now folded
+> into it: the mandatory FK delete order (six columns reference `auth.users`
+> with no ON DELETE action) and the 13.5 s per-user cost that forces batching.
+> Kept for the reasoning, not as a specification. Build to the canonical one.
+
 **Status:** drafted 11 Sep 2026, not built. Sits between C7 and C8.
 
 ## Why
