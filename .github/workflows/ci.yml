@@ -183,6 +183,29 @@ jobs:
               exit 1;;
           esac
           echo "Supabase URL secret is not production."
+          # THE KEYS MUST BELONG TO THE PROJECT THE URL NAMES (12 Sep 2026).
+          # Run #371 had all nine secrets present and the URL secret naming the
+          # test project — and the service-role key belonged to another project.
+          # Every service call answered "Invalid API key", /estimate fell back
+          # to the holding page, and 83 specs timed out identically 30 minutes
+          # later. A legacy key is a JWT whose payload carries `ref` and `role`;
+          # comparing that to the URL catches a wrong paste in one second and
+          # prints only the refs (public — they are in every customer URL).
+          node - <<'JS'
+            const url = process.env.E2E_SUPABASE_URL;
+            const want = url.match(/^https?:\/\/([a-z0-9]{20})\.supabase\.(co|in)\b/)?.[1];
+            if (!want) { console.error(`::error::E2E_SUPABASE_URL has no readable project ref (${url})`); process.exit(1); }
+            const claims = (k) => { try { return JSON.parse(Buffer.from(k.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")); } catch { return null; } };
+            let bad = false;
+            for (const [name, role] of [["E2E_SUPABASE_ANON_KEY", "anon"], ["E2E_SERVICE_ROLE_KEY", "service_role"]]) {
+              const c = claims(process.env[name] ?? "");
+              if (!c) { console.log(`${name}: not a legacy JWT key — cannot verify its project; the run will find out.`); continue; }
+              if (c.ref !== want) { console.error(`::error::${name} belongs to project ${c.ref}, but E2E_SUPABASE_URL names ${want}. Re-paste it from the ${want} project (Settings → API). It is a repository secret.`); bad = true; }
+              else if (c.role !== role) { console.error(`::error::${name} carries role "${c.role}", expected "${role}" — the anon and service keys are swapped.`); bad = true; }
+              else console.log(`${name}: belongs to ${want}, role ${role}.`);
+            }
+            if (bad) process.exit(1);
+          JS
 
       - run: npx playwright install --with-deps chromium
 
