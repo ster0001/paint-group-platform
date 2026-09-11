@@ -79,7 +79,7 @@ test.describe("remote confirmation (v2 phase 6)", () => {
     made.push(id);
 
     await signIn(page, staff!, /estimates|today|quote/);
-    await page.goto(`/quote/desk-check?id=${id}`);
+    await page.goto(`/quote?id=${id}&tab=pack`);
     // The route sits under app/quote, so it inherits that segment's
     // "Loading estimate…" state, and this page is a server component that
     // loads the scope rules, the rate card and the documents before it
@@ -129,7 +129,7 @@ test.describe("remote confirmation (v2 phase 6)", () => {
     made.push(id);
 
     await signIn(page, staff!, /estimates|today|quote/);
-    await page.goto(`/quote/desk-check?id=${id}`);
+    await page.goto(`/quote?id=${id}&tab=pack`);
     await expect(page.getByTestId("desk-check")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("desk-check-open")).toContainText("door style");
     await expect(page.getByTestId("outcome-ask")).toHaveAttribute("data-recommended", "1");
@@ -149,7 +149,7 @@ test.describe("remote confirmation (v2 phase 6)", () => {
     made.push(id);
 
     await signIn(page, staff!, /estimates|today|quote/);
-    await page.goto(`/quote/desk-check?id=${id}`);
+    await page.goto(`/quote?id=${id}&tab=pack`);
     await expect(page.getByTestId("desk-check")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("desk-check-verdict")).toContainText(/needs a visit/i);
     await expect(page.getByTestId("desk-check-verdict")).toContainText("$12,000");

@@ -7,7 +7,8 @@ import { deleteEstimateAction } from "./actions";
 import DeleteEstimateButton from "./DeleteEstimateButton";
 import { displayStatus } from "@/lib/estimate/displayStatus";
 import type { WizardJourney } from "@/lib/wizard/journey";
-import WizardPill from "./WizardPill";
+import type { ListRow } from "@/lib/estimate/listRows";
+import { TONE } from "./WizardPill";
 import JourneyDrawer from "./JourneyDrawer";
 
 /**
@@ -25,22 +26,19 @@ import JourneyDrawer from "./JourneyDrawer";
  * beside it, which is the only case where waiting would have told you anything.
  */
 
-export type EstimateRow = {
-  id: string;
-  title: string | null;
-  status: string;
-  total_cents: number | null;
-  /** Tom, 7 Sep: customer-built drafts get a 'Customer editor' link. */
-  source?: string | null;
-  created_at: string;
-  /** First customer open — a sent estimate with this set reads "viewed". */
-  viewed_at?: string | null;
-  /** Buckets brief §5: the wizard session that built this estimate, when there is one. */
-  wizard?: WizardJourney | null;
-};
+/**
+ * C7b: a row is a `ListRow` — assembled on the server by
+ * `lib/estimate/listRows.ts` from the estimate, its latest confirmation
+ * request, the customer's opens, the work order and the wizard session. The
+ * table renders what it is given: the pill, the one action, the value shape
+ * and the Pack link's gate are all decided before this file sees them.
+ */
+export type EstimateRow = ListRow;
 
 const money = (c: number | null) =>
   c == null ? "—" : "$" + (c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2 });
+/** Whole dollars, for the two ends of a range — the customer's own screen rounds the same way. */
+const money0 = (c: number) => "$" + Math.round(c / 100).toLocaleString("en-AU");
 
 export default function EstimatesTable({ estimates }: { estimates: EstimateRow[] }) {
   const router = useRouter();
@@ -196,7 +194,7 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
               <th className="w-64 px-4 py-2 font-medium">Wizard status</th>
               <th className="w-28 px-4 py-2 font-medium">Date</th>
               <th className="w-28 px-4 py-2 text-right font-medium">Value</th>
-              <th className="w-40 px-4 py-2 text-right font-medium"><span className="sr-only">Actions</span></th>
+              <th className="w-52 px-4 py-2 text-right font-medium"><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -223,6 +221,11 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
                   >
                     {e.title || "Untitled estimate"}
                   </Link>
+                  {/* C7b (brief 2.4): the pack, only where there is one — the same test
+                      the quote shell uses for the Pack tab, decided on the server. */}
+                  {e.hasWizard && (
+                    <Link href={`/quote?id=${e.id}&tab=pack`} className="ml-2 text-xs text-cyan-700 hover:underline" data-testid={`pack-link-${e.id}`}>Pack →</Link>
+                  )}
                   {/* Tom, 7 Sep: the customer's own confirm-loop editor, opened by staff
                       to walk it with them on the phone. */}
                   {e.source === "customer_intake" && e.status === "draft" && (
@@ -237,13 +240,61 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
                   {displayStatus(e)}
                 </td>
                 <td className="min-w-0 px-4 py-2.5">
-                  {e.wizard ? <WizardPill j={e.wizard} onOpen={() => setJourney(e.wizard!)} /> : <span className="text-xs text-gray-300">—</span>}
+                  {/* C7b (brief 2.2): the pill and its mono line are derived server-side
+                      (`estimatePill`). The column keeps its shape; a wizard row still opens
+                      the journey drawer. */}
+                  {e.pill.state === "none" ? (
+                    <span className="text-xs text-gray-300">—</span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={e.wizard ? () => setJourney(e.wizard!) : undefined}
+                      className={`group block max-w-full text-left ${e.wizard ? "" : "cursor-default"}`}
+                      title={e.wizard ? "Open the journey" : undefined}
+                      data-testid={`estimate-pill-${e.id}`}
+                      data-state={e.pill.state}
+                    >
+                      <span className={`inline-flex max-w-full items-center gap-1.5 truncate rounded-full px-2 py-0.5 text-[11px] font-semibold ${TONE[e.pill.tone]}`}>
+                        {e.wizard?.bucket === "online_now" && e.pill.state === "wizard" && <i className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />}
+                        {e.pill.label}
+                      </span>
+                      {e.pill.sub && (
+                        <span className="mt-1 block truncate font-mono text-[11px] text-gray-500 group-hover:text-gray-800" data-testid={`estimate-line-${e.id}`}>
+                          {e.pill.sub}
+                        </span>
+                      )}
+                    </button>
+                  )}
                 </td>
                 <td className="px-4 py-2.5 text-gray-500">
                   {new Date(e.created_at).toLocaleDateString("en-AU")}
                 </td>
-                <td className="px-4 py-2.5 text-right tabular-nums">{money(e.total_cents)}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums" data-testid={`value-${e.id}`} data-kind={e.value.kind}>
+                  {/* C7b (brief 2.6): a range while it is a range, cents once fixed. The
+                      figures arrive formatted-ready from the server; nothing is computed here. */}
+                  {e.value.kind === "range" ? (
+                    <>
+                      <span className="whitespace-nowrap">{money0(e.value.loCents)}–{money0(e.value.hiCents)}</span>
+                      <span className="block text-[10px] uppercase tracking-wide text-gray-400">range</span>
+                    </>
+                  ) : e.value.kind === "fixed" ? (
+                    <>
+                      {money(e.value.cents)}
+                      <span className="block text-[10px] uppercase tracking-wide text-gray-400">fixed</span>
+                    </>
+                  ) : e.value.kind === "figure" ? money(e.value.cents) : "—"}
+                </td>
                 <td className="px-4 py-2.5 text-right">
+                  {/* C7b (brief 2.3, ⚑39): one contextual action, or nothing. */}
+                  {e.action && (
+                    <Link
+                      href={e.action.href}
+                      className="mr-3 rounded border border-gray-300 px-2 py-0.5 text-xs font-medium text-gray-800 hover:bg-gray-50"
+                      data-testid={`row-action-${e.id}`}
+                    >
+                      {e.action.label}
+                    </Link>
+                  )}
                   {e.status !== "accepted" && (
                     <Link
                       href={`/quote/capture?id=${e.id}`}

@@ -1,6 +1,6 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
-import { displayStatus, filterQuery, LIST_FILTERS } from "./displayStatus.ts";
+import { displayStatus, filterQuery, LIST_FILTERS, sourceFilterOf, sourceQuery } from "./displayStatus.ts";
 
 test("a sent estimate the customer has opened shows as viewed", () => {
   assert.equal(displayStatus({ status: "sent", viewed_at: "2026-09-04T01:00:00Z" }), "viewed");
@@ -38,4 +38,11 @@ test("C7b: the existing tabs are untouched", () => {
   assert.deepEqual(filterQuery("viewed"), { status: "sent", viewed: true });
   assert.deepEqual(filterQuery("draft"), { status: "draft" });
   assert.deepEqual(filterQuery("all"), {});
+});
+
+test("C7b — the source filter: in-house includes rows whose source was never set", () => {
+  assert.deepEqual(sourceQuery(sourceFilterOf("inhouse")), { or: "source.neq.customer_intake,source.is.null" });
+  assert.deepEqual(sourceQuery(sourceFilterOf("customers")), { eq: "customer_intake" });
+  assert.equal(sourceQuery(sourceFilterOf(undefined)), null);
+  assert.equal(sourceQuery(sourceFilterOf("junk")), null);
 });

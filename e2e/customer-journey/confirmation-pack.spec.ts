@@ -89,7 +89,7 @@ test("the estimator's pack opens fast, and shows what was promised", async ({ br
   await page.waitForURL(/estimates/);
 
   const started = Date.now();
-  await page.goto(`/quote/desk-check?id=${req!.estimate_id}`);
+  await page.goto(`/quote?id=${req!.estimate_id}&tab=pack`);
   await expect(page.getByTestId("desk-check")).toBeVisible({ timeout: 30_000 });
   // §2.6: "the estimator sees the pack in under two seconds".
   expect(Date.now() - started).toBeLessThan(10_000);

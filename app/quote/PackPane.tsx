@@ -1,18 +1,9 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import { loadScopeRules } from "@/lib/extract/scope-cache";
-import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
-import { editorPayload, type WizardDeferred } from "@/lib/wizard/view";
-import { bandsFromSettings, policyFromSettings, rangeBandPct, rangeFromTotal, settingValue } from "@/lib/wizard/policy";
-import { wizardStateSchema } from "@/lib/wizard/state";
-import { PAINT_SYSTEMS_KEY, paintSystemsFrom } from "@/lib/pricing/systems";
-import { deskCheckPack, recommendedOutcome } from "@/lib/wizard/desk-check";
-import { packDrift } from "@/lib/wizard/confirmation";
-import { estimateDocuments } from "@/lib/wizard/documents";
 import Outcomes from "./PackOutcomes";
+import type { PackBundle } from "./pack-load";
 
 /**
- * /quote/desk-check?id= — remote confirmation (estimator journey v2 §5, ⚑7).
+ * The pack — remote confirmation (estimator journey v2 §5, ⚑7).
  *
  * The plan's whole "quote it without looking at it" capability, and the one
  * screen it needs: everything a person requires to decide **fix it, ask, or
@@ -23,110 +14,26 @@ import Outcomes from "./PackOutcomes";
  * customer is already talking to us; booking happens in the visit flow. A
  * fourth place to change money would be a fourth place for it to go wrong —
  * this page decides, it does not edit.
- */
-
-export const dynamic = "force-dynamic";
-export const metadata = { title: "Desk check · Paint Group", robots: { index: false, follow: false } };
-
-/**
- * C7b — the pack, as a TAB on the estimate rather than a screen of its own.
  *
+ * C7b — the pack is a TAB on the estimate rather than a screen of its own.
  * It was `/quote/desk-check?id=…`: a second place to look at an estimate that
  * already has an editor. The reading view and the editing view are two views
  * of ONE record, and splitting them across routes is what made "open the desk
  * check" a different destination from "open the estimate".
  *
- * Nothing about what it renders has changed. It still re-derives the pack LIVE
- * from the tree (see the note at `deskCheckPack` below) and still compares
- * that against the copy frozen at send via `packDrift` — a builder edit after
- * sending must never be hidden. The only change is where it appears.
+ * It renders a `PackBundle` the shell loaded ONCE (`pack-load.ts`) and shares
+ * with the strip above the tabs, so the two can never show different figures.
+ * Nothing about what it renders has changed: the pack is still re-derived
+ * LIVE from the tree and compared against the copy frozen at send via
+ * `packDrift` — a builder edit after sending must never be hidden.
  *
  * Staff-only is enforced by the shell that renders it (`app/quote/page.tsx`
  * already redirects a non-staff user), so the duplicate check is gone rather
  * than being asserted twice in two places that could drift.
  */
-export default async function PackPane({ id }: { id: string | undefined }) {
-  const supabase = await createClient();
-  if (!id) return <Holding line="That link is missing its estimate." />;
-
-  const { data: estimate } = await supabase
-    .from("estimates")
-    // No total column: the pack prices LIVE from the tree below, so a stored
-    // total could only disagree with what the estimator is looking at.
-    .select("id, title, status, account_id, builder_state")
-    .eq("id", id)
-    .maybeSingle();
-  if (!estimate) return <Holding line="We couldn't find that estimate." />;
-
-  const state = (estimate.builder_state ?? {}) as Record<string, unknown>;
-  const blocks = Array.isArray(state.blocks) ? (state.blocks as Array<Record<string, unknown>>) : [];
-  const deferred: WizardDeferred[] = Array.isArray(state.aiDeferred) ? (state.aiDeferred as WizardDeferred[]) : [];
-  const snap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
-
-  const [rules, ctx, docs, requestRes] = await Promise.all([
-    loadScopeRules(supabase),
-    loadPricingContext(supabase),
-    estimateDocuments(supabase, id),
-    /**
-     * C5 — the promise itself. The pack below is re-derived LIVE, deliberately:
-     * a builder edit after sending must never be hidden from the person about
-     * to fix a price. This row is what the customer was actually told, and the
-     * two can disagree — which is the one thing an estimator must not find out
-     * from the customer.
-     */
-    supabase.from("confirmation_requests")
-      .select("id, requested_at, requested_by, kind, status, suggested_action, assigned_to, pack")
-      .eq("estimate_id", id).in("status", ["requested", "question_asked"])
-      .order("requested_at", { ascending: false }).limit(1).maybeSingle(),
-    /**
-     * §2.6: "contact and property history". What we have quoted this account
-     * before — the second quote on an address should start from what the first
-     * one learned, not from scratch.
-     */
-  ]);
-  const request = (requestRes?.data ?? null) as {
-    id: string; requested_at: string; requested_by: string; kind: string; status: string;
-    suggested_action: "fix" | "ask" | "visit" | null; assigned_to: string | null;
-    pack: { totalCents?: number } | null;
-  } | null;
-  const assignee = request?.assigned_to
-    ? (await supabase.from("profiles").select("full_name, email").eq("id", request.assigned_to).maybeSingle()).data
-    : null;
-  /**
-   * §2.6: "contact and property history" — what we have quoted this account
-   * before. Scoped to the account, which is only known once the estimate has
-   * loaded, so it cannot join the parallel batch above. An estimate with no
-   * account (the pre-spine ones) simply has no history to show.
-   */
-  const history = estimate.account_id
-    ? (((await supabase.from("estimates")
-        .select("id, title, status, total_cents, created_at")
-        .eq("account_id", estimate.account_id).neq("id", id)
-        .order("created_at", { ascending: false }).limit(6)).data) ?? []) as Array<{
-          id: string; title: string | null; status: string; total_cents: number | null; created_at: string }>
-    : [];
-  const payload = editorPayload(blocks, ctx, adjustmentsFrom(state), deferred);
-
-  if (!snap.success) {
-    return <Holding line="This estimate wasn't built in the wizard, so there's nothing to desk-check. Open it in the builder instead." href={`/quote?id=${id}`} />;
-  }
-
-  const pack = deskCheckPack(blocks, snap.data, {
-    totalCents: payload.totals.totalCents,
-    rules,
-    deferred,
-    policy: policyFromSettings(settingValue(ctx.settings, "wizard_policy")),
-    systems: paintSystemsFrom(settingValue(ctx.settings, PAINT_SYSTEMS_KEY)),
-  });
-  const recommended = recommendedOutcome(pack);
-  // What has moved since the promise (null when nothing has, or when a
-  // backfilled row has no frozen total to compare against).
-  const drift = packDrift({ promisedCents: request?.pack?.totalCents ?? null, liveCents: pack.totalCents });
-  // §2.6: the range and its band, not just the midpoint — an estimator fixing
-  // a price should see how wide the honest answer still is.
-  const bands = bandsFromSettings(settingValue(ctx.settings, "wizard_bands"));
-  const bandPct = rangeBandPct(payload.accuracyPct, bands);
-  const range = rangeFromTotal(pack.totalCents, bandPct);
+export default function PackPane({ bundle }: { bundle: PackBundle }) {
+  if (bundle.kind === "holding") return <Holding line={bundle.line} href={bundle.href} />;
+  const { estimate, pack, payload, recommended, request, assignee, drift, bandPct, range, docs, history } = bundle;
   const money = (c: number) => `$${(c / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 })}`;
 
   return (
@@ -312,7 +219,7 @@ export default async function PackPane({ id }: { id: string | undefined }) {
         </ul>
       </Card>
 
-      <Outcomes estimateId={id} accountId={estimate.account_id} recommended={recommended} eligible={pack.verdict.eligible} />
+      <Outcomes estimateId={estimate.id} accountId={estimate.account_id} recommended={recommended} eligible={pack.verdict.eligible} />
     </main>
   );
 }

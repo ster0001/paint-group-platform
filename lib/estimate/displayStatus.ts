@@ -36,3 +36,24 @@ export function filterQuery(filter: string | undefined): { status?: string; view
   if (filter === "sent") return { status: "sent", viewed: false };
   return { status: filter };
 }
+
+/**
+ * C7b (brief step 2.5) — the source filter: All / From customers / Built
+ * in-house. A customer-built estimate is `source = 'customer_intake'`; in-house
+ * is EVERYTHING else, including the older rows whose source was never set —
+ * a plain `.neq()` would drop those, because SQL's `<>` is not true for null.
+ */
+export const SOURCE_FILTERS = ["all", "customers", "inhouse"] as const;
+export type SourceFilter = (typeof SOURCE_FILTERS)[number];
+export const SOURCE_LABEL: Record<SourceFilter, string> = { all: "All", customers: "From customers", inhouse: "Built in-house" };
+
+export function sourceFilterOf(param: string | undefined): SourceFilter {
+  return (SOURCE_FILTERS as readonly string[]).includes(param ?? "") ? (param as SourceFilter) : "all";
+}
+
+/** The PostgREST predicate for a source filter, or null for "all". */
+export function sourceQuery(filter: SourceFilter): { eq: string } | { or: string } | null {
+  if (filter === "customers") return { eq: "customer_intake" };
+  if (filter === "inhouse") return { or: "source.neq.customer_intake,source.is.null" };
+  return null;
+}

@@ -1262,3 +1262,15 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
 
   return assembleQueue(suppressQuiet(raw, quietIds), dismissals, now, truncated);
 }
+
+// ---- C7b: the estimates page's view of the queue ----------------------------
+
+/**
+ * "Waiting on you" on /estimates (C7b) is THIS queue, narrowed to the subjects
+ * that page is about. It lives here, beside the evaluator, so the tab and CRM
+ * Today are provably the same list: both call `getWorkQueue()` and this is
+ * the only thing between the two renders. No second query, badge or count.
+ */
+export function estimatesPageItems(items: readonly WorkItem[]): WorkItem[] {
+  return items.filter((i) => i.subjectRef.type === "estimate" || i.subjectRef.type === "wizard_session");
+}

@@ -26,6 +26,17 @@ const SIGNED_URL_TTL_SECONDS = 60 * 60 * 3;
 const PLAN_KINDS = ["floorplan", "site_plan"] as const;
 const PHOTO_KINDS = ["defect_photo", "elevation"] as const;
 
+/**
+ * C7b — the estimates list counts photos per row ("7 photos" in the status
+ * sub-line) from `estimate_sources.kind` without signing a single URL. It
+ * uses THIS test so the count agrees with what the pack shows: the pack
+ * signs and renders exactly the rows `estimateDocuments` calls photos.
+ */
+export function isPhotoKind(kind: string | null | undefined, includeFacades = false): boolean {
+  if (!kind) return false;
+  return (PHOTO_KINDS as readonly string[]).includes(kind) || (includeFacades && kind === "exterior_photo");
+}
+
 export type EstimateDocument = { url: string; label: string; kind: string };
 export type EstimateDocuments = {
   /** The pinned plan — a floorplan when there is one, else the first facade

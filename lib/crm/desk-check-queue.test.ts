@@ -179,3 +179,23 @@ test("C7b: a record with no figure carries null, never a misleading zero", () =>
   const [item] = buildDeskCheckItems([row({}, { total_cents: null })], DEFAULT_POLICY, NOW);
   expect(item.valueCents).toBeNull();
 });
+
+// ---- C7b: CRM Today and "Waiting on you" are the same list -------------------
+
+import { buildApprovalItem, estimatesPageItems } from "./work-queue";
+
+describe("C7b — one evaluator, two surfaces", () => {
+  test("a confirmation added to the queue appears on the estimates page's cut of the SAME items", () => {
+    // What getWorkQueue() would return once the request exists: the desk
+    // check beside an item the estimates page is not about.
+    const queue = [...buildDeskCheckItems([row()], DEFAULT_POLICY, NOW), ...buildApprovalItem(3, NOW)];
+    const today = queue;                       // CRM Today renders every item
+    const estimatesTab = estimatesPageItems(queue); // /estimates renders its subjects
+    expect(today.some((i) => i.kind === "desk_check" && i.subjectRef.id === "est-1")).toBe(true);
+    expect(estimatesTab.map((i) => i.key)).toEqual(today.filter((i) => i.kind === "desk_check").map((i) => i.key));
+    // The tab adds nothing of its own: every item it shows is in Today's list, verbatim.
+    for (const i of estimatesTab) expect(today).toContain(i);
+    // And it narrows only by subject — the campaign approval is Today's alone.
+    expect(estimatesTab.some((i) => i.kind === "approval_pending")).toBe(false);
+  });
+});

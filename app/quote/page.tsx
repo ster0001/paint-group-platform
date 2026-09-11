@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import QuoteBuilder from "./QuoteBuilder";
 import PackPane from "./PackPane";
+import EstimateStrip from "./EstimateStrip";
+import { loadPackBundle } from "./pack-load";
 import AssistantDrawer from "./AssistantDrawer";
 import { DEFAULT_COMPANY, type CompanyProfile, type Contact } from "./company";
 import { DEFAULT_INCLUSION_TEMPLATES, DEFAULT_EXCLUSION_TEMPLATES, INCLUSION_TEMPLATES_KEY, EXCLUSION_TEMPLATES_KEY, type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
@@ -221,6 +223,13 @@ export default async function QuotePage({
   const wizardState = (initial?.builder_state as { wizard?: { state?: unknown } } | null)?.wizard?.state;
   const hasWizard = wizardState != null && typeof wizardState === "object";
   const activeTab = hasWizard && tab === "pack" ? "pack" : "scope";
+  /**
+   * C7b — the pack, read ONCE. The strip above the tabs and the Pack tab both
+   * render this bundle, so the figures a person reads on the way in are the
+   * figures the pack shows when they open it. Only a wizard estimate has one.
+   */
+  const bundle = hasWizard && id ? await loadPackBundle(supabase, id) : null;
+  const strip = bundle ? <EstimateStrip bundle={bundle} /> : null;
   const estimateTabs = hasWizard && id ? (
     <div className="mx-auto flex max-w-6xl gap-1 border-b border-gray-200 px-6 pt-4" data-testid="estimate-tabs">
       <Link
@@ -245,11 +254,12 @@ export default async function QuotePage({
     </div>
   ) : null;
 
-  if (activeTab === "pack") {
+  if (activeTab === "pack" && bundle) {
     return (
       <>
+        {strip}
         {estimateTabs}
-        <PackPane id={id} />
+        <PackPane bundle={bundle} />
       </>
     );
   }
@@ -259,9 +269,11 @@ export default async function QuotePage({
   const builderKey = fingerprint(JSON.stringify(initial?.builder_state ?? null));
   return (
     <>
+    {strip}
     {estimateTabs}
     <QuoteBuilder
       key={builderKey}
+      provenanceEdges={hasWizard}
       initialView={initialView}
       backTo={backTo}
       rateCardId={effectiveCard?.id ?? null}
