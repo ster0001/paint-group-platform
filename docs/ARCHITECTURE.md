@@ -3322,7 +3322,14 @@ is caught rather than stranding the customer on the spinner (`WizardApp.tsx` `ru
 answers are all still in state, so send them back to retry"). What remains is that there is no
 CLIENT-side abort — the bound is the platform's, not ours. Parked, not fixed.
 
-Tests: `lib/wizard/draft-merge.test.ts` (15), `lib/wizard/draft-writers.test.ts` (3).
-`e2e/customer-journey/draft-versioning.spec.ts` is written but **unrun** — it needs `20270136` on
-the test project.
+Tests: `lib/wizard/draft-merge.test.ts` (15), `lib/wizard/draft-writers.test.ts` (3),
+`e2e/customer-journey/draft-versioning.spec.ts` (3, green on the C1 stack).
+
+**Two bugs the e2e caught that reasoning had not.** First, the cache is written 400 ms after a
+keystroke while the server confirms at 2.5 s+, so its version stamp always lagged by one save;
+`pickResume` read "the browser is behind" on a perfectly good copy and resumed from the server's
+older state. The cache now re-stamps when a save is confirmed. Second, `decodeResume` rebuilds the
+record field by field, so `version` and `lastScreen` were written to localStorage and silently
+dropped on the way back in — every other piece was in place and the refresh still resumed wrong.
+Both are the kind of thing only a real browser finds.
 

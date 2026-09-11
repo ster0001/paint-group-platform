@@ -57,6 +57,18 @@ export type ResumeRecord = {
    * those, which is what it always did.
    */
   version?: number;
+  /**
+   * C3 — `wizard_drafts.last_screen`, the screen they were actually on
+   * ("quick:place", "page:surfaces").
+   *
+   * The resume used to infer the screen from the state alone, via
+   * `entryFromState`, which keys on `state.quickLook`. That key only appears
+   * once the customer ANSWERS a quick-look question — so someone who typed an
+   * address, pressed Continue and closed the tab came back to the page set,
+   * with the banner cheerfully saying "you were at The place". The screen they
+   * were on is not something to infer when the server can simply record it.
+   */
+  lastScreen?: string | null;
 };
 
 export function encodeResume(r: Omit<ResumeRecord, "v">): string {
@@ -106,6 +118,13 @@ export function decodeResume(
     state: s,
     answered: { heritage: a.heritage === true, pre1970: a.pre1970 === true, asbestos: a.asbestos === true },
     addressText,
+    // C3 — both of these must survive the round trip. This function rebuilds
+    // the record field by field, so a new field that is not named here is
+    // silently dropped: the cache kept its version and its screen, and the
+    // decoder threw them away on the way back in. That is how the refresh test
+    // failed with every other piece already in place.
+    ...(typeof r.version === "number" ? { version: r.version } : {}),
+    ...(typeof r.lastScreen === "string" && r.lastScreen ? { lastScreen: r.lastScreen } : {}),
   };
 }
 
@@ -129,6 +148,8 @@ export type ServerDraftRow = {
   converted_at?: string | null;
   /** C3 — carried through so the client's first write has a predicate. */
   version?: number | null;
+  /** C3 — the screen they were on, so the resume does not have to infer it. */
+  last_screen?: string | null;
 };
 
 export function serverResumeFrom(row: ServerDraftRow | null | undefined, now: Date, maxAgeMs: number = RESUME_MAX_AGE_MS): Omit<ResumeRecord, "v"> | null {
@@ -149,6 +170,7 @@ export function serverResumeFrom(row: ServerDraftRow | null | undefined, now: Da
     answered: { heritage: furthest >= 2, pre1970: furthest >= 5, asbestos: furthest >= 5 },
     addressText: s.address?.formatted ?? "",
     ...(typeof row.version === "number" ? { version: row.version } : {}),
+    ...(row.last_screen ? { lastScreen: row.last_screen } : {}),
   };
 }
 

@@ -74,6 +74,14 @@ test("the draft route answers 409 rather than silently winning", async ({ contex
   await startAWalk(page, "Kew");
   await page.waitForTimeout(4000);
 
+  // Leave the wizard before driving the route by hand. Its autosave runs on a
+  // 2.5s debounce in the background, and a save landing between the SELECT and
+  // the UPDATE inside the route makes the FIRST post here 409 through no fault
+  // of the contract — which is a flaky test, not a finding. /login is the same
+  // origin, so the anonymous session (and therefore the draft) comes with us.
+  await page.goto("/login");
+  await page.waitForTimeout(1000);
+
   const post = async (version: number | null, suburb: string) => page.evaluate(async ({ version, suburb }) => {
     const res = await fetch("/api/wizard/draft", {
       method: "POST",
