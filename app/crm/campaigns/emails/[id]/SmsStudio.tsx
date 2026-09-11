@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { SMS_MAX_CHARS, SMS_OPT_OUT, renderSms, smsParts } from "@/lib/campaigns/sms";
 import { approveTemplate, saveSmsTemplate, sendTestSms } from "../../actions";
-import { TOKENS } from "@/lib/campaigns/personalise";
+import { TOKENS, exampleValues, fillTokens } from "@/lib/campaigns/personalise";
 
 /**
  * Writing a text (session: SMS in the campaign builder).
@@ -26,7 +26,10 @@ export default function SmsStudio({ id, initialName, initialBody, approvedAt, se
   const [approved, setApproved] = useState<string | null>(approvedAt);
   const [busy, start] = useTransition();
 
-  const rendered = useMemo(() => renderSms(body || " ", {
+  // Tokens filled with their examples — both so the bubble reads like a text
+  // rather than a template, and so the character count is the real one: a
+  // literal "{{first_name}}" is 14 characters that never leave.
+  const rendered = useMemo(() => renderSms(fillTokens(body || " ", exampleValues()), {
     estimateUrl: "https://paintgroup.com.au/e/their-estimate",
     accountUrl: "https://paintgroup.com.au/account",
   }), [body]);
@@ -91,7 +94,7 @@ export default function SmsStudio({ id, initialName, initialBody, approvedAt, se
         <p className="bhint">
           {cost.chars} characters · {cost.parts} text{cost.parts === 1 ? "" : "s"} per person
           {cost.unicode ? " — an emoji or smart quote is forcing the short 70-character parts" : ""}.
-          Links shown are samples; each person gets their own.
+          Links and names shown are samples; each person gets their own.
         </p>
       </div>
     </div>
