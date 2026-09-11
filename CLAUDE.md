@@ -18,6 +18,8 @@ These rules are mandatory for all work in this repo. If a task conflicts with a 
 - Bank/payment details: encrypted at rest, displayed masked, changes trigger a staff alert.
 - Cron and webhook endpoints require a shared-secret header check.
 - No secrets, keys, or real customer data in the repo, in seed scripts, or in test fixtures.
+- **A guard that cannot identify its target REFUSES. It never guesses, defaults, or infers.** Anything that decides "is this production?" — `e2e/global-setup.ts`, `scripts/seed-target.mjs`, `scripts/c1/env.mjs` — reads the project ref from the single environment variable `PRODUCTION_SUPABASE_REF`. A missing, blank or malformed value **stops the run**; so does a target URL whose project ref cannot be parsed (a custom domain hides it). No guard may hardcode a project ref, fall back to a pinned constant, or infer one from `.env.local` — a worktree has no `.env.local` (gitignored, lives in the main checkout), which is exactly how the tripwire was inert while 552 rows went into production `wizard_drafts`. Pinned by `lib/production-ref.test.ts`, which reads the source AND runs the guard.
+- **CI env vars are supplied, never defaulted.** No `${{ secrets.E2E_FOO || secrets.PRODUCTION_FOO }}`: a fallback means one deleted secret silently points the mutating e2e suite at production with the production service-role key, and a "check the secrets are present" step cannot see it, because the fallback already filled the value in. A missing secret fails the job.
 
 ## Reliability
 - TypeScript `strict: true`; `any` is banned (use `unknown` + narrowing). Lint and typecheck must pass before any commit.

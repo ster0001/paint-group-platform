@@ -85,6 +85,32 @@ jobs:
     name: e2e (test project)
     runs-on: ubuntu-latest
     needs: gate
+    # ONE e2e RUN AT A TIME, ACROSS THE WHOLE REPOSITORY (11 Sep 2026).
+    #
+    # The workflow-level group above is keyed on `github.ref`, so it only ever
+    # serialises runs on the SAME branch. Every branch got its own slot — and
+    # on 11 Sep seven ran at once against the single `t4g.nano` test project.
+    # Compute hit 98%, the gateway started cycling, `/auth/v1/signup` and even
+    # `/auth/v1/admin/users` timed out, and the project reported Unhealthy.
+    # Nothing was wrong with the data: the database is 623 MB on a 47%-used
+    # disk. It was seven browsers' worth of load on the smallest instance
+    # Supabase sells.
+    #
+    # This group is a CONSTANT, so it spans branches and pull requests: one
+    # e2e job runs, the rest queue. `cancel-in-progress: false` on purpose —
+    # cancelling would silently drop coverage for the branch that lost the
+    # race, which is how main went red for three merges without anyone
+    # noticing.
+    concurrency:
+      group: e2e-test-project
+      cancel-in-progress: false
+    env:
+      # WHAT IS PRODUCTION — supplied, never inferred and never defaulted.
+      # A project ref is not a secret (it is in every public URL the app
+      # serves); the guards in e2e/global-setup.ts, scripts/seed-target.mjs and
+      # scripts/c1/env.mjs REFUSE TO RUN without it. Supplying it here is not a
+      # fallback: it is the one place the value is stated.
+      PRODUCTION_SUPABASE_REF: llmrvgdequpmzzuaxdhq
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -105,9 +131,9 @@ jobs:
       # `environment:`, so environment secrets are invisible to it.
       - name: Check the e2e secrets are configured
         env:
-          E2E_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          E2E_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY || secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          E2E_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          E2E_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          E2E_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
+          E2E_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
           E2E_STAFF_EMAIL: ${{ secrets.E2E_STAFF_EMAIL }}
           E2E_STAFF_PASSWORD: ${{ secrets.E2E_STAFF_PASSWORD }}
           E2E_CONTRACTOR_EMAIL: ${{ secrets.E2E_CONTRACTOR_EMAIL }}
@@ -142,8 +168,8 @@ jobs:
 
       - name: Build (test stack env baked in, as a deploy would)
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY || secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_SITE_URL: http://localhost:3101
         run: npm run build
 
@@ -156,9 +182,9 @@ jobs:
           # Throwaway, runner-only: the abandon-sweep journey calls the cron
           # route, which needs SOME shared secret. Never a real one here.
           CRON_SECRET: e2e-runner-cron-secret
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY || secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
           E2E_STAFF_EMAIL: ${{ secrets.E2E_STAFF_EMAIL }}
           E2E_STAFF_PASSWORD: ${{ secrets.E2E_STAFF_PASSWORD }}
           E2E_CONTRACTOR_EMAIL: ${{ secrets.E2E_CONTRACTOR_EMAIL }}

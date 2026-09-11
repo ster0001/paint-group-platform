@@ -1,6 +1,3 @@
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
 /**
  * Runs once before any spec, from EVERY entry point — `npm run test:e2e`,
  * a bare `npx playwright test`, an IDE run, CI.
@@ -38,37 +35,54 @@ import { resolve } from "node:path";
  *   credential is a failed run, not a quiet pass.
  */
 
-function parseEnvFile(path: string): Record<string, string> {
-  if (!existsSync(path)) return {};
-  const out: Record<string, string> = {};
-  for (const line of readFileSync(path, "utf8").split("\n")) {
-    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-    if (m) out[m[1]] = m[2].replace(/^["']|["']$/g, "");
-  }
-  return out;
-}
+export const PRODUCTION_REF_VAR = "PRODUCTION_SUPABASE_REF";
 
 /**
- * The production project ref.
+ * WHAT IS PRODUCTION? — named once, by the environment, and never guessed.
  *
- * MUST match PRODUCTION_REF in scripts/seed-target.mjs — `e2e/production-ref.test.ts`
- * fails if the two drift. Two guards disagreeing about what production IS would
- * be worse than one guard.
+ * This has been wrong twice, in opposite directions, and both are why it now
+ * looks like this:
  *
- * Why a constant and not just .env.local (11 Sep 2026): this read ONLY
- * `.env.local` at process.cwd(), and a git worktree does not have one — that
- * file is gitignored and lives in the main checkout. So in every worktree,
- * which is how this repo is actually worked, `productionRef()` returned null
- * and A1-07 was INERT: the tripwire that exists to refuse production could not
- * tell what production was, and let everything through in silence. A guard that
- * fails open when it cannot identify its target is not a guard.
+ *   1. It read ONLY `.env.local` at process.cwd(). A git worktree has no
+ *      `.env.local` (gitignored, lives in the main checkout), so in every
+ *      worktree — which is how this repo is actually worked — it resolved to
+ *      null and A1-07 was INERT. A guard that cannot identify its target and
+ *      carries on is not a guard.
+ *
+ *   2. The fix for that was a pinned constant as a fallback. That made the
+ *      guard's answer depend on which of two sources happened to win, and it
+ *      still inferred "production" from `.env.local` first. On 11 Sep a
+ *      worktree whose `.env.local` held the TEST project was told its own test
+ *      stack WAS production and every e2e run was refused. The guard was now
+ *      wrong in the safe direction, which is luck, not design.
+ *
+ * So: one explicitly named variable, and NO fallback of any kind. Unset,
+ * blank, or not shaped like a project ref all REFUSE THE RUN. Failing closed
+ * costs a one-line export; failing open cost 552 rows in production
+ * `wizard_drafts`.
+ *
+ * It is not a secret — a project ref appears in every public URL the app
+ * serves — so it belongs in `.env.test.local`, `.env.local` and the CI
+ * workflow's plain `env:` block, beside the values it protects.
  */
-const PRODUCTION_REF = "llmrvgdequpmzzuaxdhq";
-
-/** The production project ref — the local file when there is one, else the constant. */
 function productionRef(): string {
-  const url = parseEnvFile(resolve(process.cwd(), ".env.local")).NEXT_PUBLIC_SUPABASE_URL ?? "";
-  return url.match(/https:\/\/([a-z0-9]+)\.supabase\.co/)?.[1] ?? PRODUCTION_REF;
+  const ref = (process.env[PRODUCTION_REF_VAR] ?? "").trim();
+  if (!/^[a-z0-9]{20}$/.test(ref)) {
+    throw new Error(
+      `REFUSED: ${PRODUCTION_REF_VAR} is ${ref ? `not a project ref (${ref})` : "not set"}.\n\n` +
+        "e2e cannot tell which project is production, so it will not run at all —\n" +
+        "these specs create, mutate and delete rows.\n\n" +
+        "FIX: load a project env file — both carry the variable:\n\n" +
+        "    set -a; source .env.test.local; set +a\n\n" +
+        "IF YOU JUST MADE A WORKTREE: it has no .env.local or .env.test.local.\n" +
+        "Both are gitignored and live in the main checkout — copy them across:\n\n" +
+        "    cp ../paint-group-platform/.env.test.local .\n\n" +
+        "IN CI: it is a plain `env:` value on the e2e job in .github/workflows/ci.yml.\n\n" +
+        "The value is the PRODUCTION project's ref, the 20 characters in its\n" +
+        "Supabase dashboard URL (/dashboard/project/<ref>). It is not a secret.\n",
+    );
+  }
+  return ref;
 }
 
 const REQUIRED_IN_CI = [
