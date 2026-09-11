@@ -16,6 +16,8 @@ import OnlineEstimatesSettings from "./OnlineEstimatesSettings";
 import AccessAllowancesSettings from "./AccessAllowancesSettings";
 import { EXTERIOR_ALLOWANCES_KEY, exteriorAllowancesFrom } from "@/lib/wizard/exterior-allowances";
 import { SITE_ACCESS_HOURS_KEY, hourAllowancesFrom } from "@/lib/wizard/site-access";
+import TiersSettings from "./TiersSettings";
+import { bandsFromSettings, policyFromSettings } from "@/lib/wizard/policy";
 import { onlineEstimatesFrom, WIZARD_PUBLIC_KEY } from "@/lib/wizard/publicFlag";
 import PaintSystemsSettings from "./PaintSystemsSettings";
 import { PAINT_SYSTEMS_KEY, paintSystemsFrom } from "@/lib/pricing/systems";
@@ -160,6 +162,12 @@ export default async function SettingsPage() {
   const exteriorAccess = exteriorAllowancesFrom(allSettings.find((r) => r.key === EXTERIOR_ALLOWANCES_KEY)?.value);
   const interiorAccess = hourAllowancesFrom(allSettings.find((r) => r.key === SITE_ACCESS_HOURS_KEY)?.value);
   const paintSystems = paintSystemsFrom(allSettings.find((r) => r.key === PAINT_SYSTEMS_KEY)?.value);
+  // C1 (audit 9.2): the thresholds and caps were SQL-only until now, and a
+  // second dead copy of the caps sat in scope_editor. One ladder reads these.
+  const tiers = {
+    bands: bandsFromSettings(allSettings.find((r) => r.key === "wizard_bands")?.value),
+    policy: policyFromSettings(allSettings.find((r) => r.key === "wizard_policy")?.value),
+  };
   // Settings → Automations: the one wo_loop key the office can flip here.
   const variationRelease = ((allSettings.find((r) => r.key === "wo_loop")?.value as { variationRelease?: string } | undefined)?.variationRelease === "pc") ? "pc" as const : "auto" as const;
 
@@ -273,6 +281,8 @@ export default async function SettingsPage() {
           content: <OnlineEstimatesSettings initial={onlineEstimates} /> },
         { id: "paint-systems", title: "Paint systems", subtitle: "The coats and preparation we derive for each surface — walls, ceilings, trims, doors, windows — from the customer's colour intent and the condition. The customer is never asked to pick coats.",
           content: <PaintSystemsSettings initial={paintSystems} /> },
+        { id: "tiers", title: "Accuracy tiers & online cap", subtitle: `Detailed from ${tiers.bands.midMin}% · Confirmed from ${tiers.bands.tightMin}% · online cap $${Math.round(tiers.policy.interiorSelfServeCapCents / 100).toLocaleString("en-AU")} inside`,
+          content: <TiersSettings initial={tiers} /> },
         { id: "estimate-templates", title: "Estimate templates", subtitle: "Reusable starting points for new estimates", count: templates.length,
           content: <TemplatesManager initial={templates} /> },
         { id: "included-templates", title: "What's included templates", subtitle: "Reusable inclusion lists applied from the estimate builder", count: inclusionTemplates.length,

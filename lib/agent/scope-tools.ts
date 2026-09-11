@@ -11,13 +11,11 @@
 
 import { editorPayload } from "@/lib/wizard/view";
 import { loopConfirmState } from "@/lib/wizard/confirm-state";
+import { ladderFor } from "@/lib/wizard/ladder";
 import { adjustmentsFrom } from "@/lib/pricing/context";
 import { chargeOutCents, priceEstimateTotals, type BlockInput } from "@/lib/pricing/estimate";
-import {
-  GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails, policyFromSettings,
-  rangeBandPct, rangeFromTotal, serviceAreaFromSettings, settingValue,
-} from "@/lib/wizard/policy";
-import { visitReason } from "@/lib/wizard/sides";
+import { GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails, policyFromSettings, rangeBandPct, rangeFromTotal, serviceAreaFromSettings, settingValue } from "@/lib/wizard/policy";
+import { type VisitReason } from "@/lib/wizard/sides";
 import { substrateKeyForRateCode } from "@/lib/estimate/substrates";
 import { CUPBOARD_INTERIOR_BY_ROOM_TYPE, applyCupboardInterior, type LooseBlock as RoomBlock } from "@/lib/wizard/rooms-loop";
 import { gapsFor, nextGap } from "./question-graph";
@@ -438,28 +436,33 @@ export function assumptionSwings(doc: ScopeDoc, deps: ScopeDeps): Record<string,
 
 export function checkThresholds(doc: ScopeDoc, deps: ScopeDeps) {
   const p = priced(doc, deps);
-  const flags = (settingValue(deps.ctx.settings, "scope_editor") ?? {}) as { selfServeInteriorCapCents?: number; selfServeExteriorCapCents?: number; selfServeMinAccuracy?: number };
+  // ONE ladder (C1): the decision already carries the
+  // caps and the bar from wizard_policy; the numbers below are for the words.
+  const policy = policyFromSettings(settingValue(deps.ctx.settings, "wizard_policy"));
   const hasExterior = p.blocks.some((b) => b.kind === "area" && b.type === "Exterior");
-  const cap = hasExterior ? (flags.selfServeExteriorCapCents ?? 1_200_000) : (flags.selfServeInteriorCapCents ?? 600_000);
-  const minAcc = flags.selfServeMinAccuracy ?? (hasExterior ? 85 : 90);
-  const mid = (p.range.loCents + p.range.hiCents) / 2;
+  const cap = hasExterior ? policy.exteriorSelfServeCapCents : policy.interiorSelfServeCapCents;
+  const minAcc = hasExterior ? policy.exteriorSelfServeMinAccuracyPct : policy.interiorSelfServeMinAccuracyPct;
   if (p.decision.outcome !== "reveal") {
-    return { outcome: "visit" as const, reasons: [GUARDRAIL_MESSAGES[p.decision.outcome] ?? GUARDRAIL_MESSAGES.handoff], accuracyPct: p.payload.accuracyPct, minAccuracyPct: minAcc, capCents: cap, guardrail: p.decision.outcome };
+    return { outcome: "visit" as const, tier: "guide" as const, reasons: [GUARDRAIL_MESSAGES[p.decision.outcome] ?? GUARDRAIL_MESSAGES.handoff], accuracyPct: p.payload.accuracyPct, minAccuracyPct: minAcc, capCents: cap, guardrail: p.decision.outcome };
   }
-  const selfServe = p.decision.canAccept && !p.decision.walkthroughRequired && p.payload.accuracyPct >= minAcc && mid <= cap;
+  const wiz = docWizard(doc);
+  const ladder = ladderFor({
+    accuracyPct: p.payload.accuracyPct, decision: p.decision, bands: bandsFromSettings(settingValue(deps.ctx.settings, "wizard_bands")),
+    sidesMeta: p.sides ?? docSides(doc), deferred: p.deferred, hasExterior,
+    hasPlan: (wiz?.planRunIds?.length ?? 0) > 0 || Boolean(wiz?.listingUrl?.trim()),
+    pendingAreas: [...loopConfirmState(p.blocks, docInterior(doc), p.sides ?? docSides(doc)).states.values()].filter((v) => v === "pending").length,
+    visitSlots: [],
+  });
   const reasons: string[] = [];
-  if (!selfServe) {
-    if (p.payload.accuracyPct < minAcc) reasons.push(`A few details are still assumed — the estimate is ${Math.round(p.payload.accuracyPct)}% settled and ${minAcc}% is needed to accept online.`);
-    if (mid > cap) reasons.push(`It's over the online limit of $${(cap / 100).toLocaleString("en-AU")}, so a short visit confirms the price.`);
-    if (p.decision.walkthroughRequired || !p.decision.canAccept) {
-      const why = visitReason(p.sides ?? docSides(doc), p.deferred);
-      reasons.push(VISIT_WORDING[why]);
-    }
+  if (!ladder.selfServe) {
+    if (p.decision.reasons.includes("accuracy_below_bar")) reasons.push(`A few details are still assumed — the estimate is ${Math.round(p.payload.accuracyPct)}% settled and ${minAcc}% is needed to accept online.`);
+    if (p.decision.reasons.includes("over_self_serve_cap")) reasons.push(`It's over the online limit of $${(cap / 100).toLocaleString("en-AU")}, so a short visit confirms the price.`);
+    if (ladder.reason) reasons.push(VISIT_WORDING[ladder.reason]);
   }
-  return { outcome: selfServe ? ("self_serve" as const) : ("visit" as const), reasons, accuracyPct: p.payload.accuracyPct, minAccuracyPct: minAcc, capCents: cap, guardrail: "reveal" };
+  return { outcome: ladder.selfServe ? ("self_serve" as const) : ("visit" as const), tier: ladder.tier, nextUnlock: ladder.nextUnlock, reasons, accuracyPct: p.payload.accuracyPct, minAccuracyPct: minAcc, capCents: cap, guardrail: "reveal" };
 }
 
-const VISIT_WORDING: Record<ReturnType<typeof visitReason>, string> = {
+const VISIT_WORDING: Record<VisitReason, string> = {
   custom: "Something you named needs a look on site before it can be priced.",
   peeling: "Peeling paint needs eyes on it before we fix a price.",
   rot: "Rot needs eyes on it before we fix a price.",

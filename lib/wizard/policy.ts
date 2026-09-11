@@ -290,9 +290,22 @@ export function evaluateGuardrails(
   // (never an online accept), not a dead end — now that nothing is
   // pre-selected, honest people pick it, and a person on site settles it.
   // asbestos YES and lead_paint_possible stay hard for everyone.
+  //
+  // Audit 9.5: the SAME site asked two ways produced two different outcomes.
+  // The kind question pushes `commercial_strata` (:277); the segment question
+  // pushes `commercial_gate_strata` (:272, from ALWAYS_APPOINTMENT in
+  // commercial.ts). Only the first was soft for a trade actor, so a trade
+  // customer who answered the segment question got a hard hand-off and one who
+  // answered the kind question did not. The gate names join the set.
+  //
+  // Only the two SEGMENT-driven gates join it — healthcare and strata are
+  // "what sort of site is this", the same class of answer as the kind question.
+  // The other four (height, equipment, hours, stages) come from the customer's
+  // own answers about physical conditions, and those need a person whoever is
+  // asking: a boom lift costs the same on a trade account.
   const softForActor = new Set(
     tradeActor
-      ? ["heritage_unsure", "asbestos_unsure", "heritage_listed", "commercial_property", "commercial_small", "commercial_large", "commercial_strata", "body_corporate"]
+      ? ["heritage_unsure", "asbestos_unsure", "heritage_listed", "commercial_property", "commercial_small", "commercial_large", "commercial_strata", "commercial_gate_strata", "commercial_gate_healthcare", "body_corporate"]
       : ["heritage_unsure", "asbestos_unsure", "commercial_small"],
   );
   const hardReasons = reasons.filter((r) => !softForActor.has(r));
@@ -317,7 +330,12 @@ export function evaluateGuardrails(
   // double storey, peeling, rot, custom surfaces and flags all set it).
   // A mixed interior+exterior job is always the visit tier. Never a blocked
   // state — the visit tier is an offer with the calendar right there.
-  const softReasons = reasons; // e.g. heritage_unsure — noted for staff, not blocking
+  // A COPY, not an alias. Everything below pushes onto softReasons, and `reasons`
+  // is still read afterwards (:346) — sharing the array makes "what the customer
+  // told us" and "what the ladder added" the same list, so a later read cannot
+  // tell them apart. Nothing today depends on the difference; this stops the
+  // next thing that does from being wrong quietly.
+  const softReasons = [...reasons]; // e.g. heritage_unsure — noted for staff, not blocking
   let walkthrough = requiresSiteCheck;
   // An unsure asbestos answer is settled by a person on site, never online.
   if (reasons.includes("asbestos_unsure")) walkthrough = true;
