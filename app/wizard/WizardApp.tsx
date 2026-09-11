@@ -17,6 +17,16 @@ import {
   type WizardState,
   type WizardSurfaceKey,
 } from "@/lib/wizard/state";
+import { mergeDraftState } from "@/lib/wizard/draft-merge";
+
+/** What /api/wizard/draft hands back on a 409 (C3) — the server's copy, so the
+ *  losing write can merge instead of guessing. */
+type DraftConflict = {
+  version?: number;
+  state?: Record<string, unknown>;
+  lastScreen?: string | null;
+  page?: number | null;
+};
 import { defaultSurfacesFor, type SubstrateGroups } from "@/lib/estimate/substrates";
 import { captureTouch, readAttribution } from "@/lib/crm/attributionClient";
 import {
@@ -43,7 +53,7 @@ import {
   type ExteriorSubstrate, type ExteriorTarget,
 } from "@/lib/wizard/exterior-quick-look";
 import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
-import { RESUME_KEY, RESTART_KEY, decodeResume, encodeResume, restartedSince, resumeLine, type ResumeRecord, type SafetyAnswered } from "@/lib/wizard/resume";
+import { RESUME_KEY, RESTART_KEY, decodeResume, encodeResume, restartedSince, resumeLine, type ResumeRecord, type SafetyAnswered, pickResume } from "@/lib/wizard/resume";
 import Wordmark from "./Wordmark";
 import ChatWidget from "./ChatWidget";
 import {
@@ -422,8 +432,17 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       // The server copy (any device) vs the browser copy — whichever is newer;
       // a server copy from before a "Start again" on this device is not a resume.
       const server = resume && !restartedSince(resume.savedAt, restartedAt) && !(intent?.addressText && (resume.addressText || resume.state.customer?.suburb) && !decodeResume(encodeResume(resume), new Date(), { incomingAddress: intent.addressText })) ? resume : null;
-      const r = local && server ? (new Date(local.savedAt) >= new Date(server.savedAt) ? local : server) : (local ?? server);
+      // C3: decided by the server's version counter, not by comparing two
+      // clocks on two devices — see pickResume.
+      const { pick: r, from } = pickResume(local, server);
       if (!r) return;
+      // Whichever copy we took, its version is what the next write is against.
+      draftVersionRef.current = (r as { version?: number }).version ?? null;
+      draftBaseRef.current = r.state as unknown as Record<string, unknown>;
+      if (from === "server") {
+        // The browser cache was behind. Replace it so the two agree from here.
+        try { localStorage.setItem(RESUME_KEY, encodeResume(r)); } catch { /* private mode */ }
+      }
       setState(r.state);
       setAnswered(r.answered);
       setEntry(entryFromState(r.state));
@@ -912,6 +931,18 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   // database — the older one, slower because it priced the draft, landed
   // after the newer one and wiped the email the person had just typed
   // (CI run #105). The newest body waits for the one in flight, then goes.
+  /**
+   * C3 — one server truth. `draftVersionRef` is the version the server last
+   * confirmed; every write carries it so a stale tab loses the race loudly
+   * instead of erasing the winner. `draftBaseRef` is the state that version
+   * represents — the common ancestor a 409 merge needs, because "the server
+   * changed it" and "I changed it" are only distinguishable against what both
+   * sides last agreed on.
+   */
+  const draftVersionRef = useRef<number | null>(null);
+  const draftBaseRef = useRef<Record<string, unknown> | null>(null);
+  /** Set below, once `state` and `setState` are in scope for the merge. */
+  const onDraftConflictRef = useRef<((server: DraftConflict) => void) | null>(null);
   const inFlightRef = useRef(false);
   const queuedRef = useRef<string | null>(null);
   const queueDraftSave = useCallback(function send(body: string) {
@@ -922,6 +953,17 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       headers: { "Content-Type": "application/json" },
       body,
       keepalive: true,
+    }).then(async (res) => {
+      // C3: 409 is the ONE non-200 this route answers, and it is not an error
+      // the customer should ever see — somebody else wrote first, and the
+      // server has handed back its copy so we can merge rather than guess.
+      if (res.status === 409) {
+        const server = await res.json().catch(() => null) as DraftConflict | null;
+        if (server) onDraftConflictRef.current?.(server);
+        return;
+      }
+      const j = await res.json().catch(() => null) as { version?: number } | null;
+      if (typeof j?.version === "number") draftVersionRef.current = j.version;
     }).catch(() => {}).finally(() => {
       inFlightRef.current = false;
       const next = queuedRef.current;
@@ -946,6 +988,44 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const addressText = (state.address as { formatted?: string } | null | undefined)?.formatted?.trim()
     || state.title.trim() || intent?.addressText?.trim() || "";
   const sessionWorthSaving = page > 1 || Boolean(addressText) || Boolean((state.customer?.suburb ?? "").trim());
+  /**
+   * C3 — where they actually are, as a word rather than a number. The funnel
+   * keeps current_page/furthest_page; this is what a staff member reads when
+   * they open a live session and the customer is still in it, and what the
+   * resume lands on. The quick look's own step names are the honest answer
+   * there; the page set falls back to its page key.
+   */
+  const lastScreen = screen === "processing"
+    ? "processing"
+    : quickActive
+      ? `quick:${stepsFor(quick.jobType)[Math.min(Math.max(page, 1), stepsFor(quick.jobType).length) - 1]}`
+      : `page:${pageKeys[Math.min(page, pageKeys.length) - 1] ?? page}`;
+
+  /**
+   * C3 — the 409 merge. Somebody else wrote first; the server handed back its
+   * copy. Merge it against the state this client last saved, adopt the server's
+   * version so the next write is against reality, and carry on. The customer is
+   * told nothing: they have done nothing wrong and are probably mid-sentence.
+   * `draft-merge.ts` owns the rule — server for what I have not touched, mine
+   * for what I have, and a confirmation is never withdrawn.
+   */
+  useEffect(() => {
+    onDraftConflictRef.current = (server) => {
+      if (typeof server.version === "number") draftVersionRef.current = server.version;
+      const theirs = server.state;
+      if (!theirs || typeof theirs !== "object") return;
+      setState((current) => {
+        const base = draftBaseRef.current ?? (current as unknown as Record<string, unknown>);
+        const { state: merged } = mergeDraftState(base, current as unknown as Record<string, unknown>, theirs);
+        return merged as unknown as WizardState;
+      });
+      // The merged state is what the next write is against; the effect above
+      // re-derives the body and sends it with the server's version.
+      savedRef.current = "";
+    };
+    return () => { onDraftConflictRef.current = null; };
+  }, []);
+
   useEffect(() => {
     if (!isCustomer) return;
     if (draftHaltRef.current) return;
@@ -956,23 +1036,43 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       ...(intent?.mode ? { mode: intent.mode } : {}),
       entrySource: intent?.entrySource || "direct",
       ...(addressText ? { address: addressText.slice(0, 250) } : {}),
+      // C3: the version this write is against, and where they actually are.
+      ...(draftVersionRef.current != null ? { version: draftVersionRef.current } : {}),
+      lastScreen,
     });
     if (body === savedRef.current) return;
 
     const t = setTimeout(() => {
       if (draftHaltRef.current) return;
       savedRef.current = body;
+      // The state this write claims — and therefore the ancestor a later 409
+      // merges against. Captured BEFORE the request, because the customer keeps
+      // typing while it is in flight.
+      draftBaseRef.current = state as unknown as Record<string, unknown>;
       queueDraftSave(body);
     }, 2500);
     return () => clearTimeout(t);
-  }, [state, page, lastPage, isCustomer, sessionWorthSaving, addressText, intent?.mode, intent?.entrySource, queueDraftSave]);
+  }, [state, page, lastPage, isCustomer, sessionWorthSaving, addressText, intent?.mode, intent?.entrySource, queueDraftSave, lastScreen]);
 
-  // Phase 1: the same-device copy, written a beat after every change.
+  /**
+   * The same-device copy, written a beat after every change.
+   *
+   * C3 — this is a CACHE of the server draft, not a third truth. It carries the
+   * version it is based on, so `pickResume` can tell "the server's copy plus a
+   * few seconds of typing" from "a copy that never saw the other tab's work"
+   * without comparing two devices' clocks. It is still written eagerly rather
+   * than only on server confirmation, because the 2.5-second autosave debounce
+   * would otherwise lose the last keystrokes to a hard refresh — but it can no
+   * longer WIN against a server copy that has moved on.
+   */
   useEffect(() => {
     if (!isCustomer || screen !== "pages" || !sessionWorthSaving || draftHaltRef.current) return;
     const t = setTimeout(() => {
       try {
-        localStorage.setItem(RESUME_KEY, encodeResume({ savedAt: new Date().toISOString(), page, state, answered, addressText }));
+        localStorage.setItem(RESUME_KEY, encodeResume({
+          savedAt: new Date().toISOString(), page, state, answered, addressText,
+          ...(draftVersionRef.current != null ? { version: draftVersionRef.current } : {}),
+        }));
       } catch { /* private mode, full storage — the server autosave still runs */ }
     }, 400);
     return () => clearTimeout(t);

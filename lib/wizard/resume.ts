@@ -43,6 +43,20 @@ export type ResumeRecord = {
   answered: SafetyAnswered;
   /** The address as typed (the structured pick lives in state.address). */
   addressText: string;
+  /**
+   * C3 — the `wizard_drafts.version` this copy is based on, when it is known.
+   *
+   * Before C3 the browser copy and the server copy were reconciled by comparing
+   * `savedAt` timestamps, which made the browser a THIRD truth: two devices with
+   * skewed clocks would pick the wrong winner, and neither would notice. The
+   * version is the server's own counter, so "who is ahead" stops being a
+   * question about clocks.
+   *
+   * Absent means "written before C3, or written between a keystroke and the
+   * first server confirmation" — the resume falls back to the timestamp rule for
+   * those, which is what it always did.
+   */
+  version?: number;
 };
 
 export function encodeResume(r: Omit<ResumeRecord, "v">): string {
@@ -113,6 +127,8 @@ export type ServerDraftRow = {
   furthest_page?: number | null;
   last_seen_at?: string | null;
   converted_at?: string | null;
+  /** C3 — carried through so the client's first write has a predicate. */
+  version?: number | null;
 };
 
 export function serverResumeFrom(row: ServerDraftRow | null | undefined, now: Date, maxAgeMs: number = RESUME_MAX_AGE_MS): Omit<ResumeRecord, "v"> | null {
@@ -132,5 +148,54 @@ export function serverResumeFrom(row: ServerDraftRow | null | undefined, now: Da
     state: s,
     answered: { heritage: furthest >= 2, pre1970: furthest >= 5, asbestos: furthest >= 5 },
     addressText: s.address?.formatted ?? "",
+    ...(typeof row.version === "number" ? { version: row.version } : {}),
   };
 }
+
+/**
+ * Which copy resumes — C3.
+ *
+ * Before C3 this was `new Date(local.savedAt) >= new Date(server.savedAt)`:
+ * two clocks, on two devices, deciding which half-finished quote a customer
+ * gets back. Clock skew picked the loser silently and there was no way to tell
+ * afterwards. `wizard_drafts.version` is the server's own counter, so the
+ * question stops being about time.
+ *
+ *   · same version — the browser copy is the server's, plus whatever was typed
+ *     in the seconds before the last autosave landed. It wins: it is a superset.
+ *   · browser behind — the server has writes this device never saw (the other
+ *     tab, the other phone, a staff member in an assisted session). The server
+ *     wins. Anything typed here on the older ancestor is given up deliberately
+ *     rather than merged blind, because there is no common ancestor to merge
+ *     against at this point in the load and a wrong merge is worse than a
+ *     resume the customer can see is behind.
+ *   · no version on either side — a cache written before C3. Fall back to the
+ *     old timestamp rule, which is what those copies were written under.
+ *
+ * Returns which one, so the caller can adopt its version for the next write.
+ */
+export function pickResume<T extends { savedAt: string; version?: number }>(
+  local: T | null,
+  server: T | null,
+): { pick: T | null; from: "local" | "server" | "none"; why: string } {
+  if (!local && !server) return { pick: null, from: "none", why: "nothing to resume" };
+  if (!local) return { pick: server, from: "server", why: "no browser copy" };
+  if (!server) return { pick: local, from: "local", why: "no server copy" };
+
+  if (typeof local.version === "number" && typeof server.version === "number") {
+    if (local.version === server.version) {
+      return { pick: local, from: "local", why: "same version — the browser copy is the server's plus unsaved edits" };
+    }
+    if (local.version < server.version) {
+      return { pick: server, from: "server", why: `browser copy is behind (v${local.version} < v${server.version})` };
+    }
+    // A client cannot invent a version ahead of the server; treat it as local.
+    return { pick: local, from: "local", why: "browser copy claims a newer version" };
+  }
+
+  const newer = new Date(local.savedAt) >= new Date(server.savedAt);
+  return newer
+    ? { pick: local, from: "local", why: "pre-C3 copy, newer by timestamp" }
+    : { pick: server, from: "server", why: "pre-C3 copy, older by timestamp" };
+}
+

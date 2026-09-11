@@ -3273,3 +3273,56 @@ landed true either way.
 Tests: `lib/wizard/site-check.test.ts` (19). Mutation-checked — dropping the condition-photo clause
 fails six of them, dropping the stored-column OR fails one.
 
+## One server truth for a part-finished walk — C3 (11 Sep 2026)
+
+`wizard_drafts` autosaved last-write-wins. `/api/wizard/draft` read the open row and wrote the
+whole state back, so two tabs on one anonymous session — a laptop and the phone beside it, or a
+staff member joining through `wizard_assist_patch` — meant the later write erased the earlier one.
+Nobody saw it happen: the route is best-effort by design and answered 200 either way.
+
+**`wizard_drafts.version`** (migration `20270136`) makes the write conditional. The client sends
+the version it read; the update carries `where version = <that>` and bumps it. Zero rows updated
+means somebody moved first, and the route answers **409 with the server's copy** — the one
+non-200 it returns, and one the customer must never see as an error. A database trigger refuses a
+version that goes backwards, so a stale client cannot rewind it inside an otherwise valid write.
+
+**`lib/wizard/draft-merge.ts`** decides what the customer ends up with. It is a THREE-way merge:
+`base` (what I last saved), `mine` (what is on screen), `theirs` (the server's). A field I have
+not touched takes theirs; a field I am editing stays mine; and **a confirmation is never withdrawn
+by a merge** — `done.*` and `answered.*` booleans are ORed, because a confirmation is a person
+positively saying "yes, that's right" and losing one silently would re-ask a question they already
+answered. Arrays are taken whole rather than spliced: a room list is ordered and self-referencing,
+and merging two versions element-wise would produce a tree neither side ever saw.
+
+**localStorage stops being a third truth.** It was reconciled with the server copy by comparing
+`savedAt` timestamps — two clocks, on two devices, deciding which half-finished quote a customer
+gets back, with skew picking the loser silently. The cache now carries the version it is based on
+and `pickResume` (`lib/wizard/resume.ts`) uses that instead: same version means the browser copy is
+the server's plus a few seconds of typing and wins; behind means the server has writes this device
+never saw and the server wins. It is still written eagerly, because only writing on server
+confirmation would lose the last keystrokes to a hard refresh — but it can no longer WIN against a
+server copy that has moved on.
+
+**`last_screen`** is where they actually are, as a word — `quick:condition`, `page:rooms`. The
+funnel keeps `current_page`/`furthest_page` as numbers; this is what staff read when they open a
+live session with the customer still in it.
+
+**One writer of `state`.** Every other path that touches `wizard_drafts` — the conversion at
+submit, the keep route's email, the outcome route, the assist patch, the nightly sweep — writes
+lifecycle columns only, and a version predicate there would produce spurious failures without
+protecting anything. `lib/wizard/draft-writers.test.ts` pins that by reading the source: a second
+writer of `state` fails the suite. It is an unusual test and a deliberate one — the invariant is
+about which files exist, not about what a function returns.
+
+**A1b is closed.** The "26-second silent wait" does not resolve as a finding anywhere in the repo,
+but the phenomenon is checkable and addressed on all three counts: the wait is not silent
+(`app/wizard/WizardApp.tsx` renders step ticks, a moving bar and rotating tips while the AI works),
+it is bounded (`app/api/wizard/submit/route.ts` sets `maxDuration = 60`), and a dropped connection
+is caught rather than stranding the customer on the spinner (`WizardApp.tsx` `runSubmit`, "their
+answers are all still in state, so send them back to retry"). What remains is that there is no
+CLIENT-side abort — the bound is the platform's, not ours. Parked, not fixed.
+
+Tests: `lib/wizard/draft-merge.test.ts` (15), `lib/wizard/draft-writers.test.ts` (3).
+`e2e/customer-journey/draft-versioning.spec.ts` is written but **unrun** — it needs `20270136` on
+the test project.
+
