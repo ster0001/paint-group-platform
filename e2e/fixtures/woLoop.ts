@@ -154,8 +154,30 @@ export async function destroyLoopFixture(db: SupabaseClient, fixture: LoopFixtur
   );
   // Everything else cascades from the estimate.
   const { error } = await db.from("estimates").delete().eq("id", fixture.estimateId);
-  // A leak is a bug in the spec, not a shrug — fail loudly so it gets fixed.
-  if (error) throw new Error(`fixture leak: estimate ${fixture.estimateId} not deleted — ${error.message}`);
+  /**
+   * A leak is a bug in the spec, not a shrug — fail loudly so it gets fixed.
+   *
+   * But say WHERE. Every delete above ran unchecked, so when one of them failed
+   * this line blamed the estimate and named a foreign key three steps removed
+   * from the actual problem ("invoices_estimate_id_fkey" when the invoices
+   * delete itself had errored). A teardown that misreports its own cause sends
+   * the next person to the wrong file.
+   */
+  if (error) {
+    const upstream: string[] = [];
+    for (const [label, q] of [
+      ["invoices", db.from("invoices").select("id", { count: "exact", head: true }).eq("estimate_id", fixture.estimateId)],
+      ["contractor_invoices", db.from("contractor_invoices").select("id", { count: "exact", head: true }).eq("work_order_id", fixture.workOrderId)],
+      ["job_costs", db.from("job_costs").select("id", { count: "exact", head: true }).eq("work_order_id", fixture.workOrderId)],
+    ] as const) {
+      const { count } = await q;
+      if (count) upstream.push(`${label}: ${count} row(s) still there`);
+    }
+    throw new Error(
+      `fixture leak: estimate ${fixture.estimateId} not deleted — ${error.message}`
+      + (upstream.length ? ` · upstream deletes left behind — ${upstream.join("; ")}` : " · every upstream table is clear, so this is the estimate's own delete"),
+    );
+  }
 }
 
 /**
