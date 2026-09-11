@@ -438,6 +438,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       if (!r) return;
       // Whichever copy we took, its version is what the next write is against.
       draftVersionRef.current = (r as { version?: number }).version ?? null;
+      setConfirmedVersion((r as { version?: number }).version ?? null);
       draftBaseRef.current = r.state as unknown as Record<string, unknown>;
       if (from === "server") {
         // The browser cache was behind. Replace it so the two agree from here.
@@ -445,7 +446,21 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       }
       setState(r.state);
       setAnswered(r.answered);
-      setEntry(entryFromState(r.state));
+      /**
+       * C3 — the screen comes from `last_screen` when we have it, and is only
+       * INFERRED when we do not. `entryFromState` keys on `state.quickLook`,
+       * which appears once the customer answers a quick-look question; someone
+       * who typed an address, pressed Continue and closed the tab had no such
+       * key and came back to the page set, under a banner saying "you were at
+       * The place". Recording beats inferring.
+       */
+      const screenTag = (r as { lastScreen?: string | null }).lastScreen ?? null;
+      if (screenTag?.startsWith("quick:")) {
+        setEntry("questions");
+        setQuickDone(false);
+      } else {
+        setEntry(entryFromState(r.state));
+      }
       setPage(r.page);
       setResumed(resumeLine(r.page, r.state.jobType));
     }, 0);
@@ -940,6 +955,18 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    * sides last agreed on.
    */
   const draftVersionRef = useRef<number | null>(null);
+  /**
+   * The same number as `draftVersionRef`, as STATE — so the localStorage cache
+   * effect re-runs the moment a save is confirmed and re-stamps the cache with
+   * the version it is now based on.
+   *
+   * Without this the cache is written 400 ms after a keystroke while the server
+   * confirms at 2.5 s+, so the stamp always lagged by one save, `pickResume`
+   * read "the browser is behind" on a perfectly good copy, and a refresh
+   * resumed from the server's older state — which put a customer mid-quick-look
+   * back into the page set. Caught by the C3 e2e, not by reasoning.
+   */
+  const [confirmedVersion, setConfirmedVersion] = useState<number | null>(null);
   const draftBaseRef = useRef<Record<string, unknown> | null>(null);
   /** Set below, once `state` and `setState` are in scope for the merge. */
   const onDraftConflictRef = useRef<((server: DraftConflict) => void) | null>(null);
@@ -963,7 +990,10 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         return;
       }
       const j = await res.json().catch(() => null) as { version?: number } | null;
-      if (typeof j?.version === "number") draftVersionRef.current = j.version;
+      if (typeof j?.version === "number") {
+        draftVersionRef.current = j.version;
+        setConfirmedVersion(j.version);
+      }
     }).catch(() => {}).finally(() => {
       inFlightRef.current = false;
       const next = queuedRef.current;
@@ -1071,12 +1101,13 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       try {
         localStorage.setItem(RESUME_KEY, encodeResume({
           savedAt: new Date().toISOString(), page, state, answered, addressText,
-          ...(draftVersionRef.current != null ? { version: draftVersionRef.current } : {}),
+          ...(confirmedVersion != null ? { version: confirmedVersion } : {}),
+          lastScreen,
         }));
       } catch { /* private mode, full storage — the server autosave still runs */ }
     }, 400);
     return () => clearTimeout(t);
-  }, [state, page, answered, isCustomer, screen, sessionWorthSaving, addressText]);
+  }, [state, page, answered, isCustomer, screen, sessionWorthSaving, addressText, confirmedVersion, lastScreen]);
 
   // Buckets brief §2.3 · the heartbeat. Every 15 s, ONLY while the tab is
   // visible and there has been a keypress, tap or scroll in the last 60 s —
