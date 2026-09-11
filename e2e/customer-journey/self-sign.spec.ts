@@ -27,6 +27,27 @@ import { serviceClient } from "../fixtures/woLoop";
  *  (`accuracy.ts`: an assumed L or W caps a room's credit at 0.5), and without
  *  that no journey can reach the self-serve rung at all. */
 async function measureAndConfirmEveryRoom(page: Page, metres: [number, number] = [3, 3]) {
+  /**
+   * THE CEILING HEIGHT FIRST — it is the single biggest thing standing between
+   * a measured job and the Confirmed rung.
+   *
+   * `accuracy.ts` docks a room 0.15 while `H` is assumed, and that applies
+   * even to a room the customer has measured and confirmed: 0.95 credit
+   * becomes 0.80, which caps the estimate around 86% against a 90% bar. The
+   * first version of this spec measured every room, confirmed every room, and
+   * still landed on DETAILED — correctly. The ladder was not wrong; the job
+   * genuinely had an assumption left in it.
+   *
+   * `confirm_height` is the one tap that clears it (route header: "height, not
+   * plan-reading, is the walls error"), and it is the customer's own control,
+   * so driving it here is the real journey rather than a shortcut.
+   */
+  const heightChip = page.getByRole("button", { name: /^2\.7 m$/ });
+  if (await heightChip.count()) {
+    await heightChip.first().click();
+    await page.waitForTimeout(1200);
+  }
+
   const cards = page.locator(".sc-rc[data-room]");
   const count = await cards.count();
   expect(count).toBeGreaterThan(0);

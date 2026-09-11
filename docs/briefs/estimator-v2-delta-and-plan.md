@@ -336,6 +336,20 @@ Accept: no email field before the range on any customer branch · Save & book on
 
 **C9 — What's changing colour, the details screen, What we'll do · M · no migration unless `deriveSystem` is not table-driven** — prototype: `s-job` (colour block), `s-systems`, the `.do` panel on `s-reveal`, `s-tighten`, `s-finish`
 
+    ⚑ ADDED 11 Sep (Tom): WHEN CEILING HEIGHT MOVES TO THE DETAILS SCREEN,
+    ONE ANSWER MUST CREDIT EVERY ROOM. The accuracy dock for an assumed height
+    is stored PER AREA (`assumedFields` contains "H"), and today the only thing
+    that clears it is the `confirm_height` action, which maps over every
+    interior room, sets H, strips "H" from each `assumedFields` and stamps
+    `height_customer_stated`
+    (`app/api/estimates/[id]/wizard-edit/route.ts:534`). A details screen that
+    stores the answer anywhere else — a new column, a wizard-state field, a
+    per-house setting — leaves every room still flagged, and EVERY customer
+    then caps at 86% against a 90% bar. Reuse `confirm_height`; do not
+    reimplement it. Its exterior guard matters too: an Exterior elevation
+    carries a MEASURED facade height in H, which a ceiling answer must never
+    overwrite.
+
     v2.3 ruling. Job screen: replace the colour-intent picker with the
     walls / ceilings / doors-and-trims tiles, lighter-or-bold, still
     choosing; per-group intent derived (undecided or changing → new, bold →
@@ -353,6 +367,18 @@ Accept: no email field before the range on any customer branch · Save & book on
 Accept: no paint-system control in any customer component · golden tests green · the panel's lines derive only from rules and state.
 
 **C10 — Tighten: rooms, spots, one missed sheet, site & access · M · no migration** — prototype: `s-tighten`, `s-room`, `s-access`, `sheet-extra`, `s-ext-side` (photo per side)
+
+    ⚑ ADDED 11 Sep (Tom), found by C7's e2e: THE FINISH LINE MUST NAME WHAT IS
+    BLOCKING A FIXED PRICE. A customer who measures and confirms every single
+    room still lands on 86% — because one unanswered fact, the ceiling height,
+    docks every room 0.15 (`lib/wizard/accuracy.ts:69`) — and the
+    "fix my price online" door simply is not there, with nothing on screen
+    saying why. They did everything asked and the reward silently did not
+    arrive. The finish line already knows the verdict (`payload.canAccept`) and
+    already knows the reason (`payload.heightUnconfirmed`, the deferred list,
+    the ladder's `nextUnlock`); it must say it in one line — "one thing left:
+    ceiling height" — with the tap right there. Applies to every blocker the
+    ladder can name, not only height.
 
     Merge fix/spot-extent-quantity first (rebase; no migration). Then the
     tighten screen on the existing ScopeEditor: room list with assumed
