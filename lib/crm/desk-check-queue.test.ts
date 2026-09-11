@@ -121,3 +121,47 @@ describe("what it survives", () => {
     expect(item.since).toBe("2026-09-01T08:00:00+10:00");
   });
 });
+
+describe("overdue against the promise we made", () => {
+  const TURNAROUND = { hours: 8, words: "usually by the next working day" };
+  // Requested Monday 9am; 8 business hours later is Monday 5pm.
+  const MON_9 = "2026-09-14T09:00:00+10:00";
+
+  test("due when we SAID, not on a generic next morning", () => {
+    const [item] = buildDeskCheckItems(
+      [row({ requested_at: MON_9 })], DEFAULT_POLICY, new Date("2026-09-14T10:00:00+10:00"), TURNAROUND,
+    );
+    expect(item.dueAt).toBe(new Date("2026-09-14T17:00:00+10:00").toISOString());
+  });
+
+  test("before the promise passes, the card does not nag", () => {
+    const [item] = buildDeskCheckItems(
+      [row({ requested_at: MON_9 })], DEFAULT_POLICY, new Date("2026-09-14T12:00:00+10:00"), TURNAROUND,
+    );
+    expect(item.detail).not.toMatch(/has passed/);
+  });
+
+  test("once it has, the card says so in the customer's own words", () => {
+    const [item] = buildDeskCheckItems(
+      [row({ requested_at: MON_9 })], DEFAULT_POLICY, new Date("2026-09-14T17:30:00+10:00"), TURNAROUND,
+    );
+    expect(item.detail).toMatch(/usually by the next working day — that has passed/);
+  });
+
+  test("a weekend does not make a Friday request late", () => {
+    const [item] = buildDeskCheckItems(
+      [row({ requested_at: "2026-09-11T16:00:00+10:00" })], DEFAULT_POLICY,
+      new Date("2026-09-13T12:00:00+10:00"), TURNAROUND,
+    );
+    expect(item.detail).not.toMatch(/has passed/);
+  });
+
+  test("changing the setting moves BOTH the due date and the wording", () => {
+    const short = { hours: 2, words: "within two hours" };
+    const [item] = buildDeskCheckItems(
+      [row({ requested_at: MON_9 })], DEFAULT_POLICY, new Date("2026-09-14T12:00:00+10:00"), short,
+    );
+    expect(item.dueAt).toBe(new Date("2026-09-14T11:00:00+10:00").toISOString());
+    expect(item.detail).toMatch(/within two hours — that has passed/);
+  });
+});

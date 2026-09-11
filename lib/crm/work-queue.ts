@@ -9,6 +9,7 @@ import {
   type WizardPolicySettings,
 } from "@/lib/wizard/policy";
 import { sortQueue } from "@/lib/wizard/confirmation";
+import { DEFAULT_TURNAROUND_SETTING, isOverdue, turnaroundFromSettings, type TurnaroundSetting } from "@/lib/wizard/confirmation-actions";
 import { addBusinessHours, nextBusinessMorning } from "@/lib/time/businessHours";
 
 /**
@@ -604,6 +605,8 @@ export function buildDeskCheckItems(
   rows: DeskCheckRow[],
   policy: WizardPolicySettings,
   now: Date,
+  /** What we told the customer (Settings `confirmation_turnaround`). */
+  turnaround: TurnaroundSetting = DEFAULT_TURNAROUND_SETTING,
 ): WorkItem[] {
   const items: WorkItem[] = [];
   /**
@@ -651,14 +654,29 @@ export function buildDeskCheckItems(
       // reinvented here: the desk-check page lists every flag against the room
       // it belongs to, which is where somebody can act on it. A count on a card
       // that might disagree with the page is worse than no count.
-      detail: verdict.eligible && promisedRemote
-        ? "The customer confirmed their scope and asked us to fix it."
-        : promisedRemote
-          ? `The customer asked us to fix it, but ${verdict.reason}.`
-          : "The customer asked for a person to look at it.",
-      // The plan promises "usually by the next working day" on the hand-off
-      // screen, so the queue has to want it by then too.
-      dueAt: nextBusinessMorning(new Date(since)).toISOString(),
+      detail: (() => {
+        const base = verdict.eligible && promisedRemote
+          ? "The customer confirmed their scope and asked us to fix it."
+          : promisedRemote
+            ? `The customer asked us to fix it, but ${verdict.reason}.`
+            : "The customer asked for a person to look at it.";
+        // Past the promise: say so in the customer's own words, because that
+        // is what they are holding us to.
+        return isOverdue({ requestedAt: since, now, turnaroundHours: turnaround.hours })
+          ? `${base} We said ${turnaround.words} — that has passed.`
+          : base;
+      })(),
+      /**
+       * C6 — due when we SAID it would be done, not on a generic next morning.
+       *
+       * The hand-off screen tells the customer a turnaround from
+       * `confirmation_turnaround`; this counts the same business hours from the
+       * same setting. One number, or the queue chases a different promise than
+       * the one the customer was given — and the existing overdue bucket and
+       * priority boost then do the rest, so there is no second warning
+       * mechanism to keep in step.
+       */
+      dueAt: addBusinessHours(new Date(since), turnaround.hours).toISOString(),
       action: { label: "Open the desk check", href: `/quote/desk-check?id=${r.estimate_id}` },
     }, { valueCents: total || null, promisedToCustomer: true }, now));
   }
@@ -1100,6 +1118,11 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     .in("status", ["requested", "question_asked"])
     .limit(200);
   const deskRows = (deskRes.error ? [] : (deskRes.data ?? [])) as unknown as DeskCheckRow[];
+  // The turnaround the customer was promised — the same row the hand-off screen
+  // reads, so the queue cannot chase a different number than the one we gave.
+  const deskTurnaround = await supabase
+    .from("settings").select("value").eq("key", "confirmation_turnaround").maybeSingle()
+    .then((r) => turnaroundFromSettings((r.data as { value?: unknown } | null)?.value));
   const deskPolicy: WizardPolicySettings = await supabase
     .from("settings").select("key, value").eq("key", "wizard_policy").maybeSingle()
     .then((r) => (r.data ? policyFromSettings(settingValue([r.data as { key: string; value: unknown }], "wizard_policy")) : DEFAULT_POLICY));
@@ -1196,7 +1219,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...buildDelayEndedItems(delayedRows, now),
     ...buildRebookItems(rebookRows, laterBooked, now),
     ...buildPhotoReviewItems(photoRows, now),
-    ...buildDeskCheckItems(deskRows, deskPolicy, now),
+    ...buildDeskCheckItems(deskRows, deskPolicy, now, deskTurnaround),
   ];
 
   // P7: the states and owners of the customers actually on the queue — a
