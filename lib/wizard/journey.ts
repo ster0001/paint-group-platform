@@ -8,6 +8,8 @@
  * value can never disagree with the rule.
  */
 
+import { melbourneParts } from "@/lib/time/businessHours";
+
 export const WIZARD_BUCKETS = ["online_now", "ready_call", "ready_visit", "needs_help", "dropped", "priced_no_request"] as const;
 export type WizardBucket = (typeof WIZARD_BUCKETS)[number];
 
@@ -186,3 +188,224 @@ export function journeySteps(j: Pick<WizardJourney, "jobType" | "furthestPage" |
 
 export const WIZARD_SESSION_COLUMNS =
   "id, user_id, account_id, estimate_id, name, email, phone, address, suburb, postcode, job_type, mode, entry_source, bucket, outcome, outcome_at, outcome_note, current_page, furthest_page, pages_total, active_seconds, step_times, started_at, last_seen_at, converted_at, dropped_at, est_value_cents, progress_pct";
+
+// ---- C7b: the estimate's own status — the extended pill vocabulary --------
+
+/**
+ * C7b (brief step 2.2): the Wizard-status column speaks for the ESTIMATE, not
+ * only the wizard session behind it. Every state here is DERIVED, on the
+ * server, from records that already exist — the estimate row, its latest
+ * `confirmation_requests` row, `estimate_views`, `work_orders`, the wizard
+ * journey and the confirm loop's own `customer.confirmed` flags. No status
+ * string is stored anywhere; the table test walks every state.
+ *
+ * Precedence is the order a person would want to know things in: signed
+ * beats waiting-on-us beats waiting-on-them beats "they left". A row that
+ * matches nothing new keeps the wizard bucket pill it had (or a dash).
+ */
+
+export type EstimateRequestView = {
+  kind: "remote" | "visit" | "fix_online";
+  status: "requested" | "question_asked" | "fixed" | "visit_booked" | "declined";
+  requestedAt: string;
+  suggestedAction: "fix" | "ask" | "visit" | null;
+  fixedPriceCents: number | null;
+};
+
+export type EstimateLoopView = {
+  /** Loop areas the customer confirmed, of the loop areas on the estimate. */
+  confirmed: number;
+  total: number;
+  unit: "rooms" | "sides";
+};
+
+export type EstimatePillInput = {
+  status: string;
+  acceptedAt: string | null;
+  viewedAt: string | null;
+  /** `estimate_views`: one row per customer open session. */
+  views: { count: number; lastAt: string | null };
+  validUntil: string | null;
+  hasWorkOrder: boolean;
+  /** The LATEST confirmation request, whatever its status. */
+  request: EstimateRequestView | null;
+  wizard: WizardJourney | null;
+  /** Null when the blocks were not read for this row (never "0 of 0"). */
+  loop: EstimateLoopView | null;
+  photos: number;
+  /** ± band, when the row knows one. */
+  bandPct: number | null;
+  /**
+   * C14: a commercial brief. NOTHING produces this yet — the state exists so
+   * the vocabulary is complete and C14 has one place to switch it on.
+   */
+  brief: boolean;
+  now: Date;
+};
+
+export type EstimatePillState =
+  | "accepted" | "brief" | "question" | "sent_remote" | "sent_visit"
+  | "viewed_no_reply" | "abandoned" | "wizard" | "none";
+
+export type EstimatePill = { state: EstimatePillState; label: string; tone: Tone; sub: string | null };
+
+const dayMonth = (iso: string) => new Date(iso).toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", timeZone: "Australia/Melbourne" });
+
+/**
+ * Whole days from today until a date column (yyyy-mm-dd), on Melbourne's
+ * calendar — the same `melbourneParts` that C7's `holdUntil` wrote the date
+ * with, so "hold ends in 14d" counts the days the customer was promised. No
+ * offset is hardcoded (the repo's boundary guard forbids it: DST).
+ */
+export function daysUntil(date: string, now: Date): number {
+  const t = melbourneParts(now);
+  const today = Date.UTC(t.y, t.m - 1, t.d);
+  const [y, m, d] = date.slice(0, 10).split("-").map(Number);
+  const target = Date.UTC(y, m - 1, d);
+  return Math.round((target - today) / 86_400_000) || 0; // never -0
+}
+
+function plural(n: number, one: string, many = `${one}s`): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+/** The mono line under a sent state: "9 of 9 · ±4% · 7 photos · 41m ago". */
+function sentLine(i: EstimatePillInput, since: string): string {
+  const parts: string[] = [];
+  if (i.loop && i.loop.total > 0) parts.push(`${i.loop.confirmed} of ${i.loop.total}${i.loop.unit === "sides" ? " sides" : ""}`);
+  if (i.bandPct != null) parts.push(`±${i.bandPct}%`);
+  if (i.photos > 0) parts.push(plural(i.photos, "photo"));
+  parts.push(agoShort(since, i.now));
+  return parts.join(" · ");
+}
+
+export function estimatePill(i: EstimatePillInput): EstimatePill {
+  if (i.status === "accepted") {
+    const when = i.acceptedAt ? ` ${dayMonth(i.acceptedAt)}` : "";
+    return {
+      state: "accepted",
+      label: `Accepted${when}${i.hasWorkOrder ? " · job created" : ""}`,
+      tone: "emerald",
+      sub: i.hasWorkOrder ? null : "no job yet",
+    };
+  }
+  if (i.brief) {
+    return { state: "brief", label: "Brief · book a visit", tone: "amber", sub: i.photos > 0 ? plural(i.photos, "photo") : null };
+  }
+  const r = i.request;
+  if (r?.status === "question_asked") {
+    // The row has no question_asked_at column; the request date is the floor
+    // (a question is only ever asked after the request). See the parking lot.
+    const days = Math.max(0, Math.floor((i.now.getTime() - new Date(r.requestedAt).getTime()) / 86_400_000));
+    return { state: "question", label: `Question unanswered · ${days}d`, tone: "amber", sub: sentLine(i, r.requestedAt) };
+  }
+  if (r?.status === "requested") {
+    return r.kind === "visit"
+      ? { state: "sent_visit", label: "Sent · needs a visit", tone: "amber-outline", sub: sentLine(i, r.requestedAt) }
+      : { state: "sent_remote", label: "Sent · confirm remotely", tone: "emerald", sub: sentLine(i, r.requestedAt) };
+  }
+  if (i.status === "sent" && i.viewedAt) {
+    const n = Math.max(1, i.views.count);
+    const hold = i.validUntil ? daysUntil(i.validUntil, i.now) : null;
+    const fixed = r?.status === "fixed";
+    const holdWords = hold == null ? null
+      : hold > 0 ? `${fixed ? "hold ends" : "expires"} in ${hold}d`
+      : fixed ? "hold has ended" : "expired";
+    return {
+      state: "viewed_no_reply",
+      label: `Viewed ${n}× · no reply`,
+      tone: "amber",
+      sub: [`last opened ${agoShort(i.views.lastAt ?? i.viewedAt, i.now)}`, holdWords].filter(Boolean).join(" · "),
+    };
+  }
+  const w = i.wizard;
+  if (w && i.status === "draft" && i.loop && i.loop.total > 0 && i.loop.confirmed < i.loop.total
+      && (w.bucket === "priced_no_request" || w.bucket === "dropped")) {
+    // They saw a price, started confirming it and left. The room they stopped
+    // on is the one after the last they confirmed.
+    const at = Math.min(i.loop.confirmed + 1, i.loop.total);
+    const contact = w.email || w.phone || null;
+    return {
+      state: "abandoned",
+      label: `Abandoned · ${i.loop.unit === "sides" ? "side" : "room"} ${at} of ${i.loop.total}`,
+      tone: "clay",
+      sub: `${contact ?? "no contact details"} · last active ${agoShort(w.lastActiveAt, i.now)}`,
+    };
+  }
+  if (w) {
+    const pill = bucketPill(w.bucket, w.jobType, w.furthestPage);
+    return { state: "wizard", label: pill.label, tone: pill.tone, sub: journeyLine(w, i.now) };
+  }
+  return { state: "none", label: "—", tone: "muted", sub: null };
+}
+
+// ---- C7b: one contextual action per row --------------------------------------
+
+export type RowActionLabel = "Fix price" | "Book" | "Chase" | "Nudge" | "Open job";
+export type RowAction = { label: RowActionLabel; href: string };
+
+/**
+ * Brief step 2.3, ⚑39: ONE action, or nothing. It comes from the same rules
+ * C5 recorded on the request (`suggested_action` = recommendedOutcome at
+ * send) — nothing is re-derived here, so the row and the pack never suggest
+ * two different things.
+ *
+ * Fix price and Book land on the pack tab, where the strip's buttons do the
+ * work through the C6 route. Chase and Nudge are messages, so they open the
+ * customer's thread. Chase without an account falls back to the pack tab —
+ * the strip's "Ask a question" is the same route the thread would use — but a
+ * Nudge with nobody to nudge is nothing, not a link to nowhere.
+ */
+export function estimateAction(i: {
+  pill: EstimatePillState;
+  request: EstimateRequestView | null;
+  estimateId: string;
+  accountId: string | null;
+  workOrderId: string | null;
+}): RowAction | null {
+  const pack = `/quote?id=${i.estimateId}&tab=pack`;
+  const thread = i.accountId ? `/crm/customers/${i.accountId}` : null;
+  switch (i.pill) {
+    case "accepted": return i.workOrderId ? { label: "Open job", href: `/pc/wo/${i.workOrderId}` } : null;
+    case "brief": return { label: "Book", href: pack };
+    case "question": return { label: "Chase", href: thread ?? pack };
+    case "sent_visit": return { label: "Book", href: pack };
+    case "sent_remote": {
+      const s = i.request?.suggestedAction;
+      if (s === "visit") return { label: "Book", href: pack };
+      if (s === "ask") return { label: "Chase", href: thread ?? pack };
+      return { label: "Fix price", href: pack };
+    }
+    case "viewed_no_reply": return thread ? { label: "Nudge", href: thread } : null;
+    default: return null;
+  }
+}
+
+// ---- C7b: the Value cell ------------------------------------------------------
+
+export type RowValue =
+  | { kind: "range"; loCents: number; hiCents: number }
+  | { kind: "fixed"; cents: number }
+  | { kind: "figure"; cents: number }
+  | { kind: "none" };
+
+/**
+ * Brief step 2.6: a range while the estimate IS a range, one figure with
+ * cents once it is fixed. The range comes from `rangeFromTotal` — the same
+ * rounding the customer's own screen uses — never from arithmetic here.
+ */
+export function estimateValue(i: {
+  totalCents: number | null;
+  status: string;
+  hasWizard: boolean;
+  bandPct: number | null;
+  request: EstimateRequestView | null;
+  /** lib/wizard/policy's `rangeFromTotal`, injected so this module stays pure. */
+  range: (totalCents: number, pct: number) => { loCents: number; hiCents: number };
+}): RowValue {
+  if (i.request?.status === "fixed" && i.request.fixedPriceCents != null) return { kind: "fixed", cents: i.request.fixedPriceCents };
+  if (i.totalCents == null) return { kind: "none" };
+  if (i.status === "accepted") return { kind: "fixed", cents: i.totalCents };
+  if (i.hasWizard && i.bandPct != null) return { kind: "range", ...i.range(i.totalCents, i.bandPct) };
+  return { kind: "figure", cents: i.totalCents };
+}

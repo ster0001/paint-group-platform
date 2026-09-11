@@ -2,7 +2,11 @@ import { redirect } from "next/navigation";
 import { ticksBySurfaceKey, type SurfaceState } from "@/lib/workorder/surfaces";
 import { signPhotos, type WOPhotoRow } from "@/lib/workorder/photos";
 import { createClient } from "@/lib/supabase/server";
+import Link from "next/link";
 import QuoteBuilder from "./QuoteBuilder";
+import PackPane from "./PackPane";
+import EstimateStrip from "./EstimateStrip";
+import { loadPackBundle } from "./pack-load";
 import AssistantDrawer from "./AssistantDrawer";
 import { DEFAULT_COMPANY, type CompanyProfile, type Contact } from "./company";
 import { DEFAULT_INCLUSION_TEMPLATES, DEFAULT_EXCLUSION_TEMPLATES, INCLUSION_TEMPLATES_KEY, EXCLUSION_TEMPLATES_KEY, type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
@@ -18,7 +22,7 @@ export const dynamic = "force-dynamic";
 export default async function QuotePage({
   searchParams,
 }: {
-  searchParams: Promise<{ id?: string; template?: string; view?: string; from?: string; mode?: string }>;
+  searchParams: Promise<{ id?: string; template?: string; view?: string; from?: string; mode?: string; tab?: string }>;
 }) {
   const supabase = await createClient();
 
@@ -50,7 +54,7 @@ export default async function QuotePage({
     .eq("is_active", true)
     .single();
 
-  const { id, template, view, from, mode } = await searchParams;
+  const { id, template, view, from, mode, tab } = await searchParams;
   const initialView = view === "workorder" || view === "customer" ? view : undefined;
   // Where the top-left link goes. Validated, because `from` comes off the URL —
   // see lib/navigation/backTo.ts. Null falls back to the estimates list.
@@ -205,13 +209,71 @@ export default async function QuotePage({
     : offerState === "offered" ? "requested"
     : "none";
 
+  /**
+   * C7b — THE PACK IS A TAB, not a second screen.
+   *
+   * Present only when the estimate actually has wizard data: an in-house or
+   * assistant-built estimate has no pack to read, and a tab that opens on
+   * "there's nothing here" is worse than no tab. The test is the same one the
+   * pack itself applies — a parsable wizard snapshot on `builder_state`.
+   *
+   * The Scope tab is the existing editor, rendered exactly as before. Nothing
+   * about QuoteBuilder changes; the shell decides which pane to show.
+   */
+  const wizardState = (initial?.builder_state as { wizard?: { state?: unknown } } | null)?.wizard?.state;
+  const hasWizard = wizardState != null && typeof wizardState === "object";
+  const activeTab = hasWizard && tab === "pack" ? "pack" : "scope";
+  /**
+   * C7b — the pack, read ONCE. The strip above the tabs and the Pack tab both
+   * render this bundle, so the figures a person reads on the way in are the
+   * figures the pack shows when they open it. Only a wizard estimate has one.
+   */
+  const bundle = hasWizard && id ? await loadPackBundle(supabase, id) : null;
+  const strip = bundle ? <EstimateStrip bundle={bundle} /> : null;
+  const estimateTabs = hasWizard && id ? (
+    <div className="mx-auto flex max-w-6xl gap-1 border-b border-gray-200 px-6 pt-4" data-testid="estimate-tabs">
+      <Link
+        href={`/quote?id=${id}&tab=pack`}
+        data-testid="estimate-tab-pack"
+        className={`-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium ${
+          activeTab === "pack" ? "border-gray-900 text-gray-900" : "border-transparent text-gray-500 hover:text-gray-800"
+        }`}
+      >
+        Pack
+        <span className="rounded-full bg-cyan-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-cyan-800">wizard</span>
+      </Link>
+      <Link
+        href={`/quote?id=${id}`}
+        data-testid="estimate-tab-scope"
+        className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
+          activeTab === "scope" ? "border-gray-900 text-gray-900" : "border-transparent text-gray-500 hover:text-gray-800"
+        }`}
+      >
+        Scope
+      </Link>
+    </div>
+  ) : null;
+
+  if (activeTab === "pack" && bundle) {
+    return (
+      <>
+        {strip}
+        {estimateTabs}
+        <PackPane bundle={bundle} />
+      </>
+    );
+  }
+
   // The embedded assistant writes the row; a changed builder_state remounts
   // the builder on the fresh state (router.refresh() from the drawer).
   const builderKey = fingerprint(JSON.stringify(initial?.builder_state ?? null));
   return (
     <>
+    {strip}
+    {estimateTabs}
     <QuoteBuilder
       key={builderKey}
+      provenanceEdges={hasWizard}
       initialView={initialView}
       backTo={backTo}
       rateCardId={effectiveCard?.id ?? null}

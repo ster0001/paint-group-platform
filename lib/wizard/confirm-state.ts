@@ -1,5 +1,5 @@
-import { isSideBlock, type SidesLoopMeta, type LooseBlock as SideBlock } from "./sides";
-import type { InteriorLoopMeta } from "./rooms-loop";
+import { defaultSidesLoop, isSideBlock, type SidesLoopMeta, type LooseBlock as SideBlock } from "./sides";
+import { defaultInteriorLoop, type InteriorLoopMeta } from "./rooms-loop";
 
 /**
  * R5: which areas the customer's confirm loop can actually settle, and how
@@ -72,4 +72,23 @@ export function loopConfirmState(
     checksDone += Number(!!d.dw) + Number(!!d.sweep) + Number(!!d.cond) + Number(!!d.extras);
   }
   return { states, checksDone };
+}
+
+/**
+ * C7b — "9 of 9" for the estimates list and the strip: loop areas the
+ * customer has confirmed, of the loop areas that exist. Reads the SAME map
+ * `loopConfirmState` builds for the confidence score, so the count a person
+ * sees and the count the score credits can never differ. Null when the
+ * estimate has no loop at all (an in-house build) — never "0 of 0".
+ */
+export function loopProgress(builderState: unknown): { confirmed: number; total: number; unit: "rooms" | "sides" } | null {
+  const st = (builderState ?? {}) as { blocks?: unknown[]; interiorLoop?: InteriorLoopMeta; sidesLoop?: SidesLoopMeta };
+  const blocks = Array.isArray(st.blocks) ? st.blocks : [];
+  if (blocks.length === 0) return null;
+  const { states } = loopConfirmState(blocks, st.interiorLoop ?? defaultInteriorLoop(), st.sidesLoop ?? defaultSidesLoop());
+  if (states.size === 0) return null;
+  let confirmed = 0;
+  for (const v of states.values()) if (v === "confirmed") confirmed++;
+  const hasRooms = (blocks as LooseBlock[]).some((b) => states.has(Number(b.id) || 0) && isLoopRoom(b));
+  return { confirmed, total: states.size, unit: hasRooms ? "rooms" : "sides" };
 }

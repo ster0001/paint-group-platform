@@ -2,7 +2,8 @@
 
 import { bucketPill, journeyLine, type WizardJourney } from "@/lib/wizard/journey";
 
-const TONE: Record<string, string> = {
+/** Shared with the estimates table, whose pills come from `estimatePill`. */
+export const TONE: Record<string, string> = {
   emerald: "bg-emerald-600 text-white",
   amber: "bg-amber-500 text-white",
   "amber-outline": "border border-amber-500 text-amber-700",

@@ -35,7 +35,8 @@ describe("what lands on the queue", () => {
     const [item] = buildDeskCheckItems([row()], DEFAULT_POLICY, NOW);
     expect(item.kind).toBe("desk_check");
     expect(item.subjectRef).toEqual({ type: "estimate", id: "est-1" });
-    expect(item.action?.href).toBe("/quote/desk-check?id=est-1");
+    // C7b — the pack is a tab on the estimate, not a route of its own.
+    expect(item.action?.href).toBe("/quote?id=est-1&tab=pack");
     expect(item.accountId).toBe("acct-1");
   });
 
@@ -163,5 +164,38 @@ describe("overdue against the promise we made", () => {
     );
     expect(item.dueAt).toBe(new Date("2026-09-14T11:00:00+10:00").toISOString());
     expect(item.detail).toMatch(/within two hours — that has passed/);
+  });
+});
+
+test("C7b: the item carries what is at stake, so no surface has to fetch it again", () => {
+  // The evaluator always had this number — it folds it into `priority`, which
+  // is what orders the queue — and used to throw it away, forcing the
+  // estimates page to re-read the same rows to print a dollar figure.
+  const [item] = buildDeskCheckItems([row({}, { total_cents: 486_050 })], DEFAULT_POLICY, NOW);
+  expect(item.valueCents).toBe(486_050);
+});
+
+test("C7b: a record with no figure carries null, never a misleading zero", () => {
+  const [item] = buildDeskCheckItems([row({}, { total_cents: null })], DEFAULT_POLICY, NOW);
+  expect(item.valueCents).toBeNull();
+});
+
+// ---- C7b: CRM Today and "Waiting on you" are the same list -------------------
+
+import { buildApprovalItem, estimatesPageItems } from "./work-queue";
+
+describe("C7b — one evaluator, two surfaces", () => {
+  test("a confirmation added to the queue appears on the estimates page's cut of the SAME items", () => {
+    // What getWorkQueue() would return once the request exists: the desk
+    // check beside an item the estimates page is not about.
+    const queue = [...buildDeskCheckItems([row()], DEFAULT_POLICY, NOW), ...buildApprovalItem(3, NOW)];
+    const today = queue;                       // CRM Today renders every item
+    const estimatesTab = estimatesPageItems(queue); // /estimates renders its subjects
+    expect(today.some((i) => i.kind === "desk_check" && i.subjectRef.id === "est-1")).toBe(true);
+    expect(estimatesTab.map((i) => i.key)).toEqual(today.filter((i) => i.kind === "desk_check").map((i) => i.key));
+    // The tab adds nothing of its own: every item it shows is in Today's list, verbatim.
+    for (const i of estimatesTab) expect(today).toContain(i);
+    // And it narrows only by subject — the campaign approval is Today's alone.
+    expect(estimatesTab.some((i) => i.kind === "approval_pending")).toBe(false);
   });
 });

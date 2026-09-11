@@ -146,6 +146,12 @@ type Area = {
    * above the areas, amber until the estimator prices them or clears them.
    */
   customerCustom?: string[];
+  /**
+   * The confirm loop's own flag (lib/wizard/rooms-loop.ts `customer.confirmed`):
+   * true once the customer confirmed this room or side from their card.
+   * Read here for the green/amber edge only; the builder never writes it.
+   */
+  customer?: { confirmed?: boolean };
 };
 type LineBlock = {
   id: number;
@@ -262,6 +268,7 @@ export default function QuoteBuilder({
   backTo = null,
   presentations = [],
   typicalSizes = {},
+  provenanceEdges = false,
   mode = "estimate",
   revisionBaseline = null,
   revisionVariations = [],
@@ -294,6 +301,13 @@ export default function QuoteBuilder({
   backTo?: BackTo | null;
   presentations?: { id: string; name: string; blocks: { kind: string; position: number; enabled: boolean; content: unknown }[] }[];
   typicalSizes?: Record<string, { L: number; W: number }>;
+  /**
+   * C7b (brief 3.3): on a wizard estimate every area gets a coloured left
+   * edge — green where the customer confirmed it, amber where our assumption
+   * still stands. The shell decides (it knows whether there is wizard data);
+   * an in-house estimate has no customer to have confirmed anything, so no edge.
+   */
+  provenanceEdges?: boolean;
   /**
    * "revision" (addendum A2): the SAME builder, loaded with the job's working
    * scope instead of the estimate. Edits save to wo_working_scopes only — the
@@ -1507,7 +1521,16 @@ export default function QuoteBuilder({
     return (
       <section
         onClick={open}
-        className="cursor-pointer rounded-xl border border-gray-200 bg-white hover:border-gray-400 hover:bg-gray-50"
+        // C7b (brief 3.3): the one addition to the editor — a coloured left
+        // edge per area on a wizard estimate. Green = the customer confirmed
+        // it from their card; amber = our assumption still stands. Lines and
+        // in-house estimates get no edge.
+        data-provenance={provenanceEdges && b.kind === "area" ? (b.customer?.confirmed === true ? "confirmed" : "assumed") : undefined}
+        className={`cursor-pointer rounded-xl border border-gray-200 bg-white hover:border-gray-400 hover:bg-gray-50 ${
+          provenanceEdges && b.kind === "area"
+            ? b.customer?.confirmed === true ? "border-l-4 border-l-emerald-500" : "border-l-4 border-l-amber-400"
+            : ""
+        }`}
       >
         <div className="flex items-start gap-2 p-3">
           <span className="text-2xl leading-none">📁</span>
