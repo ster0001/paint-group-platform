@@ -46,6 +46,36 @@ Global teardown in Playwright, running whether the suite passed or failed.
 - **Never touches the seeded logins** (staff, contractor, customer) — exclude them by id, held in one list, and assert the list is non-empty before deleting anything.
 - Refuses to run at all unless the target is the test project, through the same guard as `global-setup.ts`. **The teardown deletes; it must be at least as paranoid as the setup.**
 - Deletes in an order the 43-table FK fan-out allows, in batches, with a time budget — if it cannot finish, it logs what remains rather than hanging the job.
+
+  **The order is not a preference — six columns make it mandatory.** These
+  reference `auth.users` with **no ON DELETE action**, so Postgres REFUSES the
+  user delete while any of them still points at it:
+
+      public.estimates.created_by
+      public.estimates.site_check_cleared_by
+      public.wizard_leads.user_id
+      public.estimate_sources.created_by
+      public.extraction_runs.created_by
+      public.defect_observations.confirmed_by
+
+  An anonymous wizard customer writes `estimates.created_by` on their first
+  save, so this is the common case, not an edge one: **the estimate chain goes
+  first, then the user.** A teardown that deletes users first does not corrupt
+  anything — it simply fails, every time, and looks like a permissions problem.
+
+  One more reason the order matters: `public.profiles.id` is the single
+  **ON DELETE CASCADE** in the whole fan-out. Deleting an auth user silently
+  deletes their profile row. That is correct for a run-created user and
+  catastrophic for a seeded login, which is why the exclusion list above is a
+  hard precondition rather than a nicety.
+
+  **Batching is forced by cost, not tidiness.** `20270104000000_auth_user_fk_indexes.sql`
+  measured a single auth-user delete on this project at **13.5 s** — 43
+  columns are checked and only 6 of the hot ones are indexed. A teardown
+  looping over even 50 users is eleven minutes; a sweep over thousands would
+  re-create the outage it exists to prevent. So: a bounded batch per run
+  (start at 200 for the sweep, the run's own count for the teardown), oldest
+  first, and report what is left rather than pressing on.
 - Logs a one-line summary: created N, deleted N, left N.
 
 ---
@@ -66,7 +96,8 @@ A scheduled job on the test project only, catching what teardown misses when a r
 The failure everyone missed was that nothing was watching. Row counts grew for months and were found by tripping over them.
 
 - A cheap check at the **start** of every e2e run: count anonymous users and `pg.e2e.*` logins on the test project.
-- Above `warn_rows` (default 5,000) it warns in the job log. Above `fail_rows` (default 20,000) it **fails the job** with a message naming the sweep.
+- **The counts are logged on EVERY run, whatever they are** — one line, always, before any threshold is consulted. This is the point of the check, not a side effect of it: the visible number is what catches drift, and the threshold is only the backstop. A tripwire that says nothing until it fails is one nobody trusts, and nobody reads. It also means the trend is in the job log of every run, so "when did this start?" is answerable afterwards without new tooling.
+- Above `warn_rows` (default 5,000) it additionally warns. Above `fail_rows` (default 20,000) it **fails the job** with a message naming the sweep.
 - Cost must be one indexed count, not a table scan — report the query plan.
 - The point is to catch this at a thousand rows, not forty thousand.
 
@@ -104,7 +135,7 @@ And an incident note in `docs/reference/` — date, cause, evidence that product
 | # | Decision | Default unless you say otherwise |
 |---|---|---|
 | 43 | Sweep age | 3 days |
-| 44 | Tripwire thresholds | warn 5,000 · fail 20,000 |
+| 44 | Tripwire thresholds | warn 5,000 · fail 20,000 — **and the counts are logged every run regardless**, so drift is visible long before either number is reached (Tom, 11 Sep) |
 | 45 | Teardown on a failed run | Yes — always runs, logs what it couldn't finish |
 | 46 | Test project tier | Report what the next tier up costs. A `t4g.nano` was always going to fall over once the data grew; if the suite needs more, better to know now than rebuild twice |
 | 47 | Production FK fan-out (43 tables, 37 unindexed) | **Not this chunk.** Report it for a later batch — production has the same shape, and a real customer deletion there is the same 13.5 s |
