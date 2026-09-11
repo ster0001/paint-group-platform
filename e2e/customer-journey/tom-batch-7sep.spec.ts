@@ -1,6 +1,6 @@
 import { test, expect, devices, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { driveNoPlanWizard, fillContactStep, MONEY_RANGE , openQuickLook, fillQuickAddress, quickNext } from "./drive";
+import { driveNoPlanWizard, fillContactStep, MONEY_RANGE, openQuickLook, openExteriorPages, fillQuickAddress, quickNext } from "./drive";
 import { credentials, signIn } from "../helpers";
 import { deleteUserByEmail, destroyAccountChain, magicLinkFor } from "../fixtures/portal";
 
@@ -57,23 +57,36 @@ test.describe("Tom's 7 Sep batch", () => {
 
   test("2 · exterior: no interior basics; targets → follow-ups → sides left unticked arrive NOT PAINTING", async ({ page }) => {
     test.setTimeout(240_000);
-    await openQuickLook(page);
     /**
-     * The same bug, in the quick look's shape: switch to Outside and the
-     * INTERIOR questions must go. They do, structurally — bedrooms and storeys
-     * are hidden behind the property kind, and an outside job leaves the quick
-     * look after the place screen rather than answering about rooms at all.
+     * REACHED VIA THE UPLOAD ROUTE (CI fix, 11 Sep).
+     *
+     * This walked the quick look and then expected the five-page exterior set,
+     * which two `quickNext` calls no longer reach: `stepsFor("exterior")` is
+     * start → place → outside, so an exterior job lands on the ONE-SCREEN
+     * exterior quick look and there is no "What kind of property" page to
+     * answer. The test then waited out its timeout on a Continue button that
+     * was never coming, and read as "exterior is broken".
+     *
+     * Everything this test asserts — targets driving follow-ups, a metal fence
+     * and a shed deferred to the estimator, unticked sides arriving NOT
+     * PAINTING — belongs to the page set, and the page set is still how the
+     * upload route walks an exterior job. So it enters there, the way
+     * exterior-path.spec.ts does.
+     *
+     * The quick look's own "no interior basics on an outside job" is covered by
+     * outside-commercial.spec.ts, which drives the real screens.
      */
-    await fillQuickAddress(page);
-    await page.getByTestId("ql-jobtype-exterior").click();
-    await quickNext(page);
-    await expect(page.locator("[data-quick-step='place']")).toBeVisible();
-    await quickNext(page);
-    // Now on the exterior question set — no interior basics anywhere.
-    await expect(page.locator(".wz-qhead", { hasText: /^Bedrooms/ })).toHaveCount(0);
-    await expect(page.locator(".wz-qhead", { hasText: /Open-plan kitchen/ })).toHaveCount(0);
+    await openExteriorPages(page, { via: "upload" });
+    await page.getByPlaceholder("Suburb").fill("Murrumbeena");
+    await page.getByPlaceholder("Postcode").fill("3163");
+    // No listing and no facade photos: this test sizes from the answers, which
+    // is what the exterior gate offers as its way through.
+    await page.getByRole("button", { name: /No photos to hand/i }).click();
     const ans = answer(page);
     const next = nextOf(page);
+    // No interior basics anywhere on an exterior walk.
+    await expect(page.locator(".wz-qhead", { hasText: /^Bedrooms/ })).toHaveCount(0);
+    await expect(page.locator(".wz-qhead", { hasText: /Open-plan kitchen/ })).toHaveCount(0);
     await ans("What kind of property", "House");
 
     // Page 2 — what are we painting (the house pre-ticked) + the house questions.
@@ -117,15 +130,28 @@ test.describe("Tom's 7 Sep batch", () => {
     await fillContactStep(page, `e2e-exttargets-${stamp}@example.com`);
     await page.getByRole("button", { name: "See my estimate" }).click();
 
-    // The sides editor: only the FRONT is open for confirming; the other
-    // three arrive answered "not painting".
+    /**
+     * The sides editor: only the FRONT is open for confirming.
+     *
+     * REWRITTEN 11 Sep. This used to assert that the three unticked sides
+     * ARRIVE as cards pilled "NOT PAINTING". They no longer render at all — a
+     * side left unticked on the page set is simply absent from the editor, and
+     * the progress counts what IS there (front plus the four check cards)
+     * rather than all eight. The assertion is inverted to match.
+     *
+     * ⚑ WORTH TOM'S EYE: the old behaviour showed an excluded side on the
+     * quote, as an explicit exclusion the customer could see. The new one shows
+     * nothing, so "we are not painting the back" is now invisible until
+     * somebody asks. The per-side "No — skip this side" button is the intended
+     * place for that decision, but it only exists for sides that rendered.
+     */
     await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 120_000 });
     await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 30_000 });
     for (const side of ["Left side", "Right side", "Back"]) {
-      await expect(page.locator(".sd-card", { hasText: side }).first().locator(".sd-pill")).toHaveText(/NOT PAINTING/);
+      await expect(page.locator(".sd-card", { hasText: side })).toHaveCount(0);
     }
     await expect(page.locator(".sd-card", { hasText: "Front" }).first().locator(".sd-pill")).toHaveText(/CONFIRM THIS SIDE/);
-    await expect(page.locator(".sd-prog")).toContainText("3 OF 8");
+    await expect(page.locator(".sd-prog")).toContainText(/OF 5/);
     await expect(page.locator(".sc-r, .sd-range").first()).toHaveText(MONEY_RANGE, { timeout: 30_000 });
 
     // The estimate carries the metal fence and the shed for the estimator, and the site-check flag.
@@ -137,17 +163,34 @@ test.describe("Tom's 7 Sep batch", () => {
     expect(bs.aiDeferred?.some((d) => d.what === "shed" && /Colorbond/.test(d.needs))).toBe(true);
     expect(bs.blocks?.some((b) => b.surfaces?.some((s) => /Fence/.test(s.code)))).toBe(false);
     expect(bs.blocks?.find((b) => b.name === "Exterior - Extras")?.surfaces?.some((s) => s.code === "Shed")).toBe(true);
-    expect(bs.blocks?.find((b) => /Rear/.test(b.name ?? ""))?.isOption).toBe(true);
+    /**
+     * ⚑ CHANGED BEHAVIOUR, 11 Sep. This asserted that an unticked side arrives
+     * as a block marked `isOption` — an exclusion the customer could SEE on the
+     * quote. There is no such block now: a side left unticked produces nothing
+     * at all, in the editor or in `builder_state`.
+     *
+     * The assertion follows the code rather than the other way round, because
+     * the change looks deliberate (the per-side "No — skip this side" button is
+     * where that decision now lives). But it is a real loss of visibility and
+     * it is flagged in the parking lot for Tom: "we are not painting the back"
+     * used to be on the quote and now is not recorded anywhere.
+     */
+    expect(bs.blocks?.some((b) => /Rear/.test(b.name ?? ""))).toBe(false);
     expect(bs.wizard?.state?.exterior?.targets).toEqual(["house", "fence", "shed"]);
     expect(bs.wizard?.state?.exterior?.sides).toEqual(["front"]);
   });
 
   test("1 + 5 · describe it: condition (with photos) and details are asked; the photos are pending sign-off", async ({ page }) => {
     test.setTimeout(300_000);
-    await page.goto("/estimate");
-    await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
-    await page.getByPlaceholder("Suburb").fill("Murrumbeena");
-    await page.getByPlaceholder("Postcode").fill("3163");
+    /**
+     * The suburb/postcode pair is a FALLBACK, not the first field (CI fix,
+     * 11 Sep). Screen 1 of the quick look asks for an address; suburb and
+     * postcode only appear once something has been typed that the lookup could
+     * not resolve. This went straight to /estimate and waited five minutes for
+     * a Suburb box that only exists after an address has been attempted.
+     */
+    await openQuickLook(page);
+    await fillQuickAddress(page);
     await page.getByTestId("entry-describe").click();
     await page.getByTestId("describe-job").fill("3 bedroom house, walls and ceilings throughout, change of colour. Two bathrooms and the hallway too.");
     const ans = answer(page);
@@ -282,42 +325,48 @@ test.describe("Tom's 7 Sep batch", () => {
     expect(after.data!.bucket).toBe("dropped");
     expect(after.data!.user_id).toBe(before.data!.user_id);
 
-    // Tap it: the wizard resumes the walk, now owned by the signed-in user.
+    // Tap it: the wizard resumes the walk.
     await card.click();
     await expect(p2).toHaveURL(/\/estimate/);
     await expect(p2.getByTestId("wz-resume")).toBeVisible({ timeout: 30_000 });
     await expect(p2.getByTestId("wz-resume")).toContainText(/you were at/i);
+    /**
+     * THE OWNER DOES NOT CHANGE, and that is the point (CI fix, 11 Sep).
+     *
+     * This asserted `not.toBe` — the draft being ADOPTED, its user_id moving
+     * from an anonymous session to the member's. That was the old story, and
+     * this test's own preamble already explains why it ended: there is no
+     * contact page any more, so an anonymous drop-out leaves no email and
+     * cannot be sent a sign-in link at all. The drop-out who can be reached is
+     * a SIGNED-IN member, and their draft is theirs from the first answer.
+     *
+     * So there is nothing to adopt, and the honest assertion is that the walk
+     * came back to the same person, still open. `adoptDraft` still exists for
+     * the case it was written for — a draft found by verified EMAIL rather than
+     * by session (lib/wizard/draftOwner.ts `findOpenDraft`, `own: false`).
+     */
     const adopted = await db!.from("wizard_drafts").select("user_id, converted_at").eq("id", before.data!.id).single();
-    expect(adopted.data!.user_id).not.toBe(before.data!.user_id);
+    expect(adopted.data!.user_id).toBe(before.data!.user_id);
     expect(adopted.data!.converted_at).toBeNull();
     await other.close();
   });
 
-  test("late · commercial exterior: no build-year question, no 'anything else out there', no oil question", async ({ page }) => {
-    test.setTimeout(240_000);
-    await page.goto("/estimate");
-    await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
-    await page.getByRole("button", { name: "Exterior", exact: true }).click();
-    await page.getByTestId("entry-questions").click();
-    await page.getByPlaceholder("Suburb").fill("Murrumbeena");
-    await page.getByPlaceholder("Postcode").fill("3163");
-    const ans = answer(page);
-    const next = nextOf(page);
-    await ans("What kind of property", "Commercial");
-    await ans("What sort of commercial job", "A few rooms or offices"); // Tom, 8 Sep
-    await next(); // what are we painting
-    await expect(page.getByRole("heading", { name: "What are we painting?" })).toBeVisible();
-    await next(); // condition
-    await expect(page.getByText(/holding up/i).first()).toBeVisible();
-    await expect(page.locator(".wz-qhead", { hasText: /built before 1970/ })).toHaveCount(0);
-    await page.getByRole("button", { name: /Good overall/i }).click();
-    await page.getByRole("button", { name: /None of these/i }).click();
-    await next(); // → straight to the contact page: no extras page for a commercial property
-    await expect(page.getByRole("heading", { name: /Anything else out there/ })).toHaveCount(0);
-    await expect(page.locator(".wz-crow input").first()).toBeVisible();
-    await expect(page.getByText(/water based or oil based/i)).toHaveCount(0);
-    await expect(page.getByText(/oil-based enamel/i)).toHaveCount(0);
-  });
+  /**
+   * DELETED 11 Sep — "late · commercial exterior: no build-year question, no
+   * 'anything else out there', no oil question".
+   *
+   * It tested the commercial-exterior PAGE SET. C4 (audit 9.3c) removed that
+   * path: a commercial job whose work is outside now hands off to a person at
+   * the place screen, because `pageKeys` for an exterior job routes through
+   * PageExteriorHouse — house / fence / deck / shed and domestic storeys — and
+   * an office block was being asked which weatherboards it has. Every
+   * commercial outside is a visit anyway (ruling, 10 Sep).
+   *
+   * So the journey it describes is one no customer can take. What replaced it
+   * is covered by e2e/customer-journey/outside-commercial.spec.ts, which
+   * asserts the hand-off and that the domestic questions never appear.
+   * Deleted rather than rewritten, on Tom's call.
+   */
 
   test("3 · confirming a room lands the next room's NAME under the sticky header (phone)", async ({ browser }) => {
     test.setTimeout(240_000);

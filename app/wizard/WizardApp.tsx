@@ -1018,6 +1018,27 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const addressText = (state.address as { formatted?: string } | null | undefined)?.formatted?.trim()
     || state.title.trim() || intent?.addressText?.trim() || "";
   const sessionWorthSaving = page > 1 || Boolean(addressText) || Boolean((state.customer?.suburb ?? "").trim());
+
+  /**
+   * Write the draft NOW, not in 2.5 seconds.
+   *
+   * The autosave is debounced, which is right while somebody is typing and
+   * wrong at the moment they are handed to a person: a commercial exterior
+   * hand-off (9.3c) is the end of the customer's walk, and if they close the
+   * tab on that screen the lead has to already exist. Carries the version like
+   * every other write, so it cannot overwrite a concurrent one.
+   */
+  const flushDraft = useCallback((screenTag: string) => {
+    if (!isCustomer) return;
+    queueDraftSave(JSON.stringify({
+      state, page, lastPage,
+      ...(intent?.mode ? { mode: intent.mode } : {}),
+      entrySource: intent?.entrySource || "direct",
+      ...(addressText ? { address: addressText.slice(0, 250) } : {}),
+      ...(draftVersionRef.current != null ? { version: draftVersionRef.current } : {}),
+      lastScreen: screenTag,
+    }));
+  }, [isCustomer, state, page, lastPage, intent?.mode, intent?.entrySource, addressText, queueDraftSave]);
   /**
    * C3 — where they actually are, as a word rather than a number. The funnel
    * keeps current_page/furthest_page; this is what a staff member reads when
@@ -1272,7 +1293,47 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
      * which is not a shortcut, it is the safety check missing. Healthcare and
      * strata do not even get asked; they go to a person on the segment alone.
      */
-    if (quick.propertyKind === "commercial") {
+    /**
+     * AUDIT 9.3(a): this used to run on EVERY Continue. `?mode=business` seeds
+     * `quick.propertyKind = "commercial"` before the first render
+     * (lib/marketing/prefill.ts), so the very first Continue on screen 1 exited
+     * the quick look — a visitor promised four screens got one, with no
+     * explanation. The hand-off belongs to the screen that ASKS the question,
+     * which is `place`. Anywhere else it is firing on an answer nobody gave on
+     * that screen.
+     */
+    if (quickStep === "place" && quick.propertyKind === "commercial") {
+      /**
+       * AUDIT 9.3(c) — the STOP-GAP until C14's exterior brief.
+       *
+       * A commercial job whose work is OUTSIDE cannot go into the page set.
+       * `pageKeys` for `jobType === "exterior"` is property → house → …, and
+       * `house` is `PageExteriorHouse`: "What we're painting", with house /
+       * fence / deck / shed and domestic storeys. An office block, a warehouse
+       * or a shop front was being asked which weatherboards it has. Every
+       * commercial outside or both is a visit anyway (ruling, 10 Sep), so
+       * there is nothing to gain by asking domestic questions first.
+       *
+       * The address, job type and kind are already on the draft — the autosave
+       * writes them on every change — and flushed here so the lead survives the
+       * customer closing the tab on this screen.
+       */
+      if (state.jobType !== "interior") {
+        setState((s) => ({
+          ...s,
+          customer: s.customer ? { ...s.customer, propertyKind: "commercial" } : s.customer,
+        }));
+        flushDraft(`quick:place:commercial-${state.jobType}`);
+        setOutcome({
+          outcome: "handoff",
+          message: "We price commercial work outside on site — the access, the height and the surfaces decide the job, and a guess helps nobody.",
+          why: "One of our estimators will call to arrange a look. We have your address and what you're after.",
+          canRetry: false,
+        });
+        setScreen("editor");
+        window.scrollTo({ top: 0 });
+        return;
+      }
       setState((s) => ({
         ...s,
         customer: s.customer ? { ...s.customer, propertyKind: "commercial" } : s.customer,

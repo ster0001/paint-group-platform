@@ -48,7 +48,17 @@ export type FinishOption = {
  * on the spot, and one that does not is sent to a person. Both keep a visit
  * available, because §1's rule is that the two doors have no hierarchy.
  */
-export function finishOptions(payload: CustomerPayload, fixedPriceText: string): FinishOption[] {
+export function finishOptions(
+  payload: CustomerPayload,
+  fixedPriceText: string,
+  /**
+   * C4 — which walk this was. An exterior job has no rooms and no derived paint
+   * systems, so "checks your rooms, systems and photos" described a job the
+   * customer had not given us. Defaults to rooms, which is every existing
+   * caller.
+   */
+  kind: "rooms" | "sides" = "rooms",
+): FinishOption[] {
   if (payload.canAccept) {
     return [
       {
@@ -70,7 +80,9 @@ export function finishOptions(payload: CustomerPayload, fixedPriceText: string):
       key: "send_for_confirmation",
       icon: "✓",
       title: "Send for confirmation",
-      body: "One of our estimators checks your rooms, systems and photos and fixes your price — usually by the next working day, and usually without a visit. If we do need to see it, we'll say so and offer times.",
+      body: kind === "sides"
+        ? "One of our estimators checks your sides, the surfaces and your photos and fixes your price. Every outside job is signed off by a person — usually from what you've given us, and we'll say so if we need to see it."
+        : "One of our estimators checks your rooms, systems and photos and fixes your price — usually by the next working day, and usually without a visit. If we do need to see it, we'll say so and offer times.",
     },
     {
       key: "book_visit",
@@ -101,6 +113,23 @@ export type SummaryInput = {
   /** Rooms with a confirmed size. */
   roomsConfirmed: number;
   roomsTotal: number;
+  /**
+   * C4 (audit 9.4) — the exterior half. An exterior-only job has no rooms and
+   * no paint systems, so without this the summary said nothing at all and the
+   * finish line had no reason to exist. Absent on an interior job.
+   */
+  sides?: {
+    done: number;
+    total: number;
+    storeys: "single" | "double" | null;
+    substrates: string[];
+    windows: number;
+    doors: number;
+    /** The whole-job exterior condition answers, as given. */
+    condition: "good" | "weathered" | "peeling" | null;
+    rot: "no" | "little" | "lots" | null;
+    access: "steep" | "tight" | "high" | "none" | null;
+  } | null;
 };
 
 /**
@@ -135,6 +164,33 @@ export function summaryRows(input: SummaryInput): SummaryRow[] {
     });
   }
 
+  const x = input.sides;
+  if (x && x.total > 0) {
+    rows.push({
+      key: "sides",
+      card: "rooms",
+      text: x.done >= x.total
+        ? `${x.total} ${x.total === 1 ? "side" : "sides"}, all checked`
+        : `${x.total} ${x.total === 1 ? "side" : "sides"} — ${x.total - x.done} still to check`,
+    });
+  }
+  if (x && (x.storeys || x.substrates.length > 0)) {
+    const bits = [
+      x.storeys === "double" ? "double storey" : x.storeys === "single" ? "single storey" : null,
+      x.substrates.length > 0 ? listWords(x.substrates) : null,
+    ].filter(Boolean) as string[];
+    rows.push({ key: "geo", card: "rooms", text: capitalise(bits.join(", ")) });
+  }
+  if (x && (x.windows > 0 || x.doors > 0)) {
+    const bits = [
+      x.windows > 0 ? `${x.windows} ${x.windows === 1 ? "window" : "windows"}` : null,
+      x.doors > 0 ? `${x.doors} ${x.doors === 1 ? "door" : "doors"}` : null,
+    ].filter(Boolean) as string[];
+    rows.push({ key: "dw", card: "rooms", text: capitalise(bits.join(" and ")) });
+  }
+  const extCond = x ? exteriorConditionSentence(x) : null;
+  if (extCond) rows.push({ key: "ext_condition", card: "access", text: extCond });
+
   if (input.spots.length > 0) {
     rows.push({
       key: "spots",
@@ -151,6 +207,23 @@ export function summaryRows(input: SummaryInput): SummaryRow[] {
   }
 
   return rows;
+}
+
+/**
+ * The exterior's condition answers as one sentence — the same shape as the
+ * interior's access line, so the two branches read alike on the same screen.
+ */
+function exteriorConditionSentence(x: NonNullable<SummaryInput["sides"]>): string | null {
+  const parts: string[] = [];
+  if (x.condition === "good") parts.push("paint in good order");
+  else if (x.condition === "weathered") parts.push("weathered paint");
+  else if (x.condition === "peeling") parts.push("peeling paint");
+  if (x.rot === "little") parts.push("a little rot");
+  else if (x.rot === "lots") parts.push("rot to deal with");
+  if (x.access === "steep") parts.push("steep ground");
+  else if (x.access === "tight") parts.push("tight access");
+  else if (x.access === "high") parts.push("height to work at");
+  return parts.length ? capitalise(parts.join(", ")) : null;
 }
 
 /** The access answers as one sentence, skipping anything not answered. */

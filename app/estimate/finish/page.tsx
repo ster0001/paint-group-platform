@@ -46,11 +46,74 @@ export default async function FinishPage({ searchParams }: { searchParams: Promi
   if (!estimate || !own) return <Holding line="We couldn't find that estimate." />;
 
   const bundle = await loadCustomerScope(db, estimate as EstimateRow);
+
+  /**
+   * AUDIT 9.4 — an exterior-only job had no finish line.
+   *
+   * This returned "Open your estimate to finish it off." for every non-rooms
+   * bundle, which is screen 10 dead-ending for every exterior customer: they
+   * walked the whole flow and the last screen sent them back to the one before
+   * it. The comment said so outright.
+   *
+   * The sides bundle has everything the summary needs — the range, the sides
+   * and their progress, the geometry, the doors and windows, the condition
+   * answers — so it renders the SAME `Finish` component off the SAME
+   * `summaryRows`. A second summary would be a second opinion about the job.
+   *
+   * An exterior job never self-serves (an estimator signs every one off), so
+   * `finishOptions` offers "send to your estimator" and "book a visit" rather
+   * than a price to accept. That is the policy already; this screen just stops
+   * hiding it.
+   */
+  if (bundle.kind === "sides") {
+    const sides = bundle.initialSides;
+    return (
+      <div className="wz">
+        <header className="wz-top"><Wordmark logoUrl={bundle.logoUrl} /></header>
+        <Finish
+          estimateId={bundle.estimateId}
+          companyPhone={bundle.companyPhone}
+          phoneHours={bundle.phoneHours}
+          customerPhone={bundle.customerPhone}
+          kind="sides"
+          fixedPriceCents={Math.round((bundle.initial.rangeLoCents + bundle.initial.rangeHiCents) / 2)}
+          input={{
+            payload: bundle.initial,
+            // An exterior job carries no derived paint systems and no interior
+            // access answers (plan §4.4) — the rows simply do not render.
+            systems: [],
+            // SiteAccess is all-optional and every field of it is an INTERIOR
+            // question (furniture, stairwell, lift). An exterior job answers
+            // its access on the condition screen instead, which is the
+            // `sides.access` field below — so this stays empty and the
+            // interior access row simply does not render.
+            access: {},
+            extras: sides.sweepItems.filter((i) => i.on).map((i) => i.label),
+            // `SideView` carries no flagged spots today — per-side photo
+            // flagging is C10's work (prototype `s-ext-side`). Empty rather
+            // than invented; the row does not render.
+            spots: [],
+            roomsConfirmed: 0,
+            roomsTotal: 0,
+            sides: {
+              done: sides.progress.done,
+              total: sides.progress.total,
+              storeys: sides.geo.storeys,
+              substrates: sides.geo.substrates,
+              windows: sides.dw.windows,
+              doors: sides.dw.doors,
+              condition: sides.meta.cond.cond,
+              rot: sides.meta.cond.rot,
+              access: sides.meta.cond.acc,
+            },
+          }}
+        />
+      </div>
+    );
+  }
+
   if (bundle.kind !== "rooms") {
-    // An exterior-only job's finish line is its own screen (§3's branch) and
-    // is not built; sending them to a half-right summary would be worse than
-    // sending them back to the editor they know.
-    return <Holding line="Open your estimate to finish it off." logoUrl={bundle.kind === "sides" ? bundle.logoUrl : null} />;
+    return <Holding line="Open your estimate to finish it off." />;
   }
 
   const loop = bundle.initialInteriorLoop;

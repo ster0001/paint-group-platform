@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import {
   COLOUR_INTENTS, CONDITION_BANDS, JOB_TYPES, OCCUPIED, PROPERTY_KINDS,
-  SCOPE_PRESETS, STOREYS, type Choice, type QuickLook, type QuickLookStep,
+  SCOPE_PRESETS, STOREYS, stepCount, type Choice, type QuickLook, type QuickLookStep,
 } from "@/lib/wizard/quick-look";
 import {
   EXTERIOR_PROMISE, EXT_ACCESS, EXT_CONDITIONS, EXT_STOREYS, EXT_SUBSTRATES, EXT_TARGETS,
@@ -61,9 +61,16 @@ export default function QuickLook({
         <>
           <p className="wz-kick">A minute to a guide range</p>
           <h1>Let&rsquo;s price your painting</h1>
+          {/**
+            * AUDIT 9.3(b): this said "Four quick screens" on every branch, and
+            * `stepsFor` returns THREE for Outside and FIVE for Both — so the
+            * promise was false on two of three paths while the dots below it
+            * showed the real number, and the screen contradicted itself. The
+            * count is computed, never typed.
+            */}
           <p className="wz-sub">
-            Four quick screens, then a guide range. Everything after that is optional — and
-            nothing you say here is a commitment.
+            {stepCount(quick.jobType)} quick screens, then a guide range. Everything after that is
+            optional — and nothing you say here is a commitment.
           </p>
           {addressField}
           <p className="wz-qhead">What&rsquo;s being painted?</p>

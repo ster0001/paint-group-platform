@@ -3333,3 +3333,43 @@ record field by field, so `version` and `lastScreen` were written to localStorag
 dropped on the way back in — every other piece was in place and the refresh still resumed wrong.
 Both are the kind of thing only a real browser finds.
 
+## Outside + Commercial, and the exterior finish line — C4 (11 Sep 2026)
+
+Closes audit 9.3 and 9.4, and finishes Phase 0.
+
+**9.3(a) — the hand-off fired on every Continue.** `?mode=business` seeds
+`quick.propertyKind = "commercial"` before the first render (`lib/marketing/prefill.ts`), and the
+commercial hand-off in `quickNext` was checked on EVERY call, before the "are we on the last
+screen?" test. So a business visitor's first Continue on screen 1 exited the quick look: promised
+four screens, given one, with no explanation. The hand-off now belongs to the step that ASKS the
+question — `quickStep === "place"`. Anywhere else it was firing on an answer nobody gave there.
+
+**9.3(b) — the promise was typed.** `QuickLook.tsx` read "Four quick screens" while `stepsFor`
+returns three for Outside and five for Both, so the sentence was false on two of three branches
+while the dots below it showed the truth. `stepCount()` in `lib/wizard/quick-look.ts` is now the
+only source of either, and a unit test asserts the word matches the array length on every branch.
+
+**9.3(c) — commercial outside got domestic questions.** `pageKeys` for `jobType === "exterior"` is
+`property → house → …`, and `house` is `PageExteriorHouse`: "What we're painting", with house /
+fence / deck / shed and domestic storeys. An office block was being asked which weatherboards it
+has. Every commercial outside or both is a visit anyway (ruling, 10 Sep), so there is nothing to
+gain by asking first: it routes to the `handoff` outcome with a reason, and `flushDraft` writes the
+lead immediately rather than waiting out the 2.5-second autosave — the customer may well close the
+tab on that screen. Commercial + INSIDE still goes into the page set, where the segment question
+and the gates live. **This is the stop-gap C14's exterior brief replaces.**
+
+**9.4 — an exterior job had no finish line.** `finish/page.tsx` returned "Open your estimate to
+finish it off." for every non-rooms bundle, and said so in its own comment. Screen 10 dead-ended
+for every exterior customer. The sides bundle already carries everything the summary needs, so it
+renders the SAME `Finish` component off the SAME `summaryRows` — a second summary would be a second
+opinion about the job. `SummaryInput` gained an optional `sides` block (sides checked, storeys and
+substrates, doors and windows, the condition answers) and `finishOptions` takes a `kind`, because
+"checks your rooms, systems and photos" described a job an exterior customer never gave us. An
+exterior job never self-serves, so the two doors are Send for confirmation and Book a site visit —
+that was already the policy; this screen just stopped hiding it.
+
+Tests: `lib/wizard/quick-look-routing.test.ts` (14) pins the step counts, the promise and the four
+job-type × kind combinations as a table; `e2e/customer-journey/outside-commercial.spec.ts` (7) and
+the finish-line assertions appended to `exterior-path.spec.ts` pin the wiring on the real screens.
+All four fixes are mutation-checked — reverting each one fails exactly the test that names it.
+

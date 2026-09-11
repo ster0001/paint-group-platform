@@ -25,7 +25,7 @@ import ContactCard from "@/app/estimate/scope/ContactCard";
 const fmt = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
 export default function Finish({
-  estimateId, input, fixedPriceCents, companyPhone, phoneHours, customerPhone, busy = false,
+  estimateId, input, fixedPriceCents, companyPhone, phoneHours, customerPhone, busy = false, kind = "rooms",
 }: {
   estimateId: string;
   input: SummaryInput;
@@ -35,6 +35,8 @@ export default function Finish({
   phoneHours: string | null;
   customerPhone: string | null;
   busy?: boolean;
+  /** C4 — an exterior walk has no rooms; the copy follows (finishOptions). */
+  kind?: "rooms" | "sides";
 }) {
   const router = useRouter();
   const [sending, setSending] = useState<string | null>(null);
@@ -43,7 +45,7 @@ export default function Finish({
   const [requested, setRequested] = useState<string | null>(null);
   const { payload } = input;
   const rows = summaryRows(input);
-  const options = finishOptions(payload, fmt(fixedPriceCents));
+  const options = finishOptions(payload, fmt(fixedPriceCents), kind);
 
   async function choose(key: string) {
     if (sending || busy) return;
