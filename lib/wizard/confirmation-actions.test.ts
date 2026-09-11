@@ -103,20 +103,37 @@ describe("overdue is measured in business hours, not wall-clock", () => {
     })).toBe(true);
   });
 
-  test("a Monday-morning request is late the same afternoon", () => {
-    expect(isOverdue({
-      requestedAt: new Date("2026-09-14T08:00:00+10:00"),
-      now: new Date("2026-09-14T16:30:00+10:00"),
-      turnaroundHours: 8,
-    })).toBe(true);
+  /**
+   * The office opens at 9 (businessHours.OPEN_HOUR), so a request that arrives
+   * at 8 does not start counting until then. Eight business hours later is
+   * 17:00 — the close — and that is the first moment it is late. An earlier
+   * version of this test assumed an 8am start and was wrong about the product,
+   * not about the code.
+   */
+  test("a request waiting before the office opens is late at close, not before", () => {
+    const beforeOpen = new Date("2026-09-14T08:00:00+10:00");
+    expect(isOverdue({ requestedAt: beforeOpen, now: new Date("2026-09-14T16:30:00+10:00"), turnaroundHours: 8 })).toBe(false);
+    expect(isOverdue({ requestedAt: beforeOpen, now: new Date("2026-09-14T17:00:00+10:00"), turnaroundHours: 8 })).toBe(true);
   });
 
   test("and is not late an hour in", () => {
     expect(isOverdue({
-      requestedAt: new Date("2026-09-14T08:00:00+10:00"),
-      now: new Date("2026-09-14T09:00:00+10:00"),
+      requestedAt: new Date("2026-09-14T09:00:00+10:00"),
+      now: new Date("2026-09-14T10:00:00+10:00"),
       turnaroundHours: 8,
     })).toBe(false);
+  });
+
+  /**
+   * The reason this uses addBusinessHours rather than its own loop: under
+   * TZ=UTC the hand-rolled version called a Friday-evening request overdue on
+   * Saturday, because getHours()/getDay() answer in the RUNTIME's zone and the
+   * server is not in Melbourne. Both of these must hold in either zone.
+   */
+  test("the answer does not depend on the server's timezone", () => {
+    const friday = new Date("2026-09-11T17:00:00+10:00");
+    expect(isOverdue({ requestedAt: friday, now: new Date("2026-09-12T09:00:00+10:00"), turnaroundHours: 8 })).toBe(false);
+    expect(isOverdue({ requestedAt: friday, now: new Date("2026-09-14T17:30:00+10:00"), turnaroundHours: 8 })).toBe(true);
   });
 
   test("a nonsense timestamp is never overdue, rather than always", () => {

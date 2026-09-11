@@ -133,50 +133,56 @@ export async function createLoopFixture(
 
 export async function destroyLoopFixture(db: SupabaseClient, fixture: LoopFixture | null) {
   if (!fixture) return;
+
+  /**
+   * EVERY delete is checked.
+   *
+   * They used to be fire-and-forget, and that is how the C1 test project
+   * collected 40,085 invoices. `ledger-parity` creates eight per run — one per
+   * status — and its teardown deleted them; the delete began timing out once
+   * `crm_events.invoice_id` grew without an index behind it, nobody looked at
+   * the error, the rows stayed, and every later run was slower for it. Five
+   * thousand runs of that is where the number came from.
+   *
+   * A teardown that cannot clean up must SAY SO on the run that first fails,
+   * not on the hundredth. Silent cleanup is not cleanup, it is a leak with
+   * good manners.
+   */
+  const failures: string[] = [];
+  const purge = async (label: string, run: PromiseLike<{ error: { message: string } | null }>) => {
+    const { error } = await run;
+    if (error) failures.push(`${label}: ${error.message}`);
+  };
+
   // Invoices FIRST. A2 made invoices.estimate_id ON DELETE RESTRICT, and a
   // spec that signs its job creates a stub invoice — deleting the estimate
-  // with it still attached is refused by the database, the delete fails
-  // silently here, and the fixture leaks (found 23 Aug: three $0 stubs and
-  // three closed WO-E2E* jobs left behind by the walkthrough-v3 gate run).
-  await db.from("invoices").delete().eq("estimate_id", fixture.estimateId);
+  // with it still attached is refused by the database (found 23 Aug: three $0
+  // stubs and three closed WO-E2E* jobs left behind by the walkthrough-v3 run).
+  await purge("invoices", db.from("invoices").delete().eq("estimate_id", fixture.estimateId));
   // Contractor invoices too (Step 5): work_order_id is ON DELETE RESTRICT and
   // sign-off auto-drafts one, so a signed job's fixture would leak without this.
-  await db.from("contractor_invoices").delete().eq("work_order_id", fixture.workOrderId);
+  await purge("contractor_invoices", db.from("contractor_invoices").delete().eq("work_order_id", fixture.workOrderId));
   // Job costs (Step 6a): work_order_id is ON DELETE RESTRICT too. Materials
   // and intake rows only set-null, but leaving them is still a leak.
-  await db.from("job_costs").delete().eq("work_order_id", fixture.workOrderId);
+  await purge("job_costs", db.from("job_costs").delete().eq("work_order_id", fixture.workOrderId));
   // 6c: both RESTRICT-FK'd to the work order.
-  await db.from("contractor_expenses").delete().eq("work_order_id", fixture.workOrderId);
-  await db.from("expense_preapprovals").delete().eq("work_order_id", fixture.workOrderId);
-  await db.from("material_costs").delete().eq("work_order_id", fixture.workOrderId);
-  await db.from("cost_intake").delete().or(
+  await purge("contractor_expenses", db.from("contractor_expenses").delete().eq("work_order_id", fixture.workOrderId));
+  await purge("expense_preapprovals", db.from("expense_preapprovals").delete().eq("work_order_id", fixture.workOrderId));
+  await purge("material_costs", db.from("material_costs").delete().eq("work_order_id", fixture.workOrderId));
+  await purge("cost_intake", db.from("cost_intake").delete().or(
     `proposed_wo_id.eq.${fixture.workOrderId},confirmed_wo_id.eq.${fixture.workOrderId}`,
-  );
+  ));
+
   // Everything else cascades from the estimate.
   const { error } = await db.from("estimates").delete().eq("id", fixture.estimateId);
-  /**
-   * A leak is a bug in the spec, not a shrug — fail loudly so it gets fixed.
-   *
-   * But say WHERE. Every delete above ran unchecked, so when one of them failed
-   * this line blamed the estimate and named a foreign key three steps removed
-   * from the actual problem ("invoices_estimate_id_fkey" when the invoices
-   * delete itself had errored). A teardown that misreports its own cause sends
-   * the next person to the wrong file.
-   */
-  if (error) {
-    const upstream: string[] = [];
-    for (const [label, q] of [
-      ["invoices", db.from("invoices").select("id", { count: "exact", head: true }).eq("estimate_id", fixture.estimateId)],
-      ["contractor_invoices", db.from("contractor_invoices").select("id", { count: "exact", head: true }).eq("work_order_id", fixture.workOrderId)],
-      ["job_costs", db.from("job_costs").select("id", { count: "exact", head: true }).eq("work_order_id", fixture.workOrderId)],
-    ] as const) {
-      const { count } = await q;
-      if (count) upstream.push(`${label}: ${count} row(s) still there`);
-    }
-    throw new Error(
-      `fixture leak: estimate ${fixture.estimateId} not deleted — ${error.message}`
-      + (upstream.length ? ` · upstream deletes left behind — ${upstream.join("; ")}` : " · every upstream table is clear, so this is the estimate's own delete"),
-    );
+  if (error) failures.push(`estimates: ${error.message}`);
+
+  // A leak is a bug in the spec, not a shrug — fail loudly, and name WHERE.
+  // Blaming the estimate for an upstream delete's failure sent the last person
+  // to the wrong file: the error said "invoices_estimate_id_fkey" when the
+  // invoices delete had itself timed out three steps earlier.
+  if (failures.length) {
+    throw new Error(`fixture leak: estimate ${fixture.estimateId} not cleaned up — ${failures.join(" · ")}`);
   }
 }
 

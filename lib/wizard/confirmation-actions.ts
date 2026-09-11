@@ -1,3 +1,4 @@
+import { addBusinessHours } from "@/lib/time/businessHours";
 import type { ConfirmationKind } from "./confirmation";
 
 /**
@@ -101,9 +102,16 @@ export function priceToFix(input: {
  * Is this request overdue against what we promised?
  *
  * The hand-off screen tells the customer a turnaround; the queue is measured
- * against the same setting, or we promise one thing and chase another. Business
- * hours, not wall-clock: a request that arrives on Friday evening is not late
- * on Saturday morning, and treating it as late trains people to ignore the card.
+ * against the same setting, or we promise one thing and chase another.
+ *
+ * Business hours via `addBusinessHours` — the one implementation, which is
+ * Melbourne-aware through `melbourneParts`. The first version of this walked
+ * hours with `getHours()` and `getDay()`, i.e. the RUNTIME's local time. Its
+ * tests passed because vitest runs under TZ=Australia/Melbourne; on a UTC
+ * server it would have called Friday-evening requests overdue on Saturday and
+ * missed real ones by ten or eleven hours depending on daylight saving. That is
+ * the trap CLAUDE.md's Dates section names, written again by hand next to a
+ * helper that already solved it.
  */
 export function isOverdue(input: {
   requestedAt: string | Date;
@@ -112,17 +120,7 @@ export function isOverdue(input: {
 }): boolean {
   const from = input.requestedAt instanceof Date ? input.requestedAt : new Date(input.requestedAt);
   if (!Number.isFinite(from.getTime())) return false;
-  let remaining = input.turnaroundHours;
-  const cur = new Date(from.getTime());
-  while (remaining > 0) {
-    cur.setHours(cur.getHours() + 1);
-    if (cur > input.now) return false;
-    const day = cur.getDay();
-    const hour = cur.getHours();
-    // Mon–Fri, 8am–5pm. The wizard's own "Mon–Fri" promise (8 Sep).
-    if (day >= 1 && day <= 5 && hour >= 8 && hour < 17) remaining -= 1;
-  }
-  return true;
+  return addBusinessHours(from, input.turnaroundHours) <= input.now;
 }
 
 /**
