@@ -75,6 +75,21 @@ export const CRM_EVENT_SCHEMAS = {
     totalCents: money.optional(),
     assigned: z.boolean().optional(),
   }),
+  /**
+   * C6 — an estimator fixed the price from the desk. `kind` is what the
+   * customer had asked for, so "fixed remotely" and "fixed after a visit" stay
+   * distinguishable: the share fixed WITHOUT a visit is one of the four numbers
+   * §2.6 says tells us whether any of this is working.
+   */
+  price_fixed: z.object({
+    totalCents: money,
+    kind: z.enum(["remote", "visit", "fix_online"]).optional(),
+  }),
+  /** C6 — a visit booked off the back of a wizard confirmation, not the diary. */
+  visit_booked_from_wizard: z.object({
+    when: z.string().max(40),
+    who: z.string().max(80).optional(),
+  }),
   visit_booked: z.object({ when: z.string().max(40), who: z.string().max(80).optional(), visitId: z.string().uuid().optional(), kind: z.string().max(20).optional(), source: z.string().max(20).optional(), moved: z.boolean().optional(), rebooked: z.boolean().optional() }),
   visit_completed: z.object({ outcome: z.string().max(2000).optional(), visitId: z.string().uuid().optional(), who: z.string().max(80).optional() }),
   /** CRM v2 P6: the visits table's other outcomes. A no-show raises the rebook item; a cancel clears the "visit booked" lane. */
