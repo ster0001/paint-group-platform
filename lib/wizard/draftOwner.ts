@@ -25,7 +25,7 @@ export type OpenDraftRow = {
   current_page: number | null; furthest_page: number | null; pages_total: number | null;
   last_seen_at: string | null; converted_at: string | null; bucket?: string | null;
 };
-const COLS = "id, user_id, account_id, email, state, job_type, address, suburb, current_page, furthest_page, pages_total, last_seen_at, converted_at, bucket";
+const COLS = "id, user_id, account_id, email, state, version, last_screen, job_type, address, suburb, current_page, furthest_page, pages_total, last_seen_at, converted_at, bucket";
 
 export async function findOpenDraft(
   db: SupabaseClient,

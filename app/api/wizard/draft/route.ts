@@ -56,6 +56,16 @@ const bodySchema = z.object({
   address: z.string().trim().max(250).optional(),
   /** "Start again": the open draft is dropped, so it never resurfaces as a resume (7 Sep). */
   reset: z.boolean().optional(),
+  /**
+   * C3 — optimistic concurrency. The version the client last saw. Absent means
+   * "I have never read this draft", which is treated as a first write: the
+   * update still carries a predicate, but on the row's CURRENT version, so a
+   * client that has simply not been told a version yet is not punished. A
+   * client that HAS a version and is stale gets a 409 and the server's copy.
+   */
+  version: z.number().int().min(1).optional(),
+  /** Where they actually are — the quick-look step or page label, not a number. */
+  lastScreen: z.string().trim().max(60).optional(),
 });
 
 export async function POST(req: Request) {
@@ -169,25 +179,59 @@ export async function POST(req: Request) {
     ...(parsed.data.entrySource ? { entry_source: parsed.data.entrySource } : {}),
     ...(parsed.data.address ? { address: parsed.data.address } : {}),
     ...(parsed.data.page ? { current_page: parsed.data.page } : {}),
+    ...(parsed.data.lastScreen ? { last_screen: parsed.data.lastScreen } : {}),
     ...(parsed.data.lastPage ? { pages_total: parsed.data.lastPage } : {}),
   };
 
   try {
     const { data: existing } = await db.from("wizard_drafts")
-      .select("id, visits, furthest_page, outcome").eq("user_id", user.id).is("converted_at", null).maybeSingle();
+      .select("id, visits, furthest_page, outcome, version, state, last_screen, current_page")
+      .eq("user_id", user.id).is("converted_at", null).maybeSingle();
 
     if (existing) {
       const nowDate = new Date(now);
-      await db.from("wizard_drafts").update({
+      const serverVersion = (existing.version as number) ?? 1;
+      // C3: the version the client is writing against. A client that has never
+      // been told a version writes against the row as it stands — it is not
+      // stale, it is new. A client that HAS one and is behind is the case this
+      // exists for.
+      const expected = parsed.data.version ?? serverVersion;
+
+      const { data: updated } = await db.from("wizard_drafts").update({
         ...row,
+        version: serverVersion + 1,
         furthest_page: Math.max((existing.furthest_page as number) ?? 1, parsed.data.page ?? 1),
         // Activity = online now, unless a customer action already filed it (§4: forward only on action).
         bucket: bucketFor({ completed: Boolean(parsed.data.converted), outcome: ((existing.outcome as WizardOutcome) ?? "none"), lastActiveAt: now, now: nowDate }),
         // Coming BACK is the strongest signal there is, so it is counted
         // rather than inferred from timestamps later.
         ...(parsed.data.returning ? { visits: ((existing.visits as number) ?? 1) + 1 } : {}),
-      }).eq("id", existing.id);
-      return NextResponse.json({ saved: true, id: existing.id });
+      })
+        // THE PREDICATE. Without it this route was last-write-wins: two tabs,
+        // or a staff member joining an assisted session, and the later write
+        // erased the earlier one with nobody the wiser.
+        .eq("id", existing.id).eq("version", expected)
+        .select("id, version").maybeSingle();
+
+      if (!updated) {
+        // Somebody moved first. Hand back the server's copy so the client can
+        // merge rather than guess — this is the ONE case the route answers
+        // something other than 200, and the client must not show it as an
+        // error: the customer has done nothing wrong and is still typing.
+        const { data: fresh } = await db.from("wizard_drafts")
+          .select("id, version, state, last_screen, current_page")
+          .eq("id", existing.id).maybeSingle();
+        return NextResponse.json({
+          saved: false,
+          conflict: true,
+          id: existing.id,
+          version: (fresh?.version as number) ?? serverVersion,
+          state: fresh?.state ?? existing.state ?? {},
+          lastScreen: (fresh?.last_screen as string | null) ?? null,
+          page: (fresh?.current_page as number | null) ?? null,
+        }, { status: 409 });
+      }
+      return NextResponse.json({ saved: true, id: existing.id, version: (updated.version as number) ?? serverVersion + 1 });
     }
 
     // The race the probe run caught: submit converts the draft server-side,
@@ -209,7 +253,9 @@ export async function POST(req: Request) {
     const { data: inserted, error } = await db.from("wizard_drafts")
       .insert({ ...row, started_at: now, furthest_page: parsed.data.page ?? 1, bucket: "online_now" }).select("id").single();
     if (error) { reportError(error, { where: "wizard.draft.insert", bestEffort: true }); return quietly("insert"); }
-    return NextResponse.json({ saved: true, id: inserted.id });
+    // A fresh row starts at version 1 (the column default) — the client keeps it
+    // so its next write carries a predicate rather than a blank cheque.
+    return NextResponse.json({ saved: true, id: inserted.id, version: 1 });
   } catch (e) {
     reportError(e, { where: "wizard.draft", bestEffort: true });
     return quietly("threw");
