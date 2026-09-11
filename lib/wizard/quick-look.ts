@@ -357,6 +357,19 @@ export type QuickLookStep = (typeof QUICK_LOOK_STEPS)[number];
  * set. It was "for now" while the per-elevation allowances (§8) did not exist;
  * they do now, so the reason is gone.
  */
+/**
+ * How many screens this branch actually has, in words — the screen-1 promise.
+ *
+ * AUDIT 9.3(b): the copy read "Four quick screens" on every branch while
+ * `stepsFor` returned three for Outside and five for Both. Typed counts and
+ * computed counts drift; this is the only place either is allowed to come from.
+ */
+const COUNT_WORD = ["", "One", "Two", "Three", "Four", "Five", "Six"] as const;
+export function stepCount(jobType: QuickLook["jobType"]): string {
+  const n = stepsFor(jobType).length;
+  return COUNT_WORD[n] ?? String(n);
+}
+
 export function stepsFor(jobType: QuickLook["jobType"]): QuickLookStep[] {
   if (jobType === "exterior") return ["start", "place", "outside"];
   if (jobType === "both") return [...QUICK_LOOK_STEPS];

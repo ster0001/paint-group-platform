@@ -89,4 +89,26 @@ test("R2 exterior journey: five exterior pages, no interior questions, priced by
   // The sides editor renders sd-* cards, not the interior loop's wz-rooms —
   // the stale selector failed a journey that had actually succeeded.
   await expect(page.getByText(/Front — street side/).first()).toBeVisible();
+
+  /**
+   * C4 · AUDIT 9.4 — an exterior-only job had no finish line. `finish/page.tsx`
+   * returned "Open your estimate to finish it off." for every non-rooms bundle,
+   * so screen 10 dead-ended for every exterior customer: they walked the whole
+   * flow and the last screen sent them back to the one before it.
+   */
+  const id = new URL(page.url()).searchParams.get("id");
+  expect(id).toBeTruthy();
+  await page.goto(`/estimate/finish?id=${id}`);
+
+  // Not the holding message.
+  await expect(page.getByText(/Open your estimate to finish it off/i)).toHaveCount(0);
+  // The range, the answers they gave, and a person — never a price to accept,
+  // because an estimator signs every exterior job off.
+  await expect(page.locator(".wz-wrap")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText(MONEY_RANGE).first()).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText(/Send for confirmation/i)).toBeVisible();
+  await expect(page.getByText(/Book a site visit instead/i)).toBeVisible();
+  await expect(page.getByText(/Fix my price online/i)).toHaveCount(0);
+  // And the copy describes the job they actually gave us.
+  await expect(page.getByText(/checks your sides/i)).toBeVisible();
 });
