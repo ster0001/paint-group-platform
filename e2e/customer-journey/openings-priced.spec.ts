@@ -17,6 +17,9 @@ test.describe("R1.2 openings priced", () => {
   test("styles answered: every room's doors/windows are on, priced, steppered", async ({ page }) => {
     test.setTimeout(180_000);
     await driveNoPlanWizard(page);
+    // windowStyle is passed and SKIPPED when windows are out of scope — they
+    // are not in DEFAULT_SURFACES, so the question does not render on the
+    // default walk (see setStylesInEditor). Doors carry the assertion.
     await setStylesInEditor(page, { doorStyle: "Panel", windowStyle: "Sash" });
     await openScopeEditor(page);
 

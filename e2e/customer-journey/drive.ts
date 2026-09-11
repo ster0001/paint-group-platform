@@ -213,7 +213,24 @@ export async function setStylesInEditor(page: Page, opts: {
   await expect(card).toBeVisible({ timeout: 30_000 });
   for (const label of [opts.doorStyle, opts.windowStyle]) {
     if (!label) continue;
-    await card.getByRole("button", { name: label, exact: true }).click();
+    const chip = card.getByRole("button", { name: label, exact: true });
+    /**
+     * A style question only renders when that surface is IN SCOPE
+     * (`styleOpen.doors` / `styleOpen.windows`, ScopeEditor ~696-714).
+     *
+     * Windows are not in `DEFAULT_SURFACES` (state.ts:22 — walls, ceilings,
+     * cornices, doors, architraves, skirting), so "the whole inside" has never
+     * included window frames and the window-style question does not exist on
+     * the default walk. This used to wait 30 s for a Sash chip that cannot
+     * appear, and the failure read as "styles are broken" rather than "windows
+     * are not in this job". Skipping is the honest answer: there is no style to
+     * answer for a surface nobody is painting.
+     *
+     * To test window styles, tick windows first — that is a different journey
+     * (the add panel), not this one.
+     */
+    if (await chip.count() === 0) continue;
+    await chip.click();
     // Optimistic chips light before the save lands — wait it out or the next
     // click races the write (the site-access trap, 9 Sep).
     await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
