@@ -31,7 +31,36 @@ import { resolve } from "node:path";
  * because a script's connection logic disagreed with its caller's intent.
  */
 
-const PRODUCTION_REF = "llmrvgdequpmzzuaxdhq";
+/**
+ * WHAT IS PRODUCTION? — named by the environment, never pinned here.
+ *
+ * Same rule as `e2e/global-setup.ts`: one explicitly named variable, no
+ * fallback, and an unset or malformed value REFUSES rather than guesses.
+ * A seed script that cannot tell which project is production must not write
+ * to any of them.
+ *
+ * Not a secret — a project ref is in every public URL the app serves — so it
+ * lives in `.env.local` / `.env.test.local` beside the values it protects.
+ */
+const PRODUCTION_REF_VAR = "PRODUCTION_SUPABASE_REF";
+
+function productionRefOrRefuse(scriptName) {
+  const ref = (process.env[PRODUCTION_REF_VAR] ?? "").trim();
+  if (/^[a-z0-9]{20}$/.test(ref)) return ref;
+  console.error(
+    `\nREFUSED: ${PRODUCTION_REF_VAR} is ${ref ? `not a project ref (${ref})` : "not set"}.\n\n` +
+    `${scriptName} creates or overwrites data and cannot tell which project is\n` +
+    "production, so it will not write to any of them.\n\n" +
+    "FIX: load a project env file — both carry the variable:\n\n" +
+    "    set -a; source .env.test.local; set +a\n\n" +
+    "IF YOU JUST MADE A WORKTREE: it has no .env.local or .env.test.local.\n" +
+    "Both are gitignored and live in the main checkout — copy them across:\n\n" +
+    "    cp ../paint-group-platform/.env.test.local .\n\n" +
+    "The value is the PRODUCTION project's ref, the 20 characters in its\n" +
+    "Supabase dashboard URL (/dashboard/project/<ref>). It is not a secret.\n",
+  );
+  process.exit(1);
+}
 
 function parseEnvFile(path) {
   if (!existsSync(path)) return {};
@@ -70,8 +99,28 @@ export function resolveSeedTarget(scriptName) {
   const serviceKey = (fromProcess ? process.env.SUPABASE_SERVICE_ROLE_KEY : null)
     || file.SUPABASE_SERVICE_ROLE_KEY;
 
-  const ref = refOf(url) ?? "unknown";
-  const isProduction = ref === PRODUCTION_REF;
+  /**
+   * AN UNREADABLE TARGET REFUSES. It used to become the string "unknown",
+   * which then compared unequal to the production ref — so a URL this guard
+   * could not parse was treated as definitely-not-production and written to.
+   * Supabase supports CUSTOM DOMAINS, so production reached through one
+   * (https://db.paintgroup.com.au/...) parsed to null and walked straight
+   * past the check. "I could not identify it" is not "it is safe".
+   */
+  const ref = refOf(url);
+  if (!ref) {
+    console.error(
+      `\nREFUSED: ${scriptName} cannot identify the project behind ${url},\n` +
+      `resolved from ${source}.\n\n` +
+      "It expects https://<ref>.supabase.co. A custom domain or a proxy hides the\n" +
+      "project ref, and this script will not create or overwrite data it cannot\n" +
+      "name — an unidentified target is not a safe one.\n\n" +
+      "Use the project's own supabase.co URL:\n\n" +
+      "    set -a; source .env.test.local; set +a\n",
+    );
+    process.exit(1);
+  }
+  const isProduction = ref === productionRefOrRefuse(scriptName);
 
   if (isProduction && process.env.SEED_ALLOW_PRODUCTION !== "1") {
     console.error(

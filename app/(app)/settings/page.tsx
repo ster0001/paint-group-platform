@@ -17,6 +17,7 @@ import AccessAllowancesSettings from "./AccessAllowancesSettings";
 import { EXTERIOR_ALLOWANCES_KEY, exteriorAllowancesFrom } from "@/lib/wizard/exterior-allowances";
 import { SITE_ACCESS_HOURS_KEY, hourAllowancesFrom } from "@/lib/wizard/site-access";
 import TiersSettings from "./TiersSettings";
+import { holdDaysFromSettings } from "@/lib/wizard/confirmation-actions";
 import { bandsFromSettings, policyFromSettings } from "@/lib/wizard/policy";
 import { onlineEstimatesFrom, WIZARD_PUBLIC_KEY } from "@/lib/wizard/publicFlag";
 import PaintSystemsSettings from "./PaintSystemsSettings";
@@ -167,6 +168,9 @@ export default async function SettingsPage() {
   const tiers = {
     bands: bandsFromSettings(allSettings.find((r) => r.key === "wizard_bands")?.value),
     policy: policyFromSettings(allSettings.find((r) => r.key === "wizard_policy")?.value),
+    // C7 — no migration seeds this row; the reader defaults to 60 when it is
+    // absent, so the screen shows the number actually in force either way.
+    holdDays: holdDaysFromSettings(allSettings.find((r) => r.key === "wizard_hold_days")?.value),
   };
   // Settings → Automations: the one wo_loop key the office can flip here.
   const variationRelease = ((allSettings.find((r) => r.key === "wo_loop")?.value as { variationRelease?: string } | undefined)?.variationRelease === "pc") ? "pc" as const : "auto" as const;

@@ -23,6 +23,8 @@ import { defaultSidesLoop, extrasPrices, hoursPerItemCodes, linealCodes, sidesVi
 import { ladderFor, requiresSiteCheck, type Ladder } from "@/lib/wizard/ladder";
 import { defaultInteriorLoop, interiorDwTotals, interiorProgress, roomLoopViews, type InteriorLoopMeta, type RoomLoopView } from "@/lib/wizard/rooms-loop";
 import { loopConfirmState } from "@/lib/wizard/confirm-state";
+import { holdDaysFromSettings } from "@/lib/wizard/confirmation-actions";
+import { estimatorForPostcode } from "@/lib/wizard/confirmation";
 import { estimateDocuments, type EstimateDocuments } from "@/lib/wizard/documents";
 import { exteriorAddOptions, interiorAddOptions, type AddOption } from "@/lib/wizard/add-catalogue";
 import { paintSystemsView, type PaintSystemLine } from "@/lib/wizard/systems-view";
@@ -58,12 +60,20 @@ export type CustomerScopeBundle =
       initialLadder: Ladder;
       docs: EstimateDocuments; logoUrl: string | null; companyPhone: string | null;
       phoneHours: string; customerPhone: string | null;
+      /** C7 — how long a fixed price is held (Settings `wizard_hold_days`). */
+      holdDays: number;
+      /** C7 — whose name the CTA and the hand-off use; null = nobody to name. */
+      sendTo: string | null;
     }
   | {
       kind: "rooms"; estimateId: string; initial: CustomerPayload; initialRooms: CustomerScopeRoom[]; initialSides: SidesView | null;
       initialExterior: CustomerExteriorView | null; initialLadder: Ladder;
       initialInteriorLoop: InteriorLoopView | null; roomTypes: string[]; liveRange: boolean; docs: EstimateDocuments; logoUrl: string | null; companyPhone: string | null;
       phoneHours: string; customerPhone: string | null;
+      /** C7 — how long a fixed price is held (Settings `wizard_hold_days`). */
+      holdDays: number;
+      /** C7 — whose name the CTA and the hand-off use; null = nobody to name. */
+      sendTo: string | null;
       /** Phase 4: the derived coats and prep, in the painter's words, with a
        * correction per line. Empty on an exterior-only job (plan §4.4). */
       initialSystems: PaintSystemLine[];
@@ -155,6 +165,35 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
     .sort();
   // ⚑ pending Tom's final call: live range updates default ON, Settings-off.
   const editorFlags = (settingValue(ctx.settings, "scope_editor") ?? {}) as { liveRange?: boolean; visitSlots?: string[] };
+  /**
+   * C7 — the hold, read ONCE here with everything else this screen needs.
+   * The door's copy ("held for 60 days") and the date the server writes to
+   * `valid_until` are the same setting or they are a broken promise.
+   */
+  const holdDays = holdDaysFromSettings(settingValue(ctx.settings, "wizard_hold_days"));
+  /**
+   * C7 (v2.4) — WHO the customer is sending it to, for the CTA and the
+   * hand-off screen.
+   *
+   * The estimator whose patch covers this postcode (C5's `patch_postcodes`),
+   * falling back to the coordinator in Settings. Both are records. When
+   * neither answers, this stays null and the button keeps its old wording —
+   * `sendToLabel` refuses to invent a name, and an estimate addressed to
+   * somebody who does not work here is worse than a generic button.
+   */
+  const sendTo = await (async () => {
+    const postcode = snap.success ? (snap.data.customer?.postcode ?? null) : null;
+    if (postcode) {
+      const { data: staffRows } = await db.from("profiles")
+        .select("id, name, patch_postcodes").not("patch_postcodes", "is", null);
+      const rows = ((staffRows ?? []) as Array<{ id: string; name: string | null; patch_postcodes: string[] | null }>);
+      const id = estimatorForPostcode(postcode, rows.map((r) => ({ id: r.id, postcodes: r.patch_postcodes ?? [] })));
+      const named = id ? rows.find((r) => r.id === id)?.name?.trim() : null;
+      if (named) return named;
+    }
+    const coordinator = ((settingValue(ctx.settings, "company_profile") ?? {}) as { coordinatorName?: string }).coordinatorName;
+    return coordinator?.trim() || null;
+  })();
   // P6: the windows a real estimator can do, minus booked visits.
   const visitSlots = (await wizardVisitSlots(db, editorFlags)).labels;
   const hasExterior = blocks.some((b) => b.kind === "area" && b.type === "Exterior");
@@ -188,7 +227,7 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
     return {
       kind: "sides", estimateId: id, initial: customer, initialSides: sides, initialExterior: customerExteriorView(blocks),
       initialLadder: ladder,
-      docs, logoUrl: headerLogoUrl, companyPhone, phoneHours, customerPhone,
+      docs, logoUrl: headerLogoUrl, companyPhone, phoneHours, customerPhone, holdDays, sendTo,
     };
   }
 
@@ -207,7 +246,7 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
     initialExterior: customerExteriorView(blocks),
     initialLadder: ladder,
     initialInteriorLoop: interiorLoop, roomTypes, liveRange: editorFlags.liveRange !== false, docs, logoUrl: headerLogoUrl,
-    companyPhone, phoneHours, customerPhone,
+    companyPhone, phoneHours, customerPhone, holdDays, sendTo,
     // Phase 4: the systems the engine derived, ready to be shown back and
     // corrected. An estimate with no readable wizard snapshot (a staff-built
     // tree, an old draft) gets no card rather than a card of guesses.

@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paint Group · Estimates</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --page:#f8fafc;--ink:#0f172a;--body:#334155;--muted:#64748b;--dim:#94a3b8;
+  --line:#e2e8f0;--line2:#cbd5e1;--tint:#f8fafc;
+  --blue:#0f6fa8;--blue-soft:#eff8fc;--blue-line:#9fd4ec;
+  --amber:#c2820b;--amber-line:#f0b429;--amber-soft:#fffbeb;
+  --green:#0f7a52;--green-line:#86dfb8;--green-soft:#f0fdf7;
+  --red:#b42318;--red-line:#fbc9c4;--red-soft:#fef3f2;
+  --sans:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"Roboto Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--page);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.mono{font-family:var(--mono)}
+a{color:var(--blue);text-decoration:none;cursor:pointer}
+h1{font-size:26px;font-weight:600;letter-spacing:-.02em;margin:0}
+h2{font-size:15px;font-weight:600;margin:0 0 10px}
+h3{font-size:13.5px;font-weight:600;margin:0 0 8px}
+.wrap{max-width:1440px;margin:0 auto;padding:24px 26px 70px}
+.screen{display:none}.screen.on{display:block}
+.row{display:flex;align-items:center;gap:10px}
+
+/* app chrome */
+.appbar{background:#fff;border-bottom:1px solid var(--line);padding:0 26px;display:flex;align-items:center;gap:18px;position:sticky;top:0;z-index:40}
+.brand{font-weight:700;font-size:15px;letter-spacing:-.01em;padding:14px 0}
+.appnav{display:flex;gap:2px}
+.appnav a{font-size:14.5px;color:var(--muted);padding:15px 12px;border-bottom:2px solid transparent}
+.appnav a.on{color:var(--ink);border-bottom-color:#111827;font-weight:500}
+.appbar .r{margin-left:auto;display:flex;align-items:center;gap:12px;color:var(--muted);font-size:13.5px}
+.who{width:28px;height:28px;border-radius:99px;background:#eef2f6;border:1px solid var(--line2);display:grid;place-items:center;font-size:11.5px;font-weight:600;color:var(--body)}
+
+.btn{font:inherit;font-size:14px;font-weight:500;border-radius:8px;padding:9px 14px;border:1px solid var(--line2);background:#fff;color:var(--ink);cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--tint)}
+.btn.dark{background:#111827;color:#fff;border-color:#111827;font-weight:600}
+.btn.blue{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
+.btn.sm{padding:6px 11px;font-size:13px}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+.btn.danger{color:var(--red);border-color:var(--red-line)}
+
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:16px 0 0;overflow:auto}
+.tabs button{font:inherit;font-size:15px;background:transparent;border:0;border-bottom:2px solid transparent;color:var(--muted);padding:11px 13px;cursor:pointer;white-space:nowrap}
+.tabs button:hover{color:var(--ink)}
+.tabs button.on{color:var(--ink);border-bottom-color:#111827;font-weight:500}
+.tabs button em{font-style:normal;font-family:var(--mono);font-size:11.5px;color:var(--dim);margin-left:6px}
+
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:14px 0 10px}
+.search{flex:1;min-width:220px;background:#fff;border:1px solid var(--line2);border-radius:8px;padding:9px 12px;color:var(--ink);font:inherit;font-size:14px;outline:none}
+.search::placeholder{color:var(--dim)}
+.search:focus{border-color:var(--blue)}
+.sel{background:#fff;border:1px solid var(--line2);border-radius:8px;padding:9px 11px;color:var(--body);font:inherit;font-size:13.5px;cursor:pointer}
+.seg{display:inline-flex;border:1px solid var(--line2);border-radius:8px;overflow:hidden;background:#fff}
+.seg button{font:inherit;font-size:13.5px;background:transparent;border:0;border-right:1px solid var(--line);color:var(--muted);padding:9px 13px;cursor:pointer}
+.seg button:last-child{border-right:0}
+.seg button.on{background:#111827;color:#fff}
+
+/* bulk bar */
+.bulk{display:none;align-items:center;gap:12px;background:#111827;color:#fff;border-radius:9px;padding:10px 14px;margin-bottom:10px;font-size:14px}
+.bulk.on{display:flex}
+.bulk b{font-weight:600}
+.bulk .sp{margin-left:auto;display:flex;gap:8px}
+.bulk button{font:inherit;font-size:13.5px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22);color:#fff;border-radius:7px;padding:6px 11px;cursor:pointer}
+.bulk button.x{background:transparent;border-color:transparent;color:#cbd5e1}
+
+/* table */
+.tblwrap{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{text-align:left;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:11px 14px;background:var(--tint);border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl th.s{cursor:pointer}
+.tbl th.s:hover{color:var(--ink)}
+.tbl th.n,.tbl td.n{text-align:right}
+.tbl tbody tr{border-bottom:1px solid var(--line)}
+.tbl tbody tr:last-child{border-bottom:0}
+.tbl tbody tr:hover{background:#fcfdfe}
+.tbl tbody tr.act{background:var(--amber-soft)}
+.tbl tbody tr.sel{background:var(--blue-soft)}
+.tbl td{padding:13px 14px;vertical-align:top}
+.tbl td.t{width:34%}
+.ttl{font-weight:600;font-size:15px;cursor:pointer}
+.ttl:hover{color:var(--blue)}
+.sub{font-size:13px;color:var(--muted);margin-top:2px}
+.links{margin-top:4px;display:flex;gap:12px;font-size:13px}
+.cb{width:16px;height:16px;border:1.5px solid var(--line2);border-radius:4px;display:block;margin-top:3px;cursor:pointer;background:#fff}
+.cb.on{background:#111827;border-color:#111827;position:relative}
+.cb.on::after{content:"";position:absolute;left:4.5px;top:1px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.st{font-size:14px;color:var(--body)}
+.st.link{color:var(--blue)}
+.pill{display:inline-flex;align-items:center;font-size:12.5px;font-weight:500;border:1px solid var(--amber-line);color:var(--amber);background:var(--amber-soft);border-radius:999px;padding:3px 10px;white-space:nowrap}
+.pill.blue{border-color:var(--blue-line);color:var(--blue);background:var(--blue-soft)}
+.pill.green{border-color:var(--green-line);color:var(--green);background:var(--green-soft)}
+.pill.red{border-color:var(--red-line);color:var(--red);background:var(--red-soft)}
+.pill.grey{border-color:var(--line2);color:var(--muted);background:var(--tint)}
+.wsub{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:6px;white-space:nowrap}
+.wsub b{color:var(--body);font-weight:500}
+.val{font-size:15px;font-weight:600;white-space:nowrap}
+.valsub{font-size:11.5px;color:var(--muted);margin-top:2px;white-space:nowrap}
+.acts{display:flex;gap:12px;justify-content:flex-end;white-space:nowrap}
+.acts a{font-size:13.5px;color:var(--muted);white-space:nowrap}
+.acts a:hover{color:var(--ink)}
+.acts a.off{color:var(--dim);cursor:default}
+.acts a.go{color:var(--blue);font-weight:600}
+.foot{display:flex;align-items:center;gap:14px;padding:12px 14px;color:var(--muted);font-size:13.5px;border-top:1px solid var(--line);background:var(--tint)}
+.foot .p{margin-left:auto;display:flex;gap:6px}
+.foot .p button{font:inherit;font-size:13px;border:1px solid var(--line2);background:#fff;color:var(--body);border-radius:7px;padding:5px 10px;cursor:pointer}
+.note{font-size:13px;color:var(--muted);margin-top:14px;line-height:1.55;max-width:940px}
+.note b{color:var(--body)}
+
+/* estimate view */
+.crumb{font-size:13.5px;margin-bottom:12px;display:block}
+.ehead{background:#fff;border:1px solid var(--line);border-radius:10px;padding:18px 20px}
+.ehead .l1{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.ehead .l2{display:flex;align-items:center;gap:14px;margin-top:8px;color:var(--muted);font-size:13.5px;flex-wrap:wrap}
+.strip{display:flex;align-items:center;gap:16px;background:#fff;border:1px solid var(--line);border-left:4px solid var(--green-line);border-radius:10px;padding:14px 18px;margin-top:12px;flex-wrap:wrap}
+.strip .read{display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:13.5px;color:var(--muted)}
+.strip .read b{color:var(--ink);font-weight:600}
+.strip .sg{flex:1;min-width:200px;font-size:14.5px;color:var(--body)}
+.strip .sg b{color:var(--green);font-weight:600}
+.strip .do{display:flex;gap:8px;flex-wrap:wrap}
+.vtabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:18px 0 0;overflow:auto}
+.vtabs button{font:inherit;font-size:14.5px;background:transparent;border:0;border-bottom:2px solid transparent;color:var(--muted);padding:10px 13px;cursor:pointer;white-space:nowrap}
+.vtabs button.on{color:var(--ink);border-bottom-color:#111827;font-weight:500}
+.vtabs button.wz::after{content:"wizard";font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--blue);border:1px solid var(--blue-line);background:var(--blue-soft);border-radius:999px;padding:1px 6px;margin-left:7px;vertical-align:1px}
+.callout{border:1px solid var(--blue-line);background:var(--blue-soft);border-radius:8px;padding:11px 14px;font-size:13.5px;color:#0b567f;margin:16px 0}
+.callout b{color:var(--ink)}
+.pane{display:none}.pane.on{display:block}
+.grid{display:grid;grid-template-columns:1fr 312px;gap:18px;align-items:start;margin-top:4px}
+.side{position:sticky;top:84px}
+.card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:14px}
+.card .hd{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.legend{display:flex;gap:16px;color:var(--muted);font-size:12.5px;margin:0 0 12px}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:9px;height:9px;border-radius:2px;display:block}
+.area{border:1px solid var(--line);border-left:3px solid var(--amber-line);border-radius:8px;padding:11px 13px;margin-bottom:8px;cursor:pointer}
+.area:hover{border-color:var(--line2);background:var(--tint)}
+.area.ok{border-left-color:#5bb98c}
+.area .t{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.area .t b{font-size:14.5px}
+.area .t .sz{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.area .t .r{margin-left:auto}
+.area .s{color:var(--muted);font-size:13px;margin-top:5px}
+.area .s i{font-style:normal;color:var(--body)}
+.area .flag{display:inline-flex;gap:6px;margin-top:8px;font-size:13px;color:var(--amber)}
+.kv{margin:0;padding:0;list-style:none}
+.kv li{display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.kv li:last-child{border-bottom:0}
+.kv li b{font-weight:500;min-width:112px;color:var(--muted)}
+.kv li span{color:var(--body)}
+.kv.do li b{min-width:104px;color:var(--ink);font-weight:600}
+.ph{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.ph div{aspect-ratio:1;border-radius:8px;background:#eef2f6;border:1px solid var(--line);display:grid;place-items:center;color:var(--dim);font-family:var(--mono);font-size:10px;position:relative;cursor:pointer}
+.ph div em{position:absolute;left:5px;bottom:5px;font-style:normal;font-family:var(--mono);font-size:8px;color:var(--amber);background:#fff;border:1px solid var(--amber-line);border-radius:4px;padding:1px 4px}
+.rng{text-align:center;padding:4px 0}
+.rng .k{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.rng .v{font-size:22px;font-weight:700;margin-top:4px}
+.rng .b{color:var(--muted);font-size:13px;margin-top:3px}
+.meter{display:flex;gap:5px;margin-top:14px}
+.meter div{flex:1;text-align:center;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);padding-top:6px;border-top:2px solid var(--line)}
+.meter div.was{color:var(--muted);border-top-color:#5bb98c}
+.meter div.on{color:var(--green);border-top-color:#5bb98c;font-weight:600}
+.hist li{display:flex;gap:10px;padding:7px 0;font-size:13px;color:var(--muted);border-bottom:1px solid var(--line)}
+.hist li:last-child{border-bottom:0}
+.hist li b{color:var(--body);font-weight:500}
+.hist li .d{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--dim)}
+/* scope editor rows */
+.se{border:1px solid var(--line);border-radius:8px;margin-bottom:8px;overflow:hidden}
+.se .h{display:flex;align-items:center;gap:10px;padding:11px 13px;background:var(--tint);border-bottom:1px solid var(--line)}
+.se .h b{font-size:14.5px}
+.se .h .sz{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.se .h .r{margin-left:auto;display:flex;gap:8px}
+.setbl{width:100%;border-collapse:collapse;font-size:13.5px}
+.setbl td{padding:8px 13px;border-bottom:1px solid var(--line)}
+.setbl tr:last-child td{border-bottom:0}
+.setbl td.q{color:var(--muted);width:34%}
+.setbl td.n{text-align:right;font-family:var(--mono);font-size:12.5px;white-space:nowrap}
+.setbl tr:hover{background:var(--tint)}
+
+/* sheet */
+.back{position:fixed;inset:0;background:rgba(15,23,42,.4);z-index:60;display:none;align-items:center;justify-content:center;padding:24px}
+.back.on{display:flex}
+.sheet{background:#fff;border-radius:14px;padding:24px;width:100%;max-width:540px;max-height:86vh;overflow:auto;box-shadow:0 20px 60px rgba(15,23,42,.2)}
+.sheet h2{font-size:19px;margin-bottom:4px}
+.sheet .s{color:var(--muted);font-size:14px;margin:0 0 18px}
+.field{width:100%;background:#fff;border:1px solid var(--line2);border-radius:8px;padding:11px 13px;color:var(--ink);font:inherit;font-size:14px;outline:none;margin-bottom:14px}
+.field:focus{border-color:var(--blue)}
+.opt{display:flex;gap:13px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:9px;cursor:pointer}
+.opt:hover{border-color:var(--line2);background:var(--tint)}
+.opt.pri{border-color:var(--blue-line);background:var(--blue-soft)}
+.opt .ic{width:34px;height:34px;border-radius:8px;background:#fff;border:1px solid var(--line);display:grid;place-items:center;color:var(--blue);flex:none;font-size:15px}
+.opt b{display:block;font-size:14.5px;margin-bottom:2px}
+.opt span{color:var(--muted);font-size:13px}
+@media(max-width:1080px){.grid{grid-template-columns:1fr}.side{position:static}}
+</style>
+</head>
+<body>
+
+<div class="appbar">
+  <div class="brand">Paint Group</div>
+  <div class="appnav"><a>Today</a><a class="on">Estimates</a><a>Jobs</a><a>Invoicing</a><a>Customers</a><a>Diary</a><a>Settings</a></div>
+  <div class="r"><span>Sarah Reid</span><div class="who">SR</div></div>
+</div>
+
+<!-- ============ HOME: ESTIMATES ============ -->
+<div class="screen on" id="s-list">
+<div class="wrap">
+  <div class="row">
+    <h1>Estimates</h1>
+    <div style="margin-left:auto" class="row">
+      <button class="btn">Export</button>
+      <button class="btn dark" onclick="openSheet()">+ New estimate</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="on">Waiting on you<em>6</em></button>
+    <button>All<em>61</em></button>
+    <button>Draft<em>14</em></button>
+    <button>Sent<em>11</em></button>
+    <button>Viewed<em>4</em></button>
+    <button>Accepted<em>19</em></button>
+    <button>Declined<em>5</em></button>
+    <button>Expired<em>3</em></button>
+    <button>Wizard<em>44</em></button>
+  </div>
+
+  <div class="bar">
+    <input class="search" placeholder="Search address, customer…">
+    <div class="seg"><button class="on">All</button><button>From customers</button><button>Built in-house</button></div>
+    <select class="sel"><option>Anyone's</option><option>Mine</option><option>Sarah Reid</option><option>Unassigned</option></select>
+    <select class="sel"><option>Last 90 days</option><option>This month</option><option>All time</option></select>
+    <select class="sel"><option>Sort: waiting longest</option><option>Sort: value</option><option>Sort: date</option></select>
+  </div>
+
+  <div class="bulk" id="bulk">
+    <b><span id="bulkN">2</span> selected</b>
+    <div class="sp">
+      <button>Assign to…</button><button>Mark as sent</button><button>Export</button><button>Delete</button>
+      <button class="x" onclick="clearSel()">Clear</button>
+    </div>
+  </div>
+
+  <div class="tblwrap">
+  <table class="tbl">
+    <thead><tr>
+      <th style="width:42px"><span class="cb" onclick="toggleAll(this)"></span></th>
+      <th class="t s">Title</th><th class="s">Status</th><th style="width:255px">Wizard status</th><th class="s">Date</th><th class="n s">Value</th><th class="n" style="width:250px"></th>
+    </tr></thead>
+    <tbody>
+
+      <tr class="act">
+        <td><span class="cb" onclick="sel(this)"></span></td>
+        <td class="t"><div class="ttl" onclick="open_('pack')">14 Acacia Street, Northcote</div><div class="sub">Tom Roman · interior, 9 rooms</div>
+          <div class="links"><a onclick="open_('pack')">Pack →</a><a onclick="open_('scope')">Scope editor →</a><a>Customer editor →</a></div></td>
+        <td><span class="st">Draft</span></td>
+        <td><span class="pill">Sent · confirm remotely</span><div class="wsub"><b>9 of 9</b> · ±4% · 7 photos · 41m ago</div></td>
+        <td><span class="st">11/09/2026</span></td>
+        <td class="n"><div class="val">$9,320–$10,940</div><div class="valsub">range</div></td>
+        <td class="n"><div class="acts"><a class="go" onclick="open_('pack')">Fix price</a><a>Capture</a><a class="off">Delete</a></div></td>
+      </tr>
+
+      <tr class="act">
+        <td><span class="cb" onclick="sel(this)"></span></td>
+        <td class="t"><div class="ttl" onclick="open_('pack')">Level 2, 88 Smith Street</div><div class="sub">Priya Nair · Northcote Property Co · office, 6 areas</div>
+          <div class="links"><a onclick="open_('pack')">Pack →</a><a onclick="open_('scope')">Scope editor →</a><a>Customer editor →</a></div></td>
+        <td><span class="st">Draft</span></td>
+        <td><span class="pill">Sent · confirm remotely</span><div class="wsub"><b>6 of 6</b> · ±9% · 4 photos · after hours</div></td>
+        <td><span class="st">10/09/2026</span></td>
+        <td class="n"><div class="val">$18,400–$22,100</div><div class="valsub">range · trade</div></td>
+        <td class="n"><div class="acts"><a class="go" onclick="open_('pack')">Fix price</a><a>Capture</a><a class="off">Delete</a></div></td>
+      </tr>
+
+      <tr class="act">
+        <td><span class="cb" onclick="sel(this)"></span></td>
+        <td class="t"><div class="ttl" onclick="open_('pack')">27 Separation Street</div><div class="sub">Dan Whelan · exterior, weatherboard, double storey</div>
+          <div class="links"><a onclick="open_('pack')">Pack →</a><a onclick="open_('scope')">Scope editor →</a><a>Customer editor →</a></div></td>
+        <td><span class="st">Draft</span></td>
+        <td><span class="pill">Sent · needs a visit</span><div class="wsub"><b>3 of 4</b> sides · ±11% · 9 photos</div></td>
+        <td><span class="st">10/09/2026</span></td>
+        <td class="n"><div class="val">$16,800–$21,300</div><div class="valsub">range</div></td>
+        <td class="n"><div class="acts"><a class="go">Book</a><a>Capture</a><a class="off">Delete</a></div></td>
+      </tr>
+
+      <tr class="act">
+        <td><span class="cb" onclick="sel(this)"></span></td>
+        <td class="t"><div class="ttl" onclick="open_('pack')">3/19 Beavers Road</div><div class="sub">Alex Tan · interior, 4 rooms</div>
+          <div class="links"><a onclick="open_('pack')">Pack →</a><a onclick="open_('scope')">Scope editor →</a><a>Customer editor →</a></div></td>
+        <td><span class="st">Draft</span></td>
+        <td><span class="pill red">Question unanswered · 2d</span><div class="wsub">are the hall doors included?</div></td>
+        <td><span class="st">08/09/2026</span></td>
+        <td class="n"><div class="val">$5,240–$5,880</div><div class="valsub">range</div></td>
+        <td class="n"><div class="acts"><a class="go">Chase</a><a>Capture</a><a class="off">Delete</a></div></td>
+      </tr>
+
+      <tr class="act">
+        <td><span class="cb" onclick="sel(this)"></span></td>
+        <td class="t"><div class="ttl" onclick="open_('scope')">22 Rossmoyne Street</div><div class="sub">Mei Chen · interior + exterior</div>
+          <div class="links"><a onclick="open_('scope')">Scope editor →</a><a>Preview →</a></div></td>
+        <td><span class="st link">Viewed</span></td>
+        <td><span class="pill">Viewed 4× · no reply</span><div class="wsub">last opened 2h ago · hold ends in 14d</div></td>
+        <td><span class="st">02/09/2026</span></td>
+        <td class="n"><div class="val">$24,600.00</div><div class="valsub">fixed</div></td>
+        <td class="n"><div class="acts"><a class="go">Nudge</a><a>Capture</a><a class="off">Delete</a></div></td>
+      </tr>
+
+      <tr class="act">
+        <td><span class="cb" onclick="sel(this)"></span></td>
+        <td class="t"><div class="ttl" onclick="open_('pack')">Elm Grove Apartments</div><div class="sub">Janet Cole · OC manager · strata brief</div>
+          <div class="links"><a onclick="open_('pack')">Pack →</a><a onclick="open_('scope')">Scope editor →</a></div></td>
+        <td><span class="st">Draft</span></td>
+        <td><span class="pill">Brief · book a visit</span><div class="wsub">11 photos · committee meets 24/09</div></td>
+        <td><span class="st">05/09/2026</span></td>
+        <td class="n"><div class="val">—</div><div class="valsub">priced on site</div></td>
+        <td class="n"><div class="acts"><a class="go">Book</a><a>Capture</a><a class="off">Delete</a></div></td>
+      </tr>
+
+      <tr>
+        <td><span class="cb" onclick="sel(this)"></span></td>
+        <td class="t"><div class="ttl" onclick="open_('pack')">2 Talbot Crescent</div><div class="sub">—</div>
+          <div class="links"><a onclick="open_('pack')">Pack →</a><a onclick="open_('scope')">Scope editor →</a><a>Customer editor →</a></div></td>
+        <td><span class="st">Draft</span></td>
+        <td><span class="pill grey">Priced · no request</span><div class="wsub">4 of 4 · 1 min · last active 24h ago</div></td>
+        <td><span class="st">10/09/2026</span></td>
+        <td class="n"><div class="val">$10,990.03</div><div class="valsub">guide</div></td>
+        <td class="n"><div class="acts"><a>Capture</a><a>Delete</a></div></td>
+      </tr>
+
+      <tr>
+        <td><span class="cb" onclick="sel(this)"></span></td>
+        <td class="t"><div class="ttl" onclick="open_('pack')">24/25 Lats Avenue</div><div class="sub">—</div>
+          <div class="links"><a onclick="open_('pack')">Pack →</a><a onclick="open_('scope')">Scope editor →</a></div></td>
+        <td><span class="st link">Viewed</span></td>
+        <td><span class="pill grey">Priced · no request</span><div class="wsub">5 of 5 · 1 min · last active 34h ago</div></td>
+        <td><span class="st">10/09/2026</span></td>
+        <td class="n"><div class="val">$3,924.79</div><div class="valsub">guide</div></td>
+        <td class="n"><div class="acts"><a>Capture</a><a>Delete</a></div></td>
+      </tr>
+
+      <tr>
+        <td><span class="cb" onclick="sel(this)"></span></td>
+        <td class="t"><div class="ttl" onclick="open_('scope')">New estimate (assistant)</div><div class="sub">—</div>
+          <div class="links"><a onclick="open_('scope')">Scope editor →</a></div></td>
+        <td><span class="st">Draft</span></td>
+        <td><span class="st" style="color:var(--dim)">—</span></td>
+        <td><span class="st">11/09/2026</span></td>
+        <td class="n"><div class="val">$0.00</div></td>
+        <td class="n"><div class="acts"><a>Capture</a><a>Delete</a></div></td>
+      </tr>
+
+      <tr>
+        <td><span class="cb" onclick="sel(this)"></span></td>
+        <td class="t"><div class="ttl" onclick="open_('scope')">9 Beavers Road</div><div class="sub">Rob Ellis · interior, 6 rooms</div>
+          <div class="links"><a onclick="open_('scope')">Scope editor →</a><a>Preview →</a><a>Invoice →</a></div></td>
+        <td><span class="st">Accepted</span></td>
+        <td><span class="pill green">Accepted 08/09 · job created</span></td>
+        <td><span class="st">29/08/2026</span></td>
+        <td class="n"><div class="val">$11,480.00</div><div class="valsub">fixed</div></td>
+        <td class="n"><div class="acts"><a class="go">Open job</a><a>Capture</a><a class="off">Delete</a></div></td>
+      </tr>
+
+      <tr>
+        <td><span class="cb" onclick="sel(this)"></span></td>
+        <td class="t"><div class="ttl" onclick="open_('pack')">17 Pender Street</div><div class="sub">— · started, never finished</div>
+          <div class="links"><a onclick="open_('pack')">Pack →</a></div></td>
+        <td><span class="st">Draft</span></td>
+        <td><span class="pill grey">Abandoned · room 2 of 6</span><div class="wsub">no contact details · 21/08</div></td>
+        <td><span class="st">21/08/2026</span></td>
+        <td class="n"><div class="val">$7,100–$9,400</div><div class="valsub">guide</div></td>
+        <td class="n"><div class="acts"><a>Capture</a><a>Delete</a></div></td>
+      </tr>
+
+    </tbody>
+  </table>
+  <div class="foot"><span>Showing 11 of 61</span><span>·</span><span>Rows per page 25</span><div class="p"><button>‹</button><button>1</button><button>2</button><button>3</button><button>›</button></div></div>
+  </div>
+
+  <p class="note"><b>One page, everything on it.</b> Every function of the current tool is here — the same tabs, bulk select, Capture, Delete, pagination — with four additions: a <b>Waiting on you</b> tab as the default, reading the same attention rule as CRM Today; the <b>Wizard status</b> pill extended to the states the wizard now produces; one contextual action per row before Capture; and a <b>Pack →</b> link on every estimate a customer built. Rows with no wizard data don't show it.</p>
+</div>
+</div>
+
+<!-- ============ ESTIMATE ============ -->
+<div class="screen" id="s-est">
+<div class="wrap">
+  <a class="crumb" onclick="go('list')">← Estimates</a>
+
+  <div class="ehead">
+    <div class="l1">
+      <h1 style="font-size:22px">14 Acacia Street, Northcote</h1>
+      <span class="pill">Waiting on you</span>
+      <div style="margin-left:auto" class="row">
+        <button class="btn sm">Assign</button><button class="btn sm">Duplicate</button><button class="btn sm danger">Delete</button><button class="btn sm ghost">⋯</button>
+      </div>
+    </div>
+    <div class="l2">
+      <span>Tom Roman · 0412 004 118</span><span>·</span><span>Interior · 9 rooms · occupied</span><span>·</span>
+      <span>Built by the customer</span><span>·</span><span>Sarah Reid</span><span>·</span><span>Held to 10/11/2026</span>
+    </div>
+  </div>
+
+  <div class="strip">
+    <div class="read">
+      <span><b>9 of 9</b> rooms confirmed</span><span><b>±4%</b></span><span><b>7</b> photos</span>
+      <span><b>1</b> repair to price</span><span>under the <b>$12k</b> cap</span>
+    </div>
+    <div class="sg"><b>Confirm remotely</b> — no visit needed</div>
+    <div class="do">
+      <button class="btn blue sm">Fix the price and send</button>
+      <button class="btn sm">Ask a question</button>
+      <button class="btn sm">Book a visit</button>
+    </div>
+  </div>
+
+  <div class="vtabs" id="vtabs">
+    <button class="wz on" data-p="pack" onclick="tab('pack')">Pack</button>
+    <button data-p="scope" onclick="tab('scope')">Scope</button>
+    <button onclick="tab('scope')">Capture</button>
+    <button onclick="tab('scope')">Customer editor</button>
+    <button onclick="tab('scope')">Preview</button>
+    <button onclick="tab('scope')">Invoice</button>
+    <button onclick="tab('scope')">Activity</button>
+  </div>
+
+  <!-- PACK -->
+  <div class="pane on" id="p-pack">
+    <div class="callout"><b>What the customer told us.</b> A reading view of this same estimate — nothing here is a copy. <span style="color:#0f7a52;font-weight:600">Green</span> where they confirmed it, <span style="color:#c2820b;font-weight:600">amber</span> where they left our assumption. To change anything, open <a onclick="tab('scope')">Scope</a>.</div>
+    <div class="grid">
+      <div>
+        <div class="card">
+          <div class="hd"><h2 style="margin:0">Areas</h2><span style="font-size:12.5px;color:var(--muted)">9 of 9 confirmed</span></div>
+          <div class="legend"><span><i style="background:#5bb98c"></i> the customer confirmed it</span><span><i style="background:#f0b429"></i> our assumption, untouched</span></div>
+          <div class="area ok"><div class="t"><b>Bed 1</b><span class="sz">3.5 × 3.25 m</span><span class="r pill green">Confirmed</span></div>
+            <div class="s">Walls <i>new colour, 2 coats</i> · ceiling <i>same white, 1 coat</i> · cornice · skirting · 1 door <i>both sides + frame</i> · 1 window <i>timber, hinged</i></div>
+            <div class="flag">◆ Crack above the window — photo 1 · <a onclick="tab('scope')">price the repair</a></div></div>
+          <div class="area ok"><div class="t"><b>Bed 2</b><span class="sz">3.5 × 3.25 m</span><span class="r pill green">Confirmed</span></div><div class="s">Walls · ceiling · cornice · skirting · 1 door · 1 window</div></div>
+          <div class="area ok"><div class="t"><b>Bed 3</b><span class="sz">3.5 × 3.0 m</span><span class="r pill green">Confirmed</span></div><div class="s">Walls · ceiling · cornice · skirting · 1 door · 1 window</div></div>
+          <div class="area ok"><div class="t"><b>Living room</b><span class="sz">4.5 × 4.0 m</span><span class="r pill green">Confirmed</span></div><div class="s">Walls · ceiling · cornice · skirting · 2 doors · 3 windows · <i>1 feature wall</i></div></div>
+          <div class="area ok"><div class="t"><b>Kitchen / meals</b><span class="sz">4.0 × 3.5 m</span><span class="r pill green">Confirmed</span></div><div class="s">Walls · ceiling · cornice · skirting · 1 door</div></div>
+          <div class="area"><div class="t"><b>Hall &amp; entry</b><span class="sz">6.0 × 1.2 m</span><span class="r pill">Size assumed</span></div><div class="s">Walls · ceiling · cornice · skirting · 4 doors · <i>never adjusted — worth checking on the call</i></div></div>
+          <p style="font-size:13px;margin:10px 0 0"><a>Show the other 3 areas</a></p>
+        </div>
+
+        <div class="card">
+          <div class="hd"><h2 style="margin:0">Photos</h2><span style="font-size:12.5px;color:var(--muted)">7 · pinned to areas</span></div>
+          <div class="ph"><div>IMG<em>BED 1 · CRACK</em></div><div>IMG<em>LIVING</em></div><div>IMG<em>HALL</em></div><div>IMG<em>DOOR+SKIRT</em></div><div>IMG<em>KITCHEN</em></div></div>
+        </div>
+
+        <div class="card">
+          <div class="hd"><h2 style="margin:0">What we'll do</h2><span style="font-size:12.5px;color:var(--muted)">derived · what the customer sees</span></div>
+          <ul class="kv do">
+            <li><b>Walls</b><span>New colour, two coats — after filling the small marks and a light sand</span></li>
+            <li><b>Ceilings</b><span>Same white, one fresh coat</span></li>
+            <li><b>Doors, frames, skirtings</b><span>Same colour, two coats of enamel after a sand — plus a bonding primer, trims are gloss</span></li>
+            <li><b>Windows</b><span>Timber, sanded and filled, two coats</span></li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h2>Site and access</h2>
+          <ul class="kv">
+            <li><b>Occupied</b><span>Yes — room by room, pack down daily</span></li>
+            <li><b>Rooms cleared</b><span>Mostly</span></li>
+            <li><b>Floors</b><span>Carpet throughout</span></li>
+            <li><b>Ceiling height</b><span>2.7 m · no stairwell or void</span></li>
+            <li><b>Parking</b><span>Driveway</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="side">
+        <div class="card">
+          <div class="rng"><div class="k">What the customer sees</div><div class="v">$9,320 – $10,940</div><div class="b">inc. GST · ±4%</div></div>
+          <div class="meter"><div class="was">Guide</div><div class="on">Detailed</div><div>Confirmed</div></div>
+          <ul class="kv" style="margin-top:14px">
+            <li><b>Engine central</b><span class="mono">$10,130.00</span></li>
+            <li><b>Repair to price</b><span>1 line — not in range</span></li>
+            <li><b>$/m² check</b><span><span class="pill green">in band</span> $11.40</span></li>
+            <li><b>Contractor basis</b><span class="mono">$4,860.00</span></li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>How they got here</h3>
+          <ul class="kv hist">
+            <li><b>Range seen</b><span class="d">9:14</span></li>
+            <li><b>Tightened 9 rooms</b><span class="d">9:21</span></li>
+            <li><b>Added 7 photos</b><span class="d">9:33</span></li>
+            <li><b>Sent to you</b><span class="d">9:38</span></li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>This customer</h3>
+          <ul class="kv">
+            <li><b>History</b><span>First estimate</span></li>
+            <li><b>Property</b><span>3-bed weatherboard, 1940s</span></li>
+            <li><b>Found us</b><span>Google · Northcote painters</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCOPE -->
+  <div class="pane" id="p-scope">
+    <div class="callout"><b>Your editor, unchanged.</b> Every substrate, every line, edit as you always have. The only addition is the colour on the left — <span style="color:#0f7a52;font-weight:600">green</span> where the customer confirmed it, <span style="color:#c2820b;font-weight:600">amber</span> where it's still our assumption.</div>
+    <div class="grid">
+      <div>
+        <div class="card">
+          <div class="hd"><h2 style="margin:0">Scope</h2><div class="row"><button class="btn sm">+ Add area</button><button class="btn sm">Add line</button><button class="btn sm">Collapse all</button></div></div>
+
+          <div class="se" style="border-left:3px solid #5bb98c">
+            <div class="h"><b>Bed 1</b><span class="sz">3.5 × 3.25 × 2.7 m</span><span class="r"><button class="btn sm">Edit area</button><button class="btn sm ghost">⋯</button></span></div>
+            <table class="setbl">
+              <tr><td class="q">Walls</td><td>New colour · 2 coats · low sheen</td><td class="n">22.9 m²</td><td class="n">$412.20</td></tr>
+              <tr><td class="q">Ceiling</td><td>Same white · 1 coat · flat</td><td class="n">11.4 m²</td><td class="n">$136.80</td></tr>
+              <tr><td class="q">Cornice</td><td>With the ceiling · 1 coat</td><td class="n">13.5 lm</td><td class="n">$67.50</td></tr>
+              <tr><td class="q">Skirting</td><td>Sand · 2 coats enamel</td><td class="n">13.5 lm</td><td class="n">$121.50</td></tr>
+              <tr><td class="q">Door + frame</td><td>Both sides · 2 coats enamel</td><td class="n">1</td><td class="n">$96.00</td></tr>
+              <tr><td class="q">Window</td><td>Timber hinged · sand, fill · 2 coats</td><td class="n">1</td><td class="n">$88.00</td></tr>
+              <tr style="background:var(--amber-soft)"><td class="q" style="color:var(--amber)">Repair</td><td>Crack above window — photo 1 <a>price it</a></td><td class="n">—</td><td class="n">—</td></tr>
+            </table>
+          </div>
+
+          <div class="se" style="border-left:3px solid #5bb98c">
+            <div class="h"><b>Bed 2</b><span class="sz">3.5 × 3.25 × 2.7 m</span><span class="r"><button class="btn sm">Edit area</button><button class="btn sm ghost">⋯</button></span></div>
+            <table class="setbl">
+              <tr><td class="q">Walls</td><td>New colour · 2 coats · low sheen</td><td class="n">22.9 m²</td><td class="n">$412.20</td></tr>
+              <tr><td class="q">Ceiling</td><td>Same white · 1 coat · flat</td><td class="n">11.4 m²</td><td class="n">$136.80</td></tr>
+              <tr><td class="q">Skirting</td><td>Sand · 2 coats enamel</td><td class="n">13.5 lm</td><td class="n">$121.50</td></tr>
+            </table>
+          </div>
+
+          <div class="se" style="border-left:3px solid var(--amber-line)">
+            <div class="h"><b>Hall &amp; entry</b><span class="sz">6.0 × 1.2 × 2.7 m</span><span class="pill" style="margin-left:6px">Size assumed</span><span class="r"><button class="btn sm">Edit area</button><button class="btn sm ghost">⋯</button></span></div>
+            <table class="setbl">
+              <tr><td class="q">Walls</td><td>New colour · 2 coats · low sheen</td><td class="n">38.9 m²</td><td class="n">$700.20</td></tr>
+              <tr><td class="q">Ceiling</td><td>Same white · 1 coat · flat</td><td class="n">7.2 m²</td><td class="n">$86.40</td></tr>
+              <tr><td class="q">Doors + frames</td><td>Both sides · 2 coats enamel</td><td class="n">4</td><td class="n">$384.00</td></tr>
+            </table>
+          </div>
+          <p style="font-size:13px;margin:10px 0 0"><a>Show the other 6 areas</a></p>
+        </div>
+      </div>
+      <div class="side">
+        <div class="card">
+          <div class="rng"><div class="k">Estimate</div><div class="v">$10,130.00</div><div class="b">inc. GST · central</div></div>
+          <ul class="kv" style="margin-top:14px">
+            <li><b>Labour</b><span class="mono">$7,240.00</span></li>
+            <li><b>Materials</b><span class="mono">$1,410.00</span></li>
+            <li><b>Allowances</b><span class="mono">$560.00</span></li>
+            <li><b>GST</b><span class="mono">$920.00</span></li>
+          </ul>
+          <div style="display:flex;gap:8px;margin-top:14px"><button class="btn blue sm" style="flex:1">Fix and send</button><button class="btn sm">Preview</button></div>
+        </div>
+        <div class="card">
+          <h3>Rate card</h3>
+          <ul class="kv">
+            <li><b>Version</b><span>v14 · 1 Sep 2026</span></li>
+            <li><b>Finish level</b><span>Level 3</span></li>
+            <li><b>Charge-out</b><span class="mono">$85.00/hr</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ============ NEW ESTIMATE ============ -->
+<div class="back" id="sheet" onclick="if(event.target===this)closeSheet()">
+  <div class="sheet">
+    <h2>New estimate</h2>
+    <p class="s">Same editor either way — this decides what it starts from.</p>
+    <input class="field" placeholder="Start typing the address and pick it">
+    <div class="opt pri" onclick="closeSheet();open_('scope')"><div class="ic">◫</div><div><b>Build it myself</b><span>Straight into the scope editor, areas seeded from the property if we know it</span></div></div>
+    <div class="opt" onclick="closeSheet();open_('scope')"><div class="ic">⟲</div><div><b>From a previous job at this address</b><span>Starts from the measured tree — nothing to re-enter</span></div></div>
+    <div class="opt" onclick="closeSheet();open_('scope')"><div class="ic">▤</div><div><b>From a saved spec</b><span>End-of-lease repaint · vacate touch-up · common-area refresh</span></div></div>
+    <div class="opt" onclick="closeSheet()"><div class="ic">✉</div><div><b>Send the customer a link</b><span>They answer the questions; it lands here when they send it</span></div></div>
+    <div class="opt" onclick="closeSheet();open_('scope')"><div class="ic">☎</div><div><b>I'm on the phone with them</b><span>Assisted session — you fill it in, they watch and confirm</span></div></div>
+    <div class="row" style="justify-content:flex-end;margin-top:16px"><button class="btn" onclick="closeSheet()">Cancel</button></div>
+  </div>
+</div>
+
+<script>
+function go(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));document.getElementById('s-'+id).classList.add('on');window.scrollTo(0,0)}
+function open_(p){go('est');tab(p)}
+function tab(p){
+  document.querySelectorAll('.pane').forEach(x=>x.classList.remove('on'));
+  const el=document.getElementById('p-'+p); if(el)el.classList.add('on');
+  document.querySelectorAll('#vtabs button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));
+  window.scrollTo(0,0);
+}
+function sel(el){el.classList.toggle('on');el.closest('tr').classList.toggle('sel',el.classList.contains('on'));count()}
+function toggleAll(el){const on=!el.classList.contains('on');el.classList.toggle('on',on);
+  document.querySelectorAll('tbody .cb').forEach(c=>{c.classList.toggle('on',on);c.closest('tr').classList.toggle('sel',on)});count()}
+function clearSel(){document.querySelectorAll('.cb').forEach(c=>{c.classList.remove('on');const t=c.closest('tr');if(t)t.classList.remove('sel')});count()}
+function count(){const n=document.querySelectorAll('tbody .cb.on').length;document.getElementById('bulkN').textContent=n;document.getElementById('bulk').classList.toggle('on',n>0)}
+function openSheet(){document.getElementById('sheet').classList.add('on')}
+function closeSheet(){document.getElementById('sheet').classList.remove('on')}
+</script>
+</body>
+</html>

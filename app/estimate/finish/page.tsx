@@ -76,7 +76,8 @@ export default async function FinishPage({ searchParams }: { searchParams: Promi
           phoneHours={bundle.phoneHours}
           customerPhone={bundle.customerPhone}
           kind="sides"
-          fixedPriceCents={Math.round((bundle.initial.rangeLoCents + bundle.initial.rangeHiCents) / 2)}
+          holdDays={bundle.holdDays}
+          fixedPriceCents={bundle.initial.centralCents}
           input={{
             payload: bundle.initial,
             // An exterior job carries no derived paint systems and no interior
@@ -127,9 +128,12 @@ export default async function FinishPage({ searchParams }: { searchParams: Promi
         companyPhone={bundle.companyPhone}
         phoneHours={bundle.phoneHours}
         customerPhone={bundle.customerPhone}
-        // The midpoint of the range the engine produced — the "computed
-        // central estimate" ⚑8 asks for, never the top of the band.
-        fixedPriceCents={Math.round((bundle.initial.rangeLoCents + bundle.initial.rangeHiCents) / 2)}
+        // ⚑8 — the engine's OWN central estimate, off the payload. This was
+        // the midpoint of the displayed range, which is a different number:
+        // `rangeFromTotal` rounds the ends outwards to $10, so the average of
+        // them drifts from what was actually priced.
+        fixedPriceCents={bundle.initial.centralCents}
+        holdDays={bundle.holdDays}
         input={{
           payload: bundle.initial,
           systems: bundle.initialSystems,

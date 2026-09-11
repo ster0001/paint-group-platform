@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { sendToLabel } from "@/lib/wizard/finish-line";
 import { useEffect, useRef, useState } from "react";
 import type { CustomerScopeBundle } from "@/lib/wizard/customer-scope";
 import type { UiState } from "@/lib/agent/session";
@@ -69,7 +70,11 @@ export default function AssistView({ conversationId, estimateId, disclosure, ass
   // photos tighten an amber prep line (D22); everything else must be answered.
   const uploadGap = gap?.writes?.[0]?.tool === "attach_document";
   const finished = ui.built && (!gap || uploadGap);
-  const cta = finished && th ? (th.outcome === "self_serve" ? "Accept estimate" : "Finalise my price") : null;
+  // C7 (v2.4) — the same label the editors use, off the same record. The
+  // assistant pane is a third surface onto one decision; it said "Finalise my
+  // price" while the editor beside it said "Send to Sarah".
+  const sendTo = bundle && bundle.kind !== "holding" ? bundle.sendTo : null;
+  const cta = finished && th ? (th.outcome === "self_serve" ? "Accept estimate" : sendToLabel(sendTo)) : null;
 
   return (
     <div className="as-shell" data-pane={pane}>
@@ -156,10 +161,10 @@ export default function AssistView({ conversationId, estimateId, disclosure, ass
         {!bundle && <div className="as-empty"><p>Your estimate builds here as you answer.</p></div>}
         {bundle?.kind === "holding" && <div className="as-empty" data-testid="as-holding"><p>{bundle.line}</p></div>}
         {bundle?.kind === "sides" && (
-          <SidesEditor key={version} estimateId={bundle.estimateId} initial={bundle.initial} initialSides={bundle.initialSides} initialExterior={bundle.initialExterior} initialLadder={bundle.initialLadder} docs={bundle.docs} logoUrl={bundle.logoUrl} companyPhone={bundle.companyPhone} phoneHours={bundle.phoneHours} customerPhone={bundle.customerPhone} />
+          <SidesEditor key={version} estimateId={bundle.estimateId} initial={bundle.initial} initialSides={bundle.initialSides} initialExterior={bundle.initialExterior} initialLadder={bundle.initialLadder} docs={bundle.docs} logoUrl={bundle.logoUrl} companyPhone={bundle.companyPhone} phoneHours={bundle.phoneHours} customerPhone={bundle.customerPhone} sendTo={bundle.sendTo} />
         )}
         {bundle?.kind === "rooms" && (
-          <ScopeEditor key={version} estimateId={bundle.estimateId} chatMode initial={bundle.initial} initialRooms={bundle.initialRooms} initialSides={bundle.initialSides} initialExterior={bundle.initialExterior} initialLadder={bundle.initialLadder} initialInteriorLoop={bundle.initialInteriorLoop} roomTypes={bundle.roomTypes} liveRange={bundle.liveRange} docs={bundle.docs} logoUrl={bundle.logoUrl} companyPhone={bundle.companyPhone} phoneHours={bundle.phoneHours} customerPhone={bundle.customerPhone} />
+          <ScopeEditor key={version} estimateId={bundle.estimateId} chatMode initial={bundle.initial} initialRooms={bundle.initialRooms} initialSides={bundle.initialSides} initialExterior={bundle.initialExterior} initialLadder={bundle.initialLadder} initialInteriorLoop={bundle.initialInteriorLoop} roomTypes={bundle.roomTypes} liveRange={bundle.liveRange} docs={bundle.docs} logoUrl={bundle.logoUrl} companyPhone={bundle.companyPhone} phoneHours={bundle.phoneHours} customerPhone={bundle.customerPhone} sendTo={bundle.sendTo} />
         )}
       </section>
     </div>

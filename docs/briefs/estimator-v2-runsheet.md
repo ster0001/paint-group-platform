@@ -81,12 +81,14 @@ End the reply with `WAITING FOR GO`.
 ## 4. The order, and the rules of the order
 
     Phase 0  C0 → C1 → C2 → C3 → C4        hygiene; nobody self-signs before C1 and C2
-    Phase 1  C5 → C6 → C7                   the estimator loop — the value of the build
+    Phase 1  C5 → C6 → C7 → C7b → C7c       the estimator loop, the estimates page, test-project hygiene
     Phase 2  C8 → C9 → C10 → C11            the customer screens, on the quick look that exists
     Phase 3  C12 · C13 · C14                commercial — may run in parallel worktrees after C11
     GATE     trade-portal prototype approved by Tom (a design deliverable, not a session)
     Phase 4  C15                            trade
     Phase 5  C16 → C17                      assistant hooks; hardening and the switch
+
+C7b and C7c were added on 11 September: C7b folds C5's separate queue and pack back into the live estimates page (its brief is `docs/briefs/claude-code-brief-c7b-estimates-home.md`); C7c is the test-project hygiene work the 11 September incident made necessary (`docs/briefs/claude-code-brief-c7c-test-hygiene.md`). Both run before C8.
 
 Strictly in this order except C12–C14. A chunk is not started until the one before it is `DONE` in the ledger **and** Tom has confirmed its migrations are live. Sizes: S is about half a day, M about a day; if a chunk is running past that, stop, report where it is, and let Tom decide whether to split it.
 

@@ -54,3 +54,6 @@ next-env.d.ts
 # regression corpus (customer plans + PaintScout estimates — never committed)
 /regression-set/
 .claude/worktrees/
+
+# Captured Settings values (commercial numbers) — see scripts/c1/capture-settings.mjs
+.c1-settings.json

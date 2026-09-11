@@ -26,17 +26,39 @@ export function loadTestEnv() {
   return testEnv;
 }
 
-/** The production project ref, read from .env.local — the thing to refuse. */
+export const PRODUCTION_REF_VAR = "PRODUCTION_SUPABASE_REF";
+
+/**
+ * The production project ref — from the environment, never inferred.
+ *
+ * This used to read `.env.local` and call whatever it found there
+ * "production". In a worktree there is no such file, so it returned null and
+ * `refuseProduction` below became a no-op — `if (ref && ...)` simply skipped.
+ * And when a worktree DID have one holding the test project, it refused the
+ * test project instead. Both failure modes are gone: unset refuses, malformed
+ * refuses, and nothing is guessed.
+ */
 export function productionRef() {
-  const prod = parseEnvFile(resolve(process.cwd(), ".env.local"));
-  const url = prod.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  return url.match(/https:\/\/([a-z0-9]+)\.supabase\.co/)?.[1] ?? null;
+  const ref = (process.env[PRODUCTION_REF_VAR] ?? "").trim();
+  if (/^[a-z0-9]{20}$/.test(ref)) return ref;
+  console.error(
+    `\nREFUSED: ${PRODUCTION_REF_VAR} is ${ref ? `not a project ref (${ref})` : "not set"}.\n\n` +
+      "C1 tools cannot tell which project is production, so they will not run.\n\n" +
+      "FIX: load a project env file — both carry the variable:\n\n" +
+      "    set -a; source .env.test.local; set +a\n\n" +
+      "IF YOU JUST MADE A WORKTREE: it has no .env.local or .env.test.local.\n" +
+      "Both are gitignored and live in the main checkout — copy them across:\n\n" +
+      "    cp ../paint-group-platform/.env.test.local .\n\n" +
+      "The value is the PRODUCTION project's ref, the 20 characters in its\n" +
+      "Supabase dashboard URL (/dashboard/project/<ref>). It is not a secret.\n",
+  );
+  process.exit(1);
 }
 
 /** Hard stop if a C1 target smells like production. */
 export function refuseProduction(target) {
   const ref = productionRef();
-  if (ref && String(target).includes(ref)) {
+  if (String(target).includes(ref)) {
     console.error(
       `REFUSED: the target contains the PRODUCTION project ref (${ref}). ` +
         "C1 tools only ever run against the test project.",

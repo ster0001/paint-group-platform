@@ -1,6 +1,7 @@
 "use client";
 
 import ContactCard from "./ContactCard";
+import { sendToLabel } from "@/lib/wizard/finish-line";
 import ReachStrip from "./ReachStrip";
 import { afterLayout, scrollCardToTop } from "./scrollCard";
 import { useRef, useState, useSyncExternalStore } from "react";
@@ -108,7 +109,7 @@ const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
 const snapshotFalse = () => false;
 
-export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialDarkToLight = { asked: false, surfaces: [], someWalls: false, ceilings: null, ceilingRooms: [] }, initialColourTier = "change", initialAccess = { answers: {}, asksLift: false }, initialExtras = { offer: [], on: [], colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null, chatMode = false }: {
+export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialDarkToLight = { asked: false, surfaces: [], someWalls: false, ceilings: null, ceilingRooms: [] }, initialColourTier = "change", initialAccess = { answers: {}, asksLift: false }, initialExtras = { offer: [], on: [], colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null, sendTo = null, chatMode = false }: {
   estimateId: string;
   initial: CustomerPayload;
   initialRooms: CustomerScopeRoom[];
@@ -126,6 +127,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   companyPhone?: string | null;
   /** When the office answers the phone — Settings owns the wording. */
   phoneHours?: string | null;
+  /** C7 (v2.4) — the estimator this goes to, for the CTA. Null keeps the old label. */
+  sendTo?: string | null;
   /** The mobile the customer already gave us (Tom, 8 Sep: don't ask twice). */
   customerPhone?: string | null;
   /** Phase 4 (6 Sep plan): mounted beside the assistant. The chat asks the
@@ -1504,7 +1507,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         {combined != null && !combined.allDone && !booked && (
           <p className="sd-ctahint" data-testid="cta-hint">
             You don&rsquo;t have to finish first — {combined.done} of {combined.total} confirmed. Tap
-            <b> Finalise my price</b> whenever you like and a person picks up the rest with you.
+            <b> {sendToLabel(sendTo)}</b> whenever you like and a person picks up the rest with you.
           </p>
         )}
         <div className="sc-row">
@@ -1532,15 +1535,17 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                * Tom, 8 Sep: the button is never dead. It still isn't.
                */
               onClick={() => router.push(`/estimate/finish?id=${estimateId}`)}
-              /* The label changes with the ladder — "Finalise my price" or
-                 "Accept estimate", and C7 renames it again to "Send to <name>".
-                 A test that matches on the words breaks every time the copy
-                 does, which is how the send path went uncovered. */
+              /* The label changes with the ladder AND with who the estimate
+                 is addressed to — "Send to Sarah" (v2.4), "Accept estimate"
+                 when the customer may fix it themselves, and the old
+                 "Finalise my price" when we have nobody to name. A test that
+                 matches on the words breaks every time the copy does, which
+                 is how the send path went uncovered; match the testid. */
               data-testid="scope-finalise"
             >
               {combined != null && !combined.allDone
-                ? "Finalise my price"
-                : selfServe ? "Accept estimate" : "Finalise my price"}
+                ? sendToLabel(sendTo)
+                : selfServe ? "Accept estimate" : sendToLabel(sendTo)}
             </button>
           )}
         </div>

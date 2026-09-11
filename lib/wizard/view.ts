@@ -83,6 +83,32 @@ export type CustomerPayload = {
   rooms: CustomerRoomView[];
   rangeLoCents: number;
   rangeHiCents: number;
+  /**
+   * ⚑8 — THE ENGINE'S CENTRAL ESTIMATE, and `null` whenever the customer may
+   * not fix their price: the one number a fixed price is allowed to be, sent
+   * only to the customer who is allowed to make it one.
+   *
+   * Not the midpoint of the range. `rangeFromTotal` rounds the two ends
+   * OUTWARDS to $10 (floor the low, ceil the high), so their average drifts
+   * from the figure the engine actually produced — by a few dollars usually,
+   * and by more as the band widens. Three places were computing that average
+   * and calling it the price: both branches of the finish page and
+   * `priceToFix`. Each was a small, independent, invisible re-derivation of
+   * money outside `lib/pricing/`.
+   *
+   * So the server sends the figure it priced, and nobody downstream does
+   * arithmetic on money again.
+   *
+   * It is gated on `canAccept`, and that gate is not cosmetic. The whole
+   * premise of the reveal is a RANGE, not a number — `adversarial.test.ts`
+   * asserts the exact point price never appears in a customer payload, and it
+   * caught the first version of this field, which sent it to everybody. A job
+   * that may be fixed online is the one case where the figure is on the screen
+   * anyway (the door reads "your price becomes $4,860"), so nothing is
+   * disclosed that the customer is not already being offered. Every other job
+   * gets `null`, and the finish line has no number to show or to leak.
+   */
+  centralCents: number | null;
   bandPct: number;
   /** The SERVER's verdict on whether the tight band applied - the UI must
    * never re-derive this from a hardcoded threshold. */
@@ -129,6 +155,7 @@ export function customerPayload(
     rooms,
     rangeLoCents: loCents,
     rangeHiCents: hiCents,
+    centralCents: decision.canAccept ? payload.totals.totalCents : null,
     bandPct,
     tightBand: payload.accuracyPct >= bands.tightMin,
     accuracyPct: payload.accuracyPct,

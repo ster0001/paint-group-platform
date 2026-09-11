@@ -82,9 +82,27 @@ export type LadderInput = {
  */
 const VISIT_ONLY: ReadonlySet<VisitReason> = new Set(["peeling", "rot", "flagged", "photos"]);
 
+/**
+ * MAY THIS JOB HAVE ITS PRICE FIXED WITHOUT A PERSON? (C7)
+ *
+ * The one place the question is answered. `ladderFor` calls it for the tier,
+ * and the `fix_online` route calls it again at the moment of the tap — the
+ * customer's screen may be minutes old, and in those minutes a flagged spot or
+ * an added room can take self-serve away.
+ *
+ * It exists as a named export rather than three lines repeated in a route
+ * because that is exactly what phase 0 spent C1 and C2 undoing: the ladder in
+ * four places, `requires_site_check` in two. A second copy of this expression
+ * would be a second policy, and the one that decides money would be the one
+ * nobody was looking at.
+ */
+export function mayFixOnline(decision: GuardrailDecision): boolean {
+  return decision.outcome === "reveal" && decision.canAccept && !decision.walkthroughRequired;
+}
+
 export function ladderFor(i: LadderInput): Ladder {
   const acc = i.accuracyPct;
-  const selfServe = i.decision.outcome === "reveal" && i.decision.canAccept && !i.decision.walkthroughRequired;
+  const selfServe = mayFixOnline(i.decision);
   const reason: VisitReason | null = selfServe ? null : visitReason(i.sidesMeta, i.deferred);
 
   let tier: Tier = "guide";

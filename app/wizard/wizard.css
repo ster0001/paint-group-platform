@@ -872,6 +872,20 @@
   flex: 0 0 24px; height: 24px; border-radius: 999px; display: grid; place-items: center;
   font-size: 12px; font-weight: 700; background: var(--wz-accent, #22B8CF); color: #06212A;
 }
+/* C7 — the outcome of "fix my price online", in place of the doors.
+   A cyan-edged panel because this is the one moment in the flow where a
+   number stops being a range: it should not look like another card. The
+   hand-over variant (the ladder said no) uses the SAME block deliberately —
+   both are "this is settled now", and a customer whose job needs a person
+   should not get a consolation-prize layout. */
+.wz .wz-fixed {
+  margin: 4px 0 0; padding: 16px; border-radius: 14px;
+  background: rgba(59, 216, 233, .07); border: 1px solid rgba(59, 216, 233, .55);
+}
+.wz .wz-fixed b { display: block; font-size: 16.5px; color: var(--wz-text, #EDF0F2); }
+.wz .wz-fixed span { display: block; margin-top: 6px; font-size: 13.5px; line-height: 1.5; color: var(--wz-muted, #8C959D); }
+.wz .wz-fixed .wz-linkish { display: inline-block; margin-top: 10px; font-size: 13.5px; }
+
 .wz .wz-sent-slots { margin-top: 22px; }
 .wz .wz-sent .wz-kept { margin-top: 20px; }
 
@@ -933,6 +947,11 @@
    status, not an offer — the three steps below it are what the customer acts
    on. A fixed price is the one case that earns emphasis, and it gets it from
    the headline's own words rather than from a colour nobody can read. */
+/* C7 — the estimator introduction on the hand-off. A shade brighter than the
+   sub-line beneath it: it names a person, and a person should not read as
+   small print. */
+.wz .wz-who { margin-top: -4px; color: var(--wz-text, #EDF0F2); }
+
 .wz .wz-sent-status { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--wz-line, #242B32); border-radius: 10px; background: rgba(59,216,233,.05); }
 .wz .wz-sent-status b { display: block; font-size: 15px; color: var(--wz-text, #EDF0F2); }
 .wz .wz-sent-status span { display: block; margin-top: 3px; font-size: 13px; line-height: 1.45; color: var(--wz-muted, #8C959D); }

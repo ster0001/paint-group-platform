@@ -58,6 +58,13 @@ export function finishOptions(
    * caller.
    */
   kind: "rooms" | "sides" = "rooms",
+  /**
+   * C7 — how long the price is held, in the customer's words, from Settings
+   * (`holdWords(holdDaysFromSettings(...))`). It was the literal "60 days"
+   * here. The day Tom changes that promise, the door that makes it has to
+   * change with the date we hold to — one setting, or we say 60 and honour 30.
+   */
+  holdText: string = "held for 60 days",
 ): FinishOption[] {
   if (payload.canAccept) {
     return [
@@ -65,7 +72,7 @@ export function finishOptions(
         key: "fix_online",
         icon: "✓",
         title: "Fix my price online",
-        body: `Everything's confirmed and the job is within what we fix without a visit. Your price becomes ${fixedPriceText} inc. GST, held for 60 days. Nothing to pay now.`,
+        body: `Everything's confirmed and the job is within what we fix without a visit. Your price becomes ${fixedPriceText} inc. GST, ${holdText}. Nothing to pay now.`,
       },
       {
         key: "book_visit",
@@ -285,3 +292,62 @@ export function handoffSteps(input: {
 
 /** ⚑ Tom, decision 13: "confirm what you can hold to on a busy week." */
 export const DEFAULT_TURNAROUND = "by the next working day";
+
+/**
+ * "SEND TO SARAH" — the CTA, v2.4 (C7).
+ *
+ * The button said "Finalise my price", which is what the customer is doing but
+ * not what is about to happen: they are handing their job to a person, and
+ * every screen after this one names that person. A button that hides them and
+ * a hand-off screen that introduces them are describing the same tap two
+ * different ways.
+ *
+ * The name comes from a RECORD — the estimator whose patch covers the postcode
+ * (`profiles.name`), or the coordinator in Settings — and never from a string
+ * in a component. When we have nobody to name, the old label stands: an
+ * invented first name is worse than a generic button, and "Send to Felipe"
+ * when Felipe does not work here is the kind of small lie a customer catches.
+ */
+export function firstName(full: string | null | undefined): string | null {
+  const trimmed = (full ?? "").trim();
+  if (!trimmed) return null;
+  const first = trimmed.split(/\s+/)[0];
+  // A single initial ("J Smith") is not a name to greet somebody with.
+  return first.replace(/[.,]$/, "").length > 1 ? first.replace(/[.,]$/, "") : null;
+}
+
+export function sendToLabel(estimatorName: string | null | undefined): string {
+  const name = firstName(estimatorName);
+  return name ? `Send to ${name}` : "Finalise my price";
+}
+
+/**
+ * WHO HAS IT — the hand-off screen's estimator line (C7, prototype s-handoff).
+ *
+ * The prototype introduces "Sarah Reid — your estimator" with a sentence about
+ * why she is in the loop. Two things make that line true rather than
+ * decorative: the name comes from `profiles`, and the PATCH is stated in terms
+ * the customer recognises — their own suburb, not a list of postcodes. "Sarah
+ * looks after Brunswick" is a fact a customer can check; "patch: 3056, 3057,
+ * 3058" is an internal field shown to the wrong audience.
+ *
+ * No pronoun is invented for anybody. We know an estimator's name from a
+ * record; we do not know their pronouns, and a screen that guesses wrong about
+ * a real colleague in front of a customer is worse than a plainer sentence.
+ *
+ * `covers` false means the name came from the Settings coordinator rather than
+ * a patch match — so the line drops the geography instead of claiming a patch
+ * nobody was assigned.
+ */
+export function estimatorLine(input: {
+  name: string | null | undefined;
+  suburb?: string | null;
+  covers: boolean;
+}): string | null {
+  const name = firstName(input.name);
+  if (!name) return null;
+  const suburb = (input.suburb ?? "").trim();
+  return input.covers && suburb
+    ? `${name} looks after ${suburb}, and will be the one confirming your price.`
+    : `${name} will be the one confirming your price.`;
+}

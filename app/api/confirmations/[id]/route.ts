@@ -85,13 +85,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (action === "fix_price") {
     const pack = (row.pack ?? {}) as { totalCents?: number };
-    // The band the customer was shown, from the frozen pack. Accepting takes
-    // its CENTRE (⚑8) — a customer shown a range and charged its ceiling has
-    // been quoted dishonestly.
-    const total = Number(pack.totalCents) || 0;
+    // The engine's own figure, frozen into the pack at send. Accepting takes
+    // THAT (⚑8), never the top of the band a customer was shown — being
+    // quoted a range and charged its ceiling is a dishonest quote.
     const price = priceToFix({
       enteredCents: parsed.data.priceCents ?? null,
-      rangeLoCents: total, rangeHiCents: total,
+      centralCents: Number(pack.totalCents) || 0,
     });
     if (!price.ok) return NextResponse.json({ error: price.reason }, { status: 400 });
     fixedCents = price.cents;
