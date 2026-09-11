@@ -165,7 +165,7 @@ describe("approval_pending source", () => {
 describe("dismissal (§3.7)", () => {
   const item = (key: string): WorkItem => ({
     key, kind: "followup_due", accountId: "a1", subjectRef: { type: "estimate", id: "e1" },
-    title: "t", detail: "d", since: "2026-08-28T00:00:00.000Z", dueAt: null,
+    title: "t", detail: "d", since: "2026-08-28T00:00:00.000Z", dueAt: null, valueCents: null,
     bucket: "today", priority: 10, action: { label: "Open", href: "/x" },
   });
 
@@ -191,7 +191,7 @@ describe("assembly", () => {
   it("orders overdue → today → waiting, then priority, deterministically", () => {
     const mk = (key: string, bucket: WorkItem["bucket"], priority: number): WorkItem => ({
       key, kind: "invoice_action", accountId: null, subjectRef: { type: "invoice", id: key },
-      title: "t", detail: "d", since: "2026-08-28T00:00:00.000Z", dueAt: null,
+      title: "t", detail: "d", since: "2026-08-28T00:00:00.000Z", dueAt: null, valueCents: null,
       bucket, priority, action: { label: "Open", href: "/x" },
     });
     const sorted = sortItems([mk("w", "waiting", 99), mk("t-low", "today", 5), mk("t-high", "today", 50), mk("o", "overdue", 1)]);

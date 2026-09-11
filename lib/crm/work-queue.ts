@@ -101,6 +101,20 @@ export type WorkItem = {
   dueAt: string | null;
   bucket: WorkItemBucket;
   priority: number;
+  /**
+   * C7b — what is at stake, in cents, when the record knows it.
+   *
+   * The evaluator has always HAD this: `finish()` takes it as a
+   * `PriorityInput` and folds it into `priority`, which is what orders the
+   * queue. It then threw the number away, so a surface that wanted to SHOW
+   * the figure had to go and fetch it again — a second query against the same
+   * rows the queue had just read, which is exactly the duplication C7b exists
+   * to remove. Keeping it costs one assignment.
+   *
+   * Null where the record genuinely has no figure (a message, a consent gap),
+   * not as a stand-in for "not looked up".
+   */
+  valueCents: number | null;
   /** Exactly one action. An item offering three choices is an item nobody
    *  has decided the shape of. */
   action: { label: string; href: string };
@@ -713,13 +727,16 @@ export function buildApprovalItem(queuedCount: number, now: Date): WorkItem[] {
 // ---- assembly --------------------------------------------------------------
 
 function finish(
-  partial: Omit<WorkItem, "bucket" | "priority">,
+  // `valueCents` is omitted with the derived fields: callers pass it in
+  // `extra`, where `priorityOf` already needed it, so it is stated once.
+  partial: Omit<WorkItem, "bucket" | "priority" | "valueCents">,
   extra: { valueCents: number | null; promisedToCustomer: boolean },
   now: Date,
 ): WorkItem {
   return {
     ...partial,
     bucket: bucketFor(partial.dueAt, now),
+    valueCents: extra.valueCents,
     priority: priorityOf({
       kind: partial.kind,
       valueCents: extra.valueCents,
@@ -819,6 +836,7 @@ export function buildChangeRequestItems(rows: ChangeRequestRow[], staffReplies: 
       since: r.created_at,
       dueAt,
       bucket: bucketFor(dueAt, now),
+      valueCents: null,
       priority: priorityOf({ kind: "change_request", promisedToCustomer: true, overdueDays: overdueDays(dueAt, now), valueCents: null }),
       action: { label: "Reprice", href: `/quote?id=${r.estimate_id}&mode=revision` },
     });
@@ -857,6 +875,7 @@ export function buildHandoffItems(rows: HandoffQueueRow[], now: Date, slaSeconds
       dueAt: live ? null : dueAt,
       // A live-chat SLA is minutes, not days: past due IS overdue, today.
       bucket: live ? "today" : new Date(dueAt).getTime() <= now.getTime() ? "overdue" : "today",
+      valueCents: null,
       priority: priorityOf({ kind: "handoff_requested", promisedToCustomer: true, overdueDays: r.escalated_at ? 1 : overdueDays(dueAt, now), valueCents: null }),
       action: { label: live ? "Open chat" : "Answer the chat", href: `/crm/chat/${r.conversation_id}` },
     };

@@ -14,12 +14,13 @@ import type { WorkItem } from "@/lib/crm/work-queue";
  * So this is a renderer. If a row is wrong, the evaluator is wrong, and there
  * is one place to go and fix it.
  *
- * ⚑ NO VALUE COLUMN, deliberately. `WorkItem` does not carry `valueCents` —
- * the evaluator takes value as a `PriorityInput` and folds it into `priority`,
- * which is what orders these rows. Showing the figure would mean either
- * widening the evaluator's contract for a cosmetic column, or running a second
- * query against `estimates` — and a second query is the thing this whole chunk
- * exists to remove. The money is on the estimate, one click away.
+ * The Value column reads `WorkItem.valueCents`, which the evaluator now keeps
+ * (Tom's ruling, 12 Sep). It always HAD the number — it folds it into
+ * `priority`, which is what orders these rows — and simply discarded it, so
+ * any surface wanting to show the figure had to fetch the same rows again.
+ * One field on the contract removed that second query. `null` means the
+ * record genuinely has no figure, not "not looked up", so it renders as a
+ * dash rather than a zero.
  */
 
 const BUCKET_TONE: Record<string, string> = {
@@ -57,6 +58,7 @@ export default function WaitingTable({ items, now }: { items: WorkItem[]; now: D
         <tr className="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
           <th className="py-2 pr-3 font-medium">What&rsquo;s waiting</th>
           <th className="py-2 pr-3 font-medium">Since</th>
+          <th className="py-2 pr-3 font-medium">Value</th>
           <th className="py-2 font-medium"></th>
         </tr>
       </thead>
@@ -82,6 +84,9 @@ export default function WaitingTable({ items, now }: { items: WorkItem[]; now: D
                   {BUCKET_LABEL[i.bucket]}
                 </span>
               )}
+            </td>
+            <td className="whitespace-nowrap py-3 pr-3 font-mono text-xs text-gray-700" data-testid={`waiting-value-${i.subjectRef.id}`}>
+              {i.valueCents != null ? `$${Math.round(i.valueCents / 100).toLocaleString("en-AU")}` : "—"}
             </td>
             <td className="whitespace-nowrap py-3 pr-3 text-right">
               <Link

@@ -166,3 +166,16 @@ describe("overdue against the promise we made", () => {
     expect(item.detail).toMatch(/within two hours — that has passed/);
   });
 });
+
+test("C7b: the item carries what is at stake, so no surface has to fetch it again", () => {
+  // The evaluator always had this number — it folds it into `priority`, which
+  // is what orders the queue — and used to throw it away, forcing the
+  // estimates page to re-read the same rows to print a dollar figure.
+  const [item] = buildDeskCheckItems([row({}, { total_cents: 486_050 })], DEFAULT_POLICY, NOW);
+  expect(item.valueCents).toBe(486_050);
+});
+
+test("C7b: a record with no figure carries null, never a misleading zero", () => {
+  const [item] = buildDeskCheckItems([row({}, { total_cents: null })], DEFAULT_POLICY, NOW);
+  expect(item.valueCents).toBeNull();
+});
