@@ -111,6 +111,11 @@ const RENDER: Record<CrmEventType, { label: string; kind: TimelineRow["kind"]; d
   estimate_declined: { label: "Estimate declined", kind: "customer", detail: (p) => str(p.reason) },
   estimate_lapsed: { label: "Estimate lapsed", kind: "system",
     detail: (p) => join(money(p.totalCents), str(p.validUntil) && `valid until ${str(p.validUntil)}`, "not lost until someone says so") },
+  confirmation_requested: { label: "Asked us to confirm the price", kind: "activity",
+    detail: (p: Record<string, unknown>) =>
+      p.kind === "visit"
+        ? "A visit, to confirm it on site"
+        : "From what they have given us — no visit needed" },
   visit_booked: { label: "Visit booked", kind: "activity",
     detail: (p) => join(str(p.when), str(p.who)) },
   visit_completed: { label: "Visit done", kind: "activity", detail: (p) => str(p.outcome) },

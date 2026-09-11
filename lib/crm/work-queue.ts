@@ -8,6 +8,7 @@ import {
   DEFAULT_POLICY, policyFromSettings, remoteConfirmVerdict, settingValue,
   type WizardPolicySettings,
 } from "@/lib/wizard/policy";
+import { sortQueue } from "@/lib/wizard/confirmation";
 import { addBusinessHours, nextBusinessMorning } from "@/lib/time/businessHours";
 
 /**
@@ -558,15 +559,32 @@ export function buildPhotoReviewItems(rows: PhotoReviewRow[], now: Date): WorkIt
 
 // ---- source: desk_check (estimator journey v2 §5, ⚑7) ----------------------
 
+/**
+ * A row of `confirmation_requests`, joined to its estimate.
+ *
+ * C5 MOVED THE SOURCE. This used to be an estimate carrying
+ * `builder_state.prepPack.kind = 'desk_check'` — a jsonb marker, found by
+ * scanning estimates for it. The marker could not carry who it is assigned to,
+ * what the rules suggested, the pack as sent, or any of the four Phase 1
+ * metrics (§2.6), because it has no timestamps and no history: it is either
+ * there or it is not. The queue derives from the table alone now, and the
+ * migration backfilled every marker so nothing was lost in the move.
+ */
 export type DeskCheckRow = {
-  id: string; title: string | null; account_id: string | null; status: string;
-  /** `estimates.total_cents`, written by the builder on save — NOT
-   * `total_inc_cents`, which is an invoices column. Selecting the wrong one
-   * made the whole query error and the queue show nothing at all. */
-  total_cents: number | null;
-  builder_state: {
-    prepPack?: { kind?: string; at?: string; flags?: string[] };
-    blocks?: Array<{ kind?: string; type?: string }>;
+  id: string;
+  estimate_id: string;
+  requested_at: string;
+  kind: string;
+  status: string;
+  suggested_action: "fix" | "ask" | "visit" | null;
+  assigned_to: string | null;
+  estimates: {
+    title: string | null; account_id: string | null;
+    /** `estimates.total_cents`, written by the builder on save — NOT
+     * `total_inc_cents`, which is an invoices column. Selecting the wrong one
+     * made the whole query error and the queue show nothing at all. */
+    total_cents: number | null;
+    builder_state: { blocks?: Array<{ kind?: string; type?: string }> } | null;
   } | null;
 };
 
@@ -588,35 +606,60 @@ export function buildDeskCheckItems(
   now: Date,
 ): WorkItem[] {
   const items: WorkItem[] = [];
-  for (const r of rows) {
-    const pack = r.builder_state?.prepPack;
-    if (pack?.kind !== "desk_check") continue;
-    const hasExterior = (r.builder_state?.blocks ?? [])
-      .some((b) => b?.kind === "area" && b?.type === "Exterior");
-    // The stored total, so the queue does not price every candidate. It can
-    // lag a builder edit, which is why the desk-check PAGE re-derives the
-    // verdict live — that one is authoritative, this one orders the queue.
-    const total = Number(r.total_cents) || 0;
+  /**
+   * Value × readiness (plan §2.6), from the one sorter in
+   * lib/wizard/confirmation.ts — a fixable job outranks a bigger one that
+   * still needs a visit, because it can become a signed job in minutes.
+   * Deliberately not a time decay: an old job is not a valuable one, and the
+   * turnaround warning chases age instead of letting it bury the work that pays.
+   */
+  const ordered = sortQueue(rows.map((r) => ({
+    row: r,
+    totalCents: Number(r.estimates?.total_cents) || 0,
+    suggestedAction: r.suggested_action,
+    requestedAt: r.requested_at,
+  })));
+
+  for (const { row: r, totalCents: total } of ordered) {
+    const est = r.estimates;
+    const hasExterior = (est?.builder_state?.blocks ?? [])
+      .some((b: { kind?: string; type?: string }) => b?.kind === "area" && b?.type === "Exterior");
+    /**
+     * The verdict is re-derived HERE from the stored total, so the queue does
+     * not price every candidate. It can lag a builder edit, which is why the
+     * desk-check PAGE re-derives it live — that one is authoritative, this one
+     * only orders and words the card.
+     *
+     * The row's own `kind` is what we PROMISED the customer at send. When the
+     * two disagree, the promise is what the card says, because that is what the
+     * customer was told — the estimator finds out why on the page.
+     */
     const verdict = remoteConfirmVerdict(total, hasExterior, policy);
-    const since = pack.at ?? new Date(now).toISOString();
-    const flags = pack.flags?.length ?? 0;
-    const name = r.title?.trim() || "estimate";
+    const promisedRemote = r.kind === "remote";
+    const since = r.requested_at ?? new Date(now).toISOString();
+    const name = est?.title?.trim() || "estimate";
     items.push(finish({
-      key: itemKey("desk_check", "estimate", r.id, "confirm"),
+      key: itemKey("desk_check", "estimate", r.estimate_id, "confirm"),
       kind: "desk_check",
-      accountId: r.account_id,
-      subjectRef: { type: "estimate", id: r.id },
+      accountId: est?.account_id ?? null,
+      subjectRef: { type: "estimate", id: r.estimate_id },
       since,
-      title: verdict.eligible
+      title: verdict.eligible && promisedRemote
         ? `Fix the price without a visit — ${name}`
         : `Desk check, then book a visit — ${name}`,
-      detail: verdict.eligible
-        ? `The customer confirmed their scope and asked us to fix it.${flags > 0 ? ` ${flags} thing${flags === 1 ? "" : "s"} flagged.` : ""}`
-        : `The customer asked us to fix it, but ${verdict.reason}.${flags > 0 ? ` ${flags} thing${flags === 1 ? "" : "s"} flagged.` : ""}`,
+      // The flagged-item count came off the old jsonb marker. It is not
+      // reinvented here: the desk-check page lists every flag against the room
+      // it belongs to, which is where somebody can act on it. A count on a card
+      // that might disagree with the page is worse than no count.
+      detail: verdict.eligible && promisedRemote
+        ? "The customer confirmed their scope and asked us to fix it."
+        : promisedRemote
+          ? `The customer asked us to fix it, but ${verdict.reason}.`
+          : "The customer asked for a person to look at it.",
       // The plan promises "usually by the next working day" on the hand-off
       // screen, so the queue has to want it by then too.
       dueAt: nextBusinessMorning(new Date(since)).toISOString(),
-      action: { label: "Open the desk check", href: `/quote/desk-check?id=${r.id}` },
+      action: { label: "Open the desk check", href: `/quote/desk-check?id=${r.estimate_id}` },
     }, { valueCents: total || null, promisedToCustomer: true }, now));
   }
   return items;
@@ -1043,11 +1086,18 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     .gte("created_at", new Date(now.getTime() - 60 * 86_400_000).toISOString())
     .order("created_at", { ascending: false }).limit(100);
   const photoRows = (photoRes.error ? [] : (photoRes.data ?? [])) as unknown as PhotoReviewRow[];
-  // §5 (⚑7): estimates whose customer asked us to fix the price from the desk.
-  const deskRes = await supabase.from("estimates")
-    .select("id, title, account_id, status, total_cents, builder_state")
-    .eq("status", "draft")
-    .contains("builder_state", { prepPack: { kind: "desk_check" } })
+  /**
+   * §5 (⚑7) · C5: the confirmation queue, FROM THE TABLE.
+   *
+   * This used to scan `estimates` for a jsonb marker
+   * (`builder_state.prepPack.kind = 'desk_check'`). It now reads the rows that
+   * record the promise itself, joined to the estimate for the money and the
+   * name. Open states only — a fixed or declined request is history, and the
+   * turnaround warning chases the open ones.
+   */
+  const deskRes = await supabase.from("confirmation_requests")
+    .select("id, estimate_id, requested_at, kind, status, suggested_action, assigned_to, estimates(title, account_id, total_cents, builder_state)")
+    .in("status", ["requested", "question_asked"])
     .limit(200);
   const deskRows = (deskRes.error ? [] : (deskRes.data ?? [])) as unknown as DeskCheckRow[];
   const deskPolicy: WizardPolicySettings = await supabase
