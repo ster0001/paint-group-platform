@@ -20,7 +20,7 @@ import {
 } from "@/lib/wizard/policy";
 import { wizardStateSchema } from "@/lib/wizard/state";
 import { defaultSidesLoop, extrasPrices, hoursPerItemCodes, linealCodes, sidesView, wallOptionsFromRates, type SidesLoopMeta, type SidesView } from "@/lib/wizard/sides";
-import { ladderFor, type Ladder } from "@/lib/wizard/ladder";
+import { ladderFor, requiresSiteCheck, type Ladder } from "@/lib/wizard/ladder";
 import { defaultInteriorLoop, interiorDwTotals, interiorProgress, roomLoopViews, type InteriorLoopMeta, type RoomLoopView } from "@/lib/wizard/rooms-loop";
 import { loopConfirmState } from "@/lib/wizard/confirm-state";
 import { estimateDocuments, type EstimateDocuments } from "@/lib/wizard/documents";
@@ -122,7 +122,14 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
     answers,
     payload.totals.totalCents,
     payload.accuracyPct,
-    (estimate as { requires_site_check?: boolean | null }).requires_site_check === true,
+    // AUDIT 9.1: the same function the submit route uses, so the two cannot
+    // disagree. The stored column is ORed in, never replaced — escalations the
+    // editor adds after submit (custom surface, rot, a geometry flag) live only
+    // there, and deriving from state alone would forget them.
+    requiresSiteCheck({
+      state: snap.success ? snap.data : null,
+      stored: (estimate as { requires_site_check?: boolean | null }).requires_site_check,
+    }),
     policyFromSettings(settingValue(ctx.settings, "wizard_policy")),
     serviceAreaFromSettings(settingValue(ctx.settings, "service_area")),
     tradeActor,

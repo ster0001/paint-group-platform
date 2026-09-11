@@ -16,7 +16,7 @@ import { SCOPE_VERSION, type Alias, type ScopeRule } from "@/lib/extract/scope";
 import type { DefectRate } from "@/lib/capture/commit";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { PAINT_SYSTEMS_KEY, paintSystemsFrom } from "@/lib/pricing/systems";
-import { applyWizardAnswers, conditionPhotoCount, filterSurfacesByTicks } from "@/lib/wizard/merge";
+import { applyWizardAnswers, filterSurfacesByTicks } from "@/lib/wizard/merge";
 import { ceilingHeightFrom, wizardStateSchema, type WizardSurfaceKey } from "@/lib/wizard/state";
 import { backfillTypicalSizes, markStarterProvenance, starterExtraction, starterRoomList, type TypicalSizeRow } from "@/lib/wizard/starter";
 import { applyConditionPricing, applyExteriorAnswers, type MeasuredSides } from "@/lib/wizard/exteriorAnswers";
@@ -26,6 +26,7 @@ import {
   GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails, guardrailWhy,
   policyFromSettings, serviceAreaFromSettings, settingValue,
 } from "@/lib/wizard/policy";
+import { requiresSiteCheck } from "@/lib/wizard/ladder";
 import { reportError } from "@/lib/monitoring/report";
 import { ensureAccountAndProperty } from "@/lib/accounts/link";
 import { recordConsent } from "@/lib/accounts/consent";
@@ -494,11 +495,17 @@ export async function POST(request: Request) {
   const policy = policyFromSettings(settingValue(ctx.settings, "wizard_policy"));
   const bands = bandsFromSettings(settingValue(ctx.settings, "wizard_bands"));
   const serviceArea = serviceAreaFromSettings(settingValue(ctx.settings, "service_area"));
+  // AUDIT 9.1: this used to pass `wantsExterior`, which is not the question.
+  // ONE derivation (lib/wizard/ladder.ts), used for the decision, the proving
+  // snapshot and the column written at the end of this route — so the three can
+  // never disagree the way they did. effectiveState, not state: a failed defect
+  // read must not count as a condition photo.
+  const siteCheck = requiresSiteCheck({ state: effectiveState });
   const decision = evaluateGuardrails(
     answersFromState(state),
     payload.totals.totalCents,
     payload.accuracyPct,
-    wantsExterior,
+    siteCheck,
     policy,
     serviceArea,
     tradeActor,
@@ -518,6 +525,11 @@ export async function POST(request: Request) {
     deferredCount: payload.deferred.length,
     outcome: decision.outcome,
     walkthroughRequired: decision.walkthroughRequired,
+    // AUDIT 9.1: the derived flag itself, recorded alongside the decision it
+    // fed. Before C2 the snapshot could say walkthroughRequired:false for a job
+    // the database flagged — the calibration baseline inherited that lie, and
+    // there was no way to tell an affected row from a sound one afterwards.
+    requiresSiteCheck: siteCheck,
     reasons: decision.reasons,
   };
 
@@ -741,20 +753,9 @@ export async function POST(request: Request) {
     // Tom, 7 Sep: condition photos = estimator sign-off before any price is
     // fixed, interior or exterior — the customer sees the pending flag and
     // cannot accept online until a person has looked.
-    (conditionPhotoCount(effectiveState) > 0) || wantsExterior && (
-      !state.exterior
-      || state.jobType === "both"
-      || state.exterior.storeys === "double"
-      || state.exterior.condition === "peeling"
-      // Gear the wizard cannot price (scissor/boom lift, scaffold) — the
-      // estimator confirms access before any price is fixed.
-      || state.exterior.accessEquipment.length > 0
-      // Tom, 7 Sep: things the card cannot price yet (metal fence, floor
-      // coatings, a freestanding wall, "other" cladding) — the estimator prices them.
-      || state.exterior.extras.fenceType === "metal"
-      || state.exterior.targets.some((t) => t === "floor" || t === "wall" || t === "shed")
-      || state.exterior.substrates.includes("other")
-    )
+    // The SAME value the decision and the snapshot used (audit 9.1) — this
+    // expression used to be a second, drifting copy of the rule.
+    siteCheck
       ? db.from("estimates").update({ requires_site_check: true }).eq("id", estimateId)
           .then((r) => { if (r.error) reportError(r.error, { where: "wizard.submit.requiresSiteCheck", bestEffort: true, extra: { estimateId } }); })
       : Promise.resolve(),
