@@ -6,6 +6,7 @@ import {
   NOT_INCLUDED, finishOptions, summaryRows,
   type SummaryInput,
 } from "@/lib/wizard/finish-line";
+import { DEFAULT_HOLD_DAYS, holdWords } from "@/lib/wizard/confirmation-actions";
 import ContactCard from "@/app/estimate/scope/ContactCard";
 
 /**
@@ -24,28 +25,58 @@ import ContactCard from "@/app/estimate/scope/ContactCard";
 
 const fmt = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
+/**
+ * "5 December 2026" — the date a held price runs to, said in full.
+ *
+ * `heldUntil` is a CALENDAR DATE (`YYYY-MM-DD`), already computed in
+ * Melbourne's day by `holdUntil`. It carries no time and therefore no offset,
+ * so it is read as UTC midnight and formatted in UTC: that hands back exactly
+ * the date the server wrote. The first cut pinned it to `+10:00`, which is
+ * only Melbourne for half the year — a 60-day hold taken in September lands in
+ * November, inside daylight saving, and every such date rendered a day early.
+ * The repo's own offset guard (`lib/workorder/boundary.test.ts`) caught it.
+ */
+const longDate = (iso: string) => {
+  const d = new Date(`${iso}T00:00:00Z`);
+  return Number.isFinite(d.getTime())
+    ? d.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
+    : iso;
+};
+
+const capitaliseFirst = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
 export default function Finish({
   estimateId, input, fixedPriceCents, companyPhone, phoneHours, customerPhone, busy = false, kind = "rooms",
+  holdDays = DEFAULT_HOLD_DAYS,
 }: {
   estimateId: string;
   input: SummaryInput;
-  /** The single number a self-serve customer would be accepting. */
-  fixedPriceCents: number;
+  /**
+   * The single number a self-serve customer would be accepting — `null` for
+   * every job that may not be fixed online, because the server does not send
+   * the point price to those at all (see `CustomerPayload.centralCents`).
+   * The fix door is not offered without it, so there is nothing to show.
+   */
+  fixedPriceCents: number | null;
   companyPhone: string | null;
   phoneHours: string | null;
   customerPhone: string | null;
   busy?: boolean;
   /** C4 — an exterior walk has no rooms; the copy follows (finishOptions). */
   kind?: "rooms" | "sides";
+  /** C7 — Settings `wizard_hold_days`; the door's copy and the date agree. */
+  holdDays?: number;
 }) {
   const router = useRouter();
   const [sending, setSending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [contactOpen, setContactOpen] = useState(false);
   const [requested, setRequested] = useState<string | null>(null);
+  const [fixed, setFixed] = useState<{ priceCents: number; heldUntil: string } | null>(null);
+  const [handedOver, setHandedOver] = useState(false);
   const { payload } = input;
   const rows = summaryRows(input);
-  const options = finishOptions(payload, fmt(fixedPriceCents), kind);
+  const options = finishOptions(payload, fixedPriceCents == null ? "" : fmt(fixedPriceCents), kind, holdWords(holdDays));
 
   async function choose(key: string) {
     if (sending || busy) return;
@@ -63,12 +94,41 @@ export default function Finish({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // `view` is what tells the route to answer with the CUSTOMER payload —
-        // the same declaration every tap in the editor makes.
-        body: JSON.stringify({ action: "accept_intent", view: "customer" }),
+        // the same declaration every tap in the editor makes. C7: fixing the
+        // price is its OWN action, carrying no figure — the server prices it
+        // and the server's ladder decides whether it may be fixed at all.
+        body: JSON.stringify({
+          action: key === "fix_online" ? "fix_online" : "accept_intent",
+          view: "customer",
+        }),
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
         setError(j.error ?? "That didn't send — try again in a moment.");
+        setSending(null);
+        return;
+      }
+      /**
+       * C7 — THE STALE CLIENT.
+       *
+       * This screen may have been sitting open while the job changed: a spot
+       * flagged in another tab, a room added, the total pushed over the cap.
+       * The door said "fix my price online" because that was true when the
+       * page rendered; by the tap it may not be. The server has already done
+       * the kind thing — made the confirmation request instead — so all this
+       * has to do is say so, without an error and without blaming anyone.
+       */
+      const body = (await res.json().catch(() => ({}))) as {
+        fixedOnline?: { priceCents: number; heldUntil: string };
+        fixDeclined?: boolean;
+      };
+      if (body.fixedOnline) {
+        setFixed(body.fixedOnline);
+        setSending(null);
+        return;
+      }
+      if (body.fixDeclined) {
+        setHandedOver(true);
         setSending(null);
         return;
       }
@@ -96,6 +156,33 @@ export default function Finish({
       </div>
 
       <h2 className="wz-doors-head">Make it a fixed price</h2>
+      {/**
+        * C7 — once it IS a fixed price, the doors are gone.
+        *
+        * Leaving them up would invite a second tap on a decision that has
+        * already been made and written down, and the idempotent answer to
+        * that is still a worse experience than not asking twice.
+        */}
+      {fixed ? (
+        <div className="wz-fixed" data-testid="finish-fixed">
+          <b>Your price is fixed at {fmt(fixed.priceCents)} inc. GST.</b>
+          <span>
+            {capitaliseFirst(holdWords(holdDays))} — until {longDate(fixed.heldUntil)}. Nothing to pay now.
+            We&rsquo;ve emailed it to you, and it&rsquo;s on your estimate whenever you want to look.
+          </span>
+          <a className="wz-linkish" href={`/estimate/sent?id=${estimateId}`}>See what happens next</a>
+        </div>
+      ) : handedOver ? (
+        <div className="wz-fixed" data-testid="finish-handed-over">
+          <b>One of our estimators is confirming this one.</b>
+          <span>
+            Something about the job changed while this page was open, so we&rsquo;d rather a person
+            put their name to the number than have us guess. They have everything you&rsquo;ve
+            given us — there&rsquo;s nothing else for you to do.
+          </span>
+          <a className="wz-linkish" href={`/estimate/sent?id=${estimateId}`}>See what happens next</a>
+        </div>
+      ) : (
       <div className="wz-doors">
         {options.map((o) => (
           <button
@@ -112,6 +199,7 @@ export default function Finish({
           </button>
         ))}
       </div>
+      )}
       {error && <p className="wz-err" data-testid="finish-error">{error}</p>}
 
       {requested ? (

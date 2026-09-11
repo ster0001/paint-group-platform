@@ -47,7 +47,15 @@ test("R4 ladder: below the accuracy bar lands the visit tier — slots offered, 
   // 90% bar, so the CTA is the visit offer, enabled — never blocked.
   const cta = page.locator(".il-cta");
   await expect(cta).toBeEnabled({ timeout: 45_000 }); // production queue drain
-  await expect(cta).toContainText(/finalise my price/i);
+  /**
+   * C7 (v2.4) — the label now names the estimator when Settings or a patch
+   * gives us one ("Send to Sarah"), and keeps the old wording when it does
+   * not. Both are the SAME rung — the visit offer, enabled — so the assertion
+   * is on the rung, not on which of the two names it happens to carry. What
+   * it must never be is "Accept estimate": that is the self-serve label, and a
+   * no-plan job has not earned it.
+   */
+  await expect(cta).toHaveText(/^(Send to .+|Finalise my price)$/);
 
   // Tom, 5 Sep: call us / call back / site visit with availability — a
   // person schedules it. Requesting sticks.

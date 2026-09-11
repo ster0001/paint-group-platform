@@ -17,6 +17,7 @@ import { handoffSteps } from "@/lib/wizard/finish-line";
  */
 export default function Sent({
   estimateId, coordinator, companyPhone, email, roomsTotal, spots, photos, turnaround, visitSlots, status = null,
+  whoHasIt = null,
 }: {
   estimateId: string;
   coordinator: string;
@@ -30,6 +31,8 @@ export default function Sent({
   visitSlots: string[];
   /** C6 — where the request actually is, derived from the row. */
   status?: { headline: string; detail: string } | null;
+  /** C7 — the estimator and their patch, in the customer's own geography. */
+  whoHasIt?: string | null;
 }) {
   const [slot, setSlot] = useState<string | null>(null);
   const [booked, setBooked] = useState<string | null>(null);
@@ -58,6 +61,12 @@ export default function Sent({
       <p className="wz-sub">
         Your answers, photos and range are with your estimator. Here&rsquo;s what happens next.
       </p>
+
+      {/* C7 — the prototype introduces a person here, and the introduction is
+          only worth making if it is true: the name is from `profiles`, the
+          patch is the customer's own suburb, and nothing is said when we
+          cannot name anybody. */}
+      {whoHasIt && <p className="wz-sub wz-who" data-testid="sent-who">{whoHasIt}</p>}
 
       {/* C6 — where it ACTUALLY is, derived from the confirmation row. A
           customer who comes back to this link a day later should find out what

@@ -27,7 +27,7 @@ import {
   applyCount, applyDoorScope, applyExtent, applyExteriorToggle, applyFenceLength, applyRename, applyToggle, applyWallsShare,
   customerExteriorView, customerScopeRooms, FREESTANDING_EXTRA_KEYS, hasFreestandingExtras, applyFenceType } from "@/lib/wizard/scope-editor";
 import { bookWizardSlot, wizardVisitSlots } from "@/lib/visits/wizard";
-import { ladderFor, requiresSiteCheck } from "@/lib/wizard/ladder";
+import { ladderFor, mayFixOnline, requiresSiteCheck } from "@/lib/wizard/ladder";
 import { deskCheckPack } from "@/lib/wizard/desk-check";
 import { confirmationDraft } from "@/lib/wizard/confirmation";
 import { INTERIOR_POOR_MODIFIER_CODE } from "@/lib/wizard/exteriorAnswers";
@@ -51,7 +51,9 @@ import { customerPayload, editorPayload, type WizardDeferred } from "@/lib/wizar
 import {
   GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails,
   policyFromSettings, serviceAreaFromSettings, settingValue,
+  type GuardrailDecision,
 } from "@/lib/wizard/policy";
+import { holdDaysFromSettings, holdUntil, priceToFix } from "@/lib/wizard/confirmation-actions";
 import { reportError } from "@/lib/monitoring/report";
 
 /**
@@ -292,6 +294,12 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("set_fence_type"), type: z.enum(["paling", "picket_hand", "picket_spray"]) }),
   /** Customer accepted online (self-serve tier) — desk check follows. */
   z.object({ action: z.literal("accept_intent") }),
+  /**
+   * C7 — "fix my price online". Carries NO price: the figure is the engine's
+   * central estimate, read server-side (⚑8). A client that could name its own
+   * number is the hole R2b closed in `accept_estimate`, and it stays closed.
+   */
+  z.object({ action: z.literal("fix_online") }),
   /** Book the confirming visit; slot must be one the server offered. */
   z.object({ action: z.literal("book_visit"), slot: z.string().min(4).max(60) }),
   /** Tom, 5 Sep 2026: finalise by a call back or a site visit at the
@@ -379,7 +387,7 @@ type ActionRefusal = { error: string; status: number };
  * they write events and a prep pack, so they are never swept into a batch
  * of scope edits. The client sends them alone; this is the server's half of
  * that rule. */
-const UNBATCHABLE = new Set(["accept_intent", "book_visit", "request_contact"]);
+const UNBATCHABLE = new Set(["accept_intent", "book_visit", "request_contact", "fix_online"]);
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -493,7 +501,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // the estimate. `flagSiteCheck` below still escalates it live for actions that
   // introduce a reason mid-edit.
   /** C5 — set when the customer asks for a person; the row is written after pricing. */
-  let confirmationIntent: "remote" | "visit" | null = null;
+  let confirmationIntent: "remote" | "visit" | "fix_online" | null = null;
+  /** C7 — the customer tapped "fix my price online"; the ladder decides below. */
+  let fixOnlineIntent = false;
+  /**
+   * Read through a function on purpose. `confirmationIntent` is assigned both
+   * here and inside `applyAction`; TypeScript's control-flow analysis does not
+   * follow the nested one, so a direct comparison against "visit" downstream
+   * is reported as unreachable. It is not — every booked visit takes it. The
+   * accessor's return type is the variable's DECLARED type, which is the type
+   * it actually has, so the check survives without a cast silencing it.
+   */
+  const readIntent = () => confirmationIntent;
   let siteCheck = requiresSiteCheck({
     state: wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state).data ?? null,
     stored: (estimate as { requires_site_check?: boolean | null }).requires_site_check,
@@ -1003,6 +1022,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       }, "wizard.edit.sessionOutcome");
     }
 
+    if (act.action === "fix_online") {
+      // Nothing is decided here. The tap only records that it happened; the
+      // ladder gets the last word after pricing, below.
+      fixOnlineIntent = true;
+    }
+
     if (act.action === "accept_intent" || act.action === "book_visit") {
       if (act.action === "book_visit") {
         // Buckets brief §3: a booked visit is a visit requested, for the session's bucket.
@@ -1460,6 +1485,115 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .then(() => undefined, () => undefined);
 
   /**
+   * THE LADDER, EVALUATED ONCE, AFTER THE EDITS (C7).
+   *
+   * Two callers now need the server's verdict on this request: the customer
+   * view, which has always recomputed it, and `fix_online`, which must ask
+   * *at the moment of the tap* whether this job may still be fixed online.
+   *
+   * Memoised rather than called twice on purpose. Two evaluations of the one
+   * ladder in one request is precisely the bug class phase 0 spent C1 and C2
+   * removing — and here they would straddle a write, so the second could
+   * legitimately disagree with the first and nobody would be wrong.
+   */
+  let decisionMemo: Promise<GuardrailDecision> | null = null;
+  const ladderDecision = () => (decisionMemo ??= (async () => {
+    const snap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
+    const answers = snap.success
+      ? answersFromState(snap.data)
+      : answersFromState({ jobType: "interior", details: { damageTier: 1 }, customer: null });
+    // Same trade relaxation as submit + the scope page, decided from the
+    // estimate's own linked account — one rule, three evaluation sites.
+    let tradeActor = false;
+    const estAccountId = (estimate as { account_id?: string | null }).account_id;
+    if (estAccountId) {
+      const { data: acct } = await db.from("accounts").select("account_type").eq("id", estAccountId).maybeSingle();
+      tradeActor = (acct as { account_type?: string } | null)?.account_type === "trade";
+    }
+    return evaluateGuardrails(
+      answers,
+      payload.totals.totalCents,
+      payload.accuracyPct,
+      siteCheck, // live — this very action may have flagged the visit tier
+      policyFromSettings(settingValue(ctx.settings, "wizard_policy")),
+      serviceAreaFromSettings(settingValue(ctx.settings, "service_area")),
+      tradeActor,
+    );
+  })());
+
+  /**
+   * C7 — "FIX MY PRICE ONLINE", decided by the SERVER at the tap.
+   *
+   * The door the customer tapped was drawn from a payload that may be minutes
+   * old, and in those minutes they may have flagged a spot, added a room or
+   * moved the job over the cap — any of which takes self-serve away. A client
+   * that asks to fix a price it is no longer allowed to fix is not an attack
+   * and not an error; it is a stale screen, and the only honest answer is the
+   * one a person would give: of course, we'll just have someone confirm it.
+   *
+   * So a refused fix is NOT a 4xx. It becomes the ordinary confirmation
+   * request — the promise is still made, the estimator still gets the job —
+   * and the response says which way it went so the screen can tell the truth.
+   */
+  let fixedOnline: { priceCents: number; heldUntil: string; holdDays: number } | null = null;
+  let fixDeclined = false;
+  /** Set when the price was ALREADY fixed — a second tap, not a second price. */
+  let fixRepeated = false;
+  if (fixOnlineIntent) {
+    /**
+     * ALREADY FIXED IS NOT FIXED AGAIN.
+     *
+     * `confirmation_requests_open_per_estimate` deliberately excludes the
+     * terminal statuses so a job CAN come back for a second look later — which
+     * means it does not stop a second `fixed` row either. Without this check a
+     * double tap, or a reload and a re-tap, would write a second fixed price
+     * and re-stamp `valid_until`, quietly extending a hold the customer had
+     * already been given. Same rule as the estimator's route in C6: a repeat of
+     * the producing action returns what it produced.
+     */
+    const { data: already } = await db.from("confirmation_requests")
+      .select("fixed_price_cents")
+      .eq("estimate_id", id).eq("kind", "fix_online").eq("status", "fixed")
+      .order("fixed_at", { ascending: false }).limit(1).maybeSingle();
+    const priorCents = (already as { fixed_price_cents?: number | null } | null)?.fixed_price_cents ?? null;
+    if (priorCents != null) {
+      const { data: est } = await db.from("estimates").select("valid_until").eq("id", id).maybeSingle();
+      const holdDays = holdDaysFromSettings(settingValue(ctx.settings, "wizard_hold_days"));
+      fixedOnline = {
+        priceCents: priorCents,
+        heldUntil: ((est as { valid_until?: string | null } | null)?.valid_until) ?? holdUntil(new Date(), holdDays),
+        holdDays,
+      };
+      fixRepeated = true;
+      fixOnlineIntent = false;
+    }
+  }
+  if (fixOnlineIntent) {
+    // The ONE ladder answers it — not three lines copied into a route.
+    if (!mayFixOnline(await ladderDecision())) {
+      fixDeclined = true;
+      confirmationIntent = "remote";
+    } else {
+      const holdDays = holdDaysFromSettings(settingValue(ctx.settings, "wizard_hold_days"));
+      const price = priceToFix({ centralCents: payload.totals.totalCents });
+      if (!price.ok) {
+        // Nothing to fix. Same kindness: a person looks at it.
+        fixDeclined = true;
+        confirmationIntent = "remote";
+      } else {
+        const heldUntil = holdUntil(new Date(), holdDays);
+        fixedOnline = { priceCents: price.cents, heldUntil, holdDays };
+        // The hold LIVES on the estimate — `valid_until` is what the daily
+        // lapse sweep reads (20270121). A hold recorded only on the
+        // confirmation row would be a promise nothing enforced.
+        await db.from("estimates").update({ valid_until: heldUntil }).eq("id", id)
+          .then((r) => { if (r.error) reportError(r.error, { where: "wizard.edit.hold", bestEffort: true }); });
+        confirmationIntent = "fix_online";
+      }
+    }
+  }
+
+  /**
    * C5 — the qualified lead becomes a row.
    *
    * `prepPack` keeps its own job (removed substrates and flags for the visit's
@@ -1502,13 +1636,35 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       }) : { kind: "visit" as const, suggestedAction: "visit" as const, assignedTo: null, why: "we could not read the scope, so a person looks" };
       // The customer asked for a visit: that is what they get, whatever the
       // ladder would have allowed. Their choice outranks our eligibility.
-      const kind = confirmationIntent === "visit" ? "visit" : draft.kind;
+      // A fix the ladder just allowed is its own kind and is already done.
+      /**
+       * Annotated, not inferred: `confirmationIntent` is also assigned inside
+       * `applyAction`, which TypeScript's control-flow analysis does not
+       * follow, so at this point it believes "visit" is impossible and calls
+       * the test below unreachable. It is not — a booked visit reaches here
+       * on every run. The annotation restores the type the variable actually
+       * has rather than silencing the check with a cast.
+       */
+      const intent = readIntent();
+      const kind = intent === "visit" ? "visit"
+        : intent === "fix_online" ? "fix_online"
+        : draft.kind;
       const { error: crError } = await db.from("confirmation_requests").insert({
         estimate_id: id,
         requested_by: view === "customer" ? "customer" : "staff",
         kind,
-        status: "requested",
-        suggested_action: draft.suggestedAction,
+        /**
+         * A fix online lands `fixed`, not `requested`. It is not a job for the
+         * queue — the price IS fixed, by the same ladder an estimator would
+         * have applied, and putting it in the queue as outstanding work would
+         * have an estimator ring a customer to confirm a number that is
+         * already confirmed. The row still exists so the four Phase 1 metrics
+         * can count it: it is the denominator of "share fixed without a visit".
+         */
+        status: fixedOnline ? "fixed" : "requested",
+        fixed_price_cents: fixedOnline?.priceCents ?? null,
+        fixed_at: fixedOnline ? new Date().toISOString() : null,
+        suggested_action: fixedOnline ? "fix" : draft.suggestedAction,
         assigned_to: draft.assignedTo,
         pack: (pack ?? {}) as unknown as Record<string, unknown>,
       });
@@ -1531,6 +1687,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             assigned: draft.assignedTo != null,
           },
         }).catch((e) => reportError(e, { where: "wizard.edit.confirmationEvent", bestEffort: true }));
+        /**
+         * C7 — a price fixed online is a `price_fixed` event too, exactly as
+         * an estimator's desk fix is (C6). Same event, same shape, one `kind`
+         * apart: without it "share fixed without a visit" would count only the
+         * fixes a person made and miss every one the ladder made, which is the
+         * number the whole self-serve door exists to move.
+         */
+        if (fixedOnline) {
+          await logCrmEvent(db, {
+            type: "price_fixed",
+            accountId: (estimate as { account_id?: string | null } | null)?.account_id ?? null,
+            estimateId: id,
+            source: view === "customer" ? "customer" : "staff",
+            payload: { totalCents: fixedOnline.priceCents, kind: "fix_online" },
+          }).catch((e) => reportError(e, { where: "wizard.edit.priceFixedEvent", bestEffort: true }));
+        }
       }
     } catch (e) {
       reportError(e, { where: "wizard.edit.confirmationRequest", bestEffort: true, extra: { id } });
@@ -1542,27 +1714,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // their confirmations tighten the band but never bypass the guardrails.
     // Branching on view (not actor) is the R1.1 contract: staff previews of
     // customer surfaces exercise the exact payload a customer receives.
-    const snap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
-    const answers = snap.success
-      ? answersFromState(snap.data)
-      : answersFromState({ jobType: "interior", details: { damageTier: 1 }, customer: null });
-    // Same trade relaxation as submit + the scope page, decided from the
-    // estimate's own linked account — one rule, three evaluation sites.
-    let tradeActor = false;
-    const estAccountId = (estimate as { account_id?: string | null }).account_id;
-    if (estAccountId) {
-      const { data: acct } = await db.from("accounts").select("account_type").eq("id", estAccountId).maybeSingle();
-      tradeActor = (acct as { account_type?: string } | null)?.account_type === "trade";
-    }
-    const decision = evaluateGuardrails(
-      answers,
-      payload.totals.totalCents,
-      payload.accuracyPct,
-      siteCheck, // live — this very action may have flagged the visit tier
-      policyFromSettings(settingValue(ctx.settings, "wizard_policy")),
-      serviceAreaFromSettings(settingValue(ctx.settings, "service_area")),
-      tradeActor,
-    );
+    // The same verdict `fix_online` was judged against — memoised above, so a
+    // fixed price and the payload that reports it can never disagree.
+    const decision = await ladderDecision();
     // Same rule as submit: a blocking outcome means NO price crosses the
     // wire - edits can move a job across a guardrail (e.g. under the floor)
     // and the edit path must honour that, not keep revealing the range.
@@ -1608,6 +1762,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       // WITH the authoritative state so the screen reconciles and the
       // customer still hears why the last tap didn't take.
       ...(refusal ? { error: refusal.error, appliedCount: applied } : {}),
+      /**
+       * C7 — what actually happened to a "fix my price online" tap.
+       *
+       * `fixedOnline` carries the figure and the date it is held to, so the
+       * screen states a promise the server has already written down rather
+       * than one it computed itself. `fixDeclined` is the stale-client case:
+       * the tap arrived, the ladder said no, and a confirmation request was
+       * made instead — the screen apologises for nothing and says what will
+       * happen. Both are absent on every other action.
+       */
+      ...(fixedOnline ? { fixedOnline, ...(fixRepeated ? { repeated: true } : {}) } : {}),
+      ...(fixDeclined ? { fixDeclined: true } : {}),
       scopeRooms: customerScopeRooms(blocks, rules),
       // Phase 4: the derived systems, recomputed from the tree that this
       // request just changed. It rides EVERY response, not only a

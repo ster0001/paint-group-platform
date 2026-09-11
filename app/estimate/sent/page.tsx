@@ -4,6 +4,7 @@ import { customerOwnsDraft, getWizardActor } from "@/lib/supabase/guards";
 import { loadCustomerScope, type EstimateRow } from "@/lib/wizard/customer-scope";
 import { getCompanyContact } from "@/lib/portal/data";
 import { customerStatusLine, turnaroundFromSettings } from "@/lib/wizard/confirmation-actions";
+import { estimatorLine } from "@/lib/wizard/finish-line";
 import Wordmark from "@/app/wizard/Wordmark";
 import Sent from "./Sent";
 import "../../wizard/wizard.css";
@@ -56,7 +57,7 @@ export default async function SentPage({ searchParams }: { searchParams: Promise
      * it would drift the first time an estimator acted.
      */
     db.from("confirmation_requests")
-      .select("status, kind, fixed_price_cents")
+      .select("status, kind, fixed_price_cents, assigned_to")
       .eq("estimate_id", id).order("requested_at", { ascending: false }).limit(1).maybeSingle(),
     db.from("settings").select("value").eq("key", "confirmation_turnaround").maybeSingle(),
   ]);
@@ -75,6 +76,22 @@ export default async function SentPage({ searchParams }: { searchParams: Promise
     fixedPriceCents: request?.fixed_price_cents ?? null,
     coordinator: company.coordinatorName || company.name,
     turnaroundWords: turnaround.words,
+  });
+  /**
+   * C7 — WHO has it, and their patch.
+   *
+   * `bundle.sendTo` resolved the estimator whose patch covers this postcode,
+   * falling back to the Settings coordinator. `assigned_to` on the request is
+   * the record of who it actually went to; when the two agree the line may say
+   * the suburb, and when there was no assignment it stays a plain
+   * introduction rather than claiming a patch nobody owns.
+   */
+  const assigned = (requestRes?.data as { assigned_to?: string | null } | null)?.assigned_to ?? null;
+  const snapshot = ((state.wizard as { state?: { customer?: { suburb?: string } } } | undefined)?.state?.customer ?? {});
+  const whoHasIt = estimatorLine({
+    name: bundle.sendTo,
+    suburb: snapshot.suburb ?? null,
+    covers: assigned != null,
   });
   const rooms = bundle.kind === "rooms" ? bundle.initialRooms : [];
   const photos = bundle.kind === "rooms" || bundle.kind === "sides" ? (bundle.docs.photos?.length ?? 0) : 0;
@@ -95,6 +112,7 @@ export default async function SentPage({ searchParams }: { searchParams: Promise
         photos={photos}
         turnaround={turnaround.words}
         status={status}
+        whoHasIt={whoHasIt}
         visitSlots={bundle.initialLadder.visitSlots}
       />
     </div>

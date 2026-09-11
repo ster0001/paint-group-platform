@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
-  NOT_INCLUDED, finishOptions, handoffSteps, summaryRows,
+  NOT_INCLUDED, estimatorLine, finishOptions, handoffSteps, sendToLabel, summaryRows,
 } from "./finish-line";
 import type { CustomerPayload } from "./view";
 import type { PaintSystemLine } from "./systems-view";
 
 const payload = (over: Partial<CustomerPayload> = {}): CustomerPayload => ({
   outcome: "reveal", rooms: [], rangeLoCents: 940_000, rangeHiCents: 1_290_000,
-  bandPct: 8, tightBand: false, accuracyPct: 82, canAccept: false,
+  centralCents: 1_115_000, bandPct: 8, tightBand: false, accuracyPct: 82, canAccept: false,
   walkthroughRequired: true, heightUnconfirmed: false, exteriorWidthFromPlan: false,
   exteriorWidthMissing: false, confirmOnSite: [], photosPendingSignOff: false, ...over,
 });
@@ -114,3 +114,61 @@ describe("the hand-off steps", () => {
       .toMatch(/message rather than guess/i);
   });
 });
+
+describe("C7 · the CTA names the person who gets it", () => {
+  it("uses the first name from the record", () => {
+    expect(sendToLabel("Sarah Reid")).toBe("Send to Sarah");
+    expect(sendToLabel("  felipe martinez ")).toBe("Send to felipe");
+  });
+
+  it("keeps the old label when there is nobody to name — never an invented one", () => {
+    for (const nothing of [null, undefined, "", "   "]) {
+      expect(sendToLabel(nothing)).toBe("Finalise my price");
+    }
+  });
+
+  it("an initial is not a name to greet somebody with", () => {
+    expect(sendToLabel("J Smith")).toBe("Finalise my price");
+    expect(sendToLabel("J. Smith")).toBe("Finalise my price");
+  });
+
+  it("a one-word name is still a name", () => {
+    expect(sendToLabel("Sarah")).toBe("Send to Sarah");
+  });
+});
+
+describe("C7 · the hold is a setting, not a sentence in the code", () => {
+  it("the door quotes the hold it was given", () => {
+    const fix = finishOptions(payload({ canAccept: true }), "$4,860", "rooms", "held for 30 days")
+      .find((o) => o.key === "fix_online");
+    expect(fix?.body).toContain("held for 30 days");
+    expect(fix?.body).toContain("$4,860");
+  });
+
+  it("and 60 days remains the default when nobody has said otherwise", () => {
+    const fix = finishOptions(payload({ canAccept: true }), "$4,860").find((o) => o.key === "fix_online");
+    expect(fix?.body).toContain("held for 60 days");
+  });
+});
+
+describe("C7 · the hand-off says who has it, and where they work", () => {
+  it("names the estimator and the customer's own suburb — not a list of postcodes", () => {
+    expect(estimatorLine({ name: "Sarah Reid", suburb: "Brunswick", covers: true }))
+      .toBe("Sarah looks after Brunswick, and will be the one confirming your price.");
+  });
+
+  it("drops the geography when the name came from Settings, not a patch match", () => {
+    expect(estimatorLine({ name: "Sarah Reid", suburb: "Brunswick", covers: false }))
+      .toBe("Sarah will be the one confirming your price.");
+  });
+
+  it("and when we know the patch but not the suburb", () => {
+    expect(estimatorLine({ name: "Sarah Reid", suburb: "", covers: true }))
+      .toBe("Sarah will be the one confirming your price.");
+  });
+
+  it("says nothing at all rather than introduce somebody we cannot name", () => {
+    expect(estimatorLine({ name: null, suburb: "Brunswick", covers: true })).toBeNull();
+    expect(estimatorLine({ name: "  ", suburb: "Brunswick", covers: true })).toBeNull();
+  });
+})

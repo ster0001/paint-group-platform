@@ -1,4 +1,4 @@
-import { addBusinessHours } from "@/lib/time/businessHours";
+import { addBusinessHours, melbourneParts } from "@/lib/time/businessHours";
 import type { ConfirmationKind } from "./confirmation";
 
 /**
@@ -81,8 +81,15 @@ export function canAct(row: ConfirmationRow, action: ConfirmationAction): Action
  */
 export function priceToFix(input: {
   enteredCents?: number | null;
-  rangeLoCents: number;
-  rangeHiCents: number;
+  /**
+   * ⚑8 — the engine's own central estimate (`CustomerPayload.centralCents`),
+   * which is `totals.totalCents`. C6 took the midpoint of the displayed range
+   * instead; that is NOT the same number, because `rangeFromTotal` rounds the
+   * ends outwards to $10. It was wrong by a few dollars on most jobs and by
+   * more as the band widened — small, but this is the one figure nobody gets
+   * to correct afterwards, so it is worth being exactly the engine's.
+   */
+  centralCents: number;
 }): { ok: true; cents: number; source: "entered" | "central" } | { ok: false; reason: string } {
   const entered = input.enteredCents;
   if (entered != null) {
@@ -91,11 +98,55 @@ export function priceToFix(input: {
     }
     return { ok: true, cents: entered, source: "entered" };
   }
-  const central = Math.round((input.rangeLoCents + input.rangeHiCents) / 2);
+  const central = Math.round(input.centralCents);
   if (!Number.isFinite(central) || central <= 0) {
     return { ok: false, reason: "There is no priced range to accept — open it in the builder first." };
   }
   return { ok: true, cents: central, source: "central" };
+}
+
+/**
+ * HOW LONG A FIXED PRICE IS GOOD FOR (C7) — Settings `wizard_hold_days`.
+ *
+ * The prototype says "held for 60 days" in the door copy. 60 is a default,
+ * not a fact: it is a commercial promise, it will change, and when it does it
+ * has to change in the copy the customer read, in the date we actually hold
+ * to, and in the estimate's `valid_until` that the daily lapse sweep acts on —
+ * together, or we say one thing and do another.
+ *
+ * `estimates.valid_until` is where the hold LIVES; there was no need for a new
+ * column, and a second one would have been a second answer to "until when?".
+ */
+export const DEFAULT_HOLD_DAYS = 60;
+
+export function holdDaysFromSettings(value: unknown): number {
+  const v = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  const raw = typeof v.days === "number" ? v.days : typeof value === "number" ? value : null;
+  if (raw == null || !Number.isFinite(raw) || raw <= 0) return DEFAULT_HOLD_DAYS;
+  // A year is the ceiling. Beyond that it is not a held price, it is a rate
+  // card — and the engine's costs will have moved underneath it.
+  return Math.min(Math.round(raw), 365);
+}
+
+/**
+ * The date a price is held to, as a plain `YYYY-MM-DD` for `valid_until`.
+ *
+ * Melbourne's calendar day, not the runtime's: a fix at 9am Monday in
+ * Melbourne is 11pm Sunday UTC, and a server that counted from its own day
+ * would hold every early-morning price a day short.
+ */
+export function holdUntil(from: Date, days: number): string {
+  const parts = melbourneParts(from);
+  const d = new Date(Date.UTC(parts.y, parts.m - 1, parts.d));
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** "held for 60 days" — the customer-facing half of the same setting. */
+export function holdWords(days: number): string {
+  return days === 1 ? "held for a day"
+    : days % 7 === 0 && days <= 28 ? `held for ${days / 7} ${days / 7 === 1 ? "week" : "weeks"}`
+    : `held for ${days} days`;
 }
 
 /**

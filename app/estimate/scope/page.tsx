@@ -81,6 +81,7 @@ export default async function ScopeEditorPage({
           companyPhone={bundle.companyPhone}
           phoneHours={bundle.phoneHours}
           customerPhone={bundle.customerPhone}
+          sendTo={bundle.sendTo}
         />
       </div>
     );
@@ -109,6 +110,7 @@ export default async function ScopeEditorPage({
         companyPhone={bundle.companyPhone}
         phoneHours={bundle.phoneHours}
         customerPhone={bundle.customerPhone}
+        sendTo={bundle.sendTo}
         docs={bundle.docs}
         logoUrl={bundle.logoUrl}
       />
