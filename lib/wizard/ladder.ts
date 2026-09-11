@@ -1,4 +1,6 @@
 import type { GuardrailDecision, BandSettings } from "./policy";
+import type { WizardState } from "./state";
+import { conditionPhotoCount } from "./merge";
 import { visitReason, type SidesLoopMeta, type VisitReason } from "./sides";
 
 /**
@@ -119,4 +121,66 @@ function nextUnlockFor(tier: Tier, i: LadderInput, reason: VisitReason | null): 
   if (reason === "custom") needs.push("Something you named needs a person to price it — remove it, or a person confirms it with you");
   if (i.decision.reasons.includes("asbestos_unsure")) return null;   // settled on site, never online
   return needs.length ? { tier: "confirmed", needs } : null;
+}
+
+// ---- requires_site_check: derived once, read everywhere -----------------------
+
+/**
+ * Does this job need a person to look before a price can be fixed?
+ *
+ * AUDIT 9.1, and it was executed proof rather than a theory. The submit route
+ * derived this correctly for the COLUMN it wrote (condition photos, double
+ * storey, peeling, access gear, unpriceable targets) but passed `wantsExterior`
+ * — a different question entirely — into `evaluateGuardrails` a hundred lines
+ * earlier. So an interior job with condition photos was told at submit that it
+ * could accept online, while `estimates.requires_site_check` said it could not,
+ * and the scope page then refused. Worse, the proving snapshot recorded
+ * `walkthroughRequired: false` for exactly those jobs, quietly poisoning the
+ * calibration baseline the gate depends on.
+ *
+ * One function now. The submit route calls it once and uses the answer for BOTH
+ * the decision and the column; every later surface calls it with the stored
+ * column so it can never be softer than submit was.
+ *
+ * `stored` is ORed in rather than replacing the derivation, because escalations
+ * that happen after submit only live in the column — the editor sets it when a
+ * custom surface, rot or a geometry flag appears
+ * (`app/api/estimates/[id]/wizard-edit/route.ts:493` and `:887`). A surface that
+ * derived from state alone would silently forget those.
+ */
+export function requiresSiteCheck(input: {
+  /** The wizard state to derive from. At submit this is `effectiveState`, so a
+   *  failed defect read does not count as a condition photo — it is flagged for
+   *  review instead. */
+  state?: Pick<WizardState, "jobType" | "details" | "conditionSourceIds" | "exterior"> | null;
+  /** `estimates.requires_site_check`, where post-submit escalations live. */
+  stored?: boolean | null;
+}): boolean {
+  if (input.stored === true) return true;
+  const state = input.state;
+  if (!state) return false;
+
+  // Tom, 7 Sep: condition photos = estimator sign-off before any price is
+  // fixed, interior OR exterior. This is the clause 9.1 lost.
+  if (conditionPhotoCount(state) > 0) return true;
+
+  const wantsExterior = state.jobType !== "interior";
+  if (!wantsExterior) return false;
+
+  const ext = state.exterior;
+  // An exterior job with no exterior answers has not told us enough to price it.
+  if (!ext) return true;
+  return (
+    state.jobType === "both"
+    || ext.storeys === "double"
+    || ext.condition === "peeling"
+    // Gear the wizard cannot price (scissor/boom lift, scaffold) — the
+    // estimator confirms access before any price is fixed.
+    || ext.accessEquipment.length > 0
+    // Tom, 7 Sep: things the card cannot price yet (metal fence, floor
+    // coatings, a freestanding wall, "other" cladding).
+    || ext.extras.fenceType === "metal"
+    || ext.targets.some((t) => t === "floor" || t === "wall" || t === "shed")
+    || ext.substrates.includes("other")
+  );
 }

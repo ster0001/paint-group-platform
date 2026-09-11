@@ -11,7 +11,7 @@
 
 import { editorPayload } from "@/lib/wizard/view";
 import { loopConfirmState } from "@/lib/wizard/confirm-state";
-import { ladderFor } from "@/lib/wizard/ladder";
+import { ladderFor, requiresSiteCheck } from "@/lib/wizard/ladder";
 import { adjustmentsFrom } from "@/lib/pricing/context";
 import { chargeOutCents, priceEstimateTotals, type BlockInput } from "@/lib/pricing/estimate";
 import { GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails, policyFromSettings, rangeBandPct, rangeFromTotal, serviceAreaFromSettings, settingValue } from "@/lib/wizard/policy";
@@ -317,7 +317,11 @@ function priced(doc: ScopeDoc, deps: ScopeDeps) {
   const totals = priceEstimateTotals(blocks as unknown as BlockInput[], deps.ctx, adj);
   const answers = state ? answersFromState(state) : answersFromState({ jobType: "interior", details: { damageTier: 1 }, customer: null });
   const trade = docFacts(doc).accountType === "trade";
-  const decision = evaluateGuardrails(answers, payload.totals.totalCents, payload.accuracyPct, doc.requiresSiteCheck,
+  // AUDIT 9.1: the stored flag ORed with the derivation, via the one function.
+  // The column alone is right for anything submitted after C2, but a legacy row
+  // may carry the wrong value — deriving as well can only be stricter.
+  const siteCheck = requiresSiteCheck({ state, stored: doc.requiresSiteCheck });
+  const decision = evaluateGuardrails(answers, payload.totals.totalCents, payload.accuracyPct, siteCheck,
     policyFromSettings(settingValue(deps.ctx.settings, "wizard_policy")), serviceAreaFromSettings(settingValue(deps.ctx.settings, "service_area")), trade);
   const bands = bandsFromSettings(settingValue(deps.ctx.settings, "wizard_bands"));
   const bandPct = rangeBandPct(payload.accuracyPct, bands);

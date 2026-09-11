@@ -3236,3 +3236,40 @@ Closes audit 9.2, 9.5 and 9.6. "Can this be accepted online?" was decided in thr
 **Audit 9.5** — the same commercial site asked two ways gave a trade actor two answers: `softForActor` in `policy.ts` whitelisted `commercial_strata` (from the `commercialKind` question) but not `commercial_gate_strata` (from the segment question, via `ALWAYS_APPOINTMENT` in `commercial.ts`). Both segment-driven gates — strata and healthcare — now join the set. The four gates the customer answers about physical conditions (height, equipment, hours, stages) stay hard for everyone. `softReasons` at :338 is now a copy of `reasons` rather than an alias; that is defensive, not a live fix — both returns that hand back the bare array run before the first push.
 
 Surfaces: both editors show a `tier-chip` and a `tier-next` line on the confidence card; `checkThresholds` returns `tier` + `nextUnlock` for the assistant. **Settings → Estimates → Accuracy tiers & online cap** (`TiersSettings.tsx`) edits `wizard_bands` and `wizard_policy` (v2 keys); migration `20270132` strips the seven dead keys. Tests: `lib/wizard/one-ladder.test.ts` (10, one per finding), `lib/wizard/ladder.test.ts` (11), `e2e/tiers-settings.spec.ts` and the customer-journey ladder spec's chip assertions — both run green on the C1 test stack.
+
+## requires_site_check, decided once — C2 (11 Sep 2026)
+
+Closes audit 9.1, which was executed proof rather than a theory. `app/api/wizard/submit/route.ts`
+derived the flag correctly for the COLUMN it wrote at the end of the route — condition photos,
+double storey, peeling, access gear, unpriceable targets, "other" cladding — but passed
+`wantsExterior` into `evaluateGuardrails` a hundred lines earlier. Those are different questions.
+An interior job with condition photos was therefore told at submit that it could accept online,
+while `estimates.requires_site_check` said it could not and the scope page refused. Worse, the
+proving snapshot recorded `walkthroughRequired: false` for exactly those jobs, so the calibration
+baseline the gate depends on inherited the wrong answer with nothing to mark it.
+
+`requiresSiteCheck({ state, stored })` in `lib/wizard/ladder.ts` is now the only derivation. The
+submit route calls it once and uses the answer for the decision, the snapshot **and** the column,
+so the three cannot drift. `state` is `effectiveState` there, not `state`: a failed defect read
+must not count as a condition photo — it is flagged for review instead.
+
+`stored` is ORed in rather than replacing the derivation, because escalations after submit live
+only in the column (`wizard-edit/route.ts:493` and `:887` set it for a custom surface, rot or a
+geometry flag). Four callers now share it: the submit route, `customer-scope.ts`,
+`wizard-edit/route.ts` and `lib/agent/scope-tools.ts`. The last two already read the column; ORing
+the derivation in can only make them stricter, and it closes the gap on rows submitted before C2
+whose column may be wrong.
+
+`wantsExterior` survives in the submit route for the one thing it actually means — whether to
+compute the exterior envelope from elevation photos (`:371`).
+
+The snapshot gained `requiresSiteCheck`. Its ABSENCE identifies a row from the affected window;
+the contradiction `estimates.requires_site_check = true` with
+`snapshot->>'walkthroughRequired' = 'false'` identifies a provably wrong one. Correction SQL is in
+the C2 PR body — read the count before running the update. Exterior rows are not corrupted:
+`evaluateGuardrails` forces `exterior_signoff` for any exterior work, so `walkthroughRequired`
+landed true either way.
+
+Tests: `lib/wizard/site-check.test.ts` (19). Mutation-checked — dropping the condition-photo clause
+fails six of them, dropping the stored-column OR fails one.
+

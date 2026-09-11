@@ -14,6 +14,14 @@ export type WizardSnapshot = {
   outcome: string;
   walkthroughRequired: boolean;
   areaCount?: number;
+  /**
+   * AUDIT 9.1 (C2, 11 Sep): the derived `requires_site_check` at submit time.
+   * Optional because rows written before C2 do not carry it — and those are
+   * exactly the rows whose `walkthroughRequired` cannot be trusted, because the
+   * submit route passed `wantsExterior` into the ladder instead of this. A row
+   * with no `requiresSiteCheck` key is a row from the affected window.
+   */
+  requiresSiteCheck?: boolean;
 };
 
 export type ProvingRow = {

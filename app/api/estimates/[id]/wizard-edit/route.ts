@@ -27,7 +27,7 @@ import {
   applyCount, applyDoorScope, applyExtent, applyExteriorToggle, applyFenceLength, applyRename, applyToggle, applyWallsShare,
   customerExteriorView, customerScopeRooms, FREESTANDING_EXTRA_KEYS, hasFreestandingExtras, applyFenceType } from "@/lib/wizard/scope-editor";
 import { bookWizardSlot, wizardVisitSlots } from "@/lib/visits/wizard";
-import { ladderFor } from "@/lib/wizard/ladder";
+import { ladderFor, requiresSiteCheck } from "@/lib/wizard/ladder";
 import { INTERIOR_POOR_MODIFIER_CODE } from "@/lib/wizard/exteriorAnswers";
 import {
   ALLOWANCE_CODES, SWEEP_PRICED_CODES, WEATHERED_MODIFIER_CODE,
@@ -486,7 +486,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // applyAction — action 3 must see what action 1 did.
   let sidesMeta: SidesLoopMeta = ((state.sidesLoop as SidesLoopMeta | undefined) ?? defaultSidesLoop());
   let interiorMeta: InteriorLoopMeta = ((state.interiorLoop as InteriorLoopMeta | undefined) ?? defaultInteriorLoop());
-  let siteCheck = (estimate as { requires_site_check?: boolean | null }).requires_site_check === true;
+  // AUDIT 9.1: the stored flag ORed with the derivation from state, through the
+  // one function, so this route can never be softer than the submit that made
+  // the estimate. `flagSiteCheck` below still escalates it live for actions that
+  // introduce a reason mid-edit.
+  let siteCheck = requiresSiteCheck({
+    state: wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state).data ?? null,
+    stored: (estimate as { requires_site_check?: boolean | null }).requires_site_check,
+  });
   const flagSiteCheck = async () => {
     if (siteCheck) return;
     siteCheck = true;

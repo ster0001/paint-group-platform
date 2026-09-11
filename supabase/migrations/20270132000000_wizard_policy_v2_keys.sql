@@ -1,4 +1,8 @@
--- One ladder (PR 1 of docs/briefs/reward-tiers-plan.md, 8 Sep 2026).
+-- One ladder — C1 (written 8 Sep, rebased and landed 11 Sep 2026).
+--
+-- Data only: no table, no column, no policy. It strips seven dead keys so the
+-- Settings screen shows what is real. Absent v2 keys mean the defaults, so this
+-- changes no price and no decision — it removes the SECOND copy of the numbers.
 --
 -- Two settings rows carried keys nothing reads any more:
 --   · wizard_policy still held the v1 ladder (minAccuracyPctToAccept,
