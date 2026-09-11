@@ -1,8 +1,10 @@
 import { describe, expect, test } from "vitest";
 import {
-  DEFAULT_POLICY, evaluateGuardrails, policyFromSettings,
+  DEFAULT_BANDS, DEFAULT_POLICY, evaluateGuardrails, policyFromSettings,
   type GuardrailAnswers, type WizardPolicySettings,
 } from "./policy";
+import { ladderFor, mayFixOnline } from "./ladder";
+import { defaultSidesLoop } from "./sides";
 
 /**
  * C1 — one ladder. These are the audit findings the chunk closes, each written
@@ -115,5 +117,63 @@ describe("9.6 · one decision, and it never leaks", () => {
     expect(d.reasons).toContain("heritage_unsure");
     expect(d.reasons).toContain("exterior_signoff");
     expect(d.reasons.filter((r) => r === "exterior_signoff")).toHaveLength(1);
+  });
+});
+
+/**
+ * C7 — "may this price be fixed without a person?" is the same question 9.6
+ * closed, asked at a new moment: the tap, not the render.
+ *
+ * The route could have written the three-clause expression itself — it is
+ * short, and it was already written that way once. These tests exist so the
+ * copy that would have drifted cannot: `mayFixOnline` is the only answer, and
+ * `ladderFor` is a caller of it rather than a second implementation.
+ */
+describe("C7 · fixing a price online asks the same one ladder", () => {
+  const ok = decide(answers(), 480_000, 95, DEFAULT_POLICY);
+
+  test("a clean job under the cap and over the bar may fix online", () => {
+    expect(ok.outcome).toBe("reveal");
+    expect(mayFixOnline(ok)).toBe(true);
+  });
+
+  test("anything short of a reveal cannot — a job with no price has none to fix", () => {
+    // Below the minimum job value: the ladder reveals nothing, so there is no
+    // figure a fix could be made of. (A job merely OVER the acceptance cap
+    // still reveals — the cap takes `canAccept`, not the range, which is the
+    // case below.)
+    const tiny = decide(answers(), 50_000, 95, DEFAULT_POLICY);
+    expect(tiny.outcome).not.toBe("reveal");
+    expect(mayFixOnline(tiny)).toBe(false);
+  });
+
+  test("over the acceptance cap still reveals a range — and still cannot be fixed online", () => {
+    const big = decide(answers(), 50_000_000, 95, DEFAULT_POLICY);
+    expect(big.outcome).toBe("reveal");
+    expect(big.canAccept).toBe(false);
+    expect(mayFixOnline(big)).toBe(false);
+  });
+
+  test("a walkthrough required takes it away even when everything else says yes", () => {
+    // The exact stale-client case: the job qualified when the screen rendered,
+    // then a flagged spot forced the walkthrough. `canAccept` can still be
+    // true — `walkthroughRequired` is the separate veto, and dropping it from
+    // the expression is the mistake this test exists to catch.
+    expect(mayFixOnline({ ...ok, walkthroughRequired: true })).toBe(false);
+  });
+
+  test("`canAccept` alone is not enough, and neither is the outcome alone", () => {
+    expect(mayFixOnline({ ...ok, canAccept: false })).toBe(false);
+  });
+
+  test("the tier and the fix door cannot disagree — ladderFor is a CALLER, not a copy", () => {
+    for (const d of [ok, { ...ok, canAccept: false }, { ...ok, walkthroughRequired: true }]) {
+      const ladder = ladderFor({
+        accuracyPct: 95, decision: d, bands: DEFAULT_BANDS,
+        sidesMeta: defaultSidesLoop(), deferred: [], hasExterior: false, hasPlan: false,
+        pendingAreas: 0, visitSlots: [],
+      });
+      expect(ladder.selfServe).toBe(mayFixOnline(d));
+    }
   });
 });

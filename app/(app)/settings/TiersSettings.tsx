@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { DEFAULT_BANDS, DEFAULT_POLICY, type BandSettings, type WizardPolicySettings } from "@/lib/wizard/policy";
+import { DEFAULT_HOLD_DAYS } from "@/lib/wizard/confirmation-actions";
 
 /**
  * Settings → Estimates → Accuracy tiers & online cap (C1, audit 9.2).
@@ -21,9 +22,10 @@ import { DEFAULT_BANDS, DEFAULT_POLICY, type BandSettings, type WizardPolicySett
  * Same save pattern as Online estimates: the staff session upserts the rows
  * under its own RLS — two rows, one Save.
  */
-export default function TiersSettings({ initial }: { initial: { bands: BandSettings; policy: WizardPolicySettings } }) {
+export default function TiersSettings({ initial }: { initial: { bands: BandSettings; policy: WizardPolicySettings; holdDays: number } }) {
   const [bands, setBands] = useState<BandSettings>(initial.bands);
   const [policy, setPolicy] = useState<WizardPolicySettings>(initial.policy);
+  const [holdDays, setHoldDays] = useState<number>(initial.holdDays);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
   const [dirty, setDirty] = useState(false);
@@ -38,6 +40,10 @@ export default function TiersSettings({ initial }: { initial: { bands: BandSetti
     const rows = [
       { key: "wizard_bands", value: bands },
       { key: "wizard_policy", value: policy },
+      // C7 — the hold belongs beside the cap that decides who may fix a price:
+      // one screen answers "who can accept online, and for how long does it
+      // stand". Split across two screens they drift.
+      { key: "wizard_hold_days", value: { days: holdDays } },
     ];
     const { error } = await supabase.from("settings").upsert(rows, { onConflict: "key" });
     setSaving(false);
@@ -83,6 +89,22 @@ export default function TiersSettings({ initial }: { initial: { bands: BandSetti
             <input type="number" min={0} value={dollars(policy.minJobCents)} onChange={(e) => { setPolicy({ ...policy, minJobCents: num(e.target.value, DEFAULT_POLICY.minJobCents / 100) * 100 }); touch(); }} className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm" /></label>
         </div>
         <p className="text-xs text-gray-500">Exterior never accepts online whatever the numbers say — an estimator signs every exterior job off (21 Aug). The exterior cap only shapes the wording.</p>
+      </div>
+
+      {/* C7 — how long a fixed price stands. This number is a PROMISE: it is
+          printed on the door the customer taps ("held for 60 days") and written
+          to the estimate's valid_until, which the daily lapse sweep acts on. One
+          field, so the sentence and the date can never disagree. */}
+      <div className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-3">
+        <div className="text-xs font-medium uppercase tracking-wide text-gray-500">How long a fixed price is held</div>
+        <label className="block max-w-[12rem] text-sm"><span className="text-gray-700">Held for (days)</span>
+          <input type="number" min={1} max={365} value={holdDays} data-testid="hold-days"
+            onChange={(e) => { setHoldDays(num(e.target.value, DEFAULT_HOLD_DAYS)); touch(); }}
+            className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm" /></label>
+        <p className="text-xs text-gray-500">
+          The customer is told this on the screen where they fix their price, and the estimate is held to it —
+          it becomes the quote&rsquo;s <em>valid until</em> date. Default 60 days; a year is the most we&rsquo;ll hold.
+        </p>
       </div>
 
       <div className="flex items-center gap-3">

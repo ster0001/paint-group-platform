@@ -1,6 +1,7 @@
 "use client";
 
 import ContactCard from "./ContactCard";
+import { sendToLabel } from "@/lib/wizard/finish-line";
 import ReachStrip from "./ReachStrip";
 import SideNote from "./SideNote";
 import { SIDE_LABEL as SIDE_FALLBACK, TWICE_OK_CODES } from "@/lib/wizard/sides";
@@ -60,7 +61,7 @@ function Chip({ on, label, onClick }: { on: boolean; label: string; onClick: () 
   return <button className={`sd-chip ${on ? "on" : ""}`} onClick={onClick}>{label}</button>;
 }
 
-export default function SidesEditor({ estimateId, initial, initialSides, initialExterior, initialLadder, embedded = false, onState, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null }: {
+export default function SidesEditor({ estimateId, initial, initialSides, initialExterior, initialLadder, embedded = false, onState, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null, sendTo = null }: {
   estimateId: string;
   initial: CustomerPayload;
   initialSides: SidesView;
@@ -73,6 +74,8 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
   companyPhone?: string | null;
   /** When the office answers the phone — Settings owns the wording. */
   phoneHours?: string | null;
+  /** C7 (v2.4) — the estimator this goes to, for the CTA. Null keeps the old label. */
+  sendTo?: string | null;
   /** The mobile the customer already gave us (Tom, 8 Sep: don't ask twice). */
   customerPhone?: string | null;
   /** Batch 4: Both-jobs render the sides stack INSIDE the interior editor —
@@ -959,13 +962,13 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
             disabled={booked != null}
             onClick={() => setSlotsOpen((v) => !v)}
           >
-            {booked ? booked : "Finalise my price"}
+            {booked ? booked : sendToLabel(sendTo)}
           </button>
         </div>
         {!allDone && booked == null && (
           <p className="sd-ctahint" data-testid="cta-hint">
             You don&rsquo;t have to finish first — {prog.done} of {prog.total} confirmed. Tap
-            <b> Finalise my price</b> whenever you like and we&rsquo;ll fill in the rest with you.
+            <b> {sendToLabel(sendTo)}</b> whenever you like and we&rsquo;ll fill in the rest with you.
           </p>
         )}
         {booked == null && !slotsOpen && (

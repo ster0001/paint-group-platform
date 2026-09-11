@@ -111,7 +111,8 @@ test.describe("wizard sessions → buckets", () => {
     const page = await ctx.newPage();
     await driveNoPlanWizard(page, { suburb: finishSuburb, settleAfterContactMs: 3_000 });
     await openScopeEditor(page);
-    // The confirm loop (the ladder spec's walk), then "Finalise my price" → request a call.
+    // The confirm loop (the ladder spec's walk), then the finish CTA
+    // ("Send to <name>" since C7, matched by testid) → request a call.
     const cards = page.locator(".sc-rc[data-room]");
     const count = await cards.count();
     for (let i = 0; i < count; i++) {

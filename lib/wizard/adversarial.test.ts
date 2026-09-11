@@ -122,8 +122,54 @@ describe("the customer payload leaks nothing internal", () => {
     expect(out).not.toContain("contractorHours");
     expect(out).not.toContain("builder");  // internal wording never reaches customers
     // The range brackets the point price rather than revealing it.
-    const parsed = JSON.parse(out) as { rangeLoCents: number; rangeHiCents: number };
+    const parsed = JSON.parse(out) as { rangeLoCents: number; rangeHiCents: number; centralCents: number | null };
     expect(parsed.rangeLoCents).toBeLessThan(1_000_000);
     expect(parsed.rangeHiCents).toBeGreaterThan(1_000_000);
+    // C7 — and the field that carries the engine's own figure is empty here,
+    // because this job cannot be fixed online. It is the same rule, not an
+    // exception to it.
+    expect(parsed.centralCents).toBeNull();
+  });
+
+  /**
+   * C7 · ⚑8 — the one job that DOES get the number, and why that is not a leak.
+   *
+   * A customer the ladder will let fix their own price is being shown that
+   * price on the door they are about to tap: "your price becomes $4,860 inc.
+   * GST". Withholding the figure from the payload while printing it on the
+   * button would not protect anything; it would just force the screen to
+   * re-derive money from the range, which is exactly what ⚑8 forbids.
+   *
+   * The pair matters more than either half. The first version of `centralCents`
+   * sent the point price to EVERY customer and the leak test above caught it.
+   * These two tests are what stop that being "fixed" by deleting the field, or
+   * by quietly ungating it again.
+   */
+  it("the engine's own figure reaches only the customer who may fix their price", () => {
+    const priced: WizardEditorPayload = {
+      rooms: [],
+      totals: { subtotalCents: 440_000, totalCents: 486_050, contractorHours: 20, marginCents: 100_000 },
+      accuracyPct: 95,
+      deferred: [],
+      heightUnconfirmed: false,
+      exteriorWidthFromPlan: false,
+      exteriorWidthMissing: false,
+    };
+    const decision = evaluateGuardrails(answersFromState(customerState()), 486_050, 95, false);
+    expect(decision.canAccept).toBe(true);
+
+    const cp = customerPayload(priced, [], decision, DEFAULT_BANDS);
+    // The ENGINE's figure, to the cent — not the midpoint of the range, which
+    // rounds outwards to $10 and would have been $4,860.00 against a real
+    // $4,860.50. Small, and wrong, and it is the number nobody may correct
+    // afterwards.
+    expect(cp.centralCents).toBe(486_050);
+    expect(Math.round((cp.rangeLoCents + cp.rangeHiCents) / 2)).not.toBe(486_050);
+
+    // Still no margin, no subtotal, no hours — the gate opens for one field.
+    const out = JSON.stringify(cp);
+    expect(out).not.toContain("marginCents");
+    expect(out).not.toContain("subtotalCents");
+    expect(out).not.toContain("contractorHours");
   });
 });
