@@ -3,7 +3,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { customerOwnsDraft, getWizardActor } from "@/lib/supabase/guards";
 import { loadCustomerScope, type EstimateRow } from "@/lib/wizard/customer-scope";
 import { getCompanyContact } from "@/lib/portal/data";
-import { DEFAULT_TURNAROUND } from "@/lib/wizard/finish-line";
+import { customerStatusLine, turnaroundFromSettings } from "@/lib/wizard/confirmation-actions";
 import Wordmark from "@/app/wizard/Wordmark";
 import Sent from "./Sent";
 import "../../wizard/wizard.css";
@@ -47,14 +47,35 @@ export default async function SentPage({ searchParams }: { searchParams: Promise
   const own = !estimate ? false : actor.kind !== "customer" || await customerOwnsDraft(db, actor, estimate as EstimateRow);
   if (!estimate || !own) return <Holding line="We couldn't find that estimate." />;
 
-  const [bundle, company] = await Promise.all([
+  const [bundle, company, requestRes, turnaroundRes] = await Promise.all([
     loadCustomerScope(db, estimate as EstimateRow),
     getCompanyContact(),
+    /**
+     * C6 — what the customer is told comes from the ROW, not from a second
+     * copy of it in words. The status is the truth; a stored sentence beside
+     * it would drift the first time an estimator acted.
+     */
+    db.from("confirmation_requests")
+      .select("status, kind, fixed_price_cents")
+      .eq("estimate_id", id).order("requested_at", { ascending: false }).limit(1).maybeSingle(),
+    db.from("settings").select("value").eq("key", "confirmation_turnaround").maybeSingle(),
   ]);
   if (bundle.kind === "holding") return <Holding line={bundle.line} />;
 
   const state = (estimate.builder_state ?? {}) as Record<string, unknown>;
   const contact = (state.contact ?? {}) as { email?: string };
+  const request = (requestRes?.data ?? null) as {
+    status: "requested" | "question_asked" | "fixed" | "visit_booked" | "declined";
+    kind: "remote" | "visit" | "fix_online"; fixed_price_cents: number | null;
+  } | null;
+  const turnaround = turnaroundFromSettings((turnaroundRes?.data as { value?: unknown } | null)?.value);
+  const status = customerStatusLine({
+    status: request?.status ?? null,
+    kind: request?.kind ?? null,
+    fixedPriceCents: request?.fixed_price_cents ?? null,
+    coordinator: company.coordinatorName || company.name,
+    turnaroundWords: turnaround.words,
+  });
   const rooms = bundle.kind === "rooms" ? bundle.initialRooms : [];
   const photos = bundle.kind === "rooms" || bundle.kind === "sides" ? (bundle.docs.photos?.length ?? 0) : 0;
 
@@ -72,7 +93,8 @@ export default async function SentPage({ searchParams }: { searchParams: Promise
         roomsTotal={rooms.length}
         spots={rooms.reduce((n, r) => n + (r.spots?.length ?? 0), 0)}
         photos={photos}
-        turnaround={DEFAULT_TURNAROUND}
+        turnaround={turnaround.words}
+        status={status}
         visitSlots={bundle.initialLadder.visitSlots}
       />
     </div>

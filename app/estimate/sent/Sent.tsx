@@ -16,7 +16,7 @@ import { handoffSteps } from "@/lib/wizard/finish-line";
  * where has my estimate gone.
  */
 export default function Sent({
-  estimateId, coordinator, companyPhone, email, roomsTotal, spots, photos, turnaround, visitSlots,
+  estimateId, coordinator, companyPhone, email, roomsTotal, spots, photos, turnaround, visitSlots, status = null,
 }: {
   estimateId: string;
   coordinator: string;
@@ -28,6 +28,8 @@ export default function Sent({
   photos: number;
   turnaround: string;
   visitSlots: string[];
+  /** C6 — where the request actually is, derived from the row. */
+  status?: { headline: string; detail: string } | null;
 }) {
   const [slot, setSlot] = useState<string | null>(null);
   const [booked, setBooked] = useState<string | null>(null);
@@ -56,6 +58,17 @@ export default function Sent({
       <p className="wz-sub">
         Your answers, photos and range are with your estimator. Here&rsquo;s what happens next.
       </p>
+
+      {/* C6 — where it ACTUALLY is, derived from the confirmation row. A
+          customer who comes back to this link a day later should find out what
+          happened without ringing to ask, and a fixed price should say its
+          number here rather than only in an email they may have lost. */}
+      {status && (
+        <div className="wz-sent-status" data-testid="sent-status">
+          <b>{status.headline}</b>
+          <span>{status.detail}</span>
+        </div>
+      )}
 
       <ol className="wz-steps-list" data-testid="sent-steps">
         {steps.map((s, i) => (

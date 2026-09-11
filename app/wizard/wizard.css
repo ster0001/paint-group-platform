@@ -928,3 +928,11 @@
 .wz .tier-chip.guide { color: var(--amber); border-color: rgba(224,168,60,.5); }
 .wz .tier-chip.detailed { color: var(--text); border-color: rgba(237,240,242,.45); }
 .wz .tier-chip.confirmed { color: var(--cyan); border-color: rgba(59,216,233,.55); background: rgba(59,216,233,.07); }
+
+/* C6 · the confirmation's state on the sent screen. Quiet by design: it is a
+   status, not an offer — the three steps below it are what the customer acts
+   on. A fixed price is the one case that earns emphasis, and it gets it from
+   the headline's own words rather than from a colour nobody can read. */
+.wz .wz-sent-status { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--wz-line, #242B32); border-radius: 10px; background: rgba(59,216,233,.05); }
+.wz .wz-sent-status b { display: block; font-size: 15px; color: var(--wz-text, #EDF0F2); }
+.wz .wz-sent-status span { display: block; margin-top: 3px; font-size: 13px; line-height: 1.45; color: var(--wz-muted, #8C959D); }

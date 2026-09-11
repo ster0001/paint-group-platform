@@ -124,3 +124,61 @@ export function isOverdue(input: {
   }
   return true;
 }
+
+/**
+ * The turnaround we promise, from Settings.
+ *
+ * `hours` is what the queue's overdue card counts in business hours; `words`
+ * is what the customer is told on the hand-off screen. One row, because a
+ * promise and the thing that chases it must not be two different numbers.
+ */
+export type TurnaroundSetting = { hours: number; words: string };
+
+export const DEFAULT_TURNAROUND_SETTING: TurnaroundSetting = {
+  hours: 8,
+  words: "usually by the next working day",
+};
+
+export function turnaroundFromSettings(value: unknown): TurnaroundSetting {
+  const v = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  const hours = typeof v.hours === "number" && Number.isFinite(v.hours) && v.hours > 0
+    ? Math.min(v.hours, 24 * 30) : DEFAULT_TURNAROUND_SETTING.hours;
+  const words = typeof v.words === "string" && v.words.trim()
+    ? v.words.trim().slice(0, 120) : DEFAULT_TURNAROUND_SETTING.words;
+  return { hours, words };
+}
+
+/**
+ * What the CUSTOMER is told their request is doing.
+ *
+ * Derived from the row, never stored — the status is the truth and a second
+ * copy of it in words would drift. `null` means there is no request, which is
+ * its own honest answer: the sent screen still says what happens next.
+ */
+export function customerStatusLine(input: {
+  status: ConfirmationStatus | null;
+  kind: ConfirmationKind | null;
+  fixedPriceCents?: number | null;
+  coordinator: string;
+  turnaroundWords: string;
+}): { headline: string; detail: string } | null {
+  const money = (c: number) => `$${Math.round(c / 100).toLocaleString("en-AU")}`;
+  switch (input.status) {
+    case null:
+      return null;
+    case "requested":
+      return input.kind === "visit"
+        ? { headline: "A visit is being arranged", detail: `${input.coordinator} will call to agree a time.` }
+        : { headline: "With your estimator now", detail: `${input.coordinator} is checking it — ${input.turnaroundWords}.` };
+    case "question_asked":
+      return { headline: `${input.coordinator} has asked you something`, detail: "One answer and it carries on — check your messages." };
+    case "fixed":
+      return input.fixedPriceCents
+        ? { headline: `Your price is fixed — ${money(input.fixedPriceCents)}`, detail: "Inc. GST, held for 60 days. Nothing changes without your say-so." }
+        : { headline: "Your price is fixed", detail: "Inc. GST, held for 60 days." };
+    case "visit_booked":
+      return { headline: "Your visit is booked", detail: `${input.coordinator} arrives with your answers already on the tablet.` };
+    case "declined":
+      return { headline: "We couldn't price this one", detail: `${input.coordinator} will be in touch to explain.` };
+  }
+}
