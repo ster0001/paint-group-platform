@@ -28,23 +28,34 @@ export function serviceClient(): SupabaseClient | null {
  * contact only. So the map from a test login to its contractors row goes
  * through the admin user list.
  */
+/**
+ * The auth user for an email — WITHOUT paging.
+ *
+ * This used to walk `listUsers` a page at a time. The cap was 10 pages, then
+ * 50 (10,000 users) after the test project's anonymous wizard sign-ins pushed
+ * auth.users past 2,000 and the E2E contractor fell off the end — silently,
+ * so a fixture got built with contractor_id "null" (6 Sep, help capture).
+ *
+ * It happened again on 11 Sep at the higher number: the project now holds
+ * 10,820 profiles, `ledger-parity` and `wo-rls` both failed in CI with "no
+ * contractors row" / "needs a customers row", and the rows were there all
+ * along. Raising the cap a third time only moves the cliff.
+ *
+ * `generateLink` resolves one email to its user in a single call. It generates
+ * a link and does not send anything, which is why it is safe here — and it
+ * cannot be outgrown.
+ */
+async function authUserIdForEmail(db: SupabaseClient, email: string): Promise<string | null> {
+  const { data, error } = await db.auth.admin.generateLink({ type: "magiclink", email });
+  if (error) return null;
+  return data?.user?.id ?? null;
+}
+
 export async function contractorIdForEmail(db: SupabaseClient, email: string): Promise<string | null> {
-  const wanted = email.toLowerCase();
-  // 50 pages × 200 = 10,000 users. It was 10 pages, and the moment the test
-  // project's anonymous wizard sign-ins pushed auth.users past 2,000 the test
-  // contractor fell off the end and this returned null — silently, so a
-  // fixture got created with contractor_id "null" (6 Sep, help capture).
-  for (let page = 1; page <= 50; page++) {
-    const { data, error } = await db.auth.admin.listUsers({ page, perPage: 200 });
-    if (error || !data?.users?.length) return null;
-    const user = data.users.find((u) => (u.email ?? "").toLowerCase() === wanted);
-    if (user) {
-      const { data: row } = await db.from("contractors").select("id").eq("profile_id", user.id).maybeSingle();
-      return (row as { id: string } | null)?.id ?? null;
-    }
-    if (data.users.length < 200) return null;
-  }
-  return null;
+  const userId = await authUserIdForEmail(db, email);
+  if (!userId) return null;
+  const { data: row } = await db.from("contractors").select("id").eq("profile_id", userId).maybeSingle();
+  return (row as { id: string } | null)?.id ?? null;
 }
 
 const token = () => Array.from({ length: 4 }, () => Math.random().toString(36).slice(2)).join("");
@@ -211,22 +222,10 @@ export async function rpcAsJson<T = unknown>(
 
 /** The customers row behind a login, for fixtures that need customer-side RLS. */
 export async function customerIdForEmail(db: SupabaseClient, email: string): Promise<string | null> {
-  const wanted = email.toLowerCase();
-  // 50 pages × 200 = 10,000 users. It was 10 pages, and the moment the test
-  // project's anonymous wizard sign-ins pushed auth.users past 2,000 the test
-  // contractor fell off the end and this returned null — silently, so a
-  // fixture got created with contractor_id "null" (6 Sep, help capture).
-  for (let page = 1; page <= 50; page++) {
-    const { data, error } = await db.auth.admin.listUsers({ page, perPage: 200 });
-    if (error || !data?.users?.length) return null;
-    const user = data.users.find((u) => (u.email ?? "").toLowerCase() === wanted);
-    if (user) {
-      const { data: row } = await db.from("customers").select("id").eq("profile_id", user.id).maybeSingle();
-      return (row as { id: string } | null)?.id ?? null;
-    }
-    if (data.users.length < 200) return null;
-  }
-  return null;
+  const userId = await authUserIdForEmail(db, email);
+  if (!userId) return null;
+  const { data: row } = await db.from("customers").select("id").eq("profile_id", userId).maybeSingle();
+  return (row as { id: string } | null)?.id ?? null;
 }
 
 /**
