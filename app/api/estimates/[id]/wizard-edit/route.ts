@@ -28,6 +28,8 @@ import {
   customerExteriorView, customerScopeRooms, FREESTANDING_EXTRA_KEYS, hasFreestandingExtras, applyFenceType } from "@/lib/wizard/scope-editor";
 import { bookWizardSlot, wizardVisitSlots } from "@/lib/visits/wizard";
 import { ladderFor, requiresSiteCheck } from "@/lib/wizard/ladder";
+import { deskCheckPack } from "@/lib/wizard/desk-check";
+import { confirmationDraft } from "@/lib/wizard/confirmation";
 import { INTERIOR_POOR_MODIFIER_CODE } from "@/lib/wizard/exteriorAnswers";
 import {
   ALLOWANCE_CODES, SWEEP_PRICED_CODES, WEATHERED_MODIFIER_CODE,
@@ -490,6 +492,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // one function, so this route can never be softer than the submit that made
   // the estimate. `flagSiteCheck` below still escalates it live for actions that
   // introduce a reason mid-edit.
+  /** C5 — set when the customer asks for a person; the row is written after pricing. */
+  let confirmationIntent: "remote" | "visit" | null = null;
   let siteCheck = requiresSiteCheck({
     state: wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state).data ?? null,
     stored: (estimate as { requires_site_check?: boolean | null }).requires_site_check,
@@ -1047,6 +1051,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         estimate_id: id, type: act.action === "book_visit" ? "visit_booked" : "customer_accept_intent",
         payload: act.action === "book_visit" ? { slot: act.slot } : {},
       }).then((r) => { if (r.error) reportError(r.error, { where: "wizard.edit.ladder", bestEffort: true }); });
+      // C5: the row is created below, once the payload exists — the pack it
+      // freezes needs the priced tree, and pricing happens after every action
+      // has been applied. Flagged here so the intent survives a batch.
+      confirmationIntent = act.action === "book_visit" ? "visit" : "remote";
     }
 
     // ---- R2b: the sides confirm loop ----------------------------------------
@@ -1450,6 +1458,79 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // Tom, 7 Sep: keep the list's price in step with every edit (best-effort).
   await db.from("estimates").update({ total_cents: payload.totals.totalCents }).eq("id", id)
     .then(() => undefined, () => undefined);
+
+  /**
+   * C5 — the qualified lead becomes a row.
+   *
+   * `prepPack` keeps its own job (removed substrates and flags for the visit's
+   * capture verify mode); what changed is that the QUEUE no longer keys off it.
+   * This is the record of the promise: what we said we would do, what the rules
+   * suggested, whose patch it is, and the pack exactly as it stood when the
+   * customer was told a person would look.
+   *
+   * Best-effort by the same rule as the rest of this route: a failed insert
+   * must not lose the customer's action. But it IS reported — a promise we did
+   * not record is a customer waiting for a call nobody scheduled, which is the
+   * exact failure §2.6 exists to stop.
+   */
+  if (confirmationIntent) {
+    try {
+      const deskPolicy = policyFromSettings(settingValue(ctx.settings, "wizard_policy"));
+      const snapForPack = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
+      if (!snapForPack.success) throw new Error("no wizard state to freeze a pack from");
+      const pack = deskCheckPack(blocks, snapForPack.data, {
+        totalCents: payload.totals.totalCents,
+        rules: await loadScopeRules(db),
+        deferred: newDeferred,
+        policy: deskPolicy,
+        systems: paintSystemsFrom(settingValue(ctx.settings, PAINT_SYSTEMS_KEY)),
+      });
+      const postcode = snapForPack.success ? (snapForPack.data.customer?.postcode ?? null) : null;
+      const { data: staffRows } = await db.from("profiles")
+        .select("id, patch_postcodes").not("patch_postcodes", "is", null);
+      const draft = confirmationDraft({
+        pack,
+        postcode,
+        staff: ((staffRows ?? []) as Array<{ id: string; patch_postcodes: string[] | null }>)
+          .map((r) => ({ id: r.id, postcodes: r.patch_postcodes ?? [] })),
+        requestedBy: view === "customer" ? "customer" : "staff",
+      });
+      // The customer asked for a visit: that is what they get, whatever the
+      // ladder would have allowed. Their choice outranks our eligibility.
+      const kind = confirmationIntent === "visit" ? "visit" : draft.kind;
+      const { error: crError } = await db.from("confirmation_requests").insert({
+        estimate_id: id,
+        requested_by: view === "customer" ? "customer" : "staff",
+        kind,
+        status: "requested",
+        suggested_action: draft.suggestedAction,
+        assigned_to: draft.assignedTo,
+        pack: pack as unknown as Record<string, unknown>,
+      });
+      // 23505 = the one-open-request-per-estimate index. A double tap is not an
+      // error: the promise already exists and one is what we want — and the
+      // CRM event is skipped with it, so a second tap does not double the
+      // customer's timeline.
+      if (crError && crError.code !== "23505") {
+        reportError(crError, { where: "wizard.edit.confirmationRequest", extra: { id, kind } });
+      } else if (!crError) {
+        await logCrmEvent(db, {
+          type: "confirmation_requested",
+          accountId: (estimate as { account_id?: string | null } | null)?.account_id ?? null,
+          estimateId: id,
+          source: view === "customer" ? "customer" : "staff",
+          payload: {
+            kind,
+            suggested: draft.suggestedAction,
+            totalCents: payload.totals.totalCents,
+            assigned: draft.assignedTo != null,
+          },
+        }).catch((e) => reportError(e, { where: "wizard.edit.confirmationEvent", bestEffort: true }));
+      }
+    } catch (e) {
+      reportError(e, { where: "wizard.edit.confirmationRequest", bestEffort: true, extra: { id } });
+    }
+  }
 
   if (view === "customer") {
     // The customer's view recomputes the range and the acceptance verdict —

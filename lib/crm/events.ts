@@ -63,6 +63,18 @@ export const CRM_EVENT_SCHEMAS = {
   estimate_declined: z.object({ reason: shortText.optional() }),
   /** CRM v2 P1: a sent estimate passed its valid_until (crm_lapse_estimates). Lapsed is not lost — decision 8.11. */
   estimate_lapsed: z.object({ totalCents: money.optional(), sentAt: z.string().nullable().optional(), validUntil: z.string().nullable().optional() }),
+  /**
+   * C5 — a customer asked for a person to confirm their price (plan §2.6).
+   * `kind` is what we PROMISED (remote or a visit); `suggested` is what the
+   * rules thought. Both are recorded because the gap between them is the only
+   * evidence we get about whether the rules are any good.
+   */
+  confirmation_requested: z.object({
+    kind: z.enum(["remote", "visit", "fix_online"]),
+    suggested: z.enum(["fix", "ask", "visit"]).optional(),
+    totalCents: money.optional(),
+    assigned: z.boolean().optional(),
+  }),
   visit_booked: z.object({ when: z.string().max(40), who: z.string().max(80).optional(), visitId: z.string().uuid().optional(), kind: z.string().max(20).optional(), source: z.string().max(20).optional(), moved: z.boolean().optional(), rebooked: z.boolean().optional() }),
   visit_completed: z.object({ outcome: z.string().max(2000).optional(), visitId: z.string().uuid().optional(), who: z.string().max(80).optional() }),
   /** CRM v2 P6: the visits table's other outcomes. A no-show raises the rebook item; a cancel clears the "visit booked" lane. */
