@@ -35,7 +35,15 @@
  *   credential is a failed run, not a quiet pass.
  */
 
+import { spawnSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 export const PRODUCTION_REF_VAR = "PRODUCTION_SUPABASE_REF";
+
+/** Where this run's start marker is written, for global-teardown.ts. */
+export const RUN_MARKER_FILE = join(tmpdir(), "pg-e2e-run-marker.json");
 
 /**
  * WHAT IS PRODUCTION? — named once, by the environment, and never guessed.
@@ -168,6 +176,28 @@ export default async function globalSetup(): Promise<void> {
           "    E2E_ALLOW_PRODUCTION=1 E2E_BASE_URL=" + base + " npx playwright test …\n",
       );
     }
+  }
+
+  // ---- C7c: the tripwire, and this run's marker ---------------------------
+  //
+  // Counts the run-created users on the test project BEFORE anything runs
+  // and logs them EVERY time (⚑44) — the visible number is what catches
+  // drift; the thresholds are only the backstop. The same call reads the
+  // database clock, which becomes the marker the teardown deletes by. Exit 2
+  // is over the fail threshold; exit 3 is a refusal (unnameable target, or
+  // production). Both stop the run — a suite that cannot clean up after
+  // itself must not add to the pile.
+  {
+    const r = spawnSync(process.execPath, ["scripts/c1/hygiene.mjs", "count", "--json"], {
+      encoding: "utf8", env: process.env, stdio: ["ignore", "pipe", "inherit"], timeout: 60_000,
+    });
+    if (r.status === 3) throw new Error("REFUSED: the hygiene guard would not name the test project — see above. e2e does not run against a target it cannot clean.");
+    if (r.status === 2) throw new Error("REFUSED: the test project is over the tripwire's fail threshold — run the sweep first (node scripts/c1/hygiene.mjs sweep, or .github/workflows/hygiene.yml).");
+    if (r.status !== 0) throw new Error(`The hygiene tripwire could not count the test project (exit ${r.status}). Is E2E_DATABASE_URL / C1_DATABASE_URL set?`);
+    const last = (r.stdout ?? "").trim().split("\n").pop() ?? "";
+    const parsed = JSON.parse(last) as { now: string; anonymous: number; e2eLogins: number };
+    process.env.E2E_RUN_STARTED_AT = parsed.now;
+    writeFileSync(RUN_MARKER_FILE, JSON.stringify({ startedAt: parsed.now, anonymous: parsed.anonymous, e2eLogins: parsed.e2eLogins }));
   }
 
   // ---- A1-06: in CI, a missing credential fails the run -------------------
