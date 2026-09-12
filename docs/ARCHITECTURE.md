@@ -3373,3 +3373,33 @@ job-type × kind combinations as a table; `e2e/customer-journey/outside-commerci
 the finish-line assertions appended to `exterior-path.spec.ts` pin the wiring on the real screens.
 All four fixes are mutation-checked — reverting each one fails exactly the test that names it.
 
+### Extent is a QUANTITY, not a severity — Tom's question found a real fault (9 Sep 2026)
+
+Tom, reading the prep-hours sheet: *"where the areas are priced per square metre, is the extra
+allowance per square metre or a fixed amount? If paint is peeling it says m2 0.3 — is that 0.3 per
+square metre, or 0.3 hours for everything?"*
+
+**Per square metre.** `defectHours` is `perUnit × qty`. And asking it exposed a fault in the spot
+lines: they passed **`qty: 1`** and let the customer's extent pick the SEVERITY column instead. So
+"most of it" on a whole peeling room priced at **0.3 h — eighteen minutes** — because one square
+metre was all it ever asked for.
+
+Two different axes were being conflated:
+
+| | means | who answers it |
+|---|---|---|
+| `severity` | how bad it is **per unit** — light flaking vs paint hanging off | the photo reader, or the honest floor of 1 |
+| `qty` | **how much** of it there is | the customer — "a couple of spots / patches here and there / most of it" |
+
+Extent is plainly the second. So extent now sets the **quantity**, and severity comes from the
+photo read when there is one. A customer is still never asked for severity: *"is this a severity
+2"* is a question for somebody who prices these for a living.
+
+**`DEFAULT_EXTENT_QTY` (1 / 3 / 8) is a deliberate floor, and wants Tom's numbers** — enough that
+"most of it" is no longer eighteen minutes, conservative enough that nobody is over-charged while
+it is unconfirmed. Settings-editable (`spot_extent_qty`), so correcting it is not a deploy. The
+photo reader's `qtyExtent` bands match those numbers, so a photo measured at four square metres
+pre-selects the answer that prices four square metres.
+
+The crew note now says how much was allowed, in the rate row's own unit — "most of it — allowed
+for 8 m²" — so the painter can see the allowance rather than infer it.

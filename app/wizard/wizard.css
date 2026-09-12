@@ -742,6 +742,16 @@
 .wz .sc-spot-panel input[type="file"] { font-size: 13px; color: var(--wz-muted, #8C959D); max-width: 100%; }
 .wz .sc-spot-add { margin-top: 10px; }
 .wz .sc-spot-err { color: var(--wz-amber, #E0A83C); font-size: 12.5px; margin: 8px 0 0; }
+/* "Most of it" — Tom, 9 Sep. Flagged, not styled like a validation error:
+   the customer has not done anything wrong, we are telling them what happens
+   next. The amber rule is the same one the estimator's open items use. */
+.wz .sc-spot-major {
+  margin: 10px 0 0; padding: 10px 12px; font-size: 13.5px; line-height: 1.45;
+  color: var(--wz-text, #EDF0F2);
+  background: rgba(224, 168, 60, 0.10);
+  border-left: 3px solid var(--wz-amber, #E0A83C);
+  border-radius: 0 10px 10px 0;
+}
 .wz .sc-extras .sc-extra-note { width: 100%; margin: 8px 0; padding: 10px 12px; border-radius: 12px; background: var(--wz-panel, #12161A); border: 1px solid var(--wz-line, #242B32); color: var(--wz-text, #EDF0F2); font: inherit; font-size: 15px; }
 
 /* Phase 7 · the commercial routing gates. The hint is what makes each question
@@ -995,3 +1005,31 @@
 .wz .wz-do-list p { grid-column: 1 / -1; margin: 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
 .wz .wz-do-list em { grid-column: 1 / -1; font-size: 12px; color: var(--amber, #e0a94b); font-style: normal; }
 .wz .wz-do-compact { margin-top: 14px; padding: 12px 14px; }
+
+/* ---- C10: extras in this room ---- */
+.wz .sc-extras { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.wz .sc-extra-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; }
+.wz .sc-extra-row > div:first-child b { display: block; font-size: 13.5px; }
+.wz .sc-extra-row > div:first-child span { display: block; font-size: 12px; color: var(--muted); }
+
+/* ---- C11: the estimator strip, the footer human line, inline offers, the roller reveal ---- */
+.wz .wz-est { display: flex; align-items: center; gap: 12px; margin-top: 18px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+.wz .wz-est-compact { margin: 12px 0 0; }
+.wz .wz-est-avatar { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: rgba(59,216,233,.12); color: var(--cyan); font-family: var(--mono); font-size: 13px; font-weight: 700; flex: none; }
+.wz .wz-est-text { flex: 1; min-width: 0; }
+.wz .wz-est-text b { display: block; font-size: 14.5px; }
+.wz .wz-est-text span { display: block; font-size: 12.5px; color: var(--muted); }
+.wz .wz-est-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.wz .wz-est-actions .wz-btn { padding: 9px 12px; font-size: 13px; text-decoration: none; }
+.wz .wz-human { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0 8px; font-size: 13px; color: var(--muted); }
+.wz .wz-human b { color: var(--text); font-weight: 500; }
+.wz .wz-human .wz-btn { padding: 8px 12px; font-size: 12.5px; }
+.wz .wz-offer { margin: 10px 0 4px; padding: 12px 14px; border: 1px solid var(--cyan-line, rgba(59,216,233,.35)); border-radius: 12px; background: rgba(59,216,233,.06); }
+.wz .wz-offer b { display: block; font-size: 14px; }
+.wz .wz-offer p { margin: 4px 0 10px; font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.wz .wz-offer-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.wz .wz-offer-actions .wz-btn { padding: 8px 12px; font-size: 12.5px; text-decoration: none; }
+@keyframes wzroll { from { transform: translateY(70%); opacity: 0; } to { transform: none; opacity: 1; } }
+.wz .wz-range-roll { display: inline-block; overflow: hidden; }
+.wz .wz-range-roll > span { display: inline-block; animation: wzroll .7s cubic-bezier(.2,.8,.2,1) both; }
+@media (prefers-reduced-motion: reduce) { .wz .wz-range-roll > span { animation: none; } }

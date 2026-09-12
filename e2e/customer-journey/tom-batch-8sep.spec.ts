@@ -136,7 +136,7 @@ test("Tom, 8 Sep evening: book in your estimator — the lead, the hours, the nu
 
   // --- 8 · live from the start, and it says so -------------------------------
   await expect(page.locator(".sd-cta")).toBeEnabled();
-  await expect(page.getByTestId("cta-hint")).toContainText(/don.t have to finish first/i);
+  await expect(page.getByTestId("human-line")).toBeVisible(); // C11: the counter is gone; one human line stands in its place
 
   // --- 5 · the reframed strip ------------------------------------------------
   const strip = page.getByTestId("reach-strip");

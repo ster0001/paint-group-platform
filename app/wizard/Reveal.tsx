@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import WhatWeDo from "./WhatWeDo";
+import EstimatorStrip from "./EstimatorStrip";
 import { assumedList, restatement, type QuickLook } from "@/lib/wizard/quick-look";
 import type { CustomerPayload } from "@/lib/wizard/view";
 
@@ -86,8 +87,10 @@ export default function Reveal({
     <div className="wz-wrap wz-reveal" data-testid="reveal" data-estimate-id={estimateId}>
       <p className="wz-kick">Your guide range</p>
 
+      {/* C11 — the roller reveal: the one motion moment in the flow, and none
+          at all for anyone who asked their OS for less motion (wizard.css). */}
       <div className="wz-range" data-testid="reveal-range">
-        {fmt(payload.rangeLoCents)} – {fmt(payload.rangeHiCents)}
+        <span className="wz-range-roll"><span>{fmt(payload.rangeLoCents)} – {fmt(payload.rangeHiCents)}</span></span>
       </div>
       <p className="wz-range-note">
         Includes GST. Excludes access equipment and structural repairs.
@@ -134,6 +137,10 @@ export default function Reveal({
             <li key={a.key} data-testid={`reveal-assumed-${a.key}`}>
               <b>{a.what}</b>
               <span>{a.why}</span>
+              {/* C10: each line deep-links to the card that changes it. */}
+              {a.rung && (
+                <a className="wz-linkish" href={`/estimate/scope?id=${estimateId}#${a.rung}`} data-testid={`reveal-assumed-link-${a.key}`}>Change this</a>
+              )}
             </li>
           ))}
         </ul>
@@ -197,6 +204,15 @@ export default function Reveal({
           </div>
         )}
       </div>
+
+      {/* C11 (v2.4) — the person is in the screen: who confirms this price,
+          and the two ways to reach them. Never an invented name. */}
+      <EstimatorStrip
+        estimator={payload.estimator}
+        suburb={null}
+        companyPhone={phone}
+        bookHref={`/estimate/scope?id=${estimateId}#reach`}
+      />
 
       {phone && (
         <p className="wz-reveal-call">

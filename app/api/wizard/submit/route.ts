@@ -23,6 +23,7 @@ import { applyConditionPricing, applyExteriorAnswers, type MeasuredSides } from 
 import { defaultSidesLoop } from "@/lib/wizard/sides";
 import { customerPayload, editorPayload } from "@/lib/wizard/view";
 import { paintSystemsView } from "@/lib/wizard/systems-view";
+import { resolveEstimator } from "@/lib/wizard/estimator";
 import {
   GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails, guardrailWhy,
   policyFromSettings, serviceAreaFromSettings, settingValue,
@@ -822,11 +823,14 @@ export async function POST(request: Request) {
     // line read, so the reveal's panel cannot disagree with either.
     const doLines = paintSystemsView(effectiveState, merged.areas, paintSystems)
       .map((l) => ({ group: l.group, title: l.title, sentence: l.sentence, coats: l.coats, undercoat: l.undercoat, review: l.review }));
+    // C11 — who confirms this price, resolved once for the strip on the reveal.
+    const who = await resolveEstimator(db, ctx.settings, effectiveState.customer?.postcode ?? null);
     // The customer's view: a range, inclusions, confidence — and nothing else.
     return NextResponse.json({
       estimateId,
       planUrl,
-      ...customerPayload(payload, merged.areas, decision, bands, parts, doLines),
+      ...customerPayload(payload, merged.areas, decision, bands, parts, doLines,
+        who.name ? { name: who.name, phone: who.phone, covers: who.covers } : null),
     });
   }
 

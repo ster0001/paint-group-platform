@@ -78,7 +78,9 @@ test("R2 exterior journey: five exterior pages, no interior questions, priced by
   await next();
   const contact = page.locator(".wz-crow input");
   await expect(contact.first()).toBeVisible();
-  await expect(page.locator(".wz-step")).toContainText(/Dulux|Haymes/);
+  // C9: the paint picks are the office's job — never on the customer path,
+  // so the brands no longer ride the contact page.
+  await expect(page.locator(".wz-step")).not.toContainText(/Dulux|Haymes/);
   await contact.nth(0).fill("E2E Exterior");
   await contact.nth(1).fill(`e2e-exterior-${Date.now()}@example.com`);
   await contact.nth(2).fill("0400 000 222");

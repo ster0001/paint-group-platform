@@ -50,11 +50,8 @@ const QUESTIONS: Q[] = [
       { value: "hard", label: "Tricky", warn: true },
     ],
   },
-  {
-    field: "pets", label: "Pets we should know about?",
-    hint: "Just so we keep doors and gates shut.",
-    options: [{ value: "no", label: "No" }, { value: "yes", label: "Yes" }],
-  },
+  // C10 (v2.5, Tom 10 Sep): pets and asbestos are not asked. Floors stays out
+  // too — Tom does not price it (lib/wizard/site-access.ts).
 ];
 
 const LIFT: Q = {
@@ -71,7 +68,7 @@ export default function SiteAccessCard({
   busy?: boolean;
   onAnswer: (field: keyof Answers, value: string) => void;
 }) {
-  const questions = asksLift ? [...QUESTIONS.slice(0, 4), LIFT, ...QUESTIONS.slice(4)] : QUESTIONS;
+  const questions = asksLift ? [...QUESTIONS, LIFT] : QUESTIONS;
   const answered = questions.filter((q) => answers[q.field] != null).length;
 
   return (
