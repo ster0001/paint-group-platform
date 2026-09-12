@@ -227,9 +227,10 @@ function customerOf(b: LooseBlock) {
 export function isWallLine(s: LooseSurface): boolean {
   return WALL_CODES.some((w) => w.code === String(s.code ?? ""));
 }
-const isWindowLine = (s: LooseSurface) => substrateKeyForRateCode(String(s.code ?? "")) === "exterior_windows";
-const isDoorLine = (s: LooseSurface) => substrateKeyForRateCode(String(s.code ?? "")) === "exterior_doors"
-  || substrateKeyForRateCode(String(s.code ?? "")) === "garage_doors";
+// C8b: the sides are exterior — the shared window codes read as exterior windows here.
+const isWindowLine = (s: LooseSurface) => substrateKeyForRateCode(String(s.code ?? ""), "exterior") === "exterior_windows";
+const isDoorLine = (s: LooseSurface) => substrateKeyForRateCode(String(s.code ?? ""), "exterior") === "exterior_doors"
+  || substrateKeyForRateCode(String(s.code ?? ""), "exterior") === "garage_doors";
 
 export function wallSumPct(b: LooseBlock): number {
   return (b.surfaces ?? []).filter(isWallLine).reduce((n, s) => n + (Number(s.sharePct) || 0), 0);
@@ -792,7 +793,7 @@ export function sidesView(
           : String(s.internalLabel ?? s.code ?? ""),
         count: Number(s.count) || 1,
         countable: isWindowLine(s) || isDoorLine(s) || isCatalogLine(s)
-          || substrateKeyForRateCode(String(s.code ?? "")) === "downpipes"
+          || substrateKeyForRateCode(String(s.code ?? ""), "exterior") === "downpipes"
           || countableCodes.has(String(s.code ?? "")),
         window: isWindowLine(s),
         sizeBand: (s.sizeBand as "S" | "M" | "L" | undefined) ?? (isWindowLine(s) ? "M" : null),

@@ -42,8 +42,8 @@ const TRIM_KEYS: WizardSurfaceKey[] = ["doors", "architraves", "skirting", "wind
 
 /** Which page-2 tick governs a surface, by its rate code (A2: the substrate
  * registry is the one source of truth — interior and exterior alike). */
-export function surfaceKeyForRateCode(code: string): WizardSurfaceKey | null {
-  return substrateKeyForRateCode(code);
+export function surfaceKeyForRateCode(code: string, side?: "interior" | "exterior"): WizardSurfaceKey | null {
+  return substrateKeyForRateCode(code, side);
 }
 
 /**
@@ -59,7 +59,8 @@ export function filterSurfacesByTicks(
   const out: DraftArea[] = [];
   for (const area of areas) {
     const kept = area.surfaces.filter((s) => {
-      const key = substrateKeyForRateCode(s.code);
+      // C8b: an exterior side's window codes belong to the exterior tick.
+      const key = substrateKeyForRateCode(s.code, area.type === "Exterior" ? "exterior" : "interior");
       return key == null || ticked.has(key);
     });
     if (kept.length > 0) out.push({ ...area, surfaces: kept });
@@ -130,8 +131,12 @@ export function applyWizardAnswers(
   const windowLabel = windowStyleLabel(state.details.windowStyle);
 
   for (const area of draft.areas) {
+    // C8b: the shared window codes belong to the exterior tick on an
+    // exterior side — read by the area's own side, or a seeded casement line
+    // is judged against the INTERIOR windows tick and dropped.
+    const side = area.type === "Exterior" ? "exterior" as const : "interior" as const;
     const kept = area.surfaces.filter((s) => {
-      const key = surfaceKeyForRateCode(s.code);
+      const key = surfaceKeyForRateCode(s.code, side);
       return key == null || ticked.has(key);
     });
 
@@ -214,7 +219,7 @@ export function applyWizardAnswers(
     }
 
     for (const s of kept) {
-      const key = surfaceKeyForRateCode(s.code);
+      const key = surfaceKeyForRateCode(s.code, side);
       const darkToLight = key != null && d2l.has(key);
       const group = groupForSubstrate(key);
       if (group == null) {

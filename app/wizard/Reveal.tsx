@@ -5,6 +5,7 @@ import WhatWeDo from "./WhatWeDo";
 import EstimatorStrip from "./EstimatorStrip";
 import { assumedList, restatement, type QuickLook } from "@/lib/wizard/quick-look";
 import { commercialAssumedList, commercialRestatement, openCount, type CommercialAnswers, type Segment } from "@/lib/wizard/segments";
+import { exteriorAssumedList, exteriorRestatement, type ExteriorQuickLook } from "@/lib/wizard/exterior-quick-look";
 import type { CustomerPayload } from "@/lib/wizard/view";
 
 /**
@@ -39,13 +40,16 @@ const fmt = (cents: number) =>
   `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
 export default function Reveal({
-  payload, quick, estimateId, onTighten, onBook, phone, prefillEmail, commercial = null,
+  payload, quick, estimateId, onTighten, onBook, phone, prefillEmail, commercial = null, outside = null,
 }: {
   payload: CustomerPayload;
   quick: QuickLook;
   /** C12: a commercial job — the segment row and the answers, for the kicker,
    * the basis sentence and the segment's own assume list. */
   commercial?: { segment: Segment; answers: CommercialAnswers; photos: number } | null;
+  /** C8b: the exterior quick look's answers — the basis sentence and assume
+   * list for an OUTSIDE job never mention bedrooms. */
+  outside?: ExteriorQuickLook | null;
   estimateId: string;
   onTighten: () => void;
   onBook: () => void;
@@ -59,10 +63,14 @@ export default function Reveal({
   const [keeping, setKeeping] = useState(false);
   const [kept, setKept] = useState<{ emailed: boolean } | null>(null);
   const [keepError, setKeepError] = useState<string | null>(null);
+  const exteriorOnly = quick.jobType === "exterior" && outside != null;
   const assumptions = commercial
     ? commercialAssumedList(commercial.segment, commercial.answers, commercial.photos)
-    : assumedList(quick);
-  const basis = commercial ? commercialRestatement(commercial.segment, commercial.answers, quick) : restatement(quick);
+    : exteriorOnly ? exteriorAssumedList(outside)
+      : assumedList(quick);
+  const basis = commercial ? commercialRestatement(commercial.segment, commercial.answers, quick)
+    : exteriorOnly ? exteriorRestatement(outside)
+      : restatement(quick);
 
   /**
    * ⚑1's gate, in the one place a customer actually wants to give an address:

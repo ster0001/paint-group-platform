@@ -63,7 +63,12 @@ export function applyExteriorAnswers(
   const house = state.exterior ? state.exterior.targets.includes("house") : true;
   const wantsWalls = !state.exterior || (state.exterior.painting.body && !state.exterior.substrates.includes("none"));
   if (!hasExteriorNodes) {
-    const scaffold = starterExteriorNodes(nextId, tickedSurfaces, wantsWalls);
+    // C8b: the quick look's window type and whole-job counts seed the sides.
+    const scaffold = starterExteriorNodes(nextId, tickedSurfaces, wantsWalls, {
+      windowType: state.exterior?.windowType ?? null,
+      windowCount: state.exterior?.windowCount ?? null,
+      doorCount: state.exterior?.doorCount ?? null,
+    });
     merged.areas.push(...scaffold.areas);
     merged.deferred = merged.deferred.filter((d) => d.what !== "exterior envelope");
     // Tom, 7 Sep: a job with no house in it (fence, shed, wall, floor only)

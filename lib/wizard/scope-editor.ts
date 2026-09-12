@@ -475,6 +475,7 @@ export function applyRename(blocks: LooseBlock[], areaId: number, name: string):
 // Part B2: the exterior — element-first, against the whole envelope
 // ---------------------------------------------------------------------------
 
+// C8b: everything below is the EXTERIOR view — the shared window codes read as exterior windows.
 export type ExteriorExtent = "whole" | "front" | "front_sides";
 
 export type ExteriorGroup = {
@@ -510,7 +511,7 @@ export const FREESTANDING_EXTRA_KEYS: ReadonlyArray<string> = ["deck", "fence", 
  * "Nothing else" (Tom, 31 Aug). */
 export function hasFreestandingExtras(blocks: LooseBlock[]): boolean {
   return blocks.some((b) => isExtArea(b)
-    && (b.surfaces ?? []).some((s) => FREESTANDING_EXTRA_KEYS.includes(substrateKeyForRateCode(String(s.code ?? "")) ?? "")));
+    && (b.surfaces ?? []).some((s) => FREESTANDING_EXTRA_KEYS.includes(substrateKeyForRateCode(String(s.code ?? ""), "exterior") ?? "")));
 }
 
 const isExtArea = (b: LooseBlock) => b.kind === "area" && b.type === "Exterior";
@@ -533,7 +534,7 @@ export function customerExteriorView(blocks: LooseBlock[]): CustomerExteriorView
     let fenceLen: number | null = null;
     for (const b of ext) {
       for (const s of (b.surfaces ?? [])) {
-        if (substrateKeyForRateCode(String(s.code ?? "")) !== key) continue;
+        if (substrateKeyForRateCode(String(s.code ?? ""), "exterior") !== key) continue;
         on = true;
         count += Number(s.count) || 1;
         if (key === "fence" && s.measureL != null) fenceLen = Number(s.measureL);
@@ -596,7 +597,7 @@ export function applyExteriorToggle(
     let removed = 0;
     for (const { b, i } of extIdx) {
       const surfaces = (b.surfaces ?? []).filter((s) => {
-        const match = substrateKeyForRateCode(String(s.code ?? "")) === key;
+        const match = substrateKeyForRateCode(String(s.code ?? ""), "exterior") === key;
         if (match) removed++;
         return !match;
       });
@@ -606,7 +607,7 @@ export function applyExteriorToggle(
     return { ok: true, blocks: out };
   }
 
-  const already = extIdx.some(({ b }) => (b.surfaces ?? []).some((s) => substrateKeyForRateCode(String(s.code ?? "")) === key));
+  const already = extIdx.some(({ b }) => (b.surfaces ?? []).some((s) => substrateKeyForRateCode(String(s.code ?? ""), "exterior") === key));
   if (already) return { ok: false, error: "That surface is already on." };
   const CODE: Record<string, string> = {
     weatherboards: "Weatherboards", render: "Render", concrete: "Concrete / Tilt Slab", brick: "Brick",

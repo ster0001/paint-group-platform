@@ -50,9 +50,8 @@ import {
   type QuickLook as QuickLookAnswers,
 } from "@/lib/wizard/quick-look";
 import {
-  applyExteriorQuickLook,
+  applyExteriorQuickLook, exteriorQuickLookFromState, paintsSomething,
   type ExteriorQuickLook as ExteriorQuickLookAnswers,
-  type ExteriorSubstrate, type ExteriorTarget,
 } from "@/lib/wizard/exterior-quick-look";
 import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
 import { RESUME_KEY, RESTART_KEY, decodeResume, encodeResume, restartedSince, resumeLine, type ResumeRecord, type SafetyAnswered, pickResume } from "@/lib/wizard/resume";
@@ -252,18 +251,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    * second copy to keep in step, and a reload restores them like everything
    * else. The screen edits that block directly through `applyExteriorQuickLook`.
    */
-  const outside: ExteriorQuickLookAnswers = {
-    storeys: state.exterior?.storeys === "double" ? "double" : "single",
-    substrates: (state.exterior?.substrates ?? ["weatherboards"])
-      .filter((x): x is ExteriorSubstrate => x !== "none" && x !== "stucco" && x !== "concrete"),
-    targets: (state.exterior?.targets ?? ["house"])
-      .filter((t): t is ExteriorTarget => t === "house" || t === "fence" || t === "deck" || t === "shed"),
-    condition: state.exterior?.condition ?? "good",
-    access: [
-      ...(state.exterior?.access ?? []),
-      ...((state.exterior?.accessEquipment ?? []).length > 0 ? ["lift" as const] : []),
-    ],
-  };
+  // C8b: the screen's answers are read back from the state's own fields —
+  // elements, materials, type and counts, colour, condition, storeys, access.
+  const outside: ExteriorQuickLookAnswers = exteriorQuickLookFromState(state.exterior);
   const setOutside = (patch: Partial<ExteriorQuickLookAnswers>) =>
     setState((s) => applyExteriorQuickLook({ ...outside, ...patch }, s));
 
@@ -1387,6 +1377,12 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       window.scrollTo({ top: 0 });
       return;
     }
+    // C8b: an outside job has to name SOMETHING being painted — nothing is
+    // pre-ticked, so an untouched screen is not an answer.
+    if (quickStep === "outside" && !paintsSomething(outside)) {
+      setError("Tick at least one thing we're painting — on the house, or standing on its own.");
+      return;
+    }
     if (page < quickSteps.length) {
       setPage(page + 1);
       window.scrollTo({ top: 0 });
@@ -1492,6 +1488,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         <Reveal
           payload={reveal.payload}
           quick={quick}
+          outside={outside}
           commercial={reveal.payload.commercial && commercialSeg && commercialAnswers
             ? { segment: commercialSeg, answers: commercialAnswers, photos: reveal.payload.commercial.photos }
             : null}

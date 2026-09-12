@@ -31,10 +31,12 @@ export default function WhatWeDo({ lines, tellUsHref, compact = false }: {
         <span className="wz-opt">PLAIN ENGLISH</span>
       </div>
       <ul className="wz-do-list">
-        {lines.map((l) => (
-          <li key={l.group} data-testid={`what-we-do-${l.group}`} data-coats={l.coats} data-undercoat={l.undercoat ? "1" : "0"}>
+        {/* C8b: the exterior derivation gives several lines one group, so the
+            key carries the position; a "Not included" line has no coats to show. */}
+        {lines.map((l, i) => (
+          <li key={`${l.group}-${i}`} data-testid={`what-we-do-${l.group}`} data-coats={l.coats} data-undercoat={l.undercoat ? "1" : "0"}>
             <b>{l.title}</b>
-            <span className="wz-do-coats">{l.coats} coat{l.coats === 1 ? "" : "s"}{l.undercoat ? " + undercoat" : ""}</span>
+            {l.coats > 0 && <span className="wz-do-coats">{l.coats} coat{l.coats === 1 ? "" : "s"}{l.undercoat ? " + undercoat" : ""}</span>}
             <p>{l.sentence}</p>
             {l.review && <em>A person confirms this one before your price is fixed.</em>}
           </li>
