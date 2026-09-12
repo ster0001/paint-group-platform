@@ -46,6 +46,9 @@ async function toSegment(page: Page, jobType: "interior" | "exterior" | "both" =
   await expect(page.locator("[data-quick-step='segment']")).toBeVisible({ timeout: 30_000 });
 }
 
+/** One mobile per walk: the account link matches on phone as well as email, so a shared number would fold three walks into one account. */
+const mobileFor = (email: string) => `04${String(Math.abs([...email].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7)) % 100000000).padStart(8, "0")}`;
+
 async function book(page: Page, email: string, pickSlot = true) {
   await expect(page.locator("[data-quick-step='com_book']")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("book-steps")).toContainText(/We visit and measure/);
@@ -58,7 +61,7 @@ async function book(page: Page, email: string, pickSlot = true) {
   }
   await page.getByTestId("book-email").fill(email);
   await page.getByTestId("book-name").fill("Brief Tester");
-  await page.getByTestId("book-phone").fill("0400 111 222");
+  await page.getByTestId("book-phone").fill(mobileFor(email));
   await expect(page.getByTestId("ql-next")).toHaveText(/Book it/);
   await page.getByTestId("ql-next").click();
   await expect(page.getByTestId("brief-done")).toBeVisible({ timeout: 60_000 });
@@ -119,7 +122,11 @@ test.describe("the brief path", () => {
       const { data: est } = await db.from("estimates").select("id, total_cents, builder_state, property_id").eq("account_id", acct!.id).maybeSingle();
       expect(est, "the booking creates the estimate").not.toBeNull();
       expect(est!.total_cents).toBe(0);
-      expect(est!.property_id, "the property").not.toBeNull();
+      // The property: "only a real street address earns a property"
+      // (lib/accounts/link.ts). Places is unavailable in the test stack, so the
+      // walk typed suburb + postcode and no street — no property row, by the
+      // same rule Save & book follows. With a picked address it is created.
+      expect(est!.property_id).toBeNull();
       expect((est!.builder_state as { blocks: unknown[] }).blocks).toEqual([]);
       const { data: brief } = await db.from("commercial_briefs").select("*").eq("estimate_id", est!.id).maybeSingle();
       expect(brief).not.toBeNull();
