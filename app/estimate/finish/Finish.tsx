@@ -1,5 +1,8 @@
 "use client";
 
+import WhatWeDo, { whatWeDoLines } from "@/app/wizard/WhatWeDo";
+import EstimatorStrip from "@/app/wizard/EstimatorStrip";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -46,10 +49,16 @@ const longDate = (iso: string) => {
 const capitaliseFirst = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export default function Finish({
+  tier = "guide", estimator = null, suburb = null,
   estimateId, input, fixedPriceCents, companyPhone, phoneHours, customerPhone, busy = false, kind = "rooms",
   holdDays = DEFAULT_HOLD_DAYS,
 }: {
   estimateId: string;
+  /** C11 — the ladder's tier, from the bundle; the finish line never derives it. */
+  tier?: "guide" | "detailed" | "confirmed";
+  /** C11 — the resolved estimator for the strip, or null. */
+  estimator?: { name: string | null; phone: string | null; covers: boolean } | null;
+  suburb?: string | null;
   input: SummaryInput;
   /**
    * The single number a self-serve customer would be accepting — `null` for
@@ -149,10 +158,12 @@ export default function Finish({
         Includes GST · {input.roomsConfirmed} of {input.roomsTotal} {input.roomsTotal === 1 ? "room" : "rooms"} confirmed
       </p>
 
-      <div className="wz-tiers" data-testid="finish-tiers">
-        <span className={payload.bandPct >= 15 ? "on" : ""}>Guide</span>
-        <span className={payload.bandPct < 15 ? "on" : ""}>Detailed</span>
-        <span>Confirmed</span>
+      {/* C11: the tier word comes from the ONE ladder (`tier`), never from a
+          band number re-read here. */}
+      <div className="wz-tiers" data-testid="finish-tiers" data-tier={tier}>
+        <span className={tier === "guide" ? "on" : ""}>Guide</span>
+        <span className={tier === "detailed" ? "on" : ""}>Detailed</span>
+        <span className={tier === "confirmed" ? "on" : ""}>Confirmed</span>
       </div>
 
       <h2 className="wz-doors-head">Make it a fixed price</h2>
@@ -259,7 +270,13 @@ export default function Finish({
         ))}
       </ul>
 
+      {/* C9 — the same derived lines the reveal and the editor show, read-only. */}
+      <WhatWeDo lines={whatWeDoLines(input.systems)} tellUsHref={`/estimate/scope?id=${estimateId}#reach`} />
+
       <p className="wz-notincluded" data-testid="finish-excluded">{NOT_INCLUDED}</p>
+
+      {/* C11 — the person is in the screen, on the finish line too. */}
+      <EstimatorStrip estimator={estimator} suburb={suburb} companyPhone={companyPhone} bookHref={`/estimate/scope?id=${estimateId}#reach`} />
 
       {companyPhone && (
         <p className="wz-reveal-call">

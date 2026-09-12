@@ -22,7 +22,9 @@ describe("9.3(b) · the promise is computed, never typed", () => {
   test("the count matches stepsFor on every branch", () => {
     expect(stepsFor("interior")).toHaveLength(4);
     expect(stepsFor("exterior")).toHaveLength(3);
-    expect(stepsFor("both")).toHaveLength(5);
+    // C8: "both" gains the choice screen (`s-both`), which asks nothing about
+    // the job — so the walk is six screens and the promise still says five.
+    expect(stepsFor("both")).toHaveLength(6);
     expect(stepCount("interior")).toBe("Four");
     expect(stepCount("exterior")).toBe("Three");
     expect(stepCount("both")).toBe("Five");
@@ -31,7 +33,8 @@ describe("9.3(b) · the promise is computed, never typed", () => {
   test("no branch can say four unless it has four", () => {
     for (const jt of ["interior", "exterior", "both"] as const) {
       const said = stepCount(jt);
-      const real = stepsFor(jt).length;
+      // The promise counts QUESTION screens: the "both" choice is a fork, not a question (C8).
+      const real = stepsFor(jt).filter((step) => step !== "both").length;
       const words = ["", "One", "Two", "Three", "Four", "Five", "Six"];
       expect(said).toBe(words[real]);
     }

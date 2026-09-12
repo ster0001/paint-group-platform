@@ -28,6 +28,8 @@ export default defineConfig({
   testDir: "./e2e",
   // Production tripwire + the CI credential assertion (audit A1-06 / A1-07).
   globalSetup: "./e2e/global-setup.ts",
+  // C7c: a run removes what it created — runs after a failing suite too.
+  globalTeardown: "./e2e/global-teardown.ts",
   fullyParallel: false, // they share one database; keep them in order
   forbidOnly: Boolean(process.env.CI),
   /**

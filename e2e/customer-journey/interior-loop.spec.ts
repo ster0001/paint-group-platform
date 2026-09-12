@@ -31,7 +31,7 @@ test("R3 interior loop: L×W size question, confirm walk, dw check, sweep — ac
   // rule, kept where it actually matters.
   await expect(cta).toBeEnabled();
   await expect(cta).not.toHaveText(/Accept estimate/);
-  await expect(page.getByTestId("cta-hint")).toContainText(/don.t have to finish first/i);
+  await expect(page.getByTestId("human-line")).toBeVisible(); // C11: the counter is gone; one human line stands in its place
 
   // Room cards are amber, and sizes read as L × W — never m².
   const cards = page.locator(".sc-rc[data-room]");
@@ -89,7 +89,9 @@ test("R3 interior loop: L×W size question, confirm walk, dw check, sweep — ac
   await expect(dw).toContainText(/We make it \d+ doors and \d+ windows/);
   await dw.getByRole("button", { name: /That.s right/ }).click();
   await dw.getByRole("button", { name: /Confirm counts/ }).click();
-  await expect(dw).toHaveClass(/done/, { timeout: 15_000 });
+  // C10: the two checks share ONE card; the card is done when both are, the
+  // counts check says so on its own attribute.
+  await expect(dw).toHaveAttribute("data-dw-done", "1", { timeout: 15_000 });
 
   // The sweep: Hallway is the FIRST chip; "that's everything" completes.
   // Addressed by data-card, not by its words. The sweep used to read "Last
@@ -99,7 +101,8 @@ test("R3 interior loop: L×W size question, confirm walk, dw check, sweep — ac
   // longer depends on the wording either way.
   const sweep = page.locator('[data-card="sweep"]');
   await sweep.locator(".il-hd").click();
-  await expect(sweep.locator(".sd-chip, .il-chip").first()).toContainText("Hallway");
+  // C10: the sweep shares the card with the counts check — scope to its block.
+  await expect(sweep.locator('[data-check="sweep"] .sd-chip, [data-check="sweep"] .il-chip').first()).toContainText("Hallway");
   await sweep.getByRole("button", { name: /No — that.s everything/ }).click();
   await sweep.getByRole("button", { name: /Confirm — nothing missing/ }).click();
 

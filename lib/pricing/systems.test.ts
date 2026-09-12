@@ -518,3 +518,38 @@ describe("a flag that changes nothing numerically still changes the words", () =
     expect(flagged.flags).toEqual(["stained"]);
   });
 });
+
+// ---- C9 (v2.3): the colour intent per group, and the S2 golden tests -------
+
+describe("C9 — 'what's changing colour?' decides the intent per group", () => {
+  it("a group named in `intents` wins over the job-wide intent; an unnamed one falls back", () => {
+    const a = answers({ colourIntent: "same", intents: { trims: "new", doors: "new", windows: "new" } });
+    expect(deriveSystem("walls", a).coats).toBe(deriveSystem("walls", answers({ colourIntent: "same" })).coats);
+    expect(deriveSystem("trims", a).coats).toBe(deriveSystem("trims", answers({ colourIntent: "new" })).coats);
+    expect(deriveSystem("ceilings", a).coats).toBe(deriveSystem("ceilings", answers({ colourIntent: "same" })).coats);
+  });
+  it("golden (S2·3): same vs new on an identical job differ ONLY in the groups that change", () => {
+    const same = answers({ colourIntent: "same", intents: { walls: "same", ceilings: "same", trims: "same", doors: "same", windows: "same" } });
+    const trimsNew = answers({ colourIntent: "same", intents: { walls: "same", ceilings: "same", trims: "new", doors: "new", windows: "new" } });
+    for (const g of ["walls", "ceilings", "exterior"] as const) {
+      expect(deriveSystem(g, trimsNew)).toEqual(deriveSystem(g, same));
+    }
+    expect(deriveSystem("trims", trimsNew).coats).toBeGreaterThanOrEqual(deriveSystem("trims", same).coats);
+  });
+  it("golden (S2·5): the prep allowance is identical across all three intents", () => {
+    for (const condition of ["good", "wear", "work"] as const) {
+      const prep = (["same", "new", "bold"] as const).map((i) => deriveSystem("walls", answers({ colourIntent: i, condition })).prepHrPerUnit);
+      expect(new Set(prep).size).toBe(1);
+    }
+  });
+  it("golden (S2·6): the rule rows round-trip through the Settings parser", () => {
+    expect(paintSystemsFrom(DEFAULT_PAINT_SYSTEMS)).toEqual(DEFAULT_PAINT_SYSTEMS);
+    const tweaked = { ...DEFAULT_PAINT_SYSTEMS, walls: { ...DEFAULT_PAINT_SYSTEMS.walls, new: { coats: 3, undercoat: true, sentence: "Three, because Tom said so." } } };
+    expect(paintSystemsFrom(tweaked).walls.new).toEqual({ coats: 3, undercoat: true, sentence: "Three, because Tom said so." });
+    expect(paintSystemsFrom(JSON.parse(JSON.stringify(tweaked)))).toEqual(tweaked);
+  });
+  it("one coat stays unreachable for a group that is changing, whichever way it was named", () => {
+    const sabotaged = paintSystemsFrom({ walls: { new: { coats: 1, undercoat: false, sentence: "one" } } });
+    expect(deriveSystem("walls", answers({ colourIntent: "same", intents: { walls: "new" } }), sabotaged).coats).toBe(2);
+  });
+});

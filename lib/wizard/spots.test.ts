@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  AUTO_PRICED, EXTENT_SEVERITY, ROOM_CONDITION_LABEL, SPOT_EXTENTS, SPOT_TAGS,
-  roomConditionDeferred, spotLine, tagByKey, tagsFor,
+  AUTO_PRICED, DEFAULT_EXTENT_QTY, ROOM_CONDITION_LABEL, SPOT_EXTENTS, SPOT_TAGS,
+  extentQtyFrom, majorExtentNotice, roomConditionDeferred, spotLine, tagByKey, tagsFor,
 } from "./spots";
 import { defectTypes } from "@/lib/extract/photos";
 import type { DefectRate } from "@/lib/capture/commit";
@@ -54,28 +54,66 @@ describe("⚑6 — the auto-price boundary", () => {
 
   it("prices a crack from words alone and raises no review", () => {
     const out = spotLine({ tag: "crack" }, room, rates, nextId)!;
-    expect(out.surface.prepHr).toBe(0.25);
+    expect(out.surface.prepHr).toBeCloseTo(0.25 * DEFAULT_EXTENT_QTY.spots, 2);
     expect(out.surface.code).toBe("plaster_cracks");
     expect(out.deferred).toBeNull();
   });
 
   /**
-   * Tom, 9 Sep: peeling in two spots is not peeling across a whole job. The
-   * customer's words map onto the severity columns defect_prep_rates already
-   * carries — nobody can answer "is this severity 2", but anyone standing in
-   * the room can answer "a couple of spots, or most of it".
+   * Tom, 9 Sep: *"is that 0.3 per square metre, or 0.3 hours for everything?"*
+   * — per square metre. `defectHours` is perUnit × qty.
+   *
+   * Which exposed the fault this test now guards: extent is HOW MUCH (the
+   * quantity), not HOW BAD (the severity column). Passing qty 1 and moving the
+   * severity instead priced "most of it" on a whole peeling room at eighteen
+   * minutes.
    */
-  it("prices by EXTENT, not by presence", () => {
+  it("prices by EXTENT as a QUANTITY — perUnit × qty", () => {
+    const per = 0.4; // water_damage sev1, per m2
     const spots = spotLine({ tag: "water", extent: "spots", sourceId: "s1" }, room, rates, nextId)!;
     const patches = spotLine({ tag: "water", extent: "patches", sourceId: "s1" }, room, rates, nextId)!;
     const most = spotLine({ tag: "water", extent: "most", sourceId: "s1" }, room, rates, nextId)!;
-    expect(spots.surface.prepHr).toBe(0.4);
-    expect(patches.surface.prepHr).toBe(0.9);
-    expect(most.surface.prepHr).toBe(1.6);
+    expect(spots.surface.prepHr).toBeCloseTo(per * DEFAULT_EXTENT_QTY.spots, 2);
+    expect(patches.surface.prepHr).toBeCloseTo(per * DEFAULT_EXTENT_QTY.patches, 2);
+    expect(most.surface.prepHr).toBeCloseTo(per * DEFAULT_EXTENT_QTY.most, 2);
+    // "Most of it" must cost meaningfully more than a couple of spots — the
+    // thing that was silently untrue before.
+    expect(most.surface.prepHr).toBeGreaterThan(spots.surface.prepHr * 4);
+  });
+
+  /**
+   * Severity is HOW BAD per unit, and a customer is never asked it — that is a
+   * question for somebody who prices these for a living. It comes from the
+   * photo reader, or sits at the honest floor.
+   */
+  it("takes severity from the photo read, never from the customer", () => {
+    const light = spotLine({ tag: "water", extent: "patches", sourceId: "s1" }, room, rates, nextId)!;
+    const bad = spotLine({ tag: "water", extent: "patches", severity: 3, sourceId: "s1" }, room, rates, nextId)!;
+    expect(light.surface.prepHr).toBeCloseTo(0.4 * DEFAULT_EXTENT_QTY.patches, 2);  // sev1
+    expect(bad.surface.prepHr).toBeCloseTo(1.6 * DEFAULT_EXTENT_QTY.patches, 2);    // sev3
   });
 
   it("treats a missing extent as the safe floor, not the worst case", () => {
-    expect(spotLine({ tag: "water", sourceId: "s1" }, room, rates, nextId)!.surface.prepHr).toBe(0.4);
+    expect(spotLine({ tag: "water", sourceId: "s1" }, room, rates, nextId)!.surface.prepHr)
+      .toBeCloseTo(0.4 * DEFAULT_EXTENT_QTY.spots, 2);
+  });
+
+  it("takes Tom's quantities from Settings when he sets them", () => {
+    const tuned = extentQtyFrom({ most: 20 });
+    const out = spotLine({ tag: "water", extent: "most", sourceId: "s1" }, room, rates, nextId, tuned)!;
+    expect(out.surface.prepHr).toBeCloseTo(0.4 * 20, 2);
+    // …and keeps the shipped floor for anything he has not touched.
+    expect(tuned.spots).toBe(DEFAULT_EXTENT_QTY.spots);
+  });
+
+  it("ignores a junk quantity rather than pricing it", () => {
+    const junk = extentQtyFrom({ spots: 0, patches: -2, most: "lots" });
+    expect(junk).toEqual(DEFAULT_EXTENT_QTY);
+  });
+
+  it("tells the painter how much was allowed, in the rate's own unit", () => {
+    const out = spotLine({ tag: "water", extent: "most", sourceId: "s1" }, room, rates, nextId)!;
+    expect(out.surface.crewNote).toContain(`allowed for ${DEFAULT_EXTENT_QTY.most} m²`);
   });
 
   /**
@@ -86,17 +124,19 @@ describe("⚑6 — the auto-price boundary", () => {
    */
   it("prices a water mark WITH a photo, and sends it for sign-off", () => {
     const out = spotLine({ tag: "water", extent: "patches", sourceId: "src-1" }, room, rates, nextId)!;
-    expect(out.surface.prepHr).toBe(0.9);
+    expect(out.surface.prepHr).toBeCloseTo(0.4 * DEFAULT_EXTENT_QTY.patches, 2);
     expect(out.deferred?.what).toContain("confirm the prep");
     expect(out.deferred?.needs).toContain("sign the prep off");
   });
 
   it("records a water mark WITHOUT a photo but leaves the price to a person", () => {
-    const out = spotLine({ tag: "water", extent: "most" }, room, rates, nextId)!;
+    // Held at "patches" so this tests the ⚑6 boundary and nothing else —
+    // "most of it" takes its own route (see the 9 Sep block at the bottom).
+    const out = spotLine({ tag: "water", extent: "patches" }, room, rates, nextId)!;
     expect(out.surface.prepHr).toBe(0);
     expect(out.surface.internalLabel).toContain("to price");
     expect(out.deferred?.needs).toContain("no photo");
-    expect(out.deferred?.needs).toContain("most of it");
+    expect(out.deferred?.needs).toContain("patches here and there");
   });
 
   it("puts the extent on the line the painter reads", () => {
@@ -126,7 +166,9 @@ describe("⚑6 — the auto-price boundary", () => {
   });
 
   it("scales an auto-priced tag by extent too", () => {
-    expect(spotLine({ tag: "crack", extent: "most" }, room, rates, nextId)!.surface.prepHr).toBe(1);
+    // This fixture's plaster_cracks sev1 is 0.25 per lineal metre.
+    expect(spotLine({ tag: "crack", extent: "most" }, room, rates, nextId)!.surface.prepHr)
+      .toBeCloseTo(0.25 * DEFAULT_EXTENT_QTY.most, 2);
   });
 
   it("carries the customer's own words and notes the photo", () => {
@@ -175,8 +217,66 @@ describe("labels", () => {
   });
 });
 
-describe("extent maps onto the table that already exists", () => {
-  it("uses all three severity columns", () => {
-    expect(SPOT_EXTENTS.map((e) => EXTENT_SEVERITY[e])).toEqual([1, 2, 3]);
+describe("extent is a quantity, and rises with how much there is", () => {
+  it("gives every extent a quantity, each larger than the last", () => {
+    const q = SPOT_EXTENTS.map((e) => DEFAULT_EXTENT_QTY[e]);
+    expect(q).toEqual([...q].sort((a, b) => a - b));
+    expect(new Set(q).size).toBe(q.length);
+  });
+});
+
+/**
+ * Tom, 9 Sep 2026 — "most of it" is a routing decision, not just a bigger number.
+ *
+ * "A couple of spots and patches here and there is fine — but most of the room
+ * for walls, if it was mostly peeling, this would be a concern and adequate
+ * prep would be required. For anyone who ticks most of it, it should trigger a
+ * photo asked (not required), and messaging that it needs to be looked at by an
+ * estimator… we should keep their range broad, and red flag it."
+ */
+describe("most of it (Tom, 9 Sep)", () => {
+  const peel: DefectRate[] = [
+    { defect_type: "flaking", unit: "m2", hours_sev1: 0.3, hours_sev2: 0.6, hours_sev3: 1 },
+  ];
+  const living = { id: 4, name: "Living" };
+
+  it("leaves a couple of spots and a few patches alone", () => {
+    for (const extent of ["spots", "patches"] as const) {
+      // A crack from words alone is the one case that raises nothing at all —
+      // so if "most of it" changed the ordinary path, this would go amber.
+      const line = spotLine({ tag: "crack", extent }, living, rates, nextId);
+      expect(line?.major, extent).toBe(false);
+      expect(line?.wantsPhoto, extent).toBe(false);
+      expect(line?.deferred, extent).toBeNull();
+    }
+  });
+
+  it("flags 'most of it' for an estimator even with a photo and a price", () => {
+    const line = spotLine({ tag: "flaking", extent: "most", sourceId: "s1" }, living, peel, nextId);
+    expect(line?.major).toBe(true);
+    expect(line?.deferred?.kind).toBe("major_defect");
+    expect(line?.deferred?.room).toBe("Living");
+    // Still priced — the allowance is a placeholder, never a refusal to quote.
+    expect(line?.surface.prepHr).toBeGreaterThan(0);
+    expect(line?.deferred?.needs).toMatch(/placeholder/i);
+    // It already has a photo, so we must not nag for one.
+    expect(line?.wantsPhoto).toBe(false);
+  });
+
+  it("asks for a photo when 'most of it' arrives without one", () => {
+    const line = spotLine({ tag: "flaking", extent: "most" }, living, peel, nextId);
+    expect(line?.wantsPhoto).toBe(true);
+    expect(line?.deferred?.needs).toMatch(/NO photo/);
+  });
+
+  it("says a person will look, and never demands the photo", () => {
+    const asked = majorExtentNotice(false);
+    expect(asked).toMatch(/estimator/i);
+    expect(asked).toMatch(/range wide/i);
+    expect(asked).toMatch(/don.t have to/i);
+    const got = majorExtentNotice(true);
+    expect(got).toMatch(/estimator/i);
+    expect(got).toMatch(/range wide/i);
+    expect(got).not.toMatch(/don.t have to/i);
   });
 });

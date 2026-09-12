@@ -78,6 +78,9 @@ export default async function FinishPage({ searchParams }: { searchParams: Promi
           kind="sides"
           holdDays={bundle.holdDays}
           fixedPriceCents={bundle.initial.centralCents}
+        tier={bundle.initialLadder.tier}
+        estimator={bundle.estimator}
+        suburb={bundle.customerSuburb ?? null}
           input={{
             payload: bundle.initial,
             // An exterior job carries no derived paint systems and no interior

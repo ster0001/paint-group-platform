@@ -154,6 +154,11 @@ jobs:
           E2E_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           E2E_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
           E2E_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
+          # C7c: the test project's Postgres connection string (Dashboard →
+          # Connect → Session pooler). The hygiene tripwire, teardown and sweep
+          # count and delete through it — the auth admin API can neither count
+          # without paging every user nor delete in FK order. TEST project only.
+          E2E_DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
           E2E_STAFF_EMAIL: ${{ secrets.E2E_STAFF_EMAIL }}
           E2E_STAFF_PASSWORD: ${{ secrets.E2E_STAFF_PASSWORD }}
           E2E_CONTRACTOR_EMAIL: ${{ secrets.E2E_CONTRACTOR_EMAIL }}
@@ -162,7 +167,7 @@ jobs:
           E2E_CUSTOMER_PASSWORD: ${{ secrets.E2E_CUSTOMER_PASSWORD }}
         run: |
           missing=""
-          for n in E2E_SUPABASE_URL E2E_SUPABASE_ANON_KEY E2E_SERVICE_ROLE_KEY E2E_STAFF_EMAIL E2E_STAFF_PASSWORD E2E_CONTRACTOR_EMAIL E2E_CONTRACTOR_PASSWORD E2E_CUSTOMER_EMAIL E2E_CUSTOMER_PASSWORD; do
+          for n in E2E_SUPABASE_URL E2E_SUPABASE_ANON_KEY E2E_SERVICE_ROLE_KEY E2E_DATABASE_URL E2E_STAFF_EMAIL E2E_STAFF_PASSWORD E2E_CONTRACTOR_EMAIL E2E_CONTRACTOR_PASSWORD E2E_CUSTOMER_EMAIL E2E_CUSTOMER_PASSWORD; do
             if [ -z "${!n}" ]; then missing="$missing $n"; fi
           done
           if [ -n "$missing" ]; then
@@ -172,7 +177,7 @@ jobs:
             echo "Values come from .env.test.local (TEST project only, never production)."
             exit 1
           fi
-          echo "All nine e2e secrets present."
+          echo "All ten e2e secrets present."
           # The tripwire in scripts/c1/env.mjs reads .env.local, which a CI
           # runner does not have — so the refusal lives here too. The
           # production project ref is public (it is in every customer URL);
@@ -182,7 +187,12 @@ jobs:
               echo "::error::The Supabase URL secret points at the PRODUCTION project. e2e must run against the TEST project (qarfyjrzgdeoqbnbbxfp) — fix the secret."
               exit 1;;
           esac
-          echo "Supabase URL secret is not production."
+          case "$E2E_DATABASE_URL" in
+            *llmrvgdequpmzzuaxdhq*)
+              echo "::error::E2E_DATABASE_URL points at the PRODUCTION database. The hygiene teardown DELETES — this secret must be the TEST project's connection string."
+              exit 1;;
+          esac
+          echo "Supabase URL and database secrets are not production."
           # THE KEYS MUST BELONG TO THE PROJECT THE URL NAMES (12 Sep 2026).
           # Run #371 had all nine secrets present and the URL secret naming the
           # test project — and the service-role key belonged to another project.
@@ -228,6 +238,9 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
+          # C7c: global-setup counts (the tripwire) and global-teardown deletes
+          # this run's rows through it. Missing = the run refuses to start.
+          E2E_DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
           E2E_STAFF_EMAIL: ${{ secrets.E2E_STAFF_EMAIL }}
           E2E_STAFF_PASSWORD: ${{ secrets.E2E_STAFF_PASSWORD }}
           E2E_CONTRACTOR_EMAIL: ${{ secrets.E2E_CONTRACTOR_EMAIL }}
@@ -242,6 +255,18 @@ jobs:
           npx next start -p 3101 &
           for i in $(seq 1 60); do curl -sf -o /dev/null http://localhost:3101/login && break; sleep 1; done
           npx playwright test e2e/customer-journey e2e/wo-rls.spec.ts e2e/account-rls.spec.ts e2e/ledger-parity.spec.ts e2e/trade-org-rls.spec.ts
+
+      # C7c acceptance: "a full run leaves the count it started with, ±0".
+      # global-setup logged the count before and global-teardown deleted this
+      # run's rows; this is the count AFTER, on the same line format, whether
+      # the suite passed or failed. Compare the two lines in the job log.
+      - name: Test-project row count after the run (hygiene tripwire)
+        if: always()
+        env:
+          PRODUCTION_SUPABASE_REF: llmrvgdequpmzzuaxdhq
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          E2E_DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
+        run: node scripts/c1/hygiene.mjs count
 
       - uses: actions/upload-artifact@v5
         if: failure()

@@ -37,6 +37,11 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<test anon key>
 SUPABASE_SERVICE_ROLE_KEY=<test service_role key>
 C1_DATABASE_URL=<session pooler connection string, password filled in>
 
+# --- C7c hygiene: the test project's Postgres connection string (Dashboard →
+# Connect → Session pooler). The tripwire, teardown and sweep count and delete
+# through it. In CI the same value is the repository secret E2E_DATABASE_URL.
+C1_DATABASE_URL=postgresql://postgres.<test-ref>:<password>@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres
+
 # --- e2e logins (same emails/passwords as the prod e2e users is fine) ---
 E2E_STAFF_EMAIL=pg.sam.staff@gmail.com
 E2E_STAFF_PASSWORD=<same as usual>
@@ -109,3 +114,16 @@ yet — it needs those secrets in GitHub, which is Tom's call.
    Vercel env `STRIPE_WEBHOOK_SECRET`.
 3. Redeploy. The "Pay by card" button appears on customer invoices the
    moment both values exist. Also confirm `NEXT_PUBLIC_SITE_URL` is set.
+
+## Hygiene (C7c, 12 Sep 2026) — a run removes what it creates
+
+    node scripts/c1/hygiene.mjs count                 # the tripwire: logs anonymous + pg.e2e.* user counts, warn 5,000 / fail 20,000
+    node scripts/c1/hygiene.mjs sweep --age-days 3 --batch 200   # what a cancelled run left, oldest first, bounded
+    node scripts/c1/hygiene.mjs teardown --since <iso>            # what global-teardown runs after every suite
+
+All three go through `checkTarget` (`scripts/c1/hygiene-rules.mjs`): `PRODUCTION_SUPABASE_REF`
+must be named, the database must be nameable and not production, and it must be the same
+project as `NEXT_PUBLIC_SUPABASE_URL`. The seeded logins (`E2E_*_EMAIL`) are excluded by id and
+the list must be non-empty. The scheduled sweep is `.github/workflows/hygiene.yml` (03:00
+Melbourne daily, or Run workflow). Measured 12 Sep: ~0.17 s per user including its estimate
+chain, so a 200-user batch is about 35 s.

@@ -48,7 +48,7 @@ test.describe("the quick look", () => {
     await page.getByTestId("ql-next").click();
 
     await expect(page.locator("[data-quick-step='job']")).toBeVisible();
-    await page.getByTestId("ql-colour-same").click();
+    await page.getByTestId("ql-changing-walls").click(); // C9: untick = the same colour
     await page.getByTestId("ql-next").click();
 
     await expect(page.locator("[data-quick-step='condition']")).toBeVisible();

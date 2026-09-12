@@ -33,7 +33,14 @@ export type QuickLook = {
   storeys: "single" | "double";
   /** Screen 3 — the job. */
   scope: ScopePreset;
+  /** DERIVED from `changing` + `bold` + `undecided` (C9, `colourFromChanges`); kept because everything downstream reads it. */
   colour: ColourIntent;
+  /** C9 (v2.3): "What's changing colour?" — tick what is getting a new colour. */
+  changing: { walls: boolean; ceilings: boolean; trims: boolean };
+  /** "Any of them going much lighter, or a bold colour?" */
+  bold: boolean;
+  /** "Still choosing colours?" — priced as new colours; they decide later. */
+  undecided: boolean;
   /** Screen 4 — condition. */
   condition: ConditionBand;
   occupied: "yes" | "no";
@@ -59,6 +66,9 @@ export const DEFAULT_QUICK_LOOK: QuickLook = {
   storeys: "single",
   scope: "whole",
   colour: "new",
+  changing: { walls: true, ceilings: false, trims: false },
+  bold: false,
+  undecided: false,
   condition: "wear",
   occupied: "no",
 };
@@ -89,6 +99,28 @@ export const SCOPE_PRESETS: Choice<ScopePreset>[] = [
   { value: "walls_ceilings", label: "Walls and ceilings only" },
   { value: "trims_doors", label: "Doors, skirtings and trims only" },
 ];
+
+/** C9 — the three tiles. The engine derives a colour intent per group from them. */
+export const CHANGING_GROUPS: Choice<"walls" | "ceilings" | "trims">[] = [
+  { value: "walls", label: "Walls" },
+  { value: "ceilings", label: "Ceilings" },
+  { value: "trims", label: "Doors and trims" },
+];
+
+/**
+ * The job-wide intent the rest of the wizard still reads (`condition.tier`,
+ * the restatement, the assume list), derived from the tiles: anything
+ * changing or undecided is "new"; bold only counts when something IS changing.
+ */
+export function colourFromChanges(q: Pick<QuickLook, "changing" | "bold" | "undecided">): ColourIntent {
+  const anyChanging = q.undecided || q.changing.walls || q.changing.ceilings || q.changing.trims;
+  if (!anyChanging) return "same";
+  return q.bold ? "bold" : "new";
+}
+
+export function toggleChanging(q: Pick<QuickLook, "changing">, key: "walls" | "ceilings" | "trims"): QuickLook["changing"] {
+  return { ...q.changing, [key]: !q.changing[key] };
+}
 
 export const COLOUR_INTENTS: Choice<ColourIntent>[] = [
   { value: "same", label: "The same colours again", hint: "Colour-matched — a freshen up" },
@@ -228,10 +260,17 @@ export function quickLookToState(q: QuickLook, base?: WizardState): WizardState 
     surfaces: interior ? SCOPE_SURFACES[q.scope] : s.surfaces,
     condition: {
       ...s.condition,
-      tier: COLOUR_TIER[q.colour],
+      tier: COLOUR_TIER[colourFromChanges(q)],
       // Colour intent is job-wide here; the per-surface corrections live on
       // the paint-systems screen, which is a tighten rung.
       darkToLightSurfaces: [],
+      // C9 — the per-group answers the derivation reads (systems-view.ts
+      // `groupIntents`). `colourAnswered` is what switches them on.
+      colourAnswered: true,
+      changingGroups: { ...q.changing },
+      boldColour: q.bold,
+      coloursUndecided: q.undecided,
+      ceilingsChangingColour: q.changing.ceilings || q.undecided,
     },
     details: {
       ...s.details,
@@ -273,9 +312,12 @@ export function restatement(q: QuickLook): string {
     : q.scope === "some_rooms" ? "some of the rooms"
     : q.scope === "walls_ceilings" ? "walls and ceilings"
     : "doors and trims";
-  const colour = q.colour === "same" ? "the same colours"
-    : q.colour === "new" ? "new colours"
-    : "a much lighter or bolder colour";
+  const changing = (["walls", "ceilings", "trims"] as const).filter((k) => q.changing[k]);
+  const named = changing.map((k) => (k === "trims" ? "doors and trims" : k)).join(", ").replace(/, ([^,]*)$/, " and $1");
+  const colour = q.undecided ? "colours still being chosen"
+    : changing.length === 0 ? "the same colours"
+    : q.bold ? `a much lighter or bolder colour on the ${named}`
+    : `new colours on the ${named}`;
   const cond = q.condition === "good" ? "good condition"
     : q.condition === "wear" ? "some wear"
     : "needing some work";
@@ -343,7 +385,12 @@ export function assumedList(q: QuickLook): Assumption[] {
 }
 
 /** Every quick-look screen, in order. */
-export const QUICK_LOOK_STEPS = ["start", "place", "job", "condition", "outside"] as const;
+/**
+ * C8: `both` is the choice screen (prototype `s-both`) — "price them yourself,
+ * one after the other" or "book an estimator for both". It asks nothing about
+ * the job, so `stepCount` leaves it out of the promise on screen 1.
+ */
+export const QUICK_LOOK_STEPS = ["start", "both", "place", "job", "condition", "outside"] as const;
 export type QuickLookStep = (typeof QUICK_LOOK_STEPS)[number];
 
 /**
@@ -366,7 +413,7 @@ export type QuickLookStep = (typeof QUICK_LOOK_STEPS)[number];
  */
 const COUNT_WORD = ["", "One", "Two", "Three", "Four", "Five", "Six"] as const;
 export function stepCount(jobType: QuickLook["jobType"]): string {
-  const n = stepsFor(jobType).length;
+  const n = stepsFor(jobType).filter((s) => s !== "both").length;
   return COUNT_WORD[n] ?? String(n);
 }
 

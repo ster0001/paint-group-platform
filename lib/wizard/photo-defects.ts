@@ -41,7 +41,14 @@ export type ObservedDefect = {
 export type SuggestedSpot = {
   /** The spot tag key — what the customer would have tapped themselves. */
   tag: string;
+  /** How much of it, as the customer would say it — a quantity. */
   extent: SpotExtent;
+  /**
+   * How BAD it is per unit, as the model judged it. A different axis from
+   * extent, and the one a customer is never asked: "is this a severity 2" is
+   * a question for somebody who prices these for a living.
+   */
+  severity: 1 | 2 | 3;
   confidence: number;
 };
 
@@ -55,7 +62,18 @@ export type SuggestedSpot = {
  */
 export const MIN_CONFIDENCE = 0.7;
 
-const SEVERITY_EXTENT: Record<1 | 2 | 3, SpotExtent> = { 1: "spots", 2: "patches", 3: "most" };
+/**
+ * The model's observed quantity → the customer's words for it.
+ *
+ * Bands chosen to match `DEFAULT_EXTENT_QTY` (1 / 3 / 8), so a photo the model
+ * measured at four square metres pre-selects the answer that prices four
+ * square metres, rather than one that quietly means something else.
+ */
+function qtyExtent(qty: number): SpotExtent {
+  if (qty >= 6) return "most";
+  if (qty >= 2) return "patches";
+  return "spots";
+}
 
 /** The model's defect type → the customer's tag. Built from the one tag list. */
 const TAG_BY_DEFECT = new Map(SPOT_TAGS.map((t) => [t.defectType, t.key]));
@@ -81,7 +99,10 @@ export function suggestFromDefects(defects: readonly ObservedDefect[]): Suggeste
   if (!best) return null;
   return {
     tag: TAG_BY_DEFECT.get(best.type)!,
-    extent: SEVERITY_EXTENT[best.severity],
+    // The model reports both, so both are carried: qty → the customer's words
+    // about how much, severity → its own judgement of how bad.
+    extent: qtyExtent(best.qty),
+    severity: best.severity,
     confidence: best.confidence,
   };
 }

@@ -123,13 +123,52 @@ export type CustomerPayload = {
   confirmOnSite: string[];
   /** Tom, 7 Sep: condition photos are with the estimator — costs pending sign-off. */
   photosPendingSignOff: boolean;
+  /**
+   * C8 (⚑25) — a "both" job shows two ranges, inside and outside, with the
+   * whole-job range above them as the combined total. Each part is priced on
+   * its own tree by the same engine and banded by its own accuracy; the parts
+   * are ABSENT (not zero) for a job that is only one of the two.
+   */
+  parts: { interior: CustomerRange; exterior: CustomerRange } | null;
+  /**
+   * C9 — "What we'll do": the engine's derived lines per surface group, in
+   * the painter's words, for the read-only panel. Derived by
+   * `paintSystemsView` from the rules row + the state; the client renders
+   * them and changes nothing.
+   */
+  systems: Array<{ group: string; title: string; sentence: string; coats: number; undercoat: boolean; review: boolean }>;
+  /**
+   * C11 — the customer's estimator, for the strip on the reveal: resolved
+   * ONCE on the server (`lib/wizard/estimator.ts`) and never invented — null
+   * when nobody covers the postcode and Settings names no coordinator.
+   */
+  estimator: { name: string; phone: string | null; covers: boolean } | null;
 };
+
+export type CustomerRange = { rangeLoCents: number; rangeHiCents: number; bandPct: number };
+
+/**
+ * One part of a "both" job as a range: the same band rule and the same
+ * outward rounding as the whole, on that part's own payload. No arithmetic on
+ * money happens here — `rangeFromTotal` is the one place that rounds.
+ */
+export function customerRange(payload: Pick<WizardEditorPayload, "totals" | "accuracyPct">, bands: BandSettings): CustomerRange {
+  const bandPct = rangeBandPct(payload.accuracyPct, bands);
+  const { loCents, hiCents } = rangeFromTotal(payload.totals.totalCents, bandPct);
+  return { rangeLoCents: loCents, rangeHiCents: hiCents, bandPct };
+}
 
 export function customerPayload(
   payload: WizardEditorPayload,
   blocks: unknown[],
   decision: GuardrailDecision,
   bands: BandSettings,
+  /** C8: the two halves of a "both" job, each priced on its own tree. */
+  parts: { interior: WizardEditorPayload; exterior: WizardEditorPayload } | null = null,
+  /** C9: the derived "What we'll do" lines, already trimmed to what a customer reads. */
+  systems: CustomerPayload["systems"] = [],
+  /** C11: the resolved estimator, or null. */
+  estimator: CustomerPayload["estimator"] = null,
 ): CustomerPayload {
   const loose = blocks as LooseBlock[];
   const rooms: CustomerRoomView[] = payload.rooms.map((r) => {
@@ -181,6 +220,9 @@ export function customerPayload(
               : `${d.room}: ${d.what} — confirmed before your final quote`,
     ),
     photosPendingSignOff: payload.deferred.some((d) => d.kind === "photo_review"),
+    parts: parts ? { interior: customerRange(parts.interior, bands), exterior: customerRange(parts.exterior, bands) } : null,
+    systems,
+    estimator,
   };
 }
 
@@ -252,7 +294,12 @@ export function editorPayload(
       contractorHours: Math.round(totals.contractorHours * 100) / 100,
       marginCents: totals.marginCents,
     },
-    accuracyPct: accuracyScore(scored, deferred.length, loop?.checksDone ?? 0),
+    // A room the customer says is MOSTLY gone holds the range wide however
+    // much else they confirmed — see MAJOR_DEFECT_CAP (Tom, 9 Sep).
+    accuracyPct: accuracyScore(
+      scored, deferred.length, loop?.checksDone ?? 0,
+      deferred.some((d) => d.kind === "major_defect"),
+    ),
     deferred,
     heightUnconfirmed,
     exteriorWidthFromPlan,
