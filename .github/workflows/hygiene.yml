@@ -1,0 +1,62 @@
+# C7c · the sweep — what teardown misses when a run is cancelled or crashes.
+#
+# ONE implementation, two triggers: this workflow and e2e/global-teardown.ts
+# both run scripts/c1/hygiene.mjs. pg_cron is available on the test project
+# but not installed, and installing it would be a `create extension` that
+# must never reach production — so the schedule lives here instead.
+#
+# Deletes anonymous users and pg.e2e.* logins older than 3 days (⚑43), 200
+# per run (brief step 2: bounded, oldest first), with the estimate chains,
+# leads, sources and @example.com accounts that hang off them. The seeded
+# logins are excluded by id; the guard refuses anything but the test project.
+# The job log carries "deleted N, left N" every run, so a jump is visible.
+name: Test-project hygiene
+
+on:
+  schedule:
+    # 17:00 UTC = 03:00 Melbourne (AEST) — after the day's runs, before the next.
+    - cron: "0 17 * * *"
+  workflow_dispatch:
+    inputs:
+      batch:
+        description: "Users to remove this run (oldest first)"
+        default: "200"
+      age_days:
+        description: "Only users older than this many days"
+        default: "3"
+
+concurrency:
+  # Never beside an e2e run: the same group the CI e2e job uses.
+  group: e2e-test-project
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    name: sweep (test project)
+    runs-on: ubuntu-latest
+    env:
+      PRODUCTION_SUPABASE_REF: llmrvgdequpmzzuaxdhq
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+      E2E_DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
+      E2E_STAFF_EMAIL: ${{ secrets.E2E_STAFF_EMAIL }}
+      E2E_CONTRACTOR_EMAIL: ${{ secrets.E2E_CONTRACTOR_EMAIL }}
+      E2E_CUSTOMER_EMAIL: ${{ secrets.E2E_CUSTOMER_EMAIL }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Refuse to run without the test project named
+        run: |
+          for n in NEXT_PUBLIC_SUPABASE_URL E2E_DATABASE_URL E2E_STAFF_EMAIL; do
+            if [ -z "${!n}" ]; then echo "::error::$n is empty — the sweep will not run against a target it cannot name."; exit 1; fi
+          done
+          case "$E2E_DATABASE_URL" in *llmrvgdequpmzzuaxdhq*) echo "::error::E2E_DATABASE_URL is PRODUCTION."; exit 1;; esac
+      - name: Count before
+        run: node scripts/c1/hygiene.mjs count || true
+      - name: Sweep
+        run: node scripts/c1/hygiene.mjs sweep --age-days "${{ github.event.inputs.age_days || '3' }}" --batch "${{ github.event.inputs.batch || '200' }}" --budget-min 20
+      - name: Count after
+        run: node scripts/c1/hygiene.mjs count || true
