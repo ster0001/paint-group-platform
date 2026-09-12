@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import WhatWeDo from "./WhatWeDo";
 import { assumedList, restatement, type QuickLook } from "@/lib/wizard/quick-look";
 import type { CustomerPayload } from "@/lib/wizard/view";
 
@@ -137,6 +138,10 @@ export default function Reveal({
           ))}
         </ul>
       )}
+
+      {/* C9 — the coats and prep the engine derived, in plain English, no
+          controls. What changes it is the job screen and the details screen. */}
+      <WhatWeDo lines={payload.systems ?? []} tellUsHref={`/estimate/scope?id=${estimateId}#reach`} />
 
       {/* The estimator has not seen this yet, and the customer should hear
           that from us rather than discover it. */}

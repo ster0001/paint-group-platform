@@ -46,6 +46,7 @@ import ConditionBox from "./ConditionBox";
 import Reveal from "./Reveal";
 import {
   DEFAULT_QUICK_LOOK, quickLookToState, stepsFor,
+  colourFromChanges,
   type QuickLook as QuickLookAnswers,
 } from "@/lib/wizard/quick-look";
 import {
@@ -263,10 +264,14 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const setOutside = (patch: Partial<ExteriorQuickLookAnswers>) =>
     setState((s) => applyExteriorQuickLook({ ...outside, ...patch }, s));
 
-  const setQuick = (patch: Partial<QuickLookAnswers>) => set({
-    quickLook: { ...quick, ...patch },
-    ...(patch.jobType ? { jobType: patch.jobType } : {}),
-  });
+  const setQuick = (patch: Partial<QuickLookAnswers>) => {
+    const next = { ...quick, ...patch };
+    set({
+      // C9: `colour` is derived from the tiles, never picked (colourFromChanges).
+      quickLook: { ...next, colour: colourFromChanges(next) },
+      ...(patch.jobType ? { jobType: patch.jobType } : {}),
+    });
+  };
 
   /**
    * The typed address rides `state.title` — the field the schema already
@@ -2445,16 +2450,41 @@ function PageDetails({ state, set, isCustomer = false, stepsTotal, stepNo = 4, a
       )}
 
       {/* Tom, 21 Aug: the estimator only ever listed "doors" and quietly meant
-          door-and-frame. The rate card prices all three, so ask. */}
-      <p className="wz-qhead">And what gets painted with each door?</p>
-      <Seg
-        options={[
-          { v: "door" as const, label: "Door only" },
-          { v: "frame" as const, label: "Door + frame" },
-        ]}
-        value={(d.doorScope ?? "frame") === "architrave" ? "frame" : (d.doorScope ?? "frame")}
-        onPick={(v) => set({ details: { ...d, doorScope: v } })}
-      />
+          door-and-frame. The rate card prices all three, so ask — STAFF. C9
+          strips it from the customer path: a customer cannot judge it, and the
+          details screen asks only what a person can see. */}
+      {!isCustomer && (
+        <>
+          <p className="wz-qhead">And what gets painted with each door?</p>
+          <Seg
+            options={[
+              { v: "door" as const, label: "Door only" },
+              { v: "frame" as const, label: "Door + frame" },
+            ]}
+            value={(d.doorScope ?? "frame") === "architrave" ? "frame" : (d.doorScope ?? "frame")}
+            onPick={(v) => set({ details: { ...d, doorScope: v } })}
+          />
+        </>
+      )}
+      {/* C9 (⚑5, prototype `s-systems`): are the doors and skirtings shiny?
+          Shiny old paint is oil-based enamel, which needs a bonding primer —
+          one more labour coat the engine adds (lib/pricing/systems.ts). "Not
+          sure" is priced as no and a person checks on site. */}
+      {doorsTicked && (
+        <>
+          <p className="wz-qhead">Are the doors and skirtings shiny?</p>
+          <Seg
+            options={[
+              { v: "yes" as const, label: "Shiny" },
+              { v: "no" as const, label: "Flat" },
+              { v: "unsure" as const, label: "Not sure" },
+            ]}
+            value={state.paint.trimsOilBased ?? "unsure"}
+            onPick={(v) => set({ paint: { ...state.paint, trimsOilBased: v } })}
+          />
+          <p className="wz-chint">Shiny old paint needs an extra primer, so it&rsquo;s worth knowing. Not sure is fine — we check.</p>
+        </>
+      )}
 
       <p className="wz-qhead">Ceiling height <small>— approximate is fine</small></p>
       <Seg

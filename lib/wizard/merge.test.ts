@@ -136,7 +136,7 @@ describe("applyWizardAnswers", () => {
 
   it("coats follow the tier, with dark-to-light only on its surfaces", () => {
     const s = state({
-      condition: { tier: "dark_to_light", darkToLightSurfaces: ["walls"], ceilingsMarked: false, ceilingsChangingColour: false, darkToLightCeilings: null, darkToLightCeilingRooms: [], surfaceFlags: {} },
+      condition: { tier: "dark_to_light", darkToLightSurfaces: ["walls"], ceilingsMarked: false, ceilingsChangingColour: false, darkToLightCeilings: null, darkToLightCeilingRooms: [], surfaceFlags: {}, colourAnswered: false, changingGroups: { walls: false, ceilings: false, trims: false }, boldColour: false, coloursUndecided: false },
     });
     const out = applyWizardAnswers(draft(), s, nextId);
     const living = out.areas.find((a) => a.name === "Living");
@@ -166,7 +166,7 @@ describe("applyWizardAnswers", () => {
   it("a same-colour job is one coat on the walls and one on the trims", () => {
     const fresh = applyWizardAnswers(
       draft(),
-      state({ condition: { tier: "fresh", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, darkToLightCeilings: null, darkToLightCeilingRooms: [], surfaceFlags: {} } }),
+      state({ condition: { tier: "fresh", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, darkToLightCeilings: null, darkToLightCeilingRooms: [], surfaceFlags: {}, colourAnswered: false, changingGroups: { walls: false, ceilings: false, trims: false }, boldColour: false, coloursUndecided: false } }),
       nextId,
     );
     const living = fresh.areas.find((a) => a.name === "Living");
@@ -179,7 +179,7 @@ describe("applyWizardAnswers", () => {
 
   /** ⚑4's other half: one coat on the trims only when the condition is good. */
   it("drops same-colour trims to one coat when the job is in good condition", () => {
-    const base = state({ condition: { tier: "fresh", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, darkToLightCeilings: null, darkToLightCeilingRooms: [], surfaceFlags: {} } });
+    const base = state({ condition: { tier: "fresh", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, darkToLightCeilings: null, darkToLightCeilingRooms: [], surfaceFlags: {}, colourAnswered: false, changingGroups: { walls: false, ceilings: false, trims: false }, boldColour: false, coloursUndecided: false } });
     const good = applyWizardAnswers(
       draft(),
       { ...base, details: { ...base.details, damageTier: 0 } },
@@ -191,7 +191,7 @@ describe("applyWizardAnswers", () => {
 
   /** ⚑3: white over white stays one coat even when the walls change colour. */
   it("keeps ceilings at one coat on a new-colour job, and lifts them when marked", () => {
-    const base = state({ condition: { tier: "change", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, darkToLightCeilings: null, darkToLightCeilingRooms: [], surfaceFlags: {} } });
+    const base = state({ condition: { tier: "change", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, darkToLightCeilings: null, darkToLightCeilingRooms: [], surfaceFlags: {}, colourAnswered: false, changingGroups: { walls: false, ceilings: false, trims: false }, boldColour: false, coloursUndecided: false } });
     const plain = applyWizardAnswers(draft(), base, nextId);
     const living = plain.areas.find((a) => a.name === "Living");
     expect(living?.surfaces.find((x) => x.code === "Walls")?.coats).toBe(2);
@@ -209,7 +209,7 @@ describe("applyWizardAnswers", () => {
 
   /** ⚑5: the gloss answer is one field, and it reaches the trims as a primer. */
   it("adds a bonding primer coat to the trims when the existing gloss is oil-based", () => {
-    const base = state({ condition: { tier: "fresh", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, darkToLightCeilings: null, darkToLightCeilingRooms: [], surfaceFlags: {} } });
+    const base = state({ condition: { tier: "fresh", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, darkToLightCeilings: null, darkToLightCeilingRooms: [], surfaceFlags: {}, colourAnswered: false, changingGroups: { walls: false, ceilings: false, trims: false }, boldColour: false, coloursUndecided: false } });
     const oil = applyWizardAnswers(
       draft(),
       { ...base, paint: { ...base.paint, trimsOilBased: "yes" } },

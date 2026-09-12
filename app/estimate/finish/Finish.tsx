@@ -1,5 +1,7 @@
 "use client";
 
+import WhatWeDo, { whatWeDoLines } from "@/app/wizard/WhatWeDo";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -258,6 +260,9 @@ export default function Finish({
           </li>
         ))}
       </ul>
+
+      {/* C9 — the same derived lines the reveal and the editor show, read-only. */}
+      <WhatWeDo lines={whatWeDoLines(input.systems)} tellUsHref={`/estimate/scope?id=${estimateId}#reach`} />
 
       <p className="wz-notincluded" data-testid="finish-excluded">{NOT_INCLUDED}</p>
 

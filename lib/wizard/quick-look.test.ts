@@ -30,7 +30,8 @@ describe("the quick look produces a priceable job", () => {
    * The list is asked in the editor now; until then, two coats everywhere.
    */
   it("prices a BOLD job, which is asked about surfaces later", () => {
-    const state = quickLookToState(q({ colour: "bold" }), { ...defaultWizardState(), mode: "customer" });
+    // C9: bold is a tick on a changing group, not a picked colour.
+    const state = quickLookToState(q({ changing: { walls: true, ceilings: false, trims: false }, bold: true }), { ...defaultWizardState(), mode: "customer" });
     expect(state.condition.tier).toBe("dark_to_light");
     expect(state.condition.darkToLightSurfaces).toEqual([]);
     const parsed = wizardStateSchema.safeParse({
@@ -95,9 +96,10 @@ describe("the questions we stopped asking", () => {
 
 describe("the eight answers map onto the engine's fields", () => {
   it("turns colour intent into the stored tier", () => {
-    expect(quickLookToState(q({ colour: "same" })).condition.tier).toBe("fresh");
-    expect(quickLookToState(q({ colour: "new" })).condition.tier).toBe("change");
-    expect(quickLookToState(q({ colour: "bold" })).condition.tier).toBe("dark_to_light");
+    // C9: the tier follows the tiles (colourFromChanges), not a picked colour.
+    expect(quickLookToState(q({ changing: { walls: false, ceilings: false, trims: false } })).condition.tier).toBe("fresh");
+    expect(quickLookToState(q({ changing: { walls: true, ceilings: false, trims: false } })).condition.tier).toBe("change");
+    expect(quickLookToState(q({ changing: { walls: true, ceilings: false, trims: false }, bold: true })).condition.tier).toBe("dark_to_light");
   });
 
   it("turns the three condition bands into damage tiers, never tier 3", () => {
@@ -213,5 +215,30 @@ describe("the screens", () => {
     for (const c of [...SCOPE_PRESETS, ...COLOUR_INTENTS, ...CONDITION_BANDS]) {
       expect(c.label.length, c.value).toBeGreaterThan(0);
     }
+  });
+});
+
+// ---- C9: the colour block --------------------------------------------------
+
+import { colourFromChanges, toggleChanging } from "./quick-look";
+
+describe("C9 — the job-wide colour is derived from the tiles, never picked", () => {
+  it("nothing ticked is same; any tick is new; bold only with a tick; still choosing is new", () => {
+    expect(colourFromChanges({ changing: { walls: false, ceilings: false, trims: false }, bold: false, undecided: false })).toBe("same");
+    expect(colourFromChanges({ changing: { walls: false, ceilings: false, trims: false }, bold: true, undecided: false })).toBe("same");
+    expect(colourFromChanges({ changing: { walls: true, ceilings: false, trims: false }, bold: false, undecided: false })).toBe("new");
+    expect(colourFromChanges({ changing: { walls: true, ceilings: false, trims: false }, bold: true, undecided: false })).toBe("bold");
+    expect(colourFromChanges({ changing: { walls: false, ceilings: false, trims: false }, bold: false, undecided: true })).toBe("new");
+  });
+  it("the state carries the per-group answers, switched on, with the tier derived", () => {
+    const q: QuickLook = { ...DEFAULT_QUICK_LOOK, changing: { walls: false, ceilings: false, trims: true }, bold: true, undecided: false, colour: "bold" };
+    const s = quickLookToState(q);
+    expect(s.condition.colourAnswered).toBe(true);
+    expect(s.condition.changingGroups).toEqual({ walls: false, ceilings: false, trims: true });
+    expect(s.condition.boldColour).toBe(true);
+    expect(s.condition.ceilingsChangingColour).toBe(false);
+    expect(s.condition.tier).toBe("dark_to_light");
+    expect(toggleChanging(q, "walls").walls).toBe(true);
+    expect(restatement(q)).toContain("a much lighter or bolder colour on the doors and trims");
   });
 });

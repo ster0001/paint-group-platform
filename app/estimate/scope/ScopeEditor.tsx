@@ -1,5 +1,8 @@
 "use client";
 
+import WhatWeDo from "@/app/wizard/WhatWeDo";
+import type { PaintSystemLine } from "@/lib/wizard/systems-view";
+
 import ContactCard from "./ContactCard";
 import { sendToLabel } from "@/lib/wizard/finish-line";
 import ReachStrip from "./ReachStrip";
@@ -66,9 +69,9 @@ export type InteriorLoopView = {
 
 type Payload = CustomerPayload & {
   scopeRooms?: CustomerScopeRoom[];
-  /** Still sent on every response (the derivation is untouched); no longer
-   *  rendered here, so the editor does not need its shape. */
-  paintSystems?: unknown;
+  /** Sent on every response — the derivation recomputed from the tree the
+   *  request just changed. C9 renders it read-only as "What we'll do". */
+  paintSystems?: PaintSystemLine[];
   siteAccess?: SiteAccess;
   jobExtras?: { on: string[]; colourHelp: boolean; note: string };
   exterior?: CustomerExteriorView | null;
@@ -109,7 +112,7 @@ const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
 const snapshotFalse = () => false;
 
-export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialDarkToLight = { asked: false, surfaces: [], someWalls: false, ceilings: null, ceilingRooms: [] }, initialColourTier = "change", initialAccess = { answers: {}, asksLift: false }, initialExtras = { offer: [], on: [], colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null, sendTo = null, chatMode = false }: {
+export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialDarkToLight = { asked: false, surfaces: [], someWalls: false, ceilings: null, ceilingRooms: [] }, initialColourTier = "change", initialSystems = [], initialAccess = { answers: {}, asksLift: false }, initialExtras = { offer: [], on: [], colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null, sendTo = null, chatMode = false }: {
   estimateId: string;
   initial: CustomerPayload;
   initialRooms: CustomerScopeRoom[];
@@ -144,6 +147,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
     ceilings: "all" | "some" | null; ceilingRooms: number[];
   };
   initialColourTier?: "fresh" | "change" | "dark_to_light";
+  /** C9 — the derived "What we'll do" lines, read-only; re-sent on every reprice. */
+  initialSystems?: PaintSystemLine[];
   /** §4.4 — the site and access answers, and whether a lift applies. */
   initialAccess?: { answers: SiteAccess; asksLift: boolean };
   /** §4.5 — the extras on offer, which are on, the colour tick and the note. */
@@ -151,6 +156,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
 }) {
   const [payload, setPayload] = useState<CustomerPayload>(initial);
   const [rooms, setRooms] = useState<CustomerScopeRoom[]>(initialRooms);
+  /** C9 — "What we'll do": the derivation, shown back with no controls. */
+  const [systems, setSystems] = useState<PaintSystemLine[]>(initialSystems);
   const [iloop, setIloop] = useState<InteriorLoopView | null>(initialInteriorLoop);
   /**
    * ⚑ The derived paint systems no longer have a screen (Tom, 10 Sep), so the
@@ -272,6 +279,9 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   const styleOpen = {
     doors: payload.confirmOnSite.some((n) => /door style to confirm/.test(n)),
     windows: payload.confirmOnSite.some((n) => /window style to confirm/.test(n)),
+    // C9 (⚑5): asked while a person would otherwise have to check on site —
+    // the trims/doors line carries `review` until "shiny" or "flat" is answered.
+    gloss: systems.some((l) => (l.group === "trims" || l.group === "doors") && l.review),
   };
   const styleChip = (label: string, body: Record<string, unknown>, said: string) => (
     <button key={label} className="sd-chip il-chip" onClick={() => act(body, `style:${label}`, () => said)}>{label}</button>
@@ -346,6 +356,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         }
         setPayload(j);
         if (j.scopeRooms) setRooms(j.scopeRooms);
+        if (Array.isArray(j.paintSystems)) setSystems(j.paintSystems);
         if (j.siteAccess) setAccess(j.siteAccess);
         if (j.jobExtras) setExtras(j.jobExtras);
         if (j.ladder) setLadder(j.ladder);
@@ -438,6 +449,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         }
         setPayload(j);
         if (j.scopeRooms) setRooms(j.scopeRooms);
+        if (Array.isArray(j.paintSystems)) setSystems(j.paintSystems);
         if (j.siteAccess) setAccess(j.siteAccess);
         if (j.jobExtras) setExtras(j.jobExtras);
         if (j.interiorLoop) setIloop(j.interiorLoop);
@@ -695,6 +707,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         )}
         {!chatMode && (styleOpen.doors || styleOpen.windows || payload.heightUnconfirmed) && (
           <section className="sc-rc il-card amber sc-details" data-card="details" data-testid="details-card">
+            {/* C9 — what the answers below change, read-only, above the questions. */}
+            <WhatWeDo lines={systems} tellUsHref="#reach" compact />
             <div className="sc-hd il-hd"><b>A few details to settle</b><span className="il-pill">TIGHTENS YOUR RANGE</span></div>
             {styleOpen.doors && (
               <div className="il-q">
@@ -714,6 +728,16 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                   {styleChip("Colonial", { action: "set_window_style", style: "colonial" }, "Colonial windows — priced at the colonial rate now")}
                   {styleChip("Winder", { action: "set_window_style", style: "winder" }, "Winder windows — priced at the awning rate now")}
                 </div>
+              </div>
+            )}
+            {styleOpen.gloss && (
+              <div className="il-q" data-testid="details-gloss">
+                <p className="il-ql">Are the doors and skirtings shiny?</p>
+                <div className="sc-chips">
+                  {styleChip("Shiny", { action: "set_paint_system", field: "glossTrims", value: "yes" }, "Shiny — a bonding primer goes on before the enamel")}
+                  {styleChip("Flat", { action: "set_paint_system", field: "glossTrims", value: "no" }, "Flat — no bonding primer needed")}
+                </div>
+                <p className="il-hint">Shiny old paint needs an extra primer, so it&rsquo;s worth knowing. Not sure is fine — we check.</p>
               </div>
             )}
             {payload.heightUnconfirmed && (

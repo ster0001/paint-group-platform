@@ -103,6 +103,7 @@ export default async function ScopeEditorPage({
         initialInteriorLoop={bundle.initialInteriorLoop}
         initialDarkToLight={bundle.initialDarkToLight}
         initialColourTier={bundle.initialColourTier}
+        initialSystems={bundle.initialSystems}
         initialAccess={bundle.initialAccess}
         initialExtras={bundle.initialExtras}
         roomTypes={bundle.roomTypes}

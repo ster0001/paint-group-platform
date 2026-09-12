@@ -134,6 +134,15 @@ export const wizardStateShapeSchema = z.object({
     storeys: z.enum(["single", "double"]),
     scope: z.enum(["whole", "some_rooms", "walls_ceilings", "trims_doors"]),
     colour: z.enum(["same", "new", "bold"]),
+    /**
+     * C9 (v2.3) — "What's changing colour?": the three tiles, the bold
+     * question and "still choosing". `colour` above is now DERIVED from these
+     * (lib/wizard/quick-look.ts `colourFromChanges`) and kept for everything
+     * that already reads it. Defaults keep every stored snapshot parsing.
+     */
+    changing: z.object({ walls: z.boolean(), ceilings: z.boolean(), trims: z.boolean() }).default({ walls: true, ceilings: false, trims: false }),
+    bold: z.boolean().default(false),
+    undecided: z.boolean().default(false),
     condition: z.enum(["good", "wear", "needs_work"]),
     occupied: z.enum(["yes", "no"]),
   }).nullable().default(null),
@@ -207,6 +216,16 @@ export const wizardStateShapeSchema = z.object({
      * longer exists simply stops applying.
      */
     surfaceFlags: z.record(z.string().max(40), z.array(z.string().max(40)).max(8)).default({}),
+    /**
+     * C9 — the per-group colour answers the derivation reads
+     * (lib/wizard/systems-view.ts `systemAnswersFromState`). `colourAnswered`
+     * is the switch: false on every estimate made before the question
+     * existed, so those keep the job-wide `tier` derivation exactly as it was.
+     */
+    colourAnswered: z.boolean().default(false),
+    changingGroups: z.object({ walls: z.boolean(), ceilings: z.boolean(), trims: z.boolean() }).default({ walls: false, ceilings: false, trims: false }),
+    boldColour: z.boolean().default(false),
+    coloursUndecided: z.boolean().default(false),
   }),
 
   details: z.object({
@@ -494,7 +513,7 @@ export function defaultWizardState(): WizardState {
     basics: null,
     quickLook: null,
     surfaces: [...DEFAULT_SURFACES],
-    condition: { tier: "change", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, darkToLightCeilings: null, darkToLightCeilingRooms: [], surfaceFlags: {} },
+    condition: { tier: "change", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, darkToLightCeilings: null, darkToLightCeilingRooms: [], surfaceFlags: {}, colourAnswered: false, changingGroups: { walls: false, ceilings: false, trims: false }, boldColour: false, coloursUndecided: false },
     details: {
       doorStyle: "unsure",
       doorScope: "frame",

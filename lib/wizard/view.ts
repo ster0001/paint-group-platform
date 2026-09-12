@@ -130,6 +130,13 @@ export type CustomerPayload = {
    * are ABSENT (not zero) for a job that is only one of the two.
    */
   parts: { interior: CustomerRange; exterior: CustomerRange } | null;
+  /**
+   * C9 — "What we'll do": the engine's derived lines per surface group, in
+   * the painter's words, for the read-only panel. Derived by
+   * `paintSystemsView` from the rules row + the state; the client renders
+   * them and changes nothing.
+   */
+  systems: Array<{ group: string; title: string; sentence: string; coats: number; undercoat: boolean; review: boolean }>;
 };
 
 export type CustomerRange = { rangeLoCents: number; rangeHiCents: number; bandPct: number };
@@ -152,6 +159,8 @@ export function customerPayload(
   bands: BandSettings,
   /** C8: the two halves of a "both" job, each priced on its own tree. */
   parts: { interior: WizardEditorPayload; exterior: WizardEditorPayload } | null = null,
+  /** C9: the derived "What we'll do" lines, already trimmed to what a customer reads. */
+  systems: CustomerPayload["systems"] = [],
 ): CustomerPayload {
   const loose = blocks as LooseBlock[];
   const rooms: CustomerRoomView[] = payload.rooms.map((r) => {
@@ -204,6 +213,7 @@ export function customerPayload(
     ),
     photosPendingSignOff: payload.deferred.some((d) => d.kind === "photo_review"),
     parts: parts ? { interior: customerRange(parts.interior, bands), exterior: customerRange(parts.exterior, bands) } : null,
+    systems,
   };
 }
 
