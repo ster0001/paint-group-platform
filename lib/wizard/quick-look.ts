@@ -398,7 +398,7 @@ export function assumedList(q: QuickLook): Assumption[] {
  * after the place screen, then the segment's two screens (`s-com-areas`,
  * `s-com-job`) — the areas and job pattern, rendered from the row.
  */
-export const QUICK_LOOK_STEPS = ["start", "both", "place", "segment", "com_areas", "com_warehouse", "com_job", "job", "condition", "outside"] as const;
+export const QUICK_LOOK_STEPS = ["start", "both", "place", "segment", "com_areas", "com_warehouse", "com_job", "com_brief", "com_book", "job", "condition", "outside"] as const;
 export type QuickLookStep = (typeof QUICK_LOOK_STEPS)[number];
 
 /**
@@ -420,13 +420,19 @@ export type QuickLookStep = (typeof QUICK_LOOK_STEPS)[number];
  * computed counts drift; this is the only place either is allowed to come from.
  */
 const COUNT_WORD = ["", "One", "Two", "Three", "Four", "Five", "Six"] as const;
-export function stepCount(jobType: QuickLook["jobType"], propertyKind: QuickLook["propertyKind"] = "house", pattern: CommercialPattern = "areas"): string {
-  const n = stepsFor(jobType, propertyKind, pattern).filter((s) => s !== "both").length;
+export function stepCount(jobType: QuickLook["jobType"], propertyKind: QuickLook["propertyKind"] = "house", pattern: CommercialPattern = "areas", door: CommercialDoor = "range"): string {
+  const n = stepsFor(jobType, propertyKind, pattern, door).filter((s) => s !== "both").length;
   return COUNT_WORD[n] ?? String(n);
 }
 
 /** C13: which commercial pattern the chosen row renders — the areas + job screens, or the warehouse screen. */
 export type CommercialPattern = "areas" | "warehouse";
+/**
+ * C14: which door the segment opened — `range` walks the pattern's screens
+ * to a reveal; `brief` walks the brief and the booking; `brief_after_areas`
+ * is a hospital, whose kind is asked on the areas screen and then leaves.
+ */
+export type CommercialDoor = "range" | "brief" | "brief_after_areas";
 
 /**
  * C12: a commercial job walks start → place → segment, then (inside, on a
@@ -434,11 +440,17 @@ export type CommercialPattern = "areas" | "warehouse";
  * segment screen — every commercial exterior is priced on site — so those
  * branches END there; `quickNext` hands off rather than advancing.
  */
-export function stepsFor(jobType: QuickLook["jobType"], propertyKind: QuickLook["propertyKind"] = "house", pattern: CommercialPattern = "areas"): QuickLookStep[] {
+export function stepsFor(jobType: QuickLook["jobType"], propertyKind: QuickLook["propertyKind"] = "house", pattern: CommercialPattern = "areas", door: CommercialDoor = "range"): QuickLookStep[] {
   if (propertyKind === "commercial") {
-    if (jobType === "interior") return ["start", "place", "segment", pattern === "warehouse" ? "com_warehouse" : "com_areas", "com_job"];
-    if (jobType === "both") return ["start", "both", "place", "segment"];
-    return ["start", "place", "segment"];
+    // C14: every commercial exterior, and every brief segment, walks the
+    // brief and the booking; a hospital leaves from the areas screen.
+    if (door === "brief_after_areas") return ["start", "place", "segment", "com_areas", "com_brief", "com_book"];
+    if (door === "brief" || jobType !== "interior") {
+      return jobType === "both"
+        ? ["start", "both", "place", "segment", "com_brief", "com_book"]
+        : ["start", "place", "segment", "com_brief", "com_book"];
+    }
+    return ["start", "place", "segment", pattern === "warehouse" ? "com_warehouse" : "com_areas", "com_job"];
   }
   if (jobType === "exterior") return ["start", "place", "outside"];
   if (jobType === "both") return ["start", "both", "place", "job", "condition", "outside"];

@@ -73,6 +73,14 @@ export const segmentBriefSchema = z.object({
   what: z.array(z.string()),
   rows: z.array(z.tuple([z.string(), z.array(z.string())])),
   photo: z.string().default(""),
+  /** C14: which answers raise which site_checklist_items keys — `always` for
+   * every brief of this kind, `rows` by question → option → key. */
+  checklist: z.object({
+    always: z.array(z.string()).default([]),
+    rows: z.record(z.string(), z.record(z.string(), z.string())).default({}),
+  }).optional(),
+  /** C14: a date the brief asks for (strata's meeting date), and the checklist key it fills. */
+  date: z.object({ key: z.string(), label: z.string(), hint: z.string().default("") }).optional(),
 });
 export type SegmentBrief = z.infer<typeof segmentBriefSchema>;
 
@@ -171,6 +179,7 @@ export const DEFAULT_SEGMENTS: Segment[] = [
       what: ["Wards", "Corridors", "Treatment rooms", "Theatres or clinical areas", "Common areas and reception", "Exterior"],
       rows: [["Working hours", ["Staged around patients", "Closed areas only", "After hours"]], ["You are", ["Facilities manager", "Maintenance", "Project manager"]]],
       photo: "— a ward, a corridor, a treatment room",
+      checklist: { always: ["hazmat_check", "induction", "low_odour"], rows: {} },
     },
     typicals: {
       rooms: { rooms: ["Room", [3.5, 4], "bedroom"], lounges: ["Lounge", [8, 7], "living"], corr: ["Corridor", [20, 2], "hallway"] },
@@ -204,6 +213,8 @@ export const DEFAULT_SEGMENTS: Segment[] = [
       what: ["Lobbies and corridors", "Stairwells", "Lift lobbies", "Car park", "Fire doors", "Exterior facade", "Balconies", "Fences and gates"],
       rows: [["Levels", ["1–3", "4–8", "9+"]], ["Approx. units", ["Under 10", "10–30", "30–80", "80+"]], ["You are", ["Owners corp manager", "Committee member", "Building manager", "Owner"]], ["Is there a scope of works already?", ["Yes — I can send it", "No"]], ["Timing", ["Before the next meeting", "No rush"]]],
       photo: "— the lobby, a corridor, a stairwell, the outside from the street",
+      checklist: { always: ["hazmat_check"], rows: { "Timing": { "Before the next meeting": "meeting_date" } } },
+      date: { key: "meeting_date", label: "Your next meeting date", hint: "The quote is held to it, so we work back from it" },
     },
     typicals: { rooms: {}, alsoSize: {} },
   },
@@ -215,6 +226,7 @@ export const DEFAULT_SEGMENTS: Segment[] = [
       what: ["Render or masonry", "Timber", "Metal frames or shutters", "Awning or verandah", "Signage to work around", "Roller shutter or grille"],
       rows: [["Levels on the frontage", ["Ground only", "Two", "More"]], ["Where is it?", ["Strip shop", "Shopping centre", "Stand-alone"]], ["Trading hours we work around?", ["Yes", "No — closed for refit"]], ["Footpath in front?", ["Yes", "No"]]],
       photo: "— from across the street, and one close up of the frontage",
+      checklist: { always: ["hazmat_check"], rows: { "Where is it?": { "Shopping centre": "centre_rules" } } },
     },
     typicals: { rooms: {}, alsoSize: {} },
   },
@@ -226,6 +238,7 @@ export const DEFAULT_SEGMENTS: Segment[] = [
       what: ["Inside", "Outside", "Both"],
       rows: [["Roughly how big?", ["One room or space", "A few spaces", "A whole building"]], ["Approx. height", ["Up to 4 m", "Over 4 m"]], ["You are", ["Owner", "Manager", "Committee"]]],
       photo: "— a few of the spaces",
+      checklist: { always: ["hazmat_check"], rows: {} },
     },
     typicals: { rooms: {}, alsoSize: {} },
   },
@@ -237,6 +250,7 @@ export const DEFAULT_SEGMENTS: Segment[] = [
       what: ["Render or masonry", "Precast or tilt slab", "Metal cladding", "Timber", "Windows and frames", "Roller doors", "Fences and gates", "Signage to work around"],
       rows: [["Levels", ["Ground only", "Two", "More"]], ["Street frontage or footpath?", ["Yes", "No"]], ["Trading or operating while we work?", ["Yes", "No"]]],
       photo: "— from across the street, and each side you can reach",
+      checklist: { always: ["hazmat_check"], rows: { "Street frontage or footpath?": { "Yes": "loading_dock" } } },
     },
     typicals: { rooms: {}, alsoSize: {} },
   },
@@ -527,4 +541,52 @@ export function commercialAssumedList(seg: Segment, a: CommercialAnswers, photos
     why: "Access equipment and anything structural are quoted separately if they turn out to be needed.",
   });
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// C14 — the brief
+// ---------------------------------------------------------------------------
+
+/** The brief config a brief key names: the segment's own row, the health row for a hospital, the exterior row for outside work. */
+export function briefConfigFor(segments: Segment[], briefKey: string | null | undefined): { row: Segment; brief: SegmentBrief } | null {
+  if (!briefKey) return null;
+  const rowKey = briefKey === "hospital" ? "health" : briefKey;
+  const row = segmentByKey(segments, rowKey);
+  return row?.brief ? { row, brief: row.brief } : null;
+}
+
+/** What the customer answered on the brief screen (`state.brief`). */
+export type BriefAnswers = {
+  briefKey: string;
+  what: string[];
+  answers: Record<string, string>;
+  notes: string;
+  date: string | null;
+};
+
+export function defaultBriefAnswers(briefKey: string, brief: SegmentBrief): BriefAnswers {
+  return {
+    briefKey,
+    what: brief.what.length ? [brief.what[0]] : [],
+    answers: Object.fromEntries(brief.rows.map(([q, opts]) => [q, opts[0]])),
+    notes: "",
+    date: null,
+  };
+}
+
+/**
+ * The site_checklist_items a brief raises, from the config's map: the
+ * `always` keys, plus one per answered row whose option names a key, plus
+ * the date question's key when a date was given (its value is the date).
+ */
+export function checklistFromBrief(brief: SegmentBrief, a: BriefAnswers): Array<{ key: string; value: string | null }> {
+  const out = new Map<string, string | null>();
+  for (const k of brief.checklist?.always ?? []) out.set(k, null);
+  for (const [q, byOption] of Object.entries(brief.checklist?.rows ?? {})) {
+    const picked = a.answers[q];
+    const key = picked != null ? byOption[picked] : undefined;
+    if (key) out.set(key, picked);
+  }
+  if (brief.date && a.date) out.set(brief.date.key, a.date);
+  return [...out.entries()].map(([key, value]) => ({ key, value }));
 }
