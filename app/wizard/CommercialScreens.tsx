@@ -6,6 +6,7 @@ import {
   type CommercialAnswers, type Segment,
 } from "@/lib/wizard/segments";
 import { gateMessage, routeCommercial } from "@/lib/wizard/commercial";
+import { WH_AREAS, WH_HEIGHTS, WH_MATERIALS, WH_RACKING, WH_SURFACES, toggleWarehouseMaterial, type WarehouseSurfaceKey } from "@/lib/wizard/warehouse";
 
 /**
  * C12 — the commercial screens (prototype `s-commercial`, `s-com-areas`,
@@ -321,16 +322,118 @@ function Pills<T extends string>({ options, value, onPick, name }: {
   options: { value: T; label: string }[]; value: T | string; onPick: (v: T) => void; name: string;
 }) {
   return (
-    <div className="wz-chips" data-testid={`${name.startsWith("com-") ? name : `ql-${name}`}`}>
+    <div className="wz-chips" data-testid={`${name.startsWith("com-") || name.startsWith("wh-") ? name : `ql-${name}`}`}>
       {options.map((o) => (
         <button
           key={o.value} type="button"
           className={`wz-chip ${value === o.value ? "on" : ""}`}
           aria-pressed={value === o.value}
-          data-testid={`${name.startsWith("com-") ? name : `ql-${name}`}-${o.value}`}
+          data-testid={`${name.startsWith("com-") || name.startsWith("wh-") ? name : `ql-${name}`}-${o.value}`}
           onClick={() => onPick(o.value)}
         >{o.label}</button>
       ))}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Screen: the warehouse (s-com-warehouse) — C13, the second pattern
+// ---------------------------------------------------------------------------
+
+export function WarehouseScreen({ segment, answers, onAnswers }: {
+  segment: Segment;
+  answers: CommercialAnswers;
+  onAnswers: (patch: Partial<CommercialAnswers>) => void;
+}) {
+  const on = new Set<WarehouseSurfaceKey>(answers.whSurfaces);
+  const toggle = (k: WarehouseSurfaceKey) =>
+    onAnswers({ whSurfaces: on.has(k) ? answers.whSurfaces.filter((x) => x !== k) : [...answers.whSurfaces, k] });
+  const step = (field: "rollerDoors" | "personnelDoors" | "offices", delta: number) =>
+    onAnswers({ [field]: Math.max(0, Math.min(60, answers[field] + delta)) } as Partial<CommercialAnswers>);
+  const typed = answers.lengthM != null || answers.widthM != null;
+  return (
+    <>
+      <p className="wz-kick">{segment.config.kick || "Industrial or warehouse"}</p>
+      <h1>Tell us about the space</h1>
+      <p className="wz-sub">Near enough is fine — brackets are fine. We&rsquo;ll size the walls from the floor area and the height.</p>
+
+      <p className="wz-qhead" style={{ marginTop: 0 }}>Floor area</p>
+      <Pills options={WH_AREAS} value={answers.areaBracket} name="wh-area" onPick={(areaBracket) => onAnswers({ areaBracket, lengthM: null, widthM: null })} />
+      <div className="wz-countrow" data-testid="wh-lw">
+        <div className="wz-qtext">Or type it<small>Length × width, in metres — beats the bracket</small></div>
+        <div className="wz-stepper" style={{ border: 0 }}>
+          <input className="wz-in" style={{ width: 84 }} inputMode="decimal" placeholder="Length m" data-testid="wh-length" value={answers.lengthM ?? ""}
+            onChange={(e) => onAnswers({ lengthM: e.target.value === "" ? null : Math.max(1, Math.min(500, Number(e.target.value) || 0)) })} />
+          <span>×</span>
+          <input className="wz-in" style={{ width: 84 }} inputMode="decimal" placeholder="Width m" data-testid="wh-width" value={answers.widthM ?? ""}
+            onChange={(e) => onAnswers({ widthM: e.target.value === "" ? null : Math.max(1, Math.min(500, Number(e.target.value) || 0)) })} />
+        </div>
+      </div>
+      {typed && <p className="wz-chint" data-testid="wh-typed-note">Typed size in use — the bracket above is ignored.</p>}
+
+      <p className="wz-qhead">Height to the underside of the roof</p>
+      <Pills options={WH_HEIGHTS} value={answers.roofHeight} name="wh-height" onPick={(roofHeight) => onAnswers({ roofHeight })} />
+      <p className="wz-chint">Above about four metres we allow for a scissor lift — it shows as its own line, and you can tell us if you have one on site.</p>
+
+      <p className="wz-qhead">What&rsquo;s being painted?</p>
+      <div className="wz-cards" data-testid="wh-surf">
+        {/* A div with the button role, like the prototype's tiles: the counted
+            rows carry a stepper of real buttons, and a button inside a button
+            is not HTML. */}
+        {WH_SURFACES.map((o) => (
+          <div
+            key={o.value} role="button" tabIndex={0}
+            className={`wz-card ${on.has(o.value) ? "on" : ""}`}
+            aria-pressed={on.has(o.value)}
+            data-testid={`wh-surf-${o.value}`}
+            data-flagged={o.flagged ? "1" : undefined}
+            onClick={() => toggle(o.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(o.value); } }}
+          >
+            <b>{o.label}</b>
+            {o.hint && <span>{o.hint}{o.flagged ? " — priced on confirmation" : ""}</span>}
+            {o.counted && on.has(o.value) && (
+              <span className="wz-stepper" style={{ marginTop: 8, display: "inline-flex" }} onClick={(e) => e.stopPropagation()} data-testid={`wh-count-${o.counted}`}>
+                <button type="button" aria-label={`fewer ${o.label.toLowerCase()}`} data-testid={`wh-count-${o.counted}-minus`} disabled={answers[o.counted] <= 0} onClick={() => step(o.counted!, -1)}>−</button>
+                <span data-testid={`wh-count-${o.counted}-n`}>{answers[o.counted]}</span>
+                <button type="button" aria-label={`more ${o.label.toLowerCase()}`} data-testid={`wh-count-${o.counted}-plus`} onClick={() => step(o.counted!, 1)}>+</button>
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {on.has("walls") && (
+        <div data-testid="wh-materials-q">
+          <p className="wz-qhead">What are the walls made of? <span className="wz-opt">TICK EVERYTHING</span></p>
+          <div className="wz-chips" data-testid="wh-mat">
+            {WH_MATERIALS.map((o) => (
+              <button
+                key={o.value} type="button"
+                className={`wz-chip ${answers.materials.includes(o.value) ? "on" : ""}`}
+                aria-pressed={answers.materials.includes(o.value)}
+                data-testid={`wh-mat-${o.value}`}
+                onClick={() => onAnswers({ materials: toggleWarehouseMaterial(answers.materials, o.value) })}
+              >{o.label}</button>
+            ))}
+          </div>
+          <p className="wz-chint">Nothing is ticked for you — precast is often left bare on purpose, so we&rsquo;d rather you told us.</p>
+        </div>
+      )}
+
+      <p className="wz-qhead">Three things that change access</p>
+      <div className="wz-countrow" data-testid="wh-racking">
+        <div className="wz-qtext">Racking or stock against the walls?<small>We paint above it, or you clear it — it changes the price a lot</small></div>
+        <Pills options={WH_RACKING} value={answers.racking} name="wh-rack" onPick={(racking) => onAnswers({ racking })} />
+      </div>
+      <div className="wz-countrow" data-testid="wh-operating">
+        <div className="wz-qtext">Operating during the works?</div>
+        <Pills options={[{ value: "yes", label: "Yes" }, { value: "no", label: "No" }]} value={answers.operating ? "yes" : "no"} name="wh-op" onPick={(v) => onAnswers({ operating: v === "yes" })} />
+      </div>
+      <div className="wz-countrow" data-testid="wh-lift">
+        <div className="wz-qtext">A scissor lift or forklift on site we can use?</div>
+        <Pills options={[{ value: "yes", label: "Yes" }, { value: "no", label: "No" }]} value={answers.liftOnSite ? "yes" : "no"} name="wh-lift" onPick={(v) => onAnswers({ liftOnSite: v === "yes" })} />
+      </div>
+    </>
   );
 }

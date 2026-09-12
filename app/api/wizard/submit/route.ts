@@ -19,7 +19,8 @@ import { PAINT_SYSTEMS_KEY, paintSystemsFrom } from "@/lib/pricing/systems";
 import { applyWizardAnswers, filterSurfacesByTicks } from "@/lib/wizard/merge";
 import { ceilingHeightFrom, wizardStateSchema, type WizardSurfaceKey } from "@/lib/wizard/state";
 import { backfillTypicalSizes, commercialExtraction, markStarterProvenance, starterExtraction, starterRoomList, type TypicalSizeRow } from "@/lib/wizard/starter";
-import { DEFAULT_SEGMENTS, commercialRoomList, commercialSurfaceKeys, loadSegments, segmentByKey } from "@/lib/wizard/segments";
+import { DEFAULT_SEGMENTS, commercialRoomList, commercialSurfaceKeys, isWarehouse, loadSegments, segmentByKey } from "@/lib/wizard/segments";
+import { warehouseFloorArea, warehouseRoomList } from "@/lib/wizard/warehouse";
 import { commercialWidenFor } from "@/lib/wizard/commercial";
 import { applyOpenSpace, commercialPricingFrom, hourLoadingFor } from "@/lib/pricing/commercial";
 import { applyConditionPricing, applyExteriorAnswers, type MeasuredSides } from "@/lib/wizard/exteriorAnswers";
@@ -208,6 +209,23 @@ export async function POST(request: Request) {
     // Exterior-only: the envelope is measured from its own sources (E1 rule),
     // and the drafting routes for it are still to be wired. The estimate is
     // created empty with the site-check deferral carrying the work forward.
+  } else if (segment && state.commercial && isWarehouse(segment)) {
+    // ---- C13: the warehouse pattern — one floor, the offices, the flags ----
+    const commercialPricing = commercialPricingFrom(settingValue((await loadPricingContext(db)).settings, "commercial_pricing"));
+    const floor = warehouseFloorArea(() => nextId++, state.commercial, commercialPricing);
+    areas.push(floor.area);
+    deferred.push(...floor.deferred);
+    const rooms = warehouseRoomList(state.commercial, segmentByKey(segments, "office"));
+    if (rooms.length) {
+      const x = commercialExtraction(rooms, { heightM: null, windows: false });
+      const draft = buildDraft(x, rules, aliases, { startId: nextId, defectRates });
+      markStarterProvenance(draft.areas);
+      areas.push(...draft.areas);
+      skipped.push(...draft.skipped);
+      deferred.push(...draft.deferred);
+      assumedCount += draft.assumedCount;
+    }
+    assumedCount += 1;
   } else if (segment && state.commercial) {
     // ---- C12: the commercial starter — counts × typicals, the open space ----
     const rooms = commercialRoomList(segment, state.commercial);
@@ -517,7 +535,7 @@ export async function POST(request: Request) {
   }
 
   const commercialLoading = segment && state.commercial
-    ? hourLoadingFor(state.commercial, commercialPricingFrom(settingValue(ctx.settings, "commercial_pricing")))
+    ? hourLoadingFor({ hours: state.commercial.hours, occ: state.commercial.occ, operating: isWarehouse(segment) && state.commercial.operating }, commercialPricingFrom(settingValue(ctx.settings, "commercial_pricing")))
     : 1;
   const builderState: Record<string, unknown> = {
     blocks: merged.areas,

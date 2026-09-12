@@ -2,6 +2,9 @@ import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { openSpaceDimensions, type OpenCeiling, type OpenHeightBracket, type OpenSizeBracket } from "@/lib/pricing/commercial";
 import type { QuickLook } from "./quick-look";
+import {
+  DEFAULT_WAREHOUSE_ANSWERS, warehouseAssumedList, warehouseRestatement, warehouseSurfaceKeys, type WarehouseAnswers,
+} from "./warehouse";
 
 /**
  * C12 — commercial SEGMENTS AS DATA (estimator journey v2 addendum S6a, §4.11).
@@ -306,7 +309,8 @@ export const OPEN_CEILINGS: { value: OpenCeiling; label: string }[] = [
   { value: "tiles", label: "Tiles — not painted" }, { value: "plaster", label: "Plaster — painted" }, { value: "exposed", label: "Exposed — not included" },
 ];
 
-/** What the commercial screens write to the state (`state.commercial`). */
+/** What the commercial screens write to the state (`state.commercial`).
+ * C13: the warehouse pattern's answers ride the same block (lib/wizard/warehouse.ts). */
 export type CommercialAnswers = {
   segment: string;
   kind: string | null;
@@ -318,7 +322,11 @@ export type CommercialAnswers = {
   surfaces: string[];
   hours: string;
   occ: string | null;
-};
+} & WarehouseAnswers;
+
+export function isWarehouse(seg: Pick<Segment, "config"> | null | undefined): boolean {
+  return seg?.config.pattern === "warehouse";
+}
 
 /** The prototype's defaults: every count at its seed value, the first tile of each row on. */
 export function defaultCommercialAnswers(seg: Segment): CommercialAnswers {
@@ -335,6 +343,7 @@ export function defaultCommercialAnswers(seg: Segment): CommercialAnswers {
     surfaces: (c.surf ?? []).slice(0, 6),
     hours: c.hours[0]?.[0] ?? "",
     occ: c.occ?.[1][0]?.[0] ?? null,
+    ...DEFAULT_WAREHOUSE_ANSWERS,
   };
 }
 
@@ -358,7 +367,9 @@ export function kindLeavesForBrief(seg: Segment, kind: string | null): string | 
  * those become flagged lines, never a guess. Walls ride whenever nothing
  * mapped, so a job can never price to nothing by an unlucky set of ticks.
  */
-export function commercialSurfaceKeys(seg: Segment, a: Pick<CommercialAnswers, "surfaces">): { keys: string[]; unmapped: string[] } {
+export function commercialSurfaceKeys(seg: Segment, a: Pick<CommercialAnswers, "surfaces"> & Partial<WarehouseAnswers>): { keys: string[]; unmapped: string[] } {
+  // C13: the warehouse pattern's ticks are the industrial surfaces and materials.
+  if (isWarehouse(seg)) return { keys: warehouseSurfaceKeys({ ...DEFAULT_WAREHOUSE_ANSWERS, ...a }), unmapped: [] };
   const map = seg.config.surfKeys ?? {};
   const keys: string[] = [];
   const unmapped: string[] = [];
@@ -432,6 +443,10 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 /** "Based on an office with 4 private offices, 1 open-plan area and 1 meeting room…" */
 export function commercialRestatement(seg: Segment, a: CommercialAnswers, q: Pick<QuickLook, "changing" | "bold" | "undecided" | "condition">): string {
   const c = seg.config;
+  if (isWarehouse(seg)) {
+    const changing = q.undecided || q.changing.walls || q.changing.ceilings || q.changing.trims;
+    return warehouseRestatement(a, !changing ? "same" : q.bold ? "bold" : "new", q.condition);
+  }
   const counted = (c.counts ?? [])
     .map(([key, , , def]) => ({ n: a.counts[key] ?? def, typ: seg.typicals.rooms[key] }))
     .filter((x) => x.n > 0 && x.typ)
@@ -455,6 +470,7 @@ export type CommercialAssumption = { key: string; what: string; why: string; run
 /** The segment assume list — what we decided for them, each a tap away. */
 export function commercialAssumedList(seg: Segment, a: CommercialAnswers, photos: number): CommercialAssumption[] {
   const c = seg.config;
+  if (isWarehouse(seg)) return warehouseAssumedList(a);
   const out: CommercialAssumption[] = [];
   const n = openCount(seg, a);
   out.push({

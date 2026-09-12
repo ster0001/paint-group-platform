@@ -10,7 +10,7 @@ import {
   toggleAccess, toggleIn, toggleMaterial,
   type ExteriorQuickLook,
 } from "@/lib/wizard/exterior-quick-look";
-import { AreasScreen, JobScreen, SegmentScreen } from "./CommercialScreens";
+import { AreasScreen, JobScreen, SegmentScreen, WarehouseScreen } from "./CommercialScreens";
 import type { CommercialAnswers, Segment } from "@/lib/wizard/segments";
 
 /** C12: what the commercial screens need from WizardApp. */
@@ -77,6 +77,7 @@ export default function QuickLook({
   stepsTotal: number;
 }) {
   const last = quick.jobType === "interior" ? step === "condition" || step === "com_job" : step === "outside";
+  const pattern = commercial?.segment?.config.pattern === "warehouse" ? "warehouse" as const : "areas" as const;
 
   return (
     <div className="wz-wrap wz-quick" data-quick-step={step}>
@@ -92,7 +93,7 @@ export default function QuickLook({
             * count is computed, never typed.
             */}
           <p className="wz-sub">
-            {stepCount(quick.jobType, quick.propertyKind)} quick screens, then a guide range. Everything after that is
+            {stepCount(quick.jobType, quick.propertyKind, pattern)} quick screens, then a guide range. Everything after that is
             optional — and nothing you say here is a commitment.
           </p>
           {addressField}
@@ -205,6 +206,13 @@ export default function QuickLook({
           onAnswers={commercial.onAnswers}
           photoCount={commercial.photoCount}
           onPhotos={commercial.onPhotos}
+        />
+      )}
+      {step === "com_warehouse" && commercial?.segment && commercial.answers && (
+        <WarehouseScreen
+          segment={commercial.segment}
+          answers={commercial.answers}
+          onAnswers={commercial.onAnswers}
         />
       )}
       {step === "com_job" && commercial?.segment && commercial.answers && (

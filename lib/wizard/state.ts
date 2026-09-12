@@ -170,6 +170,21 @@ export const wizardStateShapeSchema = z.object({
     surfaces: z.array(z.string().max(60)).max(20).default([]),
     hours: z.string().max(30).default(""),
     occ: z.string().max(30).nullable().default(null),
+    /** C13 — the warehouse pattern (S6b). Present only on a warehouse row. */
+    areaBracket: z.enum(["500", "1000", "2500", "5000", "9000"]).default("1000"),
+    lengthM: z.number().min(1).max(500).nullable().default(null),
+    widthM: z.number().min(1).max(500).nullable().default(null),
+    roofHeight: z.enum(["4", "6", "9", "12"]).default("6"),
+    /** The industrial surface keys ticked (lib/wizard/warehouse.ts). */
+    whSurfaces: z.array(z.enum(["walls", "roof", "steel", "roller", "personnel", "bollards", "lines", "offices", "mezz", "amenities"])).max(12).default([]),
+    rollerDoors: z.number().int().min(0).max(60).default(2),
+    personnelDoors: z.number().int().min(0).max(60).default(4),
+    offices: z.number().int().min(0).max(60).default(2),
+    /** Wall materials, nothing pre-ticked (the C8b ruling). */
+    materials: z.array(z.enum(["precast", "blockwork", "sheeting", "cement_sheet", "plasterboard", "unsure"])).max(6).default([]),
+    racking: z.enum(["no", "some", "most"]).default("no"),
+    operating: z.boolean().default(false),
+    liftOnSite: z.boolean().default(false),
   }).nullable().default(null),
 
   surfaces: z.array(surfaceKeySchema).min(1),
