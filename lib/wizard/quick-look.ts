@@ -398,7 +398,7 @@ export function assumedList(q: QuickLook): Assumption[] {
  * after the place screen, then the segment's two screens (`s-com-areas`,
  * `s-com-job`) — the areas and job pattern, rendered from the row.
  */
-export const QUICK_LOOK_STEPS = ["start", "both", "place", "segment", "com_areas", "com_job", "job", "condition", "outside"] as const;
+export const QUICK_LOOK_STEPS = ["start", "both", "place", "segment", "com_areas", "com_warehouse", "com_job", "job", "condition", "outside"] as const;
 export type QuickLookStep = (typeof QUICK_LOOK_STEPS)[number];
 
 /**
@@ -420,10 +420,13 @@ export type QuickLookStep = (typeof QUICK_LOOK_STEPS)[number];
  * computed counts drift; this is the only place either is allowed to come from.
  */
 const COUNT_WORD = ["", "One", "Two", "Three", "Four", "Five", "Six"] as const;
-export function stepCount(jobType: QuickLook["jobType"], propertyKind: QuickLook["propertyKind"] = "house"): string {
-  const n = stepsFor(jobType, propertyKind).filter((s) => s !== "both").length;
+export function stepCount(jobType: QuickLook["jobType"], propertyKind: QuickLook["propertyKind"] = "house", pattern: CommercialPattern = "areas"): string {
+  const n = stepsFor(jobType, propertyKind, pattern).filter((s) => s !== "both").length;
   return COUNT_WORD[n] ?? String(n);
 }
+
+/** C13: which commercial pattern the chosen row renders — the areas + job screens, or the warehouse screen. */
+export type CommercialPattern = "areas" | "warehouse";
 
 /**
  * C12: a commercial job walks start → place → segment, then (inside, on a
@@ -431,9 +434,9 @@ export function stepCount(jobType: QuickLook["jobType"], propertyKind: QuickLook
  * segment screen — every commercial exterior is priced on site — so those
  * branches END there; `quickNext` hands off rather than advancing.
  */
-export function stepsFor(jobType: QuickLook["jobType"], propertyKind: QuickLook["propertyKind"] = "house"): QuickLookStep[] {
+export function stepsFor(jobType: QuickLook["jobType"], propertyKind: QuickLook["propertyKind"] = "house", pattern: CommercialPattern = "areas"): QuickLookStep[] {
   if (propertyKind === "commercial") {
-    if (jobType === "interior") return ["start", "place", "segment", "com_areas", "com_job"];
+    if (jobType === "interior") return ["start", "place", "segment", pattern === "warehouse" ? "com_warehouse" : "com_areas", "com_job"];
     if (jobType === "both") return ["start", "both", "place", "segment"];
     return ["start", "place", "segment"];
   }

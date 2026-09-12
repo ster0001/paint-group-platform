@@ -115,10 +115,15 @@ export function commercialPricingFrom(value: unknown): CommercialPricing {
  * Rounded to 4 places so two evaluations of the same answers cannot differ
  * in the last bit.
  */
-export function hourLoadingFor(a: { hours: string; occ: string | null }, p: CommercialPricing = DEFAULT_COMMERCIAL_PRICING): number {
+export function hourLoadingFor(
+  a: { hours: string; occ: string | null; operating?: boolean | null },
+  p: CommercialPricing = DEFAULT_COMMERCIAL_PRICING,
+): number {
   const base = p.loadings[a.hours] ?? 1;
   const occ = a.occ === "occ" ? (p.loadings.occupied ?? 1) : 1;
-  return Math.round(base * occ * 10000) / 10000;
+  // C13: a warehouse operating during the works — staged, exclusion zones.
+  const operating = a.operating ? (p.loadings.operating ?? 1) : 1;
+  return Math.round(base * occ * operating * 10000) / 10000;
 }
 
 /**
@@ -206,4 +211,48 @@ export function applyOpenSpace(areas: DraftArea[], o: OpenSpaceOptions): OpenSpa
     });
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// C13 — the warehouse pattern (addendum §4.13, S6b)
+// ---------------------------------------------------------------------------
+
+export type WarehouseAreaBracket = "500" | "1000" | "2500" | "5000" | "9000";
+export type WarehouseHeightBracket = "4" | "6" | "9" | "12";
+export type RackingAnswer = "no" | "some" | "most";
+
+/**
+ * Bracket → the prototype's L × W pair (the seed the sides of a warehouse
+ * are sized from when nothing is typed). "Over 5,000" is the prototype's
+ * multi-bay figure; the assume list says so.
+ */
+export const WAREHOUSE_AREA_DIMS: Record<WarehouseAreaBracket, { L: number; W: number }> = {
+  "500": { L: 20, W: 20 }, "1000": { L: 30, W: 25 }, "2500": { L: 45, W: 40 }, "5000": { L: 65, W: 55 }, "9000": { L: 90, W: 75 },
+};
+
+/** Bracket → height to the underside of the roof, m. */
+export const WAREHOUSE_HEIGHT_M: Record<WarehouseHeightBracket, number> = { "4": 3.6, "6": 5, "9": 7.5, "12": 10.5 };
+
+/** The floor's plan dimensions: typed L × W beats the bracket. */
+export function warehouseDimensions(bracket: WarehouseAreaBracket, lengthM: number | null | undefined, widthM: number | null | undefined): { L: number; W: number; typed: boolean } {
+  if (lengthM != null && widthM != null && lengthM > 0 && widthM > 0) return { L: round2(lengthM), W: round2(widthM), typed: true };
+  const d = WAREHOUSE_AREA_DIMS[bracket] ?? WAREHOUSE_AREA_DIMS["1000"];
+  return { L: d.L, W: d.W, typed: false };
+}
+
+/**
+ * ⚑22 — racking against the walls → the share of the wall area we paint, in
+ * whole percent for the wall line's `sharePct` (the engine scales the DERIVED
+ * quantity, so a confirmed length later still carries the share). "No" is
+ * the full wall; the Settings row holds the other two.
+ */
+export function rackingSharePct(racking: RackingAnswer, p: CommercialPricing = DEFAULT_COMMERCIAL_PRICING): number {
+  if (racking === "no") return 100;
+  const f = p.racking[racking];
+  return Math.round((f != null && f > 0 && f <= 1 ? f : 1) * 100);
+}
+
+/** Is a platform or lift needed at this roof height? The customer's own lift waives it. */
+export function needsEwpAtHeight(heightM: number, p: CommercialPricing = DEFAULT_COMMERCIAL_PRICING, liftOnSite = false): boolean {
+  return heightM > p.ewpHeightThresholdM && !liftOnSite;
 }

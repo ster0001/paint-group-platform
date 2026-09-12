@@ -59,7 +59,7 @@ import Wordmark from "./Wordmark";
 import ChatWidget from "./ChatWidget";
 import { gateMessage, routeCommercial } from "@/lib/wizard/commercial";
 import {
-  DEFAULT_SEGMENTS, commercialSurfaceKeys, defaultCommercialAnswers, segmentByKey, segmentTiles,
+  DEFAULT_SEGMENTS, commercialSurfaceKeys, defaultCommercialAnswers, isWarehouse, segmentByKey, segmentTiles,
   type CommercialAnswers, type Segment,
 } from "@/lib/wizard/segments";
 
@@ -235,6 +235,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     ...DEFAULT_QUICK_LOOK,
     ...(intent?.propertyKind ? { propertyKind: intent.propertyKind } : {}),
   };
+  /** C13: which commercial screens the chosen row walks — the warehouse pattern has its own. */
+  const commercialPattern = isWarehouse(segmentByKey(segments, state.customer?.commercialSegment)) ? "warehouse" as const : "areas" as const;
   /**
    * The quick look's answers, written to the state as they are tapped.
    *
@@ -389,7 +391,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    * other half of §9.7, still blocked on the per-elevation allowances spec.
    */
   const quickActive = isCustomer && entry === "questions" && !quickDone;
-  const lastPage = quickActive ? stepsFor(quick.jobType, quick.propertyKind).length : pageKeys.length;
+  const lastPage = quickActive ? stepsFor(quick.jobType, quick.propertyKind, commercialPattern).length : pageKeys.length;
   const pageKey: PageKey = pageKeys[Math.min(page, lastPage) - 1];
   const chooseEntry = (e: EntryChoice) => {
     setQuickDone(true);
@@ -1057,7 +1059,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const lastScreen = screen === "processing"
     ? "processing"
     : quickActive
-      ? `quick:${stepsFor(quick.jobType, quick.propertyKind)[Math.min(Math.max(page, 1), stepsFor(quick.jobType, quick.propertyKind).length) - 1]}`
+      ? `quick:${stepsFor(quick.jobType, quick.propertyKind, commercialPattern)[Math.min(Math.max(page, 1), stepsFor(quick.jobType, quick.propertyKind, commercialPattern).length) - 1]}`
       : `page:${pageKeys[Math.min(page, pageKeys.length) - 1] ?? page}`;
 
   /**
@@ -1273,7 +1275,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
 
   // ---- the quick look -------------------------------------------------------
 
-  const quickSteps = stepsFor(quick.jobType, quick.propertyKind);
+  const quickSteps = stepsFor(quick.jobType, quick.propertyKind, commercialPattern);
   const quickStep = quickSteps[Math.min(Math.max(page, 1), quickSteps.length) - 1];
 
   /**
@@ -1373,6 +1375,16 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     if (quickStep === "com_areas") {
       const routing = routeCommercial(state.customer?.commercialSegment, { segments, kind: state.commercial?.kind ?? null, jobType: quick.jobType });
       if (!routing.canPriceOnline) { commercialHandOff(routing); return; }
+      setPage(page + 1);
+      window.scrollTo({ top: 0 });
+      return;
+    }
+    // C13: the warehouse screen has to name something being painted.
+    if (quickStep === "com_warehouse") {
+      if ((state.commercial?.whSurfaces ?? []).length === 0) {
+        setError("Tick at least one thing we're painting.");
+        return;
+      }
       setPage(page + 1);
       window.scrollTo({ top: 0 });
       return;

@@ -34,6 +34,9 @@ export type DraftSurface = {
   measureL: number | null;
   measureH: number | null;
   qtyOverride: number | null;
+  /** C13: a share of the DERIVED quantity in whole percent (the builder's own
+   * field) — a warehouse wall behind racking is painted above it. */
+  sharePct?: number | null;
   rateOverride: number | null;
   paintingHrOverride: number | null;
   prepHr: number;

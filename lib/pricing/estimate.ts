@@ -355,7 +355,14 @@ export function priceSurface(
       ? Math.round(s.customRate * 100)
       : chargeOutCents(area.type, ctx.rateItems, rates.hourlyRateOverride);
 
-  const item = items.get(`${area.type}::${s.code}`);
+  /**
+   * C13: an industrial INTERIOR (a warehouse floor) is painted at the card's
+   * cladding and door rows, which exist only on the Exterior side. When the
+   * area's own side has no row for a code, the other side's row prices it —
+   * the rate is the rate; the charge-out stays the area's own. A code on
+   * neither side is what it always was: prep hours only.
+   */
+  const item = items.get(`${area.type}::${s.code}`) ?? items.get(`${area.type === "Interior" ? "Exterior" : "Interior"}::${s.code}`);
   if (!item) {
     // No rate item: prep hours are still chargeable, nothing else is.
     const labour = Math.round(s.prepHr * chargeBase);
