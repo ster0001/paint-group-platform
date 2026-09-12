@@ -2,8 +2,8 @@
 
 import type { ReactNode } from "react";
 import {
-  COLOUR_INTENTS, CONDITION_BANDS, JOB_TYPES, OCCUPIED, PROPERTY_KINDS,
-  SCOPE_PRESETS, STOREYS, stepCount, type Choice, type QuickLook, type QuickLookStep,
+  CHANGING_GROUPS, CONDITION_BANDS, JOB_TYPES, OCCUPIED, PROPERTY_KINDS,
+  SCOPE_PRESETS, STOREYS, stepCount, toggleChanging, type Choice, type QuickLook, type QuickLookStep,
 } from "@/lib/wizard/quick-look";
 import {
   EXTERIOR_PROMISE, EXT_ACCESS, EXT_CONDITIONS, EXT_STOREYS, EXT_SUBSTRATES, EXT_TARGETS,
@@ -178,8 +178,28 @@ export default function QuickLook({
           </p>
           <Cards options={SCOPE_PRESETS} value={quick.scope} onPick={(scope) => onQuick({ scope })} name="scope" />
 
-          <p className="wz-qhead">Colours</p>
-          <Cards options={COLOUR_INTENTS} value={quick.colour} onPick={(colour) => onQuick({ colour })} name="colour" />
+          {/*
+            C9 (v2.3, prototype `s-job`) — "What's changing colour?" replaces
+            "how many coats" and the single colour picker. The customer ticks
+            which parts get a new colour, says whether any go much lighter or
+            bold, and can admit they are still choosing. The ENGINE derives
+            coats and prep per surface group from that (lib/pricing/systems.ts);
+            the customer never referees a paint system.
+          */}
+          <p className="wz-qhead">What&rsquo;s changing colour?</p>
+          <p className="wz-chint" style={{ marginTop: 0, marginBottom: 8 }}>
+            Tick what&rsquo;s getting a new colour. Anything you leave unticked is painted the same colour it is now.
+          </p>
+          <Multi options={CHANGING_GROUPS} on={(["walls", "ceilings", "trims"] as const).filter((k) => quick.changing[k])} name="changing"
+            onPick={(k) => onQuick({ changing: toggleChanging(quick, k) })} />
+
+          <p className="wz-qhead">Any of them going much lighter, or a bold colour? <span className="wz-opt">NEEDS AN UNDERCOAT FIRST — WE ALLOW FOR IT</span></p>
+          <Chips options={[{ value: "no", label: "No" }, { value: "yes", label: "Yes" }]} value={quick.bold ? "yes" : "no"}
+            onPick={(v) => onQuick({ bold: v === "yes" })} name="bold" />
+
+          <p className="wz-qhead">Still choosing colours? <span className="wz-opt">FINE — WE ALLOW FOR NEW COLOURS AND YOU DECIDE LATER</span></p>
+          <Chips options={[{ value: "known", label: "I know roughly" }, { value: "undecided", label: "Still choosing" }]} value={quick.undecided ? "undecided" : "known"}
+            onPick={(v) => onQuick({ undecided: v === "undecided" })} name="choosing" />
         </>
       )}
 

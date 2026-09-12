@@ -22,6 +22,7 @@ import { backfillTypicalSizes, markStarterProvenance, starterExtraction, starter
 import { applyConditionPricing, applyExteriorAnswers, type MeasuredSides } from "@/lib/wizard/exteriorAnswers";
 import { defaultSidesLoop } from "@/lib/wizard/sides";
 import { customerPayload, editorPayload } from "@/lib/wizard/view";
+import { paintSystemsView } from "@/lib/wizard/systems-view";
 import {
   GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails, guardrailWhy,
   policyFromSettings, serviceAreaFromSettings, settingValue,
@@ -817,11 +818,15 @@ export async function POST(request: Request) {
           exterior: editorPayload(merged.areas.filter((a) => a.type === "Exterior"), ctx, adjustmentsFrom(builderState), merged.deferred.filter((d) => d.areaId != null && merged.areas.some((a) => a.type === "Exterior" && Number(a.id) === d.areaId))),
         }
       : null;
+    // C9 — "What we'll do": the same derivation the editor and the finish
+    // line read, so the reveal's panel cannot disagree with either.
+    const doLines = paintSystemsView(effectiveState, merged.areas, paintSystems)
+      .map((l) => ({ group: l.group, title: l.title, sentence: l.sentence, coats: l.coats, undercoat: l.undercoat, review: l.review }));
     // The customer's view: a range, inclusions, confidence — and nothing else.
     return NextResponse.json({
       estimateId,
       planUrl,
-      ...customerPayload(payload, merged.areas, decision, bands, parts),
+      ...customerPayload(payload, merged.areas, decision, bands, parts, doLines),
     });
   }
 

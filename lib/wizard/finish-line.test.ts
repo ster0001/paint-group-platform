@@ -9,7 +9,7 @@ const payload = (over: Partial<CustomerPayload> = {}): CustomerPayload => ({
   outcome: "reveal", rooms: [], rangeLoCents: 940_000, rangeHiCents: 1_290_000,
   centralCents: 1_115_000, bandPct: 8, tightBand: false, accuracyPct: 82, canAccept: false,
   walkthroughRequired: true, heightUnconfirmed: false, exteriorWidthFromPlan: false,
-  exteriorWidthMissing: false, confirmOnSite: [], photosPendingSignOff: false, parts: null, ...over,
+  exteriorWidthMissing: false, confirmOnSite: [], photosPendingSignOff: false, parts: null, systems: [], ...over,
 });
 
 const sys = (title: string, coats: number, undercoat = false): PaintSystemLine => ({

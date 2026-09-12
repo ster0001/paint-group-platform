@@ -30,7 +30,7 @@ test("nine taps to a range, and no email is asked before it", async ({ page }) =
   await tap("ql-kind-house"); await tap("ql-bedrooms-3"); await tap("ql-storeys-single");
   await tap("ql-next");
   await expect(page.locator('input[type="email"]')).toHaveCount(0);
-  await tap("ql-scope-whole"); await tap("ql-colour-same");
+  await tap("ql-scope-whole"); await tap("ql-changing-walls"); // C9: untick = same colour
   await tap("ql-next");
   await expect(page.locator('input[type="email"]')).toHaveCount(0);
   await tap("ql-condition-good"); await tap("ql-occupied-no");

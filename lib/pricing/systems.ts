@@ -492,6 +492,15 @@ export function paintSystemsFrom(value: unknown): PaintSystems {
 /** What the customer said, plus the three flags the systems screen collects. */
 export type SystemAnswers = {
   colourIntent: ColourIntent;
+  /**
+   * C9 (v2.3) — the colour intent PER GROUP, derived from "what's changing
+   * colour?" on the job screen: unticked → same, ticked → new, ticked and
+   * "much lighter or bold" → the undercoat system. When a group is named
+   * here it wins over the job-wide `colourIntent`; a group that is not named
+   * falls back to it, so every estimate made before the question was asked
+   * derives exactly as it did.
+   */
+  intents?: Partial<Record<SystemGroup, ColourIntent>>;
   condition: ConditionBand;
   /**
    * ⚑5. "unsure" is the DEFAULT and is not a failure: it prices as "no"
@@ -590,9 +599,11 @@ export function deriveSystem(
    * and doors. "As standard" means the standard for that surface, not two
    * everywhere: dropping a trim's undercoat would under-quote it.
    */
-  const intent: ColourIntent = answers.darkToLight
-    ? "bold"
-    : answers.colourIntent === "bold" ? "new" : answers.colourIntent;
+  const jobWide: ColourIntent = answers.colourIntent === "bold" ? "new" : answers.colourIntent;
+  // The TICK earns the coat (Tom, 10 Sep): a surface ticked dark-to-light is
+  // the bold system whatever the group says; otherwise the group's own
+  // intent (C9) when the question was asked, else the job-wide one.
+  const intent: ColourIntent = answers.darkToLight ? "bold" : (answers.intents?.[group] ?? jobWide);
   const base = systems[group][intent];
 
   let coats = base.coats;
