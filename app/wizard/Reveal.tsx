@@ -91,6 +91,20 @@ export default function Reveal({
       <p className="wz-range-note">
         Includes GST. Excludes access equipment and structural repairs.
       </p>
+      {/* C8 (⚑25): a "both" job — inside and outside, each its own range; the
+          figure above is the two together. */}
+      {payload.parts && (
+        <div className="wz-parts" data-testid="reveal-parts">
+          <div className="wz-part" data-testid="reveal-part-interior">
+            <span>Inside</span>
+            <b>{fmt(payload.parts.interior.rangeLoCents)} – {fmt(payload.parts.interior.rangeHiCents)}</b>
+          </div>
+          <div className="wz-part" data-testid="reveal-part-exterior">
+            <span>Outside</span>
+            <b>{fmt(payload.parts.exterior.rangeLoCents)} – {fmt(payload.parts.exterior.rangeHiCents)}</b>
+          </div>
+        </div>
+      )}
 
       {/* Guide → Detailed → Confirmed. The plan's one piece of progression:
           "the only progression the customer sees is the range narrowing and

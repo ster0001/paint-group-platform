@@ -123,13 +123,35 @@ export type CustomerPayload = {
   confirmOnSite: string[];
   /** Tom, 7 Sep: condition photos are with the estimator — costs pending sign-off. */
   photosPendingSignOff: boolean;
+  /**
+   * C8 (⚑25) — a "both" job shows two ranges, inside and outside, with the
+   * whole-job range above them as the combined total. Each part is priced on
+   * its own tree by the same engine and banded by its own accuracy; the parts
+   * are ABSENT (not zero) for a job that is only one of the two.
+   */
+  parts: { interior: CustomerRange; exterior: CustomerRange } | null;
 };
+
+export type CustomerRange = { rangeLoCents: number; rangeHiCents: number; bandPct: number };
+
+/**
+ * One part of a "both" job as a range: the same band rule and the same
+ * outward rounding as the whole, on that part's own payload. No arithmetic on
+ * money happens here — `rangeFromTotal` is the one place that rounds.
+ */
+export function customerRange(payload: Pick<WizardEditorPayload, "totals" | "accuracyPct">, bands: BandSettings): CustomerRange {
+  const bandPct = rangeBandPct(payload.accuracyPct, bands);
+  const { loCents, hiCents } = rangeFromTotal(payload.totals.totalCents, bandPct);
+  return { rangeLoCents: loCents, rangeHiCents: hiCents, bandPct };
+}
 
 export function customerPayload(
   payload: WizardEditorPayload,
   blocks: unknown[],
   decision: GuardrailDecision,
   bands: BandSettings,
+  /** C8: the two halves of a "both" job, each priced on its own tree. */
+  parts: { interior: WizardEditorPayload; exterior: WizardEditorPayload } | null = null,
 ): CustomerPayload {
   const loose = blocks as LooseBlock[];
   const rooms: CustomerRoomView[] = payload.rooms.map((r) => {
@@ -181,6 +203,7 @@ export function customerPayload(
               : `${d.room}: ${d.what} — confirmed before your final quote`,
     ),
     photosPendingSignOff: payload.deferred.some((d) => d.kind === "photo_review"),
+    parts: parts ? { interior: customerRange(parts.interior, bands), exterior: customerRange(parts.exterior, bands) } : null,
   };
 }
 

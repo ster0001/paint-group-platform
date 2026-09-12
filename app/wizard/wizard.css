@@ -955,3 +955,30 @@
 .wz .wz-sent-status { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--wz-line, #242B32); border-radius: 10px; background: rgba(59,216,233,.05); }
 .wz .wz-sent-status b { display: block; font-size: 15px; color: var(--wz-text, #EDF0F2); }
 .wz .wz-sent-status span { display: block; margin-top: 3px; font-size: 13px; line-height: 1.45; color: var(--wz-muted, #8C959D); }
+
+/* ---- C8: screen-1 card, the Save & book pill and sheet, the "both" choice ---- */
+.wz .wz-rather { margin-top: 22px; padding: 16px; border: 1px dashed var(--line); border-radius: 14px; }
+.wz .wz-rather b { display: block; font-size: 15px; }
+.wz .wz-rather p { margin: 4px 0 12px; font-size: 13px; color: var(--muted); line-height: 1.45; }
+.wz .wz-rather-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.wz .wz-rather-row .wz-btn { flex: 1; text-align: center; text-decoration: none; }
+.wz .wz-bs2 { background: var(--panel); color: var(--text); border-color: var(--line); }
+.wz .wz-book { background: rgba(59,216,233,.08); border-color: var(--cyan); color: var(--cyan); margin-left: auto; }
+.wz .wz-top .wz-book { margin-right: 8px; }
+.wz .wz-sheetback { position: fixed; inset: 0; background: rgba(5,6,7,.72); z-index: 60; display: flex; align-items: flex-end; justify-content: center; }
+.wz .wz-sheet { width: 100%; max-width: 560px; max-height: 92vh; overflow-y: auto; background: var(--panel); border-top: 1px solid var(--line); border-radius: 22px 22px 0 0; padding: 22px 20px 30px; }
+.wz .wz-sheet h2 { margin: 0 0 6px; font-size: 20px; }
+.wz .wz-sheet .wz-sub { margin-bottom: 14px; }
+.wz .wz-slots { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 6px 0 14px; }
+.wz .wz-slot { text-align: left; padding: 10px 12px; border-radius: 11px; border: 1px solid var(--line); background: transparent; color: var(--text); font-family: var(--wz-sans); cursor: pointer; }
+.wz .wz-slot.on { border-color: var(--cyan); background: rgba(59,216,233,.07); }
+.wz .wz-slot b { display: block; font-size: 13px; }
+.wz .wz-slot span { font-size: 12px; color: var(--muted); }
+.wz .wz-sheet-row { display: flex; gap: 10px; margin-top: 6px; }
+.wz .wz-sheet-close { display: block; margin: 14px auto 0; background: none; border: none; color: var(--muted); font-size: 12px; letter-spacing: .08em; cursor: pointer; }
+.wz .wz-assisted { margin: 0 20px; padding: 10px 14px; border: 1px solid var(--cyan); border-radius: 10px; background: rgba(59,216,233,.07); font-size: 13px; }
+.wz .wz-assisted b { color: var(--cyan); }
+.wz .wz-parts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 8px 0 4px; }
+.wz .wz-part { padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; }
+.wz .wz-part span { display: block; font-size: 12px; color: var(--muted); }
+.wz .wz-part b { display: block; font-size: 18px; margin-top: 2px; }

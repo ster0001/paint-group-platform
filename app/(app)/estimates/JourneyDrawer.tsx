@@ -63,7 +63,11 @@ export default function JourneyDrawer({ j, onClose }: { j: WizardJourney; onClos
           ))}
         </ol>
         <p className="mt-2 text-xs text-gray-400">Time counts only while the tab was open and they were typing or scrolling.</p>
-        <div className="mt-auto pt-6">
+        <div className="mt-auto flex flex-wrap gap-4 pt-6">
+          {/* C8 — pick the session up where the customer left it (Save & book). */}
+          {!j.convertedAt && (
+            <a href={`/estimate?session=${j.id}`} className="text-sm font-medium text-cyan-700 hover:underline" data-testid="journey-open-session">Open the session →</a>
+          )}
           {j.accountId && <a href={`/crm/customers/${j.accountId}`} className="text-sm font-medium text-gray-700 hover:underline">Open in the CRM →</a>}
         </div>
       </aside>
