@@ -3,6 +3,8 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireStaff } from "@/lib/supabase/guards";
 import { reportError } from "@/lib/monitoring/report";
+import { makeMeasuredTree } from "@/lib/wizard/measured-tree";
+import type { DraftArea } from "@/lib/extract/draft";
 import { logCrmEvent } from "@/lib/crm/events";
 import { canAct, priceToFix, type ConfirmationRow } from "@/lib/wizard/confirmation-actions";
 
@@ -128,16 +130,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (action === "fix_price") {
     try {
       const { data: est } = await supabase.from("estimates")
-        .select("builder_state, account_id").eq("id", row.estimate_id).maybeSingle();
-      const tree = (est?.builder_state as { blocks?: unknown[] } | null)?.blocks ?? null;
-      if (tree && est?.account_id) {
-        const { data: prop } = await supabase.from("properties")
-          .select("id").eq("customer_id", est.account_id).limit(1).maybeSingle();
-        if (prop?.id) {
-          await supabase.from("properties")
-            .update({ measured_tree: tree, measured_at: new Date().toISOString() })
-            .eq("id", prop.id);
-        }
+        .select("builder_state, account_id, property_id").eq("id", row.estimate_id).maybeSingle();
+      const blocks = (est?.builder_state as { blocks?: unknown[] } | null)?.blocks ?? null;
+      /**
+       * C15: the tree goes to the ESTIMATE's property. C6 wrote it to the
+       * account's first property, which for a trade account with a portfolio
+       * was whichever address sorted first — Elm Grove's corridors on Beavers
+       * Road's file. The account's property is the fallback only when the
+       * account has exactly one, so a single-address household still lands.
+       */
+      let propertyId: string | null = (est?.property_id as string | null) ?? null;
+      if (!propertyId && est?.account_id) {
+        const { data: props } = await supabase.from("properties")
+          .select("id").eq("account_id", est.account_id).limit(2);
+        if ((props ?? []).length === 1) propertyId = props![0].id as string;
+      }
+      if (blocks && blocks.length && propertyId) {
+        const tree = makeMeasuredTree(blocks as DraftArea[], staff?.id ?? null, row.estimate_id);
+        await supabase.from("properties")
+          .update({ measured_tree: tree, measured_at: tree.measuredAt })
+          .eq("id", propertyId);
       }
     } catch (e) {
       reportError(e, { where: "confirmations.measuredTree", bestEffort: true, extra: { id } });

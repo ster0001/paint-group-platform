@@ -37,6 +37,8 @@ export type CustomerTile = {
   doorScope?: DoorScope;
   /** Walls only (Tom, 31 Aug): how much of the room's walls — 100/75/50/25. */
   wallsPct?: number;
+  /** C15: the coats on this surface's first line, for the spec sheet's cell. */
+  coats?: number;
 };
 
 /**
@@ -142,11 +144,13 @@ export function customerRoomView(block: LooseBlock, rules: ScopeRule[]): Custome
     let count = 0;
     let styleToConfirm = false;
     let sharePct: number | undefined;
+    let coats: number | undefined;
     for (const s of surfaces) {
       const k = substrateKeyForRateCode(String(s.code ?? ""));
       if (k === key) {
         on = true;
         count += Number(s.count) || 1;
+        if (coats === undefined && Number(s.coats) > 0) coats = Number(s.coats);
         const sp = Number((s as { sharePct?: unknown }).sharePct);
         if ([25, 50, 75].includes(sp)) sharePct = sp;
         // ai_assumed + assumed style = priced at the default rate (R1.2).
@@ -154,7 +158,7 @@ export function customerRoomView(block: LooseBlock, rules: ScopeRule[]): Custome
         if (s.origin === "ai_assumed" && assumed.includes("style")) styleToConfirm = true;
       }
     }
-    return { on, count: Math.max(1, count), styleToConfirm, sharePct };
+    return { on, count: Math.max(1, count), styleToConfirm, sharePct, coats };
   };
 
   const scope = roomDoorScope(block);
@@ -173,6 +177,7 @@ export function customerRoomView(block: LooseBlock, rules: ScopeRule[]): Custome
       ...(st.styleToConfirm ? { styleToConfirm: true } : {}),
       ...(key === "doors" ? { doorScope: scope } : {}),
       ...(key === "walls" && st.on ? { wallsPct: st.sharePct ?? 100 } : {}),
+      ...(st.on && st.coats !== undefined ? { coats: st.coats } : {}),
       countable,
       // A core surface is never buried in the tail: the whole point is that
       // it is visible and one tap away in every room.
@@ -371,6 +376,30 @@ export function applyWallsShare(
 /** Quantity on a countable substrate (doors/windows), bounded 1–12. The
  * count lands on the room's FIRST line of that family; style variants keep
  * their own counts and the family total is what the customer sees. */
+/**
+ * C15 — the spec sheet's coat cell: 1c → 2c on every line of that surface
+ * family in the room. The same tree the room card edits; the card has no
+ * coat control (coats are derived from the systems), so the sheet is the one
+ * place a trade user sets them by hand and the estimator sees the override.
+ */
+export function applyCoats(
+  blocks: LooseBlock[],
+  areaId: number,
+  key: string,
+  coats: 1 | 2 | 3,
+): ScopeToggleResult {
+  const idx = blocks.findIndex((b) => b.kind === "area" && Number(b.id) === areaId);
+  if (idx < 0) return { ok: false, error: "No such room." };
+  const block = { ...blocks[idx] };
+  const surfaces = (Array.isArray(block.surfaces) ? block.surfaces : []).map((s) =>
+    substrateKeyForRateCode(String(s.code ?? "")) === key ? { ...s, coats, origin: "human_confirmed" } : s);
+  if (!surfaces.some((s) => substrateKeyForRateCode(String(s.code ?? "")) === key)) return { ok: false, error: "Turn the surface on first." };
+  block.surfaces = surfaces;
+  const next = [...blocks];
+  next[idx] = block;
+  return { ok: true, blocks: next };
+}
+
 export function applyCount(
   blocks: LooseBlock[],
   areaId: number,

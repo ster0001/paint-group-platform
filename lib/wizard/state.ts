@@ -116,6 +116,14 @@ export const wizardStateShapeSchema = z.object({
    * it on delete. Before this they were written with estimate_id = null and
    * nothing ever set it. */
   conditionSourceIds: z.array(z.string().uuid()).max(12).default([]),
+  /**
+   * C15: the PROPERTY this quote is for, when a member started it from their
+   * account (rebook, the trade new-quote screen). The submit route seeds the
+   * tree from the property's measured tree (§8.3) when it has one — a third
+   * way in beside a floorplan and the quick basics. Ownership is checked at
+   * submit through the account chain; the id alone grants nothing.
+   */
+  propertyId: z.string().uuid().nullable().default(null),
   noPlan: z.boolean().default(false),
 
   /**
@@ -444,11 +452,12 @@ export const wizardStateSchema = wizardStateShapeSchema.superRefine((s, ctx) => 
   const wantsExterior = s.jobType === "exterior" || s.jobType === "both";
 
   // C12: a commercial job's rooms come from the segment's counts and
-  // typicals (state.commercial), so it needs no home basics.
-  if (s.noPlan && !s.basics && !s.commercial) {
+  // typicals (state.commercial), so it needs no home basics. C15: a quote on
+  // a measured property (`propertyId`) seeds from its tree and needs neither.
+  if (s.noPlan && !s.basics && !s.commercial && !s.propertyId) {
     ctx.addIssue({ code: "custom", path: ["basics"], message: "The quick basics are needed when there is no floorplan." });
   }
-  if (wantsInterior && !s.noPlan && s.planRunIds.length === 0) {
+  if (wantsInterior && !s.noPlan && s.planRunIds.length === 0 && !s.propertyId) {
     ctx.addIssue({ code: "custom", path: ["planRunIds"], message: "Upload a floorplan, or choose the quick basics instead." });
   }
   if (s.condition.tier === "dark_to_light") {
@@ -577,6 +586,7 @@ export function defaultWizardState(): WizardState {
     basics: null,
     commercial: null,
     brief: null,
+    propertyId: null,
     quickLook: null,
     surfaces: [...DEFAULT_SURFACES],
     condition: { tier: "change", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, darkToLightCeilings: null, darkToLightCeilingRooms: [], surfaceFlags: {}, colourAnswered: false, changingGroups: { walls: false, ceilings: false, trims: false }, boldColour: false, coloursUndecided: false },

@@ -5,7 +5,8 @@ import { z } from "zod";
 import { getPortalContext } from "@/lib/portal/data";
 import { createServiceClient } from "@/lib/supabase/service";
 import { wizardStateShapeSchema } from "@/lib/wizard/state";
-import { flagsWithSpec, flagsWithoutSpec, specFromState, specsFromFlags, MAX_SPECS } from "@/lib/wizard/saved-specs";
+import { specFromState, MAX_SPECS } from "@/lib/wizard/saved-specs";
+import { rowBodyFromSpec } from "@/lib/wizard/trade-specs";
 
 /**
  * Saving a spec (estimator journey v2 §7, phase 8).
@@ -62,17 +63,16 @@ export async function saveSpecFromEstimate(raw: unknown): Promise<SaveSpecResult
     return { ok: false, message: "That job was built before we could save specs from it." };
   }
 
-  const { data: acct } = await svc.from("accounts").select("flags").eq("id", trade.id).maybeSingle();
-  const existing = specsFromFlags((acct as { flags?: unknown } | null)?.flags);
-  if (existing.length >= MAX_SPECS) {
+  // C15: specs are rows (trade_specs), not JSON on the account.
+  const { count } = await svc.from("trade_specs").select("id", { count: "exact", head: true }).eq("account_id", trade.id);
+  if ((count ?? 0) >= MAX_SPECS) {
     return { ok: false, message: `You can keep ${MAX_SPECS} specs — remove one first.` };
   }
 
   const spec = specFromState(state.data, parsed.data.name, { colourPolicy: parsed.data.colourPolicy });
-  const { error } = await svc
-    .from("accounts")
-    .update({ flags: flagsWithSpec((acct as { flags?: unknown } | null)?.flags, spec) })
-    .eq("id", trade.id);
+  const { error } = await svc.from("trade_specs").insert({
+    account_id: trade.id, name: spec.name, spec: rowBodyFromSpec(spec), created_by: ctx.userId,
+  });
   if (error) return { ok: false, message: "That didn't save — try again in a moment." };
 
   revalidatePath("/account/new-estimate");
@@ -89,11 +89,7 @@ export async function removeSpec(id: string): Promise<SaveSpecResult> {
   const svc = createServiceClient();
   if (!svc) return { ok: false, message: "That isn't available just now — try again shortly." };
 
-  const { data: acct } = await svc.from("accounts").select("flags").eq("id", trade.id).maybeSingle();
-  const { error } = await svc
-    .from("accounts")
-    .update({ flags: flagsWithoutSpec((acct as { flags?: unknown } | null)?.flags, id) })
-    .eq("id", trade.id);
+  const { error } = await svc.from("trade_specs").delete().eq("id", id).eq("account_id", trade.id);
   if (error) return { ok: false, message: "That didn't save — try again in a moment." };
 
   revalidatePath("/account/new-estimate");

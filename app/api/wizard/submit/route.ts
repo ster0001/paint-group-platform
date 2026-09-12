@@ -21,6 +21,7 @@ import { ceilingHeightFrom, wizardStateSchema, type WizardSurfaceKey } from "@/l
 import { backfillTypicalSizes, commercialExtraction, markStarterProvenance, starterExtraction, starterRoomList, type TypicalSizeRow } from "@/lib/wizard/starter";
 import { DEFAULT_SEGMENTS, commercialRoomList, commercialSurfaceKeys, isWarehouse, loadSegments, segmentByKey } from "@/lib/wizard/segments";
 import { warehouseFloorArea, warehouseRoomList } from "@/lib/wizard/warehouse";
+import { parseMeasuredTree, seedFromMeasuredTree, type MeasuredTree } from "@/lib/wizard/measured-tree";
 import { commercialWidenFor } from "@/lib/wizard/commercial";
 import { applyOpenSpace, commercialPricingFrom, hourLoadingFor } from "@/lib/pricing/commercial";
 import { applyConditionPricing, applyExteriorAnswers, type MeasuredSides } from "@/lib/wizard/exteriorAnswers";
@@ -128,6 +129,41 @@ export async function POST(request: Request) {
     // NARROWED type (null at that point) and poisons every later use to never.
     limitAccount = (acctRow as LimitAccountRow | null) ?? null;
   }
+  /**
+   * C15 (§8.3): a quote on a MEASURED property seeds from the property's
+   * tree — the estimator's confirmed rooms, sizes and surfaces — and asks
+   * nothing that is already on file. Only the caller's own property counts:
+   * a customer actor must be a member of the account the property belongs
+   * to; the id alone grants nothing.
+   */
+  let measured: MeasuredTree | null = null;
+  let measuredPropertyId: string | null = null;
+  let measuredAccountId: string | null = null;
+  if (state.jobType !== "exterior" && state.propertyId) {
+    const { data: prop } = await db.from("properties")
+      .select("id, account_id, measured_tree, measured_at").eq("id", state.propertyId).maybeSingle();
+    if (prop?.id) {
+      let own = actor.kind !== "customer";
+      if (!own) {
+        const { data: member } = await db.from("account_users")
+          .select("account_id").eq("profile_id", user.id).eq("account_id", prop.account_id as string).maybeSingle();
+        own = member != null;
+      }
+      if (own) {
+        measured = parseMeasuredTree(prop.measured_tree, prop.measured_at as string | null);
+        measuredPropertyId = prop.id as string;
+        measuredAccountId = (prop.account_id as string | null) ?? null;
+        // The property's account is the one this quote belongs to — its
+        // gates (trade = unlimited, the trade sign-off) apply whatever email
+        // the member signed in with.
+        if (measuredAccountId) {
+          const { data: owner } = await db.from("accounts").select("account_type, flags").eq("id", measuredAccountId).maybeSingle();
+          if (owner) limitAccount = owner as LimitAccountRow;
+        }
+      }
+    }
+  }
+
   // Trade actors (account_type only — the flags.unlimited unblock lifts
   // LIMITS, never the commercial handoff) price commercial work on the
   // visit tier instead of handing off (28 Aug: the commercial portal was
@@ -209,6 +245,13 @@ export async function POST(request: Request) {
     // Exterior-only: the envelope is measured from its own sources (E1 rule),
     // and the drafting routes for it are still to be wired. The estimate is
     // created empty with the site-check deferral carrying the work forward.
+  } else if (measured) {
+    // ---- C15: the measured tree, as the seed --------------------------------
+    const seeded = seedFromMeasuredTree(measured, () => nextId++);
+    areas.push(...seeded);
+    if (seeded.length === 0) {
+      warnings.push("The property's file holds no inside rooms — the rooms were seeded from scratch.");
+    }
   } else if (segment && state.commercial && isWarehouse(segment)) {
     // ---- C13: the warehouse pattern — one floor, the offices, the flags ----
     const commercialPricing = commercialPricingFrom(settingValue((await loadPricingContext(db)).settings, "commercial_pricing"));
@@ -626,6 +669,8 @@ export async function POST(request: Request) {
   let sourceTag = isCustomerMode ? "customer_intake" : "wizard";
   const baseRow: Record<string, unknown> = {
     title, status: "draft", builder_state: builderState, source: sourceTag,
+    // C15: the property the quote is for, so the fixed price's tree lands on it.
+    ...(measuredPropertyId ? { property_id: measuredPropertyId } : {}),
     // Tom, 7 Sep: the estimates list reads total_cents, which only the builder
     // wrote — a wizard estimate showed no price there until staff saved it.
     total_cents: payload.totals.totalCents,
@@ -672,7 +717,12 @@ export async function POST(request: Request) {
     // hiccup must never cost a customer their estimate. Links the ESTIMATE
     // only — membership waits for the verified magic-link flow (3a-2).
     try {
-      const linked = await ensureAccountAndProperty(db, {
+      // C15: a quote started from a member's measured property links to THAT
+      // property and its account — never to an account found by the
+      // sign-in email, which for a team member is not the organisation's.
+      const linked = measuredPropertyId && measuredAccountId
+        ? { accountId: measuredAccountId, propertyId: measuredPropertyId }
+        : await ensureAccountAndProperty(db, {
         email,
         // The staff path now always has these; the customer path fills them in
         // later from the portal.

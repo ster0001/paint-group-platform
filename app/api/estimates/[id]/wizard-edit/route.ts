@@ -25,7 +25,7 @@ import { applyDoorStyle, applyWindowStyle, DOOR_STYLE_DEFERRAL, WINDOW_STYLE_DEF
 import { reconcileRoomAllowances, type AllowanceBlock } from "@/lib/wizard/allowances";
 import { markStarterProvenance, starterExtraction, type TypicalSizeRow, FENCE_CODE, FENCE_TYPE_LABEL } from "@/lib/wizard/starter";
 import {
-  applyCount, applyDoorScope, applyExtent, applyExteriorToggle, applyFenceLength, applyRename, applyToggle, applyWallsShare,
+  applyCoats, applyCount, applyDoorScope, applyExtent, applyExteriorToggle, applyFenceLength, applyRename, applyToggle, applyWallsShare,
   customerExteriorView, customerScopeRooms, FREESTANDING_EXTRA_KEYS, hasFreestandingExtras, applyFenceType } from "@/lib/wizard/scope-editor";
 import { bookWizardSlot, wizardVisitSlots } from "@/lib/visits/wizard";
 import { ladderFor, mayFixOnline, requiresSiteCheck } from "@/lib/wizard/ladder";
@@ -290,6 +290,8 @@ const actionSchema = z.discriminatedUnion("action", [
   // Anything else fails schema validation right here.
   z.object({ action: z.literal("toggle_surface"), areaId: z.number().int().positive(), key: z.string().min(1).max(40), on: z.boolean() }),
   z.object({ action: z.literal("set_count"), areaId: z.number().int().positive(), key: z.string().min(1).max(40), count: z.number().int().min(1).max(12) }),
+  /** C15: the spec sheet's coat cell (1c / 2c) — the same tree the room card edits. */
+  z.object({ action: z.literal("set_coats"), areaId: z.number().int().positive(), key: z.string().min(1).max(40), coats: z.union([z.literal(1), z.literal(2), z.literal(3)]) }),
   z.object({ action: z.literal("rename_room"), areaId: z.number().int().positive(), name: z.string().min(1).max(60) }),
   /** What comes with each door in one room — door · door+frame · +architrave. */
   z.object({ action: z.literal("room_door_scope"), areaId: z.number().int().positive(), scope: z.enum(["door", "frame", "architrave"]) }),
@@ -903,7 +905,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     // ---- Part B: customer scope actions — pure helpers, then reprice --------
     if (act.action === "toggle_surface" || act.action === "set_count" || act.action === "rename_room"
-      || act.action === "room_door_scope" || act.action === "walls_share") {
+      || act.action === "room_door_scope" || act.action === "walls_share" || act.action === "set_coats") {
       const snap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
       const snapshot = snap.success ? snap.data : null;
       let next = Math.max(0, ...blocks.flatMap((b) => [
@@ -915,6 +917,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         : act.action === "set_count" ? applyCount(blocks, act.areaId, act.key, act.count)
         : act.action === "room_door_scope" ? applyDoorScope(blocks, act.areaId, act.scope, () => next++)
         : act.action === "walls_share" ? applyWallsShare(blocks, act.areaId, act.pct)
+        : act.action === "set_coats" ? applyCoats(blocks, act.areaId, act.key, act.coats)
         : applyRename(blocks, act.areaId, act.name);
       if (!result.ok) return { error: result.error, status: 400 };
       blocks = result.blocks as LooseBlock[];
