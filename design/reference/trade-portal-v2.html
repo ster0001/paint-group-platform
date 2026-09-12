@@ -1,0 +1,742 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paint Group · Trade portal v2 · prototype</title>
+<link href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0A0B0D;--panel:#12161A;--panel2:#171C21;--line:#242B32;--line2:#2E363E;
+  --text:#EDF0F2;--muted:#8C959D;--dim:#5E6770;
+  --cyan:#3BD8E9;--cyan-soft:rgba(59,216,233,.12);--cyan-line:rgba(59,216,233,.55);
+  --amber:#E0A83C;--amber-soft:rgba(224,168,60,.12);--amber-line:rgba(224,168,60,.5);
+  --green:#4FBF8B;--green-soft:rgba(79,191,139,.1);--green-line:rgba(79,191,139,.5);
+  --sans:"Switzer",system-ui,-apple-system,sans-serif;--mono:"Martian Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#050607;color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.mono{font-family:var(--mono)}
+a{color:var(--cyan);text-decoration:none;cursor:pointer}
+h1{font-size:24px;font-weight:600;letter-spacing:-.015em;margin:0}
+h2{font-size:15.5px;font-weight:600;margin:0 0 10px}
+h3{font-size:14px;font-weight:600;margin:0 0 6px}
+.kick{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--muted);margin:0 0 6px}
+.row{display:flex;align-items:center;gap:10px}
+
+/* device frame */
+.stage{max-width:1280px;margin:0 auto;padding:16px}
+.devbar{display:flex;align-items:center;gap:8px;padding:10px 0 14px;flex-wrap:wrap}
+.devbar .seg{display:inline-flex;border:1px solid var(--line2);border-radius:999px;overflow:hidden}
+.devbar .seg button{font:inherit;font-size:13px;background:transparent;border:0;color:var(--muted);padding:7px 14px;cursor:pointer}
+.devbar .seg button.on{background:var(--cyan);color:#062229;font-weight:600}
+.devbar .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--dim);margin-right:4px}
+.devbar .walk{font-size:13px;color:var(--muted);margin-left:auto}
+.device{background:var(--ink);border:1px solid var(--line);border-radius:16px;overflow:hidden;margin:0 auto;transition:max-width .2s}
+.device.phone{max-width:430px}
+.device.desktop{max-width:100%}
+
+/* chrome */
+.top{background:var(--ink);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px;padding:12px 18px}
+.mark{font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;font-weight:600}
+.mark i{color:var(--cyan);font-style:normal}
+.nav{display:flex;gap:2px}
+.nav a{font-size:14px;color:var(--muted);padding:7px 11px;border-radius:8px}
+.nav a.on{color:var(--text);background:var(--panel)}
+.top .r{margin-left:auto;display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px}
+.acct{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 11px 5px 6px;font-size:13px}
+.acct i{width:22px;height:22px;border-radius:99px;background:linear-gradient(135deg,#1f3a41,#0f1b1f);border:1px solid var(--cyan-line);display:grid;place-items:center;color:var(--cyan);font-family:var(--mono);font-size:9.5px;font-style:normal}
+.phone .nav{display:none}
+.body{padding:20px 18px 26px}
+.screen{display:none}.screen.on{display:block}
+
+/* bits */
+.chip{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;border:1px solid var(--line);border-radius:999px;padding:3px 8px;color:var(--muted);white-space:nowrap}
+.chip.cyan{color:var(--cyan);border-color:var(--cyan-line);background:var(--cyan-soft)}
+.chip.amber{color:var(--amber);border-color:var(--amber-line);background:var(--amber-soft)}
+.chip.green{color:var(--green);border-color:var(--green-line);background:var(--green-soft)}
+.btn{font:inherit;font-size:14.5px;font-weight:600;border-radius:11px;padding:11px 16px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--line2)}
+.btn.pri{background:var(--cyan);color:#062229;border-color:transparent}
+.btn.line{background:transparent;border-color:var(--cyan-line);color:var(--cyan)}
+.btn.sm{padding:7px 12px;font-size:13px}
+.btn.wide{width:100%;text-align:center}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:16px 17px;margin-bottom:12px}
+.card .hd{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.card.hl{border-color:var(--cyan-line);background:linear-gradient(180deg,rgba(59,216,233,.06),transparent)}
+.kv{margin:0;padding:0;list-style:none}
+.kv li{display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.kv li:last-child{border-bottom:0}
+.kv li b{font-weight:500;min-width:118px;color:var(--muted)}
+.kv li span{color:var(--text)}
+.kv li .e{margin-left:auto;color:var(--muted);font-size:12.5px}
+.note{font-size:13px;color:var(--muted);line-height:1.5;margin-top:12px}
+.note b{color:var(--text);font-weight:500}
+.hint{color:var(--muted);font-size:13px;margin:8px 0 0}
+.callout{border:1px solid var(--amber-line);background:var(--amber-soft);border-radius:11px;padding:12px 14px;font-size:13.5px;color:#EBD3A0;margin-bottom:14px}
+.callout b{color:var(--text)}
+.callout.blue{border-color:var(--cyan-line);background:var(--cyan-soft);color:#BDEFF5}
+
+/* lists */
+.item{display:flex;align-items:center;gap:13px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:9px;cursor:pointer}
+.item:hover{border-color:var(--line2)}
+.item.hl{border-color:var(--cyan-line)}
+.item .ic{width:36px;height:36px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);display:grid;place-items:center;color:var(--cyan);flex:none;font-size:15px}
+.item .m{flex:1;min-width:0}
+.item .m b{display:block;font-size:15px;font-weight:600}
+.item .m span{display:block;color:var(--muted);font-size:13px;margin-top:2px}
+.item .r{margin-left:auto;text-align:right;flex:none}
+.item .r .v{font-family:var(--mono);font-size:14px;font-weight:600}
+.item .arrow{color:var(--dim);flex:none}
+
+/* two pane */
+.pane{display:grid;grid-template-columns:1fr 330px;gap:18px;align-items:start}
+.phone .pane{grid-template-columns:1fr}
+.side{position:sticky;top:16px}
+.phone .side{position:static}
+
+/* tiles */
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.tiles.three{grid-template-columns:repeat(3,1fr)}
+.tile{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;color:var(--text);font:inherit;font-size:14.5px;text-align:left;cursor:pointer}
+.tile small{display:block;color:var(--muted);font-size:12.5px;margin-top:4px;line-height:1.35}
+.tile[aria-pressed="true"]{border-color:var(--cyan-line);background:var(--cyan-soft)}
+.tile[aria-pressed="true"]::after{content:"✓";position:absolute;top:9px;right:12px;color:var(--cyan);font-size:13px}
+.phone .tiles.three{grid-template-columns:repeat(2,1fr)}
+
+/* spec sheet grid */
+.sheetwrap{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:auto}
+.sh{width:100%;border-collapse:collapse;font-size:13.5px;min-width:520px}
+.sh th{text-align:left;font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--muted);font-weight:500;padding:10px 11px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--panel2)}
+.sh th.n,.sh td.n{text-align:right}
+.sh td{padding:10px 11px;border-bottom:1px solid var(--line);white-space:nowrap}
+.sh tr:last-child td{border-bottom:0}
+.sh tr:hover td{background:var(--panel2)}
+.sh td.a{font-weight:600}
+.sh td .sz{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+.cell{font-family:var(--mono);font-size:12px;border:1px solid transparent;border-radius:6px;padding:3px 7px;cursor:pointer;display:inline-block}
+.cell:hover{border-color:var(--line2);background:var(--panel2)}
+.cell.on{color:var(--cyan);border-color:var(--cyan-line);background:var(--cyan-soft)}
+.cell.off{color:var(--dim)}
+.sh tfoot td{border-top:1px solid var(--line2);font-weight:600;background:var(--panel2)}
+
+/* range */
+.rng{text-align:center;padding:6px 0 2px}
+.rng .k{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;color:var(--muted)}
+.rng .v{font-family:var(--mono);font-size:24px;font-weight:600;margin-top:5px;letter-spacing:-.01em}
+.rng .b{color:var(--muted);font-size:12.5px;margin-top:4px}
+.meter{display:flex;gap:5px;margin-top:13px}
+.meter div{flex:1;text-align:center;font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--dim);padding-top:6px;border-top:2px solid var(--line)}
+.meter div.on{color:var(--cyan);border-top-color:var(--cyan)}
+.meter div.was{color:var(--muted);border-top-color:var(--cyan);opacity:.5}
+.stack{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+
+/* measured tree */
+.mt{border:1px solid var(--line);border-left:3px solid var(--green-line);border-radius:10px;padding:11px 13px;margin-bottom:8px;background:var(--panel)}
+.mt.pick{cursor:pointer}
+.mt.pick[aria-pressed="true"]{border-color:var(--cyan-line);border-left-color:var(--cyan);background:var(--cyan-soft)}
+.mt .t{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.mt .t b{font-size:14.5px}
+.mt .t .sz{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+.mt .t .r{margin-left:auto}
+.mt .s{color:var(--muted);font-size:12.5px;margin-top:5px}
+.ph{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.ph div{aspect-ratio:1;border-radius:9px;background:linear-gradient(135deg,#1d252b,#0f1317);border:1px solid var(--line2);display:grid;place-items:center;color:var(--dim);font-family:var(--mono);font-size:9.5px;cursor:pointer}
+.photo{display:flex;align-items:center;gap:11px;border:1px dashed var(--line2);border-radius:11px;padding:13px 14px;color:var(--muted);font-size:13.5px;cursor:pointer}
+.photo b{color:var(--text);font-weight:500}
+.field{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:12px 14px;color:var(--text);font:inherit;font-size:15px;outline:none;margin-bottom:10px}
+.field:focus{border-color:var(--cyan-line)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;z-index:90;background:var(--panel2);border:1px solid var(--line2);border-radius:14px;padding:10px 16px;font-size:13.5px;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90vw;text-align:center}
+.toast.on{opacity:1}
+.toast b{color:var(--cyan);font-family:var(--mono);font-size:12px}
+.steps{counter-reset:s;margin:0;padding:0;list-style:none}
+.steps li{position:relative;padding:0 0 13px 32px;font-size:14px}
+.steps li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:0;width:22px;height:22px;border-radius:99px;border:1px solid var(--cyan-line);color:var(--cyan);font-family:var(--mono);font-size:10.5px;display:grid;place-items:center}
+.steps li b{display:block;font-weight:600}
+.steps li span{color:var(--muted)}
+/* map */
+.map a.mi{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--line);color:var(--text);font-size:14.5px}
+.map a.mi small{color:var(--muted);font-family:var(--mono);font-size:9.5px;letter-spacing:.1em}
+.map h2{margin-top:22px}
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="devbar">
+    <span class="lbl">VIEW</span>
+    <div class="seg"><button class="on" id="b-desktop" onclick="dev('desktop')">Desktop</button><button id="b-phone" onclick="dev('phone')">Phone</button></div>
+    <button class="btn sm" onclick="go('map')">Screen map</button>
+    <button class="btn sm" onclick="openNotes()">Notes ⚑</button>
+    <span class="walk" id="walkLabel">Trade portal v2 · prototype · 12 September 2026</span>
+  </div>
+
+<div class="device desktop" id="device">
+  <div class="top">
+    <div class="mark">PAINT<i>—</i>GROUP <span style="color:var(--muted);letter-spacing:.08em">TRADE</span></div>
+    <div class="nav">
+      <a class="on" onclick="go('home')">Home</a><a onclick="go('home')">Buildings</a><a onclick="go('specs')">Specs</a><a>Quotes</a><a>Invoices</a>
+    </div>
+    <div class="r"><span class="acct"><i id="acctIn">NP</i><span id="acctName">Northcote Property Co</span></span></div>
+  </div>
+
+  <!-- ============ MAP ============ -->
+  <section class="screen on" id="s-map"><div class="body map">
+    <p class="kick">PROTOTYPE · THE GATE BEFORE C15</p>
+    <h1>Three walks, end to end</h1>
+    <p class="note" style="margin-top:8px">Switch between Desktop and Phone at the top — the same components, composed for each. Notes ⚑ carries the reasoning and the decisions I need from you.</p>
+
+    <h2>Walk A · The agent — an end-of-lease make-good</h2>
+    <a class="mi" onclick="setAcct('NP','Northcote Property Co');go('home')">The account home <small>A1</small></a>
+    <a class="mi" onclick="setAcct('NP','Northcote Property Co');go('a-new')">New quote — pick a property <small>A2</small></a>
+    <a class="mi" onclick="setAcct('NP','Northcote Property Co');go('a-sheet')">The spec sheet <small>A3</small></a>
+    <a class="mi" onclick="go('a-tenant')">Ask the tenant for photos <small>A4</small></a>
+
+    <h2>Walk B · The OC manager — year two, from the measured tree</h2>
+    <a class="mi" onclick="setAcct('EG','Elm Grove OC');go('b-building')">The building on file <small>B1</small></a>
+    <a class="mi" onclick="setAcct('EG','Elm Grove OC');go('b-pick')">Pick what's being painted this year <small>B2</small></a>
+    <a class="mi" onclick="setAcct('EG','Elm Grove OC');go('b-changed')">What's changed since we measured <small>B3</small></a>
+    <a class="mi" onclick="setAcct('EG','Elm Grove OC');go('b-range')">The range, from last year's measurements <small>B4</small></a>
+
+    <h2>Walk C · The franchise — a fit-out from a brand spec</h2>
+    <a class="mi" onclick="setAcct('BB','Bean &amp; Bar Group');go('specs')">The brand specs <small>C1</small></a>
+    <a class="mi" onclick="setAcct('BB','Bean &amp; Bar Group');go('c-new')">A new site <small>C2</small></a>
+    <a class="mi" onclick="setAcct('BB','Bean &amp; Bar Group');go('c-range')">The range <small>C3</small></a>
+
+    <h2>Shared</h2>
+    <a class="mi" onclick="go('sent')">Sent for confirmation <small>S1</small></a>
+    <p class="note">Every price here is a range until a person confirms it. Trade accounts never fix a price themselves — that's the standing ruling, and it's on screen at the end of each walk.</p>
+  </div></section>
+
+  <!-- ============ HOME ============ -->
+  <section class="screen" id="s-home"><div class="body">
+    <div class="row" style="margin-bottom:16px"><div><p class="kick">SATURDAY 12 SEPTEMBER</p><h1 id="homeTitle">Northcote Property Co</h1></div>
+      <div style="margin-left:auto" class="row"><button class="btn pri" onclick="go('a-new')">+ New quote</button></div></div>
+
+    <div class="pane">
+      <div>
+        <h2>Waiting on us</h2>
+        <div class="item" onclick="go('sent')"><div class="ic">◷</div><div class="m"><b>4/22 Elm Grove, Thornbury</b><span>Sent Thursday · Sarah confirms today</span></div><div class="r"><span class="chip amber">WITH SARAH</span></div><span class="arrow">›</span></div>
+        <div class="item"><div class="ic">✓</div><div class="m"><b>9 Beavers Road, Northcote</b><span>Confirmed Tuesday · $11,480 · accept by 10 Nov</span></div><div class="r"><span class="chip green">READY TO ACCEPT</span></div><span class="arrow">›</span></div>
+
+        <h2 style="margin-top:24px">Your properties <small style="font-weight:400;color:var(--muted)">— 34 on the rent roll</small></h2>
+        <div class="item" onclick="go('a-sheet')"><div class="ic">⌂</div><div class="m"><b>4/22 Elm Grove, Thornbury</b><span>2-bed unit · painted Mar 2026 · colours on file · measured</span></div><div class="r"><span class="chip cyan">REBOOK</span></div><span class="arrow">›</span></div>
+        <div class="item" onclick="go('a-sheet')"><div class="ic">⌂</div><div class="m"><b>9 Beavers Road, Northcote</b><span>3-bed house · painted Nov 2025 · 2 jobs · measured</span></div><div class="r"><span class="chip cyan">REBOOK</span></div><span class="arrow">›</span></div>
+        <div class="item" onclick="go('a-new')"><div class="ic">＋</div><div class="m"><b>Somewhere new</b><span>Type an address — we'll seed the rooms</span></div><span class="arrow">›</span></div>
+
+        <h2 style="margin-top:24px">Your saved specs</h2>
+        <div class="item" onclick="go('specs')"><div class="ic">▤</div><div class="m"><b>End-of-lease repaint</b><span>Whole interior · walls and ceilings one coat · trims two · vacant</span></div><div class="r"><span class="chip">USED 19×</span></div><span class="arrow">›</span></div>
+        <div class="item" onclick="go('specs')"><div class="ic">▤</div><div class="m"><b>Vacate touch-up</b><span>Walls only · same colour · patch and one coat</span></div><div class="r"><span class="chip">USED 7×</span></div><span class="arrow">›</span></div>
+      </div>
+
+      <div class="side">
+        <div class="card">
+          <p class="kick">THIS QUARTER</p>
+          <ul class="kv">
+            <li><b>Quotes</b><span class="mono">14</span></li>
+            <li><b>Accepted</b><span class="mono">11</span></li>
+            <li><b>Average turnaround</b><span class="mono">1.2 days</span></li>
+            <li><b>On account</b><span class="mono">$34,180</span></li>
+          </ul>
+          <button class="btn wide sm" style="margin-top:12px">Open statement</button>
+        </div>
+        <div class="card">
+          <h3>Sarah Reid</h3>
+          <p class="note" style="margin-top:0">Your estimator. Confirms every quote on this account — usually within a day.</p>
+          <div class="stack"><button class="btn sm">Message Sarah</button><button class="btn sm">Book a visit</button></div>
+        </div>
+      </div>
+    </div>
+  </div></section>
+
+  <!-- ============ A2 · NEW QUOTE ============ -->
+  <section class="screen" id="s-a-new"><div class="body">
+    <a onclick="go('home')" style="font-size:13.5px">← Home</a>
+    <h1 style="margin-top:12px">New quote</h1>
+    <p class="note" style="margin:6px 0 18px">Pick the property, then the spec. Both are optional — a new address and a blank sheet works too.</p>
+    <div class="pane">
+      <div>
+        <h2>Property</h2>
+        <input class="field" placeholder="Start typing an address…" value="4/22 Elm Grove, Thornbury">
+        <div class="card hl" style="margin-top:4px">
+          <div class="hd"><h3 style="margin:0">4/22 Elm Grove, Thornbury</h3><span class="chip cyan">ON FILE</span></div>
+          <ul class="kv">
+            <li><b>Last painted</b><span>March 2026 — end-of-lease</span></li>
+            <li><b>Rooms measured</b><span>6 areas, measured on site</span></li>
+            <li><b>Colours</b><span>Walls Natural White · ceilings Ceiling White · trims Vivid White</span></li>
+            <li><b>Access</b><span>Key box 4821 · no lift · parking on Elm Grove</span></li>
+          </ul>
+          <p class="note">Everything here carries into the quote. You'll only be asked what's changed.</p>
+        </div>
+
+        <h2 style="margin-top:22px">Spec</h2>
+        <div class="tiles">
+          <button class="tile" aria-pressed="true" onclick="pick(this)">End-of-lease repaint<small>Whole interior · walls and ceilings one coat · trims two · vacant</small></button>
+          <button class="tile" onclick="pick(this)">Vacate touch-up<small>Walls only · same colour · patch and one coat</small></button>
+          <button class="tile" onclick="pick(this)">Full repaint<small>New colours · two coats throughout</small></button>
+          <button class="tile" onclick="pick(this)">Start blank<small>Build the sheet yourself</small></button>
+        </div>
+      </div>
+      <div class="side">
+        <div class="card">
+          <p class="kick">ESTIMATED FROM THE FILE</p>
+          <div class="rng"><div class="v">$3,420 – $3,780</div><div class="b">inc. GST · ±5%</div></div>
+          <p class="note">Because this property is measured and the spec is saved, the range is ready before you open the sheet.</p>
+          <div class="stack"><button class="btn pri wide" onclick="go('a-sheet')">Open the sheet</button><button class="btn wide" onclick="go('sent')">Send as-is</button></div>
+        </div>
+      </div>
+    </div>
+  </div></section>
+
+  <!-- ============ A3 · SPEC SHEET ============ -->
+  <section class="screen" id="s-a-sheet"><div class="body">
+    <a onclick="go('a-new')" style="font-size:13.5px">← New quote</a>
+    <div class="row" style="margin:12px 0 4px"><h1>4/22 Elm Grove, Thornbury</h1><span class="chip cyan" style="margin-left:10px">END-OF-LEASE REPAINT</span></div>
+    <p class="note" style="margin:0 0 16px">Every area, every surface, every coat on one screen. Tap a cell to change it — the range moves as you go.</p>
+    <div class="pane">
+      <div>
+        <div class="sheetwrap">
+          <table class="sh">
+            <thead><tr><th>Area</th><th>Size</th><th>Walls</th><th>Ceiling</th><th>Trims</th><th class="n">Doors</th><th class="n">Windows</th><th class="n">Value</th></tr></thead>
+            <tbody>
+              <tr><td class="a">Bed 1</td><td><span class="sz">3.5 × 3.2</span></td><td><span class="cell on" onclick="cyc(this)">1c</span></td><td><span class="cell on" onclick="cyc(this)">1c</span></td><td><span class="cell on" onclick="cyc(this)">2c</span></td><td class="n mono">1</td><td class="n mono">1</td><td class="n mono">$612</td></tr>
+              <tr><td class="a">Bed 2</td><td><span class="sz">3.0 × 3.0</span></td><td><span class="cell on" onclick="cyc(this)">1c</span></td><td><span class="cell on" onclick="cyc(this)">1c</span></td><td><span class="cell on" onclick="cyc(this)">2c</span></td><td class="n mono">1</td><td class="n mono">1</td><td class="n mono">$548</td></tr>
+              <tr><td class="a">Living</td><td><span class="sz">4.5 × 4.0</span></td><td><span class="cell on" onclick="cyc(this)">1c</span></td><td><span class="cell on" onclick="cyc(this)">1c</span></td><td><span class="cell on" onclick="cyc(this)">2c</span></td><td class="n mono">1</td><td class="n mono">2</td><td class="n mono">$884</td></tr>
+              <tr><td class="a">Kitchen</td><td><span class="sz">3.5 × 3.0</span></td><td><span class="cell on" onclick="cyc(this)">1c</span></td><td><span class="cell on" onclick="cyc(this)">1c</span></td><td><span class="cell off" onclick="cyc(this)">—</span></td><td class="n mono">—</td><td class="n mono">1</td><td class="n mono">$470</td></tr>
+              <tr><td class="a">Bathroom</td><td><span class="sz">2.0 × 1.8</span></td><td><span class="cell on" onclick="cyc(this)">1c</span></td><td><span class="cell on" onclick="cyc(this)">1c</span></td><td><span class="cell off" onclick="cyc(this)">—</span></td><td class="n mono">1</td><td class="n mono">—</td><td class="n mono">$286</td></tr>
+              <tr><td class="a">Hall</td><td><span class="sz">5.0 × 1.2</span></td><td><span class="cell on" onclick="cyc(this)">1c</span></td><td><span class="cell on" onclick="cyc(this)">1c</span></td><td><span class="cell on" onclick="cyc(this)">2c</span></td><td class="n mono">4</td><td class="n mono">—</td><td class="n mono">$620</td></tr>
+            </tbody>
+            <tfoot><tr><td colspan="5">6 areas</td><td class="n mono">8</td><td class="n mono">5</td><td class="n mono">$3,420</td></tr></tfoot>
+          </table>
+        </div>
+        <p class="hint">Tap a coat cell to cycle 1c → 2c → not painted. <a onclick="toast('Same tree, same engine — this is the room card as a grid','')">Why does this match the room-by-room view?</a></p>
+
+        <div class="card" style="margin-top:16px">
+          <div class="hd"><h3 style="margin:0">Condition</h3><span class="chip">FROM THE SPEC</span></div>
+          <div class="tiles three">
+            <button class="tile" aria-pressed="true" onclick="pick(this)">Standard make-good</button>
+            <button class="tile" onclick="pick(this)">Heavy — tenant damage</button>
+            <button class="tile" onclick="pick(this)">Light — recent paint</button>
+          </div>
+          <div class="photo" style="margin-top:12px" onclick="go('a-tenant')"><span>📷</span><span><b>Ask the tenant for photos</b> — a link they open on their phone, pinned to this property</span></div>
+        </div>
+
+        <div class="card">
+          <div class="hd"><h3 style="margin:0">Colours</h3><span class="chip cyan">FROM THE REGISTER</span></div>
+          <ul class="kv">
+            <li><b>Walls</b><span>Dulux Natural White</span><span class="e">Mar 2026</span></li>
+            <li><b>Ceilings</b><span>Ceiling White</span><span class="e">Mar 2026</span></li>
+            <li><b>Trims</b><span>Vivid White, enamel</span><span class="e">Mar 2026</span></li>
+          </ul>
+          <div class="tiles" style="margin-top:12px"><button class="tile" aria-pressed="true" onclick="pick(this)">Same again</button><button class="tile" onclick="pick(this)">Change them</button></div>
+        </div>
+      </div>
+
+      <div class="side">
+        <div class="card">
+          <div class="rng"><div class="k">YOUR RANGE</div><div class="v" id="aRange">$3,420 – $3,780</div><div class="b">inc. GST · ±5%</div></div>
+          <div class="meter"><div class="was">GUIDE</div><div class="on">DETAILED</div><div>CONFIRMED</div></div>
+          <div class="stack">
+            <button class="btn pri wide" onclick="go('sent')">Send for confirmation</button>
+            <button class="btn wide">Save as a draft</button>
+          </div>
+          <p class="note">Sarah confirms every price on this account before you can accept it — usually within a day, and usually without a visit.</p>
+        </div>
+        <div class="card">
+          <h3>On file for this property</h3>
+          <ul class="kv">
+            <li><b>Measured</b><span>Mar 2026, on site</span></li>
+            <li><b>Access</b><span>Key box 4821</span></li>
+            <li><b>Last job</b><span>$3,280 · 4 days</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div></section>
+
+  <!-- ============ A4 · TENANT PHOTOS ============ -->
+  <section class="screen" id="s-a-tenant"><div class="body">
+    <a onclick="go('a-sheet')" style="font-size:13.5px">← The sheet</a>
+    <h1 style="margin-top:12px">Ask the tenant for photos</h1>
+    <p class="note" style="margin:6px 0 18px">They get a link, take a few photos on their phone, and the photos land on this property. No account, no app.</p>
+    <div class="pane">
+      <div>
+        <div class="card">
+          <h3>Send to</h3>
+          <input class="field" placeholder="Mobile number" value="0412 118 004">
+          <input class="field" placeholder="Or email">
+          <h3 style="margin-top:14px">Ask for</h3>
+          <div class="tiles">
+            <button class="tile" aria-pressed="true" onclick="tog(this)">Each room, from the doorway</button>
+            <button class="tile" aria-pressed="true" onclick="tog(this)">Anything damaged</button>
+            <button class="tile" onclick="tog(this)">Ceilings</button>
+            <button class="tile" onclick="tog(this)">Windows and doors</button>
+          </div>
+          <div class="stack" style="margin-top:14px"><button class="btn pri" onclick="toast('Link sent to 0412 118 004','expires in 7 days')">Send the link</button></div>
+          <p class="note">The message says who we are, why we're asking, and that it's nothing to do with their bond. You can read it before it goes.</p>
+        </div>
+      </div>
+      <div class="side">
+        <div class="card">
+          <h3>Already on file</h3>
+          <div class="ph"><div>MAR 26</div><div>MAR 26</div><div>MAR 26</div><div>MAR 26</div></div>
+          <p class="note">From the March job. Sarah can often confirm from photos alone.</p>
+        </div>
+      </div>
+    </div>
+  </div></section>
+
+  <!-- ============ B1 · BUILDING ============ -->
+  <section class="screen" id="s-b-building"><div class="body">
+    <a onclick="go('map')" style="font-size:13.5px">← Map</a>
+    <div class="row" style="margin:12px 0 4px"><h1>Elm Grove Apartments</h1><span class="chip cyan" style="margin-left:10px">MEASURED SEP 2025</span></div>
+    <p class="note" style="margin:0 0 16px">42 units · 4 levels · common property. Everything below came off the estimator's visit last September — you don't have to measure anything again.</p>
+    <div class="pane">
+      <div>
+        <div class="callout blue"><b>Why this is quick now.</b> The first quote on this building needed a visit — nobody could give us the metres. Sarah measured it then, and it's been on file since. This year's corridors start from those measurements, so you get a range in about two minutes instead of waiting a week for a visit.</div>
+
+        <h2>What's on file</h2>
+        <div class="mt"><div class="t"><b>Ground floor corridor</b><span class="sz">24 × 1.8 m · 2.7 m high</span><span class="r chip green">MEASURED</span></div><div class="s">Walls · ceiling · skirting · 14 unit doors and frames · 2 fire doors</div></div>
+        <div class="mt"><div class="t"><b>Levels 1–3 corridors</b><span class="sz">3 × (22 × 1.8 m)</span><span class="r chip green">MEASURED</span></div><div class="s">Walls · ceiling · skirting · 28 unit doors and frames</div></div>
+        <div class="mt"><div class="t"><b>Stairwell A</b><span class="sz">4 flights · 2.6 m walls</span><span class="r chip green">MEASURED</span></div><div class="s">Walls · soffits · handrail · balustrade</div></div>
+        <div class="mt"><div class="t"><b>Stairwell B</b><span class="sz">4 flights · 2.6 m walls</span><span class="r chip green">MEASURED</span></div><div class="s">Walls · soffits · handrail · balustrade</div></div>
+        <div class="mt"><div class="t"><b>Lift lobbies ×4</b><span class="sz">3.2 × 3.0 m each</span><span class="r chip green">MEASURED</span></div><div class="s">Walls · ceiling · skirting · lift surrounds</div></div>
+        <div class="mt"><div class="t"><b>Entry and mailroom</b><span class="sz">6 × 4 m</span><span class="r chip green">MEASURED</span></div><div class="s">Walls · ceiling · feature wall · 3 doors</div></div>
+        <div class="mt" style="border-left-color:var(--dim)"><div class="t"><b>Facade and balconies</b><span class="sz">not measured</span><span class="r chip">VISIT NEEDED</span></div><div class="s">Outside is always priced on site — access and heights can't be read off a file</div></div>
+      </div>
+      <div class="side">
+        <div class="card hl">
+          <h3>Quote something here</h3>
+          <p class="note" style="margin-top:0">Pick the areas, tell us what's changed, and you'll have a range in about two minutes.</p>
+          <div class="stack"><button class="btn pri wide" onclick="go('b-pick')">Start a quote</button><button class="btn wide">Book a visit instead</button></div>
+        </div>
+        <div class="card">
+          <h3>Also on file</h3>
+          <ul class="kv">
+            <li><b>Colours</b><span>Corridors Antique White USA · doors Monument</span><span class="e">Open</span></li>
+            <li><b>Access</b><span>Induction required · no work before 8am</span><span class="e">Edit</span></li>
+            <li><b>Contacts</b><span>Building manager: Ray, 0413 552 019</span><span class="e">Edit</span></li>
+            <li><b>Documents</b><span>COC · SWMS · 2025 scope of works</span><span class="e">Open</span></li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>History</h3>
+          <ul class="kv">
+            <li><b>Sep 2025</b><span>Measured · entry and ground corridor · $18,400</span></li>
+            <li><b>Mar 2026</b><span>Stairwell A make-good · $4,120</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div></section>
+
+  <!-- ============ B2 · PICK ============ -->
+  <section class="screen" id="s-b-pick"><div class="body">
+    <a onclick="go('b-building')" style="font-size:13.5px">← Elm Grove Apartments</a>
+    <h1 style="margin-top:12px">What are we painting this year?</h1>
+    <p class="note" style="margin:6px 0 18px">Tick from what's on file. Sizes, surfaces and door counts come with them.</p>
+    <div class="pane">
+      <div>
+        <div class="mt pick" aria-pressed="true" onclick="tog(this);bcount()"><div class="t"><b>Levels 1–3 corridors</b><span class="sz">3 × (22 × 1.8 m)</span></div><div class="s">Walls · ceiling · skirting · 28 unit doors and frames</div></div>
+        <div class="mt pick" aria-pressed="true" onclick="tog(this);bcount()"><div class="t"><b>Lift lobbies ×4</b><span class="sz">3.2 × 3.0 m each</span></div><div class="s">Walls · ceiling · skirting · lift surrounds</div></div>
+        <div class="mt pick" onclick="tog(this);bcount()"><div class="t"><b>Ground floor corridor</b><span class="sz">24 × 1.8 m</span></div><div class="s">Done Sep 2025 — 12 months ago</div></div>
+        <div class="mt pick" onclick="tog(this);bcount()"><div class="t"><b>Stairwell A</b><span class="sz">4 flights</span></div><div class="s">Made good Mar 2026 — 6 months ago</div></div>
+        <div class="mt pick" onclick="tog(this);bcount()"><div class="t"><b>Stairwell B</b><span class="sz">4 flights</span></div><div class="s">Not painted since 2021</div></div>
+        <div class="mt pick" onclick="tog(this);bcount()"><div class="t"><b>Entry and mailroom</b><span class="sz">6 × 4 m</span></div><div class="s">Walls · ceiling · feature wall · 3 doors</div></div>
+        <p class="hint">Something not on the list? <a onclick="toast('Added — Sarah measures it on the visit','flagged')">Add an area</a></p>
+      </div>
+      <div class="side">
+        <div class="card">
+          <p class="kick">SELECTED</p>
+          <div class="rng"><div class="v" id="bSel">7 areas</div><div class="b" id="bSub">Levels 1–3 corridors, lift lobbies</div></div>
+          <div class="stack"><button class="btn pri wide" onclick="go('b-changed')">Next — what's changed</button></div>
+        </div>
+      </div>
+    </div>
+  </div></section>
+
+  <!-- ============ B3 · WHAT'S CHANGED ============ -->
+  <section class="screen" id="s-b-changed"><div class="body">
+    <a onclick="go('b-pick')" style="font-size:13.5px">← Back</a>
+    <h1 style="margin-top:12px">What's changed since we measured?</h1>
+    <p class="note" style="margin:6px 0 18px">September 2025 — a year ago. The measurements don't change, but buildings do. Tick anything that applies; if nothing has, say so and we'll price straight from the file.</p>
+    <div class="pane">
+      <div>
+        <button class="tile" style="width:100%;margin-bottom:14px" aria-pressed="true" onclick="oneOf(this)"><b style="font-size:15.5px">Nothing's changed</b><small>Price it from the file — the fastest route, and the one most buildings take</small></button>
+
+        <h2>Or tick what has</h2>
+        <div class="tiles">
+          <button class="tile" onclick="tog(this);notNothing()">Damage or wear in some areas<small>We'll ask you to point it out with photos</small></button>
+          <button class="tile" onclick="tog(this);notNothing()">Work done by someone else<small>A lobby refurbished, a wall rebuilt, new flooring</small></button>
+          <button class="tile" onclick="tog(this);notNothing()">Water damage or leaks<small>Priced on site — we won't guess at it</small></button>
+          <button class="tile" onclick="tog(this);notNothing()">Colours are changing<small>From the register to something new</small></button>
+          <button class="tile" onclick="tog(this);notNothing()">Access or contacts have changed<small>New building manager, new induction, different hours</small></button>
+          <button class="tile" onclick="tog(this);notNothing()">Something's been added or removed<small>New signage, a wall taken out, doors replaced</small></button>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="hd"><h3 style="margin:0">Photos</h3><span class="chip">OPTIONAL — BUT THEY TIGHTEN IT</span></div>
+          <div class="photo" onclick="toast('4 photos added','range narrowed')"><span>📷</span><span><b>Add photos of anything that's changed</b> — or ask Ray, the building manager, to</span></div>
+          <div class="ph" style="margin-top:10px"><div>SEP 25</div><div>SEP 25</div><div>SEP 25</div><div>+ ADD</div></div>
+          <p class="note">Last year's photos are still here for comparison.</p>
+        </div>
+
+        <div class="card">
+          <h3>Anything else Sarah should know?</h3>
+          <textarea class="field" rows="3" placeholder="The committee meets on the 24th · unit 14 has scaffolding up · the lift is out until Friday"></textarea>
+        </div>
+      </div>
+      <div class="side">
+        <div class="card hl">
+          <p class="kick">WHAT THIS DECIDES</p>
+          <h3>How tight your range is</h3>
+          <p class="note" style="margin-top:0"><b>Nothing changed</b> — priced from the file at ±5%, confirmed by Sarah without a visit.<br><br><b>Damage or new work</b> — same measurements, wider range, and Sarah decides from your photos whether she needs to come.<br><br><b>Water damage</b> — always a visit. We don't price what we haven't seen.</p>
+          <div class="stack"><button class="btn pri wide" onclick="go('b-range')">See my range</button></div>
+        </div>
+      </div>
+    </div>
+  </div></section>
+
+  <!-- ============ B4 · RANGE ============ -->
+  <section class="screen" id="s-b-range"><div class="body">
+    <a onclick="go('b-changed')" style="font-size:13.5px">← Back</a>
+    <div class="row" style="margin:12px 0 4px"><h1>Elm Grove Apartments</h1><span class="chip cyan" style="margin-left:10px">7 AREAS · 2026 PROGRAMME</span></div>
+    <div class="pane">
+      <div>
+        <div class="callout blue"><b>Priced from last September's measurements.</b> Nothing re-measured, nothing estimated from a form. Sarah confirms it before the committee sees a number.</div>
+        <div class="sheetwrap">
+          <table class="sh">
+            <thead><tr><th>Area</th><th>Size</th><th>Walls</th><th>Ceiling</th><th>Trims</th><th class="n">Doors</th><th class="n">Value</th></tr></thead>
+            <tbody>
+              <tr><td class="a">Level 1 corridor</td><td><span class="sz">22 × 1.8</span></td><td><span class="cell on">2c</span></td><td><span class="cell on">1c</span></td><td><span class="cell on">2c</span></td><td class="n mono">10</td><td class="n mono">$4,180</td></tr>
+              <tr><td class="a">Level 2 corridor</td><td><span class="sz">22 × 1.8</span></td><td><span class="cell on">2c</span></td><td><span class="cell on">1c</span></td><td><span class="cell on">2c</span></td><td class="n mono">9</td><td class="n mono">$4,060</td></tr>
+              <tr><td class="a">Level 3 corridor</td><td><span class="sz">22 × 1.8</span></td><td><span class="cell on">2c</span></td><td><span class="cell on">1c</span></td><td><span class="cell on">2c</span></td><td class="n mono">9</td><td class="n mono">$4,060</td></tr>
+              <tr><td class="a">Lift lobby L1</td><td><span class="sz">3.2 × 3.0</span></td><td><span class="cell on">2c</span></td><td><span class="cell on">1c</span></td><td><span class="cell on">2c</span></td><td class="n mono">—</td><td class="n mono">$1,240</td></tr>
+              <tr><td class="a">Lift lobby L2</td><td><span class="sz">3.2 × 3.0</span></td><td><span class="cell on">2c</span></td><td><span class="cell on">1c</span></td><td><span class="cell on">2c</span></td><td class="n mono">—</td><td class="n mono">$1,240</td></tr>
+              <tr><td class="a">Lift lobby L3</td><td><span class="sz">3.2 × 3.0</span></td><td><span class="cell on">2c</span></td><td><span class="cell on">1c</span></td><td><span class="cell on">2c</span></td><td class="n mono">—</td><td class="n mono">$1,240</td></tr>
+              <tr><td class="a">Lift lobby G</td><td><span class="sz">3.2 × 3.0</span></td><td><span class="cell on">2c</span></td><td><span class="cell on">1c</span></td><td><span class="cell on">2c</span></td><td class="n mono">—</td><td class="n mono">$1,240</td></tr>
+            </tbody>
+            <tfoot><tr><td colspan="5">7 areas</td><td class="n mono">28</td><td class="n mono">$17,260</td></tr></tfoot>
+          </table>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="hd"><h3 style="margin:0">What we'll do</h3><span class="chip">FROM THE FILE AND YOUR ANSWERS</span></div>
+          <ul class="kv">
+            <li><b>Walls</b><span>Antique White USA again — two coats of washable low sheen after filling and sanding</span></li>
+            <li><b>Ceilings</b><span>Ceiling White, one coat</span></li>
+            <li><b>Unit doors and frames</b><span>Monument, two coats enamel — both faces of the corridor side</span></li>
+            <li><b>Hours</b><span>After 8am, induction on the first day — from the building's file</span></li>
+            <li><b>Not included</b><span>The facade and balconies — outside is always priced on site</span></li>
+          </ul>
+        </div>
+      </div>
+      <div class="side">
+        <div class="card">
+          <div class="rng"><div class="k">YOUR RANGE</div><div class="v">$16,400 – $18,120</div><div class="b">inc. GST · ±5%</div></div>
+          <div class="meter"><div class="was">GUIDE</div><div class="on">DETAILED</div><div>CONFIRMED</div></div>
+          <ul class="kv" style="margin-top:14px">
+            <li><b>Measured</b><span>Sep 2025, on site</span></li>
+            <li><b>Changed since</b><span>Nothing reported</span></li>
+            <li><b>Last year's rate</b><span class="mono">+3.1%</span></li>
+          </ul>
+          <div class="stack">
+            <button class="btn pri wide" onclick="go('sent')">Send for confirmation</button>
+            <button class="btn wide" onclick="toast('Scope of works drafted for the committee','')">Draft a scope of works</button>
+          </div>
+          <p class="note">Committee meeting on the 24th? Tell Sarah and she'll hold the price to it.</p>
+        </div>
+      </div>
+    </div>
+  </div></section>
+
+  <!-- ============ C1 · SPECS ============ -->
+  <section class="screen" id="s-specs"><div class="body">
+    <div class="row" style="margin-bottom:14px"><div><p class="kick">SAVED SPECS</p><h1 id="specTitle">Your specs</h1></div><div style="margin-left:auto"><button class="btn">+ New spec</button></div></div>
+    <p class="note" style="margin:0 0 18px">A spec is a job you do again and again — the scope, the coats, the condition and the colour policy, saved once. Apply it to any address and the sheet is already filled in.</p>
+    <div class="pane">
+      <div>
+        <div class="card hl">
+          <div class="hd"><h3 style="margin:0">Bean &amp; Bar — standard fit-out</h3><div class="row"><span class="chip">USED 11×</span><button class="btn sm">Edit</button></div></div>
+          <ul class="kv">
+            <li><b>Areas</b><span>Front of house · back of house and kitchen · amenities · store</span></li>
+            <li><b>Walls</b><span>Two coats, brand colours from the register</span></li>
+            <li><b>Kitchen</b><span>Washable wipe-down system — always</span></li>
+            <li><b>Ceilings</b><span>Exposed, black — sprayed, priced by an estimator</span></li>
+            <li><b>Hours</b><span>After trading</span></li>
+            <li><b>Colours</b><span>Bean &amp; Bar Clay · Bean &amp; Bar Ink · trims Vivid White</span></li>
+          </ul>
+          <p class="note">Everything a new site inherits. You'll only be asked the size and the counts.</p>
+        </div>
+        <div class="item" onclick="go('c-new')"><div class="ic">▤</div><div class="m"><b>Bean &amp; Bar — refresh</b><span>Front of house only · one coat · after trading</span></div><div class="r"><span class="chip">USED 4×</span></div><span class="arrow">›</span></div>
+        <div class="item" onclick="go('c-new')"><div class="ic">▤</div><div class="m"><b>Bean &amp; Bar — kitchen make-good</b><span>Back of house · washable system · closed for the day</span></div><div class="r"><span class="chip">USED 2×</span></div><span class="arrow">›</span></div>
+      </div>
+      <div class="side">
+        <div class="card">
+          <h3>Your sites</h3>
+          <ul class="kv">
+            <li><b>Open</b><span class="mono">11</span></li>
+            <li><b>Fitting out</b><span class="mono">2</span></li>
+            <li><b>Painted by us</b><span class="mono">9</span></li>
+          </ul>
+          <button class="btn wide sm" style="margin-top:12px" onclick="go('c-new')">Quote a new site</button>
+        </div>
+      </div>
+    </div>
+  </div></section>
+
+  <!-- ============ C2 · NEW SITE ============ -->
+  <section class="screen" id="s-c-new"><div class="body">
+    <a onclick="go('specs')" style="font-size:13.5px">← Specs</a>
+    <div class="row" style="margin:12px 0 4px"><h1>New site</h1><span class="chip cyan" style="margin-left:10px">BEAN &amp; BAR — STANDARD FIT-OUT</span></div>
+    <p class="note" style="margin:0 0 18px">The spec has done most of it. Three questions and you've got a range.</p>
+    <div class="pane">
+      <div>
+        <input class="field" placeholder="Site address" value="Shop 4, 188 High Street, Preston">
+        <h2 style="margin-top:18px">Front of house</h2>
+        <div class="tiles three">
+          <button class="tile" onclick="oneOfIn(this)">Up to 50 m²</button>
+          <button class="tile" aria-pressed="true" onclick="oneOfIn(this)">50–150 m²</button>
+          <button class="tile" onclick="oneOfIn(this)">150–400 m²</button>
+        </div>
+        <p class="hint">We don't ask how much is glass — the cutting-in around a shopfront takes what the glass saves.</p>
+
+        <h2 style="margin-top:20px">The ceiling out front</h2>
+        <div class="tiles three">
+          <button class="tile" onclick="oneOfIn(this)">Plaster — painted</button>
+          <button class="tile" aria-pressed="true" onclick="oneOfIn(this)">Exposed — sprayed<small>Priced by an estimator</small></button>
+          <button class="tile" onclick="oneOfIn(this)">Tiles — not painted</button>
+        </div>
+
+        <h2 style="margin-top:20px">Back of house</h2>
+        <div class="tiles three">
+          <button class="tile" aria-pressed="true" onclick="oneOfIn(this)">Kitchen + store</button>
+          <button class="tile" onclick="oneOfIn(this)">Kitchen only</button>
+          <button class="tile" onclick="oneOfIn(this)">Kitchen, store, prep</button>
+        </div>
+
+        <div class="card" style="margin-top:18px">
+          <div class="hd"><h3 style="margin:0">Inherited from the spec</h3><span class="chip cyan">NOT ASKED AGAIN</span></div>
+          <ul class="kv">
+            <li><b>Colours</b><span>Bean &amp; Bar Clay, Ink, Vivid White trims</span></li>
+            <li><b>Kitchen</b><span>Washable wipe-down system</span></li>
+            <li><b>Hours</b><span>After trading</span></li>
+            <li><b>Condition</b><span>New fit-out — bare plaster, seal and two coats</span></li>
+          </ul>
+        </div>
+        <div class="photo" onclick="toast('3 photos added','')"><span>📷</span><span><b>Add a photo or two of the shell</b> — Sarah confirms the exposed ceiling from them</span></div>
+      </div>
+      <div class="side">
+        <div class="card">
+          <div class="rng"><div class="k">YOUR RANGE</div><div class="v">$9,600 – $11,400</div><div class="b">inc. GST · ±9%</div></div>
+          <div class="meter"><div class="on">GUIDE</div><div>DETAILED</div><div>CONFIRMED</div></div>
+          <p class="note">Wider than your other sites because this one is new to us and the ceiling is sprayed. A photo or a visit tightens it.</p>
+          <div class="stack">
+            <button class="btn pri wide" onclick="go('sent')">Send for confirmation</button>
+            <button class="btn wide">Compare with your last fit-out</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Your last three fit-outs</h3>
+          <ul class="kv">
+            <li><b>Brunswick</b><span class="mono">$10,240</span><span class="e">Jun 26</span></li>
+            <li><b>Carlton</b><span class="mono">$9,880</span><span class="e">Feb 26</span></li>
+            <li><b>Fitzroy</b><span class="mono">$11,120</span><span class="e">Nov 25</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div></section>
+
+  <!-- ============ SENT ============ -->
+  <section class="screen" id="s-sent"><div class="body">
+    <p class="kick">SENT</p>
+    <h1>Sarah has it</h1>
+    <p class="note" style="margin:6px 0 20px">Everything you've entered, plus what's on file for this property. Here's what happens next.</p>
+    <div class="pane">
+      <div>
+        <ol class="steps">
+          <li><b>Sarah checks it</b><span>Your areas, the photos and the building's file. Anything unclear, she messages you rather than guessing.</span></li>
+          <li><b>You get a fixed price</b><span>Usually by the next working day, itemised, held for 60 days — or to your meeting date if you gave us one.</span></li>
+          <li><b>If she needs to see it, she'll say so</b><span>Most quotes on a measured building don't need a visit.</span></li>
+        </ol>
+        <div class="card" style="margin-top:18px">
+          <div class="hd"><h3 style="margin:0">While you wait</h3></div>
+          <div class="tiles">
+            <button class="tile" onclick="go('home')">Quote another property</button>
+            <button class="tile" onclick="go('a-tenant')">Ask a tenant for photos</button>
+            <button class="tile">Open this quarter's statement</button>
+            <button class="tile">Message Sarah</button>
+          </div>
+        </div>
+      </div>
+      <div class="side">
+        <div class="card">
+          <h3>Trade accounts never fix their own price</h3>
+          <p class="note" style="margin-top:0">A person confirms every quote on this account before you can accept it. That's how the warranty works and how we stand behind the number.</p>
+        </div>
+      </div>
+    </div>
+  </div></section>
+
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- notes -->
+<div class="toast" style="display:none"></div>
+<div id="drawer" style="position:fixed;inset:0;background:rgba(5,6,7,.75);z-index:100;display:none;align-items:center;justify-content:center;padding:24px" onclick="if(event.target===this)closeNotes()">
+  <div style="background:var(--panel);border:1px solid var(--line2);border-radius:16px;padding:22px;max-width:620px;max-height:84vh;overflow:auto">
+    <button class="btn sm" style="float:right" onclick="closeNotes()">Close</button>
+    <div id="noteBody"></div>
+  </div>
+</div>
+
+<script>
+const NOTES={
+map:`<p class="kick">READ ME</p><h2>What this prototype is for</h2><p class="note">It's the design gate in the plan of record §8.5 — three business types walked end to end before C15 is built. Desktop and phone are the same components with a <code>mode</code> prop, not two layouts.</p>
+<h3 style="margin-top:16px">The three walks</h3><p class="note"><b>A · the agent</b> — the flow that already half-exists. Property on file plus a saved spec means a range before the sheet is even opened.<br><br><b>B · the OC manager</b> — the one with no design until now, and the one that matters. Year two on a building Sarah measured in year one.<br><br><b>C · the franchise</b> — the agent flow with brand colours and a kitchen system inherited from a spec.</p>
+<h3 style="margin-top:16px">⚑ Decisions for Tom</h3><p class="note">Listed on each screen's note. The big one is B3.</p>`,
+'b-building':`<p class="kick">WALK B · THE BUILDING ON FILE</p><h2>Measured once, ranged forever</h2><p class="note">This screen is the compounding advantage in the whole plan. The first quote on a strata block needs a visit — nobody on the committee knows the metres and the access can't be read off a form. Sarah measures it once. From then on, every quote on that building starts from the measured tree and can be ranged online.</p><p class="note">The competitor quoting next year's corridors still has to send someone. You don't.</p><p class="note" style="color:var(--amber)">⚑ 53 — the facade row is deliberately shown as <b>not measured · visit needed</b>. Outside is never ranged, even on a measured building. Confirm that stands.</p><p class="note" style="color:var(--amber)">⚑ 54 — should the file show <b>when</b> each area was last painted, as it does here? It makes the year-two conversation obvious, but it also tells a manager an area is "due" when it may not be.</p>`,
+'b-changed':`<p class="kick">WALK B · THE SCREEN I HAD TO INVENT</p><h2>What's changed since we measured</h2><p class="note">You asked what an OC manager should be asked when they come back a year later. I've had to answer it to draw the screen, so this is my proposal, not a ruling — <b>it needs your eye more than anything else in this file</b>.</p>
+<p class="note">The shape: <b>"Nothing's changed"</b> is the prominent, default answer, because for most buildings it's true and it's the fastest route. Everything else is a tick list of the things that actually change on a strata building in a year: damage and wear, work done by someone else, water damage, colours changing, access and contacts changing, things added or removed.</p>
+<p class="note">Each answer does something different to the routing: nothing changed → priced from the file at ±5%, confirmed without a visit. Damage or new work → same measurements, wider band, Sarah decides from the photos. <b>Water damage → always a visit</b>, because we don't price what we haven't seen.</p>
+<p class="note" style="color:var(--amber)">⚑ 55 — is this the right list? What actually changes on your strata buildings between years that would catch you out if a manager didn't mention it?</p>
+<p class="note" style="color:var(--amber)">⚑ 56 — how old can a measured tree be before it can't be trusted? One year? Three? After that, does it force a visit or just widen the band? I've assumed a year is fine.</p>
+<p class="note" style="color:var(--amber)">⚑ 57 — should the building manager be able to answer this instead of the OC manager? Ray knows what's changed; Janet signs it off.</p>`,
+'b-range':`<p class="kick">WALK B · THE RANGE</p><h2>Priced from last September</h2><p class="note">Same sheet as the agent's, same tree, same engine. What differs is the provenance line — <b>measured Sep 2025 · nothing reported changed · last year's rate +3.1%</b> — which is what a committee will ask about.</p><p class="note">"Draft a scope of works" is the artefact that wins strata work: a document the manager puts in front of the committee. It generates from the confirmed tree.</p><p class="note" style="color:var(--amber)">⚑ 58 — the rate movement since last year is shown. Helpful transparency, or an invitation to argue? I've shown it.</p><p class="note" style="color:var(--amber)">⚑ 28 — the scope-of-works document was deferred out of C15. It's drawn here as a button. Confirm it stays deferred.</p>`,
+'a-sheet':`<p class="kick">WALK A · THE SPEC SHEET</p><h2>The room card as a grid</h2><p class="note">Same tree, same reprice calls, denser view. The parity test in C15 asserts the sheet and the guided flow produce identical trees for identical input — that's what keeps them from drifting apart.</p><p class="note">Colours default from the property's register, which is the fix for the colour-collapse bug at QuoteBuilder.tsx:1128 turned into a feature.</p><p class="note" style="color:var(--amber)">⚑ 59 — on a phone the grid scrolls horizontally. Acceptable, or should the phone fall back to the stacked room cards? I've kept the grid and let it scroll.</p>`,
+'c-new':`<p class="kick">WALK C · THE FRANCHISE</p><h2>Three questions, because the spec did the rest</h2><p class="note">Size, ceiling, back-of-house extent. Colours, the kitchen system, the hours and the condition are inherited and shown as <b>not asked again</b> — the point being that a group doing the same fit-out in six suburbs shouldn't answer the same questions six times.</p><p class="note">"Compare with your last fit-out" is the thing a franchise operator actually wants: is this site out of line with Brunswick and Carlton?</p><p class="note" style="color:var(--amber)">⚑ 60 — exposed ceilings are sprayed and priced by an estimator, so this range is wider and says so. Confirm a franchise fit-out with a sprayed ceiling still gets a range rather than going straight to a visit.</p>`,
+home:`<p class="kick">THE ACCOUNT HOME</p><h2>Waiting on us, then the work</h2><p class="note">The top of the page is what needs the trade user's attention — quotes with Sarah, quotes ready to accept. Below it, the properties and the specs, which are the two ways a quote starts.</p><p class="note">Trade sees the range immediately everywhere and never sees fix-online.</p>`,
+specs:`<p class="kick">SAVED SPECS</p><h2>A job you do again and again</h2><p class="note">Scope, coats, condition band and colour policy, saved once. For the agent it's the end-of-lease repaint; for the franchise it's the brand fit-out. Same object, same table.</p>`,
+sent:`<p class="kick">SENT</p><h2>The same hand-off, trade words</h2><p class="note">Three steps, the turnaround promise, and the ruling stated plainly: trade accounts never fix their own price. "While you wait" keeps them in the portal rather than ending the session.</p>`,
+'a-new':`<p class="kick">WALK A · NEW QUOTE</p><h2>The range before the sheet</h2><p class="note">Because the property is measured and the spec is saved, there's a number on screen before the user opens anything. That's the whole promise of a trade account: two minutes from the desk.</p>`,
+'a-tenant':`<p class="kick">WALK A · TENANT PHOTOS</p><h2>The occupant does the survey</h2><p class="note">A link, no account, no app. Photos pin to the property and become condition flags for the estimator. The message explains who we are and that it's nothing to do with their bond — worth getting right, and worth Tom reading.</p><p class="note" style="color:var(--amber)">⚑ 61 — who does the link go to: the tenant directly, or the agent forwards it? I've drawn it going direct, with the agent seeing what was sent.</p>`,
+'b-pick':`<p class="kick">WALK B · PICK THE AREAS</p><h2>Ticking from the file</h2><p class="note">Sizes, surfaces and door counts come with each area — nothing is re-entered. The sub-line says when each was last painted, which is how a year-two conversation actually goes.</p>`
+};
+let CUR='map';
+function go(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));const el=document.getElementById('s-'+id);if(el)el.classList.add('on');CUR=id;window.scrollTo(0,0);
+  const L={map:'Trade portal v2 · prototype',home:'Walk A · the account home','a-new':'Walk A · new quote','a-sheet':'Walk A · the spec sheet','a-tenant':'Walk A · tenant photos','b-building':'Walk B · the building on file','b-pick':'Walk B · pick the areas','b-changed':'Walk B · what has changed','b-range':'Walk B · the range',specs:'Walk C · brand specs','c-new':'Walk C · a new site',sent:'Sent for confirmation'};
+  document.getElementById('walkLabel').textContent=L[id]||'';}
+function dev(m){document.getElementById('device').className='device '+m;document.getElementById('b-desktop').classList.toggle('on',m==='desktop');document.getElementById('b-phone').classList.toggle('on',m==='phone')}
+function setAcct(i,n){document.getElementById('acctIn').textContent=i;document.getElementById('acctName').textContent=n;const t=document.getElementById('homeTitle');if(t)t.textContent=n;const s=document.getElementById('specTitle');if(s)s.textContent=n==='Bean & Bar Group'?'Bean & Bar specs':'Your specs'}
+function tog(el){el.setAttribute('aria-pressed',el.getAttribute('aria-pressed')==='true'?'false':'true')}
+function pick(el){el.parentElement.querySelectorAll('.tile').forEach(t=>t.setAttribute('aria-pressed','false'));el.setAttribute('aria-pressed','true')}
+function oneOfIn(el){pick(el)}
+function oneOf(el){document.querySelectorAll('#s-b-changed .tiles .tile').forEach(t=>t.setAttribute('aria-pressed','false'));el.setAttribute('aria-pressed','true')}
+function notNothing(){const n=document.querySelector('#s-b-changed > .body > .tile');if(n)n.setAttribute('aria-pressed','false')}
+function cyc(el){const v=el.textContent.trim();const nxt={'1c':'2c','2c':'—','—':'1c'}[v]||'1c';el.textContent=nxt;el.className='cell'+(nxt==='—'?' off':' on');toast('Repriced','range updated')}
+function bcount(){const on=[...document.querySelectorAll('#s-b-pick .mt.pick[aria-pressed="true"]')];
+  const names=on.map(x=>x.querySelector('b').textContent);
+  const n=on.reduce((a,x)=>a+(x.querySelector('b').textContent.includes('Levels 1–3')?3:x.querySelector('b').textContent.includes('×4')?4:1),0);
+  document.getElementById('bSel').textContent=n+' area'+(n===1?'':'s');
+  document.getElementById('bSub').textContent=names.length?names.join(', '):'Nothing selected yet';}
+let tt;function toast(a,b){const t=document.getElementById('toast');t.innerHTML=a+(b?' &nbsp;<b>'+b+'</b>':'');t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),2000)}
+function openNotes(){document.getElementById('noteBody').innerHTML=NOTES[CUR]||'<p class="note">No notes for this screen.</p>';document.getElementById('drawer').style.display='flex'}
+function closeNotes(){document.getElementById('drawer').style.display='none'}
+go('map');
+</script>
+</body>
+</html>

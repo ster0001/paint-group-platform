@@ -52,7 +52,8 @@
 | C13 | Warehouse pattern | TODO | | | none | 22 | | 22 | |
 | C14 | Briefs, booking, commercial exteriors | TODO | | | `commercial_briefs`, `site_checklist_items` | 27 | | 24, 27, 29, 30 | replaces C4 stop-gap |
 | GATE | Trade-portal prototype approved | TODO | | | — | — | | 36, 37 | design deliverable, not a session |
-| C15 | Building profiles, measured trees, saved specs, spec sheet | TODO | | | `building_profiles`, `properties.measured_tree`, `trade_specs`, `tenant_photo_links` | — | | 11, 12, 34, 35 | |
+| GATE | Trade-portal prototype approved | **MET 12 Sep** | 12 Sep 2026 | — | — | — | — | 36, 37, 53–61 | `design/reference/trade-portal-v2.html` — three walks, desktop and phone. ⚑55 blocking for walk B |
+| C15 | Building profiles, measured trees, saved specs, spec sheet | TODO | | | `building_profiles`, `properties.measured_tree`, `trade_specs`, `tenant_photo_links` | `measured_tree_max_age_days` | | 11, 12, 34–36, 53–61 | brief: `claude-code-brief-c15-trade-portal.md` (handover 12 Sep); gate met; ⚑55 needs Tom; walks A/B/C separable across sessions |
 | C16 | Assistant hooks | TODO | | | none | — | | 14 | |
 | C17 | Hardening and the switch | TODO | | | none | — | | A, B, F | CI e2e ≥ every customer-journey spec |
 
@@ -76,3 +77,4 @@
 | 11 Sep | No CI secret may fall back to another environment's secret. A missing secret fails the job. The three `E2E_*` secrets exist in their own right; the plain-named ones were deleted |
 | 11 Sep | e2e runs one at a time (`group: e2e-test-project`, `cancel-in-progress: false`) and only on pull_request, main, or `workflow_dispatch` |
 | 11 Sep | Exterior: elements first (body, windows, doors, fascias, gutters, eaves); materials asked only if the body is painted, nothing pre-ticked; window type and counts; door count; colours; storeys once; no bedrooms ever |
+| 12 Sep | Trade design gate met. Measured-once-ranged-forever is walk B's mechanism; the facade is never ranged even on a measured building; water damage always means a visit |
