@@ -6,7 +6,8 @@ import WizardApp from "../wizard/WizardApp";
 import Wordmark from "../wizard/Wordmark";
 import { getCompanyContact } from "@/lib/portal/data";
 import { clampAddress, defaultWizardState, wizardStateSchema, type WizardState, wizardStateShapeSchema } from "@/lib/wizard/state";
-import { applySpec, specsFromFlags } from "@/lib/wizard/saved-specs";
+import { applySpec } from "@/lib/wizard/saved-specs";
+import { loadTradeSpecs } from "@/lib/wizard/trade-specs";
 import { parseEstimateIntent } from "@/lib/marketing/prefill";
 import { showcaseJobBySlug } from "@/lib/showcase/queries";
 import { sanitiseClonedState, scopeSeed } from "@/lib/wizard/showcaseSeed";
@@ -223,10 +224,8 @@ export default async function CustomerWizardPage({
     const { data: memberships } = await supabase.from("account_users").select("account_id");
     const ids = (memberships ?? []).map((m) => m.account_id as string);
     if (ids.length > 0) {
-      const { data: accts } = await svc.from("accounts").select("flags").in("id", ids);
-      const spec = (accts ?? [])
-        .flatMap((a) => specsFromFlags((a as { flags?: unknown }).flags))
-        .find((x) => x.id === specParam);
+      // C15: specs are rows now (trade_specs), owned through the same account chain.
+      const spec = (await loadTradeSpecs(svc, ids)).find((x) => x.id === specParam);
       if (spec) {
         /**
          * The SHAPE schema, not the full one — the same choice showcaseSeed

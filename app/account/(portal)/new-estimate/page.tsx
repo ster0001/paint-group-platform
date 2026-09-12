@@ -2,7 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getPortalContext, getRebookCandidates } from "@/lib/portal/data";
 import { moneyFmt } from "@/lib/portal/money";
-import { specSummary, specsFromFlags } from "@/lib/wizard/saved-specs";
+import { specSummary } from "@/lib/wizard/saved-specs";
+import { loadTradeSpecs } from "@/lib/wizard/trade-specs";
+import { createServiceClient } from "@/lib/supabase/service";
 import { RemoveSpec, SaveAsSpec } from "./SpecControls";
 
 export const dynamic = "force-dynamic";
@@ -34,9 +36,9 @@ export default async function NewEstimatePage() {
   const accountIds = ctx.accounts.map((a) => a.id);
   const rebooks = await getRebookCandidates(accountIds);
   const orgName = ctx.accounts.find((a) => a.account_type === "trade")?.name ?? "";
-  // Specs live on the account's own flags column, so they arrive with the
-  // portal context — no second query and no table.
-  const specs = ctx.accounts.flatMap((a) => specsFromFlags(a.flags));
+  // C15: specs are rows (trade_specs), owned through the account chain.
+  const svc = createServiceClient();
+  const specs = svc ? await loadTradeSpecs(svc, accountIds) : [];
   const propertyById = new Map(ctx.properties.map((p) => [p.id, p]));
   const label = (pid: string | null, fallback: string | null) => {
     const p = pid ? propertyById.get(pid) : null;
