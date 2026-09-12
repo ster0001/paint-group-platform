@@ -34,7 +34,14 @@ const BEDROOMS = [1, 2, 3, 4, 5];
 
 export default function QuickLook({
   step, quick, onQuick, outside, onOutside, addressField, conditionBox, error, canContinue, busy, onBack, onNext, stepNo, stepsTotal,
+  onBook, onChooseBoth, phone,
 }: {
+  /** C8: "Book someone in" on screen 1, and "book an estimator for both" — opens the Save & book sheet. */
+  onBook: () => void;
+  /** C8: the "both" choice screen (prototype `s-both`). */
+  onChooseBoth: (how: "self" | "book") => void;
+  /** The office number, for "Call us". Null = the card offers booking only. */
+  phone: string | null;
   step: QuickLookStep;
   quick: QuickLook;
   onQuick: (patch: Partial<QuickLook>) => void;
@@ -75,6 +82,59 @@ export default function QuickLook({
           {addressField}
           <p className="wz-qhead">What&rsquo;s being painted?</p>
           <Chips options={JOB_TYPES} value={quick.jobType} onPick={(jobType) => onQuick({ jobType })} name="jobtype" />
+
+          {/*
+            C8 — the way out, on screen 1 (prototype `s-start`): "for the
+            time-poor customer who wants a human. It's large, it's on screen
+            1, and the same Save & book pill sits in the header of every
+            screen after it — so leaving is never a dead end and everything
+            typed so far goes with them."
+          */}
+          <div className="wz-rather" data-testid="ql-rather-not">
+            <b>Rather not fill anything in?</b>
+            <p>Book an estimator or call us. Either takes about a minute, and we do the rest.</p>
+            <div className="wz-rather-row">
+              <button type="button" className="wz-btn wz-bs2" onClick={onBook} data-testid="ql-book">Book someone in</button>
+              {phone && (
+                <a className="wz-btn wz-bs2" href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="ql-call">Call us</a>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/*
+        C8 — INSIDE AND OUTSIDE (prototype `s-both`): "inside and outside price
+        on different trees (rooms vs sides), so 'both' is really two quick
+        looks." The customer chooses: answer both, one after the other, or
+        book one visit for the lot. Both keep everything saved.
+      */}
+      {step === "both" && (
+        <>
+          <p className="wz-kick">Inside and outside</p>
+          <h1>Two jobs — two ways to do this</h1>
+          <p className="wz-sub">
+            Inside and outside are priced differently, so we take them one at a time. Pick whichever suits you.
+          </p>
+          <div className="wz-doors" data-testid="ql-both">
+            <button type="button" className="wz-door" onClick={() => onChooseBoth("self")} data-testid="ql-both-self">
+              <span className="wz-door-icon" aria-hidden="true">◫</span>
+              <span className="wz-door-text">
+                <b>Price them yourself, one after the other</b>
+                <span>Inside first, then outside. About a minute to a guide range for each, and you can tighten either one whenever you like.</span>
+              </span>
+              <span className="wz-door-go" aria-hidden="true">›</span>
+            </button>
+            <button type="button" className="wz-door" onClick={() => onChooseBoth("book")} data-testid="ql-both-book">
+              <span className="wz-door-icon" aria-hidden="true">☎</span>
+              <span className="wz-door-text">
+                <b>Book an estimator for both</b>
+                <span>One visit covers the lot. Takes a minute to book, and you don&rsquo;t have to answer anything else.</span>
+              </span>
+              <span className="wz-door-go" aria-hidden="true">›</span>
+            </button>
+          </div>
+          <p className="wz-chint">Either way your answers are saved, and a person can pick up wherever you leave off.</p>
         </>
       )}
 
@@ -196,15 +256,18 @@ export default function QuickLook({
         {onBack && (
           <button type="button" className="wz-btn wz-bs" onClick={onBack} data-testid="ql-back">Back</button>
         )}
-        <button
-          type="button"
-          className="wz-btn wz-bp"
-          disabled={!canContinue || busy}
-          data-testid="ql-next"
-          onClick={onNext}
-        >
-          {busy ? "Working it out…" : last ? "See my guide range" : "Continue"}
-        </button>
+        {/* The "both" choice IS the answer — its two doors continue; there is no Continue to press. */}
+        {step !== "both" && (
+          <button
+            type="button"
+            className="wz-btn wz-bp"
+            disabled={!canContinue || busy}
+            data-testid="ql-next"
+            onClick={onNext}
+          >
+            {busy ? "Working it out…" : last ? "See my guide range" : "Continue"}
+          </button>
+        )}
       </div>
       <p className="wz-steps">Step {stepNo} of {stepsTotal}</p>
     </div>

@@ -57,6 +57,11 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
     await page.getByTestId(`ql-jobtype-${opts.jobType}`).click();
   }
   await quickNext(page);
+  // C8: a "both" job meets the choice screen (prototype `s-both`) — the drive
+  // prices them itself, one after the other.
+  if (opts.jobType === "both") {
+    await page.getByTestId("ql-both-self").click();
+  }
 
   // Screen 2 — the place.
   if (opts.propertyKind) await page.getByTestId(`ql-kind-${opts.propertyKind}`).click();

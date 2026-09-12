@@ -41,6 +41,7 @@ import {
 import type { CustomerPayload, WizardEditorPayload } from "@/lib/wizard/view";
 import AddressField from "./AddressField";
 import QuickLook from "./QuickLook";
+import SaveAndBookSheet from "./SaveAndBookSheet";
 import ConditionBox from "./ConditionBox";
 import Reveal from "./Reveal";
 import {
@@ -144,7 +145,7 @@ const PROC_TIPS = [
   "Nothing is booked and nothing is charged until you say so.",
 ];
 
-export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, companyPhone = null, intent, resume = null }: {
+export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, companyPhone = null, intent, resume = null, assisted = null }: {
   roomTypes: string[];
   /** A2: the offered surface lists, derived server-side from the rate card. */
   substrates: SubstrateGroups;
@@ -176,6 +177,12 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   /** Tom, 7 Sep: the SERVER copy of a half-finished walk (the autosaved
    * draft for this user) — merged with the browser copy on mount, newest wins. */
   resume?: Omit<ResumeRecord, "v"> | null;
+  /**
+   * C8 — a staff member opening a CUSTOMER's session (Save & book, addendum
+   * §4.17): the server copy wins over anything in this browser, the walk lands
+   * on the screen the customer left, and a banner says whose answers these are.
+   */
+  assisted?: { who: string; screen: string | null } | null;
 }) {
   const makeInitialState = (): WizardState => {
     const seed = prefillState ?? defaultWizardState();
@@ -279,6 +286,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    */
   const [quickDone, setQuickDone] = useState(false);
   const [quickOutOfArea, setQuickOutOfArea] = useState(false);
+  /** C8 — the Save & book sheet, reachable from every screen. */
+  const [bookOpen, setBookOpen] = useState(false);
   /** The revealed range, held on the client so the three doors can act on it. */
   const [reveal, setReveal] = useState<{ payload: CustomerPayload; estimateId: string } | null>(null);
 
@@ -434,7 +443,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       const server = resume && !restartedSince(resume.savedAt, restartedAt) && !(intent?.addressText && (resume.addressText || resume.state.customer?.suburb) && !decodeResume(encodeResume(resume), new Date(), { incomingAddress: intent.addressText })) ? resume : null;
       // C3: decided by the server's version counter, not by comparing two
       // clocks on two devices — see pickResume.
-      const { pick: r, from } = pickResume(local, server);
+      // C8: an assisted open is the customer's SESSION, not this browser's walk.
+      const { pick: r, from } = assisted && resume ? { pick: resume, from: "server" as const } : pickResume(local, server);
       if (!r) return;
       // Whichever copy we took, its version is what the next write is against.
       draftVersionRef.current = (r as { version?: number }).version ?? null;
@@ -1381,6 +1391,24 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     if (page > 1) { setPage(page - 1); window.scrollTo({ top: 0 }); }
   }
 
+  /**
+   * C8 — open the Save & book sheet from wherever the customer is. The draft
+   * is flushed FIRST with the screen tag, so the session the route marks
+   * carries the resume point (`last_screen`) and nothing is inferred.
+   */
+  function openBook() {
+    flushDraft(lastScreen);
+    setBookOpen(true);
+  }
+
+  /** C8 — the "both" choice (prototype `s-both`): answer both, or book one visit for the lot. */
+  function chooseBoth(how: "self" | "book") {
+    setError(null);
+    if (how === "book") { openBook(); return; }
+    setPage(page + 1);
+    window.scrollTo({ top: 0 });
+  }
+
   // ---- render ---------------------------------------------------------------
 
   /** Why Continue is unavailable, kept apart from what it is unavailable FOR. */
@@ -1404,7 +1432,18 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   if (screen === "reveal" && reveal) {
     return (
       <div data-ready="1">
-        <header className="wz-top"><Wordmark logoUrl={logoUrl} /></header>
+        <header className="wz-top">
+          <Wordmark logoUrl={logoUrl} />
+          <button type="button" className="wz-exit wz-book" onClick={() => setBookOpen(true)} data-testid="save-and-book-pill">Save &amp; book</button>
+        </header>
+        <SaveAndBookSheet
+          open={bookOpen}
+          onClose={() => setBookOpen(false)}
+          phone={companyPhone}
+          screen="reveal"
+          estimateId={reveal.estimateId}
+          prefill={{ email: prefill?.email ?? state.contact.email, phone: prefill?.phone ?? state.contact.phone, name: prefill?.name ?? state.contact.name }}
+        />
         <Reveal
           payload={reveal.payload}
           quick={quick}
@@ -1432,8 +1471,29 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             <i key={d} className={d < page || screen === "processing" ? "done" : d === page ? "on" : ""} />
           ))}
         </div>
+        {/* C8 — Save & book in the header of every screen (prototype: every
+            screen except the map). Leaving is never a dead end. */}
+        {isCustomer && screen !== "processing" && (
+          <button type="button" className="wz-exit wz-book" onClick={openBook} data-testid="save-and-book-pill">Save &amp; book</button>
+        )}
         {!isCustomer && <a className="wz-exit" href="/estimates">Exit</a>}
       </header>
+      {assisted && (
+        <p className="wz-assisted" data-testid="assisted-banner">
+          <b>Assisted session</b> — {assisted.who}&rsquo;s answers, picked up {assisted.screen ? `at ${assisted.screen.replace(/^quick:/, "").replace(/^page:/, "")}` : "where they left off"}. Nothing here changes their saved copy.
+        </p>
+      )}
+      {isCustomer && (
+        <SaveAndBookSheet
+          open={bookOpen}
+          onClose={() => setBookOpen(false)}
+          phone={companyPhone}
+          screen={lastScreen}
+          estimateId={null}
+          snapshot={{ state, page, lastPage }}
+          prefill={{ email: prefill?.email ?? state.contact.email, phone: prefill?.phone ?? state.contact.phone, name: prefill?.name ?? state.contact.name }}
+        />
+      )}
 
       {screen === "processing" ? (
         // Tom, 31 Aug: something to WATCH while the AI works — live step
@@ -1494,6 +1554,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 busy={uploading}
                 onBack={page > 1 ? quickBack : null}
                 onNext={quickNext}
+                onBook={openBook}
+                onChooseBoth={chooseBoth}
+                phone={companyPhone}
                 outside={outside}
                 onOutside={setOutside}
                 conditionBox={
@@ -1611,7 +1674,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 }}
               />
             )}
-            {pageKey === "extras" && <PageExteriorExtras state={state} set={set} stepsTotal={lastPage} stepNo={page} embedPaint={!pageKeys.includes("contact")} />}
+            {/* C8: the paint picks are the office's job — never on the customer path. */}
+            {pageKey === "extras" && <PageExteriorExtras state={state} set={set} stepsTotal={lastPage} stepNo={page} embedPaint={!isCustomer && !pageKeys.includes("contact")} />}
             {pageKey === "paint" && <PagePaint state={state} set={set} stepsTotal={lastPage} />}
             {pageKey === "contact" && <PageContact state={state} set={set} stepsTotal={lastPage} />}
             {uploadNote && <div className="wz-note">{uploadNote}</div>}
@@ -2653,7 +2717,9 @@ function PageContact({ state, set, stepsTotal }: { state: WizardState; set: (p: 
         By requesting your estimate you agree to receive messages about your project — the estimate itself, visit
         times, job updates and invoices — by email and text. You can change how we contact you any time in your account.
       </p>
-      <PagePaint state={state} set={set} embedded />
+      {/* C8: PagePaint used to ride this page. The contact page is customer-only,
+          and the paint picks are derived by the office from the answers — a
+          customer choosing sheens before seeing a price was the old flow's toll. */}
     </>
   );
 }

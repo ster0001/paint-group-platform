@@ -803,11 +803,25 @@ export async function POST(request: Request) {
   }
 
   if (isCustomerMode) {
+    /**
+     * C8 (⚑25, addendum §4.18): a "both" job is two trees under one session —
+     * rooms and sides — and the reveal shows a range for each. Each half is
+     * priced on its own by the same `editorPayload` the whole job uses (so
+     * neither reprices the other), and banded by its own accuracy. The
+     * whole-job range stays the headline; the parts are shown beneath it.
+     */
+    const isBoth = merged.areas.some((a) => a.type === "Exterior") && merged.areas.some((a) => a.type !== "Exterior");
+    const parts = isBoth
+      ? {
+          interior: editorPayload(merged.areas.filter((a) => a.type !== "Exterior"), ctx, adjustmentsFrom(builderState), merged.deferred.filter((d) => d.areaId == null || merged.areas.some((a) => a.type !== "Exterior" && Number(a.id) === d.areaId))),
+          exterior: editorPayload(merged.areas.filter((a) => a.type === "Exterior"), ctx, adjustmentsFrom(builderState), merged.deferred.filter((d) => d.areaId != null && merged.areas.some((a) => a.type === "Exterior" && Number(a.id) === d.areaId))),
+        }
+      : null;
     // The customer's view: a range, inclusions, confidence — and nothing else.
     return NextResponse.json({
       estimateId,
       planUrl,
-      ...customerPayload(payload, merged.areas, decision, bands),
+      ...customerPayload(payload, merged.areas, decision, bands, parts),
     });
   }
 

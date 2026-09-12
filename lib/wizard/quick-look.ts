@@ -343,7 +343,12 @@ export function assumedList(q: QuickLook): Assumption[] {
 }
 
 /** Every quick-look screen, in order. */
-export const QUICK_LOOK_STEPS = ["start", "place", "job", "condition", "outside"] as const;
+/**
+ * C8: `both` is the choice screen (prototype `s-both`) — "price them yourself,
+ * one after the other" or "book an estimator for both". It asks nothing about
+ * the job, so `stepCount` leaves it out of the promise on screen 1.
+ */
+export const QUICK_LOOK_STEPS = ["start", "both", "place", "job", "condition", "outside"] as const;
 export type QuickLookStep = (typeof QUICK_LOOK_STEPS)[number];
 
 /**
@@ -366,7 +371,7 @@ export type QuickLookStep = (typeof QUICK_LOOK_STEPS)[number];
  */
 const COUNT_WORD = ["", "One", "Two", "Three", "Four", "Five", "Six"] as const;
 export function stepCount(jobType: QuickLook["jobType"]): string {
-  const n = stepsFor(jobType).length;
+  const n = stepsFor(jobType).filter((s) => s !== "both").length;
   return COUNT_WORD[n] ?? String(n);
 }
 

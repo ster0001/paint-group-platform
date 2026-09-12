@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CONDITION_BANDS, COLOUR_INTENTS, DEFAULT_QUICK_LOOK, SCOPE_PRESETS,
-  assumedList, quickLookToState, restatement, stepsFor, type QuickLook,
+  assumedList, quickLookToState, restatement, stepCount, stepsFor, type QuickLook,
 } from "./quick-look";
 import { defaultWizardState, wizardStateSchema } from "./state";
 import { answersFromState, evaluateGuardrails } from "./policy";
@@ -201,7 +201,12 @@ describe("the screens", () => {
   });
 
   it("walks a both job through the inside and then the outside", () => {
-    expect(stepsFor("both")).toEqual(["start", "place", "job", "condition", "outside"]);
+    // C8: the choice screen sits after screen 1; it is not a question, so the
+    // screen-1 promise still counts five.
+    expect(stepsFor("both")).toEqual(["start", "both", "place", "job", "condition", "outside"]);
+    expect(stepCount("both")).toBe("Five");
+    expect(stepCount("interior")).toBe("Four");
+    expect(stepCount("exterior")).toBe("Three");
   });
 
   it("offers every choice with a label, and a hint where one is needed", () => {
