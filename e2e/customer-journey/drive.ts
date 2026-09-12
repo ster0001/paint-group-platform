@@ -102,8 +102,20 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
     await quickNext(page);
   }
 
-  // The guide range. Pricing runs server-side, so this waits like a submit.
-  await expect(page.getByTestId("reveal")).toBeVisible({ timeout: 90_000 });
+  /**
+   * The guide range. Pricing runs server-side, so this waits like a submit —
+   * but it waits for EITHER outcome. A failed submit does not stay on the
+   * quick look: `WizardApp.tsx` drops the customer onto the old page set with
+   * the server's message in `.wz-err`, so a spec watching only `reveal` sat
+   * 90 s on "How's it looking?" and reported a timeout. CI run #381 (12 Sep)
+   * was exactly that — the real message was "Couldn't create the estimate:
+   * TypeError: fetch failed" (an ECONNRESET between the runner and Supabase),
+   * and it took a trace to find. Now it is the failure.
+   */
+  const reveal = page.getByTestId("reveal");
+  const bounced = page.locator(".wz-err");
+  await expect(reveal.or(bounced)).toBeVisible({ timeout: 90_000 });
+  if (await bounced.count()) throw new Error(`quick look submit failed: ${await bounced.first().innerText()}`);
   await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE);
 
   /**
