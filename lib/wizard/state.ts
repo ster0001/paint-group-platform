@@ -186,6 +186,19 @@ export const wizardStateShapeSchema = z.object({
     operating: z.boolean().default(false),
     liftOnSite: z.boolean().default(false),
   }).nullable().default(null),
+  /**
+   * C14 — the BRIEF path's answers (strata, shop front, something else, a
+   * hospital, every commercial exterior). Never priced: the booking route
+   * stores them as a `commercial_briefs` row and raises the checklist. The
+   * questions are the segment row's `brief` json; this stores the strings.
+   */
+  brief: z.object({
+    briefKey: z.string().max(40),
+    what: z.array(z.string().max(80)).max(20).default([]),
+    answers: z.record(z.string().max(120), z.string().max(120)).default({}),
+    notes: z.string().max(2000).default(""),
+    date: z.string().max(10).nullable().default(null),
+  }).nullable().default(null),
 
   surfaces: z.array(surfaceKeySchema).min(1),
 
@@ -563,6 +576,7 @@ export function defaultWizardState(): WizardState {
     noPlan: false,
     basics: null,
     commercial: null,
+    brief: null,
     quickLook: null,
     surfaces: [...DEFAULT_SURFACES],
     condition: { tier: "change", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, darkToLightCeilings: null, darkToLightCeilingRooms: [], surfaceFlags: {}, colourAnswered: false, changingGroups: { walls: false, ceilings: false, trims: false }, boldColour: false, coloursUndecided: false },

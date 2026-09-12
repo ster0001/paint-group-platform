@@ -1048,3 +1048,10 @@
 .wz .wz-opencard { margin-top: 16px; padding: 14px 16px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
 .wz .wz-tiles { flex-wrap: wrap; }
 .wz .wz-tile .wz-tile-flag { display: block; margin-top: 3px; font-size: 11.5px; color: var(--amber); font-weight: 500; }
+
+/* ---- C14: the booking screen's three steps ---- */
+.wz .wz-book-steps { list-style: none; counter-reset: bk; margin: 8px 0 18px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.wz .wz-book-steps li { counter-increment: bk; position: relative; padding: 12px 14px 12px 46px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.wz .wz-book-steps li::before { content: counter(bk); position: absolute; left: 14px; top: 12px; width: 22px; height: 22px; border-radius: 50%; background: var(--cyan); color: var(--oncyan); font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+.wz .wz-book-steps b { display: block; font-size: 15px; }
+.wz .wz-book-steps span { display: block; margin-top: 2px; font-size: 13px; color: var(--muted); line-height: 1.45; }

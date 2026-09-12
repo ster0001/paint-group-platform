@@ -46,7 +46,9 @@ test("the eight tiles come from the table, tagged by their route; a brief tile s
   await page.getByTestId("ql-segment-strata").click();
   await expect(page.getByTestId("segment-visit-note")).toContainText(/priced on site/i);
   await page.getByTestId("ql-next").click();
-  await expect(page.getByText(/deserves a person/i)).toBeVisible({ timeout: 30_000 });
+  // C14: the brief door walks the BRIEF, rendered from the strata row — no person screen, no number.
+  await expect(page.locator("[data-quick-step='com_brief']")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("STRATA OR COMMON PROPERTY")).toBeVisible();
   // §4.16: no number anywhere on the brief door.
   await expect(page.locator("body")).not.toContainText(MONEY_RANGE);
 });
@@ -114,7 +116,7 @@ test("Tom's check: office → 4 offices, 1 open plan, 1 meeting room → a range
   await expect(page.getByTestId("scope-finalise")).not.toHaveText(/Accept estimate/);
 });
 
-test("health: aged care prices online; a hospital leaves for the brief from the areas screen", async ({ page }) => {
+test("health: aged care prices online; a hospital leaves for the hospital brief from the areas screen", async ({ page }) => {
   test.setTimeout(200_000);
   await toSegment(page);
   await page.getByTestId("ql-segment-health").click();
@@ -126,8 +128,9 @@ test("health: aged care prices online; a hospital leaves for the brief from the 
   await expect(page.getByTestId("com-open")).toContainText(/Lounge or dining room/);
   await page.getByTestId("com-kind-hospital").click();
   await quickNext(page);
-  await expect(page.getByText(/deserves a person/i)).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByTestId("outcome-why")).toContainText(/hospital/i);
+  // C14: a hospital leaves for the HOSPITAL brief (the health row's brief) from the areas screen.
+  await expect(page.locator("[data-quick-step='com_brief']")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("HOSPITAL", { exact: true })).toBeVisible();
   await expect(page.locator("body")).not.toContainText(MONEY_RANGE);
 });
 

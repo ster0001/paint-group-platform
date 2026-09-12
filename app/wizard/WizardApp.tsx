@@ -59,9 +59,10 @@ import Wordmark from "./Wordmark";
 import ChatWidget from "./ChatWidget";
 import { gateMessage, routeCommercial } from "@/lib/wizard/commercial";
 import {
-  DEFAULT_SEGMENTS, commercialSurfaceKeys, defaultCommercialAnswers, isWarehouse, segmentByKey, segmentTiles,
-  type CommercialAnswers, type Segment,
+  DEFAULT_SEGMENTS, briefConfigFor, commercialSurfaceKeys, defaultBriefAnswers, defaultCommercialAnswers, isWarehouse, segmentByKey, segmentTiles,
+  type BriefAnswers, type CommercialAnswers, type Segment,
 } from "@/lib/wizard/segments";
+import { BriefDone } from "./CommercialScreens";
 
 /**
  * W1: the five paginated pages, exactly per the workflow doc — Property →
@@ -238,6 +239,30 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   /** C13: which commercial screens the chosen row walks — the warehouse pattern has its own. */
   const commercialPattern = isWarehouse(segmentByKey(segments, state.customer?.commercialSegment)) ? "warehouse" as const : "areas" as const;
   /**
+   * C14: which DOOR the row opened. The routing reads the row, the kind (a
+   * hospital leaves from the areas screen) and the job type (every outside
+   * or both is the exterior brief). It is derived here, once, so the step
+   * list, the screens and Continue cannot disagree.
+   */
+  const commercialRouting = quick.propertyKind === "commercial" && state.customer?.commercialSegment
+    ? routeCommercial(state.customer.commercialSegment, { segments, kind: state.commercial?.kind ?? null, jobType: quick.jobType })
+    : null;
+  const commercialDoor: "range" | "brief" | "brief_after_areas" = !commercialRouting || commercialRouting.canPriceOnline
+    ? "range"
+    : commercialRouting.briefKey === "hospital" ? "brief_after_areas" : "brief";
+  const briefConfig = commercialRouting?.briefKey ? briefConfigFor(segments, commercialRouting.briefKey) : null;
+  const briefAnswers: BriefAnswers | null = briefConfig
+    ? (state.brief && state.brief.briefKey === commercialRouting!.briefKey ? state.brief : defaultBriefAnswers(commercialRouting!.briefKey!, briefConfig.brief))
+    : null;
+  const setBriefAnswers = (patch: Partial<BriefAnswers>) => { if (briefAnswers) set({ brief: { ...briefAnswers, ...patch } }); };
+  /** C14: the booking screen's own state — slots from scheduling, the pick, the contact, what happened. */
+  const [bookSlots, setBookSlots] = useState<string[]>([]);
+  const [bookSlot, setBookSlot] = useState<string | null>(null);
+  const [holdDays, setHoldDays] = useState(60);
+  const [bookError, setBookError] = useState<string | null>(null);
+  const [booking, setBooking] = useState(false);
+  const [briefDone, setBriefDone] = useState<{ slot: string | null; emailed: boolean; booked: boolean; bookingProblem: string | null; email: string } | null>(null);
+  /**
    * The quick look's answers, written to the state as they are tapped.
    *
    * ⚑ `jobType` is mirrored onto the state IMMEDIATELY rather than waiting for
@@ -391,7 +416,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    * other half of §9.7, still blocked on the per-elevation allowances spec.
    */
   const quickActive = isCustomer && entry === "questions" && !quickDone;
-  const lastPage = quickActive ? stepsFor(quick.jobType, quick.propertyKind, commercialPattern).length : pageKeys.length;
+  const lastPage = quickActive ? stepsFor(quick.jobType, quick.propertyKind, commercialPattern, commercialDoor).length : pageKeys.length;
   const pageKey: PageKey = pageKeys[Math.min(page, lastPage) - 1];
   const chooseEntry = (e: EntryChoice) => {
     setQuickDone(true);
@@ -1059,7 +1084,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const lastScreen = screen === "processing"
     ? "processing"
     : quickActive
-      ? `quick:${stepsFor(quick.jobType, quick.propertyKind, commercialPattern)[Math.min(Math.max(page, 1), stepsFor(quick.jobType, quick.propertyKind, commercialPattern).length) - 1]}`
+      ? `quick:${stepsFor(quick.jobType, quick.propertyKind, commercialPattern, commercialDoor)[Math.min(Math.max(page, 1), stepsFor(quick.jobType, quick.propertyKind, commercialPattern, commercialDoor).length) - 1]}`
       : `page:${pageKeys[Math.min(page, pageKeys.length) - 1] ?? page}`;
 
   /**
@@ -1275,7 +1300,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
 
   // ---- the quick look -------------------------------------------------------
 
-  const quickSteps = stepsFor(quick.jobType, quick.propertyKind, commercialPattern);
+  const quickSteps = stepsFor(quick.jobType, quick.propertyKind, commercialPattern, commercialDoor);
   const quickStep = quickSteps[Math.min(Math.max(page, 1), quickSteps.length) - 1];
 
   /**
@@ -1303,26 +1328,55 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     }));
   };
   /**
-   * A brief door (C14 builds the brief itself): the lead is flushed with
-   * everything answered so far and the customer meets the person screen with
-   * the reason in plain words — never "we'll need to see it" on its own.
+   * C14: the slots and the hold, fetched once the booking screen is reached.
+   * No pricing anywhere on this path — the GET is the scheduling windows.
    */
-  const commercialHandOff = (routing: ReturnType<typeof routeCommercial>) => {
-    setState((s) => ({
-      ...s,
-      customer: s.customer ? { ...s.customer, propertyKind: "commercial" } : s.customer,
-    }));
-    flushDraft(`quick:segment:${routing.briefKey ?? "unknown"}`);
-    const why = routing.reasons[0] ? routing.reasons[0].charAt(0).toUpperCase() + routing.reasons[0].slice(1) : "";
-    setOutcome({
-      outcome: "handoff",
-      message: gateMessage(routing),
-      why: `${why ? `${why}. ` : ""}One of our estimators will call to arrange a look — we have your address and what you're after.`,
-      canRetry: false,
-    });
-    setScreen("editor");
-    window.scrollTo({ top: 0 });
-  };
+  useEffect(() => {
+    if (quickStep !== "com_book") return;
+    let cancelled = false;
+    fetch("/api/wizard/brief-book")
+      .then((r) => r.json())
+      .then((j: { slots?: string[]; holdDays?: number }) => {
+        if (cancelled) return;
+        setBookSlots(j.slots ?? []);
+        if (typeof j.holdDays === "number") setHoldDays(j.holdDays);
+      })
+      .catch(() => { /* no slots is fine — "we'll call to arrange" still books */ });
+    return () => { cancelled = true; };
+  }, [quickStep]);
+
+  /** C14: Book it — the photos go up, then the brief books. Never a reprice. */
+  async function bookBrief() {
+    if (!commercialRouting?.briefKey || !briefAnswers || !state.customer?.commercialSegment) return;
+    const email = state.contact.email.trim();
+    if (!email.includes("@")) { setBookError("Where should we send the confirmation? A work email is all we need."); return; }
+    setBookError(null);
+    setBooking(true);
+    try {
+      const sourceIds = await analyseDamagePhotos().then(() => conditionSourceIdsRef.current).catch(() => conditionSourceIdsRef.current);
+      const res = await fetch("/api/wizard/brief-book", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email, name: state.contact.name.trim() || undefined, phone: state.contact.phone.trim() || undefined,
+          slot: bookSlot ?? undefined, screen: "com_book",
+          brief: { segment: state.customer.commercialSegment, ...briefAnswers },
+          sourceIds,
+          snapshot: { state, page, lastPage },
+        }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setBookError(j.error ?? "That didn't save — try again in a moment."); return; }
+      flushDraft("quick:com_book:booked");
+      setBriefDone({ slot: j.booked ? (bookSlot ?? null) : null, emailed: j.emailed === true, booked: j.booked === true, bookingProblem: j.bookingProblem ?? null, email });
+      clearResume();
+      window.scrollTo({ top: 0 });
+    } catch {
+      setBookError("That didn't save — check the connection and try again.");
+    } finally {
+      setBooking(false);
+    }
+  }
   const quickPhotoRef = useRef<HTMLInputElement>(null);
   const addQuickPhotos = (files: File[]) => {
     for (const f of files) {
@@ -1363,20 +1417,40 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         setError("Pick the closest kind of place — we'll say straight away whether we can price it from here.");
         return;
       }
+      // C14: a brief door walks the brief and the booking — the step list
+      // already says so (`commercialDoor`); nothing to hand off.
       const routing = routeCommercial(key, { segments, jobType: quick.jobType });
-      if (!routing.canPriceOnline) { commercialHandOff(routing); return; }
-      if (!state.commercial || state.commercial.segment !== routing.segment!.key) {
+      if (routing.canPriceOnline && (!state.commercial || state.commercial.segment !== routing.segment!.key)) {
         set({ commercial: defaultCommercialAnswers(routing.segment!) });
       }
+      setState((s) => ({ ...s, customer: s.customer ? { ...s.customer, propertyKind: "commercial" } : s.customer }));
+      flushDraft(`quick:segment:${routing.briefKey ?? "range"}`);
       setPage(page + 1);
       window.scrollTo({ top: 0 });
       return;
     }
     if (quickStep === "com_areas") {
-      const routing = routeCommercial(state.customer?.commercialSegment, { segments, kind: state.commercial?.kind ?? null, jobType: quick.jobType });
-      if (!routing.canPriceOnline) { commercialHandOff(routing); return; }
+      // A hospital leaves for its brief from here (`brief_after_areas`); the
+      // step list has already grown the brief and the booking.
       setPage(page + 1);
       window.scrollTo({ top: 0 });
+      return;
+    }
+    if (quickStep === "com_brief") {
+      if (!briefAnswers || briefAnswers.what.length === 0) {
+        setError("Tick at least one thing that needs painting.");
+        return;
+      }
+      if (briefConfig?.brief.date && !briefAnswers.date) {
+        setError(`${briefConfig.brief.date.label} — pick a date, or the nearest you know.`);
+        return;
+      }
+      setPage(page + 1);
+      window.scrollTo({ top: 0 });
+      return;
+    }
+    if (quickStep === "com_book") {
+      void bookBrief();
       return;
     }
     // C13: the warehouse screen has to name something being painted.
@@ -1482,6 +1556,17 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    *               in place rather than routing: sending them to another
    *               screen to give an address is the toll we just removed.
    */
+  // C14: after Book it on the brief path — no number, nothing to tighten.
+  if (briefDone) {
+    return (
+      <div className="wz">
+        <header className="wz-top">
+          <Wordmark logoUrl={logoUrl} />
+        </header>
+        <BriefDone slot={briefDone.slot} emailed={briefDone.emailed} booked={briefDone.booked} bookingProblem={briefDone.bookingProblem} email={briefDone.email} phone={companyPhone} />
+      </div>
+    );
+  }
   if (screen === "reveal" && reveal) {
     return (
       <div data-ready="1">
@@ -1614,7 +1699,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 stepsTotal={quickSteps.length}
                 error={error}
                 canContinue={!nav.disabled}
-                busy={uploading}
+                busy={uploading || booking}
                 onBack={page > 1 ? quickBack : null}
                 onNext={quickNext}
                 onBook={openBook}
@@ -1636,6 +1721,17 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                   onAnswers: setCommercial,
                   photoCount: state.details.damagePhotoCount,
                   onPhotos: () => quickPhotoRef.current?.click(),
+                  door: commercialDoor,
+                  briefConfig: briefConfig?.brief ?? null,
+                  brief: briefAnswers,
+                  onBrief: setBriefAnswers,
+                  slots: bookSlots,
+                  slot: bookSlot,
+                  onSlot: setBookSlot,
+                  contact: { email: state.contact.email, name: state.contact.name, phone: state.contact.phone },
+                  onContact: (patch) => set({ contact: { ...state.contact, ...patch } }),
+                  bookError,
+                  holdDays,
                 }}
                 addressField={
                   <>

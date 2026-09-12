@@ -70,6 +70,26 @@ export default function PackPane({ bundle }: { bundle: PackBundle }) {
               <> {" "}The rules suggested <b>{request.suggested_action}</b> at the time; they say <b>{recommended}</b> now.</>
             )}
           </p>
+          {/* C14: a brief-path estimate — the customer's brief, verbatim, above the (empty) tree. */}
+          {(() => {
+            const brief = (request.pack as { brief?: { segmentName?: string; briefKey?: string; what?: string[]; answers?: Record<string, string>; notes?: string; date?: string | null; photoSourceIds?: string[]; checklist?: Array<{ key: string; value: string | null }> } } | null)?.brief;
+            if (!brief) return null;
+            return (
+              <div className="mt-3 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm" data-testid="pack-brief">
+                <p className="font-semibold text-sky-900">Brief — {brief.segmentName ?? brief.briefKey}</p>
+                <p className="mt-1 text-gray-800"><b>Needs painting:</b> {(brief.what ?? []).join(", ") || "—"}</p>
+                {Object.entries(brief.answers ?? {}).map(([q, a]) => (
+                  <p key={q} className="text-gray-800"><b>{q}</b> {a}</p>
+                ))}
+                {brief.date && <p className="text-gray-800"><b>Meeting date:</b> {brief.date}</p>}
+                {brief.notes && <p className="mt-1 whitespace-pre-wrap text-gray-800"><b>Notes:</b> {brief.notes}</p>}
+                <p className="mt-1 text-xs text-gray-600">
+                  {(brief.photoSourceIds ?? []).length} photo{(brief.photoSourceIds ?? []).length === 1 ? "" : "s"} on the estimate
+                  {(brief.checklist ?? []).length ? ` · checklist: ${(brief.checklist ?? []).map((c) => c.key + (c.value ? ` (${c.value})` : "")).join(", ")}` : ""}
+                </p>
+              </div>
+            );
+          })()}
           {drift && (
             <p className="mt-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900" data-testid="desk-check-drift">
               The price has moved {drift.direction} by {money(Math.abs(drift.deltaCents))} since they were told.

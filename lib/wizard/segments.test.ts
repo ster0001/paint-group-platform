@@ -16,6 +16,8 @@ import { DEFAULT_QUICK_LOOK } from "./quick-look";
  */
 
 const SQL = readFileSync(new URL("../../supabase/migrations/20270140000000_commercial_segments.sql", import.meta.url), "utf8");
+/** C14 extends the brief configs with `update … set brief = brief || $j${…}$j$ where key = '…'` — applied here so the mirror still equals the live rows. */
+const SQL_C14 = readFileSync(new URL("../../supabase/migrations/20270141000000_commercial_briefs.sql", import.meta.url), "utf8");
 
 function seedRows(): unknown[] {
   // Each row: ('key', position, 'name', 'hint', 'route', tile, $j${config}$j$, $j${brief}$j$ | null, $j${typicals}$j$ | '{}'::jsonb)
@@ -29,6 +31,12 @@ function seedRows(): unknown[] {
       key: m[1], position: Number(m[2]), name: m[3].replace(/''/g, "'"), tile_hint: m[4].replace(/''/g, "'"),
       route: m[5], tile: m[6] === "true", config: json(m[7]), brief: json(m[8]), typicals: json(m[9]),
     });
+  }
+  const patch = /set brief = brief \|\| \$j\$([\s\S]*?)\$j\$::jsonb, updated_at = now\(\) where key = '([a-z]+)'/g;
+  let p: RegExpExecArray | null;
+  while ((p = patch.exec(SQL_C14))) {
+    const row = rows.find((r) => (r as { key: string }).key === p![2]) as { brief: Record<string, unknown> | null } | undefined;
+    if (row?.brief) row.brief = { ...row.brief, ...JSON.parse(p[1]) };
   }
   return rows;
 }

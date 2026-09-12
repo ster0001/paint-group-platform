@@ -6,6 +6,7 @@ import {
   type CommercialAnswers, type Segment,
 } from "@/lib/wizard/segments";
 import { gateMessage, routeCommercial } from "@/lib/wizard/commercial";
+import type { BriefAnswers, SegmentBrief } from "@/lib/wizard/segments";
 import { WH_AREAS, WH_HEIGHTS, WH_MATERIALS, WH_RACKING, WH_SURFACES, toggleWarehouseMaterial, type WarehouseSurfaceKey } from "@/lib/wizard/warehouse";
 
 /**
@@ -435,5 +436,164 @@ export function WarehouseScreen({ segment, answers, onAnswers }: {
         <Pills options={[{ value: "yes", label: "Yes" }, { value: "no", label: "No" }]} value={answers.liftOnSite ? "yes" : "no"} name="wh-lift" onPick={(v) => onAnswers({ liftOnSite: v === "yes" })} />
       </div>
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// C14 — the brief (s-com-brief), the booking (s-com-book), and the done screen
+// ---------------------------------------------------------------------------
+
+export function BriefScreen({ brief, answers, onAnswers, photoCount, onPhotos }: {
+  brief: SegmentBrief;
+  answers: BriefAnswers;
+  onAnswers: (patch: Partial<BriefAnswers>) => void;
+  photoCount: number;
+  onPhotos: () => void;
+}) {
+  const toggleWhat = (w: string) =>
+    onAnswers({ what: answers.what.includes(w) ? answers.what.filter((x) => x !== w) : [...answers.what, w] });
+  return (
+    <>
+      <p className="wz-kick">{brief.kick}</p>
+      <h1>{brief.title}</h1>
+      <p className="wz-sub" data-testid="brief-sub">{brief.sub}</p>
+
+      <p className="wz-qhead" style={{ marginTop: 0 }}>What needs painting?</p>
+      <div className="wz-chips wz-tiles" data-testid="brief-what">
+        {brief.what.map((w) => (
+          <button
+            key={w} type="button"
+            className={`wz-tile ${answers.what.includes(w) ? "on" : ""}`}
+            aria-pressed={answers.what.includes(w)}
+            data-testid={`brief-what-${slug(w)}`}
+            onClick={() => toggleWhat(w)}
+          >{w}</button>
+        ))}
+      </div>
+
+      {brief.rows.map(([q, opts]) => (
+        <div key={q} data-testid={`brief-row-${slug(q)}`}>
+          <p className="wz-qhead">{q}</p>
+          <div className="wz-chips">
+            {opts.map((o) => (
+              <button
+                key={o} type="button"
+                className={`wz-chip ${answers.answers[q] === o ? "on" : ""}`}
+                aria-pressed={answers.answers[q] === o}
+                data-testid={`brief-opt-${slug(q)}-${slug(o)}`}
+                onClick={() => onAnswers({ answers: { ...answers.answers, [q]: o } })}
+              >{o}</button>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {brief.date && (
+        <div className="wz-countrow" data-testid="brief-date">
+          <div className="wz-qtext">{brief.date.label}{brief.date.hint && <small>{brief.date.hint}</small>}</div>
+          <input className="wz-in" type="date" data-testid="brief-date-input" value={answers.date ?? ""}
+            onChange={(e) => onAnswers({ date: e.target.value || null })} />
+        </div>
+      )}
+
+      <p className="wz-qhead">Photos <span className="wz-opt">OPTIONAL, BUT THEY HELP A LOT</span></p>
+      <button type="button" className={`wz-photo-stub ${photoCount ? "done" : ""}`} onClick={onPhotos} data-testid="brief-photo" data-photos={photoCount}>
+        {photoCount
+          ? `✓ ${photoCount} photo${photoCount === 1 ? "" : "s"} added to your brief`
+          : `📷 Add a few photos ${brief.photo}`}
+      </button>
+
+      <p className="wz-qhead">Anything else we should know?</p>
+      <textarea
+        className="wz-field" rows={3} data-testid="brief-notes"
+        placeholder="Water damage, a consultant's scope, a deadline, who to ask for on site…"
+        value={answers.notes}
+        onChange={(e) => onAnswers({ notes: e.target.value.slice(0, 2000) })}
+      />
+    </>
+  );
+}
+
+export type BookContact = { email: string; name: string; phone: string };
+
+export function BookScreen({ slots, slot, onSlot, contact, onContact, phone, error, holdDays }: {
+  slots: string[];
+  slot: string | null;
+  onSlot: (s: string | null) => void;
+  contact: BookContact;
+  onContact: (patch: Partial<BookContact>) => void;
+  phone: string | null;
+  error: string | null;
+  holdDays: number;
+}) {
+  return (
+    <>
+      <p className="wz-kick">Let&rsquo;s get someone out</p>
+      <h1>Book your commercial estimator</h1>
+      <p className="wz-sub">A site visit is the right way to price this. Here&rsquo;s how it goes.</p>
+      <ol className="wz-book-steps" data-testid="book-steps">
+        {/* ⚑27: "usually within a week" is the prototype's line — Tom confirms what he can hold to. */}
+        <li><b>We visit and measure</b><span>Usually within a week. We bring your brief and photos, so it&rsquo;s quick.</span></li>
+        <li><b>You get a scope of works and a fixed quote</b><span>Itemised, with our insurance certificates and safe work method statements attached.</span></li>
+        <li><b>Nothing is fixed until you say so</b><span>Quotes are held for {holdDays} days — or to your meeting date, if you gave us one.</span></li>
+      </ol>
+
+      <p className="wz-qhead">Pick a time that suits</p>
+      {slots.length > 0 ? (
+        <div className="wz-slots" data-testid="book-slots">
+          {slots.map((s) => (
+            <button key={s} type="button" className={`wz-slot ${slot === s ? "on" : ""}`} onClick={() => onSlot(slot === s ? null : s)} data-testid="book-slot" aria-pressed={slot === s}>
+              <b>{s.includes(" · ") ? s.slice(0, s.indexOf(" · ")) : s}</b>
+              {s.includes(" · ") && <span>{s.slice(s.indexOf(" · ") + 3)}</span>}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="wz-chint" data-testid="book-no-slots">No times to show just now — book it and we&rsquo;ll call to arrange one.</p>
+      )}
+
+      <p className="wz-qhead">Where to send the confirmation</p>
+      <input className="wz-field" type="email" inputMode="email" autoComplete="email" placeholder="Work email" value={contact.email}
+        onChange={(e) => onContact({ email: e.target.value })} data-testid="book-email" />
+      <div className="wz-crow">
+        <input className="wz-field" placeholder="Your name" autoComplete="name" value={contact.name} onChange={(e) => onContact({ name: e.target.value })} data-testid="book-name" />
+        <input className="wz-field" placeholder="Mobile" inputMode="tel" autoComplete="tel" value={contact.phone} onChange={(e) => onContact({ phone: e.target.value })} data-testid="book-phone" />
+      </div>
+      {error && <div className="wz-err" data-testid="book-error">{error}</div>}
+      {phone && (
+        <p className="wz-chint">Something urgent? <a href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="book-call">Call {phone}</a></p>
+      )}
+    </>
+  );
+}
+
+/** After Book it: what happened, in plain words. No number anywhere. */
+export function BriefDone({ slot, emailed, booked, bookingProblem, email, phone }: {
+  slot: string | null;
+  emailed: boolean;
+  booked: boolean;
+  bookingProblem: string | null;
+  email: string;
+  phone: string | null;
+}) {
+  return (
+    <div className="wz-wrap" data-testid="brief-done">
+      <p className="wz-kick">Booked</p>
+      <h1>{booked && slot ? "You're booked in" : "Your brief is with us"}</h1>
+      <p className="wz-sub" data-testid="brief-done-line">
+        {booked && slot
+          ? `We've got you down for ${slot}. We bring your brief and photos with us, so the visit is quick.`
+          : bookingProblem
+            ? `${bookingProblem} Your brief and photos are saved, and one of us will call to arrange a time.`
+            : "One of us will call within one working day to arrange a time. Your brief and photos come with us."}
+      </p>
+      <p className="wz-chint" data-testid="brief-done-email">
+        {emailed ? `A confirmation is on its way to ${email}.` : `Saved to ${email} — the email is taking its time, but everything is kept.`}
+      </p>
+      <p className="wz-chint">Nothing is fixed until you say so, and nothing is owed.</p>
+      {phone && (
+        <p className="wz-chint">Something urgent? <a href={`tel:${phone.replace(/\s+/g, "")}`}>Call {phone}</a></p>
+      )}
+    </div>
   );
 }

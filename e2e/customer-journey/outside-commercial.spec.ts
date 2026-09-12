@@ -95,7 +95,7 @@ test("C12: commercial + inside reaches the segment screen, and a range segment w
   await expect(page.locator("[data-quick-step='com_areas']")).toBeVisible({ timeout: 30_000 });
 });
 
-test("9.3(c) commercial + outside reaches a hand-off from the segment screen, never domestic house questions", async ({ page }) => {
+test("9.3(c) commercial + outside reaches the exterior brief from the segment screen, never domestic house questions", async ({ page }) => {
   test.setTimeout(120_000);
   await startAt(page, "exterior");
   await toPlace(page);
@@ -106,15 +106,16 @@ test("9.3(c) commercial + outside reaches a hand-off from the segment screen, ne
   await expect(page.getByTestId("segment-visit-note")).toContainText(/priced on site/i);
   await page.getByTestId("ql-next").click();
 
-  // A person, with a reason — not "What we're painting" with house / fence /
-  // deck / shed, and not a silent return to screen 1.
-  await expect(page.getByText(/deserves a person/i)).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByTestId("outcome-why")).toContainText(/commercial exterior/i);
+  // C14: the EXTERIOR brief — not "What we're painting" with house / fence /
+  // deck / shed, not a person screen, and not a silent return to screen 1.
+  await expect(page.locator("[data-quick-step='com_brief']")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("COMMERCIAL — OUTSIDE")).toBeVisible();
   await expect(page.locator("[data-quick-step='start']")).toHaveCount(0);
   await expect(page.getByText(/What we.re painting/i)).toHaveCount(0);
+  await expect(page.getByText(/deserves a person/i)).toHaveCount(0);
 });
 
-test("commercial + both reaches the same hand-off — one visit", async ({ page }) => {
+test("commercial + both reaches the exterior brief — one visit", async ({ page }) => {
   test.setTimeout(120_000);
   await startAt(page, "both");
   await toPlace(page);
@@ -123,6 +124,7 @@ test("commercial + both reaches the same hand-off — one visit", async ({ page 
   await expect(page.locator("[data-quick-step='segment']")).toBeVisible({ timeout: 30_000 });
   await page.getByTestId("ql-segment-retail").click();
   await page.getByTestId("ql-next").click();
-  await expect(page.getByText(/deserves a person/i)).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByTestId("outcome-why")).toContainText(/one visit/i);
+  // C14: both → the exterior brief and one visit.
+  await expect(page.locator("[data-quick-step='com_brief']")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("COMMERCIAL — OUTSIDE")).toBeVisible();
 });

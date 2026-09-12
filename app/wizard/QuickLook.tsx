@@ -10,8 +10,8 @@ import {
   toggleAccess, toggleIn, toggleMaterial,
   type ExteriorQuickLook,
 } from "@/lib/wizard/exterior-quick-look";
-import { AreasScreen, JobScreen, SegmentScreen, WarehouseScreen } from "./CommercialScreens";
-import type { CommercialAnswers, Segment } from "@/lib/wizard/segments";
+import { AreasScreen, BookScreen, BriefScreen, JobScreen, SegmentScreen, WarehouseScreen, type BookContact } from "./CommercialScreens";
+import type { BriefAnswers, CommercialAnswers, Segment, SegmentBrief } from "@/lib/wizard/segments";
 
 /** C12: what the commercial screens need from WizardApp. */
 export type CommercialQuickProps = {
@@ -23,6 +23,18 @@ export type CommercialQuickProps = {
   onAnswers: (patch: Partial<CommercialAnswers>) => void;
   photoCount: number;
   onPhotos: () => void;
+  /** C14: the brief path — the config the door opened, the answers, the booking. */
+  door: "range" | "brief" | "brief_after_areas";
+  briefConfig: SegmentBrief | null;
+  brief: BriefAnswers | null;
+  onBrief: (patch: Partial<BriefAnswers>) => void;
+  slots: string[];
+  slot: string | null;
+  onSlot: (s: string | null) => void;
+  contact: BookContact;
+  onContact: (patch: Partial<BookContact>) => void;
+  bookError: string | null;
+  holdDays: number;
 };
 
 /**
@@ -78,6 +90,9 @@ export default function QuickLook({
 }) {
   const last = quick.jobType === "interior" ? step === "condition" || step === "com_job" : step === "outside";
   const pattern = commercial?.segment?.config.pattern === "warehouse" ? "warehouse" as const : "areas" as const;
+  const door = commercial?.door ?? "range";
+  // C14: the booking screen's button books; it never says "range".
+  const nextLabel = step === "com_book" ? "Book it" : last ? "See my guide range" : "Continue";
 
   return (
     <div className="wz-wrap wz-quick" data-quick-step={step}>
@@ -93,7 +108,7 @@ export default function QuickLook({
             * count is computed, never typed.
             */}
           <p className="wz-sub">
-            {stepCount(quick.jobType, quick.propertyKind, pattern)} quick screens, then a guide range. Everything after that is
+            {stepCount(quick.jobType, quick.propertyKind, pattern, door)} quick screens, then a guide range. Everything after that is
             optional — and nothing you say here is a commitment.
           </p>
           {addressField}
@@ -213,6 +228,27 @@ export default function QuickLook({
           segment={commercial.segment}
           answers={commercial.answers}
           onAnswers={commercial.onAnswers}
+        />
+      )}
+      {step === "com_brief" && commercial?.briefConfig && commercial.brief && (
+        <BriefScreen
+          brief={commercial.briefConfig}
+          answers={commercial.brief}
+          onAnswers={commercial.onBrief}
+          photoCount={commercial.photoCount}
+          onPhotos={commercial.onPhotos}
+        />
+      )}
+      {step === "com_book" && commercial && (
+        <BookScreen
+          slots={commercial.slots}
+          slot={commercial.slot}
+          onSlot={commercial.onSlot}
+          contact={commercial.contact}
+          onContact={commercial.onContact}
+          phone={phone}
+          error={commercial.bookError}
+          holdDays={commercial.holdDays}
         />
       )}
       {step === "com_job" && commercial?.segment && commercial.answers && (
@@ -391,7 +427,7 @@ export default function QuickLook({
             data-testid="ql-next"
             onClick={onNext}
           >
-            {busy ? "Working it out…" : last ? "See my guide range" : "Continue"}
+            {busy ? (step === "com_book" ? "Booking…" : "Working it out…") : nextLabel}
           </button>
         )}
       </div>
