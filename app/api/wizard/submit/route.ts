@@ -18,7 +18,10 @@ import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { PAINT_SYSTEMS_KEY, paintSystemsFrom } from "@/lib/pricing/systems";
 import { applyWizardAnswers, filterSurfacesByTicks } from "@/lib/wizard/merge";
 import { ceilingHeightFrom, wizardStateSchema, type WizardSurfaceKey } from "@/lib/wizard/state";
-import { backfillTypicalSizes, markStarterProvenance, starterExtraction, starterRoomList, type TypicalSizeRow } from "@/lib/wizard/starter";
+import { backfillTypicalSizes, commercialExtraction, markStarterProvenance, starterExtraction, starterRoomList, type TypicalSizeRow } from "@/lib/wizard/starter";
+import { DEFAULT_SEGMENTS, commercialRoomList, commercialSurfaceKeys, loadSegments, segmentByKey } from "@/lib/wizard/segments";
+import { commercialWidenFor } from "@/lib/wizard/commercial";
+import { applyOpenSpace, commercialPricingFrom, hourLoadingFor } from "@/lib/pricing/commercial";
 import { applyConditionPricing, applyExteriorAnswers, type MeasuredSides } from "@/lib/wizard/exteriorAnswers";
 import { defaultSidesLoop } from "@/lib/wizard/sides";
 import { customerPayload, editorPayload } from "@/lib/wizard/view";
@@ -166,6 +169,18 @@ export async function POST(request: Request) {
   const aliases = (aliasRows ?? []) as Alias[];
   const defectRates = (defectRows ?? []) as DefectRate[];
   const typicals = (typicalRows ?? []) as TypicalSizeRow[];
+  /**
+   * C12: a commercial job's rooms come from its SEGMENT ROW (counts × typicals
+   * and the also-areas), so the row is loaded here and read by the extraction,
+   * the ladder (`answersFromState`) and the reveal's widening alike — one read,
+   * one truth. A key the table does not know is a 400, never a guess.
+   */
+  const isCommercialJob = state.customer?.propertyKind === "commercial" && state.commercial != null;
+  const segments = isCommercialJob ? await loadSegments(db) : DEFAULT_SEGMENTS;
+  const segment = isCommercialJob ? segmentByKey(segments, state.commercial!.segment) : null;
+  if (isCommercialJob && !segment) {
+    return NextResponse.json({ error: "We don't recognise that kind of place — pick the closest one again." }, { status: 400 });
+  }
 
   const height = ceilingHeightFrom(state.details.ceilingHeight);
   const warnings: string[] = [];
@@ -193,6 +208,40 @@ export async function POST(request: Request) {
     // Exterior-only: the envelope is measured from its own sources (E1 rule),
     // and the drafting routes for it are still to be wired. The estimate is
     // created empty with the site-check deferral carrying the work forward.
+  } else if (segment && state.commercial) {
+    // ---- C12: the commercial starter — counts × typicals, the open space ----
+    const rooms = commercialRoomList(segment, state.commercial);
+    const priced = rooms.filter((r) => !r.outside);
+    const x = commercialExtraction(priced, {
+      heightM: height.assumed ? null : height.heightM,
+      windows: state.surfaces.includes("windows"),
+    });
+    const draft = buildDraft(x, rules, aliases, { startId: nextId, defectRates });
+    markStarterProvenance(draft.areas);
+    // §4.12: the open areas' ceilings (only plaster is painted), their wall
+    // height in height mode, and one EWP line above the threshold.
+    const commercialPricing = commercialPricingFrom(settingValue((await loadPricingContext(db)).settings, "commercial_pricing"));
+    const flagged = applyOpenSpace(draft.areas, {
+      openNames: new Set(priced.filter((r) => r.open).map((r) => r.name)),
+      ceiling: state.commercial.ceiling,
+      mode: segment.config.openMode ?? "size",
+      height: state.commercial.openHeight,
+      pricing: commercialPricing,
+    });
+    areas.push(...draft.areas);
+    skipped.push(...draft.skipped);
+    deferred.push(...draft.deferred, ...flagged);
+    // An also-area configured as outside is a flag for the estimator, never
+    // a price — every commercial exterior is priced on site.
+    for (const r of rooms.filter((r) => r.outside)) {
+      deferred.push({ room: r.name, areaId: null, count: 1, kind: "commercial_outside", what: `${r.name} — outside`, needs: "outside areas are priced on site, never from a form" });
+    }
+    // A ticked surface with no rate (handrails, pinboard surrounds, a sprayed
+    // exposed ceiling) is named for the estimator rather than guessed at.
+    for (const label of commercialSurfaceKeys(segment, state.commercial).unmapped) {
+      deferred.push({ room: "Whole job", areaId: null, count: 1, kind: "commercial_surface", what: label, needs: "no rate for this yet — your estimator prices it with the estimate" });
+    }
+    assumedCount += draft.assumedCount;
   } else if (state.noPlan || state.planRunIds.length === 0) {
     // ---- no-plan path: the starter list from the quick basics --------------
     if (!state.basics) {
@@ -467,12 +516,22 @@ export async function POST(request: Request) {
     if (contactId) wizardContact.id = contactId;
   }
 
+  const commercialLoading = segment && state.commercial
+    ? hourLoadingFor(state.commercial, commercialPricingFrom(settingValue(ctx.settings, "commercial_pricing")))
+    : 1;
   const builderState: Record<string, unknown> = {
     blocks: merged.areas,
     aiDeferred: merged.deferred,
     ...(wizardContact ? { contact: wizardContact } : {}),
     ...(Object.keys(conditionModSel).length ? { modSel: conditionModSel } : {}),
     ...(sidesLoopSeed ? { sidesLoop: sidesLoopSeed } : {}),
+    // C12 (§4.14): the commercial loading — one multiplier on production
+    // hours, from the hours and occupied answers and the Settings row. Absent
+    // on every residential estimate, so nothing there changes.
+    ...(commercialLoading !== 1 ? { hourLoading: commercialLoading } : {}),
+    ...(segment && state.commercial ? {
+      commercial: { segment: segment.key, name: segment.name, hours: state.commercial.hours, occ: state.commercial.occ, hourLoading: commercialLoading },
+    } : {}),
     // A1: a picked Places address flows straight onto the estimate document
     // (the builder's Job Address card), in the builder's own shape.
     ...(state.address ? {
@@ -504,7 +563,7 @@ export async function POST(request: Request) {
   // read must not count as a condition photo.
   const siteCheck = requiresSiteCheck({ state: effectiveState });
   const decision = evaluateGuardrails(
-    answersFromState(state),
+    answersFromState(state, segments),
     payload.totals.totalCents,
     payload.accuracyPct,
     siteCheck,
@@ -830,7 +889,9 @@ export async function POST(request: Request) {
       estimateId,
       planUrl,
       ...customerPayload(payload, merged.areas, decision, bands, parts, doLines,
-        who.name ? { name: who.name, phone: who.phone, covers: who.covers } : null),
+        who.name ? { name: who.name, phone: who.phone, covers: who.covers } : null,
+        // C12 (⚑20): the commercial widening, from the same state and rows.
+        commercialWidenFor(effectiveState, ctx.settings, segments)),
     });
   }
 

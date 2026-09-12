@@ -10,6 +10,20 @@ import {
   toggleAccess, toggleKeeping,
   type ExteriorQuickLook, type ExteriorSubstrate, type ExteriorTarget,
 } from "@/lib/wizard/exterior-quick-look";
+import { AreasScreen, JobScreen, SegmentScreen } from "./CommercialScreens";
+import type { CommercialAnswers, Segment } from "@/lib/wizard/segments";
+
+/** C12: what the commercial screens need from WizardApp. */
+export type CommercialQuickProps = {
+  segments: Segment[];
+  segmentKey: string | null;
+  segment: Segment | null;
+  onSegment: (key: string) => void;
+  answers: CommercialAnswers | null;
+  onAnswers: (patch: Partial<CommercialAnswers>) => void;
+  photoCount: number;
+  onPhotos: () => void;
+};
 
 /**
  * The QUICK LOOK — four screens, about nine taps, then a range.
@@ -34,8 +48,10 @@ const BEDROOMS = [1, 2, 3, 4, 5];
 
 export default function QuickLook({
   step, quick, onQuick, outside, onOutside, addressField, conditionBox, error, canContinue, busy, onBack, onNext, stepNo, stepsTotal,
-  onBook, onChooseBoth, phone,
+  onBook, onChooseBoth, phone, commercial = null,
 }: {
+  /** C12: the commercial screens (segment, areas, job), rendered from the row. */
+  commercial?: CommercialQuickProps | null;
   /** C8: "Book someone in" on screen 1, and "book an estimator for both" — opens the Save & book sheet. */
   onBook: () => void;
   /** C8: the "both" choice screen (prototype `s-both`). */
@@ -60,7 +76,7 @@ export default function QuickLook({
   stepNo: number;
   stepsTotal: number;
 }) {
-  const last = quick.jobType === "interior" ? step === "condition" : step === "outside";
+  const last = quick.jobType === "interior" ? step === "condition" || step === "com_job" : step === "outside";
 
   return (
     <div className="wz-wrap wz-quick" data-quick-step={step}>
@@ -76,7 +92,7 @@ export default function QuickLook({
             * count is computed, never typed.
             */}
           <p className="wz-sub">
-            {stepCount(quick.jobType)} quick screens, then a guide range. Everything after that is
+            {stepCount(quick.jobType, quick.propertyKind)} quick screens, then a guide range. Everything after that is
             optional — and nothing you say here is a commitment.
           </p>
           {addressField}
@@ -166,6 +182,37 @@ export default function QuickLook({
             </>
           )}
         </>
+      )}
+
+      {/* C12 — the commercial branch: three screens, every word from the row. */}
+      {step === "segment" && commercial && (
+        <SegmentScreen
+          segments={commercial.segments}
+          value={commercial.segmentKey}
+          onPick={commercial.onSegment}
+          jobType={quick.jobType}
+          onJobType={(jobType) => onQuick({ jobType })}
+          onBook={onBook}
+          phone={phone}
+        />
+      )}
+      {step === "com_areas" && commercial?.segment && commercial.answers && (
+        <AreasScreen
+          segment={commercial.segment}
+          answers={commercial.answers}
+          onAnswers={commercial.onAnswers}
+          photoCount={commercial.photoCount}
+          onPhotos={commercial.onPhotos}
+        />
+      )}
+      {step === "com_job" && commercial?.segment && commercial.answers && (
+        <JobScreen
+          segment={commercial.segment}
+          answers={commercial.answers}
+          onAnswers={commercial.onAnswers}
+          quick={quick}
+          onQuick={onQuick}
+        />
       )}
 
       {step === "job" && (

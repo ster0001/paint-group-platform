@@ -390,7 +390,12 @@ export function assumedList(q: QuickLook): Assumption[] {
  * one after the other" or "book an estimator for both". It asks nothing about
  * the job, so `stepCount` leaves it out of the promise on screen 1.
  */
-export const QUICK_LOOK_STEPS = ["start", "both", "place", "job", "condition", "outside"] as const;
+/**
+ * C12: a COMMERCIAL place takes the segment screen (prototype `s-commercial`)
+ * after the place screen, then the segment's two screens (`s-com-areas`,
+ * `s-com-job`) — the areas and job pattern, rendered from the row.
+ */
+export const QUICK_LOOK_STEPS = ["start", "both", "place", "segment", "com_areas", "com_job", "job", "condition", "outside"] as const;
 export type QuickLookStep = (typeof QUICK_LOOK_STEPS)[number];
 
 /**
@@ -412,13 +417,24 @@ export type QuickLookStep = (typeof QUICK_LOOK_STEPS)[number];
  * computed counts drift; this is the only place either is allowed to come from.
  */
 const COUNT_WORD = ["", "One", "Two", "Three", "Four", "Five", "Six"] as const;
-export function stepCount(jobType: QuickLook["jobType"]): string {
-  const n = stepsFor(jobType).filter((s) => s !== "both").length;
+export function stepCount(jobType: QuickLook["jobType"], propertyKind: QuickLook["propertyKind"] = "house"): string {
+  const n = stepsFor(jobType, propertyKind).filter((s) => s !== "both").length;
   return COUNT_WORD[n] ?? String(n);
 }
 
-export function stepsFor(jobType: QuickLook["jobType"]): QuickLookStep[] {
+/**
+ * C12: a commercial job walks start → place → segment, then (inside, on a
+ * range segment) the areas and job screens. Outside and both leave on the
+ * segment screen — every commercial exterior is priced on site — so those
+ * branches END there; `quickNext` hands off rather than advancing.
+ */
+export function stepsFor(jobType: QuickLook["jobType"], propertyKind: QuickLook["propertyKind"] = "house"): QuickLookStep[] {
+  if (propertyKind === "commercial") {
+    if (jobType === "interior") return ["start", "place", "segment", "com_areas", "com_job"];
+    if (jobType === "both") return ["start", "both", "place", "segment"];
+    return ["start", "place", "segment"];
+  }
   if (jobType === "exterior") return ["start", "place", "outside"];
-  if (jobType === "both") return [...QUICK_LOOK_STEPS];
+  if (jobType === "both") return ["start", "both", "place", "job", "condition", "outside"];
   return ["start", "place", "job", "condition"];
 }

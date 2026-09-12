@@ -20,6 +20,7 @@
  */
 
 import { routeCommercial, type CommercialSegment } from "./commercial";
+import type { Segment } from "./segments";
 
 /** v2 (19 Aug 2026): supersedes v1's $7k/$15k/80–90 ladder. The $15k
  * always-walkthrough rule is DELETED — the per-jobtype caps replace it.
@@ -143,7 +144,9 @@ export function answersFromState(s: {
     builtPre1970: "yes" | "no" | "unsure";
     asbestosSuspected: "yes" | "no" | "unsure";
   } | null;
-}): GuardrailAnswers {
+  /** C12: the segment screens' answers; only `kind` matters to the door. */
+  commercial?: { kind?: string | null } | null;
+}, /** C12: the loaded `commercial_segments` rows; the mirror when absent. */ segments?: Segment[]): GuardrailAnswers {
   const exteriorTier = s.exterior?.condition === "peeling" ? 3
     : s.exterior?.condition === "weathered" ? 2
     : s.exterior?.condition === "good" ? 1 : null;
@@ -153,6 +156,11 @@ export function answersFromState(s: {
     commercialKind: s.customer?.commercialKind ?? null,
     commercialSegment: s.customer?.commercialSegment ?? null,
     commercialGates: s.customer?.commercialGates ?? {},
+    // C12: the door is decided ONCE, here, from the row — the ladder below
+    // reads the answer and never consults the table itself.
+    commercialRoute: s.customer?.propertyKind === "commercial" && s.customer.commercialSegment
+      ? routeCommercial(s.customer.commercialSegment, { segments, kind: s.commercial?.kind ?? null, jobType: s.jobType }).route
+      : null,
     heritageListed: s.customer?.heritageListed ?? "no",
     bodyCorporate: s.customer?.bodyCorporate ?? "no",
     builtPre1970: s.customer?.builtPre1970 ?? "no",
@@ -178,7 +186,11 @@ export type GuardrailAnswers = {
   commercialKind?: CommercialKind | null;
   /** Phase 7: the segment, and the routing gates. */
   commercialSegment?: CommercialSegment | null;
+  /** Phase 7a's gate answers — kept on old drafts, no longer a wall (C12). */
   commercialGates?: Record<string, "yes" | "no"> | null;
+  /** C12: which door the segment row opened — "range" prices (a person
+   * confirms), "brief" hands off. Null when the segment is unknown. */
+  commercialRoute?: "range" | "brief" | null;
   heritageListed: "yes" | "no" | "unsure";
   bodyCorporate: "yes" | "no" | "unsure";
   builtPre1970: "yes" | "no" | "unsure";
@@ -267,11 +279,16 @@ export function evaluateGuardrails(
      * too many, so the gates win wherever they exist.
      */
     if (a.commercialSegment != null) {
-      const routing = routeCommercial(a.commercialSegment, a.commercialGates ?? {});
-      if (!routing.canPriceOnline) {
-        reasons.push(...routing.tripped.map((t) => `commercial_gate_${t}`));
-        if (routing.tripped.length === 0) reasons.push("commercial_gates_unanswered");
-      }
+      /**
+       * C12: the SEGMENT ROW decides (addendum §4). `commercialRoute` was
+       * resolved by answersFromState from the table; when a caller built the
+       * answers by hand it is resolved here from the mirror. The gates are no
+       * longer consulted — height and equipment are sized in the tree, hours
+       * is a loading, induction and committees live on the brief.
+       */
+      const route = a.commercialRoute ?? routeCommercial(a.commercialSegment, { jobType: a.jobType }).route;
+      if (route === "range") reasons.push("commercial_range");
+      else reasons.push("commercial_brief");
     } else if (a.commercialKind === "small_interior") reasons.push("commercial_small");
     else if (a.commercialKind === "large_interior") reasons.push("commercial_large");
     else if (a.commercialKind === "strata") reasons.push("commercial_strata");
@@ -305,8 +322,8 @@ export function evaluateGuardrails(
   // asking: a boom lift costs the same on a trade account.
   const softForActor = new Set(
     tradeActor
-      ? ["heritage_unsure", "asbestos_unsure", "heritage_listed", "commercial_property", "commercial_small", "commercial_large", "commercial_strata", "commercial_gate_strata", "commercial_gate_healthcare", "body_corporate"]
-      : ["heritage_unsure", "asbestos_unsure", "commercial_small"],
+      ? ["heritage_unsure", "asbestos_unsure", "heritage_listed", "commercial_property", "commercial_small", "commercial_large", "commercial_strata", "commercial_gate_strata", "commercial_gate_healthcare", "commercial_range", "commercial_brief", "body_corporate"]
+      : ["heritage_unsure", "asbestos_unsure", "commercial_small", "commercial_range"],
   );
   const hardReasons = reasons.filter((r) => !softForActor.has(r));
   if (hardReasons.length) {
@@ -362,6 +379,10 @@ export function evaluateGuardrails(
   // A small commercial job is priced online but a person confirms it on
   // site before anything is booked (Tom, 8 Sep) — the visit tier.
   if (reasons.includes("commercial_small")) walkthrough = true;
+  // C12 (§4.15): commercial NEVER reaches fix-online. A range segment shows
+  // a guide range and a person confirms it — `walkthroughRequired` is what
+  // `mayFixOnline` reads, so this one line is the rule.
+  if (reasons.includes("commercial_range") || reasons.includes("commercial_brief")) walkthrough = true;
   const isExteriorish = a.jobType !== "interior";
   if (a.jobType === "both") {
     walkthrough = true; softReasons.push("mixed_scope");
@@ -426,6 +447,8 @@ const WHY: Record<string, string> = {
   commercial_gate_occupied: "Painting around people in use needs protection, staging and supervision that a home repaint doesn't, so we see it first.",
   commercial_gate_committee: "Where a committee or building owner approves the work, we're quoting a process rather than a person — so we do it properly, in person.",
   commercial_gates_unanswered: "We still need a few answers about the site before we can price it — one of our estimators will pick it up with you.",
+  commercial_range: "A commercial job is priced online as a guide range, and a person confirms it before anything is fixed.",
+  commercial_brief: "This kind of place is priced on site — a short brief gets us ready, then you pick a time for a visit.",
 };
 
 export function guardrailWhy(reasons: string[]): string | null {

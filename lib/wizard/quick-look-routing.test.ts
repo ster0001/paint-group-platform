@@ -28,6 +28,12 @@ describe("9.3(b) · the promise is computed, never typed", () => {
     expect(stepCount("interior")).toBe("Four");
     expect(stepCount("exterior")).toBe("Three");
     expect(stepCount("both")).toBe("Five");
+    // C12: a commercial place — the segment screen, then the two pattern
+    // screens for an inside job; outside and both END on the segment screen.
+    expect(stepsFor("interior", "commercial")).toEqual(["start", "place", "segment", "com_areas", "com_job"]);
+    expect(stepsFor("exterior", "commercial")).toEqual(["start", "place", "segment"]);
+    expect(stepsFor("both", "commercial")).toEqual(["start", "both", "place", "segment"]);
+    expect(stepCount("interior", "commercial")).toBe("Five");
   });
 
   test("no branch can say four unless it has four", () => {
@@ -48,10 +54,11 @@ describe("9.3(a)+(c) · the four job-type × kind combinations", () => {
    */
   const route = (q: Pick<QuickLook, "jobType" | "propertyKind">) => {
     if (q.propertyKind !== "commercial") return { handOffAt: null, to: "reveal" as const };
-    // The hand-off belongs to the screen that ASKS the question.
+    // C12: the hand-off belongs to the SEGMENT screen now, which asks the
+    // which-part row. Inside on a range segment walks to the reveal.
     return q.jobType === "interior"
-      ? { handOffAt: "place" as const, to: "pages" as const }      // segment + gates
-      : { handOffAt: "place" as const, to: "handoff" as const };   // 9.3(c) stop-gap
+      ? { handOffAt: null, to: "reveal" as const }                 // segment → areas → job → reveal
+      : { handOffAt: "segment" as const, to: "handoff" as const };  // outside / both → the brief (C14)
   };
 
   test("home + inside walks the quick look to a range", () => {
@@ -61,25 +68,29 @@ describe("9.3(a)+(c) · the four job-type × kind combinations", () => {
     expect(route({ jobType: "exterior", propertyKind: "house" })).toEqual({ handOffAt: null, to: "reveal" });
     expect(stepsFor("exterior")).toEqual(["start", "place", "outside"]);
   });
-  test("commercial + inside leaves at the PLACE step, into the page set for the segment question", () => {
-    expect(route({ jobType: "interior", propertyKind: "commercial" })).toEqual({ handOffAt: "place", to: "pages" });
+  test("C12: commercial + inside walks the segment screens to a range — never the page set", () => {
+    expect(route({ jobType: "interior", propertyKind: "commercial" })).toEqual({ handOffAt: null, to: "reveal" });
+    expect(stepsFor("interior", "commercial")).not.toContain("job");
   });
-  test("commercial + outside leaves at the place step, to a HAND-OFF — never domestic house questions", () => {
+  test("commercial + outside leaves at the SEGMENT step, to a hand-off — never domestic house questions", () => {
     const r = route({ jobType: "exterior", propertyKind: "commercial" });
-    expect(r).toEqual({ handOffAt: "place", to: "handoff" });
+    expect(r).toEqual({ handOffAt: "segment", to: "handoff" });
     expect(r.to).not.toBe("pages");
+    expect(stepsFor("exterior", "commercial")).not.toContain("outside");
   });
   test("commercial + both is a hand-off as well (every commercial outside is a visit)", () => {
-    expect(route({ jobType: "both", propertyKind: "commercial" })).toEqual({ handOffAt: "place", to: "handoff" });
+    expect(route({ jobType: "both", propertyKind: "commercial" })).toEqual({ handOffAt: "segment", to: "handoff" });
   });
 
   test("the hand-off NEVER fires on the start step — that was 9.3(a)", () => {
     // A ?mode=business visitor arrives with propertyKind already commercial.
     const seeded: Pick<QuickLook, "jobType" | "propertyKind"> = { ...DEFAULT_QUICK_LOOK, propertyKind: "commercial" };
     // Screen 1 is "start". The rule keys on the step, so start cannot hand off.
-    const firesOn = (step: string) => step === "place" && seeded.propertyKind === "commercial";
+    // C12: the hand-off moved to the segment screen; start still cannot fire.
+    const firesOn = (step: string) => step === "segment" && seeded.propertyKind === "commercial";
     expect(firesOn("start")).toBe(false);
-    expect(firesOn("place")).toBe(true);
+    expect(firesOn("place")).toBe(false);
+    expect(firesOn("segment")).toBe(true);
   });
 });
 

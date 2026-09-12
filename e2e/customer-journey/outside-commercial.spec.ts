@@ -78,37 +78,51 @@ test("home + outside reaches the outside screen, and there are only three", asyn
   await expect(page.locator("[data-quick-step='outside']")).toBeVisible({ timeout: 30_000 });
 });
 
-test("commercial + inside leaves the quick look at the place step, into the question pages", async ({ page }) => {
+/**
+ * C12: a commercial place goes to the SEGMENT screen (prototype
+ * `s-commercial`), which asks the which-part row. Inside on a range segment
+ * walks on to the segment's screens; outside and both leave from there.
+ */
+test("C12: commercial + inside reaches the segment screen, and a range segment walks on", async ({ page }) => {
   test.setTimeout(120_000);
   await startAt(page, "interior");
   await toPlace(page);
   await page.getByTestId("ql-kind-commercial").click();
   await page.getByTestId("ql-next").click();
-  // Out of the quick look, into the page set where the segment question lives.
-  await expect(page.locator("[data-quick-step]")).toHaveCount(0, { timeout: 30_000 });
-  await expect(page.locator(".wz-wrap")).toBeVisible();
+  await expect(page.locator("[data-quick-step='segment']")).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("ql-segment-office").click();
+  await page.getByTestId("ql-next").click();
+  await expect(page.locator("[data-quick-step='com_areas']")).toBeVisible({ timeout: 30_000 });
 });
 
-test("9.3(c) commercial + outside reaches a hand-off, never domestic house questions", async ({ page }) => {
+test("9.3(c) commercial + outside reaches a hand-off from the segment screen, never domestic house questions", async ({ page }) => {
   test.setTimeout(120_000);
   await startAt(page, "exterior");
   await toPlace(page);
   await page.getByTestId("ql-kind-commercial").click();
   await page.getByTestId("ql-next").click();
+  await expect(page.locator("[data-quick-step='segment']")).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("ql-segment-office").click();
+  await expect(page.getByTestId("segment-visit-note")).toContainText(/priced on site/i);
+  await page.getByTestId("ql-next").click();
 
   // A person, with a reason — not "What we're painting" with house / fence /
   // deck / shed, and not a silent return to screen 1.
   await expect(page.getByText(/deserves a person/i)).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText(/we price commercial work outside on site/i)).toBeVisible();
+  await expect(page.getByTestId("outcome-why")).toContainText(/commercial exterior/i);
   await expect(page.locator("[data-quick-step='start']")).toHaveCount(0);
   await expect(page.getByText(/What we.re painting/i)).toHaveCount(0);
 });
 
-test("commercial + both reaches the same hand-off", async ({ page }) => {
+test("commercial + both reaches the same hand-off — one visit", async ({ page }) => {
   test.setTimeout(120_000);
   await startAt(page, "both");
   await toPlace(page);
   await page.getByTestId("ql-kind-commercial").click();
   await page.getByTestId("ql-next").click();
+  await expect(page.locator("[data-quick-step='segment']")).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("ql-segment-retail").click();
+  await page.getByTestId("ql-next").click();
   await expect(page.getByText(/deserves a person/i)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("outcome-why")).toContainText(/one visit/i);
 });

@@ -225,7 +225,7 @@ describe("guardrails — floor and walkthrough policy", () => {
 
 // ---- audit-fix pins (19 Aug) ------------------------------------------------
 import { GUARDRAIL_MESSAGES as MSGS } from "./policy";
-import { COMMERCIAL_GATES } from "./commercial";
+import { answersFromState as answersOf } from "./policy";
 
 it("a zero total is 'nothing priced' -> handoff, never below_floor", () => {
   const d = evaluateGuardrails(clean(), 0, 90, false);
@@ -242,51 +242,54 @@ it("a null postcode (internal mode) skips the service-area check; an empty custo
   expect(customerBlank.outcome).toBe("outside_area");
 });
 
-describe("commercial routing gates (phase 7)", () => {
-  const allNo = Object.fromEntries(COMMERCIAL_GATES.map((g) => [g.key, "no" as const]));
+describe("commercial routing — the segment row decides (C12)", () => {
   const commercial = (over: Partial<GuardrailAnswers> = {}): GuardrailAnswers => ({
     jobType: "interior", propertyKind: "commercial",
     heritageListed: "no", bodyCorporate: "no", builtPre1970: "no", asbestosSuspected: "no",
     damageTier: 1, postcode: null, ...over,
   });
 
-  it("lets a clean office through the handoff step", () => {
+  it("a range segment reveals a range, and a person confirms it — never fix-online", () => {
+    for (const seg of ["office", "retail", "school", "warehouse", "health"]) {
+      const d = evaluateGuardrails(commercial({ commercialSegment: seg }), 500_000, 95, false, DEFAULT_POLICY, []);
+      expect(d.outcome, seg).toBe("reveal");
+      expect(d.reasons, seg).toContain("commercial_range");
+      expect(d.walkthroughRequired, seg).toBe(true);
+      expect(d.canAccept, seg).toBe(false);
+    }
+  });
+
+  it("a brief segment hands off", () => {
+    for (const seg of ["strata", "shopfront", "other"]) {
+      const d = evaluateGuardrails(commercial({ commercialSegment: seg }), 500_000, 95, false, DEFAULT_POLICY, []);
+      expect(d.outcome, seg).toBe("handoff");
+      expect(d.reasons, seg).toContain("commercial_brief");
+    }
+  });
+
+  it("the resolved route wins over the mirror when a caller passes one", () => {
+    const d = evaluateGuardrails(commercial({ commercialSegment: "office", commercialRoute: "brief" }), 500_000, 95, false, DEFAULT_POLICY, []);
+    expect(d.outcome).toBe("handoff");
+  });
+
+  it("answersFromState resolves the door from the state: a hospital leaves, aged care stays; outside always leaves", () => {
+    const base = {
+      jobType: "interior" as const, details: { damageTier: 1 },
+      customer: { postcode: "3163", propertyKind: "commercial" as const, commercialSegment: "health", heritageListed: "no" as const, bodyCorporate: "no" as const, builtPre1970: "no" as const, asbestosSuspected: "no" as const },
+    };
+    expect(answersOf({ ...base, commercial: { kind: "hospital" } }).commercialRoute).toBe("brief");
+    expect(answersOf({ ...base, commercial: { kind: "aged" } }).commercialRoute).toBe("range");
+    expect(answersOf({ ...base, jobType: "exterior", commercial: { kind: "aged" } }).commercialRoute).toBe("brief");
+    expect(answersOf({ ...base, customer: { ...base.customer, commercialSegment: "healthcare" } }).commercialRoute).toBe("range");
+    expect(answersOf({ ...base, customer: { ...base.customer, propertyKind: "house" } }).commercialRoute).toBeNull();
+  });
+
+  it("the old gate answers on a stored draft are ignored — the row decides", () => {
     const d = evaluateGuardrails(
-      commercial({ commercialSegment: "office", commercialGates: allNo }),
+      commercial({ commercialSegment: "office", commercialGates: { equipment: "yes" } }),
       500_000, 95, false, DEFAULT_POLICY, [],
     );
     expect(d.outcome).toBe("reveal");
-  });
-
-  it("hands off on a single tripped gate", () => {
-    const d = evaluateGuardrails(
-      commercial({ commercialSegment: "office", commercialGates: { ...allNo, equipment: "yes" } }),
-      500_000, 95, false, DEFAULT_POLICY, [],
-    );
-    expect(d.outcome).toBe("handoff");
-    expect(d.reasons).toContain("commercial_gate_equipment");
-  });
-
-  it("hands off while a gate is unanswered", () => {
-    const rest = { ...allNo };
-    delete rest.hours;
-    const d = evaluateGuardrails(
-      commercial({ commercialSegment: "office", commercialGates: rest }),
-      500_000, 95, false, DEFAULT_POLICY, [],
-    );
-    expect(d.outcome).toBe("handoff");
-    expect(d.reasons).toContain("commercial_gates_unanswered");
-  });
-
-  it("hands off healthcare and strata before any gate is asked", () => {
-    for (const seg of ["healthcare", "strata"] as const) {
-      const d = evaluateGuardrails(
-        commercial({ commercialSegment: seg, commercialGates: allNo }),
-        500_000, 95, false, DEFAULT_POLICY, [],
-      );
-      expect(d.outcome, seg).toBe("handoff");
-      expect(d.reasons, seg).toContain(`commercial_gate_${seg}`);
-    }
   });
 
   /**

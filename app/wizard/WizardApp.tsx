@@ -58,10 +58,11 @@ import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
 import { RESUME_KEY, RESTART_KEY, decodeResume, encodeResume, restartedSince, resumeLine, type ResumeRecord, type SafetyAnswered, pickResume } from "@/lib/wizard/resume";
 import Wordmark from "./Wordmark";
 import ChatWidget from "./ChatWidget";
+import { gateMessage, routeCommercial } from "@/lib/wizard/commercial";
 import {
-  ALWAYS_APPOINTMENT, COMMERCIAL_GATES, COMMERCIAL_SEGMENTS, SEGMENT_LABEL,
-  gateMessage, routeCommercial, type CommercialSegment,
-} from "@/lib/wizard/commercial";
+  DEFAULT_SEGMENTS, commercialSurfaceKeys, defaultCommercialAnswers, segmentByKey, segmentTiles,
+  type CommercialAnswers, type Segment,
+} from "@/lib/wizard/segments";
 
 /**
  * W1: the five paginated pages, exactly per the workflow doc — Property →
@@ -146,7 +147,7 @@ const PROC_TIPS = [
   "Nothing is booked and nothing is charged until you say so.",
 ];
 
-export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, companyPhone = null, intent, resume = null, assisted = null }: {
+export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, companyPhone = null, intent, resume = null, assisted = null, segments = DEFAULT_SEGMENTS }: {
   roomTypes: string[];
   /** A2: the offered surface lists, derived server-side from the rate card. */
   substrates: SubstrateGroups;
@@ -155,6 +156,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   logoUrl?: string | null;
   /** The office number, for the reveal screen's "or just talk to us" line. */
   companyPhone?: string | null;
+  /** C12: the `commercial_segments` rows, loaded by the page; the mirror when absent. */
+  segments?: Segment[];
   /** 3a-6: a signed-in portal customer arrives known — email from their
    * verified session (the gate page disappears), address from the chosen
    * property. Same component, same flow; a returning customer just starts
@@ -396,7 +399,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    * other half of §9.7, still blocked on the per-elevation allowances spec.
    */
   const quickActive = isCustomer && entry === "questions" && !quickDone;
-  const lastPage = quickActive ? stepsFor(quick.jobType).length : pageKeys.length;
+  const lastPage = quickActive ? stepsFor(quick.jobType, quick.propertyKind).length : pageKeys.length;
   const pageKey: PageKey = pageKeys[Math.min(page, lastPage) - 1];
   const chooseEntry = (e: EntryChoice) => {
     setQuickDone(true);
@@ -1064,7 +1067,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const lastScreen = screen === "processing"
     ? "processing"
     : quickActive
-      ? `quick:${stepsFor(quick.jobType)[Math.min(Math.max(page, 1), stepsFor(quick.jobType).length) - 1]}`
+      ? `quick:${stepsFor(quick.jobType, quick.propertyKind)[Math.min(Math.max(page, 1), stepsFor(quick.jobType, quick.propertyKind).length) - 1]}`
       : `page:${pageKeys[Math.min(page, pageKeys.length) - 1] ?? page}`;
 
   /**
@@ -1280,8 +1283,64 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
 
   // ---- the quick look -------------------------------------------------------
 
-  const quickSteps = stepsFor(quick.jobType);
+  const quickSteps = stepsFor(quick.jobType, quick.propertyKind);
   const quickStep = quickSteps[Math.min(Math.max(page, 1), quickSteps.length) - 1];
+
+  /**
+   * C12 — the commercial branch of the quick look. The segment key lives on
+   * `state.customer.commercialSegment` (where phase 7a put it, so every
+   * stored draft and the property page agree); the two screens' answers live
+   * on `state.commercial`. Both autosave and resume like everything else.
+   */
+  const commercialSeg = segmentByKey(segments, state.customer?.commercialSegment);
+  const commercialAnswers: CommercialAnswers | null =
+    state.commercial && commercialSeg && state.commercial.segment === commercialSeg.key
+      ? state.commercial
+      : commercialSeg ? defaultCommercialAnswers(commercialSeg) : null;
+  const setCommercial = (patch: Partial<CommercialAnswers>) => {
+    if (!commercialAnswers) return;
+    set({ commercial: { ...commercialAnswers, ...patch } });
+  };
+  const pickSegment = (key: string) => {
+    const seg = segmentByKey(segments, key);
+    setState((s) => ({
+      ...s,
+      customer: { ...(s.customer ?? quickLookToState(quick, s).customer!), propertyKind: "commercial", commercialSegment: key },
+      // A new segment starts from its own defaults; the same one keeps what was tapped.
+      commercial: seg && s.commercial?.segment === seg.key ? s.commercial : seg ? defaultCommercialAnswers(seg) : null,
+    }));
+  };
+  /**
+   * A brief door (C14 builds the brief itself): the lead is flushed with
+   * everything answered so far and the customer meets the person screen with
+   * the reason in plain words — never "we'll need to see it" on its own.
+   */
+  const commercialHandOff = (routing: ReturnType<typeof routeCommercial>) => {
+    setState((s) => ({
+      ...s,
+      customer: s.customer ? { ...s.customer, propertyKind: "commercial" } : s.customer,
+    }));
+    flushDraft(`quick:segment:${routing.briefKey ?? "unknown"}`);
+    const why = routing.reasons[0] ? routing.reasons[0].charAt(0).toUpperCase() + routing.reasons[0].slice(1) : "";
+    setOutcome({
+      outcome: "handoff",
+      message: gateMessage(routing),
+      why: `${why ? `${why}. ` : ""}One of our estimators will call to arrange a look — we have your address and what you're after.`,
+      canRetry: false,
+    });
+    setScreen("editor");
+    window.scrollTo({ top: 0 });
+  };
+  const quickPhotoRef = useRef<HTMLInputElement>(null);
+  const addQuickPhotos = (files: File[]) => {
+    for (const f of files) {
+      const problem = checkUpload({ name: f.name, size: f.size, type: f.type }, "image");
+      if (problem) { setError(problem); return; }
+    }
+    setError(null);
+    damageFilesRef.current = [...damageFilesRef.current, ...files];
+    set({ details: { ...state.details, damagePhotoCount: state.details.damagePhotoCount + files.length } });
+  };
 
   function quickNext() {
     setError(null);
@@ -1299,72 +1358,32 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       return;
     }
     /**
-     * ⚑ A COMMERCIAL property leaves the quick look at the place screen.
-     *
-     * The segment question and the seven routing gates live on the property
-     * page, and phase 7a's whole rule is that ANY tripped gate sends the job
-     * to an appointment — no scoring, no override. A commercial job that
-     * walked the quick look to a price would have skipped every one of them,
-     * which is not a shortcut, it is the safety check missing. Healthcare and
-     * strata do not even get asked; they go to a person on the segment alone.
+     * C12 — a COMMERCIAL place walks the segment screen, then the segment's
+     * two screens (areas → job) on a range segment. The hand-off belongs to
+     * the SEGMENT screen, which asks the which-part row: outside and both go
+     * to the brief (C14; today the person screen with the reason), and so
+     * does a brief segment or a kind that leaves (hospital). A ?mode=business
+     * visitor still sees screen 1 and the place screen first (AUDIT 9.3(a)).
      */
-    /**
-     * AUDIT 9.3(a): this used to run on EVERY Continue. `?mode=business` seeds
-     * `quick.propertyKind = "commercial"` before the first render
-     * (lib/marketing/prefill.ts), so the very first Continue on screen 1 exited
-     * the quick look — a visitor promised four screens got one, with no
-     * explanation. The hand-off belongs to the screen that ASKS the question,
-     * which is `place`. Anywhere else it is firing on an answer nobody gave on
-     * that screen.
-     */
-    if (quickStep === "place" && quick.propertyKind === "commercial") {
-      /**
-       * AUDIT 9.3(c) — the STOP-GAP until C14's exterior brief.
-       *
-       * A commercial job whose work is OUTSIDE cannot go into the page set.
-       * `pageKeys` for `jobType === "exterior"` is property → house → …, and
-       * `house` is `PageExteriorHouse`: "What we're painting", with house /
-       * fence / deck / shed and domestic storeys. An office block, a warehouse
-       * or a shop front was being asked which weatherboards it has. Every
-       * commercial outside or both is a visit anyway (ruling, 10 Sep), so
-       * there is nothing to gain by asking domestic questions first.
-       *
-       * The address, job type and kind are already on the draft — the autosave
-       * writes them on every change — and flushed here so the lead survives the
-       * customer closing the tab on this screen.
-       */
-      if (state.jobType !== "interior") {
-        setState((s) => ({
-          ...s,
-          customer: s.customer ? { ...s.customer, propertyKind: "commercial" } : s.customer,
-        }));
-        flushDraft(`quick:place:commercial-${state.jobType}`);
-        setOutcome({
-          outcome: "handoff",
-          message: "We price commercial work outside on site — the access, the height and the surfaces decide the job, and a guess helps nobody.",
-          why: "One of our estimators will call to arrange a look. We have your address and what you're after.",
-          canRetry: false,
-        });
-        setScreen("editor");
-        window.scrollTo({ top: 0 });
+    if (quickStep === "segment") {
+      const key = state.customer?.commercialSegment ?? null;
+      if (!key) {
+        setError("Pick the closest kind of place — we'll say straight away whether we can price it from here.");
         return;
       }
-      setState((s) => ({
-        ...s,
-        customer: s.customer ? { ...s.customer, propertyKind: "commercial" } : s.customer,
-        // The old pages gate on `noPlan` + `basics` ("upload a floorplan, or
-        // choose the quick basics instead") — the very thing the entry card
-        // used to set. The quick look only writes them at submit, so a
-        // hand-off has to set them here or the customer meets a gate about a
-        // question nobody asked them.
-        ...entryPatch("questions", s.jobType, s.exterior, s.basics),
-      }));
-      setQuickDone(true);
-      // They have already chosen the questions route by being here — setting
-      // this to null made the property page demand "pick one of the three"
-      // from somebody who had just answered two screens of them.
-      setEntry("questions");
-      setPage(1);
+      const routing = routeCommercial(key, { segments, jobType: quick.jobType });
+      if (!routing.canPriceOnline) { commercialHandOff(routing); return; }
+      if (!state.commercial || state.commercial.segment !== routing.segment!.key) {
+        set({ commercial: defaultCommercialAnswers(routing.segment!) });
+      }
+      setPage(page + 1);
+      window.scrollTo({ top: 0 });
+      return;
+    }
+    if (quickStep === "com_areas") {
+      const routing = routeCommercial(state.customer?.commercialSegment, { segments, kind: state.commercial?.kind ?? null, jobType: quick.jobType });
+      if (!routing.canPriceOnline) { commercialHandOff(routing); return; }
+      setPage(page + 1);
       window.scrollTo({ top: 0 });
       return;
     }
@@ -1387,6 +1406,27 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
      * itself, rather than as a tick on a screen before they have seen a plan.
      */
     const derived = quickLookToState(quick, state);
+    if (quickStep === "com_job" && commercialSeg && commercialAnswers) {
+      /**
+       * C12: the rooms come from the segment's counts and typicals, not the
+       * home basics — `basics` is null and `commercial` carries the answers.
+       * The ticked surfaces map to substrate keys through the row (a label
+       * with no rate is flagged at submit, never guessed); the occupied
+       * answer is the segment's, in the details' own words.
+       */
+      const { keys } = commercialSurfaceKeys(commercialSeg, commercialAnswers);
+      const commercialDerived: WizardState = {
+        ...derived,
+        basics: null,
+        commercial: commercialAnswers,
+        surfaces: keys as WizardState["surfaces"],
+        customer: { ...derived.customer!, propertyKind: "commercial", commercialSegment: commercialSeg.key },
+        details: { ...derived.details, occupied: commercialAnswers.occ === "occ" ? "yes" : "no" },
+      };
+      setState(commercialDerived);
+      void runSubmit(commercialDerived);
+      return;
+    }
     setState(derived);
     void runSubmit(derived);
   }
@@ -1452,6 +1492,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         <Reveal
           payload={reveal.payload}
           quick={quick}
+          commercial={reveal.payload.commercial && commercialSeg && commercialAnswers
+            ? { segment: commercialSeg, answers: commercialAnswers, photos: reveal.payload.commercial.photos }
+            : null}
           estimateId={reveal.estimateId}
           phone={companyPhone}
           onTighten={() => router.push(`/estimate/scope?id=${reveal.estimateId}`)}
@@ -1548,6 +1591,12 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
               staff, the describe route and the upload route. */}
           {quickActive ? (
             <div className="wz-step" key={`quick-${quickStep}`}>
+              {/* C12: the open-space photo rides the condition-photo upload —
+                  it goes up with the submit and the estimator reviews it. */}
+              <input
+                ref={quickPhotoRef} type="file" hidden multiple accept="image/*" data-testid="com-photo-input"
+                onChange={(e) => { addQuickPhotos([...(e.target.files ?? [])]); e.target.value = ""; }}
+              />
               <QuickLook
                 step={quickStep}
                 quick={quick}
@@ -1569,6 +1618,16 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 // out per room with a photo on the tighten screen. The box still
                 // serves the describe route.
                 conditionBox={null}
+                commercial={{
+                  segments,
+                  segmentKey: state.customer?.commercialSegment ?? null,
+                  segment: commercialSeg,
+                  onSegment: pickSegment,
+                  answers: commercialAnswers,
+                  onAnswers: setCommercial,
+                  photoCount: state.details.damagePhotoCount,
+                  onPhotos: () => quickPhotoRef.current?.click(),
+                }}
                 addressField={
                   <>
                     <AddressField
@@ -1629,7 +1688,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           <div className="wz-step" key={page}>
             {pageKey === "property" && (
               <PageProperty
-                state={state} set={set} isCustomer={isCustomer} substrates={substrates}
+                state={state} set={set} isCustomer={isCustomer} substrates={substrates} segments={segments}
                 stepsTotal={lastPage}
                 entry={entry} onEntry={chooseEntry} brief={brief} setBrief={setBrief} startChat={startChat} startingChat={startingChat} sessionPhase={sessionPhase}
                 initialAddressText={state.title.trim() || intent?.addressText || ""}
@@ -1743,12 +1802,14 @@ function Seg<T extends string>({ options, value, onPick }: {
 // ---- page 1: the property ---------------------------------------------------
 
 function PageProperty({
-  state, set, isCustomer = false, substrates, stepsTotal, entry, onEntry, brief, setBrief, startChat, startingChat, sessionPhase,
+  state, set, isCustomer = false, substrates, stepsTotal, entry, onEntry, brief, setBrief, startChat, startingChat, sessionPhase, segments,
   planFileCount, facadeFileCount, uploading, sessionBlocked = false, planInputRef, facadeInputRef, onPlanFiles, onFacadeFiles, onImportListingPlan, initialAddressText = "",
 }: {
   state: WizardState;
   set: (p: Partial<WizardState>) => void;
   isCustomer?: boolean;
+  /** C12: the segment rows, for the commercial picker and its door. */
+  segments: Segment[];
   stepsTotal: number;
   /** Phase 2 (6 Sep plan): the customer's way in — describe it, answer a
    * few questions, or upload the plan/listing. Staff keep the old layout. */
@@ -1944,22 +2005,28 @@ function PageProperty({
               */}
               <p className="wz-qhead">What sort of place is it?</p>
               <Seg
-                options={COMMERCIAL_SEGMENTS.map((v) => ({ v, label: SEGMENT_LABEL[v] }))}
-                value={state.customer.commercialSegment ?? null}
+                options={segmentTiles(segments).map((s) => ({ v: s.key, label: s.name }))}
+                value={segmentByKey(segments, state.customer.commercialSegment)?.key ?? null}
                 onPick={(v) => set({ customer: { ...state.customer!, commercialSegment: v } })}
               />
-              {state.customer.commercialSegment != null && (
-                <CommercialGates
-                  segment={state.customer.commercialSegment}
-                  answers={state.customer.commercialGates ?? {}}
-                  onAnswer={(key, value) => set({
-                    customer: {
-                      ...state.customer!,
-                      commercialGates: { ...(state.customer!.commercialGates ?? {}), [key]: value },
-                    },
-                  })}
-                />
-              )}
+              {/* C12: the ROW decides the door — the seven gates are gone as a
+                  wall. A range segment prices here (a person confirms); a brief
+                  segment says so now, not at the end. */}
+              {state.customer.commercialSegment != null && (() => {
+                const routing = routeCommercial(state.customer!.commercialSegment, { segments, jobType: state.jobType });
+                return routing.canPriceOnline ? (
+                  <div className="wz-follow" data-testid="commercial-route-ok">
+                    <p className="wz-q">Good — this kind of place prices online as a guide range. Keep going and you&rsquo;ll see a figure; one of us confirms it before anything is booked.</p>
+                  </div>
+                ) : (
+                  <div className="wz-follow" data-testid="commercial-segment-stop">
+                    <p className="wz-q">{gateMessage(routing)}</p>
+                    <p style={{ fontSize: 13.5, color: "var(--muted)", margin: 0 }}>
+                      Tell us the basics and how to reach you, and we&rsquo;ll book a time to come and look. No figure is shown online for this one.
+                    </p>
+                  </div>
+                );
+              })()}
               {state.customer.commercialSegment == null && state.customer.commercialKind === "small_interior" && (
                 <div className="wz-follow" data-testid="commercial-small-note">
                   <p className="wz-q">Good — a few rooms or offices price the same way a home does. Keep going and you&rsquo;ll see a figure; one of us confirms it on site before anything is booked.</p>
@@ -3135,72 +3202,5 @@ function PageExteriorExtras({ state, set, stepsTotal, stepNo = 5, embedPaint = t
       </div>
       {embedPaint && <PagePaint state={state} set={set} embedded stepsTotal={stepsTotal} />}
     </>
-  );
-}
-
-
-/**
- * Phase 7 — the routing gates (commercial pricing strategy, "The routing gate").
- *
- * Seven plain questions. Any single "yes" sends the job to an appointment, and
- * the customer is told SO, and told why: "we'll need to see it" with no reason
- * reads as a brush-off, and a facilities manager who knows exactly why we are
- * coming will trust us more for saying it.
- *
- * Healthcare and strata never see the questions at all — asking a customer to
- * self-declare infection control or an owners corporation is asking them to
- * talk us out of visiting.
- */
-function CommercialGates({ segment, answers, onAnswer }: {
-  segment: CommercialSegment;
-  answers: Record<string, "yes" | "no">;
-  onAnswer: (key: string, value: "yes" | "no") => void;
-}) {
-  const routing = routeCommercial(segment, answers);
-  if (ALWAYS_APPOINTMENT.has(segment)) {
-    return (
-      <div className="wz-follow" data-testid="commercial-segment-stop">
-        <p className="wz-q">{routing.reasons[0]}.</p>
-        <p style={{ fontSize: 13.5, color: "var(--muted)", margin: 0 }}>
-          Tell us the basics and how to reach you, and we&rsquo;ll book a time to come and look.
-          No figure is shown online for this one.
-        </p>
-      </div>
-    );
-  }
-  return (
-    <div className="wz-follow" data-testid="commercial-gates">
-      <p className="wz-q">A few things about the site — they decide whether we can price it from here.</p>
-      {COMMERCIAL_GATES.map((g) => (
-        <div className="wz-qrow" key={g.key} data-testid={`gate-${g.key}`}>
-          <div className="wz-qtext">
-            {g.question}
-            <span className="wz-qhint">{g.hint}</span>
-          </div>
-          <div className="wz-chips">
-            {(["no", "yes"] as const).map((v) => (
-              <button
-                key={v}
-                type="button"
-                className={`wz-chip ${answers[g.key] === v ? "on" : ""}`}
-                aria-pressed={answers[g.key] === v}
-                data-testid={`gate-${g.key}-${v}`}
-                onClick={() => onAnswer(g.key, v)}
-              >{v === "yes" ? "Yes" : "No"}</button>
-            ))}
-          </div>
-        </div>
-      ))}
-      {!routing.canPriceOnline && (
-        <p className="wz-q" style={{ marginTop: 12 }} data-testid="commercial-gate-message">
-          {gateMessage(routing)}
-        </p>
-      )}
-      {routing.canPriceOnline && (
-        <p className="wz-q" style={{ marginTop: 12 }} data-testid="commercial-gate-ok">
-          Nothing there stops us pricing it online. Keep going — one of us still confirms it before anything is booked.
-        </p>
-      )}
-    </div>
   );
 }

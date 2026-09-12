@@ -14,6 +14,7 @@ import { onlineEstimatesFrom, WIZARD_PUBLIC_KEY, type OnlineEstimates } from "@/
 import HoldingCallback from "./HoldingCallback";
 import { serverResumeFrom, type ServerDraftRow } from "@/lib/wizard/resume";
 import { ACCOUNT_DRAFT_MAX_AGE_MS, adoptDraft, findOpenDraft } from "@/lib/wizard/draftOwner";
+import { loadSegments } from "@/lib/wizard/segments";
 
 /**
  * /estimate — Step 8's CUSTOMER wizard.
@@ -44,6 +45,9 @@ export default async function CustomerWizardPage({
   const supabase = await createClient();
   // The Settings logo for the header (public-safe display fields only).
   const company = await getCompanyContact();
+  // C12: the commercial segment rows (anon-readable); the mirror when the
+  // table is not there yet.
+  const segments = await loadSegments(supabase);
   const { data: { user } } = await supabase.auth.getUser();
   let isStaff = false;
   let memberEmail: string | null = null;
@@ -261,6 +265,7 @@ export default async function CustomerWizardPage({
     <WizardApp
       roomTypes={roomTypes}
       substrates={substrates}
+      segments={segments}
       mode="customer"
       logoUrl={company.logoUrl}
       companyPhone={company.phone || null}

@@ -308,7 +308,7 @@ a{color:var(--cyan);text-decoration:none}
       <p class="kicker">PROTOTYPE · 9 SEPTEMBER 2026</p>
       <h1>The journey, screen by screen</h1>
       <p class="sub">Tap any screen. The <b>?</b> button on every screen explains the thinking and flags decisions for you (⚑). <b>Save &amp; book</b> is a real product element — it's on every screen.</p>
-      <div class="note blue" style="margin:0 0 6px">v2.5 · 10 Sep — removed: the per-room condition question, the asbestos and pets questions, the asbestos/lead hard-stop screen, and the hospital brief's beds and infection-control rows. Hazard checks move to the estimator's site checklist.<br><br>v2.4 · 10 Sep — the estimator is named and present throughout (strip on the reveal, tighten and finish; one changing human line in every footer; inline offers at the moments a person actually helps). "Finalise my price" becomes "Send to Sarah"; the nag and the confirmed-count line are rewritten.<br><br>v2.3 · 10 Sep — "How we'll paint each surface" is gone. Colours are now "what's changing colour?" (walls / ceilings / doors and trims + lighter-or-bold + still choosing); screen 8 is "a few details about what's there" with pictures; the paint systems are a read-only "What we'll do" panel on the reveal, tighten and finish.<br><br>v2.2 · 10 Sep — commercial: every ranged tile also says "or we visit"; retail now covers hospitality and restaurants; healthcare asks aged care / clinic / hospital and counts "resident rooms, wards or treatment rooms"; the glass question is gone (cutting-in offsets it); every segment asks inside / outside / both — outside goes to the brief, both goes to a visit.</div>
+      <div class="note blue" style="margin:0 0 6px">v2.6 · 11 Sep — the exterior quick look rebuilt: elements first (body, windows, doors, fascias, gutters, eaves), materials only if the body is ticked and nothing pre-ticked, window type and counts, door count, colours, condition, storeys once. No bedrooms on the exterior path.<br><br>v2.5 · 10 Sep — removed: the per-room condition question, the asbestos and pets questions, the asbestos/lead hard-stop screen, and the hospital brief's beds and infection-control rows. Hazard checks move to the estimator's site checklist.<br><br>v2.4 · 10 Sep — the estimator is named and present throughout (strip on the reveal, tighten and finish; one changing human line in every footer; inline offers at the moments a person actually helps). "Finalise my price" becomes "Send to Sarah"; the nag and the confirmed-count line are rewritten.<br><br>v2.3 · 10 Sep — "How we'll paint each surface" is gone. Colours are now "what's changing colour?" (walls / ceilings / doors and trims + lighter-or-bold + still choosing); screen 8 is "a few details about what's there" with pictures; the paint systems are a read-only "What we'll do" panel on the reveal, tighten and finish.<br><br>v2.2 · 10 Sep — commercial: every ranged tile also says "or we visit"; retail now covers hospitality and restaurants; healthcare asks aged care / clinic / hospital and counts "resident rooms, wards or treatment rooms"; the glass question is gone (cutting-in offsets it); every segment asks inside / outside / both — outside goes to the brief, both goes to a visit.</div>
       <h2>1 · Quick look <small>— a guide range in about a minute</small></h2>
       <a onclick="go('start')">The address and the job <small>SCREEN 1</small></a>
       <a onclick="go('place')">About the place <small>SCREEN 2</small></a>
@@ -1008,49 +1008,94 @@ a{color:var(--cyan);text-decoration:none}
   <section class="screen" id="s-ext-job" data-stage="quick" data-step="2">
     <div class="body">
       <p class="kicker">OUTSIDE</p>
-      <h1>About the house</h1>
-      <p class="sub">A few answers seed the sides. Every outside price is confirmed by your estimator before it's fixed — but you'll see a guide range in a moment.</p>
-      <h2 style="margin-top:0">What kind of place?</h2>
-      <div class="tiles two" data-group="kind">
-        <button class="tile" data-val="house" aria-pressed="true" onclick="sel(this)">House</button>
-        <button class="tile" data-val="town" onclick="sel(this)">Townhouse</button>
-        <button class="tile" data-val="unit" onclick="sel(this)">Unit or apartment</button>
-        <button class="tile" data-val="commercial" onclick="sel(this);go('commercial')">Commercial<small>Office, shop, strata, industrial</small></button>
+      <h1>What are we painting?</h1>
+      <p class="sub">Tick everything. We only ask about the bits you've ticked — and every outside price is confirmed by your estimator before it's fixed.</p>
+
+      <h2 style="margin-top:0">On the house</h2>
+      <div class="tiles two" id="extEl">
+        <button class="tile" data-el="body" onclick="tog(this);extSync()">The body of the house<small>The walls themselves</small></button>
+        <button class="tile" data-el="windows" onclick="tog(this);extSync()">Windows<small>Frames and sashes</small></button>
+        <button class="tile" data-el="doors" onclick="tog(this);extSync()">Doors<small>And their frames</small></button>
+        <button class="tile" data-el="fascias" onclick="tog(this);extSync()">Fascias<small>The board behind the gutter</small></button>
+        <button class="tile" data-el="gutters" onclick="tog(this);extSync()">Gutters &amp; downpipes</button>
+        <button class="tile" data-el="eaves" onclick="tog(this);extSync()">Eaves<small>The underside of the overhang</small></button>
       </div>
-      <h2>Storeys</h2>
+
+      <h2>Standing on its own</h2>
+      <div class="tiles two" id="extSep">
+        <button class="tile" data-el="fence" onclick="tog(this);extSync()">Fence</button>
+        <button class="tile" data-el="deck" onclick="tog(this);extSync()">Deck or floor</button>
+        <button class="tile" data-el="garage" onclick="tog(this);extSync()">Garage or shed</button>
+        <button class="tile" data-el="wall" onclick="tog(this);extSync()">Wall<small>Boundary or retaining</small></button>
+      </div>
+
+      <!-- body only -->
+      <div id="extBody" style="display:none">
+        <h2>What are the walls made of? <small>— tick everything that needs painting</small></h2>
+        <div class="tiles" data-group="mat">
+          <button class="tile center" onclick="tog(this)">Weatherboard</button>
+          <button class="tile center" onclick="tog(this)">Brick</button>
+          <button class="tile center" onclick="tog(this)">Render</button>
+          <button class="tile center" onclick="tog(this)">Stucco</button>
+          <button class="tile center" onclick="tog(this)">Cement sheet</button>
+          <button class="tile center" onclick="tog(this)">Cladding or panelling</button>
+          <button class="tile center" onclick="tog(this)">Not sure</button>
+        </div>
+        <p class="hint">Nothing is ticked for you — brick and render are often left bare on purpose, so we'd rather you told us.</p>
+      </div>
+
+      <!-- windows only -->
+      <div id="extWin" style="display:none">
+        <h2>What type of windows, mostly?</h2>
+        <div class="tiles two" data-group="ewin">
+          <button class="tile pic" data-val="casement" onclick="sel(this)"><svg viewBox="0 0 44 44"><rect x="6" y="6" width="32" height="32"/><line x1="22" y1="6" x2="22" y2="38"/><line x1="8" y1="8" x2="20" y2="22"/><line x1="8" y1="36" x2="20" y2="22"/></svg>Casement<small>Hinged, opens out</small></button>
+          <button class="tile pic" data-val="sash" onclick="sel(this)"><svg viewBox="0 0 44 44"><rect x="6" y="6" width="32" height="32"/><line x1="6" y1="22" x2="38" y2="22"/><rect x="10" y="10" width="24" height="9"/><rect x="10" y="25" width="24" height="9"/></svg>Sash<small>Slides up and down</small></button>
+          <button class="tile pic" data-val="colonial" onclick="sel(this)"><svg viewBox="0 0 44 44"><rect x="6" y="6" width="32" height="32"/><line x1="16.7" y1="6" x2="16.7" y2="38"/><line x1="27.3" y1="6" x2="27.3" y2="38"/><line x1="6" y1="16.7" x2="38" y2="16.7"/><line x1="6" y1="27.3" x2="38" y2="27.3"/></svg>Colonial<small>Small panes, lots of bars</small></button>
+          <button class="tile pic" data-val="winder" onclick="sel(this)"><svg viewBox="0 0 44 44"><rect x="6" y="6" width="32" height="32"/><line x1="6" y1="15" x2="38" y2="15"/><line x1="6" y1="24" x2="38" y2="24"/><line x1="6" y1="33" x2="38" y2="33"/><circle cx="33" cy="38" r="2"/></svg>Winder<small>Louvres on a crank</small></button>
+          <button class="tile pic" data-val="alu" onclick="sel(this);toast('Aluminium usually isn\'t painted — your estimator will check','')"><svg viewBox="0 0 44 44"><rect x="6" y="6" width="32" height="32"/><line x1="22" y1="6" x2="22" y2="38"/><line x1="6" y1="22" x2="38" y2="22"/></svg>Aluminium<small>Usually not painted</small></button>
+          <button class="tile pic" data-val="ns" aria-pressed="true" onclick="sel(this)"><svg viewBox="0 0 44 44"><rect x="6" y="6" width="32" height="32"/><path d="M17 18c0-3 2-5 5-5s5 2 5 4.5c0 3-5 3-5 7"/><circle cx="22" cy="30" r="1"/></svg>Not sure</button>
+        </div>
+        <div class="countrow"><div class="q">How many windows, all up?<small>A rough count is fine — we check it side by side later</small></div><div class="stepper"><button onclick="estep('win',-1)">−</button><span id="cWin">8</span><button onclick="estep('win',1)">+</button></div></div>
+      </div>
+
+      <!-- doors only -->
+      <div id="extDoor" style="display:none">
+        <div class="countrow"><div class="q">How many doors?<small>Including the garage's personnel door, if it's painted</small></div><div class="stepper"><button onclick="estep('door',-1)">−</button><span id="cDoor">2</span><button onclick="estep('door',1)">+</button></div></div>
+      </div>
+
+      <h2>Colours</h2>
+      <div class="tiles one" data-group="ecol">
+        <button class="tile" data-val="match" onclick="sel(this)">The same colours again<small>Colour-matched — a freshen up</small></button>
+        <button class="tile" data-val="change" aria-pressed="true" onclick="sel(this)">New colours<small>Two coats, standard preparation</small></button>
+        <button class="tile" data-val="dark" onclick="sel(this)">Going much lighter<small>An undercoat first, then two coats</small></button>
+      </div>
+
+      <h2>How's the paintwork holding up?</h2>
+      <div class="tiles" data-group="econd">
+        <button class="tile center" data-val="good" onclick="sel(this)">Good<small>Sound, just tired</small></button>
+        <button class="tile center" data-val="weathered" aria-pressed="true" onclick="sel(this)">Weathered<small>Faded, chalky</small></button>
+        <button class="tile center" data-val="peeling" onclick="sel(this)">Peeling<small>Flaking, bare patches</small></button>
+      </div>
+
+      <h2>Single or double storey?</h2>
       <div class="tiles two" data-group="estorey">
         <button class="tile" data-val="1" aria-pressed="true" onclick="sel(this)">Single<small>Up to about 4 m</small></button>
         <button class="tile" data-val="2" onclick="sel(this)">Double<small>Over 4 m — ladders and platforms</small></button>
       </div>
-      <h2>What's it made of? <small>— tick everything</small></h2>
-      <div class="tiles" data-group="mat">
-        <button class="tile center" aria-pressed="true" onclick="tog(this)">Weatherboard</button>
-        <button class="tile center" onclick="tog(this)">Render</button>
-        <button class="tile center" onclick="tog(this)">Brick</button>
-        <button class="tile center" onclick="tog(this)">Cement sheet</button>
-        <button class="tile center" onclick="tog(this)">Colorbond</button>
-        <button class="tile center" onclick="tog(this)">Other</button>
-      </div>
-      <h2>Painting</h2>
-      <div class="tiles two">
-        <button class="tile" aria-pressed="true" onclick="tog(this)">The house<small>Walls, eaves, fascias, gutters, windows, doors</small></button>
-        <button class="tile" onclick="tog(this)">Fence</button>
-        <button class="tile" onclick="tog(this)">Deck or floor</button>
-        <button class="tile" onclick="tog(this)">Garage or shed</button>
-      </div>
-      <h2>How's the paintwork holding up?</h2>
-      <div class="tiles" data-group="econd">
-        <button class="tile center" data-val="good" onclick="sel(this)">Good</button>
-        <button class="tile center" data-val="weathered" aria-pressed="true" onclick="sel(this)">Weathered</button>
-        <button class="tile center" data-val="peeling" onclick="sel(this)">Peeling</button>
-      </div>
+
       <h2>Anything tricky about getting to it?</h2>
       <div class="pills">
         <button class="pill" onclick="tog(this)">Steep block</button>
         <button class="pill" onclick="tog(this)">Tight side access</button>
         <button class="pill" onclick="tog(this)">Double-height entry</button>
-        <button class="pill" onclick="tog(this);toast('A person prices access equipment','estimator')">Needs a lift or scaffold</button>
+        <button class="pill" onclick="tog(this);toast('A person prices access equipment','not in the range')">Needs a lift or scaffold</button>
         <button class="pill" aria-pressed="true" onclick="tog(this)">Nothing tricky</button>
+      </div>
+
+      <div class="card human" style="margin-top:20px">
+        <h3>Rather we just came out?</h3>
+        <p class="lead">Every outside job is signed off by a person anyway. Book now and skip the rest.</p>
+        <div class="btns" style="margin-top:12px"><button class="btn soft" onclick="openSheet('save')">Book someone in</button><a class="btn soft" href="tel:0388409414" style="text-decoration:none">Call us</a></div>
       </div>
     </div>
     <div class="foot">
@@ -1244,7 +1289,7 @@ a{color:var(--cyan);text-decoration:none}
 // ---------- state ----------
 const S={job:'interior',kind:'house',beds:3,storeys:1,scope:'whole',colour:'new',cond:'wear',living:'yes',rooms:[],confirmed:0,sys:false,acc:false,qual:false,
   seg:'office',counts:{},hours:'business',occ:'occ',ceil:'tiles',cjob:null,hkind:'aged',bookReason:null,wharea:'1000',whheight:'6',whrack:'no',whop:'no',whlift:'no',
-  ck:{walls:true,ceilings:false,trims:false},bold:'no',undecided:'no',gloss:'ns',doorstyle:'panel',winstyle:'case',notsure:0,seen:0,flags:0};
+  ck:{walls:true,ceilings:false,trims:false},bold:'no',undecided:'no',gloss:'ns',doorstyle:'panel',winstyle:'case',notsure:0,seen:0,flags:0,ext:{},ewin:'ns',ecol:'change',cWin:8,cDoor:2};
 const HIST=[];
 function money(n){return '$'+(Math.round(n/10)*10).toLocaleString('en-AU')}
 
@@ -1255,7 +1300,16 @@ function base(){
    *({same:.82,new:1,dark:1.18}[S.colour]||1)
    *({good:.95,wear:1,work:1.16}[S.cond]||1)
    *(S.living=='yes'?1.04:1);
-  if(S.job=='exterior')v=16900;
+  if(S.job=='exterior'&&S.kind!=='commercial'){
+    const on=S.ext||{};let e=0;
+    if(on.body)e+=9800*({weatherboard:1}[0]||1);
+    if(on.windows)e+=(S.cWin||0)*210*({colonial:1.6,sash:1.25,casement:1,winder:1.35,alu:0,ns:1.1}[S.ewin]||1);
+    if(on.doors)e+=(S.cDoor||0)*260;
+    if(on.fascias)e+=1400; if(on.gutters)e+=1600; if(on.eaves)e+=2200;
+    if(on.fence)e+=1900; if(on.deck)e+=1500; if(on.garage)e+=2400; if(on.wall)e+=1200;
+    e*=(S.estorey==='2'?1.45:1)*({match:.85,change:1,dark:1.15}[S.ecol]||1)*({good:.9,weathered:1,peeling:1.28}[S.econd]||1);
+    v=Math.max(e,850);
+  } else if(S.job=='exterior')v=16900;
   if(S.kind==='commercial'){
     const c=SEG[S.seg]||SEG.office;
     const ceil={tiles:.85,plaster:1,exposed:.8}[S.ceil]||.85, hf={4:1,6:1.3,9:1.6}[S.openheight||'6'];
@@ -1301,6 +1355,17 @@ function paintRange(){
 }
 
 
+// ---------- exterior ----------
+function extSync(){
+  const on={};document.querySelectorAll('#extEl [data-el], #extSep [data-el]').forEach(t=>on[t.dataset.el]=t.getAttribute('aria-pressed')==='true');
+  S.ext=on;
+  document.getElementById('extBody').style.display=on.body?'block':'none';
+  document.getElementById('extWin').style.display=on.windows?'block':'none';
+  document.getElementById('extDoor').style.display=on.doors?'block':'none';
+  renderAssume();paintRange();
+}
+function estep(k,d){const id=k==='win'?'cWin':'cDoor';const e=document.getElementById(id);const v=Math.max(0,+e.textContent+d);e.textContent=v;S[id]=v;paintRange()}
+
 // ---------- colour intent per surface group ----------
 function syncColour(){
   const src=document.querySelector('.screen.active #ckTiles, .screen.active #ckTilesCom')||document.getElementById('ckTiles');
@@ -1311,6 +1376,22 @@ function syncColour(){
 }
 function grp(k){const chg=S.undecided==='yes'||S.ck[k];return chg?(S.bold==='yes'?'dark':'new'):'same'}
 function doLines(){
+  if(S.job==='exterior'&&S.kind!=='commercial'){
+    const on=S.ext||{},L=[];
+    const prep={good:'a wash and a light sand',weathered:'a wash, scraping back the loose and spot-priming',peeling:'scraping back to sound paint and priming the bare timber'}[S.econd||'weathered'];
+    const coats={match:'same colour, one coat',change:'new colour, two coats',dark:'new colour, an undercoat then two coats'}[S.ecol];
+    const mats=[...document.querySelectorAll('#extBody .tile[aria-pressed="true"]')].map(t=>t.textContent.toLowerCase().split('—')[0].trim());
+    if(on.body)L.push(['Walls',`${mats.length?mats.join(' and ')+' — ':''}${coats} of exterior low-sheen, after ${prep}`]);
+    if(on.windows)L.push(['Windows',`${S.cWin} ${({casement:'casement',sash:'sash',colonial:'colonial',winder:'winder',alu:'aluminium',ns:'timber'})[S.ewin]} — sand, fill, two coats${S.ewin==='colonial'?' (colonial bars are slow — cut in by hand)':''}${S.ewin==='alu'?' · aluminium usually isn\'t painted, your estimator will check':''}`]);
+    if(on.doors)L.push(['Doors',`${S.cDoor} — both faces and the frame, two coats of exterior enamel`]);
+    if(on.fascias)L.push(['Fascias',`Sand, prime any bare timber, two coats of enamel`]);
+    if(on.gutters)L.push(['Gutters &amp; downpipes','Clean, treat any rust, two coats']);
+    if(on.eaves)L.push(['Eaves','Wash down, two coats — cut in to the wall line']);
+    ['fence','deck','garage','wall'].forEach(k=>{if(on[k])L.push([({fence:'Fence',deck:'Deck or floor',garage:'Garage or shed',wall:'Wall'})[k],'Your estimator measures and prices this on the visit']);});
+    if(!L.length)L.push(['Nothing ticked yet','Tick what we\'re painting and this fills in']);
+    L.push(['Not included','Access equipment hire, rotten timber replacement, anything we can\'t see from the ground']);
+    return L;
+  }
   const com=S.kind==='commercial',cond=S.cond;
   const prep={good:'a light sand',wear:'filling the small marks and a light sand',work:'patching and sanding back'}[cond];
   const w={same:'same colour, one fresh coat',new:'new colour, two coats',dark:'new colour, an undercoat then two coats'}[grp('walls')];
@@ -1510,6 +1591,23 @@ function hide(id){document.getElementById(id).style.display='none'}
 // ---------- assume list ----------
 function renderAssume(){
   const n=S.rooms.length;
+  if(S.job==='exterior'&&S.kind!=='commercial'){
+    const on=S.ext||{},el=[];
+    if(on.body)el.push('the body');if(on.windows)el.push(S.cWin+' windows');if(on.doors)el.push(S.cDoor+' doors');
+    if(on.fascias)el.push('fascias');if(on.gutters)el.push('gutters and downpipes');if(on.eaves)el.push('eaves');
+    ['fence','deck','garage','wall'].forEach(k=>{if(on[k])el.push(({fence:'the fence',deck:'the deck',garage:'the garage or shed',wall:'a wall'})[k])});
+    const mats=[...document.querySelectorAll('#extBody .tile[aria-pressed="true"]')].map(t=>t.textContent.toLowerCase());
+    document.getElementById('basis').textContent=`Based on a ${S.estorey==='2'?'double':'single'}-storey house, painting ${el.length?el.join(', '):'nothing yet — tick what we\'re painting'}${mats.length?' ('+mats.join(', ')+')':''}, ${({match:'the same colours',change:'new colours',dark:'going much lighter'})[S.ecol]}, paintwork ${({good:'in good order',weathered:'weathered',peeling:'peeling'})[S.econd||'weathered']}. If that's about right, this is about right.`;
+    const items=[
+      ['Four sides at typical lengths — you check each one next','ext-sides'],
+      [on.body?`Walls ${mats.length?'in '+mats.join(' and '):''} — wash down, scrape and sand, prime any bare patches`:'Not painting the walls — trims and roofline only','ext-sides'],
+      [{match:'One coat where the surface allows',change:'Two coats of exterior low-sheen',dark:'An undercoat then two coats'}[S.ecol],'reveal'],
+      [{good:'A wash and a light sand',weathered:'Wash, scrape back the loose, spot-prime',peeling:'Scraping back to sound paint, priming bare timber — a person confirms the worst areas'}[S.econd||'weathered'],'ext-sides'],
+      ['Ladder and platform reach from the ground · equipment hire is never in the range','ext-sides']
+    ];
+    document.getElementById('assumeList').innerHTML=items.map(([t,g])=>`<li onclick="go('${g}')" style="cursor:pointer"><span class="dot"></span><span>${t}</span><span class="ed">›</span></li>`).join('');
+    renderDo();return;
+  }
   if(S.kind==='commercial'){
     const c=SEG[S.seg]||SEG.office;
     document.getElementById('basis').textContent=S.seg==='warehouse'
@@ -1562,6 +1660,7 @@ function go(id,push=true){
   if(id==='com-areas')renderComAreas();
   if(id==='com-job')renderComJob();
   if(id==='com-brief')renderBrief();
+  if(id==='ext-job')extSync();
   if(id==='commercial'){S.cjob=S.cjob||S.job;document.querySelectorAll('#cjobPills .pill').forEach(p=>p.setAttribute('aria-pressed',p.dataset.val===S.cjob?'true':'false'));}
   if(id==='com-book'){const both=S.bookReason==='both';document.getElementById('cbKick').textContent=both?'INSIDE AND OUTSIDE':"LET'S GET SOMEONE OUT";document.getElementById('cbTitle').textContent=both?'One visit covers both':'Book your commercial estimator';document.getElementById('cbSub').textContent=both?"Inside and outside together are priced on site. We bring everything you've told us, measure both, and you get one quote.":'A site visit is the right way to price this. Here\'s how it goes.';S.bookReason=null;}
   if(id==='finish'){const com=S.kind==='commercial';document.getElementById('qualSwitch').style.display=com?'none':'inline-flex';document.getElementById('comFinNote').style.display=com?'block':'none';if(com&&S.qual)toggleQual();}
@@ -1572,7 +1671,7 @@ function go(id,push=true){
   window.scrollTo(0,0);
 }
 function back(){const p=HIST.pop();if(p)go(p,false);}
-function nextFromStart(){S.kind=S.kind==='commercial'?'house':S.kind;go(S.job==='exterior'?'ext-job':(S.job==='both'?'both':'place'))}
+function nextFromStart(){S.kind=S.kind==='commercial'?'house':S.kind;if(S.job==='exterior'){go('ext-job');extSync()}else go(S.job==='both'?'both':'place')}
 function toggleQual(){S.qual=!S.qual;document.getElementById('qualSwitch').classList.toggle('on',S.qual);document.getElementById('finBig').style.display=S.qual?'none':'block';document.getElementById('finSmall').style.display=S.qual?'block':'none';
   if(S.qual){document.querySelectorAll('#s-finish .range-live')[0].textContent='$4,680 – $5,040';document.getElementById('finConf').textContent='6 of 6 rooms confirmed · ±4%'}else paintRange();}
 
@@ -1603,7 +1702,7 @@ both:`<div class="k">BRANCH · INSIDE AND OUTSIDE</div><h3>Two jobs, two ways</h
 'com-brief':`<div class="k">COMMERCIAL · THE BRIEF</div><h3>Strata, shop fronts, "something else", and every commercial exterior</h3><p>No number. Four to five questions that give the estimator a brief — what needs painting, size, who's asking, whether a scope exists, timing — plus photos and notes. The screen says plainly why it's priced on site. Then straight to booking. This is the "appointment path done properly": the customer leaves with an account, a saved brief and a time.</p><p>Strata adds the meeting date, because the quote needs to be valid to it. Shop fronts add awning, signage, footpath and centre-vs-strip, because those are what the estimator needs to know before turning up.</p>`,
 'com-book':`<div class="k">COMMERCIAL · BOOK</div><h3>The visit, explained</h3><p>Three steps, real slots on the existing scheduling system, and the promise that nothing is fixed until they say so. Insurance certificates and SWMS are named because commercial buyers ask for them next.</p><p class="flag">⚑ "Usually within a week" is written here — confirm what you can hold to.</p>`,
 commercial:`<div class="k">BRANCH · COMMERCIAL</div><h3>Eight segments, two doors — and a visit is always on offer</h3><p>Each tile says up front whether it can be ranged online <em>or</em> visited, or is visit-only — so nobody reads "range online" as "online or nothing". The which-part row (inside / outside / both) sits under the tiles, pre-filled from screen 1: outside goes to the brief for every segment, both goes straight to a single visit. Offices, warehouses, retail interiors, healthcare and schools range online with a wider band and a person confirming before acceptance. Strata, shop fronts and "something else" go to a short brief and a booking. Every commercial exterior goes to the brief.</p><p>The six gates from the strategy no longer sit here as a wall. Height and equipment questions appear where they're relevant (warehouse height, halls, exposed ceilings); hours is a loading; induction and committees are captured on the brief. A person confirms every commercial price, so the gates became questions.</p><p class="flag">⚑ Shop fronts and retail: I recommend ranging retail interiors and not shop fronts in v1 — see the commercial experience document.</p>`,
-'ext-job':`<div class="k">BRANCH · OUTSIDE</div><h3>Five answers to an outside guide range</h3><p>Storeys, material, what's included, condition, access — the exterior engine can seed four sides from this. "Needs a lift or scaffold" flags for a person; the range still shows, with equipment excluded and said so.</p><p class="flag">⚑ Exterior allowances per elevation don't exist yet (allowances spec §8) — that's a separate spec before the exterior range is trusted.</p>`,
+'ext-job':`<div class="k">BRANCH · OUTSIDE</div><h3>Rebuilt 11 Sep to Tom's structure — elements first</h3><p>The old version (v1 and my own v2.5) asked what the house is <em>made of</em> before establishing whether the walls were being painted at all, and pre-ticked weatherboard. Both wrong: plenty of jobs are trims and roofline only, and brick or render is often left bare on purpose.</p><p>Now: <b>what are we painting</b> — body, windows, doors, fascias, gutters and downpipes, eaves, then the freestanding things. Materials appear only if the body is ticked, with <b>nothing pre-ticked</b>. Window type and counts appear only if windows are ticked; door count only if doors are. Then colours, condition, storeys once, access. One screen.</p><p>No bedrooms anywhere on this path, and storeys asked once.</p><p class="flag">⚑ Window type multipliers (colonial 1.6× a casement, sash 1.25×, winder 1.35×) are illustrative — yours to set from the rate card.</p><p class="flag">⚑ Exterior allowances per elevation still don't exist (allowances spec §8) — that spec is what makes this range trustworthy.</p>`,
 'ext-sides':`<div class="k">BRANCH · SIDES</div><h3>Photograph each side — it does the work</h3><p>The plan-from-above stays; it's the best bit of today's exterior builder. The change is asking for one photo per side up front. Windows, doors, downpipes and condition can be read from it (assistant plan-reader), and the estimator confirms from photos rather than driving out.</p>`,
 'ext-side':`<div class="k">BRANCH · A SIDE</div><h3>Same shape as a room</h3><p>Photo, painting it or not, size, materials with a share of the wall, what's on it with metre runs, condition and flagged spots. The rename control stays.</p>`,
 trade:`<div class="k">TRADE PORTAL</div><h3>Speed and repetition are the product</h3><p>A property manager's problem is forty repaints a year, not one. So: saved specs as templates, an address book that seeds rooms, one-tap rebook from the last job tree, a tenant photo link, and the colour register per property. Prices show immediately; a person still confirms before work starts.</p><ul><li>Real estate agents: end-of-lease specs, speed, tenant photos.</li><li>Facilities managers: repeatable specs, after-hours flags, statements.</li><li>Insurers: scope matched to a claim, photos as evidence — later phase.</li></ul><p class="flag">⚑ Trade self-acceptance: never, or under a cap per account?</p>`,

@@ -1033,3 +1033,18 @@
 .wz .wz-range-roll { display: inline-block; overflow: hidden; }
 .wz .wz-range-roll > span { display: inline-block; animation: wzroll .7s cubic-bezier(.2,.8,.2,1) both; }
 @media (prefers-reduced-motion: reduce) { .wz .wz-range-roll > span { animation: none; } }
+
+/* ---- C12: the commercial screens (segment tiles, counts, the open-space card) ---- */
+.wz .wz-card .wz-segtag { display: block; font-family: var(--wz-mono); font-style: normal; font-size: 9px; letter-spacing: .12em; color: var(--cyan); margin-bottom: 5px; }
+.wz .wz-card .wz-segtag.vis { color: var(--amber); }
+.wz .wz-counts { margin-top: 6px; }
+.wz .wz-countrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.wz .wz-countrow:last-child { border-bottom: 0; }
+.wz .wz-countrow .wz-qtext small { display: block; margin-top: 2px; font-size: 12.5px; color: var(--muted); }
+.wz .wz-stepper { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 100px; overflow: hidden; flex: none; }
+.wz .wz-stepper button { width: 38px; height: 34px; background: none; border: 0; color: var(--text); font-size: 18px; line-height: 1; cursor: pointer; font-family: var(--wz-sans); }
+.wz .wz-stepper button:disabled { opacity: .35; cursor: default; }
+.wz .wz-stepper span { min-width: 30px; text-align: center; font-weight: 600; font-size: 15px; }
+.wz .wz-opencard { margin-top: 16px; padding: 14px 16px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+.wz .wz-tiles { flex-wrap: wrap; }
+.wz .wz-tile .wz-tile-flag { display: block; margin-top: 3px; font-size: 11.5px; color: var(--amber); font-weight: 500; }

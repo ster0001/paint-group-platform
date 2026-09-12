@@ -79,13 +79,23 @@ describe("9.5 · the same site, asked two ways, answers the same", () => {
     expect(decide(strataBySegment, 400_000, 95, DEFAULT_POLICY, false).outcome).toBe("handoff");
   });
 
-  test("the physical gates stay hard for trade — a boom lift costs the same on any account", () => {
-    const height = decide(
-      answers({ propertyKind: "commercial", commercialSegment: "office", commercialGates: { height: "yes" } }),
-      400_000, 95, DEFAULT_POLICY, true,
-    );
-    expect(height.outcome).toBe("handoff");
-    expect(height.reasons).toContain("commercial_gate_height");
+  /**
+   * C12: the seven gates are no longer a wall — height is sized in the tree
+   * (a hall's bracket, an EWP line), hours is a loading, induction and
+   * committees live on the brief. A stored gate answer changes nothing; the
+   * segment ROW decides, and a range segment is a guide range with a person
+   * confirming on every account.
+   */
+  test("a stored gate answer is ignored; a range segment reveals with a person confirming, trade or not", () => {
+    const stored = answers({ propertyKind: "commercial", commercialSegment: "office", commercialGates: { height: "yes" } });
+    for (const trade of [true, false]) {
+      const d = decide(stored, 400_000, 95, DEFAULT_POLICY, trade);
+      expect(d.outcome).toBe("reveal");
+      expect(d.reasons).toContain("commercial_range");
+      expect(d.reasons).not.toContain("commercial_gate_height");
+      expect(d.walkthroughRequired).toBe(true);
+      expect(d.canAccept).toBe(false);
+    }
   });
 });
 
