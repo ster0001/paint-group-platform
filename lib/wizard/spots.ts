@@ -117,16 +117,62 @@ export const EXTENT_LABEL: Record<SpotExtent, string> = {
   most: "Most of it",
 };
 
-/** Extent → the severity column in `defect_prep_rates`. */
-export const EXTENT_SEVERITY: Record<SpotExtent, 1 | 2 | 3> = {
-  spots: 1, patches: 2, most: 3,
+/**
+ * Extent → HOW MUCH, in the rate row's own unit (m², lineal m, or each).
+ *
+ * ⚑ CORRECTED 9 Sep, from Tom's question: *"if paint is peeling or flaking it
+ * says m2 0.3 — is that 0.3 per square metre, or 0.3 hours for everything?"*
+ *
+ * It is **per square metre** — `defectHours` is `perUnit × qty`. And that
+ * exposed a real fault: this module used to pass `qty: 1` and let the extent
+ * pick the SEVERITY column instead, so "most of it" on a whole peeling room
+ * priced at 0.3 h — eighteen minutes — because one square metre is all it ever
+ * asked for.
+ *
+ * The two are different axes and were being conflated:
+ *
+ *   severity = how bad it is PER unit   (light flaking vs paint hanging off)
+ *   qty      = how much of it there is  ← this is what the customer answers
+ *
+ * "A couple of spots / patches here and there / most of it" is plainly the
+ * second. So extent now sets the quantity, and severity comes from a photo
+ * read when there is one (the model judges how bad) or sits at 1 when there
+ * is not.
+ *
+ * ⚑ THE NUMBERS BELOW ARE MINE AND WANT TOM'S. They are a deliberate floor,
+ * not an estimate: enough that "most of it" is no longer eighteen minutes,
+ * conservative enough that nobody is over-charged while they are unconfirmed.
+ * Settings-editable (`spot_extent_qty`), so correcting them is not a deploy.
+ */
+export const DEFAULT_EXTENT_QTY: Record<SpotExtent, number> = {
+  spots: 1,
+  patches: 3,
+  most: 8,
 };
+
+export const SPOT_EXTENT_QTY_KEY = "spot_extent_qty";
+
+/** The settings row → the quantities, per-entry fallback. */
+export function extentQtyFrom(value: unknown): Record<SpotExtent, number> {
+  const v = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  const one = (k: SpotExtent) => {
+    const n = v[k];
+    return typeof n === "number" && Number.isFinite(n) && n > 0 && n <= 200 ? n : DEFAULT_EXTENT_QTY[k];
+  };
+  return { spots: one("spots"), patches: one("patches"), most: one("most") };
+}
 
 /** A spot as the customer left it. */
 export type Spot = {
   tag: string;
   /** How much of it there is. Absent = a couple of spots, the safe floor. */
   extent?: SpotExtent;
+  /**
+   * How bad it is per unit — the model's judgement from the photo, when there
+   * was one. A customer is never asked: "is this a severity 2" is a question
+   * for somebody who prices these for a living.
+   */
+  severity?: 1 | 2 | 3;
   /** The uploaded photo's extraction-source id, when they added one. */
   sourceId?: string | null;
   /** Their own words, when they typed any. */
@@ -136,6 +182,13 @@ export type Spot = {
 export const tagByKey = (key: string): SpotTag | null => SPOT_TAGS.find((t) => t.key === key) ?? null;
 
 /** The tags offered on a room or a side. */
+
+/** The rate row's unit, in a word the painter reads. */
+function unitWord(defectType: string, rates: DefectRate[]): string {
+  const u = rates.find((r) => r.defect_type === defectType)?.unit ?? "";
+  return u === "m2" ? "m²" : u === "lin_m" ? "lineal m" : u === "each" ? "of them" : "units";
+}
+
 export function tagsFor(side: "interior" | "exterior"): SpotTag[] {
   return SPOT_TAGS.filter((t) => t.side === side || t.side === "both");
 }
@@ -145,6 +198,13 @@ export type SpotLine = {
   surface: ReturnType<typeof makeDraftSurface>;
   /** Raised when the spot is real but must not be auto-priced (⚑6). */
   deferred: WizardDeferred | null;
+  /**
+   * "Most of it" — the range stays broad, a person looks, and we ask for a
+   * photo if there is not one. Never blocks: the customer can still finish.
+   */
+  major: boolean;
+  /** True when we should ask for a photo they have not added. */
+  wantsPhoto: boolean;
 };
 
 /**
@@ -160,17 +220,35 @@ export type SpotLine = {
  * who prices these for a living. Severity 1 is the honest floor; the estimator
  * raises it on the photo.
  */
+/**
+ * What we say when someone taps "most of it" (Tom, 9 Sep).
+ *
+ * Three things at once, because all three are true: a person will look, we
+ * are keeping the range wide until they have, and a photo would help. The
+ * photo is ASKED FOR and never required — the customer who cannot get one
+ * still has to be able to finish, and their answer is evidence either way.
+ */
+export function majorExtentNotice(hasPhoto: boolean): string {
+  return hasPhoto
+    ? "Most of the room is a different job from a few patches, so one of our estimators will look at your photo and settle the prep before your price is fixed. Until then we'll keep your range wide."
+    : "Most of the room is a different job from a few patches, so one of our estimators will look at this and settle the prep before your price is fixed. Until then we'll keep your range wide. A photo would help them a lot — you don't have to add one.";
+}
+
 export function spotLine(
   spot: Spot,
   room: { id: number; name: string },
   rates: DefectRate[],
   nextId: () => number,
+  /** Tom's quantities per extent; defaults to the conservative floor above. */
+  qtyFor: Record<SpotExtent, number> = DEFAULT_EXTENT_QTY,
 ): SpotLine | null {
   const tag = tagByKey(spot.tag);
   if (tag == null) return null;
 
   const extent: SpotExtent = spot.extent ?? "spots";
-  const severity = EXTENT_SEVERITY[extent];
+  const qty = qtyFor[extent];
+  // The photo reader judges how bad; without one, the honest floor.
+  const severity = spot.severity ?? 1;
 
   /**
    * WHAT PRICES, AND WHY (Tom's framing, 9 Sep).
@@ -187,8 +265,17 @@ export function spotLine(
    * price, words earn an estimator. Nothing is lost either way.
    */
   const hasPhoto = spot.sourceId != null && spot.sourceId !== "";
+  /**
+   * "Most of it" is a different claim from the other two (Tom, 9 Sep).
+   *
+   * A couple of spots and a few patches are ordinary. A mostly-peeling ceiling
+   * in an 8×8 living room could be a day of scraping or three, and no form can
+   * tell which — so it still carries an allowance, but it also keeps the range
+   * broad, asks for a photo, and says plainly that a person will look.
+   */
+  const major = extent === "most";
   const prices = AUTO_PRICED.has(tag.key) || hasPhoto;
-  const hours = prices ? defectHours({ type: tag.defectType, severity, qty: 1 }, rates) : 0;
+  const hours = prices ? defectHours({ type: tag.defectType, severity, qty }, rates) : 0;
 
   const label = prices
     ? `Repair — ${tag.label} (${EXTENT_LABEL[extent].toLowerCase()})`
@@ -197,7 +284,7 @@ export function spotLine(
   surface.prepHr = hours;
   surface.crewNote = [
     tag.crewNote,
-    `extent: ${EXTENT_LABEL[extent].toLowerCase()}`,
+    `extent: ${EXTENT_LABEL[extent].toLowerCase()} — allowed for ${qty} ${unitWord(tag.defectType, rates)}`,
     spot.note ? `customer said: "${spot.note.trim().slice(0, 160)}"` : "",
     hasPhoto ? "photo attached" : "",
   ].filter(Boolean).join(" | ");
@@ -217,9 +304,21 @@ export function spotLine(
    *   · not priced at all — the estimator judges it.
    * A crack or nail hole that priced cleanly from words raises nothing.
    */
+  // "Most of it" ALWAYS reaches a person, priced or not — that is the point.
   const deferred: WizardDeferred | null =
-    prices && hours > 0 && !hasPhoto
+    !major && prices && hours > 0 && !hasPhoto
       ? null
+      : major
+      ? {
+          room: room.name,
+          areaId: room.id,
+          kind: "major_defect",
+          what: `${tag.label} — most of it`,
+          count: 1,
+          needs: hasPhoto
+            ? `the customer says most of this room is affected and has sent a photo — judge the real prep before the price is fixed; ${hours}h is a placeholder allowance`
+            : `the customer says most of this room is affected, with NO photo — ask for one, then judge the real prep; ${hours}h is a placeholder allowance`,
+        }
       : {
           room: room.name,
           areaId: room.id,
@@ -232,7 +331,7 @@ export function spotLine(
               : `the customer flagged a ${tag.label.toLowerCase()} (${EXTENT_LABEL[extent].toLowerCase()}) with no photo — judge it and price the repair`,
         };
 
-  return { surface, deferred };
+  return { surface, deferred, major, wantsPhoto: major && !hasPhoto };
 }
 
 /**

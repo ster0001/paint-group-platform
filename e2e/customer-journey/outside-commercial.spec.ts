@@ -25,6 +25,9 @@ async function startAt(page: Page, jobType: "interior" | "exterior" | "both", ur
 
 async function toPlace(page: Page) {
   await page.getByTestId("ql-next").click();
+  // C8: a "both" job meets the choice screen first — price them yourself.
+  const both = page.getByTestId("ql-both-self");
+  if (await both.count()) await both.click();
   await expect(page.locator("[data-quick-step='place']")).toBeVisible({ timeout: 30_000 });
 }
 

@@ -34,9 +34,9 @@ export const metadata = {
 export default async function CustomerWizardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ property?: string; rebook?: string; spec?: string; address?: string; mode?: string; scope?: string; from?: string; src?: string }>;
+  searchParams: Promise<{ property?: string; rebook?: string; spec?: string; address?: string; mode?: string; scope?: string; from?: string; src?: string; session?: string }>;
 }) {
-  const { property: propertyParam, rebook: rebookParam, spec: specParam, address: addressParam, mode: modeParam, scope: scopeParam, from: fromParam, src: srcParam } = await searchParams;
+  const { property: propertyParam, rebook: rebookParam, spec: specParam, address: addressParam, mode: modeParam, scope: scopeParam, from: fromParam, src: srcParam, session: sessionParam } = await searchParams;
   // Homepage hand-off (homepage brief §4.2): the typed address and the
   // home/business chip arrive on the URL. Intent only — parsed and clamped
   // by lib/marketing/prefill.ts; nothing is created and nothing fires.
@@ -143,7 +143,25 @@ export default async function CustomerWizardPage({
   // ANONYMOUS session left (account or verified-email door) — and takes it
   // over, so the autosave keeps writing the same session. Statuses untouched.
   let resume: ReturnType<typeof serverResumeFrom> = null;
-  if (user && svc && !rebookParam) {
+  /**
+   * C8 — a STAFF member opening a customer's session (Save & book, addendum
+   * §4.17: "staff open the session at resume_screen with the assisted-session
+   * banner"). The draft is read by id through the service client, staff only;
+   * it lands on `last_screen`, and the banner names whose answers these are.
+   * Never adopted: the customer's row stays the customer's.
+   */
+  let assisted: { who: string; screen: string | null } | null = null;
+  if (isStaff && svc && sessionParam && /^[0-9a-f-]{36}$/.test(sessionParam)) {
+    const { data: row } = await svc.from("wizard_drafts")
+      .select("id, state, name, email, address, suburb, current_page, furthest_page, last_seen_at, converted_at, version, last_screen")
+      .eq("id", sessionParam).maybeSingle();
+    if (row) {
+      // No age limit: a session somebody asked us to pick up is never stale.
+      resume = serverResumeFrom({ ...(row as ServerDraftRow), converted_at: null }, new Date(), Number.MAX_SAFE_INTEGER);
+      const r = row as { name?: string | null; email?: string | null; address?: string | null; suburb?: string | null; last_screen?: string | null };
+      assisted = { who: r.name?.trim() || r.email || r.address || r.suburb || "the customer", screen: r.last_screen ?? null };
+    }
+  } else if (user && svc && !rebookParam) {
     const found = await findOpenDraft(svc, { userId: user.id, verifiedEmail: memberEmail }, new Date());
     if (found) {
       if (!found.own) await adoptDraft(svc, found.row.id, user.id);
@@ -247,6 +265,7 @@ export default async function CustomerWizardPage({
       logoUrl={company.logoUrl}
       companyPhone={company.phone || null}
       resume={resume}
+      assisted={assisted}
       prefill={memberEmail ? {
         email: memberEmail,
         name: memberName ?? undefined,

@@ -11,7 +11,8 @@ import { SCOPE_VERSION, type Alias, type ScopeRule } from "@/lib/extract/scope";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { PAINT_SYSTEMS_KEY, paintSystemsFrom } from "@/lib/pricing/systems";
 import { applyPaintSystems, applySystemPatch, paintSystemsView, type SystemPatch } from "@/lib/wizard/systems-view";
-import { roomConditionDeferred, spotLine } from "@/lib/wizard/spots";
+import { applyRoomExtra, roomExtrasView } from "@/lib/wizard/room-extras";
+import { SPOT_EXTENT_QTY_KEY, extentQtyFrom, roomConditionDeferred, spotLine } from "@/lib/wizard/spots";
 import { makeDraftSurface } from "@/lib/extract/draft";
 import {
   SITE_ACCESS_HOURS_KEY, STAGING_GROUP, applySiteAccess, hourAllowancesFrom,
@@ -195,8 +196,10 @@ const actionSchema = z.discriminatedUnion("action", [
     action: z.literal("add_spot"),
     areaId: z.number().int().positive(),
     tag: z.string().min(1).max(40),
-    /** How much of it there is — the customer's words, our severity. */
+    /** How much of it there is — the customer's words, as a quantity. */
     extent: z.enum(["spots", "patches", "most"]).optional(),
+    /** How bad per unit — the PHOTO READER's judgement, never the customer's. */
+    severity: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
     sourceId: z.string().uuid().nullable().optional(),
     note: z.string().max(300).optional(),
   }),
@@ -216,6 +219,15 @@ const actionSchema = z.discriminatedUnion("action", [
   }),
   z.object({ action: z.literal("set_colour_help"), want: z.boolean() }),
   z.object({ action: z.literal("extra_note"), note: z.string().max(400) }),
+  /** C10 — extras in THIS room: a review line pinned to the room, never a price (lib/wizard/room-extras.ts). */
+  z.object({
+    action: z.literal("room_extra"),
+    areaId: z.number().int().positive(),
+    kind: z.enum(["feature_wall", "wallpaper", "other"]),
+    count: z.number().int().min(0).max(6).optional(),
+    on: z.boolean().optional(),
+    text: z.string().max(120).optional(),
+  }),
   /**
    * Phase 5 (§4.4): site and access — the things that set our setup time and
    * which the flow never asked at all. One answer per post; the server maps
@@ -636,6 +648,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
      * rule `addSideCustom` follows). Re-raised from scratch so editing the
      * sentence replaces the note instead of stacking a second one.
      */
+    if (act.action === "room_extra") {
+      const roomBlock = blocks.find((b) => b.kind === "area" && Number(b.id) === act.areaId);
+      if (!roomBlock) return { error: "That room isn't on this estimate.", status: 400 };
+      newDeferred = applyRoomExtra(newDeferred, {
+        areaId: act.areaId, room: String(roomBlock.name ?? "Room"), kind: act.kind,
+        count: act.count ?? null, on: act.on ?? null, text: act.text ?? null,
+      });
+    }
+
     if (act.action === "extra_note") {
       newDeferred = newDeferred.filter((d) => d.what !== "an extra the customer asked for");
       const raised = extraNoteDeferral(act.note);
@@ -736,10 +757,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         .select("defect_type, unit, hours_sev1, hours_sev2, hours_sev3")
         .eq("version", SCOPE_VERSION);
       const line = spotLine(
-        { tag: act.tag, extent: act.extent, sourceId: act.sourceId ?? null, note: act.note },
+        { tag: act.tag, extent: act.extent, severity: act.severity, sourceId: act.sourceId ?? null, note: act.note },
         { id: act.areaId, name: String(area.name ?? "this room") },
         (rateRows ?? []) as DefectRate[],
         () => next++,
+        // Tom's quantities per extent — how much "most of it" actually means.
+        extentQtyFrom(settingValue((await ctxPromise).settings, SPOT_EXTENT_QTY_KEY)),
       );
       if (line == null) return { error: "We don't know that one — pick a tag from the list.", status: 400 };
       blocks = blocks.map((b, i) => (i === idx
@@ -1649,6 +1672,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const kind = intent === "visit" ? "visit"
         : intent === "fix_online" ? "fix_online"
         : draft.kind;
+      /**
+       * C10 (v2.5) — the hazmat check goes on the estimator's site checklist at
+       * confirmation, where a trained person makes the call. It replaced the
+       * asbestos / lead hard stop on the customer path: the customer is not
+       * asked, the answers default to unsure, and every price is confirmed by
+       * a person before acceptance. Idempotent on (estimate, key).
+       */
+      await db.from("site_checklist_items").upsert(
+        { estimate_id: id, key: "hazmat_check", value: "customer not asked — check age of paintwork and any sheeting before work starts", source: "wizard" },
+        { onConflict: "estimate_id,key" },
+      ).then((r) => { if (r.error) reportError(r.error, { where: "wizard.edit.siteChecklist", bestEffort: true }); });
       const { error: crError } = await db.from("confirmation_requests").insert({
         estimate_id: id,
         requested_by: view === "customer" ? "customer" : "staff",
@@ -1775,6 +1809,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ...(fixedOnline ? { fixedOnline, ...(fixRepeated ? { repeated: true } : {}) } : {}),
       ...(fixDeclined ? { fixDeclined: true } : {}),
       scopeRooms: customerScopeRooms(blocks, rules),
+      // C10: what each room's extras row shows back, read off the deferrals.
+      roomExtras: Object.fromEntries(blocks.filter((b) => b.kind === "area").map((b) => [String(b.id), roomExtrasView(newDeferred, Number(b.id))])),
       // Phase 4: the derived systems, recomputed from the tree that this
       // request just changed. It rides EVERY response, not only a
       // set_paint_system one — removing the last ceiling has to remove the

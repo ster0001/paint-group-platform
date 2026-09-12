@@ -1,5 +1,7 @@
 "use client";
 
+import EstimatorStrip from "@/app/wizard/EstimatorStrip";
+
 import { useState } from "react";
 import type { ContactRequest, ContactWindow } from "./ContactCard";
 
@@ -22,20 +24,12 @@ import type { ContactRequest, ContactWindow } from "./ContactCard";
  */
 type Mode = "idle" | "visit" | "callback";
 
-function Icon({ name }: { name: "visit" | "call" | "callback" }) {
-  return (
-    <span className="reach-ic" aria-hidden="true">
-      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-        {name === "visit" && <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /><path d="m9 15 2 2 4-4" /></>}
-        {name === "call" && <path d="M21 16.9v2.6a1.7 1.7 0 0 1-1.9 1.7 17 17 0 0 1-7.4-2.6 16.6 16.6 0 0 1-5.1-5.1A17 17 0 0 1 4 6.1 1.7 1.7 0 0 1 5.7 4.2h2.6a1.7 1.7 0 0 1 1.7 1.5c.1.9.3 1.7.6 2.5a1.7 1.7 0 0 1-.4 1.8l-1.1 1.1a13.6 13.6 0 0 0 5.1 5.1l1.1-1.1a1.7 1.7 0 0 1 1.8-.4c.8.3 1.6.5 2.5.6a1.7 1.7 0 0 1 1.4 1.6Z" />}
-        {name === "callback" && <><path d="M3 12a9 9 0 1 1 3 6.7" /><path d="M3 20v-5h5" /></>}
-      </svg>
-    </span>
-  );
-}
 
-export default function ReachStrip({ prefix = "sc", companyPhone, phoneHours, visitSlots, defaultPhone = null, busy = false, onBookSlot, onContact }: {
+export default function ReachStrip({
+  estimator = null, prefix = "sc", companyPhone, phoneHours, visitSlots, defaultPhone = null, busy = false, onBookSlot, onContact }: {
   prefix?: "sc" | "sd";
+  /** C11 — the resolved estimator for the strip header, or null. */
+  estimator?: { name: string | null; phone: string | null; covers: boolean } | null;
   companyPhone: string | null;
   /** When the office answers — Settings → Company details owns the wording. */
   phoneHours?: string | null;
@@ -71,19 +65,25 @@ export default function ReachStrip({ prefix = "sc", companyPhone, phoneHours, vi
   const toggle = (m: Mode) => setMode((cur) => (cur === m ? "idle" : m));
 
   return (
-    <div className={`${p}-reach`} data-testid="reach-strip">
+    <div className={`${p}-reach`} data-testid="reach-strip" id="reach">
+      {/*
+        C11 (v2.4): no "Book in your estimator" heading and no icon-tile row —
+        Tom, 10 Sep: booking a visit or calling can't be three little tiles
+        under a heading. The estimator is named and present; the three ways
+        to reach them are plain buttons under the name.
+      */}
+      <EstimatorStrip estimator={estimator} companyPhone={companyPhone} onBook={() => toggle("visit")} compact />
       <div className={`${p}-reach-row`}>
-        <span className={`${p}-reach-lead`}>Book in your estimator</span>
-        <button type="button" className={`${p}-contact-opt reach-b${mode === "visit" ? " on" : ""}`} onClick={() => toggle("visit")} data-testid="reach-visit">
-          <Icon name="visit" />Book a site visit
+        <button type="button" className={`${p}-contact-opt${mode === "visit" ? " on" : ""}`} onClick={() => toggle("visit")} data-testid="reach-visit">
+          Book a site visit
         </button>
         {tel && (
-          <a className={`${p}-contact-opt reach-b`} href={tel} data-testid="reach-call">
-            <Icon name="call" />Call us <b>{companyPhone}</b>
+          <a className={`${p}-contact-opt`} href={tel} data-testid="reach-call">
+            Call us <b>{companyPhone}</b>
           </a>
         )}
-        <button type="button" className={`${p}-contact-opt reach-b${mode === "callback" ? " on" : ""}`} onClick={() => toggle("callback")} data-testid="reach-callback">
-          <Icon name="callback" />Request a call back
+        <button type="button" className={`${p}-contact-opt${mode === "callback" ? " on" : ""}`} onClick={() => toggle("callback")} data-testid="reach-callback">
+          Request a call back
         </button>
       </div>
       {/* Tom, 8 Sep: the hours have to sit with the button, not in a footer. */}

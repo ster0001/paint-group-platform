@@ -1,15 +1,23 @@
 "use client";
 
+import WhatWeDo from "@/app/wizard/WhatWeDo";
+import type { PaintSystemLine } from "@/lib/wizard/systems-view";
+type RoomExtrasView = { featureWalls: number; wallpaper: boolean; other: string };
+
 import ContactCard from "./ContactCard";
 import { sendToLabel } from "@/lib/wizard/finish-line";
 import ReachStrip from "./ReachStrip";
 import { afterLayout, scrollCardToTop } from "./scrollCard";
-import { useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import type { CustomerPayload } from "@/lib/wizard/view";
 import { assertCustomerShape } from "@/lib/wizard/contract";
 import type { CustomerExteriorView, CustomerScopeRoom } from "@/lib/wizard/scope-editor";
 import RoomSpots from "./RoomSpots";
+import RoomExtras from "./RoomExtras";
+import EstimatorStrip from "@/app/wizard/EstimatorStrip";
+import Offer from "@/app/wizard/Offer";
+import { humanLine } from "@/lib/wizard/human-line";
 import SiteAccessCard from "./SiteAccess";
 import JobExtras from "./JobExtras";
 import type { JobExtra } from "@/lib/wizard/extras";
@@ -66,9 +74,10 @@ export type InteriorLoopView = {
 
 type Payload = CustomerPayload & {
   scopeRooms?: CustomerScopeRoom[];
-  /** Still sent on every response (the derivation is untouched); no longer
-   *  rendered here, so the editor does not need its shape. */
-  paintSystems?: unknown;
+  /** Sent on every response — the derivation recomputed from the tree the
+   *  request just changed. C9 renders it read-only as "What we'll do". */
+  paintSystems?: PaintSystemLine[];
+  roomExtras?: Record<string, RoomExtrasView>;
   siteAccess?: SiteAccess;
   jobExtras?: { on: string[]; colourHelp: boolean; note: string };
   exterior?: CustomerExteriorView | null;
@@ -109,7 +118,7 @@ const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
 const snapshotFalse = () => false;
 
-export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialDarkToLight = { asked: false, surfaces: [], someWalls: false, ceilings: null, ceilingRooms: [] }, initialColourTier = "change", initialAccess = { answers: {}, asksLift: false }, initialExtras = { offer: [], on: [], colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null, sendTo = null, chatMode = false }: {
+export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialDarkToLight = { asked: false, surfaces: [], someWalls: false, ceilings: null, ceilingRooms: [] }, initialColourTier = "change", initialSystems = [], initialRoomExtras = {}, estimator = null, customerSuburb = null, initialCondition = "wear", initialAccess = { answers: {}, asksLift: false }, initialExtras = { offer: [], on: [], colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null, sendTo = null, chatMode = false }: {
   estimateId: string;
   initial: CustomerPayload;
   initialRooms: CustomerScopeRoom[];
@@ -144,6 +153,15 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
     ceilings: "all" | "some" | null; ceilingRooms: number[];
   };
   initialColourTier?: "fresh" | "change" | "dark_to_light";
+  /** C9 — the derived "What we'll do" lines, read-only; re-sent on every reprice. */
+  initialSystems?: PaintSystemLine[];
+  /** C10 — each room's extras row (feature walls, wallpaper, other), read off the deferrals. */
+  initialRoomExtras?: Record<string, RoomExtrasView>;
+  /** C11 — the resolved estimator record, for the strip, the human line and the offers. */
+  estimator?: { name: string | null; phone: string | null; covers: boolean } | null;
+  customerSuburb?: string | null;
+  /** C11 — the whole-house condition band, for the human line. */
+  initialCondition?: "good" | "wear" | "work";
   /** §4.4 — the site and access answers, and whether a lift applies. */
   initialAccess?: { answers: SiteAccess; asksLift: boolean };
   /** §4.5 — the extras on offer, which are on, the colour tick and the note. */
@@ -151,6 +169,10 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
 }) {
   const [payload, setPayload] = useState<CustomerPayload>(initial);
   const [rooms, setRooms] = useState<CustomerScopeRoom[]>(initialRooms);
+  /** C9 — "What we'll do": the derivation, shown back with no controls. */
+  const [systems, setSystems] = useState<PaintSystemLine[]>(initialSystems);
+  /** C10 — extras in each room, as review lines the estimator prices. */
+  const [roomExtras, setRoomExtras] = useState<Record<string, RoomExtrasView>>(initialRoomExtras);
   const [iloop, setIloop] = useState<InteriorLoopView | null>(initialInteriorLoop);
   /**
    * ⚑ The derived paint systems no longer have a screen (Tom, 10 Sep), so the
@@ -196,6 +218,39 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
     return "";
   });
   const router = useRouter();
+  /**
+   * C10 — deep links from the reveal's assume list (`#rooms`, `#details`,
+   * `#access`, `#missed`, `#systems`). A hash names a card; the card opens and
+   * lands its heading in view, the same way a tap on it would.
+   */
+  useEffect(() => {
+    if (typeof window === "undefined" || chatMode) return;
+    const hash = window.location.hash.replace(/^#/, "");
+    if (!hash) return;
+    const firstOpen = iloop?.rooms.find((r) => !r.confirmed)?.areaId;
+    const key = hash === "rooms" ? (firstOpen != null ? `room:${firstOpen}` : "")
+      : hash === "missed" ? "sweep"
+      : hash === "systems" ? "details"
+      : hash;
+    if (!key) return;
+    const t = setTimeout(() => {
+      const el = document.querySelector(`[data-card="${key}"]`) ?? document.getElementById(hash);
+      if (!el) return;
+      setOpenCard(key);
+      afterLayout(() => scrollCardToTop(el));
+    }, 250);
+    return () => clearTimeout(t);
+    // Mount only: the hash is where they ARRIVED, not something to follow later.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** C11 — every "book" on this screen goes to the one reach strip (`#reach`). */
+  function scrollToReach() {
+    const el = document.getElementById("reach");
+    if (!el) return;
+    afterLayout(() => scrollCardToTop(el));
+  }
+
   function openAndScroll(key: string) {
     // Beside the chat the cards are a preview — a tap opens the FULL editor.
     if (chatMode) { router.push(`/estimate/scope?id=${estimateId}`); return; }
@@ -272,6 +327,9 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   const styleOpen = {
     doors: payload.confirmOnSite.some((n) => /door style to confirm/.test(n)),
     windows: payload.confirmOnSite.some((n) => /window style to confirm/.test(n)),
+    // C9 (⚑5): asked while a person would otherwise have to check on site —
+    // the trims/doors line carries `review` until "shiny" or "flat" is answered.
+    gloss: systems.some((l) => (l.group === "trims" || l.group === "doors") && l.review),
   };
   const styleChip = (label: string, body: Record<string, unknown>, said: string) => (
     <button key={label} className="sd-chip il-chip" onClick={() => act(body, `style:${label}`, () => said)}>{label}</button>
@@ -346,6 +404,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         }
         setPayload(j);
         if (j.scopeRooms) setRooms(j.scopeRooms);
+        if (Array.isArray(j.paintSystems)) setSystems(j.paintSystems);
+        if (j.roomExtras) setRoomExtras(j.roomExtras);
         if (j.siteAccess) setAccess(j.siteAccess);
         if (j.jobExtras) setExtras(j.jobExtras);
         if (j.ladder) setLadder(j.ladder);
@@ -438,6 +498,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         }
         setPayload(j);
         if (j.scopeRooms) setRooms(j.scopeRooms);
+        if (Array.isArray(j.paintSystems)) setSystems(j.paintSystems);
+        if (j.roomExtras) setRoomExtras(j.roomExtras);
         if (j.siteAccess) setAccess(j.siteAccess);
         if (j.jobExtras) setExtras(j.jobExtras);
         if (j.interiorLoop) setIloop(j.interiorLoop);
@@ -693,8 +755,18 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             <button type="button" className="wz-linkish" style={{ display: "inline", margin: 0 }} onClick={() => router.push(`/estimate/scope?id=${estimateId}`)} data-testid="chat-open-editor">Open the full editor →</button>
           </p>
         )}
-        {!chatMode && (styleOpen.doors || styleOpen.windows || payload.heightUnconfirmed) && (
-          <section className="sc-rc il-card amber sc-details" data-card="details" data-testid="details-card">
+        {/* C11 — the person is in the screen: the estimator strip sits above the questions. */}
+        {!chatMode && (
+          <EstimatorStrip estimator={estimator} suburb={customerSuburb} companyPhone={companyPhone} onBook={() => scrollToReach()} compact />
+        )}
+        {!chatMode && (styleOpen.doors || styleOpen.windows || styleOpen.gloss || payload.heightUnconfirmed) && (
+          <section className="sc-rc il-card amber sc-details" data-card="details" id="details" data-testid="details-card">
+            {/* C9 — what the answers below change, read-only, above the questions. */}
+            <WhatWeDo lines={systems} tellUsHref="#reach" compact />
+            {/* C11 — the second not-sure is the moment a person is easier. */}
+            {[styleOpen.doors, styleOpen.windows, styleOpen.gloss, payload.heightUnconfirmed].filter(Boolean).length >= 2 && (
+              <Offer kind="not_sures" estimator={estimator?.name ?? null} onBook={() => scrollToReach()} onCall={estimator?.phone ?? companyPhone} />
+            )}
             <div className="sc-hd il-hd"><b>A few details to settle</b><span className="il-pill">TIGHTENS YOUR RANGE</span></div>
             {styleOpen.doors && (
               <div className="il-q">
@@ -714,6 +786,16 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                   {styleChip("Colonial", { action: "set_window_style", style: "colonial" }, "Colonial windows — priced at the colonial rate now")}
                   {styleChip("Winder", { action: "set_window_style", style: "winder" }, "Winder windows — priced at the awning rate now")}
                 </div>
+              </div>
+            )}
+            {styleOpen.gloss && (
+              <div className="il-q" data-testid="details-gloss">
+                <p className="il-ql">Are the doors and skirtings shiny?</p>
+                <div className="sc-chips">
+                  {styleChip("Shiny", { action: "set_paint_system", field: "glossTrims", value: "yes" }, "Shiny — a bonding primer goes on before the enamel")}
+                  {styleChip("Not shiny", { action: "set_paint_system", field: "glossTrims", value: "no" }, "Not shiny — no bonding primer needed")}
+                </div>
+                <p className="il-hint">Shiny old paint needs an extra primer, so it&rsquo;s worth knowing. Not sure is fine — we check.</p>
               </div>
             )}
             {payload.heightUnconfirmed && (
@@ -966,6 +1048,9 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                         Adjust it
                       </button>
                     </div>
+                    {sizeDrafts[room.areaId]?.open && (
+                      <Offer kind="measure" estimator={estimator?.name ?? null} onBook={() => scrollToReach()} onCall={estimator?.phone ?? companyPhone} />
+                    )}
                     {sizeDrafts[room.areaId]?.open && (
                       <div className="sd-mrow">
                         <input placeholder="length m" inputMode="decimal" value={sizeDrafts[room.areaId].L}
@@ -1282,7 +1367,26 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                 })()}
                 <div className="sc-inc">Includes filling minor cracks and sanding — allowances set by us</div>
                 {room.allowances?.map((a) => <div className="sc-inc" key={a} data-testid="room-allowance">🔒 {a} — allowed for by us</div>)}
-                {/* §4.3 — how this room compares, and where the damage is. */}
+                {/* C10 — extras in this room: feature walls counted, wallpaper, something else. */}
+                {!chatMode && (
+                  <RoomExtras
+                    areaId={room.areaId}
+                    view={roomExtras[String(room.areaId)] ?? { featureWalls: 0, wallpaper: false, other: "" }}
+                    busy={pendingCount > 0}
+                    onExtra={(kind, value) => {
+                      setRoomExtras((cur) => ({ ...cur, [String(room.areaId)]: {
+                        featureWalls: kind === "feature_wall" ? (value.count ?? 0) : (cur[String(room.areaId)]?.featureWalls ?? 0),
+                        wallpaper: kind === "wallpaper" ? value.on === true : (cur[String(room.areaId)]?.wallpaper ?? false),
+                        other: kind === "other" ? (value.text ?? "") : (cur[String(room.areaId)]?.other ?? ""),
+                      } }));
+                      act({ action: "room_extra", areaId: room.areaId, kind, ...value }, `extra:${room.areaId}:${kind}`,
+                        () => kind === "feature_wall" ? `${value.count ?? 0} feature wall${(value.count ?? 0) === 1 ? "" : "s"} in ${room.name} — priced as its own colour by a person`
+                          : kind === "wallpaper" ? (value.on ? `Wallpaper in ${room.name} — stripping goes on the estimate for a person to price` : `No wallpaper in ${room.name}`)
+                          : (value.text?.trim() ? `Noted in ${room.name} — a person prices that` : "Cleared"));
+                    }}
+                  />
+                )}
+                {/* §4.3 — where the damage is (the per-room condition question is gone, C10). */}
                 {!chatMode && (
                   <RoomSpots
                     estimateId={estimateId}
@@ -1293,8 +1397,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     condition={room.condition}
                     colourTier={initialColourTier}
                     busy={pendingCount > 0}
-                    onAdd={(tag, extent, sourceId) => act(
-                      { action: "add_spot", areaId: room.areaId, tag, extent, sourceId },
+                    onAdd={(tag, extent, severity, sourceId) => act(
+                      { action: "add_spot", areaId: room.areaId, tag, extent, severity, sourceId },
                       `spot:${room.areaId}:${tag}`,
                       () => `Noted in ${room.name} — your painter sees it before day one`,
                     )}
@@ -1303,13 +1407,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                       `spotrm:${room.areaId}:${surfaceId}`,
                       () => "Spot removed",
                     )}
-                    onCondition={(c) => act(
-                      { action: "set_room_condition", areaId: room.areaId, condition: c },
-                      `cond:${room.areaId}`,
-                      () => c === "worse" ? `${room.name} flagged as worse — we'll allow for it`
-                        : c === "better" ? `${room.name} noted as better than the rest`
-                        : `${room.name} same as the rest`,
-                    )}
+                    offer={<Offer kind="damage" estimator={estimator?.name ?? null} onBook={() => scrollToReach()} />}
                   />
                 )}
                 {loop && (
@@ -1409,13 +1507,24 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         )}
           {iloop && (
             <>
-              <section className={`sc-rc il-card ${iloop.meta.done.dw ? "done" : "amber"} ${shakeCard === "dw" ? "shake" : ""}`} data-card="dw">
-                <div className="sc-hd il-hd" onClick={() => openAndScroll("dw")} style={{ cursor: "pointer" }}>
-                  <b>Quick check — doors &amp; windows</b>
-                  <span className={`il-pill ${iloop.meta.done.dw ? "done" : ""}`}>{iloop.meta.done.dw ? "CONFIRMED ✓" : "CONFIRM THIS"}</span>
+              {/*
+                C10 (v2.5) — ONE "anything we've missed?" card, not three. The
+                doors-and-windows count and the missed-rooms sweep were two
+                amber cards saying "confirm this" one after the other; the
+                prototype (`s-tighten`) folds the whole-job checks into one
+                sheet. The two CHECKS stay separate underneath — the accuracy
+                evaluator credits each (`checksDone`), and each has its own
+                confirm — so nothing about the score or the loop meta moved.
+                `data-card="sweep"` stays on the card because every spec, the
+                finish line's "Change" links and `openAndScroll` address it.
+              */}
+              <section className={`sc-rc il-card ${iloop.meta.done.dw && iloop.meta.done.sweep ? "done" : "amber"} ${shakeCard === "dw" || shakeCard === "sweep" ? "shake" : ""}`} data-card="sweep" id="missed" data-testid="missed-card" data-dw-done={iloop.meta.done.dw ? "1" : "0"} data-sweep-done={iloop.meta.done.sweep ? "1" : "0"}>
+                <div className="sc-hd il-hd" onClick={() => openAndScroll("sweep")} style={{ cursor: "pointer" }}>
+                  <b>Anything we&rsquo;ve missed? — doors &amp; windows, and rooms</b>
+                  <span className={`il-pill ${iloop.meta.done.dw && iloop.meta.done.sweep ? "done" : ""}`}>{iloop.meta.done.dw && iloop.meta.done.sweep ? "CONFIRMED ✓" : "CONFIRM THIS"}</span>
                 </div>
-                {openCard === "dw" && (<>
-                <div className={`il-q ${iloop.dw.ok === true ? "ok" : ""}`}>
+                {(openCard === "sweep" || openCard === "dw") && (<>
+                <div className={`il-q ${iloop.dw.ok === true ? "ok" : ""}`} data-check="dw">
                   <p className="il-ql">
                     We make it {iloop.dw.doors} doors and {iloop.dw.windows} windows across the house — is that right?{" "}
                     <span className="il-req">REQUIRED</span><span className="il-okc">✓</span>
@@ -1432,19 +1541,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                   onClick={() => confirmAct({ action: "confirm_iloop_item", item: "dw" }, "dw", "Counts confirmed ✓")}>
                   {optimistic["confirm:dw"] != null ? "Confirming…" : iloop.meta.done.dw ? "Confirmed ✓" : "Confirm counts ✓"}
                 </button>
-                </>)}
-              </section>
-
-              <section className={`sc-rc il-card ${iloop.meta.done.sweep ? "done" : "amber"} ${shakeCard === "sweep" ? "shake" : ""}`} data-card="sweep">
-                <div className="sc-hd il-hd" onClick={() => openAndScroll("sweep")} style={{ cursor: "pointer" }}>
-                  {/* Named for ROOMS, not "anything": phase 5b's job-extras card is
-                      already called "Anything we haven't listed", and two cards on
-                      one screen saying the same sentence is a card nobody reads. */}
-                  <b>Last check — any rooms we&rsquo;ve missed?</b>
-                  <span className={`il-pill ${iloop.meta.done.sweep ? "done" : ""}`}>{iloop.meta.done.sweep ? "CONFIRMED ✓" : "CONFIRM THIS"}</span>
-                </div>
-                {openCard === "sweep" && (<>
-                <div className={`il-q ${iloop.meta.sweepAns ? "ok" : ""}`}>
+                <div className={`il-q ${iloop.meta.sweepAns ? "ok" : ""}`} data-check="sweep" style={{ marginTop: 14 }}>
+                  <p className="il-ql" style={{ fontWeight: 600 }}>Any rooms we&rsquo;ve missed?</p>
                   <p className="il-ql">
                     {docs.plan
                       ? <>Hallways are the ones floorplans miss most — and they make the biggest difference to the price. Laundries, toilets and studies go missing too.</>
@@ -1504,12 +1602,27 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
       <div className="sc-stick" ref={stickRef}>
         <div className={`sc-tier ${selfServe && !booked ? "" : "visit"}`}><i />{tierLine}</div>
         {lastChange && <div className="sc-lastchange" data-testid="last-change">Last change: {lastChange}</div>}
-        {combined != null && !combined.allDone && !booked && (
-          <p className="sd-ctahint" data-testid="cta-hint">
-            You don&rsquo;t have to finish first — {combined.done} of {combined.total} confirmed. Tap
-            <b> {sendToLabel(sendTo)}</b> whenever you like and a person picks up the rest with you.
-          </p>
-        )}
+        {/*
+          C11 (v2.4) — ONE human line, from ONE evaluator (lib/wizard/human-line.ts),
+          with Book a visit beside it. The old footer counted ("N of M confirmed")
+          and nagged; Tom's ruling: the person is in the screen, not under it.
+        */}
+        {!booked && (() => {
+          const h = humanLine({
+            estimator: estimator?.name ?? null,
+            notSures: payload.confirmOnSite.length,
+            condition: initialCondition,
+            done: combined?.done ?? 0,
+            total: combined?.total ?? 0,
+            exterior: initialSides != null && !iloop,
+          });
+          return (
+            <p className="wz-human" data-testid="human-line" data-state={h.state}>
+              <b>{h.line}</b>
+              <button type="button" className="wz-btn wz-bs2" onClick={() => scrollToReach()} data-testid="human-line-book">{h.action}</button>
+            </p>
+          );
+        })()}
         <div className="sc-row">
           <div className="sc-pr"><small>ESTIMATE · INCL. GST</small><span>{rangeText}</span></div>
           <div className="sc-sp" />
@@ -1562,7 +1675,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         {/* Tom, 8 Sep: a person is reachable at ANY point of the walk — the
             confirm prompt above stays, this never waits for it. */}
         {!booked && !slotsOpen && (
-          <ReachStrip companyPhone={companyPhone} phoneHours={phoneHours} defaultPhone={customerPhone} visitSlots={ladder.visitSlots} busy={busyKeys.has("book")}
+          <ReachStrip estimator={estimator} companyPhone={companyPhone} phoneHours={phoneHours} defaultPhone={customerPhone} visitSlots={ladder.visitSlots} busy={busyKeys.has("book")}
             onBookSlot={(slot) => {
               setBooked(`Visit booked — ${slot}`);
               act({ action: "book_visit", slot }, "book");

@@ -86,7 +86,10 @@ test.describe("reach a person + chat (Tom, 8 Sep)", () => {
     // clicked all the details". It is live, it says so, and it hands the job
     // to a person rather than ACCEPTING an unconfirmed scope.
     await expect(page.locator(".sc-btn.il-cta")).toBeEnabled();
-    await expect(page.getByTestId("cta-hint")).toContainText(/don.t have to finish first/i);
+    // C11: the counter under the CTA is gone — one human line from the
+    // evaluator, with Book a visit beside it, says the same thing kindly.
+    await expect(page.getByTestId("human-line")).toBeVisible();
+    await expect(page.getByTestId("human-line-book")).toHaveText("Book a visit");
     await strip.getByTestId("reach-callback").click();
     // The number is stated when we already have one; the box is behind
     // "use a different number" (Tom, 9 Sep).

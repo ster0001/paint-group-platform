@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import WhatWeDo from "./WhatWeDo";
+import EstimatorStrip from "./EstimatorStrip";
 import { assumedList, restatement, type QuickLook } from "@/lib/wizard/quick-look";
 import type { CustomerPayload } from "@/lib/wizard/view";
 
@@ -85,12 +87,28 @@ export default function Reveal({
     <div className="wz-wrap wz-reveal" data-testid="reveal" data-estimate-id={estimateId}>
       <p className="wz-kick">Your guide range</p>
 
+      {/* C11 — the roller reveal: the one motion moment in the flow, and none
+          at all for anyone who asked their OS for less motion (wizard.css). */}
       <div className="wz-range" data-testid="reveal-range">
-        {fmt(payload.rangeLoCents)} – {fmt(payload.rangeHiCents)}
+        <span className="wz-range-roll"><span>{fmt(payload.rangeLoCents)} – {fmt(payload.rangeHiCents)}</span></span>
       </div>
       <p className="wz-range-note">
         Includes GST. Excludes access equipment and structural repairs.
       </p>
+      {/* C8 (⚑25): a "both" job — inside and outside, each its own range; the
+          figure above is the two together. */}
+      {payload.parts && (
+        <div className="wz-parts" data-testid="reveal-parts">
+          <div className="wz-part" data-testid="reveal-part-interior">
+            <span>Inside</span>
+            <b>{fmt(payload.parts.interior.rangeLoCents)} – {fmt(payload.parts.interior.rangeHiCents)}</b>
+          </div>
+          <div className="wz-part" data-testid="reveal-part-exterior">
+            <span>Outside</span>
+            <b>{fmt(payload.parts.exterior.rangeLoCents)} – {fmt(payload.parts.exterior.rangeHiCents)}</b>
+          </div>
+        </div>
+      )}
 
       {/* Guide → Detailed → Confirmed. The plan's one piece of progression:
           "the only progression the customer sees is the range narrowing and
@@ -119,10 +137,18 @@ export default function Reveal({
             <li key={a.key} data-testid={`reveal-assumed-${a.key}`}>
               <b>{a.what}</b>
               <span>{a.why}</span>
+              {/* C10: each line deep-links to the card that changes it. */}
+              {a.rung && (
+                <a className="wz-linkish" href={`/estimate/scope?id=${estimateId}#${a.rung}`} data-testid={`reveal-assumed-link-${a.key}`}>Change this</a>
+              )}
             </li>
           ))}
         </ul>
       )}
+
+      {/* C9 — the coats and prep the engine derived, in plain English, no
+          controls. What changes it is the job screen and the details screen. */}
+      <WhatWeDo lines={payload.systems ?? []} tellUsHref={`/estimate/scope?id=${estimateId}#reach`} />
 
       {/* The estimator has not seen this yet, and the customer should hear
           that from us rather than discover it. */}
@@ -178,6 +204,15 @@ export default function Reveal({
           </div>
         )}
       </div>
+
+      {/* C11 (v2.4) — the person is in the screen: who confirms this price,
+          and the two ways to reach them. Never an invented name. */}
+      <EstimatorStrip
+        estimator={payload.estimator}
+        suburb={null}
+        companyPhone={phone}
+        bookHref={`/estimate/scope?id=${estimateId}#reach`}
+      />
 
       {phone && (
         <p className="wz-reveal-call">

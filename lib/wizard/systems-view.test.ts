@@ -351,3 +351,32 @@ describe("per-surface flags on the card (Tom, 9 Sep)", () => {
       .toContain("stain-blocking primer");
   });
 });
+
+// ---- C9: the per-group intents from the job screen ---------------------------
+
+import { groupIntents } from "./systems-view";
+
+describe("C9 — groupIntents: unticked same, ticked new, bold only lifts a group that is changing", () => {
+  const cond = (over: Record<string, unknown> = {}) => ({
+    tier: "change" as const, darkToLightSurfaces: [], darkToLightCeilings: null, darkToLightCeilingRooms: [],
+    ceilingsMarked: false, ceilingsChangingColour: false, surfaceFlags: {},
+    colourAnswered: true, changingGroups: { walls: false, ceilings: false, trims: false }, boldColour: false, coloursUndecided: false,
+    ...over,
+  });
+  it("is undefined until the question was asked — every older estimate derives as it did", () => {
+    expect(groupIntents(cond({ colourAnswered: false, changingGroups: { walls: true, ceilings: true, trims: true } }))).toBeUndefined();
+    expect(groupIntents(null)).toBeUndefined();
+  });
+  it("ticks map to new; bold lifts only the ticked groups; windows follow the trims", () => {
+    expect(groupIntents(cond({ changingGroups: { walls: true, ceilings: false, trims: false } })))
+      .toEqual({ walls: "new", ceilings: "same", trims: "same", doors: "same", windows: "same" });
+    expect(groupIntents(cond({ changingGroups: { walls: true, ceilings: false, trims: true }, boldColour: true })))
+      .toEqual({ walls: "bold", ceilings: "same", trims: "bold", doors: "bold", windows: "bold" });
+  });
+  it("still choosing prices every group as new (bold if said so)", () => {
+    expect(groupIntents(cond({ coloursUndecided: true }))).toEqual({ walls: "new", ceilings: "new", trims: "new", doors: "new", windows: "new" });
+  });
+  it("the editor's own ceiling answer and the tile agree", () => {
+    expect(groupIntents(cond({ ceilingsChangingColour: true }))?.ceilings).toBe("new");
+  });
+});

@@ -56,7 +56,7 @@ test("R2b sides loop: amber to cyan, walls must total 100%, skip reads NOT PAINT
   // longer dead while cards are open — it is live from the start and says so.
   await expect(page.locator(".sd-prog")).toContainText("0 OF 8");
   await expect(page.locator(".sd-cta")).toBeEnabled();
-  await expect(page.getByTestId("cta-hint")).toContainText(/don.t have to finish first/i);
+  await expect(page.getByTestId("human-line")).toBeVisible(); // C11: the counter is gone; one human line stands in its place
 
   // FRONT: answer the loop. Are we painting this side? -> Yes.
   const front = page.locator(".sd-card", { hasText: "Front" }).first();

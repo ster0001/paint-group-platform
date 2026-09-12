@@ -57,6 +57,11 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
     await page.getByTestId(`ql-jobtype-${opts.jobType}`).click();
   }
   await quickNext(page);
+  // C8: a "both" job meets the choice screen (prototype `s-both`) — the drive
+  // prices them itself, one after the other.
+  if (opts.jobType === "both") {
+    await page.getByTestId("ql-both-self").click();
+  }
 
   // Screen 2 — the place.
   if (opts.propertyKind) await page.getByTestId(`ql-kind-${opts.propertyKind}`).click();
@@ -75,7 +80,10 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
 
   // Screen 3 — the job.
   if (opts.scope) await page.getByTestId(`ql-scope-${opts.scope}`).click();
-  if (opts.colour) await page.getByTestId(`ql-colour-${opts.colour}`).click();
+  // C9: the single colour picker is gone. "same" = untick the walls (the
+  // default tick); "new" = the default; "bold" = walls ticked + "Yes" to bold.
+  if (opts.colour === "same") await page.getByTestId("ql-changing-walls").click();
+  if (opts.colour === "bold") await page.getByTestId("ql-bold-yes").click();
   await quickNext(page);
 
   // Screen 4 — condition.

@@ -58,18 +58,46 @@ type LooseBlock = Record<string, unknown> & {
  * A partial state — the assistant's draft, an old snapshot — reads as the
  * defaults the wizard itself would have used, never as a throw.
  */
+/**
+ * C9 (v2.3) — the colour intent per surface group, from "what's changing
+ * colour?": unticked → same; ticked (or still choosing) → new; and bold only
+ * lifts a group that IS changing — the tick earns the undercoat, the bold
+ * answer alone never touches a surface staying the same colour.
+ *
+ * Ceilings honour the older ⚑3 answer too (`ceilingsChangingColour`), so the
+ * editor's own ceiling chip and the job screen's tile say the same thing.
+ * Windows follow the trims, as brief §6.1 has them. Exterior stays job-wide.
+ * Returns undefined when the question was never asked, so every estimate
+ * from before C9 derives exactly as it did.
+ */
+export function groupIntents(condition: WizardState["condition"] | null | undefined): SystemAnswers["intents"] | undefined {
+  if (!condition?.colourAnswered) return undefined;
+  const g = condition.changingGroups ?? { walls: false, ceilings: false, trims: false };
+  const undecided = condition.coloursUndecided === true;
+  const changing = (on: boolean) => on || undecided;
+  const intent = (on: boolean): ColourIntent => (changing(on) ? (condition.boldColour ? "bold" : "new") : "same");
+  const trims = intent(g.trims);
+  return {
+    walls: intent(g.walls),
+    ceilings: intent(g.ceilings || condition.ceilingsChangingColour === true),
+    trims, doors: trims, windows: trims,
+  };
+}
+
 export function systemAnswersFromState(
   state: Pick<WizardState, "condition" | "details" | "paint">,
   darkToLight = false,
 ): SystemAnswers {
   return {
     colourIntent: colourIntentFromTier(state.condition?.tier ?? "change"),
+    intents: groupIntents(state.condition),
     condition: conditionBandFromDamageTier(state.details?.damageTier ?? 1),
     // ⚑5: null (never asked) is "not sure", which prices as no and asks a
     // person to check — never a confident "no".
     glossTrims: state.paint?.trimsOilBased ?? "unsure",
     ceilingsMarked: state.condition?.ceilingsMarked ?? false,
-    ceilingsChangingColour: state.condition?.ceilingsChangingColour ?? false,
+    ceilingsChangingColour: (state.condition?.ceilingsChangingColour ?? false)
+      || (state.condition?.colourAnswered === true && (state.condition.changingGroups?.ceilings === true || state.condition.coloursUndecided === true)),
     // Tom, 9 Sep: "the doors need 3 coats because they're stained, the rest 2".
     flags: (state.condition?.surfaceFlags ?? {}) as SystemAnswers["flags"],
     darkToLight,
