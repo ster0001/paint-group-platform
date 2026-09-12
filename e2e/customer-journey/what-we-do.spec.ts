@@ -50,7 +50,7 @@ test("doors and trims changing, then Shiny: the panel gains the undercoat and th
   const editorRange = page.locator(".sc-r").first();
   await expect(editorRange).toContainText(MONEY_RANGE, { timeout: 30_000 });
   const editorRangeBefore = (await editorRange.textContent())!.trim();
-  await gloss.getByRole("button", { name: "Shiny" }).click();
+  await gloss.getByRole("button", { name: "Shiny", exact: true }).click();
 
   // One tap: the trims line gains the bonding primer (one more coat), and the
   // toast carries the money that moved. The panel is still read-only.

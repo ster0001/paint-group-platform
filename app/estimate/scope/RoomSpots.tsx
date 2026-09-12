@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import {
-  EXTENT_LABEL, majorExtentNotice, prepPrompt, ROOM_CONDITION_LABEL, ROOM_CONDITIONS, SPOT_EXTENTS, tagsFor,
+  EXTENT_LABEL, majorExtentNotice, prepPrompt, SPOT_EXTENTS, tagsFor,
   type RoomCondition, type SpotExtent,
 } from "@/lib/wizard/spots";
 import { suggestionLine, type SuggestedSpot } from "@/lib/wizard/photo-defects";
@@ -28,8 +28,10 @@ import type { RoomSpot } from "@/lib/wizard/scope-editor";
  * answer because their photo failed would be the worst of both.
  */
 export default function RoomSpots({
-  estimateId, areaId, roomName, side, spots, condition, colourTier = "change", busy, onAdd, onRemove, onCondition,
+  estimateId, areaId, roomName, side, spots, colourTier = "change", busy, onAdd, onRemove, offer = null,
 }: {
+  /** C11 — the inline "damage is easier in person" offer, rendered in the panel. */
+  offer?: React.ReactNode;
   estimateId: string;
   areaId: number;
   roomName: string;
@@ -41,7 +43,8 @@ export default function RoomSpots({
   busy?: boolean;
   onAdd: (tag: string, extent: SpotExtent, severity: 1 | 2 | 3 | undefined, sourceId: string | null) => void;
   onRemove: (surfaceId: number) => void;
-  onCondition: (c: RoomCondition) => void;
+  /** Kept on the contract for staff surfaces; the customer card no longer asks it (C10). */
+  onCondition?: (c: RoomCondition) => void;
 }) {
   const prompt = prepPrompt(colourTier);
   const [open, setOpen] = useState(false);
@@ -133,20 +136,13 @@ export default function RoomSpots({
 
   return (
     <div className="sc-spots" data-testid={`room-spots-${areaId}`}>
-      <p className="il-ql">
-        How&rsquo;s this room compared with the rest?
-      </p>
-      <div className="sc-chips">
-        {ROOM_CONDITIONS.map((c) => (
-          <button
-            key={c} type="button"
-            className={`sd-chip il-chip ${condition === c ? "on" : ""}`}
-            aria-pressed={condition === c}
-            data-testid={`room-cond-${areaId}-${c}`}
-            onClick={() => onCondition(c)}
-          >{ROOM_CONDITION_LABEL[c]}</button>
-        ))}
-      </div>
+      {/*
+        C10 (v2.5) — the per-room condition question is GONE (prototype
+        `s-room` note, Tom 10 Sep): the whole-house band sets the prep, and
+        anything unusual is pointed out with a photo below, which creates a
+        repair line pinned to this room. `set_room_condition` stays on the
+        route for staff; nothing on the customer card sends it.
+      */}
 
       {spots.length > 0 && (
         <ul className="sc-spotlist" data-testid={`spot-list-${areaId}`}>
@@ -176,6 +172,7 @@ export default function RoomSpots({
         >{prompt.cta}</button>
       ) : (
         <div className="sc-spot-panel" data-testid={`spot-panel-${areaId}`}>
+          {offer}
           <p className="sc-sys-why">{prompt.why}</p>
           <p className="sc-sys-why">
             A photo and a tap. With a photo we can price the repair straight away; without one we still

@@ -11,6 +11,7 @@ import { SCOPE_VERSION, type Alias, type ScopeRule } from "@/lib/extract/scope";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { PAINT_SYSTEMS_KEY, paintSystemsFrom } from "@/lib/pricing/systems";
 import { applyPaintSystems, applySystemPatch, paintSystemsView, type SystemPatch } from "@/lib/wizard/systems-view";
+import { applyRoomExtra, roomExtrasView } from "@/lib/wizard/room-extras";
 import { SPOT_EXTENT_QTY_KEY, extentQtyFrom, roomConditionDeferred, spotLine } from "@/lib/wizard/spots";
 import { makeDraftSurface } from "@/lib/extract/draft";
 import {
@@ -218,6 +219,15 @@ const actionSchema = z.discriminatedUnion("action", [
   }),
   z.object({ action: z.literal("set_colour_help"), want: z.boolean() }),
   z.object({ action: z.literal("extra_note"), note: z.string().max(400) }),
+  /** C10 — extras in THIS room: a review line pinned to the room, never a price (lib/wizard/room-extras.ts). */
+  z.object({
+    action: z.literal("room_extra"),
+    areaId: z.number().int().positive(),
+    kind: z.enum(["feature_wall", "wallpaper", "other"]),
+    count: z.number().int().min(0).max(6).optional(),
+    on: z.boolean().optional(),
+    text: z.string().max(120).optional(),
+  }),
   /**
    * Phase 5 (§4.4): site and access — the things that set our setup time and
    * which the flow never asked at all. One answer per post; the server maps
@@ -638,6 +648,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
      * rule `addSideCustom` follows). Re-raised from scratch so editing the
      * sentence replaces the note instead of stacking a second one.
      */
+    if (act.action === "room_extra") {
+      const roomBlock = blocks.find((b) => b.kind === "area" && Number(b.id) === act.areaId);
+      if (!roomBlock) return { error: "That room isn't on this estimate.", status: 400 };
+      newDeferred = applyRoomExtra(newDeferred, {
+        areaId: act.areaId, room: String(roomBlock.name ?? "Room"), kind: act.kind,
+        count: act.count ?? null, on: act.on ?? null, text: act.text ?? null,
+      });
+    }
+
     if (act.action === "extra_note") {
       newDeferred = newDeferred.filter((d) => d.what !== "an extra the customer asked for");
       const raised = extraNoteDeferral(act.note);
@@ -1653,6 +1672,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const kind = intent === "visit" ? "visit"
         : intent === "fix_online" ? "fix_online"
         : draft.kind;
+      /**
+       * C10 (v2.5) — the hazmat check goes on the estimator's site checklist at
+       * confirmation, where a trained person makes the call. It replaced the
+       * asbestos / lead hard stop on the customer path: the customer is not
+       * asked, the answers default to unsure, and every price is confirmed by
+       * a person before acceptance. Idempotent on (estimate, key).
+       */
+      await db.from("site_checklist_items").upsert(
+        { estimate_id: id, key: "hazmat_check", value: "customer not asked — check age of paintwork and any sheeting before work starts", source: "wizard" },
+        { onConflict: "estimate_id,key" },
+      ).then((r) => { if (r.error) reportError(r.error, { where: "wizard.edit.siteChecklist", bestEffort: true }); });
       const { error: crError } = await db.from("confirmation_requests").insert({
         estimate_id: id,
         requested_by: view === "customer" ? "customer" : "staff",
@@ -1779,6 +1809,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ...(fixedOnline ? { fixedOnline, ...(fixRepeated ? { repeated: true } : {}) } : {}),
       ...(fixDeclined ? { fixDeclined: true } : {}),
       scopeRooms: customerScopeRooms(blocks, rules),
+      // C10: what each room's extras row shows back, read off the deferrals.
+      roomExtras: Object.fromEntries(blocks.filter((b) => b.kind === "area").map((b) => [String(b.id), roomExtrasView(newDeferred, Number(b.id))])),
       // Phase 4: the derived systems, recomputed from the tree that this
       // request just changed. It rides EVERY response, not only a
       // set_paint_system one — removing the last ceiling has to remove the

@@ -185,7 +185,9 @@ test.describe("wizard sessions → buckets", () => {
      */
     await staffPage.goto("/crm/today?f=followups&who=all");
     await expect(staffPage.getByTestId("who-chips")).toBeVisible({ timeout: 20_000 });
-    await staffPage.goto("/estimates");
-    await expect(staffPage.getByTestId(`wizard-pill-${row.id}`)).toContainText("Ready · call");
+    // C7b: a converted session's pill sits on its ESTIMATE row (the status
+    // tabs); "Waiting on you" is the default tab and is the work queue.
+    await staffPage.goto("/estimates?status=all");
+    await expect(staffPage.getByTestId(`estimate-pill-${row.estimate_id}`)).toContainText("Ready · call");
   });
 });

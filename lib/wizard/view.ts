@@ -137,6 +137,12 @@ export type CustomerPayload = {
    * them and changes nothing.
    */
   systems: Array<{ group: string; title: string; sentence: string; coats: number; undercoat: boolean; review: boolean }>;
+  /**
+   * C11 — the customer's estimator, for the strip on the reveal: resolved
+   * ONCE on the server (`lib/wizard/estimator.ts`) and never invented — null
+   * when nobody covers the postcode and Settings names no coordinator.
+   */
+  estimator: { name: string; phone: string | null; covers: boolean } | null;
 };
 
 export type CustomerRange = { rangeLoCents: number; rangeHiCents: number; bandPct: number };
@@ -161,6 +167,8 @@ export function customerPayload(
   parts: { interior: WizardEditorPayload; exterior: WizardEditorPayload } | null = null,
   /** C9: the derived "What we'll do" lines, already trimmed to what a customer reads. */
   systems: CustomerPayload["systems"] = [],
+  /** C11: the resolved estimator, or null. */
+  estimator: CustomerPayload["estimator"] = null,
 ): CustomerPayload {
   const loose = blocks as LooseBlock[];
   const rooms: CustomerRoomView[] = payload.rooms.map((r) => {
@@ -214,6 +222,7 @@ export function customerPayload(
     photosPendingSignOff: payload.deferred.some((d) => d.kind === "photo_review"),
     parts: parts ? { interior: customerRange(parts.interior, bands), exterior: customerRange(parts.exterior, bands) } : null,
     systems,
+    estimator,
   };
 }
 

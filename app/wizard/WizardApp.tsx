@@ -1564,15 +1564,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 phone={companyPhone}
                 outside={outside}
                 onOutside={setOutside}
-                conditionBox={
-                  <ConditionBox
-                    brief={brief} setBrief={setBrief}
-                    heading="Anything worth mentioning?"
-                    sessionReady={sessionPhase === "ready"}
-                    startingChat={startingChat}
-                    onChat={() => startChat(false)}
-                  />
-                }
+                // C10 (v2.5): the condition free-text box is off the quick look —
+                // the bands answer the question, and anything unusual is pointed
+                // out per room with a photo on the tighten screen. The box still
+                // serves the describe route.
+                conditionBox={null}
                 addressField={
                   <>
                     <AddressField
