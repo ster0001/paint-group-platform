@@ -1,5 +1,6 @@
 import { test, expect, devices, type Page } from "@playwright/test";
-import { createClient } from "@supabase/supabase-js";
+import { readFileSync } from "node:fs";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { driveNoPlanWizard, fillContactStep, MONEY_RANGE, openQuickLook, openExteriorPages, fillQuickAddress, quickNext } from "./drive";
 import { credentials, signIn } from "../helpers";
 import { deleteUserByEmail, destroyAccountChain, magicLinkFor } from "../fixtures/portal";
@@ -41,6 +42,46 @@ const nextOf = (page: Page) => async () => {
   if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
 };
 
+/**
+ * Test 5's precondition, made by hand: a draft estimate that still carries the
+ * `photo_review` deferral (the merge raises it for every customer condition
+ * photo; the builder's "Signed off" button removes it) and ONE condition
+ * photo on file — the same PNG the describe path attaches, in the same bucket
+ * and folder the photo route writes to, so the builder's panel signs and
+ * renders it exactly as it would a customer's.
+ */
+type PhotoSignOffFixture = { estimateId: string; storagePath: string };
+
+async function photoSignOffFixture(db: SupabaseClient, stamp: number): Promise<PhotoSignOffFixture> {
+  const png = readFileSync(`${FIXTURES}/condition-photo.png`);
+  const storagePath = `condition/e2e-signoff-${stamp}.png`;
+  const up = await db.storage.from("estimate-sources").upload(storagePath, png, { contentType: "image/png" });
+  if (up.error) throw new Error(`fixture photo upload: ${up.error.message}`);
+  const est = await db.from("estimates")
+    .insert({ status: "draft", source: "manual", title: `E2E photo sign-off ${stamp}`, builder_state: { aiDeferred: [{ kind: "photo_review", count: 1 }] } })
+    .select("id").single();
+  if (est.error) throw new Error(`fixture estimate: ${est.error.message}`);
+  const estimateId = (est.data as { id: string }).id;
+  const src = await db.from("estimate_sources").insert({
+    kind: "defect_photo", estimate_id: estimateId, storage_path: storagePath,
+    mime_type: "image/png", byte_size: png.length, page_class: "photo", page_class_confidence: 0.95,
+  });
+  if (src.error) throw new Error(`fixture estimate_sources: ${src.error.message}`);
+  return { estimateId, storagePath };
+}
+
+/** Every row and the object, and say WHICH refused rather than returning clean. */
+async function destroyPhotoSignOffFixture(db: SupabaseClient, fx: PhotoSignOffFixture) {
+  const failures: string[] = [];
+  const sources = await db.from("estimate_sources").delete().eq("estimate_id", fx.estimateId);
+  if (sources.error) failures.push(`estimate_sources: ${sources.error.message}`);
+  const obj = await db.storage.from("estimate-sources").remove([fx.storagePath]);
+  if (obj.error) failures.push(`storage: ${obj.error.message}`);
+  const est = await db.from("estimates").delete().eq("id", fx.estimateId);
+  if (est.error) failures.push(`estimates: ${est.error.message}`);
+  if (failures.length) throw new Error(`fixture leak: estimate ${fx.estimateId} — ${failures.join(" · ")}`);
+}
+
 test.describe("Tom's 7 Sep batch", () => {
   test.skip(missing, "needs the test project's service key (see .env.test.local)");
   const db = missing ? null : createClient(url!, serviceKey!);
@@ -48,9 +89,11 @@ test.describe("Tom's 7 Sep batch", () => {
   const describeEmail = `e2e-describe-${stamp}@example.com`;
   const dropEmail = `e2e-return-${stamp}@example.com`;
   let describedEstimateId: string | null = null;
+  let signOff: PhotoSignOffFixture | null = null;
 
   test.afterAll(async () => {
     if (!db) return;
+    if (signOff) await destroyPhotoSignOffFixture(db, signOff);
     await db.from("wizard_drafts").delete().in("email", [describeEmail, dropEmail]);
     for (const e of [describeEmail, dropEmail]) { await destroyAccountChain(db, e); await deleteUserByEmail(db, e); }
   });
@@ -248,20 +291,26 @@ test.describe("Tom's 7 Sep batch", () => {
     test.setTimeout(240_000);
     const staff = credentials("STAFF");
     test.skip(!staff, "set E2E_STAFF_EMAIL / E2E_STAFF_PASSWORD");
-    // Run on its own: the newest estimate still waiting on its photos.
-    if (!describedEstimateId) {
-      const { data } = await db!.from("estimates").select("id").eq("status", "draft")
-        .contains("builder_state", { aiDeferred: [{ kind: "photo_review" }] }).order("created_at", { ascending: false }).limit(1).maybeSingle();
-      describedEstimateId = (data as { id?: string } | null)?.id ?? null;
-    }
-    test.skip(!describedEstimateId, "no estimate with photos to sign off — run the describe test first");
+    /**
+     * ITS OWN FIXTURE (12 Sep). This used to take the estimate id from test
+     * 1 + 5 above and, failing that, HUNT the database for "the newest draft
+     * still waiting on its photos" — which in a full run is whatever estimate
+     * some other spec left behind a moment ago, with photos that spec is
+     * about to delete. It passed alone and failed in CI by construction
+     * (parking lot, "CI"). Staff sign-off is one screen with one precondition
+     * — a draft carrying the photo_review deferral and one condition photo on
+     * file — so the test makes exactly that and nothing upstream can change
+     * what it finds.
+     */
+    signOff = await photoSignOffFixture(db!, stamp);
+    const estimateId = signOff.estimateId;
     await signIn(page, staff!, /\/(estimates|dashboard|crm)/);
     // Today carries the sign-off as a work item (under Approvals; the test
     // project's queue is long, so the chip narrows it).
     await page.goto("/crm/today?f=approvals");
     await expect(page.getByText(/Sign off 1 condition photo/).first()).toBeVisible({ timeout: 30_000 });
     // The builder: the photos panel, clearly labelled, above the areas.
-    await page.goto(`/quote?id=${describedEstimateId}`);
+    await page.goto(`/quote?id=${estimateId}`);
     const panel = page.getByTestId("customer-photos-panel");
     await expect(panel).toBeVisible({ timeout: 30_000 });
     await expect(panel).toContainText(/Needs estimator sign-off/);
@@ -270,7 +319,7 @@ test.describe("Tom's 7 Sep batch", () => {
     await expect(panel).toContainText(/Signed off/);
     await page.getByTestId("builder-save").click();
     await expect(page.getByText(/Saved ✓/).first()).toBeVisible({ timeout: 30_000 });
-    const { data: est } = await db!.from("estimates").select("builder_state").eq("id", describedEstimateId!).single();
+    const { data: est } = await db!.from("estimates").select("builder_state").eq("id", estimateId).single();
     const bs = est!.builder_state as { aiDeferred?: Array<{ kind?: string }>; photoReview?: { signedOffAt?: string } };
     expect(bs.aiDeferred?.some((d) => d.kind === "photo_review")).toBe(false);
     expect(bs.photoReview?.signedOffAt).toBeTruthy();

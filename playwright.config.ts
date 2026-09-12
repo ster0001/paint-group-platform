@@ -32,7 +32,15 @@ export default defineConfig({
   globalTeardown: "./e2e/global-teardown.ts",
   fullyParallel: false, // they share one database; keep them in order
   forbidOnly: Boolean(process.env.CI),
-  retries: 0,
+  /**
+   * ONE retry, in CI only, and it is reported. Run #381 (12 Sep) went red on
+   * a single ECONNRESET between the runner and Supabase mid-insert — 109
+   * passed, 1 failed, nothing wrong with the code. A retried test shows as
+   * "flaky" in the summary rather than disappearing, so a spec that only
+   * passes on its second go is still visible. Locally it stays 0: a flake on
+   * a quiet machine is a real race and should be looked at, not re-rolled.
+   */
+  retries: process.env.CI ? 1 : 0,
   workers: 1,
   reporter: [["list"]],
   timeout: 60_000,
