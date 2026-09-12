@@ -320,11 +320,44 @@ export const CLADDING_LABEL: Record<string, string> = {
   colorbond: "Colorbond", concrete: "tilt slab / concrete", brick: "brick", other: "other", none: "no wall painting",
 };
 
+/**
+ * C8b: the window TYPE the customer chose → the rate row it prices at. The
+ * card prices each type as its own item, so "colonial costs more than
+ * casement" lives in those items' hours — no multiplier on top (⚑48, declined
+ * in the C8b report). A winder is a crank-operated casement (no row of its
+ * own) and prices at the casement rate, flagged; "not sure" keeps the seed's
+ * long-standing Fixed / Picture placeholder, flagged; aluminium is usually not
+ * painted and gets no priced line at all — a flag the estimator checks (⚑49).
+ */
+export const EXTERIOR_WINDOW_CODE: Record<"casement" | "sash" | "colonial" | "winder" | "unsure", string> = {
+  casement: "Awning / Casement Window",
+  sash: "Double Hung Sash",
+  colonial: "Colonial / Bay Window",
+  winder: "Awning / Casement Window",
+  unsure: "Fixed / Picture Window",
+};
+
+export type ExteriorSeedCounts = {
+  windowType?: "casement" | "sash" | "colonial" | "winder" | "alu" | "unsure" | null;
+  windowCount?: number | null;
+  doorCount?: number | null;
+};
+
+/** Spread a whole-job count over the four sides: front, rear, left, right in turn. */
+export function spreadOverSides(count: number): Record<"Front" | "Left" | "Right" | "Rear", number> {
+  const out = { Front: 0, Left: 0, Right: 0, Rear: 0 };
+  const order: Array<keyof typeof out> = ["Front", "Rear", "Left", "Right"];
+  for (let i = 0; i < Math.max(0, Math.round(count)); i++) out[order[i % 4]] += 1;
+  return out;
+}
+
 export function starterExteriorNodes(
   nextId: () => number,
   ticked: ReadonlySet<string> = new Set(),
   /** Tom, 7 Sep: "none" for the cladding = trims only, no wall line. */
   wantsWalls = true,
+  /** C8b: the quick look's window type and whole-job counts; absent = the older one-per-side seed. */
+  counts: ExteriorSeedCounts = {},
 ): { areas: DraftArea[]; deferred: Array<{ room: string; areaId: number | null; what: string; count: number; needs: string; kind?: string }> } {
   const elevations = ["Front", "Left", "Right", "Rear"] as const;
   const areas: DraftArea[] = [];
@@ -334,6 +367,14 @@ export function starterExteriorNodes(
   // appears; an empty tick set (older saved states) lays out the usual four.
   const wantsTrim = (key: string) => ticked.size === 0 || ticked.has(key);
 
+  // C8b: the counts, when the quick look asked them; the older one-per-side
+  // seed when it did not (null = not asked).
+  const windowType = counts.windowType ?? null;
+  const windows = counts.windowCount != null ? spreadOverSides(counts.windowCount) : null;
+  const doors = counts.doorCount != null ? spreadOverSides(counts.doorCount) : null;
+  const windowCode = windowType && windowType !== "alu" ? EXTERIOR_WINDOW_CODE[windowType] : EXTERIOR_WINDOW_CODE.unsure;
+  const hasCladding = [...ticked].some((k) => k in CLADDING_CODE);
+
   for (const name of elevations) {
     const id = nextId();
     const surfaces: DraftSurfaceLike[] = wantsWalls ? [extSurface(nextId(), scaffoldCladdingCode(ticked))] : [];
@@ -341,8 +382,19 @@ export function starterExteriorNodes(
     if (wantsTrim("gutters")) surfaces.push(extSurface(nextId(), "Gutters"));
     if (wantsTrim("eaves")) surfaces.push(extSurface(nextId(), "Eaves"));
     if (ticked.has("downpipes")) surfaces.push(extSurface(nextId(), "Downpipes"));
-    if (ticked.has("exterior_windows")) surfaces.push(extSurface(nextId(), "Fixed / Picture Window"));
-    if (ticked.has("exterior_doors") && name === "Front") surfaces.push(extSurface(nextId(), "Front Door"));
+    if (ticked.has("exterior_windows")) {
+      if (windows == null) surfaces.push(extSurface(nextId(), "Fixed / Picture Window"));
+      else if (windowType !== "alu" && windows[name] > 0) surfaces.push({ ...extSurface(nextId(), windowCode), count: windows[name] });
+    }
+    if (ticked.has("exterior_doors")) {
+      if (doors == null) { if (name === "Front") surfaces.push(extSurface(nextId(), "Front Door")); }
+      else if (doors[name] > 0) {
+        // The first door is the front door; the rest are standard doors.
+        const front = name === "Front" ? 1 : 0;
+        if (front) surfaces.push(extSurface(nextId(), "Front Door"));
+        if (doors[name] - front > 0) surfaces.push({ ...extSurface(nextId(), "Standard Door (1 Side)"), count: doors[name] - front });
+      }
+    }
 
     areas.push({
       id, kind: "area", name: `Exterior - ${name}`, type: "Exterior", areaType: "surface",
@@ -359,6 +411,32 @@ export function starterExteriorNodes(
       needs: "width measurement required - measure this elevation on site and enter it in the builder",
       kind: "exterior_width",
     });
+  }
+  // C8b: the flags the quick look's honesty earns — never a silent guess.
+  if (wantsWalls && !hasCladding) {
+    deferred.push({
+      room: "Exterior", areaId: null, what: "wall material to confirm", count: 1,
+      needs: "the customer didn't say what the walls are made of — priced at a placeholder rate; confirm the material before send",
+      kind: "exterior_material",
+    });
+  }
+  if (ticked.has("exterior_windows") && windows != null) {
+    const n = Math.max(0, Math.round(counts.windowCount ?? 0));
+    if (windowType === "alu") {
+      deferred.push({
+        room: "Exterior", areaId: null, what: `${n} aluminium windows — usually not painted`, count: n,
+        needs: "priced at nothing; check on site whether any frames are to be painted",
+        kind: "exterior_windows_alu",
+      });
+    } else if (windowType === "winder" || windowType === "unsure" || windowType == null) {
+      deferred.push({
+        room: "Exterior", areaId: null, what: "window style to confirm", count: n,
+        needs: windowType === "winder"
+          ? "winder windows priced at the casement rate — confirm before send"
+          : "priced at the fixed / picture placeholder — confirm the style before send",
+        kind: "exterior_window_style",
+      });
+    }
   }
   return { areas, deferred };
 }

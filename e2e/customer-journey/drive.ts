@@ -107,6 +107,10 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
    */
   if (opts.jobType === "both") {
     await expect(page.locator("[data-quick-step='outside']")).toBeVisible({ timeout: 20_000 });
+    // C8b: nothing is pre-ticked on the outside screen — a job has to name
+    // something being painted before it can continue. The body is the
+    // typical answer, and it keeps the walls the sides editor expects.
+    await page.getByTestId("ql-ext-el-body").click();
     await quickNext(page);
   }
 

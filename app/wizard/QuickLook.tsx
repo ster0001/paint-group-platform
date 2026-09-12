@@ -6,9 +6,9 @@ import {
   SCOPE_PRESETS, STOREYS, stepCount, toggleChanging, type Choice, type QuickLook, type QuickLookStep,
 } from "@/lib/wizard/quick-look";
 import {
-  EXTERIOR_PROMISE, EXT_ACCESS, EXT_CONDITIONS, EXT_STOREYS, EXT_SUBSTRATES, EXT_TARGETS,
-  toggleAccess, toggleKeeping,
-  type ExteriorQuickLook, type ExteriorSubstrate, type ExteriorTarget,
+  EXTERIOR_PROMISE, EXT_ACCESS, EXT_COLOURS, EXT_CONDITIONS, EXT_ELEMENTS, EXT_MATERIALS, EXT_STANDALONE, EXT_STOREYS, EXT_WINDOW_TYPES,
+  toggleAccess, toggleIn, toggleMaterial,
+  type ExteriorQuickLook,
 } from "@/lib/wizard/exterior-quick-look";
 import { AreasScreen, JobScreen, SegmentScreen } from "./CommercialScreens";
 import type { CommercialAnswers, Segment } from "@/lib/wizard/segments";
@@ -163,7 +163,9 @@ export default function QuickLook({
           </p>
           <Cards options={PROPERTY_KINDS} value={quick.propertyKind} onPick={(propertyKind) => onQuick({ propertyKind })} name="kind" />
 
-          {quick.propertyKind !== "commercial" && (
+          {/* C8b: an OUTSIDE job has no rooms to seed — no bedrooms here, and
+              storeys is asked ONCE, on the outside screen. */}
+          {quick.propertyKind !== "commercial" && quick.jobType !== "exterior" && (
             <>
               <p className="wz-qhead">How many bedrooms?</p>
               <div className="wz-chips" data-testid="ql-bedrooms">
@@ -274,34 +276,72 @@ export default function QuickLook({
       )}
 
       {/*
-        THE EXTERIOR QUICK LOOK — prototype `s-ext-job`, "About the house".
-        Five answers on one screen, because an outside job has no rooms to seed
-        and these five are the whole basis of the number. The access row is the
-        one that could not exist until the per-elevation allowances did.
+        THE EXTERIOR QUICK LOOK — prototype `s-ext-job` v2.6, "What are we
+        painting?" (C8b). ELEMENTS FIRST, nothing pre-ticked; materials only
+        if the body is ticked; window type and count only if windows are;
+        door count only if doors are; then colours, condition, storeys ONCE,
+        access, and the book-someone-in card. One screen.
       */}
       {step === "outside" && (
         <>
           <p className="wz-kick">Outside</p>
-          <h1>About the house</h1>
+          <h1>What are we painting?</h1>
           <p className="wz-sub">{EXTERIOR_PROMISE}</p>
 
-          <p className="wz-qhead">Storeys</p>
-          <Cards options={EXT_STOREYS} value={outside.storeys} onPick={(storeys) => onOutside({ storeys })} name="ext-storeys" />
+          <p className="wz-qhead" style={{ marginTop: 0 }}>On the house</p>
+          <MultiCards options={EXT_ELEMENTS} on={outside.elements} name="ext-el"
+            onPick={(v) => onOutside({ elements: toggleIn(outside.elements, v) })} />
 
-          <p className="wz-qhead">What&rsquo;s it made of? <span className="wz-opt">TICK EVERYTHING</span></p>
-          <Multi
-            options={EXT_SUBSTRATES} on={outside.substrates} name="ext-substrate"
-            onPick={(v) => onOutside({ substrates: toggleKeeping<ExteriorSubstrate>(outside.substrates, v, "weatherboards") })}
-          />
+          <p className="wz-qhead">Standing on its own</p>
+          <MultiCards options={EXT_STANDALONE} on={outside.standalone} name="ext-sep"
+            onPick={(v) => onOutside({ standalone: toggleIn(outside.standalone, v) })} />
 
-          <p className="wz-qhead">Painting</p>
-          <MultiCards
-            options={EXT_TARGETS} on={outside.targets} name="ext-target"
-            onPick={(v) => onOutside({ targets: toggleKeeping<ExteriorTarget>(outside.targets, v, "house") })}
-          />
+          {outside.elements.includes("body") && (
+            <div data-testid="ext-body-q">
+              <p className="wz-qhead">What are the walls made of? <span className="wz-opt">TICK EVERYTHING THAT NEEDS PAINTING</span></p>
+              <Multi options={EXT_MATERIALS} on={outside.materials} name="ext-mat"
+                onPick={(v) => onOutside({ materials: toggleMaterial(outside.materials, v) })} />
+              <p className="wz-chint">Nothing is ticked for you — brick and render are often left bare on purpose, so we&rsquo;d rather you told us.</p>
+            </div>
+          )}
+
+          {outside.elements.includes("windows") && (
+            <div data-testid="ext-windows-q">
+              <p className="wz-qhead">What type of windows, mostly?</p>
+              <Cards options={EXT_WINDOW_TYPES} value={outside.windowType} onPick={(windowType) => onOutside({ windowType })} name="ext-win" />
+              {outside.windowType === "alu" && (
+                <p className="wz-chint" data-testid="ext-alu-note">Aluminium usually isn&rsquo;t painted — your estimator will check.</p>
+              )}
+              <div className="wz-countrow" data-testid="ext-win-count">
+                <div className="wz-qtext">How many windows, all up?<small>A rough count is fine — we check it side by side later</small></div>
+                <div className="wz-stepper">
+                  <button type="button" aria-label="fewer windows" data-testid="ext-win-minus" disabled={outside.windowCount <= 0} onClick={() => onOutside({ windowCount: Math.max(0, outside.windowCount - 1) })}>−</button>
+                  <span data-testid="ext-win-n">{outside.windowCount}</span>
+                  <button type="button" aria-label="more windows" data-testid="ext-win-plus" onClick={() => onOutside({ windowCount: Math.min(200, outside.windowCount + 1) })}>+</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {outside.elements.includes("doors") && (
+            <div className="wz-countrow" data-testid="ext-door-count">
+              <div className="wz-qtext">How many doors?<small>Including the garage&rsquo;s personnel door, if it&rsquo;s painted</small></div>
+              <div className="wz-stepper">
+                <button type="button" aria-label="fewer doors" data-testid="ext-door-minus" disabled={outside.doorCount <= 0} onClick={() => onOutside({ doorCount: Math.max(0, outside.doorCount - 1) })}>−</button>
+                <span data-testid="ext-door-n">{outside.doorCount}</span>
+                <button type="button" aria-label="more doors" data-testid="ext-door-plus" onClick={() => onOutside({ doorCount: Math.min(60, outside.doorCount + 1) })}>+</button>
+              </div>
+            </div>
+          )}
+
+          <p className="wz-qhead">Colours</p>
+          <Cards options={EXT_COLOURS} value={outside.colour} onPick={(colour) => onOutside({ colour })} name="ext-colour" />
 
           <p className="wz-qhead">How&rsquo;s the paintwork holding up?</p>
-          <Chips options={EXT_CONDITIONS} value={outside.condition} onPick={(condition) => onOutside({ condition })} name="ext-condition" />
+          <Cards options={EXT_CONDITIONS} value={outside.condition} onPick={(condition) => onOutside({ condition })} name="ext-condition" />
+
+          <p className="wz-qhead">Single or double storey?</p>
+          <Cards options={EXT_STOREYS} value={outside.storeys} onPick={(storeys) => onOutside({ storeys })} name="ext-storeys" />
 
           <p className="wz-qhead">Anything tricky about getting to it?</p>
           <Multi
@@ -314,6 +354,17 @@ export default function QuickLook({
               you before we start, as a separate line — never a surprise on the invoice.
             </p>
           )}
+
+          <div className="wz-rather" data-testid="ext-rather">
+            <b>Rather we just came out?</b>
+            <p>Every outside job is signed off by a person anyway. Book now and skip the rest.</p>
+            <div className="wz-rather-row">
+              <button type="button" className="wz-btn wz-bs2" onClick={onBook} data-testid="ext-book">Book someone in</button>
+              {phone && (
+                <a className="wz-btn wz-bs2" href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="ext-call">Call us</a>
+              )}
+            </div>
+          </div>
         </>
       )}
 

@@ -343,7 +343,9 @@ export const wizardStateShapeSchema = z.object({
      * the editor's wall tiles (only these substrates render per side).
      * `concrete` (tilt slab / precast panel) prices as a clone of render —
      * see lib/estimate/substrates.ts and migration 20261204. */
-    substrates: z.array(z.enum(["weatherboards", "render", "concrete", "brick", "stucco", "cement_sheet", "colorbond", "other", "none"])).min(1).default(["weatherboards"]),
+    // C8b: no floor — nothing is pre-ticked on the exterior quick look, and an
+    // empty list means "not told" (a placeholder wall, flagged), never weatherboard.
+    substrates: z.array(z.enum(["weatherboards", "render", "concrete", "brick", "stucco", "cement_sheet", "colorbond", "other", "none"])).default(["weatherboards"]),
     /** Tom, 7 Sep: "What are we painting? tick all that apply" — the house,
      * and/or the freestanding things. Absent (older states) = the house. */
     targets: z.array(z.enum(["house", "fence", "floor", "deck", "shed", "wall"])).default(["house"]),
@@ -359,6 +361,14 @@ export const wizardStateShapeSchema = z.object({
      * or all four = the full exterior. Unlisted sides arrive in the confirm
      * loop already answered "not painting". */
     sides: z.array(z.enum(["front", "left", "right", "back"])).optional(),
+    /** C8b: window type (the rate row) and whole-job counts from the exterior
+     * quick look; null = not asked (older sessions, the page set). The sides
+     * seed spreads the counts; the sides editor reconciles them (⚑50). */
+    windowType: z.enum(["casement", "sash", "colonial", "winder", "alu", "unsure"]).nullable().optional(),
+    windowCount: z.number().int().min(0).max(200).nullable().optional(),
+    doorCount: z.number().int().min(0).max(60).nullable().optional(),
+    /** C8b: the exterior colour answer, the same three-way shape as the interior (⚑51). */
+    colour: z.enum(["same", "new", "bold"]).optional(),
     /** A garage / workshop / shed being painted, and what it's made of. */
     shed: z.object({ substrate: z.enum(["weatherboards", "render", "concrete", "brick", "stucco", "cement_sheet", "colorbond", "other"]).default("colorbond") }).nullable().default(null),
     /** A freestanding wall (boundary / retaining) — material and rough length. */

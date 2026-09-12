@@ -40,7 +40,8 @@ import {
   type ColourIntent, type PaintSystems, type SystemAnswers, type SystemGroup,
 } from "@/lib/pricing/systems";
 import { substrateKeyForRateCode } from "@/lib/estimate/substrates";
-import type { WizardState, WizardSurfaceKey } from "./state";
+import { exteriorElements, type WizardExterior, type WizardState, type WizardSurfaceKey } from "./state";
+import { CLADDING_LABEL } from "./starter";
 
 type LooseBlock = Record<string, unknown> & {
   id?: number; kind?: string; type?: string;
@@ -460,4 +461,78 @@ function stripSystemNotes(note: string): string {
       return part !== "" && !SYSTEM_NOTE_MARKERS.some((m) => p.includes(m));
     })
     .join(" | ");
+}
+
+// ---------------------------------------------------------------------------
+// C8b — "What we'll do" for the OUTSIDE
+// ---------------------------------------------------------------------------
+
+export type ExteriorDoLine = { group: string; title: string; sentence: string; coats: number; undercoat: boolean; review: boolean };
+
+const WINDOW_TYPE_WORD: Record<string, string> = {
+  casement: "casement", sash: "sash", colonial: "colonial", winder: "winder", alu: "aluminium", unsure: "",
+};
+
+/**
+ * The exterior derivation produces its OWN lines — walls by material, windows
+ * by type (with the colonial note), doors, fascias, gutters, eaves, then a
+ * "Not included" line — and never the interior lines. The prototype shipped
+ * interior lines on an exterior reveal; this is the fix. Coats and the
+ * preparation sentence come from the exterior rule for the job's colour
+ * intent (⚑51: one table, exterior rows), so the reveal, the tighten screen
+ * and the finish line cannot disagree.
+ */
+export function exteriorWhatWeDo(
+  state: Pick<WizardState, "condition" | "details" | "paint"> & { exterior: WizardExterior | null },
+  systems: PaintSystems = DEFAULT_PAINT_SYSTEMS,
+): ExteriorDoLine[] {
+  const ext = state.exterior;
+  if (!ext) return [];
+  const answers = systemAnswersFromState(state);
+  const sys = deriveSystem("exterior", answers, systems);
+  const el = exteriorElements(ext);
+  const house = ext.targets.includes("house");
+  const lines: ExteriorDoLine[] = [];
+  const base = (title: string, sentence: string, review = false): ExteriorDoLine =>
+    ({ group: "exterior", title, sentence, coats: sys.coats, undercoat: sys.undercoat, review: review || sys.review });
+
+  if (house && ext.painting.body) {
+    const mats = ext.substrates.filter((m) => m !== "none").map((m) => CLADDING_LABEL[m] ?? m);
+    const told = mats.filter((m) => m !== "other");
+    lines.push(base(
+      told.length ? `Walls — ${told.join(", ")}` : "Walls — material to confirm",
+      told.length ? sys.sentence : `${sys.sentence} The material is priced at a placeholder rate until your estimator confirms it.`,
+      told.length === 0,
+    ));
+  }
+  if (house && el.windows) {
+    const t = ext.windowType ?? "unsure";
+    const n = ext.windowCount != null ? `${ext.windowCount} ` : "";
+    const word = WINDOW_TYPE_WORD[t] ? `${WINDOW_TYPE_WORD[t]} ` : "";
+    lines.push(
+      t === "alu"
+        ? base(`${n}aluminium windows`, "Aluminium frames are usually left unpainted — nothing is priced for them, and your estimator checks whether any are to be done.", true)
+        : base(`${n}${word}windows`,
+          t === "colonial"
+            ? "Frames, sashes and every glazing bar — colonial windows are cut in by hand, bar by bar, which is why they take longer than a casement."
+            : `Frames and sashes, sanded back and ${sys.coats === 1 ? "one coat" : `${sys.coats} coats`}, glass edges cut in by hand.${t === "winder" ? " Winders are priced at the casement rate and your estimator confirms it." : t === "unsure" ? " The type is confirmed by your estimator." : ""}`,
+          t === "winder" || t === "unsure"),
+    );
+  }
+  if (house && el.doors) {
+    const n = ext.doorCount != null ? `${ext.doorCount} ` : "";
+    lines.push(base(`${n}doors`, `Doors and their frames, sanded back and ${sys.coats === 1 ? "one coat" : `${sys.coats} coats`} — the front door done last so it can dry with the house open.`));
+  }
+  if (house && el.fascias) lines.push(base("Fascias", `The board behind the gutter, scraped, sanded and ${sys.coats === 1 ? "one coat" : `${sys.coats} coats`}.`));
+  if (house && el.gutters) lines.push(base("Gutters and downpipes", `Washed down, any rust treated, then ${sys.coats === 1 ? "one coat" : `${sys.coats} coats`} of exterior enamel.`));
+  if (house && el.eaves) lines.push(base("Eaves", `The underside of the overhang, dusted and washed, then ${sys.coats === 1 ? "one coat" : `${sys.coats} coats`} of a flat exterior finish.`));
+  if (ext.extras.fence || ext.targets.includes("fence")) lines.push(base("Fence", "Brushed or sprayed depending on the fence, both sides where they are yours."));
+  if (ext.extras.deck || ext.targets.includes("deck")) lines.push(base("Deck or floor", "Cleaned and prepared, then a deck coating in the number of coats the product needs.", true));
+  if (ext.targets.includes("shed") || el.garage) lines.push(base("Garage or shed", "Priced like the house — walls, trims and the door on it.", true));
+  if (ext.targets.includes("wall")) lines.push(base("Boundary or retaining wall", "Measured on site — no rate for it from a form.", true));
+  lines.push({
+    group: "exterior", title: "Not included", coats: 0, undercoat: false, review: false,
+    sentence: "Equipment hire (scaffold, lifts), replacing rotten timber, and anything not visible from the ground — each is quoted separately if it turns out to be needed.",
+  });
+  return lines;
 }

@@ -60,7 +60,11 @@ export const SUBSTRATE_DEFS = [
   { key: "fascias", label: "Fascias", codes: ["Fascias"], defaultOn: true },
   { key: "gutters", label: "Gutters", codes: ["Gutters"], defaultOn: true },
   { key: "downpipes", label: "Downpipes", codes: ["Downpipes"], defaultOn: true },
-  { key: "exterior_windows", label: "Windows", codes: ["Fixed / Picture Window"], defaultOn: true },
+  // C8b: the four exterior window rows — the customer's window TYPE is the
+  // rate row, so every one of them has to belong to this tick. Three of the
+  // codes are shared with the interior list; `substrateKeyForRateCode` takes
+  // the side to tell them apart.
+  { key: "exterior_windows", label: "Windows", codes: ["Fixed / Picture Window", "Awning / Casement Window", "Double Hung Sash", "Colonial / Bay Window"], defaultOn: true },
   { key: "exterior_doors", label: "Doors", codes: ["Front Door", "Standard Door (1 Side)"], defaultOn: true },
   { key: "garage_doors", label: "Garage doors", codes: ["Garage Door (1 Car)", "Garage Door (2 Car)"], defaultOn: false },
   { key: "deck", label: "Deck", codes: ["Deck Painting"], defaultOn: false },
@@ -85,12 +89,32 @@ export type SubstrateSide = "interior" | "exterior";
 export type SubstrateOption = { key: SubstrateKey; label: string; defaultOn: boolean };
 export type SubstrateGroups = { interior: SubstrateOption[]; exterior: SubstrateOption[] };
 
-const codeToKey = new Map<string, SubstrateKey>();
-for (const def of SUBSTRATE_DEFS) for (const code of def.codes) codeToKey.set(code, def.key);
+const FIRST_EXTERIOR = SUBSTRATE_DEFS.findIndex((d) => d.key === "weatherboards");
+const codeToKeyInterior = new Map<string, SubstrateKey>();
+const codeToKeyExterior = new Map<string, SubstrateKey>();
+SUBSTRATE_DEFS.forEach((def, i) => {
+  for (const code of def.codes) (i < FIRST_EXTERIOR ? codeToKeyInterior : codeToKeyExterior).set(code, def.key);
+});
 
-/** Which tick governs a rate code. Null = no tick touches it. */
-export function substrateKeyForRateCode(code: string): SubstrateKey | null {
-  return codeToKey.get(code) ?? null;
+/**
+ * Which tick governs a rate code. Null = no tick touches it.
+ *
+ * C8b: three window codes exist on BOTH sides of the rate card (casement,
+ * sash, colonial), so the caller says which side it is looking at; without a
+ * side the interior answer wins, as it always did. An exterior side asking
+ * for "Awning / Casement Window" gets `exterior_windows`, not `windows` —
+ * which is what kept the seeded casement and colonial lines from being
+ * dropped by the tick filter on an outside job.
+ */
+export function substrateKeyForRateCode(code: string, side?: SubstrateSide): SubstrateKey | null {
+  if (side === "exterior") return codeToKeyExterior.get(code) ?? codeToKeyInterior.get(code) ?? null;
+  return codeToKeyInterior.get(code) ?? codeToKeyExterior.get(code) ?? null;
+}
+
+/** C8b: is this tick one of the exterior registry's? (The registry lists interior first.) */
+export function isExteriorSubstrateKey(key: string): boolean {
+  const i = SUBSTRATE_DEFS.findIndex((d) => d.key === key);
+  return i >= FIRST_EXTERIOR;
 }
 
 export function substrateLabel(key: SubstrateKey): string {
@@ -106,27 +130,33 @@ type RateItemLike = { code: string | null; category: string | null };
  * result to the client — the options carry names only, never rates.
  */
 export function substrateOptionsFromRates(rateItems: ReadonlyArray<RateItemLike>): SubstrateGroups {
-  const sideByCode = new Map<string, SubstrateSide>();
+  // C8b: a code can exist on BOTH sides of the card (the window rows), so a
+  // code maps to a SET of sides, and a substrate is offered on its own side
+  // only — an interior def never lands on the exterior list because a code
+  // it shares happens to have an exterior row, and vice versa.
+  const sidesByCode = new Map<string, Set<SubstrateSide>>();
   for (const r of rateItems) {
     if (!r.code) continue;
     const cat = (r.category ?? "").trim().toLowerCase();
-    if (cat === "interior" || cat === "exterior") sideByCode.set(r.code, cat);
+    if (cat === "interior" || cat === "exterior") {
+      if (!sidesByCode.has(r.code)) sidesByCode.set(r.code, new Set());
+      sidesByCode.get(r.code)!.add(cat);
+    }
   }
+  const anyOnSide = (side: SubstrateSide) => [...sidesByCode.values()].some((set) => set.has(side));
   const groups: SubstrateGroups = { interior: [], exterior: [] };
-  for (const def of SUBSTRATE_DEFS) {
-    const sides = new Set(def.codes.map((c) => sideByCode.get(c)).filter((s): s is SubstrateSide => s != null));
-    if ("alwaysOffer" in def && sides.size === 0 && groups[def.alwaysOffer as SubstrateSide] !== undefined) {
+  SUBSTRATE_DEFS.forEach((def, i) => {
+    const own: SubstrateSide = i < FIRST_EXTERIOR ? "interior" : "exterior";
+    const hasRate = def.codes.some((c) => sidesByCode.get(c)?.has(own));
+    if ("alwaysOffer" in def && !hasRate) {
       // Special substrates with no rate rows (staircase) ride with their side
       // as long as that side has rates at all.
       const side = def.alwaysOffer as SubstrateSide;
-      const sideHasRates = [...sideByCode.values()].includes(side);
-      if (sideHasRates) groups[side].push({ key: def.key, label: def.label, defaultOn: def.defaultOn });
-      continue;
+      if (anyOnSide(side)) groups[side].push({ key: def.key, label: def.label, defaultOn: def.defaultOn });
+      return;
     }
-    for (const side of sides) {
-      groups[side].push({ key: def.key, label: def.label, defaultOn: def.defaultOn });
-    }
-  }
+    if (hasRate) groups[own].push({ key: def.key, label: def.label, defaultOn: def.defaultOn });
+  });
   return groups;
 }
 

@@ -25,7 +25,7 @@ import { applyOpenSpace, commercialPricingFrom, hourLoadingFor } from "@/lib/pri
 import { applyConditionPricing, applyExteriorAnswers, type MeasuredSides } from "@/lib/wizard/exteriorAnswers";
 import { defaultSidesLoop } from "@/lib/wizard/sides";
 import { customerPayload, editorPayload } from "@/lib/wizard/view";
-import { paintSystemsView } from "@/lib/wizard/systems-view";
+import { exteriorWhatWeDo, paintSystemsView } from "@/lib/wizard/systems-view";
 import { resolveEstimator } from "@/lib/wizard/estimator";
 import {
   GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails, guardrailWhy,
@@ -880,8 +880,14 @@ export async function POST(request: Request) {
       : null;
     // C9 — "What we'll do": the same derivation the editor and the finish
     // line read, so the reveal's panel cannot disagree with either.
-    const doLines = paintSystemsView(effectiveState, merged.areas, paintSystems)
-      .map((l) => ({ group: l.group, title: l.title, sentence: l.sentence, coats: l.coats, undercoat: l.undercoat, review: l.review }));
+    // C8b: an OUTSIDE job gets the exterior derivation's own lines — walls by
+    // material, windows by type, doors, fascias, gutters, eaves, not included —
+    // and never the interior lines; a "both" job gets both sets.
+    const doLines = [
+      ...(effectiveState.jobType === "exterior" ? [] : paintSystemsView(effectiveState, merged.areas, paintSystems)
+        .map((l) => ({ group: l.group as string, title: l.title, sentence: l.sentence, coats: l.coats, undercoat: l.undercoat, review: l.review }))),
+      ...(effectiveState.jobType !== "interior" ? exteriorWhatWeDo(effectiveState, paintSystems) : []),
+    ];
     // C11 — who confirms this price, resolved once for the strip on the reveal.
     const who = await resolveEstimator(db, ctx.settings, effectiveState.customer?.postcode ?? null);
     // The customer's view: a range, inclusions, confidence — and nothing else.

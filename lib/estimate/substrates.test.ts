@@ -33,9 +33,20 @@ describe("substrate registry ↔ rate card alignment", () => {
     expect(missing).toEqual(["Cement Sheet", "Concrete / Tilt Slab", "Brick", "Brick (Unpainted)"]);
   });
 
-  it("no two substrates claim the same rate code", () => {
-    const all = SUBSTRATE_DEFS.flatMap((d) => d.codes);
-    expect(new Set(all).size).toBe(all.length);
+  it("no two substrates on the same SIDE claim the same rate code", () => {
+    // C8b: three window codes exist on both sides of the card (casement, sash,
+    // colonial) and belong to `windows` inside and `exterior_windows` outside;
+    // `substrateKeyForRateCode` takes the side. Within a side, still unique.
+    const cut = SUBSTRATE_DEFS.findIndex((d) => d.key === "weatherboards");
+    for (const defs of [SUBSTRATE_DEFS.slice(0, cut), SUBSTRATE_DEFS.slice(cut)]) {
+      const all = defs.flatMap((d) => d.codes);
+      expect(new Set(all).size).toBe(all.length);
+    }
+    expect(substrateKeyForRateCode("Awning / Casement Window")).toBe("windows");
+    expect(substrateKeyForRateCode("Awning / Casement Window", "exterior")).toBe("exterior_windows");
+    expect(substrateKeyForRateCode("Colonial / Bay Window", "exterior")).toBe("exterior_windows");
+    expect(substrateKeyForRateCode("Fixed / Picture Window", "interior")).toBe("exterior_windows");
+    expect(substrateKeyForRateCode("Weatherboards", "interior")).toBe("weatherboards");
   });
 
   it("resolves rate codes to their governing tick", () => {

@@ -198,8 +198,11 @@ export function quickLookToState(q: QuickLook, base?: WizardState): WizardState 
     // derived state below cannot be read backwards into eight chips.
     quickLook: q,
     // The no-plan path: the starter list builds the room tree from these.
-    noPlan: true,
-    basics: {
+    // C8b: an EXTERIOR session never writes them — bedrooms are not asked on
+    // that path and nothing may read them there; the exterior seeds sides,
+    // not rooms (`entryPatch` has always cleared them on this branch).
+    noPlan: interior,
+    basics: interior ? {
       bedrooms: Math.max(1, Math.min(8, Math.round(q.bedrooms))),
       storeys: q.storeys,
       // Not asked. "Unsure" is the honest answer and it is what the starter
@@ -211,7 +214,7 @@ export function quickLookToState(q: QuickLook, base?: WizardState): WizardState 
       // wrong quote. The tighten stage's room list is where this gets fixed,
       // with the room in front of them.
       openPlanKitchenLiving: false,
-    },
+    } : null,
     customer: {
       ...(s.customer ?? {
         email: "", suburb: "", postcode: "",
