@@ -14,6 +14,8 @@ import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { customerExteriorView, customerScopeRooms, type CustomerExteriorView, type CustomerScopeRoom } from "@/lib/wizard/scope-editor";
 import { wizardVisitSlots } from "@/lib/visits/wizard";
 import { customerPayload, editorPayload, type CustomerPayload, type WizardDeferred } from "@/lib/wizard/view";
+import { DEFAULT_SEGMENTS, loadSegments } from "@/lib/wizard/segments";
+import { commercialWidenFor } from "@/lib/wizard/commercial";
 import {
   answersFromState, bandsFromSettings, evaluateGuardrails,
   policyFromSettings, serviceAreaFromSettings, settingValue,
@@ -131,8 +133,10 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
   const loopState = loopConfirmState(blocks, interiorMeta, sidesMeta);
   const payload = editorPayload(blocks, ctx, adjustmentsFrom(state), deferred, loopState);
   const snap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
+  // C12: a commercial job's door and widening come from the segment rows.
+  const segments = snap.success && snap.data.commercial ? await loadSegments(db) : DEFAULT_SEGMENTS;
   const answers = snap.success
-    ? answersFromState(snap.data)
+    ? answersFromState(snap.data, segments)
     : answersFromState({ jobType: "interior", details: { damageTier: 1 }, customer: null });
   // The same trade relaxation the submit route applied — decided from the
   // estimate's OWN account (linked at save), so the editor and the submit
@@ -163,7 +167,10 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
     return { kind: "holding", line: "This one needs a person — we'll be in touch to sort it properly." };
   }
 
-  const customer = customerPayload(payload, blocks, decision, bandsFromSettings(settingValue(ctx.settings, "wizard_bands")));
+  const customer = customerPayload(
+    payload, blocks, decision, bandsFromSettings(settingValue(ctx.settings, "wizard_bands")), null, [], null,
+    commercialWidenFor(snap.success ? snap.data : null, ctx.settings, segments),
+  );
   const headerLogoUrl = ((settingValue(ctx.settings, "company_profile") ?? {}) as { logoUrl?: string }).logoUrl || null;
   const profile = (settingValue(ctx.settings, "company_profile") ?? {}) as { phone?: string; phoneHours?: string };
   const companyPhone = profile.phone?.trim() || null;

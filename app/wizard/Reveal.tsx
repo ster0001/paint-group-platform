@@ -4,6 +4,7 @@ import { useState } from "react";
 import WhatWeDo from "./WhatWeDo";
 import EstimatorStrip from "./EstimatorStrip";
 import { assumedList, restatement, type QuickLook } from "@/lib/wizard/quick-look";
+import { commercialAssumedList, commercialRestatement, openCount, type CommercialAnswers, type Segment } from "@/lib/wizard/segments";
 import type { CustomerPayload } from "@/lib/wizard/view";
 
 /**
@@ -38,10 +39,13 @@ const fmt = (cents: number) =>
   `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
 export default function Reveal({
-  payload, quick, estimateId, onTighten, onBook, phone, prefillEmail,
+  payload, quick, estimateId, onTighten, onBook, phone, prefillEmail, commercial = null,
 }: {
   payload: CustomerPayload;
   quick: QuickLook;
+  /** C12: a commercial job — the segment row and the answers, for the kicker,
+   * the basis sentence and the segment's own assume list. */
+  commercial?: { segment: Segment; answers: CommercialAnswers; photos: number } | null;
   estimateId: string;
   onTighten: () => void;
   onBook: () => void;
@@ -55,7 +59,10 @@ export default function Reveal({
   const [keeping, setKeeping] = useState(false);
   const [kept, setKept] = useState<{ emailed: boolean } | null>(null);
   const [keepError, setKeepError] = useState<string | null>(null);
-  const assumptions = assumedList(quick);
+  const assumptions = commercial
+    ? commercialAssumedList(commercial.segment, commercial.answers, commercial.photos)
+    : assumedList(quick);
+  const basis = commercial ? commercialRestatement(commercial.segment, commercial.answers, quick) : restatement(quick);
 
   /**
    * ⚑1's gate, in the one place a customer actually wants to give an address:
@@ -85,7 +92,7 @@ export default function Reveal({
 
   return (
     <div className="wz-wrap wz-reveal" data-testid="reveal" data-estimate-id={estimateId}>
-      <p className="wz-kick">Your guide range</p>
+      <p className="wz-kick" data-testid="reveal-kicker">{payload.commercial ? `${payload.commercial.name} · your guide range` : "Your guide range"}</p>
 
       {/* C11 — the roller reveal: the one motion moment in the flow, and none
           at all for anyone who asked their OS for less motion (wizard.css). */}
@@ -95,6 +102,17 @@ export default function Reveal({
       <p className="wz-range-note">
         Includes GST. Excludes access equipment and structural repairs.
       </p>
+      {/* C12 — the commercial note: a guide range with a person confirming,
+          never a price to fix online; the band is wider (⚑20) and a photo of
+          the open area is what narrows it. */}
+      {payload.commercial && (
+        <p className="wz-reveal-flag" data-testid="reveal-commercial-note" data-widen={payload.commercial.widenPct}>
+          A guide range for a commercial job — one of our estimators confirms it before any price is fixed.
+          {commercial && openCount(commercial.segment, commercial.answers) > 0 && payload.commercial.photos === 0
+            ? " A photo of the open area narrows it straight away."
+            : ""}
+        </p>
+      )}
       {/* C8 (⚑25): a "both" job — inside and outside, each its own range; the
           figure above is the two together. */}
       {payload.parts && (
@@ -119,7 +137,7 @@ export default function Reveal({
         <span>Confirmed</span>
       </div>
 
-      <p className="wz-restate" data-testid="reveal-restatement">{restatement(quick)}</p>
+      <p className="wz-restate" data-testid="reveal-restatement">{basis}</p>
 
       <button
         type="button"

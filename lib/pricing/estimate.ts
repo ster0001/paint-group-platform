@@ -123,6 +123,16 @@ export type Adjustments = {
   discountFixedCents?: number;
   hourlyRateOverride?: number | null;
   contractorRateOverride?: number | null;
+  /**
+   * C12 (addendum §4.14): the commercial LOADING — after hours, weekends,
+   * staged, occupied — as one multiplier on PRODUCTION hours. Applied after
+   * the multiplier chain (job modifier, size, uplift) and before allowances:
+   * `prepHr` is where the allowances ride, and it is never touched. Materials
+   * are not touched either — the loading is on the hours, not the paint.
+   * Absent or 1 = a residential job, priced exactly as before.
+   * Resolved from the answers in lib/pricing/commercial.ts `hourLoadingFor`.
+   */
+  hourLoading?: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -363,7 +373,11 @@ export function priceSurface(
   const baseHours = isItem ? dispRate * qty : dispRate > 0 ? qty / dispRate : 0;
   const sizeMul = windowSizeMultiplier(item, s.size, rates);
   const uplift = 1 + (Number(s.upliftPct) || 0) / 100;
-  const paintingHr = s.paintingHrOverride ?? baseHours * jobMod * sizeMul * uplift;
+  // C12: the commercial loading multiplies derived production hours only. A
+  // typed override is final, as it is for the job modifier — staff typed the
+  // hours they meant.
+  const loading = adj.hourLoading != null && adj.hourLoading > 0 ? adj.hourLoading : 1;
+  const paintingHr = s.paintingHrOverride ?? baseHours * jobMod * sizeMul * uplift * loading;
   const labourCents = Math.round((paintingHr + s.prepHr) * chargeBase);
 
   const prodName = productNameFor(area.type, s, adj.materials, items);

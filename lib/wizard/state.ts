@@ -64,7 +64,10 @@ const customerSchema = z.object({
    * Optional so every stored state still parses; absent = a person, which is
    * where a commercial enquiry has always gone.
    */
-  commercialSegment: z.enum(["office", "healthcare", "strata", "industrial", "shopfront", "other"]).optional(),
+  /** C12: a KEY from `commercial_segments` (or phase 7a's six, resolved
+   * through the legacy map) — the table owns the list, so the schema does
+   * not enumerate it. */
+  commercialSegment: z.string().max(40).optional(),
   /**
    * The routing gates, `{ height: "yes" | "no" }`. Any one "yes" sends the job
    * to an appointment — no scoring, no override (the brief's rule). An
@@ -147,6 +150,27 @@ export const wizardStateShapeSchema = z.object({
     occupied: z.enum(["yes", "no"]),
   }).nullable().default(null),
   basics: basicsSchema.nullable().default(null),
+  /**
+   * C12 — the COMMERCIAL answers (addendum S6a): what the segment's two
+   * screens asked, as tapped. Everything the segment's configuration
+   * renders is keyed by the row's own strings — count keys, also-area labels,
+   * surface labels, hours and occupied values — so this stores strings and
+   * the table gives them meaning. Null on every residential job.
+   */
+  commercial: z.object({
+    segment: z.string().max(40),
+    /** health: aged / clinic / hospital. Null where the row asks no kind. */
+    kind: z.string().max(40).nullable().default(null),
+    counts: z.record(z.string().max(40), z.number().int().min(0).max(500)).default({}),
+    openSize: z.enum(["50", "150", "400", "800"]).default("150"),
+    /** Height mode only (halls): the wall-height bracket. */
+    openHeight: z.enum(["4", "6", "9"]).nullable().default(null),
+    ceiling: z.enum(["tiles", "plaster", "exposed"]).default("tiles"),
+    also: z.array(z.string().max(60)).max(20).default([]),
+    surfaces: z.array(z.string().max(60)).max(20).default([]),
+    hours: z.string().max(30).default(""),
+    occ: z.string().max(30).nullable().default(null),
+  }).nullable().default(null),
 
   surfaces: z.array(surfaceKeySchema).min(1),
 
@@ -381,7 +405,9 @@ export const wizardStateSchema = wizardStateShapeSchema.superRefine((s, ctx) => 
   const wantsInterior = s.jobType === "interior" || s.jobType === "both";
   const wantsExterior = s.jobType === "exterior" || s.jobType === "both";
 
-  if (s.noPlan && !s.basics) {
+  // C12: a commercial job's rooms come from the segment's counts and
+  // typicals (state.commercial), so it needs no home basics.
+  if (s.noPlan && !s.basics && !s.commercial) {
     ctx.addIssue({ code: "custom", path: ["basics"], message: "The quick basics are needed when there is no floorplan." });
   }
   if (wantsInterior && !s.noPlan && s.planRunIds.length === 0) {
@@ -511,6 +537,7 @@ export function defaultWizardState(): WizardState {
     conditionSourceIds: [],
     noPlan: false,
     basics: null,
+    commercial: null,
     quickLook: null,
     surfaces: [...DEFAULT_SURFACES],
     condition: { tier: "change", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, darkToLightCeilings: null, darkToLightCeilingRooms: [], surfaceFlags: {}, colourAnswered: false, changingGroups: { walls: false, ceilings: false, trims: false }, boldColour: false, coloursUndecided: false },

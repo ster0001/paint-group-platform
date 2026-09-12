@@ -211,6 +211,47 @@ export function starterExtraction(
 }
 
 /**
+ * C12 — the COMMERCIAL starter: rooms from the segment's counts and typicals
+ * (`commercialRoomList`), already sized, through the same stage-5 drafting
+ * as a plan. Storey is always the ground — a multi-level office is a tighten
+ * conversation, not a quick-look question. Each small room carries one door
+ * (its own side); the open areas carry none — their walls price at the FULL
+ * perimeter (addendum §4.12). Windows ride only when the customer ticked
+ * window frames: commercial glazing is mostly aluminium and unpainted.
+ */
+export type CommercialStarterRoom = { name: string; roomType: string; L: number; W: number; open: boolean };
+
+export function commercialExtraction(
+  rooms: CommercialStarterRoom[],
+  opts: { heightM: number | null; windows: boolean },
+): Extraction {
+  return {
+    storeys: [{ label: "Ground", kind: "ground" as const, stated_area_m2: null }],
+    scale: { method: "none", stated_total_area_m2: null, not_to_scale_disclaimer: false, confidence: 0 },
+    ceiling_height_m: opts.heightM,
+    rooms: rooms.map((r) => ({
+      name_on_plan: r.name,
+      normalised_type: r.roomType as Extraction["rooms"][number]["normalised_type"],
+      storey: "Ground",
+      length_m: round2(r.L),
+      width_m: round2(r.W),
+      dimension_source: "derived" as const,
+      dimension_confidence: 0.5,
+      area_m2_printed: null,
+      irregular: false,
+      cornice: "unknown" as const,
+      doors: r.open ? [] : [{ ...unknownDoor }],
+      windows: opts.windows && !r.open ? [{ ...unknownWindow }] : [],
+      openings_no_door: 0,
+      wet_area: ["bathroom", "laundry", "wc"].includes(r.roomType),
+      notes_read_from_plan: "",
+    })),
+    has_site_plan: false,
+    unreadable_regions: [],
+  };
+}
+
+/**
  * After buildDraft: every starter room is a TYPICAL size, not a measurement.
  * Origin drops to ai_assumed and L/W join the assumed fields, so the editor
  * shows "typical size — tap to confirm" and the accuracy score counts these

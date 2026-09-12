@@ -49,6 +49,8 @@ import { loopConfirmState } from "@/lib/wizard/confirm-state";
 import { loadScopeRules } from "@/lib/extract/scope-cache";
 import { exteriorAddOptions, interiorAddOptions, perItemChargeOut } from "@/lib/wizard/add-catalogue";
 import { customerPayload, editorPayload, type WizardDeferred } from "@/lib/wizard/view";
+import { DEFAULT_SEGMENTS, loadSegments } from "@/lib/wizard/segments";
+import { commercialWidenFor } from "@/lib/wizard/commercial";
 import {
   GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails,
   policyFromSettings, serviceAreaFromSettings, settingValue,
@@ -1522,8 +1524,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   let decisionMemo: Promise<GuardrailDecision> | null = null;
   const ladderDecision = () => (decisionMemo ??= (async () => {
     const snap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
+    // C12: a commercial job's door is decided from the segment rows, here as at submit.
+    const segments = snap.success && snap.data.commercial ? await loadSegments(db) : DEFAULT_SEGMENTS;
     const answers = snap.success
-      ? answersFromState(snap.data)
+      ? answersFromState(snap.data, segments)
       : answersFromState({ jobType: "interior", details: { damageTier: 1 }, customer: null });
     // Same trade relaxation as submit + the scope page, decided from the
     // estimate's own linked account — one rule, three evaluation sites.
@@ -1786,7 +1790,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // $6k interior / $12k exterior at ≥90%), and the visit tier is an offer,
     // never a block. Slots recompute server-side so booking can validate.
     const bands = bandsFromSettings(settingValue(ctx.settings, "wizard_bands"));
-    const cp = customerPayload(payload, blocks, decision, bands);
+    // C12 (⚑20): the commercial widening rides every payload this screen
+    // shows, so the tighten range never narrows just by being re-read.
+    const widenSnap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
+    const widenSegments = widenSnap.success && widenSnap.data.commercial ? await loadSegments(db) : DEFAULT_SEGMENTS;
+    const cp = customerPayload(payload, blocks, decision, bands, null, [], null, commercialWidenFor(widenSnap.success ? widenSnap.data : null, ctx.settings, widenSegments));
     const flags = (settingValue(ctx.settings, "scope_editor") ?? {}) as { visitSlots?: string[] };
     const hasExterior = blocks.some((b) => b.kind === "area" && b.type === "Exterior");
     const wizSnap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);

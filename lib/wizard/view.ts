@@ -113,6 +113,14 @@ export type CustomerPayload = {
   /** The SERVER's verdict on whether the tight band applied - the UI must
    * never re-derive this from a hardcoded threshold. */
   tightBand: boolean;
+  /**
+   * C12 — a COMMERCIAL job: the segment the range is for, and how much wider
+   * the band is than the accuracy alone would make it (⚑20; `bandPct` above
+   * already includes it). Null on every residential job. The reveal reads
+   * the segment kicker and the commercial note from this, never from the
+   * quick-look answers.
+   */
+  commercial?: { segment: string; name: string; widenPct: number; photos: number } | null;
   accuracyPct: number;
   canAccept: boolean;
   walkthroughRequired: boolean;
@@ -169,6 +177,8 @@ export function customerPayload(
   systems: CustomerPayload["systems"] = [],
   /** C11: the resolved estimator, or null. */
   estimator: CustomerPayload["estimator"] = null,
+  /** C12: the commercial widening (⚑20) and the segment block. */
+  extra: { widenPct?: number; commercial?: CustomerPayload["commercial"] } = {},
 ): CustomerPayload {
   const loose = blocks as LooseBlock[];
   const rooms: CustomerRoomView[] = payload.rooms.map((r) => {
@@ -186,7 +196,10 @@ export function customerPayload(
     };
   });
 
-  const bandPct = rangeBandPct(payload.accuracyPct, bands);
+  // C12: the commercial widening is ADDED to the band the accuracy earns —
+  // a range segment is a guide range with a person confirming, and the open
+  // space without a photo is the least bounded thing in it.
+  const bandPct = rangeBandPct(payload.accuracyPct, bands) + (extra.widenPct ?? 0);
   const { loCents, hiCents } = rangeFromTotal(payload.totals.totalCents, bandPct);
 
   return {
@@ -223,6 +236,7 @@ export function customerPayload(
     parts: parts ? { interior: customerRange(parts.interior, bands), exterior: customerRange(parts.exterior, bands) } : null,
     systems,
     estimator,
+    commercial: extra.commercial ?? null,
   };
 }
 
