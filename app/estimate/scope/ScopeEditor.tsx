@@ -1048,6 +1048,14 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                         Adjust it
                       </button>
                     </div>
+                    {/* C16 (b): a reader's size proposal beside a confirmed size — offered, never applied. */}
+                    {room.proposed && room.proposed.L != null && room.proposed.W != null && (
+                      <div className="wz-proposal" data-testid={`proposal-${room.areaId}`}>
+                        <span>We read about {room.proposed.L} × {room.proposed.W} m from your {room.proposed.by === "brief" ? "description" : "photo"} — use that instead?</span>
+                        <button type="button" onClick={() => act({ action: "room_dims", areaId: room.areaId, lengthM: room.proposed!.L!, widthM: room.proposed!.W! }, `dims:${room.areaId}`, () => `${room.name} updated to ${room.proposed!.L} × ${room.proposed!.W} m — repriced.`)}>Use it</button>
+                        <button type="button" onClick={() => act({ action: "room_size_ok", areaId: room.areaId }, `sz:${room.areaId}`, undefined, [`sz:${room.areaId}`, "yes"])}>Keep mine</button>
+                      </div>
+                    )}
                     {sizeDrafts[room.areaId]?.open && (
                       <Offer kind="measure" estimator={estimator?.name ?? null} onBook={() => scrollToReach()} onCall={estimator?.phone ?? companyPhone} />
                     )}

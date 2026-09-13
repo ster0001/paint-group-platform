@@ -24,6 +24,7 @@
  *      answers, account records) is never a required gap.
  */
 
+import { DEFAULT_SEGMENTS } from "@/lib/wizard/segments";
 import type { WizardState } from "@/lib/wizard/state";
 import { CUPBOARD_BY_ROOM_TYPE, CUPBOARD_INTERIOR_BY_ROOM_TYPE, type InteriorLoopMeta } from "@/lib/wizard/rooms-loop";
 import { SIDE_KEYS, SIDE_LABEL, findSide, isWallLine, wallSumPct, type SideKey, type SidesLoopMeta, type LooseBlock as SideBlock } from "@/lib/wizard/sides";
@@ -160,6 +161,11 @@ export function gapsFor(input: GraphInput): Gap[] {
   if (input.accountType == null && !cowork) add(PHASE.qual, 0, { key: "q.account_type", kind: "required", acceptsNotSure: false, phrasingHint: "Is this for your own home, or are you a business or trade client?" });
   if (jobType == null) add(PHASE.qual, 0, { key: "q.job_type", kind: "required", acceptsNotSure: false, phrasingHint: "Inside, outside, or both?" });
   if (!cust?.propertyKind) add(PHASE.qual, 0, { key: "q.property_type", kind: qualKind, acceptsNotSure: false, phrasingHint: "Is it a house, townhouse, unit or a commercial building?" });
+  // C16 (c): a commercial job is routed by its SEGMENT (C12), the same
+  // question the screen asks — never the older commercialKind fallback.
+  if (cust?.propertyKind === "commercial" && !cust.commercialSegment) {
+    add(PHASE.qual, 0, { key: "q.commercial_segment", kind: qualKind, acceptsNotSure: false, phrasingHint: `What sort of place is it — ${segmentTileNames().join(", ")}?` });
+  }
   // The hard stops depend on these (§2 rule 5) — asked once, up front; a
   // brief build that assumed them clear asks as a tightening chip instead.
   // Tom, 7 Sep (late): the build year is the office's to find — not asked.
@@ -370,4 +376,9 @@ export function nextBatch(input: GraphInput): Gap[] {
   if (input.mode === "cowork") return gaps;
   if (gaps[0]?.kind === "confirm") return gaps.filter((g) => g.kind === "confirm").slice(0, 3);
   return gaps.slice(0, 1);
+}
+
+/** The segment tiles the screen offers, in the screen's order — the question names them. */
+export function segmentTileNames(): string[] {
+  return [...DEFAULT_SEGMENTS].filter((x) => x.tile).sort((a, b) => a.position - b.position).map((x) => x.name.toLowerCase());
 }

@@ -60,8 +60,10 @@ const BEDROOMS = [1, 2, 3, 4, 5];
 
 export default function QuickLook({
   step, quick, onQuick, outside, onOutside, addressField, conditionBox, error, canContinue, busy, onBack, onNext, stepNo, stepsTotal,
-  onBook, onChooseBoth, phone, commercial = null,
+  onBook, onChooseBoth, phone, commercial = null, assumed = [],
 }: {
+  /** C16 (a): the quick-look fields the assistant filled in from "describe it" — amber until confirmed. */
+  assumed?: string[];
   /** C12: the commercial screens (segment, areas, job), rendered from the row. */
   commercial?: CommercialQuickProps | null;
   /** C8: "Book someone in" on screen 1, and "book an estimator for both" — opens the Save & book sheet. */
@@ -89,6 +91,11 @@ export default function QuickLook({
   stepsTotal: number;
 }) {
   const last = quick.jobType === "interior" ? step === "condition" || step === "com_job" : step === "outside";
+  // C16 (a): the amber tag under a field the assistant filled in. A tap on
+  // the field, or Continue on this screen, confirms it and the tag goes.
+  const tag = (field: string) => assumed.includes(field)
+    ? <span className="wz-assumed-tag" data-testid={`assumed-${field}`}>From what you told us — tap to change, or continue to confirm</span>
+    : null;
   const pattern = commercial?.segment?.config.pattern === "warehouse" ? "warehouse" as const : "areas" as const;
   const door = commercial?.door ?? "range";
   // C14: the booking screen's button books; it never says "range".
@@ -114,6 +121,7 @@ export default function QuickLook({
           {addressField}
           <p className="wz-qhead">What&rsquo;s being painted?</p>
           <Chips options={JOB_TYPES} value={quick.jobType} onPick={(jobType) => onQuick({ jobType })} name="jobtype" />
+          {tag("jobType")}
 
           {/*
             C8 — the way out, on screen 1 (prototype `s-start`): "for the
@@ -178,6 +186,7 @@ export default function QuickLook({
             Near enough is fine — this seeds the rooms, and you can change any of them later.
           </p>
           <Cards options={PROPERTY_KINDS} value={quick.propertyKind} onPick={(propertyKind) => onQuick({ propertyKind })} name="kind" />
+          {tag("propertyKind")}
 
           {/* C8b: an OUTSIDE job has no rooms to seed — no bedrooms here, and
               storeys is asked ONCE, on the outside screen. */}
@@ -194,9 +203,11 @@ export default function QuickLook({
                   >{n === 5 ? "5+" : n}</button>
                 ))}
               </div>
+              {tag("bedrooms")}
 
               <p className="wz-qhead">Storeys</p>
               <Cards options={STOREYS} value={quick.storeys} onPick={(storeys) => onQuick({ storeys })} name="storeys" />
+              {tag("storeys")}
             </>
           )}
         </>
@@ -270,6 +281,7 @@ export default function QuickLook({
             exactly what we&rsquo;ve allowed for.
           </p>
           <Cards options={SCOPE_PRESETS} value={quick.scope} onPick={(scope) => onQuick({ scope })} name="scope" />
+          {tag("scope")}
 
           {/*
             C9 (v2.3, prototype `s-job`) — "What's changing colour?" replaces
@@ -285,6 +297,7 @@ export default function QuickLook({
           </p>
           <Multi options={CHANGING_GROUPS} on={(["walls", "ceilings", "trims"] as const).filter((k) => quick.changing[k])} name="changing"
             onPick={(k) => onQuick({ changing: toggleChanging(quick, k) })} />
+          {tag("changing")}
 
           <p className="wz-qhead">Any of them going much lighter, or a bold colour? <span className="wz-opt">NEEDS AN UNDERCOAT FIRST — WE ALLOW FOR IT</span></p>
           <Chips options={[{ value: "no", label: "No" }, { value: "yes", label: "Yes" }]} value={quick.bold ? "yes" : "no"}
@@ -305,6 +318,7 @@ export default function QuickLook({
             spots later, with photos.
           </p>
           <Cards options={CONDITION_BANDS} value={quick.condition} onPick={(condition) => onQuick({ condition })} name="condition" />
+          {tag("condition")}
 
           {/*
             ⚑14, in its proper place: the three bands are a tap, and this is
@@ -316,6 +330,7 @@ export default function QuickLook({
 
           <p className="wz-qhead">Will anyone be living there while we paint?</p>
           <Cards options={OCCUPIED} value={quick.occupied} onPick={(occupied) => onQuick({ occupied })} name="occupied" />
+          {tag("occupied")}
         </>
       )}
 

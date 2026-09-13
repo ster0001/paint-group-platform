@@ -6,6 +6,7 @@ import {
 } from "@/lib/extract/scope";
 import { windowStyleLabel, type WizardState } from "./state";
 import { roomAllowanceLabels } from "./allowances";
+import { proposedOf } from "./proposals";
 
 /**
  * Part B: the customer scope editor's server logic. Pure functions over the
@@ -68,6 +69,8 @@ export type CustomerScopeRoom = {
   spots: RoomSpot[];
   /** §4.3: how this room sits against the job's condition band. */
   condition: "same" | "better" | "worse";
+  /** C16 (b): a reader's size proposal waiting beside a confirmed size (amber). */
+  proposed?: { L?: number; W?: number; by: string } | null;
 };
 
 type LooseBlock = Record<string, unknown> & {
@@ -136,6 +139,7 @@ export function roomDoorScope(block: LooseBlock): DoorScope {
  * tail.
  */
 export function customerRoomView(block: LooseBlock, rules: ScopeRule[]): CustomerScopeRoom {
+  const proposal = proposedOf(block as Record<string, unknown>);
   const roomType = typeof block.roomType === "string" ? block.roomType : "bedroom";
   const surfaces = Array.isArray(block.surfaces) ? block.surfaces : [];
 
@@ -236,6 +240,7 @@ export function customerRoomView(block: LooseBlock, rules: ScopeRule[]): Custome
       : null,
     tiles,
     allowances: roomAllowanceLabels(surfaces),
+    ...(proposal ? { proposed: { ...(proposal.L != null ? { L: proposal.L } : {}), ...(proposal.W != null ? { W: proposal.W } : {}), by: proposal.by } } : {}),
     spots: surfaces.filter(isPrepLine).map((s) => ({
       surfaceId: Number(s.id),
       label: String(s.internalLabel ?? s.code ?? "Repair")

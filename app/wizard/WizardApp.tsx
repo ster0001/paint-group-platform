@@ -57,6 +57,7 @@ import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
 import { RESUME_KEY, RESTART_KEY, decodeResume, encodeResume, restartedSince, resumeLine, type ResumeRecord, type SafetyAnswered, pickResume } from "@/lib/wizard/resume";
 import Wordmark from "./Wordmark";
 import ChatWidget from "./ChatWidget";
+import { confirmAssistantFields, confirmAssistantStep } from "@/lib/wizard/describe";
 import { gateMessage, routeCommercial } from "@/lib/wizard/commercial";
 import {
   DEFAULT_SEGMENTS, briefConfigFor, commercialSurfaceKeys, defaultBriefAnswers, defaultCommercialAnswers, isWarehouse, segmentByKey, segmentTiles,
@@ -286,11 +287,51 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
 
   const setQuick = (patch: Partial<QuickLookAnswers>) => {
     const next = { ...quick, ...patch };
-    set({
+    setState((s) => ({
+      ...s,
       // C9: `colour` is derived from the tiles, never picked (colourFromChanges).
       quickLook: { ...next, colour: colourFromChanges(next) },
       ...(patch.jobType ? { jobType: patch.jobType } : {}),
-    });
+      // C16 (a): a tap on a field the assistant filled in confirms it.
+      assistant: confirmAssistantFields(s.assistant, Object.keys(patch)),
+    }));
+  };
+
+  /**
+   * C16 (a) — "describe it", behind the chat bubble. The route reads the
+   * paragraph and answers with quick-look fields; they land on the state
+   * like taps and ride the ordinary autosave through the versioned draft
+   * (C3). Every field it filled is named on `state.assistant.wrote` and shows
+   * amber until the customer confirms it. Nothing is written server-side.
+   */
+  const describeJob = async (text: string): Promise<{ reply: string } | null> => {
+    try {
+      // The anonymous session can be a beat behind the first tap (the chat's
+      // own start has the same retry): a 403 here is "not signed in yet".
+      let res: Response | null = null;
+      let j: { quick?: QuickLookAnswers; wrote?: string[]; reply?: string; error?: string } = {};
+      for (let attempt = 0; attempt < 4; attempt++) {
+        res = await fetch("/api/wizard/describe", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, quick }),
+        });
+        j = (await res.json().catch(() => ({}))) as typeof j;
+        if (res.status !== 403) break;
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+      if (!res || !res.ok || !j.quick) return j.error ? { reply: j.error } : null;
+      const q = j.quick;
+      const wrote = j.wrote ?? [];
+      setState((s) => ({
+        ...s,
+        quickLook: { ...q, colour: colourFromChanges(q) },
+        jobType: q.jobType,
+        assistant: wrote.length ? { wrote, at: new Date().toISOString(), source: "describe" } : s.assistant,
+      }));
+      return { reply: j.reply ?? "" };
+    } catch {
+      return null;
+    }
   };
 
   /**
@@ -1390,6 +1431,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
 
   function quickNext() {
     setError(null);
+    // C16 (a): Continue on a screen confirms the fields the assistant filled in on it.
+    if (state.assistant) setState((s) => ({ ...s, assistant: confirmAssistantStep(s.assistant, quickStep) }));
     /**
      * Screen 1 needs somewhere to paint. A picked suggestion carries the
      * suburb and postcode; typing alone does not, and the postcode is what
@@ -1695,6 +1738,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 step={quickStep}
                 quick={quick}
                 onQuick={setQuick}
+                assumed={state.assistant?.wrote ?? []}
                 stepNo={Math.min(page, quickSteps.length)}
                 stepsTotal={quickSteps.length}
                 error={error}
@@ -1883,7 +1927,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           {nav.note && <span className="wz-navnote">{nav.note}</span>}
         </nav>
       )}
-      {isCustomer && <ChatWidget ready={ready} />}
+      {isCustomer && <ChatWidget ready={ready} onDescribe={quickActive ? describeJob : undefined} />}
     </div>
   );
 }
