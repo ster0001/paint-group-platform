@@ -3,7 +3,9 @@
     "staff",
     "pc",
     "contractor",
-    "customer"
+    "customer",
+    "commercial",
+    "trade"
   ],
   "files": [
     {
@@ -16,6 +18,73 @@
       "media": [],
       "verified_at_commit": "93b8089cec",
       "sources": []
+    },
+    {
+      "feature": "estimator",
+      "role": "commercial",
+      "title": "A price for an office, warehouse, shop or building — online where we can, a quick visit where we can't",
+      "summary": "Pick the kind of place; offices, warehouses and shops get a guide range in two screens that an estimator confirms; strata, hospitals and any outside work get a short brief and a booked visit instead.",
+      "path": "docs/help/estimator/commercial.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/wizard/CommercialScreens.tsx",
+        "lib/wizard/segments.ts",
+        "lib/wizard/commercial.ts",
+        "app/api/wizard/brief-book/route.ts"
+      ]
+    },
+    {
+      "feature": "estimator",
+      "role": "customer",
+      "title": "Get a painting price online, in about two minutes",
+      "summary": "Four quick screens give you a guide range; then you can tighten it room by room, fix the price online if it qualifies, or send it to your estimator to confirm.",
+      "path": "docs/help/estimator/customer.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/estimate/page.tsx",
+        "app/wizard/WizardApp.tsx",
+        "app/wizard/QuickLook.tsx",
+        "app/wizard/Reveal.tsx",
+        "app/estimate/scope/ScopeEditor.tsx"
+      ]
+    },
+    {
+      "feature": "estimator",
+      "role": "staff",
+      "title": "Online estimates from the office side — the queue, the pack, and the three things you can do with a request",
+      "summary": "Every online quote lands in Waiting on you with a promise clock; the Pack tab shows what the customer built and what they assumed; you fix the price, ask a question or book a visit from the strip, and the measured tree goes to the property when you fix.",
+      "path": "docs/help/estimator/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/(app)/estimates/WaitingTable.tsx",
+        "app/quote/PackPane.tsx",
+        "app/quote/StripActions.tsx",
+        "app/api/confirmations/[id]/route.ts",
+        "lib/crm/work-queue.ts"
+      ]
+    },
+    {
+      "feature": "estimator",
+      "role": "trade",
+      "title": "Quoting from your trade account — saved specs, the spec sheet, and quoting again from the file",
+      "summary": "An agency or building manager quotes in a few taps: pick the property, pick a saved spec, open the sheet, send it for confirmation; a property your estimator has measured is never measured again, and a tenant can send photos from a link.",
+      "path": "docs/help/estimator/trade.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/account/(portal)/TradePortfolioHome.tsx",
+        "app/account/(portal)/quote/new/page.tsx",
+        "app/account/(portal)/quote/[id]/sheet/SpecSheet.tsx",
+        "app/account/(portal)/quote/[id]/tenant/page.tsx",
+        "app/photos/[token]/page.tsx"
+      ]
     },
     {
       "feature": "help-centre",

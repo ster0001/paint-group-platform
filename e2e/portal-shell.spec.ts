@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { serviceClient } from "./fixtures/woLoop";
-import { assertNoPasswordField, deleteUserByEmail, destroyAccountChain, magicLinkFor } from "./fixtures/portal";
+import { assertNoPasswordField, deleteUserByEmail, destroyAccountChain, magicLinkFor, expectWizardOn } from "./fixtures/portal";
 import { driveNoPlanWizard } from "./customer-journey/drive";
 
 /**
@@ -33,9 +33,7 @@ test.describe("portal auth + shell (3a-2)", () => {
   test("wizard → save → magic link → portal, and never a registration form", async ({ page }) => {
     test.setTimeout(240_000);
     await page.goto("/estimate");
-    if (await page.getByText(/nearly here/i).count()) {
-      test.skip(true, "wizard_public is off in this environment");
-    }
+    await expectWizardOn(page);
 
     await driveNoPlanWizard(page, { email: journeyEmail });
     await assertNoPasswordField(page);

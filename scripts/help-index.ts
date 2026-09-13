@@ -20,7 +20,10 @@ import { readdirSync, readFileSync, statSync, existsSync, writeFileSync } from "
 import { join, relative, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 
-const ROLES = ["staff", "pc", "contractor", "customer"] as const;
+// C17: the estimator's two further audiences — a commercial customer (office,
+// warehouse, strata, retail) and a trade member (agency, OC manager) — read
+// different screens from a homeowner, so they get their own help files.
+const ROLES = ["staff", "pc", "contractor", "customer", "commercial", "trade"] as const;
 type Role = (typeof ROLES)[number];
 
 const REQUIRED_KEYS = ["feature", "role", "title", "summary"] as const;
