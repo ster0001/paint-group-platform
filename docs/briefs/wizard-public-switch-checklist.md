@@ -46,6 +46,22 @@ so "Send to <name>" names a real person; Google is connected on the Diary
 for whoever takes visits; Twilio/Resend keys are set (Settings → Messaging)
 so the sign-in link and the SMS actually send.
 
+### As read on production, 14 Sep 2026 (Tom's paste)
+
+| Key | Production value | Verdict |
+|---|---|---|
+| `wizard_public` | `{"enabled": false}` | OFF, as it should be. No holding copy of its own — the defaults in `lib/wizard/publicFlag.ts` show. |
+| `wizard_policy` | `{}` | **Every default applies**: $2,000 floor, the fix-online caps, the remote-confirmation cap from `DEFAULT_POLICY`. Decide these before the flip, in Settings → Online estimates. |
+| `wizard_bands` | tight 4 / mid 8 / wide 15 (min 90 / 70) | fine to start; narrow after fifty jobs |
+| `wizard_limits` | 2 per visitor + the hold message | fine |
+| `confirmation_turnaround` | 8 h · "usually by the next working day" | fine — the queue chases it |
+| `wizard_hold_days` | absent | default applies; set it if the held-price wording should say a number you chose |
+| `service_area` | `{"postcodes": []}` | **EMPTY = nobody is ever outside the area.** Fill it (the postcodes you serve) or every out-of-area visitor gets a range and a hand-off only at the desk. |
+| `scope_editor` | absent | no online visit slots offered; "Book a visit" falls back to the callback path. Set `visitSlots` if the four-times booking screen should show windows. |
+| `commercial_pricing` | loadings + racking + widen 5/5/3, EWP at 4 m | reviewed in C12–C14 |
+| `measured_tree_max_age_days` | 365 | fine |
+| `company_profile` | name, phone, logos, estimator Tom Roman | **no `coordinatorName`** — the app's fallback name ("Felipe Martinez", `lib/portal/data.ts` `getCompanyContact`) is what a customer with no patch estimator sees on "Send to <name>" and the sent page. Set it, or set patch postcodes on the estimators, before the flip. |
+
 ## 3 · The flip itself
 
 1. Settings → Online estimates → **On**. That is the only switch.
