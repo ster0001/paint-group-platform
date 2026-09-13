@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient, createLoopFixture, destroyLoopFixture, type LoopFixture } from "./fixtures/woLoop";
-import { deleteUserByEmail, destroyAccountChain, magicLinkFor } from "./fixtures/portal";
+import { deleteUserByEmail, destroyAccountChain, magicLinkFor, expectWizardOn } from "./fixtures/portal";
 import { driveNoPlanWizard } from "./customer-journey/drive";
 
 /**
@@ -47,7 +47,7 @@ test.describe("portal full loop (3a-8)", () => {
 
     // 1 · Wizard → save: the real front door, no registration anywhere.
     await page.goto("/estimate");
-    if (await page.getByText(/nearly here/i).count()) test.skip(true, "wizard_public off here");
+    await expectWizardOn(page);
     await driveNoPlanWizard(page, { email });
     expect(await page.locator("input[type=password]").count()).toBe(0);
 

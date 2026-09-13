@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { serviceClient } from "./fixtures/woLoop";
-import { deleteUserByEmail, magicLinkFor } from "./fixtures/portal";
+import { deleteUserByEmail, magicLinkFor, expectWizardOn } from "./fixtures/portal";
 import { driveNoPlanWizard } from "./customer-journey/drive";
 
 /**
@@ -114,12 +114,8 @@ test.describe("volume gate (3a-8)", () => {
     const sb = db!;
     await page.goto(await magicLinkFor(sb, hotEmail));
     await page.goto("/estimate");
-    if (await page.getByText(/nearly here/i).count()) {
-      test.skip(true, "wizard unavailable in this environment");
-    }
-    if (!(await page.getByRole("button", { name: /There isn't a floorplan to hand/ }).count())) {
-      test.skip(true, "wizard reference data not seeded in this environment");
-    }
+    await expectWizardOn(page);
+    await expect(page.getByRole("button", { name: /There isn't a floorplan to hand/ }), "wizard reference data must be seeded in the test project").toHaveCount(1);
 
     let saveMs = 0;
     page.on("requestfinished", (req) => {

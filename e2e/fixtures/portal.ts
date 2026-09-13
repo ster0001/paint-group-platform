@@ -3,6 +3,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 /** Shared fixtures for the customer-portal suites (3a-2+). */
 
+/**
+ * C17: the wizard must be ON in the environment the suite runs against —
+ * a skip here used to hide a mis-set test project as a green run. It now
+ * fails, naming the setting to flip (`wizard_public` in Settings).
+ */
+export async function expectWizardOn(page: Page) {
+  await expect(page.getByText(/nearly here/i), "wizard_public is OFF in this environment — the e2e stack needs it ON (Settings → Online estimates)").toHaveCount(0);
+}
+
 export async function assertNoPasswordField(page: Page) {
   expect(await page.locator("input[type=password]").count(), "no password field may ever appear").toBe(0);
 }

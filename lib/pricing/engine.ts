@@ -1,4 +1,13 @@
-// Pricing engine — pure functions, no I/O, no interface.
+// Pricing engine — the rate-card arithmetic the production path shares.
+//
+// C17 (⚑A): this file once carried a second, complete `priceEstimate` with
+// the build plan's order of operations and the mandatory level-of-finish
+// guard. Nothing called it — production prices through lib/pricing/estimate.ts
+// (`priceEstimateTotals`), which defaults a missing finish modifier to ×1.
+// The dead exports are gone; the two rate-card helpers below are what the
+// review gate, capture and the systems derivation actually use. Whether the
+// finish guard moves onto the production path is Tom's ruling (⚑A) — see
+// lib/pricing/finish-level.ts for the recorded split.
 //
 // Follows the build plan's order of operations exactly. The order matters: every
 // LABOUR modifier compounds on the production HOURS (steps 1–6) BEFORE the hours
@@ -22,15 +31,7 @@
 //      (calibrated against real work orders — see step 14 below)
 //   15 margin = total − contractor offer − own staff − materials cost − pass-through cost
 
-import type {
-  ProductionLineResult,
-  QuoteInput,
-  QuoteResult,
-  Product,
-  RateItem,
-} from "./types.ts";
-
-const sum = (xs: number[]): number => xs.reduce((a, b) => a + b, 0);
+import type { RateItem } from "./types.ts";
 
 /**
  * Marginal-coat rule (rate card, Decision 2): first coat 100%, each extra coat 75%.
@@ -72,147 +73,4 @@ export function hoursPerUnit(item: RateItem, coats: number): number {
   const hpuRef = toHpu(rates[refN] as number);
   const hpuOneCoat = hpuRef / coatMultiplier(refN);
   return hpuOneCoat * coatMultiplier(coats);
-}
-
-/** Step 1: base production hours for a line (no modifiers yet). */
-export function productionHours(
-  item: RateItem,
-  quantity: number,
-  coats: number,
-): number {
-  return hoursPerUnit(item, coats) * quantity;
-}
-
-/**
- * Step 10: litres of paint for a line, including wastage.
- * Which measurement drives it depends on the unit:
- *   - item units  → litres_per_item_per_coat (on the rate item)
- *   - lineal      → metres_per_litre (on the rate item)
- *   - area        → coverage m²/L (on the product)
- * Returns 0 when the quantity input is missing (line left uncosted for paint).
- */
-export function materialLitres(
-  item: RateItem,
-  product: Product | null,
-  quantity: number,
-  coats: number,
-): number {
-  const wastage = (product?.wastage_pct ?? 0) / 100;
-  let litres: number;
-
-  if (item.unit === "Hours Per Item") {
-    if (item.litres_per_item_per_coat == null) return 0;
-    litres = quantity * coats * item.litres_per_item_per_coat;
-  } else if (item.metres_per_litre != null) {
-    litres = (quantity * coats) / item.metres_per_litre;
-  } else if (product?.coverage != null) {
-    litres = (quantity * coats) / product.coverage;
-  } else {
-    return 0;
-  }
-
-  return litres * (1 + wastage);
-}
-
-/** Price a whole estimate. Returns a full breakdown; every money field is cents. */
-export function priceEstimate(input: QuoteInput): QuoteResult {
-  // Non-negotiable #4: a level of finish must be chosen — there is no default.
-  if (!input.finishMultiplier || input.finishMultiplier <= 0) {
-    throw new Error(
-      "Level of finish is mandatory — no default, no fallback (non-negotiable #4).",
-    );
-  }
-
-  // Steps 2–5: the compounding labour modifier. Multiplication commutes, but this
-  // single combined factor is applied to HOURS only, before any money conversion.
-  const labourModifier =
-    (input.conditionMultiplier ?? 1) * // step 2
-    (input.accessMultiplier ?? 1) * // step 3
-    input.finishMultiplier * // step 4
-    (input.sizeMultiplier ?? 1) * // step 5
-    (input.stagingMultipliers ?? []).reduce((a, b) => a * b, 1); // staging stacks
-
-  const lines: ProductionLineResult[] = input.production.map((pl) => {
-    const baseHours = productionHours(pl.item, pl.quantity, pl.coats); // step 1
-    const modifiedHours = baseHours * labourModifier; // steps 2–6
-    const labourCents = Math.round(modifiedHours * pl.item.charge_out_cents); // step 7
-    const litres = materialLitres(pl.item, pl.product ?? null, pl.quantity, pl.coats);
-    const materialCostCents = Math.round(litres * (pl.product?.price_per_litre ?? 0));
-    return {
-      code: pl.item.code,
-      category: pl.item.category,
-      baseHours,
-      modifiedHours,
-      labourCents,
-      materialLitres: litres,
-      materialCostCents,
-    };
-  });
-
-  const productionHoursTotal = sum(lines.map((l) => l.modifiedHours));
-  const productionLabourCents = sum(lines.map((l) => l.labourCents));
-
-  const prepHours = sum((input.prep ?? []).map((p) => p.hours));
-  const cleaningHours = sum((input.cleaning ?? []).map((p) => p.hours));
-  const prepLabourCents = Math.round(
-    sum((input.prep ?? []).map((p) => p.hours * p.chargeOutCents)),
-  ); // step 8
-  const cleaningLabourCents = Math.round(
-    sum((input.cleaning ?? []).map((p) => p.hours * p.chargeOutCents)),
-  ); // step 9
-
-  const materialCostCents = sum(lines.map((l) => l.materialCostCents)); // step 10 (cost)
-  const materialPriceCents = Math.round(
-    materialCostCents * (1 + (input.materialsMarkup ?? 0)),
-  ); // step 10 (billed)
-
-  const sundriesCents = input.sundriesCents ?? 0; // step 11
-  const passthroughPriceCents = sum((input.passthroughs ?? []).map((p) => p.priceCents)); // step 12
-  const passthroughCostCents = sum((input.passthroughs ?? []).map((p) => p.costCents)); // step 12
-
-  // Step 13: the quote total.
-  const totalCents =
-    productionLabourCents +
-    prepLabourCents +
-    cleaningLabourCents +
-    materialPriceCents +
-    sundriesCents +
-    passthroughPriceCents;
-
-  // Step 14: contractor offer.
-  // Calibrated against real work orders (jobs 3140 and 3108): contractors were
-  // paid $60 × ALL estimated hours, prep included — not production hours only.
-  // 69.25 hrs × $60 = $4,155 and 84.5 hrs × $60 = $5,070, both exact.
-  const contractorHours = productionHoursTotal + prepHours + cleaningHours;
-  const contractorOfferCents = Math.round(
-    contractorHours *
-      (input.contractorHourlyCents ?? 6000) *
-      (input.contractorOfferPct ?? 1),
-  );
-
-  // Step 15: margin, net of the real pass-through cost (Hampton Street lesson).
-  const marginCents =
-    totalCents -
-    contractorOfferCents -
-    (input.ownStaffCents ?? 0) -
-    materialCostCents -
-    passthroughCostCents;
-
-  return {
-    lines,
-    labourModifier,
-    productionHours: productionHoursTotal,
-    productionLabourCents,
-    prepLabourCents,
-    cleaningLabourCents,
-    materialCostCents,
-    materialPriceCents,
-    sundriesCents,
-    passthroughPriceCents,
-    passthroughCostCents,
-    totalCents,
-    contractorHours,
-    contractorOfferCents,
-    marginCents,
-  };
 }

@@ -254,7 +254,7 @@ jobs:
         run: |
           npx next start -p 3101 &
           for i in $(seq 1 60); do curl -sf -o /dev/null http://localhost:3101/login && break; sleep 1; done
-          npx playwright test e2e/customer-journey e2e/wo-rls.spec.ts e2e/account-rls.spec.ts e2e/ledger-parity.spec.ts e2e/trade-org-rls.spec.ts
+          npx playwright test e2e/customer-journey e2e/wo-rls.spec.ts e2e/account-rls.spec.ts e2e/ledger-parity.spec.ts e2e/trade-org-rls.spec.ts e2e/trade-walk-a.spec.ts
 
       # C7c acceptance: "a full run leaves the count it started with, ±0".
       # global-setup logged the count before and global-teardown deleted this

@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient, createLoopFixture, destroyLoopFixture, type LoopFixture } from "./fixtures/woLoop";
-import { deleteUserByEmail, destroyAccountChain, magicLinkFor } from "./fixtures/portal";
+import { deleteUserByEmail, destroyAccountChain, magicLinkFor, expectWizardOn } from "./fixtures/portal";
 import { defaultCustomer, defaultWizardState, wizardStateSchema } from "../lib/wizard/state";
 
 /**
@@ -163,7 +163,7 @@ test.describe("portal commercial (3a-7)", () => {
     const sb = db!;
     await page.goto(await magicLinkFor(sb, email));
     await page.goto(`/estimate?property=${westgarthId}&rebook=${rebookEstimateId}`);
-    if (await page.getByText(/nearly here/i).count()) test.skip(true, "wizard unavailable here");
+    await expectWizardOn(page);
 
     // Seeded: the no-plan basics are ALREADY the screen (no floorplan
     // question), with the prior answers and the property address in place.

@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { serviceClient } from "./fixtures/woLoop";
-import { deleteUserByEmail, destroyAccountChain, magicLinkFor } from "./fixtures/portal";
+import { deleteUserByEmail, destroyAccountChain, magicLinkFor, expectWizardOn } from "./fixtures/portal";
 
 /**
  * 3a-6 · The embedded builder + multi-property, as the signed-in customer.
@@ -80,9 +80,7 @@ test.describe("portal builder (3a-6)", () => {
     const cta = page.getByRole("link", { name: "Get a new estimate" });
     await expect(cta).toHaveAttribute("href", `/estimate?property=${propertyId}`);
     await page.goto(`/estimate?property=${propertyId}`);
-    if (await page.getByText(/nearly here/i).count()) {
-      test.skip(true, "wizard_public is off and member bypass unavailable in this environment");
-    }
+    await expectWizardOn(page);
 
     // Known facts are already there: the address and the suburb.
     await expect(page.locator("input.wz-field").first()).toHaveValue(/12 Acacia Street/);
@@ -127,7 +125,7 @@ test.describe("portal builder (3a-6)", () => {
 
   test("a stranger gets no prefill from someone else's property id", async ({ page }) => {
     await page.goto(`/estimate?property=${propertyId}`);
-    if (await page.getByText(/nearly here/i).count()) test.skip(true, "wizard_public off");
+    await expectWizardOn(page);
     await page.getByRole("button", { name: /There isn't a floorplan to hand/ }).click();
     await expect(page.getByPlaceholder("Suburb")).toHaveValue("");
     expect(await page.getByText("12 Acacia Street").count()).toBe(0);
