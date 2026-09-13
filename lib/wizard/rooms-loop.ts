@@ -93,7 +93,7 @@ function withRoom(blocks: LooseBlock[], areaId: number, fn: (b: LooseBlock) => s
  */
 export function applyRoomSizeOk(blocks: LooseBlock[], areaId: number): RoomsLoopResult {
   return withRoom(blocks, areaId, (b) => {
-    b.origin = "customer_stated"; b.confidence = 0.85;
+    b.origin = "customer_stated"; b.confidence = 0.85; delete (b as { proposed?: unknown }).proposed; // C16 (b): a confirmation settles any pending proposal
     b.assumedFields = (Array.isArray(b.assumedFields) ? (b.assumedFields as string[]) : []).filter((f) => f !== "L" && f !== "W");
     b.customer = { ...customerOf(b), size: "yes" };
   });
@@ -117,7 +117,7 @@ export function applyRoomDims(blocks: LooseBlock[], areaId: number, lengthM: num
     // nearest bound (a toast's job to say so), never a refusal.
     b.L = Math.min(15, Math.max(1, lengthM));
     b.W = Math.min(15, Math.max(1, widthM));
-    b.origin = "customer_stated"; b.confidence = 0.85;
+    b.origin = "customer_stated"; b.confidence = 0.85; delete (b as { proposed?: unknown }).proposed; // C16 (b): a confirmation settles any pending proposal
     b.assumedFields = (Array.isArray(b.assumedFields) ? (b.assumedFields as string[]) : []).filter((f) => f !== "L" && f !== "W");
     b.customer = { ...customerOf(b), size: "adjusted" };
   });

@@ -11,6 +11,7 @@
  * the defect rate on an ASSUMED quantity (D22) and stay amber until seen.
  */
 
+import { foldSizeProposal } from "@/lib/wizard/proposals";
 import { DEFAULT_SURFACES, type WizardState } from "@/lib/wizard/state";
 import { buildTreeFromState } from "@/lib/wizard/build-tree";
 import { starterRoomList, type StarterRoom } from "@/lib/wizard/starter";
@@ -61,6 +62,7 @@ export function proposeFromBrief(
     if (!built.ok) return built;
     working = built.working;
   } else {
+    const existingSizedIds = new Set<number>();
     // Act on an existing tree: add what the brief names; existing rooms stay.
     const stated = new Map<string, number>();
     for (const r of extraction.rooms) stated.set(r.roomType, (stated.get(r.roomType) ?? 0) + r.count);
@@ -73,6 +75,23 @@ export function proposeFromBrief(
         if (a.ok) working = a.doc;
       }
       stated.set(r.roomType, 0);
+    }
+    /**
+     * C16 (b): a size the text states for a room that already exists is a
+     * PROPOSAL. It lands on an unconfirmed room as amber; on a room the
+     * customer has confirmed it is recorded beside the value (`proposed`)
+     * for the screen to offer — the reader never overwrites a confirmation.
+     */
+    const sized = extraction.rooms.filter((r) => r.lengthM != null && r.widthM != null);
+    if (sized.length) {
+      const blocks = docBlocks(working).map((b) => {
+        if (b.kind !== "area" || b.type === "Exterior") return b;
+        const r = sized.find((x) => String(b.roomType ?? "") === x.roomType && !existingSizedIds.has(Number(b.id)));
+        if (!r) return b;
+        existingSizedIds.add(Number(b.id));
+        return foldSizeProposal(b as Record<string, unknown>, { L: r.lengthM as number, W: r.widthM as number }, { origin: "ai_extracted", by: "brief", confidence: 0.75 }).block as typeof b;
+      });
+      working = { ...working, builderState: { ...working.builderState, blocks } };
     }
   }
 
@@ -217,7 +236,9 @@ function buildFromBrief(doc: ScopeDoc, x: BriefExtraction, deps: ScopeDeps, mode
       : area0;
     const stated = x.rooms.find((r) => r.lengthM != null && r.widthM != null && (area.name.toLowerCase().startsWith((ROOM_LABEL[r.roomType] ?? r.name).toLowerCase()) || String(area.roomType) === r.roomType));
     if (!stated) return area;
-    return { ...area, L: stated.lengthM as number, W: stated.widthM as number, origin: "ai_extracted" as const, confidence: 0.75, assumedFields: area.assumedFields.filter((f) => f !== "L" && f !== "W") };
+    // C16 (b): the same fold every proposal takes — a freshly built room is
+    // unconfirmed, so the stated size applies as ai_extracted (amber).
+    return foldSizeProposal(area as unknown as Record<string, unknown>, { L: stated.lengthM as number, W: stated.widthM as number }, { origin: "ai_extracted", by: "brief", confidence: 0.75 }).block as unknown as typeof area;
   });
   const surfacesNotStated = new Set<string>();
   if (x.surfaces.length && !x.surfaces.includes("ceilings")) surfacesNotStated.add("ceilings");

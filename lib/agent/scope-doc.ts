@@ -16,6 +16,7 @@
  * Nothing here prices. Nothing here talks to a database.
  */
 
+import { DEFAULT_SEGMENTS } from "@/lib/wizard/segments";
 import { coatsFor } from "@/lib/wizard/state";
 import { substrateKeyForRateCode } from "@/lib/estimate/substrates";
 import {
@@ -229,6 +230,8 @@ export function toWizardState(draft: AnswerDraft, facts: AgentFacts, mode: "cust
       postcode: c.postcode ?? draft.address?.postcode ?? "",
       propertyKind: c.propertyKind,
       ...(c.commercialKind ? { commercialKind: c.commercialKind } : {}),
+      // C16 (c): the segment the assistant asked for — the screen's own field.
+      ...(c.commercialSegment ? { commercialSegment: c.commercialSegment } : {}),
       heritageListed: c.heritageListed,
       bodyCorporate: c.bodyCorporate,
       builtPre1970: c.builtPre1970,
@@ -357,6 +360,14 @@ export function applyAnswer(doc: ScopeDoc, key: string, value: unknown, provenan
       const k = oneOf(value, ["house", "townhouse", "unit_apartment", "commercial"] as const);
       if (!k) return { ok: false, reason: "House, townhouse, unit/apartment or commercial?" };
       return patchDraft({ customer: { propertyKind: k } });
+    }
+    case "q.commercial_segment": {
+      // C16 (c): the segment key, or its name in the customer's words
+      // ("offices", "a shop", "strata") — resolved against the same rows the
+      // screen's tiles come from, so the routing reasons are the screen's.
+      const key = segmentKeyFromAnswer(value);
+      if (!key) return { ok: false, reason: `What sort of place is it — ${DEFAULT_SEGMENTS.filter((x) => x.tile).map((x) => x.name.toLowerCase()).join(", ")}?` };
+      return patchDraft({ customer: { propertyKind: "commercial", commercialSegment: key } });
     }
     case "q.property_flags": {
       const v = obj(value);
@@ -1030,4 +1041,22 @@ export function exteriorTicks(draft: AnswerDraft): string[] {
   if (painting.windowsDoors) { ticks.add("exterior_windows"); ticks.add("exterior_doors"); }
   if (painting.garage) ticks.add("garage_doors");
   return [...ticks];
+}
+
+/** A segment key from the answer — the key itself, the tile's name, or a word of its hint. */
+export function segmentKeyFromAnswer(value: unknown): string | null {
+  const raw = typeof value === "string" ? value : typeof value === "object" && value ? String((value as { key?: unknown; segment?: unknown }).key ?? (value as { segment?: unknown }).segment ?? "") : "";
+  const fold = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const v = fold(raw.trim());
+  if (!v) return null;
+  const rows = DEFAULT_SEGMENTS;
+  const exact = rows.find((r) => r.key === v || fold(r.name) === v);
+  if (exact) return exact.key;
+  const words = v.split(/[^a-z]+/).filter((w) => w.length > 2);
+  const scored = rows.map((r) => {
+    const hay = fold(`${r.key} ${r.name} ${r.tile_hint ?? ""}`);
+    const hits = words.filter((w) => hay.includes(w.replace(/s$/, ""))).length;
+    return { key: r.key, hits };
+  }).filter((x) => x.hits > 0).sort((a, b) => b.hits - a.hits);
+  return scored[0]?.key ?? null;
 }

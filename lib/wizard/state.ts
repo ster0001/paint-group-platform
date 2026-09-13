@@ -124,6 +124,18 @@ export const wizardStateShapeSchema = z.object({
    * submit through the account chain; the id alone grants nothing.
    */
   propertyId: z.string().uuid().nullable().default(null),
+  /**
+   * C16 (a): what the ASSISTANT filled in from "describe it" and has not yet
+   * been confirmed. `wrote` names quick-look fields; the screen shows them
+   * amber; a tap on the field, or Continue on its screen, takes it off the
+   * list. Null = nothing pending. Rides the state so the versioned draft
+   * (C3) keeps it and the submit can record it.
+   */
+  assistant: z.object({
+    wrote: z.array(z.string().max(40)).max(20),
+    at: z.string().max(40),
+    source: z.enum(["describe"]),
+  }).nullable().default(null),
   noPlan: z.boolean().default(false),
 
   /**
@@ -587,6 +599,7 @@ export function defaultWizardState(): WizardState {
     commercial: null,
     brief: null,
     propertyId: null,
+    assistant: null,
     quickLook: null,
     surfaces: [...DEFAULT_SURFACES],
     condition: { tier: "change", darkToLightSurfaces: [], ceilingsMarked: false, ceilingsChangingColour: false, darkToLightCeilings: null, darkToLightCeilingRooms: [], surfaceFlags: {}, colourAnswered: false, changingGroups: { walls: false, ceilings: false, trims: false }, boldColour: false, coloursUndecided: false },

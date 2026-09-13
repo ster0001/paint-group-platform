@@ -1055,3 +1055,14 @@
 .wz .wz-book-steps li::before { content: counter(bk); position: absolute; left: 14px; top: 12px; width: 22px; height: 22px; border-radius: 50%; background: var(--cyan); color: var(--oncyan); font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; }
 .wz .wz-book-steps b { display: block; font-size: 15px; }
 .wz .wz-book-steps span { display: block; margin-top: 2px; font-size: 13px; color: var(--muted); line-height: 1.45; }
+
+/* C16 (a): a quick-look answer the assistant filled in from "describe it" —
+   amber until the customer confirms it (a tap, or Continue on its screen). */
+.wz .wz-assumed-tag { display: inline-flex; align-items: center; gap: 6px; margin: 6px 0 2px; font-size: 12.5px; color: var(--amber); border: 1px dashed rgba(224,168,60,.55); border-radius: 100px; padding: 3px 10px; }
+.wz .wz-assumed-tag::before { content: "◆"; font-size: 9px; }
+.wz .wz-proposal { margin-top: 8px; font-size: 13px; color: var(--amber); border: 1px dashed rgba(224,168,60,.55); border-radius: 10px; padding: 8px 12px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.wz .wz-proposal button { background: none; border: 1px solid var(--amber); color: var(--amber); border-radius: 100px; padding: 4px 11px; font-family: var(--wz-sans); font-size: 12.5px; cursor: pointer; }
+.wz .wz-describe { border-top: 1px solid var(--line, #242b32); padding: 10px 12px; }
+.wz .wz-describe textarea { width: 100%; min-height: 64px; border-radius: 10px; border: 1px solid var(--line2, #2e363e); background: transparent; color: inherit; padding: 8px 10px; font-family: var(--wz-sans); font-size: 14px; resize: vertical; }
+.wz .wz-describe-row { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+
