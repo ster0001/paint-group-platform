@@ -62,9 +62,21 @@ async function measureAndConfirmEveryRoom(page: Page, metres: [number, number] =
     await row.locator("input").nth(1).fill(String(metres[1]));
     await row.getByRole("button", { name: /Update size/ }).click();
     await page.waitForTimeout(600);
-    for (let c = 0; c < 4 && (await card.locator(".il-cup:not(.ok)").count()); c++) {
-      await card.locator(".il-cup:not(.ok)").first().getByRole("button", { name: "No", exact: true }).click();
-      await page.waitForTimeout(300);
+    /**
+     * Every cupboard question answered "No" — and WAITED FOR. The "No" chip is
+     * a server round trip (`act` → the rooms route → the loop re-renders with
+     * `.ok`), not a local toggle. A fixed 300 ms between attempts was enough
+     * on a quiet stack and not on a loaded one: the 12 Sep full-directory run
+     * clicked No four times on the bathroom's vanity question, none had
+     * answered before Confirm was tapped, the card shook on REQUIRED and the
+     * test read as "the ladder is wrong". Wait for the answer to land.
+     */
+    const cups = card.locator(".il-cup");
+    for (let c = 0, n = await cups.count(); c < n; c++) {
+      const cup = cups.nth(c);
+      if (/\bok\b/.test((await cup.getAttribute("class")) ?? "")) continue;
+      await cup.getByRole("button", { name: "No", exact: true }).click();
+      await expect(cup).toHaveClass(/\bok\b/, { timeout: 30_000 });
     }
     await card.locator(".il-confirm").click();
     await expect(card).toHaveClass(/done/, { timeout: 20_000 });

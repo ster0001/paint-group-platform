@@ -126,6 +126,128 @@ async function appProjectRef(base: string): Promise<string | null> {
   return null;
 }
 
+/**
+ * Which project a Supabase API key BELONGS to — the `ref` claim inside it.
+ *
+ * The legacy anon and service-role keys are JWTs whose payload carries
+ * `{ ref, role }`. A key pasted from the wrong project is still a perfectly
+ * well-formed key, so "is it set?" cannot catch it — and on 11 Sep it did
+ * not: CI run #371 had all nine secrets present, the URL secret named the
+ * test project, and the SERVICE key did not. Every service-role call answered
+ * `Invalid API key`, `/estimate` (which reads `wizard_public` through the
+ * service client) fell back to the holding page, and 83 specs failed at a
+ * uniform 20 s — which read as a flag problem and was a paste problem.
+ *
+ * Returns null for anything that is not a legacy JWT key (the newer
+ * `sb_publishable_…` / `sb_secret_…` keys carry no claims), so the check
+ * below can only ever REFUSE a mismatch it can prove, never guess.
+ */
+export function keyClaims(key: string): { ref: string | null; role: string | null } | null {
+  const parts = (key ?? "").trim().split(".");
+  if (parts.length !== 3) return null;
+  try {
+    const json = Buffer.from(parts[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
+    const claims = JSON.parse(json) as Record<string, unknown>;
+    return {
+      ref: typeof claims.ref === "string" ? claims.ref : null,
+      role: typeof claims.role === "string" ? claims.role : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** The project ref in a Supabase URL, or null when a custom domain hides it. */
+export function urlProjectRef(url: string): string | null {
+  return url.match(/^https?:\/\/([a-z0-9]{20})\.supabase\.(co|in)\b/)?.[1] ?? null;
+}
+
+/**
+ * Every API key in the environment must belong to the project the URL names.
+ * Throws with the variable NAME and the two refs (refs are public; the keys
+ * are never printed). Skips a key that is unset — presence is checked
+ * elsewhere (REQUIRED_IN_CI) — and a key whose claims cannot be read.
+ */
+export function assertKeysMatchTarget(env: Record<string, string | undefined> = process.env): void {
+  const target = env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const targetRef = urlProjectRef(target);
+  if (!targetRef) {
+    throw new Error(
+      `REFUSED: cannot read a project ref from NEXT_PUBLIC_SUPABASE_URL (${target || "unset"}).\n` +
+        "The guard has to know which project the keys must belong to; a custom domain hides it.",
+    );
+  }
+  const keys: Array<[name: string, expectedRole: string]> = [
+    ["NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon"],
+    ["SUPABASE_SERVICE_ROLE_KEY", "service_role"],
+  ];
+  for (const [name, expectedRole] of keys) {
+    const value = env[name];
+    if (!value) continue;
+    const claims = keyClaims(value);
+    if (!claims) continue;
+    if (claims.ref && claims.ref !== targetRef) {
+      throw new Error(
+        `REFUSED: ${name} belongs to project ${claims.ref}, but NEXT_PUBLIC_SUPABASE_URL names ${targetRef}.\n\n` +
+          "Every call made with that key would answer `Invalid API key`, and the app would\n" +
+          "serve the holding page (it reads wizard_public through the service client).\n" +
+          `Re-paste ${name} from the ${targetRef} project's API settings.\n` +
+          "IN CI: it is a repository secret — GitHub → Settings → Secrets and variables → Actions.\n",
+      );
+    }
+    if (claims.role && claims.role !== expectedRole) {
+      throw new Error(
+        `REFUSED: ${name} carries role "${claims.role}", expected "${expectedRole}". The two keys are swapped or one was pasted into the other's slot.`,
+      );
+    }
+  }
+}
+
+/**
+ * THE ONLINE ESTIMATOR IS ON, DELIBERATELY, FOR THE WHOLE RUN.
+ *
+ * `/estimate` serves the holding page while `settings.wizard_public.enabled`
+ * is false, and every `e2e/customer-journey/*` spec opens `/estimate` first —
+ * so the flag's state at the start of a run decided whether 76 specs could
+ * even begin. Until now nothing set it: it was whatever the last spec that
+ * touched it (`holding-and-honest-defaults`) had restored, or whatever a
+ * hand had left in the dashboard. Now the run says what it needs.
+ *
+ * Only the `enabled` field is touched; the holding wording is left as found,
+ * because that spec asserts its own wording and restores the whole row.
+ *
+ * This is also the live probe of the service key: a key the project rejects
+ * fails HERE, by name, in one second — instead of as 83 identical timeouts
+ * half an hour later.
+ */
+async function enableOnlineEstimates(): Promise<void> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+  if (!serviceKey) {
+    console.warn(
+      "\n⚠  No SUPABASE_SERVICE_ROLE_KEY — cannot turn wizard_public on for this run.\n" +
+        "   Every customer-journey spec will sit on the holding page if it is off.\n",
+    );
+    return;
+  }
+  const { createClient } = await import("@supabase/supabase-js");
+  const db = createClient(url, serviceKey, { auth: { persistSession: false } });
+  const read = await db.from("settings").select("value").eq("key", "wizard_public").maybeSingle();
+  if (read.error) {
+    throw new Error(
+      `REFUSED: the service key was rejected by ${urlProjectRef(url) ?? url} — ${read.error.message}.\n` +
+        "SUPABASE_SERVICE_ROLE_KEY is not this project's key (or the project is down).\n" +
+        "Nothing in this suite can run without it, so the run stops here rather than\n" +
+        "failing every spec on the holding page twenty seconds at a time.\n",
+    );
+  }
+  const current = (read.data?.value && typeof read.data.value === "object" ? read.data.value : {}) as Record<string, unknown>;
+  if (current.enabled === true) return;
+  const write = await db.from("settings").upsert({ key: "wizard_public", value: { ...current, enabled: true } }, { onConflict: "key" });
+  if (write.error) throw new Error(`could not turn wizard_public on: ${write.error.message}`);
+  console.log("e2e: wizard_public.enabled was off on the test project — turned on for this run.");
+}
+
 export default async function globalSetup(): Promise<void> {
   const target = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
   const allowProduction = process.env.E2E_ALLOW_PRODUCTION === "1";
@@ -220,4 +342,10 @@ export default async function globalSetup(): Promise<void> {
         "Use ./scripts/c1/run-e2e.sh for a real run.\n",
     );
   }
+
+  // ---- 3. the keys must belong to the project the URL names ---------------
+  assertKeysMatchTarget();
+
+  // ---- 4. the online estimator is on, and the service key really works ----
+  await enableOnlineEstimates();
 }
