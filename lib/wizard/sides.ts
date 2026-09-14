@@ -181,7 +181,7 @@ export type LooseBlock = Record<string, unknown> & {
   id?: number; kind?: string; name?: string; type?: string; areaType?: string;
   L?: number; H?: number; isOption?: boolean;
   surfaces?: LooseSurface[];
-  customer?: { include: boolean | null; size: "yes" | "adjusted" | "ns" | null; confirmed: boolean };
+  customer?: { include: boolean | null; size: "yes" | "adjusted" | "ns" | null; confirmed: boolean; mirroredFrom?: SideKey | null };
   customerCustom?: string[];
   /** The customer's own name for this side ("Courtyard") — display only. */
   customerLabel?: string;
@@ -270,15 +270,56 @@ function withSide(blocks: LooseBlock[], key: SideKey, fn: (b: LooseBlock) => str
   return { ok: true, blocks: blocks.map((b) => (b === side ? copy : b)) };
 }
 
-/** "Are we painting this side?" — No marks NOT PAINTING: an option area
- * (outside the total, an explicit exclusion on the quote) and immediately
- * confirmed in the loop. */
-export function applySideInclude(blocks: LooseBlock[], key: SideKey, include: boolean): SidesResult {
-  return withSide(blocks, key, (b) => {
-    normaliseShares(b);
-    b.customer = { ...customerOf(b), include, confirmed: !include };
-    b.isOption = !include;
-  });
+/** The opposite elevation — the one whose size the other usually shares. */
+export const PARTNER: Record<SideKey, SideKey> = { front: "back", back: "front", left: "right", right: "left" };
+
+/**
+ * "Which sides are we painting?" — Tom, 15 Sep 2026: a side the customer
+ * takes off LEAVES the estimate. It used to stay as NOT PAINTING (an option
+ * area, an exclusion line on the quote, an amber "side excluded" flag for
+ * the estimator); Tom: "if a side is removed it should be deleted from the
+ * estimate, not left as an exclusion". Ticking it back on rebuilds it from
+ * its opposite side (front↔back, left↔right), or any side still standing.
+ */
+export function applySideInclude(blocks: LooseBlock[], key: SideKey, include: boolean, nextId?: () => number): SidesResult {
+  const side = findSide(blocks, key);
+  if (!include) {
+    if (!side) return { ok: true, blocks };
+    return { ok: true, blocks: blocks.filter((b) => b !== side) };
+  }
+  if (side) {
+    return withSide(blocks, key, (b) => {
+      normaliseShares(b);
+      b.customer = { ...customerOf(b), include: true, confirmed: false };
+      b.isOption = false;
+    });
+  }
+  const template = findSide(blocks, PARTNER[key]) ?? SIDE_KEYS.map((k) => findSide(blocks, k)).find((b): b is LooseBlock => !!b) ?? null;
+  if (!template) return { ok: false, error: "No side left to copy — ask us to add it." };
+  const templateKey = SIDE_KEYS.find((k) => findSide([template], k)) ?? null;
+  const tc = customerOf(template);
+  // Copied from a side the customer has SIZED → it arrives mirrored (pre-written, still to confirm).
+  const mirroredFrom = templateKey && (tc.size === "adjusted" || tc.size === "yes") ? templateKey : null;
+  let next = nextId ?? (() => Math.max(0, ...blocks.flatMap((b) => [Number(b.id) || 0, ...(b.surfaces ?? []).map((s) => Number(s.id) || 0)])) + 1);
+  if (!nextId) { let n = next(); next = () => n++; }
+  const copy: LooseBlock = {
+    ...template,
+    id: next(),
+    name: `Exterior - ${SIDE_WORD[key]}`,
+    surfaces: (template.surfaces ?? []).map((s) => ({ ...s, id: next(), measureL: undefined, sharePct: s.sharePct })),
+    customer: { include: true, size: null, confirmed: false, mirroredFrom },
+    customerCustom: [], customerLabel: undefined, customerNote: undefined, customerPhotos: 0,
+    isOption: false,
+    origin: "assumed", confidence: 0.5,
+    assumedFields: [...new Set([...(Array.isArray(template.assumedFields) ? (template.assumedFields as string[]) : []), "L", "H"])],
+  };
+  syncWallMeasures(copy);
+  // Keep the loop's order: front, left, right, back.
+  const order = (b: LooseBlock) => { const k = SIDE_KEYS.find((x) => findSide([b], x)); return k ? SIDE_KEYS.indexOf(k) : 99; };
+  const out = [...blocks, copy];
+  const sidesOnly = out.filter((b) => isSideBlock(b)).sort((a, b) => order(a) - order(b));
+  let i = 0;
+  return { ok: true, blocks: out.map((b) => (isSideBlock(b) ? sidesOnly[i++] : b)) };
 }
 
 /** The L×H answer. notSure widens the range (the deferral is the route's
@@ -287,7 +328,7 @@ export function applySideDims(
   blocks: LooseBlock[], key: SideKey,
   dims: { lengthM?: number | null; heightM?: number | null; notSure?: boolean },
 ): SidesResult {
-  return withSide(blocks, key, (b) => {
+  const res = withSide(blocks, key, (b) => {
     const c = customerOf(b);
     if (c.include !== true) return "Answer “Are we painting this side?” first.";
     if (dims.notSure) {
@@ -303,7 +344,32 @@ export function applySideDims(
     b.H = Math.min(8, Math.max(2, H));
     b.origin = "customer_stated"; b.confidence = 0.85;
     b.assumedFields = (Array.isArray(b.assumedFields) ? (b.assumedFields as string[]) : []).filter((f) => f !== "L" && f !== "H");
-    b.customer = { ...c, size: "adjusted" };
+    b.customer = { ...c, size: "adjusted", mirroredFrom: null };
+    syncWallMeasures(b);
+  });
+  if (!res.ok || dims.notSure) return res;
+  return mirrorDims(res.blocks, key);
+}
+
+/**
+ * Tom, 15 Sep 2026: "measurements should be mirrored — left to right, front
+ * to back". The opposite side takes the same length and height the moment
+ * one is typed, so long as the customer has not answered its size question
+ * themselves. It stays ORANGE: the numbers are pre-written into its boxes,
+ * and the customer still confirms that side ("yes confirm — but
+ * measurements pre-written"). Only the customer's own figure ever
+ * overwrites it, so a mirrored guess never masquerades as an answer.
+ */
+function mirrorDims(blocks: LooseBlock[], key: SideKey): SidesResult {
+  const from = findSide(blocks, key);
+  const partner = findSide(blocks, PARTNER[key]);
+  if (!from || !partner) return { ok: true, blocks };
+  const pc = customerOf(partner);
+  if (pc.confirmed || pc.size != null || pc.include === false) return { ok: true, blocks };
+  return withSide(blocks, PARTNER[key], (b) => {
+    b.L = Number(from.L) || b.L;
+    b.H = Number(from.H) || b.H;
+    b.customer = { ...customerOf(b), mirroredFrom: key };
     syncWallMeasures(b);
   });
 }
@@ -710,6 +776,8 @@ export type SideView = {
   include: boolean | null;
   size: "yes" | "adjusted" | "ns" | null;
   confirmed: boolean;
+  /** Tom, 15 Sep: this side's size was copied from its opposite and is waiting to be checked. */
+  mirroredFrom: SideKey | null;
   L: number; H: number;
   walls: Array<{ id: number; code: string; label: string; pct: number }>;
   wallSum: number;
@@ -774,6 +842,7 @@ export function sidesView(
       include: c.include,
       size: c.size,
       confirmed: c.confirmed,
+      mirroredFrom: c.size == null && c.mirroredFrom ? c.mirroredFrom : null,
       L: Number(b.L) || 0,
       H: Number(b.H) || 0,
       walls: wallsRaw.map((s, i) => ({

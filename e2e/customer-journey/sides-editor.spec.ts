@@ -43,8 +43,8 @@ async function driveExteriorWizard(page: Page) {
   await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
 }
 
-test("R2b sides loop: amber to cyan, walls must total 100%, skip reads NOT PAINTING, the loop tracks all eight", async ({ page }) => {
-  test.setTimeout(240_000);
+test("R2b sides loop: amber to cyan, walls must total 100%, a removed side leaves (15 Sep), the loop tracks what remains", async ({ page }) => {
+  test.setTimeout(360_000); // 15 Sep: the right side comes off, back on (rebuilt), and off again — three more round trips
   page.on("response", async (r) => {
     if (r.url().includes("wizard-edit") && r.status() >= 400) {
       console.log("EDIT-FAIL", r.status(), (await r.text().catch(() => "")).slice(0, 160));
@@ -114,22 +114,28 @@ test("R2b sides loop: amber to cyan, walls must total 100%, skip reads NOT PAINT
   await left.getByRole("button", { name: /Confirm left/i }).click();
   await expect(left).toHaveClass(/done/, { timeout: 15_000 });
 
-  // RIGHT: skip it — NOT PAINTING, an explicit exclusion, still counts done.
+  // RIGHT: Tom, 15 Sep — a side taken off LEAVES the estimate (it used to
+  // stay as NOT PAINTING, an exclusion on the quote). The "Which sides?" card
+  // up top ticks it back on — rebuilt from its opposite, the left — and off again.
   const right = page.locator(".sd-card", { hasText: "Right" }).first();
   await right.locator(".sd-hd").click();
-  await right.getByRole("button", { name: /No — skip this side/ }).click();
-  // A server round trip — the CI runner needs longer than the 5 s default (red twice on 14 Sep).
-  await expect(right.locator(".sd-pill")).toContainText(/NOT PAINTING/, { timeout: 20_000 });
+  await right.getByRole("button", { name: /No — remove this side/ }).click();
+  await expect(page.locator(".sd-card", { hasText: "Right" })).toHaveCount(0, { timeout: 20_000 });
+  await expect(page.locator(".sd-prog")).toContainText("OF 7");
+  await expect(page.getByTestId("side-which-right")).toHaveAttribute("aria-pressed", "false");
 
-  // Batch 5 (C2): the exclusion is REVERSIBLE — "Yes" restores the side to
-  // an open amber card (confirm required again), then re-skip for the rest
-  // of the loop.
-  await right.locator(".sd-hd").click();
-  await right.getByRole("button", { name: "Yes", exact: true }).click();
-  await expect(right.locator(".sd-pill")).not.toContainText(/NOT PAINTING/, { timeout: 15_000 });
-  await expect(right.locator(".sd-pill")).toContainText(/CONFIRM THIS SIDE/);
-  await right.getByRole("button", { name: /No — skip this side/ }).click();
-  await expect(right.locator(".sd-pill")).toContainText(/NOT PAINTING/, { timeout: 15_000 });
+  await page.getByTestId("side-which-right").click();
+  await expect(page.locator(".sd-card", { hasText: "Right" })).toHaveCount(1, { timeout: 20_000 });
+  await expect(page.locator(".sd-prog")).toContainText("OF 8");
+  const right2 = page.locator(".sd-card", { hasText: "Right" }).first();
+  await expect(right2.locator(".sd-pill")).toContainText(/CONFIRM THIS SIDE/);
+  // Left was typed at 14 × 2.6 — the rebuilt right mirrors it, pre-written and still orange.
+  await right2.locator(".sd-hd").click();
+  await expect(right2.getByTestId("side-assumed-right")).toContainText(/Same as the left/i);
+  await expect(right2.getByPlaceholder("length m")).toHaveValue("14");
+  await page.getByTestId("side-which-right").click();
+  await expect(page.locator(".sd-card", { hasText: "Right" })).toHaveCount(0, { timeout: 20_000 });
+  await expect(page.locator(".sd-prog")).toContainText("OF 7");
 
   // BACK: not-sure length is accepted — "we'll measure" widens the range.
   const back = page.locator(".sd-card", { hasText: "Back" }).first();
@@ -172,8 +178,8 @@ test("R2b sides loop: amber to cyan, walls must total 100%, skip reads NOT PAINT
   await expect(page.locator(".sd-toast")).toContainText(/Bungalow/i, { timeout: 30_000 });
   await sweep.getByRole("button", { name: /Confirm — nothing missing/i }).click();
 
-  // Everything blue: 8 of 8, the "you can go early" line is gone, range still a range.
-  await expect(page.locator(".sd-prog")).toContainText("8 OF 8", { timeout: 45_000 }); // production queue drain
+  // Everything blue: 7 of 7 (the right side left), the "you can go early" line is gone, range still a range.
+  await expect(page.locator(".sd-prog")).toContainText("7 OF 7", { timeout: 45_000 }); // production queue drain
   await expect(page.locator(".sd-cta")).toBeEnabled();
   await expect(page.getByTestId("cta-hint")).toHaveCount(0);
   await expect(page.locator(".sc-r, .sd-range").first()).toHaveText(MONEY_RANGE);

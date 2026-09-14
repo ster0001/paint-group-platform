@@ -209,7 +209,9 @@ export function applyExteriorAnswers(
     a.type === "Exterior" && a.areaType === "surface" && sideKeyOfName(a.name) != null
     && a.isOption !== true).length;
   const access = exteriorAccessAllowances({
-    storeys: ext.storeys,
+    // Tom, 15 Sep: an outside-only double storey is the Access ×1.15 modifier
+    // (applyConditionPricing), not the per-side hours line; Both jobs keep the hours.
+    storeys: state.jobType === "exterior" ? "single" : ext.storeys,
     access: ext.access,
     accessEquipment: ext.accessEquipment,
     sidesPainted,
@@ -349,6 +351,10 @@ export const INTERIOR_POOR_MODIFIER_CODE = "COND-POOR";
  */
 /** The Staging modifier for a lived-in home (rate card v7 seed). */
 export const OCCUPIED_MODIFIER_CODE = "STG-OCCUPIED";
+/** Tom, 15 Sep 2026: a double-storey outside job is the card's Access ×1.15 — the whole job's labour, not a per-side hours line. */
+export const TWO_STOREY_MODIFIER_CODE = "ACC-2STOREY";
+/** Tom, 15 Sep: seeded into the work order's access notes whenever access was priced. */
+export const ACCESS_ALLOWED_NOTE = "Additional time has been allowed for access";
 
 export function applyConditionPricing(
   merged: MergedBundle,
@@ -379,6 +385,18 @@ export function applyConditionPricing(
     if (ext.condition === "peeling") {
       const mod = findMod(INTERIOR_POOR_MODIFIER_CODE);
       if (mod) candidates.push(mod);
+    }
+    // Tom, 15 Sep 2026: "2 storey should be ×1.15" — the Access modifier the
+    // card has carried since v7 and nothing used. Outside-only jobs: on a
+    // Both job the multiplier would land on the inside rooms too, so those
+    // keep the flat working-at-height hours (applyExteriorAnswers).
+    if (state.jobType === "exterior" && ext.storeys === "double") {
+      const mod = findMod(TWO_STOREY_MODIFIER_CODE);
+      if (mod) modSel.Access = mod.code;
+      else merged.deferred.push({
+        room: "Exterior", areaId: null, what: "double storey", count: 1,
+        needs: "the Access ×1.15 modifier is missing from the rate card — allow for the upper level at review",
+      });
     }
     if (ext.access.length > 0) {
       const r = rateFor(ctx.rateItems, ALLOWANCE_CODES.access.code);

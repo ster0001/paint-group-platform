@@ -51,9 +51,12 @@ const EMPTY: EstimateDocuments = { plan: null, photos: [] };
 type SourceRow = {
   id: string; kind: string | null; storage_path: string | null;
   page_no: number | null; page_class: string | null;
+  /** Tom, 15 Sep: the side the customer attached it to ("Left side"), migration 20270145. */
+  label?: string | null;
 };
 
 function labelFor(row: SourceRow, index: number): string {
+  if (typeof row.label === "string" && row.label.trim()) return row.label.trim();
   switch (row.kind) {
     case "floorplan": return row.page_no && row.page_no > 1 ? `Floorplan · page ${row.page_no}` : "Your floorplan";
     case "site_plan": return "Site plan";
@@ -76,15 +79,19 @@ export async function estimateDocuments(
 ): Promise<EstimateDocuments> {
   const photoKinds: readonly string[] = opts.includeFacades ? [...PHOTO_KINDS, "exterior_photo"] : PHOTO_KINDS;
   try {
-    const { data, error } = await db
+    const query = (cols: string) => db
       .from("estimate_sources")
-      .select("id, kind, storage_path, page_no, page_class")
+      .select(cols)
       .eq("estimate_id", estimateId)
       .order("page_no", { ascending: true, nullsFirst: false })
       .limit(40);
+    // The label column arrives with migration 20270145; a project that has
+    // not run it yet still gets its pictures.
+    let { data, error } = await query("id, kind, storage_path, page_no, page_class, label");
+    if (error && /label/i.test(error.message)) ({ data, error } = await query("id, kind, storage_path, page_no, page_class"));
     if (error || !data?.length) return EMPTY;
 
-    const rows = (data as SourceRow[]).filter((r) => !!r.storage_path);
+    const rows = (data as unknown as SourceRow[]).filter((r) => !!r.storage_path);
     const plans = rows.filter((r) => PLAN_KINDS.includes(r.kind as typeof PLAN_KINDS[number]));
     const photos = rows.filter((r) => photoKinds.includes(r.kind ?? ""));
 

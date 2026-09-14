@@ -31,7 +31,7 @@ import { bookWizardSlot, wizardVisitSlots } from "@/lib/visits/wizard";
 import { ladderFor, mayFixOnline, requiresSiteCheck } from "@/lib/wizard/ladder";
 import { deskCheckPack } from "@/lib/wizard/desk-check";
 import { confirmationDraft } from "@/lib/wizard/confirmation";
-import { INTERIOR_POOR_MODIFIER_CODE } from "@/lib/wizard/exteriorAnswers";
+import { ACCESS_ALLOWED_NOTE, INTERIOR_POOR_MODIFIER_CODE } from "@/lib/wizard/exteriorAnswers";
 import {
   ALLOWANCE_CODES, SWEEP_PRICED_CODES, WEATHERED_MODIFIER_CODE,
   addCatalogItem, addSideCustom, addSideSurface, addWallSurface, addWindowGroup, applySideCount, applySideDims,
@@ -1174,7 +1174,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         sideAddRate = perItemChargeOut(rateItems, "Exterior", act.code);
       }
       const result =
-        act.action === "side_include" ? applySideInclude(blocks, act.side, act.include)
+        act.action === "side_include" ? applySideInclude(blocks, act.side, act.include, () => next++)
         : act.action === "side_size_ok" ? applySideSizeOk(blocks, act.side)
         : act.action === "side_dims" ? applySideDims(blocks, act.side, { lengthM: act.lengthM, heightM: act.heightM, notSure: act.notSure })
         : act.action === "wall_share" ? applyWallShare(blocks, act.side, act.surfaceId, act.pct)
@@ -1228,15 +1228,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           });
         }
       }
+      // Tom, 15 Sep: a side taken off LEAVES the estimate — no "side excluded"
+      // flag, no exclusion line; its own amber notes go with it.
       if (act.action === "side_include" && !act.include) {
-        // The exclusion is explicit on the quote; its open questions leave.
-        deferred.push({
-          room: `Exterior - ${act.side}`, areaId: null, what: "side excluded", count: 1,
-          needs: `customer chose not to paint the ${act.side} — show it as an exclusion on the quote`,
-        });
+        const room = `Exterior - ${act.side}`;
+        for (let i = deferred.length - 1; i >= 0; i--) if (deferred[i].room === room) deferred.splice(i, 1);
       }
     }
     if (act.action === "loop_cond") {
+      // Tom, 15 Sep: any priced access answer seeds the work order's access
+      // note for the builder ("Additional time has been allowed for access").
+      if (act.acc === "steep" || act.acc === "tight") (state as Record<string, unknown>).accessNote = ACCESS_ALLOWED_NOTE;
       sidesMeta = { ...sidesMeta, cond: { ...sidesMeta.cond, ...(act.cond ? { cond: act.cond } : {}), ...(act.rot ? { rot: act.rot } : {}), ...(act.acc ? { acc: act.acc } : {}) } };
       // Parity STOP-item 1 (Tom's ruling, 20 Aug): weathered / minor rot /
       // access PRICE — the modifier and allowance rows live on the live card
@@ -1335,11 +1337,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (act.action === "confirm_loop_item") {
       const m = sidesMeta;
       const missing =
-        // Extras is answered by "Nothing else", by any ticked freestanding
-        // extra, or by a priced line on the Extras block — never demand the
-        // explicit "Nothing else" over a real tick (Tom, 31 Aug).
-        act.item === "extras" ? m.extrasAns == null && !hasFreestandingExtras(blocks)
-          && !blocks.some((b) => /Exterior - Extras/i.test(String(b.name ?? "")) && (b.surfaces ?? []).length > 0)
+        // Tom, 15 Sep: extras confirm with nothing ticked — nothing ticked IS
+        // the answer, so the old "Nothing else" chip is gone (it used to be
+        // the only way to confirm an empty card; Tom, 31 Aug had already made
+        // a real tick enough).
+        act.item === "extras" ? false
         : act.item === "cond" ? m.cond.cond == null || m.cond.rot == null || m.cond.acc == null
         : act.item === "dw" ? m.dwOk !== true
         : m.sweepAns == null;

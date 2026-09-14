@@ -55,6 +55,8 @@ export async function POST(request: Request) {
     uploads: z.array(z.object({
       path: z.string().min(1).max(400),
       name: z.string().max(200).default("photo"),
+      /** Tom, 15 Sep: which side of the house the photo is of ("Left side"). */
+      label: z.string().trim().max(80).optional(),
     })).min(1).max(MAX_PHOTOS),
     /** The assistant's attach path: claim the rows for this estimate at once
      *  (the wizard claims at submit instead). A customer may only claim their
@@ -100,7 +102,7 @@ export async function POST(request: Request) {
       perPhoto.push({ file: u.name, error: "couldn't be saved — try again" });
       continue;
     }
-    const ins = await db.from("estimate_sources").insert({
+    const row = {
       kind: "defect_photo",
       estimate_id: claimEstimateId,
       storage_path: path,
@@ -109,7 +111,16 @@ export async function POST(request: Request) {
       page_class: "photo",
       page_class_confidence: 0.95,
       created_by: actor.user.id,
-    }).select("id").maybeSingle();
+    };
+    // Tom, 15 Sep: the side's name rides on the row (migration 20270145).
+    // Until that column exists on a project the plain insert still lands —
+    // a photo must never be lost to a label.
+    let ins = u.label
+      ? await db.from("estimate_sources").insert({ ...row, label: u.label }).select("id").maybeSingle()
+      : await db.from("estimate_sources").insert(row).select("id").maybeSingle();
+    if (ins.error && u.label && /label/i.test(ins.error.message)) {
+      ins = await db.from("estimate_sources").insert(row).select("id").maybeSingle();
+    }
     if (ins.data?.id) sourceIds.push(ins.data.id as string);
     if (ins.error) {
       reportError(ins.error, { where: "extract.conditionPhotoRecord", bestEffort: true });

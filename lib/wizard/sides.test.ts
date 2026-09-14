@@ -21,6 +21,7 @@ import {
   ALLOWANCE_CODES, addCatalogItem, applySideDims, applyWallShare, confirmSide, defaultSidesLoop, extrasPrices, findSide,
   hasExtrasItem, rateFor, removeSideCustom, removeSideLine, toggleExtrasItem, visitReason,
   addSideCustom, addWallSurface, addSideSurface, wallOptionsFromRates, wallSumPct,
+  applySideInclude, PARTNER, sidesView,
   applySideMetres, applySideNote, applySideRename, linealCodes, sideCustomLabel, sidesDoneCount,
   type LooseBlock, type SidesLoopMeta,
 } from "./sides.ts";
@@ -422,4 +423,78 @@ test("the loop's total counts the sides that exist, not a fixed four", () => {
   assert.equal(p.total, 7, "three sides plus the four whole-job checks");
   assert.equal(p.done, 4);
   assert.equal(p.allDone, false);
+});
+
+
+// ---- Tom, 15 Sep 2026: sides come off, come back, and mirror their opposite --
+
+const fourSides = (): LooseBlock[] => (["Front", "Left", "Right", "Rear"] as const).map((name, i) => ({
+  id: 10 + i, kind: "area", name: `Exterior - ${name}`, type: "Exterior", areaType: "surface",
+  L: 12, H: 2.6, assumedFields: ["L", "H"],
+  surfaces: [{ id: 20 + i, code: "Weatherboards", sharePct: 100 }, { id: 30 + i, code: "Fascias" }],
+  customer: { include: null, size: null, confirmed: false },
+}));
+
+test("15 Sep: an unticked side LEAVES the estimate — no option area, no exclusion", () => {
+  const res = applySideInclude(fourSides(), "right", false);
+  assert.equal(res.ok, true);
+  const blocks = (res as { blocks: LooseBlock[] }).blocks;
+  assert.equal(findSide(blocks, "right"), null, "the right side is gone");
+  assert.equal(blocks.length, 3);
+  assert.equal(blocks.some((b) => b.isOption === true), false, "nothing is left as an option");
+  const view = sidesView(blocks, defaultSidesLoop());
+  assert.equal(view?.sides.length, 3);
+  assert.equal(sidesDoneCount(blocks, defaultSidesLoop()).total, 7, "the loop counts the sides that remain");
+});
+
+test("15 Sep: ticking a removed side back rebuilds it from its opposite, unconfirmed and assumed", () => {
+  let blocks = (applySideInclude(fourSides(), "back", false) as { blocks: LooseBlock[] }).blocks;
+  blocks = (applySideInclude(blocks, "front", true) as { blocks: LooseBlock[] }).blocks;
+  blocks = (applySideDims(blocks, "front", { lengthM: 14, heightM: 3 }) as { blocks: LooseBlock[] }).blocks;
+  const res = applySideInclude(blocks, "back", true);
+  assert.equal(res.ok, true);
+  blocks = (res as { blocks: LooseBlock[] }).blocks;
+  const back = findSide(blocks, "back")!;
+  assert.ok(back, "the back is back");
+  assert.equal(back.customer?.include, true);
+  assert.equal(back.customer?.confirmed, false);
+  assert.equal(back.customer?.size, null, "its size is still a question");
+  assert.equal(back.customer?.mirroredFrom, "front", "the front was sized, so the back arrives mirrored — pre-written, still to confirm");
+  assert.equal(back.L, 14, "copied from the front");
+  assert.equal(back.H, 3);
+  assert.deepEqual((back.surfaces ?? []).map((x) => x.code), ["Weatherboards", "Fascias"], "same surfaces as the front");
+  const ids = blocks.flatMap((b) => [Number(b.id), ...(b.surfaces ?? []).map((x) => Number(x.id))]);
+  assert.equal(new Set(ids).size, ids.length, "every id is fresh");
+  assert.ok((back.assumedFields as string[]).includes("L"), "its size counts as assumed until the customer answers");
+  assert.deepEqual(blocks.filter((b) => b.areaType === "surface").map((b) => b.name), ["Exterior - Front", "Exterior - Left", "Exterior - Right", "Exterior - Rear"], "loop order kept");
+});
+
+test("15 Sep: a typed size mirrors onto the opposite side — pre-written, still to confirm", () => {
+  let blocks = fourSides();
+  for (const k of ["front", "left", "right", "back"] as const) blocks = (applySideInclude(blocks, k, true) as { blocks: LooseBlock[] }).blocks;
+  blocks = (applySideDims(blocks, "left", { lengthM: 15, heightM: 2.7 }) as { blocks: LooseBlock[] }).blocks;
+  const right = findSide(blocks, "right")!;
+  assert.equal(PARTNER.left, "right");
+  assert.equal(right.L, 15); assert.equal(right.H, 2.7);
+  assert.equal(right.customer?.mirroredFrom, "left");
+  assert.equal(right.customer?.size, null, "mirrored is not answered");
+  assert.equal(right.customer?.confirmed, false, "mirrored stays orange");
+  assert.ok((right.assumedFields as string[]).includes("L"), "still assumed for the accuracy score");
+  assert.equal(findSide(blocks, "front")!.L, 12, "the front is untouched");
+  const view = sidesView(blocks, defaultSidesLoop())!;
+  assert.equal(view.sides.find((x) => x.key === "right")?.mirroredFrom, "left");
+  // The customer's own figure on the right ends the mirror and does not bounce back.
+  blocks = (applySideDims(blocks, "right", { lengthM: 9, heightM: 2.7 }) as { blocks: LooseBlock[] }).blocks;
+  assert.equal(findSide(blocks, "right")!.customer?.mirroredFrom, null);
+  assert.equal(findSide(blocks, "left")!.L, 15, "an answered side is never overwritten");
+  assert.equal(findSide(blocks, "left")!.customer?.size, "adjusted");
+});
+
+test("15 Sep: the mirror never overwrites a side the customer has answered or confirmed", () => {
+  let blocks = fourSides();
+  for (const k of ["front", "back"] as const) blocks = (applySideInclude(blocks, k, true) as { blocks: LooseBlock[] }).blocks;
+  blocks = (applySideDims(blocks, "back", { notSure: true }) as { blocks: LooseBlock[] }).blocks;
+  blocks = (applySideDims(blocks, "front", { lengthM: 20, heightM: 5 }) as { blocks: LooseBlock[] }).blocks;
+  assert.equal(findSide(blocks, "back")!.L, 12, "'not sure' is an answer — no mirror");
+  assert.equal(findSide(blocks, "back")!.customer?.mirroredFrom ?? null, null);
 });

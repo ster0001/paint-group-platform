@@ -6,7 +6,8 @@ import AllDoneBanner from "./AllDoneBanner";
 import EstimatorStrip from "@/app/wizard/EstimatorStrip";
 import { alreadySentFrom, useAutoSend } from "./useAutoSend";
 import SideNote from "./SideNote";
-import { SIDE_LABEL as SIDE_FALLBACK, TWICE_OK_CODES } from "@/lib/wizard/sides";
+import { SIDE_KEYS, SIDE_LABEL as SIDE_FALLBACK, TWICE_OK_CODES } from "@/lib/wizard/sides";
+import Paginated, { type PaginatedStep } from "./Paginated";
 import { TIER_LABEL, type Ladder } from "@/lib/wizard/ladder";
 import { afterLayout, scrollCardToTop } from "./scrollCard";
 import { useRef, useState, useSyncExternalStore } from "react";
@@ -296,7 +297,9 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
     const doneOf = (k: string) =>
       k === "extras" ? v.meta.done.extras : k === "cond" ? v.meta.done.cond
       : k === "dw" ? v.meta.done.dw : k === "sweep" ? v.meta.done.sweep
-      : v.sides.find((s) => s.key === k)?.confirmed ?? false;
+      // Tom, 15 Sep: a side taken off the estimate has nothing to open — it
+      // counts as done here, or the loop would try to open a card that is gone.
+      : v.sides.find((s) => s.key === k)?.confirmed ?? true;
     const nxt = order.find((k) => !doneOf(k));
     if (nxt) {
       setOpen(nxt);
@@ -307,7 +310,64 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
   };
 
   const extrasTiles = exterior?.groups.find((g) => g.group === "extras")?.tiles ?? [];
-  const extrasAnswered = sides.meta.extrasAns === "none" || extrasTiles.some((t) => t.on);
+  // Tom, 15 Sep: nothing ticked is an answer — the card confirms as it is.
+  const extrasAnswered = sides.meta.done.extras || extrasTiles.some((t) => t.on);
+
+  /**
+   * Tom, 15 Sep 2026: "Which sides are we painting?" asked ONCE, up top, the
+   * way the quick look asks it — not "are we painting this side?" inside
+   * every card. Unticking a side takes it off the estimate altogether (no
+   * exclusion line, no amber flag); ticking it back rebuilds it from its
+   * opposite side. The card settles once every side left has been said yes
+   * to, and the per-side cards then open straight onto the size question.
+   */
+  /** The short word for a side in running copy — the customer's own name for it wins. */
+  const shortSide = (k: SideKey) => sides.sides.find((x) => x.key === k)?.customLabel?.toLowerCase() ?? k;
+  const whichOn = (k: SideKey) => {
+    const s = sides.sides.find((x) => x.key === k);
+    const o = optimistic[`which:${k}`];
+    if (o != null) return o === "1";
+    return !!s && s.include !== false;
+  };
+  const whichAnswered = sides.sides.length > 0 && sides.sides.every((s) => s.include === true);
+  const whichSteps: PaginatedStep[] = [{
+    key: "sides",
+    question: "Which sides are we painting?",
+    hint: "Tick all that apply — a side you untick comes off your estimate.",
+    answered: whichAnswered,
+    label: "Sides",
+    body: (
+      <>
+        <div className="sd-chips" data-testid="side-which">
+          {SIDE_KEYS.map((k) => {
+            const s = sides.sides.find((x) => x.key === k);
+            const on = whichOn(k);
+            return (
+              <button key={k} type="button" className={`sd-chip ${on ? "on" : ""}`} aria-pressed={on}
+                data-testid={`side-which-${k}`}
+                onClick={() => act({ action: "side_include", side: k, include: !on }, {
+                  done: on ? `${s?.label ?? SIDE_FALLBACK[k]} taken off your estimate.` : `${SIDE_FALLBACK[k]} is back on — confirm its size below.`,
+                  opt: [`which:${k}`, on ? "0" : "1"],
+                })}>
+                {on ? "✓ " : "+ "}{s?.label ?? SIDE_FALLBACK[k]}
+              </button>
+            );
+          })}
+        </div>
+        {!whichAnswered && (
+          <button type="button" className="sd-confirm" data-testid="side-which-confirm" style={{ marginTop: 10 }}
+            onClick={() => {
+              const todo = sides.sides.filter((s) => s.include !== true);
+              if (todo.length === 0) return;
+              todo.forEach((s, i) => act({ action: "side_include", side: s.key, include: true },
+                i === todo.length - 1 ? { done: "Thanks — now each side, one at a time.", onOk: openNext } : {}));
+            }}>
+            These are the sides ✓
+          </button>
+        )}
+      </>
+    ),
+  }];
 
   function sideCard(s: SideView) {
     const isOpen = open === s.key;
@@ -350,22 +410,24 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
         </div>
         {isOpen && (
           <div className="sd-body">
+            {s.include !== true && (
             <div className={`sd-q ${s.include != null ? "ok" : ""}`}>
               <p className="sd-ql">Are we painting this side? <span className="sd-req">REQUIRED</span><span className="sd-okc">✓</span></p>
               <div className="sd-chips">
-                <button className={`sd-chip ${sel(`inc:${s.key}`, s.include === true, "yes") ? "on" : ""}`} onClick={() => act({ action: "side_include", side: s.key, include: true }, { opt: [`inc:${s.key}`, "yes"] })}>Yes</button>
+                <button className={`sd-chip ${sel(`which:${s.key}`, false, "1") ? "on" : ""}`} onClick={() => act({ action: "side_include", side: s.key, include: true }, { opt: [`inc:${s.key}`, "yes"] })}>Yes</button>
                 <button
                   className={`sd-chip ${sel(`inc:${s.key}`, s.include === false, "no") ? "on" : ""}`}
                   onClick={() => act({ action: "side_include", side: s.key, include: false }, {
-                    done: `${s.label} skipped — it'll show as excluded on your quote.`,
+                    done: `${s.label} taken off your estimate.`,
                     onOk: openNext,
-                    opt: [`inc:${s.key}`, "no"],
+                    opt: [`which:${s.key}`, "0"],
                   })}
                 >
-                  No — skip this side
+                  No — remove this side
                 </button>
               </div>
             </div>
+            )}
 
             {s.include === true && (
               <>
@@ -392,17 +454,21 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                       ? `We'll measure this side on the day — your range stays wider until then.`
                       : s.size === "adjusted" || s.size === "yes"
                         ? `Recorded: ${s.L} m long × ${s.H} m high.`
-                        : `Your guide range used ${s.L} m × ${s.H} m — pace it out and put the real numbers in.`}
+                        : s.mirroredFrom
+                          ? `Same as the ${shortSide(s.mirroredFrom)} — ${s.L} m × ${s.H} m. Check it and tap Update, or change the numbers.`
+                          : `Your guide range used ${s.L} m × ${s.H} m — pace it out and put the real numbers in.`}
                   </p>
                   {(
-                    <div className="sd-mrow" data-testid={`side-dims-${s.key}`}>
-                      <input placeholder="length m" inputMode="decimal" value={dims.L} onChange={(e) => setDims({ ...dims, L: e.target.value })} />
+                    <div className="sd-mrow" data-testid={`side-dims-${s.key}`} data-mirrored={s.mirroredFrom ?? undefined}>
+                      {/* Tom, 15 Sep: a mirrored side's boxes come pre-written with
+                          the opposite side's numbers — still orange until Update. */}
+                      <input placeholder="length m" inputMode="decimal" value={dims.L || (s.mirroredFrom ? String(s.L) : "")} onChange={(e) => setDims({ ...dims, L: e.target.value })} />
                       <span>×</span>
-                      <input placeholder="height m" inputMode="decimal" value={dims.H} onChange={(e) => setDims({ ...dims, H: e.target.value })} />
+                      <input placeholder="height m" inputMode="decimal" value={dims.H || (s.mirroredFrom ? String(s.H) : "")} onChange={(e) => setDims({ ...dims, H: e.target.value })} />
                       <button
                         onClick={() => {
-                          const lv = dims.L.trim().toLowerCase();
-                          const hv = dims.H.trim().toLowerCase();
+                          const lv = (dims.L || (s.mirroredFrom ? String(s.L) : "")).trim().toLowerCase();
+                          const hv = (dims.H || (s.mirroredFrom ? String(s.H) : "")).trim().toLowerCase();
                           if (lv.includes("not") || hv.includes("not")) {
                             act({ action: "side_dims", side: s.key, notSure: true }, {
                               done: "Not a problem — we'll measure this side on the day; your range widens a touch until then.",
@@ -631,6 +697,17 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
               </>
             )}
 
+            {s.include === true && !s.confirmed && (
+              <p className="sd-help">
+                Not painting this side after all?{" "}
+                <button type="button" className="wz-linkish" data-testid={`side-remove-${s.key}`}
+                  onClick={() => act({ action: "side_include", side: s.key, include: false }, {
+                    done: `${s.label} taken off your estimate.`, onOk: openNext, opt: [`which:${s.key}`, "0"],
+                  })}>
+                  Remove it
+                </button>
+              </p>
+            )}
             {s.include !== false && (
               <button
                 className="sd-confirm"
@@ -829,17 +906,23 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
           </div>
 
           <div className="sd-cards">
+            <Paginated
+              testid="sides-which"
+              title="Which sides?"
+              pill="FIRST"
+              steps={whichSteps}
+              settledText={`Painting the ${sides.sides.map((s) => shortSide(s.key)).join(", ").replace(/, ([^,]*)$/, " and $1")}.`}
+            />
             {sides.sides.map(sideCard)}
 
             {metaCard("extras", "Freestanding extras", (
               <div className={`sd-q ${extrasAnswered ? "ok" : ""}`}>
-                <p className="sd-ql">Not on a wall — fences, pergolas and the like. <span className="sd-req">REQUIRED</span><span className="sd-okc">✓</span></p>
+                <p className="sd-ql">Not on a wall — fences, pergolas and the like. <span className="sd-opt">TICK ANY THAT APPLY</span><span className="sd-okc">✓</span></p>
                 <div className="sd-chips">
                   {extrasTiles.map((t) => (
                     <Chip key={String(t.key)} on={t.on} label={`${t.on ? "✓ " : "+ "}${t.label}`}
                       onClick={() => act({ action: "toggle_exterior", key: String(t.key), on: !t.on }, { done: `${t.on ? "Removed" : "Added"} ${t.label.toLowerCase()}.` })} />
                   ))}
-                  <Chip on={sel("extras:none", m.extrasAns === "none")} label={"Nothing else ✓"} onClick={() => act({ action: "loop_extras_none" }, { opt: ["extras:none", "1"] })} />
                 </div>
                 {extrasTiles.some((t) => t.key === "fence" && t.on) && (
                   <div className="sd-chips" style={{ marginTop: 9 }} data-testid="fence-type">

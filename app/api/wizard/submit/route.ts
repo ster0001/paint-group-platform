@@ -27,7 +27,7 @@ import { envelopeFor } from "@/lib/wizard/envelope";
 import { pickedRooms } from "@/lib/wizard/some-rooms";
 import { holdDaysFromSettings } from "@/lib/wizard/confirmation-actions";
 import { applyOpenSpace, commercialPricingFrom, hourLoadingFor } from "@/lib/pricing/commercial";
-import { applyConditionPricing, applyExteriorAnswers, type MeasuredSides } from "@/lib/wizard/exteriorAnswers";
+import { ACCESS_ALLOWED_NOTE, applyConditionPricing, applyExteriorAnswers, type MeasuredSides } from "@/lib/wizard/exteriorAnswers";
 import { defaultSidesLoop } from "@/lib/wizard/sides";
 import { customerPayload, editorPayload } from "@/lib/wizard/view";
 import { exteriorWhatWeDo, paintSystemsView } from "@/lib/wizard/systems-view";
@@ -613,11 +613,16 @@ export async function POST(request: Request) {
   const commercialLoading = segment && state.commercial
     ? hourLoadingFor({ hours: state.commercial.hours, occ: state.commercial.occ, operating: isWarehouse(segment) && state.commercial.operating }, commercialPricingFrom(settingValue(ctx.settings, "commercial_pricing")))
     : 1;
+  const accessPriced = state.jobType !== "interior" && !!state.exterior
+    && (state.exterior.storeys === "double" || state.exterior.access.some((a) => a === "steep" || a === "tight"));
   const builderState: Record<string, unknown> = {
     blocks: merged.areas,
     aiDeferred: merged.deferred,
     ...(wizardContact ? { contact: wizardContact } : {}),
     ...(Object.keys(conditionModSel).length ? { modSel: conditionModSel } : {}),
+    // Tom, 15 Sep: access was priced (second storey, steep block, tight
+    // access) → the work order's access note starts with the allowance line.
+    ...(accessPriced ? { accessNote: ACCESS_ALLOWED_NOTE } : {}),
     ...(sidesLoopSeed ? { sidesLoop: sidesLoopSeed } : {}),
     // C12 (§4.14): the commercial loading — one multiplier on production
     // hours, from the hours and occupied answers and the Settings row. Absent

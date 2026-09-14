@@ -1,6 +1,6 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
-import { applyConditionPricing, INTERIOR_POOR_MODIFIER_CODE, type MergedBundle } from "./exteriorAnswers.ts";
+import { applyConditionPricing, INTERIOR_POOR_MODIFIER_CODE, TWO_STOREY_MODIFIER_CODE, type MergedBundle } from "./exteriorAnswers.ts";
 import { ALLOWANCE_CODES, WEATHERED_MODIFIER_CODE } from "./sides.ts";
 import { defaultExterior, defaultWizardState, type WizardState } from "./state.ts";
 
@@ -177,4 +177,34 @@ test("an occupied interior job selects STG-OCCUPIED and says the price may vary;
   const none = applyConditionPricing(empty, interior("no"), () => next++, withMod);
   assert.equal(none.Staging, undefined);
   assert.equal(empty.deferred.length, 0);
+});
+
+
+// ---- Tom, 15 Sep 2026: a double storey is the Access ×1.15 on an outside job --
+
+const ctx2 = { ...ctx, modifiers: [...ctx.modifiers, { code: TWO_STOREY_MODIFIER_CODE, multiplier: 1.15 }] };
+
+test("15 Sep: double storey on an outside-only job selects the ACC-2STOREY modifier", () => {
+  const m = bundle();
+  let next = 1;
+  const modSel = applyConditionPricing(m, exteriorState({ storeys: "double" }), () => next++, ctx2);
+  assert.equal(modSel.Access, TWO_STOREY_MODIFIER_CODE);
+  assert.equal(modSel.Condition, undefined, "good condition adds no condition modifier");
+  assert.equal(m.deferred.length, 0);
+});
+
+test("15 Sep: a Both job keeps the flat hours — the whole-job multiplier would price the inside rooms up too", () => {
+  const m = bundle();
+  let next = 1;
+  const state: WizardState = { ...defaultWizardState(), jobType: "both", exterior: { ...defaultExterior(), condition: "good", storeys: "double" } };
+  const modSel = applyConditionPricing(m, state, () => next++, ctx2);
+  assert.equal(modSel.Access, undefined);
+});
+
+test("15 Sep: a card without the modifier raises the amber flag instead of a silent single storey", () => {
+  const m = bundle();
+  let next = 1;
+  const modSel = applyConditionPricing(m, exteriorState({ storeys: "double" }), () => next++, ctx);
+  assert.equal(modSel.Access, undefined);
+  assert.equal(m.deferred.some((d) => d.what === "double storey"), true);
 });

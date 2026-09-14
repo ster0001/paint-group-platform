@@ -53,12 +53,12 @@ export default function SideNote({ estimateId, sideKey, sideLabel, note, photoCo
     const prepJson = await prep.json().catch(() => ({}));
     if (!prep.ok) throw new Error(prepJson.error ?? "Those photos couldn't be uploaded.");
     const slots: Array<{ path: string; token: string }> = prepJson.uploads ?? [];
-    const staged: Array<{ path: string; name: string }> = [];
+    const staged: Array<{ path: string; name: string; label: string }> = [];
     for (let i = 0; i < files.length && i < slots.length; i++) {
       const { error: upErr } = await supabase.storage
         .from("estimate-sources")
         .uploadToSignedUrl(slots[i].path, slots[i].token, files[i]);
-      if (!upErr) staged.push({ path: slots[i].path, name: `${sideLabel} — ${files[i].name}`.slice(0, 200) });
+      if (!upErr) staged.push({ path: slots[i].path, name: `${sideLabel} — ${files[i].name}`.slice(0, 200), label: sideLabel.slice(0, 80) });
     }
     if (staged.length === 0) throw new Error("Those photos couldn't be uploaded — try one at a time.");
     const res = await fetch("/api/extract/photos", {

@@ -534,7 +534,9 @@ export default function QuoteBuilder({
   // (created on acceptance); before that the Work order tab is a live preview.
   const [woContractorId, setWoContractorId] = useState<string | null>(workOrder?.contractor_id ?? null);
   const [woStartDate, setWoStartDate] = useState<string | null>(workOrder?.start_date ?? null);
-  const [woAccessNotes, setWoAccessNotes] = useState<string>(workOrder?.access_notes ?? "");
+  // Tom, 15 Sep: an outside job that priced access (second storey, steep or
+  // tight) arrives with the note already written; staff edit from there.
+  const [woAccessNotes, setWoAccessNotes] = useState<string>(workOrder?.access_notes ?? (loaded as { accessNote?: string } | null)?.accessNote ?? "");
   const [woCrewNotes, setWoCrewNotes] = useState<string>(workOrder?.crew_notes ?? "");
   const [woColours, setWoColours] = useState<Record<string, { name: string; hex: string; status: "tbc" | "confirmed" }>>(() => {
     const c = (workOrder?.colours ?? {}) as Record<string, { name?: string; hex?: string; status?: string }>;

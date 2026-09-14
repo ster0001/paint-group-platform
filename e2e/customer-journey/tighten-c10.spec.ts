@@ -93,6 +93,9 @@ test("one 'anything we've missed' card, extras per room, no pets, and the assume
   await page.getByTestId("ql-bedrooms-2").click();
   await quickNext(page);
   await quickNext(page);
+  // 14 Sep (evening): confirm the rooms — the starter list, accepted as it is.
+  await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 });
+  await quickNext(page);
   await page.getByTestId("ql-condition-good").click();
   await quickNext(page);
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
@@ -141,6 +144,9 @@ test("the quick look's condition screen has no free-text box", async ({ page }) 
   await fillQuickAddress(page);
   await quickNext(page);
   await quickNext(page);
+  await quickNext(page);
+  // 14 Sep (evening): the rooms step sits before the condition screen now.
+  await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 });
   await quickNext(page);
   await expect(page.locator("[data-quick-step='condition']")).toBeVisible();
   await expect(page.locator("[data-quick-step='condition'] textarea")).toHaveCount(0);
