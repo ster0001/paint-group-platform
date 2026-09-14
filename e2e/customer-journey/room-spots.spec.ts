@@ -28,8 +28,9 @@ test("a flagged spot becomes a repair line on the room it's in", async ({ page }
   const spots = page.getByTestId(`room-spots-${areaId}`);
   await expect(spots).toBeVisible();
 
-  // The three-way condition question defaults to "same as the rest".
-  await expect(page.getByTestId(`room-cond-${areaId}-same`)).toHaveAttribute("aria-pressed", "true");
+  // v2.5 (C10): the per-room better / same / worse question is gone — a spot
+  // is the only per-room condition answer a customer gives.
+  await expect(page.locator(`[data-testid^="room-cond-${areaId}-"]`)).toHaveCount(0);
 
   // A crack: ⚑6 says this one auto-prices.
   const before = await page.locator(".sc-r").first().innerText();
@@ -69,10 +70,6 @@ test("a flagged spot becomes a repair line on the room it's in", async ({ page }
   const remove = firstRoom.locator("[data-testid^='spot-remove-']").first();
   await remove.click();
   await expect(list).not.toContainText("Crack", { timeout: 30_000 });
-
-  // "Worse than the rest" is a room a person should look at.
-  await page.getByTestId(`room-cond-${areaId}-worse`).click();
-  await expect(page.getByTestId(`room-cond-${areaId}-worse`)).toHaveAttribute("aria-pressed", "true", { timeout: 30_000 });
 
   await firstRoom.screenshot({ path: "test-results/room-spots.png" });
 });

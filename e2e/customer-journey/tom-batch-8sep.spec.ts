@@ -139,11 +139,16 @@ test("Tom, 8 Sep evening: book in your estimator — the lead, the hours, the nu
   await expect(page.getByTestId("human-line")).toBeVisible(); // C11: the counter is gone; one human line stands in its place
 
   // --- 5 · the reframed strip ------------------------------------------------
+  // C11 (Tom, 10 Sep) superseded the 8 Sep heading and icon tiles: the
+  // estimator is named and present, and the ways to reach them are plain
+  // buttons under the name — no "Book in your estimator" heading, no icons.
   const strip = page.getByTestId("reach-strip");
-  await expect(strip).toContainText("Book in your estimator");
+  await expect(strip.getByTestId("estimator-strip")).toBeAttached();
   await expect(strip).not.toContainText(/Rather talk to a person/i);
-  await expect(strip.getByTestId("reach-visit").locator(".reach-ic")).toBeVisible();
-  await expect(strip.getByTestId("reach-callback").locator(".reach-ic")).toBeVisible();
+  await expect(strip).not.toContainText(/Book in your estimator/i);
+  await expect(strip.getByTestId("reach-visit")).toBeVisible();
+  await expect(strip.getByTestId("reach-callback")).toBeVisible();
+  await expect(strip.locator(".reach-ic")).toHaveCount(0);
 
   // --- 7 · the hours, with the Call us button --------------------------------
   if (await strip.getByTestId("reach-call").count()) {

@@ -2,6 +2,7 @@
 
 import ContactCard from "./ContactCard";
 import { sendToLabel } from "@/lib/wizard/finish-line";
+import { humanLine } from "@/lib/wizard/human-line";
 import ReachStrip from "./ReachStrip";
 import SideNote from "./SideNote";
 import { SIDE_LABEL as SIDE_FALLBACK, TWICE_OK_CODES } from "@/lib/wizard/sides";
@@ -949,6 +950,18 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
             ? `${booked} — we'll be in touch to finalise your price.`
             : `${VISIT_REASON_LINE[ladder.reason ?? "signoff"]}a person finalises your price with you — call us, ask for a call back, or request a visit whenever you like.`}
         </div>
+        {/* C11 — ONE human line, from ONE evaluator (lib/wizard/human-line.ts).
+            The rooms editor had it from C11; the sides editor is the same
+            person on the same screen (finished 14 Sep). */}
+        {booked == null && (() => {
+          const h = humanLine({ estimator: sendTo, notSures: 0, condition: "wear", done: prog.done, total: prog.total, exterior: true });
+          return (
+            <p className="wz-human" data-testid="human-line" data-state={h.state}>
+              <b>{h.line}</b>
+              <button type="button" className="wz-btn wz-bs2" onClick={() => setSlotsOpen(true)} data-testid="human-line-book">{h.action}</button>
+            </p>
+          );
+        })()}
         <div className="sd-row">
           <div className="sd-pr"><small>ESTIMATE · INCL. GST</small><span data-role="range">{range}</span></div>
           <div className="sd-sp" />

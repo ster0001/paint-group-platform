@@ -1069,3 +1069,19 @@
 /* 14 Sep: an assumption the range envelope is still open on. */
 .wz .wz-assumed-open { display: block; margin-top: 4px; font-size: 12.5px; color: var(--amber); }
 
+/* 14 Sep — on a phone the fixed bottom strip took half the screen (the tier
+   sentence, the human line, the money row, the estimator card, three reach
+   buttons and the hours: ~330 px of a 664 px viewport), and with the frozen
+   header above it a room's own header could never be tapped — a click at the
+   centre of the viewport landed exactly on the strip's top edge. Keep the
+   human line, the money row and the two reach buttons; the estimator is
+   named in the page, the hours sit with the call-back form. */
+@media (max-width: 560px) {
+  .wz .sc-stick, .wz .sd-stick { padding: 8px 12px; }
+  .wz .sc-stick .sc-tier, .wz .sd-stick .sd-tier, .wz .sc-stick .sc-lastchange, .wz .sd-stick .sd-ctahint { display: none; }
+  .wz .sc-stick .wz-human, .wz .sd-stick .wz-human { margin: 0 0 6px; }
+  .wz .sc-stick .sc-reach .wz-est, .wz .sd-stick .sd-reach .wz-est,
+  .wz .sc-stick .sc-reach-hours, .wz .sd-stick .sd-reach-hours { display: none; }
+  .wz .sc-stick .sc-reach, .wz .sd-stick .sd-reach { margin-top: 6px; }
+  .wz .sc-stick .sc-reach .sc-contact-opt, .wz .sd-stick .sd-reach .sd-contact-opt { padding: 6px 10px; font-size: 12px; }
+}

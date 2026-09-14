@@ -82,7 +82,8 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
   if (opts.scope) await page.getByTestId(`ql-scope-${opts.scope}`).click();
   // C9: the single colour picker is gone. "same" = untick the walls (the
   // default tick); "new" = the default; "bold" = walls ticked + "Yes" to bold.
-  if (opts.colour === "same") await page.getByTestId("ql-changing-walls").click();
+  // 14 Sep: every tile starts ticked, so "same" = untick all three.
+  if (opts.colour === "same") for (const k of ["walls", "ceilings", "trims"]) await page.getByTestId(`ql-changing-${k}`).click();
   if (opts.colour === "bold") await page.getByTestId("ql-bold-yes").click();
   await quickNext(page);
 
