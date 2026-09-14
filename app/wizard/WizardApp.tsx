@@ -1303,7 +1303,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       if (pageKey === "house" && (ext?.targets.length ?? 0) === 0) return "What are we painting? Tick at least one.";
       if (pageKey === "house" && ext?.targets.includes("house") && ext.substrates.length === 0) return "What's the house made of? Tick at least one — or “None” if the walls aren't being painted.";
       if (pageKey === "scope" && ext && !Object.values(ext.painting).some(Boolean)) return "Tick at least one thing we're painting.";
-      if (pageKey === "ext_condition" && ext?.condition == null) return "How's the paintwork holding up?";
+      if (pageKey === "ext_condition" && ext?.condition == null) return "How's the paintwork holding up overall?";
       return null;
     }
     if (pageKey === "surfaces" && state.surfaces.length === 0) return "Tick at least one surface.";
@@ -1870,14 +1870,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                     {/* ⚑14 stands: nothing was demoted. The other two ways in
                         stay on the first screen — they are simply no longer a
                         toll gate in front of the price (§2.1). */}
+                    {/* Tom, 15 Sep: "describe it" left screen 1 — the chat bubble is the describe door.
+                        An INSIDE job uploads its floorplan on the place screen; only the outside
+                        path still starts from photos or a listing here. */}
                     <div className="wz-otherways" data-testid="wz-entry">
-                      <span>Or start another way:</span>
-                      <button type="button" className="wz-linkish" data-testid="entry-describe" onClick={() => chooseEntry("describe")}>
-                        Describe it in your own words
-                      </button>
-                      {/* Tom, 14 Sep: an INSIDE job uploads its floorplan on the place
-                          screen (part of the builder); only the outside path still
-                          starts from photos or a listing here. */}
+                      {state.jobType === "exterior" && <span>Or start another way:</span>}
                       {state.jobType === "exterior" && (
                         <button type="button" className="wz-linkish" data-testid="entry-upload" onClick={() => chooseEntry("upload")}>
                           Upload photos or a listing

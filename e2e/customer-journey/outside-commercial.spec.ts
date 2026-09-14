@@ -37,13 +37,13 @@ test("9.3(b) the screen-1 promise counts the real screens on every branch", asyn
   const sub = page.locator(".wz-quick .wz-sub").first();
 
   await page.getByTestId("ql-jobtype-interior").click();
-  await expect(sub).toContainText("Four quick screens");
+  await expect(sub).toContainText("Five quick screens"); // 14 Sep (evening): + confirm the rooms
 
   await page.getByTestId("ql-jobtype-exterior").click();
   await expect(sub).toContainText("Three quick screens");
 
   await page.getByTestId("ql-jobtype-both").click();
-  await expect(sub).toContainText("Five quick screens");
+  await expect(sub).toContainText("Six quick screens");
 });
 
 test("9.3(a) a ?mode=business visitor still sees the quick look", async ({ page }) => {

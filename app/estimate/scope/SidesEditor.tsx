@@ -873,7 +873,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
             {metaCard("cond", "Condition & access", (
               <>
                 <div className={`sd-q ${m.cond.cond ? "ok" : ""}`}>
-                  <p className="sd-ql">How&rsquo;s the paintwork holding up? <span className="sd-req">REQUIRED</span><span className="sd-okc">✓</span></p>
+                  <p className="sd-ql">How&rsquo;s the paintwork holding up overall? <span className="sd-req">REQUIRED</span><span className="sd-okc">✓</span></p>
                   <div className="sd-chips">
                     <Chip on={sel("cond:c", m.cond.cond === "good", "good")} label={"Good overall"} onClick={() => act({ action: "loop_cond", cond: "good" }, { describe: withDelta("Good to hear — noted"), opt: ["cond:c", "good"] })} />
                     <Chip on={sel("cond:c", m.cond.cond === "weathered", "weathered")} label={"Weathered"} onClick={() => act({ action: "loop_cond", cond: "weathered" }, { describe: withDelta("Extra prep allowed for weathered paintwork"), opt: ["cond:c", "weathered"] })} />
@@ -893,7 +893,6 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                   <div className="sd-chips">
                     <Chip on={sel("cond:a", m.cond.acc === "steep", "steep")} label={"Steep block"} onClick={() => act({ action: "loop_cond", acc: "steep" }, { describe: withDelta("Access allowance added"), opt: ["cond:a", "steep"] })} />
                     <Chip on={sel("cond:a", m.cond.acc === "tight", "tight")} label={"Tight side access"} onClick={() => act({ action: "loop_cond", acc: "tight" }, { describe: withDelta("Access allowance added"), opt: ["cond:a", "tight"] })} />
-                    <Chip on={sel("cond:a", m.cond.acc === "high", "high")} label={"Double-height entry"} onClick={() => act({ action: "loop_cond", acc: "high" }, { describe: withDelta("Access allowance added"), opt: ["cond:a", "high"] })} />
                     <Chip on={sel("cond:a", m.cond.acc === "none", "none")} label={"None of these ✓"} onClick={() => act({ action: "loop_cond", acc: "none" }, { describe: withDelta("No access allowance needed"), opt: ["cond:a", "none"] })} />
                   </div>
                 </div>

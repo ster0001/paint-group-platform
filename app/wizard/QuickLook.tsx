@@ -13,6 +13,7 @@ import {
 import { AreasScreen, BookScreen, BriefScreen, JobScreen, SegmentScreen, WarehouseScreen, type BookContact } from "./CommercialScreens";
 import type { BriefAnswers, CommercialAnswers, Segment, SegmentBrief } from "@/lib/wizard/segments";
 import { starterRoomNames } from "@/lib/wizard/some-rooms";
+import { WINDOW_DRAWINGS } from "@/app/estimate/scope/StyleTiles";
 
 /** C12: what the commercial screens need from WizardApp. */
 export type CommercialQuickProps = {
@@ -194,7 +195,7 @@ export default function QuickLook({
       {step === "place" && (
         <>
           <p className="wz-kick">About the place</p>
-          <h1>What kind of home is it?</h1>
+          <h1>What kind of property is it?</h1>
           <p className="wz-sub">
             Near enough is fine — this seeds the rooms, and you can change any of them later.
           </p>
@@ -439,7 +440,7 @@ export default function QuickLook({
           <MultiCards options={EXT_ELEMENTS} on={outside.elements} name="ext-el"
             onPick={(v) => onOutside({ elements: toggleIn(outside.elements, v) })} />
 
-          <p className="wz-qhead">Standing on its own</p>
+          <p className="wz-qhead">Any other areas being painted? <span className="wz-opt">TICK ALL THAT APPLY</span></p>
           <MultiCards options={EXT_STANDALONE} on={outside.standalone} name="ext-sep"
             onPick={(v) => onOutside({ standalone: toggleIn(outside.standalone, v) })} />
 
@@ -455,7 +456,21 @@ export default function QuickLook({
           {outside.elements.includes("windows") && (
             <div data-testid="ext-windows-q">
               <p className="wz-qhead">What type of windows, mostly?</p>
-              <Cards options={EXT_WINDOW_TYPES} value={outside.windowType} onPick={(windowType) => onOutside({ windowType })} name="ext-win" />
+              {/* Tom, 15 Sep (item 2): the drawings, as the old wizard showed them; aluminium and not sure as chips. */}
+              <div className="wz-pick sc-tiles" data-testid="ql-ext-win">
+                {EXT_WINDOW_TYPES.filter((o) => o.value !== "alu" && o.value !== "unsure").map((o) => (
+                  <button key={o.value} type="button" className={`wz-pk ${outside.windowType === o.value ? "on" : ""}`} aria-pressed={outside.windowType === o.value}
+                    data-testid={`ql-ext-win-${o.value}`} onClick={() => onOutside({ windowType: o.value })}>
+                    {WINDOW_DRAWINGS[o.value as "casement" | "sash" | "colonial" | "winder"]}<small>{o.label}</small>{o.hint && <em className="wz-pksub">{o.hint}</em>}
+                  </button>
+                ))}
+              </div>
+              <div className="wz-chips" style={{ marginTop: 8 }}>
+                {EXT_WINDOW_TYPES.filter((o) => o.value === "alu" || o.value === "unsure").map((o) => (
+                  <button key={o.value} type="button" className={`wz-tile ${outside.windowType === o.value ? "on" : ""}`} aria-pressed={outside.windowType === o.value}
+                    data-testid={`ql-ext-win-${o.value}`} onClick={() => onOutside({ windowType: o.value })}>{o.label}</button>
+                ))}
+              </div>
               {outside.windowType === "alu" && (
                 <p className="wz-chint" data-testid="ext-alu-note">Aluminium usually isn&rsquo;t painted — your estimator will check.</p>
               )}
@@ -484,7 +499,8 @@ export default function QuickLook({
           <p className="wz-qhead">Colours</p>
           <Cards options={EXT_COLOURS} value={outside.colour} onPick={(colour) => onOutside({ colour })} name="ext-colour" />
 
-          <p className="wz-qhead">How&rsquo;s the paintwork holding up?</p>
+          <p className="wz-qhead">How&rsquo;s the paintwork holding up overall?</p>
+          <p className="wz-chint" style={{ marginTop: 0, marginBottom: 8 }}>General overall condition is fine at this stage, you can update specifics later on.</p>
           <Cards options={EXT_CONDITIONS} value={outside.condition} onPick={(condition) => onOutside({ condition })} name="ext-condition" />
 
           <p className="wz-qhead">Single or double storey?</p>

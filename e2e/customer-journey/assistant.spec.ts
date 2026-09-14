@@ -119,6 +119,9 @@ async function startAssistant(page: Page) {
 }
 
 test.describe("assistant — guided mode as an anonymous customer", () => {
+  // Tom, 15 Sep: the "describe it" card left screen 1 — the chat bubble is the describe door. These
+  // journeys drove the retired card; they wait on a rewrite against the bubble (parking lot).
+  test.skip(true, "describe card removed 15 Sep — rewrite against the chat bubble pending");
   test("interior 2-bed: the range shows once everything is confirmed, then the accept CTA", async ({ page }) => {
     test.setTimeout(900_000); // CI runners are ~3x slower than a laptop (4 Sep)
     await startAssistant(page);

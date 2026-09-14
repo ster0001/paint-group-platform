@@ -63,7 +63,7 @@ describe("nothing pre-ticked; the questions follow the ticks", () => {
     expect(DEFAULT_EXTERIOR_QUICK_LOOK.standalone).toEqual([]);
     expect(DEFAULT_EXTERIOR_QUICK_LOOK.materials).toEqual([]);
     expect(paintsSomething(DEFAULT_EXTERIOR_QUICK_LOOK)).toBe(false);
-    expect(paintsSomething(q({ standalone: ["fence"] }))).toBe(true);
+    expect(paintsSomething(q({ standalone: ["paling_fence"] }))).toBe(true);
   });
 
   it("toggles have no floor, and 'not sure' on the materials is exclusive", () => {
@@ -223,7 +223,7 @@ describe("a both job keeps its interior ticks", () => {
 
 describe("the state round-trips for resume", () => {
   it("reads back exactly what was tapped", () => {
-    const before = q({ elements: ["body", "windows"], standalone: ["fence", "wall"], materials: ["brick", "render"], windowType: "sash", windowCount: 5, doorCount: 0, colour: "same", condition: "peeling", storeys: "double", access: ["steep", "lift"] });
+    const before = q({ elements: ["body", "windows"], standalone: ["paling_fence", "wall"], materials: ["brick", "render"], windowType: "sash", windowCount: 5, doorCount: 0, colour: "same", condition: "peeling", storeys: "double", access: ["steep", "lift"] });
     const s = applyExteriorQuickLook(before, base());
     const back = exteriorQuickLookFromState(s.exterior);
     expect(back).toEqual({ ...before, doorCount: DEFAULT_EXTERIOR_QUICK_LOOK.doorCount });

@@ -30,7 +30,8 @@ import type { Choice } from "./quick-look";
  */
 
 export type ExteriorElement = "body" | "windows" | "doors" | "fascias" | "gutters" | "eaves";
-export type ExteriorStandalone = "fence" | "deck" | "garage" | "wall";
+/** Tom, 15 Sep (item 6a): "any other areas being painted?" — each seeds its own rate row. */
+export type ExteriorStandalone = "garage_door" | "paling_fence" | "picket_fence" | "deck" | "shed" | "wall";
 export type ExteriorMaterial = "weatherboards" | "brick" | "render" | "stucco" | "cement_sheet" | "panelling" | "unsure";
 export type ExteriorWindowType = "casement" | "sash" | "colonial" | "winder" | "alu" | "unsure";
 export type ExteriorColour = "same" | "new" | "bold";
@@ -75,9 +76,11 @@ export const EXT_ELEMENTS: Choice<ExteriorElement>[] = [
 ];
 
 export const EXT_STANDALONE: Choice<ExteriorStandalone>[] = [
-  { value: "fence", label: "Fence" },
-  { value: "deck", label: "Deck or floor" },
-  { value: "garage", label: "Garage or shed" },
+  { value: "garage_door", label: "Garage door" },
+  { value: "paling_fence", label: "Paling fence" },
+  { value: "picket_fence", label: "Picket fence" },
+  { value: "deck", label: "Deck" },
+  { value: "shed", label: "Shed / garage", hint: "The building itself" },
   { value: "wall", label: "Wall", hint: "Boundary or retaining" },
 ];
 
@@ -87,7 +90,7 @@ export const EXT_MATERIALS: Choice<ExteriorMaterial>[] = [
   { value: "render", label: "Render" },
   { value: "stucco", label: "Stucco" },
   { value: "cement_sheet", label: "Cement sheet" },
-  { value: "panelling", label: "Cladding or panelling" },
+  { value: "panelling", label: "Cladding or panelling", hint: "Priced as Colorbond cladding" },
   { value: "unsure", label: "Not sure" },
 ];
 
@@ -114,13 +117,12 @@ export const EXT_CONDITIONS: Choice<ExteriorQuickLook["condition"]>[] = [
 
 export const EXT_STOREYS: Choice<ExteriorQuickLook["storeys"]>[] = [
   { value: "single", label: "Single", hint: "Up to about 4 m" },
-  { value: "double", label: "Double", hint: "Over 4 m — ladders and platforms" },
+  { value: "double", label: "Double", hint: "Over 4 m — additional access equipment required" },
 ];
 
 export const EXT_ACCESS: Choice<ExteriorAccessAnswer>[] = [
   { value: "steep", label: "Steep block" },
   { value: "tight", label: "Tight side access" },
-  { value: "high", label: "Double-height entry" },
   { value: "lift", label: "Needs a lift or scaffold" },
   { value: "none", label: "Nothing tricky" },
 ];
@@ -162,7 +164,7 @@ export function paintsSomething(q: Pick<ExteriorQuickLook, "elements" | "standal
 /** The prototype's material → the state's substrate. Panelling and "not sure" have no rate row: `other` scaffolds a placeholder the estimator swaps. */
 const MATERIAL_TO_SUBSTRATE: Record<ExteriorMaterial, WizardExterior["substrates"][number]> = {
   weatherboards: "weatherboards", brick: "brick", render: "render", stucco: "stucco", cement_sheet: "cement_sheet",
-  panelling: "other", unsure: "other",
+  panelling: "colorbond", unsure: "other",
 };
 
 const COLOUR_TIER: Record<ExteriorColour, WizardState["condition"]["tier"]> = {
@@ -186,11 +188,12 @@ export function applyExteriorQuickLook(q: ExteriorQuickLook, base: WizardState):
   const house = q.elements.length > 0;
   const targets: WizardExterior["targets"] = [
     ...(house ? ["house" as const] : []),
-    ...(q.standalone.includes("fence") ? ["fence" as const] : []),
+    ...(q.standalone.includes("paling_fence") || q.standalone.includes("picket_fence") ? ["fence" as const] : []),
     ...(q.standalone.includes("deck") ? ["deck" as const] : []),
-    ...(q.standalone.includes("garage") ? ["shed" as const] : []),
+    ...(q.standalone.includes("shed") ? ["shed" as const] : []),
     ...(q.standalone.includes("wall") ? ["wall" as const] : []),
   ];
+  const fenceOn = q.standalone.includes("paling_fence") || q.standalone.includes("picket_fence");
   const substrates = [...new Set(q.materials.map((m) => MATERIAL_TO_SUBSTRATE[m]))];
 
   const nextExt: WizardExterior = {
@@ -201,14 +204,14 @@ export function applyExteriorQuickLook(q: ExteriorQuickLook, base: WizardState):
       elements: {
         windows: on.has("windows"), doors: on.has("doors"),
         eaves: on.has("eaves"), fascias: on.has("fascias"), gutters: on.has("gutters"),
-        garage: q.standalone.includes("garage"),
+        garage: q.standalone.includes("garage_door"),
       },
       painting: {
         ...ext.painting,
         body: on.has("body"),
         windowsDoors: on.has("windows") || on.has("doors"),
         roofline: on.has("eaves") || on.has("fascias") || on.has("gutters"),
-        garage: q.standalone.includes("garage"),
+        garage: q.standalone.includes("garage_door"),
       },
       windowType: on.has("windows") ? q.windowType : null,
       windowCount: on.has("windows") ? Math.max(0, Math.min(200, Math.round(q.windowCount))) : null,
@@ -225,11 +228,13 @@ export function applyExteriorQuickLook(q: ExteriorQuickLook, base: WizardState):
        * module words the exclusion; this just records that they said so.
        */
       accessEquipment: q.access.includes("lift") ? ["scaffold"] : [],
-      shed: q.standalone.includes("garage") ? (ext.shed ?? { substrate: "colorbond" }) : null,
+      shed: q.standalone.includes("shed") ? (ext.shed ?? { substrate: "colorbond" }) : null,
       wall: q.standalone.includes("wall") ? (ext.wall ?? { substrate: "brick", metres: null }) : null,
       extras: {
         ...ext.extras,
-        fence: q.standalone.includes("fence"),
+        fence: fenceOn,
+        // Tom, 15 Sep: the tick names the fence — paling, or picket (brushed).
+        fenceType: q.standalone.includes("picket_fence") ? "picket_hand" : q.standalone.includes("paling_fence") ? "paling" : ext.extras.fenceType,
         deck: q.standalone.includes("deck"),
       },
       noPhotos: true,
@@ -271,13 +276,15 @@ export function exteriorQuickLookFromState(ext: WizardExterior | null | undefine
   if (house && el.gutters) elements.push("gutters");
   if (house && el.eaves) elements.push("eaves");
   const standalone: ExteriorStandalone[] = [];
-  if (ext.extras.fence || ext.targets.includes("fence")) standalone.push("fence");
+  if (el.garage) standalone.push("garage_door");
+  if (ext.extras.fence || ext.targets.includes("fence")) standalone.push(ext.extras.fenceType === "picket_hand" || ext.extras.fenceType === "picket_spray" ? "picket_fence" : "paling_fence");
   if (ext.extras.deck || ext.targets.includes("deck")) standalone.push("deck");
-  if (ext.targets.includes("shed") || el.garage) standalone.push("garage");
+  if (ext.targets.includes("shed")) standalone.push("shed");
   if (ext.targets.includes("wall")) standalone.push("wall");
   const materials = ext.substrates
     .map((s): ExteriorMaterial | null =>
       s === "weatherboards" || s === "brick" || s === "render" || s === "stucco" || s === "cement_sheet" ? s
+        : s === "colorbond" ? "panelling" // Tom, 15 Sep: cladding or panelling prices as Colorbond
         : s === "other" ? "unsure" : null)
     .filter((m): m is ExteriorMaterial => m != null);
   const access: ExteriorAccessAnswer[] = [

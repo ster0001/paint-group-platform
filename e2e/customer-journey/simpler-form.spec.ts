@@ -31,7 +31,8 @@ test.describe("the quick look", () => {
     await expect(page.locator("[data-quick-step='start']")).toBeVisible();
     await expect(page.getByTestId("ql-jobtype-interior")).toBeVisible();
     const ways = page.getByTestId("wz-entry");
-    await expect(ways.getByTestId("entry-describe")).toBeVisible();
+    // Tom, 15 Sep: "describe it" left screen 1 (the chat bubble is the describe door).
+    await expect(ways.getByTestId("entry-describe")).toHaveCount(0);
     // 14 Sep: the floorplan upload lives ON the place screen for an inside
     // job; the screen-1 upload link is only offered for an outside job.
     await expect(ways.getByTestId("entry-upload")).toHaveCount(0);

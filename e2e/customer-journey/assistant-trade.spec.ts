@@ -25,6 +25,9 @@ async function member(sb: SupabaseClient, email: string, type: "trade" | "reside
 
 
 test.describe("Addendum A2 — describe the job", () => {
+  // Tom, 15 Sep: the "describe it" card left screen 1 — the chat bubble is the describe door. These
+  // journeys drove the retired card; they wait on a rewrite against the bubble (parking lot).
+  test.skip(true, "describe card removed 15 Sep — rewrite against the chat bubble pending");
   test.skip(!db, "service key needed");
   const run = randomBytes(4).toString("hex");
   const emails = { trade: `pg.e2e.trade.${run}@example.com`, res: `pg.e2e.res.${run}@example.com` };

@@ -224,6 +224,7 @@ test.describe("Tom's 7 Sep batch", () => {
   });
 
   test("1 + 5 · describe it: condition (with photos) and details are asked; the photos are pending sign-off", async ({ page }) => {
+    test.skip(true, "describe card removed 15 Sep (Tom) — the chat bubble is the describe door; rewrite pending");
     test.setTimeout(300_000);
     /**
      * The suburb/postcode pair is a FALLBACK, not the first field (CI fix,
@@ -289,6 +290,7 @@ test.describe("Tom's 7 Sep batch", () => {
   });
 
   test("5 · staff: the builder labels the photos for sign-off; signing off clears the customer's flag", async ({ page }) => {
+    test.skip(true, "describe card removed 15 Sep (Tom) — the chat bubble is the describe door; rewrite pending");
     test.setTimeout(240_000);
     const staff = credentials("STAFF");
     test.skip(!staff, "set E2E_STAFF_EMAIL / E2E_STAFF_PASSWORD");

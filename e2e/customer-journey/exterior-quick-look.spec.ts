@@ -42,7 +42,8 @@ test("nothing pre-ticked, the questions follow the ticks, storeys once, and no b
   for (const el of ["body", "windows", "doors", "fascias", "gutters", "eaves"]) {
     await expect(page.getByTestId(`ql-ext-el-${el}`)).toHaveAttribute("aria-pressed", "false");
   }
-  for (const s of ["fence", "deck", "garage", "wall"]) {
+  // Tom, 15 Sep: "Any other areas being painted?" — the six standalone keys.
+  for (const s of ["garage_door", "paling_fence", "picket_fence", "deck", "shed", "wall"]) {
     await expect(page.getByTestId(`ql-ext-sep-${s}`)).toHaveAttribute("aria-pressed", "false");
   }
   // The gated questions are absent until their element is ticked.
