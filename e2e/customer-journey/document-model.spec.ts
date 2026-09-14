@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openQuickLook, driveNoPlanWizard } from "./drive";
+import { fillQuickAddress, openQuickLook, quickNext, driveNoPlanWizard } from "./drive";
 
 /**
  * R1.3 — the document model (diagnostic #2 and #3).
@@ -20,29 +20,33 @@ const FIXTURES = "e2e/fixtures";
 test.describe("R1.3 document model", () => {
   test("floorplan intake is exactly one file — a second upload replaces", async ({ page }) => {
     test.setTimeout(120_000);
+    // Tom, 14 Sep: the floorplan upload is on the quick look's place screen.
     await openQuickLook(page);
+    await fillQuickAddress(page);
+    await quickNext(page);
+    await expect(page.locator("[data-quick-step='place']")).toBeVisible({ timeout: 30_000 });
+    const upload = page.getByTestId("ql-plan-upload");
 
     // The input is single-file at the DOM level, not just by convention.
-    await page.getByTestId("entry-upload").click();
     const [chooserA] = await Promise.all([
       page.waitForEvent("filechooser"),
-      page.getByRole("button", { name: /Upload a floorplan/ }).click(),
+      upload.click(),
     ]);
     expect(chooserA.isMultiple()).toBe(false);
     await chooserA.setFiles(`${FIXTURES}/not-a-plan-a.png`);
-    await expect(page.locator(".wz-upload")).toContainText(/Floorplan uploaded/i, { timeout: 30_000 });
+    await expect(upload).toContainText(/Floorplan uploaded/i, { timeout: 30_000 });
     // Replace-not-add: the control offers replacement, never "add another".
-    await expect(page.locator(".wz-upload")).toContainText(/replace/i);
-    await expect(page.locator(".wz-upload")).not.toContainText(/add another/i);
+    await expect(upload).toContainText(/replace/i);
+    await expect(upload).not.toContainText(/add another/i);
 
     const [chooserB] = await Promise.all([
       page.waitForEvent("filechooser"),
-      page.locator(".wz-upload").click(),
+      upload.click(),
     ]);
     await chooserB.setFiles(`${FIXTURES}/not-a-plan-b.png`);
     // Still exactly one plan on file after the second upload.
-    await expect(page.locator(".wz-upload")).toContainText(/Floorplan uploaded/i, { timeout: 30_000 });
-    await expect(page.locator(".wz-upload")).not.toContainText(/2 files/);
+    await expect(upload).toContainText(/Floorplan uploaded/i, { timeout: 30_000 });
+    await expect(upload).not.toContainText(/2 files/);
   });
 
   test("the exterior path has no floorplan field anywhere", async ({ page }) => {

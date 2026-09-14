@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openQuickLook } from "./drive";
+import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext } from "./drive";
 import { existsSync } from "node:fs";
 
 /**
@@ -24,46 +24,27 @@ test("the plan panel is big enough to read, and opens bigger still", async ({ pa
   test.skip(!existsSync(PLAN), `regression plan not on this machine: ${PLAN}`);
   test.setTimeout(420_000);
   await page.setViewportSize({ width: 1512, height: 900 });
-  // v2 phase 2: the upload route is an offer on the quick look's first screen.
+  // Tom, 14 Sep: the floorplan is uploaded ON the quick look — the place
+  // screen — and the rooms come off it; the old upload pages are gone for an
+  // inside job.
   await openQuickLook(page);
-  await page.getByTestId("entry-upload").click();
-
+  await fillQuickAddress(page);
+  await quickNext(page);
+  await expect(page.locator("[data-quick-step='place']")).toBeVisible({ timeout: 30_000 });
   const [chooser] = await Promise.all([
     page.waitForEvent("filechooser"),
-    page.getByRole("button", { name: /Upload a floorplan/ }).click(),
+    page.getByTestId("ql-plan-upload").click(),
   ]);
   await chooser.setFiles(PLAN);
-  await expect(page.locator(".wz-upload")).toContainText(/Floorplan uploaded/i, { timeout: 240_000 });
+  await expect(page.getByTestId("ql-plan-upload")).toContainText(/Floorplan uploaded/i, { timeout: 240_000 });
+  await expect(page.getByTestId("ql-plan-done")).toBeVisible();
+  await quickNext(page); // the job
+  await quickNext(page); // the condition
+  await expect(page.locator("[data-quick-step='condition']")).toBeVisible({ timeout: 30_000 });
+  await quickNext(page); // See my guide range — the plan's rooms, priced
+  await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 240_000 });
+  await page.getByTestId("door-tighten").click();
 
-  await page.getByPlaceholder("Suburb").fill("Murrumbeena");
-  await page.getByPlaceholder("Postcode").fill("3163");
-  const answer = async (heading: string | RegExp, label: string) => {
-    const row = page.locator(".wz-qhead", { hasText: heading })
-      .locator("xpath=following-sibling::div[1]")
-      .getByRole("button", { name: label, exact: true });
-    if (await row.count()) await row.first().click();
-  };
-  await answer("What kind of property", "House");
-  for (let i = 0; i < 7; i++) {
-    if (await page.locator(".sc-r").count()) break;
-    // The contact page is the LAST page now (Tom, 31 Aug) — fill it when it
-    // appears; the loop's next click is "See my estimate".
-    const contact = page.locator(".wz-crow input");
-    if (await contact.count()) {
-      await contact.nth(0).fill("E2E Plan Panel");
-      await contact.nth(1).fill(`e2e-plan-${Date.now()}@example.com`);
-      await contact.nth(2).fill("0400 000 111");
-    }
-    // Phase 0: the safety answers are unanswered until tapped (no-ops off page 4).
-    await answer(/built before 1970/, "No");
-    await answer(/asbestos/, "No");
-    const nav = page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ });
-    if (!(await nav.count())) break; // submitted — the processing screen has no nav
-    await nav.first().click();
-    const err = page.locator(".wz-err");
-    if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
-    await page.waitForTimeout(600);
-  }
   // 28 Aug: the wizard lands straight in the editor.
   await expect(page.locator(".sc-r").first()).toBeVisible({ timeout: 120_000 });
   await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 30_000 });

@@ -39,6 +39,9 @@ import type { CustomerPayload } from "@/lib/wizard/view";
 const fmt = (cents: number) =>
   `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
+/** Which assumed line each open envelope question belongs to (lib/wizard/envelope.ts). */
+const OPEN_BY_KEY: Record<string, string[]> = { openings: ["doors", "windows"], height: ["height"], rooms: ["cupboards"] };
+
 export default function Reveal({
   payload, quick, estimateId, onTighten, onBook, phone, prefillEmail, commercial = null, outside = null,
 }: {
@@ -163,6 +166,10 @@ export default function Reveal({
             <li key={a.key} data-testid={`reveal-assumed-${a.key}`}>
               <b>{a.what}</b>
               <span>{a.why}</span>
+              {/* 14 Sep: the range is an envelope over the open questions — say which of these still hold it open. */}
+              {OPEN_BY_KEY[a.key]?.some((q) => (payload.openQuestions ?? []).includes(q)) && (
+                <span className="wz-assumed-open" data-testid={`reveal-open-${a.key}`}>Still open — answering it narrows the range</span>
+              )}
               {/* C10: each line deep-links to the card that changes it. */}
               {a.rung && (
                 <a className="wz-linkish" href={`/estimate/scope?id=${estimateId}#${a.rung}`} data-testid={`reveal-assumed-link-${a.key}`}>Change this</a>

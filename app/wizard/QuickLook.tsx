@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import {
   CHANGING_GROUPS, CONDITION_BANDS, JOB_TYPES, OCCUPIED, PROPERTY_KINDS,
-  SCOPE_PRESETS, STOREYS, stepCount, toggleChanging, type Choice, type QuickLook, type QuickLookStep,
+  SCOPE_PRESETS, STOREYS, changingForScope, stepCount, toggleChanging, visibleChanging, type Choice, type QuickLook, type QuickLookStep,
 } from "@/lib/wizard/quick-look";
 import {
   EXTERIOR_PROMISE, EXT_ACCESS, EXT_COLOURS, EXT_CONDITIONS, EXT_ELEMENTS, EXT_MATERIALS, EXT_STANDALONE, EXT_STOREYS, EXT_WINDOW_TYPES,
@@ -60,8 +60,10 @@ const BEDROOMS = [1, 2, 3, 4, 5];
 
 export default function QuickLook({
   step, quick, onQuick, outside, onOutside, addressField, conditionBox, error, canContinue, busy, onBack, onNext, stepNo, stepsTotal,
-  onBook, onChooseBoth, phone, commercial = null, assumed = [],
+  onBook, onChooseBoth, phone, commercial = null, assumed = [], planUpload = null,
 }: {
+  /** Tom, 14 Sep: the floorplan / listing upload, on the place screen of an inside job. */
+  planUpload?: ReactNode;
   /** C16 (a): the quick-look fields the assistant filled in from "describe it" — amber until confirmed. */
   assumed?: string[];
   /** C12: the commercial screens (segment, areas, job), rendered from the row. */
@@ -208,6 +210,7 @@ export default function QuickLook({
               <p className="wz-qhead">Storeys</p>
               <Cards options={STOREYS} value={quick.storeys} onPick={(storeys) => onQuick({ storeys })} name="storeys" />
               {tag("storeys")}
+              {planUpload}
             </>
           )}
         </>
@@ -280,7 +283,7 @@ export default function QuickLook({
             We work out the coats and the preparation from these two answers — and you&rsquo;ll see
             exactly what we&rsquo;ve allowed for.
           </p>
-          <Cards options={SCOPE_PRESETS} value={quick.scope} onPick={(scope) => onQuick({ scope })} name="scope" />
+          <Cards options={SCOPE_PRESETS} value={quick.scope} onPick={(scope) => onQuick({ scope, changing: changingForScope(scope) })} name="scope" />
           {tag("scope")}
 
           {/*
@@ -295,7 +298,7 @@ export default function QuickLook({
           <p className="wz-chint" style={{ marginTop: 0, marginBottom: 8 }}>
             Tick what&rsquo;s getting a new colour. Anything you leave unticked is painted the same colour it is now.
           </p>
-          <Multi options={CHANGING_GROUPS} on={(["walls", "ceilings", "trims"] as const).filter((k) => quick.changing[k])} name="changing"
+          <Multi options={CHANGING_GROUPS.filter((o) => visibleChanging(quick.scope).includes(o.value))} on={visibleChanging(quick.scope).filter((k) => quick.changing[k])} name="changing"
             onPick={(k) => onQuick({ changing: toggleChanging(quick, k) })} />
           {tag("changing")}
 

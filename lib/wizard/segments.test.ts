@@ -174,7 +174,8 @@ describe("the reveal's words", () => {
 
   it("restates the counts, the colour and the condition", () => {
     const line = commercialRestatement(office, defaultCommercialAnswers(office), q);
-    expect(line).toMatch(/^Based on an office with 4 offices, 1 open plan and 1 meeting room, new colours on the walls, some wear, business hours\./);
+    // Tom, 14 Sep: every colour tile starts ticked, so the default job restates new colours on all three.
+    expect(line).toMatch(/^Based on an office with 4 offices, 1 open plan and 1 meeting room, new colours on the walls, ceilings and doors and trims, some wear, business hours\./);
   });
 
   it("lists the open-space assumption and the hours loading, and the standard height for the small rooms", () => {
