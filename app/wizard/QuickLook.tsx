@@ -12,6 +12,7 @@ import {
 } from "@/lib/wizard/exterior-quick-look";
 import { AreasScreen, BookScreen, BriefScreen, JobScreen, SegmentScreen, WarehouseScreen, type BookContact } from "./CommercialScreens";
 import type { BriefAnswers, CommercialAnswers, Segment, SegmentBrief } from "@/lib/wizard/segments";
+import { starterRoomNames } from "@/lib/wizard/some-rooms";
 
 /** C12: what the commercial screens need from WizardApp. */
 export type CommercialQuickProps = {
@@ -117,7 +118,7 @@ export default function QuickLook({
             * count is computed, never typed.
             */}
           <p className="wz-sub">
-            {stepCount(quick.jobType, quick.propertyKind, pattern, door)} quick screens, then a guide range. Everything after that is
+            {stepCount(quick.jobType, quick.propertyKind, pattern, door, quick.scope)} quick screens, then a guide range. Everything after that is
             optional — and nothing you say here is a commitment.
           </p>
           {addressField}
@@ -309,6 +310,29 @@ export default function QuickLook({
           <p className="wz-qhead">Still choosing colours? <span className="wz-opt">FINE — WE ALLOW FOR NEW COLOURS AND YOU DECIDE LATER</span></p>
           <Chips options={[{ value: "known", label: "I know roughly" }, { value: "undecided", label: "Still choosing" }]} value={quick.undecided ? "undecided" : "known"}
             onPick={(v) => onQuick({ undecided: v === "undecided" })} name="choosing" />
+        </>
+      )}
+
+      {step === "rooms" && (
+        <>
+          <p className="wz-kick">Which rooms</p>
+          <h1>Which rooms are we painting?</h1>
+          <p className="wz-sub">Tick the ones the job is about. Sizes come from typical rooms for now — you confirm each one after the range.</p>
+          <div className="wz-chips" data-testid="ql-rooms">
+            {starterRoomNames(quick).map((name, i) => {
+              const on = !quick.rooms || quick.rooms.includes(name);
+              return (
+                <button key={name} type="button" className={`wz-tile ${on ? "on" : ""}`} aria-pressed={on} data-testid={`ql-room-${i}`}
+                  onClick={() => {
+                    const all = starterRoomNames(quick);
+                    const cur = quick.rooms ?? all;
+                    const next = on ? cur.filter((n) => n !== name) : [...cur, name];
+                    onQuick({ rooms: next.length === all.length ? null : next });
+                  }}>{name}</button>
+              );
+            })}
+          </div>
+          {quick.rooms && quick.rooms.length === 0 && <p className="wz-err" data-testid="ql-rooms-none">Tick at least one room.</p>}
         </>
       )}
 

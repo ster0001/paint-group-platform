@@ -14,7 +14,9 @@ export type ContactHow = "callback" | "visit";
 export type ContactWindow = "am" | "pm" | "any";
 export type ContactRequest = { how: ContactHow; window: ContactWindow; phone: string; when: string };
 
-export default function ContactCard({ companyPhone, phoneHours = null, defaultPhone = null, onSubmit, busy = false, prefix = "sc" }: {
+export default function ContactCard({ companyPhone, phoneHours = null, defaultPhone = null, onSubmit, busy = false, prefix = "sc", why = null }: {
+  /** 14 Sep: one line under the title saying why a person prices this one (the exterior). */
+  why?: string | null;
   companyPhone: string | null;
   /** When the office answers — Settings → Company details owns the wording. */
   phoneHours?: string | null;
@@ -35,6 +37,7 @@ export default function ContactCard({ companyPhone, phoneHours = null, defaultPh
   return (
     <div className={`${prefix}-contact`} data-testid="contact-card">
       <p className={`${prefix}-contact-t`}>How would you like to finalise your price?</p>
+      {why && <p className={`${prefix}-reach-hours`} data-testid="contact-why">{why}</p>}
       <div className={`${prefix}-contact-opts`}>
         {tel && <a className={`${prefix}-contact-opt`} href={tel} data-testid="contact-call">Call us now <b>{companyPhone}</b></a>}
         <button type="button" className={`${prefix}-contact-opt${how === "callback" ? " on" : ""}`} onClick={() => setHow("callback")} data-testid="contact-callback">Ask us to call you back</button>

@@ -378,6 +378,12 @@ export function starterExteriorNodes(
   for (const name of elevations) {
     const id = nextId();
     const surfaces: DraftSurfaceLike[] = wantsWalls ? [extSurface(nextId(), scaffoldCladdingCode(ticked))] : [];
+    // 14 Sep: no material ticked → the wall line is a PLACEHOLDER and says so
+    // on the tree, so the sides editor never calls it "from your answers".
+    if (wantsWalls && !hasCladding && surfaces[0]) {
+      const w = surfaces[0] as { assumedFields?: string[] };
+      w.assumedFields = [...(w.assumedFields ?? []), "material"];
+    }
     if (wantsTrim("fascias")) surfaces.push(extSurface(nextId(), "Fascias"));
     if (wantsTrim("gutters")) surfaces.push(extSurface(nextId(), "Gutters"));
     if (wantsTrim("eaves")) surfaces.push(extSurface(nextId(), "Eaves"));

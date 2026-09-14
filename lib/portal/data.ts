@@ -56,8 +56,9 @@ export async function getCompanyContact(): Promise<{ name: string; phone: string
   const v = (data?.value ?? {}) as { name?: string; phone?: string; logoUrl?: string; coordinatorName?: string };
   return {
     name: v.name || "Paint Group", phone: v.phone || "", logoUrl: v.logoUrl || "",
-    // The Settings default (app/quote/company.ts) — kept in step by hand.
-    coordinatorName: v.coordinatorName || "Felipe Martinez",
+    // 14 Sep: no invented name. An unset coordinator is a Settings gap the
+    // switch checklist names; every reader has its own honest fallback.
+    coordinatorName: v.coordinatorName || "",
   };
 }
 

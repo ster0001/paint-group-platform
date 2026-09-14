@@ -126,7 +126,7 @@ test("Tom's check 1: body + windows + doors + fascias, casement ×8, doors ×2, 
   await expect(doLines).not.toContainText(/Skirtings|Ceilings and cornices/);
   await page.getByTestId("reveal-assumed-toggle").click();
   await expect(page.getByTestId("reveal-assumed")).not.toContainText(/bedroom/i);
-  await expect(page.getByTestId("reveal-assumed-windows")).toContainText(/8 windows at the casement rate/);
+  await expect(page.getByTestId("reveal-assumed-windows")).toContainText(/About 8 windows at the casement rate/);
 });
 
 test("Tom's check 2: eight colonial windows price higher than eight casements — the rate row, not a multiplier", async ({ page }) => {

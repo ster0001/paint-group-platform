@@ -5,7 +5,7 @@
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { envelopeFor, openQuestions, dearestTree, sizeResidualPct } from "./envelope";
+import { envelopeFor, openQuestions, dearestTree, assumedHeightTree, sizeResidualPct, sumEnvelopes } from "./envelope";
 import { defaultWizardState, type WizardState } from "./state";
 import { DEFAULT_BANDS } from "./policy";
 import type { PricingContext } from "@/lib/pricing/estimate";
@@ -37,16 +37,21 @@ describe("open questions", () => {
     const codes = new Set(ctx.rateItems.map((r) => r.code));
     expect(openQuestions(state(), tree(), codes)).toEqual(expect.arrayContaining(["doors", "height"]));
     expect(openQuestions(state({ doorStyle: "panel" }), tree(), codes)).not.toContain("doors");
-    expect(openQuestions(state({ ceilingHeight: "2.7" }), tree(), codes)).not.toContain("height");
-    const answeredCup = tree().map((b) => ({ ...b, customer: { ...b.customer, cup: false } }));
-    expect(openQuestions(state(), answeredCup, codes)).not.toContain("cupboards");
+    // Height is answered by the TREE (confirm_height strips "H"), not the quick-look state.
+    const confirmedH = tree().map((b) => ({ ...b, H: 2.7, assumedFields: ["L", "W"] }));
+    expect(openQuestions(state(), confirmedH, codes)).not.toContain("height");
+    // Cupboards are never an open question (Tom, 14 Sep: assumed not painted).
+    expect(openQuestions(state(), tree(), codes)).not.toContain("cupboards");
   });
-  it("the dearest tree swaps flat doors for panel and lifts assumed ceilings, and never touches the cheap tree", () => {
+  it("an unanswered height is priced at 3 m on BOTH ends; the dearest tree swaps flat doors for panel; the cheap tree is untouched", () => {
     const codes = new Set(ctx.rateItems.map((r) => r.code));
     const t = tree();
-    const dear = dearestTree(state(), t, ["doors", "height"], codes) as Array<{ H: number; surfaces: Array<{ code: string }> }>;
-    expect(dear[0].H).toBe(3);
+    const base = assumedHeightTree(t, ["height"]) as Array<{ H: number }>;
+    expect(base[0].H).toBe(3);
+    expect(assumedHeightTree(t, ["doors"])[0].H).toBe(2.4); // only when open
+    const dear = dearestTree(state(), t, ["doors"], codes) as Array<{ surfaces: Array<{ code: string }> }>;
     expect(dear[0].surfaces.some((s) => /panel/i.test(String(s.code)))).toBe(true);
+    expect(dear[0].surfaces.some((s) => /cupboard|robe|vanity/i.test(String(s.code)))).toBe(false);
     expect(t[0].H).toBe(2.4); // untouched
   });
 });
@@ -65,16 +70,36 @@ describe("the envelope", () => {
     const e2 = envelopeFor({ blocks: tree(), state: state({ doorStyle: "flat" }), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
     expect(e2.hiCents).toBeLessThanOrEqual(e0.hiCents);
     expect(e2.loCents).toBeGreaterThanOrEqual(e0.loCents);
+    // Answering the height DOWN (2.4 confirmed on the tree) lowers both ends: the range was priced at 3 m.
+    const confirmedH = tree().map((b) => ({ ...b, assumedFields: ["L", "W"] }));
+    const eH = envelopeFor({ blocks: confirmedH, state: state(), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
+    expect(eH.open).not.toContain("height");
+    expect(eH.hiCents).toBeLessThan(e0.hiCents);
+    expect(eH.loCents).toBeLessThan(e0.loCents);
     // Everything answered: the envelope is the residual alone.
     const all = state({ doorStyle: "flat", windowStyle: "casement", ceilingHeight: "2.4" });
-    const answeredCup = tree().map((b) => ({ ...b, customer: { ...b.customer, cup: false } }));
+    const answeredCup = confirmedH;
     const e3 = envelopeFor({ blocks: answeredCup, state: all, ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
     expect(e3.open).toEqual([]);
     expect(e3.bandPct).toBe(DEFAULT_BANDS.widePct); // nothing confirmed → the wide residual
   });
+  it("says what each open question closes, and the closes add up to the spread the questions carry", () => {
+    const e = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
+    expect(Object.keys(e.closesCents)).toEqual(expect.arrayContaining(e.open));
+    for (const v of Object.values(e.closesCents)) expect(v).toBeGreaterThan(0);
+    const answered = envelopeFor({ blocks: tree(), state: state({ doorStyle: "panel" }), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
+    expect(answered.closesCents.doors).toBeUndefined();
+  });
+  it("a both job's headline is the sum of its parts", () => {
+    const a = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
+    const b = { ...a, loCents: 100_000, hiCents: 150_000, closesCents: {} };
+    const sum = sumEnvelopes([a, b]);
+    expect(sum.loCents).toBe(a.loCents + 100_000);
+    expect(sum.hiCents).toBe(a.hiCents + 150_000);
+  });
   it("confirming rooms shrinks the size residual on a slope, never a step", () => {
     const all = state({ doorStyle: "flat", windowStyle: "casement", ceilingHeight: "2.4" });
-    const answeredCup = tree().map((b) => ({ ...b, customer: { ...b.customer, cup: false } }));
+    const answeredCup = tree().map((b) => ({ ...b, assumedFields: ["L", "W"] }));
     const none = envelopeFor({ blocks: answeredCup, state: all, ctx, adj, bands: DEFAULT_BANDS, confirmed: new Map() });
     const half = envelopeFor({ blocks: answeredCup, state: all, ctx, adj, bands: DEFAULT_BANDS, confirmed: new Map([[1, "confirmed"]]) });
     const full = envelopeFor({ blocks: answeredCup, state: all, ctx, adj, bands: DEFAULT_BANDS, confirmed: new Map([[1, "confirmed"], [2, "confirmed"]]) });

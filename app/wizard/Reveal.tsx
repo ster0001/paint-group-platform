@@ -195,7 +195,7 @@ export default function Reveal({
       <div className="wz-doors">
         <Door
           testId="door-tighten" icon="◫" title="Tighten it online" onClick={onTighten}
-          body={`Confirm the rooms, the surfaces and the condition. About five minutes, with photos if you like — narrows this to within about ${payload.tightBand ? 4 : 8}%.`}
+          body={`${quick.jobType === "exterior" ? "Confirm each side, what's on it and the condition." : quick.jobType === "both" ? "Confirm the rooms and the sides, the surfaces and the condition." : "Confirm the rooms, the surfaces and the condition."} About five minutes, with photos if you like — it narrows as you answer, to within about ${payload.tightPct ?? 4}% once everything's confirmed.`}
         />
         <Door
           testId="door-book" icon="☎" title="Book your estimator" onClick={onBook}
@@ -210,7 +210,7 @@ export default function Reveal({
         ) : !keepOpen ? (
           <Door
             testId="door-keep" icon="✉" title="Keep this estimate" onClick={() => setKeepOpen(true)}
-            body="We'll email a link so you can pick it up any time. The price is held for 60 days."
+            body={`We'll email a link so you can pick it up any time. The price is held for ${payload.holdDays ?? 60} days.`}
           />
         ) : (
           <div className="wz-keep" data-testid="reveal-keep-form">

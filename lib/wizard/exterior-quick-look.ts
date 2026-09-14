@@ -343,12 +343,14 @@ export function exteriorAssumedList(q: ExteriorQuickLook): ExteriorAssumption[] 
       key: "windows",
       what: q.windowType === "alu"
         ? `${q.windowCount} aluminium windows — usually not painted`
-        : `${q.windowCount} windows${q.windowType === "unsure" ? ", type to confirm" : ` at the ${label(EXT_WINDOW_TYPES, q.windowType).toLowerCase()} rate`}, spread over the sides`,
+        : `About ${q.windowCount} windows${q.windowType === "unsure" ? ", type to confirm" : ` at the ${label(EXT_WINDOW_TYPES, q.windowType).toLowerCase()} rate`}`,
+      // 14 Sep: the count is a stepper the customer may never have touched
+      // (it starts at 8) — say it is ours to change, not theirs already said.
       why: q.windowType === "alu"
         ? "Priced at nothing, with a note — your estimator checks whether any are painted."
         : q.windowType === "winder"
-          ? "A winder is a crank-operated casement — priced at the casement rate and flagged for your estimator."
-          : "The count is checked side by side in the sides editor.",
+          ? "A winder is a crank-operated casement — priced at the casement rate and flagged for your estimator. Change the count on the outside screen if it's off."
+          : "Our typical count unless you changed it on the outside screen — spread over the sides and checked side by side in the sides editor.",
       rung: "sides",
     });
   }

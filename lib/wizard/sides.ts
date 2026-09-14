@@ -779,7 +779,12 @@ export function sidesView(
       walls: wallsRaw.map((s, i) => ({
         id: Number(s.id) || 0,
         code: String(s.code ?? ""),
-        label: WALL_CODES.find((w) => w.code === String(s.code))?.label ?? String(s.code),
+        // 14 Sep: a placeholder wall (no material ticked) is named as one —
+        // the reveal already says "material to confirm"; the plan-from-above
+        // used to say "WEATHERBOARD · FROM YOUR ANSWERS" over the same line.
+        label: Array.isArray(s.assumedFields) && (s.assumedFields as string[]).includes("material")
+          ? "Material to confirm"
+          : (WALL_CODES.find((w) => w.code === String(s.code))?.label ?? String(s.code)),
         pct: s.sharePct == null ? (defaulted && i === 0 ? 100 : 0) : Number(s.sharePct),
       })),
       wallSum: defaulted ? 100 : wallSumPct(b),

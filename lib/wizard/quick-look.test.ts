@@ -194,6 +194,10 @@ describe("what the customer reads back", () => {
 describe("the screens", () => {
   it("walks four for an inside job — no outside screen to answer", () => {
     expect(stepsFor("interior")).toEqual(["start", "place", "job", "condition"]);
+    // 14 Sep: "Some rooms" keeps its promise with a rooms step after the job.
+    expect(stepsFor("interior", "house", "areas", "range", "some_rooms")).toEqual(["start", "place", "job", "rooms", "condition"]);
+    expect(stepsFor("both", "house", "areas", "range", "some_rooms")).toEqual(["start", "both", "place", "job", "rooms", "condition", "outside"]);
+    expect(stepCount("interior", "house", "areas", "range", "some_rooms")).toBe("Five");
   });
 
   it("sends an outside-only job to the exterior screen, skipping the rooms", () => {

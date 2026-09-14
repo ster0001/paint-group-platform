@@ -168,6 +168,8 @@ export const wizardStateShapeSchema = z.object({
     undecided: z.boolean().default(false),
     condition: z.enum(["good", "wear", "needs_work"]),
     occupied: z.enum(["yes", "no"]),
+    /** 14 Sep: "Some rooms" — the starter rooms the customer ticked, by name. Null = every room. */
+    rooms: z.array(z.string().max(40)).max(20).nullable().default(null),
   }).nullable().default(null),
   basics: basicsSchema.nullable().default(null),
   /**

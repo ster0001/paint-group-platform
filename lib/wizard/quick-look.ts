@@ -44,6 +44,8 @@ export type QuickLook = {
   /** Screen 4 — condition. */
   condition: ConditionBand;
   occupied: "yes" | "no";
+  /** 14 Sep: "Some rooms" — which starter rooms, by name. Null = all of them. */
+  rooms: string[] | null;
 };
 
 export type ScopePreset = "whole" | "some_rooms" | "walls_ceilings" | "trims_doors";
@@ -73,6 +75,7 @@ export const DEFAULT_QUICK_LOOK: QuickLook = {
   undecided: false,
   condition: "wear",
   occupied: "no",
+  rooms: null,
 };
 
 export type Choice<T> = { value: T; label: string; hint?: string };
@@ -338,11 +341,11 @@ export function restatement(q: QuickLook): string {
     : q.scope === "walls_ceilings" ? "walls and ceilings"
     : "doors and trims";
   const changing = (["walls", "ceilings", "trims"] as const).filter((k) => q.changing[k]);
-  const named = changing.map((k) => (k === "trims" ? "doors and trims" : k)).join(", ").replace(/, ([^,]*)$/, " and $1");
+  const named = changing.length === 3 ? "throughout" : changing.map((k) => (k === "trims" ? "doors and trims" : k)).join(", ").replace(/, ([^,]*)$/, " and $1");
   const colour = q.undecided ? "colours still being chosen"
     : changing.length === 0 ? "the same colours"
-    : q.bold ? `a much lighter or bolder colour on the ${named}`
-    : `new colours on the ${named}`;
+    : q.bold ? (named === "throughout" ? "a much lighter or bolder colour throughout" : `a much lighter or bolder colour on the ${named}`)
+    : (named === "throughout" ? "new colours throughout" : `new colours on the ${named}`);
   const cond = q.condition === "good" ? "good condition"
     : q.condition === "wear" ? "some wear"
     : "needing some work";
@@ -378,8 +381,8 @@ export function assumedList(q: QuickLook): Assumption[] {
     });
     out.push({
       key: "height",
-      what: "Standard ceiling height",
-      why: "We've assumed the usual 2.4 m. Raked or high ceilings change the access and the paint.",
+      what: "Ceilings at 3 m until you tell us",
+      why: "Tom, 14 Sep: an unanswered height is priced at 3 m — the safe side. Tap it on the tighten screen and every room reprices at your height.",
       rung: "rooms",
     });
     out.push({
@@ -420,7 +423,7 @@ export function assumedList(q: QuickLook): Assumption[] {
  * after the place screen, then the segment's two screens (`s-com-areas`,
  * `s-com-job`) — the areas and job pattern, rendered from the row.
  */
-export const QUICK_LOOK_STEPS = ["start", "both", "place", "segment", "com_areas", "com_warehouse", "com_job", "com_brief", "com_book", "job", "condition", "outside"] as const;
+export const QUICK_LOOK_STEPS = ["start", "both", "place", "segment", "com_areas", "com_warehouse", "com_job", "com_brief", "com_book", "job", "rooms", "condition", "outside"] as const;
 export type QuickLookStep = (typeof QUICK_LOOK_STEPS)[number];
 
 /**
@@ -442,8 +445,8 @@ export type QuickLookStep = (typeof QUICK_LOOK_STEPS)[number];
  * computed counts drift; this is the only place either is allowed to come from.
  */
 const COUNT_WORD = ["", "One", "Two", "Three", "Four", "Five", "Six"] as const;
-export function stepCount(jobType: QuickLook["jobType"], propertyKind: QuickLook["propertyKind"] = "house", pattern: CommercialPattern = "areas", door: CommercialDoor = "range"): string {
-  const n = stepsFor(jobType, propertyKind, pattern, door).filter((s) => s !== "both").length;
+export function stepCount(jobType: QuickLook["jobType"], propertyKind: QuickLook["propertyKind"] = "house", pattern: CommercialPattern = "areas", door: CommercialDoor = "range", scope: ScopePreset = "whole"): string {
+  const n = stepsFor(jobType, propertyKind, pattern, door, scope).filter((s) => s !== "both").length;
   return COUNT_WORD[n] ?? String(n);
 }
 
@@ -462,7 +465,9 @@ export type CommercialDoor = "range" | "brief" | "brief_after_areas";
  * segment screen — every commercial exterior is priced on site — so those
  * branches END there; `quickNext` hands off rather than advancing.
  */
-export function stepsFor(jobType: QuickLook["jobType"], propertyKind: QuickLook["propertyKind"] = "house", pattern: CommercialPattern = "areas", door: CommercialDoor = "range"): QuickLookStep[] {
+export function stepsFor(jobType: QuickLook["jobType"], propertyKind: QuickLook["propertyKind"] = "house", pattern: CommercialPattern = "areas", door: CommercialDoor = "range", scope: ScopePreset = "whole"): QuickLookStep[] {
+  // 14 Sep: "Some rooms" promised "you'll pick which ones next" — this is where.
+  const rooms: QuickLookStep[] = scope === "some_rooms" ? ["rooms"] : [];
   if (propertyKind === "commercial") {
     // C14: every commercial exterior, and every brief segment, walks the
     // brief and the booking; a hospital leaves from the areas screen.
@@ -475,6 +480,6 @@ export function stepsFor(jobType: QuickLook["jobType"], propertyKind: QuickLook[
     return ["start", "place", "segment", pattern === "warehouse" ? "com_warehouse" : "com_areas", "com_job"];
   }
   if (jobType === "exterior") return ["start", "place", "outside"];
-  if (jobType === "both") return ["start", "both", "place", "job", "condition", "outside"];
-  return ["start", "place", "job", "condition"];
+  if (jobType === "both") return ["start", "both", "place", "job", ...rooms, "condition", "outside"];
+  return ["start", "place", "job", ...rooms, "condition"];
 }

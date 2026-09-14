@@ -24,6 +24,8 @@ import { warehouseFloorArea, warehouseRoomList } from "@/lib/wizard/warehouse";
 import { parseMeasuredTree, seedFromMeasuredTree, type MeasuredTree } from "@/lib/wizard/measured-tree";
 import { commercialWidenFor } from "@/lib/wizard/commercial";
 import { envelopeFor } from "@/lib/wizard/envelope";
+import { pickedRooms } from "@/lib/wizard/some-rooms";
+import { holdDaysFromSettings } from "@/lib/wizard/confirmation-actions";
 import { applyOpenSpace, commercialPricingFrom, hourLoadingFor } from "@/lib/pricing/commercial";
 import { applyConditionPricing, applyExteriorAnswers, type MeasuredSides } from "@/lib/wizard/exteriorAnswers";
 import { defaultSidesLoop } from "@/lib/wizard/sides";
@@ -309,7 +311,10 @@ export async function POST(request: Request) {
     if (!state.basics) {
       return NextResponse.json({ error: "The quick basics are needed when there is no floorplan." }, { status: 400 });
     }
-    const list = starterRoomList(state.basics);
+    // 14 Sep: "Some rooms" — only the rooms the customer ticked are seeded.
+    const list = state.quickLook?.scope === "some_rooms"
+      ? pickedRooms(starterRoomList(state.basics), state.quickLook.rooms)
+      : starterRoomList(state.basics);
     const x = starterExtraction(list, typicals, {
       heightM: height.assumed ? null : height.heightM,
       bedrooms: state.basics.bedrooms,
@@ -970,7 +975,12 @@ export async function POST(request: Request) {
         // over the questions the quick look did not ask; nothing confirmed yet.
         (() => {
           const widen = commercialWidenFor(effectiveState, ctx.settings, segments);
-          return { ...widen, envelope: envelopeFor({ blocks: merged.areas as unknown as Parameters<typeof envelopeFor>[0]["blocks"], state: effectiveState, ctx, adj: adjustmentsFrom(builderState), bands, widenPct: widen.widenPct, confirmed: null }) };
+          const env = (areas: typeof merged.areas) => envelopeFor({ blocks: areas as unknown as Parameters<typeof envelopeFor>[0]["blocks"], state: effectiveState, ctx, adj: adjustmentsFrom(builderState), bands, widenPct: widen.widenPct, confirmed: null });
+          // Tom, 14 Sep: a "both" job prices each half's envelope; the headline is their sum.
+          const holdDays = holdDaysFromSettings(settingValue(ctx.settings, "wizard_hold_days"));
+          return isBoth
+            ? { ...widen, holdDays, envelopeParts: { interior: env(merged.areas.filter((a) => a.type !== "Exterior")), exterior: env(merged.areas.filter((a) => a.type === "Exterior")) } }
+            : { ...widen, holdDays, envelope: env(merged.areas) };
         })()),
     });
   }

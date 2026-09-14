@@ -460,7 +460,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    * other half of §9.7, still blocked on the per-elevation allowances spec.
    */
   const quickActive = isCustomer && entry === "questions" && !quickDone;
-  const lastPage = quickActive ? stepsFor(quick.jobType, quick.propertyKind, commercialPattern, commercialDoor).length : pageKeys.length;
+  const lastPage = quickActive ? stepsFor(quick.jobType, quick.propertyKind, commercialPattern, commercialDoor, quick.scope).length : pageKeys.length;
   const pageKey: PageKey = pageKeys[Math.min(page, lastPage) - 1];
   const chooseEntry = (e: EntryChoice) => {
     setQuickDone(true);
@@ -541,7 +541,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         setEntry(entryFromState(r.state));
       }
       setPage(r.page);
-      setResumed(resumeLine(r.page, r.state.jobType));
+      setResumed(resumeLine(r.page, r.state.jobType, screenTag));
     }, 0);
     return () => clearTimeout(t);
     // Mount only: a later change to these props is a new walk, not a resume.
@@ -1128,7 +1128,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const lastScreen = screen === "processing"
     ? "processing"
     : quickActive
-      ? `quick:${stepsFor(quick.jobType, quick.propertyKind, commercialPattern, commercialDoor)[Math.min(Math.max(page, 1), stepsFor(quick.jobType, quick.propertyKind, commercialPattern, commercialDoor).length) - 1]}`
+      ? `quick:${stepsFor(quick.jobType, quick.propertyKind, commercialPattern, commercialDoor, quick.scope)[Math.min(Math.max(page, 1), stepsFor(quick.jobType, quick.propertyKind, commercialPattern, commercialDoor, quick.scope).length) - 1]}`
       : `page:${pageKeys[Math.min(page, pageKeys.length) - 1] ?? page}`;
 
   /**
@@ -1344,7 +1344,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
 
   // ---- the quick look -------------------------------------------------------
 
-  const quickSteps = stepsFor(quick.jobType, quick.propertyKind, commercialPattern, commercialDoor);
+  const quickSteps = stepsFor(quick.jobType, quick.propertyKind, commercialPattern, commercialDoor, quick.scope);
   const quickStep = quickSteps[Math.min(Math.max(page, 1), quickSteps.length) - 1];
 
   /**
@@ -1434,6 +1434,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
 
   function quickNext() {
     setError(null);
+    // 14 Sep: "Some rooms" needs at least one room ticked.
+    if (quickStep === "rooms" && quick.rooms && quick.rooms.length === 0) {
+      setError("Tick at least one room — or go back and choose the whole interior.");
+      return;
+    }
     // C16 (a): Continue on a screen confirms the fields the assistant filled in on it.
     if (state.assistant) setState((s) => ({ ...s, assistant: confirmAssistantStep(s.assistant, quickStep) }));
     /**
@@ -1637,8 +1642,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             : null}
           estimateId={reveal.estimateId}
           phone={companyPhone}
-          onTighten={() => router.push(`/estimate/scope?id=${reveal.estimateId}`)}
-          onBook={() => router.push(`/estimate/scope?id=${reveal.estimateId}#reach`)}
+          // 14 Sep: the estimate exists once the range is on screen — a walk
+          // resumed from the local cache after this point was a stale "Welcome
+          // back — you were at Scope" over a brand-new job.
+          onTighten={() => { clearResume(); router.push(`/estimate/scope?id=${reveal.estimateId}`); }}
+          onBook={() => { clearResume(); router.push(`/estimate/scope?id=${reveal.estimateId}#reach`); }}
           prefillEmail={prefill?.email}
         />
       </div>

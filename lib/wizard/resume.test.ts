@@ -52,6 +52,11 @@ test("the welcome-back line names the wizard's own page", () => {
   assert.equal(resumeLine(2, "interior"), "you were at The place");
   assert.equal(resumeLine(3, "exterior"), "you were at Scope");
   assert.equal(resumeLine(1, "interior"), "your answers are back");
+  // 14 Sep: a quick-look walk is labelled by its own screen, never "Scope".
+  assert.equal(resumeLine(3, "interior", "quick:job"), "you were at the job");
+  assert.equal(resumeLine(3, "interior", "quick:rooms"), "you were at which rooms");
+  assert.equal(resumeLine(3, "interior", "quick:start"), "your answers are back");
+  assert.equal(resumeLine(3, "exterior", "quick:outside"), "you were at the outside screen");
 });
 
 test("the server copy resumes a fresh, unconverted draft; converted, stale or empty rows do not", () => {

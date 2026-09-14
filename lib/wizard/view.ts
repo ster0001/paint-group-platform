@@ -10,7 +10,7 @@ import { accuracyScore, roomConfidencePct, type ScoredArea } from "./accuracy";
 import type { LoopConfirmState } from "./confirm-state";
 import { SCAFFOLD_EXCLUSION } from "./exterior-allowances";
 import { rangeBandPct, rangeFromTotal, type BandSettings, type GuardrailDecision } from "./policy";
-import type { Envelope } from "./envelope";
+import { sumEnvelopes, type Envelope } from "./envelope";
 
 /**
  * The editor's view of the estimate: every room with its provenance and its
@@ -124,6 +124,13 @@ export type CustomerPayload = {
   commercial?: { segment: string; name: string; widenPct: number; photos: number } | null;
   /** 14 Sep: the questions still holding the range envelope open (lib/wizard/envelope.ts). */
   openQuestions?: string[];
+  /** 14 Sep: what answering each open question closes, in cents — for "answering these closes about $N". */
+  openClosesCents?: Record<string, number>;
+  /** 14 Sep: the Settings bands, so copy never hardcodes a percentage. */
+  tightPct?: number;
+  widePct?: number;
+  /** 14 Sep: the held-price days (Settings `wizard_hold_days`), for the reveal's Keep door. */
+  holdDays?: number;
   accuracyPct: number;
   canAccept: boolean;
   walkthroughRequired: boolean;
@@ -181,7 +188,7 @@ export function customerPayload(
   /** C11: the resolved estimator, or null. */
   estimator: CustomerPayload["estimator"] = null,
   /** C12: the commercial widening (⚑20) and the segment block. */
-  extra: { widenPct?: number; commercial?: CustomerPayload["commercial"]; envelope?: Envelope | null } = {},
+  extra: { widenPct?: number; commercial?: CustomerPayload["commercial"]; envelope?: Envelope | null; envelopeParts?: { interior: Envelope; exterior: Envelope } | null; holdDays?: number } = {},
 ): CustomerPayload {
   const loose = blocks as LooseBlock[];
   const rooms: CustomerRoomView[] = payload.rooms.map((r) => {
@@ -206,7 +213,9 @@ export function customerPayload(
   // the open questions, lib/wizard/envelope.ts), the range IS the envelope
   // and the band is only its width in words. Without one — a caller that
   // has no state to know the questions — the accuracy band applies as before.
-  const env = extra.envelope ?? null;
+  // Tom, 14 Sep: a "both" job's headline is the SUM of its two parts.
+  const partEnv = extra.envelopeParts ?? null;
+  const env = partEnv ? sumEnvelopes([partEnv.interior, partEnv.exterior]) : (extra.envelope ?? null);
   const bandPct = env ? env.bandPct : rangeBandPct(payload.accuracyPct, bands) + (extra.widenPct ?? 0);
   const { loCents, hiCents } = env ? { loCents: env.loCents, hiCents: env.hiCents } : rangeFromTotal(payload.totals.totalCents, bandPct);
 
@@ -215,7 +224,10 @@ export function customerPayload(
     rooms,
     rangeLoCents: loCents,
     rangeHiCents: hiCents,
-    ...(env ? { openQuestions: env.open } : {}),
+    ...(env ? { openQuestions: env.open, openClosesCents: env.closesCents } : {}),
+    tightPct: bands.tightPct,
+    widePct: bands.widePct,
+    ...(extra.holdDays != null ? { holdDays: extra.holdDays } : {}),
     centralCents: decision.canAccept ? payload.totals.totalCents : null,
     bandPct,
     tightBand: payload.accuracyPct >= bands.tightMin,
@@ -242,7 +254,9 @@ export function customerPayload(
               : `${d.room}: ${d.what} — confirmed before your final quote`,
     ),
     photosPendingSignOff: payload.deferred.some((d) => d.kind === "photo_review"),
-    parts: parts ? { interior: customerRange(parts.interior, bands), exterior: customerRange(parts.exterior, bands) } : null,
+    parts: partEnv
+      ? { interior: { rangeLoCents: partEnv.interior.loCents, rangeHiCents: partEnv.interior.hiCents, bandPct: partEnv.interior.bandPct }, exterior: { rangeLoCents: partEnv.exterior.loCents, rangeHiCents: partEnv.exterior.hiCents, bandPct: partEnv.exterior.bandPct } }
+      : parts ? { interior: customerRange(parts.interior, bands), exterior: customerRange(parts.exterior, bands) } : null,
     systems,
     estimator,
     commercial: extra.commercial ?? null,

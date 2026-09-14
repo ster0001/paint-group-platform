@@ -129,7 +129,18 @@ export function decodeResume(
 }
 
 /** "you were at Surfaces" — the banner's line, in the wizard's own page names. */
-export function resumeLine(page: number, jobType: string | null | undefined): string {
+const QUICK_LABEL: Record<string, string> = {
+  start: "the first screen", both: "inside and outside", place: "the place", job: "the job", rooms: "which rooms", condition: "the condition",
+  outside: "the outside screen", segment: "the kind of place", com_areas: "the areas", com_warehouse: "the warehouse", com_job: "the job",
+  com_brief: "the brief", com_book: "the booking",
+};
+export function resumeLine(page: number, jobType: string | null | undefined, lastScreen?: string | null): string {
+  // 14 Sep: a quick-look walk is labelled by its own screen — the old page
+  // names ("Scope") described a different set of pages.
+  if (lastScreen?.startsWith("quick:")) {
+    const step = lastScreen.slice("quick:".length);
+    return step === "start" ? "your answers are back" : `you were at ${QUICK_LABEL[step] ?? "the quick look"}`;
+  }
   return page <= 1 ? "your answers are back" : `you were at ${pageLabel(jobType, page)}`;
 }
 

@@ -2,7 +2,6 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { customerOwnsDraft, getWizardActor } from "@/lib/supabase/guards";
 import { loadCustomerScope, type EstimateRow } from "@/lib/wizard/customer-scope";
-import { getCompanyContact } from "@/lib/portal/data";
 import { customerStatusLine, turnaroundFromSettings } from "@/lib/wizard/confirmation-actions";
 import { estimatorLine } from "@/lib/wizard/finish-line";
 import Wordmark from "@/app/wizard/Wordmark";
@@ -48,9 +47,8 @@ export default async function SentPage({ searchParams }: { searchParams: Promise
   const own = !estimate ? false : actor.kind !== "customer" || await customerOwnsDraft(db, actor, estimate as EstimateRow);
   if (!estimate || !own) return <Holding line="We couldn't find that estimate." />;
 
-  const [bundle, company, requestRes, turnaroundRes] = await Promise.all([
+  const [bundle, requestRes, turnaroundRes] = await Promise.all([
     loadCustomerScope(db, estimate as EstimateRow),
-    getCompanyContact(),
     /**
      * C6 — what the customer is told comes from the ROW, not from a second
      * copy of it in words. The status is the truth; a stored sentence beside
@@ -74,7 +72,10 @@ export default async function SentPage({ searchParams }: { searchParams: Promise
     status: request?.status ?? null,
     kind: request?.kind ?? null,
     fixedPriceCents: request?.fixed_price_cents ?? null,
-    coordinator: company.coordinatorName || company.name,
+    // 14 Sep: the SAME resolved estimator the reveal and the editor name —
+    // never the company profile's coordinator fallback, which on an unset
+    // profile was a placeholder name.
+    coordinator: bundle.sendTo ?? "your estimator",
     turnaroundWords: turnaround.words,
   });
   /**
@@ -101,10 +102,9 @@ export default async function SentPage({ searchParams }: { searchParams: Promise
       <header className="wz-top"><Wordmark logoUrl={bundle.logoUrl} /></header>
       <Sent
         estimateId={bundle.estimateId}
-        // The name a customer should hear, from Settings — never a hardcoded
-        // "Sarah". An office that hasn't set one gets the company's name
-        // rather than an invented person.
-        coordinator={company.coordinatorName || company.name}
+        // 14 Sep: who the reveal said has it — the patch estimator, else the
+        // Settings coordinator, else "your estimator". Never an invented name.
+        coordinator={bundle.sendTo ?? "your estimator"}
         companyPhone={bundle.companyPhone}
         email={contact.email?.trim() || null}
         roomsTotal={rooms.length}

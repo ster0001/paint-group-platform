@@ -118,6 +118,8 @@ const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
 const snapshotFalse = () => false;
 
+const fmtMoney = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
+
 export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialDarkToLight = { asked: false, surfaces: [], someWalls: false, ceilings: null, ceilingRooms: [] }, initialColourTier = "change", initialSystems = [], initialRoomExtras = {}, estimator = null, customerSuburb = null, initialCondition = "wear", initialAccess = { answers: {}, asksLift: false }, initialExtras = { offer: [], on: [], colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null, sendTo = null, chatMode = false }: {
   estimateId: string;
   initial: CustomerPayload;
@@ -718,12 +720,12 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                   <circle cx="24" cy="24" r="20" fill="none" stroke="#242B32" strokeWidth="4" />
                   <circle cx="24" cy="24" r="20" fill="none" stroke={payload.accuracyPct >= 90 ? "#2FA46B" : "#E0A83C"}
                     strokeWidth="4" strokeLinecap="round" strokeDasharray="125.6"
-                    strokeDashoffset={(125.6 * (1 - payload.accuracyPct / 100)).toFixed(1)} />
+                    strokeDashoffset={(125.6 * Math.max(0, Math.min(1, (payload.bandPct - (payload.tightPct ?? 4)) / Math.max(1, (payload.widePct ?? 15) - (payload.tightPct ?? 4))))).toFixed(1)} />
                 </svg>
-                <div className="sc-num">{payload.accuracyPct}%</div>
+                <div className="sc-num" data-testid="range-width">±{payload.bandPct}%</div>
               </div>
               <div className="sc-lbl">
-                <b>Confidence score <span className={`tier-chip ${ladder.tier}`} data-testid="tier-chip">{TIER_LABEL[ladder.tier].toUpperCase()}</span></b>
+                <b>Your range <span className={`tier-chip ${ladder.tier}`} data-testid="tier-chip">{TIER_LABEL[ladder.tier].toUpperCase()}</span></b>
                 {/* PR 1 of the tiers plan: the next unlock never names a target this
                     road can't reach — a no-plan job is shown Detailed as its goal and
                     Confirmed as "upload your floorplan". */}
@@ -768,6 +770,12 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
               <Offer kind="not_sures" estimator={estimator?.name ?? null} onBook={() => scrollToReach()} onCall={estimator?.phone ?? companyPhone} />
             )}
             <div className="sc-hd il-hd"><b>A few details to settle</b><span className="il-pill">TIGHTENS YOUR RANGE</span></div>
+            {/* 14 Sep: the money these answers close, from the envelope — never computed here. */}
+            {Object.values(payload.openClosesCents ?? {}).some((v) => v > 0) && (
+              <p className="il-hint" data-testid="details-closes">
+                Answering these closes about {fmtMoney(Object.values(payload.openClosesCents ?? {}).reduce((n, v) => n + v, 0))} of your range.
+              </p>
+            )}
             {styleOpen.doors && (
               <div className="il-q">
                 <p className="il-ql">The doors — mostly panelled, or flat?</p>

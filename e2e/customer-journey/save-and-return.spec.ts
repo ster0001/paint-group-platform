@@ -53,7 +53,7 @@ test.describe("save-and-return", () => {
      * They ride `state.quickLook` now, and the screen is the ordinary `page`.
      */
     await page.reload();
-    await expect(page.getByTestId("wz-resume")).toContainText(/you were at The place/);
+    await expect(page.getByTestId("wz-resume")).toContainText(/you were at the place/);
     await expect(page.locator("[data-quick-step='place']")).toBeVisible();
     await expect(page.getByTestId("ql-bedrooms-4")).toHaveClass(/\bon\b/);
     await expect(page.getByTestId("ql-storeys-double")).toHaveClass(/\bon\b/);

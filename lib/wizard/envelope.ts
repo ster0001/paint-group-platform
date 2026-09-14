@@ -1,7 +1,5 @@
 import { priceEstimateTotals, type Adjustments, type BlockInput, type PricingContext } from "@/lib/pricing/estimate";
-import { makeDraftSurface } from "@/lib/extract/draft";
 import { doorCodeFor, doorStyleOfCode, windowRateCode } from "@/lib/extract/scope";
-import { CUPBOARD_BY_ROOM_TYPE } from "./rooms-loop";
 import type { WizardState } from "./state";
 import type { BandSettings } from "./policy";
 
@@ -28,7 +26,19 @@ import type { BandSettings } from "./policy";
  * `priceEstimateTotals` on two trees and rounds the ends outward.
  */
 
-export type OpenQuestion = "doors" | "windows" | "height" | "cupboards";
+/**
+ * Tom, 14 Sep (round 2):
+ *  - cupboards (robes, vanities, kitchen fronts, laundry) are ASSUMED NOT
+ *    painted for the range — they are an add-on the editor asks per room,
+ *    never part of "the whole interior", so they were inflating the worst
+ *    case by 40% on a three-bed;
+ *  - ceilings are ASSUMED 3 m or more until the customer answers, on BOTH
+ *    ends of the range (the conservative reading), and the answer reprices;
+ *  - a question counts as answered by the TREE (the confirmed height has
+ *    left `assumedFields`), not by the quick-look state, which the editor's
+ *    confirm_height never touches.
+ */
+export type OpenQuestion = "doors" | "windows" | "height";
 
 export type Envelope = {
   loCents: number;
@@ -39,6 +49,9 @@ export type Envelope = {
   open: OpenQuestion[];
   /** How much of the tree the customer has confirmed, 0–1 (sizes residual). */
   confirmedShare: number;
+  /** What answering each open question closes, in cents (the dear end for
+   * doors/windows; both ends for height, priced at 3 m until answered). */
+  closesCents: Partial<Record<OpenQuestion, number>>;
 };
 
 type LooseBlock = Record<string, unknown> & {
@@ -59,19 +72,24 @@ export function openQuestions(state: WizardState | null, blocks: LooseBlock[], r
   if (hasDoors && (state?.details.doorStyle ?? "unsure") === "unsure") out.push("doors");
   const hasWindows = interior.some((b) => (b.surfaces ?? []).some((s) => String(s.code ?? "") === "Awning / Casement Window"));
   if (hasWindows && (state?.details.windowStyle ?? "unsure") === "unsure" && rateCodes.has(windowRateCode(DEAR_WINDOW) ?? "")) out.push("windows");
-  if ((state?.details.ceilingHeight ?? "unsure") === "unsure" && interior.some((b) => Number(b.H) < DEAR_HEIGHT_M)) out.push("height");
-  const cupboardOpen = interior.some((b) => {
-    const cfg = CUPBOARD_BY_ROOM_TYPE[String(b.roomType ?? "")];
-    return cfg && rateCodes.has(cfg.code) && (b.customer?.cup ?? null) === null
-      && !(b.surfaces ?? []).some((s) => String(s.code ?? "") === cfg.code);
-  });
-  if (cupboardOpen) out.push("cupboards");
+  // Height is open while any inside room still carries the ASSUMED height —
+  // the editor's confirm_height strips "H" from assumedFields; the quick-look
+  // state's ceilingHeight is not what it writes.
+  if (interior.some((b) => Array.isArray(b.assumedFields) && (b.assumedFields as string[]).includes("H"))) out.push("height");
   return out;
+}
+
+/** Tom, 14 Sep: an unanswered ceiling height is priced at 3 m on BOTH ends. */
+export function assumedHeightTree(blocks: LooseBlock[], open: OpenQuestion[]): LooseBlock[] {
+  if (!open.includes("height")) return blocks;
+  return blocks.map((b) => (b.kind === "area" && b.type !== "Exterior" && Array.isArray(b.assumedFields) && (b.assumedFields as string[]).includes("H") && Number(b.H) < DEAR_HEIGHT_M
+    ? { ...b, H: DEAR_HEIGHT_M }
+    : b));
 }
 
 /** The dearest honest resolution of every open question, applied to a copy of the tree. */
 export function dearestTree(state: WizardState | null, blocks: LooseBlock[], open: OpenQuestion[], rateCodes: ReadonlySet<string>): LooseBlock[] {
-  let nextId = Math.max(0, ...blocks.flatMap((b) => [Number(b.id) || 0, ...(b.surfaces ?? []).map((s) => Number(s.id) || 0)])) + 1;
+  void rateCodes;
   const doorScope = state?.details.doorScope ?? "frame";
   const panelCode = doorCodeFor("panel", doorScope);
   const dearWindowCode = windowRateCode(DEAR_WINDOW);
@@ -84,14 +102,7 @@ export function dearestTree(state: WizardState | null, blocks: LooseBlock[], ope
     if (open.includes("windows") && dearWindowCode) {
       surfaces = surfaces.map((s) => (String(s.code ?? "") === "Awning / Casement Window" ? { ...s, code: dearWindowCode } : s));
     }
-    if (open.includes("cupboards")) {
-      const cfg = CUPBOARD_BY_ROOM_TYPE[String(b.roomType ?? "")];
-      if (cfg && rateCodes.has(cfg.code) && (b.customer?.cup ?? null) === null && !surfaces.some((s) => String(s.code ?? "") === cfg.code)) {
-        surfaces.push(makeDraftSurface(nextId++, cfg.code, cfg.unit, cfg.defaultCount, "ai_assumed", 0.5, []) as unknown as Record<string, unknown>);
-      }
-    }
-    const H = open.includes("height") && Number(b.H) < DEAR_HEIGHT_M ? DEAR_HEIGHT_M : b.H;
-    return { ...b, H, surfaces };
+    return { ...b, surfaces };
   });
 }
 
@@ -118,10 +129,27 @@ export function envelopeFor(input: {
   const rateCodes = new Set(input.ctx.rateItems.map((r) => r.code));
   const priced = input.blocks.filter((b) => b.kind === "area" && b.isOption !== true);
   const open = openQuestions(input.state, priced, rateCodes);
-  const cheap = priceEstimateTotals(priced as unknown as BlockInput[], input.ctx, input.adj).totalCents;
-  const dear = open.length
-    ? priceEstimateTotals(dearestTree(input.state, priced, open, rateCodes) as unknown as BlockInput[], input.ctx, input.adj).totalCents
+  // Tom, 14 Sep: 3 m ceilings until answered — on both ends.
+  const base = assumedHeightTree(priced, open);
+  const cheap = priceEstimateTotals(base as unknown as BlockInput[], input.ctx, input.adj).totalCents;
+  const dear = open.some((q) => q !== "height")
+    ? priceEstimateTotals(dearestTree(input.state, base, open, rateCodes) as unknown as BlockInput[], input.ctx, input.adj).totalCents
     : cheap;
+  // What each open question is worth: the dear tree without it (doors,
+  // windows), or the base tree at 2.4 m instead of 3 m (height).
+  const closesCents: Partial<Record<OpenQuestion, number>> = {};
+  for (const q of open) {
+    if (q === "height") {
+      const lower = priceEstimateTotals(priced as unknown as BlockInput[], input.ctx, input.adj).totalCents;
+      closesCents.height = Math.max(0, cheap - lower);
+    } else {
+      const without = open.filter((x) => x !== q);
+      const dearWithout = without.some((x) => x !== "height")
+        ? priceEstimateTotals(dearestTree(input.state, base, without, rateCodes) as unknown as BlockInput[], input.ctx, input.adj).totalCents
+        : cheap;
+      closesCents[q] = Math.max(0, dear - dearWithout);
+    }
+  }
   const areas = priced.length;
   const confirmedCount = input.confirmed ? [...input.confirmed.values()].filter((s) => s === "confirmed").length : 0;
   const confirmedShare = areas ? Math.min(1, confirmedCount / areas) : 0;
@@ -130,5 +158,19 @@ export function envelopeFor(input: {
   const hiCents = roundHi(Math.max(cheap, dear) * (1 + residual));
   const mid = (loCents + hiCents) / 2;
   const bandPct = mid > 0 ? Math.round(((hiCents - loCents) / 2 / mid) * 100) : 0;
-  return { loCents, hiCents, bandPct, open, confirmedShare };
+  return { loCents, hiCents, bandPct, open, confirmedShare, closesCents };
 }
+
+/** Tom, 14 Sep: a "both" job's headline is the SUM of its two parts' envelopes. */
+export function sumEnvelopes(parts: Envelope[]): Envelope {
+  const loCents = parts.reduce((n, e) => n + e.loCents, 0);
+  const hiCents = parts.reduce((n, e) => n + e.hiCents, 0);
+  const mid = (loCents + hiCents) / 2;
+  const open = [...new Set(parts.flatMap((e) => e.open))];
+  const areas = parts.length;
+  const confirmedShare = areas ? parts.reduce((n, e) => n + e.confirmedShare, 0) / areas : 0;
+  const closesCents: Partial<Record<OpenQuestion, number>> = {};
+  for (const e of parts) for (const [k, v] of Object.entries(e.closesCents)) closesCents[k as OpenQuestion] = (closesCents[k as OpenQuestion] ?? 0) + (v ?? 0);
+  return { loCents, hiCents, bandPct: mid > 0 ? Math.round(((hiCents - loCents) / 2 / mid) * 100) : 0, open, confirmedShare, closesCents };
+}
+

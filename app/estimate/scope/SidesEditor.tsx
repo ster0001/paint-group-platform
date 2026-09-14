@@ -740,12 +740,12 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                   <circle cx="24" cy="24" r="20" fill="none" stroke="#242B32" strokeWidth="4" />
                   <circle cx="24" cy="24" r="20" fill="none" stroke={payload.accuracyPct >= 85 ? "#2FA46B" : "#E0A83C"}
                     strokeWidth="4" strokeLinecap="round" strokeDasharray="125.6"
-                    strokeDashoffset={(125.6 * (1 - payload.accuracyPct / 100)).toFixed(1)} />
+                    strokeDashoffset={(125.6 * Math.max(0, Math.min(1, (payload.bandPct - (payload.tightPct ?? 4)) / Math.max(1, (payload.widePct ?? 15) - (payload.tightPct ?? 4))))).toFixed(1)} />
                 </svg>
-                <div className="sc-num">{payload.accuracyPct}%</div>
+                <div className="sc-num" data-testid="range-width">±{payload.bandPct}%</div>
               </div>
               <div className="sc-lbl">
-                <b>Confidence score <span className={`tier-chip ${ladder.tier}`} data-testid="tier-chip">{TIER_LABEL[ladder.tier].toUpperCase()}</span></b>
+                <b>Your range <span className={`tier-chip ${ladder.tier}`} data-testid="tier-chip">{TIER_LABEL[ladder.tier].toUpperCase()}</span></b>
                 <span data-testid="tier-next">{ladder.nextUnlock
                   ? `${ladder.nextUnlock.needs.length === 1 ? "One step" : `${ladder.nextUnlock.needs.length} steps`} to ${TIER_LABEL[ladder.nextUnlock.tier]}: ${ladder.nextUnlock.needs.join(" · ")}`
                   : allDone
@@ -983,7 +983,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
             }} />
         )}
         {slotsOpen && booked == null && (
-          <ContactCard prefix="sd" companyPhone={companyPhone} phoneHours={phoneHours} defaultPhone={customerPhone} onSubmit={(req) => {
+          <ContactCard prefix="sd" why="Outside work is always priced by a person — pick how." companyPhone={companyPhone} phoneHours={phoneHours} defaultPhone={customerPhone} onSubmit={(req) => {
             act({ action: "request_contact", ...req }, { done: req.how === "visit" ? "Thanks — we'll ring you to lock in a visit time that suits. We're available Monday to Friday." : "Thanks — we'll call you back to finalise your price. We're available Monday to Friday." });
             setBooked(req.how === "visit" ? "Site visit requested" : "Call back requested");
             setSlotsOpen(false);
