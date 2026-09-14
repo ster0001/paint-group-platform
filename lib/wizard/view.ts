@@ -154,7 +154,7 @@ export type CustomerPayload = {
    * `paintSystemsView` from the rules row + the state; the client renders
    * them and changes nothing.
    */
-  systems: Array<{ group: string; title: string; sentence: string; coats: number; undercoat: boolean; review: boolean }>;
+  systems: Array<{ group: string; title: string; sentence: string; coats: number; undercoat: boolean; review: boolean; note?: string }>;
   /**
    * C11 — the customer's estimator, for the strip on the reveal: resolved
    * ONCE on the server (`lib/wizard/estimator.ts`) and never invented — null

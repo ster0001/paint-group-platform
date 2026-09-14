@@ -139,6 +139,9 @@ function systemPatchFrom(
   if (field === "glossTrims") {
     return value === "yes" || value === "no" || value === "unsure" ? { field, value } : null;
   }
+  if (field === "paintBase") {
+    return value === "water" || value === "oil" || value === "unsure" ? { field, value } : null;
+  }
   if (field === "ceilingsMarked" || field === "ceilingsChangingColour") {
     return typeof value === "boolean" ? { field, value } : null;
   }
@@ -250,7 +253,7 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("set_paint_system"),
     field: z.enum([
-      "colourIntent", "ceilingsMarked", "ceilingsChangingColour", "glossTrims", "surfaceFlag", "darkToLight",
+      "colourIntent", "ceilingsMarked", "ceilingsChangingColour", "glossTrims", "paintBase", "surfaceFlag", "darkToLight",
       "darkToLightCeilings", "darkToLightCeilingRoom",
     ]),
     /** surfaceFlag: which line, and which flag on it. darkToLight: which
@@ -265,7 +268,7 @@ const actionSchema = z.discriminatedUnion("action", [
     // combination that does not exist — an unpaired value is a 400, not a
     // silently ignored answer.
     value: z.union([
-      z.enum(["same", "new", "bold"]), z.enum(["yes", "no", "unsure"]),
+      z.enum(["same", "new", "bold"]), z.enum(["yes", "no", "unsure"]), z.enum(["water", "oil"]),
       z.enum(["all", "some"]), z.boolean(), z.null(),
     ]),
   }),

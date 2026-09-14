@@ -83,7 +83,7 @@ test("the footer line changes with the not-sures, and the offers appear at their
   // line moves on.
   const details = page.getByTestId("details-card");
   await details.locator(".il-hd").click().catch(() => undefined);
-  for (const name of ["Panel", "Casement", "2.7 m", "Shiny"]) {
+  for (const name of ["Panel", "Casement", "2.7 m", "Oil based"]) {
     const b = details.getByRole("button", { name, exact: true });
     if (await b.count()) { await b.first().click(); await page.waitForTimeout(800); }
   }

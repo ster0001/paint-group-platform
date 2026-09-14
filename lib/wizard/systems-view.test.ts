@@ -1,3 +1,4 @@
+import { wizardStateSchema } from "./state";
 import { describe, expect, it } from "vitest";
 import {
   applyPaintSystems, applySystemPatch, groupsInTree, paintSystemsView, systemAnswersFromState,
@@ -64,18 +65,36 @@ describe("the corrections offered", () => {
     expect(same.find((l) => l.group === "walls")!.chips.find((c) => c.on)?.label).toBe("Same colour actually");
   });
 
-  it("offers the gloss question on trims and doors, and nowhere else (⚑5)", () => {
+  it("offers the what-is-underneath question on trims and doors, and nowhere else (Tom, 14 Sep)", () => {
     const lines = paintSystemsView(state(), tree());
     for (const g of ["trims", "doors"] as const) {
-      expect(lines.find((l) => l.group === g)!.chips.map((c) => c.label)).toEqual(["Yes, shiny", "No", "Not sure"]);
+      expect(lines.find((l) => l.group === g)!.chips.map((c) => c.label)).toEqual(["Currently oil-based", "Currently water-based", "Not sure"]);
     }
     expect(lines.find((l) => l.group === "walls")!.chips.some((c) => c.label === "Not sure")).toBe(false);
   });
 
-  it("defaults the gloss answer to 'not sure' and says the line needs a check", () => {
+  it("an unanswered paint question is two coats with no marker and the orange note; 'not sure' earns the marker (Tom, 14 Sep)", () => {
     const trims = paintSystemsView(state(), tree()).find((l) => l.group === "trims")!;
-    expect(trims.chips.find((c) => c.on)?.label).toBe("Not sure");
-    expect(trims.review).toBe(true);
+    expect(trims.chips.find((c) => c.on)).toBeUndefined();
+    expect(trims.review).toBe(false);
+    expect(trims.coats).toBe(2);
+    expect(trims.note).toMatch(/additional coats/i);
+    const s = state();
+    s.paint.base = "water";
+    s.paint.trimsOilBased = "unsure";
+    const unsure = paintSystemsView(s, tree()).find((l) => l.group === "trims")!;
+    expect(unsure.review).toBe(true);
+    expect(unsure.note).toBe("");
+    expect(unsure.coats).toBe(2);
+    s.paint.trimsOilBased = "yes";
+    const oil = paintSystemsView(s, tree()).find((l) => l.group === "trims")!;
+    expect(oil.coats).toBe(3);
+    expect(oil.undercoat).toBe(true);
+    expect(oil.note).toBe("");
+    s.paint.base = "oil";
+    const oilOverOil = paintSystemsView(s, tree()).find((l) => l.group === "trims")!;
+    expect(oilOverOil.coats).toBe(2);
+    expect(oilOverOil.review).toBe(false);
   });
 
   it("offers the two ceiling taps (⚑3)", () => {
@@ -255,7 +274,7 @@ describe("re-deriving the tree after a correction", () => {
     const twice = applyPaintSystems(once, s);
     const note = (blocks: ReturnType<typeof applyPaintSystems>) =>
       blocks.find((b) => b.name === "Living")!.surfaces!.find((x) => x.code === "Skirting Boards")!.crewNote as string;
-    expect(note(once)).toContain("bonding primer");
+    expect(note(once)).toContain("oil-based");
     expect(note(twice)).toBe(note(once));
   });
 
@@ -269,7 +288,7 @@ describe("re-deriving the tree after a correction", () => {
     const out = applyPaintSystems(withNote, s);
     const note = out.find((b) => b.name === "Living")!.surfaces!.find((x) => x.code === "Skirting Boards")!.crewNote as string;
     expect(note).toContain("customer asked for satin");
-    expect(note).toContain("bonding primer");
+    expect(note).toContain("oil-based");
   });
 
   it("follows Tom's Settings table, not the file's defaults", () => {
@@ -280,8 +299,20 @@ describe("re-deriving the tree after a correction", () => {
 });
 
 describe("the shared answers reader", () => {
-  it("reads a null gloss answer as 'not sure', never as 'no'", () => {
-    expect(systemAnswersFromState(state()).glossTrims).toBe("unsure");
+  it("a water-based answer leaves a snapshot the schema still accepts (the follow-up is not answered yet)", () => {
+    const { paint } = applySystemPatch(state(), { field: "paintBase", value: "water" });
+    const next = { ...state(), paint };
+    // The default fixture may carry other customer-mode issues; the answer must not ADD one.
+    const issues = (v: unknown) => wizardStateSchema.safeParse(v).error?.issues.map((i) => i.path.join(".")) ?? [];
+    expect(issues(next)).toEqual(issues(state()));
+    expect(issues(next)).not.toContain("paint.trimsOilBased");
+    expect(paint.base).toBe("water");
+    expect(paint.waterBasedOnly).toBe(false);
+  });
+
+  it("reads a null paint answer as NEVER ASKED — two coats, no marker (Tom, 14 Sep)", () => {
+    expect(systemAnswersFromState(state()).glossTrims).toBeUndefined();
+    expect(systemAnswersFromState(state()).trimsBase).toBeNull();
   });
 
   it("survives a partial state without throwing", () => {
@@ -289,7 +320,7 @@ describe("the shared answers reader", () => {
     const a = systemAnswersFromState(partial);
     expect(a.colourIntent).toBe("new");
     expect(a.condition).toBe("wear");
-    expect(a.glossTrims).toBe("unsure");
+    expect(a.glossTrims).toBeUndefined();
   });
 });
 

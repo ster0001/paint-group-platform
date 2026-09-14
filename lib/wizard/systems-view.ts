@@ -85,6 +85,14 @@ export function groupIntents(condition: WizardState["condition"] | null | undefi
   };
 }
 
+/** What the trims are being painted with, as stored: the 14 Sep `base` answer, else the older water-based-only tick. */
+export function trimsBaseOf(paint: WizardState["paint"] | null | undefined): "water" | "oil" | "unsure" | null {
+  return paint?.base ?? (paint?.waterBasedOnly ? "water" : null);
+}
+
+/** Tom, 14 Sep: the orange line under a two-coat trims line. */
+export const TRIMS_EXTRA_COATS_NOTE = "Additional coats may be needed for oil → water based, or for raw or stained timber.";
+
 export function systemAnswersFromState(
   state: Pick<WizardState, "condition" | "details" | "paint">,
   darkToLight = false,
@@ -93,9 +101,11 @@ export function systemAnswersFromState(
     colourIntent: colourIntentFromTier(state.condition?.tier ?? "change"),
     intents: groupIntents(state.condition),
     condition: conditionBandFromDamageTier(state.details?.damageTier ?? 1),
-    // ⚑5: null (never asked) is "not sure", which prices as no and asks a
-    // person to check — never a confident "no".
-    glossTrims: state.paint?.trimsOilBased ?? "unsure",
+    // Tom, 14 Sep: null is NEVER ASKED (two coats, no marker — the range
+    // carries the three-coat case); "unsure" is the customer's own answer,
+    // which is what earns "a person confirms this one".
+    glossTrims: state.paint?.trimsOilBased ?? undefined,
+    trimsBase: trimsBaseOf(state.paint),
     ceilingsMarked: state.condition?.ceilingsMarked ?? false,
     ceilingsChangingColour: (state.condition?.ceilingsChangingColour ?? false)
       || (state.condition?.colourAnswered === true && (state.condition.changingGroups?.ceilings === true || state.condition.coloursUndecided === true)),
@@ -121,6 +131,7 @@ export type SystemChip = {
     | { field: "ceilingsMarked"; value: boolean }
     | { field: "ceilingsChangingColour"; value: boolean }
     | { field: "glossTrims"; value: "yes" | "no" | "unsure" }
+    | { field: "paintBase"; value: "water" | "oil" | "unsure" }
     /** A per-group condition flag, on or off. `group` is which line it sits on. */
     | { field: "surfaceFlag"; group: SystemGroup; flag: string; value: boolean }
     /**
@@ -148,6 +159,13 @@ export type SystemChip = {
 
 export type PaintSystemLine = {
   group: SystemGroup;
+  /** The colour intent the line derived from. */
+  intent: ColourIntent;
+  /** Tom, 14 Sep: the orange note under a two-coat trims / doors line ("" when none). */
+  note: string;
+  /** The stored paint answers, so the editor knows which question is still open. */
+  paintBase: "water" | "oil" | "unsure" | null;
+  trimsCurrent: "yes" | "no" | "unsure" | null;
   /** The heading a customer reads — "Skirtings, architraves and door frames". */
   title: string;
   /** The painter's sentence: what we will actually do. */
@@ -240,9 +258,9 @@ const ceilingChips = (a: SystemAnswers): SystemChip[] => [
 
 /** ⚑5 — the one preparation question worth asking a homeowner (plan §4.2). */
 const glossChips = (a: SystemAnswers): SystemChip[] => [
-  { label: "Yes, shiny", on: a.glossTrims === "yes", said: "A bonding primer added to the trims", patch: { field: "glossTrims", value: "yes" } },
-  { label: "No", on: a.glossTrims === "no", said: "No bonding primer needed", patch: { field: "glossTrims", value: "no" } },
-  { label: "Not sure", on: a.glossTrims === "unsure" || a.glossTrims == null, said: "We'll check the trims ourselves", patch: { field: "glossTrims", value: "unsure" } },
+  { label: "Currently oil-based", on: a.glossTrims === "yes", said: "An undercoat added before the water-based enamel", patch: { field: "glossTrims", value: "yes" } },
+  { label: "Currently water-based", on: a.glossTrims === "no", said: "Two coats, no undercoat needed", patch: { field: "glossTrims", value: "no" } },
+  { label: "Not sure", on: a.glossTrims === "unsure", said: "We'll get our estimator to check", patch: { field: "glossTrims", value: "unsure" } },
 ];
 
 /**
@@ -275,9 +293,16 @@ export function paintSystemsView(
         said: on.has(f.key) ? `${f.label} — removed` : f.reason !== "" ? `Noted: ${f.reason}` : f.label,
         patch: { field: "surfaceFlag", group, flag: f.key, value: !on.has(f.key) },
       }));
+    const trimLike = group === "trims" || group === "doors";
     lines.push({
       flagChips,
       group,
+      intent: s.intent,
+      // Tom, 14 Sep: two coats in blue as standard, and the orange "may need
+      // more" line — unless a person is already marked as checking it.
+      note: trimLike && s.intent !== "same" && s.coats === 2 && !s.review ? TRIMS_EXTRA_COATS_NOTE : "",
+      paintBase: answers.trimsBase ?? null,
+      trimsCurrent: answers.glossTrims ?? null,
       title: TITLE[group],
       sentence: s.sentence,
       coats: s.coats,
@@ -339,6 +364,13 @@ export function applySystemPatch(
       break;
     case "glossTrims":
       paint.trimsOilBased = patch.value;
+      break;
+    case "paintBase":
+      // Tom, 14 Sep: what the trims are painted with. `base` is read first
+      // everywhere (trimsBaseOf); the older water-based-only tick is NOT set
+      // here — the state schema refuses that tick without its follow-up, and
+      // a snapshot that fails to parse empties the whole details card.
+      paint.base = patch.value;
       break;
     case "darkToLight": {
       const on = new Set(condition.darkToLightSurfaces ?? []);

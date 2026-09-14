@@ -6,7 +6,7 @@ import {
   DEFAULT_PAINT_SYSTEMS, deriveSystem, groupForSubstrate,
   type PaintSystems, type SystemAnswers,
 } from "@/lib/pricing/systems";
-import { systemAnswersFromState } from "./systems-view";
+import { systemAnswersFromState, trimsBaseOf } from "./systems-view";
 import { coatsFor, windowStyleLabel, windowStyleToSchema, type WizardState, type WizardSurfaceKey } from "./state";
 
 /**
@@ -233,7 +233,7 @@ export function applyWizardAnswers(
           s.crewNote = [s.crewNote, system.crewNote].filter(Boolean).join(" | ");
         }
       }
-      if (state.paint.waterBasedOnly && state.paint.trimsOilBased === "yes" && key && TRIM_KEYS.includes(key)) {
+      if (trimsBaseOf(state.paint) != null && trimsBaseOf(state.paint) !== "oil" && state.paint.trimsOilBased === "yes" && key && TRIM_KEYS.includes(key)) {
         s.crewNote = [s.crewNote, "oil-based enamel underneath — adhesion prep before water-based topcoats"]
           .filter(Boolean).join(" | ");
       }
@@ -256,15 +256,19 @@ export function applyWizardAnswers(
       needs: "no per-room rate for stairs — price it in the builder",
     });
   }
-  if (state.paint.waterBasedOnly && state.paint.trimsOilBased === "yes") {
+  // Tom, 14 Sep: water-based (or not sure) over an oil enamel is the
+  // undercoat case; "not sure what's underneath" is priced at two coats and
+  // the estimator is told to check — never three coats on a guess.
+  const waterish = trimsBaseOf(state.paint) != null && trimsBaseOf(state.paint) !== "oil";
+  if (waterish && state.paint.trimsOilBased === "yes") {
     deferred.push({
       room: "Whole job", areaId: null, what: "oil-to-water trim conversion", count: 1,
-      needs: "trims are oil-based enamel — allow adhesion prep before the water-based topcoats",
+      needs: "trims are oil-based enamel — an undercoat before the water-based topcoats (priced)",
     });
-  } else if (state.paint.waterBasedOnly && state.paint.trimsOilBased === "unsure") {
+  } else if (waterish && state.paint.trimsOilBased === "unsure") {
     deferred.push({
       room: "Whole job", areaId: null, what: "trim enamel check", count: 1,
-      needs: "water-based only requested — check whether the trims are currently oil enamel",
+      needs: "check whether the woodwork was last painted in oil or water-based — priced at two coats; an undercoat and a third coat apply if oil",
     });
   }
   if (state.details.damageTier >= 2 && state.details.damagePhotoCount === 0) {

@@ -216,9 +216,9 @@ describe("applyWizardAnswers", () => {
       nextId,
     );
     const skirting = oil.areas.find((a) => a.name === "Living")?.surfaces.find((x) => x.code === "Skirting Boards");
-    // One coat + the bonding primer.
+    // One coat + the undercoat over the oil enamel.
     expect(skirting?.coats).toBe(2);
-    expect(skirting?.crewNote).toContain("bonding primer");
+    expect(skirting?.crewNote).toContain("oil-based");
   });
 
   it("oil trims: crew note on trim lines plus one whole-job deferred item", () => {

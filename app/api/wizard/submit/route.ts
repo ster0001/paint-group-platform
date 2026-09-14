@@ -959,7 +959,7 @@ export async function POST(request: Request) {
     // and never the interior lines; a "both" job gets both sets.
     const doLines = [
       ...(effectiveState.jobType === "exterior" ? [] : paintSystemsView(effectiveState, merged.areas, paintSystems)
-        .map((l) => ({ group: l.group as string, title: l.title, sentence: l.sentence, coats: l.coats, undercoat: l.undercoat, review: l.review }))),
+        .map((l) => ({ group: l.group as string, title: l.title, sentence: l.sentence, coats: l.coats, undercoat: l.undercoat, review: l.review, note: l.note }))),
       ...(effectiveState.jobType !== "interior" ? exteriorWhatWeDo(effectiveState, paintSystems) : []),
     ];
     // C11 — who confirms this price, resolved once for the strip on the reveal.

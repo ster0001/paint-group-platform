@@ -1,6 +1,8 @@
 import { priceEstimateTotals, type Adjustments, type BlockInput, type PricingContext } from "@/lib/pricing/estimate";
 import { doorCodeFor, doorStyleOfCode, windowRateCode } from "@/lib/extract/scope";
 import type { WizardState } from "./state";
+import { surfaceKeyForRateCode } from "./merge";
+import { groupIntents, trimsBaseOf } from "./systems-view";
 import type { BandSettings } from "./policy";
 
 /**
@@ -38,7 +40,8 @@ import type { BandSettings } from "./policy";
  *    left `assumedFields`), not by the quick-look state, which the editor's
  *    confirm_height never touches.
  */
-export type OpenQuestion = "doors" | "windows" | "height";
+/** Tom, 14 Sep: "trims" is the three-coat case — an oil enamel under water-based paint — until the paint questions close it. */
+export type OpenQuestion = "doors" | "windows" | "height" | "trims";
 
 export type Envelope = {
   loCents: number;
@@ -76,8 +79,21 @@ export function openQuestions(state: WizardState | null, blocks: LooseBlock[], r
   // the editor's confirm_height strips "H" from assumedFields; the quick-look
   // state's ceilingHeight is not what it writes.
   if (interior.some((b) => Array.isArray(b.assumedFields) && (b.assumedFields as string[]).includes("H"))) out.push("height");
+  // Trims changing colour, painted with water-based (or nothing said yet), and
+  // nobody has said what is underneath: the dear end carries the undercoat.
+  const hasTrims = interior.some((b) => (b.surfaces ?? []).some((s) => isTrimLike(String(s.code ?? ""))));
+  const trimsChanging = (groupIntents(state?.condition)?.trims ?? (state?.condition?.tier === "fresh" ? "same" : "new")) !== "same";
+  const current = state?.paint?.trimsOilBased ?? null;
+  if (hasTrims && trimsChanging && trimsBaseOf(state?.paint) !== "oil" && current !== "yes" && current !== "no") out.push("trims");
   return out;
 }
+
+const TRIM_LIKE = new Set(["doors", "architraves", "skirting"]);
+function isTrimLike(code: string): boolean {
+  const key = surfaceKeyForRateCode(code, "interior");
+  return key != null && TRIM_LIKE.has(key);
+}
+const DEAR_TRIM_COATS = 3;
 
 /** Tom, 14 Sep: an unanswered ceiling height is priced at 3 m on BOTH ends. */
 export function assumedHeightTree(blocks: LooseBlock[], open: OpenQuestion[]): LooseBlock[] {
@@ -101,6 +117,9 @@ export function dearestTree(state: WizardState | null, blocks: LooseBlock[], ope
     }
     if (open.includes("windows") && dearWindowCode) {
       surfaces = surfaces.map((s) => (String(s.code ?? "") === "Awning / Casement Window" ? { ...s, code: dearWindowCode } : s));
+    }
+    if (open.includes("trims")) {
+      surfaces = surfaces.map((s) => (isTrimLike(String(s.code ?? "")) ? { ...s, coats: Math.max(Number(s.coats) || 0, DEAR_TRIM_COATS) } : s));
     }
     return { ...b, surfaces };
   });

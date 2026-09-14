@@ -157,34 +157,54 @@ describe("the table (plan §4.2 with ⚑3/⚑4/⚑5)", () => {
   });
 
   it("⚑4: good condition does NOT drop new-colour trims to one coat", () => {
-    expect(coatsOf("trims", { colourIntent: "new", condition: "good" })).toBe(3);
+    expect(coatsOf("trims", { colourIntent: "new", condition: "good" })).toBe(2);
   });
 
-  it("⚑5 gloss: yes adds a bonding primer, unsure prices as no but flags review", () => {
-    const yes = deriveSystem("trims", answers({ glossTrims: "yes" }));
-    const no = deriveSystem("trims", answers({ glossTrims: "no" }));
-    expect(yes.coats).toBe(no.coats + 1);
-    expect(yes.undercoat).toBe(true);
-    expect(yes.crewNote).toContain("bonding primer");
-    expect(no.review).toBe(false);
+  it("Tom, 14 Sep: a colour change on trims and doors is two coats as standard; bold keeps the undercoat", () => {
+    expect(deriveSystem("trims", answers({ colourIntent: "new" }))).toMatchObject({ coats: 2, undercoat: false });
+    expect(deriveSystem("doors", answers({ colourIntent: "new" }))).toMatchObject({ coats: 2, undercoat: false });
+    // Bold alone never lifts a surface (10 Sep: the dark-to-light TICK earns the coat).
+    expect(deriveSystem("trims", answers({ colourIntent: "bold" }))).toMatchObject({ coats: 2, undercoat: false });
+    expect(deriveSystem("trims", answers({ colourIntent: "bold", darkToLight: true }))).toMatchObject({ coats: 3, undercoat: true });
+  });
 
-    const unsure = deriveSystem("trims", answers({ glossTrims: "unsure" }));
-    expect(unsure.coats).toBe(no.coats);
+  it("the paint questions (Tom, 14 Sep): water over oil is three coats, over water two, over not-sure two with a person checking", () => {
+    const overOil = deriveSystem("trims", answers({ trimsBase: "water", glossTrims: "yes" }));
+    const overWater = deriveSystem("trims", answers({ trimsBase: "water", glossTrims: "no" }));
+    expect(overOil.coats).toBe(overWater.coats + 1);
+    expect(overOil.undercoat).toBe(true);
+    expect(overOil.crewNote).toContain("oil-based");
+    expect(overWater.review).toBe(false);
+    expect(overWater.coats).toBe(2);
+
+    const unsure = deriveSystem("trims", answers({ trimsBase: "water", glossTrims: "unsure" }));
+    expect(unsure.coats).toBe(2);
     expect(unsure.review).toBe(true);
-    expect(unsure.crewNote).toContain("oil-based");
+    expect(unsure.crewNote).toContain("oil or water-based");
+    // "Not sure" what the new paint is behaves like water.
+    expect(deriveSystem("trims", answers({ trimsBase: "unsure", glossTrims: "yes" })).coats).toBe(3);
   });
 
-  it("⚑5: an unanswered gloss question behaves as 'not sure', never as 'no'", () => {
+  it("oil-based new paint is two coats whatever is underneath — oil over oil included", () => {
+    for (const current of ["yes", "no", "unsure"] as const) {
+      const s = deriveSystem("trims", answers({ trimsBase: "oil", glossTrims: current }));
+      expect(s.coats, `currently ${current}`).toBe(2);
+      expect(s.review).toBe(false);
+    }
+  });
+
+  it("nothing answered yet is two coats with no marker — the range carries the three-coat case", () => {
     const missing = deriveSystem("trims", { colourIntent: "new", condition: "wear" });
-    expect(missing.review).toBe(true);
+    expect(missing.coats).toBe(2);
+    expect(missing.review).toBe(false);
   });
 
-  it("⚑5 applies to doors as well as trims, and to nothing else", () => {
-    expect(deriveSystem("doors", answers({ glossTrims: "yes" })).coats)
-      .toBe(deriveSystem("doors", answers({ glossTrims: "no" })).coats + 1);
-    expect(deriveSystem("walls", answers({ glossTrims: "yes" })).coats)
-      .toBe(deriveSystem("walls", answers({ glossTrims: "no" })).coats);
-    expect(deriveSystem("walls", answers({ glossTrims: "unsure" })).review).toBe(false);
+  it("the oil-underneath undercoat applies to doors as well as trims, and to nothing else", () => {
+    expect(deriveSystem("doors", answers({ trimsBase: "water", glossTrims: "yes" })).coats)
+      .toBe(deriveSystem("doors", answers({ trimsBase: "water", glossTrims: "no" })).coats + 1);
+    expect(deriveSystem("walls", answers({ trimsBase: "water", glossTrims: "yes" })).coats)
+      .toBe(deriveSystem("walls", answers({ trimsBase: "water", glossTrims: "no" })).coats);
+    expect(deriveSystem("walls", answers({ trimsBase: "water", glossTrims: "unsure" })).review).toBe(false);
   });
 
   it("a dark-to-light surface is bold whatever the job-wide intent was", () => {
@@ -508,8 +528,9 @@ describe("a flag that changes nothing numerically still changes the words", () =
    * priced as it was — a stain-blocking primer is not a plain undercoat.
    */
   it("says stained on doors that were already at three coats", () => {
-    const plain = deriveSystem("doors", answers({ colourIntent: "new" }));
-    const flagged = deriveSystem("doors", answers({ colourIntent: "new", flags: { doors: ["stained"] } }));
+    // Since 14 Sep a plain colour change is two coats; dark-to-light doors are the three-coat case.
+    const plain = deriveSystem("doors", answers({ colourIntent: "new", darkToLight: true }));
+    const flagged = deriveSystem("doors", answers({ colourIntent: "new", darkToLight: true, flags: { doors: ["stained"] } }));
     expect(flagged.coats).toBe(plain.coats);            // the number does not move…
     expect(flagged.sentence).not.toBe(plain.sentence);  // …but the words do.
     expect(flagged.sentence).toMatch(/blocking primer/i);

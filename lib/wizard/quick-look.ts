@@ -391,6 +391,15 @@ export function assumedList(q: QuickLook): Assumption[] {
       why: "Counted from the room list at average numbers, in the usual styles.",
       rung: "rooms",
     });
+    // Tom, 14 Sep: two coats on trims as standard; the range carries three.
+    if (q.changing.trims || q.undecided) {
+      out.push({
+        key: "trims",
+        what: "Skirtings, doors and trims at two coats",
+        why: "Standard for a colour change. Three if the woodwork was last painted in oil and you want water-based — the tighten screen asks.",
+        rung: "systems",
+      });
+    }
   }
 
   out.push({

@@ -1085,3 +1085,6 @@
   .wz .sc-stick .sc-reach, .wz .sd-stick .sd-reach { margin-top: 6px; }
   .wz .sc-stick .sc-reach .sc-contact-opt, .wz .sd-stick .sd-reach .sd-contact-opt { padding: 6px 10px; font-size: 12px; }
 }
+
+/* Tom, 14 Sep: "2 coats" in blue as standard; the may-need-more line in orange. */
+.wz .wz-do-note { grid-column: 1 / -1; font-size: 12px; line-height: 1.45; color: var(--amber); }

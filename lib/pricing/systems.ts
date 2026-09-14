@@ -339,7 +339,11 @@ export const DEFAULT_PAINT_SYSTEMS: PaintSystems = {
      * nobody applies.
      */
     same: rule(1, false, "Same white. Sand and clean, fill any dents, spot-prime the scuff marks, then one coat of water-based enamel."),
-    new: rule(3, true, "New colour. Sand and clean, fill any dents, then an undercoat and two coats of water-based enamel."),
+    // Tom, 14 Sep: TWO coats as standard on a colour change — the undercoat
+    // is earned by an oil-based enamel underneath (the paint questions on the
+    // tighten screen), by raw or stained timber (the flags), or by going much
+    // lighter (bold). The range carries the three-coat case until it closes.
+    new: rule(2, false, "New colour. Sand and clean, fill any dents, then two coats of enamel."),
     bold: rule(3, true, "New colour. Sand and clean, fill any dents, then an undercoat and two coats of water-based enamel."),
   },
   doors: {
@@ -347,7 +351,7 @@ export const DEFAULT_PAINT_SYSTEMS: PaintSystems = {
     // one-coat answer. ⚑ Extended from Tom's trims answer rather than stated
     // by him — say so if a door is different from a skirting here.
     same: rule(1, false, "As the trims. Both sides, edges and frame — spot-primed and one coat of water-based enamel."),
-    new: rule(3, true, "As the trims. Both sides, edges and frame — an undercoat and two coats of water-based enamel."),
+    new: rule(2, false, "As the trims. Both sides, edges and frame — two coats of enamel."),
     bold: rule(3, true, "As the trims. Both sides, edges and frame — an undercoat and two coats of water-based enamel."),
   },
   windows: {
@@ -510,6 +514,13 @@ export type SystemAnswers = {
    * confident answer.
    */
   glossTrims?: "yes" | "no" | "unsure";
+  /**
+   * Tom, 14 Sep: what the trims are being painted WITH — water based, oil
+   * based, or not sure. Oil over anything is two coats and closes the
+   * question; water (or not sure) over an oil-based enamel is the case that
+   * costs an undercoat.
+   */
+  trimsBase?: "water" | "oil" | "unsure" | null;
   /** ⚑3's tap. True = marked, or already a colour. */
   ceilingsMarked?: boolean;
   /**
@@ -534,6 +545,8 @@ export type SystemAnswers = {
 
 export type PaintSystem = {
   group: SystemGroup;
+  /** The colour intent this line derived from — "same" lines never carry the trims note. */
+  intent: ColourIntent;
   coats: number;
   undercoat: boolean;
   /** Prep hours per unit — multiply by the line's quantity. Usually 0; see above. */
@@ -664,9 +677,19 @@ export function deriveSystem(
     sentence = "Same white, and they're sound. Sand and clean, fill any dents, then one coat of water-based enamel.";
   }
 
-  // ⚑5 — the gloss question. A bonding primer is one more labour coat.
+  /**
+   * The paint questions (Tom, 14 Sep — replaces ⚑5's "shiny?"):
+   *   new paint OIL                        → two coats, closed (oil over oil included)
+   *   water / not sure over CURRENT OIL    → an undercoat and two (three coats)
+   *   water / not sure over CURRENT WATER  → two coats, closed
+   *   water / not sure over NOT SURE       → two coats, a person checks (review),
+   *                                          and the estimator is told to check
+   *   nothing answered yet                 → two coats, no marker — the range
+   *                                          carries the three-coat case
+   * `glossTrims` is the stored "currently oil-based?" answer (yes / no / unsure).
+   */
   const trimLike = group === "trims" || group === "doors";
-  if (trimLike && systems.glossBondingPrimer) {
+  if (trimLike && systems.glossBondingPrimer && answers.trimsBase !== "oil") {
     if (answers.glossTrims === "yes") {
       coats += 1;
       undercoat = true;
@@ -674,13 +697,13 @@ export function deriveSystem(
       // and overwriting it here lost the reason the door was three coats in
       // the first place — the painter would have arrived told to bond-prime
       // and not told to stain-block.
-      crewNote = addNote(crewNote, "existing gloss is oil-based — bonding primer before the water-based enamel");
-      reason = reason || "the existing trims are an oil-based gloss";
-      sentence = `${sentence} A bonding primer first, because the existing gloss is oil-based.`;
-    } else if (answers.glossTrims === "unsure" || answers.glossTrims == null) {
-      // Priced as "no" — the common case — but a person confirms it.
+      crewNote = addNote(crewNote, "existing enamel is oil-based — undercoat before the water-based enamel");
+      reason = reason || "the existing trims are an oil-based enamel";
+      sentence = `${sentence} An undercoat first, because the existing enamel is oil-based.`;
+    } else if (answers.glossTrims === "unsure") {
+      // Priced at two coats — never three on a guess — but a person confirms it.
       review = true;
-      crewNote = addNote(crewNote, "check on site whether the existing trim enamel is oil-based; bonding primer if it is");
+      crewNote = addNote(crewNote, "check on site whether the woodwork was last painted in oil or water-based; undercoat before water-based enamel if oil");
     }
   }
 
@@ -694,6 +717,7 @@ export function deriveSystem(
 
   return {
     group,
+    intent,
     coats,
     undercoat,
     prepHrPerUnit: systems.prepHrPerUnit[answers.condition],

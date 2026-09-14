@@ -15,6 +15,8 @@ export type WhatWeDoLine = {
   coats: number;
   undercoat: boolean;
   review: boolean;
+  /** Tom, 14 Sep: the orange "may need more coats" line under a trims line. */
+  note?: string;
 };
 
 export default function WhatWeDo({ lines, tellUsHref, compact = false }: {
@@ -39,6 +41,7 @@ export default function WhatWeDo({ lines, tellUsHref, compact = false }: {
             {l.coats > 0 && <span className="wz-do-coats">{l.coats} coat{l.coats === 1 ? "" : "s"}{l.undercoat ? " + undercoat" : ""}</span>}
             <p>{l.sentence}</p>
             {l.review && <em>A person confirms this one before your price is fixed.</em>}
+            {!l.review && l.note && <span className="wz-do-note" data-testid={`what-we-do-note-${l.group}`}>{l.note}</span>}
           </li>
         ))}
       </ul>
@@ -50,6 +53,6 @@ export default function WhatWeDo({ lines, tellUsHref, compact = false }: {
 }
 
 /** The derived lines, trimmed to what a customer reads — never the chips. */
-export function whatWeDoLines(lines: ReadonlyArray<{ group: string; title: string; sentence: string; coats: number; undercoat: boolean; review: boolean }>): WhatWeDoLine[] {
-  return lines.map((l) => ({ group: l.group, title: l.title, sentence: l.sentence, coats: l.coats, undercoat: l.undercoat, review: l.review }));
+export function whatWeDoLines(lines: ReadonlyArray<{ group: string; title: string; sentence: string; coats: number; undercoat: boolean; review: boolean; note?: string }>): WhatWeDoLine[] {
+  return lines.map((l) => ({ group: l.group, title: l.title, sentence: l.sentence, coats: l.coats, undercoat: l.undercoat, review: l.review, note: l.note ?? "" }));
 }

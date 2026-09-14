@@ -326,13 +326,16 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   const mid = (payload.rangeLoCents + payload.rangeHiCents) / 2;
   // Phase 2 (6 Sep plan): the styles the wizard left "Not sure" are answerable
   // here — the amber lines used to sit at the top with no control behind them.
+  const trimsLine = systems.find((l) => (l.group === "trims" || l.group === "doors") && l.intent !== "same") ?? null;
   const styleOpen = {
     doors: payload.confirmOnSite.some((n) => /door style to confirm/.test(n)),
     windows: payload.confirmOnSite.some((n) => /window style to confirm/.test(n)),
-    // C9 (⚑5): asked while a person would otherwise have to check on site —
-    // the trims/doors line carries `review` until "shiny" or "flat" is answered.
-    gloss: systems.some((l) => (l.group === "trims" || l.group === "doors") && l.review),
+    // Tom, 14 Sep — the paint questions replace "shiny?": what the trims are
+    // painted WITH, then (for water-based or not sure) what is underneath.
+    paintBase: trimsLine != null && trimsLine.paintBase == null,
+    trimsCurrent: trimsLine != null && trimsLine.paintBase != null && trimsLine.paintBase !== "oil" && trimsLine.trimsCurrent == null,
   };
+  const trimsUnsure = trimsLine != null && trimsLine.paintBase != null && trimsLine.paintBase !== "oil" && trimsLine.trimsCurrent === "unsure";
   const styleChip = (label: string, body: Record<string, unknown>, said: string) => (
     <button key={label} className="sd-chip il-chip" onClick={() => act(body, `style:${label}`, () => said)}>{label}</button>
   );
@@ -761,12 +764,12 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         {!chatMode && (
           <EstimatorStrip estimator={estimator} suburb={customerSuburb} companyPhone={companyPhone} onBook={() => scrollToReach()} compact />
         )}
-        {!chatMode && (styleOpen.doors || styleOpen.windows || styleOpen.gloss || payload.heightUnconfirmed) && (
+        {!chatMode && (styleOpen.doors || styleOpen.windows || styleOpen.paintBase || styleOpen.trimsCurrent || trimsUnsure || payload.heightUnconfirmed) && (
           <section className="sc-rc il-card amber sc-details" data-card="details" id="details" data-testid="details-card">
             {/* C9 — what the answers below change, read-only, above the questions. */}
             <WhatWeDo lines={systems} tellUsHref="#reach" compact />
             {/* C11 — the second not-sure is the moment a person is easier. */}
-            {[styleOpen.doors, styleOpen.windows, styleOpen.gloss, payload.heightUnconfirmed].filter(Boolean).length >= 2 && (
+            {[styleOpen.doors, styleOpen.windows, styleOpen.paintBase || styleOpen.trimsCurrent, payload.heightUnconfirmed].filter(Boolean).length >= 2 && (
               <Offer kind="not_sures" estimator={estimator?.name ?? null} onBook={() => scrollToReach()} onCall={estimator?.phone ?? companyPhone} />
             )}
             <div className="sc-hd il-hd"><b>A few details to settle</b><span className="il-pill">TIGHTENS YOUR RANGE</span></div>
@@ -796,15 +799,32 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                 </div>
               </div>
             )}
-            {styleOpen.gloss && (
-              <div className="il-q" data-testid="details-gloss">
-                <p className="il-ql">Are the doors and skirtings shiny?</p>
+            {styleOpen.paintBase && (
+              <div className="il-q" data-testid="details-paint-base">
+                <p className="il-ql">Water based or oil based paint on the trims?</p>
                 <div className="sc-chips">
-                  {styleChip("Shiny", { action: "set_paint_system", field: "glossTrims", value: "yes" }, "Shiny — a bonding primer goes on before the enamel")}
-                  {styleChip("Not shiny", { action: "set_paint_system", field: "glossTrims", value: "no" }, "Not shiny — no bonding primer needed")}
+                  {styleChip("Water based", { action: "set_paint_system", field: "paintBase", value: "water" }, "Water-based enamel on the trims")}
+                  {styleChip("Oil based", { action: "set_paint_system", field: "paintBase", value: "oil" }, "Oil-based enamel on the trims — two coats over anything")}
+                  {styleChip("Not sure", { action: "set_paint_system", field: "paintBase", value: "unsure" }, "We'll help you choose — priced as water-based for now")}
                 </div>
-                <p className="il-hint">Shiny old paint needs an extra primer, so it&rsquo;s worth knowing. Not sure is fine — we check.</p>
+                <p className="il-hint">Skirtings, doors and trims are two coats as standard. If the woodwork was last painted in oil and you want water based, an undercoat goes on first.</p>
               </div>
+            )}
+            {styleOpen.trimsCurrent && (
+              <div className="il-q" data-testid="details-trims-current">
+                <p className="il-ql">Do you know what the woodwork was last painted in?</p>
+                <p className="il-hint">If it was oil, extra coats will apply. Oil-based paint is generally shinier than water-based and has more of a rubbery feel.</p>
+                <div className="sc-chips">
+                  {styleChip("Currently oil based", { action: "set_paint_system", field: "glossTrims", value: "yes" }, "Oil underneath — an undercoat and two coats on the trims")}
+                  {styleChip("Currently water based", { action: "set_paint_system", field: "glossTrims", value: "no" }, "Water underneath — two coats on the trims")}
+                  {styleChip("Not sure", { action: "set_paint_system", field: "glossTrims", value: "unsure" }, "We'll get our estimator to check the woodwork")}
+                </div>
+              </div>
+            )}
+            {trimsUnsure && (
+              <p className="il-hint" data-testid="details-trims-check">
+                We&rsquo;ll get our estimator to check whether the woodwork is oil or water based. It&rsquo;s priced at two coats for now; an undercoat and a third coat apply if it&rsquo;s oil.
+              </p>
             )}
             {payload.heightUnconfirmed && (
               <div className="il-q">

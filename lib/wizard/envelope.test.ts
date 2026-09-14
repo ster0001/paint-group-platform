@@ -54,6 +54,26 @@ describe("open questions", () => {
     expect(dear[0].surfaces.some((s) => /cupboard|robe|vanity/i.test(String(s.code)))).toBe(false);
     expect(t[0].H).toBe(2.4); // untouched
   });
+  it("Tom, 14 Sep: the three-coat trims case is in the range until the paint questions close it", () => {
+    const codes = new Set(ctx.rateItems.map((r) => r.code));
+    expect(openQuestions(state(), tree(), codes)).toContain("trims");
+    const dear = dearestTree(state(), tree(), ["trims"], codes) as Array<{ surfaces: Array<{ code: string; coats: number }> }>;
+    expect(dear[0].surfaces.find((s) => s.code === "Skirting Boards")!.coats).toBe(3);
+    expect(dear[0].surfaces.find((s) => /Door/.test(s.code))!.coats).toBe(3);
+    expect(dear[0].surfaces.find((s) => s.code === "Walls")!.coats).toBe(2);
+    const withPaint = (paint: Partial<WizardState["paint"]>) => ({ ...state(), paint: { ...state().paint, ...paint } });
+    // Oil-based new paint closes it (oil over oil included); saying what is underneath closes it.
+    expect(openQuestions(withPaint({ base: "oil" }), tree(), codes)).not.toContain("trims");
+    expect(openQuestions(withPaint({ base: "water", trimsOilBased: "no" }), tree(), codes)).not.toContain("trims");
+    expect(openQuestions(withPaint({ base: "water", trimsOilBased: "yes" }), tree(), codes)).not.toContain("trims");
+    // "Not sure what is underneath" keeps the top end honest.
+    expect(openQuestions(withPaint({ base: "water", trimsOilBased: "unsure" }), tree(), codes)).toContain("trims");
+    const open = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
+    const closed = envelopeFor({ blocks: tree(), state: withPaint({ base: "oil" }), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
+    expect(closed.hiCents).toBeLessThan(open.hiCents);
+    expect(closed.loCents).toBe(open.loCents);
+    expect(open.closesCents.trims).toBeGreaterThan(0);
+  });
 });
 
 describe("the envelope", () => {
@@ -76,8 +96,10 @@ describe("the envelope", () => {
     expect(eH.open).not.toContain("height");
     expect(eH.hiCents).toBeLessThan(e0.hiCents);
     expect(eH.loCents).toBeLessThan(e0.loCents);
-    // Everything answered: the envelope is the residual alone.
-    const all = state({ doorStyle: "flat", windowStyle: "casement", ceilingHeight: "2.4" });
+    // Everything answered: the envelope is the residual alone. (14 Sep: the
+    // trims question closes when the customer says what is underneath.)
+    const allDetails = state({ doorStyle: "flat", windowStyle: "casement", ceilingHeight: "2.4" });
+    const all = { ...allDetails, paint: { ...allDetails.paint, trimsOilBased: "no" as const } };
     const answeredCup = confirmedH;
     const e3 = envelopeFor({ blocks: answeredCup, state: all, ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
     expect(e3.open).toEqual([]);
@@ -98,7 +120,8 @@ describe("the envelope", () => {
     expect(sum.hiCents).toBe(a.hiCents + 150_000);
   });
   it("confirming rooms shrinks the size residual on a slope, never a step", () => {
-    const all = state({ doorStyle: "flat", windowStyle: "casement", ceilingHeight: "2.4" });
+    const allDetails = state({ doorStyle: "flat", windowStyle: "casement", ceilingHeight: "2.4" });
+    const all = { ...allDetails, paint: { ...allDetails.paint, base: "oil" as const } };
     const answeredCup = tree().map((b) => ({ ...b, assumedFields: ["L", "W"] }));
     const none = envelopeFor({ blocks: answeredCup, state: all, ctx, adj, bands: DEFAULT_BANDS, confirmed: new Map() });
     const half = envelopeFor({ blocks: answeredCup, state: all, ctx, adj, bands: DEFAULT_BANDS, confirmed: new Map([[1, "confirmed"]]) });

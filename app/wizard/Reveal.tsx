@@ -40,7 +40,7 @@ const fmt = (cents: number) =>
   `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
 /** Which assumed line each open envelope question belongs to (lib/wizard/envelope.ts). */
-const OPEN_BY_KEY: Record<string, string[]> = { openings: ["doors", "windows"], height: ["height"], rooms: ["cupboards"] };
+const OPEN_BY_KEY: Record<string, string[]> = { openings: ["doors", "windows"], height: ["height"], trims: ["trims"] };
 
 export default function Reveal({
   payload, quick, estimateId, onTighten, onBook, phone, prefillEmail, commercial = null, outside = null,
@@ -150,47 +150,6 @@ export default function Reveal({
 
       <p className="wz-restate" data-testid="reveal-restatement">{basis}</p>
 
-      <button
-        type="button"
-        className="wz-assumed-head"
-        aria-expanded={openAssumed}
-        data-testid="reveal-assumed-toggle"
-        onClick={() => setOpenAssumed((v) => !v)}
-      >
-        <span>What we&rsquo;ve assumed</span>
-        <em>{openAssumed ? "Hide" : `${assumptions.length} things`}</em>
-      </button>
-      {openAssumed && (
-        <ul className="wz-assumed" data-testid="reveal-assumed">
-          {assumptions.map((a) => (
-            <li key={a.key} data-testid={`reveal-assumed-${a.key}`}>
-              <b>{a.what}</b>
-              <span>{a.why}</span>
-              {/* 14 Sep: the range is an envelope over the open questions — say which of these still hold it open. */}
-              {OPEN_BY_KEY[a.key]?.some((q) => (payload.openQuestions ?? []).includes(q)) && (
-                <span className="wz-assumed-open" data-testid={`reveal-open-${a.key}`}>Still open — answering it narrows the range</span>
-              )}
-              {/* C10: each line deep-links to the card that changes it. */}
-              {a.rung && (
-                <a className="wz-linkish" href={`/estimate/scope?id=${estimateId}#${a.rung}`} data-testid={`reveal-assumed-link-${a.key}`}>Change this</a>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {/* C9 — the coats and prep the engine derived, in plain English, no
-          controls. What changes it is the job screen and the details screen. */}
-      <WhatWeDo lines={payload.systems ?? []} tellUsHref={`/estimate/scope?id=${estimateId}#reach`} />
-
-      {/* The estimator has not seen this yet, and the customer should hear
-          that from us rather than discover it. */}
-      {payload.walkthroughRequired && (
-        <p className="wz-reveal-flag" data-testid="reveal-flag">
-          One of our estimators will look this over before any price is fixed.
-        </p>
-      )}
-
       <h2 className="wz-doors-head">Where would you like to go from here?</h2>
       <div className="wz-doors">
         <Door
@@ -237,6 +196,49 @@ export default function Reveal({
           </div>
         )}
       </div>
+
+      {/* Tom, 14 Sep: the three doors sit ABOVE the assumed list and What we'll do, so "where from here" is above the fold on a phone. */}
+      <button
+        type="button"
+        className="wz-assumed-head"
+        aria-expanded={openAssumed}
+        data-testid="reveal-assumed-toggle"
+        onClick={() => setOpenAssumed((v) => !v)}
+      >
+        <span>What we&rsquo;ve assumed</span>
+        <em>{openAssumed ? "Hide" : `${assumptions.length} things`}</em>
+      </button>
+      {openAssumed && (
+        <ul className="wz-assumed" data-testid="reveal-assumed">
+          {assumptions.map((a) => (
+            <li key={a.key} data-testid={`reveal-assumed-${a.key}`}>
+              <b>{a.what}</b>
+              <span>{a.why}</span>
+              {/* 14 Sep: the range is an envelope over the open questions — say which of these still hold it open. */}
+              {OPEN_BY_KEY[a.key]?.some((q) => (payload.openQuestions ?? []).includes(q)) && (
+                <span className="wz-assumed-open" data-testid={`reveal-open-${a.key}`}>Still open — answering it narrows the range</span>
+              )}
+              {/* C10: each line deep-links to the card that changes it. */}
+              {a.rung && (
+                <a className="wz-linkish" href={`/estimate/scope?id=${estimateId}#${a.rung}`} data-testid={`reveal-assumed-link-${a.key}`}>Change this</a>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* C9 — the coats and prep the engine derived, in plain English, no
+          controls. What changes it is the job screen and the details screen. */}
+      <WhatWeDo lines={payload.systems ?? []} tellUsHref={`/estimate/scope?id=${estimateId}#reach`} />
+
+      {/* The estimator has not seen this yet, and the customer should hear
+          that from us rather than discover it. */}
+      {payload.walkthroughRequired && (
+        <p className="wz-reveal-flag" data-testid="reveal-flag">
+          One of our estimators will look this over before any price is fixed.
+        </p>
+      )}
+
 
       {/* C11 (v2.4) — the person is in the screen: who confirms this price,
           and the two ways to reach them. Never an invented name. */}
