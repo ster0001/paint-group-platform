@@ -51,6 +51,7 @@ import { exteriorAddOptions, interiorAddOptions, perItemChargeOut } from "@/lib/
 import { customerPayload, editorPayload, type WizardDeferred } from "@/lib/wizard/view";
 import { DEFAULT_SEGMENTS, loadSegments } from "@/lib/wizard/segments";
 import { commercialWidenFor } from "@/lib/wizard/commercial";
+import { envelopeFor } from "@/lib/wizard/envelope";
 import {
   GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails,
   policyFromSettings, serviceAreaFromSettings, settingValue,
@@ -1797,7 +1798,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // shows, so the tighten range never narrows just by being re-read.
     const widenSnap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
     const widenSegments = widenSnap.success && widenSnap.data.commercial ? await loadSegments(db) : DEFAULT_SEGMENTS;
-    const cp = customerPayload(payload, blocks, decision, bands, null, [], null, commercialWidenFor(widenSnap.success ? widenSnap.data : null, ctx.settings, widenSegments));
+    const widen = commercialWidenFor(widenSnap.success ? widenSnap.data : null, ctx.settings, widenSegments);
+    // 14 Sep: the range is the envelope over the open questions — it narrows
+    // as they are answered and rooms are confirmed, never jumps.
+    const envelope = envelopeFor({ blocks: blocks as Parameters<typeof envelopeFor>[0]["blocks"], state: widenSnap.success ? widenSnap.data : null, ctx, adj: adjustmentsFrom(newState), bands, widenPct: widen.widenPct, confirmed: loopState.states });
+    const cp = customerPayload(payload, blocks, decision, bands, null, [], null, { ...widen, envelope });
     const flags = (settingValue(ctx.settings, "scope_editor") ?? {}) as { visitSlots?: string[] };
     const hasExterior = blocks.some((b) => b.kind === "area" && b.type === "Exterior");
     const wizSnap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);

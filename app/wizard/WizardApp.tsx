@@ -122,7 +122,10 @@ function entryFromState(s: WizardState): EntryChoice | null {
     return null;
   }
   if (s.noPlan) return "questions";
-  if (s.planRunIds.length > 0 || s.listingUrl.trim()) return "upload";
+  // Tom, 14 Sep: a floorplan is uploaded ON the quick look now (the place
+  // screen), so an inside draft with a plan resumes there — never on the old
+  // pages. The old upload route is the exterior's (facade photos, listing).
+  if (s.planRunIds.length > 0 || s.listingUrl.trim()) return "questions";
   return null;
 }
 
@@ -1739,6 +1742,30 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 quick={quick}
                 onQuick={setQuick}
                 assumed={state.assistant?.wrote ?? []}
+                planUpload={quick.jobType !== "exterior" ? (
+                  <div className="wz-planupload" data-testid="ql-plan">
+                    <p className="wz-qhead">Have a floorplan or the listing? <span className="wz-opt">OPTIONAL — WE READ THE ROOMS OFF IT</span></p>
+                    <input
+                      ref={planInputRef} type="file" hidden accept="image/*,application/pdf"
+                      onChange={(e) => { void uploadPlans([...(e.target.files ?? [])]); e.target.value = ""; }}
+                    />
+                    <button type="button" className={`wz-upload ${planFileCount ? "done" : ""}`} onClick={() => planInputRef.current?.click()} disabled={uploading} data-testid="ql-plan-upload">
+                      {planUploadLabel({ planFileCount, uploading })}
+                    </button>
+                    <input
+                      className="wz-field" data-testid="ql-plan-listing"
+                      placeholder="Or paste the listing URL — realestate.com.au or Domain"
+                      value={state.listingUrl} onChange={(e) => set({ listingUrl: e.target.value })}
+                    />
+                    {state.listingUrl.trim() !== "" && state.planRunIds.length === 0 && (
+                      <button type="button" className="wz-upload" onClick={() => void importListingPlan()} disabled={uploading} data-testid="ql-plan-listing-go">
+                        {uploading ? "Reading the listing…" : "📐 Read the floorplan from this listing"}
+                      </button>
+                    )}
+                    {uploadNote && <p className="wz-chint">{uploadNote}</p>}
+                    {planFileCount > 0 && <p className="wz-chint" data-testid="ql-plan-done">The rooms come off your plan — the next screens ask what&rsquo;s painted and the condition.</p>}
+                  </div>
+                ) : null}
                 stepNo={Math.min(page, quickSteps.length)}
                 stepsTotal={quickSteps.length}
                 error={error}
@@ -1825,9 +1852,14 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                       <button type="button" className="wz-linkish" data-testid="entry-describe" onClick={() => chooseEntry("describe")}>
                         Describe it in your own words
                       </button>
-                      <button type="button" className="wz-linkish" data-testid="entry-upload" onClick={() => chooseEntry("upload")}>
-                        Upload a floorplan or listing
-                      </button>
+                      {/* Tom, 14 Sep: an INSIDE job uploads its floorplan on the place
+                          screen (part of the builder); only the outside path still
+                          starts from photos or a listing here. */}
+                      {state.jobType === "exterior" && (
+                        <button type="button" className="wz-linkish" data-testid="entry-upload" onClick={() => chooseEntry("upload")}>
+                          Upload photos or a listing
+                        </button>
+                      )}
                     </div>
                   </>
                 }

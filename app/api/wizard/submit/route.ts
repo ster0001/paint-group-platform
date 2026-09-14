@@ -23,6 +23,7 @@ import { DEFAULT_SEGMENTS, commercialRoomList, commercialSurfaceKeys, isWarehous
 import { warehouseFloorArea, warehouseRoomList } from "@/lib/wizard/warehouse";
 import { parseMeasuredTree, seedFromMeasuredTree, type MeasuredTree } from "@/lib/wizard/measured-tree";
 import { commercialWidenFor } from "@/lib/wizard/commercial";
+import { envelopeFor } from "@/lib/wizard/envelope";
 import { applyOpenSpace, commercialPricingFrom, hourLoadingFor } from "@/lib/pricing/commercial";
 import { applyConditionPricing, applyExteriorAnswers, type MeasuredSides } from "@/lib/wizard/exteriorAnswers";
 import { defaultSidesLoop } from "@/lib/wizard/sides";
@@ -965,7 +966,12 @@ export async function POST(request: Request) {
       ...customerPayload(payload, merged.areas, decision, bands, parts, doLines,
         who.name ? { name: who.name, phone: who.phone, covers: who.covers } : null,
         // C12 (⚑20): the commercial widening, from the same state and rows.
-        commercialWidenFor(effectiveState, ctx.settings, segments)),
+        // 14 Sep: the first range is the ENVELOPE — best case to worst case
+        // over the questions the quick look did not ask; nothing confirmed yet.
+        (() => {
+          const widen = commercialWidenFor(effectiveState, ctx.settings, segments);
+          return { ...widen, envelope: envelopeFor({ blocks: merged.areas as unknown as Parameters<typeof envelopeFor>[0]["blocks"], state: effectiveState, ctx, adj: adjustmentsFrom(builderState), bands, widenPct: widen.widenPct, confirmed: null }) };
+        })()),
     });
   }
 

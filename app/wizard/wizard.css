@@ -1066,3 +1066,6 @@
 .wz .wz-describe textarea { width: 100%; min-height: 64px; border-radius: 10px; border: 1px solid var(--line2, #2e363e); background: transparent; color: inherit; padding: 8px 10px; font-family: var(--wz-sans); font-size: 14px; resize: vertical; }
 .wz .wz-describe-row { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
 
+/* 14 Sep: an assumption the range envelope is still open on. */
+.wz .wz-assumed-open { display: block; margin-top: 4px; font-size: 12.5px; color: var(--amber); }
+

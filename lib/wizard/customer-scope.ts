@@ -16,6 +16,7 @@ import { wizardVisitSlots } from "@/lib/visits/wizard";
 import { customerPayload, editorPayload, type CustomerPayload, type WizardDeferred } from "@/lib/wizard/view";
 import { DEFAULT_SEGMENTS, loadSegments } from "@/lib/wizard/segments";
 import { commercialWidenFor } from "@/lib/wizard/commercial";
+import { envelopeFor } from "@/lib/wizard/envelope";
 import {
   answersFromState, bandsFromSettings, evaluateGuardrails,
   policyFromSettings, serviceAreaFromSettings, settingValue,
@@ -167,9 +168,15 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
     return { kind: "holding", line: "This one needs a person — we'll be in touch to sort it properly." };
   }
 
+  const bandsRow = bandsFromSettings(settingValue(ctx.settings, "wizard_bands"));
+  const widen = commercialWidenFor(snap.success ? snap.data : null, ctx.settings, segments);
   const customer = customerPayload(
-    payload, blocks, decision, bandsFromSettings(settingValue(ctx.settings, "wizard_bands")), null, [], null,
-    commercialWidenFor(snap.success ? snap.data : null, ctx.settings, segments),
+    payload, blocks, decision, bandsRow, null, [], null,
+    {
+      ...widen,
+      // 14 Sep: the range is the envelope over the open questions.
+      envelope: envelopeFor({ blocks: blocks as Parameters<typeof envelopeFor>[0]["blocks"], state: snap.success ? snap.data : null, ctx, adj: adjustmentsFrom(state), bands: bandsRow, widenPct: widen.widenPct, confirmed: loopState.states }),
+    },
   );
   const headerLogoUrl = ((settingValue(ctx.settings, "company_profile") ?? {}) as { logoUrl?: string }).logoUrl || null;
   const profile = (settingValue(ctx.settings, "company_profile") ?? {}) as { phone?: string; phoneHours?: string };

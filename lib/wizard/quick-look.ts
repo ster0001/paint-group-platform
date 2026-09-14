@@ -66,7 +66,9 @@ export const DEFAULT_QUICK_LOOK: QuickLook = {
   storeys: "single",
   scope: "whole",
   colour: "new",
-  changing: { walls: true, ceilings: false, trims: false },
+  // Tom, 14 Sep: everything ticked to start — the customer unticks what is
+  // staying the same colour, rather than ticking what is changing.
+  changing: { walls: true, ceilings: true, trims: true },
   bold: false,
   undecided: false,
   condition: "wear",
@@ -116,6 +118,24 @@ export function colourFromChanges(q: Pick<QuickLook, "changing" | "bold" | "unde
   const anyChanging = q.undecided || q.changing.walls || q.changing.ceilings || q.changing.trims;
   if (!anyChanging) return "same";
   return q.bold ? "bold" : "new";
+}
+
+/**
+ * Tom, 14 Sep: the job preset decides WHICH colour tiles exist. "Walls and
+ * ceilings only" has no trims to change colour; "Doors, skirtings and trims
+ * only" has no walls or ceilings. Picking a preset ticks every tile it
+ * shows (`changingForScope`) and unticks the ones it hides.
+ */
+export const CHANGING_KEYS = ["walls", "ceilings", "trims"] as const;
+export type ChangingKey = (typeof CHANGING_KEYS)[number];
+export function visibleChanging(scope: ScopePreset): ChangingKey[] {
+  if (scope === "walls_ceilings") return ["walls", "ceilings"];
+  if (scope === "trims_doors") return ["trims"];
+  return [...CHANGING_KEYS];
+}
+export function changingForScope(scope: ScopePreset): QuickLook["changing"] {
+  const on = new Set<ChangingKey>(visibleChanging(scope));
+  return { walls: on.has("walls"), ceilings: on.has("ceilings"), trims: on.has("trims") };
 }
 
 export function toggleChanging(q: Pick<QuickLook, "changing">, key: "walls" | "ceilings" | "trims"): QuickLook["changing"] {
@@ -201,7 +221,9 @@ export function quickLookToState(q: QuickLook, base?: WizardState): WizardState 
     // C8b: an EXTERIOR session never writes them — bedrooms are not asked on
     // that path and nothing may read them there; the exterior seeds sides,
     // not rooms (`entryPatch` has always cleared them on this branch).
-    noPlan: interior,
+    // Tom, 14 Sep: a floorplan uploaded ON the quick look (the place screen)
+    // is the plan path — the rooms come off the plan, not the starter list.
+    noPlan: interior && (s.planRunIds?.length ?? 0) === 0 && !(s.listingUrl ?? "").trim(),
     basics: interior ? {
       bedrooms: Math.max(1, Math.min(8, Math.round(q.bedrooms))),
       storeys: q.storeys,
