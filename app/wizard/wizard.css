@@ -1103,3 +1103,29 @@
 @keyframes wz-ring-spin { from { transform: rotate(-90deg); } to { transform: rotate(270deg); } }
 .wz .sc-ring.live svg { animation: wz-ring-spin .9s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .wz .sc-ring.live svg { animation: none; } }
+
+/* Tom, 14 Sep (tighten batch, items 1–4, 31): the bottom strip is two buttons;
+   the estimator lives in the frozen header; the page lights up when sent. */
+.wz .sc-stick-two { padding: 10px 14px; }
+.wz .sc-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 1020px; margin: 0 auto; }
+.wz .sc-two .sc-btn, .wz .sc-two .sd-cta { width: 100%; }
+.wz .sc-btn2 { background: var(--panel); color: var(--text); border-color: var(--line); }
+.wz .sc-estwrap { max-width: 1020px; margin: 0 auto; padding: 0 12px 8px; }
+.wz .sc-estwrap .wz-est { margin: 6px 0 0; padding: 8px 12px; }
+.wz .sc-estwrap .wz-est-avatar { width: 30px; height: 30px; font-size: 11px; }
+.wz .sc-estwrap .wz-est-text b { font-size: 13px; }
+.wz .sc-estwrap .wz-est-text span { font-size: 11.5px; }
+@media (max-width: 560px) {
+  .wz .sc-estwrap .wz-est-text span { display: none; }
+  .wz .sc-estwrap .wz-est { padding: 6px 10px; }
+}
+.wz .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.wz .sc-done-banner { margin: 0 0 14px; padding: 14px 16px; border-radius: 14px; border: 1px solid rgba(59,216,233,.55); background: linear-gradient(135deg, rgba(59,216,233,.16), rgba(47,164,107,.12)); display: grid; gap: 4px; }
+.wz .sc-done-banner b { font-size: 16px; color: var(--cyan); }
+.wz .sc-done-banner span { font-size: 13.5px; line-height: 1.45; }
+.wz .sc-done-banner.failed { border-color: rgba(224,168,60,.55); background: rgba(224,168,60,.08); }
+.wz .sc-done-banner.failed b { color: var(--amber); }
+@keyframes wz-lit { 0% { box-shadow: 0 0 0 0 rgba(59,216,233,.0); } 50% { box-shadow: 0 6px 30px 2px rgba(59,216,233,.35); } 100% { box-shadow: 0 0 0 0 rgba(59,216,233,.0); } }
+.wz .sc-lit .sc-freeze { animation: wz-lit 2.4s ease-in-out 3; }
+.wz .sc-lit .sd-pbar i, .wz .sc-lit .sc-pbar i { background: var(--cyan); }
+@media (prefers-reduced-motion: reduce) { .wz .sc-lit .sc-freeze { animation: none; box-shadow: 0 6px 30px 2px rgba(59,216,233,.25); } }

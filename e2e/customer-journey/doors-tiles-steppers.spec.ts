@@ -130,7 +130,9 @@ test("exterior: every item can be taken off, and there is no accept-online butto
   const cta = page.locator(".sd-cta");
   await expect(cta).toBeVisible();
   await expect(cta).not.toHaveText(/Accept estimate/);
-  await expect(page.locator(".sd-tier")).toContainText(/signed off by your estimator|visit/i);
+  // Tom, 14 Sep (item 1): no tier sentence in the strip — two buttons only.
+  await expect(cta).toHaveText("Finalise my price");
+  await expect(page.getByTestId("scope-book")).toBeVisible();
 
   // Every tile on an open side carries a remove control. (The tiles only
   // appear once the side is IN — "Are we painting this side?" comes first.)

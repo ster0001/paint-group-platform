@@ -136,7 +136,9 @@ test("Tom, 8 Sep evening: book in your estimator — the lead, the hours, the nu
 
   // --- 8 · live from the start, and it says so -------------------------------
   await expect(page.locator(".sd-cta")).toBeEnabled();
-  await expect(page.getByTestId("human-line")).toBeVisible(); // C11: the counter is gone; one human line stands in its place
+  // Tom, 14 Sep (items 1, 3): the reach strip lives on the booking page behind "Book a time".
+  await page.getByTestId("scope-book").click();
+  await expect(page).toHaveURL(/\/estimate\/book\?id=/, { timeout: 60_000 });
 
   // --- 5 · the reframed strip ------------------------------------------------
   // C11 (Tom, 10 Sep) superseded the 8 Sep heading and icon tiles: the
@@ -176,6 +178,13 @@ test("Tom, 8 Sep evening: the estimate page fits the screen at every width", asy
 
   for (const [w, h] of [[320, 720], [375, 812], [768, 1024], [1440, 900]] as const) {
     await page.setViewportSize({ width: w, height: h });
+    // A fresh load at each width: a screenshot taken at the previous width left
+    // Chromium's viewport emulation in a state where the page could no longer
+    // reach its own bottom (14 Sep) — the check is about the layout at THIS width.
+    await page.reload();
+    await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 30_000 });
+    await front.locator(".sd-hd").click();
+    await expect(front.getByRole("button", { name: "Yes", exact: true })).toHaveCount(0, { timeout: 20_000 }).catch(() => undefined);
     const overflow = await page.evaluate(() => {
       const doc = document.documentElement;
       const wide: string[] = [];
@@ -195,8 +204,12 @@ test("Tom, 8 Sep evening: the estimate page fits the screen at every width", asy
     // so it takes no space in the flow: without a reservation the last card
     // sits under it for ever, at every scroll position. That is what "covers
     // more than the full screen" meant (Tom, 8 Sep).
-    await page.mouse.wheel(0, 40_000);
-    await page.waitForTimeout(300);
+    // Scroll the DOCUMENT to its end. (A wheel event lands on whatever is under
+    // the pointer — after a resize that was the sticky header once, and the
+    // page did not move; the assertion is about the page, not the pointer.)
+    await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" as ScrollBehavior }));
+    // The page scrolls smoothly by design; wait until it has actually arrived.
+    await expect.poll(async () => page.evaluate(() => Math.ceil(window.scrollY + window.innerHeight) >= document.documentElement.scrollHeight - 2), { timeout: 10_000 }).toBe(true);
     const buried = await page.evaluate(() => {
       const cards = Array.from(document.querySelectorAll<HTMLElement>(".sd-card, .sc-rc"));
       const last = cards[cards.length - 1];

@@ -56,7 +56,8 @@ test("R2b sides loop: amber to cyan, walls must total 100%, skip reads NOT PAINT
   // longer dead while cards are open — it is live from the start and says so.
   await expect(page.locator(".sd-prog")).toContainText("0 OF 8");
   await expect(page.locator(".sd-cta")).toBeEnabled();
-  await expect(page.getByTestId("human-line")).toBeVisible(); // C11: the counter is gone; one human line stands in its place
+  // Tom, 14 Sep (item 1): the strip is two buttons — the human line is gone.
+  await expect(page.getByTestId("scope-book")).toBeVisible();
 
   // FRONT: answer the loop. Are we painting this side? -> Yes.
   const front = page.locator(".sd-card", { hasText: "Front" }).first();
@@ -187,7 +188,8 @@ test("priced extras: condition/access, catalogue chips and sweep items move the 
   await driveExteriorWizard(page);
 
   const rangeMid = async () => {
-    const txt = await page.locator("span[data-role='range']").innerText();
+    // Tom, 14 Sep (item 1): the price row left the strip — the frozen header's range is the one figure.
+    const txt = await page.locator("[data-role='range']").first().innerText();
     const [lo, hi] = [...txt.matchAll(/\$([\d,]+)/g)].map((m) => Number(m[1].replace(/,/g, "")));
     return (lo + hi) / 2;
   };
@@ -260,7 +262,6 @@ test("priced extras: condition/access, catalogue chips and sweep items move the 
   await sweep.getByRole("button", { name: "+ Carport", exact: true }).click();
   await expect(page.locator(".sd-toast")).toContainText(/carport.*site visit/i, { timeout: 30_000 });
   await settled();
-  // Batch 2 (C11): the tier line NAMES the reason — a customer-added item
-  // routes as "custom", the mockup's highest-priority wording.
-  await expect(page.locator(".sd-tier")).toContainText(/price in person/i);
+  // Tom, 14 Sep (item 1): the tier sentence left the strip; the toast carried the reason above.
+  await expect(page.locator(".sd-tier")).toHaveCount(0);
 });

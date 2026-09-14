@@ -82,6 +82,8 @@ export default async function ScopeEditorPage({
           phoneHours={bundle.phoneHours}
           customerPhone={bundle.customerPhone}
           sendTo={bundle.sendTo}
+          estimator={bundle.estimator}
+          customerSuburb={bundle.customerSuburb}
         />
       </div>
     );

@@ -109,7 +109,7 @@ test("a small measured interior fixes its own price — one number, held", async
   // rather than the copy.
   await expect(page.getByTestId("tier-chip")).toHaveText("CONFIRMED", { timeout: 60_000 });
 
-  await page.getByTestId("scope-finalise").click();
+  await page.goto(`/estimate/finish?id=${new URL(page.url()).searchParams.get("id")}`); // Tom, 14 Sep (item 2)
   await page.waitForURL(/\/estimate\/finish/, { timeout: 60_000 });
 
   // The fix door appears ONLY because the server said so — the accept line.
@@ -165,9 +165,9 @@ test("a job the ladder won't self-serve goes to a person, and the screens say wh
    * to name. Both are correct; an invented name is not.
    */
   const cta = page.getByTestId("scope-finalise");
-  await expect(cta).toHaveText(/^(Send to .+|Finalise my price|Accept estimate)$/);
+  await expect(cta).toHaveText(/^(Send to .+|Finalise my price|Accept estimate|See what happens next)$/);
 
-  await cta.click();
+  await page.goto(`/estimate/finish?id=${new URL(page.url()).searchParams.get("id")}`); // Tom, 14 Sep (item 2)
   await page.waitForURL(/\/estimate\/finish/, { timeout: 60_000 });
 
   // Fix-online appears only when the server ladder says so — and here it does not.

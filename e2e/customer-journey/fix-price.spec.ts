@@ -22,7 +22,7 @@ test("send, then fix remotely — the customer's sent screen shows the number", 
   await driveNoPlanWizard(customer);
   await openScopeEditor(customer);
   const estimateId = new URL(customer.url()).searchParams.get("id")!;
-  await customer.getByTestId("scope-finalise").click();
+  await customer.goto(`/estimate/finish?id=${estimateId}`); // Tom, 14 Sep (item 2): the finish line, reached directly
   await customer.waitForURL(/\/estimate\/finish/, { timeout: 60_000 });
   await customer.getByTestId("finish-send_for_confirmation").click();
   await customer.waitForURL(/\/estimate\/sent/, { timeout: 60_000 });

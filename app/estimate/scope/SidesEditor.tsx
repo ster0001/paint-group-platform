@@ -1,9 +1,10 @@
 "use client";
+import { useRouter } from "next/navigation";
 
-import ContactCard from "./ContactCard";
-import { sendToLabel } from "@/lib/wizard/finish-line";
-import { humanLine } from "@/lib/wizard/human-line";
-import ReachStrip from "./ReachStrip";
+import FinalisePrompt from "./FinalisePrompt";
+import AllDoneBanner from "./AllDoneBanner";
+import EstimatorStrip from "@/app/wizard/EstimatorStrip";
+import { alreadySentFrom, useAutoSend } from "./useAutoSend";
 import SideNote from "./SideNote";
 import { SIDE_LABEL as SIDE_FALLBACK, TWICE_OK_CODES } from "@/lib/wizard/sides";
 import { TIER_LABEL, type Ladder } from "@/lib/wizard/ladder";
@@ -29,15 +30,6 @@ import type { EstimateDocuments } from "@/lib/wizard/documents";
  * blue; a skipped side reads NOT PAINTING and is an explicit exclusion.
  */
 
-const VISIT_REASON_LINE: Record<NonNullable<Ladder["reason"]>, string> = {
-  custom: "You've added something we'll price in person — ",
-  peeling: "Peeling paint needs a lead-safe check — ",
-  rot: "Rot repair needs eyes on it — ",
-  flagged: "You've flagged the photos — ",
-  photos: "Your photos are with your estimator, who signs off any extra preparation costs — ",
-  big: "Bigger exterior — ",
-  signoff: "Every exterior job is signed off by your estimator — ",
-};
 type Payload = CustomerPayload & {
   error?: string;
   sides?: SidesView | null;
@@ -62,7 +54,7 @@ function Chip({ on, label, onClick }: { on: boolean; label: string; onClick: () 
   return <button className={`sd-chip ${on ? "on" : ""}`} onClick={onClick}>{label}</button>;
 }
 
-export default function SidesEditor({ estimateId, initial, initialSides, initialExterior, initialLadder, embedded = false, onState, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null, sendTo = null }: {
+export default function SidesEditor({ estimateId, initial, initialSides, initialExterior, initialLadder, embedded = false, onState, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, estimator = null, customerSuburb = null }: {
   estimateId: string;
   initial: CustomerPayload;
   initialSides: SidesView;
@@ -77,6 +69,9 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
   phoneHours?: string | null;
   /** C7 (v2.4) — the estimator this goes to, for the CTA. Null keeps the old label. */
   sendTo?: string | null;
+  /** Tom, 14 Sep (item 4): the resolved estimator for the frozen header. */
+  estimator?: { name: string | null; phone: string | null; covers: boolean } | null;
+  customerSuburb?: string | null;
   /** The mobile the customer already gave us (Tom, 8 Sep: don't ask twice). */
   customerPhone?: string | null;
   /** Batch 4: Both-jobs render the sides stack INSIDE the interior editor —
@@ -100,8 +95,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
   const [fenceText, setFenceText] = useState("");
   const [sweepOtherOpen, setSweepOtherOpen] = useState(false);
   const [sweepOtherText, setSweepOtherText] = useState("");
-  const [slotsOpen, setSlotsOpen] = useState(false);
-  const [booked, setBooked] = useState<string | null>(null);
+  const [prompt, setPrompt] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [shake, setShake] = useState<string | null>(null);
   // P1: production feel. `ready` gates interaction until React has hydrated
@@ -281,6 +275,21 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
   const range = `${fmt(payload.rangeLoCents)} – ${fmt(payload.rangeHiCents)}`;
   const prog = sides.progress;
   const allDone = prog.allDone;
+  // Tom, 14 Sep (items 2, 3, 31) — see ScopeEditor: the same gate, the same send.
+  const router = useRouter();
+  const goBook = () => router.push(`/estimate/book?id=${estimateId}`);
+  const autoSend = useAutoSend(estimateId, !embedded && allDone, ready && pendingCount === 0, alreadySentFrom(payload.confirmOnSite));
+  const sentHref = `/estimate/sent?id=${estimateId}`;
+  function onFinalise() {
+    if (autoSend === "sent") { router.push(sentHref); return; }
+    if (!allDone) { setPrompt(true); return; }
+    router.push(`/estimate/finish?id=${estimateId}`);
+  }
+  function answerRemaining() {
+    setPrompt(false);
+    const first = document.querySelector<HTMLElement>(".sd-card:not(.done)");
+    if (first) { const key = first.getAttribute("data-side"); if (key) setOpen(key); first.scrollIntoView({ block: "start", behavior: "smooth" }); }
+  }
   const openNext = (j?: Payload) => {
     const v = j?.sides ?? sides;
     const order: string[] = ["front", "left", "right", "back", "extras", "cond", "dw", "sweep"];
@@ -733,6 +742,9 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
         </div>
         {/* R5: an exterior-only job had no confidence score at all — same
             ring, same one function, frozen with the rest of the header. */}
+        <div className="sc-estwrap">
+          <EstimatorStrip estimator={estimator} suburb={customerSuburb} companyPhone={companyPhone} onBook={goBook} compact />
+        </div>
         <div className="sd-scorewrap">
           <div className="sc-scorebar">
             <div className="sc-score">
@@ -762,6 +774,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
       )}
 
       <main className="sd-wrap">
+        {!embedded && allDone && autoSend !== "idle" && <AllDoneBanner estimator={estimator?.name ?? null} sentHref={sentHref} state={autoSend === "sending" ? "sending" : autoSend === "sent" ? "sent" : "failed"} />}
         <div className="sd-rangebar">
           <div><b>{embedded ? "Now the outside — one side at a time" : "Walk around the house, one side at a time"}</b><span>Front, both sides, back — confirm each and it turns blue.</span></div>
         </div>
@@ -940,70 +953,16 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
       </main>
 
       {!embedded && (
-      <div className="sd-stick" ref={stickRef}>
-        <div className={`sd-tier ${!ladder.selfServe ? "visit" : ""}`}>
-          <i />
-          {/* Tom, 21 Aug: exterior never accepts online. policy.ts puts every
-              exterior job on the visit tier, so there is no self-serve branch
-              here to fall through to. */}
-          {booked
-            ? `${booked} — we'll be in touch to finalise your price.`
-            : `${VISIT_REASON_LINE[ladder.reason ?? "signoff"]}a person finalises your price with you — call us, ask for a call back, or request a visit whenever you like.`}
-        </div>
-        {/* C11 — ONE human line, from ONE evaluator (lib/wizard/human-line.ts).
-            The rooms editor had it from C11; the sides editor is the same
-            person on the same screen (finished 14 Sep). */}
-        {booked == null && (() => {
-          const h = humanLine({ estimator: sendTo, notSures: 0, condition: "wear", done: prog.done, total: prog.total, exterior: true });
-          return (
-            <p className="wz-human" data-testid="human-line" data-state={h.state}>
-              <b>{h.line}</b>
-              <button type="button" className="wz-btn wz-bs2" onClick={() => setSlotsOpen(true)} data-testid="human-line-book">{h.action}</button>
-            </p>
-          );
-        })()}
-        <div className="sd-row">
-          <div className="sd-pr"><small>ESTIMATE · INCL. GST</small><span data-role="range">{range}</span></div>
-          <div className="sd-sp" />
-          {/* Tom, 8 Sep 2026: "make it clear with the button… that they can
-              click it before they have clicked all the details." The button no
-              longer waits for the last blue tick — an exterior job is finalised
-              by a person either way, so stopping someone here only lost them.
-              The label says what is still open rather than refusing. */}
-          <button
-            className="sd-cta"
-            disabled={booked != null}
-            onClick={() => setSlotsOpen((v) => !v)}
-          >
-            {booked ? booked : sendToLabel(sendTo)}
+      <div className="sd-stick sc-stick-two" ref={stickRef}>
+        <div className="sc-two">
+          <button type="button" className="sd-cta" data-testid="scope-finalise" onClick={onFinalise}>
+            {autoSend === "sent" ? "See what happens next" : "Finalise my price"}
           </button>
+          <button type="button" className="sc-btn sc-btn2" data-testid="scope-book" onClick={goBook}>Book a time</button>
         </div>
-        {!allDone && booked == null && (
-          <p className="sd-ctahint" data-testid="cta-hint">
-            You don&rsquo;t have to finish first — {prog.done} of {prog.total} confirmed. Tap
-            <b> {sendToLabel(sendTo)}</b> whenever you like and we&rsquo;ll fill in the rest with you.
-          </p>
-        )}
-        {booked == null && !slotsOpen && (
-          <ReachStrip prefix="sd" companyPhone={companyPhone} phoneHours={phoneHours} defaultPhone={customerPhone} visitSlots={ladder.visitSlots}
-            onBookSlot={(slot) => {
-              act({ action: "book_visit", slot }, { done: `Booked — ${slot}. A calendar invite is on its way, and we're available Monday to Friday if anything changes; keep confirming sides if you like.` });
-              setBooked(`Visit booked — ${slot}`);
-            }}
-            onContact={(req) => {
-              act({ action: "request_contact", ...req }, { done: req.how === "visit" ? "Thanks — we'll ring you to lock in a visit time that suits. We're available Monday to Friday." : "Thanks — we'll call you back — we're available Monday to Friday. Keep confirming sides if you like." });
-              setBooked(req.how === "visit" ? "Site visit requested" : "Call back requested");
-            }} />
-        )}
-        {slotsOpen && booked == null && (
-          <ContactCard prefix="sd" why="Outside work is always priced by a person — pick how." companyPhone={companyPhone} phoneHours={phoneHours} defaultPhone={customerPhone} onSubmit={(req) => {
-            act({ action: "request_contact", ...req }, { done: req.how === "visit" ? "Thanks — we'll ring you to lock in a visit time that suits. We're available Monday to Friday." : "Thanks — we'll call you back to finalise your price. We're available Monday to Friday." });
-            setBooked(req.how === "visit" ? "Site visit requested" : "Call back requested");
-            setSlotsOpen(false);
-          }} />
-        )}
       </div>
       )}
+      <FinalisePrompt open={prompt} onAnswer={answerRemaining} onBook={goBook} onClose={() => setPrompt(false)} />
 
       {toast && <div className="sd-toast sd-show">{toast}</div>}
     </div>

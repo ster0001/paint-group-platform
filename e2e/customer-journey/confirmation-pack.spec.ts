@@ -32,7 +32,8 @@ test("a customer's send creates the confirmation row, with what we promised", as
   // scope editor -> finish line. The drive stops at the scope editor; the send
   // lives one screen on, and skipping this step is why the first version of
   // this spec looked for a button that was never on the page.
-  await page.getByTestId("scope-finalise").click();
+  // Tom, 14 Sep (item 2): Finalise prompts an unfinished job to finish — the finish line is reached directly here.
+  await page.goto(`/estimate/finish?id=${new URL(page.url()).searchParams.get("id")}`);
   await page.waitForURL(/\/estimate\/finish/, { timeout: 60_000 });
 
   const send = page.getByTestId("finish-send_for_confirmation");

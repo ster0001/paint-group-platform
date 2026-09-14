@@ -41,7 +41,8 @@ test("retail → range → tighten → send to the estimator; no fix-online, a r
   expect(await page.getByText(/Fix my price/i).count(), "commercial never sees fix-online").toBe(0);
 
   // The finish line: Send to <name>, never fix-online.
-  await page.getByTestId("scope-finalise").click();
+  // Tom, 14 Sep (item 2): Finalise prompts an unfinished job to finish — the finish line is reached directly here.
+  await page.goto(`/estimate/finish?id=${new URL(page.url()).searchParams.get("id")}`);
   await expect(page).toHaveURL(/\/estimate\/finish\?id=/, { timeout: 60_000 });
   await expect(page.getByTestId("finish-fix_online")).toHaveCount(0);
   const send = page.getByTestId("finish-send_for_confirmation");

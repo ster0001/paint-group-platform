@@ -31,7 +31,8 @@ test("R3 interior loop: L×W size question, confirm walk, dw check, sweep — ac
   // rule, kept where it actually matters.
   await expect(cta).toBeEnabled();
   await expect(cta).not.toHaveText(/Accept estimate/);
-  await expect(page.getByTestId("human-line")).toBeVisible(); // C11: the counter is gone; one human line stands in its place
+  // Tom, 14 Sep (item 1): the strip is two buttons — the human line is gone.
+  await expect(page.getByTestId("scope-book")).toBeVisible();
 
   // Room cards are amber, and sizes read as L × W — never m².
   const cards = page.locator(".sc-rc[data-room]");

@@ -267,9 +267,10 @@ test.describe("Tom's 7 Sep batch", () => {
     describedEstimateId = new URL(page.url()).searchParams.get("id");
 
     // The customer sees the photos pending sign-off — on the tier line and the amber trace.
-    await expect(page.locator(".sc-tier")).toContainText(/photos are with your estimator/i);
-    // Tom, 14 Sep (item 26): the amber trace is no longer listed to the customer — the tier line carries it.
-    await expect(page.locator(".sc-stick button").last()).not.toHaveText(/Accept estimate/);
+    // Tom, 14 Sep (items 1, 26): neither the tier sentence nor the amber trace is shown to the
+    // customer any more — the photos wait for the estimator in the pack; the strip is two buttons.
+    await expect(page.locator(".sc-tier")).toHaveCount(0);
+    await expect(page.locator(".sc-stick button").first()).toHaveText("Finalise my price");
 
     // The build carried the answers — never "no damage, built after 1970".
     const { data: est } = await db!.from("estimates").select("requires_site_check, builder_state").eq("id", describedEstimateId!).single();

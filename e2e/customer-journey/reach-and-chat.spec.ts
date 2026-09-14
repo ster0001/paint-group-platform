@@ -79,17 +79,12 @@ test.describe("reach a person + chat (Tom, 8 Sep)", () => {
      * ask for a call back have given us nothing but the number in the box.
      */
     await driveNoPlanWizard(page);
-    const strip = page.getByTestId("reach-strip");
-    await expect(strip).toBeVisible();
-    // Tom, 8 Sep (evening): the finalise button is no longer dead while cards
-    // are open — "make it clear… that they can click it before they have
-    // clicked all the details". It is live, it says so, and it hands the job
-    // to a person rather than ACCEPTING an unconfirmed scope.
+    // Tom, 14 Sep (items 1, 3): the reach strip lives on the booking page behind "Book a time".
     await expect(page.locator(".sc-btn.il-cta")).toBeEnabled();
-    // C11: the counter under the CTA is gone — one human line from the
-    // evaluator, with Book a visit beside it, says the same thing kindly.
-    await expect(page.getByTestId("human-line")).toBeVisible();
-    await expect(page.getByTestId("human-line-book")).toHaveText("Book a visit");
+    await page.getByTestId("scope-book").click();
+    await expect(page).toHaveURL(/\/estimate\/book\?id=/, { timeout: 60_000 });
+    const strip = page.getByTestId("reach-strip");
+    await expect(strip).toBeVisible({ timeout: 30_000 });
     await strip.getByTestId("reach-callback").click();
     // The number is stated when we already have one; the box is behind
     // "use a different number" (Tom, 9 Sep).
@@ -98,7 +93,7 @@ test.describe("reach a person + chat (Tom, 8 Sep)", () => {
     }
     await page.getByTestId("reach-phone").fill(callbackPhone);
     await page.getByTestId("reach-send").click();
-    await expect(page.locator(".sc-tier")).toContainText(/Call back requested/, { timeout: 20_000 });
+    await expect(page.getByTestId("book-done")).toContainText(/call you back/i, { timeout: 20_000 });
     /**
      * ⚑ THE BANNER IS OPTIMISTIC — it is set on the tap, before the POST.
      *
@@ -133,13 +128,16 @@ test.describe("reach a person + chat (Tom, 8 Sep)", () => {
   test("in the builder, rooms unconfirmed: a real visit booked from the footer strip", async ({ page }) => {
     test.setTimeout(240_000);
     await driveNoPlanWizard(page, { email: visitEmail });
+    await page.getByTestId("scope-book").click();
+    await expect(page).toHaveURL(/\/estimate\/book\?id=/, { timeout: 60_000 });
     const strip = page.getByTestId("reach-strip");
+    await expect(strip).toBeVisible({ timeout: 30_000 });
     await strip.getByTestId("reach-visit").click();
     const slots = page.getByTestId("reach-slot");
     await expect(slots.first()).toBeVisible({ timeout: 20_000 });
     await slots.first().click();
     await page.getByTestId("reach-book").click();
-    await expect(page.locator(".sc-tier")).toContainText(/Visit booked/, { timeout: 20_000 });
+    await expect(page.getByTestId("book-done")).toContainText(/Booked/, { timeout: 20_000 });
     /**
      * This one DID keep its estimate (the drive walked the keep door with
      * `visitEmail`), so there is an account and the booking lands on it.

@@ -40,7 +40,8 @@ test("Both job: interior cards then sides, combined progress, single visit CTA",
   // is left; it hands a mixed job to a person, and never accepts one online.
   await expect(cta).toBeEnabled();
   await expect(cta).not.toHaveText(/Accept estimate/);
-  await expect(page.getByTestId("human-line")).toBeVisible(); // C11: the counter is gone; one human line stands in its place
-  await expect(page.locator(".sc-tier")).toContainText(/visit/i);
+  // Tom, 14 Sep (item 1): the strip is two buttons — the human line is gone.
+  await expect(page.getByTestId("scope-book")).toBeVisible();
+  await expect(page.locator(".sc-stick button")).toHaveCount(2);
   await expect(page.locator(".sc-r")).toHaveText(MONEY_RANGE);
 });

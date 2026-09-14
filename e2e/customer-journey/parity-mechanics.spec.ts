@@ -94,5 +94,5 @@ test("exterior: geometry chips + flag flip the tier; toasts carry $ amounts", as
   // "Not right? Tell us" flags geometry → visit tier with the named reason.
   await visual.getByRole("button", { name: /Not right\? Tell us/ }).click();
   await expect(page.locator(".sd-toast")).toContainText(/estimator will confirm this on site/i, { timeout: 15_000 });
-  await expect(page.locator(".sd-tier")).toHaveClass(/visit/, { timeout: 15_000 });
+  // Tom, 14 Sep (item 1): the tier sentence left the strip; the toast above is the signal.
 });

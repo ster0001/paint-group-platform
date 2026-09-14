@@ -4,9 +4,9 @@ import WhatWeDo from "@/app/wizard/WhatWeDo";
 import type { PaintSystemLine } from "@/lib/wizard/systems-view";
 type RoomExtrasView = { featureWalls: number; wallpaper: boolean; other: string };
 
-import ContactCard from "./ContactCard";
-import { sendToLabel } from "@/lib/wizard/finish-line";
-import ReachStrip from "./ReachStrip";
+import FinalisePrompt from "./FinalisePrompt";
+import AllDoneBanner from "./AllDoneBanner";
+import { alreadySentFrom, useAutoSend } from "./useAutoSend";
 import { afterLayout, scrollCardToTop } from "./scrollCard";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
@@ -17,7 +17,6 @@ import RoomSpots from "./RoomSpots";
 import RoomExtras from "./RoomExtras";
 import EstimatorStrip from "@/app/wizard/EstimatorStrip";
 import Offer from "@/app/wizard/Offer";
-import { humanLine } from "@/lib/wizard/human-line";
 import SiteAccessCard from "./SiteAccess";
 import JobExtras from "./JobExtras";
 import type { JobExtra } from "@/lib/wizard/extras";
@@ -120,7 +119,7 @@ const snapshotFalse = () => false;
 
 const fmtMoney = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
-export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialDarkToLight = { asked: false, surfaces: [], someWalls: false, ceilings: null, ceilingRooms: [] }, initialColourTier = "change", initialSystems = [], initialRoomExtras = {}, estimator = null, customerSuburb = null, initialCondition = "wear", initialAccess = { answers: {}, asksLift: false }, initialExtras = { offer: [], on: [], colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, phoneHours = null, customerPhone = null, sendTo = null, chatMode = false }: {
+export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialDarkToLight = { asked: false, surfaces: [], someWalls: false, ceilings: null, ceilingRooms: [] }, initialColourTier = "change", initialSystems = [], initialRoomExtras = {}, estimator = null, customerSuburb = null, initialAccess = { answers: {}, asksLift: false }, initialExtras = { offer: [], on: [], colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, chatMode = false }: {
   estimateId: string;
   initial: CustomerPayload;
   initialRooms: CustomerScopeRoom[];
@@ -247,10 +246,9 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   }, []);
 
   /** C11 — every "book" on this screen goes to the one reach strip (`#reach`). */
+  /** Tom, 14 Sep (item 3): every "book" / "reach a person" tap leaves for the booking page. */
   function scrollToReach() {
-    const el = document.getElementById("reach");
-    if (!el) return;
-    afterLayout(() => scrollCardToTop(el));
+    router.push(`/estimate/book?id=${estimateId}`);
   }
 
   function openAndScroll(key: string) {
@@ -279,10 +277,9 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
     return o != null ? o === val : serverOn;
   };
   const [ladder, setLadder] = useState<Ladder>(initialLadder ?? { tier: "guide", selfServe: false, reason: null, visitSlots: [], nextUnlock: null });
-  const [slotsOpen, setSlotsOpen] = useState(false);
+  const [prompt, setPrompt] = useState(false);
   const [sweepOtherOpen, setSweepOtherOpen] = useState(false);
   const [sweepOtherText, setSweepOtherText] = useState("");
-  const [booked, setBooked] = useState<string | null>(null);
   const [busyKeys, setBusyKeys] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<string | null>(null);
   /** Phase 2 (6 Sep plan): the last thing that moved the range, kept under it. */
@@ -668,18 +665,36 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   }
 
   const rangeText = `${fmt(payload.rangeLoCents)} – ${fmt(payload.rangeHiCents)}`;
-  const selfServe = ladder.selfServe;
-  // The visit tier is an offer, never a block (mockup copy verbatim).
-  const tierLine = booked
-    ? `${booked} — we'll be in touch to finalise your price.`
-    : selfServe
-        ? `At ${payload.accuracyPct}% accuracy you can accept online. We confirm details before we start.`
-        : payload.photosPendingSignOff
-          ? "Your photos are with your estimator — pending sign-off for any extra preparation. Then a quick call or visit fixes your price."
-          : "The final step is a quick call or a visit with one of our people, so we can stand behind every number.";
+  /**
+   * Tom, 14 Sep (items 2, 31): "everything answered" = every room and both
+   * checks confirmed, and nothing left open on the details card. Finalise
+   * before that prompts them to finish; reaching it sends the estimate by
+   * itself and lights the page up.
+   */
+  const detailsOpen = styleOpen.doors || styleOpen.windows || styleOpen.paintBase || styleOpen.trimsCurrent || payload.heightUnconfirmed;
+  const complete = (combined?.allDone ?? false) && !detailsOpen;
+  const autoSend = useAutoSend(estimateId, complete, ready && pendingCount === 0, alreadySentFrom(payload.confirmOnSite));
+  const sentHref = `/estimate/sent?id=${estimateId}`;
+  function nextOpen(): string {
+    if (detailsOpen) return "details";
+    if (iloop) { const n = nextUnconfirmed(iloop); if (n) return n; }
+    return "";
+  }
+  function onFinalise() {
+    if (autoSend === "sent") { router.push(sentHref); return; }
+    if (!complete) { setPrompt(true); return; }
+    router.push(`/estimate/finish?id=${estimateId}`);
+  }
+  function answerRemaining() {
+    setPrompt(false);
+    const key = nextOpen();
+    if (key) { openAndScroll(key); return; }
+    // Inside is done but a side is not (a "both" job): the first orange side card.
+    afterLayout(() => scrollCardToTop(document.querySelector(".sd-card:not(.done)")));
+  }
 
   return (
-    <div className={ready ? undefined : "wz-waking"} data-ready={ready ? "1" : undefined}>
+    <div className={`${ready ? "" : "wz-waking"} ${autoSend === "sent" ? "sc-lit" : ""}`.trim() || undefined} data-ready={ready ? "1" : undefined} data-sent={autoSend === "sent" ? "1" : undefined}>
       {!ready && <div className="sd-saving">ONE MOMENT…</div>}
       {ready && pendingCount > 0 && <div className="sd-saving">SAVING…</div>}
       {/* R5 (Tom, 20 Aug): ONE frozen stack — brand, progress and the
@@ -713,6 +728,12 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             <div className={`sd-pbar ${combined!.allDone ? "ok" : ""}`}>
               <i style={{ width: `${(combined!.done / Math.max(1, combined!.total)) * 100}%` }} />
             </div>
+          </div>
+        )}
+        {/* Tom, 14 Sep (item 4): the estimator — and the Call button — live in the frozen header. */}
+        {!chatMode && (
+          <div className="sc-estwrap">
+            <EstimatorStrip estimator={estimator} suburb={customerSuburb} companyPhone={companyPhone} onBook={() => scrollToReach()} compact />
           </div>
         )}
         <div className="sc-scorewrap">
@@ -751,6 +772,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
       </div>
 
       <main className="sc-wrap">
+        {complete && autoSend !== "idle" && <AllDoneBanner estimator={estimator?.name ?? null} sentHref={sentHref} state={autoSend === "sending" ? "sending" : autoSend === "sent" ? "sent" : "failed"} />}
         {/* R1.3 lives HERE now the interstitial result screen is gone
             (Tom, 28 Aug): anything the reads couldn't settle is an amber
             trace the customer sees — never silence. */}
@@ -760,10 +782,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             <button type="button" className="wz-linkish" style={{ display: "inline", margin: 0 }} onClick={() => router.push(`/estimate/scope?id=${estimateId}`)} data-testid="chat-open-editor">Open the full editor →</button>
           </p>
         )}
-        {/* C11 — the person is in the screen: the estimator strip sits above the questions. */}
-        {!chatMode && (
-          <EstimatorStrip estimator={estimator} suburb={customerSuburb} companyPhone={companyPhone} onBook={() => scrollToReach()} compact />
-        )}
+        {/* Tom, 14 Sep (item 4): the estimator strip moved into the frozen header. */}
         {!chatMode && (styleOpen.doors || styleOpen.windows || styleOpen.paintBase || styleOpen.trimsCurrent || trimsUnsure || payload.heightUnconfirmed) && (
           <section className="sc-rc il-card amber sc-details" data-card="details" id="details" data-testid="details-card">
             {/* C9 — what the answers below change, read-only, above the questions. */}
@@ -1624,96 +1643,18 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         </div>
       </main>
 
-      <div className="sc-stick" ref={stickRef}>
-        <div className={`sc-tier ${selfServe && !booked ? "" : "visit"}`}><i />{tierLine}</div>
-        {lastChange && <div className="sc-lastchange" data-testid="last-change">Last change: {lastChange}</div>}
-        {/*
-          C11 (v2.4) — ONE human line, from ONE evaluator (lib/wizard/human-line.ts),
-          with Book a visit beside it. The old footer counted ("N of M confirmed")
-          and nagged; Tom's ruling: the person is in the screen, not under it.
-        */}
-        {!booked && (() => {
-          const h = humanLine({
-            estimator: estimator?.name ?? null,
-            notSures: payload.confirmOnSite.length,
-            condition: initialCondition,
-            done: combined?.done ?? 0,
-            total: combined?.total ?? 0,
-            exterior: initialSides != null && !iloop,
-          });
-          return (
-            <p className="wz-human" data-testid="human-line" data-state={h.state}>
-              <b>{h.line}</b>
-              <button type="button" className="wz-btn wz-bs2" onClick={() => scrollToReach()} data-testid="human-line-book">{h.action}</button>
-            </p>
-          );
-        })()}
-        <div className="sc-row">
-          <div className="sc-pr"><small>ESTIMATE · INCL. GST</small><span>{rangeText}</span></div>
-          <div className="sc-sp" />
-          {!booked && (
-            <button
-              className="sc-btn il-cta"
-              /**
-               * The FINISH LINE owns this moment (§3, prototype screen 10).
-               * Accepting used to happen right here — one tap at the bottom
-               * of a long scroll, with nothing in front of the customer to
-               * check the number against.
-               *
-               * It goes there whatever state the loop is in, and R3's rule is
-               * not weakened by that: "fix my price online" appears on the
-               * finish screen ONLY when `payload.canAccept`, which is the
-               * server's verdict, so a fixed price behind an unconfirmed
-               * scope is still impossible. Gating the NAVIGATION as well
-               * meant a half-finished job jumped straight to a contact form
-               * without ever seeing its own summary — and it made the button
-               * depend on a second reading of "is the loop done", which is
-               * exactly the kind of duplicate judgement that drifts.
-               *
-               * Tom, 8 Sep: the button is never dead. It still isn't.
-               */
-              onClick={() => router.push(`/estimate/finish?id=${estimateId}`)}
-              /* The label changes with the ladder AND with who the estimate
-                 is addressed to — "Send to Sarah" (v2.4), "Accept estimate"
-                 when the customer may fix it themselves, and the old
-                 "Finalise my price" when we have nobody to name. A test that
-                 matches on the words breaks every time the copy does, which
-                 is how the send path went uncovered; match the testid. */
-              data-testid="scope-finalise"
-            >
-              {combined != null && !combined.allDone
-                ? sendToLabel(sendTo)
-                : selfServe ? "Accept estimate" : sendToLabel(sendTo)}
-            </button>
-          )}
+      {/* Tom, 14 Sep (item 1): the bottom strip is two buttons — nothing else. The
+          price, the tier and the estimator live in the frozen header above. */}
+      <div className="sc-stick sc-stick-two" ref={stickRef}>
+        <div className="sr-only" data-testid="last-change" aria-live="polite">{lastChange ? `Last change: ${lastChange}` : ""}</div>
+        <div className="sc-two">
+          <button type="button" className="sc-btn il-cta" data-testid="scope-finalise" onClick={onFinalise}>
+            {autoSend === "sent" ? "See what happens next" : "Finalise my price"}
+          </button>
+          <button type="button" className="sc-btn sc-btn2" data-testid="scope-book" onClick={() => scrollToReach()}>Book a time</button>
         </div>
-        {/* Tom, 5 Sep 2026: call us, ask for a call back, or request a site
-            visit with the customer's own availability — a person books it. */}
-        {slotsOpen && !booked && (
-          <ContactCard companyPhone={companyPhone} phoneHours={phoneHours} defaultPhone={customerPhone} onSubmit={(req) => {
-            setSlotsOpen(false);
-            setBooked(req.how === "visit" ? "Site visit requested" : "Call back requested");
-            act({ action: "request_contact", ...req }, "book");
-            say(req.how === "visit" ? "Thanks — we'll ring you to lock in a visit time that suits. We're available Monday to Friday." : "Thanks — we'll call you back to finalise your price. We're available Monday to Friday.");
-          }} />
-        )}
-        {/* Tom, 8 Sep: a person is reachable at ANY point of the walk — the
-            confirm prompt above stays, this never waits for it. */}
-        {!booked && !slotsOpen && (
-          <ReachStrip estimator={estimator} companyPhone={companyPhone} phoneHours={phoneHours} defaultPhone={customerPhone} visitSlots={ladder.visitSlots} busy={busyKeys.has("book")}
-            onBookSlot={(slot) => {
-              setBooked(`Visit booked — ${slot}`);
-              act({ action: "book_visit", slot }, "book");
-              say(`Booked — ${slot}. A calendar invite is on its way, and we're available Monday to Friday if anything changes; keep confirming rooms if you like.`);
-            }}
-            onContact={(req) => {
-              setBooked(req.how === "visit" ? "Site visit requested" : "Call back requested");
-              act({ action: "request_contact", ...req }, "book");
-              say(req.how === "visit" ? "Thanks — we'll ring you to lock in a visit time that suits. We're available Monday to Friday." : "Thanks — we'll call you back — we're available Monday to Friday. Keep confirming rooms if you like.");
-            }} />
-        )}
       </div>
-
+      <FinalisePrompt open={prompt} onAnswer={answerRemaining} onBook={() => scrollToReach()} onClose={() => setPrompt(false)} />
       {toast && <div className="sc-toast">{toast}</div>}
     </div>
   );

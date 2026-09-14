@@ -40,15 +40,15 @@ test("the estimator strip is on the reveal, the tighten screen and the finish li
   // No banned heading, no icon-tile row.
   await expect(page.getByText("Book in your estimator")).toHaveCount(0);
   await expect(page.locator(".reach-b")).toHaveCount(0);
-  // One footer human line, from the evaluator, with Book a visit beside it.
-  const line = page.getByTestId("human-line");
-  await expect(line).toBeVisible();
-  await expect(line).toHaveAttribute("data-state", /default|partly_done|not_sures|condition_work|all_done/);
-  await expect(line.getByTestId("human-line-book")).toHaveText("Book a visit");
-  // The old counter is gone.
+  // Tom, 14 Sep (item 1): the strip is two buttons; the estimator is in the frozen header.
+  await expect(page.getByTestId("scope-book")).toBeVisible();
+  await expect(page.locator(".sc-freeze").getByTestId("estimator-strip")).toBeVisible();
   await expect(page.getByTestId("cta-hint")).toHaveCount(0);
 
+  // Finalise before everything is answered prompts them to finish (item 2); the finish line itself is reached directly here.
   await page.getByTestId("scope-finalise").click();
+  await expect(page.getByTestId("finalise-prompt")).toBeVisible();
+  await page.goto(`/estimate/finish?id=${new URL(page.url()).searchParams.get("id")}`);
   await page.waitForURL(/\/estimate\/finish/, { timeout: 60_000 });
   await expect(page.getByTestId("estimator-strip").first()).toBeVisible({ timeout: 60_000 });
   expect(await stripName()).toBe(onReveal);
@@ -71,12 +71,8 @@ test("the footer line changes with the not-sures, and the offers appear at their
   await page.getByTestId("door-tighten").click();
   await page.waitForURL(/\/estimate\/scope/, { timeout: 60_000 });
 
-  const line = page.getByTestId("human-line");
-  await expect(line).toBeVisible({ timeout: 60_000 });
-  // A fresh walk carries the door style, the window style and the height as
-  // not-sures: two or more, and the line says so — with the offer beside them.
-  await expect(line).toHaveAttribute("data-state", "not_sures");
-  // Tom, 14 Sep (item 12): the "a few not-sures is completely fine" box is gone.
+  // Tom, 14 Sep (items 1, 12): no human line, no not-sures box — the details card asks.
+  await expect(page.getByTestId("details-card")).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId("offer-not_sures")).toHaveCount(0);
 
   // Answer whatever the details card asks (door style, window style, height,
@@ -88,7 +84,6 @@ test("the footer line changes with the not-sures, and the offers appear at their
     const b = details.getByRole("button", { name, exact: true });
     if (await b.count()) { await b.first().click(); await page.waitForTimeout(800); }
   }
-  await expect(line).not.toHaveAttribute("data-state", "not_sures", { timeout: 30_000 });
 
   // Tom, 14 Sep (item 21): "Adjust it" opens the measurements — no "measure it instead" box.
   const first = page.locator(".sc-rc[data-room]").first();
