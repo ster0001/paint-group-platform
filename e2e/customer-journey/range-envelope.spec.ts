@@ -90,10 +90,14 @@ test("answering a detail question narrows the range and never lifts the low end 
   const post = (body: Record<string, unknown>) => page.evaluate(async ({ id, body }) => {
     const r = await fetch(`/api/estimates/${id}/wizard-edit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, view: "customer" }) });
     const j = await r.json();
-    return { lo: j.rangeLoCents / 100, hi: j.rangeHiCents / 100, open: j.openQuestions as string[] };
+    // A refused edit used to come back as `open: undefined` and fail three lines later with no cause.
+    return { ok: r.ok, status: r.status, error: j.error as string | undefined, lo: j.rangeLoCents / 100, hi: j.rangeHiCents / 100, open: (j.openQuestions ?? []) as string[] };
   }, { id, body });
 
-  const before = await post({ action: "room_size_ok", areaId: 1 });
+  // The first room's id — never assume it is 1 on a stack that reuses trees.
+  const firstArea = Number(await page.locator(".sc-rc[data-room]").first().getAttribute("data-room"));
+  const before = await post({ action: "room_size_ok", areaId: firstArea });
+  expect(before.error, `room_size_ok refused: ${before.status} ${before.error ?? ""}`).toBeUndefined();
   expect(before.lo).toBeGreaterThanOrEqual(lo0 - 50); // same envelope the reveal showed (one room size confirmed since)
   expect(before.hi).toBeLessThanOrEqual(hi0 + 50);
   expect(before.open).toContain("doors");

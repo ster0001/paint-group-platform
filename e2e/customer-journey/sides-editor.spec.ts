@@ -118,7 +118,8 @@ test("R2b sides loop: amber to cyan, walls must total 100%, skip reads NOT PAINT
   const right = page.locator(".sd-card", { hasText: "Right" }).first();
   await right.locator(".sd-hd").click();
   await right.getByRole("button", { name: /No — skip this side/ }).click();
-  await expect(right.locator(".sd-pill")).toContainText(/NOT PAINTING/);
+  // A server round trip — the CI runner needs longer than the 5 s default (red twice on 14 Sep).
+  await expect(right.locator(".sd-pill")).toContainText(/NOT PAINTING/, { timeout: 20_000 });
 
   // Batch 5 (C2): the exclusion is REVERSIBLE — "Yes" restores the side to
   // an open amber card (confirm required again), then re-skip for the rest
