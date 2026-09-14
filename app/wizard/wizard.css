@@ -1144,3 +1144,9 @@
 .wz .sc-tiles .wz-pk svg { height: 56px; }
 .wz .sc-addroom { margin-top: 10px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 12px; }
 .wz .sc-addroom input { background: var(--ink); border: 1px solid var(--line); border-radius: 9px; color: var(--text); font-family: var(--wz-mono); font-size: 13px; padding: 9px 11px; outline: none; width: 110px; }
+
+/* Tom, 14 Sep (item 19): the measurements read back before a confirm. */
+.wz .sc-sizeconfirm { margin: 10px 0; padding: 12px 14px; border: 1px solid rgba(59,216,233,.55); border-radius: 12px; background: rgba(59,216,233,.07); }
+.wz .sc-sizeconfirm .il-ql { margin: 0 0 8px; }
+
+.wz .sc-sizeconfirm-size { color: var(--cyan); }

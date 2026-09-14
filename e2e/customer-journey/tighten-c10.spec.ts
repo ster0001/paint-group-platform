@@ -117,6 +117,9 @@ test("one 'anything we've missed' card, extras per room, no pets, and the assume
   // Extras in this room: a feature wall becomes a review line pinned to the room.
   const areaId = await page.locator(".sc-rc[data-room]").first().getAttribute("data-room");
   await page.locator(".sc-rc[data-room]").first().locator(".il-hd").click();
+  // Tom, 14 Sep (items 17, 18): extras start at No — the questions appear after Yes.
+  await expect(page.locator(".sc-rc[data-room]").first().getByRole("button", { name: "more feature walls" })).toHaveCount(0);
+  await page.getByTestId(`room-extras-${areaId}-yes`).click();
   await page.locator(".sc-rc[data-room]").first().getByRole("button", { name: "more feature walls" }).click();
   await expect(page.getByTestId(`room-feature-walls-${areaId}`)).toHaveText("1");
   await expect(page.getByTestId(`room-extras-note-${areaId}`)).toBeVisible({ timeout: 20_000 });

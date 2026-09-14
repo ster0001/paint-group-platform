@@ -393,7 +393,8 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("room_win_size"), areaId: z.number().int().positive(), surfaceId: z.number().int().positive(), size: z.enum(["S", "M", "L"]) }),
   z.object({ action: z.literal("room_add_window_group"), areaId: z.number().int().positive() }),
   z.object({ action: z.literal("room_custom"), areaId: z.number().int().positive(), name: z.string().min(1).max(120) }),
-  z.object({ action: z.literal("confirm_room_loop"), areaId: z.number().int().positive() }),
+  /** Tom, 14 Sep (item 19): `sizeOk` = "confirming the room measurements are L × W" from the confirm box — the size answer and the confirm in one tap. */
+  z.object({ action: z.literal("confirm_room_loop"), areaId: z.number().int().positive(), sizeOk: z.boolean().optional() }),
   z.object({ action: z.literal("iloop_dw"), ok: z.boolean() }),
   z.object({ action: z.literal("iloop_sweep"), ans: z.enum(["none"]).optional(), add: z.string().min(1).max(60).optional() }),
   z.object({ action: z.literal("room_add_catalogue"), areaId: z.number().int().positive(), code: z.string().min(1).max(60) }),
@@ -1369,6 +1370,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         const room = blocks.find((b) => b.kind === "area" && Number(b.id) === act.areaId);
         const cfg = CUPBOARD_BY_ROOM_TYPE[String(room?.roomType ?? "")];
         cupboardApplies = !!cfg && (await ctxPromise).rateItems.some((r) => r.code === cfg.code);
+        // Tom, 14 Sep (item 19): the confirm box says the measurements out loud; Confirm answers the size too.
+        if (act.sizeOk) {
+          const ok = applyRoomSizeOk(blocks, act.areaId);
+          if (ok.ok) blocks = ok.blocks as LooseBlock[];
+        }
       }
       // Pre-apply dims, for the "wildly changed" test below.
       const dimsBefore = act.action === "room_dims"

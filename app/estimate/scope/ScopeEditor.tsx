@@ -208,6 +208,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   const [ceilingRooms, setCeilingRooms] = useState<number[]>(initialDarkToLight.ceilingRooms);
   const [access, setAccess] = useState<SiteAccess>(initialAccess.answers);
   const [windowsPainted, setWindowsPainted] = useState<"yes" | "no" | null>(initialWindowsPainted);
+  /** Tom, 14 Sep (item 19): the room whose measurements are being read back before its confirm. */
+  const [sizeConfirm, setSizeConfirm] = useState<number | null>(null);
   const [addRoom, setAddRoom] = useState<{ open: boolean; type: string | null; name: string; L: string; W: string }>({ open: false, type: null, name: "", L: "", W: "" });
   const [extras, setExtras] = useState({ on: initialExtras.on, colourHelp: initialExtras.colourHelp, note: initialExtras.note });
   const [sidesProg, setSidesProg] = useState<SidesView["progress"] | null>(initialSides?.progress ?? null);
@@ -1595,11 +1597,26 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     offer={<Offer kind="damage" estimator={estimator?.name ?? null} onBook={() => scrollToReach()} />}
                   />
                 )}
+                {/* Tom, 14 Sep (item 19): Confirm on an unconfirmed size reads the measurements back first. */}
+                {loop && sizeConfirm === room.areaId && !loop.confirmed && (
+                  <div className="sc-sizeconfirm" data-testid={`size-confirm-${room.areaId}`} role="dialog" aria-label="Confirm the room measurements">
+                    <p className="il-ql">Confirming the room measurements are <b className="sc-sizeconfirm-size">{loop.sizeLabel}</b>.</p>
+                    <div className="sc-chips">
+                      <button type="button" className="sd-chip il-chip on" data-testid={`size-confirm-ok-${room.areaId}`}
+                        onClick={() => { setSizeConfirm(null); confirmAct({ action: "confirm_room_loop", areaId: room.areaId, sizeOk: true }, `room:${room.areaId}`, `${room.name} confirmed ✓`); }}>Confirm</button>
+                      <button type="button" className="sd-chip" data-testid={`size-confirm-change-${room.areaId}`}
+                        onClick={() => { setSizeConfirm(null); setSizeDrafts((d) => ({ ...d, [room.areaId]: { L: "", W: "", open: true } })); afterLayout(() => scrollCardToTop(document.querySelector(`[data-card="room:${room.areaId}"]`))); }}>Change it</button>
+                    </div>
+                  </div>
+                )}
                 {loop && (
                   <button
                     className={`sd-confirm il-confirm ${loop.confirmed ? "done" : ""}`}
                     disabled={optimistic[`confirm:room:${room.areaId}`] != null}
-                    onClick={() => confirmAct({ action: "confirm_room_loop", areaId: room.areaId }, `room:${room.areaId}`, `${room.name} confirmed ✓`)}
+                    onClick={() => {
+                      if (!loop.confirmed && loop.size == null && !sel(`sz:${room.areaId}`, false, "yes")) { setSizeConfirm(room.areaId); return; }
+                      confirmAct({ action: "confirm_room_loop", areaId: room.areaId }, `room:${room.areaId}`, `${room.name} confirmed ✓`);
+                    }}
                   >
                     {optimistic[`confirm:room:${room.areaId}`] != null ? "Confirming…" : loop.confirmed ? "Confirmed ✓" : `Confirm ${room.name} ✓`}
                   </button>

@@ -17,9 +17,20 @@ export default function RoomExtras({ areaId, view, busy, onExtra }: {
 }) {
   const [otherOpen, setOtherOpen] = useState(view.other !== "");
   const [otherText, setOtherText] = useState(view.other);
+  // Tom, 14 Sep (items 17, 18): a Yes/No that starts at No; the questions only
+  // appear after Yes. Anything already recorded means Yes.
+  const any = view.featureWalls > 0 || view.wallpaper || view.other !== "";
+  const [yes, setYes] = useState(any);
+  const on = yes || any;
   return (
-    <div className="sc-extras" data-testid={`room-extras-${areaId}`}>
+    <div className="sc-extras" data-testid={`room-extras-${areaId}`} data-on={on ? "1" : "0"}>
       <p className="il-ql">Extras in this room <span className="wz-opt">OPTIONAL</span></p>
+      <p className="il-hint">Any feature walls, wallpaper removal or something we should know?</p>
+      <div className="sc-chips">
+        <button type="button" className={`sd-chip il-chip ${on ? "on" : ""}`} aria-pressed={on} disabled={busy} data-testid={`room-extras-${areaId}-yes`} onClick={() => setYes(true)}>Yes</button>
+        <button type="button" className={`sd-chip il-chip ${!on ? "on" : ""}`} aria-pressed={!on} disabled={busy || any} data-testid={`room-extras-${areaId}-no`} onClick={() => setYes(false)}>No</button>
+      </div>
+      {on && (<>
       <div className="sc-extra-row">
         <div>
           <b>Feature wall</b>
@@ -51,6 +62,7 @@ export default function RoomExtras({ areaId, view, busy, onExtra }: {
           <button className="sd-chip il-chip" onClick={() => setOtherOpen(true)}>Name it</button>
         )}
       </div>
+      </>)}
       {(view.featureWalls > 0 || view.wallpaper || view.other) && (
         <p className="sc-inc" data-testid={`room-extras-note-${areaId}`}>A person prices these — they&rsquo;re on your estimate as lines to confirm, not a guess.</p>
       )}
