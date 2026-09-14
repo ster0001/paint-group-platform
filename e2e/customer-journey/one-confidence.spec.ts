@@ -17,18 +17,21 @@ import { driveNoPlanWizard } from "./drive";
  *     reason a customer bothers confirming at all (the R5 frozen-18% bug).
  */
 
+/** 14 Sep: the customer's one number is the range width ("±N%"), not the accuracy score. */
 async function headerPct(page: Page): Promise<number> {
-  return parseInt((await page.locator(".sc-num").innerText()).replace("%", ""), 10);
+  return parseInt((await page.getByTestId("range-width").innerText()).replace(/[±%]/g, ""), 10);
 }
+const widthOf = (t: string) => { const m = t.replace(/,/g, "").match(/\$(\d+)\s*–\s*\$(\d+)/); return m ? Number(m[2]) - Number(m[1]) : NaN; };
 
 test("R1.4 one score: no-plan capped, and confirming a room ramps it", async ({ page }) => {
   test.setTimeout(180_000);
   await driveNoPlanWizard(page);
 
-  // Honesty cap: a starter-list estimate (nothing extracted, nothing
-  // confirmed) can never open above 65%.
+  // Honesty: a starter-list estimate (nothing extracted, nothing confirmed)
+  // opens WIDE — above the tight band — never as if it were nearly certain.
   const header0 = await headerPct(page);
-  expect(header0, "an unconfirmed no-plan estimate must open capped").toBeLessThanOrEqual(65);
+  expect(header0, "an unconfirmed no-plan estimate must open wide").toBeGreaterThan(4);
+  const dollars0 = widthOf((await page.locator(".sc-r").first().textContent()) ?? "");
 
   // Confirm the first room. The loop asks its REQUIRED questions in order:
   // the size ("Looks right"), then whatever this room type carries — a
@@ -48,7 +51,9 @@ test("R1.4 one score: no-plan capped, and confirming a room ramps it", async ({ 
   // it — waiting for a "Confirmed ✓" label races the collapse. What must be
   // true afterwards is the card wearing its done state and the score moving.
   await expect(page.locator(".sc-rc.done").first()).toBeVisible({ timeout: 25_000 });
+  // The one number never grows on a confirm, and the range itself narrows.
   await expect(async () => {
-    expect(await headerPct(page)).toBeGreaterThan(header0);
+    expect(await headerPct(page)).toBeLessThanOrEqual(header0);
+    expect(widthOf((await page.locator(".sc-r").first().textContent()) ?? "")).toBeLessThan(dollars0);
   }).toPass({ timeout: 25_000 });
 });

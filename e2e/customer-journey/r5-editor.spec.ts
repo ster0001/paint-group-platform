@@ -9,21 +9,24 @@ import { driveNoPlanWizard, openScopeEditor } from "./drive";
  */
 
 test.describe("R5 customer scope editor", () => {
-  test("the confidence score is named, starts low, and climbs as rooms are confirmed", async ({ page }) => {
+  test("the range width is named, starts wide, and narrows as rooms are confirmed", async ({ page }) => {
     test.setTimeout(240_000);
     await driveNoPlanWizard(page);
     await openScopeEditor(page);
 
-    await expect(page.locator(".sc-lbl b")).toHaveText(/confidence score/i);
+    // 14 Sep: ONE number for the customer — the envelope's width, not the
+    // accuracy score (which stays in the staff pack).
+    await expect(page.locator(".sc-lbl b")).toHaveText(/your range/i);
 
-    const pct = async () => parseInt((await page.locator(".sc-num").innerText()).replace("%", ""), 10);
+    const pct = async () => parseInt((await page.getByTestId("range-width").innerText()).replace(/[±%]/g, ""), 10);
     const start = await pct();
-    // "Initially the accuracy % is lower" — an all-assumed starter house
-    // must not present itself as nearly certain.
-    expect(start).toBeLessThan(70);
+    // An all-assumed starter house must not present itself as nearly certain:
+    // the width opens above the tight band.
+    expect(start).toBeGreaterThan(4);
 
-    // Confirm two rooms properly; the score must rise at each one. Before
-    // R5 it sat still through an entire walk-through (measured at 18%).
+    // Confirm two rooms properly; the width must never grow, and two
+    // confirms must narrow it. Before R5 the number sat still through an
+    // entire walk-through.
     const walk: number[] = [start];
     for (let i = 0; i < 2; i++) {
       // The open card is the one the confirm loop is currently on (it
@@ -45,8 +48,9 @@ test.describe("R5 customer scope editor", () => {
       walk.push(await pct());
     }
     for (let i = 1; i < walk.length; i++) {
-      expect(walk[i], `confirming room ${i} must raise the score (${walk.join(" → ")})`).toBeGreaterThan(walk[i - 1]);
+      expect(walk[i], `confirming room ${i} must never widen the range (${walk.join(" → ")})`).toBeLessThanOrEqual(walk[i - 1]);
     }
+    expect(walk[walk.length - 1], `two confirms must narrow the range (${walk.join(" → ")})`).toBeLessThan(walk[0]);
   });
 
   test("the header, the progress bar and the score stay put while scrolling", async ({ page }) => {

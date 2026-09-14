@@ -32,7 +32,9 @@ test.describe("the quick look", () => {
     await expect(page.getByTestId("ql-jobtype-interior")).toBeVisible();
     const ways = page.getByTestId("wz-entry");
     await expect(ways.getByTestId("entry-describe")).toBeVisible();
-    await expect(ways.getByTestId("entry-upload")).toBeVisible();
+    // 14 Sep: the floorplan upload lives ON the place screen for an inside
+    // job; the screen-1 upload link is only offered for an outside job.
+    await expect(ways.getByTestId("entry-upload")).toHaveCount(0);
 
     // An address is the one thing screen 1 insists on — without a postcode
     // the service-area check would hand the job off for our own reasons.
@@ -48,7 +50,9 @@ test.describe("the quick look", () => {
     await page.getByTestId("ql-next").click();
 
     await expect(page.locator("[data-quick-step='job']")).toBeVisible();
-    await page.getByTestId("ql-changing-walls").click(); // C9: untick = the same colour
+    // C9: untick = the same colour; since 14 Sep every tile starts ticked, so
+    // "the same colours" means unticking all three.
+    for (const k of ["walls", "ceilings", "trims"]) await page.getByTestId(`ql-changing-${k}`).click();
     await page.getByTestId("ql-next").click();
 
     await expect(page.locator("[data-quick-step='condition']")).toBeVisible();

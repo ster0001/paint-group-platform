@@ -33,8 +33,8 @@ test("confirm three rooms and flag a crack with a photo: the score climbs, the r
   await expect(range).toContainText(MONEY_RANGE, { timeout: 30_000 });
   let lastWidth = width((await range.textContent())!);
   const startWidth = lastWidth;
-  // The confidence score the editor names (`.sc-num`, r5-editor.spec.ts).
-  const scoreOf = async () => parseInt((await page.locator(".sc-num").innerText()).replace("%", ""), 10);
+  // 14 Sep: the one number the editor names is the range width ("±N%").
+  const scoreOf = async () => parseInt((await page.getByTestId("range-width").innerText()).replace(/[±%]/g, ""), 10);
   let lastScore = await scoreOf();
 
   const cards = page.locator(".sc-rc[data-room]");
@@ -51,7 +51,7 @@ test("confirm three rooms and flag a crack with a photo: the score climbs, the r
     }
     await card.locator(".il-confirm").click();
     await expect(card).toHaveClass(/done/, { timeout: 20_000 });
-    await expect.poll(async () => (await scoreOf()) > lastScore, { timeout: 20_000 }).toBe(true);
+    await expect.poll(async () => (await scoreOf()) <= lastScore, { timeout: 20_000 }).toBe(true);
     lastScore = await scoreOf();
     const w = width((await range.textContent())!);
     expect(w).toBeLessThanOrEqual(lastWidth);

@@ -18,11 +18,10 @@ test("doors and trims changing, then Shiny: the panel gains the undercoat and th
   await page.getByTestId("ql-bedrooms-2").click();
   await quickNext(page);
 
-  // Screen 3: the colour block. Walls stay ticked by default; tick doors and
-  // trims too. No coat picker anywhere.
+  // Screen 3: the colour block. Every tile starts ticked (Tom, 14 Sep) —
+  // doors and trims are already changing. No coat picker anywhere.
   await expect(page.getByTestId("ql-changing")).toBeVisible();
   await expect(page.locator('[data-testid^="ql-colour-"]')).toHaveCount(0);
-  await page.getByTestId("ql-changing-trims").click();
   await expect(page.getByTestId("ql-changing-trims")).toHaveAttribute("aria-pressed", "true");
   await quickNext(page);
   await page.getByTestId("ql-condition-wear").click();
@@ -73,8 +72,11 @@ test("nothing ticked is the same colour: one coat on the walls, and no undercoat
   await quickNext(page);
   await page.getByTestId("ql-kind-house").click();
   await quickNext(page);
-  await page.getByTestId("ql-changing-walls").click(); // untick the default
-  await expect(page.getByTestId("ql-changing-walls")).toHaveAttribute("aria-pressed", "false");
+  // Every tile starts ticked (Tom, 14 Sep) — "nothing ticked" means unticking all three.
+  for (const k of ["walls", "ceilings", "trims"]) {
+    await page.getByTestId(`ql-changing-${k}`).click();
+    await expect(page.getByTestId(`ql-changing-${k}`)).toHaveAttribute("aria-pressed", "false");
+  }
   await quickNext(page);
   await page.getByTestId("ql-condition-good").click();
   await quickNext(page);
