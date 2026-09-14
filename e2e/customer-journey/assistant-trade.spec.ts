@@ -93,7 +93,8 @@ test.describe("Addendum A2 — describe the job", () => {
       await expect(page.locator(".sc-r").first()).toHaveText(MONEY, { timeout: 30_000 });
       const names = await page.locator('[data-card^="room:"] .sc-hd').allInnerTexts();
       expect(names.length).toBeGreaterThanOrEqual(3);
-      await expect(page.locator(".wz-confirmonsite")).toBeVisible();
+      // Tom, 14 Sep (item 26): the amber ⚑ list is the estimator's (the pack), not the customer's.
+      await expect(page.locator(".wz-confirmonsite")).toHaveCount(0);
       // The details card is where the assumed styles get settled.
       await expect(page.getByTestId("details-card")).toBeVisible();
       const { data: est } = await sb.from("estimates").select("id, source").eq("id", new URL(page.url()).searchParams.get("id")!).single();

@@ -318,7 +318,7 @@ const rule = (coats: number, undercoat: boolean, sentence: string): SystemRule =
 export const DEFAULT_PAINT_SYSTEMS: PaintSystems = {
   walls: {
     same: rule(1, false, "Same colour again. Fill nail holes and hairline cracks, light sand, spot-prime the fills, then one coat of low-sheen."),
-    new: rule(2, false, "New colour. Fill nail holes and hairline cracks, light sand, spot-prime the fills, then two coats of low-sheen."),
+    new: rule(2, false, "New colour. Fill nail holes and hairline cracks, light sand, spot-prime the fills, then two coats of water based acrylic."),
     bold: rule(3, true, "Going much lighter, or a bold colour. Fill and sand, then a tinted undercoat and two coats of low-sheen."),
   },
   ceilings: {
@@ -343,7 +343,9 @@ export const DEFAULT_PAINT_SYSTEMS: PaintSystems = {
     // is earned by an oil-based enamel underneath (the paint questions on the
     // tighten screen), by raw or stained timber (the flags), or by going much
     // lighter (bold). The range carries the three-coat case until it closes.
-    new: rule(2, false, "New colour. Sand and clean, fill any dents, then two coats of enamel."),
+    // Tom, 14 Sep (item 10): the coats and the enamel follow the answers —
+    // `{coats}` and `{enamel}` are filled by `deriveSystem` (fillCoatsPhrase).
+    new: rule(2, false, "Sand and clean, fill any dents, then {coats} of {enamel}."),
     bold: rule(3, true, "New colour. Sand and clean, fill any dents, then an undercoat and two coats of water-based enamel."),
   },
   doors: {
@@ -351,7 +353,8 @@ export const DEFAULT_PAINT_SYSTEMS: PaintSystems = {
     // one-coat answer. ⚑ Extended from Tom's trims answer rather than stated
     // by him — say so if a door is different from a skirting here.
     same: rule(1, false, "As the trims. Both sides, edges and frame — spot-primed and one coat of water-based enamel."),
-    new: rule(2, false, "As the trims. Both sides, edges and frame — two coats of enamel."),
+    // Tom, 14 Sep (item 11).
+    new: rule(2, false, "Both sides and edges, we will mask off or remove hardware, followed by {coats} of {enamel}."),
     bold: rule(3, true, "As the trims. Both sides, edges and frame — an undercoat and two coats of water-based enamel."),
   },
   windows: {
@@ -591,6 +594,24 @@ function enforceCoverage(coats: number, changingColour: boolean): number {
  * no rate card. The rate card prices the result; this only decides what the
  * painter does.
  */
+const COUNT_WORDS = ["", "one", "two", "three", "four", "five"];
+/**
+ * Tom, 14 Sep (items 10, 11): a sentence cell may carry `{coats}` and
+ * `{enamel}` — "two coats" / "an undercoat and two coats" / "one coat", and
+ * "water-based enamel" / "oil-based enamel" from the paint-base answer — so
+ * the words in What we'll do always match the number the engine priced.
+ */
+export function fillCoatsPhrase(sentence: string, coats: number, undercoat: boolean, base: SystemAnswers["trimsBase"]): string {
+  if (!/\{coats\}|\{enamel\}/.test(sentence)) return sentence;
+  const word = (n: number) => COUNT_WORDS[n] ?? String(n);
+  const top = undercoat ? Math.max(1, coats - 1) : coats;
+  const phrase = undercoat
+    ? `an undercoat and ${word(top)} coat${top === 1 ? "" : "s"}`
+    : `${word(coats)} coat${coats === 1 ? "" : "s"}`;
+  const enamel = base === "oil" ? "oil-based enamel" : "water-based enamel";
+  return sentence.replace(/\{coats\}/g, phrase).replace(/\{enamel\}/g, enamel);
+}
+
 export function deriveSystem(
   group: SystemGroup,
   answers: SystemAnswers,
@@ -699,7 +720,8 @@ export function deriveSystem(
       // and not told to stain-block.
       crewNote = addNote(crewNote, "existing enamel is oil-based — undercoat before the water-based enamel");
       reason = reason || "the existing trims are an oil-based enamel";
-      sentence = `${sentence} An undercoat first, because the existing enamel is oil-based.`;
+      // A templated cell says the undercoat itself; a plain cell gets the reason appended.
+      if (!/\{coats\}/.test(sentence)) sentence = `${sentence} An undercoat first, because the existing enamel is oil-based.`;
     } else if (answers.glossTrims === "unsure") {
       // Priced at two coats — never three on a guess — but a person confirms it.
       review = true;
@@ -721,7 +743,7 @@ export function deriveSystem(
     coats,
     undercoat,
     prepHrPerUnit: systems.prepHrPerUnit[answers.condition],
-    sentence,
+    sentence: fillCoatsPhrase(sentence, coats, undercoat, answers.trimsBase),
     crewNote,
     review,
     reason,

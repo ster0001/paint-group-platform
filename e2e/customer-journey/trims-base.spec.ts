@@ -51,6 +51,9 @@ test("oil-based new paint closes the question at two coats and narrows the range
   const trims = page.getByTestId("what-we-do").getByTestId("what-we-do-trims");
   await expect(trims).toHaveAttribute("data-coats", "2");
   await expect(trims).not.toContainText(/a person confirms/i);
+  // Tom, 14 Sep (items 10/11): the words say what was priced — oil-based, two coats.
+  await expect(trims).toContainText(/two coats of oil-based enamel/i, { timeout: 30_000 });
+  await expect(page.getByTestId("what-we-do").getByTestId("what-we-do-doors")).toContainText(/mask off or remove hardware, followed by two coats of oil-based enamel/i);
   await expect.poll(async () => parseRange((await range.textContent()) ?? "")[1], { timeout: 30_000 }).toBeLessThan(hi0);
   expect(parseRange((await range.textContent()) ?? "")[0]).toBeGreaterThanOrEqual(lo0);
 });

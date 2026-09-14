@@ -6,7 +6,7 @@ import {
   SYSTEM_GROUPS,
   colourIntentFromTier,
   conditionBandFromDamageTier,
-  deriveSystem,
+  deriveSystem, fillCoatsPhrase,
   groupForSubstrate,
   paintSystemsFrom,
   systemsForSurfaces,
@@ -183,6 +183,19 @@ describe("the table (plan §4.2 with ⚑3/⚑4/⚑5)", () => {
     expect(unsure.crewNote).toContain("oil or water-based");
     // "Not sure" what the new paint is behaves like water.
     expect(deriveSystem("trims", answers({ trimsBase: "unsure", glossTrims: "yes" })).coats).toBe(3);
+  });
+
+  it("Tom, 14 Sep (items 10/11): the trims and doors sentences say the coats and the enamel the engine priced", () => {
+    const water = deriveSystem("trims", answers({ trimsBase: "water", glossTrims: "no" }));
+    expect(water.sentence).toBe("Sand and clean, fill any dents, then two coats of water-based enamel.");
+    const overOil = deriveSystem("doors", answers({ trimsBase: "water", glossTrims: "yes" }));
+    expect(overOil.sentence).toBe("Both sides and edges, we will mask off or remove hardware, followed by an undercoat and two coats of water-based enamel.");
+    const oil = deriveSystem("trims", answers({ trimsBase: "oil", glossTrims: "yes" }));
+    expect(oil.sentence).toBe("Sand and clean, fill any dents, then two coats of oil-based enamel.");
+    const unanswered = deriveSystem("doors", { colourIntent: "new", condition: "wear" });
+    expect(unanswered.sentence).toContain("two coats of water-based enamel");
+    expect(fillCoatsPhrase("plain cell", 3, true, "oil")).toBe("plain cell");
+    expect(fillCoatsPhrase("{coats}", 1, false, null)).toBe("one coat");
   });
 
   it("oil-based new paint is two coats whatever is underneath — oil over oil included", () => {

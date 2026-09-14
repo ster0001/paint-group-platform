@@ -34,6 +34,20 @@ test("the colour tiles follow the job preset and start ticked", async ({ page })
   await expect(page.getByTestId("ql-changing-trims")).toHaveAttribute("aria-pressed", "true");
   await page.getByTestId("ql-scope-whole").click();
   for (const k of ["walls", "ceilings", "trims"]) await expect(page.getByTestId(`ql-changing-${k}`)).toHaveAttribute("aria-pressed", "true");
+
+  // Tom, 14 Sep (item 16): the preset decides which surfaces each room starts
+  // with — walls and ceilings only never ticks a door; the whole interior does.
+  await page.getByTestId("ql-scope-walls_ceilings").click();
+  await quickNext(page);
+  await quickNext(page);
+  await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
+  await page.getByTestId("door-tighten").click();
+  await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 60_000 });
+  await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
+  const first = page.locator(".sc-rc[data-room]").first();
+  await first.locator(".il-hd").click().catch(() => undefined);
+  await expect(first.locator(".sc-tl.on", { hasText: /wall/i }).first()).toBeVisible();
+  await expect(first.locator(".sc-tl.on", { hasText: /door/i })).toHaveCount(0);
 });
 
 test("answering a detail question narrows the range and never lifts the low end past the old high", async ({ page }) => {

@@ -718,7 +718,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         <div className="sc-scorewrap">
           <div className="sc-scorebar">
             <div className="sc-score">
-              <div className="sc-ring">
+              <div className={`sc-ring ${pendingCount > 0 ? "live" : ""}`} data-live={pendingCount > 0 ? "1" : "0"}>
                 <svg width="48" height="48" style={{ transform: "rotate(-90deg)" }}>
                   <circle cx="24" cy="24" r="20" fill="none" stroke="#242B32" strokeWidth="4" />
                   <circle cx="24" cy="24" r="20" fill="none" stroke={payload.accuracyPct >= 90 ? "#2FA46B" : "#E0A83C"}
@@ -768,10 +768,6 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
           <section className="sc-rc il-card amber sc-details" data-card="details" id="details" data-testid="details-card">
             {/* C9 — what the answers below change, read-only, above the questions. */}
             <WhatWeDo lines={systems} tellUsHref="#reach" compact />
-            {/* C11 — the second not-sure is the moment a person is easier. */}
-            {[styleOpen.doors, styleOpen.windows, styleOpen.paintBase || styleOpen.trimsCurrent, payload.heightUnconfirmed].filter(Boolean).length >= 2 && (
-              <Offer kind="not_sures" estimator={estimator?.name ?? null} onBook={() => scrollToReach()} onCall={estimator?.phone ?? companyPhone} />
-            )}
             <div className="sc-hd il-hd"><b>A few details to settle</b><span className="il-pill">TIGHTENS YOUR RANGE</span></div>
             {/* 14 Sep: the money these answers close, from the envelope — never computed here. */}
             {Object.values(payload.openClosesCents ?? {}).some((v) => v > 0) && (
@@ -1083,9 +1079,6 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                         <button type="button" onClick={() => act({ action: "room_dims", areaId: room.areaId, lengthM: room.proposed!.L!, widthM: room.proposed!.W! }, `dims:${room.areaId}`, () => `${room.name} updated to ${room.proposed!.L} × ${room.proposed!.W} m — repriced.`)}>Use it</button>
                         <button type="button" onClick={() => act({ action: "room_size_ok", areaId: room.areaId }, `sz:${room.areaId}`, undefined, [`sz:${room.areaId}`, "yes"])}>Keep mine</button>
                       </div>
-                    )}
-                    {sizeDrafts[room.areaId]?.open && (
-                      <Offer kind="measure" estimator={estimator?.name ?? null} onBook={() => scrollToReach()} onCall={estimator?.phone ?? companyPhone} />
                     )}
                     {sizeDrafts[room.areaId]?.open && (
                       <div className="sd-mrow">
@@ -1536,11 +1529,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             }}
           />
         )}
-        {!chatMode && payload.confirmOnSite.length > 0 && (
-          <p className="wz-note wz-confirmonsite" style={{ margin: "14px 0 0" }}>
-            {payload.confirmOnSite.map((n, i) => <span key={i}>⚑ {n}<br /></span>)}
-          </p>
-        )}
+        {/* Tom, 14 Sep (item 26): the ⚑ deferral list is the estimator's (the pack), not the customer's. */}
           {iloop && (
             <>
               {/*

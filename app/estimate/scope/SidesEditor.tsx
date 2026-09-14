@@ -736,7 +736,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
         <div className="sd-scorewrap">
           <div className="sc-scorebar">
             <div className="sc-score">
-              <div className="sc-ring">
+              <div className={`sc-ring ${pendingCount > 0 ? "live" : ""}`} data-live={pendingCount > 0 ? "1" : "0"}>
                 <svg width="48" height="48" style={{ transform: "rotate(-90deg)" }}>
                   <circle cx="24" cy="24" r="20" fill="none" stroke="#242B32" strokeWidth="4" />
                   <circle cx="24" cy="24" r="20" fill="none" stroke={payload.accuracyPct >= 85 ? "#2FA46B" : "#E0A83C"}

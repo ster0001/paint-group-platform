@@ -170,6 +170,11 @@ export function buildDraft(
       skipped.push({ name, reason: "outside the interior scope (alfresco, void or similar)" });
       continue;
     }
+    // Tom, 14 Sep (item 22): a shed is never part of an interior quote, whatever the plan calls it.
+    if (/\bshed\b/i.test(name)) {
+      skipped.push({ name, reason: "a shed is never part of an interior quote" });
+      continue;
+    }
 
     const plan = planSurfaces(
       roomType,

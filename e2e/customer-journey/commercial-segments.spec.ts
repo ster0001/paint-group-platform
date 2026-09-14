@@ -154,7 +154,6 @@ test("school: the hall asks its height, and over 6 m allows for a platform", asy
   // and unpriced, exactly one.
   await page.getByTestId("door-tighten").click();
   await page.waitForURL(/\/estimate\/scope/, { timeout: 60_000 });
-  const settle = page.locator(".wz-confirmonsite");
-  await expect(settle).toContainText(/Platform or lift for walls over 4 m/, { timeout: 60_000 });
-  expect(((await settle.innerText()).match(/Platform or lift/g) ?? []).length).toBe(1);
+  // Tom, 14 Sep (item 26): the flagged line is the estimator's; the customer read it on the reveal above.
+  await expect(page.locator(".wz-confirmonsite")).toHaveCount(0);
 });

@@ -94,10 +94,9 @@ test("Tom's check: 1,000–2,500 m², 4–6 m, precast, some racking, operating 
   const body = await page.locator("body").innerText();
   expect(body).toContain("Warehouse floor");
   expect(body).toContain("Office 1");
-  const settle = page.locator(".wz-confirmonsite");
-  await expect(settle).toContainText(/Scissor lift for walls to 5 m/, { timeout: 60_000 });
-  await expect(settle).toContainText(/precast \/ tilt slab — preparation/);
-  await expect(settle).toContainText(/racking against some walls/);
+  // Tom, 14 Sep (item 26): the settle list is the estimator's (the pack); the
+  // customer read the scissor lift and the racking on the reveal's assumed list above.
+  await expect(page.locator(".wz-confirmonsite")).toHaveCount(0);
   await expect(page.locator("body")).not.toContainText(/Fix (my )?price online|Fix online|Accept estimate/i);
 });
 

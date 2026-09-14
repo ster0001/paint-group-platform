@@ -135,6 +135,19 @@ describe("the envelope", () => {
     expect(full.hiCents).toBeLessThanOrEqual(half.hiCents);
     expect(full.bandPct).toBe(DEFAULT_BANDS.tightPct);
   });
+  it("Tom, 14 Sep (items 25/30): whole-job blocks the loop never counts do not hold the residual open", () => {
+    const allDetails = state({ doorStyle: "flat", windowStyle: "casement", ceilingHeight: "2.4" });
+    const all = { ...allDetails, paint: { ...allDetails.paint, base: "oil" as const } };
+    const rooms = tree().map((b) => ({ ...b, assumedFields: ["L", "W"] }));
+    // "Site access" and "Interior - extras" are priced areas, but never loop rooms.
+    const pseudo = [
+      { ...room(90, "Site access", "surface", []), areaType: "surface", surfaces: [] },
+      { ...room(91, "Interior - extras", "surface", []), areaType: "surface", surfaces: [] },
+    ];
+    const both = envelopeFor({ blocks: [...rooms, ...pseudo], state: all, ctx, adj, bands: DEFAULT_BANDS, confirmed: new Map([[1, "confirmed"], [2, "confirmed"]]) });
+    expect(both.confirmedShare).toBe(1);
+    expect(both.bandPct).toBe(DEFAULT_BANDS.tightPct);
+  });
   it("the commercial widening lands on both ends", () => {
     const e = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
     const w = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: DEFAULT_BANDS, widenPct: 8, confirmed: null });

@@ -1097,3 +1097,9 @@
 @media (min-width: 861px) {
   .wz .sd-rail { max-height: calc(100vh - 118px - var(--wz-stick-h, 200px) - 12px); overflow-y: auto; }
 }
+
+/* Tom, 14 Sep (item 25): the range is live — the ring turns while a reprice is
+   in flight and settles on the new ±N%. */
+@keyframes wz-ring-spin { from { transform: rotate(-90deg); } to { transform: rotate(270deg); } }
+.wz .sc-ring.live svg { animation: wz-ring-spin .9s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .wz .sc-ring.live svg { animation: none; } }

@@ -61,7 +61,7 @@ test("doors and trims changing, then water over oil: the panel gains the underco
   // One tap: the trims line gains the undercoat (one more coat), and the
   // toast carries the money that moved. The panel is still read-only.
   const editorPanel = page.getByTestId("what-we-do");
-  await expect(editorPanel.getByTestId("what-we-do-trims")).toContainText(/undercoat first/i, { timeout: 30_000 });
+  await expect(editorPanel.getByTestId("what-we-do-trims")).toContainText(/an undercoat and two coats of water-based enamel/i, { timeout: 30_000 });
   await expect(editorPanel.getByTestId("what-we-do-trims")).toHaveAttribute("data-coats", String(coatsBefore + 1));
   await expect(editorPanel.getByTestId("what-we-do-trims")).toHaveAttribute("data-undercoat", "1");
   await expect(editorPanel.locator("button")).toHaveCount(0);

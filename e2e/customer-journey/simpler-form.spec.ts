@@ -97,8 +97,8 @@ test.describe("the quick look", () => {
   test("the door style is answerable in the editor and clears the amber lines", async ({ page }) => {
     test.setTimeout(180_000);
     await driveNoPlanWizard(page); // door style left "Not sure" on purpose
-    const flags = page.locator(".wz-confirmonsite");
-    await expect(flags).toContainText(/door style to confirm/);
+    // Tom, 14 Sep (item 26): no amber list — the door question itself is the signal.
+    await expect(page.locator(".wz-confirmonsite")).toHaveCount(0);
     const before = await page.locator(".sc-r").first().innerText();
     const details = page.getByTestId("details-card");
     await expect(details).toBeVisible();

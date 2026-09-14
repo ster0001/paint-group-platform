@@ -200,6 +200,19 @@ test("skipped rooms are reported, never dropped", () => {
   expect(skipped[1].reason).toMatch(/classify/);
 });
 
+test("Tom, 14 Sep (item 22): a shed is never an interior room, whatever type the plan gives it", () => {
+  const { areas, skipped } = buildDraft(
+    extraction([
+      room({ name_on_plan: "Garden Shed", normalised_type: "storage" }),
+      room({ name_on_plan: "Bedroom 1", normalised_type: "bedroom" }),
+    ]),
+    RULES, ALIASES,
+  );
+  expect(areas.map((a) => a.name)).toEqual(["Bedroom 1"]);
+  expect(skipped.map((s) => s.name)).toEqual(["Garden Shed"]);
+  expect(skipped[0].reason).toMatch(/never part of an interior quote/);
+});
+
 test("ids are unique across areas and their surfaces", () => {
   const { areas } = buildDraft(extraction([room(), room({ name_on_plan: "Bedroom 2" })]), RULES, ALIASES);
   const ids = areas.flatMap((a) => [a.id, ...a.surfaces.map((s) => s.id)]);

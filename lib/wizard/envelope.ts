@@ -169,7 +169,11 @@ export function envelopeFor(input: {
       closesCents[q] = Math.max(0, dear - dearWithout);
     }
   }
-  const areas = priced.length;
+  // Tom, 14 Sep (item 25/30): the share is over the rooms the confirm loop
+  // actually tracks — never the whole-job "Site access" / "Interior - extras"
+  // blocks, which are priced areas but can never be confirmed, so the residual
+  // used to stall at ~±6% however much the customer answered.
+  const areas = input.confirmed && input.confirmed.size > 0 ? input.confirmed.size : priced.length;
   const confirmedCount = input.confirmed ? [...input.confirmed.values()].filter((s) => s === "confirmed").length : 0;
   const confirmedShare = areas ? Math.min(1, confirmedCount / areas) : 0;
   const residual = (sizeResidualPct(confirmedShare, input.bands) + (input.widenPct ?? 0)) / 100;

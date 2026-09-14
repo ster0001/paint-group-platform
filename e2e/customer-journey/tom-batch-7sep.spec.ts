@@ -268,7 +268,7 @@ test.describe("Tom's 7 Sep batch", () => {
 
     // The customer sees the photos pending sign-off — on the tier line and the amber trace.
     await expect(page.locator(".sc-tier")).toContainText(/photos are with your estimator/i);
-    await expect(page.locator(".wz-confirmonsite")).toContainText(/photos are with your estimator/i);
+    // Tom, 14 Sep (item 26): the amber trace is no longer listed to the customer — the tier line carries it.
     await expect(page.locator(".sc-stick button").last()).not.toHaveText(/Accept estimate/);
 
     // The build carried the answers — never "no damage, built after 1970".

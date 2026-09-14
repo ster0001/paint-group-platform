@@ -76,7 +76,8 @@ test("the footer line changes with the not-sures, and the offers appear at their
   // A fresh walk carries the door style, the window style and the height as
   // not-sures: two or more, and the line says so — with the offer beside them.
   await expect(line).toHaveAttribute("data-state", "not_sures");
-  await expect(page.getByTestId("offer-not_sures")).toBeVisible();
+  // Tom, 14 Sep (item 12): the "a few not-sures is completely fine" box is gone.
+  await expect(page.getByTestId("offer-not_sures")).toHaveCount(0);
 
   // Answer whatever the details card asks (door style, window style, height,
   // shiny): each answer retires a not-sure, and once fewer than two remain the
@@ -89,11 +90,12 @@ test("the footer line changes with the not-sures, and the offers appear at their
   }
   await expect(line).not.toHaveAttribute("data-state", "not_sures", { timeout: 30_000 });
 
-  // The size adjuster brings the "measure it instead" offer, in place.
+  // Tom, 14 Sep (item 21): "Adjust it" opens the measurements — no "measure it instead" box.
   const first = page.locator(".sc-rc[data-room]").first();
   await first.locator(".il-hd").click().catch(() => undefined);
   await first.getByRole("button", { name: /Adjust it/ }).click();
-  await expect(first.getByTestId("offer-measure")).toBeVisible();
+  await expect(first.getByTestId("offer-measure")).toHaveCount(0);
+  await expect(first.getByPlaceholder(/length/i)).toBeVisible();
 
   // Pointing out a spot brings the "damage is easier in person" offer.
   const areaId = await first.getAttribute("data-room");
