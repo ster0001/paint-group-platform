@@ -83,7 +83,7 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
   // C9: the single colour picker is gone. "same" = untick the walls (the
   // default tick); "new" = the default; "bold" = walls ticked + "Yes" to bold.
   // 14 Sep: every tile starts ticked, so "same" = untick all three.
-  if (opts.colour === "same") for (const k of ["walls", "ceilings", "trims"]) await page.getByTestId(`ql-changing-${k}`).click();
+  if (opts.colour === "same") for (const k of ["walls", "ceilings", "trims", "windows"]) await page.getByTestId(`ql-changing-${k}`).click();
   if (opts.colour === "bold") await page.getByTestId("ql-bold-yes").click();
   await quickNext(page);
 
@@ -236,16 +236,15 @@ export async function setStylesInEditor(page: Page, opts: {
 }) {
   const card = page.getByTestId("details-card");
   await expect(card).toBeVisible({ timeout: 30_000 });
-  // Tom, 14 Sep (items 5, 15): one question at a time — the door tile first,
-  // then "are we painting the window frames?" (yes when a window style is
-  // wanted, no otherwise), then the window type tiles.
-  if (opts.doorStyle && await card.getByTestId(`door-tile-${opts.doorStyle.toLowerCase()}`).count()) {
-    await card.getByTestId(`door-tile-${opts.doorStyle.toLowerCase()}`).click();
+  // Tom, 14 Sep (evening): one question at a time — cornices first ("No" here:
+  // the specs that drive styles are not about cornices), then the door tile,
+  // then the window type tiles (window frames are in the whole interior now).
+  if (await card.getByTestId("details-cornices").count()) {
+    await card.getByTestId("details-cornices").getByRole("button", { name: "No", exact: true }).click();
     await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
   }
-  const wp = card.getByTestId("details-windows-painted");
-  if (await wp.count()) {
-    await wp.getByRole("button", { name: opts.windowStyle ? /^Yes/ : /^No/ }).click();
+  if (opts.doorStyle && await card.getByTestId(`door-tile-${opts.doorStyle.toLowerCase()}`).count()) {
+    await card.getByTestId(`door-tile-${opts.doorStyle.toLowerCase()}`).click();
     await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
   }
   for (const label of [opts.windowStyle]) {

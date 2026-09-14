@@ -120,7 +120,7 @@ const snapshotFalse = () => false;
 
 const fmtMoney = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
-export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialDarkToLight = { asked: false, surfaces: [], someWalls: false, ceilings: null, ceilingRooms: [] }, initialColourTier = "change", initialSystems = [], initialRoomExtras = {}, estimator = null, customerSuburb = null, initialAccess = { answers: {}, asksLift: false }, initialWindowsPainted = null, initialExtras = { offer: [], on: [], colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, chatMode = false }: {
+export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialDarkToLight = { asked: false, surfaces: [], someWalls: false, ceilings: null, ceilingRooms: [] }, initialColourTier = "change", initialSystems = [], initialRoomExtras = {}, estimator = null, customerSuburb = null, initialAccess = { answers: {}, asksLift: false }, initialCornices = null, initialExtras = { offer: [], on: [], colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, chatMode = false }: {
   estimateId: string;
   initial: CustomerPayload;
   initialRooms: CustomerScopeRoom[];
@@ -166,8 +166,10 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   initialCondition?: "good" | "wear" | "work";
   /** §4.4 — the site and access answers, and whether a lift applies. */
   initialAccess?: { answers: SiteAccess; asksLift: boolean };
-  /** Tom, 14 Sep (item 15). */
+  /** Tom, 14 Sep (item 15) — kept on the contract; the frames question left the tighten screen the same evening. */
   initialWindowsPainted?: "yes" | "no" | null;
+  /** Tom, 14 Sep (evening, item 9). */
+  initialCornices?: "none" | "standard" | "decorative" | null;
   /** §4.5 — the extras on offer, which are on, the colour tick and the note. */
   initialExtras?: { offer: JobExtra[]; on: string[]; colourHelp: boolean; note: string };
 }) {
@@ -207,7 +209,9 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   const [ceilingScope, setCeilingScope] = useState<"all" | "some" | null>(initialDarkToLight.ceilings);
   const [ceilingRooms, setCeilingRooms] = useState<number[]>(initialDarkToLight.ceilingRooms);
   const [access, setAccess] = useState<SiteAccess>(initialAccess.answers);
-  const [windowsPainted, setWindowsPainted] = useState<"yes" | "no" | null>(initialWindowsPainted);
+  /** Tom, 14 Sep (evening, item 9): the cornice answer as stored; "yes" is the customer's first tap before the type. */
+  const [cornices, setCornices] = useState<"none" | "standard" | "decorative" | null>(initialCornices);
+  const [corniceYes, setCorniceYes] = useState(false);
   /** Tom, 14 Sep (item 19): the room whose measurements are being read back before its confirm. */
   const [sizeConfirm, setSizeConfirm] = useState<number | null>(null);
   const [addRoom, setAddRoom] = useState<{ open: boolean; type: string | null; name: string; L: string; W: string }>({ open: false, type: null, name: "", L: "", W: "" });
@@ -342,7 +346,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   const trimsUnsure = trimsLine != null && trimsLine.paintBase != null && trimsLine.paintBase !== "oil" && trimsLine.trimsCurrent === "unsure";
 
   const styleChip = (label: string, body: Record<string, unknown>, said: string, also?: () => void) => (
-    <button key={label} className="sd-chip il-chip" onClick={() => { also?.(); act(body, `style:${label}`, () => said); }}>{label}</button>
+    <button key={label} className="sd-chip il-chip" onClick={() => { also?.(); if (body.action !== "noop") act(body, `style:${label}`, () => said); }}>{label}</button>
   );
 
   function say(message: string) {
@@ -675,24 +679,34 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   const rangeText = `${fmt(payload.rangeLoCents)} – ${fmt(payload.rangeHiCents)}`;
 
   // ---- Tom, 14 Sep (items 5, 14, 15): the details, one question at a time ----
-  const hasWindows = rooms.some((r) => r.tiles.some((t) => String(t.key) === "windows" && t.on));
-  const windowsAnswered = windowsPainted != null || hasWindows || styleOpen.windows;
   const detailSteps: PaginatedStep[] = [];
+  // Tom, 14 Sep (evening, item 9): cornices first — "do you have cornices?", then standard or decorative.
+  detailSteps.push({
+    key: "cornices", label: "Cornices", answered: cornices != null || corniceYes,
+    question: "Do you have cornices?",
+    hint: "The moulding where the walls meet the ceiling.",
+    body: (
+      <div className="sc-chips" data-testid="details-cornices">
+        {styleChip("Yes", { action: "noop" }, "", () => setCorniceYes(true))}
+        {styleChip("No", { action: "set_cornices", answer: "none" }, "No cornices — taken off every room", () => { setCorniceYes(false); setCornices("none"); })}
+      </div>
+    ),
+  });
+  if (corniceYes && cornices == null) detailSteps.push({
+    key: "cornices_type", label: "Cornice type", answered: false,
+    question: "Standard or decorative cornices?",
+    hint: "Decorative — patterned or ornate — takes longer to cut in and is priced at its own rate.",
+    body: (
+      <div className="sc-chips" data-testid="details-cornices-type">
+        {styleChip("Standard", { action: "set_cornices", answer: "standard" }, "Standard cornices on every room", () => setCornices("standard"))}
+        {styleChip("Decorative", { action: "set_cornices", answer: "decorative" }, "Decorative cornices — priced at the patterned rate", () => setCornices("decorative"))}
+      </div>
+    ),
+  });
   if (styleOpen.doors) detailSteps.push({
     key: "doors", label: "Door type", answered: false,
     question: "The doors — mostly panelled, or flat?",
     body: <DoorTiles busy={pendingCount > 0} onPick={(style) => act({ action: "set_door_style", style }, `style:${style}`, () => style === "panel" ? "Panel doors — every door is priced at the panel rate now" : "Flat doors — every door is priced at the flat rate now")} />,
-  });
-  if (!windowsAnswered || windowsPainted != null) detailSteps.push({
-    key: "windows_painted", label: "Window frames", answered: windowsAnswered,
-    question: "Are we painting the window frames?",
-    hint: "Say yes and every room gets its window frames; then we ask the type.",
-    body: (
-      <div className="sc-chips" data-testid="details-windows-painted">
-        {styleChip(windowsPainted === "yes" ? "Yes ✓" : "Yes", { action: "set_windows_painted", on: true }, "Window frames added to every room — pick the type next", () => setWindowsPainted("yes"))}
-        {styleChip(windowsPainted === "no" ? "No ✓" : "No", { action: "set_windows_painted", on: false }, "No window frames — noted", () => setWindowsPainted("no"))}
-      </div>
-    ),
   });
   if (styleOpen.windows) detailSteps.push({
     key: "windows", label: "Window type", answered: false,

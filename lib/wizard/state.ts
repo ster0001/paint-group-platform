@@ -163,7 +163,9 @@ export const wizardStateShapeSchema = z.object({
      * (lib/wizard/quick-look.ts `colourFromChanges`) and kept for everything
      * that already reads it. Defaults keep every stored snapshot parsing.
      */
-    changing: z.object({ walls: z.boolean(), ceilings: z.boolean(), trims: z.boolean() }).default({ walls: true, ceilings: false, trims: false }),
+    changing: z.object({ walls: z.boolean(), ceilings: z.boolean(), trims: z.boolean(), windows: z.boolean().default(true) }).default({ walls: true, ceilings: false, trims: false, windows: true }),
+    /** Tom, 14 Sep (evening): "anything NOT being painted?" — ticked on the job screen after the preset. */
+    excluded: z.array(z.enum(["walls", "ceilings", "cornices", "doors", "architraves", "skirting", "windows"])).default([]),
     bold: z.boolean().default(false),
     undecided: z.boolean().default(false),
     condition: z.enum(["good", "wear", "needs_work"]),
@@ -297,7 +299,7 @@ export const wizardStateShapeSchema = z.object({
      * existed, so those keep the job-wide `tier` derivation exactly as it was.
      */
     colourAnswered: z.boolean().default(false),
-    changingGroups: z.object({ walls: z.boolean(), ceilings: z.boolean(), trims: z.boolean() }).default({ walls: false, ceilings: false, trims: false }),
+    changingGroups: z.object({ walls: z.boolean(), ceilings: z.boolean(), trims: z.boolean(), windows: z.boolean().optional() }).default({ walls: false, ceilings: false, trims: false }),
     boldColour: z.boolean().default(false),
     coloursUndecided: z.boolean().default(false),
   }),
@@ -316,6 +318,8 @@ export const wizardStateShapeSchema = z.object({
     windowStyle: z.enum(["casement", "sash", "colonial", "winder", "unsure", "na"]),
     /** Tom, 14 Sep (item 15): "are we painting the window frames?" — asked on the tighten screen; null = not asked yet. */
     windowsPainted: z.enum(["yes", "no"]).nullable().optional(),
+    /** Tom, 14 Sep (evening, item 9): "do you have cornices?" — none, standard, or decorative (the Patterned Cornices row). */
+    cornices: z.enum(["none", "standard", "decorative"]).nullable().optional(),
     ceilingHeight: z.enum(["2.4", "2.7", "3.0", "unsure"]),
     /** 0 none · 1 minor · 2 a few areas of concern · 3 desperate need. */
     damageTier: z.number().int().min(0).max(3),

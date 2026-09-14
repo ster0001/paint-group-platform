@@ -64,6 +64,8 @@ type LooseBlock = Record<string, unknown> & {
 };
 
 const DEAR_HEIGHT_M = 3.0;
+/** Tom, 14 Sep (evening, item 8): the LOW end prices unanswered ceilings at 2.4 m — reverses the morning's "3 m on both ends". */
+const CHEAP_HEIGHT_M = 2.4;
 const DEAR_WINDOW = "colonial_bay";
 
 /** Which discrete questions are still open on this state and tree. */
@@ -95,11 +97,11 @@ function isTrimLike(code: string): boolean {
 }
 const DEAR_TRIM_COATS = 3;
 
-/** Tom, 14 Sep: an unanswered ceiling height is priced at 3 m on BOTH ends. */
-export function assumedHeightTree(blocks: LooseBlock[], open: OpenQuestion[]): LooseBlock[] {
+/** An unanswered ceiling height priced at `heightM` (3 m for the dear end, 2.4 m for the cheap end). */
+export function assumedHeightTree(blocks: LooseBlock[], open: OpenQuestion[], heightM: number = DEAR_HEIGHT_M): LooseBlock[] {
   if (!open.includes("height")) return blocks;
-  return blocks.map((b) => (b.kind === "area" && b.type !== "Exterior" && Array.isArray(b.assumedFields) && (b.assumedFields as string[]).includes("H") && Number(b.H) < DEAR_HEIGHT_M
-    ? { ...b, H: DEAR_HEIGHT_M }
+  return blocks.map((b) => (b.kind === "area" && b.type !== "Exterior" && Array.isArray(b.assumedFields) && (b.assumedFields as string[]).includes("H")
+    ? { ...b, H: heightM }
     : b));
 }
 
@@ -148,24 +150,26 @@ export function envelopeFor(input: {
   const rateCodes = new Set(input.ctx.rateItems.map((r) => r.code));
   const priced = input.blocks.filter((b) => b.kind === "area" && b.isOption !== true);
   const open = openQuestions(input.state, priced, rateCodes);
-  // Tom, 14 Sep: 3 m ceilings until answered — on both ends.
-  const base = assumedHeightTree(priced, open);
-  const cheap = priceEstimateTotals(base as unknown as BlockInput[], input.ctx, input.adj).totalCents;
+  // Tom, 14 Sep (evening): the cheap end prices unanswered ceilings at 2.4 m,
+  // the dear end at 3 m — the range spans the honest spread of the answer.
+  const cheapBase = assumedHeightTree(priced, open, CHEAP_HEIGHT_M);
+  const base = assumedHeightTree(priced, open, DEAR_HEIGHT_M);
+  const cheap = priceEstimateTotals(cheapBase as unknown as BlockInput[], input.ctx, input.adj).totalCents;
+  const dearBase = priceEstimateTotals(base as unknown as BlockInput[], input.ctx, input.adj).totalCents;
   const dear = open.some((q) => q !== "height")
     ? priceEstimateTotals(dearestTree(input.state, base, open, rateCodes) as unknown as BlockInput[], input.ctx, input.adj).totalCents
-    : cheap;
+    : dearBase;
   // What each open question is worth: the dear tree without it (doors,
-  // windows), or the base tree at 2.4 m instead of 3 m (height).
+  // windows, trims), or the 3 m tree against the 2.4 m tree (height).
   const closesCents: Partial<Record<OpenQuestion, number>> = {};
   for (const q of open) {
     if (q === "height") {
-      const lower = priceEstimateTotals(priced as unknown as BlockInput[], input.ctx, input.adj).totalCents;
-      closesCents.height = Math.max(0, cheap - lower);
+      closesCents.height = Math.max(0, dearBase - cheap);
     } else {
       const without = open.filter((x) => x !== q);
       const dearWithout = without.some((x) => x !== "height")
         ? priceEstimateTotals(dearestTree(input.state, base, without, rateCodes) as unknown as BlockInput[], input.ctx, input.adj).totalCents
-        : cheap;
+        : dearBase;
       closesCents[q] = Math.max(0, dear - dearWithout);
     }
   }

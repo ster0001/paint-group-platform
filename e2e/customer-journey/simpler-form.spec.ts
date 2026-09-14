@@ -52,7 +52,7 @@ test.describe("the quick look", () => {
     await expect(page.locator("[data-quick-step='job']")).toBeVisible();
     // C9: untick = the same colour; since 14 Sep every tile starts ticked, so
     // "the same colours" means unticking all three.
-    for (const k of ["walls", "ceilings", "trims"]) await page.getByTestId(`ql-changing-${k}`).click();
+    for (const k of ["walls", "ceilings", "trims", "windows"]) await page.getByTestId(`ql-changing-${k}`).click();
     await page.getByTestId("ql-next").click();
 
     await expect(page.locator("[data-quick-step='condition']")).toBeVisible();
@@ -102,6 +102,9 @@ test.describe("the quick look", () => {
     const before = await page.locator(".sc-r").first().innerText();
     const details = page.getByTestId("details-card");
     await expect(details).toBeVisible();
+    // Tom, 14 Sep (evening): cornices are the first question; the door tile follows.
+    await details.getByTestId("details-cornices").getByRole("button", { name: "No", exact: true }).click();
+    await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 20_000 });
     await details.getByRole("button", { name: "Panel", exact: true }).click();
     await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 20_000 });
     await expect(page.getByText(/door style to confirm/)).toHaveCount(0); // the whole amber list may go

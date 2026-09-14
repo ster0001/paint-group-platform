@@ -80,7 +80,7 @@ test("the footer line changes with the not-sures, and the offers appear at their
   // line moves on.
   // Tom, 14 Sep (item 5): one question at a time, in order.
   const details = page.getByTestId("details-card");
-  for (const name of ["Panel", "No", "Oil based", "2.7 m"]) {
+  for (const name of ["No", "Panel", "Casement", "Oil based", "2.7 m"]) {
     const b = details.getByRole("button", { name, exact: true });
     if (await b.count()) { await b.first().click(); await page.waitForTimeout(800); }
   }

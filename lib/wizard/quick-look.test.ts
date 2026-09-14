@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CONDITION_BANDS, COLOUR_INTENTS, DEFAULT_QUICK_LOOK, SCOPE_PRESETS,
-  assumedList, quickLookToState, restatement, stepCount, stepsFor, type QuickLook,
+  assumedList, quickLookToState, restatement, stepCount, stepsFor, type QuickLook, exclusionOptions, paintedSurfaces, visibleChanging, changingForScope, toggleExcluded
 } from "./quick-look";
 import { defaultWizardState, wizardStateSchema } from "./state";
 import { answersFromState, evaluateGuardrails } from "./policy";
@@ -31,7 +31,7 @@ describe("the quick look produces a priceable job", () => {
    */
   it("prices a BOLD job, which is asked about surfaces later", () => {
     // C9: bold is a tick on a changing group, not a picked colour.
-    const state = quickLookToState(q({ changing: { walls: true, ceilings: false, trims: false }, bold: true }), { ...defaultWizardState(), mode: "customer" });
+    const state = quickLookToState(q({ changing: { walls: true, ceilings: false, trims: false, windows: false }, bold: true }), { ...defaultWizardState(), mode: "customer" });
     expect(state.condition.tier).toBe("dark_to_light");
     expect(state.condition.darkToLightSurfaces).toEqual([]);
     const parsed = wizardStateSchema.safeParse({
@@ -97,9 +97,9 @@ describe("the questions we stopped asking", () => {
 describe("the eight answers map onto the engine's fields", () => {
   it("turns colour intent into the stored tier", () => {
     // C9: the tier follows the tiles (colourFromChanges), not a picked colour.
-    expect(quickLookToState(q({ changing: { walls: false, ceilings: false, trims: false } })).condition.tier).toBe("fresh");
-    expect(quickLookToState(q({ changing: { walls: true, ceilings: false, trims: false } })).condition.tier).toBe("change");
-    expect(quickLookToState(q({ changing: { walls: true, ceilings: false, trims: false }, bold: true })).condition.tier).toBe("dark_to_light");
+    expect(quickLookToState(q({ changing: { walls: false, ceilings: false, trims: false, windows: false } })).condition.tier).toBe("fresh");
+    expect(quickLookToState(q({ changing: { walls: true, ceilings: false, trims: false, windows: false } })).condition.tier).toBe("change");
+    expect(quickLookToState(q({ changing: { walls: true, ceilings: false, trims: false, windows: false }, bold: true })).condition.tier).toBe("dark_to_light");
   });
 
   it("turns the three condition bands into damage tiers, never tier 3", () => {
@@ -112,7 +112,7 @@ describe("the eight answers map onto the engine's fields", () => {
 
   it("narrows the surfaces for the partial presets and not for 'some rooms'", () => {
     expect(quickLookToState(q({ scope: "walls_ceilings" })).surfaces).toEqual(["walls", "ceilings", "cornices"]);
-    expect(quickLookToState(q({ scope: "trims_doors" })).surfaces).toEqual(["doors", "architraves", "skirting"]);
+    expect(quickLookToState(q({ scope: "trims_doors" })).surfaces).toEqual(["doors", "architraves", "skirting", "windows"]);
     // "Some rooms" is about ROOMS; ticking fewer surfaces would answer a
     // different question than the one they were asked.
     expect(quickLookToState(q({ scope: "some_rooms" })).surfaces)
@@ -228,21 +228,53 @@ import { colourFromChanges, toggleChanging } from "./quick-look";
 
 describe("C9 — the job-wide colour is derived from the tiles, never picked", () => {
   it("nothing ticked is same; any tick is new; bold only with a tick; still choosing is new", () => {
-    expect(colourFromChanges({ changing: { walls: false, ceilings: false, trims: false }, bold: false, undecided: false })).toBe("same");
-    expect(colourFromChanges({ changing: { walls: false, ceilings: false, trims: false }, bold: true, undecided: false })).toBe("same");
-    expect(colourFromChanges({ changing: { walls: true, ceilings: false, trims: false }, bold: false, undecided: false })).toBe("new");
-    expect(colourFromChanges({ changing: { walls: true, ceilings: false, trims: false }, bold: true, undecided: false })).toBe("bold");
-    expect(colourFromChanges({ changing: { walls: false, ceilings: false, trims: false }, bold: false, undecided: true })).toBe("new");
+    expect(colourFromChanges({ changing: { walls: false, ceilings: false, trims: false, windows: false }, bold: false, undecided: false })).toBe("same");
+    expect(colourFromChanges({ changing: { walls: false, ceilings: false, trims: false, windows: false }, bold: true, undecided: false })).toBe("same");
+    expect(colourFromChanges({ changing: { walls: true, ceilings: false, trims: false, windows: false }, bold: false, undecided: false })).toBe("new");
+    expect(colourFromChanges({ changing: { walls: true, ceilings: false, trims: false, windows: false }, bold: true, undecided: false })).toBe("bold");
+    expect(colourFromChanges({ changing: { walls: false, ceilings: false, trims: false, windows: false }, bold: false, undecided: true })).toBe("new");
   });
   it("the state carries the per-group answers, switched on, with the tier derived", () => {
-    const q: QuickLook = { ...DEFAULT_QUICK_LOOK, changing: { walls: false, ceilings: false, trims: true }, bold: true, undecided: false, colour: "bold" };
+    const q: QuickLook = { ...DEFAULT_QUICK_LOOK, changing: { walls: false, ceilings: false, trims: true, windows: false }, bold: true, undecided: false, colour: "bold" };
     const s = quickLookToState(q);
     expect(s.condition.colourAnswered).toBe(true);
-    expect(s.condition.changingGroups).toEqual({ walls: false, ceilings: false, trims: true });
+    expect(s.condition.changingGroups).toEqual({ walls: false, ceilings: false, trims: true, windows: false });
     expect(s.condition.boldColour).toBe(true);
     expect(s.condition.ceilingsChangingColour).toBe(false);
     expect(s.condition.tier).toBe("dark_to_light");
     expect(toggleChanging(q, "walls").walls).toBe(true);
     expect(restatement(q)).toContain("a much lighter or bolder colour on the doors and trims");
+  });
+});
+
+describe("Tom, 14 Sep (evening) — window frames, exclusions and the colour tiles", () => {
+  it("the whole interior and the trims preset include the window frames; walls-and-ceilings does not", () => {
+    expect(paintedSurfaces("whole")).toContain("windows");
+    expect(paintedSurfaces("some_rooms")).toContain("windows");
+    expect(paintedSurfaces("trims_doors")).toEqual(["doors", "architraves", "skirting", "windows"]);
+    expect(paintedSurfaces("walls_ceilings")).not.toContain("windows");
+  });
+  it("the exclusions a preset offers, and what excluding does to the surfaces", () => {
+    expect(exclusionOptions("whole").map((o) => o.value)).toEqual(["windows", "doors", "skirting", "walls", "ceilings", "architraves"]);
+    expect(exclusionOptions("trims_doors").map((o) => o.value)).toEqual(["windows", "doors", "skirting", "architraves"]);
+    expect(exclusionOptions("walls_ceilings")).toEqual([]);
+    expect(paintedSurfaces("whole", ["windows", "doors"])).not.toContain("windows");
+    expect(paintedSurfaces("whole", ["windows", "doors"])).not.toContain("doors");
+    expect(toggleExcluded(["windows"], "doors")).toEqual(["windows", "doors"]);
+    expect(toggleExcluded(["windows", "doors"], "windows")).toEqual(["doors"]);
+    expect(quickLookToState(q({ scope: "whole", excluded: ["windows", "skirting"] })).surfaces).toEqual(["walls", "ceilings", "cornices", "doors", "architraves"]);
+  });
+  it("a colour tile shows only while its surfaces are painted; window frames have their own tile", () => {
+    expect(visibleChanging("whole")).toEqual(["walls", "ceilings", "trims", "windows"]);
+    expect(visibleChanging("whole", ["windows"])).toEqual(["walls", "ceilings", "trims"]);
+    expect(visibleChanging("whole", ["doors", "architraves", "skirting"])).toEqual(["walls", "ceilings", "windows"]);
+    expect(visibleChanging("trims_doors")).toEqual(["trims", "windows"]);
+    expect(changingForScope("whole", ["walls"])).toEqual({ walls: false, ceilings: true, trims: true, windows: true });
+    const st = quickLookToState(q({ scope: "whole", changing: { walls: true, ceilings: false, trims: false, windows: true } }));
+    expect(st.condition.changingGroups).toMatchObject({ walls: true, ceilings: false, trims: false, windows: true });
+  });
+  it("the restatement names the window frames and what is not being painted", () => {
+    const only = q({ scope: "whole", changing: { walls: false, ceilings: false, trims: false, windows: true } });
+    expect(restatement(only)).toContain("window frames");
   });
 });

@@ -36,7 +36,9 @@ export type QuickLook = {
   /** DERIVED from `changing` + `bold` + `undecided` (C9, `colourFromChanges`); kept because everything downstream reads it. */
   colour: ColourIntent;
   /** C9 (v2.3): "What's changing colour?" — tick what is getting a new colour. */
-  changing: { walls: boolean; ceilings: boolean; trims: boolean };
+  changing: { walls: boolean; ceilings: boolean; trims: boolean; windows: boolean };
+  /** Tom, 14 Sep (evening): the surfaces the customer ticked as NOT being painted, after the preset. */
+  excluded: InteriorExcludable[];
   /** "Any of them going much lighter, or a bold colour?" */
   bold: boolean;
   /** "Still choosing colours?" — priced as new colours; they decide later. */
@@ -70,7 +72,8 @@ export const DEFAULT_QUICK_LOOK: QuickLook = {
   colour: "new",
   // Tom, 14 Sep: everything ticked to start — the customer unticks what is
   // staying the same colour, rather than ticking what is changing.
-  changing: { walls: true, ceilings: true, trims: true },
+  changing: { walls: true, ceilings: true, trims: true, windows: true },
+  excluded: [],
   bold: false,
   undecided: false,
   condition: "wear",
@@ -99,17 +102,18 @@ export const STOREYS: Choice<QuickLook["storeys"]>[] = [
 ];
 
 export const SCOPE_PRESETS: Choice<ScopePreset>[] = [
-  { value: "whole", label: "The whole interior", hint: "Walls, ceilings, skirtings, doors and frames — the usual full repaint" },
+  { value: "whole", label: "The whole interior", hint: "Walls, ceilings, skirtings, doors, frames and window frames — the usual full repaint" },
   { value: "some_rooms", label: "Some rooms", hint: "You'll pick which ones next" },
   { value: "walls_ceilings", label: "Walls and ceilings only" },
-  { value: "trims_doors", label: "Doors, skirtings and trims only" },
+  { value: "trims_doors", label: "Doors, windows and trims", hint: "Doors, window frames, architraves and skirtings" },
 ];
 
 /** C9 — the three tiles. The engine derives a colour intent per group from them. */
-export const CHANGING_GROUPS: Choice<"walls" | "ceilings" | "trims">[] = [
+export const CHANGING_GROUPS: Choice<"walls" | "ceilings" | "trims" | "windows">[] = [
   { value: "walls", label: "Walls" },
   { value: "ceilings", label: "Ceilings" },
   { value: "trims", label: "Doors and trims" },
+  { value: "windows", label: "Window frames" },
 ];
 
 /**
@@ -118,7 +122,7 @@ export const CHANGING_GROUPS: Choice<"walls" | "ceilings" | "trims">[] = [
  * changing or undecided is "new"; bold only counts when something IS changing.
  */
 export function colourFromChanges(q: Pick<QuickLook, "changing" | "bold" | "undecided">): ColourIntent {
-  const anyChanging = q.undecided || q.changing.walls || q.changing.ceilings || q.changing.trims;
+  const anyChanging = q.undecided || q.changing.walls || q.changing.ceilings || q.changing.trims || q.changing.windows;
   if (!anyChanging) return "same";
   return q.bold ? "bold" : "new";
 }
@@ -129,19 +133,42 @@ export function colourFromChanges(q: Pick<QuickLook, "changing" | "bold" | "unde
  * only" has no walls or ceilings. Picking a preset ticks every tile it
  * shows (`changingForScope`) and unticks the ones it hides.
  */
-export const CHANGING_KEYS = ["walls", "ceilings", "trims"] as const;
+export const CHANGING_KEYS = ["walls", "ceilings", "trims", "windows"] as const;
 export type ChangingKey = (typeof CHANGING_KEYS)[number];
-export function visibleChanging(scope: ScopePreset): ChangingKey[] {
-  if (scope === "walls_ceilings") return ["walls", "ceilings"];
-  if (scope === "trims_doors") return ["trims"];
-  return [...CHANGING_KEYS];
+/** The inside surfaces a customer can tick as NOT being painted (the zod enum in state.ts is the same list). */
+export type InteriorExcludable = "walls" | "ceilings" | "cornices" | "doors" | "architraves" | "skirting" | "windows";
+/** Tom, 14 Sep (evening): the surfaces a preset paints, minus what the customer excluded. */
+export function paintedSurfaces(scope: ScopePreset, excluded: readonly string[] = []): WizardSurfaceKey[] {
+  return SCOPE_SURFACES[scope].filter((k) => !excluded.includes(k));
 }
-export function changingForScope(scope: ScopePreset): QuickLook["changing"] {
-  const on = new Set<ChangingKey>(visibleChanging(scope));
-  return { walls: on.has("walls"), ceilings: on.has("ceilings"), trims: on.has("trims") };
+/** The "anything NOT being painted?" options a preset offers (items 3, 7): none for walls-and-ceilings. */
+export function exclusionOptions(scope: ScopePreset): Choice<InteriorExcludable>[] {
+  if (scope === "walls_ceilings") return [];
+  const all: Choice<InteriorExcludable>[] = [
+    { value: "windows", label: "Window frames" }, { value: "doors", label: "Doors" }, { value: "skirting", label: "Skirting boards" },
+    { value: "walls", label: "Walls" }, { value: "ceilings", label: "Ceilings" }, { value: "architraves", label: "Architraves" },
+  ];
+  return scope === "trims_doors" ? all.filter((o) => ["windows", "doors", "architraves", "skirting"].includes(o.value)) : all;
+}
+export function toggleExcluded(current: readonly InteriorExcludable[], key: InteriorExcludable): InteriorExcludable[] {
+  return current.includes(key) ? current.filter((k) => k !== key) : [...current, key];
+}
+/** A colour tile shows only while its surfaces are still being painted (item 6). */
+export function visibleChanging(scope: ScopePreset, excluded: readonly string[] = []): ChangingKey[] {
+  const on = new Set(paintedSurfaces(scope, excluded));
+  const out: ChangingKey[] = [];
+  if (on.has("walls")) out.push("walls");
+  if (on.has("ceilings")) out.push("ceilings");
+  if (on.has("doors") || on.has("architraves") || on.has("skirting")) out.push("trims");
+  if (on.has("windows")) out.push("windows");
+  return out;
+}
+export function changingForScope(scope: ScopePreset, excluded: readonly string[] = []): QuickLook["changing"] {
+  const on = new Set<ChangingKey>(visibleChanging(scope, excluded));
+  return { walls: on.has("walls"), ceilings: on.has("ceilings"), trims: on.has("trims"), windows: on.has("windows") };
 }
 
-export function toggleChanging(q: Pick<QuickLook, "changing">, key: "walls" | "ceilings" | "trims"): QuickLook["changing"] {
+export function toggleChanging(q: Pick<QuickLook, "changing">, key: ChangingKey): QuickLook["changing"] {
   return { ...q.changing, [key]: !q.changing[key] };
 }
 
@@ -164,13 +191,15 @@ export const OCCUPIED: Choice<QuickLook["occupied"]>[] = [
 
 /** The surfaces each preset ticks. */
 const SCOPE_SURFACES: Record<ScopePreset, WizardSurfaceKey[]> = {
-  whole: DEFAULT_SURFACES,
+  // Tom, 14 Sep (evening, item 1): the whole interior includes the window frames.
+  whole: [...DEFAULT_SURFACES, "windows"],
   // "Some rooms" narrows the ROOMS, not the surfaces — which rooms is the
   // first thing the tighten stage asks. Ticking fewer surfaces here would
   // quietly answer a different question than the one they were asked.
-  some_rooms: DEFAULT_SURFACES,
+  some_rooms: [...DEFAULT_SURFACES, "windows"],
   walls_ceilings: ["walls", "ceilings", "cornices"],
-  trims_doors: ["doors", "architraves", "skirting"],
+  // Tom, 14 Sep (evening, item 2): window frames ride with the doors and trims.
+  trims_doors: ["doors", "architraves", "skirting", "windows"],
 };
 
 /**
@@ -285,7 +314,7 @@ export function quickLookToState(q: QuickLook, base?: WizardState): WizardState 
     exterior: q.jobType === "interior"
       ? s.exterior
       : { ...(s.exterior ?? defaultExterior()), noPhotos: true },
-    surfaces: interior ? SCOPE_SURFACES[q.scope] : s.surfaces,
+    surfaces: interior ? paintedSurfaces(q.scope, q.excluded ?? []) : s.surfaces,
     condition: {
       ...s.condition,
       tier: COLOUR_TIER[colourFromChanges(q)],
@@ -340,8 +369,8 @@ export function restatement(q: QuickLook): string {
     : q.scope === "some_rooms" ? "some of the rooms"
     : q.scope === "walls_ceilings" ? "walls and ceilings"
     : "doors and trims";
-  const changing = (["walls", "ceilings", "trims"] as const).filter((k) => q.changing[k]);
-  const named = changing.length === 3 ? "throughout" : changing.map((k) => (k === "trims" ? "doors and trims" : k)).join(", ").replace(/, ([^,]*)$/, " and $1");
+  const changing = (["walls", "ceilings", "trims", "windows"] as const).filter((k) => q.changing[k] && visibleChanging(q.scope, q.excluded ?? []).includes(k));
+  const named = changing.length === visibleChanging(q.scope, q.excluded ?? []).length && changing.length >= 3 ? "throughout" : changing.map((k) => (k === "trims" ? "doors and trims" : k === "windows" ? "window frames" : k)).join(", ").replace(/, ([^,]*)$/, " and $1");
   const colour = q.undecided ? "colours still being chosen"
     : changing.length === 0 ? "the same colours"
     : q.bold ? (named === "throughout" ? "a much lighter or bolder colour throughout" : `a much lighter or bolder colour on the ${named}`)
@@ -381,8 +410,8 @@ export function assumedList(q: QuickLook): Assumption[] {
     });
     out.push({
       key: "height",
-      what: "Ceilings at 3 m until you tell us",
-      why: "Tom, 14 Sep: an unanswered height is priced at 3 m — the safe side. Tap it on the tighten screen and every room reprices at your height.",
+      what: "Ceilings between 2.4 and 3 m until you tell us",
+      why: "Tom, 14 Sep: the low end of the range prices 2.4 m ceilings and the high end 3 m. Tap the height on the tighten screen and every room reprices at yours.",
       rung: "rooms",
     });
     out.push({

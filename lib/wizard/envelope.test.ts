@@ -48,6 +48,7 @@ describe("open questions", () => {
     const t = tree();
     const base = assumedHeightTree(t, ["height"]) as Array<{ H: number }>;
     expect(base[0].H).toBe(3);
+    expect((assumedHeightTree(t, ["height"], 2.4) as Array<{ H: number }>)[0].H).toBe(2.4); // the cheap end (item 8)
     expect(assumedHeightTree(t, ["doors"])[0].H).toBe(2.4); // only when open
     const dear = dearestTree(state(), t, ["doors"], codes) as Array<{ surfaces: Array<{ code: string }> }>;
     expect(dear[0].surfaces.some((s) => /panel/i.test(String(s.code)))).toBe(true);
@@ -90,12 +91,17 @@ describe("the envelope", () => {
     const e2 = envelopeFor({ blocks: tree(), state: state({ doorStyle: "flat" }), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
     expect(e2.hiCents).toBeLessThanOrEqual(e0.hiCents);
     expect(e2.loCents).toBeGreaterThanOrEqual(e0.loCents);
-    // Answering the height DOWN (2.4 confirmed on the tree) lowers both ends: the range was priced at 3 m.
+    // Tom, 14 Sep (evening, item 8): the low end already prices 2.4 m and the high end 3 m, so
+    // confirming 2.4 on the tree lowers the HIGH end and leaves the low end where it was.
     const confirmedH = tree().map((b) => ({ ...b, assumedFields: ["L", "W"] }));
     const eH = envelopeFor({ blocks: confirmedH, state: state(), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
     expect(eH.open).not.toContain("height");
     expect(eH.hiCents).toBeLessThan(e0.hiCents);
-    expect(eH.loCents).toBeLessThan(e0.loCents);
+    expect(eH.loCents).toBeGreaterThanOrEqual(e0.loCents);
+    // …and confirming 3 m lifts the low end to the high end's footing.
+    const confirmed3 = tree().map((b) => ({ ...b, H: 3.0, assumedFields: ["L", "W"] }));
+    const eUp = envelopeFor({ blocks: confirmed3, state: state(), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
+    expect(eUp.loCents).toBeGreaterThan(e0.loCents);
     // Everything answered: the envelope is the residual alone. (14 Sep: the
     // trims question closes when the customer says what is underneath.)
     const allDetails = state({ doorStyle: "flat", windowStyle: "casement", ceilingHeight: "2.4" });

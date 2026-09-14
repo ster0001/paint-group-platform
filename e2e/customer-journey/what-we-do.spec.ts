@@ -46,12 +46,14 @@ test("doors and trims changing, then water over oil: the panel gains the underco
   // what is underneath.
   await page.getByTestId("door-tighten").click();
   await page.waitForURL(/\/estimate\/scope/, { timeout: 60_000 });
-  // Tom, 14 Sep (item 5): one question at a time — doors, then window frames, then the paint.
+  // Tom, 14 Sep (evening): one question at a time — cornices, doors, the window type, then the paint.
   const detailsCard = page.getByTestId("details-card");
   await expect(detailsCard).toBeVisible({ timeout: 60_000 });
-  if (await detailsCard.getByTestId("door-tile-panel").count()) await detailsCard.getByTestId("door-tile-panel").click();
-  await expect(detailsCard.getByTestId("details-windows-painted")).toBeVisible({ timeout: 30_000 });
-  await detailsCard.getByTestId("details-windows-painted").getByRole("button", { name: /^No/ }).click();
+  await detailsCard.getByTestId("details-cornices").getByRole("button", { name: "No", exact: true }).click();
+  await expect(detailsCard.getByTestId("door-tile-panel")).toBeVisible({ timeout: 30_000 });
+  await detailsCard.getByTestId("door-tile-panel").click();
+  await expect(detailsCard.getByTestId("window-tile-casement")).toBeVisible({ timeout: 30_000 });
+  await detailsCard.getByTestId("window-tile-casement").click();
   const base = page.getByTestId("details-paint-base");
   await expect(base).toBeVisible({ timeout: 60_000 });
   const editorRange = page.locator(".sc-r").first();
@@ -86,7 +88,7 @@ test("nothing ticked is the same colour: one coat on the walls, and no undercoat
   await page.getByTestId("ql-kind-house").click();
   await quickNext(page);
   // Every tile starts ticked (Tom, 14 Sep) — "nothing ticked" means unticking all three.
-  for (const k of ["walls", "ceilings", "trims"]) {
+  for (const k of ["walls", "ceilings", "trims", "windows"]) {
     await page.getByTestId(`ql-changing-${k}`).click();
     await expect(page.getByTestId(`ql-changing-${k}`)).toHaveAttribute("aria-pressed", "false");
   }

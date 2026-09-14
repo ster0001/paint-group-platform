@@ -45,7 +45,7 @@ async function measureAndConfirmEveryRoom(page: Page, metres: [number, number] =
   // Tom, 14 Sep (item 5): the details come one at a time — doors, window
   // frames, the paint, then the height. Answer them in order.
   const details = page.getByTestId("details-card");
-  for (const name of ["Panel", "No", "Oil based", "2.7 m"]) {
+  for (const name of ["No", "Panel", "Casement", "Oil based", "2.7 m"]) {
     const b = details.getByRole("button", { name, exact: true });
     if (await b.count()) { await b.first().click(); await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 }); }
   }
@@ -64,7 +64,10 @@ async function measureAndConfirmEveryRoom(page: Page, metres: [number, number] =
     await row.locator("input").first().fill(String(metres[0]));
     await row.locator("input").nth(1).fill(String(metres[1]));
     await row.getByRole("button", { name: /Update size/ }).click();
-    await page.waitForTimeout(600);
+    // The size must LAND before Confirm — a confirm on an unanswered size now opens the
+    // read-back box (Tom, 14 Sep item 19) instead of posting.
+    await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
+    await expect(card.locator(".il-first")).toHaveClass(/\bok\b/, { timeout: 30_000 });
     /**
      * Every cupboard question answered "No" — and WAITED FOR. The "No" chip is
      * a server round trip (`act` → the rooms route → the loop re-renders with

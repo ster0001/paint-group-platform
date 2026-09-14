@@ -15,6 +15,8 @@ test("some rooms asks which rooms and seeds only those", async ({ page }) => {
   await quickNext(page); // the place, defaults (3 beds)
   await expect(page.locator("[data-quick-step='job']")).toBeVisible({ timeout: 30_000 });
   await page.getByTestId("ql-scope-some_rooms").click();
+  // Tom, 14 Sep (evening): "anything NOT being painted?" pops up after the preset — nothing excluded here.
+  await page.getByTestId("ql-excl-none").click();
   await quickNext(page);
   await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 });
   const tiles = page.locator("[data-testid^='ql-room-']");

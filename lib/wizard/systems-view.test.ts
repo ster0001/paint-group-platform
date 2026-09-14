@@ -411,3 +411,14 @@ describe("C9 — groupIntents: unticked same, ticked new, bold only lifts a grou
     expect(groupIntents(cond({ ceilingsChangingColour: true }))?.ceilings).toBe("new");
   });
 });
+
+describe("Tom, 14 Sep (evening, item 4) — window frames have their own colour tile", () => {
+  it("windows take their own intent when the tile was answered, and follow the trims otherwise", () => {
+    const s = state();
+    s.condition.colourAnswered = true;
+    s.condition.changingGroups = { walls: true, ceilings: false, trims: false, windows: true };
+    expect(groupIntents(s.condition)).toMatchObject({ trims: "same", doors: "same", windows: "new" });
+    s.condition.changingGroups = { walls: true, ceilings: false, trims: true };
+    expect(groupIntents(s.condition)).toMatchObject({ trims: "new", windows: "new" });
+  });
+});

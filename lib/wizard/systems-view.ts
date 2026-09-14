@@ -81,7 +81,9 @@ export function groupIntents(condition: WizardState["condition"] | null | undefi
   return {
     walls: intent(g.walls),
     ceilings: intent(g.ceilings || condition.ceilingsChangingColour === true),
-    trims, doors: trims, windows: trims,
+    // Tom, 14 Sep (evening, item 4): window frames have their own tile; older
+    // snapshots (no tile) keep following the trims.
+    trims, doors: trims, windows: g.windows == null ? trims : intent(g.windows),
   };
 }
 

@@ -290,6 +290,8 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("set_windows_painted"), on: z.boolean() }),
   /** Tom, 14 Sep (item 23): a plan garage is held back until the customer says whether it is painted. */
   z.object({ action: z.literal("set_garage"), areaId: z.number().int().positive(), on: z.boolean() }),
+  /** Tom, 14 Sep (evening, item 9): cornices — none takes them off every room; standard / decorative picks the row. */
+  z.object({ action: z.literal("set_cornices"), answer: z.enum(["none", "standard", "decorative"]) }),
   /** Tom, 14 Sep (item 27/28): the last checks answer and confirm in ONE tap. */
   z.object({ action: z.literal("iloop_check_done"), item: z.enum(["dw", "sweep"]) }),
   z.object({ action: z.literal("remove_room"), areaId: z.number().int().positive() }),
@@ -417,7 +419,7 @@ type ActionRefusal = { error: string; status: number };
  * they write events and a prep pack, so they are never swept into a batch
  * of scope edits. The client sends them alone; this is the server's half of
  * that rule. */
-const UNBATCHABLE = new Set(["accept_intent", "book_visit", "request_contact", "fix_online", "iloop_check_done", "set_windows_painted", "set_garage"]);
+const UNBATCHABLE = new Set(["accept_intent", "book_visit", "request_contact", "fix_online", "iloop_check_done", "set_windows_painted", "set_garage", "set_cornices"]);
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -1459,6 +1461,37 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         wiz.state.details = { ...details, windowsPainted: act.on ? "yes" : "no" };
         const surfaces = new Set(Array.isArray(wiz.state.surfaces) ? (wiz.state.surfaces as string[]) : []);
         if (act.on) surfaces.add("windows"); else surfaces.delete("windows");
+        wiz.state.surfaces = [...surfaces];
+      }
+    }
+    // Tom, 14 Sep (evening, item 9): cornices on every inside room — none, the standard row, or the patterned row.
+    if (act.action === "set_cornices") {
+      const CORNICE = new Set(["Standard Cornices", "Patterned Cornices"]);
+      const target = act.answer === "decorative" ? "Patterned Cornices" : "Standard Cornices";
+      const snap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
+      const snapshot = snap.success ? snap.data : null;
+      let next = Math.max(0, ...blocks.flatMap((b) => [Number(b.id) || 0, ...(b.surfaces ?? []).map((s) => Number(s.id) || 0)])) + 1;
+      for (const b of blocks) {
+        if (b.kind !== "area" || b.type === "Exterior" || b.areaType === "surface" || b.isOption === true) continue;
+        if (act.answer === "none") {
+          b.surfaces = (b.surfaces ?? []).filter((x) => !CORNICE.has(String(x.code ?? "")));
+          continue;
+        }
+        if (!(b.surfaces ?? []).some((x) => CORNICE.has(String(x.code ?? "")))) {
+          const r = applyToggle(blocks, Number(b.id) || 0, "cornices", true, snapshot, () => next++);
+          if (r.ok) blocks = r.blocks as LooseBlock[];
+        }
+        const room = blocks.find((x) => Number(x.id) === Number(b.id));
+        for (const x of room?.surfaces ?? []) {
+          if (CORNICE.has(String(x.code ?? ""))) { x.code = target; x.internalLabel = target; x.clientLabel = act.answer === "decorative" ? "Decorative cornices" : "Cornices"; }
+        }
+      }
+      const wiz = state.wizard as { state?: Record<string, unknown> } | undefined;
+      if (wiz?.state) {
+        const details = (wiz.state.details && typeof wiz.state.details === "object" ? wiz.state.details : {}) as Record<string, unknown>;
+        wiz.state.details = { ...details, cornices: act.answer };
+        const surfaces = new Set(Array.isArray(wiz.state.surfaces) ? (wiz.state.surfaces as string[]) : []);
+        if (act.answer === "none") surfaces.delete("cornices"); else surfaces.add("cornices");
         wiz.state.surfaces = [...surfaces];
       }
     }

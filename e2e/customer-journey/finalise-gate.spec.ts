@@ -60,7 +60,7 @@ test("everything answered: the estimate sends itself and the page lights up", as
   const details = page.getByTestId("details-card");
   await expect(details).toBeVisible();
   // One question at a time (item 5): doors, window frames, the paint, the height.
-  for (const name of ["Panel", "No", "Oil based", "2.7 m"]) {
+  for (const name of ["No", "Panel", "Casement", "Oil based", "2.7 m"]) {
     const b = details.getByRole("button", { name, exact: true });
     await expect(b.first()).toBeVisible({ timeout: 30_000 });
     await b.first().click();

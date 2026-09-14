@@ -57,13 +57,13 @@ export function quickLookFromBrief(x: BriefExtraction, current: QuickLook): { qu
   // Colour intent → the changing tiles and the bold flag (C9's derivation
   // then rebuilds `colour` from them, as it does for a tap).
   if (x.coats === "fresh") {
-    put("changing", { walls: false, ceilings: false, trims: false });
+    put("changing", { walls: false, ceilings: false, trims: false, windows: false });
     put("bold", false);
   } else if (x.coats === "change") {
-    put("changing", { walls: true, ceilings: x.surfaces.includes("ceilings"), trims: false });
+    put("changing", { walls: true, ceilings: x.surfaces.includes("ceilings"), trims: false, windows: false });
     put("bold", false);
   } else if (x.coats === "dark_to_light") {
-    put("changing", { walls: true, ceilings: x.surfaces.includes("ceilings"), trims: false });
+    put("changing", { walls: true, ceilings: x.surfaces.includes("ceilings"), trims: false, windows: false });
     put("bold", true);
   }
 

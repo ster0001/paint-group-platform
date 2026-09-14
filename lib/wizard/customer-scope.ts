@@ -112,6 +112,8 @@ export type CustomerScopeBundle =
       initialAccess: { answers: SiteAccess; asksLift: boolean };
       /** Tom, 14 Sep (item 15): the window-frames answer as stored; "yes" when the tree already carries windows. */
       initialWindowsPainted: "yes" | "no" | null;
+      /** Tom, 14 Sep (evening, item 9): the cornice answer as stored. */
+      initialCornices: "none" | "standard" | "decorative" | null;
       /** §4.5 — the extras on offer, which are on, the colour-help tick and the note. */
       initialExtras: { offer: JobExtra[]; on: string[]; colourHelp: boolean; note: string };
     };
@@ -292,6 +294,7 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
     initialWindowsPainted: snap.success
       ? (snap.data.details.windowsPainted ?? (blocks.some((b) => b.kind === "area" && b.type !== "Exterior" && (((b as { surfaces?: Array<{ code?: unknown }> }).surfaces) ?? []).some((x) => /window/i.test(String(x.code ?? "")))) ? "yes" : null))
       : null,
+    initialCornices: snap.success ? (snap.data.details.cornices ?? null) : null,
     initialColourTier: snap.success ? snap.data.condition.tier : "change",
     initialDarkToLight: {
       asked: snap.success && snap.data.condition.tier === "dark_to_light",
