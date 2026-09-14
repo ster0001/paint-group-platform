@@ -31,6 +31,11 @@ export type RawListRow = {
   views: Array<{ updated_at: string }> | null;
   work_orders: Array<{ id: string }> | { id: string } | null;
   sources: Array<{ kind: string | null }> | null;
+  /** Tom, 15 Sep: the search box — the customer's name and the job address, read from builder_state in the same select. */
+  contact_first?: string | null;
+  contact_last?: string | null;
+  job_street?: string | null;
+  job_city?: string | null;
 };
 
 export type ListRow = {
@@ -47,6 +52,9 @@ export type ListRow = {
   value: RowValue;
   /** Kept for the journey drawer, which is unchanged. */
   wizard: WizardJourney | null;
+  /** Tom, 15 Sep: shown under the title, and what the search box matches. */
+  customer: string | null;
+  address: string | null;
 };
 
 /**
@@ -111,8 +119,11 @@ export function buildListRow(
   });
   const action = estimateAction({ pill: pill.state, request, estimateId: raw.id, accountId: raw.account_id, workOrderId: wo?.id ?? null });
   const value = estimateValue({ totalCents: raw.total_cents, status: raw.status, hasWizard, bandPct, request, range: rangeFromTotal });
+  const customer = [raw.contact_first, raw.contact_last].map((x) => (x ?? "").trim()).filter(Boolean).join(" ") || null;
+  const address = [raw.job_street, raw.job_city].map((x) => (x ?? "").trim()).filter(Boolean).join(", ") || null;
   return {
-    id: raw.id, title: raw.title, status: raw.status, created_at: raw.created_at, viewed_at: raw.viewed_at, source: raw.source,
+    id: raw.id,
+    customer, address, title: raw.title, status: raw.status, created_at: raw.created_at, viewed_at: raw.viewed_at, source: raw.source,
     hasWizard, pill, action, value, wizard: deps.wizard,
   };
 }
@@ -127,4 +138,6 @@ export const LIST_SELECT =
   "id, title, status, total_cents, created_at, viewed_at, accepted_at, valid_until, source, account_id, "
   + "wizard_job:builder_state->wizard->state->>jobType, snapshot:builder_state->wizard->snapshot, "
   + "requests:confirmation_requests(kind, status, requested_at, suggested_action, fixed_price_cents), "
-  + "views:estimate_views(updated_at), work_orders(id), sources:estimate_sources(kind)";
+  + "views:estimate_views(updated_at), work_orders(id), sources:estimate_sources(kind), "
+  + "contact_first:builder_state->contact->>first_name, contact_last:builder_state->contact->>last_name, "
+  + "job_street:builder_state->jobAddress->>address, job_city:builder_state->jobAddress->>city";

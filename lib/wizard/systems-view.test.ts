@@ -422,3 +422,31 @@ describe("Tom, 14 Sep (evening, item 4) — window frames have their own colour 
     expect(groupIntents(s.condition)).toMatchObject({ trims: "new", windows: "new" });
   });
 });
+
+
+describe("Tom, 15 Sep — groupIntents: the bold answer names its groups", () => {
+  const cond = (over: Record<string, unknown> = {}) => ({
+    tier: "dark_to_light" as const, darkToLightSurfaces: [], darkToLightCeilings: null, darkToLightCeilingRooms: [],
+    ceilingsMarked: false, ceilingsChangingColour: false, surfaceFlags: {},
+    colourAnswered: true, changingGroups: { walls: true, ceilings: true, trims: true, windows: true }, boldColour: true, coloursUndecided: false,
+    ...over,
+  });
+  it("only the named groups go bold; the rest of the changing groups stay new", () => {
+    const g = groupIntents(cond({ boldGroups: { walls: true, ceilings: false, trims: false, windows: false } }))!;
+    expect(g.walls).toBe("bold");
+    expect(g.ceilings).toBe("new");
+    expect(g.trims).toBe("new");
+    expect(g.doors).toBe("new");
+    expect(g.windows).toBe("new");
+  });
+  it("a snapshot without the answer keeps the old reading — every changing group bold", () => {
+    const g = groupIntents(cond())!;
+    expect([g.walls, g.ceilings, g.trims, g.windows]).toEqual(["bold", "bold", "bold", "bold"]);
+  });
+  it("a named group that is not changing colour is still 'same'", () => {
+    const g = groupIntents(cond({ changingGroups: { walls: false, ceilings: true, trims: true, windows: true }, boldGroups: { walls: true, ceilings: true, trims: false, windows: false } }))!;
+    expect(g.walls).toBe("same");
+    expect(g.ceilings).toBe("bold");
+    expect(g.trims).toBe("new");
+  });
+});

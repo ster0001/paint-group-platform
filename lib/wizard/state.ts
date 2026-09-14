@@ -176,6 +176,8 @@ export const wizardStateShapeSchema = z.object({
     /** Tom, 14 Sep (evening): "anything NOT being painted?" — ticked on the job screen after the preset. */
     excluded: z.array(z.enum(["walls", "ceilings", "cornices", "doors", "architraves", "skirting", "windows"])).default([]),
     bold: z.boolean().default(false),
+    /** Tom, 15 Sep: WHICH of the changing groups go much lighter / bold — asked right after "Yes". */
+    boldGroups: z.array(z.enum(["walls", "ceilings", "trims", "windows"])).default([]),
     undecided: z.boolean().default(false),
     condition: z.enum(["good", "wear", "needs_work"]),
     occupied: z.enum(["yes", "no"]),
@@ -310,6 +312,8 @@ export const wizardStateShapeSchema = z.object({
     colourAnswered: z.boolean().default(false),
     changingGroups: z.object({ walls: z.boolean(), ceilings: z.boolean(), trims: z.boolean(), windows: z.boolean().optional() }).default({ walls: false, ceilings: false, trims: false }),
     boldColour: z.boolean().default(false),
+    /** Tom, 15 Sep: the groups the bold answer applies to. Absent on older snapshots → every changing group (the old reading). */
+    boldGroups: z.object({ walls: z.boolean(), ceilings: z.boolean(), trims: z.boolean(), windows: z.boolean() }).optional(),
     coloursUndecided: z.boolean().default(false),
   }),
 

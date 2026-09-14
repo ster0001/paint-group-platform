@@ -221,6 +221,12 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
                   >
                     {e.title || "Untitled estimate"}
                   </Link>
+                  {/* Tom, 15 Sep: the customer under the title, so a search hit makes sense. */}
+                  {(e.customer || e.address) && (
+                    <div className="truncate text-xs text-gray-500" data-testid="estimate-customer">
+                      {[e.customer, e.address && e.address !== e.title ? e.address : null].filter(Boolean).join(" · ")}
+                    </div>
+                  )}
                   {/* C7b (brief 2.4): the pack, only where there is one — the same test
                       the quote shell uses for the Pack tab, decided on the server. */}
                   {e.hasWizard && (

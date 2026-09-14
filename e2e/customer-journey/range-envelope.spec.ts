@@ -29,8 +29,9 @@ test("the colour tiles follow the job preset and start ticked", async ({ page })
   await expect(page.getByTestId("ql-changing-trims")).toHaveCount(0);
   await expect(page.getByTestId("ql-changing-walls")).toHaveAttribute("aria-pressed", "true");
   await page.getByTestId("ql-scope-trims_doors").click();
-  // Tom, 14 Sep (evening): the exclusions popup after a preset; window frames ride with doors and trims.
+  // Tom, 14 Sep (evening): the exclusions after a preset — Tom, 15 Sep: INLINE under it, no popup.
   await expect(page.getByTestId("ql-excl")).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByTestId("ql-excl-windows")).toBeVisible();
   await expect(page.getByTestId("ql-excl-walls")).toHaveCount(0);
   await page.getByTestId("ql-excl-none").click();
@@ -42,11 +43,9 @@ test("the colour tiles follow the job preset and start ticked", async ({ page })
   await expect(page.getByTestId("ql-excl")).toBeVisible();
   // Excluding the window frames takes their colour tile away (item 6); the line above the tiles says so (item 5).
   await page.getByTestId("ql-excl-windows").click();
-  await page.getByTestId("ql-excl-done").click();
   await expect(page.getByTestId("ql-excl-line")).toContainText(/Not painting: window frames/i);
   await expect(page.getByTestId("ql-changing-windows")).toHaveCount(0);
   for (const k of ["walls", "ceilings", "trims"]) await expect(page.getByTestId(`ql-changing-${k}`)).toHaveAttribute("aria-pressed", "true");
-  await page.getByTestId("ql-excl-change").click();
   await page.getByTestId("ql-excl-none").click();
   for (const k of ["walls", "ceilings", "trims", "windows"]) await expect(page.getByTestId(`ql-changing-${k}`)).toHaveAttribute("aria-pressed", "true");
 

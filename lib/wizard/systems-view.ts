@@ -76,14 +76,18 @@ export function groupIntents(condition: WizardState["condition"] | null | undefi
   const g = condition.changingGroups ?? { walls: false, ceilings: false, trims: false };
   const undecided = condition.coloursUndecided === true;
   const changing = (on: boolean) => on || undecided;
-  const intent = (on: boolean): ColourIntent => (changing(on) ? (condition.boldColour ? "bold" : "new") : "same");
-  const trims = intent(g.trims);
+  // Tom, 15 Sep: the bold answer names its groups ("Which ones?"). A snapshot
+  // without that answer keeps the old reading — every changing group bold.
+  const boldFor = (k: "walls" | "ceilings" | "trims" | "windows") =>
+    condition.boldGroups ? condition.boldGroups[k] === true : condition.boldColour === true;
+  const intent = (on: boolean, k: "walls" | "ceilings" | "trims" | "windows"): ColourIntent => (changing(on) ? (boldFor(k) ? "bold" : "new") : "same");
+  const trims = intent(g.trims, "trims");
   return {
-    walls: intent(g.walls),
-    ceilings: intent(g.ceilings || condition.ceilingsChangingColour === true),
+    walls: intent(g.walls, "walls"),
+    ceilings: intent(g.ceilings || condition.ceilingsChangingColour === true, "ceilings"),
     // Tom, 14 Sep (evening, item 4): window frames have their own tile; older
     // snapshots (no tile) keep following the trims.
-    trims, doors: trims, windows: g.windows == null ? trims : intent(g.windows),
+    trims, doors: trims, windows: g.windows == null ? trims : intent(g.windows, "windows"),
   };
 }
 

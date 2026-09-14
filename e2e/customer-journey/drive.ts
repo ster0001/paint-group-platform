@@ -84,7 +84,11 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
   // default tick); "new" = the default; "bold" = walls ticked + "Yes" to bold.
   // 14 Sep: every tile starts ticked, so "same" = untick all three.
   if (opts.colour === "same") for (const k of ["walls", "ceilings", "trims", "windows"]) await page.getByTestId(`ql-changing-${k}`).click();
-  if (opts.colour === "bold") await page.getByTestId("ql-bold-yes").click();
+  if (opts.colour === "bold") {
+    await page.getByTestId("ql-bold-yes").click();
+    // Tom, 15 Sep: "Yes" then WHICH — the walls, as the old assumption had it.
+    await page.getByTestId("ql-bold-which-walls").click();
+  }
   await quickNext(page);
 
   // 14 Sep (evening): confirm the rooms — the starter list, accepted as it is.

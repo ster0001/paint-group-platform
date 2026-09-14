@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { maybeSweep } from "@/lib/wizard/sweep";
 import NewEstimateButton, { type TemplateMeta } from "./NewEstimateButton";
+import SearchBox from "./SearchBox";
 import EstimatesTable from "./EstimatesTable";
 import AssistantFab from "@/app/quote/AssistantFab";
 import { LIST_FILTERS as FILTERS, filterQuery, SOURCE_FILTERS, SOURCE_LABEL, sourceFilterOf, sourceQuery } from "@/lib/estimate/displayStatus";
@@ -20,9 +21,16 @@ export const dynamic = "force-dynamic";
 export default async function EstimatesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; bucket?: string; source?: string; mode?: string; open?: string; built?: string }>;
+  searchParams: Promise<{ status?: string; bucket?: string; source?: string; mode?: string; open?: string; built?: string; q?: string }>;
 }) {
-  const { status, bucket, source, mode, open, built } = await searchParams;
+  const { status, bucket, source, mode, open, built, q: qRaw } = await searchParams;
+  // Tom, 15 Sep: the search box — one needle, matched against whatever the tab shows.
+  const q = (qRaw ?? "").trim();
+  const needle = q.toLowerCase();
+  // (the Wizard tab's query builder below is `wq`, not `q` — the search needle keeps this name)
+  const hit = (...fields: Array<string | null | undefined>) =>
+    !needle || fields.some((f) => (f ?? "").toLowerCase().includes(needle));
+  const search = <SearchBox q={q} />;
   // C7b: the source filter on the status tabs. `built`, not `source` — the
   // Wizard tab already uses `source` for a session's entry_source.
   const sourceFilter = sourceFilterOf(built);
@@ -64,14 +72,15 @@ export default async function EstimatesPage({
    */
   if ((status ?? "waiting") === "waiting") {
     const queue = await getWorkQueue();
-    const mine = estimatesPageItems(queue.items);
+    const mine = estimatesPageItems(queue.items).filter((i) => hit(i.title, i.detail));
     return (
       <div className="mx-auto max-w-6xl px-6 py-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-xl font-semibold">Estimates</h1>
-          <NewEstimateButton templates={templates0} />
+          <div className="flex flex-wrap items-center gap-3">{search}<NewEstimateButton templates={templates0} /></div>
         </div>
         {tabs}
+        {q && mine.length === 0 && <p className="mt-4 text-sm text-gray-500" data-testid="estimates-search-empty">Nothing waiting on you matches “{q}”.</p>}
         <WaitingTable items={mine} now={new Date()} />
         <AssistantFab estimateId={null} />
       </div>
@@ -83,14 +92,15 @@ export default async function EstimatesPage({
   if (status === "wizard") {
     await maybeSweep(createServiceClient());
     const bucketOk = (WIZARD_BUCKETS as readonly string[]).includes(bucket ?? "") ? (bucket as WizardBucket) : null;
-    let q = supabase.from("wizard_drafts").select(WIZARD_SESSION_COLUMNS).is("converted_at", null)
+    let wq = supabase.from("wizard_drafts").select(WIZARD_SESSION_COLUMNS).is("converted_at", null)
       .order("last_seen_at", { ascending: false }).limit(500);
-    if (bucketOk) q = q.eq("bucket", bucketOk);
-    if (source) q = q.eq("entry_source", source);
-    if (mode === "home" || mode === "business") q = q.eq("mode", mode);
-    const { data: rows } = await q;
+    if (bucketOk) wq = wq.eq("bucket", bucketOk);
+    if (source) wq = wq.eq("entry_source", source);
+    if (mode === "home" || mode === "business") wq = wq.eq("mode", mode);
+    const { data: rows } = await wq;
     const order: Record<string, number> = { ready_call: 0, ready_visit: 0, needs_help: 1, priced_no_request: 2, online_now: 3, dropped: 4 };
     const sessions: WizardJourney[] = ((rows ?? []) as unknown as Record<string, unknown>[]).map(journeyFromRow)
+      .filter((s) => hit(s.name, s.address, s.suburb, s.email, s.phone))
       .sort((a, b) => (order[a.bucket] - order[b.bucket]) || (a.bucket.startsWith("ready")
         ? (a.outcomeAt ?? "").localeCompare(b.outcomeAt ?? "")
         : (b.lastActiveAt ?? "").localeCompare(a.lastActiveAt ?? "")));
@@ -107,9 +117,10 @@ export default async function EstimatesPage({
       <div className="p-6">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold tracking-tight">Estimates</h1>
-          <NewEstimateButton templates={templates0} />
+          <div className="flex flex-wrap items-center gap-3">{search}<NewEstimateButton templates={templates0} /></div>
         </div>
         {tabs}
+        {q && sessions.length === 0 && <p className="mt-4 text-sm text-gray-500" data-testid="estimates-search-empty">No wizard session matches “{q}”.</p>}
         <div className="mt-3 flex flex-wrap items-center gap-1.5" data-testid="wizard-filters">
           <span className="mr-1 text-xs uppercase tracking-wide text-gray-400">Bucket</span>
           {chip("All", base(undefined, source, mode), !bucketOk)}
@@ -187,7 +198,8 @@ export default async function EstimatesPage({
   const loopOf = new Map((blockRows ?? []).map((r) => [r.id as string, loopProgress(r.builder_state)]));
   const bands = bandsFromSettings(bandsRow?.value);
   const now = new Date();
-  const rows = estimates.map((e) => buildListRow(e, { wizard: sessionOf.get(e.id) ?? null, loop: loopOf.get(e.id) ?? null, bands, now }));
+  const rows = estimates.map((e) => buildListRow(e, { wizard: sessionOf.get(e.id) ?? null, loop: loopOf.get(e.id) ?? null, bands, now }))
+    .filter((r) => hit(r.title, r.customer, r.address, r.wizard?.name, r.wizard?.address, r.wizard?.suburb));
 
   // C7b (brief 2.5): the source filter, a segmented control under the tabs.
   const sourceControl = (
@@ -219,11 +231,12 @@ export default async function EstimatesPage({
     <div className="p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold tracking-tight">Estimates</h1>
-        <NewEstimateButton templates={templates} />
+        <div className="flex flex-wrap items-center gap-3">{search}<NewEstimateButton templates={templates} /></div>
       </div>
 
       {tabs}
       {sourceControl}
+      {q && rows.length === 0 && <p className="mt-4 text-sm text-gray-500" data-testid="estimates-search-empty">No estimate matches “{q}” on this tab.</p>}
 
       {listError ? (
         // A failed read is not "no estimates" — say what happened (6 Sep: the

@@ -246,6 +246,25 @@ describe("C9 — the job-wide colour is derived from the tiles, never picked", (
     expect(toggleChanging(q, "walls").walls).toBe(true);
     expect(restatement(q)).toContain("a much lighter or bolder colour on the doors and trims");
   });
+  // Tom, 15 Sep: "Yes" then WHICH — the bold groups are named, seed the
+  // per-surface list, and only they price bold.
+  it("15 Sep: the bold answer names its groups and seeds the dark-to-light surfaces", () => {
+    const q: QuickLook = { ...DEFAULT_QUICK_LOOK, changing: { walls: true, ceilings: true, trims: true, windows: true }, bold: true, boldGroups: ["walls", "trims"], undecided: false };
+    const s = quickLookToState(q);
+    expect(s.condition.tier).toBe("dark_to_light");
+    expect(s.condition.boldGroups).toEqual({ walls: true, ceilings: false, trims: true, windows: false });
+    expect(s.condition.darkToLightSurfaces).toEqual(["walls", "doors", "architraves", "skirting"]);
+    expect(s.condition.darkToLightCeilings).toBeNull();
+    expect(restatement(q)).toContain("a much lighter or bolder colour on the walls and doors and trims and new colours on the ceilings and window frames");
+    // Ceilings ticked → every ceiling (Tom, 11 Sep's "all ceilings").
+    const c = quickLookToState({ ...q, boldGroups: ["ceilings"] });
+    expect(c.condition.darkToLightCeilings).toBe("all");
+    expect(c.condition.darkToLightSurfaces).toEqual(["ceilings"]);
+    // A group that stopped changing colour drops out of the bold list.
+    const d = quickLookToState({ ...q, changing: { walls: false, ceilings: true, trims: true, windows: true } });
+    expect(d.condition.boldGroups?.walls).toBe(false);
+    expect(d.condition.darkToLightSurfaces).toEqual(["doors", "architraves", "skirting"]);
+  });
 });
 
 describe("Tom, 14 Sep (evening) — window frames, exclusions and the colour tiles", () => {

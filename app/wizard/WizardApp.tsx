@@ -1448,6 +1448,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       setError("Tick at least one room, or add one.");
       return;
     }
+    // Tom, 15 Sep: "Yes" to much lighter / bold needs to say WHICH — nothing is assumed.
+    if (quickStep === "job" && quick.bold && !(["walls", "ceilings", "trims", "windows"] as const).some((k) => quick.changing[k] && (quick.boldGroups ?? []).includes(k))) {
+      setError("Which ones are going much lighter or bold? Tick at least one.");
+      return;
+    }
     // C16 (a): Continue on a screen confirms the fields the assistant filled in on it.
     if (state.assistant) setState((s) => ({ ...s, assistant: confirmAssistantStep(s.assistant, quickStep) }));
     /**

@@ -428,6 +428,11 @@ export async function POST(request: Request) {
   }
   // Tom, 14 Sep (evening): rooms added on the confirm step — a type and a name, sized from the typicals.
   if (state.addedRooms.length && state.jobType !== "exterior") {
+    // Tom, 15 Sep: "I am only able to add 1 room". The ids were handed out
+    // from a counter that had not moved past the starter rooms, so the added
+    // rooms arrived carrying the same ids as Bed 1 and Bed 2 — the second one
+    // shared a card id with an existing room and could never be confirmed.
+    nextId = Math.max(nextId, ...areas.flatMap((a) => [a.id, ...a.surfaces.map((s) => s.id)])) + 1;
     const x = starterExtraction(
       state.addedRooms.map((r) => ({ name: r.name, roomType: r.roomType, storey: "Ground" as const })),
       typicals,

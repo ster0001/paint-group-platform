@@ -103,7 +103,6 @@ export default function QuickLook({
   stepsTotal: number;
 }) {
   /** Tom, 14 Sep (evening): the "anything NOT being painted?" popup, open right after a preset is picked. */
-  const [exclOpen, setExclOpen] = useState(false);
   const last = quick.jobType === "interior" ? step === "condition" || step === "com_job" : step === "outside";
   // C16 (a): the amber tag under a field the assistant filled in. A tap on
   // the field, or Continue on this screen, confirms it and the tag goes.
@@ -295,38 +294,34 @@ export default function QuickLook({
             We work out the coats and the preparation from these two answers — and you&rsquo;ll see
             exactly what we&rsquo;ve allowed for.
           </p>
-          <Cards options={SCOPE_PRESETS} value={quick.scope} onPick={(scope) => { onQuick({ scope, excluded: [], changing: changingForScope(scope, []) }); setExclOpen(exclusionOptions(scope).length > 0); }} name="scope" />
+          <Cards options={SCOPE_PRESETS} value={quick.scope} onPick={(scope) => onQuick({ scope, excluded: [], changing: changingForScope(scope, []) })} name="scope" />
           {tag("scope")}
 
-          {/* Tom, 14 Sep (evening, items 3, 5, 7): "anything NOT being painted?" — a popup after the
-              preset; the answer stands here, above the colour question. */}
+          {/* Tom, 14 Sep (evening, items 3, 5, 7) → Tom, 15 Sep: "anything NOT being
+              painted?" sits INLINE under the preset — the popup is gone. */}
           {exclusionOptions(quick.scope).length > 0 && (
-            <p className="wz-chint" data-testid="ql-excl-line" style={{ marginTop: 8 }}>
-              {quick.excluded.length
-                ? <>Not painting: <b>{quick.excluded.map((k) => exclusionOptions(quick.scope).find((o) => o.value === k)?.label.toLowerCase() ?? k).join(", ")}</b>.</>
-                : <>Painting everything in that choice.</>}{" "}
-              <button type="button" className="wz-linkish" data-testid="ql-excl-change" onClick={() => setExclOpen(true)}>Change</button>
-            </p>
-          )}
-          {exclOpen && (
-            <div className="wz-sheetback" role="dialog" aria-modal="true" aria-label="Anything not being painted?" data-testid="ql-excl" onClick={() => setExclOpen(false)}>
-              <div className="wz-sheet" onClick={(e) => e.stopPropagation()}>
-                <h2>Anything NOT being painted?</h2>
-                <p className="wz-sub">Tick all that apply. Leave them all unticked if it&rsquo;s the lot.</p>
-                <div className="wz-chips" data-testid="ql-excl-options">
-                  {exclusionOptions(quick.scope).map((o) => {
-                    const on = quick.excluded.includes(o.value);
-                    return (
-                      <button key={o.value} type="button" className={`wz-tile ${on ? "on" : ""}`} aria-pressed={on} data-testid={`ql-excl-${o.value}`}
-                        onClick={() => { const next = toggleExcluded(quick.excluded, o.value); onQuick({ excluded: next, changing: changingForScope(quick.scope, next) }); }}>{o.label}</button>
-                    );
-                  })}
-                </div>
-                <div className="wz-sheet-row">
-                  <button type="button" className="wz-btn wz-bs2" data-testid="ql-excl-none" onClick={() => { onQuick({ excluded: [], changing: changingForScope(quick.scope, []) }); setExclOpen(false); }}>None — paint it all</button>
-                  <button type="button" className="wz-btn" data-testid="ql-excl-done" onClick={() => setExclOpen(false)}>Done</button>
-                </div>
+            <div className="wz-excl" data-testid="ql-excl">
+              <p className="wz-qhead">Anything NOT being painted? <span className="wz-opt">TICK ALL THAT APPLY — OR LEAVE IT AS THE LOT</span></p>
+              <div className="wz-chips" data-testid="ql-excl-options">
+                {exclusionOptions(quick.scope).map((o) => {
+                  const on = quick.excluded.includes(o.value);
+                  return (
+                    <button key={o.value} type="button" className={`wz-tile ${on ? "on" : ""}`} aria-pressed={on} data-testid={`ql-excl-${o.value}`}
+                      onClick={() => { const next = toggleExcluded(quick.excluded, o.value); onQuick({ excluded: next, changing: changingForScope(quick.scope, next) }); }}>
+                      {o.label}
+                    </button>
+                  );
+                })}
+                <button type="button" className={`wz-tile ${quick.excluded.length === 0 ? "on" : ""}`} aria-pressed={quick.excluded.length === 0} data-testid="ql-excl-none"
+                  onClick={() => onQuick({ excluded: [], changing: changingForScope(quick.scope, []) })}>
+                  Painting the lot ✓
+                </button>
               </div>
+              <p className="wz-chint" data-testid="ql-excl-line" style={{ marginTop: 6 }}>
+                {quick.excluded.length
+                  ? <>Not painting: <b>{quick.excluded.map((k) => exclusionOptions(quick.scope).find((o) => o.value === k)?.label.toLowerCase() ?? k).join(", ")}</b>.</>
+                  : <>Painting everything in that choice.</>}
+              </p>
             </div>
           )}
 
@@ -349,6 +344,17 @@ export default function QuickLook({
           <p className="wz-qhead">Any of them going much lighter, or a bold colour? <span className="wz-opt">NEEDS AN UNDERCOAT FIRST — WE ALLOW FOR IT</span></p>
           <Chips options={[{ value: "no", label: "No" }, { value: "yes", label: "Yes" }]} value={quick.bold ? "yes" : "no"}
             onPick={(v) => onQuick({ bold: v === "yes" })} name="bold" />
+          {/* Tom, 15 Sep: "Yes" then WHICH — the groups being painted and changing colour.
+              It used to assume every one of them (the walls first), and asked nothing. */}
+          {quick.bold && (
+            <>
+              <p className="wz-qhead">Which ones? <span className="wz-opt">TICK ALL THAT APPLY — THESE GET THE UNDERCOAT AND THIRD COAT</span></p>
+              <Multi options={CHANGING_GROUPS.filter((o) => visibleChanging(quick.scope, quick.excluded).includes(o.value) && quick.changing[o.value])}
+                on={(quick.boldGroups ?? []).filter((k) => quick.changing[k])}
+                onPick={(k) => onQuick({ boldGroups: (quick.boldGroups ?? []).includes(k) ? (quick.boldGroups ?? []).filter((x) => x !== k) : [...(quick.boldGroups ?? []), k] })}
+                name="bold-which" />
+            </>
+          )}
 
           <p className="wz-qhead">Still choosing colours? <span className="wz-opt">FINE — WE ALLOW FOR NEW COLOURS AND YOU DECIDE LATER</span></p>
           <Chips options={[{ value: "known", label: "I know roughly" }, { value: "undecided", label: "Still choosing" }]} value={quick.undecided ? "undecided" : "known"}

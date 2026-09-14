@@ -41,6 +41,8 @@ export type QuickLook = {
   excluded: InteriorExcludable[];
   /** "Any of them going much lighter, or a bold colour?" */
   bold: boolean;
+  /** Tom, 15 Sep: "Which ones?" — the changing groups the bold answer is about. */
+  boldGroups: ChangingKey[];
   /** "Still choosing colours?" — priced as new colours; they decide later. */
   undecided: boolean;
   /** Screen 4 — condition. */
@@ -75,6 +77,7 @@ export const DEFAULT_QUICK_LOOK: QuickLook = {
   changing: { walls: true, ceilings: true, trims: true, windows: true },
   excluded: [],
   bold: false,
+  boldGroups: [],
   undecided: false,
   condition: "wear",
   occupied: "no",
@@ -170,6 +173,21 @@ export function changingForScope(scope: ScopePreset, excluded: readonly string[]
 
 export function toggleChanging(q: Pick<QuickLook, "changing">, key: ChangingKey): QuickLook["changing"] {
   return { ...q.changing, [key]: !q.changing[key] };
+}
+
+/** Tom, 15 Sep: the bold groups that are still being painted AND changing colour — an unticked group drops out. */
+export function boldGroupsOf(q: Pick<QuickLook, "bold" | "boldGroups" | "changing" | "scope" | "excluded">): ChangingKey[] {
+  if (!q.bold) return [];
+  const visible = visibleChanging(q.scope, q.excluded ?? []);
+  return (q.boldGroups ?? []).filter((k) => q.changing[k] && visible.includes(k));
+}
+
+/** The per-surface keys a bold group stands for — what the editor's dark-to-light card ticks. */
+const BOLD_GROUP_SURFACES: Record<ChangingKey, WizardSurfaceKey[]> = {
+  walls: ["walls"], ceilings: ["ceilings"], trims: ["doors", "architraves", "skirting"], windows: ["windows"],
+};
+export function boldSurfaceKeys(q: Parameters<typeof boldGroupsOf>[0]): WizardSurfaceKey[] {
+  return boldGroupsOf(q).flatMap((k) => BOLD_GROUP_SURFACES[k]);
 }
 
 export const COLOUR_INTENTS: Choice<ColourIntent>[] = [
@@ -318,14 +336,18 @@ export function quickLookToState(q: QuickLook, base?: WizardState): WizardState 
     condition: {
       ...s.condition,
       tier: COLOUR_TIER[colourFromChanges(q)],
-      // Colour intent is job-wide here; the per-surface corrections live on
-      // the paint-systems screen, which is a tighten rung.
-      darkToLightSurfaces: [],
+      // Tom, 15 Sep: the bold answer names its groups ("Which ones?"), and
+      // those seed the per-surface dark-to-light list the editor's card
+      // shows — it used to be empty here while every changing group priced
+      // bold, so the walls were assumed and nothing asked.
+      darkToLightSurfaces: q.bold ? boldSurfaceKeys(q) : [],
+      ...(q.bold && boldGroupsOf(q).includes("ceilings") ? { darkToLightCeilings: "all" as const } : {}),
       // C9 — the per-group answers the derivation reads (systems-view.ts
       // `groupIntents`). `colourAnswered` is what switches them on.
       colourAnswered: true,
       changingGroups: { ...q.changing },
       boldColour: q.bold,
+      boldGroups: { walls: false, ceilings: false, trims: false, windows: false, ...Object.fromEntries(boldGroupsOf(q).map((k) => [k, true])) },
       coloursUndecided: q.undecided,
       ceilingsChangingColour: q.changing.ceilings || q.undecided,
     },
@@ -359,6 +381,17 @@ export function quickLookToState(q: QuickLook, base?: WizardState): WizardState 
  * check. Reading their own answers back is the cheapest possible way to catch
  * a mis-tap before it becomes a complaint about the price.
  */
+/** Tom, 15 Sep: the bold groups are named when they are a subset of what is changing. */
+function boldSentence(q: QuickLook, changing: readonly ChangingKey[], named: string): string {
+  const bold = boldGroupsOf(q);
+  const word = (k: ChangingKey) => (k === "trims" ? "doors and trims" : k === "windows" ? "window frames" : k);
+  if (bold.length === 0 || bold.length === changing.length) {
+    return named === "throughout" ? "a much lighter or bolder colour throughout" : `a much lighter or bolder colour on the ${named}`;
+  }
+  const rest = changing.filter((k) => !bold.includes(k)).map(word).join(", ").replace(/, ([^,]*)$/, " and $1");
+  return `a much lighter or bolder colour on the ${bold.map(word).join(", ").replace(/, ([^,]*)$/, " and $1")} and new colours on the ${rest}`;
+}
+
 export function restatement(q: QuickLook): string {
   const kind = q.propertyKind === "unit_apartment" ? "unit"
     : q.propertyKind === "commercial" ? "commercial place"
@@ -373,7 +406,7 @@ export function restatement(q: QuickLook): string {
   const named = changing.length === visibleChanging(q.scope, q.excluded ?? []).length && changing.length >= 3 ? "throughout" : changing.map((k) => (k === "trims" ? "doors and trims" : k === "windows" ? "window frames" : k)).join(", ").replace(/, ([^,]*)$/, " and $1");
   const colour = q.undecided ? "colours still being chosen"
     : changing.length === 0 ? "the same colours"
-    : q.bold ? (named === "throughout" ? "a much lighter or bolder colour throughout" : `a much lighter or bolder colour on the ${named}`)
+    : q.bold ? boldSentence(q, changing, named)
     : (named === "throughout" ? "new colours throughout" : `new colours on the ${named}`);
   const cond = q.condition === "good" ? "good condition"
     : q.condition === "wear" ? "some wear"
