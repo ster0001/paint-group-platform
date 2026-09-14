@@ -78,5 +78,6 @@
 | 11 Sep | e2e runs one at a time (`group: e2e-test-project`, `cancel-in-progress: false`) and only on pull_request, main, or `workflow_dispatch` |
 | 11 Sep | Exterior: elements first (body, windows, doors, fascias, gutters, eaves); materials asked only if the body is painted, nothing pre-ticked; window type and counts; door count; colours; storeys once; no bedrooms ever |
 | 14 Sep | C15 walks B (strata, year two) and C (franchise) deferred to later projects; walk A stands as shipped; next chunk C16 |
+| 14 Sep | Tom added the `E2E_DATABASE_URL` repository secret; this commit exists to trigger the first CI run with it |
 | 14 Sep | Production Settings read for the switch checklist: `wizard_public` OFF; `wizard_policy` is `{}` (every default applies, incl. the $2,000 floor); `service_area.postcodes` is EMPTY (nobody is ever "outside the area"); no `wizard_hold_days`, no `scope_editor` visit slots; `company_profile` has no `coordinatorName` (the app names "Felipe Martinez" by default). The switch stays off. |
 | 12 Sep | Trade design gate met. Measured-once-ranged-forever is walk B's mechanism; the facade is never ranged even on a measured building; water damage always means a visit |
