@@ -1088,3 +1088,12 @@
 
 /* Tom, 14 Sep: "2 coats" in blue as standard; the may-need-more line in orange. */
 .wz .wz-do-note { grid-column: 1 / -1; font-size: 12px; line-height: 1.45; color: var(--amber); }
+
+/* 14 Sep — the sides editor's rail stays put beside the cards, and the fixed
+   bottom strip grew a human line: on a short desktop viewport the rail's
+   bottom (the "Not right? Tell us" button under the house) sat permanently
+   behind the strip. The rail can never be taller than the space between the
+   header and the strip; past that it scrolls inside itself. */
+@media (min-width: 861px) {
+  .wz .sd-rail { max-height: calc(100vh - 118px - var(--wz-stick-h, 200px) - 12px); overflow-y: auto; }
+}

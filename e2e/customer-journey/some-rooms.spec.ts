@@ -20,19 +20,19 @@ test("some rooms asks which rooms and seeds only those", async ({ page }) => {
   const tiles = page.locator("[data-testid^='ql-room-']");
   const n = await tiles.count();
   expect(n).toBeGreaterThan(4);
-  // Every room starts ticked; untick all but the first two.
-  for (let i = 2; i < n; i++) await tiles.nth(i).click();
+  // Every room starts ticked; untick the last two. (Two bedrooms alone at two
+  // coats on the trims price under the $2,000 floor and land on the
+  // "we'll price it directly" page — correct, and not this journey.)
+  for (let i = n - 2; i < n; i++) await tiles.nth(i).click();
   await expect(tiles.nth(0)).toHaveAttribute("aria-pressed", "true");
   await expect(tiles.nth(n - 1)).toHaveAttribute("aria-pressed", "false");
   const kept = [await tiles.nth(0).innerText(), await tiles.nth(1).innerText()];
   // Nothing ticked is a gate, not a silent "all rooms".
-  await tiles.nth(0).click();
-  await tiles.nth(1).click();
+  for (let i = 0; i < n - 2; i++) await tiles.nth(i).click();
   await expect(page.getByTestId("ql-rooms-none")).toBeVisible();
   await page.getByTestId("ql-next").click();
   await expect(page.getByTestId("ql-error")).toContainText(/at least one room/i);
-  await tiles.nth(0).click();
-  await tiles.nth(1).click();
+  for (let i = 0; i < n - 2; i++) await tiles.nth(i).click();
   await quickNext(page);
   await expect(page.locator("[data-quick-step='condition']")).toBeVisible({ timeout: 30_000 });
   await quickNext(page);
@@ -41,6 +41,6 @@ test("some rooms asks which rooms and seeds only those", async ({ page }) => {
   await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 60_000 });
   await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
   const names = page.locator("[data-testid^='room-rename-btn-']");
-  await expect(names).toHaveCount(2);
+  await expect(names).toHaveCount(n - 2);
   for (const k of kept) await expect(page.getByLabel(`Rename ${k}`)).toBeVisible();
 });
