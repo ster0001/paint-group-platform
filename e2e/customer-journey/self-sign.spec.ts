@@ -42,11 +42,14 @@ async function measureAndConfirmEveryRoom(page: Page, metres: [number, number] =
    * plan-reading, is the walls error"), and it is the customer's own control,
    * so driving it here is the real journey rather than a shortcut.
    */
-  const heightChip = page.getByRole("button", { name: /^2\.7 m$/ });
-  if (await heightChip.count()) {
-    await heightChip.first().click();
-    await page.waitForTimeout(1200);
+  // Tom, 14 Sep (item 5): the details come one at a time — doors, window
+  // frames, the paint, then the height. Answer them in order.
+  const details = page.getByTestId("details-card");
+  for (const name of ["Panel", "No", "Oil based", "2.7 m"]) {
+    const b = details.getByRole("button", { name, exact: true });
+    if (await b.count()) { await b.first().click(); await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 }); }
   }
+  await page.waitForTimeout(600);
 
   const cards = page.locator(".sc-rc[data-room]");
   const count = await cards.count();
@@ -81,12 +84,12 @@ async function measureAndConfirmEveryRoom(page: Page, metres: [number, number] =
     await card.locator(".il-confirm").click();
     await expect(card).toHaveClass(/done/, { timeout: 20_000 });
   }
-  const dw = page.locator(".il-card", { hasText: /doors & windows/i });
-  await dw.getByRole("button", { name: /That.s right/ }).click();
-  await dw.getByRole("button", { name: /Confirm counts/ }).click();
-  const sweep = page.locator('[data-card="sweep"]');
-  await sweep.getByRole("button", { name: /No — that.s everything/ }).click();
-  await sweep.getByRole("button", { name: /Confirm — nothing missing/ }).click();
+  // Tom, 14 Sep (items 27, 28): the last checks are one tap each, one at a time.
+  const missed = page.getByTestId("missed-card");
+  await missed.getByTestId("check-dw-ok").click();
+  await expect(missed).toHaveAttribute("data-dw-done", "1", { timeout: 20_000 });
+  await missed.getByTestId("check-rooms-ok").click();
+  await expect(missed).toHaveAttribute("data-sweep-done", "1", { timeout: 20_000 });
 }
 
 test("a small measured interior fixes its own price — one number, held", async ({ page }) => {

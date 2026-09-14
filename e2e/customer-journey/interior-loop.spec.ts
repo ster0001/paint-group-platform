@@ -84,14 +84,10 @@ test("R3 interior loop: L×W size question, confirm walk, dw check, sweep — ac
   await first.getByRole("button", { name: "Add", exact: true }).click();
   await expect(first.locator(".sc-tl.custom, .il-custom").first()).toBeVisible();
 
-  // Doors & windows totals check.
-  const dw = page.locator(".il-card", { hasText: /doors & windows/i });
-  await dw.locator(".il-hd").click();
+  // Doors & windows totals check — Tom, 14 Sep (item 27): "Nothing missed ✓" is the one tap.
+  const dw = page.getByTestId("missed-card");
   await expect(dw).toContainText(/We make it \d+ doors and \d+ windows/);
-  await dw.getByRole("button", { name: /That.s right/ }).click();
-  await dw.getByRole("button", { name: /Confirm counts/ }).click();
-  // C10: the two checks share ONE card; the card is done when both are, the
-  // counts check says so on its own attribute.
+  await dw.getByTestId("check-dw-ok").click();
   await expect(dw).toHaveAttribute("data-dw-done", "1", { timeout: 15_000 });
 
   // The sweep: Hallway is the FIRST chip; "that's everything" completes.
@@ -101,11 +97,14 @@ test("R3 interior loop: L×W size question, confirm walk, dw check, sweep — ac
   // both. The sweep is about ROOMS and now says so, and this locator no
   // longer depends on the wording either way.
   const sweep = page.locator('[data-card="sweep"]');
-  await sweep.locator(".il-hd").click();
-  // C10: the sweep shares the card with the counts check — scope to its block.
-  await expect(sweep.locator('[data-check="sweep"] .sd-chip, [data-check="sweep"] .il-chip').first()).toContainText("Hallway");
-  await sweep.getByRole("button", { name: /No — that.s everything/ }).click();
-  await sweep.getByRole("button", { name: /Confirm — nothing missing/ }).click();
+  // Tom, 14 Sep (item 28): "Please check all rooms have been listed above" — Add room opens
+  // the form with Hallway first; "Confirm — nothing missing" is the one tap.
+  await expect(sweep).toContainText(/check all rooms have been listed above/i);
+  await sweep.getByTestId("check-rooms-add").click();
+  await expect(sweep.getByTestId("add-room-type-hallway")).toBeVisible();
+  await sweep.getByTestId("check-rooms-add").click();
+  await sweep.getByTestId("check-rooms-ok").click();
+  await expect(sweep).toHaveAttribute("data-sweep-done", "1", { timeout: 20_000 });
 
   // Complete: header flips, the "you can go early" line is gone, the range survives.
   await expect(prog).toContainText(/(\d+) OF \1/, { timeout: 45_000 }); // production queue drain

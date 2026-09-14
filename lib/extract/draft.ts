@@ -139,7 +139,7 @@ export function buildDraft(
   x: Extraction,
   rules: ScopeRule[],
   aliases: Alias[],
-  opts: { startId?: number; sourceId?: string | null; defectRates?: DefectRate[] } = {},
+  opts: { startId?: number; sourceId?: string | null; defectRates?: DefectRate[]; /** Tom, 14 Sep (item 23): a plan garage waits for "are we painting it?" */ holdGarage?: boolean } = {},
 ): DraftResult {
   let nextId = opts.startId ?? 1;
   const areas: DraftArea[] = [];
@@ -205,6 +205,10 @@ export function buildDraft(
 
     const areaOrigin: Origin = dimsRead ? "ai_extracted" : "ai_assumed";
     if (assumedFields.length) assumedCount++;
+    // Tom, 14 Sep (item 23): a garage on a floorplan is held OUT of the price
+    // until the customer says it is painted — the tighten screen asks.
+    const holdGarage = opts.holdGarage === true && roomType === "garage";
+    if (holdGarage) assumedFields.push("garage");
 
     const area: DraftArea = {
       id: nextId++,
@@ -217,7 +221,7 @@ export function buildDraft(
       W: room.width_m ?? 0,
       H: ceilingHeight,
       storey: storeyKindByLabel.get(room.storey.trim().toLowerCase()) ?? "ground",
-      isOption: false,
+      isOption: holdGarage,
       description: "",
       open: false,
       media: [],
@@ -243,7 +247,7 @@ export function buildDraft(
       );
     }
 
-    area.isOption = planned.every((p) => p.isOption);
+    area.isOption = holdGarage || planned.every((p) => p.isOption); // a held-back garage stays out until asked (Tom, 14 Sep)
     areas.push(area);
     // Deferred questions carry the id of the room that raised them, so the
     // wizard's answer-merge and the editor's remove-room act on the right

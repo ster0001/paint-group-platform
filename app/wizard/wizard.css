@@ -1129,3 +1129,18 @@
 .wz .sc-lit .sc-freeze { animation: wz-lit 2.4s ease-in-out 3; }
 .wz .sc-lit .sd-pbar i, .wz .sc-lit .sc-pbar i { background: var(--cyan); }
 @media (prefers-reduced-motion: reduce) { .wz .sc-lit .sc-freeze { animation: none; box-shadow: 0 6px 30px 2px rgba(59,216,233,.25); } }
+
+/* Tom, 14 Sep (tighten batch, items 5, 24, 27–29): one question at a time. */
+.wz .sc-page-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-family: var(--wz-mono); font-size: 9.5px; letter-spacing: .12em; color: var(--muted); margin: 4px 0 8px; }
+.wz .sc-page-dots { display: inline-flex; gap: 5px; }
+.wz .sc-page-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--line); display: inline-block; }
+.wz .sc-page-dots i.on { background: var(--amber); width: 16px; border-radius: 100px; }
+.wz .sc-page-dots i.done { background: var(--cyan); }
+.wz .sc-page-body { margin-top: 6px; }
+.wz .sc-page-row { display: flex; justify-content: space-between; gap: 10px; margin-top: 10px; }
+.wz .sc-page-row .wz-linkish { font-size: 12px; }
+.wz .sc-page-done .sc-chips { margin-top: 6px; }
+.wz .sc-tiles { max-width: 520px; }
+.wz .sc-tiles .wz-pk svg { height: 56px; }
+.wz .sc-addroom { margin-top: 10px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 12px; }
+.wz .sc-addroom input { background: var(--ink); border: 1px solid var(--line); border-radius: 9px; color: var(--text); font-family: var(--wz-mono); font-size: 13px; padding: 9px 11px; outline: none; width: 110px; }

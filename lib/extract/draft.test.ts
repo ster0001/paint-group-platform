@@ -19,6 +19,8 @@ const RULES: ScopeRule[] = [
   { room_type: "bathroom", surface_type: "Cornices", is_option: false, requires_confirm: false, notes: "never standard" },
   { room_type: "kitchen", surface_type: "Walls", is_option: false, requires_confirm: false, notes: null },
   { room_type: "kitchen", surface_type: "Ceiling", is_option: false, requires_confirm: false, notes: null },
+  { room_type: "garage", surface_type: "Walls", is_option: false, requires_confirm: false, notes: null },
+  { room_type: "garage", surface_type: "Ceiling", is_option: false, requires_confirm: false, notes: null },
 ];
 const ALIASES: Alias[] = [
   { alias: "bedroom", room_type: "bedroom" }, { alias: "main bedroom", room_type: "bedroom" },
@@ -317,4 +319,21 @@ test("without a rates table a defect prices nothing but raises an amber needs-pr
   expect(areas[0].surfaces.every((s) => s.prepHr === 0)).toBe(true);
   // A defect must never vanish silently: no rate → "needs pricing", amber.
   expect(deferred.some((d) => /needs pricing/.test(d.what) && /no prep rate matches/.test(d.needs))).toBe(true);
+});
+
+test("Tom, 14 Sep (item 23): a plan garage is held out of the price until the customer says it is painted", () => {
+  const { areas } = buildDraft(
+    extraction([
+      room({ name_on_plan: "Garage", normalised_type: "garage" }),
+      room({ name_on_plan: "Bedroom 1", normalised_type: "bedroom" }),
+    ]),
+    RULES, ALIASES, { holdGarage: true },
+  );
+  const garage = areas.find((a) => a.roomType === "garage");
+  expect(garage?.isOption).toBe(true);
+  expect(garage?.assumedFields).toContain("garage");
+  expect(areas.find((a) => a.roomType === "bedroom")?.isOption).toBe(false);
+  // Without the flag (the starter list, a room added by hand) a garage is a room like any other.
+  const plain = buildDraft(extraction([room({ name_on_plan: "Garage", normalised_type: "garage" })]), RULES, ALIASES);
+  expect(plain.areas[0]?.isOption).toBe(false);
 });

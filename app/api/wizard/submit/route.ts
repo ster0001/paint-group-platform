@@ -394,6 +394,7 @@ export async function POST(request: Request) {
 
       const draft = buildDraft(withHeight, rules, aliases, {
         startId: nextId, sourceId: source?.id ?? null, defectRates,
+        holdGarage: true, // Tom, 14 Sep (item 23)
       });
       areas.push(...draft.areas);
       skipped.push(...draft.skipped);

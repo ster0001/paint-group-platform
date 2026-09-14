@@ -71,6 +71,8 @@ export type CustomerScopeRoom = {
   condition: "same" | "better" | "worse";
   /** C16 (b): a reader's size proposal waiting beside a confirmed size (amber). */
   proposed?: { L?: number; W?: number; by: string } | null;
+  /** Tom, 14 Sep (item 23): a plan garage waiting on "are we painting it?" — asked, not listed. */
+  garagePending?: boolean;
 };
 
 type LooseBlock = Record<string, unknown> & {
@@ -241,6 +243,7 @@ export function customerRoomView(block: LooseBlock, rules: ScopeRule[]): Custome
     tiles,
     allowances: roomAllowanceLabels(surfaces),
     ...(proposal ? { proposed: { ...(proposal.L != null ? { L: proposal.L } : {}), ...(proposal.W != null ? { W: proposal.W } : {}), by: proposal.by } } : {}),
+    garagePending: Array.isArray((block as { assumedFields?: unknown }).assumedFields) && ((block as { assumedFields?: string[] }).assumedFields as string[]).includes("garage"),
     spots: surfaces.filter(isPrepLine).map((s) => ({
       surfaceId: Number(s.id),
       label: String(s.internalLabel ?? s.code ?? "Repair")

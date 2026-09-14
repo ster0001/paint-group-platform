@@ -59,15 +59,14 @@ test("everything answered: the estimate sends itself and the page lights up", as
   // The details card: every open question, one tap each.
   const details = page.getByTestId("details-card");
   await expect(details).toBeVisible();
-  for (const name of ["Panel", "Casement", "2.7 m"]) {
+  // One question at a time (item 5): doors, window frames, the paint, the height.
+  for (const name of ["Panel", "No", "Oil based", "2.7 m"]) {
     const b = details.getByRole("button", { name, exact: true });
-    if (await b.count()) { await b.first().click(); await settled(); }
-  }
-  if (await page.getByTestId("details-paint-base").count()) {
-    await page.getByTestId("details-paint-base").getByRole("button", { name: "Oil based", exact: true }).click();
+    await expect(b.first()).toBeVisible({ timeout: 30_000 });
+    await b.first().click();
     await settled();
   }
-  await expect(details).toHaveCount(0, { timeout: 30_000 });
+  await expect(details.getByTestId("details-card-settled")).toBeVisible({ timeout: 30_000 });
 
   // Every room: size ok, cupboard no, confirm.
   const cards = page.locator(".sc-rc[data-room]");
@@ -77,24 +76,28 @@ test("everything answered: the estimate sends itself and the page lights up", as
     await card.locator(".il-hd").click().catch(() => undefined);
     const looks = card.getByRole("button", { name: /Looks right/ });
     if (await looks.count()) await looks.first().click();
+    // Each "No" is a server round trip: the question can turn `.ok` between the
+    // count and the click, so a click that finds nothing is not a failure.
     for (let c = 0; c < 4 && (await card.locator(".il-cup:not(.ok)").count()); c++) {
-      await card.locator(".il-cup:not(.ok)").first().getByRole("button", { name: "No", exact: true }).click();
-      await page.waitForTimeout(300);
+      await card.locator(".il-cup:not(.ok)").first().getByRole("button", { name: "No", exact: true }).click({ timeout: 10_000 }).catch(() => undefined);
+      await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
     }
     await card.locator(".il-confirm").click();
     await expect(card).toHaveClass(/done/, { timeout: 20_000 });
   }
   // The two checks.
   const missed = page.getByTestId("missed-card");
-  // The last confirm auto-advances INTO this card; a header tap would close it again.
-  const thatsRight = missed.getByRole("button", { name: /That.s right/ });
-  if (!(await thatsRight.isVisible().catch(() => false))) await missed.locator(".il-hd").click();
-  await thatsRight.click();
-  await missed.locator(".il-confirm").first().click();
+  await missed.getByTestId("check-dw-ok").click();
   await expect(missed).toHaveAttribute("data-dw-done", "1", { timeout: 20_000 });
-  await missed.getByRole("button", { name: /No — that.s everything/ }).click();
-  await missed.locator(".il-confirm").last().click();
-  await expect(missed).toHaveClass(/done/, { timeout: 20_000 });
+  await missed.getByTestId("check-rooms-ok").click();
+  await expect(missed).toHaveAttribute("data-sweep-done", "1", { timeout: 20_000 });
+  // Site and access (item 24) — one at a time, and part of "everything answered".
+  await page.getByTestId("access-cleared-yes").click();
+  await expect(page.getByTestId("access-stairwell")).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("access-stairwell-no").click();
+  await expect(page.getByTestId("access-parking")).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("access-parking-drive").click();
+  await expect(missed).toHaveClass(/done/, { timeout: 30_000 });
 
   // Everything answered: it sends itself, says so, and lights up.
   const banner = page.getByTestId("all-done-banner");

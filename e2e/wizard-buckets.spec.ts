@@ -124,17 +124,18 @@ test.describe("wizard sessions → buckets", () => {
       await card.locator(".il-confirm").click();
       await expect(card).toHaveClass(/done/, { timeout: 15_000 });
     }
-    const dw = page.locator(".il-card", { hasText: /doors & windows/i });
-    await dw.getByRole("button", { name: /That.s right/ }).click();
-    await dw.getByRole("button", { name: /Confirm counts/ }).click();
-    const sweep = page.locator('[data-card="sweep"]');
-    await sweep.getByRole("button", { name: /No — that.s everything/ }).click();
-    await sweep.getByRole("button", { name: /Confirm — nothing missing/ }).click();
+    // Tom, 14 Sep (items 27, 28): the last checks are one tap each, one at a time.
+    const missed = page.getByTestId("missed-card");
+    await missed.getByTestId("check-dw-ok").click();
+    await expect(missed).toHaveAttribute("data-dw-done", "1", { timeout: 20_000 });
+    await missed.getByTestId("check-rooms-ok").click();
+    await expect(missed).toHaveAttribute("data-sweep-done", "1", { timeout: 20_000 });
     const cta = page.locator(".il-cta");
     await expect(cta).toBeEnabled({ timeout: 45_000 });
     // v2 screen 10: the completed loop's CTA opens the finish line, and the
     // contact card lives there.
-    await cta.click();
+    // Tom, 14 Sep (item 2): Finalise prompts for the details still open; the finish line is reached directly here.
+    await page.goto(`/estimate/finish?id=${new URL(page.url()).searchParams.get("id")}`);
     await expect(page.getByTestId("finish")).toBeVisible({ timeout: 30_000 });
     await page.getByTestId("finish-book_visit").click();
     await expect(page.getByTestId("contact-card")).toBeVisible();

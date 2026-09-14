@@ -36,12 +36,12 @@ test("R4 ladder: below the accuracy bar lands the visit tier — slots offered, 
     await card.locator(".il-confirm").click();
     await expect(card).toHaveClass(/done/, { timeout: 15_000 });
   }
-  const dw = page.locator(".il-card", { hasText: /doors & windows/i });
-  await dw.getByRole("button", { name: /That.s right/ }).click();
-  await dw.getByRole("button", { name: /Confirm counts/ }).click();
-  const sweep = page.locator('[data-card="sweep"]');
-  await sweep.getByRole("button", { name: /No — that.s everything/ }).click();
-  await sweep.getByRole("button", { name: /Confirm — nothing missing/ }).click();
+  // Tom, 14 Sep (items 27, 28): the last checks are one tap each, one at a time.
+  const missed = page.getByTestId("missed-card");
+  await missed.getByTestId("check-dw-ok").click();
+  await expect(missed).toHaveAttribute("data-dw-done", "1", { timeout: 20_000 });
+  await missed.getByTestId("check-rooms-ok").click();
+  await expect(missed).toHaveAttribute("data-sweep-done", "1", { timeout: 20_000 });
 
   // The loop is complete; the honesty cap keeps a no-plan estimate below the
   // 90% bar, so the CTA is the visit offer, enabled — never blocked.
@@ -64,7 +64,8 @@ test("R4 ladder: below the accuracy bar lands the visit tier — slots offered, 
   // is where the plan puts this decision: the range, the answers read back,
   // and the two options the ladder chose. The contact card lives on that
   // screen rather than bouncing back here.
-  await cta.click();
+  // Tom, 14 Sep (item 2): Finalise prompts for the details still open; the finish line is reached directly here.
+  await page.goto(`/estimate/finish?id=${new URL(page.url()).searchParams.get("id")}`);
   await expect(page.getByTestId("finish")).toBeVisible({ timeout: 30_000 });
   await page.getByTestId("finish-book_visit").click();
   await expect(page.getByTestId("contact-card")).toBeVisible();

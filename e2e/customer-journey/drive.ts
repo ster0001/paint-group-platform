@@ -236,7 +236,19 @@ export async function setStylesInEditor(page: Page, opts: {
 }) {
   const card = page.getByTestId("details-card");
   await expect(card).toBeVisible({ timeout: 30_000 });
-  for (const label of [opts.doorStyle, opts.windowStyle]) {
+  // Tom, 14 Sep (items 5, 15): one question at a time — the door tile first,
+  // then "are we painting the window frames?" (yes when a window style is
+  // wanted, no otherwise), then the window type tiles.
+  if (opts.doorStyle && await card.getByTestId(`door-tile-${opts.doorStyle.toLowerCase()}`).count()) {
+    await card.getByTestId(`door-tile-${opts.doorStyle.toLowerCase()}`).click();
+    await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
+  }
+  const wp = card.getByTestId("details-windows-painted");
+  if (await wp.count()) {
+    await wp.getByRole("button", { name: opts.windowStyle ? /^Yes/ : /^No/ }).click();
+    await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
+  }
+  for (const label of [opts.windowStyle]) {
     if (!label) continue;
     const chip = card.getByRole("button", { name: label, exact: true });
     /**

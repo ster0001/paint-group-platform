@@ -35,6 +35,12 @@ async function toEditor(page: import("@playwright/test").Page) {
   await page.getByTestId("door-tighten").click();
   await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 60_000 });
   await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
+  // Tom, 14 Sep (item 5): one question at a time — doors, then window frames, then the paint.
+  const detailsCard = page.getByTestId("details-card");
+  await expect(detailsCard).toBeVisible({ timeout: 60_000 });
+  if (await detailsCard.getByTestId("door-tile-panel").count()) await detailsCard.getByTestId("door-tile-panel").click();
+  await expect(detailsCard.getByTestId("details-windows-painted")).toBeVisible({ timeout: 30_000 });
+  await detailsCard.getByTestId("details-windows-painted").getByRole("button", { name: /^No/ }).click();
   await expect(page.getByTestId("details-paint-base")).toBeVisible({ timeout: 30_000 });
 }
 
@@ -64,7 +70,8 @@ test("water based over not-sure stays at two coats, marks the line for a person 
   await page.getByTestId("details-paint-base").getByRole("button", { name: "Water based", exact: true }).click();
   const current = page.getByTestId("details-trims-current");
   await expect(current).toBeVisible({ timeout: 30_000 });
-  await expect(current).toContainText(/shinier/i);
+  // The helper line is the step's hint, above the chips (item 5).
+  await expect(page.getByTestId("details-card-step-trims_current")).toContainText(/shinier/i);
   await current.getByRole("button", { name: "Not sure", exact: true }).click();
   await expect(page.getByTestId("details-trims-check")).toContainText(/estimator to check/i, { timeout: 30_000 });
   await expect(current).toHaveCount(0);

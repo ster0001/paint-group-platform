@@ -314,6 +314,8 @@ export const wizardStateShapeSchema = z.object({
      * the old code always generated. */
     doorScope: z.enum(["door", "frame", "architrave"]).default("frame"),
     windowStyle: z.enum(["casement", "sash", "colonial", "winder", "unsure", "na"]),
+    /** Tom, 14 Sep (item 15): "are we painting the window frames?" — asked on the tighten screen; null = not asked yet. */
+    windowsPainted: z.enum(["yes", "no"]).nullable().optional(),
     ceilingHeight: z.enum(["2.4", "2.7", "3.0", "unsure"]),
     /** 0 none · 1 minor · 2 a few areas of concern · 3 desperate need. */
     damageTier: z.number().int().min(0).max(3),

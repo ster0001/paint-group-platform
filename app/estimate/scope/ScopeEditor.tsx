@@ -6,6 +6,8 @@ type RoomExtrasView = { featureWalls: number; wallpaper: boolean; other: string 
 
 import FinalisePrompt from "./FinalisePrompt";
 import AllDoneBanner from "./AllDoneBanner";
+import Paginated, { type PaginatedStep } from "./Paginated";
+import { DoorTiles, WindowTiles } from "./StyleTiles";
 import { alreadySentFrom, useAutoSend } from "./useAutoSend";
 import { afterLayout, scrollCardToTop } from "./scrollCard";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -17,7 +19,6 @@ import RoomSpots from "./RoomSpots";
 import RoomExtras from "./RoomExtras";
 import EstimatorStrip from "@/app/wizard/EstimatorStrip";
 import Offer from "@/app/wizard/Offer";
-import SiteAccessCard from "./SiteAccess";
 import JobExtras from "./JobExtras";
 import type { JobExtra } from "@/lib/wizard/extras";
 import type { SiteAccess } from "@/lib/wizard/site-access";
@@ -119,7 +120,7 @@ const snapshotFalse = () => false;
 
 const fmtMoney = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
-export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialDarkToLight = { asked: false, surfaces: [], someWalls: false, ceilings: null, ceilingRooms: [] }, initialColourTier = "change", initialSystems = [], initialRoomExtras = {}, estimator = null, customerSuburb = null, initialAccess = { answers: {}, asksLift: false }, initialExtras = { offer: [], on: [], colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, chatMode = false }: {
+export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialDarkToLight = { asked: false, surfaces: [], someWalls: false, ceilings: null, ceilingRooms: [] }, initialColourTier = "change", initialSystems = [], initialRoomExtras = {}, estimator = null, customerSuburb = null, initialAccess = { answers: {}, asksLift: false }, initialWindowsPainted = null, initialExtras = { offer: [], on: [], colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, chatMode = false }: {
   estimateId: string;
   initial: CustomerPayload;
   initialRooms: CustomerScopeRoom[];
@@ -165,6 +166,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   initialCondition?: "good" | "wear" | "work";
   /** §4.4 — the site and access answers, and whether a lift applies. */
   initialAccess?: { answers: SiteAccess; asksLift: boolean };
+  /** Tom, 14 Sep (item 15). */
+  initialWindowsPainted?: "yes" | "no" | null;
   /** §4.5 — the extras on offer, which are on, the colour tick and the note. */
   initialExtras?: { offer: JobExtra[]; on: string[]; colourHelp: boolean; note: string };
 }) {
@@ -204,6 +207,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   const [ceilingScope, setCeilingScope] = useState<"all" | "some" | null>(initialDarkToLight.ceilings);
   const [ceilingRooms, setCeilingRooms] = useState<number[]>(initialDarkToLight.ceilingRooms);
   const [access, setAccess] = useState<SiteAccess>(initialAccess.answers);
+  const [windowsPainted, setWindowsPainted] = useState<"yes" | "no" | null>(initialWindowsPainted);
+  const [addRoom, setAddRoom] = useState<{ open: boolean; type: string | null; name: string; L: string; W: string }>({ open: false, type: null, name: "", L: "", W: "" });
   const [extras, setExtras] = useState({ on: initialExtras.on, colourHelp: initialExtras.colourHelp, note: initialExtras.note });
   const [sidesProg, setSidesProg] = useState<SidesView["progress"] | null>(initialSides?.progress ?? null);
   const [sizeDrafts, setSizeDrafts] = useState<Record<number, { L: string; W: string; open: boolean }>>({});
@@ -333,8 +338,9 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
     trimsCurrent: trimsLine != null && trimsLine.paintBase != null && trimsLine.paintBase !== "oil" && trimsLine.trimsCurrent == null,
   };
   const trimsUnsure = trimsLine != null && trimsLine.paintBase != null && trimsLine.paintBase !== "oil" && trimsLine.trimsCurrent === "unsure";
-  const styleChip = (label: string, body: Record<string, unknown>, said: string) => (
-    <button key={label} className="sd-chip il-chip" onClick={() => act(body, `style:${label}`, () => said)}>{label}</button>
+
+  const styleChip = (label: string, body: Record<string, unknown>, said: string, also?: () => void) => (
+    <button key={label} className="sd-chip il-chip" onClick={() => { also?.(); act(body, `style:${label}`, () => said); }}>{label}</button>
   );
 
   function say(message: string) {
@@ -665,19 +671,201 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   }
 
   const rangeText = `${fmt(payload.rangeLoCents)} – ${fmt(payload.rangeHiCents)}`;
+
+  // ---- Tom, 14 Sep (items 5, 14, 15): the details, one question at a time ----
+  const hasWindows = rooms.some((r) => r.tiles.some((t) => String(t.key) === "windows" && t.on));
+  const windowsAnswered = windowsPainted != null || hasWindows || styleOpen.windows;
+  const detailSteps: PaginatedStep[] = [];
+  if (styleOpen.doors) detailSteps.push({
+    key: "doors", label: "Door type", answered: false,
+    question: "The doors — mostly panelled, or flat?",
+    body: <DoorTiles busy={pendingCount > 0} onPick={(style) => act({ action: "set_door_style", style }, `style:${style}`, () => style === "panel" ? "Panel doors — every door is priced at the panel rate now" : "Flat doors — every door is priced at the flat rate now")} />,
+  });
+  if (!windowsAnswered || windowsPainted != null) detailSteps.push({
+    key: "windows_painted", label: "Window frames", answered: windowsAnswered,
+    question: "Are we painting the window frames?",
+    hint: "Say yes and every room gets its window frames; then we ask the type.",
+    body: (
+      <div className="sc-chips" data-testid="details-windows-painted">
+        {styleChip(windowsPainted === "yes" ? "Yes ✓" : "Yes", { action: "set_windows_painted", on: true }, "Window frames added to every room — pick the type next", () => setWindowsPainted("yes"))}
+        {styleChip(windowsPainted === "no" ? "No ✓" : "No", { action: "set_windows_painted", on: false }, "No window frames — noted", () => setWindowsPainted("no"))}
+      </div>
+    ),
+  });
+  if (styleOpen.windows) detailSteps.push({
+    key: "windows", label: "Window type", answered: false,
+    question: "The windows — which type, mostly?",
+    body: <WindowTiles busy={pendingCount > 0} onPick={(style) => act({ action: "set_window_style", style }, `style:${style}`, () => `${style[0].toUpperCase()}${style.slice(1)} windows — priced at that rate now`)} />,
+  });
+  if (styleOpen.paintBase) detailSteps.push({
+    key: "paint_base", label: "Paint on the trims", answered: false,
+    question: "Water based or oil based paint on the trims?",
+    hint: "Skirtings, doors and trims are two coats as standard. If the woodwork was last painted in oil and you want water based, an undercoat goes on first.",
+    body: (
+      <div className="sc-chips" data-testid="details-paint-base">
+        {styleChip("Water based", { action: "set_paint_system", field: "paintBase", value: "water" }, "Water-based enamel on the trims")}
+        {styleChip("Oil based", { action: "set_paint_system", field: "paintBase", value: "oil" }, "Oil-based enamel on the trims — two coats over anything")}
+        {styleChip("Not sure", { action: "set_paint_system", field: "paintBase", value: "unsure" }, "We'll help you choose — priced as water-based for now")}
+      </div>
+    ),
+  });
+  if (styleOpen.trimsCurrent) detailSteps.push({
+    key: "trims_current", label: "What's underneath", answered: false,
+    question: "Do you know what the woodwork was last painted in?",
+    hint: "If it was oil, extra coats will apply. Oil-based paint is generally shinier than water-based and has more of a rubbery feel.",
+    body: (
+      <div className="sc-chips" data-testid="details-trims-current">
+        {styleChip("Currently oil based", { action: "set_paint_system", field: "glossTrims", value: "yes" }, "Oil underneath — an undercoat and two coats on the trims")}
+        {styleChip("Currently water based", { action: "set_paint_system", field: "glossTrims", value: "no" }, "Water underneath — two coats on the trims")}
+        {styleChip("Not sure", { action: "set_paint_system", field: "glossTrims", value: "unsure" }, "We'll get our estimator to check the woodwork")}
+      </div>
+    ),
+  });
+  if (payload.heightUnconfirmed) detailSteps.push({
+    key: "height", label: "Ceiling height", answered: false,
+    question: "Ceiling height — approximate is fine.",
+    body: (
+      <div className="sc-chips" data-testid="details-height">
+        {styleChip("2.4 m", { action: "confirm_height", heightM: 2.4 }, "Ceilings at 2.4 m — every room repriced at that height")}
+        {styleChip("2.7 m", { action: "confirm_height", heightM: 2.7 }, "Ceilings at 2.7 m — every room repriced at that height")}
+        {styleChip("3 m+", { action: "confirm_height", heightM: 3 }, "Ceilings at 3 m — every room repriced at that height")}
+      </div>
+    ),
+  });
+  // A card with only answered steps stays for "change an answer"; an empty list hides it.
+  const detailsOpen = detailSteps.some((st) => !st.answered);
+
+  // ---- Tom, 14 Sep (items 23, 24, 27, 28, 29): the last checks, one at a time ----
+  const garages = rooms.filter((r) => r.garagePending === true);
+  const lastSteps: PaginatedStep[] = [];
+  for (const g of garages) lastSteps.push({
+    key: `garage-${g.areaId}`, label: g.name, answered: false,
+    question: `The plan shows a ${g.name.toLowerCase()} — are we painting it?`,
+    body: (
+      <div className="sc-chips" data-testid={`garage-${g.areaId}`}>
+        {styleChip("Yes — paint it", { action: "set_garage", areaId: g.areaId, on: true }, `${g.name} added — it appears above as a room to confirm`)}
+        {styleChip("No — leave it out", { action: "set_garage", areaId: g.areaId, on: false }, `${g.name} left out of the price`)}
+      </div>
+    ),
+  });
+  if (iloop) {
+    lastSteps.push({
+      key: "dw", label: "Doors and windows", answered: iloop.meta.done.dw,
+      question: <>We make it {iloop.dw.doors} doors and {iloop.dw.windows} windows across the house — is that right?</>,
+      body: (
+        <div className="sc-chips" data-check="dw">
+          <button type="button" className="sd-chip il-chip" data-testid="check-dw-ok" disabled={optimistic["confirm:dw"] != null}
+            onClick={() => confirmAct({ action: "iloop_check_done", item: "dw" }, "dw", "Counts confirmed ✓")}>Nothing missed ✓</button>
+          <button type="button" className="sd-chip" data-testid="check-dw-off" onClick={() => { act({ action: "iloop_dw", ok: false }, "dwno"); say("Use the − / + on any room's door or window tile, then come back and tap “Nothing missed”."); }}>
+            Something&rsquo;s off — I&rsquo;ll adjust
+          </button>
+        </div>
+      ),
+    });
+    lastSteps.push({
+      key: "sweep", label: "Rooms", answered: iloop.meta.done.sweep,
+      question: "Please check all rooms have been listed above.",
+      hint: docs.plan
+        ? "Hallways are the ones floorplans miss most — and they make the biggest difference to the price. Laundries, toilets and studies go missing too."
+        : "Hallways are the rooms people forget most — and they make the biggest difference to the price. Laundries, toilets, studies and garages go missing too.",
+      body: (
+        <div data-check="sweep">
+          <div className="sc-chips">
+            <button type="button" className="sd-chip il-chip" data-testid="check-rooms-ok" disabled={optimistic["confirm:sweep"] != null}
+              onClick={() => confirmAct({ action: "iloop_check_done", item: "sweep" }, "sweep", "Everything's blue — your estimate is confirmed. Nice work.")}>Confirm — nothing missing</button>
+            <button type="button" className={`sd-chip ${addRoom.open ? "on" : ""}`} data-testid="check-rooms-add" onClick={() => setAddRoom((a) => ({ ...a, open: !a.open }))}>Add room</button>
+          </div>
+          {addRoom.open && (
+            <div className="sc-addroom" data-testid="add-room-form">
+              <p className="il-hint">Which kind of room?</p>
+              <div className="sc-chips">
+                {sweepTypes.map((t) => (
+                  <button key={t} type="button" className={`sd-chip il-chip ${addRoom.type === t ? "on" : ""}`} aria-pressed={addRoom.type === t} data-testid={`add-room-type-${t}`}
+                    onClick={() => setAddRoom((a) => ({ ...a, type: t, name: a.name || roomTypeLabel(t) }))}>{roomTypeLabel(t)}</button>
+                ))}
+              </div>
+              <div className="sd-mrow" style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 9 }}>
+                <input style={{ flex: "1 1 160px", width: "auto" }} placeholder="Name it — e.g. Dining" maxLength={60} value={addRoom.name} data-testid="add-room-name"
+                  onChange={(e) => setAddRoom((a) => ({ ...a, name: e.target.value }))} />
+                <input placeholder="length m" inputMode="decimal" value={addRoom.L} data-testid="add-room-length" onChange={(e) => setAddRoom((a) => ({ ...a, L: e.target.value }))} />
+                <span>×</span>
+                <input placeholder="width m" inputMode="decimal" value={addRoom.W} data-testid="add-room-width" onChange={(e) => setAddRoom((a) => ({ ...a, W: e.target.value }))} />
+                <button type="button" className="sd-chip il-chip" data-testid="add-room-go" disabled={!addRoom.type}
+                  onClick={() => {
+                    if (!addRoom.type) return;
+                    const L = Number(addRoom.L), W = Number(addRoom.W);
+                    const dims = L >= 1 && L <= 15 && W >= 1 && W <= 15 ? { lengthM: Math.round(L * 10) / 10, widthM: Math.round(W * 10) / 10 } : {};
+                    const name = addRoom.name.trim() || undefined;
+                    act({ action: "add_room", roomType: addRoom.type, name, ...dims }, `add:${addRoom.type}`,
+                      () => `${name ?? roomTypeLabel(addRoom.type!)} added and priced in — it appears above as a new orange room to confirm.`);
+                    setAddRoom({ open: false, type: null, name: "", L: "", W: "" });
+                  }}>Add it</button>
+              </div>
+              <p className="il-hint">Measurements are optional — leave them out and it starts at a typical size.</p>
+              <div className="sc-chips" style={{ marginTop: 8 }}>
+                <button type="button" className="sd-chip il-chip" data-testid="sweep-cup-interior"
+                  onClick={() => act({ action: "iloop_sweep_cupboards", kind: "interior" }, "sweep:cupi", () => "Inside the cupboards added to every room where the cupboard doors are on — adjust any room above")}>
+                  + Inside the cupboards
+                </button>
+                <button type="button" className="sd-chip il-chip" data-testid="sweep-cup-door-inside"
+                  onClick={() => act({ action: "iloop_sweep_cupboards", kind: "door_inside" }, "sweep:cupd", () => "Inside of the robe doors added to every bedroom where the robe doors are on — adjust any room above")}>
+                  + Inside of the cupboard doors
+                </button>
+                <button type="button" className={`sd-chip ${sweepOtherOpen ? "on" : ""}`} onClick={() => setSweepOtherOpen((v) => !v)}>+ Something else</button>
+              </div>
+              {sweepOtherOpen && (
+                <div className="sd-mrow" style={{ display: "flex", marginTop: 9, gap: 8 }}>
+                  <input style={{ flex: 1, width: "auto", minWidth: 180 }} placeholder="What else needs painting? Name it — e.g. stairwell, bungalow" maxLength={60}
+                    value={sweepOtherText} onChange={(e) => setSweepOtherText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") addSweepOther(); }} />
+                  <button type="button" className="sd-chip" onClick={addSweepOther}>Add</button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ),
+    });
+  }
+  const accessQuestions: Array<{ field: keyof SiteAccess; label: string; hint?: string; options: Array<{ value: string; label: string }> }> = [
+    { field: "cleared", label: "Will the rooms be cleared before we start?", options: [{ value: "yes", label: "Yes" }, { value: "some", label: "Mostly" }, { value: "no", label: "Furniture stays" }] },
+    { field: "stairwell", label: "A stairwell or void with high walls?", hint: "So your painter arrives with the right gear.", options: [{ value: "no", label: "No" }, { value: "yes", label: "Yes" }] },
+    { field: "parking", label: "Where can we park?", options: [{ value: "drive", label: "Driveway" }, { value: "street", label: "Street" }, { value: "hard", label: "Tricky" }] },
+    ...(initialAccess.asksLift ? [{ field: "lift" as keyof SiteAccess, label: "Does the building need a lift booking?", hint: "We book the lift and work to the building's hours.", options: [{ value: "no", label: "No" }, { value: "yes", label: "Yes" }] }] : []),
+  ];
+  for (const q of accessQuestions) lastSteps.push({
+    key: `access-${q.field}`, label: q.field === "cleared" ? "Furniture" : q.field === "stairwell" ? "Stairwell" : q.field === "parking" ? "Parking" : "Lift", answered: access[q.field] != null,
+    question: q.label, hint: q.hint,
+    body: (
+      <div className="sc-chips" data-testid={`access-${q.field}`}>
+        {q.options.map((o) => {
+          const on = access[q.field] === o.value;
+          return (
+            <button key={o.value} type="button" className={`sd-chip il-chip ${on ? "on" : ""}`} aria-pressed={on} disabled={pendingCount > 0} data-testid={`access-${q.field}-${o.value}`}
+              onClick={() => {
+                setAccess((a) => ({ ...a, [q.field]: o.value }));
+                act({ action: "set_site_access", field: q.field, value: o.value }, `access:${q.field}`, () => "Noted — that's in your setup allowance");
+              }}>{o.label}</button>
+          );
+        })}
+      </div>
+    ),
+  });
+  const lastOpen = lastSteps.some((st) => !st.answered);
+
   /**
    * Tom, 14 Sep (items 2, 31): "everything answered" = every room and both
    * checks confirmed, and nothing left open on the details card. Finalise
    * before that prompts them to finish; reaching it sends the estimate by
    * itself and lights the page up.
    */
-  const detailsOpen = styleOpen.doors || styleOpen.windows || styleOpen.paintBase || styleOpen.trimsCurrent || payload.heightUnconfirmed;
-  const complete = (combined?.allDone ?? false) && !detailsOpen;
+  const complete = (combined?.allDone ?? false) && !detailsOpen && !lastOpen;
   const autoSend = useAutoSend(estimateId, complete, ready && pendingCount === 0, alreadySentFrom(payload.confirmOnSite));
   const sentHref = `/estimate/sent?id=${estimateId}`;
   function nextOpen(): string {
     if (detailsOpen) return "details";
     if (iloop) { const n = nextUnconfirmed(iloop); if (n) return n; }
+    if (lastOpen) return "sweep";
     return "";
   }
   function onFinalise() {
@@ -783,75 +971,24 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
           </p>
         )}
         {/* Tom, 14 Sep (item 4): the estimator strip moved into the frozen header. */}
-        {!chatMode && (styleOpen.doors || styleOpen.windows || styleOpen.paintBase || styleOpen.trimsCurrent || trimsUnsure || payload.heightUnconfirmed) && (
-          <section className="sc-rc il-card amber sc-details" data-card="details" id="details" data-testid="details-card">
-            {/* C9 — what the answers below change, read-only, above the questions. */}
-            <WhatWeDo lines={systems} tellUsHref="#reach" compact />
-            <div className="sc-hd il-hd"><b>A few details to settle</b><span className="il-pill">TIGHTENS YOUR RANGE</span></div>
-            {/* 14 Sep: the money these answers close, from the envelope — never computed here. */}
-            {Object.values(payload.openClosesCents ?? {}).some((v) => v > 0) && (
+        {/* Tom, 14 Sep (items 5, 14, 15): the details to settle, one question at a time. */}
+        {!chatMode && detailSteps.length > 0 && (
+          <Paginated
+            testid="details-card" dataCard="details" id="details" cardClass="sc-details"
+            title="A few details to settle" pill="TIGHTENS YOUR RANGE"
+            lead={Object.values(payload.openClosesCents ?? {}).some((v) => v > 0) ? (
               <p className="il-hint" data-testid="details-closes">
                 Answering these closes about {fmtMoney(Object.values(payload.openClosesCents ?? {}).reduce((n, v) => n + v, 0))} of your range.
               </p>
-            )}
-            {styleOpen.doors && (
-              <div className="il-q">
-                <p className="il-ql">The doors — mostly panelled, or flat?</p>
-                <div className="sc-chips">
-                  {styleChip("Panel", { action: "set_door_style", style: "panel" }, "Panel doors — every door is priced at the panel rate now")}
-                  {styleChip("Flat", { action: "set_door_style", style: "flat" }, "Flat doors — every door is priced at the flat rate now")}
-                </div>
-              </div>
-            )}
-            {styleOpen.windows && (
-              <div className="il-q">
-                <p className="il-ql">The windows — which type, mostly?</p>
-                <div className="sc-chips">
-                  {styleChip("Casement", { action: "set_window_style", style: "casement" }, "Casement windows — priced at the casement rate now")}
-                  {styleChip("Sash", { action: "set_window_style", style: "sash" }, "Sash windows — priced at the sash rate now")}
-                  {styleChip("Colonial", { action: "set_window_style", style: "colonial" }, "Colonial windows — priced at the colonial rate now")}
-                  {styleChip("Winder", { action: "set_window_style", style: "winder" }, "Winder windows — priced at the awning rate now")}
-                </div>
-              </div>
-            )}
-            {styleOpen.paintBase && (
-              <div className="il-q" data-testid="details-paint-base">
-                <p className="il-ql">Water based or oil based paint on the trims?</p>
-                <div className="sc-chips">
-                  {styleChip("Water based", { action: "set_paint_system", field: "paintBase", value: "water" }, "Water-based enamel on the trims")}
-                  {styleChip("Oil based", { action: "set_paint_system", field: "paintBase", value: "oil" }, "Oil-based enamel on the trims — two coats over anything")}
-                  {styleChip("Not sure", { action: "set_paint_system", field: "paintBase", value: "unsure" }, "We'll help you choose — priced as water-based for now")}
-                </div>
-                <p className="il-hint">Skirtings, doors and trims are two coats as standard. If the woodwork was last painted in oil and you want water based, an undercoat goes on first.</p>
-              </div>
-            )}
-            {styleOpen.trimsCurrent && (
-              <div className="il-q" data-testid="details-trims-current">
-                <p className="il-ql">Do you know what the woodwork was last painted in?</p>
-                <p className="il-hint">If it was oil, extra coats will apply. Oil-based paint is generally shinier than water-based and has more of a rubbery feel.</p>
-                <div className="sc-chips">
-                  {styleChip("Currently oil based", { action: "set_paint_system", field: "glossTrims", value: "yes" }, "Oil underneath — an undercoat and two coats on the trims")}
-                  {styleChip("Currently water based", { action: "set_paint_system", field: "glossTrims", value: "no" }, "Water underneath — two coats on the trims")}
-                  {styleChip("Not sure", { action: "set_paint_system", field: "glossTrims", value: "unsure" }, "We'll get our estimator to check the woodwork")}
-                </div>
-              </div>
-            )}
-            {trimsUnsure && (
+            ) : null}
+            steps={detailSteps}
+            settledText="All settled — every detail here is answered."
+            after={trimsUnsure ? (
               <p className="il-hint" data-testid="details-trims-check">
                 We&rsquo;ll get our estimator to check whether the woodwork is oil or water based. It&rsquo;s priced at two coats for now; an undercoat and a third coat apply if it&rsquo;s oil.
               </p>
-            )}
-            {payload.heightUnconfirmed && (
-              <div className="il-q">
-                <p className="il-ql">Ceiling height — approximate is fine.</p>
-                <div className="sc-chips">
-                  {styleChip("2.4 m", { action: "confirm_height", heightM: 2.4 }, "Ceilings at 2.4 m — every room repriced at that height")}
-                  {styleChip("2.7 m", { action: "confirm_height", heightM: 2.7 }, "Ceilings at 2.7 m — every room repriced at that height")}
-                  {styleChip("3 m+", { action: "confirm_height", heightM: 3 }, "Ceilings at 3 m — every room repriced at that height")}
-                </div>
-              </div>
-            )}
-          </section>
+            ) : null}
+          />
         )}
         {/*
           Phase 4 (estimator journey v2 §4.2, prototype screen 8) — "How we'll
@@ -1017,7 +1154,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             read as the last two questions rather than the first two. */}
         <div className="sc-cols">
         <div className="sc-cards">
-          {rooms.map((room) => {
+          {rooms.filter((r) => r.garagePending !== true).map((room) => {
             const main = room.tiles.filter((t) => !t.longTail);
             const tail = room.tiles.filter((t) => t.longTail);
             
@@ -1530,114 +1667,20 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             }}
           />
         )}
-        {/* §4.4 — the four allowance modifiers plus parking, the lift and pets. */}
-        {!chatMode && (
-          <SiteAccessCard
-            answers={access}
-            asksLift={initialAccess.asksLift}
-            busy={pendingCount > 0}
-            onAnswer={(field, value) => {
-              // Optimistic, so the chip lights the moment it is tapped; the
-              // server's answer replaces it on the next response.
-              setAccess((a) => ({ ...a, [field]: value }));
-              act(
-                { action: "set_site_access", field, value },
-                `access:${field}`,
-                () => "Noted — that's in your setup allowance",
-              );
-            }}
-          />
-        )}
         {/* Tom, 14 Sep (item 26): the ⚑ deferral list is the estimator's (the pack), not the customer's. */}
-          {iloop && (
-            <>
-              {/*
-                C10 (v2.5) — ONE "anything we've missed?" card, not three. The
-                doors-and-windows count and the missed-rooms sweep were two
-                amber cards saying "confirm this" one after the other; the
-                prototype (`s-tighten`) folds the whole-job checks into one
-                sheet. The two CHECKS stay separate underneath — the accuracy
-                evaluator credits each (`checksDone`), and each has its own
-                confirm — so nothing about the score or the loop meta moved.
-                `data-card="sweep"` stays on the card because every spec, the
-                finish line's "Change" links and `openAndScroll` address it.
-              */}
-              <section className={`sc-rc il-card ${iloop.meta.done.dw && iloop.meta.done.sweep ? "done" : "amber"} ${shakeCard === "dw" || shakeCard === "sweep" ? "shake" : ""}`} data-card="sweep" id="missed" data-testid="missed-card" data-dw-done={iloop.meta.done.dw ? "1" : "0"} data-sweep-done={iloop.meta.done.sweep ? "1" : "0"}>
-                <div className="sc-hd il-hd" onClick={() => openAndScroll("sweep")} style={{ cursor: "pointer" }}>
-                  <b>Anything we&rsquo;ve missed? — doors &amp; windows, and rooms</b>
-                  <span className={`il-pill ${iloop.meta.done.dw && iloop.meta.done.sweep ? "done" : ""}`}>{iloop.meta.done.dw && iloop.meta.done.sweep ? "CONFIRMED ✓" : "CONFIRM THIS"}</span>
-                </div>
-                {(openCard === "sweep" || openCard === "dw") && (<>
-                <div className={`il-q ${iloop.dw.ok === true ? "ok" : ""}`} data-check="dw">
-                  <p className="il-ql">
-                    We make it {iloop.dw.doors} doors and {iloop.dw.windows} windows across the house — is that right?{" "}
-                    <span className="il-req">REQUIRED</span><span className="il-okc">✓</span>
-                  </p>
-                  <div className="sc-chips">
-                    <button className={`sd-chip ${sel("dw:ok", iloop.dw.ok === true) ? "on" : ""}`} onClick={() => act({ action: "iloop_dw", ok: true }, "dwok", undefined, ["dw:ok", "1"])}>That&rsquo;s right ✓</button>
-                    <button className="sd-chip" onClick={() => { act({ action: "iloop_dw", ok: false }, "dwno"); say("Use the − / + on any room's door or window tile, then come back and tap “That's right”."); }}>
-                      Something&rsquo;s off — I&rsquo;ll adjust
-                    </button>
-                  </div>
-                </div>
-                <button className={`sd-confirm il-confirm ${iloop.meta.done.dw ? "done" : ""}`}
-                  disabled={optimistic["confirm:dw"] != null}
-                  onClick={() => confirmAct({ action: "confirm_iloop_item", item: "dw" }, "dw", "Counts confirmed ✓")}>
-                  {optimistic["confirm:dw"] != null ? "Confirming…" : iloop.meta.done.dw ? "Confirmed ✓" : "Confirm counts ✓"}
-                </button>
-                <div className={`il-q ${iloop.meta.sweepAns ? "ok" : ""}`} data-check="sweep" style={{ marginTop: 14 }}>
-                  <p className="il-ql" style={{ fontWeight: 600 }}>Any rooms we&rsquo;ve missed?</p>
-                  <p className="il-ql">
-                    {docs.plan
-                      ? <>Hallways are the ones floorplans miss most — and they make the biggest difference to the price. Laundries, toilets and studies go missing too.</>
-                      : <>Hallways are the rooms people forget most — and they make the biggest difference to the price. Laundries, toilets, studies and garages go missing too.</>}
-                    {" "}<span className="il-req">REQUIRED</span><span className="il-okc">✓</span>
-                  </p>
-                  <div className="sc-chips">
-                    {sweepTypes.map((t) => (
-                      <button key={t} className="sd-chip il-chip"
-                        onClick={() => act({ action: "add_room", roomType: t }, `add:${t}`,
-                          () => `${t.replace(/_/g, " ")} added and priced in — it appears above as a new orange room to confirm.`)}>
-                        + {roomTypeLabel(t)}
-                      </button>
-                    ))}
-                    {/* Tom, 31 Aug: "something else" opens a box to SAY what —
-                        an amber flag with no name tells the estimator nothing. */}
-                    {/* Tom, 7 Sep: the insides of the cupboards belong in the last check too. */}
-                    <button className="sd-chip il-chip" data-testid="sweep-cup-interior"
-                      onClick={() => act({ action: "iloop_sweep_cupboards", kind: "interior" }, "sweep:cupi", () => "Inside the cupboards added to every room where the cupboard doors are on — adjust any room above")}>
-                      + Inside the cupboards
-                    </button>
-                    <button className="sd-chip il-chip" data-testid="sweep-cup-door-inside"
-                      onClick={() => act({ action: "iloop_sweep_cupboards", kind: "door_inside" }, "sweep:cupd", () => "Inside of the robe doors added to every bedroom where the robe doors are on — adjust any room above")}>
-                      + Inside of the cupboard doors
-                    </button>
-                    <button className={`sd-chip ${sweepOtherOpen ? "on" : ""}`} onClick={() => setSweepOtherOpen((v) => !v)}>
-                      + Something else
-                    </button>
-                    <button className={`sd-chip ${sel("sweep:none", iloop.meta.sweepAns === "none") ? "on" : ""}`}
-                      onClick={() => act({ action: "iloop_sweep", ans: "none" }, "sweepnone", undefined, ["sweep:none", "1"])}>
-                      No — that&rsquo;s everything ✓
-                    </button>
-                  </div>
-                  {sweepOtherOpen && (
-                    <div className="sd-mrow" style={{ display: "flex", marginTop: 9, gap: 8 }}>
-                      <input style={{ flex: 1, width: "auto", minWidth: 180 }} placeholder="What else needs painting? Name it — e.g. stairwell, bungalow" maxLength={60}
-                        value={sweepOtherText} onChange={(e) => setSweepOtherText(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") addSweepOther(); }} />
-                      <button className="sd-chip" onClick={addSweepOther}>Add</button>
-                    </div>
-                  )}
-                </div>
-                <button className={`sd-confirm il-confirm ${iloop.meta.done.sweep ? "done" : ""}`}
-                  disabled={optimistic["confirm:sweep"] != null}
-                  onClick={() => confirmAct({ action: "confirm_iloop_item", item: "sweep" }, "sweep", "Everything's blue — your estimate is confirmed. Nice work.")}>
-                  {optimistic["confirm:sweep"] != null ? "Confirming…" : iloop.meta.done.sweep ? "Confirmed ✓" : "Confirm — nothing missing ✓"}
-                </button>
-                </>)}
-              </section>
-            </>
+          {/* Tom, 14 Sep (items 23, 24, 27, 28, 29): the last checks, one at a time — the
+              garage the plan showed, the door and window count, the rooms, and site & access. */}
+          {!chatMode && lastSteps.length > 0 && (
+            <Paginated
+              testid="missed-card" dataCard="sweep" id="missed"
+              title="A few last checks" pill="CONFIRM THESE"
+              steps={lastSteps}
+              settledText="All checked — nothing missing, and your setup is noted."
+              attrs={{ "data-dw-done": iloop?.meta.done.dw ? "1" : "0", "data-sweep-done": iloop?.meta.done.sweep ? "1" : "0" }}
+            />
           )}
+          {/* Tom, 14 Sep (item 8): What we'll do sits at the very bottom of the page. */}
+          {!chatMode && <WhatWeDo lines={systems} tellUsHref="#reach" />}
         </div>
         <PlanPanel docs={docs} variant="column" />
         </div>

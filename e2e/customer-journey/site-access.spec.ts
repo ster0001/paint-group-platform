@@ -25,52 +25,48 @@ test("site and access is asked, answered and remembered", async ({ page }) => {
   await driveNoPlanWizard(page);
   await openScopeEditor(page);
 
-  const card = page.getByTestId("access-card");
+  // Tom, 14 Sep (item 24): site & access is asked at the bottom, one question at a time,
+  // after the two "anything we've missed?" checks.
+  const card = page.getByTestId("missed-card");
   await expect(card).toBeVisible();
-  await expect(card).toContainText(/None of these are a problem/i);
+  await card.getByTestId("check-dw-ok").click();
+  await expect(card).toHaveAttribute("data-dw-done", "1", { timeout: 20_000 });
+  await card.getByTestId("check-rooms-ok").click();
+  await expect(card).toHaveAttribute("data-sweep-done", "1", { timeout: 20_000 });
 
-  // The plan's questions, all present.
-  for (const q of ["cleared", "stairwell", "parking"]) {
-    await expect(page.getByTestId(`access-${q}`)).toBeVisible();
-  }
-  // C10 (Tom, 10 Sep): pets and asbestos are not asked.
+  // The plan's questions, in order — and never pets, floors, a lift on a house, height or asbestos.
+  await expect(page.getByTestId("access-cleared")).toBeVisible();
   await expect(page.getByTestId("access-pets")).toHaveCount(0);
-  // A house is never asked about a lift booking (units and apartments only).
-  await expect(page.getByTestId("access-lift")).toHaveCount(0);
-  // Floors is gone: Tom prices it inside the empty/furnished allowance, and a
-  // question that changes nothing wastes the customer's patience.
   await expect(page.getByTestId("access-floors")).toHaveCount(0);
-
-  // Height and asbestos are NOT re-asked here — they belong to the details
-  // card and the policy ladder, and asking twice invites two answers.
   await expect(card).not.toContainText(/ceiling height/i);
   await expect(card).not.toContainText(/asbestos/i);
-
-  // Nothing is answered to begin with.
-  await expect(card).toContainText("0 OF 3");
-
   await page.getByTestId("access-cleared-no").click();
-  await expect(page.getByTestId("access-cleared-no")).toHaveAttribute("aria-pressed", "true");
-  await expect(card).toContainText("1 OF 3", { timeout: 30_000 });
-
+  await expect(page.getByTestId("access-stairwell")).toBeVisible({ timeout: 30_000 });
   await page.getByTestId("access-stairwell-yes").click();
+  await expect(page.getByTestId("access-parking")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("access-lift")).toHaveCount(0);
   await page.getByTestId("access-parking-drive").click();
-  await expect(card).toContainText("ANSWERED ✓", { timeout: 30_000 });
+  await expect(card.getByTestId("missed-card-settled")).toBeVisible({ timeout: 30_000 });
+  await expect(card).toContainText(/SETTLED/);
 
   // Changing an answer replaces it rather than adding a second.
+  await card.getByTestId("missed-card-change-access-cleared").click();
   await page.getByTestId("access-cleared-yes").click();
   await expect(page.getByTestId("access-cleared-yes")).toHaveAttribute("aria-pressed", "true", { timeout: 30_000 });
   await expect(page.getByTestId("access-cleared-no")).toHaveAttribute("aria-pressed", "false");
+  await card.getByTestId("missed-card-done").click();
 
   // And it survives a reload — the answers are on the server, not the tab.
-  // The chip lights optimistically, so the tap being pressed does NOT mean the
-  // save has landed. Wait for the editor's own "SAVING…" flag to clear, or the
-  // reload races the last write and the test flakes on a real bug it hasn't found.
   await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
   await page.reload();
   await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
+  const again = page.getByTestId("missed-card");
+  await expect(again.getByTestId("missed-card-settled")).toBeVisible({ timeout: 30_000 });
+  await again.getByTestId("missed-card-change-access-stairwell").click();
   await expect(page.getByTestId("access-stairwell-yes")).toHaveAttribute("aria-pressed", "true");
+  await again.getByTestId("missed-card-done").click();
+  await again.getByTestId("missed-card-change-access-cleared").click();
   await expect(page.getByTestId("access-cleared-yes")).toHaveAttribute("aria-pressed", "true");
 
-  await page.getByTestId("access-card").screenshot({ path: "test-results/site-access.png" });
+  await again.screenshot({ path: "test-results/site-access.png" });
 });

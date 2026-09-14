@@ -78,9 +78,9 @@ test("the footer line changes with the not-sures, and the offers appear at their
   // Answer whatever the details card asks (door style, window style, height,
   // shiny): each answer retires a not-sure, and once fewer than two remain the
   // line moves on.
+  // Tom, 14 Sep (item 5): one question at a time, in order.
   const details = page.getByTestId("details-card");
-  await details.locator(".il-hd").click().catch(() => undefined);
-  for (const name of ["Panel", "Casement", "2.7 m", "Oil based"]) {
+  for (const name of ["Panel", "No", "Oil based", "2.7 m"]) {
     const b = details.getByRole("button", { name, exact: true });
     if (await b.count()) { await b.first().click(); await page.waitForTimeout(800); }
   }

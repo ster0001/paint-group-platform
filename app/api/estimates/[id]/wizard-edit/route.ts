@@ -282,7 +282,16 @@ const actionSchema = z.discriminatedUnion("action", [
     action: z.literal("add_room"),
     roomType: z.string().min(1).max(60),
     name: z.string().min(1).max(120).optional(),
+    /** Tom, 14 Sep (item 29): the customer's own measurements, when they give them. */
+    lengthM: z.number().min(1).max(15).optional(),
+    widthM: z.number().min(1).max(15).optional(),
   }),
+  /** Tom, 14 Sep (item 15): "are we painting the window frames?" — every inside room follows the answer. */
+  z.object({ action: z.literal("set_windows_painted"), on: z.boolean() }),
+  /** Tom, 14 Sep (item 23): a plan garage is held back until the customer says whether it is painted. */
+  z.object({ action: z.literal("set_garage"), areaId: z.number().int().positive(), on: z.boolean() }),
+  /** Tom, 14 Sep (item 27/28): the last checks answer and confirm in ONE tap. */
+  z.object({ action: z.literal("iloop_check_done"), item: z.enum(["dw", "sweep"]) }),
   z.object({ action: z.literal("remove_room"), areaId: z.number().int().positive() }),
   /** "I've checked the plan-derived exterior widths" — clears the rule-2
    * flag on every Exterior node (Tom's ruling: derived widths are always
@@ -407,7 +416,7 @@ type ActionRefusal = { error: string; status: number };
  * they write events and a prep pack, so they are never swept into a batch
  * of scope edits. The client sends them alone; this is the server's half of
  * that rule. */
-const UNBATCHABLE = new Set(["accept_intent", "book_visit", "request_contact", "fix_online"]);
+const UNBATCHABLE = new Set(["accept_intent", "book_visit", "request_contact", "fix_online", "iloop_check_done", "set_windows_painted", "set_garage"]);
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -884,6 +893,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         return { error: "Nothing is selected for that room type on this job.", status: 422 };
       }
 
+      // Tom, 14 Sep (item 29): measurements typed with the room are the
+      // customer's own — the size question is answered before the card exists.
+      if (act.lengthM != null && act.widthM != null) {
+        for (const a of mergedRoom.areas as unknown as LooseBlock[]) {
+          a.L = act.lengthM; a.W = act.widthM;
+          a.origin = "customer_stated";
+          a.assumedFields = (Array.isArray(a.assumedFields) ? (a.assumedFields as string[]) : []).filter((f) => f !== "L" && f !== "W");
+          const cust = (a.customer && typeof a.customer === "object" ? a.customer : {}) as Record<string, unknown>;
+          a.customer = { ...cust, size: "adjusted" };
+        }
+      }
       blocks = [...blocks, ...(mergedRoom.areas as unknown as LooseBlock[])];
       // Only the questions raised by the rooms just added — matched by id, so
       // a name shared with an existing room can't cross-attach.
@@ -1411,6 +1431,42 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       }
     }
     if (act.action === "iloop_dw") interiorMeta = { ...interiorMeta, dwOk: act.ok ? true : null };
+    // Tom, 14 Sep (items 27, 28): "Nothing missed ✓" / "Confirm — nothing missing" answer and confirm together.
+    if (act.action === "iloop_check_done") {
+      interiorMeta = act.item === "dw"
+        ? { ...interiorMeta, dwOk: true, done: { ...interiorMeta.done, dw: true } }
+        : { ...interiorMeta, sweepAns: interiorMeta.sweepAns ?? "none", done: { ...interiorMeta.done, sweep: true } };
+    }
+    // Tom, 14 Sep (item 15): window frames on or off every inside room, and the ticks follow for rooms added later.
+    if (act.action === "set_windows_painted") {
+      const snap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);
+      const snapshot = snap.success ? snap.data : null;
+      let next = Math.max(0, ...blocks.flatMap((b) => [Number(b.id) || 0, ...(b.surfaces ?? []).map((s) => Number(s.id) || 0)])) + 1;
+      for (const b of blocks) {
+        if (b.kind !== "area" || b.type === "Exterior" || b.areaType === "surface" || b.isOption === true) continue;
+        const r = applyToggle(blocks, Number(b.id) || 0, "windows", act.on, snapshot, () => next++);
+        if (r.ok) blocks = r.blocks as LooseBlock[];
+      }
+      const wiz = state.wizard as { state?: Record<string, unknown> } | undefined;
+      if (wiz?.state) {
+        const details = (wiz.state.details && typeof wiz.state.details === "object" ? wiz.state.details : {}) as Record<string, unknown>;
+        wiz.state.details = { ...details, windowsPainted: act.on ? "yes" : "no" };
+        const surfaces = new Set(Array.isArray(wiz.state.surfaces) ? (wiz.state.surfaces as string[]) : []);
+        if (act.on) surfaces.add("windows"); else surfaces.delete("windows");
+        wiz.state.surfaces = [...surfaces];
+      }
+    }
+    // Tom, 14 Sep (item 23): the garage the plan showed — painted, or gone.
+    if (act.action === "set_garage") {
+      const g = blocks.find((b) => b.kind === "area" && Number(b.id) === act.areaId && Array.isArray(b.assumedFields) && (b.assumedFields as string[]).includes("garage"));
+      if (!g) return { error: "No garage is waiting on an answer.", status: 404 };
+      if (act.on) {
+        g.isOption = false;
+        g.assumedFields = (g.assumedFields as string[]).filter((f) => f !== "garage");
+      } else {
+        blocks = blocks.filter((b) => b !== g);
+      }
+    }
     if (act.action === "iloop_sweep") {
       if (act.add) {
         // Same rule as the exterior sweep: the NAME rides the amber flag, the

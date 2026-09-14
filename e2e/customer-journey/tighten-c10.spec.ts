@@ -107,14 +107,12 @@ test("one 'anything we've missed' card, extras per room, no pets, and the assume
   await expect(page.locator(".sc-rc[data-room] .il-confirm").first()).toBeVisible({ timeout: 60_000 });
   const estimateId = new URL(page.url()).searchParams.get("id")!;
 
-  // One card for the whole-job checks: doors & windows AND the missed rooms, each with its own confirm.
+  // One card for the last checks (Tom, 14 Sep): doors & windows first, one question at a time.
   const missed = page.getByTestId("missed-card");
-  await expect(missed).toContainText(/doors & windows/i);
+  await expect(missed).toContainText(/doors and \d+ windows/i);
   await expect(page.locator('[data-card="dw"]')).toHaveCount(0);
-  await missed.locator(".il-hd").click();
-  await expect(missed.getByRole("button", { name: /That.s right/ })).toBeVisible();
-  await expect(missed.getByRole("button", { name: /Confirm counts/ })).toBeVisible();
-  await expect(missed.getByRole("button", { name: /No — that.s everything/ })).toBeVisible();
+  await expect(missed.getByTestId("check-dw-ok")).toBeVisible();
+  await expect(missed.getByTestId("check-rooms-ok")).toHaveCount(0); // the rooms check waits its turn
 
   // Extras in this room: a feature wall becomes a review line pinned to the room.
   const areaId = await page.locator(".sc-rc[data-room]").first().getAttribute("data-room");
@@ -130,9 +128,8 @@ test("one 'anything we've missed' card, extras per room, no pets, and the assume
     }, { timeout: 30_000 }).toBe(true);
   }
 
-  // Site and access: no pets question (v2.5).
-  await expect(page.getByTestId("access-card")).toBeVisible();
-  await expect(page.getByTestId("access-card").getByText(/pets/i)).toHaveCount(0);
+  // Site and access lives in the last checks (Tom, 14 Sep, item 24): no pets question (v2.5).
+  await expect(missed).not.toContainText(/pets/i);
 });
 
 test("the quick look's condition screen has no free-text box", async ({ page }) => {

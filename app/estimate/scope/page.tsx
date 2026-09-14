@@ -111,6 +111,7 @@ export default async function ScopeEditorPage({
         customerSuburb={bundle.customerSuburb}
         initialCondition={bundle.initialCondition}
         initialAccess={bundle.initialAccess}
+        initialWindowsPainted={bundle.initialWindowsPainted}
         initialExtras={bundle.initialExtras}
         roomTypes={bundle.roomTypes}
         liveRange={bundle.liveRange}

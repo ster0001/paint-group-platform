@@ -46,6 +46,12 @@ test("doors and trims changing, then water over oil: the panel gains the underco
   // what is underneath.
   await page.getByTestId("door-tighten").click();
   await page.waitForURL(/\/estimate\/scope/, { timeout: 60_000 });
+  // Tom, 14 Sep (item 5): one question at a time — doors, then window frames, then the paint.
+  const detailsCard = page.getByTestId("details-card");
+  await expect(detailsCard).toBeVisible({ timeout: 60_000 });
+  if (await detailsCard.getByTestId("door-tile-panel").count()) await detailsCard.getByTestId("door-tile-panel").click();
+  await expect(detailsCard.getByTestId("details-windows-painted")).toBeVisible({ timeout: 30_000 });
+  await detailsCard.getByTestId("details-windows-painted").getByRole("button", { name: /^No/ }).click();
   const base = page.getByTestId("details-paint-base");
   await expect(base).toBeVisible({ timeout: 60_000 });
   const editorRange = page.locator(".sc-r").first();
@@ -54,7 +60,7 @@ test("doors and trims changing, then water over oil: the panel gains the underco
   await base.getByRole("button", { name: "Water based", exact: true }).click();
   const current = page.getByTestId("details-trims-current");
   await expect(current).toBeVisible({ timeout: 30_000 });
-  await expect(current).toContainText(/extra coats will apply/i);
+  await expect(page.getByTestId("details-card-step-trims_current")).toContainText(/extra coats will apply/i);
   await expect(base).toHaveCount(0);
   await current.getByRole("button", { name: "Currently oil based", exact: true }).click();
 
