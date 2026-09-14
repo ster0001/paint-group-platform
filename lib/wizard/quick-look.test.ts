@@ -108,6 +108,14 @@ describe("the eight answers map onto the engine's fields", () => {
     // "Needs work" is 2 on purpose — tier 3 is earned by a photographed spot
     // in the tighten stage, not claimed from a chip.
     expect(quickLookToState(q({ condition: "needs_work" })).details.damageTier).toBe(2);
+    // Tom, 15 Sep: a customer's "needs work" reaches the range with no photos
+    // and no note — the estimator checks the extra prep; internal mode still
+    // wants photos or a note.
+    const customer = quickLookToState(q({ condition: "needs_work" }), { ...defaultWizardState(), mode: "customer" });
+    expect(wizardStateSchema.safeParse(customer).success).toBe(true);
+    const internal = quickLookToState(q({ condition: "needs_work" }), { ...defaultWizardState(), mode: "internal" });
+    expect(wizardStateSchema.safeParse(internal).success).toBe(false);
+    expect(wizardStateSchema.safeParse({ ...internal, details: { ...internal.details, damageNote: "peeling above the shower" } }).success).toBe(true);
   });
 
   it("narrows the surfaces for the partial presets and not for 'some rooms'", () => {

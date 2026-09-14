@@ -142,15 +142,21 @@ it("pageForPath strips the route's 'state' prefix and maps customer fields to pa
   expect(pageForPath(["surfaces"])).toBe(2); // unprefixed still works
 });
 
-it("customer-mode damage tiers 2+ demand photos - a note is not evidence", () => {
+it("Tom, 15 Sep: a customer's damage tier 2+ is never refused — photos and the note are optional; internal mode wants photos or a note", () => {
   const s = { ...valid(), mode: "customer" as const, customer: { ...defaultCustomer(), email: "a@b.co", postcode: "3070", suburb: "Northcote", heritageListed: "no" as const, builtPre1970: "no" as const },
     details: { ...valid().details, damageTier: 3, damagePhotoCount: 0, damageNote: "old walls" } };
-  const r = wizardStateSchema.safeParse(s);
-  expect(r.success).toBe(false);
-  if (!r.success) expect(r.error.issues.some((i) => /needs photos/.test(i.message))).toBe(true);
-  // internal mode still accepts the note
+  // The photo box left the quick look in C10 while this check kept demanding
+  // photos — "needs work" could never reach a range. A customer's tier 2+ now
+  // parses with a note, with photos, or with neither (the merge flags it).
+  expect(wizardStateSchema.safeParse(s).success).toBe(true);
+  expect(wizardStateSchema.safeParse({ ...s, details: { ...s.details, damageNote: "" } }).success).toBe(true);
+  // Internal mode still accepts the note, and still refuses nothing at all.
   const internal = { ...s, mode: "internal" as const, customer: null };
   expect(wizardStateSchema.safeParse(internal).success).toBe(true);
+  const bare = { ...internal, details: { ...internal.details, damageNote: "" } };
+  const r = wizardStateSchema.safeParse(bare);
+  expect(r.success).toBe(false);
+  if (!r.success) expect(r.error.issues.some((i) => /needs photos, or a short description/.test(i.message))).toBe(true);
 });
 
 it("junk listing text neither validates nor waives the facade photos", () => {

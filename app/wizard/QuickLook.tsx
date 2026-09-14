@@ -61,7 +61,7 @@ export type CommercialQuickProps = {
 const BEDROOMS = [1, 2, 3, 4, 5];
 
 export default function QuickLook({
-  step, quick, onQuick, outside, onOutside, addressField, conditionBox, error, canContinue, busy, onBack, onNext, stepNo, stepsTotal,
+  step, quick, onQuick, outside, onOutside, addressField, needsWork, error, canContinue, busy, onBack, onNext, stepNo, stepsTotal,
   onBook, onChooseBoth, phone, commercial = null, assumed = [], planUpload = null,
   planRooms = null, planPreviewUrl = null, planPending = false, addedRooms = [], onAddRoom = () => undefined, onRemoveAdded = () => undefined,
 }: {
@@ -93,7 +93,8 @@ export default function QuickLook({
   /** The address input, wired by WizardApp (Places lookup + service area). */
   addressField: ReactNode;
   /** ⚑14's condition box, on the screen that asks about condition. */
-  conditionBox: ReactNode;
+  /** Tom, 15 Sep: under "Needs work" — optional photos and a description, and the estimator-check line. */
+  needsWork: { note: string; onNote: (v: string) => void; photoCount: number; onPhotos: () => void; onClearPhotos: () => void };
   error: string | null;
   canContinue: boolean;
   busy: boolean;
@@ -415,13 +416,34 @@ export default function QuickLook({
           <Cards options={CONDITION_BANDS} value={quick.condition} onPick={(condition) => onQuick({ condition })} name="condition" />
           {tag("condition")}
 
-          {/*
-            ⚑14, in its proper place: the three bands are a tap, and this is
-            where somebody says the thing a tap cannot carry — "peeling above
-            the shower". It reads as they type and asks for a photo of whatever
-            it heard. Optional, and never in the way of the Continue button.
-          */}
-          {conditionBox}
+          {/* Tom, 15 Sep: "Needs work" used to demand photos with nowhere to add
+              them (the box left in C10; the check stayed). Now: photos AND a
+              description, both optional, and the honest line about who prices
+              the extra preparation. */}
+          {quick.condition === "needs_work" && (
+            <div className="wz-follow wz-alt" data-testid="ql-needs-work">
+              <p className="wz-qhead">Which areas need work? <span className="wz-opt">OPTIONAL — PHOTOS, A FEW WORDS, OR BOTH</span></p>
+              <textarea
+                className="wz-brief" data-testid="ql-damage-note" rows={3} maxLength={600} value={needsWork.note}
+                onChange={(e) => needsWork.onNote(e.target.value)}
+                placeholder="e.g. peeling above the shower, a cracked wall in the hall, water mark on the lounge ceiling…"
+              />
+              <div className="wz-chips" style={{ marginTop: 8 }}>
+                <button type="button" className="wz-tile" data-testid="ql-damage-photos" onClick={needsWork.onPhotos}>
+                  {needsWork.photoCount > 0 ? `+ Add another photo` : `+ Add photos of the areas`}
+                </button>
+                {needsWork.photoCount > 0 && (
+                  <span className="wz-chint" data-testid="ql-damage-photo-count" style={{ alignSelf: "center" }}>
+                    {needsWork.photoCount} photo{needsWork.photoCount === 1 ? "" : "s"} ready to send{" "}
+                    <button type="button" className="wz-linkish" data-testid="ql-damage-photos-clear" onClick={needsWork.onClearPhotos}>Remove</button>
+                  </span>
+                )}
+              </div>
+              <p className="wz-chint" data-testid="ql-prep-check" style={{ marginTop: 8 }}>
+                Any areas that need extra preparation are checked by our estimator before they&rsquo;re priced.
+              </p>
+            </div>
+          )}
 
           <p className="wz-qhead">Will anyone be living there while we paint?</p>
           <Cards options={OCCUPIED} value={quick.occupied} onPick={(occupied) => onQuick({ occupied })} name="occupied" />

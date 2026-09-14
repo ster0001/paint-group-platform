@@ -529,12 +529,14 @@ export const wizardStateSchema = wizardStateShapeSchema.superRefine((s, ctx) => 
   // Damage tiers 2–3 need evidence: photos, or (internal mode only) a written
   // note so the estimator can price the prep honestly. Customer mode (Step 8)
   // is photos only, per the brief — a note from a customer cannot be priced.
-  if (s.jobType !== "exterior" && s.details.damageTier >= 2 && s.details.damagePhotoCount === 0) {
-    if (s.mode === "customer") {
-      ctx.addIssue({ code: "custom", path: ["details", "damageTier"], message: "Damage at this level needs photos — a quick phone shot of each area is perfect." });
-    } else if (s.details.damageNote.trim() === "") {
-      ctx.addIssue({ code: "custom", path: ["details", "damageTier"], message: "Damage at this level needs photos, or a short description." });
-    }
+  // Tom, 15 Sep: a CUSTOMER is never refused for tapping "Needs work" — the
+  // photo box left the quick look in C10 while this check kept demanding
+  // photos, so "See my guide range" answered "needs photos" with nowhere to
+  // add one. Photos and a description are offered, optional; the estimator
+  // checks any extra preparation before it is priced (the merge's flag).
+  if (s.mode !== "customer" && s.jobType !== "exterior" && s.details.damageTier >= 2 && s.details.damagePhotoCount === 0
+      && s.details.damageNote.trim() === "") {
+    ctx.addIssue({ code: "custom", path: ["details", "damageTier"], message: "Damage at this level needs photos, or a short description." });
   }
   // Exterior without a listing URL wants 2–3 facade photos before quoting
   // (business inputs §3) — UNLESS the customer explicitly chose the

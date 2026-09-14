@@ -1806,11 +1806,15 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 phone={companyPhone}
                 outside={outside}
                 onOutside={setOutside}
-                // C10 (v2.5): the condition free-text box is off the quick look —
-                // the bands answer the question, and anything unusual is pointed
-                // out per room with a photo on the tighten screen. The box still
-                // serves the describe route.
-                conditionBox={null}
+                // Tom, 15 Sep: under "Needs work" — the damage note and the
+                // damage photos (the same upload the submit already sends).
+                needsWork={{
+                  note: state.details.damageNote,
+                  onNote: (v) => set({ details: { ...state.details, damageNote: v } }),
+                  photoCount: state.details.damagePhotoCount,
+                  onPhotos: () => quickPhotoRef.current?.click(),
+                  onClearPhotos: () => { damageFilesRef.current = []; set({ details: { ...state.details, damagePhotoCount: 0 } }); },
+                }}
                 commercial={{
                   segments,
                   segmentKey: state.customer?.commercialSegment ?? null,

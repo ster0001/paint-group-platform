@@ -238,6 +238,13 @@ export default function Reveal({
           One of our estimators will look this over before any price is fixed.
         </p>
       )}
+      {/* Tom, 15 Sep: "needs work" is priced with the extra-prep allowance, and
+          the areas themselves are a person's call. */}
+      {quick.jobType !== "exterior" && quick.condition === "needs_work" && (
+        <p className="wz-reveal-flag" data-testid="reveal-prep-check">
+          Any areas that need extra preparation are checked by our estimator before they&rsquo;re priced.
+        </p>
+      )}
 
 
       {/* C11 (v2.4) — the person is in the screen: who confirms this price,

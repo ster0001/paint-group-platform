@@ -288,7 +288,8 @@ export function applyWizardAnswers(
   if (photoCount > 0) {
     deferred.push({
       room: "Whole job", areaId: null, what: PHOTO_REVIEW_WHAT, count: photoCount, kind: PHOTO_REVIEW_KIND,
-      needs: `${photoCount} condition photo${photoCount === 1 ? "" : "s"} attached — review them and price any extra preparation before send`,
+      needs: `${photoCount} condition photo${photoCount === 1 ? "" : "s"} attached — review them and price any extra preparation before send`
+        + (state.details.damageNote.trim() ? ` · customer says: "${state.details.damageNote.trim().slice(0, 160)}"` : ""),
     });
   }
   if (state.jobType !== "interior") {
