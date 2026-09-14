@@ -22,6 +22,8 @@ async function toEditor(page: import("@playwright/test").Page) {
   await quickNext(page);
   await quickNext(page); // the place, defaults
   await quickNext(page); // the job: every tile ticked
+  await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 }); // 14 Sep (evening): confirm the rooms
+  await quickNext(page);
   await expect(page.locator("[data-quick-step='condition']")).toBeVisible({ timeout: 30_000 });
   await quickNext(page);
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });

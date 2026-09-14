@@ -30,15 +30,19 @@ test("nine taps to a range, and no email is asked before it", async ({ page }) =
   await tap("ql-kind-house"); await tap("ql-bedrooms-3"); await tap("ql-storeys-single");
   await tap("ql-next");
   await expect(page.locator('input[type="email"]')).toHaveCount(0);
-  await tap("ql-scope-whole"); await tap("ql-changing-walls"); // C9: untick = same colour
+  await tap("ql-scope-whole"); await tap("ql-excl-none"); // 14 Sep (evening): the exclusions popup after a preset
+  await tap("ql-changing-walls"); // C9: untick = same colour
+  await tap("ql-next");
+  await expect(page.locator('input[type="email"]')).toHaveCount(0);
+  await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 }); // 14 Sep (evening): confirm the rooms
   await tap("ql-next");
   await expect(page.locator('input[type="email"]')).toHaveCount(0);
   await tap("ql-condition-good"); await tap("ql-occupied-no");
   await tap("ql-next");
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
-  // Eleven taps including the two Continues after the answers — nine answers
-  // and no email anywhere on the way.
-  expect(taps).toBeLessThanOrEqual(11);
+  // Thirteen taps including the Continues and the exclusions popup (Tom, 14 Sep
+  // evening: the rooms are confirmed before the gate) — and no email anywhere on the way.
+  expect(taps).toBeLessThanOrEqual(13);
   // The email exists only AFTER the range, behind "Keep this estimate".
   await expect(page.locator('input[type="email"]')).toHaveCount(0);
   await page.getByTestId("door-keep").click();
@@ -109,6 +113,9 @@ test("'both' meets the choice screen, then shows two ranges", async ({ page }) =
   await page.getByTestId("ql-kind-house").click();
   await quickNext(page);
   await page.getByTestId("ql-scope-whole").click();
+  await page.getByTestId("ql-excl-none").click(); // the exclusions popup after a preset (14 Sep evening)
+  await quickNext(page);
+  await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 }); // 14 Sep (evening): confirm the rooms
   await quickNext(page);
   await page.getByTestId("ql-condition-good").click();
   await quickNext(page);

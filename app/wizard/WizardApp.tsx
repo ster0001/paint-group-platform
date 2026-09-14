@@ -667,8 +667,17 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const kickRead = (runId: string) => {
     readsRef.current.push(
       fetch(`/api/extract/${runId}/read`, { method: "POST" })
-        .then((r) => {
-          if (!r.ok) setReadIssueCount((n) => n + 1);
+        .then(async (r) => {
+          if (!r.ok) { setReadIssueCount((n) => n + 1); return r; }
+          // Tom, 14 Sep (evening): the rooms the plan named, for the confirm step before the gate.
+          const j = await r.clone().json().catch(() => null) as { roomList?: Array<{ name: string; roomType: string; lengthM: number | null; widthM: number | null }>; previewUrl?: string | null } | null;
+          if (j?.roomList) {
+            setState((s) => {
+              const seen = new Set((s.planRooms ?? []).map((x) => x.name.toLowerCase()));
+              const fresh = (j.roomList ?? []).filter((x) => !seen.has(x.name.toLowerCase()));
+              return { ...s, planRooms: [...(s.planRooms ?? []), ...fresh], planPreviewUrl: s.planPreviewUrl ?? j.previewUrl ?? null };
+            });
+          }
           return r;
         })
         .catch(() => { setReadIssueCount((n) => n + 1); return null; }),
@@ -1435,8 +1444,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   function quickNext() {
     setError(null);
     // 14 Sep: "Some rooms" needs at least one room ticked.
-    if (quickStep === "rooms" && quick.rooms && quick.rooms.length === 0) {
-      setError("Tick at least one room — or go back and choose the whole interior.");
+    if (quickStep === "rooms" && quick.rooms && quick.rooms.length === 0 && state.addedRooms.length === 0) {
+      setError("Tick at least one room, or add one.");
       return;
     }
     // C16 (a): Continue on a screen confirms the fields the assistant filled in on it.
@@ -1749,6 +1758,12 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 step={quickStep}
                 quick={quick}
                 onQuick={setQuick}
+                planRooms={state.planRooms}
+                planPreviewUrl={state.planPreviewUrl}
+                planPending={state.planRunIds.length > 0 && state.planRooms == null}
+                addedRooms={state.addedRooms}
+                onAddRoom={(r) => set({ addedRooms: [...state.addedRooms, r] })}
+                onRemoveAdded={(i) => set({ addedRooms: state.addedRooms.filter((_, k) => k !== i) })}
                 assumed={state.assistant?.wrote ?? []}
                 planUpload={quick.jobType !== "exterior" ? (
                   <div className="wz-planupload" data-testid="ql-plan">

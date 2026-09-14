@@ -24,6 +24,8 @@ test("doors and trims changing, then water over oil: the panel gains the underco
   await expect(page.locator('[data-testid^="ql-colour-"]')).toHaveCount(0);
   await expect(page.getByTestId("ql-changing-trims")).toHaveAttribute("aria-pressed", "true");
   await quickNext(page);
+  await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 }); // 14 Sep (evening): confirm the rooms
+  await quickNext(page);
   await page.getByTestId("ql-condition-wear").click();
   await quickNext(page);
 
@@ -92,6 +94,8 @@ test("nothing ticked is the same colour: one coat on the walls, and no undercoat
     await page.getByTestId(`ql-changing-${k}`).click();
     await expect(page.getByTestId(`ql-changing-${k}`)).toHaveAttribute("aria-pressed", "false");
   }
+  await quickNext(page);
+  await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 }); // 14 Sep (evening): confirm the rooms
   await quickNext(page);
   await page.getByTestId("ql-condition-good").click();
   await quickNext(page);

@@ -312,7 +312,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "The quick basics are needed when there is no floorplan." }, { status: 400 });
     }
     // 14 Sep: "Some rooms" — only the rooms the customer ticked are seeded.
-    const list = state.quickLook?.scope === "some_rooms"
+    // Tom, 14 Sep (evening): the confirm step's ticks decide the starter rooms for every preset.
+    const list = state.quickLook?.rooms
       ? pickedRooms(starterRoomList(state.basics), state.quickLook.rooms)
       : starterRoomList(state.basics);
     const x = starterExtraction(list, typicals, {
@@ -413,6 +414,31 @@ export async function POST(request: Request) {
     // Plan-read rooms are often undimensioned (WC, bathroom, laundry): pre-size
     // them from their typicals, flagged to confirm (features #4 + #5).
     backfillTypicalSizes(areas, typicals);
+    // Tom, 14 Sep (evening): the confirm step's ticks — a room the customer
+    // unticked never reaches the price. A filter that would empty the list is ignored.
+    if (state.quickLook?.rooms && state.jobType !== "exterior") {
+      const keep = new Set(state.quickLook.rooms.map((n) => n.toLowerCase()));
+      const kept = areas.filter((a) => a.type === "Exterior" || keep.has(String(a.name).toLowerCase()));
+      if (kept.some((a) => a.type !== "Exterior")) {
+        const dropped = new Set(areas.filter((a) => !kept.includes(a)).map((a) => a.id));
+        areas.splice(0, areas.length, ...kept);
+        for (let i = deferred.length - 1; i >= 0; i--) if (deferred[i].areaId != null && dropped.has(Number(deferred[i].areaId))) deferred.splice(i, 1);
+      }
+    }
+  }
+  // Tom, 14 Sep (evening): rooms added on the confirm step — a type and a name, sized from the typicals.
+  if (state.addedRooms.length && state.jobType !== "exterior") {
+    const x = starterExtraction(
+      state.addedRooms.map((r) => ({ name: r.name, roomType: r.roomType, storey: "Ground" as const })),
+      typicals,
+      { heightM: height.assumed ? null : height.heightM, bedrooms: state.basics?.bedrooms ?? 0, sizeBand: state.basics?.sizeBand ?? null },
+    );
+    const draft = buildDraft(x, rules, aliases, { startId: nextId, defectRates });
+    markStarterProvenance(draft.areas);
+    areas.push(...draft.areas);
+    deferred.push(...draft.deferred);
+    assumedCount += draft.assumedCount;
+    nextId = Math.max(nextId, ...areas.flatMap((a) => [a.id, ...a.surfaces.map((s) => s.id)])) + 1;
   }
 
   // ---- facade photos: elevation readings for the envelope (E2) -------------

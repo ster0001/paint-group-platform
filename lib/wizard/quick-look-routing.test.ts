@@ -20,14 +20,14 @@ import type { CustomerPayload } from "@/lib/wizard/view";
 
 describe("9.3(b) · the promise is computed, never typed", () => {
   test("the count matches stepsFor on every branch", () => {
-    expect(stepsFor("interior")).toHaveLength(4);
+    expect(stepsFor("interior")).toHaveLength(5); // 14 Sep (evening): + confirm the rooms
     expect(stepsFor("exterior")).toHaveLength(3);
     // C8: "both" gains the choice screen (`s-both`), which asks nothing about
     // the job — so the walk is six screens and the promise still says five.
-    expect(stepsFor("both")).toHaveLength(6);
-    expect(stepCount("interior")).toBe("Four");
+    expect(stepsFor("both")).toHaveLength(7);
+    expect(stepCount("interior")).toBe("Five");
     expect(stepCount("exterior")).toBe("Three");
-    expect(stepCount("both")).toBe("Five");
+    expect(stepCount("both")).toBe("Six");
     // C12: a commercial place — the segment screen, then the two pattern
     // screens for an inside job. C14: outside and both walk the BRIEF and the
     // booking, as does a brief segment; a hospital leaves from the areas screen.

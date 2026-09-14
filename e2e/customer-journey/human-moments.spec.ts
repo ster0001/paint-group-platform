@@ -22,6 +22,8 @@ test("the estimator strip is on the reveal, the tighten screen and the finish li
   await page.getByTestId("ql-bedrooms-2").click();
   await quickNext(page);
   await quickNext(page);
+  await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 }); // 14 Sep (evening): confirm the rooms
+  await quickNext(page);
   await page.getByTestId("ql-condition-good").click();
   await quickNext(page);
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
@@ -64,6 +66,8 @@ test("the footer line changes with the not-sures, and the offers appear at their
   await page.getByTestId("ql-kind-house").click();
   await page.getByTestId("ql-bedrooms-2").click();
   await quickNext(page);
+  await quickNext(page);
+  await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 }); // 14 Sep (evening): confirm the rooms
   await quickNext(page);
   await page.getByTestId("ql-condition-wear").click();
   await quickNext(page);

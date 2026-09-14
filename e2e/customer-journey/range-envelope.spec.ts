@@ -54,6 +54,8 @@ test("the colour tiles follow the job preset and start ticked", async ({ page })
   // with — walls and ceilings only never ticks a door; the whole interior does.
   await page.getByTestId("ql-scope-walls_ceilings").click(); // no popup: nothing to exclude from walls and ceilings
   await quickNext(page);
+  await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 }); // 14 Sep (evening): confirm the rooms
+  await quickNext(page);
   await quickNext(page);
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   await page.getByTestId("door-tighten").click();
@@ -71,6 +73,8 @@ test("answering a detail question narrows the range and never lifts the low end 
   await fillQuickAddress(page);
   await quickNext(page);
   await quickNext(page);
+  await quickNext(page);
+  await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 }); // 14 Sep (evening): confirm the rooms
   await quickNext(page);
   await expect(page.locator("[data-quick-step='condition']")).toBeVisible({ timeout: 30_000 });
   await quickNext(page);

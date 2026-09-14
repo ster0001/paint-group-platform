@@ -186,9 +186,14 @@ export async function POST(_request: Request, { params }: { params: Promise<{ ru
     completed_at: new Date().toISOString(),
   }).eq("id", runId);
 
+  // Tom, 14 Sep (evening): the confirm step before the gate lists the rooms the
+  // plan named and shows the page — a signed preview, the customer's own upload.
+  const preview = await db.storage.from("estimate-sources").createSignedUrl(source.storage_path, 60 * 60 * 6).catch(() => null);
   return NextResponse.json({
     runId,
     usable: report.usable,
+    roomList: draft.areas.map((a) => ({ name: a.name, roomType: a.roomType, lengthM: a.L > 0 ? a.L : null, widthM: a.W > 0 ? a.W : null })),
+    previewUrl: preview?.data?.signedUrl ?? null,
     rooms: report.roomCount,
     dimensioned: report.dimensionedRooms,
     undimensioned: report.undimensionedRooms,

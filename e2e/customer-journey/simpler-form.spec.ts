@@ -54,6 +54,9 @@ test.describe("the quick look", () => {
     // "the same colours" means unticking all three.
     for (const k of ["walls", "ceilings", "trims", "windows"]) await page.getByTestId(`ql-changing-${k}`).click();
     await page.getByTestId("ql-next").click();
+    // 14 Sep (evening): confirm the rooms before the gate — the starter list, as it is.
+    await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId("ql-next").click();
 
     await expect(page.locator("[data-quick-step='condition']")).toBeVisible();
     await expect(page.getByTestId("ql-next")).toHaveText(/See my guide range/);

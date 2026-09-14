@@ -504,8 +504,10 @@ export type CommercialDoor = "range" | "brief" | "brief_after_areas";
  * branches END there; `quickNext` hands off rather than advancing.
  */
 export function stepsFor(jobType: QuickLook["jobType"], propertyKind: QuickLook["propertyKind"] = "house", pattern: CommercialPattern = "areas", door: CommercialDoor = "range", scope: ScopePreset = "whole"): QuickLookStep[] {
-  // 14 Sep: "Some rooms" promised "you'll pick which ones next" — this is where.
-  const rooms: QuickLookStep[] = scope === "some_rooms" ? ["rooms"] : [];
+  // 14 Sep (evening): every inside job confirms its rooms before the gate — the plan's rooms
+  // or the starter list, with add and remove. ("Some rooms" used to be the only one asked.)
+  void scope;
+  const rooms: QuickLookStep[] = ["rooms"];
   if (propertyKind === "commercial") {
     // C14: every commercial exterior, and every brief segment, walks the
     // brief and the booking; a hospital leaves from the areas screen.

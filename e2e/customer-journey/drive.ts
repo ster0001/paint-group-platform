@@ -87,6 +87,10 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
   if (opts.colour === "bold") await page.getByTestId("ql-bold-yes").click();
   await quickNext(page);
 
+  // 14 Sep (evening): confirm the rooms — the starter list, accepted as it is.
+  await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 });
+  await quickNext(page);
+
   // Screen 4 — condition.
   if (opts.condition) await page.getByTestId(`ql-condition-${opts.condition}`).click();
   if (opts.occupied) await page.getByTestId(`ql-occupied-${opts.occupied}`).click();

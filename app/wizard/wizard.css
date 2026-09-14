@@ -1150,3 +1150,10 @@
 .wz .sc-sizeconfirm .il-ql { margin: 0 0 8px; }
 
 .wz .sc-sizeconfirm-size { color: var(--cyan); }
+
+/* Tom, 14 Sep (evening): the confirm-rooms step — the plan preview and add-a-room. */
+.wz .wz-planpreview { margin: 0 0 12px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #fff; max-height: 260px; }
+.wz .wz-planpreview img { display: block; width: 100%; height: auto; max-height: 260px; object-fit: contain; }
+.wz .wz-addroom { margin-top: 12px; }
+.wz .wz-addroom-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.wz .wz-addroom-row .wz-field { flex: 1 1 180px; }

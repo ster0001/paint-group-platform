@@ -62,7 +62,15 @@ const BEDROOMS = [1, 2, 3, 4, 5];
 export default function QuickLook({
   step, quick, onQuick, outside, onOutside, addressField, conditionBox, error, canContinue, busy, onBack, onNext, stepNo, stepsTotal,
   onBook, onChooseBoth, phone, commercial = null, assumed = [], planUpload = null,
+  planRooms = null, planPreviewUrl = null, planPending = false, addedRooms = [], onAddRoom = () => undefined, onRemoveAdded = () => undefined,
 }: {
+  /** Tom, 14 Sep (evening): the confirm-rooms step — the plan's rooms (or the starter list), a preview, and the rooms added by hand. */
+  planRooms?: Array<{ name: string; roomType: string }> | null;
+  planPreviewUrl?: string | null;
+  planPending?: boolean;
+  addedRooms?: Array<{ name: string; roomType: string }>;
+  onAddRoom?: (room: { name: string; roomType: string }) => void;
+  onRemoveAdded?: (index: number) => void;
   /** Tom, 14 Sep: the floorplan / listing upload, on the place screen of an inside job. */
   planUpload?: ReactNode;
   /** C16 (a): the quick-look fields the assistant filled in from "describe it" — amber until confirmed. */
@@ -347,28 +355,47 @@ export default function QuickLook({
         </>
       )}
 
-      {step === "rooms" && (
-        <>
-          <p className="wz-kick">Which rooms</p>
-          <h1>Which rooms are we painting?</h1>
-          <p className="wz-sub">Tick the ones the job is about. Sizes come from typical rooms for now — you confirm each one after the range.</p>
-          <div className="wz-chips" data-testid="ql-rooms">
-            {starterRoomNames(quick).map((name, i) => {
-              const on = !quick.rooms || quick.rooms.includes(name);
-              return (
-                <button key={name} type="button" className={`wz-tile ${on ? "on" : ""}`} aria-pressed={on} data-testid={`ql-room-${i}`}
-                  onClick={() => {
-                    const all = starterRoomNames(quick);
-                    const cur = quick.rooms ?? all;
-                    const next = on ? cur.filter((n) => n !== name) : [...cur, name];
-                    onQuick({ rooms: next.length === all.length ? null : next });
-                  }}>{name}</button>
-              );
-            })}
-          </div>
-          {quick.rooms && quick.rooms.length === 0 && <p className="wz-err" data-testid="ql-rooms-none">Tick at least one room.</p>}
-        </>
-      )}
+      {step === "rooms" && (() => {
+        const fromPlan = planRooms != null && planRooms.length > 0;
+        const names = fromPlan ? planRooms.map((r) => r.name) : starterRoomNames(quick);
+        const isOn = (name: string) => !quick.rooms || quick.rooms.includes(name);
+        const toggle = (name: string) => {
+          const cur = quick.rooms ?? names;
+          const next = isOn(name) ? cur.filter((n) => n !== name) : [...cur, name];
+          onQuick({ rooms: next.length === names.length && names.every((n) => next.includes(n)) ? null : next });
+        };
+        return (
+          <>
+            <p className="wz-kick">{quick.scope === "some_rooms" ? "Which rooms" : "Confirm the rooms"}</p>
+            <h1>{quick.scope === "some_rooms" ? "Which rooms are we painting?" : "Please confirm the rooms we're painting"}</h1>
+            <p className="wz-sub">
+              {fromPlan
+                ? "These are the rooms we read off your floorplan. Untick any we're not painting, add any we missed — you confirm each one's size after the range."
+                : "From your answers — untick any we're not painting, add any we've missed. Sizes come from typical rooms for now; you confirm each one after the range."}
+            </p>
+            {planPending && !fromPlan && <p className="wz-chint" data-testid="ql-plan-reading">Still reading your floorplan — the list below is from your answers until it finishes.</p>}
+            {planPreviewUrl && (
+              <figure className="wz-planpreview" data-testid="ql-plan-preview">
+                {/* eslint-disable-next-line @next/next/no-img-element -- a signed, short-lived preview of the customer's own upload */}
+                <img src={planPreviewUrl} alt="Your floorplan" />
+              </figure>
+            )}
+            <div className="wz-chips" data-testid="ql-rooms">
+              {names.map((name, i) => {
+                const on = isOn(name);
+                return (
+                  <button key={name} type="button" className={`wz-tile ${on ? "on" : ""}`} aria-pressed={on} data-testid={`ql-room-${i}`} onClick={() => toggle(name)}>{name}</button>
+                );
+              })}
+              {addedRooms.map((r, i) => (
+                <button key={`added-${i}`} type="button" className="wz-tile on" aria-pressed data-testid={`ql-room-added-${i}`} title="Added by you — tap to remove" onClick={() => onRemoveAdded(i)}>{r.name} <span aria-hidden="true">×</span></button>
+              ))}
+            </div>
+            {quick.rooms && quick.rooms.length === 0 && addedRooms.length === 0 && <p className="wz-err" data-testid="ql-rooms-none">Tick at least one room, or add one.</p>}
+            <AddRoomInline onAdd={onAddRoom} />
+          </>
+        );
+      })()}
 
       {step === "condition" && (
         <>
@@ -588,6 +615,41 @@ function Cards<T extends string>({ options, value, onPick, name }: {
           {o.hint && <span>{o.hint}</span>}
         </button>
       ))}
+    </div>
+  );
+}
+
+/** Tom, 14 Sep (evening): "add a room" on the confirm step — a type and a name; the size comes from the typicals. */
+const ADD_ROOM_TYPES: Array<{ value: string; label: string }> = [
+  { value: "hallway", label: "Hallway" }, { value: "bedroom", label: "Bedroom" }, { value: "bathroom", label: "Bathroom" }, { value: "dining", label: "Dining" },
+  { value: "living", label: "Living" }, { value: "kitchen", label: "Kitchen" }, { value: "laundry", label: "Laundry" }, { value: "study", label: "Study" },
+  { value: "wc", label: "WC" }, { value: "storage", label: "Storage" }, { value: "garage", label: "Garage" },
+];
+function AddRoomInline({ onAdd }: { onAdd: (room: { name: string; roomType: string }) => void }) {
+  const [open, setOpen] = useState(false);
+  const [type, setType] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  return (
+    <div className="wz-addroom" data-testid="ql-add-room">
+      {!open ? (
+        <button type="button" className="wz-tile" data-testid="ql-add-room-open" onClick={() => setOpen(true)}>+ Add a room</button>
+      ) : (
+        <>
+          <p className="wz-qhead">Which kind of room?</p>
+          <div className="wz-chips">
+            {ADD_ROOM_TYPES.map((t) => (
+              <button key={t.value} type="button" className={`wz-tile ${type === t.value ? "on" : ""}`} aria-pressed={type === t.value} data-testid={`ql-add-room-type-${t.value}`}
+                onClick={() => { setType(t.value); if (!name) setName(t.label); }}>{t.label}</button>
+            ))}
+          </div>
+          <div className="wz-addroom-row">
+            <input className="wz-field" placeholder="Name it — e.g. Dining" maxLength={60} value={name} data-testid="ql-add-room-name" onChange={(e) => setName(e.target.value)} />
+            <button type="button" className="wz-btn" disabled={!type} data-testid="ql-add-room-go"
+              onClick={() => { if (!type) return; onAdd({ name: name.trim() || (ADD_ROOM_TYPES.find((t) => t.value === type)?.label ?? type), roomType: type }); setOpen(false); setType(null); setName(""); }}>Add it</button>
+            <button type="button" className="wz-linkish" onClick={() => setOpen(false)}>Cancel</button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

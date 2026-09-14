@@ -110,6 +110,15 @@ export const wizardStateShapeSchema = z.object({
   planRunIds: z.array(z.string().uuid()).max(40).default([]),
   /** Elevation/facade photo runs — stored for the envelope pipeline (E2). */
   facadeRunIds: z.array(z.string().uuid()).max(12).default([]),
+  /** Tom, 14 Sep (evening): the rooms the plan read named, kept so the confirm step can list them before the gate. */
+  planRooms: z.array(z.object({
+    name: z.string().max(60), roomType: z.string().max(40),
+    lengthM: z.number().nullable().default(null), widthM: z.number().nullable().default(null),
+  })).max(40).nullable().default(null),
+  /** A signed preview of the plan page, for the confirm step. */
+  planPreviewUrl: z.string().max(2000).nullable().default(null),
+  /** Rooms the customer added on the confirm step — a type and a name; sized from the typicals. */
+  addedRooms: z.array(z.object({ name: z.string().max(60), roomType: z.string().max(40) })).max(20).default([]),
   /** R5: the customer's OWN condition photos, kept without a plan run
    * (/api/extract/photos). They are already stored; these ids let submit
    * claim them for the estimate, so they show on the editor and cascade with
@@ -601,6 +610,9 @@ export function defaultWizardState(): WizardState {
     listingUrl: "",
     planRunIds: [],
     facadeRunIds: [],
+    planRooms: null,
+    planPreviewUrl: null,
+    addedRooms: [],
     conditionSourceIds: [],
     noPlan: false,
     basics: null,

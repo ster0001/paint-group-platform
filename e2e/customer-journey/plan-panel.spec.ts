@@ -39,7 +39,9 @@ test("the plan panel is big enough to read, and opens bigger still", async ({ pa
   await expect(page.getByTestId("ql-plan-upload")).toContainText(/Floorplan uploaded/i, { timeout: 240_000 });
   await expect(page.getByTestId("ql-plan-done")).toBeVisible();
   await quickNext(page); // the job
-  await quickNext(page); // the condition
+  // 14 Sep (evening): confirm the rooms — the plan's, once read; the starter list until then.
+  await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 });
+  await quickNext(page);
   await expect(page.locator("[data-quick-step='condition']")).toBeVisible({ timeout: 30_000 });
   await quickNext(page); // See my guide range — the plan's rooms, priced
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 240_000 });

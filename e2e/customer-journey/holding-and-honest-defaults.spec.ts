@@ -98,7 +98,7 @@ test.describe("holding page + honest defaults", () => {
 
     await openQuickLook(page);
     // Four screens, and not one of them asks about asbestos, lead or heritage.
-    for (const step of ["start", "place", "job", "condition"]) {
+    for (const step of ["start", "place", "job", "rooms", "condition"]) {
       if (step !== "start") await quickNext(page);
       else await fillQuickAddress(page);
       await expect(page.locator(`[data-quick-step='${step}']`)).toBeVisible();
@@ -127,10 +127,13 @@ test.describe("holding page + honest defaults", () => {
     await db!.from("settings").upsert({ key: "wizard_public", value: { ...DEFAULT_ONLINE_ESTIMATES, enabled: true } }, { onConflict: "key" });
     await driveNoPlanWizard(page);
     await expect(page.locator(".il-prog")).toHaveText(/0 OF \d+ ROOMS · 0 OF 2 CHECKS/);
-    // Open the sweep card directly and read its wording.
-    await page.locator('[data-card="sweep"] .il-hd').click();
+    // The last checks (14 Sep): doors & windows first, then the rooms check — its
+    // "Add room" form carries the room-type chips, and the wording never mentions a floorplan.
     const sweep = page.locator('[data-card="sweep"]');
+    await sweep.getByTestId("check-dw-ok").click();
+    await expect(sweep).toHaveAttribute("data-dw-done", "1", { timeout: 20_000 });
     await expect(sweep).not.toContainText(/floorplan/i);
-    await expect(sweep.getByRole("button", { name: "+ WC" })).toBeVisible();
+    await sweep.getByTestId("check-rooms-add").click();
+    await expect(sweep.getByTestId("add-room-type-wc")).toBeVisible();
   });
 });
