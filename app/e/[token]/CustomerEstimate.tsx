@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { reportIfError } from "@/lib/monitoring/report";
-import type { CustomerSnapshot, SnapshotPaint } from "@/lib/customer/snapshot";
+import { preparationLineFor, type CustomerSnapshot, type SnapshotPaint } from "@/lib/customer/snapshot";
 import { DEFAULT_DEPOSIT_PCT } from "@/lib/invoicing/settings";
 import PresentationBlocks from "./PresentationBlocks";
 import SignaturePad from "@/app/components/SignaturePad";
@@ -102,6 +102,7 @@ export default function CustomerEstimate({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
+  const preparation = useMemo(() => preparationLineFor(snap), [snap]);
   const optionsSubtotal = useMemo(
     () => snap.options.filter((o) => selected.has(o.id)).reduce((n, o) => n + o.priceCents, 0),
     [snap.options, selected],
@@ -432,6 +433,20 @@ export default function CustomerEstimate({
             <h2>Scope of works, item by item</h2>
             <p className="sub">Every surface, product and coat count, nothing hidden in fine print. Tap a room to see the detail.</p>
 
+            {/* The Preparation line first: the set-up / fillers / consumables allowance that is
+                part of the price — shown so the items below add up to the subtotal. */}
+            {preparation && (
+              <details className="room" key={preparation.id} data-testid="preparation-line">
+                <summary>
+                  <span className="room-name">{preparation.title}</span>
+                  <span className="room-meta"><span className="room-price">{money2(preparation.priceCents)}</span><span className="chev">▾</span></span>
+                </summary>
+                <div className="room-body">
+                  <div className="prep" style={{ marginTop: 14 }}><span dangerouslySetInnerHTML={{ __html: preparation.descriptionHtml }} /></div>
+                </div>
+              </details>
+            )}
+
             {snap.areas.map((a, i) => (
               <details className="room" key={a.id} open={i === 0}>
                 <summary>
@@ -747,6 +762,7 @@ function PrintQuote({
   const surfaceLine = (a: CustomerSnapshot["areas"][number]) =>
     a.surfaces.map((s) => `${s.label} (${s.coats} ${s.coats === 1 ? "coat" : "coats"}${s.product ? ` · ${s.product}` : ""})`).join("; ");
   const opts = snap.options.filter((o) => selectedIds.has(o.id));
+  const preparation = preparationLineFor(snap);
   return (
     <div className="printdoc">
       <div className="pd-head">
@@ -782,6 +798,15 @@ function PrintQuote({
       <table className="pd-table">
         <thead><tr><th>Description</th><th className="pd-amt">Amount (ex GST)</th></tr></thead>
         <tbody>
+          {preparation && (
+            <tr key={preparation.id}>
+              <td>
+                <div className="pd-item">{preparation.title}</div>
+                <div className="pd-sub">{preparation.descriptionHtml.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()}</div>
+              </td>
+              <td className="pd-amt">{money2(preparation.priceCents)}</td>
+            </tr>
+          )}
           {snap.areas.map((a) => (
             <tr key={a.id}>
               <td>

@@ -29,7 +29,7 @@ import type { BackTo } from "@/lib/navigation/backTo";
 import EstimateHeader from "./EstimateHeader";
 import RichTextEditor from "@/app/components/RichTextEditor";
 import CustomerEstimate from "@/app/e/[token]/CustomerEstimate";
-import { DEFAULT_PROOF, type CustomerSnapshot, type SnapshotArea, type SnapshotLine, type SnapshotPaint } from "@/lib/customer/snapshot";
+import { DEFAULT_PROOF, PREPARATION_DESCRIPTION, PREPARATION_ID, PREPARATION_TITLE, type CustomerSnapshot, type SnapshotArea, type SnapshotLine, type SnapshotPaint } from "@/lib/customer/snapshot";
 import { type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import WorkOrderDoc, { type WOEdit } from "@/app/w/WorkOrderDoc";
 import ColourPicker from "@/app/components/ColourPicker";
@@ -352,7 +352,7 @@ export default function QuoteBuilder({
     return g;
   }, [modifiers]);
 
-  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; materialColours?: Record<string, { name: string; hex: string }>; sheens?: Record<string, string>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null; contractorRateOverride?: number | null; aiDeferred?: AiDeferred[]; idealPainters?: number | null; colourMatches?: Record<string, ColourMatch>; photoReview?: PhotoReview | null } | null;
+  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; materialColours?: Record<string, { name: string; hex: string }>; sheens?: Record<string, string>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null; contractorRateOverride?: number | null; preparationOverrideCents?: number | null; aiDeferred?: AiDeferred[]; idealPainters?: number | null; colourMatches?: Record<string, ColourMatch>; photoReview?: PhotoReview | null } | null;
   // Deferred plan-reader decisions ride builder_state so the review gate can
   // price them; the builder carries them through saves — and, since 7 Sep,
   // RESOLVES one of them: the estimator's sign-off on the customer's photos.
@@ -457,6 +457,8 @@ export default function QuoteBuilder({
   // Calculations panel — a global $/hr override (blank = use the rate card) and a
   // percentage discount applied to the ex-GST subtotal (shown on the estimate).
   const [hourlyRateOverride, setHourlyRateOverride] = useState<number | null>(() => loaded?.hourlyRateOverride ?? null);
+  // The Preparation line's amount (cents) when the estimator has typed one; null = Settings default.
+  const [preparationOverrideCents, setPreparationOverrideCents] = useState<number | null>(() => loaded?.preparationOverrideCents ?? null);
   // What we pay the contractor per hour (margin only, never shown to the customer).
   // Blank falls back to the settings default.
   const [contractorRateOverride, setContractorRateOverride] = useState<number | null>(() => loaded?.contractorRateOverride ?? null);
@@ -812,8 +814,8 @@ export default function QuoteBuilder({
     [rateItems, products, modifiers, settings],
   );
   const adjustments: Adjustments = useMemo(
-    () => ({ modSel, materials, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride }),
-    [modSel, materials, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride],
+    () => ({ modSel, materials, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents }),
+    [modSel, materials, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents],
   );
   const rates = useMemo(() => resolveRates(pricingCtx, adjustments), [pricingCtx, adjustments]);
   // What is still assumed on this estimate, priced and ordered - the $150 gate.
@@ -850,6 +852,7 @@ export default function QuoteBuilder({
     return {
       subtotal: t.subtotalCents,
       sundries: t.sundriesCents,
+      sundriesDefault: t.sundriesDefaultCents,
       discountCents: t.discountCents,
       netSubtotal: t.netSubtotalCents,
       gst: t.gstCents,
@@ -870,10 +873,10 @@ export default function QuoteBuilder({
     if (!revision || !revisionBaseline) return null;
     const currentState = {
       blocks, modSel, materials, discountPct, discountMode, discountFixedCents,
-      hourlyRateOverride, contractorRateOverride,
+      hourlyRateOverride, contractorRateOverride, preparationOverrideCents,
     } as RevisionState;
     return diffRevision(revisionBaseline as RevisionState, currentState, pricingCtx);
-  }, [revision, revisionBaseline, blocks, modSel, materials, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, pricingCtx]);
+  }, [revision, revisionBaseline, blocks, modSel, materials, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, pricingCtx]);
 
   // How many photos each variation already carries — the revision panel's
   // send buttons are gated on this (a change goes out WITH a photo).
@@ -896,7 +899,7 @@ export default function QuoteBuilder({
   // presentationId is part of the fingerprint (3 Sep): ticking a presentation
   // used to leave the builder "Saved ✓", so nothing wrote it and the Estimate
   // tab kept showing the last published copy — without the presentation.
-  const builderFingerprint = JSON.stringify({ blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, aiDeferred, idealPainters, presentationId, photoReview });
+  const builderFingerprint = JSON.stringify({ blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, aiDeferred, idealPainters, presentationId, photoReview });
   useEffect(() => { if (!savedStateRef.current) savedStateRef.current = builderFingerprint; }, [builderFingerprint]);
   dirtyRef.current = () => Boolean(quoteId) && builderFingerprint !== savedStateRef.current;
   const unsaved = Boolean(savedStateRef.current) && builderFingerprint !== savedStateRef.current;
@@ -927,7 +930,7 @@ export default function QuoteBuilder({
       try {
         const result = await saveWorkingScopeAction({
           estimateId: quoteId,
-          state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, aiDeferred, idealPainters, photoReview },
+          state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, aiDeferred, idealPainters, photoReview },
         });
         setSaveMsg(result.ok ? "Saved ✓ (working scope)" : result.message);
       } finally {
@@ -959,7 +962,7 @@ export default function QuoteBuilder({
       // keys — the old fixed key list silently dropped builder_state.wizard
       // (the answers + proving snapshot), prepPack, sidesLoop and interiorLoop
       // on every staff save. Keys the builder owns still overwrite.
-      builder_state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, aiDeferred, idealPainters, photoReview, woDoc: computeWorkOrderDoc() },
+      builder_state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, aiDeferred, idealPainters, photoReview, woDoc: computeWorkOrderDoc() },
       share_token: token,
       presentation_id: presentationId,
       sent_snapshot: buildCustomerDoc(token),
@@ -1118,7 +1121,7 @@ export default function QuoteBuilder({
     try {
       const { data } = await supabase.from("settings").select("value").eq("key", "estimate_templates").maybeSingle();
       const list = Array.isArray(data?.value) ? (data!.value as unknown[]) : [];
-      const tpl = { id: crypto.randomUUID(), name: name.trim(), createdAt: new Date().toISOString(), builder_state: { blocks, modSel, contact, jobAddress, materials, materialColours, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride } };
+      const tpl = { id: crypto.randomUUID(), name: name.trim(), createdAt: new Date().toISOString(), builder_state: { blocks, modSel, contact, jobAddress, materials, materialColours, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents } };
       const { error } = await supabase.from("settings").upsert({ key: "estimate_templates", value: [...list, tpl] }, { onConflict: "key" });
       if (error) throw error;
       setSaveMsg("Template saved ✓");
@@ -1296,6 +1299,9 @@ export default function QuoteBuilder({
       gstRatePct: Math.round(gstRate * 100),
       depositPct,
       baseSubtotalCents: totals.subtotal,
+      preparation: totals.sundries > 0
+        ? { id: PREPARATION_ID, title: PREPARATION_TITLE, descriptionHtml: `<p>${PREPARATION_DESCRIPTION}</p>`, priceCents: totals.sundries }
+        : null,
       areas, lineItems: lineItemsDoc, options,
       paints: computePaints(),
       inclusions: inclusions.map((t) => t.trim()).filter(Boolean),
@@ -1871,13 +1877,14 @@ export default function QuoteBuilder({
               amount_ex_cents: cents, source: "estimate_snapshot", qty: null, approved_on: null,
             });
             const sheetLines: SheetLine[] = [
+              ...(snap.preparation ? [asLine(snap.preparation.title, snap.preparation.descriptionHtml, snap.preparation.priceCents)] : []),
               ...snap.areas.map((a) => asLine(a.title, a.descriptionHtml, a.priceCents)),
               ...snap.lineItems.map((l) => asLine(l.title, l.descriptionHtml, l.priceCents)),
             ];
             const linesSum = sheetLines.reduce((n, l) => n + l.amount_ex_cents, 0);
             const sundriesResidual = snap.baseSubtotalCents - linesSum;
             if (sundriesResidual > 0) {
-              sheetLines.push({ description: "Sundries & consumables", amount_ex_cents: sundriesResidual, source: "estimate_snapshot", qty: null, approved_on: null });
+              sheetLines.push({ description: PREPARATION_TITLE, amount_ex_cents: sundriesResidual, source: "estimate_snapshot", qty: null, approved_on: null });
             }
             if (totals.discountCents > 0) {
               sheetLines.push({ description: "Discount", amount_ex_cents: -totals.discountCents, source: "adjustment", qty: null, approved_on: null });
@@ -2297,6 +2304,18 @@ export default function QuoteBuilder({
               )}
               {/* Each area/line is a closed folder — click to open it (drag the grip
                   to reorder); in customer view it's the read-only document card. */}
+              {/* The Preparation line sits above every area and line item (Tom, 15 Sep 2026):
+                  the per-job allowance for set-up, fillers and consumables — always in the
+                  subtotal, now visible, and editable here (blank = the Settings default). */}
+              {(totals.sundries > 0 || !customerView) && (
+                <PreparationCard
+                  priceCents={totals.sundries}
+                  defaultCents={totals.sundriesDefault}
+                  overrideCents={preparationOverrideCents}
+                  customerView={customerView}
+                  onCommit={setPreparationOverrideCents}
+                />
+              )}
               {mainBlocks.filter(visibleToCustomer).map((b) => (customerView ? renderSummary(b) : renderDraggable(b)))}
 
               {optionBlocks.filter(visibleToCustomer).length > 0 && (
@@ -2408,6 +2427,7 @@ export default function QuoteBuilder({
           <div className="rounded-xl border border-gray-200 bg-white p-4">
             <h2 className="text-sm font-semibold">Quote</h2>
             <dl className="mt-3 space-y-1.5 text-sm">
+              <Row label="Preparation" value={fmt(totals.sundries)} muted />
               <Row label="Subtotal" value={fmt(totals.subtotal)} />
               <Row label={`GST (${Math.round(gstRate * 100)}%)`} value={fmt(totals.gst)} muted />
               <div className="flex justify-between border-t border-gray-200 pt-2 text-base font-semibold">
@@ -3214,6 +3234,49 @@ function AreaCard({
 // The customer-facing card for an area or line: title + description + price.
 // This is exactly what the customer sees; staff get edit controls below it,
 // which vanish in customer view (and when the estimate is sent).
+/** The pinned Preparation line: title + wording fixed, amount editable in build mode. */
+function PreparationCard({ priceCents, defaultCents, overrideCents, customerView, onCommit }: {
+  priceCents: number;
+  defaultCents: number;
+  overrideCents: number | null;
+  customerView: boolean;
+  onCommit: (cents: number | null) => void;
+}) {
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-4" data-testid="preparation-line">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="font-medium">{PREPARATION_TITLE}</div>
+          <div className="mt-1 text-sm text-gray-600">{PREPARATION_DESCRIPTION}</div>
+        </div>
+        {customerView ? (
+          <div className="whitespace-nowrap text-right text-base font-semibold tabular-nums">{fmt(priceCents)}</div>
+        ) : (
+          <label className="flex shrink-0 items-center gap-1 text-base font-semibold tabular-nums">
+            <span className="text-gray-400">$</span>
+            <NumInput
+              min={0} step={1}
+              value={overrideCents == null ? null : Math.round(overrideCents) / 100}
+              placeholder={(defaultCents / 100).toFixed(0)}
+              onCommit={(n) => onCommit(n == null ? null : Math.round(n * 100))}
+              className="w-24 rounded-md border border-gray-300 px-2 py-1 text-right text-base font-semibold tabular-nums"
+              aria-label="Preparation amount (ex GST)"
+              data-testid="preparation-amount"
+            />
+          </label>
+        )}
+      </div>
+      {!customerView && (
+        <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+          {overrideCents == null
+            ? <span>Settings default for this job ({fmt(defaultCents)}). Type an amount to change it for this estimate only.</span>
+            : <><span>Your figure — the Settings default is {fmt(defaultCents)}.</span><button type="button" onClick={() => onCommit(null)} className="underline hover:text-gray-800" data-testid="preparation-reset">Use default</button></>}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function BlockSummary({
   title, descriptionHtml, priceCents, isOption, customerView, onOpen, onToggleOption, onDuplicate, onRemove,
 }: {

@@ -200,6 +200,18 @@ test("sundries are added once per job, per interior/exterior, not per area", () 
   assert.equal(priceEstimateTotals(mixed, ctx, adj).sundriesCents, 13000, "interior + exterior");
 });
 
+test("the Preparation line: an estimator override replaces the Settings sundries, blank restores it", () => {
+  const base = priceEstimateTotals(oneWall, ctx, adj);
+  assert.equal(base.sundriesDefaultCents, 5000);
+  assert.equal(base.sundriesCents, 5000);
+  const over = priceEstimateTotals(oneWall, ctx, { ...adj, preparationOverrideCents: 12345 });
+  assert.equal(over.sundriesCents, 12345, "override is the line");
+  assert.equal(over.sundriesDefaultCents, 5000, "default still reported for the hint");
+  assert.equal(over.subtotalCents - base.subtotalCents, 7345, "subtotal moves by the difference");
+  assert.equal(priceEstimateTotals(oneWall, ctx, { ...adj, preparationOverrideCents: null }).sundriesCents, 5000, "null = default");
+  assert.equal(priceEstimateTotals(oneWall, ctx, { ...adj, preparationOverrideCents: -5 }).sundriesCents, 0, "never negative");
+});
+
 test("options are excluded from the total until accepted", () => {
   const withOption = [...oneWall, area({ isOption: true, surfaces: [surface()] })];
   assert.equal(
