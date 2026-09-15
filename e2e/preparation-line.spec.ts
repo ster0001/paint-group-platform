@@ -81,7 +81,12 @@ test.describe("the Preparation line", () => {
     legacyId = legacy.data.id;
   });
   test.afterAll(async () => {
-    for (const id of [builtId, legacyId]) if (id) await db!.from("estimates").delete().eq("id", id);
+    for (const id of [builtId, legacyId]) {
+      if (!id) continue;
+      await db!.from("invoices").delete().eq("estimate_id", id);
+      await db!.from("work_orders").delete().eq("estimate_id", id);
+      await db!.from("estimates").delete().eq("id", id);
+    }
   });
 
   test("builder: shown first with the Settings default, editable, saved into the state and the snapshot", async ({ page }) => {
@@ -141,6 +146,33 @@ test.describe("the Preparation line", () => {
     await page.screenshot({ path: test.info().outputPath("customer.png"), fullPage: true });
     await page.locator("details.room").first().locator("summary").click();
     await expect(page.locator("details.room").first()).toContainText(PREPARATION_DESCRIPTION);
+  });
+
+  test("final invoice: the Preparation line is the first line, with the customer wording", async () => {
+    // Accept the built estimate (the deposit invoice drafts on acceptance), then
+    // draft the final — the same DB function sign-off uses (migration 20270146).
+    const accepted = await db!.rpc("accept_estimate", { p_token: builtToken, p_name: "Prep E2E", p_options: [], p_total_cents: 0, p_deposit_cents: 0 });
+    expect(accepted.data).toBe("accepted");
+    const drafted = await db!.rpc("invoice_draft_final", { p_estimate_id: builtId });
+    expect(String(drafted.data)).toMatch(/^ok:/);
+    const invoiceId = String(drafted.data).slice(3);
+    const { data: lines } = await db!.from("invoice_lines").select("sort, source, source_ref, description, amount_ex_cents").eq("invoice_id", invoiceId).order("sort");
+    expect(lines?.[0]).toMatchObject({ source: "estimate_snapshot", source_ref: "preparation", amount_ex_cents: 30000 });
+    expect(lines?.[0]?.description).toBe(`Preparation — ${PREPARATION_DESCRIPTION}`);
+    expect(lines?.[1]?.description).toMatch(/^Living room/);
+    expect(lines?.some((l) => /sundries/i.test(l.description))).toBe(false);
+  });
+
+  test("builder, accepted (locked) estimate: the Preparation line is still shown at the top", async ({ page }) => {
+    await signIn(page, staff!, /\/estimates/);
+    await page.goto(`/quote?id=${builtId}`);
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByText("Accepted · locked")).toBeVisible();
+    const card = page.getByTestId("preparation-line");
+    await expect(card).toBeVisible();
+    await expect(page.getByTestId("preparation-amount")).toHaveValue("300");
+    await expect(card).toContainText(PREPARATION_DESCRIPTION);
+    await page.screenshot({ path: test.info().outputPath("builder-accepted.png") });
   });
 
   test("customer page: a snapshot sent before the line existed derives it, so old quotes add up too", async ({ page }) => {
