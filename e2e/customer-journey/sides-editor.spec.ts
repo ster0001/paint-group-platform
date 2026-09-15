@@ -44,7 +44,7 @@ async function driveExteriorWizard(page: Page) {
 }
 
 test("R2b sides loop: amber to cyan, walls must total 100%, a removed side leaves (15 Sep), the loop tracks what remains", async ({ page }) => {
-  test.setTimeout(360_000); // 15 Sep: the right side comes off, back on (rebuilt), and off again — three more round trips
+  test.setTimeout(300_000);
   page.on("response", async (r) => {
     if (r.url().includes("wizard-edit") && r.status() >= 400) {
       console.log("EDIT-FAIL", r.status(), (await r.text().catch(() => "")).slice(0, 160));
@@ -114,29 +114,15 @@ test("R2b sides loop: amber to cyan, walls must total 100%, a removed side leave
   await left.getByRole("button", { name: /Confirm left/i }).click();
   await expect(left).toHaveClass(/done/, { timeout: 15_000 });
 
-  // RIGHT: Tom, 15 Sep — a side taken off LEAVES the estimate (it used to
-  // stay as NOT PAINTING, an exclusion on the quote). 15 Sep (late): the
-  // "Which sides?" card is gone; "+ Add the right side" under the last checks
-  // brings it back — rebuilt from its opposite, the left — and off again.
+  // RIGHT: Tom, 15–16 Sep — the × on the header deletes a side like a room,
+  // and it LEAVES the estimate for good: no chip, no card, no way back.
   // (data-side, not hasText: "is that right?" in the last checks matches "Right".)
   const right = page.locator('[data-side="right"]');
-  await right.locator(".sd-hd").click();
-  await right.getByRole("button", { name: /No — remove this side/ }).click();
+  await right.getByTestId("side-delete-right").click();
   await expect(right).toHaveCount(0, { timeout: 20_000 });
   await expect(page.locator(".sd-prog")).toContainText("OF 7");
   await expect(page.getByTestId("sides-which")).toHaveCount(0);
-
-  await page.getByTestId("missing-sides").getByRole("button", { name: /Add the right side/ }).click();
-  await expect(right).toHaveCount(1, { timeout: 20_000 });
-  await expect(page.locator(".sd-prog")).toContainText("OF 8");
-  await expect(right.locator(".sd-pill")).toContainText(/CONFIRM THIS SIDE/);
-  // Left was typed at 14 × 2.6 — the rebuilt right mirrors it, pre-written and still orange.
-  await right.locator(".sd-hd").click();
-  await expect(right.getByTestId("side-assumed-right")).toContainText(/Same as the left/i);
-  await expect(right.getByPlaceholder("length m")).toHaveValue("14");
-  await right.getByTestId("side-remove-right").click();
-  await expect(right).toHaveCount(0, { timeout: 20_000 });
-  await expect(page.locator(".sd-prog")).toContainText("OF 7");
+  await expect(page.getByRole("button", { name: /Add the right side/ })).toHaveCount(0);
 
   // BACK: not-sure length is accepted — "we'll measure" widens the range.
   // data-side, not hasText: the questions block has a "← Back" link.

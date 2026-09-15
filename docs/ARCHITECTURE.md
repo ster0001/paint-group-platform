@@ -3445,8 +3445,8 @@ answer writes `modSel.Condition`; the submit schema no longer requires it. On th
 peeling sides (with `PeelingPhotos.tsx`, labelled "Peeling & flaking"), timber rot anywhere and
 where, and access are a `Paginated` block at the top that confirms the loop item itself on the last
 answer; the counts check and the last check are a second block at the bottom, each confirmed by a
-tick box. A side unticked before the gate is not on the screen at all; the last check offers
-"+ Add the …" to bring one back, and "Remove it" now shows on confirmed sides too. The sides-loop
+tick box. A side unticked before the gate is not on the screen at all and cannot come back (Tom, 16 Sep);
+every side card header carries an × that deletes the side, confirmed or not, like a room. The sides-loop
 meta carries `peelingSides`, `peelingPhotos` and `rotWhere` (`loop_cond`), which reword the amber
 deferrals so the estimator reads where. The "Upload photos or a listing" door left screen 1; the
 page set behind it answers to `/estimate?entry=upload` (the specs use it).

@@ -1170,3 +1170,6 @@
 .wz .sd-checkrow input { width: 18px; height: 18px; accent-color: var(--cyan); cursor: pointer; }
 .wz .sd-checkrow:has(input:checked) { border-color: var(--cyan); background: rgba(59,216,233,.07); }
 .wz .sd-peelphotos { margin-top: 10px; }
+
+/* Tom, 16 Sep: the × that deletes a side, on the card header like a room. */
+.wz .sd-xhd { margin-left: 8px; }

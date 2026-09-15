@@ -601,7 +601,7 @@ export default function QuickLook({
               })}
             </div>
             {chosen.length === 0 && <p className="wz-err" data-testid="ql-sides-none">Tick at least one side.</p>}
-            <p className="wz-chint" style={{ marginTop: 10 }}>A side you leave off won&rsquo;t be on your estimate at all. You can add it back later if you change your mind.</p>
+            <p className="wz-chint" style={{ marginTop: 10 }}>A side you leave off won&rsquo;t be on your estimate at all.</p>
           </>
         );
       })()}

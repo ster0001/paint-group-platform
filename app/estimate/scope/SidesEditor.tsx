@@ -362,6 +362,11 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
             </b>
           )}
           <span className="sd-pill">{pill}</span>
+          {/* Tom, 16 Sep: a side is deleted the way a room is — the × on the
+              header, whatever state the card is in. There is no way back: a
+              deleted side leaves the estimate for good (Tom's ruling). */}
+          <button type="button" className="sd-x sd-xhd" data-testid={`side-delete-${s.key}`} aria-label={`Remove ${s.label}`}
+            onClick={(e) => { e.stopPropagation(); act({ action: "side_include", side: s.key, include: false }, { done: `${s.label} taken off your estimate.`, onOk: openNext }); }}>×</button>
         </div>
         {isOpen && (
           <div className="sd-body">
@@ -652,19 +657,6 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
               </>
             )}
 
-            {/* Tom, 15 Sep (late, item 5): a side can be removed after it is
-                confirmed too — it used to lose the link the moment it was ticked. */}
-            {s.include === true && (
-              <p className="sd-help">
-                Not painting this side after all?{" "}
-                <button type="button" className="wz-linkish" data-testid={`side-remove-${s.key}`}
-                  onClick={() => act({ action: "side_include", side: s.key, include: false }, {
-                    done: `${s.label} taken off your estimate.`, onOk: openNext, opt: [`which:${s.key}`, "0"],
-                  })}>
-                  Remove it
-                </button>
-              </p>
-            )}
             {s.include !== false && (
               <button
                 className="sd-confirm"
@@ -854,7 +846,6 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
   ].join(" · ") + ".";
 
   // ---- Tom, 15 Sep (late, items 9–10): the last checks, one at a time --------
-  const missingSides = SIDE_KEYS.filter((k) => !sides.sides.some((sd) => sd.key === k));
   const lastSteps: PaginatedStep[] = [
     {
       key: "dw", label: "Windows & doors", answered: m.done.dw,
@@ -1108,20 +1099,6 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
               cardClass={`sd-card ${m.done.dw && m.done.sweep ? "done" : ""}`}
               attrs={{ "data-side": "last" }}
               settledText="Counts confirmed, nothing missing."
-              after={missingSides.length > 0 ? (
-                // Tom, 15 Sep (late, item 4): a side left off before the gate is not on
-                // this screen — this is the one place it can come back from, whatever
-                // question is open.
-                <div className="sd-q" data-testid="missing-sides" style={{ marginTop: 10 }}>
-                  <p className="sd-help">Not on your estimate: {missingSides.map((k) => SIDE_FALLBACK[k].toLowerCase()).join(", ")}. Changed your mind?</p>
-                  <div className="sd-chips">
-                    {missingSides.map((k) => (
-                      <Chip key={k} on={false} label={`+ Add the ${SIDE_FALLBACK[k].toLowerCase()}`}
-                        onClick={() => act({ action: "side_include", side: k, include: true }, { done: `${SIDE_FALLBACK[k]} is back on — confirm its size above.`, onOk: openNext })} />
-                    ))}
-                  </div>
-                </div>
-              ) : undefined}
             />
           </div>
         </div>
