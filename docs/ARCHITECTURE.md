@@ -3416,3 +3416,17 @@ filter is applied on the estimates page alone (`app/(app)/estimates/page.tsx`), 
 the item and the badge keeps counting it. `WaitingTable.tsx` went client-side for the ticks; the
 rows are still whatever the evaluator said. Removal is optimistic with an Undo, matching the
 estimates table's delete. A key that re-fires under a new discriminator is a new fact and reappears.
+
+### CRM Today: a sent quote gone quiet is a follow-up (Tom, 15 Sep 2026)
+
+"Ensure sent quote reminders go into the CRM to be followed up — I can't see all of them in there."
+They were not there: `followup_due` was registered in `lib/crm/work-queue.ts` (weight, group, key
+shape, tests) but never given a source, so the only sent quote Today ever showed was one that had
+already lapsed. The board's "Chase due" flag in `lib/crm/stage.ts` knew the rule; the queue did not.
+`buildQuietQuoteItems` now applies the same Settings → CRM thresholds (`chaseUnopenedDays`,
+`chaseOpenedDays`, `goingColdDays`) to every quote sent in the last 90 days, measured from the last
+touch (the send, or the latest logged call / message after it — `CHASE_EVENT_TYPES`, shared with
+the lapsed source). One item per customer, the newest quote. Each quiet cycle is a new key
+(`quiet-<anchor day>`, escalating to `cold-…`), so a dismissal never silences the next round.
+Automated campaign messages are deliberately not a touch. Migration `20270148` adds the partial
+index the read needs (`estimates (sent_at desc) where status = 'sent'`).

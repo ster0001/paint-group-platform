@@ -11,6 +11,7 @@ import {
   buildDelayEndedItems,
   suppressQuiet,
   type DelayedAccountRow,
+  buildQuietQuoteItems, type QuietQuoteRow, estimatesPageItems,
 } from "./work-queue";
 
 /** Mid-afternoon Melbourne, mid-week. Every test pins its own clock. */
@@ -348,5 +349,87 @@ describe("P7 — scope and grouping", () => {
     const q = assembleQueue([], [], NOW7, ["invoices"]);
     expect(q.counts.truncated).toEqual(["invoices"]);
     expect(assembleQueue([], [], NOW7).counts.truncated).toEqual([]);
+  });
+});
+
+describe("followup_due — a quote out with the customer, gone quiet (Tom, 15 Sep)", () => {
+  const T = { chaseUnopenedDays: 3, chaseOpenedDays: 5, goingColdDays: 14 };
+  const iso = (daysAgo: number) => new Date(NOW.getTime() - daysAgo * 86_400_000).toISOString();
+  const quote = (over: Partial<QuietQuoteRow> = {}): QuietQuoteRow => ({
+    id: "e1", title: "12 Smith St", account_id: "a1", status: "sent", sent_at: iso(4), created_at: iso(4),
+    viewed_at: null, total_cents: 480_000, ...over,
+  });
+  const names = new Map([["a1", "Sarah"]]);
+
+  it("an unopened quote fires at chaseUnopenedDays, not before", () => {
+    expect(buildQuietQuoteItems([quote({ sent_at: iso(2) })], [], names, T, NOW)).toHaveLength(0);
+    const [item] = buildQuietQuoteItems([quote({ sent_at: iso(3) })], [], names, T, NOW);
+    expect(item.kind).toBe("followup_due");
+    expect(item.title).toBe("Sarah — quote sent, no reply");
+    expect(item.detail).toContain("never opened");
+    expect(item.detail).toContain("$4,800");
+    expect(item.valueCents).toBe(480_000);
+    expect(item.action.href).toBe("/crm/customers/a1");
+    expect(item.accountId).toBe("a1");
+  });
+
+  it("an opened quote waits for chaseOpenedDays", () => {
+    expect(buildQuietQuoteItems([quote({ viewed_at: iso(3), sent_at: iso(4) })], [], names, T, NOW)).toHaveLength(0);
+    const [item] = buildQuietQuoteItems([quote({ viewed_at: iso(3), sent_at: iso(5) })], [], names, T, NOW);
+    expect(item.detail).toContain("opened");
+  });
+
+  it("a logged call after the send resets the clock — and the next round is a new key", () => {
+    const untouched = buildQuietQuoteItems([quote({ sent_at: iso(10) })], [], names, T, NOW)[0];
+    // Called two days ago: quiet for 2 < 3, nothing to chase yet.
+    expect(buildQuietQuoteItems([quote({ sent_at: iso(10) })], [{ account_id: "a1", occurred_at: iso(2) }], names, T, NOW)).toHaveLength(0);
+    // Called four days ago: quiet again, and under a different key than the first round.
+    const again = buildQuietQuoteItems([quote({ sent_at: iso(10) })], [{ account_id: "a1", occurred_at: iso(4) }], names, T, NOW)[0];
+    expect(again).toBeDefined();
+    expect(again.key).not.toBe(untouched.key);
+    expect(again.detail).toContain("last contact 4d ago");
+    // The send's own event, logged seconds after sent_at, is not a follow-up.
+    const sendEvent = buildQuietQuoteItems([quote({ sent_at: iso(4) })], [{ account_id: "a1", occurred_at: new Date(new Date(iso(4)).getTime() + 5000).toISOString() }], names, T, NOW)[0];
+    expect(sendEvent.detail).toContain("no follow-up since");
+    // A call BEFORE the send is not a follow-up to it.
+    expect(buildQuietQuoteItems([quote({ sent_at: iso(4) })], [{ account_id: "a1", occurred_at: iso(6) }], names, T, NOW)).toHaveLength(1);
+  });
+
+  it("escalates to 'going cold' at goingColdDays, under its own key", () => {
+    const warm = buildQuietQuoteItems([quote({ sent_at: iso(13) })], [], names, T, NOW)[0];
+    const cold = buildQuietQuoteItems([quote({ sent_at: iso(14) })], [], names, T, NOW)[0];
+    expect(warm.title).toBe("Sarah — quote sent, no reply");
+    expect(cold.title).toBe("Sarah's quote is going cold");
+    expect(cold.key.startsWith("followup_due:estimate:e1:cold-")).toBe(true);
+    expect(warm.key.startsWith("followup_due:estimate:e1:quiet-")).toBe(true);
+  });
+
+  it("one item per customer — the newest sent quote — and only sent ones", () => {
+    const rows = [
+      quote({ id: "old", sent_at: iso(20) }),
+      quote({ id: "new", sent_at: iso(6) }),
+      quote({ id: "exp", status: "expired", sent_at: iso(30) }),
+      quote({ id: "b", account_id: "b1", sent_at: iso(7) }),
+    ];
+    const out = buildQuietQuoteItems(rows, [], names, T, NOW);
+    expect(out.map((i) => i.subjectRef.id).sort()).toEqual(["b", "new"]);
+    expect(out.find((i) => i.subjectRef.id === "b")?.title).toBe("A customer — quote sent, no reply");
+  });
+
+  it("the item is due when the threshold passed, so it lands in today/overdue, never waiting", () => {
+    const [item] = buildQuietQuoteItems([quote({ sent_at: iso(3) })], [], names, T, NOW);
+    expect(["today", "overdue"]).toContain(item.bucket);
+  });
+});
+
+describe("estimatesPageItems (C7b) — the Waiting tab's cut", () => {
+  it("keeps estimate and wizard subjects but not the quote-chase items (Tom, 15 Sep)", () => {
+    const T = { chaseUnopenedDays: 3, chaseOpenedDays: 5, goingColdDays: 14 };
+    const chase = buildQuietQuoteItems([{
+      id: "e9", title: "t", account_id: "a1", status: "sent", sent_at: new Date(NOW.getTime() - 4 * 86_400_000).toISOString(),
+      created_at: NOW.toISOString(), viewed_at: null, total_cents: 1000,
+    }], [], new Map(), T, NOW);
+    expect(chase).toHaveLength(1);
+    expect(estimatesPageItems(chase)).toHaveLength(0);
   });
 });
