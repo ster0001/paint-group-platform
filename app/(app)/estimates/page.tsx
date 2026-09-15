@@ -72,7 +72,13 @@ export default async function EstimatesPage({
    */
   if ((status ?? "waiting") === "waiting") {
     const queue = await getWorkQueue();
-    const mine = estimatesPageItems(queue.items).filter((i) => hit(i.title, i.detail));
+    // Tom, 15 Sep: rows a staff member took off THIS list. Read here, on the
+    // page, and nowhere near the evaluator — the queue must not know this
+    // table exists, or Today would go quiet too. Until migration 20270147
+    // runs the read errors and nothing is hidden.
+    const hiddenRes = await supabase.from("estimates_waiting_hidden").select("item_key").limit(2000);
+    const hidden = new Set(((hiddenRes.error ? [] : (hiddenRes.data ?? [])) as Array<{ item_key: string }>).map((r) => r.item_key));
+    const mine = estimatesPageItems(queue.items).filter((i) => !hidden.has(i.key)).filter((i) => hit(i.title, i.detail));
     return (
       <div className="mx-auto max-w-6xl px-6 py-8">
         <div className="flex flex-wrap items-center justify-between gap-3">

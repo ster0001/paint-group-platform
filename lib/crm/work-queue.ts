@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isQuiet } from "./states";
-import { loadCrmThresholds } from "./thresholds";
+import { loadCrmThresholds, type CrmThresholds } from "./thresholds";
 import { invoiceIsOverdue, invoiceBalanceCents, type DeriveInvoice, type DerivePayment } from "@/lib/invoicing/derive";
 import { OPEN_STATUSES } from "@/lib/invoicing/stateMachine";
 import { bucketPill, journeyLine, journeyWho, pageLabel, type WizardBucket } from "@/lib/wizard/journey";
@@ -928,6 +928,86 @@ export function buildLapsedItems(rows: LapsedEventRow[], attempts: ContactEventR
   return items;
 }
 
+// ---- source: followup_due — a quote out with the customer, gone quiet (Tom, 15 Sep) ----
+
+export type QuietQuoteRow = {
+  id: string; title: string | null; account_id: string; status: string;
+  sent_at: string | null; created_at: string; viewed_at: string | null; total_cents: number | null;
+};
+
+/** The event types that count as a person following up — one list, shared by
+ *  the lapsed and quiet-quote sources so "we chased" means the same thing twice. */
+export const CHASE_EVENT_TYPES = ["call_connected", "call_no_answer", "message_left", "estimate_sent", "sms_reply"] as const;
+
+/**
+ * Tom, 15 Sep: "ensure sent quote reminders go into the CRM to be followed
+ * up — I can't see all of them in there." They weren't there: `followup_due`
+ * was registered (weight, group, key shape, tests) and never given a source,
+ * so the only sent quote Today ever showed was one that had already LAPSED.
+ * The board's "Chase due" flag (lib/crm/stage.ts) knew the rule; the queue
+ * did not.
+ *
+ * The rule is the board's, from Settings → CRM: a quote nobody has opened is
+ * chased after `chaseUnopenedDays`; an opened one after `chaseOpenedDays`.
+ * "Quiet" is measured from the LAST touch — the send, or the most recent
+ * logged call / message after it — so chasing resets the clock and the item
+ * comes back if the customer stays silent. Each cycle is a new fact and a
+ * new key (`quiet-<anchor day>`), so a dismissal of one round never silences
+ * the next (§3.7). At `goingColdDays` the key escalates to `cold-…`.
+ *
+ * One item per customer — the newest sent quote — because three revisions
+ * to the same person are one follow-up, not three. Automated campaign
+ * messages are deliberately NOT a touch: a reminder email going out is why
+ * the item exists, not a reason for it to leave.
+ */
+export function buildQuietQuoteItems(
+  rows: QuietQuoteRow[], attempts: ContactEventRow[], names: Map<string, string>,
+  thresholds: Pick<CrmThresholds, "chaseUnopenedDays" | "chaseOpenedDays" | "goingColdDays">, now: Date,
+): WorkItem[] {
+  const items: WorkItem[] = [];
+  const newestByAccount = new Map<string, QuietQuoteRow>();
+  for (const r of rows) {
+    if (r.status !== "sent" || !r.account_id) continue;
+    const at = r.sent_at ?? r.created_at;
+    const have = newestByAccount.get(r.account_id);
+    if (!have || at > (have.sent_at ?? have.created_at)) newestByAccount.set(r.account_id, r);
+  }
+  for (const r of newestByAccount.values()) {
+    const sentAt = r.sent_at ?? r.created_at;
+    const lastTouch = attempts
+      .filter((a) => a.account_id === r.account_id && a.occurred_at > sentAt)
+      .reduce<string>((m, a) => (a.occurred_at > m ? a.occurred_at : m), sentAt);
+    const quietDays = Math.floor((now.getTime() - new Date(lastTouch).getTime()) / 86_400_000);
+    const opened = r.viewed_at != null;
+    const threshold = opened ? thresholds.chaseOpenedDays : thresholds.chaseUnopenedDays;
+    if (quietDays < threshold) continue;
+    const cold = quietDays >= thresholds.goingColdDays;
+    const sentDays = Math.floor((now.getTime() - new Date(sentAt).getTime()) / 86_400_000);
+    const who = names.get(r.account_id) ?? "A customer";
+    const cents = r.total_cents ?? null;
+    const detail = [
+      cents != null && cents > 0 ? money(cents) : null,
+      `sent ${sentDays}d ago`,
+      opened ? "opened" : "never opened",
+      // The send's own crm_event lands a moment after sent_at; that is the send, not a chase.
+      new Date(lastTouch).getTime() - new Date(sentAt).getTime() < 3_600_000 ? "no follow-up since" : `last contact ${quietDays}d ago`,
+      cold ? "going cold" : null,
+    ].filter(Boolean).join(" · ");
+    items.push(finish({
+      key: itemKey("followup_due", "estimate", r.id, `${cold ? "cold" : "quiet"}-${melbourneDay(new Date(lastTouch)).replace(/-/g, "")}`),
+      kind: "followup_due",
+      accountId: r.account_id,
+      subjectRef: { type: "estimate", id: r.id },
+      title: cold ? `${who}'s quote is going cold` : `${who} — quote sent, no reply`,
+      detail,
+      since: lastTouch,
+      dueAt: new Date(new Date(lastTouch).getTime() + threshold * 86_400_000).toISOString(),
+      action: { label: "Follow up", href: `/crm/customers/${r.account_id}` },
+    }, { valueCents: cents, promisedToCustomer: false }, now));
+  }
+  return items;
+}
+
 // ---- source: messages (CRM v2 P3) ------------------------------------------
 
 export type InboundMessageRow = {
@@ -1045,7 +1125,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   const since30d = new Date(now.getTime() - 30 * 86_400_000).toISOString();
   // P7: every capped read is ORDERED by its urgency key (oldest first), and a
   // read that fills its cap is reported on the queue rather than dropped silently.
-  const CAP = { followups: 500, invoices: 500, callbacks: 200, wizard: 300, lapsed: 300, inbound: 400, rebook: 200 };
+  const CAP = { followups: 500, invoices: 500, callbacks: 200, wizard: 300, lapsed: 300, inbound: 400, rebook: 200, quotes: 500 };
   const truncated: string[] = [];
   const [snoozeAcc, invoices, callbacks, queued, dismissed, changeReqs, handoffs, wizardRows, lapsedEvents, inboundMsgs, delayedAcc, thresholds] = await Promise.all([
     supabase.from("accounts")
@@ -1119,6 +1199,24 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   const hit = (name: string, rows: unknown[] | null | undefined, cap: number) => { if ((rows?.length ?? 0) >= cap) truncated.push(name); };
   hit("follow-ups", snoozeAcc.data, CAP.followups); hit("invoices", invoices.data, CAP.invoices); hit("callbacks", callbacks.data, CAP.callbacks);
   hit("online estimates", wizardRows.data, CAP.wizard); hit("lapsed quotes", lapsedEvents.data, CAP.lapsed); hit("messages", inboundMsgs.data, CAP.inbound);
+  // Tom, 15 Sep: every quote out with a customer, so the ones gone quiet
+  // become follow-ups. Sent in the last 90 days — older ones have lapsed
+  // (their own item) or are being ignored on purpose.
+  const quoteRes = await supabase.from("estimates")
+    .select("id, title, account_id, status, sent_at, created_at, viewed_at, total_cents")
+    .eq("status", "sent").not("account_id", "is", null)
+    .gte("sent_at", since90d)
+    .order("sent_at", { ascending: false }).limit(CAP.quotes);
+  const quoteRows = (quoteRes.error ? [] : (quoteRes.data ?? [])) as unknown as QuietQuoteRow[];
+  hit("quotes out", quoteRows, CAP.quotes);
+  const quoteAccountIds = [...new Set(quoteRows.map((r) => r.account_id).filter(Boolean))];
+  const [quoteAttempts, quoteAccounts] = await Promise.all([
+    inSlices(quoteAccountIds, (ids) => supabase.from("crm_events").select("account_id, occurred_at")
+      .in("type", [...CHASE_EVENT_TYPES]).in("account_id", ids).gte("occurred_at", since90d).limit(ids.length * 8)),
+    inSlices(quoteAccountIds, (ids) => supabase.from("accounts").select("id, name, email, phone").in("id", ids)),
+  ]);
+  const quoteNames = new Map(((quoteAccounts) as Array<{ id: string; name: string | null; email: string | null; phone: string | null }>)
+    .map((a) => [a.id, a.name || a.email || a.phone || "A customer"]));
   // Tom, 7 Sep: open estimates still waiting on the estimator's photo sign-off.
   const photoRes = await supabase.from("estimates")
     .select("id, title, account_id, created_at, status, builder_state")
@@ -1172,7 +1270,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   const lapsedAccountIds = [...new Set(lapsedRows.map((r) => r.account_id).filter(Boolean))];
   const [lapsedAttempts, lapsedAccounts] = await Promise.all([
     inSlices(lapsedAccountIds, (ids) => supabase.from("crm_events").select("account_id, occurred_at")
-      .in("type", ["call_connected", "call_no_answer", "message_left", "estimate_sent", "sms_reply"]).in("account_id", ids)
+      .in("type", [...CHASE_EVENT_TYPES]).in("account_id", ids)
       .gte("occurred_at", new Date(now.getTime() - 60 * 86_400_000).toISOString()).limit(ids.length * 5)),
     inSlices(lapsedAccountIds, (ids) => supabase.from("accounts").select("id, name, email, phone").in("id", ids)),
   ]);
@@ -1237,6 +1335,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...buildHandoffItems(((handoffs.error ? [] : handoffs.data) ?? []) as unknown as HandoffQueueRow[], now),
     ...buildWizardItems(wzRows, wzAttempts as ContactEventRow[], now),
     ...buildLapsedItems(lapsedRows, lapsedAttempts as ContactEventRow[], lapsedNames, now),
+    ...buildQuietQuoteItems(quoteRows, quoteAttempts as ContactEventRow[], quoteNames, thresholds, now),
     ...buildMessageItems(inboundRows, outboundTouches as OutboundTouchRow[], inboundAttempts as ContactEventRow[], inboundNames, now, thresholds.messageOverdueHours),
     ...buildDelayEndedItems(delayedRows, now),
     ...buildRebookItems(rebookRows, laterBooked, now),
@@ -1272,5 +1371,8 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
  * the only thing between the two renders. No second query, badge or count.
  */
 export function estimatesPageItems(items: readonly WorkItem[]): WorkItem[] {
-  return items.filter((i) => i.subjectRef.type === "estimate" || i.subjectRef.type === "wizard_session");
+  // Tom, 15 Sep: a quote to chase (followup_due) is a CRM job, not an
+  // estimator's — it stays on Today and off the Waiting tab, which Tom was
+  // tidying the same day.
+  return items.filter((i) => i.kind !== "followup_due" && (i.subjectRef.type === "estimate" || i.subjectRef.type === "wizard_session"));
 }
