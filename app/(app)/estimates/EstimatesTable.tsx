@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { deleteEstimateAction } from "./actions";
 import DeleteEstimateButton from "./DeleteEstimateButton";
+import DuplicateEstimateButton from "./DuplicateEstimateButton";
 import { displayStatus } from "@/lib/estimate/displayStatus";
 import type { WizardJourney } from "@/lib/wizard/journey";
 import type { ListRow } from "@/lib/estimate/listRows";
@@ -194,7 +195,7 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
               <th className="w-64 px-4 py-2 font-medium">Wizard status</th>
               <th className="w-28 px-4 py-2 font-medium">Date</th>
               <th className="w-28 px-4 py-2 text-right font-medium">Value</th>
-              <th className="w-52 px-4 py-2 text-right font-medium"><span className="sr-only">Actions</span></th>
+              <th className="w-64 px-4 py-2 text-right font-medium"><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -310,6 +311,7 @@ export default function EstimatesTable({ estimates }: { estimates: EstimateRow[]
                       Capture
                     </Link>
                   )}
+                  <DuplicateEstimateButton estimateId={e.id} title={e.title || "Untitled quote"} />
                   <DeleteEstimateButton
                     estimateId={e.id}
                     title={e.title || "Untitled estimate"}
