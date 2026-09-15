@@ -7,7 +7,7 @@ import EstimatorStrip from "@/app/wizard/EstimatorStrip";
 import { alreadySentFrom, useAutoSend } from "./useAutoSend";
 import SideNote from "./SideNote";
 import PeelingPhotos from "./PeelingPhotos";
-import { SIDE_KEYS, SIDE_LABEL as SIDE_FALLBACK, TWICE_OK_CODES } from "@/lib/wizard/sides";
+import { SIDE_LABEL as SIDE_FALLBACK, TWICE_OK_CODES } from "@/lib/wizard/sides";
 import Paginated, { type PaginatedStep } from "./Paginated";
 import { TIER_LABEL, type Ladder } from "@/lib/wizard/ladder";
 import { afterLayout, scrollCardToTop } from "./scrollCard";
