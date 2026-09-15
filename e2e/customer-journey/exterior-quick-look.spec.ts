@@ -104,7 +104,11 @@ async function walkTypical(page: Page, windowType: "casement" | "colonial", body
   await expect(page.getByTestId("ext-win-n")).toHaveText("8");
   await expect(page.getByTestId("ext-door-n")).toHaveText("2");
   await page.getByTestId("ql-ext-colour-new").click();
-  await page.getByTestId("ql-ext-condition-weathered").click();
+  // Tom, 15 Sep (late): condition is not asked here any more; "Which sides?"
+  // is the last screen, and its Continue is the one that says guide range.
+  await expect(page.getByTestId("ql-ext-condition")).toHaveCount(0);
+  await quickNext(page);
+  await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId("ql-next")).toHaveText(/See my guide range/);
   await quickNext(page);
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
@@ -115,7 +119,7 @@ test("Tom's check 1: body + windows + doors + fascias, casement ×8, doors ×2, 
   await walkTypical(page, "casement");
   casement = await range(page);
   expect(casement).not.toBeNull();
-  await expect(page.getByTestId("reveal-restatement")).toContainText(/the walls, windows, doors and fascias \(weatherboard\), 8 casement windows, 2 doors, new colours, weathered paintwork, single storey/);
+  await expect(page.getByTestId("reveal-restatement")).toContainText(/the walls, windows, doors and fascias \(weatherboard\), 8 casement windows, 2 doors, new colours, the paintwork priced from good to peeling, single storey/);
   await expect(page.getByTestId("reveal-restatement")).not.toContainText(/bedroom/);
   // What we'll do is the EXTERIOR derivation — never the interior lines.
   const doLines = page.getByTestId("what-we-do");

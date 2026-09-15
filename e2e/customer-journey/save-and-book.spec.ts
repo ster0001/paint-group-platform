@@ -122,6 +122,8 @@ test("'both' meets the choice screen, then shows two ranges", async ({ page }) =
   await expect(page.locator("[data-quick-step='outside']")).toBeVisible({ timeout: 20_000 });
   await page.getByTestId("ql-ext-el-body").click(); // C8b: nothing pre-ticked
   await quickNext(page);
+  await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 }); // 15 Sep (late): which sides, before the gate
+  await quickNext(page);
 
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   await expect(page.getByTestId("reveal-part-interior")).toContainText(MONEY_RANGE);

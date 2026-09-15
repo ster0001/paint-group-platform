@@ -122,6 +122,17 @@ export function applyExteriorAnswers(
     const gone = new Set(unwanted.map((a) => a.id));
     merged.areas = merged.areas.filter((a) => !gone.has(a.id));
   }
+  // Tom, 15 Sep (late): "Which sides?" was answered on its own screen before
+  // the gate, so the sides editor does not ask "are we painting this side?"
+  // again — every side left starts at yes and opens on its size.
+  if (house && ext.sidesAnswered) {
+    for (const a of merged.areas) {
+      if (a.type !== "Exterior" || a.areaType !== "surface" || !sideKeyOfName(a.name)) continue;
+      const c = (a as unknown as { customer?: { include: boolean | null; size: unknown; confirmed: boolean } }).customer;
+      if (c?.include === false) continue;
+      (a as unknown as { customer?: unknown }).customer = { ...(c ?? { size: null, confirmed: false }), include: true };
+    }
+  }
   if (house && ext.substrates.includes("other")) {
     merged.deferred.push({
       room: "Exterior", areaId: null, what: "wall cladding", count: 1,

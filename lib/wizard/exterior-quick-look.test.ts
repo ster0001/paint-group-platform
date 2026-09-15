@@ -43,7 +43,7 @@ describe("no bedrooms, and storeys once", () => {
   });
 
   it("storeys lives on the outside screen only, and lands in the field the allowance reads", () => {
-    expect(stepsFor("exterior")).toEqual(["start", "place", "outside"]);
+    expect(stepsFor("exterior")).toEqual(["start", "place", "outside", "sides"]);
     const e = applyExteriorQuickLook(q({ elements: ["body"], storeys: "double" }), base()).exterior!;
     expect(e.storeys).toBe("double");
     const out = exteriorAccessAllowances({ storeys: e.storeys, access: e.access, accessEquipment: e.accessEquipment, sidesPainted: 4 });
@@ -53,7 +53,7 @@ describe("no bedrooms, and storeys once", () => {
   it("the restatement and the assume list never mention bedrooms", () => {
     const words = exteriorRestatement(typical()) + exteriorAssumedList(typical()).map((a) => `${a.what} ${a.why}`).join(" ");
     expect(words).not.toMatch(/bedroom/i);
-    expect(exteriorRestatement(typical())).toMatch(/^Based on the walls, windows, doors and fascias \(weatherboard\), 8 colonial windows, 2 doors, new colours, weathered paintwork, single storey\./);
+    expect(exteriorRestatement(typical())).toMatch(/^Based on the walls, windows, doors and fascias \(weatherboard\), 8 colonial windows, 2 doors, new colours, the paintwork priced from good to peeling, single storey\./);
   });
 });
 
@@ -248,5 +248,31 @@ describe("the state round-trips for resume", () => {
     const out = exteriorAccessAllowances({ storeys: e.storeys, access: e.access, accessEquipment: e.accessEquipment, sidesPainted: 4 });
     expect(out.allowances).toEqual([]);
     expect(out.exclusions.length).toBe(1);
+  });
+});
+
+describe("Tom, 15 Sep (late): condition leaves the quick look; sides get their own screen", () => {
+  it("starts with no condition, and the assume list says the range spans good to peeling", () => {
+    expect(DEFAULT_EXTERIOR_QUICK_LOOK.condition).toBeNull();
+    const e = applyExteriorQuickLook(typical(), base()).exterior!;
+    expect(e.condition).toBeNull();
+    const cond = exteriorAssumedList(typical()).find((a) => a.key === "condition");
+    expect(cond?.what).toMatch(/good to peeling/);
+    expect(exteriorAssumedList(q({ ...typical(), condition: "good" })).find((a) => a.key === "condition")).toBeUndefined();
+  });
+  it("the sides answer names the sides; all four (or unanswered) leaves the full exterior", () => {
+    const three = applyExteriorQuickLook(q({ ...typical(), sides: ["front", "left", "back"] }), base()).exterior!;
+    expect(three.sides).toEqual(["front", "left", "back"]);
+    expect(three.sidesAnswered).toBe(true);
+    const four = applyExteriorQuickLook(q({ ...typical(), sides: ["front", "left", "back", "right"] }), base()).exterior!;
+    expect(four.sides).toBeUndefined();
+    expect(four.sidesAnswered).toBe(true);
+    const none = applyExteriorQuickLook(typical(), base()).exterior!;
+    expect(none.sidesAnswered).toBe(false);
+    // Reads back for a resume, and the restatement names them.
+    expect(exteriorQuickLookFromState(three).sides).toEqual(["front", "left", "back"]);
+    expect(exteriorQuickLookFromState(four).sides).toEqual(["front", "left", "back", "right"]);
+    expect(exteriorQuickLookFromState(none).sides).toBeNull();
+    expect(exteriorRestatement(q({ ...typical(), sides: ["front", "left", "back"] }))).toMatch(/the front, left side and back/);
   });
 });

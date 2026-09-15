@@ -121,6 +121,10 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
     // typical answer, and it keeps the walls the sides editor expects.
     await page.getByTestId("ql-ext-el-body").click();
     await quickNext(page);
+    // Tom, 15 Sep (late): "Which sides?" is its own screen after the outside
+    // one — all four start ticked, so Continue is the answer.
+    await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
+    await quickNext(page);
   }
 
   /**
@@ -163,8 +167,10 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
 }
 
 /** Open /estimate and wait for the quick look's first screen. */
-export async function openQuickLook(page: Page) {
-  await page.goto("/estimate");
+export async function openQuickLook(page: Page, opts: { entry?: "upload" } = {}) {
+  // Tom, 15 Sep (late, item 1): the "Upload photos or a listing" door left the
+  // outside tab; the old page set behind it answers to `?entry=upload`.
+  await page.goto(opts.entry ? `/estimate?entry=${opts.entry}` : "/estimate");
   await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
   await expect(page.locator("[data-quick-step='start']")).toBeVisible({ timeout: 20_000 });
 }
@@ -298,7 +304,7 @@ export async function setStylesInEditor(page: Page, opts: {
  * photos.
  */
 export async function openExteriorPages(page: Page, opts: { via?: "answers" | "upload" } = {}) {
-  await openQuickLook(page);
+  await openQuickLook(page, opts.via === "upload" ? { entry: "upload" } : {});
   await fillQuickAddress(page);
   await page.getByTestId("ql-jobtype-exterior").click();
   if (opts.via === "upload") {

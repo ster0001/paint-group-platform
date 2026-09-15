@@ -1157,3 +1157,16 @@
 .wz .wz-addroom { margin-top: 12px; }
 .wz .wz-addroom-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
 .wz .wz-addroom-row .wz-field { flex: 1 1 180px; }
+
+/* Tom, 15 Sep (late): the exterior picture tiles — smaller squares, drawing on top, wording under. */
+.wz .wz-exttiles { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.wz .wz-exttiles .wz-pk { padding: 8px 6px; }
+.wz .wz-exttiles .wz-pk svg { height: 48px; margin-bottom: 5px; }
+.wz .wz-exttiles .wz-pk small { font-size: 12px; line-height: 1.2; display: block; }
+.wz .wz-exttiles .wz-pk .wz-pksub { font-size: 10.5px; line-height: 1.2; }
+/* The tick-to-confirm rows on the last checks (items 9–10). */
+.wz .sd-checkwrap { display: flex; flex-direction: column; align-items: flex-start; }
+.wz .sd-checkrow { display: inline-flex; align-items: center; gap: 9px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); cursor: pointer; font-size: 14px; font-weight: 600; color: var(--text); }
+.wz .sd-checkrow input { width: 18px; height: 18px; accent-color: var(--cyan); cursor: pointer; }
+.wz .sd-checkrow:has(input:checked) { border-color: var(--cyan); background: rgba(59,216,233,.07); }
+.wz .sd-peelphotos { margin-top: 10px; }

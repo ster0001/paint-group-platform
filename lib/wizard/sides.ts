@@ -194,7 +194,15 @@ export type LooseBlock = Record<string, unknown> & {
 
 export type SidesLoopMeta = {
   extrasAns: "none" | "some" | null;
-  cond: { cond: "good" | "weathered" | "peeling" | null; rot: "no" | "little" | "lots" | null; acc: "steep" | "tight" | "high" | "none" | null };
+  cond: {
+    cond: "good" | "weathered" | "peeling" | null; rot: "no" | "little" | "lots" | null; acc: "steep" | "tight" | "high" | "none" | null;
+    /** Tom, 15 Sep (late): which sides are peeling ("all" / "unsure" allowed); absent on older rows. */
+    peelingSides?: string[] | null;
+    /** How many peeling photos the customer attached. */
+    peelingPhotos?: number;
+    /** Tom, 15 Sep (late): where the timber rot is — the substrates ticked in the wizard ("unsure" allowed). */
+    rotWhere?: string[] | null;
+  };
   dwOk: boolean | null;
   sweepAns: "none" | "added" | null;
   done: { extras: boolean; cond: boolean; dw: boolean; sweep: boolean };
@@ -203,7 +211,7 @@ export type SidesLoopMeta = {
 export function defaultSidesLoop(): SidesLoopMeta {
   return {
     extrasAns: null,
-    cond: { cond: null, rot: null, acc: null },
+    cond: { cond: null, rot: null, acc: null, peelingSides: null, peelingPhotos: 0, rotWhere: null },
     dwOk: null,
     sweepAns: null,
     done: { extras: false, cond: false, dw: false, sweep: false },

@@ -47,10 +47,30 @@ export type ExteriorQuickLook = {
   windowCount: number;
   doorCount: number;
   colour: ExteriorColour;
-  condition: "good" | "weathered" | "peeling";
+  /**
+   * Tom, 15 Sep (late): condition is NOT asked before the gate any more. The
+   * guide range prices it good-to-peeling (lib/wizard/envelope.ts) and the
+   * tighten screen asks it first. Null = not yet answered.
+   */
+  condition: "good" | "weathered" | "peeling" | null;
   storeys: "single" | "double";
   access: ExteriorAccessAnswer[];
+  /**
+   * Tom, 15 Sep (late): "Which sides?" — its own screen just before the gate.
+   * Null = the screen has not been reached; an array is the answer (all four
+   * = the full exterior). A side left off is not scaffolded at all.
+   */
+  sides: ExteriorSide[] | null;
 };
+
+export type ExteriorSide = "front" | "left" | "back" | "right";
+export const EXT_SIDES: Choice<ExteriorSide>[] = [
+  { value: "front", label: "Front", hint: "The street side" },
+  { value: "left", label: "Left side", hint: "Looking from the street" },
+  { value: "back", label: "Back" },
+  { value: "right", label: "Right side", hint: "Looking from the street" },
+];
+export const ALL_SIDES: ExteriorSide[] = ["front", "left", "back", "right"];
 
 /** The prototype's defaults: nothing ticked on the elements or the materials. */
 export const DEFAULT_EXTERIOR_QUICK_LOOK: ExteriorQuickLook = {
@@ -61,9 +81,10 @@ export const DEFAULT_EXTERIOR_QUICK_LOOK: ExteriorQuickLook = {
   windowCount: 8,
   doorCount: 2,
   colour: "new",
-  condition: "weathered",
+  condition: null,
   storeys: "single",
   access: ["none"],
+  sides: null,
 };
 
 export const EXT_ELEMENTS: Choice<ExteriorElement>[] = [
@@ -109,7 +130,7 @@ export const EXT_COLOURS: Choice<ExteriorColour>[] = [
   { value: "bold", label: "Going much lighter", hint: "An undercoat first, then two coats" },
 ];
 
-export const EXT_CONDITIONS: Choice<ExteriorQuickLook["condition"]>[] = [
+export const EXT_CONDITIONS: Choice<"good" | "weathered" | "peeling">[] = [
   { value: "good", label: "Good", hint: "Sound, just tired" },
   { value: "weathered", label: "Weathered", hint: "Faded, chalky" },
   { value: "peeling", label: "Peeling", hint: "Flaking, bare patches" },
@@ -218,6 +239,12 @@ export function applyExteriorQuickLook(q: ExteriorQuickLook, base: WizardState):
       doorCount: on.has("doors") ? Math.max(0, Math.min(60, Math.round(q.doorCount))) : null,
       colour: q.colour,
       condition: q.condition,
+      // Tom, 15 Sep (late): the sides screen. Fewer than four = those sides;
+      // all four (or unanswered) = the full exterior, which `sides` leaves unset.
+      sides: q.sides && q.sides.length > 0 && q.sides.length < 4
+        ? (["front", "left", "right", "back"] as const).filter((k) => q.sides!.includes(k))
+        : undefined,
+      sidesAnswered: q.sides != null && q.sides.length > 0,
       // The ground and height conditions that carry an hours allowance
       // (lib/wizard/exterior-allowances.ts). "Nothing tricky" and the
       // equipment answer are deliberately not among them.
@@ -299,9 +326,10 @@ export function exteriorQuickLookFromState(ext: WizardExterior | null | undefine
     windowCount: ext.windowCount ?? DEFAULT_EXTERIOR_QUICK_LOOK.windowCount,
     doorCount: ext.doorCount ?? DEFAULT_EXTERIOR_QUICK_LOOK.doorCount,
     colour: ext.colour ?? "new",
-    condition: ext.condition ?? "weathered",
+    condition: ext.condition ?? null,
     storeys: ext.storeys,
     access: access.length ? access : ["none"],
+    sides: ext.sidesAnswered ? (ext.sides && ext.sides.length > 0 ? [...ext.sides] : [...ALL_SIDES]) : null,
   };
 }
 
@@ -322,21 +350,35 @@ export function exteriorRestatement(q: ExteriorQuickLook): string {
     ? `, ${q.windowCount} ${q.windowType === "unsure" ? "" : `${label(EXT_WINDOW_TYPES, q.windowType).toLowerCase()} `}windows` : "";
   const doors = q.elements.includes("doors") ? `, ${q.doorCount} door${q.doorCount === 1 ? "" : "s"}` : "";
   const colour = q.colour === "same" ? "the same colours" : q.colour === "bold" ? "going much lighter" : "new colours";
-  const cond = q.condition === "good" ? "paintwork in good shape" : q.condition === "weathered" ? "weathered paintwork" : "peeling paintwork";
+  const cond = q.condition === "good" ? "paintwork in good shape" : q.condition === "weathered" ? "weathered paintwork"
+    : q.condition === "peeling" ? "peeling paintwork" : "the paintwork priced from good to peeling";
   const storeys = q.storeys === "double" ? "double storey" : "single storey";
-  return `Based on ${what}${mats}${windows}${doors}, ${colour}, ${cond}, ${storeys}. If that's about right, this is about right.`;
+  const sides = q.sides && q.sides.length > 0 && q.sides.length < 4
+    ? `, the ${joinList(q.sides.map((k) => label(EXT_SIDES, k).toLowerCase()))}` : "";
+  return `Based on ${what}${mats}${windows}${doors}${sides}, ${colour}, ${cond}, ${storeys}. If that's about right, this is about right.`;
 }
 
 export type ExteriorAssumption = { key: string; what: string; why: string; rung?: string };
 
 export function exteriorAssumedList(q: ExteriorQuickLook): ExteriorAssumption[] {
   const out: ExteriorAssumption[] = [];
+  const chosen = q.sides && q.sides.length > 0 && q.sides.length < 4 ? q.sides : null;
   out.push({
     key: "sides",
-    what: "All four sides, at typical sizes",
-    why: "Each side is sized from our averages until you confirm it — the sides editor is where a side becomes yours, or comes off the job.",
+    what: chosen ? `The ${joinList(chosen.map((k) => label(EXT_SIDES, k).toLowerCase()))}, at typical sizes` : "All four sides, at typical sizes",
+    why: "Each side is sized from our averages until you confirm it — the sides editor is where you put the real numbers in.",
     rung: "sides",
   });
+  if (q.condition == null) {
+    // Tom, 15 Sep (late): condition is the FIRST tighten question, not a
+    // quick-look one — so the range says what it spans instead of assuming.
+    out.push({
+      key: "condition",
+      what: "The paintwork — priced from good to peeling",
+      why: "The low end of your range is sound paintwork, the high end is peeling and flaking. Tell us how it's holding up on the next screen and the range closes in.",
+      rung: "sides",
+    });
+  }
   if (q.elements.includes("body") && (q.materials.length === 0 || q.materials.includes("unsure"))) {
     out.push({
       key: "material",

@@ -94,7 +94,7 @@ test("exterior: every item can be taken off, and there is no accept-online butto
   // v2 phase 2: the job type is a chip on the quick look's first screen, and
   // the answer reaches the state as it is tapped — so the upload route it hands
   // to offers facade photos and a listing, never a floorplan.
-  await openQuickLook(page);
+  await openQuickLook(page, { entry: "upload" }); // 15 Sep (late): the upload door answers to the URL now
   await page.getByTestId("ql-jobtype-exterior").click();
   await page.getByTestId("entry-upload").click();
   await page.getByPlaceholder(/listing URL/).fill("https://www.realestate.com.au/property-house-vic-murrumbeena-1400001");
