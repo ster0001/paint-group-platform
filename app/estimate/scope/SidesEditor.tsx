@@ -6,6 +6,7 @@ import AllDoneBanner from "./AllDoneBanner";
 import EstimatorStrip from "@/app/wizard/EstimatorStrip";
 import { alreadySentFrom, useAutoSend } from "./useAutoSend";
 import SideNote from "./SideNote";
+import PeelingPhotos from "./PeelingPhotos";
 import { SIDE_KEYS, SIDE_LABEL as SIDE_FALLBACK, TWICE_OK_CODES } from "@/lib/wizard/sides";
 import Paginated, { type PaginatedStep } from "./Paginated";
 import { TIER_LABEL, type Ladder } from "@/lib/wizard/ladder";
@@ -293,7 +294,8 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
   }
   const openNext = (j?: Payload) => {
     const v = j?.sides ?? sides;
-    const order: string[] = ["front", "left", "right", "back", "extras", "cond", "dw", "sweep"];
+    // Tom, 15 Sep (late): condition first, the last checks last.
+    const order: string[] = ["cond", "front", "left", "right", "back", "extras", "dw", "sweep"];
     const doneOf = (k: string) =>
       k === "extras" ? v.meta.done.extras : k === "cond" ? v.meta.done.cond
       : k === "dw" ? v.meta.done.dw : k === "sweep" ? v.meta.done.sweep
@@ -301,6 +303,12 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
       // counts as done here, or the loop would try to open a card that is gone.
       : v.sides.find((s) => s.key === k)?.confirmed ?? true;
     const nxt = order.find((k) => !doneOf(k));
+    if (nxt === "cond" || nxt === "dw" || nxt === "sweep") {
+      // The paginated blocks show their first open question on their own.
+      setOpen("");
+      afterLayout(() => scrollCardToTop(document.querySelector(nxt === "cond" ? '[data-testid="sides-q"]' : '[data-testid="sides-last"]')));
+      return;
+    }
     if (nxt) {
       setOpen(nxt);
       // Same rule as the interior loop: the next side's NAME lands under the
@@ -313,61 +321,8 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
   // Tom, 15 Sep: nothing ticked is an answer — the card confirms as it is.
   const extrasAnswered = sides.meta.done.extras || extrasTiles.some((t) => t.on);
 
-  /**
-   * Tom, 15 Sep 2026: "Which sides are we painting?" asked ONCE, up top, the
-   * way the quick look asks it — not "are we painting this side?" inside
-   * every card. Unticking a side takes it off the estimate altogether (no
-   * exclusion line, no amber flag); ticking it back rebuilds it from its
-   * opposite side. The card settles once every side left has been said yes
-   * to, and the per-side cards then open straight onto the size question.
-   */
   /** The short word for a side in running copy — the customer's own name for it wins. */
   const shortSide = (k: SideKey) => sides.sides.find((x) => x.key === k)?.customLabel?.toLowerCase() ?? k;
-  const whichOn = (k: SideKey) => {
-    const s = sides.sides.find((x) => x.key === k);
-    const o = optimistic[`which:${k}`];
-    if (o != null) return o === "1";
-    return !!s && s.include !== false;
-  };
-  const whichAnswered = sides.sides.length > 0 && sides.sides.every((s) => s.include === true);
-  const whichSteps: PaginatedStep[] = [{
-    key: "sides",
-    question: "Which sides are we painting?",
-    hint: "Tick all that apply — a side you untick comes off your estimate.",
-    answered: whichAnswered,
-    label: "Sides",
-    body: (
-      <>
-        <div className="sd-chips" data-testid="side-which">
-          {SIDE_KEYS.map((k) => {
-            const s = sides.sides.find((x) => x.key === k);
-            const on = whichOn(k);
-            return (
-              <button key={k} type="button" className={`sd-chip ${on ? "on" : ""}`} aria-pressed={on}
-                data-testid={`side-which-${k}`}
-                onClick={() => act({ action: "side_include", side: k, include: !on }, {
-                  done: on ? `${s?.label ?? SIDE_FALLBACK[k]} taken off your estimate.` : `${SIDE_FALLBACK[k]} is back on — confirm its size below.`,
-                  opt: [`which:${k}`, on ? "0" : "1"],
-                })}>
-                {on ? "✓ " : "+ "}{s?.label ?? SIDE_FALLBACK[k]}
-              </button>
-            );
-          })}
-        </div>
-        {!whichAnswered && (
-          <button type="button" className="sd-confirm" data-testid="side-which-confirm" style={{ marginTop: 10 }}
-            onClick={() => {
-              const todo = sides.sides.filter((s) => s.include !== true);
-              if (todo.length === 0) return;
-              todo.forEach((s, i) => act({ action: "side_include", side: s.key, include: true },
-                i === todo.length - 1 ? { done: "Thanks — now each side, one at a time.", onOk: openNext } : {}));
-            }}>
-            These are the sides ✓
-          </button>
-        )}
-      </>
-    ),
-  }];
 
   function sideCard(s: SideView) {
     const isOpen = open === s.key;
@@ -697,7 +652,9 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
               </>
             )}
 
-            {s.include === true && !s.confirmed && (
+            {/* Tom, 15 Sep (late, item 5): a side can be removed after it is
+                confirmed too — it used to lose the link the moment it was ticked. */}
+            {s.include === true && (
               <p className="sd-help">
                 Not painting this side after all?{" "}
                 <button type="button" className="wz-linkish" data-testid={`side-remove-${s.key}`}
@@ -759,7 +716,6 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
     );
   }
 
-  const m = sides.meta;
   const edgeClass = (k: SideKey) => {
     const s = sides.sides.find((x) => x.key === k);
     // Tom, 8 Sep: a side the customer never asked for is not in the estimate
@@ -785,6 +741,188 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
     setSweepOtherText("");
     setSweepOtherOpen(false);
   }
+  // ---- Tom, 15 Sep (late): the condition questions, one at a time ------------
+  const m = sides.meta;
+  const mc = sides.meta.cond;
+  const condVal = (k: "cond" | "rot" | "acc") => optimistic[`cond:${k}`] ?? mc[k];
+  const peelingSides = mc.peelingSides ?? [];
+  const rotWhere = mc.rotWhere ?? [];
+  const isPeeling = condVal("cond") === "peeling";
+  const rotSome = condVal("rot") === "little" || condVal("rot") === "lots";
+  /** The set is complete when every REQUIRED answer is in — the same rule the route's confirm applies. */
+  const condComplete = (c: SidesView["meta"]["cond"]) =>
+    c.cond != null && c.rot != null && c.acc != null
+    && (c.cond !== "peeling" || (c.peelingSides?.length ?? 0) > 0)
+    && (c.rot === "no" || (c.rotWhere?.length ?? 0) > 0);
+  /** Answer one condition question; when the set is complete, confirm the card behind it. */
+  function condAct(body: Record<string, unknown>, opts: Parameters<typeof act>[1] = {}) {
+    act(body, { ...opts, onOk: (j) => {
+      opts.onOk?.(j);
+      const c = j.sides?.meta.cond;
+      if (c && condComplete(c) && !j.sides?.meta.done.cond) {
+        act({ action: "confirm_loop_item", item: "cond" }, { done: "Condition & access confirmed ✓", onFail: (msg) => say(msg), onOk: openNext });
+      }
+    } });
+  }
+  /** Where the rot could be: everything the wizard ticked on the house, plus what stands alone. */
+  const rotPlaces: Array<{ key: string; label: string }> = (() => {
+    const out = new Map<string, string>();
+    for (const sub of sides.geo?.substrates ?? []) out.set(sub.toLowerCase(), sub.charAt(0).toUpperCase() + sub.slice(1));
+    for (const sd of sides.sides) for (const t of sd.tiles) out.set(t.label.toLowerCase(), t.label);
+    for (const t of extrasTiles) if (t.on) out.set(String(t.key).toLowerCase(), t.label);
+    return [...out.entries()].map(([key, label]) => ({ key, label }));
+  })();
+  const toggleIn = (list: string[], v: string, exclusive: string[] = ["all", "unsure"]) => {
+    if (exclusive.includes(v)) return list.includes(v) ? [] : [v];
+    const base = list.filter((x) => !exclusive.includes(x));
+    return base.includes(v) ? base.filter((x) => x !== v) : [...base, v];
+  };
+  const condSteps: PaginatedStep[] = [
+    {
+      key: "cond", label: "Paintwork", answered: mc.cond != null,
+      question: <>How&rsquo;s the paintwork holding up overall?</>,
+      hint: "Your range prices this from good to peeling until you answer.",
+      body: (
+        <div className="sd-chips" data-testid="cond-chips">
+          <Chip on={sel("cond:cond", mc.cond === "good", "good")} label={"Good overall"} onClick={() => condAct({ action: "loop_cond", cond: "good" }, { describe: withDelta("Good to hear — noted"), opt: ["cond:cond", "good"] })} />
+          <Chip on={sel("cond:cond", mc.cond === "weathered", "weathered")} label={"Weathered"} onClick={() => condAct({ action: "loop_cond", cond: "weathered" }, { describe: withDelta("Extra prep allowed for weathered paintwork"), opt: ["cond:cond", "weathered"] })} />
+          <Chip on={sel("cond:cond", mc.cond === "peeling", "peeling")} label={"Peeling & flaking"} onClick={() => condAct({ action: "loop_cond", cond: "peeling" }, { describe: withDelta("Extra prep allowed for peeling paintwork — and a lead-safe check is part of our visit"), opt: ["cond:cond", "peeling"] })} />
+        </div>
+      ),
+    },
+    ...(isPeeling ? [{
+      key: "peeling", label: "Where it's peeling", answered: peelingSides.length > 0,
+      question: <>Which sides are peeling and flaking?</>,
+      hint: "Tick all that apply. A photo helps us price the preparation.",
+      body: (
+        <>
+          <div className="sd-chips" data-testid="peeling-sides">
+            {sides.sides.filter((sd) => sd.include !== false).map((sd) => (
+              <Chip key={sd.key} on={peelingSides.includes(sd.key)} label={`${peelingSides.includes(sd.key) ? "✓ " : "+ "}${sd.label}`}
+                onClick={() => condAct({ action: "loop_cond", peelingSides: toggleIn(peelingSides, sd.key) }, { done: "Noted." })} />
+            ))}
+            <Chip on={peelingSides.includes("all")} label="All of them" onClick={() => condAct({ action: "loop_cond", peelingSides: toggleIn(peelingSides, "all") }, { done: "Noted — peeling all round." })} />
+            <Chip on={peelingSides.includes("unsure")} label="Not sure" onClick={() => condAct({ action: "loop_cond", peelingSides: toggleIn(peelingSides, "unsure") }, { done: "No problem — your estimator will look." })} />
+          </div>
+          <PeelingPhotos estimateId={estimateId} count={mc.peelingPhotos ?? 0} busy={pendingCount > 0}
+            onUploaded={(n) => condAct({ action: "loop_cond", peelingPhotos: n }, { done: `${n} photo${n === 1 ? "" : "s"} attached — thanks, that helps us price the prep.` })} />
+        </>
+      ),
+    } satisfies PaginatedStep] : []),
+    {
+      key: "rot", label: "Timber rot", answered: mc.rot != null,
+      question: <>Any timber rot anywhere?</>,
+      hint: "Soft or crumbling timber — fascias, window sills, weatherboards, posts.",
+      body: (
+        <div className="sd-chips" data-testid="rot-chips">
+          <Chip on={sel("cond:rot", mc.rot === "no", "no")} label={"No, looks solid"} onClick={() => condAct({ action: "loop_cond", rot: "no" }, { describe: withDelta("Noted — no rot allowance needed"), opt: ["cond:rot", "no"] })} />
+          <Chip on={sel("cond:rot", mc.rot === "little", "little")} label={"A little"} onClick={() => condAct({ action: "loop_cond", rot: "little" }, { describe: withDelta("We've allowed for minor rot prep"), opt: ["cond:rot", "little"] })} />
+          <Chip on={sel("cond:rot", mc.rot === "lots", "lots")} label={"Quite a bit"} onClick={() => condAct({ action: "loop_cond", rot: "lots" }, { done: "Thanks for the honesty — rot repair needs eyes on it, so we'll confirm it on the site visit.", opt: ["cond:rot", "lots"] })} />
+        </div>
+      ),
+    },
+    ...(rotSome ? [{
+      key: "rotWhere", label: "Where the rot is", answered: rotWhere.length > 0,
+      question: <>Where is the timber rot?</>,
+      hint: "Tick everything you ticked earlier that has some rot.",
+      body: (
+        <div className="sd-chips" data-testid="rot-where">
+          {rotPlaces.map((pl) => (
+            <Chip key={pl.key} on={rotWhere.includes(pl.key)} label={`${rotWhere.includes(pl.key) ? "✓ " : "+ "}${pl.label}`}
+              onClick={() => condAct({ action: "loop_cond", rotWhere: toggleIn(rotWhere, pl.key) }, { done: "Noted." })} />
+          ))}
+          <Chip on={rotWhere.includes("unsure")} label="Not sure" onClick={() => condAct({ action: "loop_cond", rotWhere: toggleIn(rotWhere, "unsure") }, { done: "No problem — your estimator will look." })} />
+        </div>
+      ),
+    } satisfies PaginatedStep] : []),
+    {
+      key: "acc", label: "Access", answered: mc.acc != null,
+      question: <>Anything tricky about access?</>,
+      body: (
+        <div className="sd-chips" data-testid="acc-chips">
+          <Chip on={sel("cond:acc", mc.acc === "steep", "steep")} label={"Steep block"} onClick={() => condAct({ action: "loop_cond", acc: "steep" }, { describe: withDelta("Access allowance added"), opt: ["cond:acc", "steep"] })} />
+          <Chip on={sel("cond:acc", mc.acc === "tight", "tight")} label={"Tight side access"} onClick={() => condAct({ action: "loop_cond", acc: "tight" }, { describe: withDelta("Access allowance added"), opt: ["cond:acc", "tight"] })} />
+          <Chip on={sel("cond:acc", mc.acc === "none", "none")} label={"None of these ✓"} onClick={() => condAct({ action: "loop_cond", acc: "none" }, { describe: withDelta("No access allowance needed"), opt: ["cond:acc", "none"] })} />
+        </div>
+      ),
+    },
+  ];
+  const condSettled = [
+    mc.cond === "good" ? "Paintwork good overall" : mc.cond === "weathered" ? "Weathered paintwork" : `Peeling & flaking${peelingSides.length ? ` (${peelingSides.includes("all") ? "all sides" : peelingSides.includes("unsure") ? "not sure where" : peelingSides.join(", ")})` : ""}`,
+    mc.rot === "no" ? "no rot" : `${mc.rot === "little" ? "a little" : "quite a bit of"} rot${rotWhere.length ? ` (${rotWhere.includes("unsure") ? "not sure where" : rotWhere.join(", ")})` : ""}`,
+    mc.acc === "none" ? "nothing tricky about access" : mc.acc === "steep" ? "steep block" : "tight side access",
+  ].join(" · ") + ".";
+
+  // ---- Tom, 15 Sep (late, items 9–10): the last checks, one at a time --------
+  const missingSides = SIDE_KEYS.filter((k) => !sides.sides.some((sd) => sd.key === k));
+  const lastSteps: PaginatedStep[] = [
+    {
+      key: "dw", label: "Windows & doors", answered: m.done.dw,
+      question: <>Across the sides you&rsquo;re painting, we make it {sides.dw.windows} windows and {sides.dw.doors} doors — is that right?</>,
+      hint: "Counts sit on each side above — use the − / + there, then come back and tick.",
+      body: (
+        <div className="sd-checkwrap">
+          <label className="sd-checkrow" data-testid="check-dw-row">
+            <input type="checkbox" data-testid="check-dw-ok" checked={sel("dw:ok", m.dwOk === true)} disabled={optimistic["confirm:dw"] != null}
+              onChange={() => {
+                if (m.done.dw) return;
+                flush();
+                act({ action: "loop_dw", ok: true }, { opt: ["dw:ok", "1"] });
+                act({ action: "confirm_loop_item", item: "dw" }, { done: "Counts confirmed ✓", onFail: (msg) => refuse("last", msg), onOk: openNext, opt: ["confirm:dw", "1"] });
+              }} />
+            <span>Confirm counts ✓</span>
+          </label>
+          <button type="button" className="wz-linkish" data-testid="check-dw-off" style={{ marginTop: 6 }}
+            onClick={() => { act({ action: "loop_dw", ok: false }); say("Adjust the − / + on the side cards above, then come back and tick Confirm counts."); }}>
+            Something&rsquo;s off — I&rsquo;ll adjust
+          </button>
+        </div>
+      ),
+    },
+    {
+      key: "sweep", label: "Anything missed", answered: m.done.sweep,
+      question: <>Last check — any sides or bits we&rsquo;ve missed?</>,
+      hint: "Sheds, side gates and the fence behind the house are the usual ones. Tick the box when there's nothing else.",
+      body: (
+        <div className="sd-checkwrap">
+          <div className="sd-chips" data-testid="sweep-chips">
+            {sides.sweepItems.map((it) => (
+              <Chip key={it.code} on={sel(`sw:${it.code}`, it.on)}
+                label={`${it.on ? "✓" : "+"} ${it.label} — ${fmt(it.priceCents)}`}
+                onClick={() => act({ action: "sweep_item", code: it.code, on: !it.on }, {
+                  describe: withDelta(it.on ? `${it.label} taken off` : `${it.label} added`),
+                  opt: [`sw:${it.code}`, it.on ? "0" : "1"],
+                })} />
+            ))}
+            <Chip on={false} label="+ Carport"
+              onClick={() => act({ action: "loop_sweep", add: "Carport" }, { done: "Thanks — we've added the carport, and we'll confirm it on the site visit." })} />
+            <Chip on={sweepOtherOpen} label="+ Something else" onClick={() => setSweepOtherOpen((v) => !v)} />
+          </div>
+          {sweepOtherOpen && (
+            <div className="sd-mrow" style={{ display: "flex", marginTop: 9 }}>
+              <input style={{ flex: 1, width: "auto", minWidth: 180 }}
+                placeholder="What else needs painting? Name it — e.g. bungalow, letterbox" maxLength={60}
+                value={sweepOtherText} onChange={(e) => setSweepOtherText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") addSweepOther(); }} />
+              <button onClick={addSweepOther}>Add</button>
+            </div>
+          )}
+          <label className="sd-checkrow" data-testid="check-sweep-row" style={{ marginTop: 10 }}>
+            <input type="checkbox" data-testid="check-sweep-ok" checked={sel("sweep:ok", m.done.sweep)} disabled={optimistic["confirm:sweep"] != null}
+              onChange={() => {
+                if (m.done.sweep) return;
+                flush();
+                if (m.sweepAns == null) act({ action: "loop_sweep", ans: "none" }, { opt: ["sweep:ok", "1"] });
+                act({ action: "confirm_loop_item", item: "sweep" }, { done: "Nothing missing ✓", onFail: (msg) => refuse("last", msg), onOk: openNext, opt: ["confirm:sweep", "1"] });
+              }} />
+            <span>Confirm — nothing missing ✓</span>
+          </label>
+        </div>
+      ),
+    },
+  ];
+
+
 
   /** Take one line off a side. The refusal that matters — the last wall —
    * comes back from the server and lands as an ordinary toast. */
@@ -906,12 +1044,18 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
           </div>
 
           <div className="sd-cards">
+            {/* Tom, 15 Sep (late, items 6–8, 11): condition & access are the FIRST
+                questions, one at a time, above the sides. The old "Which sides?"
+                card is gone — that is asked before the gate now (item 3), and a
+                side left off there is not on this screen at all (item 4). */}
             <Paginated
-              testid="sides-which"
-              title="Which sides?"
-              pill="FIRST"
-              steps={whichSteps}
-              settledText={`Painting the ${sides.sides.map((s) => shortSide(s.key)).join(", ").replace(/, ([^,]*)$/, " and $1")}.`}
+              testid="sides-q"
+              title="A few questions first"
+              pill="TIGHTENS YOUR RANGE"
+              steps={condSteps}
+              cardClass={`sd-card ${m.done.cond ? "done" : ""}`}
+              attrs={{ "data-side": "cond" }}
+              settledText={condSettled}
             />
             {sides.sides.map(sideCard)}
 
@@ -953,83 +1097,32 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
               </div>
             ), "Confirm extras ✓")}
 
-            {metaCard("cond", "Condition & access", (
-              <>
-                <div className={`sd-q ${m.cond.cond ? "ok" : ""}`}>
-                  <p className="sd-ql">How&rsquo;s the paintwork holding up overall? <span className="sd-req">REQUIRED</span><span className="sd-okc">✓</span></p>
+            {/* Tom, 15 Sep (late, items 9–10): the two last checks, one at a time,
+                each confirmed with a tick box — no "That's right", no "No — that's
+                everything". A missed side is added back from here (item 4). */}
+            <Paginated
+              testid="sides-last"
+              title="Last checks"
+              pill="NEARLY THERE"
+              steps={lastSteps}
+              cardClass={`sd-card ${m.done.dw && m.done.sweep ? "done" : ""}`}
+              attrs={{ "data-side": "last" }}
+              settledText="Counts confirmed, nothing missing."
+              after={missingSides.length > 0 ? (
+                // Tom, 15 Sep (late, item 4): a side left off before the gate is not on
+                // this screen — this is the one place it can come back from, whatever
+                // question is open.
+                <div className="sd-q" data-testid="missing-sides" style={{ marginTop: 10 }}>
+                  <p className="sd-help">Not on your estimate: {missingSides.map((k) => SIDE_FALLBACK[k].toLowerCase()).join(", ")}. Changed your mind?</p>
                   <div className="sd-chips">
-                    <Chip on={sel("cond:c", m.cond.cond === "good", "good")} label={"Good overall"} onClick={() => act({ action: "loop_cond", cond: "good" }, { describe: withDelta("Good to hear — noted"), opt: ["cond:c", "good"] })} />
-                    <Chip on={sel("cond:c", m.cond.cond === "weathered", "weathered")} label={"Weathered"} onClick={() => act({ action: "loop_cond", cond: "weathered" }, { describe: withDelta("Extra prep allowed for weathered paintwork"), opt: ["cond:c", "weathered"] })} />
-                    <Chip on={sel("cond:c", m.cond.cond === "peeling", "peeling")} label={"Peeling & flaking"} onClick={() => act({ action: "loop_cond", cond: "peeling" }, { describe: withDelta("Extra prep allowed for peeling paintwork — and a lead-safe check is part of our visit"), opt: ["cond:c", "peeling"] })} />
+                    {missingSides.map((k) => (
+                      <Chip key={k} on={false} label={`+ Add the ${SIDE_FALLBACK[k].toLowerCase()}`}
+                        onClick={() => act({ action: "side_include", side: k, include: true }, { done: `${SIDE_FALLBACK[k]} is back on — confirm its size above.`, onOk: openNext })} />
+                    ))}
                   </div>
                 </div>
-                <div className={`sd-q ${m.cond.rot ? "ok" : ""}`}>
-                  <p className="sd-ql">Any timber rot up on the fascias? <span className="sd-req">REQUIRED</span><span className="sd-okc">✓</span></p>
-                  <div className="sd-chips">
-                    <Chip on={sel("cond:r", m.cond.rot === "no", "no")} label={"No, looks solid"} onClick={() => act({ action: "loop_cond", rot: "no" }, { describe: withDelta("Noted — no rot allowance needed"), opt: ["cond:r", "no"] })} />
-                    <Chip on={sel("cond:r", m.cond.rot === "little", "little")} label={"A little"} onClick={() => act({ action: "loop_cond", rot: "little" }, { describe: withDelta("We've allowed for minor fascia prep"), opt: ["cond:r", "little"] })} />
-                    <Chip on={sel("cond:r", m.cond.rot === "lots", "lots")} label={"Quite a bit"} onClick={() => act({ action: "loop_cond", rot: "lots" }, { done: "Thanks for the honesty — rot repair needs eyes on it, so we'll confirm the roofline on the site visit.", opt: ["cond:r", "lots"] })} />
-                  </div>
-                </div>
-                <div className={`sd-q ${m.cond.acc ? "ok" : ""}`}>
-                  <p className="sd-ql">Anything tricky about access? <span className="sd-req">REQUIRED</span><span className="sd-okc">✓</span></p>
-                  <div className="sd-chips">
-                    <Chip on={sel("cond:a", m.cond.acc === "steep", "steep")} label={"Steep block"} onClick={() => act({ action: "loop_cond", acc: "steep" }, { describe: withDelta("Access allowance added"), opt: ["cond:a", "steep"] })} />
-                    <Chip on={sel("cond:a", m.cond.acc === "tight", "tight")} label={"Tight side access"} onClick={() => act({ action: "loop_cond", acc: "tight" }, { describe: withDelta("Access allowance added"), opt: ["cond:a", "tight"] })} />
-                    <Chip on={sel("cond:a", m.cond.acc === "none", "none")} label={"None of these ✓"} onClick={() => act({ action: "loop_cond", acc: "none" }, { describe: withDelta("No access allowance needed"), opt: ["cond:a", "none"] })} />
-                  </div>
-                </div>
-              </>
-            ), "Confirm condition & access ✓")}
-
-            {metaCard("dw", "Quick check — windows & doors", (
-              <div className={`sd-q ${m.dwOk === true ? "ok" : ""}`}>
-                <p className="sd-ql">
-                  Across the sides you&rsquo;re painting, we make it {sides.dw.windows} windows and {sides.dw.doors} doors — is that right?{" "}
-                  <span className="sd-req">REQUIRED</span><span className="sd-okc">✓</span>
-                </p>
-                <div className="sd-chips">
-                  <Chip on={sel("dw:ok", m.dwOk === true)} label={"That's right ✓"} onClick={() => act({ action: "loop_dw", ok: true }, { opt: ["dw:ok", "1"] })} />
-                  <Chip on={false} label={"Something's off — I'll adjust"} onClick={() => { act({ action: "loop_dw", ok: false }); say("Adjust the − / + on the side cards above, then tap “That's right”."); }} />
-                </div>
-                <p className="sd-help">Counts sit on each side above — use the − / + there, then come back.</p>
-              </div>
-            ), "Confirm counts ✓")}
-
-            {metaCard("sweep", "Last check — any sides we've missed?", (
-              <div className={`sd-q ${m.sweepAns ? "ok" : ""}`}>
-                <p className="sd-ql">Sheds, side gates and the fence behind the house are the usual missing ones. <span className="sd-req">REQUIRED</span><span className="sd-okc">✓</span></p>
-                <div className="sd-chips">
-                  {sides.sweepItems.map((it) => (
-                    <Chip key={it.code} on={sel(`sw:${it.code}`, it.on)}
-                      label={`${it.on ? "✓" : "+"} ${it.label} — ${fmt(it.priceCents)}`}
-                      onClick={() => act({ action: "sweep_item", code: it.code, on: !it.on }, {
-                        describe: withDelta(it.on ? `${it.label} taken off` : `${it.label} added`),
-                        opt: [`sw:${it.code}`, it.on ? "0" : "1"],
-                      })} />
-                  ))}
-                  <Chip on={false} label="+ Carport"
-                    onClick={() => act({ action: "loop_sweep", add: "Carport" }, {
-                      done: "Thanks — we've added the carport, and we'll confirm it on the site visit.",
-                    })} />
-                  {/* Tom, 31 Aug: "something else" opens a box to SAY what —
-                      a flag that just reads "Something else" tells the
-                      estimator nothing. */}
-                  <Chip on={sweepOtherOpen} label="+ Something else"
-                    onClick={() => setSweepOtherOpen((v) => !v)} />
-                  <Chip on={sel("sweep:none", m.sweepAns === "none")} label={"No — that's everything ✓"} onClick={() => act({ action: "loop_sweep", ans: "none" }, { opt: ["sweep:none", "1"] })} />
-                </div>
-                {sweepOtherOpen && (
-                  <div className="sd-mrow" style={{ display: "flex", marginTop: 9 }}>
-                    <input style={{ flex: 1, width: "auto", minWidth: 180 }}
-                      placeholder="What else needs painting? Name it — e.g. bungalow, letterbox" maxLength={60}
-                      value={sweepOtherText} onChange={(e) => setSweepOtherText(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") addSweepOther(); }} />
-                    <button onClick={addSweepOther}>Add</button>
-                  </div>
-                )}
-              </div>
-            ), "Confirm — nothing missing ✓")}
+              ) : undefined}
+            />
           </div>
         </div>
       </main>

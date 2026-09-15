@@ -6,9 +6,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { envelopeFor, openQuestions, dearestTree, assumedHeightTree, sizeResidualPct, sumEnvelopes } from "./envelope";
-import { defaultWizardState, type WizardState } from "./state";
+import { defaultExterior, defaultWizardState, type WizardState } from "./state";
 import { DEFAULT_BANDS } from "./policy";
-import type { PricingContext } from "@/lib/pricing/estimate";
+import { priceEstimateTotals, type PricingContext } from "@/lib/pricing/estimate";
 import type { TreeRefs } from "./build-tree";
 
 type Refs = TreeRefs & { rateItems: PricingContext["rateItems"] };
@@ -159,5 +159,46 @@ describe("the envelope", () => {
     const w = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: DEFAULT_BANDS, widenPct: 8, confirmed: null });
     expect(w.loCents).toBeLessThanOrEqual(e.loCents);
     expect(w.hiCents).toBeGreaterThanOrEqual(e.hiCents);
+  });
+});
+
+describe("Tom, 15 Sep (late): an outside job's condition spans the range until the tighten screen answers it", () => {
+  const side = (id: number, name: string) => ({
+    id, kind: "area", name, type: "Exterior", areaType: "surface", L: 12, H: 2.7, isOption: false,
+    origin: "ai_assumed", confidence: 0.4, assumedFields: ["L", "H"], surfaces: [surf(id * 10, "Weatherboards")],
+    customer: { include: true, size: null, confirmed: false },
+  });
+  const outside = (condition: "good" | "weathered" | "peeling" | null): WizardState => {
+    const s = defaultWizardState();
+    s.jobType = "exterior";
+    s.exterior = { ...defaultExterior(), targets: ["house"], substrates: ["weatherboards"], condition };
+    return s;
+  };
+  const priceOf = (blocks: unknown[], modSel: Record<string, string>) =>
+    priceEstimateTotals(blocks as Parameters<typeof priceEstimateTotals>[0], ctx, { ...adj, modSel }).totalCents;
+
+  it("unanswered: the dear end carries the Poor modifier, the cheap end does not, and 'condition' is the open question", () => {
+    const blocks = [side(1, "Front"), side(2, "Back")];
+    const env = envelopeFor({ blocks: blocks as never, state: outside(null), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
+    expect(env.open).toContain("condition");
+    const plain = priceOf(blocks, {});
+    const poor = priceOf(blocks, { Condition: "COND-POOR" });
+    expect(poor).toBeGreaterThan(plain);
+    expect(env.closesCents.condition).toBe(poor - plain);
+    const answered = envelopeFor({ blocks: blocks as never, state: outside("good"), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
+    expect(answered.open).not.toContain("condition");
+    expect(answered.hiCents).toBeLessThan(env.hiCents);
+    expect(answered.loCents).toBe(env.loCents);
+  });
+
+  it("an answer on the tighten screen closes it even when the state still says null (modSel wins)", () => {
+    const blocks = [side(1, "Front")];
+    const env = envelopeFor({ blocks: blocks as never, state: outside(null), ctx, adj: { ...adj, modSel: { Condition: "COND-POOR" } }, bands: DEFAULT_BANDS, confirmed: null });
+    expect(env.open).not.toContain("condition");
+  });
+
+  it("never opens on an inside job", () => {
+    const env = envelopeFor({ blocks: tree() as never, state: state(), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
+    expect(env.open).not.toContain("condition");
   });
 });

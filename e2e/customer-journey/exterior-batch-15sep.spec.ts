@@ -20,7 +20,7 @@ import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext } from "./drive
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-async function toEditor(page: Page, storeys: "single" | "double") {
+async function toEditor(page: Page, storeys: "single" | "double", dropSides: Array<"front" | "left" | "back" | "right"> = []) {
   await openQuickLook(page);
   await fillQuickAddress(page);
   await page.getByTestId("ql-jobtype-exterior").click();
@@ -32,8 +32,11 @@ async function toEditor(page: Page, storeys: "single" | "double") {
   await page.getByTestId("ql-ext-el-fascias").click();
   await page.getByTestId("ql-ext-mat-weatherboards").click();
   await page.getByTestId("ql-ext-colour-new").click();
-  await page.getByTestId("ql-ext-condition-good").click();
   await page.getByTestId(`ql-ext-storeys-${storeys}`).click();
+  await quickNext(page);
+  // Tom, 15 Sep (late, item 3): "Which sides?" is its own screen before the gate.
+  await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
+  for (const k of dropSides) await page.getByTestId(`ql-ext-side-${k}`).click();
   await quickNext(page);
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   await page.getByTestId("door-tighten").click();
@@ -44,33 +47,30 @@ async function toEditor(page: Page, storeys: "single" | "double") {
 
 const settled = (page: Page) => expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
 
-test("which sides? up top: untick removes the side outright, the rest confirm with no per-side question", async ({ page }) => {
+test("which sides? before the gate: an unticked side is not on the tighten screen at all; the rest open straight onto their size", async ({ page }) => {
   test.setTimeout(240_000);
-  const id = await toEditor(page, "single");
+  // Tom, 15 Sep (late, items 3–4): the sides are asked on their own screen
+  // just before the range; the right side is unticked there.
+  const id = await toEditor(page, "single", ["right"]);
 
-  const which = page.getByTestId("sides-which");
-  await expect(which).toBeVisible();
-  await expect(which).toContainText(/Which sides are we painting/);
-  for (const k of ["front", "left", "right", "back"]) {
-    await expect(page.getByTestId(`side-which-${k}`)).toHaveAttribute("aria-pressed", "true");
-  }
-  await expect(page.locator(".sd-prog")).toContainText("0 OF 8");
-
-  // Untick the right side: its card is gone, the loop counts seven.
-  await page.getByTestId("side-which-right").click();
-  await expect(page.locator(".sd-card", { hasText: "Right" })).toHaveCount(0, { timeout: 20_000 });
+  // No "Which sides?" card, no Right card, no "+ Right side" chip; the loop counts seven.
+  await expect(page.getByTestId("sides-which")).toHaveCount(0);
+  await expect(page.locator('[data-side="right"]')).toHaveCount(0);
   await expect(page.locator(".sd-prog")).toContainText("OF 7");
 
-  // "These are the sides" answers the question for the three that remain —
-  // and the cards open straight onto the size, no "Are we painting this side?".
-  await page.getByTestId("side-which-confirm").click();
-  await expect(page.getByTestId("sides-which-settled")).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByTestId("sides-which-settled")).toContainText(/front, left and back/i);
-  await settled(page);
-  const front = page.locator(".sd-card", { hasText: "Front" }).first();
+  // The first questions are condition & access, one at a time, above the sides.
+  const q = page.getByTestId("sides-q");
+  await expect(q).toBeVisible();
+  await expect(q.getByTestId("sides-q-step-cond")).toContainText(/holding up overall/);
+
+  // Each side left opens straight onto the size — no "Are we painting this side?".
+  const front = page.locator('[data-side="front"]');
   await front.locator(".sd-hd").click();
   await expect(front.getByRole("button", { name: "Yes", exact: true })).toHaveCount(0);
   await expect(front.getByPlaceholder("length m")).toBeVisible();
+
+  // The missed side comes back from the last check, if wanted.
+  await expect(page.getByTestId("sides-last")).toContainText(/windows and .* doors/);
 
   // No exclusion flag, no option area, no "side excluded" for the estimator.
   if (url && serviceKey) {
@@ -83,11 +83,57 @@ test("which sides? up top: untick removes the side outright, the rest confirm wi
   }
 });
 
+test("condition first: peeling asks which sides (with a photo box); rot asks where; the counts and the last check confirm with a tick", async ({ page }) => {
+  test.setTimeout(240_000);
+  await toEditor(page, "single");
+  const q = page.getByTestId("sides-q");
+  const settledQ = () => expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
+
+  // Q1 condition → peeling → Q2 which sides, with the photo box.
+  await q.getByRole("button", { name: /Peeling & flaking/ }).click();
+  await expect(q.getByTestId("sides-q-step-peeling")).toBeVisible({ timeout: 30_000 });
+  await expect(q.getByTestId("peeling-photo-label")).toBeVisible();
+  await q.getByTestId("peeling-sides").getByRole("button", { name: /\+ Front/ }).click();
+  await settledQ();
+  // Q3 rot → a little → Q4 where (the ticked substrates: weatherboards, fascias).
+  await expect(q.getByTestId("sides-q-step-rot")).toBeVisible({ timeout: 30_000 });
+  await expect(q.getByTestId("sides-q-step-rot")).toContainText(/Any timber rot anywhere/);
+  await q.getByRole("button", { name: "A little", exact: true }).click();
+  await expect(q.getByTestId("sides-q-step-rotWhere")).toBeVisible({ timeout: 30_000 });
+  await expect(q.getByTestId("rot-where")).toContainText(/Fascias/i);
+  await q.getByTestId("rot-where").getByRole("button", { name: /Fascia/i }).first().click();
+  await settledQ();
+  // Access was answered on the quick look ("nothing tricky" is the default), so
+  // the block settles here and the card behind it confirms itself.
+  await expect(q.getByTestId("sides-q-settled")).toBeVisible({ timeout: 30_000 });
+  await expect(q.getByTestId("sides-q-settled")).toContainText(/nothing tricky about access/);
+  await expect(q.getByTestId("sides-q-settled")).toContainText(/Peeling & flaking \(front\)/);
+  await expect(q).toHaveClass(/done/, { timeout: 30_000 });
+
+  // Last checks: a tick confirms the counts; a tick confirms nothing missing, with nothing else ticked.
+  const last = page.getByTestId("sides-last");
+  await expect(last.getByRole("button", { name: /That.s right/ })).toHaveCount(0);
+  await last.getByTestId("check-dw-ok").click();
+  await expect(last.getByTestId("sides-last-step-sweep")).toBeVisible({ timeout: 30_000 });
+  await expect(last.getByRole("button", { name: /that.s everything/ })).toHaveCount(0);
+  await last.getByTestId("check-sweep-ok").click();
+  await expect(last.getByTestId("sides-last-settled")).toBeVisible({ timeout: 30_000 });
+  await expect(last).toHaveClass(/done/, { timeout: 30_000 });
+
+  // The estimator's amber lines say where.
+  if (url && serviceKey) {
+    const id = new URL(page.url()).searchParams.get("id")!;
+    const db = createClient(url, serviceKey);
+    const { data: est } = await db.from("estimates").select("builder_state").eq("id", id).single();
+    const bs = est!.builder_state as { aiDeferred?: Array<{ what: string; needs: string }> };
+    expect(bs.aiDeferred?.find((d) => d.what === "peeling & flaking paint")?.needs).toMatch(/peeling on the front/);
+    expect(bs.aiDeferred?.find((d) => /rot/.test(d.what))?.needs).toMatch(/fascia/i);
+  }
+});
+
 test("a typed size mirrors onto the opposite side, pre-written and still to confirm; extras confirm empty", async ({ page }) => {
   test.setTimeout(240_000);
   await toEditor(page, "single");
-  await page.getByTestId("side-which-confirm").click();
-  await expect(page.getByTestId("sides-which-settled")).toBeVisible({ timeout: 30_000 });
   await settled(page);
 
   const front = page.locator('[data-side="front"]');

@@ -115,30 +115,32 @@ test("R2b sides loop: amber to cyan, walls must total 100%, a removed side leave
   await expect(left).toHaveClass(/done/, { timeout: 15_000 });
 
   // RIGHT: Tom, 15 Sep — a side taken off LEAVES the estimate (it used to
-  // stay as NOT PAINTING, an exclusion on the quote). The "Which sides?" card
-  // up top ticks it back on — rebuilt from its opposite, the left — and off again.
-  const right = page.locator(".sd-card", { hasText: "Right" }).first();
+  // stay as NOT PAINTING, an exclusion on the quote). 15 Sep (late): the
+  // "Which sides?" card is gone; "+ Add the right side" under the last checks
+  // brings it back — rebuilt from its opposite, the left — and off again.
+  // (data-side, not hasText: "is that right?" in the last checks matches "Right".)
+  const right = page.locator('[data-side="right"]');
   await right.locator(".sd-hd").click();
   await right.getByRole("button", { name: /No — remove this side/ }).click();
-  await expect(page.locator(".sd-card", { hasText: "Right" })).toHaveCount(0, { timeout: 20_000 });
+  await expect(right).toHaveCount(0, { timeout: 20_000 });
   await expect(page.locator(".sd-prog")).toContainText("OF 7");
-  await expect(page.getByTestId("side-which-right")).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByTestId("sides-which")).toHaveCount(0);
 
-  await page.getByTestId("side-which-right").click();
-  await expect(page.locator(".sd-card", { hasText: "Right" })).toHaveCount(1, { timeout: 20_000 });
+  await page.getByTestId("missing-sides").getByRole("button", { name: /Add the right side/ }).click();
+  await expect(right).toHaveCount(1, { timeout: 20_000 });
   await expect(page.locator(".sd-prog")).toContainText("OF 8");
-  const right2 = page.locator(".sd-card", { hasText: "Right" }).first();
-  await expect(right2.locator(".sd-pill")).toContainText(/CONFIRM THIS SIDE/);
+  await expect(right.locator(".sd-pill")).toContainText(/CONFIRM THIS SIDE/);
   // Left was typed at 14 × 2.6 — the rebuilt right mirrors it, pre-written and still orange.
-  await right2.locator(".sd-hd").click();
-  await expect(right2.getByTestId("side-assumed-right")).toContainText(/Same as the left/i);
-  await expect(right2.getByPlaceholder("length m")).toHaveValue("14");
-  await page.getByTestId("side-which-right").click();
-  await expect(page.locator(".sd-card", { hasText: "Right" })).toHaveCount(0, { timeout: 20_000 });
+  await right.locator(".sd-hd").click();
+  await expect(right.getByTestId("side-assumed-right")).toContainText(/Same as the left/i);
+  await expect(right.getByPlaceholder("length m")).toHaveValue("14");
+  await right.getByTestId("side-remove-right").click();
+  await expect(right).toHaveCount(0, { timeout: 20_000 });
   await expect(page.locator(".sd-prog")).toContainText("OF 7");
 
   // BACK: not-sure length is accepted — "we'll measure" widens the range.
-  const back = page.locator(".sd-card", { hasText: "Back" }).first();
+  // data-side, not hasText: the questions block has a "← Back" link.
+  const back = page.locator('[data-side="back"]');
   await back.locator(".sd-hd").click();
   await back.getByRole("button", { name: "Yes", exact: true }).click();
   // ⚑ No "Adjust it" any more — the boxes are there from the start (Tom,
@@ -156,27 +158,25 @@ test("R2b sides loop: amber to cyan, walls must total 100%, a removed side leave
   await extras.getByRole("button", { name: /\+ Deck/ }).click();
   await extras.getByRole("button", { name: /Confirm extras/i }).click();
 
-  const cond = page.locator(".sd-card", { hasText: "Condition & access" });
-  await cond.locator(".sd-hd").click();
-  await cond.getByRole("button", { name: /Good overall/ }).click();
+  // Tom, 15 Sep (late, items 6, 8, 11): condition & access are the paginated
+  // questions at the TOP; the card behind them confirms itself on the last answer.
+  // The old page set already answered the paintwork and access, so only the
+  // rot question is open here.
+  const cond = page.getByTestId("sides-q");
   await cond.getByRole("button", { name: /No, looks solid/ }).click();
-  await cond.getByRole("button", { name: /None of these/ }).click();
-  await cond.getByRole("button", { name: /Confirm condition/i }).click();
+  await expect(cond).toHaveClass(/done/, { timeout: 30_000 });
 
-  const dw = page.locator(".sd-card", { hasText: /windows & doors/i });
-  await dw.locator(".sd-hd").click();
-  await dw.getByRole("button", { name: /That's right/ }).click();
-  await dw.getByRole("button", { name: /Confirm counts/i }).click();
+  // Tom, 15 Sep (late, items 9–10): the last checks are paginated and confirm with a tick.
+  const last = page.getByTestId("sides-last");
+  await last.getByTestId("check-dw-ok").click();
 
-  // Tom, 31 Aug: "+ Something else" opens a box to SAY what — the typed name
-  // answers the sweep, so "No — that's everything" isn't needed on top.
-  const sweep = page.locator('[data-side="sweep"]');
-  await sweep.locator(".sd-hd").click();
-  await sweep.getByRole("button", { name: /\+ Something else/ }).click();
-  await sweep.getByPlaceholder(/What else needs painting/).fill("Bungalow");
-  await sweep.getByRole("button", { name: "Add", exact: true }).click();
+  // Tom, 31 Aug: "+ Something else" opens a box to SAY what.
+  await expect(last.getByTestId("sides-last-step-sweep")).toBeVisible({ timeout: 30_000 });
+  await last.getByRole("button", { name: /\+ Something else/ }).click();
+  await last.getByPlaceholder(/What else needs painting/).fill("Bungalow");
+  await last.getByRole("button", { name: "Add", exact: true }).click();
   await expect(page.locator(".sd-toast")).toContainText(/Bungalow/i, { timeout: 30_000 });
-  await sweep.getByRole("button", { name: /Confirm — nothing missing/i }).click();
+  await last.getByTestId("check-sweep-ok").click();
 
   // Everything blue: 7 of 7 (the right side left), the "you can go early" line is gone, range still a range.
   await expect(page.locator(".sd-prog")).toContainText("7 OF 7", { timeout: 45_000 }); // production queue drain
@@ -204,8 +204,18 @@ test("priced extras: condition/access, catalogue chips and sweep items move the 
 
   // Weathered = the ×1.8 condition modifier — the range moves UP, and the
   // toast names the delta. "Good overall" takes it back off.
-  const cond = page.locator(".sd-card", { hasText: "Condition & access" });
-  await cond.locator(".sd-hd").click();
+  // Tom, 15 Sep (late): the questions are paginated — one at a time, with a
+  // Back link to change an earlier answer.
+  // The old page set answered "Good overall" and access already, so the block
+  // opens on the rot question. Answering it settles the block; an earlier
+  // answer is changed from its chip on the settled line (the Back link only
+  // moves between OPEN questions).
+  const cond = page.getByTestId("sides-q");
+  await expect(cond.getByTestId("sides-q-step-rot")).toBeVisible({ timeout: 30_000 });
+  await cond.getByRole("button", { name: /No, looks solid/ }).click();
+  await expect(cond.getByTestId("sides-q-settled")).toBeVisible({ timeout: 30_000 });
+  await settled();
+  await cond.getByTestId("sides-q-change-cond").click();
   const beforeWeathered = await rangeMid();
   await cond.getByRole("button", { name: "Weathered", exact: true }).click();
   await expect(page.locator(".sd-toast")).toContainText(/weathered paintwork.*\+\$[\d,]+/i, { timeout: 30_000 });
@@ -215,18 +225,30 @@ test("priced extras: condition/access, catalogue chips and sweep items move the 
   await cond.getByRole("button", { name: /Good overall/ }).click();
   await settled();
   expect(await rangeMid()).toBeLessThan(afterWeathered);
+  await cond.getByTestId("sides-q-done").click();
 
-  // Minor rot and access price as allowance lines, both ways.
+  // Minor rot and access price as allowance lines, both ways. "A little" opens
+  // the where question; "Not sure" answers it.
   const beforeRot = await rangeMid();
+  await cond.getByTestId("sides-q-change-rot").click();
   await cond.getByRole("button", { name: "A little", exact: true }).click();
   await settled();
   expect(await rangeMid()).toBeGreaterThan(beforeRot);
+  await expect(cond.getByTestId("sides-q-step-rotWhere")).toBeVisible({ timeout: 30_000 });
+  await cond.getByTestId("rot-where").getByRole("button", { name: "Not sure", exact: true }).click();
+  // The reopened rot question stays on show with Done once its follow-up is answered.
+  await cond.getByTestId("sides-q-done").click();
+  await expect(cond.getByTestId("sides-q-settled")).toBeVisible({ timeout: 30_000 });
+  await cond.getByTestId("sides-q-change-rot").click();
   await cond.getByRole("button", { name: /No, looks solid/ }).click();
   await settled();
   expect(await rangeMid()).toBeLessThanOrEqual(beforeRot);
+  await cond.getByTestId("sides-q-done").click();
+  await cond.getByTestId("sides-q-change-acc").click();
   await cond.getByRole("button", { name: /Steep block/ }).click();
   await settled();
   expect(await rangeMid()).toBeGreaterThan(beforeRot);
+  await cond.getByTestId("sides-q-done").click();
 
   // The add-panel offers the priced catalogue; adding puts a steppable tile
   // on THIS side and moves the range.
@@ -254,8 +276,10 @@ test("priced extras: condition/access, catalogue chips and sweep items move the 
 
   // The sweep: Shed prices on (✓) and off again; Rear fence is gone;
   // Carport stays the amber visit flag.
-  const sweep = page.locator('[data-side="sweep"]');
-  await sweep.locator(".sd-hd").click();
+  // The sweep sits behind the counts tick in the last checks.
+  const sweep = page.getByTestId("sides-last");
+  await sweep.getByTestId("check-dw-ok").click();
+  await expect(sweep.getByTestId("sides-last-step-sweep")).toBeVisible({ timeout: 30_000 });
   await expect(sweep.getByRole("button", { name: /Rear fence/ })).toHaveCount(0);
   const shedChip = sweep.getByRole("button", { name: /Shed — \$[\d,]+/ });
   const beforeShed = await rangeMid();

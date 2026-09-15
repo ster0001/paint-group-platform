@@ -50,7 +50,7 @@ test.describe("R1.3 document model", () => {
   });
 
   test("the exterior path has no floorplan field anywhere", async ({ page }) => {
-    await openQuickLook(page);
+    await openQuickLook(page, { entry: "upload" }); // 15 Sep (late): the upload door answers to the URL now
     // v2 phase 2: the chip reads "Outside", and the answer reaches the state
     // immediately — the upload route branches on it, so a customer who picked
     // Outside must not be offered a floorplan field.

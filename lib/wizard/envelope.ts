@@ -41,7 +41,32 @@ import type { BandSettings } from "./policy";
  *    confirm_height never touches.
  */
 /** Tom, 14 Sep: "trims" is the three-coat case — an oil enamel under water-based paint — until the paint questions close it. */
-export type OpenQuestion = "doors" | "windows" | "height" | "trims";
+/** Tom, 15 Sep (late): "condition" — an outside job's paintwork, not asked before the gate; the cheap end is sound, the dear end peeling. */
+export type OpenQuestion = "doors" | "windows" | "height" | "trims" | "condition";
+
+const POOR_CONDITION_CODE = "COND-POOR";
+const WEATHERED_CONDITION_CODE = "EXT-WEATHERED";
+
+/**
+ * Is the outside's condition still open? Only while the customer has not
+ * said (quick look leaves it null) AND nothing has already picked a Condition
+ * modifier for the job — the tighten screen's answer writes `modSel.Condition`.
+ */
+export function conditionOpen(state: WizardState | null, blocks: LooseBlock[], adj: Adjustments, ctx: PricingContext): boolean {
+  if (!state || !state.exterior || (state.jobType !== "exterior" && state.jobType !== "both")) return false;
+  if (state.exterior.condition != null) return false;
+  if (adj.modSel?.Condition) return false;
+  if (!blocks.some((b) => b.kind === "area" && b.type === "Exterior")) return false;
+  return ctx.modifiers.some((m) => m.code === POOR_CONDITION_CODE || m.code === WEATHERED_CONDITION_CODE);
+}
+
+/** The dear end's adjustments: the worst condition modifier the card carries. */
+export function dearConditionAdj(adj: Adjustments, ctx: PricingContext): Adjustments {
+  const code = ctx.modifiers.some((m) => m.code === POOR_CONDITION_CODE) ? POOR_CONDITION_CODE
+    : ctx.modifiers.some((m) => m.code === WEATHERED_CONDITION_CODE) ? WEATHERED_CONDITION_CODE : null;
+  if (!code) return adj;
+  return { ...adj, modSel: { ...(adj.modSel ?? {}), Condition: code } };
+}
 
 export type Envelope = {
   loCents: number;
@@ -150,14 +175,20 @@ export function envelopeFor(input: {
   const rateCodes = new Set(input.ctx.rateItems.map((r) => r.code));
   const priced = input.blocks.filter((b) => b.kind === "area" && b.isOption !== true);
   const open = openQuestions(input.state, priced, rateCodes);
+  // Tom, 15 Sep (late): an outside job's condition is asked on the tighten
+  // screen, so the range spans it — sound paintwork at the cheap end, the
+  // Poor modifier (peeling & flaking) at the dear end.
+  const condOpen = conditionOpen(input.state, priced, input.adj, input.ctx);
+  if (condOpen) open.push("condition");
+  const dearAdj = condOpen ? dearConditionAdj(input.adj, input.ctx) : input.adj;
   // Tom, 14 Sep (evening): the cheap end prices unanswered ceilings at 2.4 m,
   // the dear end at 3 m — the range spans the honest spread of the answer.
   const cheapBase = assumedHeightTree(priced, open, CHEAP_HEIGHT_M);
   const base = assumedHeightTree(priced, open, DEAR_HEIGHT_M);
   const cheap = priceEstimateTotals(cheapBase as unknown as BlockInput[], input.ctx, input.adj).totalCents;
-  const dearBase = priceEstimateTotals(base as unknown as BlockInput[], input.ctx, input.adj).totalCents;
-  const dear = open.some((q) => q !== "height")
-    ? priceEstimateTotals(dearestTree(input.state, base, open, rateCodes) as unknown as BlockInput[], input.ctx, input.adj).totalCents
+  const dearBase = priceEstimateTotals(base as unknown as BlockInput[], input.ctx, dearAdj).totalCents;
+  const dear = open.some((q) => q !== "height" && q !== "condition")
+    ? priceEstimateTotals(dearestTree(input.state, base, open, rateCodes) as unknown as BlockInput[], input.ctx, dearAdj).totalCents
     : dearBase;
   // What each open question is worth: the dear tree without it (doors,
   // windows, trims), or the 3 m tree against the 2.4 m tree (height).
@@ -165,10 +196,14 @@ export function envelopeFor(input: {
   for (const q of open) {
     if (q === "height") {
       closesCents.height = Math.max(0, dearBase - cheap);
+    } else if (q === "condition") {
+      // The dear tree priced without the condition modifier.
+      const dearPlain = priceEstimateTotals(base as unknown as BlockInput[], input.ctx, input.adj).totalCents;
+      closesCents.condition = Math.max(0, dearBase - dearPlain);
     } else {
       const without = open.filter((x) => x !== q);
-      const dearWithout = without.some((x) => x !== "height")
-        ? priceEstimateTotals(dearestTree(input.state, base, without, rateCodes) as unknown as BlockInput[], input.ctx, input.adj).totalCents
+      const dearWithout = without.some((x) => x !== "height" && x !== "condition")
+        ? priceEstimateTotals(dearestTree(input.state, base, without, rateCodes) as unknown as BlockInput[], input.ctx, dearAdj).totalCents
         : dearBase;
       closesCents[q] = Math.max(0, dear - dearWithout);
     }

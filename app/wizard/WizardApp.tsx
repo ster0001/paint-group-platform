@@ -51,8 +51,7 @@ import {
 } from "@/lib/wizard/quick-look";
 import {
   applyExteriorQuickLook, exteriorQuickLookFromState, paintsSomething,
-  type ExteriorQuickLook as ExteriorQuickLookAnswers,
-} from "@/lib/wizard/exterior-quick-look";
+  type ExteriorQuickLook as ExteriorQuickLookAnswers, ALL_SIDES } from "@/lib/wizard/exterior-quick-look";
 import CustomerResult, { type CustomerOutcome } from "./CustomerResult";
 import { RESUME_KEY, RESTART_KEY, decodeResume, encodeResume, restartedSince, resumeLine, type ResumeRecord, type SafetyAnswered, pickResume } from "@/lib/wizard/resume";
 import Wordmark from "./Wordmark";
@@ -462,6 +461,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const quickActive = isCustomer && entry === "questions" && !quickDone;
   const lastPage = quickActive ? stepsFor(quick.jobType, quick.propertyKind, commercialPattern, commercialDoor, quick.scope).length : pageKeys.length;
   const pageKey: PageKey = pageKeys[Math.min(page, lastPage) - 1];
+  /** Tom, 15 Sep (late): the upload door shows only when the URL asks for it. */
+  const [uploadDoor, setUploadDoor] = useState(false);
+  useEffect(() => {
+    try { setUploadDoor(new URLSearchParams(window.location.search).get("entry") === "upload"); } catch { /* no window */ }
+  }, []);
   const chooseEntry = (e: EntryChoice) => {
     setQuickDone(true);
     setEntry(e);
@@ -1534,6 +1538,13 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       setError("Tick at least one thing we're painting — on the house, or standing on its own.");
       return;
     }
+    // Tom, 15 Sep (late): the sides screen comes next — it starts with all four
+    // ticked, and the answer (even "all four") marks the sides as asked.
+    if (quickStep === "outside" && outside.sides == null) setOutside({ sides: [...ALL_SIDES] });
+    if (quickStep === "sides" && outside.sides != null && outside.sides.length === 0) {
+      setError("Tick at least one side we're painting.");
+      return;
+    }
     if (page < quickSteps.length) {
       setPage(page + 1);
       window.scrollTo({ top: 0 });
@@ -1882,9 +1893,12 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                     {/* Tom, 15 Sep: "describe it" left screen 1 — the chat bubble is the describe door.
                         An INSIDE job uploads its floorplan on the place screen; only the outside
                         path still starts from photos or a listing here. */}
+                    {/* Tom, 15 Sep (late, item 1): "Upload photos or a listing" is gone from
+                        the outside tab. The old page set behind it is still reachable with
+                        `?entry=upload` on the URL — the specs that walk it use that door. */}
                     <div className="wz-otherways" data-testid="wz-entry">
-                      {state.jobType === "exterior" && <span>Or start another way:</span>}
-                      {state.jobType === "exterior" && (
+                      {state.jobType === "exterior" && uploadDoor && <span>Or start another way:</span>}
+                      {state.jobType === "exterior" && uploadDoor && (
                         <button type="button" className="wz-linkish" data-testid="entry-upload" onClick={() => chooseEntry("upload")}>
                           Upload photos or a listing
                         </button>

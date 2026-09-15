@@ -430,6 +430,10 @@ export const wizardStateShapeSchema = z.object({
      * or all four = the full exterior. Unlisted sides arrive in the confirm
      * loop already answered "not painting". */
     sides: z.array(z.enum(["front", "left", "right", "back"])).optional(),
+    /** Tom, 15 Sep (late): the quick look asks "Which sides?" on its own screen
+     * before the gate. True = the customer answered it, so the sides editor
+     * starts each side at "yes" instead of asking again. */
+    sidesAnswered: z.boolean().optional(),
     /** C8b: window type (the rate row) and whole-job counts from the exterior
      * quick look; null = not asked (older sessions, the page set). The sides
      * seed spreads the counts; the sides editor reconciles them (⚑50). */
@@ -520,8 +524,9 @@ export const wizardStateSchema = wizardStateShapeSchema.superRefine((s, ctx) => 
   if (s.jobType === "exterior") {
     if (!s.exterior) {
       ctx.addIssue({ code: "custom", path: ["exterior"], message: "The exterior questions first, please." });
-    } else if (s.exterior.condition == null) {
-      ctx.addIssue({ code: "custom", path: ["exterior", "condition"], message: "How's the paintwork holding up?" });
+    // Tom, 15 Sep (late): condition is no longer required to submit — the quick
+    // look leaves it null, the range prices it good-to-peeling and the tighten
+    // screen asks it first. (The old page set still gates it in pageBlocker.)
     } else if (s.exterior.targets.length === 0) {
       ctx.addIssue({ code: "custom", path: ["exterior", "targets"], message: "What are we painting? Tick at least one." });
     }

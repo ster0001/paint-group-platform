@@ -376,7 +376,15 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("side_remove_line"), side: z.enum(["front", "left", "right", "back"]), surfaceId: z.number().int().positive() }),
   z.object({ action: z.literal("side_remove_custom"), side: z.enum(["front", "left", "right", "back"]), index: z.number().int().min(0).max(40) }),
   z.object({ action: z.literal("confirm_side"), side: z.enum(["front", "left", "right", "back"]) }),
-  z.object({ action: z.literal("loop_cond"), cond: z.enum(["good", "weathered", "peeling"]).optional(), rot: z.enum(["no", "little", "lots"]).optional(), acc: z.enum(["steep", "tight", "high", "none"]).optional() }),
+  z.object({
+    action: z.literal("loop_cond"),
+    cond: z.enum(["good", "weathered", "peeling"]).optional(), rot: z.enum(["no", "little", "lots"]).optional(), acc: z.enum(["steep", "tight", "high", "none"]).optional(),
+    /** Tom, 15 Sep (late): which sides are peeling, and how many photos came with the answer. */
+    peelingSides: z.array(z.enum(["front", "left", "right", "back", "all", "unsure"])).max(6).optional(),
+    peelingPhotos: z.number().int().min(0).max(40).optional(),
+    /** Tom, 15 Sep (late): where the timber rot is — wizard substrate keys, or "unsure". */
+    rotWhere: z.array(z.string().min(1).max(30)).max(16).optional(),
+  }),
   z.object({ action: z.literal("loop_extras_none") }),
   z.object({ action: z.literal("loop_dw"), ok: z.boolean() }),
   z.object({ action: z.literal("loop_sweep"), ans: z.enum(["none"]).optional(), add: z.string().min(1).max(60).optional() }),
@@ -1239,7 +1247,31 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       // Tom, 15 Sep: any priced access answer seeds the work order's access
       // note for the builder ("Additional time has been allowed for access").
       if (act.acc === "steep" || act.acc === "tight") (state as Record<string, unknown>).accessNote = ACCESS_ALLOWED_NOTE;
-      sidesMeta = { ...sidesMeta, cond: { ...sidesMeta.cond, ...(act.cond ? { cond: act.cond } : {}), ...(act.rot ? { rot: act.rot } : {}), ...(act.acc ? { acc: act.acc } : {}) } };
+      sidesMeta = { ...sidesMeta, cond: {
+        ...sidesMeta.cond,
+        ...(act.cond ? { cond: act.cond, ...(act.cond !== "peeling" ? { peelingSides: null } : {}) } : {}),
+        ...(act.rot ? { rot: act.rot, ...(act.rot === "no" ? { rotWhere: null } : {}) } : {}),
+        ...(act.acc ? { acc: act.acc } : {}),
+        ...(act.peelingSides ? { peelingSides: act.peelingSides } : {}),
+        ...(act.peelingPhotos != null ? { peelingPhotos: (sidesMeta.cond.peelingPhotos ?? 0) + act.peelingPhotos } : {}),
+        ...(act.rotWhere ? { rotWhere: act.rotWhere } : {}),
+      } };
+      // Tom, 15 Sep (late): the where rides the amber line so the estimator
+      // reads "peeling on the front and left" / "rot on the fascias, windows",
+      // not just that there is some.
+      const sideWords = (keys: string[]) => keys.includes("all") ? "all sides" : keys.includes("unsure") ? "not sure which sides" : `the ${keys.join(", ")}`;
+      if (act.peelingSides) {
+        const d = deferred.find((x) => x.room === "Exterior" && x.what === "peeling & flaking paint");
+        const where = `peeling on ${sideWords(act.peelingSides)}`;
+        if (d) d.needs = `${where} — needs eyes on it; lead-safe check on the visit if pre-1970`;
+        else deferred.push({ room: "Exterior", areaId: null, what: "peeling & flaking paint", count: 1, needs: `${where} — needs eyes on it; lead-safe check on the visit if pre-1970` });
+      }
+      if (act.rotWhere) {
+        const d = deferred.find((x) => x.room === "Exterior" && (x.what === "fascia rot" || x.what === "minor fascia rot" || x.what === "timber rot"));
+        const where = act.rotWhere.includes("unsure") ? "not sure where" : `on the ${act.rotWhere.join(", ")}`;
+        if (d) d.needs = `timber rot ${where} — ${d.what === "minor fascia rot" ? "allow minor prep; confirm extent at review" : "rot repair needs eyes on it; confirm on the visit"}`;
+        else deferred.push({ room: "Exterior", areaId: null, what: "timber rot", count: 1, needs: `timber rot ${where} — confirm the extent at review` });
+      }
       // Parity STOP-item 1 (Tom's ruling, 20 Aug): weathered / minor rot /
       // access PRICE — the modifier and allowance rows live on the live card
       // (migrations 20260921–22). If a row is missing, each falls back to the
@@ -1343,6 +1375,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         // a real tick enough).
         act.item === "extras" ? false
         : act.item === "cond" ? m.cond.cond == null || m.cond.rot == null || m.cond.acc == null
+          // Tom, 15 Sep (late): peeling names its sides; rot names where.
+          || (m.cond.cond === "peeling" && !(m.cond.peelingSides?.length))
+          || (m.cond.rot !== "no" && !(m.cond.rotWhere?.length))
         : act.item === "dw" ? m.dwOk !== true
         : m.sweepAns == null;
       if (missing) {

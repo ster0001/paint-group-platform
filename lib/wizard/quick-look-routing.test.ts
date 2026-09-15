@@ -21,13 +21,13 @@ import type { CustomerPayload } from "@/lib/wizard/view";
 describe("9.3(b) · the promise is computed, never typed", () => {
   test("the count matches stepsFor on every branch", () => {
     expect(stepsFor("interior")).toHaveLength(5); // 14 Sep (evening): + confirm the rooms
-    expect(stepsFor("exterior")).toHaveLength(3);
+    expect(stepsFor("exterior")).toHaveLength(4); // 15 Sep (late): + which sides
     // C8: "both" gains the choice screen (`s-both`), which asks nothing about
     // the job — so the walk is six screens and the promise still says five.
-    expect(stepsFor("both")).toHaveLength(7);
+    expect(stepsFor("both")).toHaveLength(8);
     expect(stepCount("interior")).toBe("Five");
-    expect(stepCount("exterior")).toBe("Three");
-    expect(stepCount("both")).toBe("Six");
+    expect(stepCount("exterior")).toBe("Four");
+    expect(stepCount("both")).toBe("Seven");
     // C12: a commercial place — the segment screen, then the two pattern
     // screens for an inside job. C14: outside and both walk the BRIEF and the
     // booking, as does a brief segment; a hospital leaves from the areas screen.
@@ -45,7 +45,7 @@ describe("9.3(b) · the promise is computed, never typed", () => {
       const said = stepCount(jt);
       // The promise counts QUESTION screens: the "both" choice is a fork, not a question (C8).
       const real = stepsFor(jt).filter((step) => step !== "both").length;
-      const words = ["", "One", "Two", "Three", "Four", "Five", "Six"];
+      const words = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven"];
       expect(said).toBe(words[real]);
     }
   });
@@ -69,9 +69,9 @@ describe("9.3(a)+(c) · the four job-type × kind combinations", () => {
   test("home + inside walks the quick look to a range", () => {
     expect(route({ jobType: "interior", propertyKind: "house" })).toEqual({ handOffAt: null, to: "reveal" });
   });
-  test("home + outside walks it too — three screens, not four", () => {
+  test("home + outside walks it too — four screens, the sides last (15 Sep late)", () => {
     expect(route({ jobType: "exterior", propertyKind: "house" })).toEqual({ handOffAt: null, to: "reveal" });
-    expect(stepsFor("exterior")).toEqual(["start", "place", "outside"]);
+    expect(stepsFor("exterior")).toEqual(["start", "place", "outside", "sides"]);
   });
   test("C12: commercial + inside walks the segment screens to a range — never the page set", () => {
     expect(route({ jobType: "interior", propertyKind: "commercial" })).toEqual({ handOffAt: null, to: "reveal" });

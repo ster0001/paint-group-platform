@@ -190,10 +190,13 @@ test.describe("Tom's 7 Sep batch", () => {
      */
     await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 120_000 });
     await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 30_000 });
-    for (const side of ["Left side", "Right side", "Back"]) {
-      await expect(page.locator(".sd-card", { hasText: side })).toHaveCount(0);
+    // 15 Sep (late): by data-side — the last checks name the missing sides in
+    // words ("Not on your estimate: left side…"), which a text filter would match.
+    for (const side of ["left", "right", "back"]) {
+      await expect(page.locator(`[data-side="${side}"]`)).toHaveCount(0);
     }
-    await expect(page.locator(".sd-card", { hasText: "Front" }).first().locator(".sd-pill")).toHaveText(/CONFIRM THIS SIDE/);
+    await expect(page.getByTestId("missing-sides")).toContainText(/left side, right side, back/);
+    await expect(page.locator('[data-side="front"]').locator(".sd-pill")).toHaveText(/CONFIRM THIS SIDE/);
     await expect(page.locator(".sd-prog")).toContainText(/OF 5/);
     await expect(page.locator(".sc-r, .sd-range").first()).toHaveText(MONEY_RANGE, { timeout: 30_000 });
 

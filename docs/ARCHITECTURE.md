@@ -3430,3 +3430,23 @@ the lapsed source). One item per customer, the newest quote. Each quiet cycle is
 (`quiet-<anchor day>`, escalating to `cold-…`), so a dismissal never silences the next round.
 Automated campaign messages are deliberately not a touch. Migration `20270148` adds the partial
 index the read needs (`estimates (sent_at desc) where status = 'sent'`).
+
+### Exterior batch, 15 Sep 2026 (late): sides before the gate, condition on the tighten screen
+
+Tom's 11 items on the outside journey. The quick look's outside screen is now picture tiles
+(`app/wizard/ExteriorTiles.tsx`, the same `wz-pk` style as the door and window drawings) and no
+longer asks the paintwork's condition; a new **"Which sides?"** screen follows it, just before the
+range (`stepsFor` → `["start","place","outside","sides"]`), and the answer sets
+`exterior.sidesAnswered` so the sides editor starts every side at "yes". The range prices an
+unanswered outside condition **good-to-peeling**: `lib/wizard/envelope.ts` opens a `condition`
+question and prices the dear end with the Poor modifier (`COND-POOR`) until the tighten screen's
+answer writes `modSel.Condition`; the submit schema no longer requires it. On the tighten screen
+(`SidesEditor.tsx`) the old "Which sides?" and "Condition & access" cards are gone: condition,
+peeling sides (with `PeelingPhotos.tsx`, labelled "Peeling & flaking"), timber rot anywhere and
+where, and access are a `Paginated` block at the top that confirms the loop item itself on the last
+answer; the counts check and the last check are a second block at the bottom, each confirmed by a
+tick box. A side unticked before the gate is not on the screen at all; the last check offers
+"+ Add the …" to bring one back, and "Remove it" now shows on confirmed sides too. The sides-loop
+meta carries `peelingSides`, `peelingPhotos` and `rotWhere` (`loop_cond`), which reword the amber
+deferrals so the estimator reads where. The "Upload photos or a listing" door left screen 1; the
+page set behind it answers to `/estimate?entry=upload` (the specs use it).

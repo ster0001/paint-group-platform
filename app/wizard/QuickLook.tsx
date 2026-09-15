@@ -6,13 +6,14 @@ import {
   SCOPE_PRESETS, STOREYS, changingForScope, stepCount, toggleChanging, visibleChanging, type Choice, type QuickLook, type QuickLookStep, exclusionOptions, toggleExcluded,
 } from "@/lib/wizard/quick-look";
 import {
-  EXTERIOR_PROMISE, EXT_ACCESS, EXT_COLOURS, EXT_CONDITIONS, EXT_ELEMENTS, EXT_MATERIALS, EXT_STANDALONE, EXT_STOREYS, EXT_WINDOW_TYPES,
+  EXTERIOR_PROMISE, EXT_ACCESS, EXT_COLOURS, EXT_ELEMENTS, EXT_MATERIALS, EXT_SIDES, EXT_STANDALONE, EXT_STOREYS, EXT_WINDOW_TYPES, ALL_SIDES,
   toggleAccess, toggleIn, toggleMaterial,
   type ExteriorQuickLook,
 } from "@/lib/wizard/exterior-quick-look";
 import { AreasScreen, BookScreen, BriefScreen, JobScreen, SegmentScreen, WarehouseScreen, type BookContact } from "./CommercialScreens";
 import type { BriefAnswers, CommercialAnswers, Segment, SegmentBrief } from "@/lib/wizard/segments";
 import { starterRoomNames } from "@/lib/wizard/some-rooms";
+import { ExteriorPickTiles } from "./ExteriorTiles";
 import { WINDOW_DRAWINGS } from "@/app/estimate/scope/StyleTiles";
 
 /** C12: what the commercial screens need from WizardApp. */
@@ -104,7 +105,8 @@ export default function QuickLook({
   stepsTotal: number;
 }) {
   /** Tom, 14 Sep (evening): the "anything NOT being painted?" popup, open right after a preset is picked. */
-  const last = quick.jobType === "interior" ? step === "condition" || step === "com_job" : step === "outside";
+  // Tom, 15 Sep (late): an outside job ends on the sides screen, not the outside screen.
+  const last = quick.jobType === "interior" ? step === "condition" || step === "com_job" : step === "sides";
   // C16 (a): the amber tag under a field the assistant filled in. A tap on
   // the field, or Continue on this screen, confirms it and the tag goes.
   const tag = (field: string) => assumed.includes(field)
@@ -465,11 +467,11 @@ export default function QuickLook({
           <p className="wz-sub">{EXTERIOR_PROMISE}</p>
 
           <p className="wz-qhead" style={{ marginTop: 0 }}>On the house</p>
-          <MultiCards options={EXT_ELEMENTS} on={outside.elements} name="ext-el"
+          <ExteriorPickTiles options={EXT_ELEMENTS} on={outside.elements} name="ext-el"
             onPick={(v) => onOutside({ elements: toggleIn(outside.elements, v) })} />
 
           <p className="wz-qhead">Any other areas being painted? <span className="wz-opt">TICK ALL THAT APPLY</span></p>
-          <MultiCards options={EXT_STANDALONE} on={outside.standalone} name="ext-sep"
+          <ExteriorPickTiles options={EXT_STANDALONE} on={outside.standalone} name="ext-sep"
             onPick={(v) => onOutside({ standalone: toggleIn(outside.standalone, v) })} />
 
           {outside.elements.includes("body") && (
@@ -527,9 +529,8 @@ export default function QuickLook({
           <p className="wz-qhead">Colours</p>
           <Cards options={EXT_COLOURS} value={outside.colour} onPick={(colour) => onOutside({ colour })} name="ext-colour" />
 
-          <p className="wz-qhead">How&rsquo;s the paintwork holding up overall?</p>
-          <p className="wz-chint" style={{ marginTop: 0, marginBottom: 8 }}>General overall condition is fine at this stage, you can update specifics later on.</p>
-          <Cards options={EXT_CONDITIONS} value={outside.condition} onPick={(condition) => onOutside({ condition })} name="ext-condition" />
+          {/* Tom, 15 Sep (late, item 11): condition is NOT asked here. The range
+              prices it good-to-peeling; the tighten screen asks it first. */}
 
           <p className="wz-qhead">Single or double storey?</p>
           <Cards options={EXT_STOREYS} value={outside.storeys} onPick={(storeys) => onOutside({ storeys })} name="ext-storeys" />
@@ -558,6 +559,52 @@ export default function QuickLook({
           </div>
         </>
       )}
+
+      {/*
+        Tom, 15 Sep (late, item 3): WHICH SIDES — its own screen just before the
+        gate, the outside's rooms-confirm step. All four start ticked; a side
+        unticked here is not scaffolded at all (lib/wizard/exteriorAnswers.ts),
+        and the sides editor starts every side left at "yes".
+      */}
+      {step === "sides" && (() => {
+        const chosen = outside.sides ?? ALL_SIDES;
+        const all = ALL_SIDES.every((k) => chosen.includes(k));
+        const toggle = (k: (typeof ALL_SIDES)[number]) =>
+          onOutside({ sides: chosen.includes(k) ? chosen.filter((x) => x !== k) : [...chosen, k] });
+        return (
+          <>
+            <p className="wz-kick">Which sides</p>
+            <h1>Which sides are we painting?</h1>
+            <p className="wz-sub">Looking at the house from the street. Untick any side we&rsquo;re not painting — you size each one after the range.</p>
+            <div className="wz-pick sc-tiles wz-exttiles" data-testid="ql-ext-sides">
+              <button type="button" className={`wz-pk ${all ? "on" : ""}`} aria-pressed={all} data-testid="ql-ext-side-all"
+                onClick={() => onOutside({ sides: [...ALL_SIDES] })}>
+                <svg viewBox="0 0 60 64"><rect x="10" y="10" width="40" height="44" fill="#12161A" stroke="#2FB9CB" strokeWidth="4" /></svg>
+                <small>The full exterior</small><em className="wz-pksub">all four sides</em>
+              </button>
+              {EXT_SIDES.map((o) => {
+                const on = chosen.includes(o.value);
+                return (
+                  <button key={o.value} type="button" className={`wz-pk ${on ? "on" : ""}`} aria-pressed={on}
+                    data-testid={`ql-ext-side-${o.value}`} onClick={() => toggle(o.value)}>
+                    <svg viewBox="0 0 60 64">
+                      <rect x="10" y="10" width="40" height="44" fill="#12161A" stroke="#39424B" />
+                      {o.value === "front" && <line x1="10" y1="54" x2="50" y2="54" stroke="#2FB9CB" strokeWidth="4" />}
+                      {o.value === "back" && <line x1="10" y1="10" x2="50" y2="10" stroke="#2FB9CB" strokeWidth="4" />}
+                      {o.value === "left" && <line x1="10" y1="10" x2="10" y2="54" stroke="#2FB9CB" strokeWidth="4" />}
+                      {o.value === "right" && <line x1="50" y1="10" x2="50" y2="54" stroke="#2FB9CB" strokeWidth="4" />}
+                    </svg>
+                    <small>{o.label}</small>
+                    {o.hint && <em className="wz-pksub">{o.hint}</em>}
+                  </button>
+                );
+              })}
+            </div>
+            {chosen.length === 0 && <p className="wz-err" data-testid="ql-sides-none">Tick at least one side.</p>}
+            <p className="wz-chint" style={{ marginTop: 10 }}>A side you leave off won&rsquo;t be on your estimate at all. You can add it back later if you change your mind.</p>
+          </>
+        );
+      })()}
 
       {error && <div className="wz-err" data-testid="ql-error">{error}</div>}
 
@@ -615,28 +662,6 @@ function Multi<T extends string>({ options, on, onPick, name }: {
           data-testid={`ql-${name}-${o.value}`}
           onClick={() => onPick(o.value)}
         >{o.label}</button>
-      ))}
-    </div>
-  );
-}
-
-/** The same, as cards — for the ones that need their scope spelled out. */
-function MultiCards<T extends string>({ options, on, onPick, name }: {
-  options: Choice<T>[]; on: readonly T[]; onPick: (v: T) => void; name: string;
-}) {
-  return (
-    <div className="wz-cards" data-testid={`ql-${name}`}>
-      {options.map((o) => (
-        <button
-          key={o.value} type="button"
-          className={`wz-card ${on.includes(o.value) ? "on" : ""}`}
-          aria-pressed={on.includes(o.value)}
-          data-testid={`ql-${name}-${o.value}`}
-          onClick={() => onPick(o.value)}
-        >
-          <b>{o.label}</b>
-          {o.hint && <span>{o.hint}</span>}
-        </button>
       ))}
     </div>
   );
