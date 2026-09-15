@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { reportError } from "@/lib/monitoring/report";
+import { buildDuplicate, DUPLICATE_SELECT, type DuplicateSource } from "@/lib/estimate/duplicate";
 
 /**
  * Deleting an estimate.
@@ -105,4 +106,52 @@ export async function hideWaitingItemsAction(raw: unknown): Promise<HideResult> 
 
 export async function unhideWaitingItemsAction(raw: unknown): Promise<HideResult> {
   return setHidden(raw, "estimates_unhide_waiting");
+}
+
+/**
+ * Tom, 16 Sep: duplicate an estimate from the list.
+ *
+ * The copy is built by `lib/estimate/duplicate.ts` (a fresh draft, the
+ * address and title as "… (copy)", every photo reference gone, no share
+ * token) and inserted here under the STAFF USER'S OWN session, so RLS and the
+ * column grants that govern the builder's saves govern this too. The row
+ * exists the moment this returns — that is the "autosave": the builder opens
+ * it by id, and its first save mints the share token like any other draft.
+ *
+ * Photos: the original's `estimate_sources` rows and files are NOT touched
+ * and NOT linked to the copy. Nothing is deleted anywhere.
+ */
+export type DuplicateResult = { ok: true; id: string } | { ok: false; message: string };
+
+export async function duplicateEstimateAction(raw: unknown): Promise<DuplicateResult> {
+  const parsed = input.safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid request." };
+  const { estimateId } = parsed.data;
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "You don't have permission to duplicate estimates." };
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  if (profile?.role !== "staff") return { ok: false, message: "You don't have permission to duplicate estimates." };
+
+  const { data: src, error: readError } = await supabase
+    .from("estimates")
+    .select(DUPLICATE_SELECT)
+    .eq("id", estimateId)
+    .maybeSingle();
+  if (readError) {
+    reportError(readError, { where: "estimates.duplicate.read", extra: { estimateId } });
+    return { ok: false, message: readError.message };
+  }
+  if (!src) return { ok: false, message: "That estimate no longer exists." };
+
+  const payload = buildDuplicate(src as unknown as DuplicateSource, { createdBy: user.id });
+  const { data: made, error } = await supabase.from("estimates").insert(payload).select("id").single();
+  if (error || !made) {
+    if (error) reportError(error, { where: "estimates.duplicate.insert", extra: { estimateId } });
+    return { ok: false, message: error?.message ?? "The copy couldn't be saved." };
+  }
+
+  revalidatePath("/estimates");
+  return { ok: true, id: made.id as string };
 }
