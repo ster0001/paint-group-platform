@@ -69,8 +69,9 @@ test("which sides? before the gate: an unticked side is not on the tighten scree
   await expect(front.getByRole("button", { name: "Yes", exact: true })).toHaveCount(0);
   await expect(front.getByPlaceholder("length m")).toBeVisible();
 
-  // The missed side comes back from the last check, if wanted.
-  await expect(page.getByTestId("sides-last")).toContainText(/windows and .* doors/);
+  // No way back for the unticked side; a confirmed side still has its ×.
+  await expect(page.getByRole("button", { name: /Add the right side/ })).toHaveCount(0);
+  await expect(page.getByTestId("side-delete-front")).toBeVisible();
 
   // No exclusion flag, no option area, no "side excluded" for the estimator.
   if (url && serviceKey) {
